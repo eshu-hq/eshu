@@ -31,6 +31,23 @@ JOIN shared_projection_intents AS intent
  AND intent.generation_id = acceptance.generation_id
  AND intent.projection_domain = 'code_calls'
  AND intent.completed_at IS NOT NULL
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM shared_projection_intents AS pending_intent
+    WHERE pending_intent.scope_id = acceptance.scope_id
+      AND pending_intent.acceptance_unit_id = acceptance.acceptance_unit_id
+      AND pending_intent.source_run_id = acceptance.source_run_id
+      AND pending_intent.generation_id = acceptance.generation_id
+      AND pending_intent.projection_domain = 'code_calls'
+      AND pending_intent.completed_at IS NULL
+)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM scope_generations AS newer_generation
+    WHERE newer_generation.scope_id = acceptance.scope_id
+      AND newer_generation.ingested_at > generation.ingested_at
+      AND newer_generation.status <> 'superseded'
+)
 GROUP BY acceptance.scope_id, acceptance.acceptance_unit_id,
          acceptance.source_run_id, acceptance.generation_id
 ORDER BY completed_at ASC, repository_id ASC
@@ -153,7 +170,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramInput(
 	if err != nil {
 		return reducer.ValueFlowProgramInput{}, err
 	}
-	summaries, err := s.loadValueFlowProgramSummaries(ctx, repos)
+	summaries, err := s.loadValueFlowProgramSummaries(ctx, candidate.generationID, repos)
 	if err != nil {
 		return reducer.ValueFlowProgramInput{}, err
 	}
@@ -218,12 +235,13 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramCallEdges(
 
 func (s ValueFlowProgramInputStore) loadValueFlowProgramSummaries(
 	ctx context.Context,
+	generationID string,
 	repos map[string]struct{},
 ) (map[summary.FunctionID]summary.Effects, error) {
 	out := make(map[summary.FunctionID]summary.Effects)
 	store := NewFunctionSummaryStore(s.db)
 	for _, repo := range sortedValueFlowProgramRepos(repos) {
-		snap, err := store.LoadRepoSnapshot(ctx, repo)
+		snap, err := store.LoadRepoGenerationSnapshot(ctx, repo, generationID)
 		if err != nil {
 			return nil, err
 		}

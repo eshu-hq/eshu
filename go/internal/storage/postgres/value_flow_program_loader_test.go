@@ -19,6 +19,9 @@ func TestValueFlowProgramInputLoaderSQLUsesActiveCompletedCodeCallsAndFunctionMe
 		"scope.active_generation_id = acceptance.generation_id",
 		"intent.projection_domain = 'code_calls'",
 		"intent.completed_at IS NOT NULL",
+		"NOT EXISTS",
+		"pending_intent.completed_at IS NULL",
+		"newer_generation.ingested_at > generation.ingested_at",
 		"LEFT JOIN content_entities AS caller",
 		"LEFT JOIN content_entities AS callee",
 		"caller.metadata->>'package_import_path'",
@@ -27,6 +30,24 @@ func TestValueFlowProgramInputLoaderSQLUsesActiveCompletedCodeCallsAndFunctionMe
 		if !strings.Contains(listValueFlowProgramCallEdgesSQL, want) &&
 			!strings.Contains(listPendingValueFlowProgramInputsSQL, want) {
 			t.Fatalf("value-flow program loader SQL missing %q", want)
+		}
+	}
+}
+
+func TestValueFlowProgramInputLoaderSQLWaitsForEveryCodeCallIntent(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"NOT EXISTS",
+		"pending_intent.scope_id = acceptance.scope_id",
+		"pending_intent.acceptance_unit_id = acceptance.acceptance_unit_id",
+		"pending_intent.source_run_id = acceptance.source_run_id",
+		"pending_intent.generation_id = acceptance.generation_id",
+		"pending_intent.projection_domain = 'code_calls'",
+		"pending_intent.completed_at IS NULL",
+	} {
+		if !strings.Contains(listPendingValueFlowProgramInputsSQL, want) {
+			t.Fatalf("pending value-flow input SQL missing %q:\n%s", want, listPendingValueFlowProgramInputsSQL)
 		}
 	}
 }
@@ -82,6 +103,9 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 	if stats.ProgramEdgeCount != 1 || stats.SinkCount != 1 {
 		t.Fatalf("program=%#v stats=%#v, want one edge and one sink", program, stats)
 	}
+	if got, want := db.summaryLoads[0].generationID, "generation-1"; got != want {
+		t.Fatalf("summary generation load = %q, want %q", got, want)
+	}
 }
 
 func TestValueFlowProgramInputLoaderCountsMissingFunctionIdentity(t *testing.T) {
@@ -113,9 +137,15 @@ func TestValueFlowProgramInputLoaderCountsMissingFunctionIdentity(t *testing.T) 
 }
 
 type valueFlowProgramLoaderDB struct {
-	candidates [][]any
-	edges      [][]any
-	summaries  map[string][]summary.SnapshotFunction
+	candidates   [][]any
+	edges        [][]any
+	summaries    map[string][]summary.SnapshotFunction
+	summaryLoads []valueFlowProgramSummaryLoad
+}
+
+type valueFlowProgramSummaryLoad struct {
+	repo         string
+	generationID string
 }
 
 func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
@@ -124,8 +154,13 @@ func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string
 		return &valueFlowProgramRows{data: db.candidates, idx: -1}, nil
 	case strings.Contains(query, "LEFT JOIN content_entities AS caller"):
 		return &valueFlowProgramRows{data: db.edges, idx: -1}, nil
-	case strings.Contains(query, "FROM function_summaries") && len(args) == 1:
+	case strings.Contains(query, "FROM function_summary_generations") && len(args) == 2:
 		repo, _ := args[0].(string)
+		generationID, _ := args[1].(string)
+		db.summaryLoads = append(db.summaryLoads, valueFlowProgramSummaryLoad{
+			repo:         repo,
+			generationID: generationID,
+		})
 		functions := db.summaries[repo]
 		rows := make([][]any, 0, len(functions))
 		for _, fn := range functions {

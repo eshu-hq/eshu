@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	functionSummaryBatchSize = 500
-	functionSummaryColumns   = 6
+	functionSummaryBatchSize         = 500
+	functionSummaryColumns           = 6
+	functionSummaryGenerationColumns = 7
 )
 
 const functionSummarySchemaSQL = `
@@ -30,6 +31,23 @@ CREATE INDEX IF NOT EXISTS function_summaries_repo_idx
 
 CREATE INDEX IF NOT EXISTS function_summaries_updated_idx
     ON function_summaries (updated_at DESC, function_id);
+
+CREATE TABLE IF NOT EXISTS function_summary_generations (
+    generation_id TEXT NOT NULL,
+    function_id TEXT NOT NULL,
+    effects JSONB NOT NULL,
+    version TEXT NOT NULL,
+    structural_hash TEXT NOT NULL,
+    repo TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (generation_id, function_id)
+);
+
+CREATE INDEX IF NOT EXISTS function_summary_generations_repo_generation_idx
+    ON function_summary_generations (repo, generation_id, function_id);
+
+CREATE INDEX IF NOT EXISTS function_summary_generations_updated_idx
+    ON function_summary_generations (updated_at DESC, generation_id, function_id);
 `
 
 const upsertFunctionSummaryBatchPrefix = `
@@ -63,6 +81,35 @@ SELECT function_id, effects, version
 FROM function_summaries
 WHERE repo = $1
 ORDER BY function_id ASC
+`
+
+const loadRepoGenerationFunctionSummariesSQL = `
+SELECT function_id, effects, version
+FROM function_summary_generations
+WHERE repo = $1
+  AND generation_id = $2
+ORDER BY function_id ASC
+`
+
+const upsertFunctionSummaryGenerationBatchPrefix = `
+INSERT INTO function_summary_generations (
+    generation_id,
+    function_id,
+    effects,
+    version,
+    structural_hash,
+    repo,
+    updated_at
+) VALUES `
+
+const upsertFunctionSummaryGenerationBatchSuffix = `
+ON CONFLICT (generation_id, function_id) DO UPDATE
+SET effects = EXCLUDED.effects,
+    version = EXCLUDED.version,
+    structural_hash = EXCLUDED.structural_hash,
+    repo = EXCLUDED.repo,
+    updated_at = EXCLUDED.updated_at
+WHERE function_summary_generations.updated_at <= EXCLUDED.updated_at
 `
 
 // FunctionSummarySchemaSQL returns the DDL for durable value-flow function
@@ -121,6 +168,40 @@ func (s FunctionSummaryStore) UpsertSnapshot(ctx context.Context, snap summary.S
 	return nil
 }
 
+// UpsertGenerationSnapshot persists a generation-scoped summary snapshot. This
+// immutable read path lets downstream assembly load summaries for the same
+// generation as completed code-call intents instead of the mutable latest cache.
+func (s FunctionSummaryStore) UpsertGenerationSnapshot(
+	ctx context.Context,
+	generationID string,
+	snap summary.Snapshot,
+	updatedAt time.Time,
+) error {
+	if s.db == nil {
+		return fmt.Errorf("function summary store database is required")
+	}
+	if strings.TrimSpace(generationID) == "" {
+		return fmt.Errorf("function summary generation id is required")
+	}
+	if updatedAt.IsZero() {
+		return fmt.Errorf("function summary snapshot updated_at is required")
+	}
+	functions := snap.Functions
+	if len(functions) == 0 {
+		return nil
+	}
+	for i := 0; i < len(functions); i += functionSummaryBatchSize {
+		end := i + functionSummaryBatchSize
+		if end > len(functions) {
+			end = len(functions)
+		}
+		if err := s.upsertGenerationBatch(ctx, generationID, functions[i:end], updatedAt.UTC()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // LoadSnapshot reloads all persisted summaries in deterministic function_id
 // order so summary.Load can rebuild the exact in-memory Store state.
 func (s FunctionSummaryStore) LoadSnapshot(ctx context.Context) (summary.Snapshot, error) {
@@ -136,6 +217,23 @@ func (s FunctionSummaryStore) LoadRepoSnapshot(ctx context.Context, repo string)
 		return summary.Snapshot{}, fmt.Errorf("function summary repo is required")
 	}
 	return s.loadSnapshot(ctx, loadRepoFunctionSummariesSQL, repo)
+}
+
+// LoadRepoGenerationSnapshot reloads one repository's summary rows for a single
+// scope generation. Value-flow Program assembly must use this generation-scoped
+// view so code-call intents and summaries come from the same observation.
+func (s FunctionSummaryStore) LoadRepoGenerationSnapshot(
+	ctx context.Context,
+	repo string,
+	generationID string,
+) (summary.Snapshot, error) {
+	if strings.TrimSpace(repo) == "" {
+		return summary.Snapshot{}, fmt.Errorf("function summary repo is required")
+	}
+	if strings.TrimSpace(generationID) == "" {
+		return summary.Snapshot{}, fmt.Errorf("function summary generation id is required")
+	}
+	return s.loadSnapshot(ctx, loadRepoGenerationFunctionSummariesSQL, repo, generationID)
 }
 
 func (s FunctionSummaryStore) loadSnapshot(ctx context.Context, query string, args ...any) (summary.Snapshot, error) {
@@ -198,6 +296,54 @@ func (s FunctionSummaryStore) upsertBatch(ctx context.Context, functions []summa
 	query := upsertFunctionSummaryBatchPrefix + strings.Join(values, ", ") + upsertFunctionSummaryBatchSuffix
 	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert function summaries: %w", err)
+	}
+	return nil
+}
+
+func (s FunctionSummaryStore) upsertGenerationBatch(
+	ctx context.Context,
+	generationID string,
+	functions []summary.SnapshotFunction,
+	updatedAt time.Time,
+) error {
+	values := make([]string, 0, len(functions))
+	args := make([]any, 0, len(functions)*functionSummaryGenerationColumns)
+	for _, fn := range functions {
+		if strings.TrimSpace(string(fn.ID)) == "" {
+			return fmt.Errorf("function summary id is required")
+		}
+		if strings.TrimSpace(fn.Version) == "" {
+			return fmt.Errorf("function summary version is required for %q", fn.ID)
+		}
+		repo, err := functionSummaryRepo(fn.ID)
+		if err != nil {
+			return err
+		}
+		effects, err := json.Marshal(fn.Effects)
+		if err != nil {
+			return fmt.Errorf("marshal function summary effects: %w", err)
+		}
+		base := len(args)
+		placeholders := make([]string, 0, functionSummaryGenerationColumns)
+		for i := 1; i <= functionSummaryGenerationColumns; i++ {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", base+i))
+		}
+		values = append(values, "("+strings.Join(placeholders, ", ")+")")
+		args = append(args,
+			generationID,
+			string(fn.ID),
+			effects,
+			fn.Version,
+			summary.StructuralHash(fn.Effects),
+			repo,
+			updatedAt,
+		)
+	}
+	query := upsertFunctionSummaryGenerationBatchPrefix +
+		strings.Join(values, ", ") +
+		upsertFunctionSummaryGenerationBatchSuffix
+	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("upsert function generation summaries: %w", err)
 	}
 	return nil
 }

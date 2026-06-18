@@ -286,7 +286,7 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	if len(summaries) > 0 {
 		stageStart = time.Now()
-		stats, err := upsertFunctionSummariesForGeneration(ctx, tx, summaries, s.now())
+		stats, err := upsertFunctionSummariesForGeneration(ctx, tx, generation.GenerationID, summaries, s.now())
 		if err != nil {
 			return err
 		}
