@@ -93,6 +93,32 @@ flowchart TB
 8. `service.Run(ctx)` — blocks until the context is canceled; hosted
    runtime drains in-flight work before returning.
 
+## Default handler wiring evidence
+
+No-Regression Evidence: #2983 splits `reducer.DefaultHandlers` into embedded
+adapter groups and moves those group definitions into
+`internal/reducer/defaults_handlers.go`; it does not add a reducer domain,
+queue claim path, graph writer, worker, lease, runtime flag, batch setting, or
+Cypher statement. Baseline and after shape are the same production wiring from
+`buildReducerService`: one `DefaultHandlers` value is passed to
+`reducer.NewDefaultRuntime`, and the promoted embedded fields still feed the
+same registry checks and handler constructors. Backend/version: local Go tests
+with no live graph or Postgres backend because the changed path is struct
+wiring only. Input shape: the production reducer default handler literal plus
+the existing focused default-wiring tests for Kubernetes, incident routing,
+secrets/IAM, code evidence, and function-summary materialization. Terminal
+queue or row counts: unchanged and not exercised, because the refactor creates
+no queue rows and changes no store or graph write path. Verification:
+`go test ./internal/reducer ./cmd/reducer -count=1`.
+
+No-Observability-Change: #2983 adds no metric instrument, metric label, span
+name, structured log field, status field, route, runtime knob, worker, lease,
+queue domain, graph write route, or Cypher. Operators continue to diagnose
+reducer startup and execution through the existing hosted runtime
+`/healthz`, `/readyz`, `/metrics`, `/admin/status`, reducer execution
+spans/counters, graph/Postgres instrumentation, and the existing handler-specific
+completion logs listed in `internal/reducer`.
+
 ## Configuration reference
 
 All env vars parsed in `config.go` and `neo4j_wiring.go`.
