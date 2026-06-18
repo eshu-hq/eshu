@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 // Parse extracts Kotlin declarations, imports, variables, calls, and
 // receiver-type metadata from one source file.
-func Parse(repoRoot string, path string, isDependency bool, options shared.Options) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+func Parse(repoRoot, path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
+	source, syntax, err := kotlinSourceAndSyntax(path, parser)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +36,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 	seenVariables := make(map[string]struct{})
 	localVariableTypes := make(map[string]map[string]string)
 	localVariableCallKinds := make(map[string]map[string]string)
-	classPropertyTypes := make(map[string]map[string]string)
+	classPropertyTypes := syntax.classPropertyTypes()
 	functionReturnTypes := make(map[string]string, len(siblingFunctionReturnTypes))
 	for key, returnType := range siblingFunctionReturnTypes {
 		functionReturnTypes[key] = returnType
@@ -210,6 +211,7 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 				if options.IndexSource {
 					item["source"] = rawLine
 				}
+				syntax.applyFunctionMetadata(item, name, lineNumber)
 				shared.AppendBucket(payload, "functions", item)
 				if receiverType, functionName, returnType := kotlinFunctionDeclarationReturnType(trimmed); functionName != "" && returnType != "" {
 					key := functionName
@@ -253,7 +255,9 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 			annotationsConsumed = true
 			name := matches[1]
 			functionContext := currentScopedName(stack, "function")
+			functionContext = syntax.functionNameAtLineOr(functionContext, lineNumber)
 			typeContext := kotlinCurrentTypeScopeName(stack)
+			typeContext = syntax.typeNameAtLineOr(typeContext, lineNumber)
 			effectiveVariableTypes := localVariableTypes[functionContext]
 			if functionContext != "" {
 				effectiveVariableTypes = kotlinMergeVariableTypes(
@@ -323,7 +327,9 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 		}
 
 		functionContext := currentScopedName(stack, "function")
+		functionContext = syntax.functionNameAtLineOr(functionContext, lineNumber)
 		currentTypeContext := kotlinCurrentTypeScopeName(stack)
+		currentTypeContext = syntax.typeNameAtLineOr(currentTypeContext, lineNumber)
 		effectiveVariableTypes := localVariableTypes[functionContext]
 		if functionContext != "" {
 			effectiveVariableTypes = kotlinMergeVariableTypes(

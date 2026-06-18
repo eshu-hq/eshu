@@ -63,7 +63,9 @@ reference doc; emits no metrics, spans, or logs from any running service.
 
 ## Maintaining the registry
 
-1. Add or change an `Entry` in `entries.go`.
+1. Add or change an `Entry` in `entries.go`. If the variable lives in a new
+   split config file, add that file to `coreScanFiles` so the coverage test
+   protects it.
 2. Regenerate the reference doc:
    `ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate`.
 3. Run `go test ./internal/envregistry -count=1`. If you added a variable read

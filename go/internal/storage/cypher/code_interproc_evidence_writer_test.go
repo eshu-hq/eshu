@@ -127,3 +127,85 @@ func TestCodeInterprocEvidenceWriterEmptyRetractIsNoOp(t *testing.T) {
 		t.Fatalf("len(calls) = %d, want 0 for empty scopes", len(executor.calls))
 	}
 }
+
+// TestCodeInterprocEvidenceWriterRetractStaleGeneration proves side cleanup
+// deletes only stale generations for one scope/source pair and keeps the
+// mutation bounded so a runner can call it repeatedly until no stale edges
+// remain.
+func TestCodeInterprocEvidenceWriterRetractStaleGeneration(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	if err := writer.RetractStaleCodeInterprocEvidence(context.Background(), "scope-1", "gen-current", "reducer/code-interproc", 123); err != nil {
+		t.Fatalf("RetractStaleCodeInterprocEvidence returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function)",
+		"rel.scope_id = $scope_id",
+		"rel.evidence_source = $evidence_source",
+		"rel.generation_id <> $generation_id",
+		"WITH rel LIMIT $limit",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("stale retract cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	for _, forbidden := range []string{"rel.scope_id IN $scope_ids", "DETACH DELETE"} {
+		if strings.Contains(cypher, forbidden) {
+			t.Fatalf("stale retract cypher contains unsafe pattern %q:\n%s", forbidden, cypher)
+		}
+	}
+	if got := executor.calls[0].Parameters["scope_id"]; got != "scope-1" {
+		t.Fatalf("scope_id param = %v, want scope-1", got)
+	}
+	if got := executor.calls[0].Parameters["generation_id"]; got != "gen-current" {
+		t.Fatalf("generation_id param = %v, want gen-current", got)
+	}
+	if got := executor.calls[0].Parameters["evidence_source"]; got != "reducer/code-interproc" {
+		t.Fatalf("evidence_source param = %v, want reducer/code-interproc", got)
+	}
+	if got := executor.calls[0].Parameters["limit"]; got != 123 {
+		t.Fatalf("limit param = %v, want 123", got)
+	}
+}
+
+// TestCodeInterprocEvidenceWriterRetractStaleGenerationRejectsBlankInputs
+// proves the side-cleanup primitive fails closed instead of broadening the
+// deletion predicate when the runner lacks the current scope, generation, or
+// source.
+func TestCodeInterprocEvidenceWriterRetractStaleGenerationRejectsBlankInputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		scopeID        string
+		generationID   string
+		evidenceSource string
+		wantErr        string
+	}{
+		{name: "scope", scopeID: "", generationID: "gen-current", evidenceSource: "reducer/code-interproc", wantErr: "scope_id must not be blank"},
+		{name: "generation", scopeID: "scope-1", generationID: "", evidenceSource: "reducer/code-interproc", wantErr: "generation_id must not be blank"},
+		{name: "source", scopeID: "scope-1", generationID: "gen-current", evidenceSource: "", wantErr: "evidence_source must not be blank"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			executor := &recordingExecutor{}
+			writer := NewCodeInterprocEvidenceWriter(executor, 0)
+			err := writer.RetractStaleCodeInterprocEvidence(context.Background(), tt.scopeID, tt.generationID, tt.evidenceSource, 123)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+			}
+			if len(executor.calls) != 0 {
+				t.Fatalf("len(calls) = %d, want 0 after validation failure", len(executor.calls))
+			}
+		})
+	}
+}

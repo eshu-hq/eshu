@@ -364,16 +364,19 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, bool, error) {
 	config := s.scipConfig()
 	if !config.Enabled {
+		s.recordSCIPSnapshotAttempt(ctx, scipSnapshotLanguageUnknown, scipSnapshotResultDisabled)
 		return nil, nil, nil, false, nil
 	}
 
 	language := parser.DetectSCIPProjectLanguage(fileSet.Files, config.Languages)
 	if language == "" {
+		s.recordSCIPSnapshotAttempt(ctx, scipSnapshotLanguageUnknown, scipSnapshotResultNoLanguage)
 		return nil, nil, nil, false, nil
 	}
 	indexer := s.scipIndexer(config)
 	if !indexer.IsAvailable(language) {
-		s.logSCIPSnapshotFallback(ctx, language, "binary_unavailable")
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultBinaryMissing)
+		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultBinaryMissing)
 		return nil, nil, nil, false, nil
 	}
 
@@ -387,12 +390,18 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 
 	indexPath, err := indexer.Run(ctx, repoPath, language, outputDir)
 	if err != nil {
-		s.logSCIPSnapshotFallback(ctx, language, "indexer_failed")
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultIndexerFailed)
+		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultIndexerFailed)
 		return nil, nil, nil, false, nil
 	}
 	result, err := s.scipParser(config).Parse(indexPath, repoPath)
 	if err != nil {
-		s.logSCIPSnapshotFallback(ctx, language, "parse_failed")
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultParseFailed)
+		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultParseFailed)
+		return nil, nil, nil, false, nil
+	}
+	if len(result.Files) == 0 {
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultEmpty)
 		return nil, nil, nil, false, nil
 	}
 
@@ -431,8 +440,10 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 	}
 
 	if len(parsedFiles) == 0 {
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultEmpty)
 		return nil, nil, nil, false, nil
 	}
+	s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultUsed)
 	return shapeFiles, parsedFiles, languageSummary, true, nil
 }
 
