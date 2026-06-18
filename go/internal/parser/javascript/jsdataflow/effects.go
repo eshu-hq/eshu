@@ -162,12 +162,17 @@ func callArgSlots(funcNode *tree_sitter.Node, source []byte, index *lineIndex, l
 	return slots
 }
 
-// interprocSources returns interprocedural taint sources for a function's
-// request-style parameters, at their parameter ports.
+// interprocSources returns interprocedural taint sources for a function's typed
+// framework request parameters, at their parameter ports.
 func interprocSources(funcNode *tree_sitter.Node, source []byte, id summary.FunctionID) []interproc.Source {
 	var sources []interproc.Source
-	for i, name := range paramNames(funcNode, source) {
-		kind, ok := jsSourceParamNames[name]
+	params := paramNames(funcNode, source)
+	sourceKinds := map[string]string{}
+	for _, param := range sourceParams(funcNode, source) {
+		sourceKinds[param.Name] = param.Kind
+	}
+	for i, name := range params {
+		kind, ok := sourceKinds[name]
 		if !ok {
 			continue
 		}

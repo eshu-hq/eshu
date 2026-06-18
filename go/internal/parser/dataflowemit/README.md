@@ -21,6 +21,8 @@ See `doc.go` for the godoc contract. The surface is:
 
 - `DataflowFunctionRow(lang, name, line, classContext, fn) map[string]any` — one
   `dataflow_functions` row (CFG blocks + def->use edges).
+- `CatalogVersionRow(lang, catalog, version) map[string]any` — one
+  `dataflow_catalog_versions` row used by the collector freshness hint.
 - `TaintFindingRow(lang, name, line, classContext, finding) map[string]any` — one
   `taint_findings` row.
 - `InterprocFindingRow(lang, finding) map[string]any` — one `interproc_findings`
@@ -45,6 +47,9 @@ telemetry.
 - **One schema per bucket across languages.** Rows differ only by the `lang`
   label and the facts; the keys are identical so the reducer parses every
   emitting language uniformly.
+- **Catalog versions are freshness metadata.** `dataflow_catalog_versions` rows
+  do not become facts; the collector folds them into the snapshot hint so
+  catalog-only matching changes re-run value-flow analysis on unchanged files.
 - **Optional fields are omitted when empty** (`class_context`, `sink_label`,
   `source_label`, `neutralized`, `cloud`) to keep rows minimal and byte-stable.
 - **Ordering lives here, not in the analysis.** `SortFunctionRows`,

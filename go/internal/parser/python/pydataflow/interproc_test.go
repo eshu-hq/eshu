@@ -29,7 +29,7 @@ func parsePyRoot(t *testing.T, src string) (*tree_sitter.Node, []byte) {
 func TestPyInterprocFindingAcrossFunctions(t *testing.T) {
 	t.Parallel()
 
-	root, source := parsePyRoot(t, "def view(request, db):\n"+
+	root, source := parsePyRoot(t, "def view(request: Request, db):\n"+
 		"    query(db, request)\n"+
 		"def query(db, q):\n"+
 		"    cursor.execute(q)\n")
@@ -53,9 +53,9 @@ func TestPyInterprocFindingAcrossFunctions(t *testing.T) {
 func TestPyInterprocNoFalseEdgeFromMethodCall(t *testing.T) {
 	t.Parallel()
 
-	root, source := parsePyRoot(t, "def query(request):\n"+
+	root, source := parsePyRoot(t, "def query(request: Request):\n"+
 		"    cursor.execute(request)\n"+
-		"def view(request):\n"+
+		"def view(request: Request):\n"+
 		"    conn.query(request)\n")
 	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
@@ -74,7 +74,7 @@ func TestPyInterprocNoEdgeToNestedFunction(t *testing.T) {
 	root, source := parsePyRoot(t, "def outer():\n"+
 		"    def query(db, q):\n"+
 		"        cursor.execute(q)\n"+
-		"def view(request, db):\n"+
+		"def view(request: Request, db):\n"+
 		"    query(db, request)\n")
 	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
@@ -95,7 +95,7 @@ func TestPyInterprocNoEdgeToClassMethod(t *testing.T) {
 	root, source := parsePyRoot(t, "class C:\n"+
 		"    def query(self, q):\n"+
 		"        cursor.execute(q)\n"+
-		"def view(request):\n"+
+		"def view(request: Request):\n"+
 		"    query(other, request)\n")
 	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
@@ -112,7 +112,7 @@ func TestPyInterprocNoEdgeToClassMethod(t *testing.T) {
 func TestPyInterprocMultiArgSameBinding(t *testing.T) {
 	t.Parallel()
 
-	root, source := parsePyRoot(t, "def view(request):\n"+
+	root, source := parsePyRoot(t, "def view(request: Request):\n"+
 		"    sink2(request, request)\n"+
 		"def sink2(a, b):\n"+
 		"    cursor.execute(a)\n")

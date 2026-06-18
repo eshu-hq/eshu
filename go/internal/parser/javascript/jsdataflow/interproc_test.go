@@ -28,7 +28,7 @@ func parseRoot(t *testing.T, src string) (*tree_sitter.Node, []byte) {
 func TestTSInterprocFindingAcrossFunctions(t *testing.T) {
 	t.Parallel()
 
-	root, source := parseRoot(t, "function handler(req, db) {\n"+
+	root, source := parseRoot(t, "function handler(req: Request, db) {\n"+
 		"\tquery(db, req);\n"+
 		"}\n"+
 		"function query(db, q) {\n"+
@@ -59,7 +59,7 @@ func TestTSInterprocNoEdgeToNestedFunction(t *testing.T) {
 		"\t\tdb.query(q);\n"+
 		"\t}\n"+
 		"}\n"+
-		"function handler(req, db) {\n"+
+		"function handler(req: Request, db) {\n"+
 		"\tquery(db, req);\n"+
 		"}\n")
 	findings := InterprocFindings(root, source, "repo-alpha", "")
@@ -77,7 +77,7 @@ func TestTSInterprocNoEdgeToNestedFunction(t *testing.T) {
 func TestTSInterprocMultiArgSameBinding(t *testing.T) {
 	t.Parallel()
 
-	root, source := parseRoot(t, "function handler(req) {\n"+
+	root, source := parseRoot(t, "function handler(req: Request) {\n"+
 		"\tsink2(req, req);\n"+
 		"}\n"+
 		"function sink2(a, b) {\n"+
@@ -103,10 +103,10 @@ func TestTSInterprocMultiArgSameBinding(t *testing.T) {
 func TestTSInterprocNoFalseEdgeFromMethodCall(t *testing.T) {
 	t.Parallel()
 
-	root, source := parseRoot(t, "function query(req) {\n"+
+	root, source := parseRoot(t, "function query(req: Request) {\n"+
 		"\tdb.query(req);\n"+
 		"}\n"+
-		"function handler(req) {\n"+
+		"function handler(req: Request) {\n"+
 		"\tconn.query(req);\n"+
 		"}\n")
 	findings := InterprocFindings(root, source, "repo-alpha", "")

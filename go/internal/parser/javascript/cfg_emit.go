@@ -19,6 +19,9 @@ func emitValueFlowBuckets(payload map[string]any, root *tree_sitter.Node, source
 	if !options.EmitDataflow {
 		return
 	}
+	payload["dataflow_catalog_versions"] = []map[string]any{
+		dataflowemit.CatalogVersionRow(lang, "taint", jsdataflow.TaintCatalogVersion()),
+	}
 	dataflow, findings := jsEmitDataflowBuckets(root, source, lang)
 	if len(dataflow) > 0 {
 		payload["dataflow_functions"] = dataflow

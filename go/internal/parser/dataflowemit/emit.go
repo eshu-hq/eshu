@@ -9,6 +9,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/taint"
 )
 
+// CatalogVersionRow renders one value-flow catalog content version into a
+// "dataflow_catalog_versions" payload row.
+func CatalogVersionRow(lang, catalog, version string) map[string]any {
+	return map[string]any{
+		"lang":    lang,
+		"catalog": catalog,
+		"version": version,
+	}
+}
+
 // DataflowFunctionRow renders one function's control-flow graph and resolved
 // def->use facts into a "dataflow_functions" payload row. lang labels the row's
 // source language; classContext is the enclosing type/class, omitted when empty.

@@ -213,7 +213,7 @@ progress messages.
 - `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
   `FileData`, `ContentFileMetas`, `DocumentationFileMetas`, `ContentEntities`,
   source-observed `GitRefs`, `DiscoveryAdvisory`, optional delta metadata
-  for file-scoped Git resyncs, and `TaintEvidence`
+  for file-scoped Git resyncs, `TaintEvidence`, and dataflow freshness metadata
 - `TaintEvidenceSnapshot` — one intraprocedural value-flow taint finding resolved
   to its graph `Function` entity uid, carried as evidence (confidence +
   provenance). Populated only when the parser emits `taint_findings` (gated by
@@ -239,6 +239,11 @@ progress messages.
   emits `dataflow_sources`; `streamFacts` emits each as a `code_function_source`
   fact, keyed idempotently on `(FunctionID, param index)`. The reducer persists
   them to the function-source store. Empty (and byte-identical) when off.
+- `DataflowCatalogVersionSnapshot` — one parser-emitted taint catalog content
+  hash from `dataflow_catalog_versions`. It is folded into snapshot freshness so
+  catalog-only source/sink matcher changes re-run the value-flow path for
+  unchanged files. It does not stream as a fact and is empty when the dataflow
+  gate is off.
 
 No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary|FunctionSource' -count=1`,
 `go test ./internal/storage/postgres -run 'FunctionSource' -count=1`, and

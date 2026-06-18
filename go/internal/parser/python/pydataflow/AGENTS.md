@@ -34,9 +34,10 @@
 - An `augmented_assignment` reads and writes its target.
 - Do not descend into nested function/lambda bodies for the enclosing function's
   uses (`walkInFunction` enforces this for the taint catalog too).
-- The taint catalog matches by final call name only; keep it conservative.
-  Sanitizers must be unambiguous and recorded only for a DIRECT sanitizer call
-  (never a conditional branch), so a real flow is never wrongly suppressed.
+- The taint catalog requires typed framework request parameters for sources and
+  qualified receiver/module evidence for sinks; keep it conservative. Sanitizers
+  must be unambiguous and recorded only for a DIRECT sanitizer call (never a
+  conditional branch), so a real flow is never wrongly suppressed.
 
 ## Common changes and how to scope them
 
@@ -44,10 +45,11 @@
   and a fixture in `lower_test.go` first (assert def->use by source line).
 - Add a binding shape: extend `assignDefsUses`/`assignTargets`/`exprUses` in
   `bindings.go` with a test; keep attribute/subscript targets as base reads.
-- Extend the taint catalog: add a name to `pySinkCallKinds`/
-  `pySanitizerCallKinds`/`pySourceParamNames` in `taintfacts.go` with a
-  `taintfacts_test.go` case. A new sink needs a TAINTED proof; a new sanitizer
-  needs a wrong-kind proof so the kind-set model stays honest.
+- Extend the taint catalog: update the typed source or qualified sink specs in
+  `taintfacts.go` with `taintfacts_test.go` coverage. A new sink needs a
+  TAINTED proof plus a same-name unrelated negative; a new sanitizer needs a
+  wrong-kind proof so the kind-set model stays honest. Keep `EffectsSpec` source
+  handling aligned with `TaintFacts`.
 
 ## Failure modes and how to debug
 

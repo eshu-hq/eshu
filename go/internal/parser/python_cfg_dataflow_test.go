@@ -10,7 +10,7 @@ import (
 // pythonDataflowFixture exercises both an intraprocedural flow (request.GET into
 // cursor.execute within view) and an interprocedural flow (request passed into
 // run_query, whose parameter reaches a cursor.execute sink).
-const pythonDataflowFixture = `def view(request, db):
+const pythonDataflowFixture = `def view(request: Request, db):
     q = request.GET
     cursor.execute(q)
     run_query(db, request)
@@ -36,7 +36,7 @@ func TestPythonDataflowOffIsByteIdentical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
-	for _, bucket := range []string{"dataflow_functions", "taint_findings", "interproc_findings"} {
+	for _, bucket := range []string{"dataflow_catalog_versions", "dataflow_functions", "taint_findings", "interproc_findings"} {
 		if _, present := off[bucket]; present {
 			t.Fatalf("%s present when gate off", bucket)
 		}
@@ -53,6 +53,7 @@ func TestPythonDataflowOffIsByteIdentical(t *testing.T) {
 	delete(on, "dataflow_functions")
 	delete(on, "taint_findings")
 	delete(on, "interproc_findings")
+	delete(on, "dataflow_catalog_versions")
 	if !reflect.DeepEqual(off, on) {
 		t.Fatalf("enabling dataflow changed more than the opt-in buckets")
 	}

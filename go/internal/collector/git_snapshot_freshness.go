@@ -57,6 +57,13 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 				ev.SourceFunctionUID, ev.SinkFunctionUID, ev.SinkKind, ev.SourceKind)
 		}
 	}
+	if len(snapshot.DataflowCatalogVersions) > 0 {
+		writeFreshnessHashf(h, "dataflow_catalog_versions=%d\n", len(snapshot.DataflowCatalogVersions))
+		for _, version := range snapshot.DataflowCatalogVersions {
+			writeFreshnessHashf(h, "dataflow_catalog:%s:%s:%s\n",
+				version.Language, version.Catalog, version.Version)
+		}
+	}
 	// Function-summary uids (opt-in via ESHU_EMIT_DATAFLOW). Folded in only when
 	// present so a gate-off snapshot keeps its existing hint (no churn), while the
 	// commit that begins emitting graph_uid yields a distinct hint even for an

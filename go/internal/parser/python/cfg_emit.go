@@ -19,6 +19,9 @@ func emitValueFlowBuckets(payload map[string]any, root *tree_sitter.Node, source
 	if !options.EmitDataflow {
 		return
 	}
+	payload["dataflow_catalog_versions"] = []map[string]any{
+		dataflowemit.CatalogVersionRow("python", "taint", pydataflow.TaintCatalogVersion()),
+	}
 	dataflow, findings := pythonEmitDataflowBuckets(root, source)
 	if len(dataflow) > 0 {
 		payload["dataflow_functions"] = dataflow

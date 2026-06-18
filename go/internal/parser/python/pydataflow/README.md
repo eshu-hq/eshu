@@ -24,7 +24,12 @@ See `doc.go` for the godoc contract. The surface is:
   definition body into a resolved control-flow graph.
 - `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
   annotations (sources, sinks, sanitizers) from the Python catalog, mapped onto
-  the control-flow graph, for the `internal/parser/taint` engine.
+  the control-flow graph, for the `internal/parser/taint` engine. Sources require
+  framework request type evidence; sinks require a qualified receiver/module
+  except for Python builtins.
+- `TaintCatalogVersion() string` — deterministic SHA-256 content hash for the
+  Python taint catalog, emitted by the parser so collector freshness changes
+  when catalog-only matching rules change.
 - `EffectsSpec(node, source, fn, localFuncs) valueflow.EffectsSpec`,
   `LocalFunctionIDs`, `FunctionID` — build a function's value-flow summary spec
   (params, sources/sinks/sanitizers, returns, intra-file call-arg sites) for
@@ -86,12 +91,13 @@ or shared state of its own — the partitioned, race-free fixpoint lives in
   subscript targets read their base, never define.
 - Nested function/lambda bodies are not descended into (a safe false negative,
   never a false edge).
-- **Taint catalog (`taintfacts.go`) matches by final call name only** — a known
-  v1 precision limit shared with the Go and TS catalogs. Sinks: `execute`/
-  `executemany` (sql), `system`/`Popen`/`eval`/`exec` (command). Sanitizers are
-  narrow and unambiguous (`escape` → html); a name that neutralizes different
-  kinds by import (`quote` is urllib URL-encoding but also shlex shell-quoting)
-  is omitted, since a missed sanitizer is safer than a missed vulnerability.
+- **Taint catalog (`taintfacts.go`) is conservative.** Sources require typed
+  framework request parameters such as `Request`; sinks require known receivers
+  or modules such as `cursor.execute` or `os.system`, except for Python builtins
+  such as `eval` and `exec`. Sanitizers are narrow and unambiguous
+  (`escape` → html); a name that neutralizes different kinds by import (`quote`
+  is urllib URL-encoding but also shlex shell-quoting) is omitted, since a missed
+  sanitizer is safer than a missed vulnerability.
 - **A sanitizer is recorded only when the assigned value is DIRECTLY a sanitizer
   call.** `safe = escape(x) if cond else x` is not marked sanitized — the other
   branch is unneutralized, so marking it would wrongly suppress a real finding.

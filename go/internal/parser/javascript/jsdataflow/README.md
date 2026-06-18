@@ -25,7 +25,12 @@ See `doc.go` for the godoc contract. The surface is:
   method, or arrow-function body into a resolved control-flow graph.
 - `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
   annotations (sources, sinks, sanitizers) from the TS/JS catalog, mapped onto
-  the control-flow graph, for the `internal/parser/taint` engine.
+  the control-flow graph, for the `internal/parser/taint` engine. Sources require
+  framework request type evidence; sinks require a qualified receiver/module
+  except for language builtins.
+- `TaintCatalogVersion() string` — deterministic SHA-256 content hash for the
+  TS/JS taint catalog, emitted by the parser so collector freshness changes when
+  catalog-only matching rules change.
 - `EffectsSpec(node, source, fn, localFuncs) valueflow.EffectsSpec`,
   `LocalFunctionIDs`, `FunctionID` — build a function's value-flow summary spec
   (params, sources/sinks/sanitizers, returns, intra-file call-arg sites) for
