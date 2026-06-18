@@ -24,6 +24,7 @@ type PersistedLocalSemanticSearchHybridConfig struct {
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	CorpusLimit        int
+	VectorRetrieval    searchhybrid.VectorRetrievalMode
 }
 
 // DefaultPersistedLocalSemanticSearchHybridConfig returns the deterministic
@@ -33,6 +34,7 @@ func DefaultPersistedLocalSemanticSearchHybridConfig() PersistedLocalSemanticSea
 		EmbeddingModelID:   defaultPersistedLocalVectorModelID,
 		VectorIndexVersion: defaultPersistedLocalVectorIndexVersion,
 		CorpusLimit:        semanticSearchLocalHybridCorpusLimit,
+		VectorRetrieval:    searchhybrid.VectorRetrievalApproximate,
 	}
 }
 
@@ -126,6 +128,7 @@ func (h *PersistedLocalSemanticSearchHybrid) Search(
 		MaxDocuments:               h.Config.CorpusLimit,
 		Embedder:                   h.Embedder,
 		PrecomputedDocumentVectors: vectors,
+		VectorRetrieval:            h.Config.VectorRetrieval,
 	})
 	if err != nil {
 		return h.keywordFallback(ctx, query, docs, "index_unready", len(rows))
@@ -318,6 +321,9 @@ func normalizePersistedLocalSemanticSearchHybridConfig(
 	}
 	if config.CorpusLimit <= 0 || config.CorpusLimit > semanticSearchLocalHybridCorpusLimit {
 		config.CorpusLimit = semanticSearchLocalHybridCorpusLimit
+	}
+	if config.VectorRetrieval == "" {
+		config.VectorRetrieval = searchhybrid.VectorRetrievalApproximate
 	}
 	return config
 }

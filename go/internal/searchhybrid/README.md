@@ -80,13 +80,14 @@ same-dimension vector in the resolved request scope. Vectors that are empty,
 zero, dimension-mismatched, or non-finite are skipped before ranking, and query
 vectors with the same malformed states produce an empty vector result set.
 
-`VectorRetrievalApproximate` is a pure-Go deterministic candidate-pruning index.
-It buckets valid document vectors by their dominant dimension and sign, filters
-the matching bucket by request scope, then computes exact cosine over only those
-candidates. If the scoped bucket is empty, it falls back to the exact retriever
-so semantic mode degrades to the correctness baseline rather than returning a
-false empty result. Final ordering still uses `rankByScore`, so ties break by
-document id.
+`VectorRetrievalApproximate` is a pure-Go deterministic angular-LSH candidate
+index. It hashes valid document vectors through multiple deterministic
+hyperplane tables, probes the exact query signature plus one-bit neighbor
+signatures, filters candidates by request scope, then computes exact cosine over
+only those candidates. If the scoped ANN candidate set is empty, it falls back
+to the exact retriever so semantic mode degrades to the correctness baseline
+rather than returning a false empty result. Final ordering still uses
+`rankByScore`, so ties break by document id.
 
 ## Telemetry
 
@@ -103,8 +104,8 @@ design-430 operator metrics without high-cardinality labels.
   the canonical graph or promotes a score to canonical truth.
 - The `Embedder` must be deterministic and must not call a hosted service.
 - Semantic mode requires an embedder; hybrid without one is BM25-only.
-- Approximate vector retrieval is a local candidate-pruning optimization, not
-  canonical truth and not a persisted vector payload lane.
+- Approximate vector retrieval is a local ANN candidate-pruning optimization,
+  not canonical truth and not a hosted provider or external vector-store lane.
 - The in-process index is read-only after construction; rebuild to reflect new
   documents. The public semantic-search route uses the persisted Postgres index
   instead of this request-local structure.

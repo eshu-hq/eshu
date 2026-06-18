@@ -102,6 +102,68 @@ func TestSemanticSearchHandlerPersistedVectorsServeReadySemanticPath(t *testing.
 	}
 }
 
+func TestPersistedLocalSemanticSearchHybridUsesConfiguredVectorRetrieval(t *testing.T) {
+	t.Parallel()
+
+	cross := semanticSearchDocumentFixture("searchdoc:cross", "repo-payments", "cross-best", "cross-best body")
+	weaker := semanticSearchDocumentFixture("searchdoc:weaker", "repo-payments", "axis", "axis body")
+	documents := &fakeSemanticSearchDocumentStore{
+		rows: []semanticSearchDocumentRow{{Document: cross}, {Document: weaker}},
+	}
+	metadata := &fakeSemanticSearchVectorMetadataStore{
+		rows: []postgres.EshuSearchVectorMetadata{
+			readySemanticSearchVectorMetadata(cross, 2),
+			readySemanticSearchVectorMetadata(weaker, 2),
+		},
+	}
+	values := &fakeSemanticSearchVectorValueStore{
+		rows: []postgres.EshuSearchVectorValue{
+			semanticSearchVectorValue(cross, []float64{0.50, 0.51}),
+			semanticSearchVectorValue(weaker, []float64{1, 0}),
+		},
+	}
+	embedder := &fakeSemanticSearchEmbedder{
+		dims:    2,
+		vectors: map[string][]float64{"tilted-query": {0.51, 0.50}},
+	}
+	config := DefaultPersistedLocalSemanticSearchHybridConfig()
+	config.VectorRetrieval = searchhybrid.VectorRetrievalApproximate
+	handler := &SemanticSearchHandler{
+		Index: &fakeSemanticSearchIndexStore{},
+		LocalHybrid: NewPersistedLocalSemanticSearchHybrid(
+			documents,
+			metadata,
+			values,
+			embedder,
+			config,
+		),
+		Profile: ProfileProduction,
+	}
+	req := semanticSearchHTTPRequest(t, map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "tilted-query",
+		"mode":       "semantic",
+		"limit":      1,
+		"timeout_ms": 250,
+	})
+	rec := httptest.NewRecorder()
+
+	handler.search(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	data := semanticSearchEnvelopeData(t, rec)
+	results := data["results"].([]any)
+	if len(results) == 0 {
+		t.Fatal("results empty, want persisted vector result")
+	}
+	document := results[0].(map[string]any)["document"].(map[string]any)
+	if got, want := document["id"], "searchdoc:cross"; got != want {
+		t.Fatalf("top document = %#v, want %#v", got, want)
+	}
+}
+
 func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForPartialState(t *testing.T) {
 	t.Parallel()
 
