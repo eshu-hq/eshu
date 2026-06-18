@@ -67,7 +67,7 @@ Role: doer.
 | Question | Start with |
 | --- | --- |
 | Give me context on this incident. | `get_incident_context` |
-| What is deployed where, and what changed recently? | `trace_deployment_chain`, `get_service_changed_since` |
+| What is deployed where, and what changed recently? | `trace_deployment_chain`, `get_generation_lifecycle`, then `get_service_changed_since` with the prior generation id |
 | What is the blast radius of this resource or service? | `find_blast_radius`, `investigate_change_surface` |
 | Does this service have alarm, log, and trace coverage? | `list_observability_coverage_correlations` |
 | Is the platform healthy and fully indexed right now? | `get_hosted_readiness`, `get_index_status` |
@@ -115,9 +115,9 @@ Role: doer.
 | Question | Start with |
 | --- | --- |
 | What service does this customer-facing thing map to? | `resolve_entity`, `get_service_story` |
-| Is there an active incident, and what is the routing? | `get_incident_context` |
+| Is there an active incident, and what is the routing? | `list_work_item_evidence`, then `get_incident_context` once a provider incident id is known |
 | Are there known tickets or work items for this? | `list_work_item_evidence` |
-| What changed for this service recently (possible regression)? | `get_service_changed_since` |
+| What changed for this service recently (possible regression)? | `get_generation_lifecycle`, then `get_service_changed_since` with the prior generation id |
 | Give me the escalation dossier: deployment plus dependencies. | `get_service_intelligence_report` |
 
 ### 8. Migration / re-platforming architect (multi-cloud planning)
@@ -184,7 +184,7 @@ Role: decider.
 | --- | --- |
 | What capabilities does the platform actually have? | `get_capability_catalog` |
 | What services exist, and what do they do? | `get_ecosystem_overview`, `get_service_story` |
-| What changed in this service since the last release? | `get_service_changed_since` |
+| What changed in this service since the last release? | `get_generation_lifecycle`, then `get_service_changed_since` with the prior generation id |
 | Are there open work items or tickets tied to this area? | `list_work_item_evidence` |
 | What is the documentation truth for this area? | `list_documentation_findings` |
 
@@ -221,7 +221,7 @@ Role: decider.
 | What does the platform actually do today (capabilities + surfaces)? | `get_capability_catalog` |
 | What services and products exist in the ecosystem? | `get_ecosystem_overview`, `get_service_story` |
 | What is documented versus missing across the product surface? | `count_documentation_findings`, `get_documentation_finding_inventory` |
-| What changed recently for this product service? | `get_service_changed_since` |
+| What changed recently for this product service? | `get_generation_lifecycle`, then `get_service_changed_since` with the prior generation id |
 | What is the deprecation blast radius for this capability? | `investigate_change_surface`, `find_blast_radius` |
 
 ### 16. CTO (technical strategy, SPOFs, migration cost)
@@ -262,7 +262,7 @@ Role: customer-facing.
 | Show me an end-to-end service dossier as a demo. | `get_service_intelligence_report`, `get_service_story` |
 | Demo a code-to-cloud reachability story. | `trace_exposure_path`, `trace_deployment_chain` |
 | Show the ecosystem scale for an account walkthrough. | `get_ecosystem_overview` |
-| Render a visual of a service, evidence, or incident for a slide. | `derive_visualization_packet` |
+| Render a visual of a service, evidence, or incident for a slide. | `get_service_story`, `get_incident_context`, or evidence-citation route first; then `derive_visualization_packet` from that source response |
 
 ---
 
