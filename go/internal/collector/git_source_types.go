@@ -103,6 +103,10 @@ type RepositorySnapshot struct {
 	// They are not fact records; the ingestion committer persists and recomposes
 	// them in the same transaction that writes the generation's facts.
 	ValueFlowSummaries []ValueFlowSummarySnapshot `json:"value_flow_summaries,omitempty"`
+	// ValueFlowSummariesObserved marks that the value-flow summary lane ran for
+	// this snapshot, even when no functions emitted summary rows. Storage uses
+	// this to distinguish gate-off snapshots from complete empty observations.
+	ValueFlowSummariesObserved bool `json:"value_flow_summaries_observed,omitempty"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved

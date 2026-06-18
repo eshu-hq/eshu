@@ -86,6 +86,93 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 	}
 }
 
+func TestIngestionStoreCommitScopeGenerationPrunesEmptyObservedFunctionSummaries(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 18, 6, 0, 0, 0, time.UTC)
+	db := &fakeTransactionalDB{tx: &fakeTx{}}
+	store := NewIngestionStore(db)
+	store.Now = func() time.Time { return now }
+	store.SkipRelationshipBackfill = true
+	scopeValue := repositoryScopeFixture()
+	generation := repositoryGenerationFixture(now)
+	envelopes := []facts.Envelope{repositoryEnvelopeFixture(scopeValue, generation)}
+
+	err := store.CommitScopeGenerationWithFunctionSummaries(
+		context.Background(),
+		scopeValue,
+		generation,
+		testFactChannel(envelopes),
+		[]collector.ValueFlowSummarySnapshot{},
+	)
+	if err != nil {
+		t.Fatalf("CommitScopeGenerationWithFunctionSummaries() error = %v, want nil", err)
+	}
+	deleteExec, enqueueExec := -1, -1
+	for i, exec := range db.tx.execs {
+		if strings.Contains(exec.query, "DELETE FROM function_summaries") {
+			deleteExec = i
+			if got, want := exec.args[0], "repo-123"; got != want {
+				t.Fatalf("delete repo arg = %v, want %v", got, want)
+			}
+		}
+		if strings.Contains(exec.query, "INSERT INTO fact_work_items") {
+			enqueueExec = i
+		}
+	}
+	if deleteExec < 0 {
+		t.Fatalf("function summary stale-row delete missing from execs: %#v", db.tx.execs)
+	}
+	if enqueueExec < 0 {
+		t.Fatalf("projector enqueue missing from execs: %#v", db.tx.execs)
+	}
+	if deleteExec > enqueueExec {
+		t.Fatalf("delete exec index = %d, enqueue exec index = %d; want prune before enqueue", deleteExec, enqueueExec)
+	}
+}
+
+func TestIngestionStoreCommitScopeGenerationRejectsFunctionSummaryOutsideScopeRepo(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 18, 6, 0, 0, 0, time.UTC)
+	db := &fakeTransactionalDB{tx: &fakeTx{}}
+	store := NewIngestionStore(db)
+	store.Now = func() time.Time { return now }
+	store.SkipRelationshipBackfill = true
+	scopeValue := repositoryScopeFixture()
+	generation := repositoryGenerationFixture(now)
+	envelopes := []facts.Envelope{repositoryEnvelopeFixture(scopeValue, generation)}
+
+	err := store.CommitScopeGenerationWithFunctionSummaries(
+		context.Background(),
+		scopeValue,
+		generation,
+		testFactChannel(envelopes),
+		[]collector.ValueFlowSummarySnapshot{{
+			FunctionID: summary.NewFunctionID("repo-other", "example.com/repo/pkg", "", "Handle"),
+			Effects:    summary.Effects{ParamToReturn: []int{0}},
+			Language:   "go",
+		}},
+	)
+	if err == nil {
+		t.Fatal("CommitScopeGenerationWithFunctionSummaries() error = nil, want scope repo mismatch")
+	}
+	if !strings.Contains(err.Error(), "outside scope repo") {
+		t.Fatalf("CommitScopeGenerationWithFunctionSummaries() error = %v, want scope repo context", err)
+	}
+	if db.tx.committed {
+		t.Fatal("transaction committed = true, want false")
+	}
+	if !db.tx.rolledBack {
+		t.Fatal("transaction rolledBack = false, want true")
+	}
+	for _, exec := range db.tx.execs {
+		if strings.Contains(exec.query, "INSERT INTO fact_work_items") {
+			t.Fatalf("projector enqueue happened after mismatched summaries: %#v", db.tx.execs)
+		}
+	}
+}
+
 func TestIngestionStoreCommitScopeGenerationRollsBackWhenFunctionSummaryPersistenceFails(t *testing.T) {
 	t.Parallel()
 

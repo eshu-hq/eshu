@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	"github.com/lib/pq"
 )
 
 const (
@@ -81,6 +82,13 @@ SELECT function_id, effects, version
 FROM function_summaries
 WHERE repo = $1
 ORDER BY function_id ASC
+`
+
+const deleteStaleRepoFunctionSummariesSQL = `
+DELETE FROM function_summaries
+WHERE repo = $1
+  AND updated_at <= $2
+  AND NOT (function_id = ANY($3))
 `
 
 const loadRepoGenerationFunctionSummariesSQL = `
@@ -164,6 +172,37 @@ func (s FunctionSummaryStore) UpsertSnapshot(ctx context.Context, snap summary.S
 		if err := s.upsertBatch(ctx, functions[i:end], updatedAt.UTC()); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ReplaceRepoSnapshot persists a complete repository summary snapshot and
+// removes older rows for functions absent from that same complete observation.
+func (s FunctionSummaryStore) ReplaceRepoSnapshot(
+	ctx context.Context,
+	repo string,
+	snap summary.Snapshot,
+	updatedAt time.Time,
+) error {
+	if strings.TrimSpace(repo) == "" {
+		return fmt.Errorf("function summary repo is required")
+	}
+	ids := make([]string, 0, len(snap.Functions))
+	for _, fn := range snap.Functions {
+		rowRepo, err := functionSummaryRepo(fn.ID)
+		if err != nil {
+			return err
+		}
+		if rowRepo != repo {
+			return fmt.Errorf("function summary %q belongs to repo %q, want %q", fn.ID, rowRepo, repo)
+		}
+		ids = append(ids, string(fn.ID))
+	}
+	if err := s.UpsertSnapshot(ctx, snap, updatedAt); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, deleteStaleRepoFunctionSummariesSQL, repo, updatedAt.UTC(), pq.Array(ids)); err != nil {
+		return fmt.Errorf("delete stale function summaries for repo %q: %w", repo, err)
 	}
 	return nil
 }

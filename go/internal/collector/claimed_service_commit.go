@@ -22,7 +22,7 @@ func (s ClaimedService) commitCollected(
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateFactEmitBatch)
 		defer span.End()
 	}
-	if len(collected.ValueFlowSummaries) > 0 {
+	if collected.ValueFlowSummariesObserved || len(collected.ValueFlowSummaries) > 0 {
 		if collected.FactStreamErr != nil {
 			streamCommitter, ok := s.Committer.(StreamErrorFunctionSummaryClaimedCommitter)
 			if !ok {

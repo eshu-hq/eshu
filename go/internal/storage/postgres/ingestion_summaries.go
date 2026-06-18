@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 type functionSummaryCommitStats struct {
@@ -18,15 +19,31 @@ type functionSummaryCommitStats struct {
 func upsertFunctionSummariesForGeneration(
 	ctx context.Context,
 	db ExecQueryer,
-	generationID string,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
 	summaries []collector.ValueFlowSummarySnapshot,
 	updatedAt time.Time,
 ) (functionSummaryCommitStats, error) {
+	scopeRepo, err := functionSummaryScopeRepo(scopeValue)
+	if err != nil {
+		return functionSummaryCommitStats{}, err
+	}
 	updatesByRepo := make(map[string]map[summary.FunctionID]summary.Effects)
+	if !generation.IsDelta {
+		updatesByRepo[scopeRepo] = map[summary.FunctionID]summary.Effects{}
+	}
 	for _, row := range summaries {
 		repo, err := functionSummaryRepo(row.FunctionID)
 		if err != nil {
 			return functionSummaryCommitStats{}, err
+		}
+		if repo != scopeRepo {
+			return functionSummaryCommitStats{}, fmt.Errorf(
+				"function summary %q belongs to repo %q outside scope repo %q",
+				row.FunctionID,
+				repo,
+				scopeRepo,
+			)
 		}
 		if updatesByRepo[repo] == nil {
 			updatesByRepo[repo] = make(map[summary.FunctionID]summary.Effects)
@@ -45,25 +62,42 @@ func upsertFunctionSummariesForGeneration(
 	sort.Strings(repos)
 	stats := functionSummaryCommitStats{Repos: len(repos)}
 	for _, repo := range repos {
-		existing, err := store.LoadRepoSnapshot(ctx, repo)
-		if err != nil {
-			return functionSummaryCommitStats{}, fmt.Errorf("load function summaries for repo %q: %w", repo, err)
+		summaryStore := summary.NewStore()
+		if generation.IsDelta {
+			existing, err := store.LoadRepoSnapshot(ctx, repo)
+			if err != nil {
+				return functionSummaryCommitStats{}, fmt.Errorf("load function summaries for repo %q: %w", repo, err)
+			}
+			summaryStore = summary.Load(existing)
 		}
-		summaryStore := summary.Load(existing)
 		recomputed := summaryStore.Upsert(updatesByRepo[repo])
 		fullSnapshot := summaryStore.Snapshot()
-		if len(recomputed) > 0 {
-			snap := snapshotForFunctionIDs(fullSnapshot, recomputed)
-			if err := store.UpsertSnapshot(ctx, snap, updatedAt); err != nil {
-				return functionSummaryCommitStats{}, err
+		if generation.IsDelta {
+			if len(recomputed) > 0 {
+				snap := snapshotForFunctionIDs(fullSnapshot, recomputed)
+				if err := store.UpsertSnapshot(ctx, snap, updatedAt); err != nil {
+					return functionSummaryCommitStats{}, err
+				}
 			}
+		} else if err := store.ReplaceRepoSnapshot(ctx, repo, fullSnapshot, updatedAt); err != nil {
+			return functionSummaryCommitStats{}, err
 		}
-		if err := store.UpsertGenerationSnapshot(ctx, generationID, fullSnapshot, updatedAt); err != nil {
+		if err := store.UpsertGenerationSnapshot(ctx, generation.GenerationID, fullSnapshot, updatedAt); err != nil {
 			return functionSummaryCommitStats{}, err
 		}
 		stats.Recomputed += len(recomputed)
 	}
 	return stats, nil
+}
+
+func functionSummaryScopeRepo(scopeValue scope.IngestionScope) (string, error) {
+	if repo := scopeValue.Metadata["repo_id"]; repo != "" {
+		return repo, nil
+	}
+	if scopeValue.PartitionKey != "" {
+		return scopeValue.PartitionKey, nil
+	}
+	return "", fmt.Errorf("function summary scope repo is required for scope %q", scopeValue.ScopeID)
 }
 
 func snapshotForFunctionIDs(snap summary.Snapshot, ids []summary.FunctionID) summary.Snapshot {
