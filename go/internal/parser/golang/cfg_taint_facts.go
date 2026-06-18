@@ -116,13 +116,13 @@ func goClassifyAssignment(node *tree_sitter.Node, source []byte, index *goLineIn
 	target := targets[0]
 	name := goTaintCallName(call, source)
 	line := nodeLine(node)
-	stmtID, ok := index.defStmt(line, target)
+	stmtID, resolvedTarget, ok := index.defStmtOrOnlyDef(line, target)
 	if !ok {
 		return
 	}
 
 	if kind, ok := goSourceCallKinds[name]; ok {
-		facts.Sources[taint.StmtBinding{Stmt: stmtID, Binding: target}] = taint.SourceMark{Kind: kind, Label: name}
+		facts.Sources[taint.StmtBinding{Stmt: stmtID, Binding: resolvedTarget}] = taint.SourceMark{Kind: kind, Label: name}
 	}
 	if neutralizes, ok := goSanitizerCallKinds[name]; ok {
 		existing := facts.Sanitizers[stmtID]
@@ -292,6 +292,23 @@ func (g *goLineIndex) defStmt(line int, binding string) (int, bool) {
 	}
 	stmtID, ok := byBinding[binding]
 	return stmtID, ok
+}
+
+// defStmtOrOnlyDef returns the exact binding match on a line, or the line's
+// only definition when the AST target was normalized by CFG lowering (for
+// example alias.SQL -> data.SQL). It refuses ambiguous lines.
+func (g *goLineIndex) defStmtOrOnlyDef(line int, binding string) (int, string, bool) {
+	if stmtID, ok := g.defStmt(line, binding); ok {
+		return stmtID, binding, true
+	}
+	byBinding, ok := g.defByLine[line]
+	if !ok || len(byBinding) != 1 {
+		return 0, "", false
+	}
+	for normalized, stmtID := range byBinding {
+		return stmtID, normalized, true
+	}
+	return 0, "", false
 }
 
 // useStmt returns the first statement on a line that uses any binding.

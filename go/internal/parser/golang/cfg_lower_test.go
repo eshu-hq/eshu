@@ -310,6 +310,39 @@ func handler(in string) {
 	}
 }
 
+// TestLowerIfInitializerPointerAliasDoesNotLeak proves an alias declared in an
+// if initializer is scoped to that if statement and does not replace an outer
+// alias after the merge.
+func TestLowerIfInitializerPointerAliasDoesNotLeak(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+type payload struct{ SQL string }
+
+func handler(in string, cond bool) {
+	var outer payload
+	var data payload
+	alias := &outer
+	if alias := &data; cond {
+		alias.SQL = "branch"
+	}
+	alias.SQL = in
+	sink(data.SQL)
+	sink(outer.SQL)
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if contains(got, "data.SQL:12->13") {
+		t.Fatalf("if initializer alias leaked to post-if assignment in\n  %v", got)
+	}
+	if !contains(got, "outer.SQL:12->14") {
+		t.Fatalf("outer alias was not restored for post-if assignment in\n  %v", got)
+	}
+}
+
 // TestLowerStructValueCopyDoesNotAliasFieldMutation proves a plain value copy is
 // not treated as a pointer alias for later selector writes.
 func TestLowerStructValueCopyDoesNotAliasFieldMutation(t *testing.T) {

@@ -152,8 +152,15 @@ func (l *goCFGLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.B
 // lowerIf lowers an if/else, modeling the condition as a use in the current
 // block, a then branch, an optional else branch, and a merge block.
 func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
+	outerAliases := l.aliases.clone()
+	var initializerScopedTargets []string
 	if init := node.ChildByFieldName("initializer"); init != nil {
 		cur, _ = l.lowerStmt(init, cur)
+		if init.Kind() == "short_var_declaration" {
+			if left := init.ChildByFieldName("left"); left != nil {
+				initializerScopedTargets = goAssignTargetsWithOptions(left, l.source, outerAliases, l.accessPathOptions())
+			}
+		}
 	}
 	if cond := node.ChildByFieldName("condition"); cond != nil {
 		l.addUses(cur, cond)
@@ -195,6 +202,7 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 		thenAliases = elseAliases.clone()
 	}
 	l.aliases = goMergeAliases(thenAliases, elseAliases)
+	l.restoreScopedAliases(outerAliases, initializerScopedTargets)
 	return merge, mergeReachable
 }
 
@@ -331,6 +339,19 @@ func (l *goCFGLowerer) updateAliases(node *tree_sitter.Node) {
 		for _, def := range defs {
 			delete(l.aliases, def)
 		}
+	}
+}
+
+func (l *goCFGLowerer) restoreScopedAliases(outerAliases goBindingAliases, scopedTargets []string) {
+	for _, target := range scopedTargets {
+		if target == "" {
+			continue
+		}
+		if outer, ok := outerAliases[target]; ok {
+			l.aliases[target] = outer
+			continue
+		}
+		delete(l.aliases, target)
 	}
 }
 
