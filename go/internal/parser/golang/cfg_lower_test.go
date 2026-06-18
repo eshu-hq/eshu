@@ -367,6 +367,49 @@ func handler(in string) {
 	}
 }
 
+// TestLowerContainerElementAccessUsesWholeContainerApproximation proves indexed
+// writes and reads use an explicit container-element approximation.
+func TestLowerContainerElementAccessUsesWholeContainerApproximation(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+func handler(in string) {
+	values := map[string]string{}
+	values["query"] = in
+	sink(values["query"])
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "values[*]:5->6") {
+		t.Fatalf("missing values[*] container def reaching indexed sink in\n  %v", got)
+	}
+}
+
+// TestLowerClosureCaptureUsesOuterDefinition proves function-literal bodies
+// contribute captured-variable uses to the enclosing dataflow graph.
+func TestLowerClosureCaptureUsesOuterDefinition(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+func handler(in string) {
+	value := in
+	func() {
+		sink(value)
+	}()
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "value:4->5") {
+		t.Fatalf("missing captured value def reaching closure body sink in\n  %v", got)
+	}
+}
+
 func contains(haystack []string, needle string) bool {
 	for _, v := range haystack {
 		if v == needle {

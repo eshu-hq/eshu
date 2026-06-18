@@ -51,7 +51,9 @@
 // edges built by cfg_lower.go over the internal/parser/cfg engine; selector
 // reads and writes keep field-sensitive access paths, and straight-line pointer
 // aliases to local structs are normalized before the edge is emitted; deep
-// access paths are capped and counted in the row overflow) and a
+// access paths are capped and counted in the row overflow; indexed container
+// elements use an explicit [*] whole-container approximation, and invoked
+// function literals contribute captured-variable uses) and a
 // "taint_findings" bucket (intraprocedural source-to-sink taint findings with
 // confidence and provenance, built by cfg_taint_facts.go over the
 // internal/parser/taint engine), an "interproc_findings" bucket

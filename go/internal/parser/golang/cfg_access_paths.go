@@ -69,6 +69,14 @@ func goAccessPathParts(node *tree_sitter.Node, source []byte, aliases goBindingA
 			return nil, false
 		}
 		return append(base, field), true
+	case "index_expression":
+		base, ok := goAccessPathParts(node.ChildByFieldName("operand"), source, aliases, options)
+		if !ok || len(base) == 0 {
+			return nil, false
+		}
+		indexed := append([]string{}, base...)
+		indexed[len(indexed)-1] += "[*]"
+		return indexed, true
 	case "parenthesized_expression":
 		return goAccessPathParts(firstNamedChild(node), source, aliases, options)
 	}
