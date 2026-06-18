@@ -13,18 +13,21 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 	t.Parallel()
 
 	loader := &recordingPayloadFactLoader{
-		byPayload: inheritanceEntityFacts(),
+		byPayload: inheritanceEntityContentFacts(),
 		all:       []facts.Envelope{{FactKind: "file"}},
 		byKind: []facts.Envelope{{
 			FactKind: factKindRepository,
-			Payload:  map[string]any{"repo_id": "repo-1"},
+			Payload: map[string]any{
+				"repo_id":       "repo-1",
+				"path":          "/repo",
+				"source_run_id": "run-1",
+			},
 		}},
 	}
-	writer := &recordingInheritanceEdgeWriter{}
+	writer := &recordingInheritanceIntentWriter{}
 	handler := InheritanceMaterializationHandler{
-		FactLoader:           loader,
-		EdgeWriter:           writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
+		FactLoader:   loader,
+		IntentWriter: writer,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -57,8 +60,8 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 	if got := strings.Join(call.payloadValues, ","); !strings.Contains(got, "Class") || !strings.Contains(got, "Function") {
 		t.Fatalf("payload entity types = %q, want inheritable classes and override functions", got)
 	}
-	if got, want := len(writer.writeRows), 1; got != want {
-		t.Fatalf("inheritance write rows = %d, want %d", got, want)
+	if got, want := len(writer.edgeRows()), 1; got != want {
+		t.Fatalf("inheritance per-edge intents = %d, want %d", got, want)
 	}
 }
 

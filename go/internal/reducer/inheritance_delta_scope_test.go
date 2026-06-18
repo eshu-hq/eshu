@@ -12,13 +12,10 @@ import (
 func TestInheritanceMaterializationHandlerScopesDeltaRetractToFiles(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingInheritanceEdgeWriter{}
+	writer := &recordingInheritanceIntentWriter{}
 	handler := InheritanceMaterializationHandler{
-		FactLoader: &stubFactLoader{envelopes: inheritanceDeltaEntityFacts()},
-		EdgeWriter: writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
+		FactLoader:   &stubFactLoader{envelopes: inheritanceDeltaEntityFacts()},
+		IntentWriter: writer,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -34,13 +31,11 @@ func TestInheritanceMaterializationHandlerScopesDeltaRetractToFiles(t *testing.T
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if writer.retractDomain != DomainInheritanceEdges {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainInheritanceEdges)
+	refresh := writer.refreshRows()
+	if len(refresh) != 1 {
+		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if len(writer.retractRows) != 1 {
-		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
-	}
-	payload := writer.retractRows[0].Payload
+	payload := refresh[0].Payload
 	if got, ok := payload["delta_projection"].(bool); !ok || !got {
 		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
 	}
@@ -48,35 +43,35 @@ func TestInheritanceMaterializationHandlerScopesDeltaRetractToFiles(t *testing.T
 	if !ok {
 		t.Fatalf("delta_file_paths type = %T, want []string", payload["delta_file_paths"])
 	}
-	wantPaths := []string{"/repo/src/child.go"}
-	if !reflect.DeepEqual(gotPaths, wantPaths) {
-		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
+	if !reflect.DeepEqual(gotPaths, []string{"/repo/src/child.go"}) {
+		t.Fatalf("delta_file_paths = %#v, want [/repo/src/child.go]", gotPaths)
 	}
-	if len(writer.writeRows) != 1 {
-		t.Fatalf("writeRows len = %d, want 1", len(writer.writeRows))
+	// The changed file's edge still projects.
+	if len(writer.edgeRows()) != 1 {
+		t.Fatalf("per-edge intents = %d, want 1", len(writer.edgeRows()))
 	}
 }
 
 func TestInheritanceMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrites(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingInheritanceEdgeWriter{}
+	writer := &recordingInheritanceIntentWriter{}
 	handler := InheritanceMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
 				FactKind: factKindRepository,
+				ScopeID:  "scope-code",
 				Payload: map[string]any{
 					"repo_id":                      "repo-123",
+					"path":                         "/repo",
 					"local_path":                   "/repo",
+					"source_run_id":                "run-1",
 					"delta_generation":             true,
 					"delta_deleted_relative_paths": []string{"src/deleted.go"},
 				},
 			},
 		}},
-		EdgeWriter: writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
+		IntentWriter: writer,
 	}
 
 	result, err := handler.Handle(context.Background(), Intent{
@@ -92,25 +87,24 @@ func TestInheritanceMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrites(
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if result.CanonicalWrites != 0 {
-		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	// Only the refresh intent (it owns the file-scoped retract); no per-edge
+	// writes because the only changed file was deleted.
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
 	}
-	if writer.retractDomain != DomainInheritanceEdges {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainInheritanceEdges)
+	refresh := writer.refreshRows()
+	if len(refresh) != 1 {
+		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if len(writer.retractRows) != 1 {
-		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
-	}
-	gotPaths, ok := writer.retractRows[0].Payload["delta_file_paths"].([]string)
+	gotPaths, ok := refresh[0].Payload["delta_file_paths"].([]string)
 	if !ok {
-		t.Fatalf("delta_file_paths type = %T, want []string", writer.retractRows[0].Payload["delta_file_paths"])
+		t.Fatalf("delta_file_paths type = %T, want []string", refresh[0].Payload["delta_file_paths"])
 	}
-	wantPaths := []string{"/repo/src/deleted.go"}
-	if !reflect.DeepEqual(gotPaths, wantPaths) {
-		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
+	if !reflect.DeepEqual(gotPaths, []string{"/repo/src/deleted.go"}) {
+		t.Fatalf("delta_file_paths = %#v, want [/repo/src/deleted.go]", gotPaths)
 	}
-	if len(writer.writeRows) != 0 {
-		t.Fatalf("writeRows len = %d, want 0", len(writer.writeRows))
+	if len(writer.edgeRows()) != 0 {
+		t.Fatalf("per-edge intents = %d, want 0", len(writer.edgeRows()))
 	}
 }
 
@@ -137,9 +131,12 @@ func inheritanceDeltaEntityFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
 			FactKind: factKindRepository,
+			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":                      "repo-123",
+				"path":                         "/repo",
 				"local_path":                   "/repo",
+				"source_run_id":                "run-1",
 				"delta_generation":             true,
 				"delta_relative_paths":         []string{"src/child.go", "../outside.go"},
 				"delta_deleted_relative_paths": []string{},
@@ -147,20 +144,24 @@ func inheritanceDeltaEntityFacts() []facts.Envelope {
 		},
 		{
 			FactKind: factKindContentEntity,
+			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":     "repo-123",
 				"entity_id":   "content-entity:e_parent",
 				"entity_type": "Class",
 				"entity_name": "ParentClass",
+				"path":        "/repo/src/parent.go",
 			},
 		},
 		{
 			FactKind: factKindContentEntity,
+			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":     "repo-123",
 				"entity_id":   "content-entity:e_child",
 				"entity_type": "Class",
 				"entity_name": "ChildClass",
+				"path":        "/repo/src/child.go",
 				"entity_metadata": map[string]any{
 					"bases": []any{"ParentClass"},
 				},
