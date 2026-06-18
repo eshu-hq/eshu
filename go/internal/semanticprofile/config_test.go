@@ -2,6 +2,7 @@ package semanticprofile_test
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -81,6 +82,40 @@ func TestLoadStatusesFromEnvProjectsRedactedDeepSeekProfile(t *testing.T) {
 	}
 	if strings.Contains(string(encoded), "DEEPSEEK_API_KEY") {
 		t.Fatalf("marshaled statuses leaked credential handle: %s", encoded)
+	}
+}
+
+func TestLoadStatusesFromEnvAcceptsSearchDocumentSourceClass(t *testing.T) {
+	t.Parallel()
+
+	raw := `[
+		{
+			"profile_id": "semantic-search-default",
+			"provider_kind": "internal_gateway",
+			"credential_source": {
+				"kind": "cloud_workload_identity"
+			},
+			"model_id": "search-embed-v1",
+			"endpoint_profile_id": "semantic-search-gateway",
+			"source_classes": ["search_documents"],
+			"source_policy_configured": true
+		}
+	]`
+
+	statuses, err := semanticprofile.LoadStatusesFromEnv(func(key string) string {
+		if key == semanticprofile.EnvProviderProfilesJSON {
+			return raw
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("LoadStatusesFromEnv() error = %v, want nil", err)
+	}
+	if len(statuses) != 1 {
+		t.Fatalf("LoadStatusesFromEnv() len = %d, want 1", len(statuses))
+	}
+	if got, want := statuses[0].SourceClasses, []string{semanticprofile.SourceSearchDocuments}; !slices.Equal(got, want) {
+		t.Fatalf("SourceClasses = %#v, want %#v", got, want)
 	}
 }
 

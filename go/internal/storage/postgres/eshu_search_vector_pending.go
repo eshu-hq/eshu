@@ -31,17 +31,23 @@ ready_docs AS (
         meta.scope_id,
         meta.generation_id,
         meta.document_id,
+        meta.provider_profile_id,
+        meta.source_class,
         meta.embedding_content_hash
     FROM eshu_search_vector_metadata meta
     JOIN eshu_search_vector_values value
-      ON value.scope_id = meta.scope_id
+     ON value.scope_id = meta.scope_id
      AND value.generation_id = meta.generation_id
      AND value.document_id = meta.document_id
+     AND value.provider_profile_id = meta.provider_profile_id
+     AND value.source_class = meta.source_class
      AND value.embedding_model_id = meta.embedding_model_id
      AND value.vector_index_version = meta.vector_index_version
      AND value.embedding_content_hash = meta.embedding_content_hash
-    WHERE meta.embedding_model_id = $2
-      AND meta.vector_index_version = $3
+    WHERE meta.provider_profile_id = $2
+      AND meta.source_class = $3
+      AND meta.embedding_model_id = $4
+      AND meta.vector_index_version = $5
       AND meta.build_state = 'ready'
 )
 SELECT docs.scope_id, docs.generation_id, docs.repo_id
@@ -50,15 +56,19 @@ LEFT JOIN ready_docs ready
   ON ready.scope_id = docs.scope_id
  AND ready.generation_id = docs.generation_id
  AND ready.document_id = docs.document_id
+ AND ready.provider_profile_id = $2
+ AND ready.source_class = $3
  AND ready.embedding_content_hash = docs.content_hash
 WHERE ready.document_id IS NULL
 GROUP BY docs.scope_id, docs.generation_id, docs.repo_id
 ORDER BY docs.scope_id
-LIMIT $4
+LIMIT $6
 `
 
 // EshuSearchVectorPendingRequest bounds pending local vector build discovery.
 type EshuSearchVectorPendingRequest struct {
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	Limit              int
@@ -95,6 +105,12 @@ func (s EshuSearchVectorPendingStore) ListPendingSearchVectorScopes(
 	if req.EmbeddingModelID == "" {
 		return nil, fmt.Errorf("eshu search vector pending request requires embedding model id")
 	}
+	if req.ProviderProfileID == "" {
+		return nil, fmt.Errorf("eshu search vector pending request requires provider profile id")
+	}
+	if req.SourceClass == "" {
+		return nil, fmt.Errorf("eshu search vector pending request requires source class")
+	}
 	if req.VectorIndexVersion == "" {
 		return nil, fmt.Errorf("eshu search vector pending request requires vector index version")
 	}
@@ -110,6 +126,8 @@ func (s EshuSearchVectorPendingStore) ListPendingSearchVectorScopes(
 		ctx,
 		listPendingEshuSearchVectorScopesSQL,
 		EshuSearchDocumentFactKind,
+		req.ProviderProfileID,
+		req.SourceClass,
 		req.EmbeddingModelID,
 		req.VectorIndexVersion,
 		limit,

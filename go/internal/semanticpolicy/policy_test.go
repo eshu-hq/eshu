@@ -75,6 +75,32 @@ func TestEvaluateAllowsDocumentationWithConfiguredPolicy(t *testing.T) {
 	}
 }
 
+func TestEvaluateAllowsSearchDocumentsByDocumentID(t *testing.T) {
+	t.Parallel()
+
+	policy := searchDocumentsPolicyWithEgress()
+	decision := semanticpolicy.Evaluate(policy, semanticpolicy.Request{
+		ProviderProfileID: "semantic-search-default",
+		SourceClass:       semanticprofile.SourceSearchDocuments,
+		Scope: semanticpolicy.Scope{
+			Kind: semanticpolicy.ScopeRepository,
+			ID:   "repo-1",
+		},
+		DocumentID: "searchdoc:code:handler",
+		ACLState:   semanticpolicy.ACLAllowed,
+	}, searchProviderStatuses())
+
+	if !decision.Allowed {
+		t.Fatalf("Evaluate() Allowed = false, want true: %#v", decision)
+	}
+	if got, want := decision.RuleID, "search-docs-repo-1"; got != want {
+		t.Fatalf("RuleID = %q, want %q", got, want)
+	}
+	if got, want := decision.Settings.Retention.Posture, semanticpolicy.RetentionHashOnly; got != want {
+		t.Fatalf("Retention.Posture = %q, want %q", got, want)
+	}
+}
+
 func TestEvaluateDeniesCodeHintsWhenOnlyDocumentationIsAllowlisted(t *testing.T) {
 	t.Parallel()
 
@@ -339,6 +365,22 @@ func providerStatuses() []status.SemanticProviderProfileStatus {
 	}
 }
 
+func searchProviderStatuses() []status.SemanticProviderProfileStatus {
+	return []status.SemanticProviderProfileStatus{
+		{
+			ProfileID:              "semantic-search-default",
+			ProviderKind:           semanticprofile.ProviderInternalGateway,
+			CredentialSourceKind:   semanticprofile.CredentialSourceCloudWorkloadIdentity,
+			CredentialConfigured:   true,
+			ModelID:                "search-embed-v1",
+			EndpointProfileID:      "semantic-search-gateway",
+			SourceClasses:          []string{semanticprofile.SourceSearchDocuments},
+			SourcePolicyConfigured: false,
+			State:                  status.SemanticProviderProfileConfigured,
+		},
+	}
+}
+
 func docsOnlyPolicy() semanticpolicy.Policy {
 	return semanticpolicy.Policy{
 		PolicyID:            "semantic-hosted-policy",
@@ -368,6 +410,53 @@ func docsOnlyPolicy() semanticpolicy.Policy {
 					},
 					Retention: semanticpolicy.Retention{
 						Posture:  semanticpolicy.RetentionMetadataOnly,
+						Prompt:   semanticpolicy.RetentionNone,
+						Response: semanticpolicy.RetentionHashOnly,
+					},
+				},
+			},
+		},
+	}
+}
+
+func searchDocumentsPolicyWithEgress() semanticpolicy.Policy {
+	return semanticpolicy.Policy{
+		PolicyID: "semantic-search-policy",
+		Enabled:  true,
+		Egress: semanticpolicy.EgressPolicy{
+			Mode: semanticpolicy.EgressModeRestricted,
+			SemanticProviders: []semanticpolicy.EgressProviderRule{
+				{
+					ProviderProfileID: "semantic-search-default",
+					SourceClasses:     []string{semanticprofile.SourceSearchDocuments},
+					Decision:          semanticpolicy.EgressDecisionAllow,
+				},
+			},
+		},
+		Rules: []semanticpolicy.Rule{
+			{
+				RuleID:            "search-docs-repo-1",
+				ProviderProfileID: "semantic-search-default",
+				SourceClasses:     []string{semanticprofile.SourceSearchDocuments},
+				Scopes: []semanticpolicy.Scope{
+					{Kind: semanticpolicy.ScopeRepository, ID: "repo-1"},
+				},
+				SourceAllowlist: []semanticpolicy.SourceSelector{
+					{Kind: semanticpolicy.SourceSelectorDocumentID, Value: "searchdoc:code:handler"},
+				},
+				Settings: semanticpolicy.Settings{
+					Limits: semanticpolicy.Limits{
+						MaxChunkBytes:      4096,
+						MaxTokensPerChunk:  1024,
+						MaxDailyTokens:     50000,
+						MaxDailyCostMicros: 1000000,
+					},
+					Redaction: semanticpolicy.Redaction{
+						Mode:      semanticpolicy.RedactionStrict,
+						PolicyRef: "semantic-search-redaction-v1",
+					},
+					Retention: semanticpolicy.Retention{
+						Posture:  semanticpolicy.RetentionHashOnly,
 						Prompt:   semanticpolicy.RetentionNone,
 						Response: semanticpolicy.RetentionHashOnly,
 					},

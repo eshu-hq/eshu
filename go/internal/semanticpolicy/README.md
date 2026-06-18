@@ -69,9 +69,9 @@ handles.
 - `egress.mode=broad` is an explicit operator opt-in and cannot include
   provider-specific rules. Restricted mode requires a provider-profile and
   source-class allow rule before provider work can be planned.
-- Retention is intentionally narrow: metadata-only posture with no prompt body
-  retention and hash-only prompt metadata; response retention may be hash-only
-  or bounded redacted excerpts.
+- Retention is intentionally narrow: metadata-only or hash-only posture with no
+  prompt body retention and hash-only prompt metadata; response retention may be
+  hash-only or bounded redacted excerpts.
 
 ## Related docs
 

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -35,6 +34,8 @@ CREATE TABLE IF NOT EXISTS eshu_search_vector_metadata (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     document_id TEXT NOT NULL,
+    provider_profile_id TEXT NOT NULL DEFAULT 'local',
+    source_class TEXT NOT NULL DEFAULT 'search_documents',
     embedding_model_id TEXT NOT NULL,
     embedding_dimensions INTEGER NOT NULL CHECK (embedding_dimensions > 0),
     embedding_content_hash TEXT NOT NULL,
@@ -44,14 +45,30 @@ CREATE TABLE IF NOT EXISTS eshu_search_vector_metadata (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     last_success_at TIMESTAMPTZ NULL,
-    PRIMARY KEY (scope_id, generation_id, document_id, embedding_model_id, vector_index_version)
+    PRIMARY KEY (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version)
 );
+
+ALTER TABLE eshu_search_vector_metadata
+    ADD COLUMN IF NOT EXISTS provider_profile_id TEXT NOT NULL DEFAULT 'local';
+
+ALTER TABLE eshu_search_vector_metadata
+    ADD COLUMN IF NOT EXISTS source_class TEXT NOT NULL DEFAULT 'search_documents';
+
+ALTER TABLE eshu_search_vector_metadata
+    DROP CONSTRAINT IF EXISTS eshu_search_vector_metadata_pkey;
+
+ALTER TABLE eshu_search_vector_metadata
+    ADD CONSTRAINT eshu_search_vector_metadata_pkey
+    PRIMARY KEY (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version);
 
 CREATE INDEX IF NOT EXISTS eshu_search_vector_metadata_state_idx
     ON eshu_search_vector_metadata (scope_id, generation_id, build_state);
 
 CREATE INDEX IF NOT EXISTS eshu_search_vector_metadata_model_idx
     ON eshu_search_vector_metadata (scope_id, generation_id, embedding_model_id, vector_index_version);
+
+CREATE INDEX IF NOT EXISTS eshu_search_vector_metadata_model_v2_idx
+    ON eshu_search_vector_metadata (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version);
 `
 
 const upsertEshuSearchVectorMetadataSQL = `
@@ -59,6 +76,8 @@ INSERT INTO eshu_search_vector_metadata (
     scope_id,
     generation_id,
     document_id,
+    provider_profile_id,
+    source_class,
     embedding_model_id,
     embedding_dimensions,
     embedding_content_hash,
@@ -68,8 +87,8 @@ INSERT INTO eshu_search_vector_metadata (
     created_at,
     updated_at,
     last_success_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''), $10, $11, $12)
-ON CONFLICT (scope_id, generation_id, document_id, embedding_model_id, vector_index_version) DO UPDATE
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, ''), $12, $13, $14)
+ON CONFLICT (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE
 SET embedding_dimensions = EXCLUDED.embedding_dimensions,
     embedding_content_hash = EXCLUDED.embedding_content_hash,
     build_state = EXCLUDED.build_state,
@@ -83,6 +102,8 @@ SELECT
     meta.scope_id,
     meta.generation_id,
     meta.document_id,
+    meta.provider_profile_id,
+    meta.source_class,
     meta.embedding_model_id,
     meta.embedding_dimensions,
     meta.embedding_content_hash,
@@ -97,10 +118,12 @@ JOIN ingestion_scopes scope
   ON scope.scope_id = meta.scope_id
  AND scope.active_generation_id = meta.generation_id
 WHERE meta.scope_id = $1
-  AND meta.embedding_model_id = $2
-  AND meta.vector_index_version = $3
+  AND meta.provider_profile_id = $2
+  AND meta.source_class = $3
+  AND meta.embedding_model_id = $4
+  AND meta.vector_index_version = $5
 ORDER BY meta.document_id ASC
-LIMIT $4
+LIMIT $6
 `
 
 const eshuSearchVectorStatusSQL = `
@@ -115,8 +138,10 @@ JOIN ingestion_scopes scope
   ON scope.scope_id = meta.scope_id
  AND scope.active_generation_id = meta.generation_id
 WHERE meta.scope_id = $1
-  AND meta.embedding_model_id = $2
-  AND meta.vector_index_version = $3
+  AND meta.provider_profile_id = $2
+  AND meta.source_class = $3
+  AND meta.embedding_model_id = $4
+  AND meta.vector_index_version = $5
 GROUP BY scope.active_generation_id, meta.build_state
 ORDER BY meta.build_state ASC
 `
@@ -127,6 +152,8 @@ type EshuSearchVectorMetadata struct {
 	ScopeID              string
 	GenerationID         string
 	DocumentID           string
+	ProviderProfileID    string
+	SourceClass          string
 	EmbeddingModelID     string
 	EmbeddingDimensions  int
 	EmbeddingContentHash string
@@ -141,6 +168,8 @@ type EshuSearchVectorMetadata struct {
 // EshuSearchVectorMetadataFilter bounds active vector metadata reads.
 type EshuSearchVectorMetadataFilter struct {
 	ScopeID            string
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	DocumentIDs        []string
@@ -151,6 +180,8 @@ type EshuSearchVectorMetadataFilter struct {
 // load for one scope, model, and index version.
 type EshuSearchVectorStatusRequest struct {
 	ScopeID            string
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 }
@@ -203,6 +234,8 @@ func (s EshuSearchVectorMetadataStore) Upsert(ctx context.Context, row EshuSearc
 		row.ScopeID,
 		row.GenerationID,
 		row.DocumentID,
+		row.ProviderProfileID,
+		row.SourceClass,
 		row.EmbeddingModelID,
 		row.EmbeddingDimensions,
 		row.EmbeddingContentHash,
@@ -234,11 +267,11 @@ func (s EshuSearchVectorMetadataStore) ListActive(
 	}
 
 	query := listActiveEshuSearchVectorMetadataSQL
-	args := []any{filter.ScopeID, filter.EmbeddingModelID, filter.VectorIndexVersion}
+	args := []any{filter.ScopeID, filter.ProviderProfileID, filter.SourceClass, filter.EmbeddingModelID, filter.VectorIndexVersion}
 	if len(filter.DocumentIDs) > 0 {
-		query = strings.Replace(query, "\nORDER BY meta.document_id ASC", "\n  AND meta.document_id = ANY($4)\nORDER BY meta.document_id ASC", 1)
+		query = strings.Replace(query, "\nORDER BY meta.document_id ASC", "\n  AND meta.document_id = ANY($6)\nORDER BY meta.document_id ASC", 1)
 		args = append(args, pq.Array(filter.DocumentIDs))
-		query = strings.Replace(query, "LIMIT $4", "LIMIT $5", 1)
+		query = strings.Replace(query, "LIMIT $6", "LIMIT $7", 1)
 	}
 	args = append(args, filter.Limit)
 
@@ -280,6 +313,8 @@ func (s EshuSearchVectorMetadataStore) Status(
 		ctx,
 		eshuSearchVectorStatusSQL,
 		req.ScopeID,
+		req.ProviderProfileID,
+		req.SourceClass,
 		req.EmbeddingModelID,
 		req.VectorIndexVersion,
 	)
@@ -327,6 +362,8 @@ func scanEshuSearchVectorMetadata(rows Rows) (EshuSearchVectorMetadata, error) {
 		&row.ScopeID,
 		&row.GenerationID,
 		&row.DocumentID,
+		&row.ProviderProfileID,
+		&row.SourceClass,
 		&row.EmbeddingModelID,
 		&dimensions,
 		&row.EmbeddingContentHash,
@@ -346,114 +383,4 @@ func scanEshuSearchVectorMetadata(rows Rows) (EshuSearchVectorMetadata, error) {
 		row.LastSuccessAt = &lastSuccess.Time
 	}
 	return row, nil
-}
-
-func normalizeEshuSearchVectorMetadata(row EshuSearchVectorMetadata) EshuSearchVectorMetadata {
-	row.ScopeID = strings.TrimSpace(row.ScopeID)
-	row.GenerationID = strings.TrimSpace(row.GenerationID)
-	row.DocumentID = strings.TrimSpace(row.DocumentID)
-	row.EmbeddingModelID = strings.TrimSpace(row.EmbeddingModelID)
-	row.EmbeddingContentHash = strings.TrimSpace(row.EmbeddingContentHash)
-	row.VectorIndexVersion = strings.TrimSpace(row.VectorIndexVersion)
-	row.FailureClass = strings.TrimSpace(row.FailureClass)
-	row.BuildState = EshuSearchVectorBuildState(strings.TrimSpace(string(row.BuildState)))
-	return row
-}
-
-func validateEshuSearchVectorMetadata(row EshuSearchVectorMetadata) error {
-	var problems []error
-	if row.ScopeID == "" {
-		problems = append(problems, errors.New("eshu search vector metadata requires scope id"))
-	}
-	if row.GenerationID == "" {
-		problems = append(problems, errors.New("eshu search vector metadata requires generation id"))
-	}
-	if row.DocumentID == "" {
-		problems = append(problems, errors.New("eshu search vector metadata requires document id"))
-	}
-	if row.EmbeddingModelID == "" {
-		problems = append(problems, errors.New("eshu search vector metadata requires embedding model id"))
-	}
-	if row.EmbeddingDimensions <= 0 {
-		problems = append(problems, errors.New("eshu search vector metadata requires positive embedding dimensions"))
-	}
-	if row.EmbeddingContentHash == "" {
-		problems = append(problems, errors.New("eshu search vector metadata requires embedding content hash"))
-	}
-	if row.VectorIndexVersion == "" {
-		problems = append(problems, errors.New("eshu search vector metadata requires vector index version"))
-	}
-	if !validEshuSearchVectorBuildState(row.BuildState) {
-		problems = append(problems, fmt.Errorf("invalid eshu search vector build state %q", row.BuildState))
-	}
-	if row.CreatedAt.IsZero() {
-		problems = append(problems, errors.New("eshu search vector metadata requires created_at"))
-	}
-	if row.UpdatedAt.IsZero() {
-		problems = append(problems, errors.New("eshu search vector metadata requires updated_at"))
-	}
-	return errors.Join(problems...)
-}
-
-func normalizeEshuSearchVectorMetadataFilter(filter EshuSearchVectorMetadataFilter) EshuSearchVectorMetadataFilter {
-	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
-	filter.EmbeddingModelID = strings.TrimSpace(filter.EmbeddingModelID)
-	filter.VectorIndexVersion = strings.TrimSpace(filter.VectorIndexVersion)
-	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
-	if filter.Limit <= 0 {
-		filter.Limit = 100
-	}
-	if filter.Limit > 500 {
-		filter.Limit = 500
-	}
-	return filter
-}
-
-func validateEshuSearchVectorMetadataFilter(filter EshuSearchVectorMetadataFilter) error {
-	var problems []error
-	if filter.ScopeID == "" {
-		problems = append(problems, errors.New("eshu search vector metadata filter requires scope id"))
-	}
-	if filter.EmbeddingModelID == "" {
-		problems = append(problems, errors.New("eshu search vector metadata filter requires embedding model id"))
-	}
-	if filter.VectorIndexVersion == "" {
-		problems = append(problems, errors.New("eshu search vector metadata filter requires vector index version"))
-	}
-	return errors.Join(problems...)
-}
-
-func normalizeEshuSearchVectorStatusRequest(req EshuSearchVectorStatusRequest) EshuSearchVectorStatusRequest {
-	req.ScopeID = strings.TrimSpace(req.ScopeID)
-	req.EmbeddingModelID = strings.TrimSpace(req.EmbeddingModelID)
-	req.VectorIndexVersion = strings.TrimSpace(req.VectorIndexVersion)
-	return req
-}
-
-func validateEshuSearchVectorStatusRequest(req EshuSearchVectorStatusRequest) error {
-	var problems []error
-	if req.ScopeID == "" {
-		problems = append(problems, errors.New("eshu search vector status requires scope id"))
-	}
-	if req.EmbeddingModelID == "" {
-		problems = append(problems, errors.New("eshu search vector status requires embedding model id"))
-	}
-	if req.VectorIndexVersion == "" {
-		problems = append(problems, errors.New("eshu search vector status requires vector index version"))
-	}
-	return errors.Join(problems...)
-}
-
-func validEshuSearchVectorBuildState(state EshuSearchVectorBuildState) bool {
-	switch state {
-	case EshuSearchVectorBuildStateDisabled,
-		EshuSearchVectorBuildStateQueued,
-		EshuSearchVectorBuildStateBuilding,
-		EshuSearchVectorBuildStateReady,
-		EshuSearchVectorBuildStateFailed,
-		EshuSearchVectorBuildStateStale:
-		return true
-	default:
-		return false
-	}
 }

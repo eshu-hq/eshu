@@ -16,6 +16,8 @@ source policy as configured.
 Profiles are supplied as JSON in `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`. Each
 profile must include a stable `profile_id`, a supported `provider_kind`, a
 `credential_source`, and one or more allowed `source_classes`.
+`search_documents` is the source class for curated `EshuSearchDocument` text
+used by governed search-vector builds.
 
 Credential sources carry handles only. For `environment_variable`, the handle
 must be the name of an environment variable, not the provider key value itself.

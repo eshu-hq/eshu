@@ -53,10 +53,10 @@ requests rather than hiding the absence of embeddings.
 
 A production embedder implementation must be behind a narrow port. It may use a
 local model, hosted provider, internal gateway, or other approved provider only
-after governance admits the source class and scope. Hosted provider and gateway
-adapters live outside `go/internal/searchhybrid`; that package keeps the
-deterministic fusion boundary and must not import hosted SDKs or make egress
-calls.
+after governance admits the `search_documents` source class and scope. Hosted
+provider and gateway adapters live outside `go/internal/searchhybrid`; that
+package keeps the deterministic fusion boundary and must not import hosted SDKs
+or make egress calls.
 
 The embedder path must record:
 
@@ -86,7 +86,7 @@ of these are true:
 
 1. The request has a bounded repository scope, query, mode, limit, and timeout.
 2. The active generation has curated search documents.
-3. A governed embedder is configured for the search-document source class.
+3. A governed embedder is configured for the `search_documents` source class.
 4. Source policy, ACL, egress, redaction, budget, and retention checks pass.
 5. The vector index is built for the active generation and matching embedding
    schema version.
