@@ -98,6 +98,13 @@ type RepositorySnapshot struct {
 	// parser emitted interproc_findings (gated by ESHU_EMIT_DATAFLOW); byte-
 	// identical when off. Evidence, never canonical truth.
 	InterprocTaintEvidence []InterprocTaintEvidenceSnapshot `json:"interproc_taint_evidence,omitempty"`
+	// DataflowScanned records that the value-flow gate (ESHU_EMIT_DATAFLOW) was on
+	// for this snapshot, independent of whether TaintEvidence or
+	// InterprocTaintEvidence produced any findings. It drives a per-generation
+	// marker fact so the reducer reconciles (and retracts stale) value-flow
+	// evidence even when the current finding set is empty. False — and omitted —
+	// when the gate is off, preserving the byte-identical-when-off guarantee.
+	DataflowScanned bool `json:"dataflow_scanned,omitempty"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved
