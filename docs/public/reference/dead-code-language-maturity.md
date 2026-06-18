@@ -68,3 +68,21 @@ promote the full `code_quality.dead_code` capability.
 Each promotion must update the query maturity map, the relevant parser and query
 tests, the language page, this matrix, and the capability evidence in the same
 pull request.
+
+## Java Imported Receiver Evidence
+
+No-Regression Evidence: issue #3004 keeps Java imported receiver call edges
+bounded to parser-proven imports and one import-bound class file. Focused
+regressions cover a positive imported receiver edge, duplicate import-bound
+source roots before method lookup, and fully qualified receiver declarations
+that conflict with a same-leaf import. The local proof was
+`go test ./internal/parser/java -run TestParseEmitsQualifiedJavaReceiverType -count=1`
+and `go test ./internal/reducer -run 'TestResolveGenericCallee(LeavesDuplicateJavaImportBindingUnresolvedBeforeMethodLookup|DoesNotBindQualifiedJavaReceiverToConflictingImport|UsesJavaImportedReceiverBeforeAmbiguousRepoName|LeavesAmbiguousJavaImportedReceiverUnresolved)' -count=1`.
+
+No-Observability-Change: the resolver uses existing parsed import rows,
+repository prescan import maps, parser receiver metadata, and the in-memory
+code entity index before code-call row emission. It adds no graph query, graph
+write shape, queue table, worker, lease, batch setting, runtime knob, metric
+instrument, metric label, span, route, or log key; operators still diagnose
+code-call extraction through existing reducer execution spans/counters and the
+`code call materialization completed` log fields.

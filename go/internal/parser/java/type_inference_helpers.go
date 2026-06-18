@@ -57,39 +57,55 @@ func javaParameterName(node *tree_sitter.Node, source []byte) string {
 }
 
 func javaDeclaredTypeName(node *tree_sitter.Node, source []byte) string {
+	typeName, _ := javaDeclaredTypeNames(node, source)
+	return typeName
+}
+
+func javaDeclaredTypeNames(node *tree_sitter.Node, source []byte) (string, string) {
 	if node == nil {
-		return ""
+		return "", ""
 	}
 	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
-		return javaTypeLeafName(nodeText(typeNode, source))
+		return javaTypeNames(nodeText(typeNode, source))
 	}
 	var typeName string
+	var qualifiedTypeName string
 	walkNamed(node, func(child *tree_sitter.Node) {
 		if typeName != "" {
 			return
 		}
 		switch child.Kind() {
 		case "type_identifier", "scoped_type_identifier", "generic_type", "integral_type", "floating_point_type", "boolean_type":
-			typeName = javaTypeLeafName(nodeText(child, source))
+			typeName, qualifiedTypeName = javaTypeNames(nodeText(child, source))
 		}
 	})
-	return typeName
+	return typeName, qualifiedTypeName
 }
 
 func javaObjectCreationTypeName(node *tree_sitter.Node, source []byte) string {
-	if node == nil || node.Kind() != "object_creation_expression" {
-		return ""
-	}
-	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
-		return javaTypeLeafName(nodeText(typeNode, source))
-	}
-	if typeNode := javaFirstTypeIdentifier(node); typeNode != nil {
-		return javaTypeLeafName(nodeText(typeNode, source))
-	}
-	return ""
+	typeName, _ := javaObjectCreationTypeNames(node, source)
+	return typeName
 }
 
-func javaTypeLeafName(value string) string {
+func javaObjectCreationTypeNames(node *tree_sitter.Node, source []byte) (string, string) {
+	if node == nil || node.Kind() != "object_creation_expression" {
+		return "", ""
+	}
+	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
+		return javaTypeNames(nodeText(typeNode, source))
+	}
+	if typeNode := javaFirstTypeIdentifier(node); typeNode != nil {
+		return javaTypeNames(nodeText(typeNode, source))
+	}
+	return "", ""
+}
+
+func javaTypeNames(value string) (string, string) {
+	qualifiedTypeName := javaQualifiedTypeName(value)
+	return javaTypeLeafName(qualifiedTypeName), qualifiedTypeName
+}
+
+func javaQualifiedTypeName(value string) string {
 	value = strings.TrimSpace(value)
 	value = strings.TrimPrefix(value, "? extends ")
 	value = strings.TrimPrefix(value, "? super ")
@@ -99,6 +115,14 @@ func javaTypeLeafName(value string) string {
 	if cut := strings.IndexAny(value, "<["); cut >= 0 {
 		value = strings.TrimSpace(value[:cut])
 	}
+	return strings.TrimSpace(value)
+}
+
+func javaTypeLeafName(value string) string {
+	value = javaQualifiedTypeName(value)
+	if value == "" {
+		return ""
+	}
 	if idx := strings.LastIndex(value, "."); idx >= 0 {
 		value = strings.TrimSpace(value[idx+1:])
 	}
@@ -106,7 +130,7 @@ func javaTypeLeafName(value string) string {
 }
 
 func javaLambdaTypedParameters(node *tree_sitter.Node, source []byte) []javaTypedName {
-	typeName := javaLambdaClassLiteralType(node, source)
+	typeName, qualifiedTypeName := javaTypeNames(javaLambdaClassLiteralType(node, source))
 	if typeName == "" {
 		return nil
 	}
@@ -115,9 +139,10 @@ func javaLambdaTypedParameters(node *tree_sitter.Node, source []byte) []javaType
 		return nil
 	}
 	return []javaTypedName{{
-		name:     names[0],
-		typeName: typeName,
-		line:     nodeLine(node) - 1,
+		name:              names[0],
+		typeName:          typeName,
+		qualifiedTypeName: qualifiedTypeName,
+		line:              nodeLine(node) - 1,
 	}}
 }
 

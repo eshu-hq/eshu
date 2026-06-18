@@ -43,11 +43,11 @@ func javaEnhancedForTypedName(node *tree_sitter.Node, source []byte) (javaTypedN
 		return javaTypedName{}, false
 	}
 	name := strings.Trim(strings.TrimSpace(fields[len(fields)-1]), "[]")
-	typeName := javaTypeLeafName(strings.Join(javaDropJavaDeclarationModifiers(fields[:len(fields)-1]), " "))
+	typeName, qualifiedTypeName := javaTypeNames(strings.Join(javaDropJavaDeclarationModifiers(fields[:len(fields)-1]), " "))
 	if name == "" || typeName == "" {
 		return javaTypedName{}, false
 	}
-	return javaTypedName{name: name, typeName: typeName, line: nodeLine(node)}, true
+	return javaTypedName{name: name, typeName: typeName, qualifiedTypeName: qualifiedTypeName, line: nodeLine(node)}, true
 }
 
 // javaExplicitOuterThisField splits receivers such as

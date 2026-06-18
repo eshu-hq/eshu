@@ -17,8 +17,10 @@ func init() {
 }
 
 func resolveJavaSemanticCallee(ctx codeCallResolveContext) (string, string, codeprovenance.Method) {
-	if entityID := resolveJavaImportedReceiverCallee(ctx); entityID != "" {
+	if entityID, attempted := resolveJavaImportedReceiverCallee(ctx); entityID != "" {
 		return entityID, ctx.index.entityFileByID[entityID], codeprovenance.MethodImportBinding
+	} else if attempted {
+		return "", "", ""
 	}
 	for _, candidateName := range javaSemanticCandidateNames(ctx.call) {
 		entityID := resolveJavaSemanticCandidate(ctx, candidateName)
@@ -60,13 +62,13 @@ func resolveJavaSemanticCandidate(ctx codeCallResolveContext, candidateName stri
 	return ctx.index.uniqueNameByRepo[ctx.repositoryID][candidateName]
 }
 
-func resolveJavaImportedReceiverCallee(ctx codeCallResolveContext) string {
+func resolveJavaImportedReceiverCallee(ctx codeCallResolveContext) (string, bool) {
 	if ctx.repositoryID == "" {
-		return ""
+		return "", false
 	}
-	paths := javaImportedReceiverPaths(ctx)
+	paths, attempted := javaImportedReceiverPaths(ctx)
 	if len(paths) == 0 {
-		return ""
+		return "", attempted
 	}
 	var resolvedEntityID string
 	for _, candidateName := range javaSemanticCandidateNames(ctx.call) {
@@ -76,26 +78,33 @@ func resolveJavaImportedReceiverCallee(ctx codeCallResolveContext) string {
 				continue
 			}
 			if resolvedEntityID != "" {
-				return ""
+				return "", true
 			}
 			resolvedEntityID = entityID
 		}
 	}
-	return resolvedEntityID
+	return resolvedEntityID, attempted
 }
 
-func javaImportedReceiverPaths(ctx codeCallResolveContext) []string {
+func javaImportedReceiverBindingBlocksRepoFallback(ctx codeCallResolveContext) bool {
+	_, attempted := javaImportedReceiverPaths(ctx)
+	return attempted
+}
+
+func javaImportedReceiverPaths(ctx codeCallResolveContext) ([]string, bool) {
 	receiverType := strings.TrimSpace(anyToString(ctx.call["inferred_obj_type"]))
 	if receiverType == "" {
-		return nil
+		return nil, false
 	}
+	qualifiedReceiverType := strings.TrimSpace(anyToString(ctx.call["inferred_obj_qualified_type"]))
 	importEntries := mapSlice(ctx.fileData["imports"])
 	pathsByReceiver := ctx.repositoryImports[receiverType]
 	if len(importEntries) == 0 || len(pathsByReceiver) == 0 {
-		return nil
+		return nil, false
 	}
 
 	var paths []string
+	attempted := false
 	appendPath := func(path string) {
 		path = normalizeCodeCallPath(path)
 		if path == "" {
@@ -114,6 +123,10 @@ func javaImportedReceiverPaths(ctx codeCallResolveContext) []string {
 			continue
 		}
 		for _, source := range codeCallImportEntrySources(entry) {
+			if !javaImportSourceMatchesQualifiedReceiver(source, receiverType, qualifiedReceiverType) {
+				continue
+			}
+			attempted = true
 			for _, path := range pathsByReceiver {
 				if javaImportSourceMatchesPath(source, receiverType, path) {
 					appendPath(path)
@@ -121,7 +134,10 @@ func javaImportedReceiverPaths(ctx codeCallResolveContext) []string {
 			}
 		}
 	}
-	return paths
+	if len(paths) != 1 {
+		return nil, attempted
+	}
+	return paths, attempted
 }
 
 func javaImportEntryMatchesReceiver(entry map[string]any, receiverType string) bool {
@@ -154,4 +170,20 @@ func javaImportSourceMatchesPath(source string, receiverType string, path string
 	}
 	sourcePath := strings.ReplaceAll(source, ".", "/") + ".java"
 	return strings.HasSuffix(path, sourcePath)
+}
+
+func javaImportSourceMatchesQualifiedReceiver(source string, receiverType string, qualifiedReceiverType string) bool {
+	qualifiedReceiverType = strings.TrimSpace(qualifiedReceiverType)
+	if qualifiedReceiverType == "" || !strings.Contains(qualifiedReceiverType, ".") {
+		return true
+	}
+	source = strings.TrimSpace(source)
+	receiverType = strings.TrimSpace(receiverType)
+	if source == "" || receiverType == "" {
+		return false
+	}
+	if strings.HasSuffix(source, ".*") {
+		source = strings.TrimSuffix(source, ".*") + "." + receiverType
+	}
+	return source == qualifiedReceiverType
 }

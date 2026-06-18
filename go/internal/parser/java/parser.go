@@ -339,6 +339,9 @@ func appendJavaCall(
 	}
 	if inferredType := javaCallInferredObjectType(node, source, inference); inferredType != "" {
 		item["inferred_obj_type"] = inferredType
+		if qualifiedType := javaCallInferredObjectQualifiedType(node, source, inference); qualifiedType != "" && qualifiedType != inferredType {
+			item["inferred_obj_qualified_type"] = qualifiedType
+		}
 	}
 	if methodReferenceReceiver != "" {
 		if inferredType := javaVisibleNameType(node, methodReferenceReceiver, source, inference); inferredType != "" {

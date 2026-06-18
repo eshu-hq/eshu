@@ -65,6 +65,9 @@ func resolveGenericCallee(
 	); entityID != "" {
 		return entityID, calleeFile, method
 	}
+	if codeCallLanguageResolverBlocksRepoFallback(ctx) {
+		return "", "", ""
+	}
 	for _, name := range codeCallExactCandidateNames(call, language) {
 		if entityID := index.uniqueNameByRepo[repositoryID][name]; entityID != "" {
 			return entityID, index.entityFileByID[entityID], codeprovenance.MethodRepoUniqueName
