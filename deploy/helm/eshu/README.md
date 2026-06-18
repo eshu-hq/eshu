@@ -66,6 +66,20 @@ helm lint ./deploy/helm/eshu
 
 ## Performance / Observability Evidence
 
+No-Regression Evidence: charted horizontal ingesters render only when each
+replica keeps a StatefulSet-owned workspace claim. `ingester.replicas > 1`
+sets `ESHU_REPO_SHARD_COUNT` from the replica count and
+`ESHU_REPO_SHARD_INDEX` from `metadata.labels['apps.kubernetes.io/pod-index']`;
+the chart requires Kubernetes 1.32 or newer for that stable StatefulSet label
+and rejects static shard env overrides and shared
+`ingester.persistence.existingClaim` storage. `go test ./internal/runtime -run
+'TestHelm(RendersShardEnvForHorizontalIngester|RejectsHorizontalIngesterStaticShardEnvOverrides|RejectsHorizontalIngesterWithSharedExistingClaim|RejectsHorizontalIngesterOnOldKubernetes|IngesterDoesNotRenderShardPodIndexEnv)'
+-count=1` covers the render contract and guards.
+
+Observability Evidence: horizontal ingester rendering adds no metric, span,
+status, or log schema. Shard identity stays visible through rendered env vars
+and existing collector, queue, Postgres, and pod-level signals.
+
 The `api.extraVolumes` / `api.extraVolumeMounts` and `mcpServer.extraVolumes` /
 `mcpServer.extraVolumeMounts` hooks added for the two-team governance proof are
 additive and default to `[]`, so the rendered API/MCP runtime is byte-identical

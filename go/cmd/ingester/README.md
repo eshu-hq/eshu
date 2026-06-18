@@ -31,7 +31,7 @@ flowchart TB
   C --> E["GitSource.Next\ndiscover + snapshot workers"]
   E --> F["IngestionStore\ndurable fact write"]
   F --> G{"batch drained?"}
-  G -- yes --> H["AfterBatchDrained\nBackfillAllRelationshipEvidence\nReopenDeploymentMappingWorkItems"]
+  G -- yes --> H["AfterBatchDrained\nshard drain barrier\nbackfill/reopen leader"]
   G -- no --> E
   D --> I["projectorQueue.Claim"]
   I --> J["projector.Runtime.Project\ncanonical write + content write + intent enqueue"]
@@ -91,13 +91,36 @@ repository sync completed` logs still surface operation, repository ordinal,
 branch, elapsed time, and failure class; the retry path keeps the original fetch
 progress writer so a repeated failure remains visible.
 
-After each full collector batch drain, `AfterBatchDrained` calls
-`BackfillAllRelationshipEvidence` then `ReopenDeploymentMappingWorkItems`.
-These two calls implement the Phase 1 → Phase 3 bootstrap ordering described in
-`CLAUDE.md`: backfill populates `relationship_evidence_facts`; reopen
-re-triggers `deployment_mapping` so the reducer can produce
-`resolved_relationships`. A failure in either call exits the ingester to prevent
-partial backfill state.
+After each full collector batch drain, `AfterBatchDrained` records the shard's
+arrival in `deferred_maintenance_barriers` /
+`deferred_maintenance_barrier_arrivals`. Multi-shard ingesters wait until every
+`ESHU_REPO_SHARD_INDEX` for the current epoch has arrived; the completing shard
+becomes the maintenance leader. The leader transaction takes an exclusive
+Postgres advisory lock before running `BackfillAllRelationshipEvidence` and
+`ReopenDeploymentMappingWorkItems`; normal source fact commits take the matching
+shared transaction-level lock. This preserves the Phase 1 → Phase 3 bootstrap
+ordering described in `CLAUDE.md`, waits for all shards to drain their source
+batch, and blocks next-cycle commits until relationship evidence is backfilled
+and `deployment_mapping` work is reopened. A failure exits the ingester to
+prevent partial maintenance state.
+For `ESHU_REPO_SHARD_COUNT > 1`, empty selected batches also participate in the
+barrier so shards that own no repositories in a cycle cannot block the fleet.
+Changing shard count while an epoch is open fails closed; operators should let
+the current epoch complete before scaling charted ingester replicas.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesExclusiveBarrier|ShardDrainBarrier)'
+-count=1` covers the shared commit barrier, exclusive deferred-maintenance
+barrier, and multi-shard drain rendezvous. `go test ./cmd/ingester -run
+'TestBuildIngesterCollectorService(DefersRelationshipBackfillToBatchDrain|RunsDrainHookForEmptyShardedBatches)|TestBuildIngesterServiceProducesCompositeRunner'
+-count=1` covers the batch-drain hook wiring and empty-shard participation.
+
+Observability Evidence: source commits log a
+`deferred_maintenance_shared_barrier` commit stage, and the existing Postgres
+instrumentation emits query duration for the advisory-lock statements. Deferred
+maintenance barrier wait/completion logs report epoch, shard count, arrived
+shard count, and leader shard index. Failures continue to exit the ingester with
+a structured `deferred_relationship_maintenance_failure` failure class.
 
 The collector service also wires the shared collector generation dead-letter
 store. Commit failures before projector work exists are surfaced through
@@ -172,8 +195,8 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
 | ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT | 100 | Max webhook triggers claimed per selector pass |
 | ESHU_REPO_SCHEDULED_SYNC_ENABLED | true | Enable broad scheduled repository selection when no webhook triggers are queued |
-| ESHU_REPO_SHARD_COUNT | 1 | Deterministic repository shard count for controlled non-Helm runtimes. |
-| ESHU_REPO_SHARD_INDEX | 0 | Deterministic zero-based repository shard index for controlled non-Helm runtimes. |
+| ESHU_REPO_SHARD_COUNT | 1 | Deterministic repository shard count. Helm sets this from `ingester.replicas` when replicas are greater than one. |
+| ESHU_REPO_SHARD_INDEX | 0 | Deterministic zero-based repository shard index. Helm sets this from the StatefulSet pod ordinal when replicas are greater than one. |
 | ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,
@@ -220,10 +243,11 @@ The ingester inherits collector and projector telemetry. Key signals:
   Kubernetes. Do not attach the volume to other workloads.
 - Env-driven repository sharding filters repository selection before clone or
   snapshot work by `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX`.
-  Charted horizontal ingesters stay disabled until the global
-  `AfterBatchDrained` maintenance hook has a fleet-wide drain barrier. Without
-  that barrier, one shard could reopen downstream reducer work while another
-  shard is still committing source facts.
+  Charted horizontal ingesters set shard count from `ingester.replicas` and
+  shard index from the StatefulSet `apps.kubernetes.io/pod-index` label. Keep
+  the default `volumeClaimTemplates` shape so each shard owns one workspace PVC;
+  the chart rejects shared `existingClaim` storage and static shard env
+  overrides for multi-replica ingesters.
 - Version probes are pre-startup checks. Keep `buildinfo.PrintVersionFlag` at
   the top of `main` so container images can report their build without
   requiring database credentials.
@@ -288,8 +312,8 @@ added or removed.
   shutdown logged alongside a collector shutdown does not mean both failed
   independently; check which runner returned the first non-nil error.
 - `IngestionStore.SkipRelationshipBackfill = true` suppresses per-commit
-  backfill; `AfterBatchDrained` handles backfill after each full drain instead
-  (`wiring.go:195-222`).
+  backfill; `AfterBatchDrained` handles global relationship maintenance after
+  each full drain instead (`wiring.go:195-222`).
 - NornicDB grouped writes remain disabled by default. Enabling
   ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true requires the fixed rollback binary
   and a full conformance pass before production use.

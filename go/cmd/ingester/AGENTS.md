@@ -9,8 +9,9 @@
 3. `go/cmd/ingester/wiring.go` — `buildIngesterService`, `compositeRunner`,
    `buildIngesterCollectorService`, `buildIngesterProjectorService`; the two
    services run concurrently under a shared cancel context
-4. `go/cmd/ingester/wiring_deferred_relationship.go` — deferred relationship
-   backfill and deployment-mapping reopen ordering after collector batch drain
+4. `go/cmd/ingester/wiring_deferred_relationship.go` — shard-drain barrier,
+   deferred relationship backfill, and deployment-mapping reopen ordering after
+   collector batch drain
 5. `go/internal/collector/README.md` and `go/internal/projector/README.md` —
    understand both services before modifying their wiring
 6. `go/cmd/ingester/wiring_nornicdb_env.go` and `wiring_nornicdb_config.go` —
@@ -20,13 +21,19 @@
 
 - **Single workspace owner** — the ingester is the only runtime that should
   hold the workspace PVC. Do not add PVC mounts to other workloads.
-- **AfterBatchDrained ordering** — `BackfillAllRelationshipEvidence` must run
+- **AfterBatchDrained ordering** — sharded ingesters must record the local
+  batch drain before global maintenance runs. Only the shard that completes the
+  fleet barrier may run `BackfillAllRelationshipEvidence`, and it must run
   before `ReopenDeploymentMappingWorkItems`. Both must succeed; a failure exits
   the ingester. This implements CLAUDE.md Phase 1 / Phase 3 bootstrap ordering.
-  Enforced in `wiring_deferred_relationship.go`.
+  Enforced in `wiring_deferred_relationship.go` and
+  `internal/storage/postgres/deferred_maintenance_barrier.go`.
 - **SkipRelationshipBackfill = true** on `IngestionStore` — per-commit backfill
   is suppressed deliberately. Do not remove this flag without adding equivalent
   per-commit backfill, which would slow the hot commit path.
+- **Empty sharded batch participation** — `AfterEmptyBatchDrained` is enabled
+  only when `ESHU_REPO_SHARD_COUNT > 1` so empty shards can enter the
+  fleet-wide barrier. Do not enable it for unsharded ingesters.
 - **compositeRunner first-error cancel** — either service failing cancels the
   other via the shared context. This is correct behavior; do not change it to
   ignore collector or projector errors.
@@ -74,10 +81,11 @@
   raise `ESHU_PROJECTOR_WORKERS` only after confirming graph backend is not the
   bottleneck.
 
-- Symptom: ingester exits with "deferred relationship backfill failed" →
-  likely cause: `BackfillAllRelationshipEvidence` Postgres error →
-  check Postgres connection health and fact-store table constraints; the exit is
-  intentional to prevent partial backfill state.
+- Symptom: ingester exits with "deferred relationship maintenance failed" →
+  likely cause: shard-drain barrier, `BackfillAllRelationshipEvidence`, or
+  `ReopenDeploymentMappingWorkItems` Postgres error → check Postgres connection
+  health, barrier table state, and fact-store table constraints; the exit is
+  intentional to prevent partial maintenance state.
 
 - Symptom: NornicDB write timeout in logs →
   likely cause: `ESHU_CANONICAL_WRITE_TIMEOUT` too short for current entity
@@ -118,9 +126,9 @@
 
 ## What NOT to change without an ADR
 
-- `AfterBatchDrained` call order (`BackfillAllRelationshipEvidence` before
-  `ReopenDeploymentMappingWorkItems`) — changing this order breaks the
-  bootstrap phase contract in `CLAUDE.md`.
+- `AfterBatchDrained` barrier and call order (fleet drain barrier before
+  `BackfillAllRelationshipEvidence`, then `ReopenDeploymentMappingWorkItems`) —
+  changing this order breaks the bootstrap phase contract in `CLAUDE.md`.
 - `compositeRunner` error propagation — silencing either service error hides
   real failures from operators.
 - The workspace PVC ownership model — moving workspace ownership to another

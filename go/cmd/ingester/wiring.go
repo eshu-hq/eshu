@@ -205,13 +205,17 @@ func buildIngesterCollectorService(
 			Instruments:            instruments,
 			Logger:                 logger,
 		},
-		Committer:         committer,
-		DeadLetters:       postgres.NewCollectorGenerationDeadLetterStore(database),
-		PollInterval:      ingesterCollectorPollInterval,
-		AfterBatchDrained: ingesterDeferredRelationshipMaintenance(committer, tracer, instruments, logger),
-		Tracer:            tracer,
-		Instruments:       instruments,
-		Logger:            logger,
+		Committer:    committer,
+		DeadLetters:  postgres.NewCollectorGenerationDeadLetterStore(database),
+		PollInterval: ingesterCollectorPollInterval,
+		AfterBatchDrained: ingesterDeferredRelationshipMaintenance(committer, postgres.DeferredMaintenanceBarrierConfig{
+			ShardCount: config.RepoShardCount,
+			ShardIndex: config.RepoShardIndex,
+		}, tracer, instruments, logger),
+		AfterEmptyBatchDrained: config.RepoShardCount > 1,
+		Tracer:                 tracer,
+		Instruments:            instruments,
+		Logger:                 logger,
 	}, nil
 }
 

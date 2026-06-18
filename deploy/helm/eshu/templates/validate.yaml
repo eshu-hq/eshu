@@ -26,8 +26,19 @@
 {{- if and (eq .Values.repoSync.auth.method "ssh") (eq .Values.repoSync.source.mode "githubOrg") -}}
 {{- fail "repoSync.auth.method=ssh requires repoSync.source.mode=explicit or filesystem" -}}
 {{- end -}}
-{{- if gt (.Values.ingester.replicas | int) 1 -}}
-{{- fail "ingester.replicas greater than 1 is not supported until repository sharding has a fleet-wide deferred-maintenance barrier; keep ingester.replicas=1" -}}
+{{- if and .Values.repoSync.enabled (gt (.Values.ingester.replicas | int) 1) -}}
+{{- if not (semverCompare ">=1.32.0-0" .Capabilities.KubeVersion.Version) -}}
+{{- fail "ingester.replicas greater than 1 requires Kubernetes 1.32 or newer for the stable StatefulSet apps.kubernetes.io/pod-index label" -}}
+{{- end -}}
+{{- if .Values.ingester.persistence.existingClaim -}}
+{{- fail "ingester.persistence.existingClaim cannot be used with ingester.replicas greater than 1; use StatefulSet volumeClaimTemplates so each shard owns one workspace PVC" -}}
+{{- end -}}
+{{- $shardEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.ingester.env) -}}
+{{- range $envMap := $shardEnvMaps -}}
+{{- if or (hasKey $envMap "ESHU_REPO_SHARD_COUNT") (hasKey $envMap "ESHU_REPO_SHARD_INDEX") -}}
+{{- fail "horizontal ingesters manage ESHU_REPO_SHARD_COUNT and ESHU_REPO_SHARD_INDEX from replicas and pod ordinal; remove static shard env overrides" -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- if and (eq .Values.exposure.ingress.backend "mcp") (not .Values.mcpServer.enabled) -}}
 {{- fail "exposure.ingress.backend=mcp requires mcpServer.enabled=true" -}}

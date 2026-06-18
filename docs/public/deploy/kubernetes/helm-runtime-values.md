@@ -175,10 +175,24 @@ Defaults: enabled, bootstrap on, `initialDelaySeconds=0`,
 `repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. SSH auth is
 valid only for `explicit` or `filesystem` source modes, not `githubOrg`.
 
-Keep `ingester.replicas=1` in Helm. The collector supports env-driven
-repository sharding for controlled runtimes, but the chart does not enable
-horizontal ingesters until the fleet has a durable barrier for the global
-deferred relationship-maintenance hook that runs after a collector batch drains.
-The chart rejects `ingester.replicas > 1` instead of relying on pod-index labels
-or allowing one shard to reopen downstream reducer work while another shard is
-still committing source facts.
+Set `ingester.replicas` above `1` to run charted horizontal ingesters. The
+chart maps `ESHU_REPO_SHARD_COUNT` to the replica count and maps
+`ESHU_REPO_SHARD_INDEX` from the StatefulSet
+`apps.kubernetes.io/pod-index` label, so operators must not set either shard
+env var manually in global or ingester-specific `env`. Horizontal ingesters
+require Kubernetes `1.32` or newer because the chart relies on the stable
+StatefulSet pod-index label.
+
+Horizontal ingesters require the default StatefulSet `volumeClaimTemplates`
+workspace shape so each shard owns a distinct repository cache. The chart
+rejects `ingester.persistence.existingClaim` when `ingester.replicas > 1`
+because a shared PVC would let multiple shards mutate one checkout tree.
+
+The ingester's deferred relationship-maintenance hook is fleet-safe under
+multi-replica sharding: each shard records its local batch drain in the
+Postgres `deferred_maintenance_barriers` epoch, only the shard that completes
+the epoch runs global backfill and `deployment_mapping` reopen, and the
+maintenance transaction takes an exclusive advisory lock that blocks
+next-cycle source commits until maintenance commits or rolls back. Let a
+barrier epoch complete before changing `ingester.replicas`; shard-count changes
+while an epoch is open fail closed to protect graph truth.

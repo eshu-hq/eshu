@@ -1,0 +1,375 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+const (
+	deferredMaintenanceBarrierName         = "ingester_deferred_relationship_maintenance"
+	deferredMaintenanceBarrierStateLockKey = 0x455348554d4253
+	deferredMaintenanceBarrierPollInterval = 250 * time.Millisecond
+)
+
+const deferredMaintenanceBarrierSchemaSQL = `
+CREATE TABLE IF NOT EXISTS deferred_maintenance_barriers (
+    barrier_name TEXT NOT NULL,
+    epoch BIGINT NOT NULL,
+    shard_count INTEGER NOT NULL CHECK (shard_count > 0),
+    leader_shard_index INTEGER NULL,
+    completed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (barrier_name, epoch)
+);
+CREATE TABLE IF NOT EXISTS deferred_maintenance_barrier_arrivals (
+    barrier_name TEXT NOT NULL,
+    epoch BIGINT NOT NULL,
+    shard_index INTEGER NOT NULL CHECK (shard_index >= 0),
+    arrived_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (barrier_name, epoch, shard_index),
+    FOREIGN KEY (barrier_name, epoch)
+        REFERENCES deferred_maintenance_barriers (barrier_name, epoch)
+        ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS deferred_maintenance_barrier_arrivals_epoch_idx
+    ON deferred_maintenance_barrier_arrivals (barrier_name, epoch, arrived_at DESC);
+CREATE INDEX IF NOT EXISTS deferred_maintenance_barriers_updated_idx
+    ON deferred_maintenance_barriers (updated_at DESC);
+`
+
+const selectLatestDeferredMaintenanceBarrierSQL = `
+SELECT epoch, shard_count, completed_at
+FROM deferred_maintenance_barriers
+WHERE barrier_name = $1
+ORDER BY epoch DESC
+LIMIT 1
+FOR UPDATE
+`
+
+const insertDeferredMaintenanceBarrierSQL = `
+INSERT INTO deferred_maintenance_barriers (
+    barrier_name, epoch, shard_count, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $4)
+`
+
+const recordDeferredMaintenanceBarrierArrivalSQL = `
+INSERT INTO deferred_maintenance_barrier_arrivals (
+    barrier_name, epoch, shard_index, arrived_at
+) VALUES ($1, $2, $3, $4)
+ON CONFLICT (barrier_name, epoch, shard_index) DO UPDATE
+SET arrived_at = EXCLUDED.arrived_at
+`
+
+const countDeferredMaintenanceBarrierArrivalsSQL = `
+SELECT COUNT(*)
+FROM deferred_maintenance_barrier_arrivals
+WHERE barrier_name = $1
+  AND epoch = $2
+`
+
+const completeDeferredMaintenanceBarrierSQL = `
+UPDATE deferred_maintenance_barriers
+SET leader_shard_index = $3,
+    completed_at = $4,
+    updated_at = $4
+WHERE barrier_name = $1
+  AND epoch = $2
+`
+
+const selectDeferredMaintenanceBarrierCompletedSQL = `
+SELECT completed_at
+FROM deferred_maintenance_barriers
+WHERE barrier_name = $1
+  AND epoch = $2
+`
+
+// DeferredMaintenanceBarrierConfig identifies one sharded ingester's
+// participation in the fleet-wide deferred-maintenance barrier.
+type DeferredMaintenanceBarrierConfig struct {
+	ShardCount int
+	ShardIndex int
+}
+
+func (c DeferredMaintenanceBarrierConfig) validate() error {
+	if c.ShardCount < 1 {
+		return fmt.Errorf("deferred maintenance shard count must be positive")
+	}
+	if c.ShardIndex < 0 {
+		return fmt.Errorf("deferred maintenance shard index must be non-negative")
+	}
+	if c.ShardIndex >= c.ShardCount {
+		return fmt.Errorf("deferred maintenance shard index %d must be less than shard count %d", c.ShardIndex, c.ShardCount)
+	}
+	return nil
+}
+
+func deferredMaintenanceBarrierBootstrapDefinition() Definition {
+	return Definition{
+		Name: "deferred_maintenance_barriers",
+		Path: "schema/data-plane/postgres/016_deferred_maintenance_barriers.sql",
+		SQL:  deferredMaintenanceBarrierSchemaSQL,
+	}
+}
+
+func init() {
+	bootstrapDefinitions = append(bootstrapDefinitions, deferredMaintenanceBarrierBootstrapDefinition())
+}
+
+// RunDeferredRelationshipMaintenanceAfterShardDrain records this shard's drain
+// arrival and runs global deferred maintenance only after every shard in the
+// current epoch has arrived. Single-shard runtimes run maintenance directly.
+func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
+	ctx context.Context,
+	config DeferredMaintenanceBarrierConfig,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) error {
+	if err := config.validate(); err != nil {
+		return err
+	}
+	if config.ShardCount == 1 {
+		return s.RunDeferredRelationshipMaintenance(ctx, tracer, instruments)
+	}
+	if s.beginner == nil {
+		return fmt.Errorf("transaction beginner is required")
+	}
+
+	tx, err := s.beginner.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin deferred maintenance barrier transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err := acquireDeferredMaintenanceStateBarrier(ctx, tx); err != nil {
+		return fmt.Errorf("acquire deferred maintenance state barrier: %w", err)
+	}
+	now := s.now()
+	epoch, err := ensureDeferredMaintenanceBarrierEpoch(ctx, tx, config.ShardCount, now)
+	if err != nil {
+		return err
+	}
+	arrivedCount, err := recordDeferredMaintenanceBarrierArrival(ctx, tx, epoch, config.ShardIndex, now)
+	if err != nil {
+		return err
+	}
+	if arrivedCount < config.ShardCount {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit deferred maintenance barrier arrival: %w", err)
+		}
+		committed = true
+		if s.Logger != nil {
+			s.Logger.InfoContext(ctx, "deferred maintenance barrier waiting for shards",
+				telemetry.PhaseAttr("deferred_maintenance_barrier"),
+				"epoch", epoch,
+				"arrived_shards", arrivedCount,
+				"shard_count", config.ShardCount,
+				"shard_index", config.ShardIndex,
+			)
+		}
+		return s.waitDeferredMaintenanceBarrierCompletion(ctx, epoch, config)
+	}
+
+	if err := acquireDeferredMaintenanceExclusiveBarrier(ctx, tx); err != nil {
+		return fmt.Errorf("acquire deferred maintenance exclusive barrier: %w", err)
+	}
+	maintenanceStore := NewIngestionStore(tx)
+	maintenanceStore.Now = s.Now
+	maintenanceStore.Logger = s.Logger
+	if err := maintenanceStore.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
+		return err
+	}
+	if err := maintenanceStore.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
+		return err
+	}
+	if err := completeDeferredMaintenanceBarrier(ctx, tx, epoch, config.ShardIndex, now); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit deferred maintenance transaction: %w", err)
+	}
+	committed = true
+	if s.Logger != nil {
+		s.Logger.InfoContext(ctx, "deferred maintenance barrier completed",
+			telemetry.PhaseAttr("deferred_maintenance_barrier"),
+			"epoch", epoch,
+			"arrived_shards", arrivedCount,
+			"shard_count", config.ShardCount,
+			"leader_shard_index", config.ShardIndex,
+		)
+	}
+	return nil
+}
+
+func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
+	ctx context.Context,
+	epoch int64,
+	config DeferredMaintenanceBarrierConfig,
+) error {
+	if s.db == nil {
+		return fmt.Errorf("ingestion store db is required")
+	}
+
+	ticker := time.NewTicker(deferredMaintenanceBarrierPollInterval)
+	defer ticker.Stop()
+	for {
+		completed, err := deferredMaintenanceBarrierCompleted(ctx, s.db, epoch)
+		if err != nil {
+			return err
+		}
+		if completed {
+			if s.Logger != nil {
+				s.Logger.InfoContext(ctx, "deferred maintenance barrier observed completion",
+					telemetry.PhaseAttr("deferred_maintenance_barrier"),
+					"epoch", epoch,
+					"shard_count", config.ShardCount,
+					"shard_index", config.ShardIndex,
+				)
+			}
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func acquireDeferredMaintenanceStateBarrier(ctx context.Context, db ExecQueryer) error {
+	_, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", deferredMaintenanceBarrierStateLockKey)
+	return err
+}
+
+func ensureDeferredMaintenanceBarrierEpoch(
+	ctx context.Context,
+	tx Transaction,
+	shardCount int,
+	now time.Time,
+) (int64, error) {
+	rows, err := tx.QueryContext(ctx, selectLatestDeferredMaintenanceBarrierSQL, deferredMaintenanceBarrierName)
+	if err != nil {
+		return 0, fmt.Errorf("query deferred maintenance barrier: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var latestEpoch int64
+	var latestShardCount int
+	var completedAt sql.NullTime
+	if rows.Next() {
+		if err := rows.Scan(&latestEpoch, &latestShardCount, &completedAt); err != nil {
+			return 0, fmt.Errorf("scan deferred maintenance barrier: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("scan deferred maintenance barrier rows: %w", err)
+	}
+
+	if latestEpoch > 0 && !completedAt.Valid && latestShardCount != shardCount {
+		return 0, fmt.Errorf("deferred maintenance barrier epoch %d is open with shard count %d, refusing shard count %d", latestEpoch, latestShardCount, shardCount)
+	}
+	if latestEpoch > 0 && !completedAt.Valid {
+		return latestEpoch, nil
+	}
+	nextEpoch := latestEpoch + 1
+	if _, err := tx.ExecContext(
+		ctx,
+		insertDeferredMaintenanceBarrierSQL,
+		deferredMaintenanceBarrierName,
+		nextEpoch,
+		shardCount,
+		now,
+	); err != nil {
+		return 0, fmt.Errorf("insert deferred maintenance barrier epoch: %w", err)
+	}
+	return nextEpoch, nil
+}
+
+func recordDeferredMaintenanceBarrierArrival(
+	ctx context.Context,
+	tx Transaction,
+	epoch int64,
+	shardIndex int,
+	now time.Time,
+) (int, error) {
+	if _, err := tx.ExecContext(
+		ctx,
+		recordDeferredMaintenanceBarrierArrivalSQL,
+		deferredMaintenanceBarrierName,
+		epoch,
+		shardIndex,
+		now,
+	); err != nil {
+		return 0, fmt.Errorf("record deferred maintenance barrier arrival: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, countDeferredMaintenanceBarrierArrivalsSQL, deferredMaintenanceBarrierName, epoch)
+	if err != nil {
+		return 0, fmt.Errorf("count deferred maintenance barrier arrivals: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return 0, fmt.Errorf("count deferred maintenance barrier arrivals: no rows")
+	}
+	var arrivedCount int
+	if err := rows.Scan(&arrivedCount); err != nil {
+		return 0, fmt.Errorf("scan deferred maintenance barrier arrival count: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("scan deferred maintenance barrier arrival rows: %w", err)
+	}
+	return arrivedCount, nil
+}
+
+func deferredMaintenanceBarrierCompleted(ctx context.Context, queryer Queryer, epoch int64) (bool, error) {
+	rows, err := queryer.QueryContext(ctx, selectDeferredMaintenanceBarrierCompletedSQL, deferredMaintenanceBarrierName, epoch)
+	if err != nil {
+		return false, fmt.Errorf("query deferred maintenance barrier completion: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, fmt.Errorf("scan deferred maintenance barrier completion rows: %w", err)
+		}
+		return false, fmt.Errorf("deferred maintenance barrier epoch %d not found", epoch)
+	}
+	var completedAt sql.NullTime
+	if err := rows.Scan(&completedAt); err != nil {
+		return false, fmt.Errorf("scan deferred maintenance barrier completion: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("scan deferred maintenance barrier completion rows: %w", err)
+	}
+	return completedAt.Valid, nil
+}
+
+func completeDeferredMaintenanceBarrier(
+	ctx context.Context,
+	tx Transaction,
+	epoch int64,
+	shardIndex int,
+	now time.Time,
+) error {
+	_, err := tx.ExecContext(
+		ctx,
+		completeDeferredMaintenanceBarrierSQL,
+		deferredMaintenanceBarrierName,
+		epoch,
+		shardIndex,
+		now,
+	)
+	if err != nil {
+		return fmt.Errorf("complete deferred maintenance barrier: %w", err)
+	}
+	return nil
+}

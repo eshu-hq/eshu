@@ -170,3 +170,5 @@
 - `AfterBatchDrained` call semantics — removing or reordering the
   backfill and deployment-mapping reopen calls (wired via `AfterBatchDrained`
   in `cmd/ingester`) breaks the bootstrap phase contract defined in CLAUDE.md.
+  Empty-batch drain hooks must remain opt-in and edge-triggered so idle
+  collectors do not run global maintenance on every poll.

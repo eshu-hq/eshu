@@ -16,6 +16,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// deferredMaintenanceBarrierLockKey is an application-defined Postgres
+// advisory lock key for the ingester deferred-maintenance barrier. It only
+// needs to stay stable inside Eshu's Postgres database.
+const deferredMaintenanceBarrierLockKey int64 = 0x45534855444d42
+
 // IngestionStore owns the durable commit boundary for scope generations, facts,
 // and projector follow-up work.
 type IngestionStore struct {
@@ -162,6 +167,12 @@ func (s IngestionStore) commitScopeGeneration(
 			return fmt.Errorf("verify active workflow claim before ingestion commit: %w", err)
 		}
 	}
+
+	stageStart = time.Now()
+	if err := acquireDeferredMaintenanceSharedBarrier(ctx, tx); err != nil {
+		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
+	}
+	s.logCommitStage(ctx, scopeValue, generation, "deferred_maintenance_shared_barrier", stageStart)
 
 	stageStart = time.Now()
 	if err := upsertIngestionScope(ctx, tx, scopeValue, generation); err != nil {
@@ -370,6 +381,16 @@ func upsertScopeGeneration(
 
 func shouldDiscoverStreamingRelationshipEvidence(scopeValue scope.IngestionScope) bool {
 	return scopeValue.ScopeKind == scope.KindRepository
+}
+
+func acquireDeferredMaintenanceSharedBarrier(ctx context.Context, db ExecQueryer) error {
+	_, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock_shared($1)", deferredMaintenanceBarrierLockKey)
+	return err
+}
+
+func acquireDeferredMaintenanceExclusiveBarrier(ctx context.Context, db ExecQueryer) error {
+	_, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", deferredMaintenanceBarrierLockKey)
+	return err
 }
 
 func scopeSourceKey(scopeValue scope.IngestionScope) string {

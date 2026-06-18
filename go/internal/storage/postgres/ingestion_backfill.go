@@ -113,6 +113,51 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	return nil
 }
 
+// RunDeferredRelationshipMaintenance runs the ingester's global relationship
+// backfill and deployment-mapping reopen behind an exclusive transaction-level
+// Postgres advisory lock. Generation commits take the matching shared lock, so
+// this pass waits for in-flight source fact commits and blocks new ones until
+// both maintenance phases finish.
+func (s IngestionStore) RunDeferredRelationshipMaintenance(
+	ctx context.Context,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) error {
+	if s.beginner == nil {
+		return fmt.Errorf("transaction beginner is required")
+	}
+
+	tx, err := s.beginner.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin deferred relationship maintenance transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err := acquireDeferredMaintenanceExclusiveBarrier(ctx, tx); err != nil {
+		return fmt.Errorf("acquire deferred maintenance exclusive barrier: %w", err)
+	}
+
+	maintenanceStore := NewIngestionStore(tx)
+	maintenanceStore.Now = s.Now
+	maintenanceStore.Logger = s.Logger
+	if err := maintenanceStore.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
+		return err
+	}
+	if err := maintenanceStore.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit deferred relationship maintenance transaction: %w", err)
+	}
+	committed = true
+	return nil
+}
+
 // ReopenDeploymentMappingWorkItems replays succeeded deployment_mapping work
 // items after deferred backward evidence is committed.
 func (s IngestionStore) ReopenDeploymentMappingWorkItems(
