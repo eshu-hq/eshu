@@ -90,6 +90,31 @@
 // only to observed parameter ports for that FunctionID; a graph edge without
 // parameter evidence stays visible as no value-flow finding rather than
 // fabricating precision.
+// The fixpoint solve caches weakly-connected value-flow components inside the
+// reducer process, keyed by component membership, durable summary content
+// versions, and external source/sink inputs. When one function summary version
+// changes, only the component that can carry taint from that function is
+// recomputed; unrelated components reuse their cached findings before the final
+// global sort/cap and existing global fixpoint evidence rewrite.
+//
+// Performance Evidence: synthetic local benchmark on 100 independent value-flow
+// components with 100-hop chains, changing one function summary version after
+// warming the cache:
+// `go test ./internal/reducer -run '^$' -bench 'BenchmarkValueFlowFixpoint(Full|Incremental)' -benchmem -count=3`
+// reported full recompute at 7.67-7.71 ms/op with 15.22 MB/op and about 33.7k
+// allocs/op, while the cached incremental path reported 7.31-7.35 ms/op with
+// 11.36 MB/op and about 5.2k allocs/op. This is a deterministic local corpus,
+// not a full remote corpus proof.
+// No-Regression Evidence: `go test ./internal/reducer -run
+// 'TestValueFlowFixpoint(Cache|EvidenceLoader|EvidenceProjector)' -count=1`
+// proves component-level cache reuse, full-solve parity, cloud sink behavior,
+// unresolved endpoint behavior, and unchanged global fixpoint write semantics.
+// `go test ./internal/reducer -count=1` passed for the reducer package.
+// Observability Evidence: the existing `value-flow fixpoint evidence loaded`
+// structured log now includes `fixpoint_component_count`,
+// `fixpoint_recomputed_components`, and `fixpoint_reused_components` alongside
+// the existing summary/source/sink/finding/overflow/unresolved counts. The
+// change adds no metric label or high-cardinality metric.
 //
 // No-Regression Evidence: issue #2967 adds one bounded graph read anchored on
 // Function.uid values loaded from the durable FunctionID map and filtered by the

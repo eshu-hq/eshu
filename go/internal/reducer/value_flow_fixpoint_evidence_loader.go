@@ -56,6 +56,7 @@ type ValueFlowFixpointEvidenceLoader struct {
 	SourceSnapshotLoader    FunctionSourceSnapshotLoader
 	GraphIDSnapshotLoader   FunctionGraphIDSnapshotLoader
 	CloudSinkSnapshotLoader FunctionCloudSinkTargetLoader
+	FixpointCache           *ValueFlowFixpointCache
 	Logger                  *slog.Logger
 }
 
@@ -67,7 +68,7 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 	scopeID string,
 	generationID string,
 ) ([]CodeInterprocEvidenceInput, error) {
-	effects, err := l.loadEffects(ctx, scopeID, generationID)
+	effects, versions, err := l.loadEffects(ctx, scopeID, generationID)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 	}
 
 	program := valueflow.BuildProgram(effects, sources, cloudSinks)
-	result := interproc.SolvePartitioned(program, interproc.DefaultLimits())
+	result, cacheStats := SolveValueFlowProgramIncremental(program, versions, l.FixpointCache, interproc.DefaultLimits())
 	inputs := make([]CodeInterprocEvidenceInput, 0, len(result.Findings))
 	for _, finding := range result.Findings {
 		sourceID := summary.FunctionID(finding.SourceFunc)
@@ -117,6 +118,9 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 			"cloud_sink_count", len(cloudSinks),
 			"finding_count", len(inputs),
 			"overflow_count", result.Overflow,
+			"fixpoint_component_count", cacheStats.ComponentCount,
+			"fixpoint_recomputed_components", cacheStats.RecomputedComponents,
+			"fixpoint_reused_components", cacheStats.ReusedComponents,
 			"unresolved_endpoint_count", unresolvedCodeInterprocEndpointCount(inputs),
 		)
 	}
@@ -127,21 +131,23 @@ func (l ValueFlowFixpointEvidenceLoader) loadEffects(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) (map[summary.FunctionID]summary.Effects, error) {
+) (map[summary.FunctionID]summary.Effects, map[summary.FunctionID]string, error) {
 	effects := map[summary.FunctionID]summary.Effects{}
+	versions := map[summary.FunctionID]string{}
 	if l.SummarySnapshotLoader != nil {
 		snap, err := l.SummarySnapshotLoader.LoadSnapshot(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("load durable function summaries: %w", err)
+			return nil, nil, fmt.Errorf("load durable function summaries: %w", err)
 		}
 		for _, fn := range snap.Functions {
 			if fn.ID == "" {
 				continue
 			}
 			effects[fn.ID] = fn.Effects
+			versions[fn.ID] = fn.Version
 		}
 	}
-	return effects, nil
+	return effects, versions, nil
 }
 
 func (l ValueFlowFixpointEvidenceLoader) loadSources(
