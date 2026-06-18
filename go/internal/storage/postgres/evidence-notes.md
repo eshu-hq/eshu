@@ -24,6 +24,33 @@ Postgres instrumentation wrapper (`postgres.exec`, `postgres.query`, and
 caller wraps the `ExecQueryer`; reducer/runtime activation remains tracked by
 #2823 follow-up work.
 
+No-Regression Evidence: #2947 adds full-snapshot cleanup for
+`code_function_summary` materialization. The projector now queues the summary
+domain from the full-only `code_dataflow_scanned` marker, including marker-only
+generations where the value-flow gate produced zero summaries. The reducer
+keeps delta generations on the existing upsert path, but full-snapshot intents
+replace only the target repo's `function_summaries` rows after filtering that
+repo out of the durable baseline and recomputing the current snapshot. The
+store replacement stage deletes stale rows with `repo = $1 AND updated_at <=
+$2`, then upserts current rows in the same transaction, so a rollback restores
+the pre-replacement state and stale writers cannot delete newer summaries. The
+operator-facing row counts are the reducer completion log fields:
+`full_snapshot`, `repo_id`, `function_count`, and the existing result summary's
+persisted-row count. `go test ./internal/projector -run
+TestBuildCodeFunctionSummaryReducerIntent -count=1`, `go test
+./internal/reducer -run 'TestCodeFunctionSummaryHandler(Replaces|Preserves)'
+-count=1`, and `go test ./internal/storage/postgres -run
+TestFunctionSummaryStoreReplaceSnapshot -count=1` cover marker-only cleanup,
+delta no-delete behavior, full snapshot delete/rename pruning, empty snapshots,
+transaction use, repo validation, and timestamp-guarded deletes.
+
+No-Observability-Change: #2947 adds no metric instrument, metric label key,
+span name, worker, queue domain, lease, route, graph write, runtime knob, or
+status field. Operators diagnose the cleanup through the existing reducer
+execution span/counters, durable reducer queue rows, the updated reducer
+completion log fields listed above, and instrumented Postgres exec/query spans
+when the store is wrapped by the existing Postgres instrumentation.
+
 ## Admission Decision Evidence Bounds (#2694)
 
 No-Regression Evidence: `go test ./internal/query -run 'TestAdmissionDecision|TestOpenAPISpecIncludesAdmissionDecisions' -count=1` and `go test ./internal/storage/postgres -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1` prove `admission_decisions.list` now rejects unsupported lightweight profiles before store reads, requests `limit+1` evidence rows per decision, reports `evidence_limit` and `evidence_truncated`, and pushes the per-decision evidence cap into the Postgres read query. The list page limit remains capped at 200 decisions and the embedded evidence preview is capped at 20 rows per decision.

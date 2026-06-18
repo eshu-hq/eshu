@@ -47,6 +47,7 @@ type CodeFunctionSummaryLoader interface {
 type CodeFunctionSummaryWriter interface {
 	LoadSnapshot(ctx context.Context) (summary.Snapshot, error)
 	UpsertSnapshot(ctx context.Context, snap summary.Snapshot, updatedAt time.Time) error
+	ReplaceSnapshot(ctx context.Context, repo string, snap summary.Snapshot, updatedAt time.Time) error
 }
 
 // CodeFunctionSourceLoader loads the param-level value-flow taint sources emitted
@@ -129,13 +130,36 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 	if err != nil {
 		return Result{}, fmt.Errorf("load durable code function summary snapshot: %w", err)
 	}
+	fullSnapshot, repo := codeFunctionSummaryFullSnapshot(intent)
+	if fullSnapshot && repo == "" {
+		return Result{}, fmt.Errorf("code function summary full snapshot repo_id is required")
+	}
+	if fullSnapshot {
+		for id := range effects {
+			if got := durableFunctionRepo(string(id)); got != repo {
+				return Result{}, fmt.Errorf("code function summary repo %q does not match full snapshot repo %q", got, repo)
+			}
+		}
+	}
+	if fullSnapshot {
+		current = codeFunctionSummarySnapshotWithoutRepo(current, repo)
+	}
 	store := summary.Load(current)
 	store.Upsert(effects)
 	snap := store.Snapshot()
 
 	now := h.now()
-	if err := h.Writer.UpsertSnapshot(ctx, snap, now); err != nil {
-		return Result{}, fmt.Errorf("persist code function summaries: %w", err)
+	persistedFunctionCount := len(snap.Functions)
+	if fullSnapshot {
+		repoSnap := codeFunctionSummarySnapshotForRepo(snap, repo)
+		if err := h.Writer.ReplaceSnapshot(ctx, repo, repoSnap, now); err != nil {
+			return Result{}, fmt.Errorf("replace code function summaries for repo %q: %w", repo, err)
+		}
+		persistedFunctionCount = len(repoSnap.Functions)
+	} else {
+		if err := h.Writer.UpsertSnapshot(ctx, snap, now); err != nil {
+			return Result{}, fmt.Errorf("persist code function summaries: %w", err)
+		}
 	}
 
 	sourceCount := 0
@@ -179,7 +203,9 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		"code function summary persistence completed",
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
-		"function_count", len(snap.Functions),
+		"repo_id", repo,
+		"full_snapshot", fullSnapshot,
+		"function_count", persistedFunctionCount,
 		"source_count", sourceCount,
 		"graph_id_count", graphIDCount,
 		"fixpoint_finding_count", fixpoint.FindingCount,
@@ -193,10 +219,10 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"persisted %d function summary row(s), projected %d fixpoint edge(s)",
-			len(snap.Functions),
+			persistedFunctionCount,
 			fixpoint.GraphRows,
 		),
-		CanonicalWrites: len(snap.Functions) + fixpoint.GraphRows,
+		CanonicalWrites: persistedFunctionCount + fixpoint.GraphRows,
 	}, nil
 }
 
@@ -269,6 +295,39 @@ func codeFunctionGraphIDsForRepo(repo string, ids map[summary.FunctionID]string)
 	for fnID, uid := range ids {
 		if durableFunctionRepo(string(fnID)) == repo {
 			out[fnID] = uid
+		}
+	}
+	return out
+}
+
+func codeFunctionSummaryFullSnapshot(intent Intent) (bool, string) {
+	fullSnapshot, _ := intent.Payload["full_snapshot"].(bool)
+	repo, _ := intent.Payload["repo_id"].(string)
+	return fullSnapshot, strings.TrimSpace(repo)
+}
+
+func codeFunctionSummarySnapshotWithoutRepo(snap summary.Snapshot, repo string) summary.Snapshot {
+	if repo == "" || len(snap.Functions) == 0 {
+		return snap
+	}
+	out := summary.Snapshot{Functions: make([]summary.SnapshotFunction, 0, len(snap.Functions))}
+	for _, fn := range snap.Functions {
+		if durableFunctionRepo(string(fn.ID)) == repo {
+			continue
+		}
+		out.Functions = append(out.Functions, fn)
+	}
+	return out
+}
+
+func codeFunctionSummarySnapshotForRepo(snap summary.Snapshot, repo string) summary.Snapshot {
+	out := summary.Snapshot{}
+	if repo == "" || len(snap.Functions) == 0 {
+		return out
+	}
+	for _, fn := range snap.Functions {
+		if durableFunctionRepo(string(fn.ID)) == repo {
+			out.Functions = append(out.Functions, fn)
 		}
 	}
 	return out

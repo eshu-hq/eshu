@@ -98,6 +98,10 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 	reason, _ := payload["reason"].(string)
 	factID, _ := payload["fact_id"].(string)
 	sourceSystem, _ := payload["source_system"].(string)
+	intentPayload := make(map[string]any, len(payload))
+	for key, value := range payload {
+		intentPayload[key] = value
+	}
 
 	domainValue, err := reducer.ParseDomain(domain)
 	if err != nil {
@@ -114,6 +118,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 		AttemptCount:    attemptCount,
 		EntityKeys:      nil,
 		RelatedScopeIDs: []string{scopeID},
+		Payload:         intentPayload,
 		Status:          reducer.IntentStatusClaimed,
 		EnqueuedAt:      enqueuedAt.UTC(),
 		AvailableAt:     availableAt.UTC(),

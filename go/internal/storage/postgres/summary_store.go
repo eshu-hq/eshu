@@ -65,6 +65,12 @@ WHERE repo = $1
 ORDER BY function_id ASC
 `
 
+const deleteFunctionSummariesForRepoSQL = `
+DELETE FROM function_summaries
+WHERE repo = $1
+  AND updated_at <= $2
+`
+
 // FunctionSummarySchemaSQL returns the DDL for durable value-flow function
 // summaries.
 func FunctionSummarySchemaSQL() string {
@@ -115,6 +121,76 @@ func (s FunctionSummaryStore) UpsertSnapshot(ctx context.Context, snap summary.S
 			end = len(functions)
 		}
 		if err := s.upsertBatch(ctx, functions[i:end], updatedAt.UTC()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReplaceSnapshot replaces one repository's complete durable summary snapshot.
+// Empty snapshots are meaningful: they retract stale summaries for repos whose
+// latest full dataflow scan no longer emits any summarized functions.
+func (s FunctionSummaryStore) ReplaceSnapshot(
+	ctx context.Context,
+	repo string,
+	snap summary.Snapshot,
+	updatedAt time.Time,
+) error {
+	if s.db == nil {
+		return fmt.Errorf("function summary store database is required")
+	}
+	if updatedAt.IsZero() {
+		return fmt.Errorf("function summary snapshot updated_at is required")
+	}
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return fmt.Errorf("function summary repo is required")
+	}
+	if beginner, ok := s.db.(Beginner); ok {
+		tx, err := beginner.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("begin function summary replacement transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := replaceFunctionSummaries(ctx, tx, repo, snap, updatedAt.UTC()); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit function summary replacement transaction: %w", err)
+		}
+		return nil
+	}
+	return replaceFunctionSummaries(ctx, s.db, repo, snap, updatedAt.UTC())
+}
+
+func replaceFunctionSummaries(
+	ctx context.Context,
+	db ExecQueryer,
+	repo string,
+	snap summary.Snapshot,
+	updatedAt time.Time,
+) error {
+	for _, fn := range snap.Functions {
+		if strings.TrimSpace(string(fn.ID)) == "" {
+			return fmt.Errorf("function summary id is required")
+		}
+		if got := functionSummaryRepo(fn.ID); got != repo {
+			return fmt.Errorf("function summary repo %q does not match replacement repo %q", got, repo)
+		}
+	}
+	if _, err := db.ExecContext(ctx, deleteFunctionSummariesForRepoSQL, repo, updatedAt); err != nil {
+		return fmt.Errorf("delete stale function summaries for repo %q: %w", repo, err)
+	}
+	if len(snap.Functions) == 0 {
+		return nil
+	}
+	store := FunctionSummaryStore{db: db}
+	for i := 0; i < len(snap.Functions); i += functionSummaryBatchSize {
+		end := i + functionSummaryBatchSize
+		if end > len(snap.Functions) {
+			end = len(snap.Functions)
+		}
+		if err := store.upsertBatch(ctx, snap.Functions[i:end], updatedAt); err != nil {
 			return err
 		}
 	}
