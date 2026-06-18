@@ -51,6 +51,7 @@ nav:
     - Work With Bundles: guides/bundles.md
     - Shared Infra Trace: guides/shared-infra-trace.md
     - Hosted Replatforming Runbook: guides/replatforming-runbook.md
+    - AWS to Azure Re-platforming Demo: guides/aws-to-azure-replatforming-demo.md
     - Fixture Ecosystems: guides/fixture-ecosystems.md
     - CI/CD: guides/ci-cd.md
   - Connect MCP:
