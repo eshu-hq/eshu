@@ -223,6 +223,30 @@ progress messages.
   but not the uid; ambiguous or unresolved endpoints are dropped). Populated only
   when the parser emits `interproc_findings`; `streamFacts` emits each as a
   `code_interproc_evidence` fact. Empty (and byte-identical) when the gate is off
+- `FunctionSummarySnapshot` — one function's raw value-flow `Effects` read from the
+  parser's `dataflow_summaries` bucket, keyed by the durable `FunctionID` (which
+  already carries the repository identity, so no entity-uid resolution is needed).
+  Populated only when the parser emits `dataflow_summaries`; `streamFacts` emits
+  each as a `code_function_summary` fact (on both delta and full generations,
+  since each upserts by its `FunctionID`). The reducer reconstructs the `Effects`
+  and persists them to the function-summary store for cross-repo composition.
+  Empty (and byte-identical) when the gate is off.
+
+No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary' -count=1`
+proves `buildFunctionSummaries` reads the `dataflow_summaries` bucket into
+per-function snapshots and that `streamFacts` emits one `code_function_summary`
+fact per function, counted in `FactCount`, keyed idempotently on the `FunctionID`.
+It is one extra fact per summarized function only when the off-by-default
+value-flow gate is on; no new Cypher, graph write, worker, queue, or batch. The
+`contentFactEnvelope`/`contentEntityFactEnvelope` move into
+`git_content_fact_envelopes.go` is a pure extraction (no behavior change) to keep
+`git_fact_builder.go` under the file-size cap.
+
+No-Observability-Change: the summary facts flow through the existing `streamFacts`
+channel and Postgres fact persistence; they add no metric instrument, metric
+label, span, worker, queue domain, lease, runtime knob, or log key. Operators
+diagnose the path through the existing fact-stream counters.
+
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content
