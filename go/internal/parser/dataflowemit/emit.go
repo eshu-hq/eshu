@@ -5,6 +5,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
+	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/parser/taint"
 )
 
@@ -83,6 +84,66 @@ func InterprocFindingRow(lang string, finding interproc.Finding) map[string]any 
 	return row
 }
 
+// DataflowSummaryRow renders one function's structural value-flow Effects into a
+// "dataflow_summaries" payload row. lang labels the row's source language. The row
+// carries the durable FunctionID and the raw effects (param→return, param→sink,
+// source→return, param→callee-arg); the content version is computed later by the
+// reducer's summary.Store, not here. Empty effect lists are omitted so a
+// finding-free function still round-trips byte-stably.
+func DataflowSummaryRow(lang string, id summary.FunctionID, effects summary.Effects) map[string]any {
+	row := map[string]any{
+		"function_id": string(id),
+		"lang":        lang,
+	}
+	if len(effects.ParamToReturn) > 0 {
+		row["param_to_return"] = effects.ParamToReturn
+	}
+	if len(effects.ParamToSink) > 0 {
+		sinks := make([]map[string]any, 0, len(effects.ParamToSink))
+		for _, s := range effects.ParamToSink {
+			sinks = append(sinks, map[string]any{"param": s.Param, "sink_kind": s.SinkKind})
+		}
+		row["param_to_sink"] = sinks
+	}
+	if len(effects.SourceToReturn) > 0 {
+		row["source_to_return"] = effects.SourceToReturn
+	}
+	if len(effects.ParamToCallArg) > 0 {
+		calls := make([]map[string]any, 0, len(effects.ParamToCallArg))
+		for _, c := range effects.ParamToCallArg {
+			calls = append(calls, map[string]any{"callee": string(c.Callee), "param": c.Param, "arg": c.Arg})
+		}
+		row["param_to_call_arg"] = calls
+	}
+	return row
+}
+
+// DataflowSourceRow renders one interprocedural taint source — a parameter port
+// that is a taint entry point (e.g. an *http.Request param) — into a
+// "dataflow_sources" payload row. lang labels the row's source language. The row
+// carries the durable FunctionID, the parameter index, and the source kind, so
+// the cross-repo fixpoint can reconstruct the entry points the per-file analysis
+// derived from the AST but does not otherwise persist.
+func DataflowSourceRow(lang string, src interproc.Source) map[string]any {
+	return map[string]any{
+		"function_id": string(src.Port.Func),
+		"param_index": src.Port.Slot.Index,
+		"kind":        src.Kind,
+		"lang":        lang,
+	}
+}
+
+// SortSourceRows orders "dataflow_sources" rows by (function_id, param_index) so
+// the bucket is byte-stable across runs.
+func SortSourceRows(rows []map[string]any) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if fi, fj := stringFromRow(rows[i], "function_id"), stringFromRow(rows[j], "function_id"); fi != fj {
+			return fi < fj
+		}
+		return intFromRow(rows[i], "param_index") < intFromRow(rows[j], "param_index")
+	})
+}
+
 // blockPayloads renders basic blocks with their statements and sorted successors.
 func blockPayloads(blocks []cfg.Block) []map[string]any {
 	out := make([]map[string]any, 0, len(blocks))
@@ -146,6 +207,14 @@ func SortFindingRows(rows []map[string]any) {
 			return bi < bj
 		}
 		return stringFromRow(rows[i], "kind") < stringFromRow(rows[j], "kind")
+	})
+}
+
+// SortSummaryRows orders "dataflow_summaries" rows by function_id so the bucket is
+// byte-stable across runs.
+func SortSummaryRows(rows []map[string]any) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		return stringFromRow(rows[i], "function_id") < stringFromRow(rows[j], "function_id")
 	})
 }
 

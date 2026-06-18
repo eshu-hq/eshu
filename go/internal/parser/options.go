@@ -33,10 +33,10 @@ type Options struct {
 	RepositoryID string
 	// EmitDataflow opts the parser into emitting per-function control-flow and
 	// reaching-definition facts (the "dataflow_functions" bucket), intraprocedural
-	// taint findings ("taint_findings"), and interprocedural findings
-	// ("interproc_findings"), for every language that supports the value-flow pass
-	// (Go, TypeScript/JavaScript, Python). It is off by default; when off the
-	// parser payload is byte-identical to before this feature, mirroring GitNexus's
-	// byte-identical-when-off --pdg gate.
+	// taint findings ("taint_findings"), interprocedural findings
+	// ("interproc_findings"), and durable summary effects ("dataflow_summaries")
+	// for languages that support each value-flow bucket. It is off by default;
+	// when off the parser payload is byte-identical to before this feature,
+	// mirroring GitNexus's byte-identical-when-off --pdg gate.
 	EmitDataflow bool
 }

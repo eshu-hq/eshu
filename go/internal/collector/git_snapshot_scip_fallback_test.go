@@ -12,6 +12,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestSCIPSnapshotConcurrentParseMergesSCIPSupplement(t *testing.T) {
@@ -139,6 +142,173 @@ func TestSCIPSnapshotFallbackLogsBoundedReason(t *testing.T) {
 				if !strings.Contains(logOutput, want) {
 					t.Fatalf("fallback log missing %s in %s", want, logOutput)
 				}
+			}
+		})
+	}
+}
+
+func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
+	tests := []struct {
+		name         string
+		configure    func(t *testing.T, appPath string) SnapshotSCIPConfig
+		wantLanguage string
+		wantResult   string
+	}{
+		{
+			name: "disabled",
+			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
+				t.Helper()
+				return LoadSnapshotSCIPConfig(func(key string) string {
+					if key == "SCIP_INDEXER" {
+						return "false"
+					}
+					return ""
+				})
+			},
+			wantLanguage: "unknown",
+			wantResult:   "disabled",
+		},
+		{
+			name: "no supported language",
+			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
+				t.Helper()
+				config := LoadSnapshotSCIPConfig(func(string) string {
+					return ""
+				})
+				config.Languages = []string{"go"}
+				return config
+			},
+			wantLanguage: "unknown",
+			wantResult:   "no_supported_language",
+		},
+		{
+			name: "binary unavailable",
+			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
+				t.Helper()
+				config := LoadSnapshotSCIPConfig(func(string) string {
+					return ""
+				})
+				config.Indexer = &recordingSCIPIndexer{available: false}
+				return config
+			},
+			wantLanguage: "python",
+			wantResult:   "binary_unavailable",
+		},
+		{
+			name: "indexer failed",
+			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
+				t.Helper()
+				config := LoadSnapshotSCIPConfig(func(string) string {
+					return ""
+				})
+				config.Indexer = &recordingSCIPIndexer{available: true, runErr: errors.New("indexer failed")}
+				return config
+			},
+			wantLanguage: "python",
+			wantResult:   "indexer_failed",
+		},
+		{
+			name: "parse failed",
+			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
+				t.Helper()
+				config := LoadSnapshotSCIPConfig(func(string) string {
+					return ""
+				})
+				config.Indexer = &recordingSCIPIndexer{available: true}
+				config.Parser = fakeSCIPParser{err: errors.New("parse failed")}
+				return config
+			},
+			wantLanguage: "python",
+			wantResult:   "parse_failed",
+		},
+		{
+			name: "empty result",
+			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
+				t.Helper()
+				config := LoadSnapshotSCIPConfig(func(string) string {
+					return ""
+				})
+				config.Indexer = &recordingSCIPIndexer{available: true}
+				config.Parser = fakeSCIPParser{result: parser.SCIPParseResult{Files: map[string]map[string]any{}}}
+				return config
+			},
+			wantLanguage: "python",
+			wantResult:   "empty_result",
+		},
+		{
+			name: "used",
+			configure: func(t *testing.T, appPath string) SnapshotSCIPConfig {
+				t.Helper()
+				config := LoadSnapshotSCIPConfig(func(string) string {
+					return ""
+				})
+				config.Indexer = &recordingSCIPIndexer{available: true}
+				config.Parser = fakeSCIPParser{
+					result: parser.SCIPParseResult{
+						Files: map[string]map[string]any{
+							appPath: {
+								"function_calls_scip": []map[string]any{{
+									"callee_symbol": "scip-python python app/main().",
+								}},
+							},
+						},
+					},
+				}
+				return config
+			},
+			wantLanguage: "python",
+			wantResult:   "used",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			appPath := filepath.Join(repoRoot, "app.py")
+			writeCollectorTestFile(t, appPath, "def main():\n    return 1\n")
+
+			metricReader := sdkmetric.NewManualReader()
+			meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(metricReader))
+			instruments, err := telemetry.NewInstruments(meterProvider.Meter("collector-scip-attempt-test"))
+			if err != nil {
+				t.Fatalf("NewInstruments() error = %v, want nil", err)
+			}
+			snapshotter := NativeRepositorySnapshotter{
+				Instruments: instruments,
+				SCIP:        tt.configure(t, appPath),
+			}
+
+			_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
+				context.Background(),
+				repoRoot,
+				discovery.RepoFileSet{Files: []string{appPath}},
+				defaultCollectorTestEngine(t),
+				"commit-sha",
+				false,
+				parser.GoPackageSemanticRoots{},
+				"repo-alpha",
+			)
+			if err != nil {
+				t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
+			}
+			if len(parsedFiles) != 1 {
+				t.Fatalf("len(parsedFiles) = %d, want 1", len(parsedFiles))
+			}
+
+			var rm metricdata.ResourceMetrics
+			if err := metricReader.Collect(context.Background(), &rm); err != nil {
+				t.Fatalf("Collect() error = %v, want nil", err)
+			}
+			if got := collectorCounterValue(t, rm, "eshu_dp_scip_snapshot_attempts_total", map[string]string{
+				"language": tt.wantLanguage,
+				"result":   tt.wantResult,
+			}); got != 1 {
+				t.Fatalf(
+					"eshu_dp_scip_snapshot_attempts_total{language=%q,result=%q} = %d, want 1",
+					tt.wantLanguage,
+					tt.wantResult,
+					got,
+				)
 			}
 		})
 	}

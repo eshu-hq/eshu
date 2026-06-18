@@ -46,12 +46,13 @@
 // Argo CD/Kubernetes observability state rows from repository parsers become
 // metadata-only observability source facts; reducers and query surfaces own any
 // later declared/applied/observed coverage truth.
-// SCIP indexing is enabled by default when the selected language's external
+// SCIP indexing is enabled by default when a selected file group's external
 // scip-* binary is available, and explicit SCIP_INDEXER=false/off/0/no keeps
-// native-only parsing. SCIP supplements native parser output with call facts
-// for matching files only. It must not shrink the discovered parser file set:
-// files selected by discovery but omitted from index.scip still parse through
-// the native parser and emit normal content facts.
+// native-only parsing. SCIP groups run sequentially by bounded language
+// priority and package/workspace root, then supplement native parser output
+// with call facts for matching files only. SCIP must not shrink the discovered
+// parser file set: files selected by discovery but omitted from index.scip
+// still parse through the native parser and emit normal content facts.
 //
 // No-Regression Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`
 // covers a default SCIP-enabled snapshot where one selected Python file is
@@ -59,10 +60,11 @@
 //
 // Observability Evidence: the completeness guard reuses the existing
 // `collector snapshot stage completed` parse summary,
-// `eshu_dp_file_parse_duration_seconds`, file parsed counters, and fact emission
-// signals. SCIP binary, indexer, and parser fallback reasons are logged with
-// bounded language, reason, and failure_class fields; the path adds no worker,
-// queue, graph write, metric label, status field, span, or runtime setting.
+// `eshu_dp_file_parse_duration_seconds`, file parsed counters, fact emission
+// signals, and `eshu_dp_scip_snapshot_attempts_total` outcome counter. SCIP
+// binary, indexer, and parser fallback reasons are logged with bounded
+// language, reason, and failure_class fields; the path adds no worker, queue,
+// graph write, status field, span, or runtime setting.
 //
 // The scannerworker subpackage owns the hosted boundary for isolated security
 // analyzers. It defines claim input, target scope, resource limits,

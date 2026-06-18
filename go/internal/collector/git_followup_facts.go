@@ -8,6 +8,35 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// dataflowScannedFactEnvelope builds the per-generation marker fact emitted when
+// the value-flow gate ran (#2919). It carries no findings and no reducer_domain
+// payload — it is a reconciliation signal the projector consumes so the
+// value-flow evidence domains project (and retract stale evidence) even when the
+// current generation produced no findings. The stable key is repo-scoped so the
+// marker is idempotent across re-emission of the same generation.
+func dataflowScannedFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reason":  "value-flow gate scanned the repository snapshot",
+		"repo_id": repoID,
+	}
+
+	return factEnvelope(
+		facts.CodeDataflowScannedFactKind,
+		scopeID,
+		generationID,
+		observedAt,
+		facts.CodeDataflowScannedFactKind+":"+repoID,
+		payload,
+		repoPath,
+	)
+}
+
 func workloadIdentityFactEnvelope(
 	repoPath string,
 	repoID string,

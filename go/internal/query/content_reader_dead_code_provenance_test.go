@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql/driver"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
@@ -78,5 +79,54 @@ func TestContentReaderDeadCodeIncomingKeepsMaxConfidencePerEntity(t *testing.T) 
 	}
 	if deadCodeIncomingEdgeIsWeak(incoming["content-entity:mixed"].MaxConfidence) {
 		t.Fatalf("mixed edge classified weak despite strong import_binding edge")
+	}
+}
+
+func TestContentReaderCodeReachabilityIncomingEntityIDsUsesCrossRepoRows(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{
+			columns: []string{"entity_id", "min_resolution_method"},
+			rows: [][]driver.Value{
+				{"content-entity:library-symbol", codeprovenance.MethodImportBinding},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	incoming, err := reader.CodeReachabilityIncomingEntityIDs(
+		context.Background(),
+		"repository:library",
+		[]string{"content-entity:library-symbol"},
+	)
+	if err != nil {
+		t.Fatalf("CodeReachabilityIncomingEntityIDs() error = %v, want nil", err)
+	}
+	if got, want := incoming["content-entity:library-symbol"].MaxConfidence, codeprovenance.Confidence(codeprovenance.MethodImportBinding); got != want {
+		t.Fatalf("cross-repo MaxConfidence = %v, want %v", got, want)
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("len(recorder.queries) = %d, want %d", got, want)
+	}
+	query := recorder.queries[0]
+	if strings.Contains(query, "row.repository_id =") {
+		t.Fatalf("query is repo-scoped and misses cross-repo reachability rows:\n%s", query)
+	}
+	if !containsAllSubstrings(
+		query,
+		"FROM code_reachability_rows AS row",
+		"scope.active_generation_id = row.generation_id",
+		"generation.status = 'active'",
+		"row.entity_id IN ($1)",
+		"row.depth > 0",
+	) {
+		t.Fatalf("query missing active-generation entity lookup clauses:\n%s", query)
+	}
+	if got, want := len(recorder.args[0]), 1; got != want {
+		t.Fatalf("len(args) = %d, want %d for bounded entity lookup args %#v", got, want, recorder.args[0])
+	}
+	if got, want := recorder.args[0][0], driver.Value("content-entity:library-symbol"); got != want {
+		t.Fatalf("first arg = %#v, want %#v", got, want)
 	}
 }

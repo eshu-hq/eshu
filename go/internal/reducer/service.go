@@ -93,6 +93,10 @@ type Service struct {
 	// nodes in bounded batches. Nil disables automated cleanup.
 	GraphOrphanSweepRunner *GraphOrphanSweepRunner
 
+	// CodeValueFlowStaleCleanupRunner removes reducer-owned value-flow evidence
+	// from older source generations in bounded batches. Nil disables cleanup.
+	CodeValueFlowStaleCleanupRunner *CodeValueFlowStaleCleanupRunner
+
 	// Telemetry fields (optional)
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments

@@ -223,6 +223,54 @@ progress messages.
   but not the uid; ambiguous or unresolved endpoints are dropped). Populated only
   when the parser emits `interproc_findings`; `streamFacts` emits each as a
   `code_interproc_evidence` fact. Empty (and byte-identical) when the gate is off
+- `FunctionSummarySnapshot` — one function's raw value-flow `Effects` read from the
+  parser's `dataflow_summaries` bucket, keyed by the durable `FunctionID` (which
+  already carries the repository identity, so no entity-uid resolution is needed).
+  Populated only when the parser emits `dataflow_summaries`; `streamFacts` emits
+  each as a `code_function_summary` fact (on both delta and full generations,
+  since each upserts by its `FunctionID`). The reducer reconstructs the `Effects`
+  and persists them to the function-summary store for cross-repo composition.
+  Empty (and byte-identical) when the gate is off.
+
+No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary' -count=1`
+proves `buildFunctionSummaries` reads the `dataflow_summaries` bucket into
+per-function snapshots and that `streamFacts` emits one `code_function_summary`
+fact per function, counted in `FactCount`, keyed idempotently on the `FunctionID`.
+It is one extra fact per summarized function only when the off-by-default
+value-flow gate is on; no new Cypher, graph write, worker, queue, or batch. The
+`contentFactEnvelope`/`contentEntityFactEnvelope` move into
+`git_content_fact_envelopes.go` is a pure extraction (no behavior change) to keep
+`git_fact_builder.go` under the file-size cap.
+
+No-Observability-Change: the summary facts flow through the existing `streamFacts`
+channel and Postgres fact persistence; they add no metric instrument, metric
+label, span, worker, queue domain, lease, runtime knob, or log key. Operators
+diagnose the path through the existing fact-stream counters.
+
+- `DataflowScanned` — true when the value-flow gate (`ESHU_EMIT_DATAFLOW`) ran for
+  the snapshot, independent of whether any findings were produced. `streamFacts`
+  emits one per-generation `code_dataflow_scanned` marker fact when it is set, only
+  on full (non-delta) generations. The marker carries no findings; it is the
+  reconciliation signal that lets the reducer retract stale value-flow evidence
+  when a full generation's finding set goes empty (#2919). It is intentionally not
+  emitted on deltas: a delta carries only changed-file findings while the evidence
+  reducers retract the whole scope before writing, so a marker-triggered delta
+  would wipe evidence for unchanged files. False — and no marker — when the gate is
+  off, preserving the byte-identical-when-off guarantee.
+
+No-Regression Evidence: `go test ./internal/collector -run 'DataflowScanned' -count=1`
+and `go test ./internal/projector -run 'Marker|QueuesBoth' -count=1` prove the
+marker is emitted (and counted in `FactCount`) only when `DataflowScanned` is set,
+is absent when the gate is off, and that the projector queues both the
+`code_taint_evidence` and `code_interproc_evidence` retraction intents from the
+marker alone. The marker is one extra fact per generation only when the
+off-by-default gate is on; no new Cypher, graph write, worker, queue, or batch.
+
+No-Observability-Change: the marker flows through the existing `streamFacts`
+channel and Postgres fact persistence; it adds no metric instrument, metric
+label, span, worker, queue domain, lease, runtime knob, or log key. Operators
+diagnose it through the existing fact-stream counters and the reducer
+claim/execute spans for the value-flow evidence domains.
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content

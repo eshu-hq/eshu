@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
+	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/parser/taint"
 )
 
@@ -67,5 +68,67 @@ func TestSortFindingRowsDeterministic(t *testing.T) {
 	}
 	if rows[2]["sink_line"] != 10 {
 		t.Fatalf("highest sink line should sort last: %+v", rows)
+	}
+}
+
+// TestDataflowSummaryRowRendersEffectsAndOmitsEmpty proves the summary row
+// carries the FunctionID and each non-empty effect list (nested for param_to_sink
+// and param_to_call_arg), and omits empty effect lists.
+func TestDataflowSummaryRowRendersEffectsAndOmitsEmpty(t *testing.T) {
+	bare := DataflowSummaryRow("go", summary.FunctionID("repo\x1fpkg\x1f\x1ffree"), summary.Effects{})
+	if bare["function_id"] != "repo\x1fpkg\x1f\x1ffree" || bare["lang"] != "go" {
+		t.Fatalf("identity/lang not carried: %+v", bare)
+	}
+	for _, key := range []string{"param_to_return", "param_to_sink", "source_to_return", "param_to_call_arg"} {
+		if _, present := bare[key]; present {
+			t.Fatalf("empty effect %q must be omitted: %+v", key, bare)
+		}
+	}
+
+	full := DataflowSummaryRow("go", summary.FunctionID("repo\x1fpkg\x1fA\x1fhandle"), summary.Effects{
+		ParamToReturn:  []int{0},
+		ParamToSink:    []summary.ParamSink{{Param: 1, SinkKind: "sql"}},
+		SourceToReturn: []string{"http_request"},
+		ParamToCallArg: []summary.CallArgFlow{{Callee: summary.FunctionID("repo\x1fpkg\x1f\x1fquery"), Param: 0, Arg: 1}},
+	})
+	sinks, _ := full["param_to_sink"].([]map[string]any)
+	if len(sinks) != 1 || sinks[0]["sink_kind"] != "sql" || sinks[0]["param"] != 1 {
+		t.Fatalf("param_to_sink not rendered: %+v", full["param_to_sink"])
+	}
+	calls, _ := full["param_to_call_arg"].([]map[string]any)
+	if len(calls) != 1 || calls[0]["callee"] != "repo\x1fpkg\x1f\x1fquery" || calls[0]["arg"] != 1 {
+		t.Fatalf("param_to_call_arg not rendered: %+v", full["param_to_call_arg"])
+	}
+}
+
+// TestSortSummaryRowsByFunctionID proves rows are ordered by function_id.
+func TestSortSummaryRowsByFunctionID(t *testing.T) {
+	rows := []map[string]any{
+		{"function_id": "z"}, {"function_id": "a"}, {"function_id": "m"},
+	}
+	SortSummaryRows(rows)
+	if rows[0]["function_id"] != "a" || rows[1]["function_id"] != "m" || rows[2]["function_id"] != "z" {
+		t.Fatalf("not sorted by function_id: %+v", rows)
+	}
+}
+
+// TestDataflowSourceRowRendersPortAndKind proves the source row carries the
+// FunctionID, parameter index, and kind, and that SortSourceRows orders rows.
+func TestDataflowSourceRowRendersPortAndKind(t *testing.T) {
+	row := DataflowSourceRow("go", interproc.Source{
+		Port: interproc.Port{Func: interproc.FunctionID("repo\x1fpkg\x1f\x1fhandle"), Slot: interproc.Slot{Kind: interproc.SlotParam, Index: 2}},
+		Kind: "http_request",
+	})
+	if row["function_id"] != "repo\x1fpkg\x1f\x1fhandle" || row["param_index"] != 2 || row["kind"] != "http_request" || row["lang"] != "go" {
+		t.Fatalf("source row not rendered: %+v", row)
+	}
+	rows := []map[string]any{
+		{"function_id": "b", "param_index": 0},
+		{"function_id": "a", "param_index": 1},
+		{"function_id": "a", "param_index": 0},
+	}
+	SortSourceRows(rows)
+	if rows[0]["function_id"] != "a" || rows[0]["param_index"] != 0 || rows[2]["function_id"] != "b" {
+		t.Fatalf("SortSourceRows wrong: %+v", rows)
 	}
 }

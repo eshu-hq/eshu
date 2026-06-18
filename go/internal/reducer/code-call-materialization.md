@@ -35,6 +35,11 @@ containing function source for every call. Sources with no static aliases are
 cached too; a negative scan is still the proof that the reducer can skip the
 expensive regex pass on later calls in the same source span.
 
+TypeScript interface-typed receiver calls resolve only when parser evidence
+proves exactly one local class implements the interface and declares the called
+method. Multiple implementers, external interfaces, generic or union receiver
+types, and missing `implemented_interfaces` evidence stay unresolved.
+
 For package entrypoint, package bin, package export, and top-level JavaScript
 reference files, the repository scoped `File.uid` may be the caller so
 executable module bodies can make `main()`, constructor, member,

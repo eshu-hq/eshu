@@ -371,7 +371,15 @@ const openAPIPathsCode = `
                       "properties": {
                         "root_categories_used": {"type": "array", "items": {"type": "string"}},
                         "frameworks_recognized": {"type": "array", "items": {"type": "string"}},
-                        "reflection_modeled": {"type": "boolean"},
+                        "reflection_modeled": {
+                          "type": "boolean",
+                          "description": "True only when the requested language has modeled reflection reachability evidence."
+                        },
+                        "reflection_modeled_languages": {
+                          "type": "array",
+                          "items": {"type": "string"},
+                          "description": "Languages whose reflection reachability evidence is modeled by the dead-code policy."
+                        },
                         "tests_excluded": {"type": "boolean"},
                         "generated_code_excluded": {"type": "boolean"},
                         "user_overrides_applied": {"type": "boolean"},
