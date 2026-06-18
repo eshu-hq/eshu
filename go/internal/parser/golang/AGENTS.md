@@ -27,8 +27,8 @@
 13a. `cfg_lower.go`, `cfg_bindings.go`, `cfg_emit.go` - opt-in dataflow pass:
     lowers each function to a control-flow graph over `internal/parser/cfg`,
     extracts per-statement defs/uses, and emits the `dataflow_functions` and
-    `taint_findings` buckets (gated by `Options.EmitDataflow`, byte-identical
-    when off)
+    `taint_findings` buckets (gated by `Options.EmitDataflow`; package identity
+    metadata can still appear when `GoPackageImportPath` is provided)
 13b. `cfg_taint_facts.go` - the Go source/sink/sanitizer catalog and the mapping
     from parsed statements to `internal/parser/taint` facts
 13c. `cfg_effects.go`, `cfg_interproc.go` - the Go-AST-to-EffectsSpec extraction

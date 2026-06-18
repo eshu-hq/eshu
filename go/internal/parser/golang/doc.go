@@ -55,8 +55,8 @@
 // summary.Effects rows for reducer persistence. Function rows also carry
 // package_import_path when GoPackageImportPath is present so reducer loaders can
 // map content-entity CALLS endpoints back to the same durable FunctionID tuple
-// used by the summary store. The dataflow gate is off by default; callers that
-// also provide GoPackageImportPath get package identity metadata on function
-// rows even without dataflow payloads, so downstream reducers can use the same
-// FunctionID fields consistently.
+// used by the summary store. The dataflow buckets are off by default; callers
+// that also provide GoPackageImportPath still get package identity metadata on
+// function rows, so downstream reducers can use the same FunctionID fields
+// consistently.
 package golang
