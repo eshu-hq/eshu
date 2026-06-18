@@ -21,7 +21,8 @@ func TestExtractCodeCallRowsBlocksTypeScriptDirectImportFallbackToRepoUnique(t *
 			Payload: map[string]any{
 				"repo_id": "repo-ts-import-missing",
 				"imports_map": map[string][]string{
-					"helper": {importedPath},
+					"helper":    {decoyPath},
+					"notHelper": {importedPath},
 				},
 			},
 		},

@@ -96,6 +96,7 @@ func codeCallHasRepositoryImportedTargetBinding(
 		return false
 	}
 	language := codeCallLanguage(call, rawPath, relativePath)
+	repositoryPaths := codeCallRepositoryImportPaths(repositoryImports)
 	for _, target := range codeCallImportedTargets(mapSlice(fileData["imports"]), call) {
 		if codeCallMatchImportedPath(
 			rawPath,
@@ -106,8 +107,36 @@ func codeCallHasRepositoryImportedTargetBinding(
 		) != "" {
 			return true
 		}
+		if codeCallMatchImportedPath(
+			rawPath,
+			relativePath,
+			target.importSource,
+			language,
+			repositoryPaths,
+		) != "" {
+			return true
+		}
 	}
 	return false
+}
+
+func codeCallRepositoryImportPaths(repositoryImports map[string][]string) []string {
+	var paths []string
+	seen := make(map[string]struct{})
+	for _, symbolPaths := range repositoryImports {
+		for _, path := range symbolPaths {
+			normalized := normalizeCodeCallPath(path)
+			if normalized == "" {
+				continue
+			}
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			paths = append(paths, normalized)
+		}
+	}
+	return paths
 }
 
 func resolveGoSameDirectoryCalleeEntityID(
