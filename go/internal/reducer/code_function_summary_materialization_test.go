@@ -265,12 +265,19 @@ func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDs(context.Context,
 
 type recordingCodeFunctionGraphIDWriter struct {
 	calls int
-	ids   map[summary.FunctionID]string
+	repos []string
+	sets  []map[summary.FunctionID]string
 }
 
-func (w *recordingCodeFunctionGraphIDWriter) UpsertGraphIDs(_ context.Context, ids map[summary.FunctionID]string, _ time.Time) error {
+func (w *recordingCodeFunctionGraphIDWriter) ReplaceGraphIDs(
+	_ context.Context,
+	repo string,
+	ids map[summary.FunctionID]string,
+	_ time.Time,
+) error {
 	w.calls++
-	w.ids = ids
+	w.repos = append(w.repos, repo)
+	w.sets = append(w.sets, ids)
 	return nil
 }
 
@@ -288,7 +295,35 @@ func TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired(t *testing.T) {
 	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
 		t.Fatalf("Handle error: %v", err)
 	}
-	if gidWriter.calls != 1 || gidWriter.ids["repo-1\x1fpkg\x1f\x1fview"] != "uid-view" {
+	if gidWriter.calls != 1 || len(gidWriter.sets) != 1 ||
+		gidWriter.sets[0]["repo-1\x1fpkg\x1f\x1fview"] != "uid-view" {
 		t.Fatalf("graph ids not persisted: %+v", gidWriter)
+	}
+}
+
+// TestCodeFunctionSummaryHandlerReplacesUnresolvedGraphIDs proves unresolved
+// graph uids still reach the writer so stale mappings are cleared.
+func TestCodeFunctionSummaryHandlerReplacesUnresolvedGraphIDs(t *testing.T) {
+	t.Parallel()
+	gidWriter := &recordingCodeFunctionGraphIDWriter{}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+			"repo-1\x1fpkg\x1f\x1fview": {ParamToReturn: []int{0}},
+		}},
+		Writer: &recordingCodeFunctionSummaryWriter{},
+		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[summary.FunctionID]string{
+			"repo-1\x1fpkg\x1f\x1fview": "",
+		}},
+		GraphIDWriter: gidWriter,
+	}
+
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle error: %v", err)
+	}
+	if gidWriter.calls != 1 || len(gidWriter.repos) != 1 || gidWriter.repos[0] != "repo-1" {
+		t.Fatalf("graph-id replacement calls = %+v, want one repo-1 replacement", gidWriter)
+	}
+	if len(gidWriter.sets) != 1 || gidWriter.sets[0]["repo-1\x1fpkg\x1f\x1fview"] != "" {
+		t.Fatalf("graph-id replacement set = %+v, want unresolved id retained", gidWriter.sets)
 	}
 }

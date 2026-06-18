@@ -78,7 +78,7 @@ type CodeFunctionGraphIDLoader interface {
 // CodeFunctionGraphIDWriter persists the FunctionID->graph-uid map. It is
 // satisfied by postgres.FunctionGraphIDStore.
 type CodeFunctionGraphIDWriter interface {
-	UpsertGraphIDs(ctx context.Context, ids map[summary.FunctionID]string, updatedAt time.Time) error
+	ReplaceGraphIDs(ctx context.Context, repo string, ids map[summary.FunctionID]string, updatedAt time.Time) error
 }
 
 // CodeFunctionSummaryMaterializationHandler persists one generation's function
@@ -149,8 +149,10 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		if err != nil {
 			return Result{}, fmt.Errorf("load code function graph ids: %w", err)
 		}
-		if err := h.GraphIDWriter.UpsertGraphIDs(ctx, ids, now); err != nil {
-			return Result{}, fmt.Errorf("persist code function graph ids: %w", err)
+		for _, repo := range codeFunctionGraphIDRepos(effects, ids) {
+			if err := h.GraphIDWriter.ReplaceGraphIDs(ctx, repo, codeFunctionGraphIDsForRepo(repo, ids), now); err != nil {
+				return Result{}, fmt.Errorf("persist code function graph ids for repo %q: %w", repo, err)
+			}
 		}
 		graphIDCount = len(ids)
 	}
@@ -209,6 +211,39 @@ func codeFunctionSourcesForRepo(repo string, sources []interproc.Source) []inter
 	for _, src := range sources {
 		if durableFunctionRepo(string(src.Port.Func)) == repo {
 			out = append(out, src)
+		}
+	}
+	return out
+}
+
+func codeFunctionGraphIDRepos(
+	effects map[summary.FunctionID]summary.Effects,
+	ids map[summary.FunctionID]string,
+) []string {
+	seen := make(map[string]struct{})
+	for fnID := range effects {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	for fnID := range ids {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	repos := make([]string, 0, len(seen))
+	for repo := range seen {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+	return repos
+}
+
+func codeFunctionGraphIDsForRepo(repo string, ids map[summary.FunctionID]string) map[summary.FunctionID]string {
+	out := make(map[summary.FunctionID]string)
+	for fnID, uid := range ids {
+		if durableFunctionRepo(string(fnID)) == repo {
+			out[fnID] = uid
 		}
 	}
 	return out

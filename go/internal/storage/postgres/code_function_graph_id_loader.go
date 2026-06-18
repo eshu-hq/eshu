@@ -10,7 +10,8 @@ import (
 // LoadCodeFunctionGraphIDs implements the reducer's FunctionID->uid loader by
 // scanning code_function_summary facts for one scope generation and mapping each
 // FunctionID to the graph_uid the collector resolved. Functions whose uid did not
-// resolve carry no graph_uid and are skipped.
+// resolve are returned with an empty uid so the replacement writer can clear any
+// stale mapping from an earlier generation.
 func (s FactStore) LoadCodeFunctionGraphIDs(
 	ctx context.Context,
 	scopeID string,
@@ -27,7 +28,7 @@ func (s FactStore) LoadCodeFunctionGraphIDs(
 		}
 		id := payloadString(envelope.Payload, "function_id")
 		uid := payloadString(envelope.Payload, "graph_uid")
-		if id == "" || uid == "" {
+		if id == "" {
 			continue
 		}
 		ids[summary.FunctionID(id)] = uid
