@@ -5,7 +5,8 @@
 // The capability answers one differentiating question: is untrusted input
 // reaching a cloud-exposed or privileged sink? Unlike code-only taint tools
 // whose sink is always an AST node, an Eshu sink can be a correlated cloud
-// fact — an IAM action, a reachable secret, an internet-exposed endpoint.
+// fact — an IAM action, a reachable secret, an internet-exposed endpoint, or a
+// resolved SQL table queried by a function.
 //
 // This package is the declarative half of that capability. It does not read the
 // graph, run Cypher, or write nodes. It declares:

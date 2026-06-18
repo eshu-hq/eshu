@@ -26,17 +26,18 @@ func TestEdgeWriterRetractEdgesSQLRelationshipUsesLabelScopedGroup(t *testing.T)
 		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
 	}
 	stmts := executor.groupCalls[0]
-	if got, want := len(stmts), 5; got != want {
+	if got, want := len(stmts), 6; got != want {
 		t.Fatalf("group statement count = %d, want %d", got, want)
 	}
 
-	assertSQLRetractStatement(t, stmts[0], "SqlView", "REFERENCES_TABLE")
-	assertSQLRetractStatement(t, stmts[1], "SqlFunction", "REFERENCES_TABLE")
-	assertSQLRetractStatement(t, stmts[2], "SqlTable", "HAS_COLUMN")
-	assertSQLRetractStatement(t, stmts[3], "SqlTrigger", "TRIGGERS")
-	assertSQLRetractStatement(t, stmts[4], "SqlTrigger", "EXECUTES")
+	assertSQLRetractStatement(t, stmts[0], "Function", "QUERIES_TABLE")
+	assertSQLRetractStatement(t, stmts[1], "SqlView", "REFERENCES_TABLE")
+	assertSQLRetractStatement(t, stmts[2], "SqlFunction", "REFERENCES_TABLE")
+	assertSQLRetractStatement(t, stmts[3], "SqlTable", "HAS_COLUMN")
+	assertSQLRetractStatement(t, stmts[4], "SqlTrigger", "TRIGGERS")
+	assertSQLRetractStatement(t, stmts[5], "SqlTrigger", "EXECUTES")
 	for _, stmt := range stmts {
-		if strings.Contains(stmt.Cypher, "REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES") {
+		if strings.Contains(stmt.Cypher, "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES") {
 			t.Fatalf("cypher uses broad relationship alternation: %s", stmt.Cypher)
 		}
 	}
@@ -46,7 +47,7 @@ func TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters(t *testin
 	t.Parallel()
 
 	stmts := BuildRetractSQLRelationshipEdgeStatements([]string{"repo-a", "repo-b"}, "reducer/sql-relationships")
-	if got, want := len(stmts), 5; got != want {
+	if got, want := len(stmts), 6; got != want {
 		t.Fatalf("statement count = %d, want %d", got, want)
 	}
 
@@ -64,6 +65,35 @@ func TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters(t *testin
 		if got, want := stmt.Parameters["evidence_source"], "reducer/sql-relationships"; got != want {
 			t.Fatalf("evidence_source = %v, want %v", got, want)
 		}
+	}
+}
+
+func TestEdgeWriterRetractEdgesSQLRelationshipFallbackIncludesQueriesTable(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("Execute calls = %d, want %d", got, want)
+	}
+	stmt := executor.calls[0]
+	if !strings.Contains(stmt.Cypher, "QUERIES_TABLE") {
+		t.Fatalf("fallback retract cypher missing QUERIES_TABLE: %s", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {
+		t.Fatalf("fallback retract cypher missing repo_id predicate: %s", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["evidence_source"], "reducer/sql-relationships"; got != want {
+		t.Fatalf("evidence_source = %v, want %v", got, want)
 	}
 }
 
@@ -93,7 +123,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesFileScopedGroup(t *testin
 		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
 	}
 	stmts := executor.groupCalls[0]
-	if got, want := len(stmts), 5; got != want {
+	if got, want := len(stmts), 6; got != want {
 		t.Fatalf("group statement count = %d, want %d", got, want)
 	}
 	for _, stmt := range stmts {

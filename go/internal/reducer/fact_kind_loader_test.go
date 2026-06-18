@@ -50,7 +50,7 @@ func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
 	if loader.listFactsCalls != 0 {
 		t.Fatalf("ListFacts() calls = %d, want 0", loader.listFactsCalls)
 	}
-	if got, want := len(loader.kindCalls), 2; got != want {
+	if got, want := len(loader.kindCalls), 3; got != want {
 		t.Fatalf("ListFactsByKind() calls = %d, want %d", got, want)
 	}
 	if got, want := strings.Join(loader.kindCalls[0], ","), "repository"; got != want {
@@ -58,6 +58,9 @@ func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
 	}
 	if got, want := strings.Join(loader.kindCalls[1], ","), "content_entity"; got != want {
 		t.Fatalf("ListFactsByKind() second kinds = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(loader.kindCalls[2], ","), "file"; got != want {
+		t.Fatalf("ListFactsByKind() third kinds = %q, want %q", got, want)
 	}
 }
 

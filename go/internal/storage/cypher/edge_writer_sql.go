@@ -2,6 +2,16 @@ package cypher
 
 import "fmt"
 
+const retractSQLFunctionQueriesTableEdgesCypher = `MATCH (source:Function)-[rel:QUERIES_TABLE]->()
+WHERE source.repo_id IN $repo_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractSQLFunctionQueriesTableEdgesByFileCypher = `MATCH (source:Function)-[rel:QUERIES_TABLE]->()
+WHERE source.path IN $file_paths
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
 const retractSQLViewReferencesTableEdgesCypher = `MATCH (source:SqlView)-[rel:REFERENCES_TABLE]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
@@ -53,6 +63,7 @@ WHERE source.path IN $file_paths
 DELETE rel`
 
 var sqlRelationshipEntityLabels = map[string]struct{}{
+	"Function":    {},
 	"SqlColumn":   {},
 	"SqlFunction": {},
 	"SqlIndex":    {},
@@ -87,6 +98,8 @@ func buildSQLRelationshipRowMap(
 	}
 
 	switch relationshipType {
+	case "QUERIES_TABLE":
+		return batchCanonicalSQLQueriesTableUpsertCypher, rowMap, true
 	case "REFERENCES_TABLE":
 		return batchCanonicalSQLRelationshipUpsertCypher, rowMap, true
 	case "HAS_COLUMN":
@@ -111,6 +124,13 @@ func labelScopedSQLRelationshipCypher(
 	targetLabel string,
 ) (string, bool) {
 	switch relationshipType {
+	case "QUERIES_TABLE":
+		return buildLabelScopedSQLRelationshipCypher(
+			sourceLabel,
+			targetLabel,
+			"QUERIES_TABLE",
+			"Parser embedded SQL evidence resolved a function table query edge",
+		), true
 	case "REFERENCES_TABLE":
 		return buildLabelScopedSQLRelationshipCypher(
 			sourceLabel,
@@ -163,6 +183,7 @@ SET rel.confidence = 0.95,
 // relationship retraction statements for grouped reducer execution.
 func BuildRetractSQLRelationshipEdgeStatements(repoIDs []string, evidenceSource string) []Statement {
 	cyphers := []string{
+		retractSQLFunctionQueriesTableEdgesCypher,
 		retractSQLViewReferencesTableEdgesCypher,
 		retractSQLFunctionReferencesTableEdgesCypher,
 		retractSQLTableHasColumnEdgesCypher,
@@ -187,6 +208,7 @@ func BuildRetractSQLRelationshipEdgeStatements(repoIDs []string, evidenceSource 
 // relationship retraction statements for repo-qualified source file paths.
 func BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths []string, evidenceSource string) []Statement {
 	cyphers := []string{
+		retractSQLFunctionQueriesTableEdgesByFileCypher,
 		retractSQLViewReferencesTableEdgesByFileCypher,
 		retractSQLFunctionReferencesTableEdgesByFileCypher,
 		retractSQLTableHasColumnEdgesByFileCypher,

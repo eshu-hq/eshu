@@ -141,18 +141,18 @@ var sinkCatalog = []SinkSpec{
 		GraphBacked:      true,
 		Provenance:       "reducer/secrets_iam_graph_projection_extract.go (-[:SECRETS_IAM_GRANTS_SECRET_READ]-> :SecretsIAMSecretMetadataPath)",
 	},
-	// SQL table sink: a function that queries a SQL table. The
-	// Function-[:QUERIES_TABLE]->SqlTable edge is NOT materialized today — it
-	// appears only as a MATCH clause in query/impact.go with no writer; the SQL
-	// relationship materializer emits REFERENCES_TABLE/TRIGGERS/EXECUTES/HAS_COLUMN
-	// (SQL-entity to SQL-entity), not Function to SqlTable. Kept non-graph-backed
-	// per the honesty contract until #2799 materializes the edge.
+	// SQL table sink: a function that queries a SQL table. The SQL relationship
+	// materializer promotes parser embedded-query evidence into
+	// Function-[:QUERIES_TABLE]->SqlTable only when the referenced table resolves
+	// unambiguously.
 	{
 		Kind:             SinkSQLTable,
 		DisplayName:      "SQL table access",
+		Relationship:     "QUERIES_TABLE",
+		TargetLabel:      "SqlTable",
 		BaselineSeverity: SeverityMedium,
-		GraphBacked:      false,
-		Provenance:       "not yet materialized; QUERIES_TABLE is only a MATCH in query/impact.go:112 with no edge writer (follow-up #2799)",
+		GraphBacked:      true,
+		Provenance:       "reducer/sql_relationship_materialization.go and storage/cypher/edge_writer_sql.go (Function-[:QUERIES_TABLE]->SqlTable)",
 	},
 	// Internet-exposed endpoint sink: a security-group rule that reaches the public
 	// internet (0.0.0.0/0 or ::/0), captured by the is_internet flag on the CIDR
@@ -262,7 +262,7 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 // catalog. The well-formedness test fails when the catalog changes without a
 // deliberate update to this constant, implementing the taintModelVersion
 // discipline: a curated edit trips downstream re-evaluation.
-const sinkCatalogVersionGolden = "39a14c8d484b19a4c3d7ee4fa2fecc230c2597f705116dea5a5bad2ea7f10e13"
+const sinkCatalogVersionGolden = "2c1bbc9c1fa24a21939144d43b65609a5c9ad2841daf607f7d4a1a031c8789e4"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
 // cloud-sink catalog. Any change to the catalog (added, removed, or edited spec)
