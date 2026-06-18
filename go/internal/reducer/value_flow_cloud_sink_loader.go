@@ -18,10 +18,10 @@ type GraphValueFlowCloudSinkTargetLoader struct {
 
 const valueFlowCloudSinkTargetBatchLimit = 500
 
-// LoadCloudSinkTargets converts catalog-backed Function -> cloud sink graph
-// edges into function-level fixpoint targets. The query is bounded by the
-// durable Function.uid snapshot and the closed graph-backed sink relationship
-// vocabulary; non-graph-backed sink kinds never enter the query parameters.
+// LoadCloudSinkTargets converts materialized Function -> CloudAction graph
+// edges plus correlated principal permissions into function-level fixpoint
+// targets. The query is bounded by the durable Function.uid snapshot and follows
+// the materialized INVOKES_CLOUD_ACTION bridge before matching IAM reachability.
 func (l GraphValueFlowCloudSinkTargetLoader) LoadCloudSinkTargets(
 	ctx context.Context,
 	graphIDs map[summary.FunctionID]string,
@@ -38,22 +38,13 @@ func (l GraphValueFlowCloudSinkTargetLoader) LoadCloudSinkTargets(
 		return nil, nil
 	}
 	var rows []map[string]any
-	sinkRels := valueFlowGraphBackedSinkRelationships()
 	for start := 0; start < len(functionUIDs); start += valueFlowCloudSinkTargetBatchLimit {
 		end := min(start+valueFlowCloudSinkTargetBatchLimit, len(functionUIDs))
 		chunkRows, err := l.Graph.Run(ctx, valueFlowCloudSinkTargetsCypher, map[string]any{
 			"function_uids": functionUIDs[start:end],
-			"sink_rels":     sinkRels,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("load graph-backed value-flow cloud sink targets: %w", err)
-		}
-		rows = append(rows, chunkRows...)
-		chunkRows, err = l.Graph.Run(ctx, valueFlowCorrelatedCloudActionTargetsCypher, map[string]any{
-			"function_uids": functionUIDs[start:end],
-		})
-		if err != nil {
-			return nil, fmt.Errorf("load correlated value-flow cloud action targets: %w", err)
 		}
 		rows = append(rows, chunkRows...)
 	}
@@ -138,22 +129,6 @@ func valueFlowCloudSinkSpecFromRow(row map[string]any) (exposure.SinkSpec, bool)
 	return exposure.SinkSpec{}, false
 }
 
-func valueFlowGraphBackedSinkRelationships() []string {
-	seen := map[string]struct{}{}
-	for _, spec := range exposure.GraphBackedSinkSpecs() {
-		rel := strings.TrimSpace(spec.Relationship)
-		if rel != "" {
-			seen[rel] = struct{}{}
-		}
-	}
-	rels := make([]string, 0, len(seen))
-	for rel := range seen {
-		rels = append(rels, rel)
-	}
-	sort.Strings(rels)
-	return rels
-}
-
 func valueFlowStringSlice(raw any) []string {
 	switch values := raw.(type) {
 	case []string:
@@ -192,22 +167,12 @@ func valueFlowScalarString(raw any) (string, bool) {
 	}
 }
 
-const valueFlowCloudSinkTargetsCypher = `MATCH (fn:Function)-[sinkRel]->(sinkNode)
-WHERE fn.uid IN $function_uids
-  AND type(sinkRel) IN $sink_rels
-RETURN fn.uid AS function_uid,
-       type(sinkRel) AS sink_rel,
-       labels(sinkNode) AS sink_labels,
-       sinkNode.is_internet AS sink_is_internet
-ORDER BY function_uid, sink_rel`
-
-const valueFlowCorrelatedCloudActionTargetsCypher = `MATCH (fn:Function)
+const valueFlowCloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
 WHERE fn.uid IN $function_uids
 MATCH (fn)-[:RUNS_IN]->(workload:Workload)
-WITH fn, collect(DISTINCT workload) AS workloads
+WITH fn, action, collect(DISTINCT workload) AS workloads
 WHERE size(workloads) = 1
-WITH fn, workloads[0] AS workload
-MATCH (fn)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
+WITH fn, action, workloads[0] AS workload
 MATCH (workload)<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[:USES]->(principal:CloudResource)
 MATCH (principal)-[sinkRel:CAN_PERFORM]->(sinkNode:CloudResource)
 WHERE action.action IN sinkRel.actions

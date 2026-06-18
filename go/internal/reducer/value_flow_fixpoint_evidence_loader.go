@@ -299,8 +299,10 @@ type ValueFlowFixpointEvidenceProjector struct {
 	Writer CodeInterprocEvidenceWriter
 }
 
-// ProjectValueFlowFixpointEvidence retracts and rewrites only fixpoint-owned
-// TAINT_FLOWS_TO edges for the current scope.
+// ProjectValueFlowFixpointEvidence retracts and rewrites the full fixpoint-owned
+// TAINT_FLOWS_TO evidence source. The solve reads global durable summary/source
+// state, so retraction must match that global write contract rather than a
+// triggering scope's last-stamped edge ownership.
 func (p ValueFlowFixpointEvidenceProjector) ProjectValueFlowFixpointEvidence(
 	ctx context.Context,
 	scopeID string,
@@ -314,7 +316,7 @@ func (p ValueFlowFixpointEvidenceProjector) ProjectValueFlowFixpointEvidence(
 		return ValueFlowFixpointProjectionResult{}, err
 	}
 	rows := ExtractCodeInterprocFixpointEvidenceRows(inputs)
-	if err := p.Writer.RetractCodeInterprocEvidence(ctx, []string{scopeID}, generationID, codeInterprocFixpointEvidenceSource); err != nil {
+	if err := p.Writer.RetractCodeInterprocEvidenceSource(ctx, codeInterprocFixpointEvidenceSource); err != nil {
 		return ValueFlowFixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence: %w", err)
 	}
 	if len(rows) > 0 {

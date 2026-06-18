@@ -5,7 +5,13 @@ import (
 	"strings"
 )
 
+var deadCodeReflectionModeledLanguages = []string{"java"}
+
 func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats deadCodePolicyStats) map[string]any {
+	return buildDeadCodeAnalysisForLanguage(results, excluded, stats, "")
+}
+
+func buildDeadCodeAnalysisForLanguage(results []map[string]any, excluded []string, stats deadCodePolicyStats, language string) map[string]any {
 	frameworks := make([]string, 0)
 	seenFrameworks := make(map[string]struct{})
 	for _, result := range results {
@@ -32,7 +38,8 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"framework_callback_roots",
 		},
 		"frameworks_recognized":                  frameworks,
-		"reflection_modeled":                     true,
+		"reflection_modeled":                     deadCodeReflectionModeled(language),
+		"reflection_modeled_languages":           deadCodeReflectionModeledLanguages,
 		"tests_excluded":                         true,
 		"generated_code_excluded":                true,
 		"framework_roots_from_parser_metadata":   stats.ParserMetadataFrameworkRoots,
@@ -301,4 +308,12 @@ func buildDeadCodeAnalysis(results []map[string]any, excluded []string, stats de
 			"IaC deadness is not inferred by the code dead-code analyzer; use the IaC usage/reachability capability once available",
 		},
 	}
+}
+
+func deadCodeReflectionModeled(language string) bool {
+	language = normalizeDeadCodeLanguage(language)
+	if language == "" {
+		return false
+	}
+	return slices.Contains(deadCodeReflectionModeledLanguages, language)
 }

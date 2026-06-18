@@ -16,6 +16,12 @@ type scipLanguageConfig struct {
 	InstallHint string
 }
 
+// SCIPLanguageFileGroup captures selected files for one SCIP-capable language.
+type SCIPLanguageFileGroup struct {
+	Language string
+	Files    []string
+}
+
 var scipExtensionConfigs = map[string]scipLanguageConfig{
 	".c":     {Language: "c", Binary: "scip-clang", InstallHint: "brew install llvm"},
 	".cpp":   {Language: "cpp", Binary: "scip-clang", InstallHint: "brew install llvm"},
@@ -53,6 +59,47 @@ type SCIPIndexer struct {
 // DetectSCIPProjectLanguage returns the dominant SCIP-capable language across
 // the provided file paths, restricted to the allowed set.
 func DetectSCIPProjectLanguage(paths []string, allowed []string) string {
+	allowedSet := scipAllowedLanguageSet(allowed)
+	filesByLanguage := scipFilesByLanguage(paths, allowedSet)
+	bestLanguage := ""
+	bestCount := 0
+	for _, language := range scipLanguagePriority {
+		count := len(filesByLanguage[language])
+		if count > bestCount {
+			bestLanguage = language
+			bestCount = count
+		}
+	}
+	return bestLanguage
+}
+
+// DetectSCIPProjectLanguageGroups returns SCIP-capable selected files grouped
+// by language in deterministic priority order.
+func DetectSCIPProjectLanguageGroups(paths []string, allowed []string) []SCIPLanguageFileGroup {
+	allowedSet := scipAllowedLanguageSet(allowed)
+	if len(allowedSet) == 0 {
+		return nil
+	}
+	filesByLanguage := scipFilesByLanguage(paths, allowedSet)
+
+	groups := make([]SCIPLanguageFileGroup, 0, len(filesByLanguage))
+	for _, language := range scipLanguagePriority {
+		if _, ok := allowedSet[language]; !ok {
+			continue
+		}
+		files := filesByLanguage[language]
+		if len(files) == 0 {
+			continue
+		}
+		groups = append(groups, SCIPLanguageFileGroup{
+			Language: language,
+			Files:    append([]string(nil), files...),
+		})
+	}
+	return groups
+}
+
+func scipAllowedLanguageSet(allowed []string) map[string]struct{} {
 	allowedSet := make(map[string]struct{}, len(allowed))
 	for _, language := range allowed {
 		normalized := strings.TrimSpace(strings.ToLower(language))
@@ -60,11 +107,11 @@ func DetectSCIPProjectLanguage(paths []string, allowed []string) string {
 			allowedSet[normalized] = struct{}{}
 		}
 	}
-	if len(allowedSet) == 0 {
-		return ""
-	}
+	return allowedSet
+}
 
-	counts := make(map[string]int)
+func scipFilesByLanguage(paths []string, allowedSet map[string]struct{}) map[string][]string {
+	filesByLanguage := make(map[string][]string)
 	for _, path := range paths {
 		config, ok := scipExtensionConfigs[strings.ToLower(filepath.Ext(path))]
 		if !ok {
@@ -73,21 +120,9 @@ func DetectSCIPProjectLanguage(paths []string, allowed []string) string {
 		if _, ok := allowedSet[config.Language]; !ok {
 			continue
 		}
-		counts[config.Language]++
+		filesByLanguage[config.Language] = append(filesByLanguage[config.Language], path)
 	}
-
-	bestLanguage := ""
-	bestCount := 0
-	for _, language := range scipLanguagePriority {
-		if _, ok := allowedSet[language]; !ok {
-			continue
-		}
-		if counts[language] > bestCount {
-			bestLanguage = language
-			bestCount = counts[language]
-		}
-	}
-	return bestLanguage
+	return filesByLanguage
 }
 
 // IsAvailable reports whether the external scip-* binary is installed for the language.

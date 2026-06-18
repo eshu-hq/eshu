@@ -38,11 +38,7 @@ func javaScriptNewExpressionVariableTypes(root *tree_sitter.Node, source []byte)
 			}
 			typesByVariable[variableName] = constructorName
 		case "public_field_definition", "field_definition", "required_parameter", "optional_parameter", "formal_parameter":
-			nameNode := node.ChildByFieldName("name")
-			if nameNode == nil {
-				return
-			}
-			variableName := strings.TrimSpace(nodeText(nameNode, source))
+			variableName := javaScriptTypedBindingName(node, source)
 			typeName := javaScriptDeclaredTypeName(node, source)
 			if variableName == "" || typeName == "" {
 				return
@@ -52,6 +48,30 @@ func javaScriptNewExpressionVariableTypes(root *tree_sitter.Node, source []byte)
 		}
 	})
 	return typesByVariable
+}
+
+func javaScriptTypedBindingName(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
+		return strings.TrimSpace(nodeText(nameNode, source))
+	}
+	raw := strings.TrimSpace(nodeText(node, source))
+	if raw == "" || !strings.Contains(raw, ":") {
+		return ""
+	}
+	name, _, _ := strings.Cut(raw, ":")
+	if beforeDefault, _, ok := strings.Cut(name, "="); ok {
+		name = beforeDefault
+	}
+	name = strings.TrimSpace(strings.TrimPrefix(name, "..."))
+	name = strings.TrimSuffix(name, "?")
+	fields := strings.Fields(name)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[len(fields)-1]
 }
 
 func javaScriptFunctionReturnTypes(root *tree_sitter.Node, source []byte) map[string]string {
