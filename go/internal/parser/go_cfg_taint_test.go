@@ -115,6 +115,97 @@ func render(r *http.Request) template.HTML {
 	}
 }
 
+// TestGoTaintFieldSensitiveSourceToSQLSink proves a source assigned into one
+// struct field reaches a sink through that field without tainting a sibling.
+func TestGoTaintFieldSensitiveSourceToSQLSink(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+type payload struct {
+	SQL     string
+	Display string
+}
+
+func handle(r *http.Request, db *sql.DB) {
+	var data payload
+	data.SQL = r.FormValue("q")
+	data.Display = "safe"
+	db.Query(data.SQL)
+	db.Query(data.Display)
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if !hasFinding(rows, "TAINTED", "sql", "data.SQL") {
+		t.Fatalf("expected TAINTED sql finding for data.SQL, got %+v", rows)
+	}
+	if hasFinding(rows, "TAINTED", "sql", "data.Display") {
+		t.Fatalf("did not expect sibling field data.Display to be tainted, got %+v", rows)
+	}
+}
+
+// TestGoTaintPointerAliasSourceCallToSQLSink proves source-call assignments
+// through a pointer alias are classified on the normalized field path.
+func TestGoTaintPointerAliasSourceCallToSQLSink(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"os"
+)
+
+type payload struct {
+	SQL string
+}
+
+func handle(db *sql.DB) {
+	var data payload
+	alias := &data
+	alias.SQL = os.Getenv("Q")
+	db.Query(data.SQL)
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if !hasFinding(rows, "TAINTED", "sql", "data.SQL") {
+		t.Fatalf("expected TAINTED sql finding for data.SQL through pointer alias source call, got %+v", rows)
+	}
+}
+
+// TestGoTaintPointerAliasSanitizerSuppresses proves sanitizer assignments
+// through a pointer alias are classified on the normalized field path.
+func TestGoTaintPointerAliasSanitizerSuppresses(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"html"
+	"html/template"
+	"net/http"
+)
+
+type payload struct {
+	HTML string
+}
+
+func render(r *http.Request) template.HTML {
+	var data payload
+	alias := &data
+	raw := r.FormValue("name")
+	alias.HTML = html.EscapeString(raw)
+	return template.HTML(data.HTML)
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if hasFinding(rows, "TAINTED", "html", "data.HTML") {
+		t.Fatalf("did not expect TAINTED html finding for data.HTML through pointer alias sanitizer, got %+v", rows)
+	}
+	if !hasFinding(rows, "SANITIZES", "html", "data.HTML") {
+		t.Fatalf("expected SANITIZES html finding for data.HTML through pointer alias sanitizer, got %+v", rows)
+	}
+}
+
 // TestGoTaintOffIsByteIdentical proves the taint findings bucket is absent when
 // the dataflow gate is off.
 func TestGoTaintOffIsByteIdentical(t *testing.T) {

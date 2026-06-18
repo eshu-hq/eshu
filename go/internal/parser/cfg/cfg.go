@@ -50,11 +50,12 @@ type Overflow struct {
 	Blocks      int
 	Stmts       int
 	DefUseEdges int
+	AccessPaths int
 }
 
 // Any reports whether any cap tripped.
 func (o Overflow) Any() bool {
-	return o.Blocks > 0 || o.Stmts > 0 || o.DefUseEdges > 0
+	return o.Blocks > 0 || o.Stmts > 0 || o.DefUseEdges > 0 || o.AccessPaths > 0
 }
 
 // Function is the bounded, deterministic result of Build: the basic blocks and

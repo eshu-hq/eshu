@@ -17,6 +17,8 @@
 // on Function.Overflow rather than dropping data quietly: past MaxBlocks or
 // MaxStmts the fixpoint is skipped (the CFG is still emitted), and past
 // MaxDefUseEdges emission stops in deterministic order with the dropped count
-// recorded. Callers that hash the facts for incremental recomposition can rely
-// on both the determinism and the explicit overflow signal.
+// recorded. Language lowerers that emit field-sensitive bindings can also use
+// MaxAccessPathParts and record truncated selector paths on Overflow.AccessPaths.
+// Callers that hash the facts for incremental recomposition can rely on both
+// the determinism and the explicit overflow signal.
 package cfg

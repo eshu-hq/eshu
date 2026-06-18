@@ -75,8 +75,12 @@ The godoc contract is in `doc.go`.
   arguments, or environment values.
 - The `dataflow_functions` bucket (opt-in via `Options.EmitDataflow`) carries
   per-function control-flow graphs and reaching-definition def->use edges, built
-  by `cfg_lower.go`/`cfg_bindings.go`/`cfg_emit.go` over the
-  `internal/parser/cfg` engine. Off by default and byte-identical when off.
+  by `cfg_lower.go`/`cfg_bindings.go`/`cfg_access_paths.go`/`cfg_emit.go` over the
+  `internal/parser/cfg` engine. Selector reads and writes keep field-sensitive
+  access paths such as `payload.SQL`, and straight-line pointer aliases to local
+  structs are normalized before edges are emitted. Deep access paths are capped
+  by `cfg.DefaultLimits().MaxAccessPathParts` and counted in the row `overflow`
+  payload when truncated. Off by default and byte-identical when off.
 - The `taint_findings` bucket (same opt-in gate) carries intraprocedural
   source-to-sink taint findings with confidence and provenance, built by
   `cfg_taint_facts.go` (the Go source/sink/sanitizer catalog) over the
@@ -172,6 +176,18 @@ until a later, bounded flow proves they escape.
 Cyclomatic complexity counts Go control-flow branches once. The helper layer
 counts a `for range` statement through the enclosing `for_statement`, not again
 through its `range_clause`; this preserves the parent parser fixture contract.
+
+Go dataflow binding extraction is field-sensitive for selector expressions. A
+write such as `payload.SQL = input` defines `payload.SQL`, while a sibling read
+such as `payload.Display` does not consume that definition. The lowerer also
+tracks simple straight-line aliases such as `alias := &payload` and normalizes
+`alias.SQL` back to `payload.SQL`, including chains over an existing pointer
+alias. Plain struct value copies are not treated as mutation aliases. Aliases
+introduced only inside one branch or loop body do not leak past that control-flow
+boundary. Selector uses still include their base binding as compatibility
+evidence for existing receiver and source-parameter summary logic. Deep selector
+paths are truncated deterministically with a `.*` suffix and a counted
+`overflow.access_paths` value rather than being emitted unbounded.
 
 Per-file amortization is required for variable-type lookups. The helpers that
 collect dead-code roots and imported-method-call roots query variable types
