@@ -3,7 +3,11 @@ package searchhybrid
 import (
 	"fmt"
 	"math"
-	"strconv"
+)
+
+const (
+	approximateVectorTableCount    = 4
+	approximateVectorSignatureBits = 12
 )
 
 type vectorRetriever interface {
@@ -33,9 +37,13 @@ func (retriever exactVectorRetriever) Score(queryVector []float64, inScope func(
 }
 
 type approximateVectorRetriever struct {
-	index   *Index
-	exact   exactVectorRetriever
-	buckets map[string][]int
+	index  *Index
+	exact  exactVectorRetriever
+	tables []approximateVectorTable
+}
+
+type approximateVectorTable struct {
+	buckets map[uint64][]int
 }
 
 func newVectorRetriever(index *Index, mode VectorRetrievalMode) (vectorRetriever, error) {
@@ -54,17 +62,22 @@ func newVectorRetriever(index *Index, mode VectorRetrievalMode) (vectorRetriever
 
 func newApproximateVectorRetriever(index *Index, exact exactVectorRetriever) approximateVectorRetriever {
 	retriever := approximateVectorRetriever{
-		index:   index,
-		exact:   exact,
-		buckets: make(map[string][]int),
+		index:  index,
+		exact:  exact,
+		tables: make([]approximateVectorTable, approximateVectorTableCount),
+	}
+	for table := range retriever.tables {
+		retriever.tables[table] = approximateVectorTable{buckets: make(map[uint64][]int)}
 	}
 	for i := range index.documents {
 		vector := index.documents[i].vector
 		if !validVector(vector, index.vectorDims) {
 			continue
 		}
-		signature := dominantVectorSignature(vector)
-		retriever.buckets[signature] = append(retriever.buckets[signature], i)
+		for table := range retriever.tables {
+			signature := angularVectorSignature(table, vector)
+			retriever.tables[table].buckets[signature] = append(retriever.tables[table].buckets[signature], i)
+		}
 	}
 	return retriever
 }
@@ -74,7 +87,11 @@ func (retriever approximateVectorRetriever) Score(queryVector []float64, inScope
 	if !validVector(queryVector, retriever.index.vectorDims) {
 		return scores
 	}
-	for _, idx := range retriever.buckets[dominantVectorSignature(queryVector)] {
+	candidates := retriever.candidates(queryVector)
+	if len(candidates) == 0 {
+		return retriever.exact.Score(queryVector, inScope)
+	}
+	for idx := range candidates {
 		if !inScope(idx) {
 			continue
 		}
@@ -84,6 +101,25 @@ func (retriever approximateVectorRetriever) Score(queryVector []float64, inScope
 		return retriever.exact.Score(queryVector, inScope)
 	}
 	return scores
+}
+
+func (retriever approximateVectorRetriever) candidates(queryVector []float64) map[int]struct{} {
+	candidates := make(map[int]struct{})
+	for tableIndex, table := range retriever.tables {
+		signature := angularVectorSignature(tableIndex, queryVector)
+		addApproximateBucketCandidates(candidates, table.buckets[signature])
+		for bit := 0; bit < approximateVectorSignatureBits; bit++ {
+			neighbor := signature ^ (uint64(1) << bit)
+			addApproximateBucketCandidates(candidates, table.buckets[neighbor])
+		}
+	}
+	return candidates
+}
+
+func addApproximateBucketCandidates(candidates map[int]struct{}, bucket []int) {
+	for _, idx := range bucket {
+		candidates[idx] = struct{}{}
+	}
 }
 
 func validVector(vector []float64, dims int) bool {
@@ -106,23 +142,36 @@ func isFiniteFloat(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
-// dominantVectorSignature is a deterministic coarse angular bucket. It chooses
-// the highest-magnitude dimension and sign, then scores only documents in the
-// same bucket before falling back to exact retrieval when the scoped bucket is
-// empty.
-func dominantVectorSignature(vector []float64) string {
-	bestIndex := 0
-	bestMagnitude := 0.0
-	for i, value := range vector {
-		magnitude := math.Abs(value)
-		if magnitude > bestMagnitude {
-			bestIndex = i
-			bestMagnitude = magnitude
+// angularVectorSignature projects vector through deterministic hyperplanes.
+// Nearby angular vectors collide across at least one table with high
+// probability, then final ranking uses exact cosine over the candidate set.
+func angularVectorSignature(table int, vector []float64) uint64 {
+	var signature uint64
+	for bit := 0; bit < approximateVectorSignatureBits; bit++ {
+		dot := 0.0
+		for dim, value := range vector {
+			dot += value * angularProjectionWeight(table, bit, dim)
+		}
+		if dot >= 0 {
+			signature |= uint64(1) << bit
 		}
 	}
-	sign := "+"
-	if vector[bestIndex] < 0 {
-		sign = "-"
-	}
-	return strconv.Itoa(bestIndex) + sign
+	return signature
+}
+
+func angularProjectionWeight(table int, bit int, dim int) float64 {
+	seed := uint64(table+1)*0x9e3779b97f4a7c15 ^
+		uint64(bit+1)*0xbf58476d1ce4e5b9 ^
+		uint64(dim+1)*0x94d049bb133111eb
+	value := splitmix64(seed)
+	const mantissaBits = 53
+	unit := float64(value>>(64-mantissaBits)) / float64(uint64(1)<<mantissaBits)
+	return unit*2 - 1
+}
+
+func splitmix64(x uint64) uint64 {
+	x += 0x9e3779b97f4a7c15
+	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+	x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+	return x ^ (x >> 31)
 }

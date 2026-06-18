@@ -18,10 +18,11 @@ Eshu now has deterministic, bounded retrieval over curated search documents:
 
 - the default public route reads persisted Postgres BM25 postings for active
   curated search documents;
-- the optional local hash embedder path builds a request-local in-process vector
-  index capped at 500 documents;
-- `go/internal/searchhybrid` still brute-force scans in-scope vectors when an
-  embedder is configured;
+- the optional local hash embedder path builds an in-process vector index capped
+  at 500 documents;
+- `go/internal/searchhybrid` keeps exact cosine as the correctness baseline and
+  offers an explicitly selected deterministic angular-LSH candidate index with
+  exact reranking;
 - NornicDB search remains disabled for the canonical graph lane.
 
 That is enough for a deterministic hybrid-search slice, but not enough for

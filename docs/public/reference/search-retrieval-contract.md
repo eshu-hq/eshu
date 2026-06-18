@@ -189,17 +189,20 @@ document content hash, and the configured vector index version. Missing, stale,
 partial, rebuilding, failed, incompatible, or malformed vector state must return
 explicit unavailable or degraded retrieval state instead of claiming vector
 participation. This is a deterministic no-network local path capped at 500
-loaded documents. It reports `retrieval_state=semantic_active` or
+loaded documents. Ready local vectors are exact-scored by default so the public
+API/MCP path keeps exact cosine as its correctness baseline. Explicit staged ANN
+configuration may use the in-process angular-LSH candidate index with exact
+cosine reranking. The route reports `retrieval_state=semantic_active` or
 `hybrid_active` only when ready persisted vector retrieval participates. It is
 not a hosted-provider, graph-write, or external vector-store integration.
 
-Production ANN/vector-index retrieval is gated separately by issue #2578 with
-storage-owner follow-up issue #2582. The first implementation storage owner is
-Postgres sidecar vector metadata and build state over active curated search
+Broader production ANN/vector-index retrieval is gated separately by issue #2578
+with storage-owner follow-up issue #2582. The first implementation storage owner
+is Postgres sidecar vector metadata and build state over active curated search
 documents. That gate still requires schema approval, active-generation
 freshness, benchmark corpus, false-canonical-claim guard, rollback semantics,
-and operator-visible index-state signals before any persisted vector index or
-runtime behavior change lands.
+and operator-visible index-state signals before any external vector store,
+hosted embedder, or canonical-graph search-index behavior change lands.
 
 ## Public Route And MCP Tool
 
@@ -264,8 +267,8 @@ This contract does not:
 The internal Postgres, NornicDB, and in-process hybrid adapters can call their
 backends when explicitly constructed by a benchmark or proof harness. The
 semantic-search route defaults to the persisted active curated search-document
-index and only uses request-local in-process hybrid retrieval when explicitly
-configured with the local hash embedder. Broader default runtime search still
+index and only uses in-process local vector retrieval when explicitly configured
+with the local hash embedder. Broader default runtime search still
 requires separate telemetry, capability, backend-proof, and semantic-evaluation
 evidence.
 Production embedder-backed `semantic` or `hybrid` retrieval must also satisfy
