@@ -14,7 +14,7 @@ import (
 // which can miss a reaching definition but never invents a false edge.
 func goLowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) cfg.Function {
 	builder := cfg.NewBuilder(limits)
-	lowerer := &goCFGLowerer{builder: builder, source: source}
+	lowerer := &goCFGLowerer{builder: builder, source: source, labels: map[string]cfg.BlockID{}}
 
 	entry := builder.AddBlock()
 	builder.SetEntry(entry)
@@ -24,14 +24,50 @@ func goLowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) c
 	if body := node.ChildByFieldName("body"); body != nil {
 		lowerer.lowerStmtList(body, entry)
 	}
+	lowerer.resolveGotos()
 	return builder.Build()
 }
 
 // goCFGLowerer threads the active builder and source through the recursive
-// statement lowering.
+// statement lowering. labels maps a label name to the block its labeled
+// statement begins in; gotos records each goto site so its edge to the target
+// label can be added after lowering (a forward goto references a label not yet
+// lowered, so edges are resolved in a second pass).
 type goCFGLowerer struct {
 	builder *cfg.Builder
 	source  []byte
+	labels  map[string]cfg.BlockID
+	gotos   []pendingGoto
+}
+
+// pendingGoto is a goto site awaiting its edge to the target label's block.
+type pendingGoto struct {
+	block cfg.BlockID
+	label string
+}
+
+// resolveGotos adds an edge from each goto's block to its target label's block.
+// A goto whose label is absent (an out-of-scope or unmodeled target) adds no
+// edge rather than a wrong one.
+func (l *goCFGLowerer) resolveGotos() {
+	for _, g := range l.gotos {
+		if target, ok := l.labels[g.label]; ok {
+			l.builder.AddEdge(g.block, target)
+		}
+	}
+}
+
+// goLabelName returns the label identifier of a labeled or goto statement.
+func goLabelName(node *tree_sitter.Node, source []byte) string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		if child.Kind() == "statement_identifier" || child.Kind() == "label_name" {
+			child := child
+			return nodeText(&child, source)
+		}
+	}
+	return ""
 }
 
 // lowerStmtList lowers each statement in a block in source order, threading the
@@ -42,15 +78,23 @@ func (l *goCFGLowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockI
 	reachable := true
 	for _, child := range blockNode.NamedChildren(cursor) {
 		child := child
-		if !reachable {
-			// Code after a terminating statement is dead and skipped, EXCEPT a
-			// labeled statement, which may be a goto target. Lower it in a fresh
-			// block so the labeled code is not dropped from the CFG. (Precise goto
-			// edges are a separate, unmodeled concern.)
-			if child.Kind() != "labeled_statement" {
-				continue
+		if child.Kind() == "labeled_statement" {
+			// A label is a jump target, so it must begin its own single-entry
+			// block: otherwise a goto to it would also enter the statements that
+			// precede the label in the current block, inventing reaching
+			// definitions the goto should skip. Fall through into the label block
+			// only when control reaches here; a label after a terminator is
+			// reachable solely via its goto edge (added by resolveGotos).
+			labelBlock := l.builder.AddBlock()
+			if reachable {
+				l.builder.AddEdge(cur, labelBlock)
 			}
-			cur = l.builder.AddBlock()
+			cur, reachable = l.lowerStmt(&child, labelBlock)
+			continue
+		}
+		if !reachable {
+			// Code after a terminating statement is dead and skipped.
+			continue
 		}
 		cur, reachable = l.lowerStmt(&child, cur)
 	}
@@ -74,6 +118,13 @@ func (l *goCFGLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.B
 		return l.lowerLabeled(node, cur)
 	case "return_statement":
 		l.addUses(cur, node)
+		return cur, false
+	case "goto_statement":
+		// Record the goto site; its edge to the target label's block is added in
+		// resolveGotos after lowering. Control jumps away, so fall-through ends.
+		if label := goLabelName(node, l.source); label != "" {
+			l.gotos = append(l.gotos, pendingGoto{block: cur, label: label})
+		}
 		return cur, false
 	case "short_var_declaration", "assignment_statement", "var_declaration",
 		"const_declaration", "inc_statement", "dec_statement":
@@ -202,9 +253,12 @@ func (l *goCFGLowerer) lowerForRange(node *tree_sitter.Node, clause *tree_sitter
 	return exit, true
 }
 
-// lowerLabeled lowers the statement carried by a labeled statement, ignoring the
-// label itself.
+// lowerLabeled records the label's target block (where its statement begins) so
+// a goto to it can be wired in resolveGotos, then lowers the carried statement.
 func (l *goCFGLowerer) lowerLabeled(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
+	if name := goLabelName(node, l.source); name != "" {
+		l.labels[name] = cur
+	}
 	cursor := node.Walk()
 	defer cursor.Close()
 	children := node.NamedChildren(cursor)
