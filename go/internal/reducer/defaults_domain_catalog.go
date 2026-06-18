@@ -80,9 +80,8 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			}
 		case DomainInheritanceMaterialization:
 			def.Handler = InheritanceMaterializationHandler{
-				FactLoader:           handlers.FactLoader,
-				EdgeWriter:           handlers.InheritanceEdgeWriter,
-				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				FactLoader:   handlers.FactLoader,
+				IntentWriter: handlers.InheritanceIntentWriter,
 			}
 		case DomainDocumentationMaterialization:
 			def.Handler = DocumentationEdgeMaterializationHandler{

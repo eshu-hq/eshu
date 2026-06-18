@@ -147,20 +147,24 @@ func buildReducerService(
 		ReadinessPrefetch:                  graphProjectionReadinessPrefetch,
 		SemanticEntityWriter:               semanticEntityWriter,
 		SQLRelationshipEdgeWriter:          edgeWriterForHandlers,
-		InheritanceEdgeWriter:              edgeWriterForHandlers,
-		DocumentationEdgeWriter:            edgeWriterForHandlers,
-		RationaleEdgeWriter:                edgeWriterForHandlers,
-		EvidenceFactLoader:                 relationshipStore,
-		AssertionLoader:                    relationshipStore,
-		ResolutionPersister:                relationshipStore,
-		ResolvedRelationshipLoader:         relationshipStore,
-		RepoDependencyIntentWriter:         repoDependencyIntentWriter,
-		RepoDependencyEdgeWriter:           edgeWriterForHandlers,
-		WorkloadDependencyEdgeWriter:       edgeWriterForHandlers,
-		GenerationCheck:                    postgres.NewGenerationFreshnessCheck(database),
-		PriorGenerationCheck:               postgres.NewPriorGenerationCheck(database),
-		Tracer:                             tracer,
-		Instruments:                        instruments,
+		// Inheritance edges ride the shared-projection intent path (#2867): the
+		// handler emits file-scoped per-edge intents plus a per-repo refresh intent
+		// to the same shared intent acceptance writer CALLS-adjacent domains use,
+		// and the partitioned runner + #2898 refresh fence project them.
+		InheritanceIntentWriter:      repoDependencyIntentWriter,
+		DocumentationEdgeWriter:      edgeWriterForHandlers,
+		RationaleEdgeWriter:          edgeWriterForHandlers,
+		EvidenceFactLoader:           relationshipStore,
+		AssertionLoader:              relationshipStore,
+		ResolutionPersister:          relationshipStore,
+		ResolvedRelationshipLoader:   relationshipStore,
+		RepoDependencyIntentWriter:   repoDependencyIntentWriter,
+		RepoDependencyEdgeWriter:     edgeWriterForHandlers,
+		WorkloadDependencyEdgeWriter: edgeWriterForHandlers,
+		GenerationCheck:              postgres.NewGenerationFreshnessCheck(database),
+		PriorGenerationCheck:         postgres.NewPriorGenerationCheck(database),
+		Tracer:                       tracer,
+		Instruments:                  instruments,
 		// Terraform config-vs-state drift adapters (issue #163). All three
 		// must be non-nil for the reducer registry to register
 		// DomainConfigStateDrift (see internal/reducer/defaults.go:202-213).

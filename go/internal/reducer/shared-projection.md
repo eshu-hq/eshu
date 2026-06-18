@@ -58,10 +58,25 @@ Configuration via `LoadSharedProjectionConfig` reads
 
 `InheritanceMaterializationHandler` and `SQLRelationshipMaterializationHandler`
 load only the `content_entity` rows whose `entity_type` can participate in
-their domains (`inheritance_materialization.go:69-77`,
-`sql_relationship_materialization.go:60-69`). The filters are correctness
-filters, not sampling: every allowed type is still processed, and unsupported
-types stay invisible to those domain reducers.
+their domains. The filters are correctness filters, not sampling: every allowed
+type is still processed, and unsupported types stay invisible to those domain
+reducers.
+
+`InheritanceMaterializationHandler` no longer writes canonical edges directly.
+It emits durable shared-projection intents (`inheritance_intents.go`): one
+whole-scope per-repo refresh intent that owns the single retract, plus one
+write-only per-edge intent per inheritance edge under a file-scoped,
+edge-unique partition key. The generic partitioned worker projects them and the
+#2898 refresh fence holds every per-edge write until the refresh's retract has
+committed, so a repo whose edges span partitions no longer loses edges to a
+per-partition repo-wide retract (#2867/#2910). The retract the refresh owns is
+repo-wide on `child.repo_id` by default and file-scoped on `child.path` when the
+generation is a delta — the refresh carries `delta_projection` and the repo's
+changed `delta_file_paths`, matching the inheritance edge writer's delta
+dispatch. The per-edge partition key hashes `(repo, child_path, edge identity)`:
+the edge identity is required because the worker's
+`LatestIntentsByRepoAndPartition` deduplicates by partition key, so two edges
+sharing one file-only key would collapse and silently drop an edge.
 
 SQL relationship materialization writes trigger-to-table `TRIGGERS` edges and
 trigger-to-function `EXECUTES` edges from the same `SqlTrigger` entity when the
