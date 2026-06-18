@@ -34,6 +34,17 @@ func TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter(t *testing.T) {
 	if !strings.Contains(languageDescription, "haskell") {
 		t.Fatalf("code/dead-code language description = %q, want haskell example", languageDescription)
 	}
+
+	responses := mustMapField(t, deadCodePost, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	content := mustMapField(t, okResponse, "content")
+	responseJSON := mustMapField(t, content, "application/json")
+	responseProperties := mustMapField(t, mustMapField(t, responseJSON, "schema"), "properties")
+	analysis := mustMapField(t, responseProperties, "analysis")
+	analysisProperties := mustMapField(t, analysis, "properties")
+	if _, ok := analysisProperties["reflection_modeled_languages"]; !ok {
+		t.Fatal("code/dead-code analysis schema missing reflection_modeled_languages")
+	}
 }
 
 func TestOpenAPIDeadCodeInvestigationDocumentsReturnedFields(t *testing.T) {

@@ -78,7 +78,7 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 		"candidate_scan_pages":     scan.CandidateScanPages,
 		"candidate_scan_rows":      scan.CandidateScanRows,
 		"results":                  scan.Results,
-		"analysis":                 buildDeadCodeAnalysis(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats),
+		"analysis":                 buildDeadCodeAnalysisForLanguage(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language),
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
