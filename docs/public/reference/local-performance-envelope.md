@@ -445,6 +445,37 @@ emitted by `ClaimedService` and the workflow gauge; it adds no new metric, label
 or runtime knob. Production binary wiring and a hosted-growth multi-family
 starvation proof on the remote corpus remain open follow-ups.
 
+### Partition-Filtered Resource Node Materialization (#2782)
+
+#2754 marked AWS resource node materialization safe to promote off the whole-scope
+`resource_scope` fallback to a per-resource `cloud_resource_node` conflict key,
+because the canonical node writer is an idempotent `MERGE (r:CloudResource {uid:
+row.uid})` with no scope-wide retract — so concurrent partitions can never delete
+one another's writes. #2782 proves the promoted key actually fences correctly:
+
+| State | Domains | Conflict key |
+| --- | --- | --- |
+| safe (promoted) | `aws_resource_materialization` | per-resource `cloud-resource-node:v1:<hashed entity key>` |
+| risky (whole-scope fallback) | `gcp_resource_materialization`, `azure_resource_materialization`, `ec2_instance_node_materialization`, `kubernetes_workload_materialization`, security-group node domains | hashed `resource-scope:v1:<scope>` until provider-specific contention/case-fold proof lands |
+| blocked | resource relationship and posture domains (AWS/GCP/Azure relationship, IAM, S3, RDS, EC2 posture, K8s correlation, SG reachability) | hashed `resource_scope`; they retract scope-wide, so partitioning races (see #2783) |
+
+No-Regression Evidence: `go/internal/storage/postgres/reducer_queue_resource_node_fencing_test.go`.
+`TestCloudResourceNodeConflictKeyFencesSameResourceSeparatesDistinct` proves two
+AWS resource intents for distinct resources get distinct `cloud_resource_node`
+keys (distinct-key concurrency) while the same resource gets the identical
+deterministic key (same-key fencing), and the key never leaks the raw provider
+locator. `TestReducerQueueClaimAndBatchFenceOnConflictKey` proves both the single
+and batch reducer claim queries fence on `(conflict_domain, COALESCE(conflict_key,
+scope_id))`, the queue mechanism that turns the per-resource key into
+serialization for the same resource and concurrency across distinct resources.
+The risky and blocked domains stay on the explicit `resource_scope` fallback; no
+worker-count reduction, batch-size serialization, or scope-wide retract is used,
+and `go test ./internal/storage/postgres -count=1` is green.
+
+No-Observability-Change: the conflict key is an internal claim fence; it adds no
+metric, label, span, log field, status route, or runtime knob, and the hashed key
+keeps raw ARNs, paths, IDs, and IP-shaped values out of the queue.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
