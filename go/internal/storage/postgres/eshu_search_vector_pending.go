@@ -16,7 +16,8 @@ WITH active_docs AS (
         fact.scope_id,
         fact.generation_id,
         COALESCE(scope.payload->>'repo_id', '') AS repo_id,
-        fact.payload->'document'->>'id' AS document_id
+        fact.payload->'document'->>'id' AS document_id,
+        fact.payload->'document'->>'content_hash' AS content_hash
     FROM fact_records fact
     JOIN ingestion_scopes scope
       ON scope.scope_id = fact.scope_id
@@ -29,7 +30,8 @@ ready_docs AS (
     SELECT DISTINCT
         meta.scope_id,
         meta.generation_id,
-        meta.document_id
+        meta.document_id,
+        meta.embedding_content_hash
     FROM eshu_search_vector_metadata meta
     JOIN eshu_search_vector_values value
       ON value.scope_id = meta.scope_id
@@ -48,6 +50,7 @@ LEFT JOIN ready_docs ready
   ON ready.scope_id = docs.scope_id
  AND ready.generation_id = docs.generation_id
  AND ready.document_id = docs.document_id
+ AND ready.embedding_content_hash = docs.content_hash
 WHERE ready.document_id IS NULL
 GROUP BY docs.scope_id, docs.generation_id, docs.repo_id
 ORDER BY docs.scope_id
