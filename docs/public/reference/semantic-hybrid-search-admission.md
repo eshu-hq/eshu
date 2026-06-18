@@ -8,6 +8,9 @@ provider call, API change, MCP change, graph write, or vector index by itself.
 For the measured quality and latency thresholds that decide when an
 embedder-backed path is *production-grade* (versus working-but-degraded), see the
 [Hybrid Retrieval Production Gate](hybrid-retrieval-production-gate.md).
+Hosted search embedders also require the
+[Hosted Search Embedder Gate](hosted-search-embedder-gate.md) before any
+provider or gateway traffic is enabled.
 
 ## Truth Boundary
 
@@ -69,6 +72,12 @@ The embedder path must record:
 The embedder must reject raw provider keys, token-bearing endpoints, private
 hostnames, local machine paths, and unredacted source values in committed
 configuration, status payloads, logs, metric labels, docs, and PR text.
+
+Hosted search-embedding adapters must not be implemented until the
+[Hosted Search Embedder Gate](hosted-search-embedder-gate.md) is closed or
+explicitly waived by the owning reviewers. Until then, repo-local work is
+limited to deterministic local embeddings, fail-closed contracts, and
+documentation that performs no provider traffic.
 
 ## Runtime Admission
 

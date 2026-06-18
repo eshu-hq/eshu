@@ -215,6 +215,12 @@ caller opts into the semantic code-hint surface.
 | Hosted provider | Prefer managed handles such as Kubernetes Secret, Vault-like handles, cloud workload identity, or an internal gateway. Keep tenant routing, ACL, budgets, and retention in policy. |
 | Assistant-mediated extraction | Assistant or MCP workflows may inspect status and propose semantic work, but provider output remains provenance until admitted. Assistant output must not bypass source policy or graph truth. |
 
+Hosted semantic extraction policy is not enough by itself to enable hosted
+search embeddings. Search-document embedding traffic must also pass the
+[Hosted Search Embedder Gate](hosted-search-embedder-gate.md), which approves the
+search-specific request schema, response retention, vector metadata, and adapter
+package boundary.
+
 For local proof, keep examples generic. Do not commit private hostnames, local
 filesystem paths, provider account names, model account IDs, or operator-only
 credential details.

@@ -197,6 +197,12 @@ cosine reranking. The route reports `retrieval_state=semantic_active` or
 `hybrid_active` only when ready persisted vector retrieval participates. It is
 not a hosted-provider, graph-write, or external vector-store integration.
 
+Hosted search-embedding providers remain behind the
+[Hosted Search Embedder Gate](hosted-search-embedder-gate.md). That gate must
+approve the source class, adapter package boundary, request/response schema,
+credential-handle posture, retention rules, and vector metadata before a
+provider-backed embedder can feed this retrieval path.
+
 Broader production ANN/vector-index retrieval is gated separately by issue #2578
 with storage-owner follow-up issue #2582. The first implementation storage owner
 is Postgres sidecar vector metadata and build state over active curated search
