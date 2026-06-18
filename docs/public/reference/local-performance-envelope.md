@@ -566,6 +566,17 @@ retract scope is unchanged (same delta/repo-wide dispatch), and the only added
 per-edge work is the bounded refresh-fence `SELECT`. `go test ./internal/reducer
 ./cmd/reducer -count=1` and `go test ./internal/reducer -race -count=1` are green.
 
+Remote confirmation (fresh NornicDB + Postgres + reducer stack, fixture repo with
+five subclasses of one base across two files — three in one file): the promoted
+path materializes **all 5 INHERITS edges** (including the three same-file edges,
+proving the edge-identity-mixed key avoids the dedup collapse), intents drain
+`pending=0`, queue `succeeded=11, failed=0`. The first run surfaced a real
+readiness stall — inheritance was gated on `semantic_nodes_committed`, a phase
+published only when the semantic-entity reducer runs; the `:Class` targets commit
+at `canonical_nodes_committed` (whose phase row matched the intent's acceptance key
+exactly), so the gate was corrected to canonical-nodes (like `code_calls`) and the
+re-run drained cleanly.
+
 Observability Evidence: the promotion reuses the existing partitioned-runner
 signals — `IndexedSelection`, `UnhashedFallbackRows`, and the #2898
 `RefreshFenceDeferred` field + `shared projection deferred per-edge rows behind
