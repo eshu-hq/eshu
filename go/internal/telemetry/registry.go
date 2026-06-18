@@ -6,6 +6,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionScopeID,
 	MetricDimensionScopeKind,
 	MetricDimensionSource,
+	MetricDimensionLanguage,
 	MetricDimensionSourceSystem,
 	MetricDimensionGenerationID,
 	MetricDimensionCollectorKind,
