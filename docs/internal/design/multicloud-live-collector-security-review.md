@@ -12,9 +12,10 @@ This review must pass before any command, chart, credential mount,
 ServiceMonitor, or live smoke path enables credential-bearing live collection.
 Adapter code may merge only when default wiring stays inert and tests prove the
 seam is explicitly injected, read-only, bounded, and sanitized. Today both
-binaries run fixture/file-backed and make **zero** live calls. The GCP live seam is inert
-(`gcpruntime.LiveClient` → `ErrLiveClientNotImplemented`). The Azure live seam is
-gated by construction: `azureruntime.LiveProviderFactory{}` returns
+binaries run fixture/file-backed and make **zero** live calls. The GCP live seam
+exists as an explicit-injection `gcpruntime.LiveClient`, but the GCP command and
+chart do not wire it by default. The Azure live seam is gated by construction:
+`azureruntime.LiveProviderFactory{}` returns
 `ErrLiveProviderGated`, and live Resource Graph plus optional ARM fallback calls
 require explicit operator-owned injection of read-only clients and allowlist
 rules. It is not command- or chart-enabled by default.
@@ -33,6 +34,12 @@ escape (scope enforced by the credential's own grant, not a client-side filter);
 default-deny (the inert zero-value seams stay the command/chart default; any path
 constructing or wiring the live adapter without explicit operator opt-in is a
 finding).
+
+GCP status as of #2701: `gcpruntime.LiveClient` is implemented as an
+explicit-injection REST `PageProvider` for Cloud Asset Inventory `assets.list`.
+The `collector-gcp-cloud` command and chart paths still use fixture/default-off
+wiring and make no live calls unless a future security-reviewed slice explicitly
+injects the live transport and credential source.
 
 ## 2. Redaction-key handling
 
