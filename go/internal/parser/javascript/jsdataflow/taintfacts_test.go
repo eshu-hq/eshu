@@ -59,10 +59,10 @@ func taintedCount(res taint.Result, kind taint.Kind) int {
 
 // TestTSSourceToSQLSink proves a request parameter reaching a db.query call is
 // reported as a TAINTED sql finding.
-func TestTSSourceToSQLSink(t *testing.T) {
+func TestTSTypedSourceToSQLSink(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req) {\n"+
+	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
 		"\tconst q = req.body;\n"+
 		"\tdb.query(q);\n"+
 		"}")
@@ -73,12 +73,72 @@ func TestTSSourceToSQLSink(t *testing.T) {
 	}
 }
 
+// TestTSUntypedRequestNameIsNotSource proves a parameter named like a request is
+// not enough without framework/type evidence.
+func TestTSUntypedRequestNameIsNotSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "function handler(request) {\n"+
+		"\tdb.query(request.body);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if len(res.Findings) != 0 {
+		t.Fatalf("untyped request-name parameter must not be a source; got %+v", res.Findings)
+	}
+}
+
+// TestTSSameNamedCacheQueryIsNotSink proves a same-named unrelated query method
+// is not treated as a SQL sink.
+func TestTSSameNamedCacheQueryIsNotSink(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
+		"\tconst q = req.body;\n"+
+		"\tcache.query(q);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if len(res.Findings) != 0 {
+		t.Fatalf("cache.query must not be a SQL sink; got %+v", res.Findings)
+	}
+}
+
+// TestTSChildProcessCommandSinkRequiresFrameworkReceiver proves command sinks
+// remain recognized when the receiver is the Node child_process module.
+func TestTSChildProcessCommandSinkRequiresFrameworkReceiver(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
+		"\tconst cmd = req.body;\n"+
+		"\tchild_process.exec(cmd);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if taintedCount(res, "command") != 1 {
+		t.Fatalf("want 1 TAINTED command finding, got %+v", res.Findings)
+	}
+}
+
+func TestTSTaintCatalogVersionIsStable(t *testing.T) {
+	t.Parallel()
+
+	v1 := TaintCatalogVersion()
+	v2 := TaintCatalogVersion()
+	if v1 == "" || v1 != v2 {
+		t.Fatalf("TaintCatalogVersion not stable: %q vs %q", v1, v2)
+	}
+	if len(v1) != 64 {
+		t.Fatalf("TaintCatalogVersion length = %d, want sha256 hex length 64", len(v1))
+	}
+}
+
 // TestTSWrongKindSanitizer proves an html escaper does not suppress a sql sink
 // (the kind-set model end-to-end through the TS catalog).
 func TestTSWrongKindSanitizer(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req) {\n"+
+	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
 		"\tconst raw = req.body;\n"+
 		"\tconst safe = escape(raw);\n"+
 		"\tdb.query(safe);\n"+
@@ -111,7 +171,7 @@ func TestTSNonRequestParamIsNotSource(t *testing.T) {
 func TestTSSinkInNestedClosureNotAttributed(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req) {\n"+
+	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
 		"\tconst q = req.body;\n"+
 		"\tconst f = () => { db.query(other); };\n"+
 		"\treturn q;\n"+
@@ -129,7 +189,7 @@ func TestTSSinkInNestedClosureNotAttributed(t *testing.T) {
 func TestTSConditionalSanitizerNotMarked(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req) {\n"+
+	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
 		"\tconst safe = cond ? req.body : escape(req.body);\n"+
 		"\tdb.query(safe);\n"+
 		"}")

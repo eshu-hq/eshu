@@ -30,6 +30,10 @@
   `lower_test.go` first (assert def->use by source line).
 - Add a binding shape: extend `assignDefsUses`/`exprUses` in `bindings.go` with a
   test; keep member/subscript targets as base reads only.
+- Extend the taint catalog: update the typed source or qualified sink specs in
+  `taintfacts.go` and add both a positive framework case and a same-name
+  unrelated negative in `taintfacts_test.go`. Keep `EffectsSpec` source handling
+  aligned with `TaintFacts`.
 
 ## Failure modes and how to debug
 

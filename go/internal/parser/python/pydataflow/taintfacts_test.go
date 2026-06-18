@@ -60,10 +60,10 @@ func pyTaintedCount(res taint.Result, kind taint.Kind) int {
 
 // TestPySourceToSQLSink proves a request parameter reaching cursor.execute is
 // reported as a TAINTED sql finding.
-func TestPySourceToSQLSink(t *testing.T) {
+func TestPyTypedSourceToSQLSink(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+	node, source, fn := parseFirstPyFunction(t, "def view(request: Request):\n"+
 		"    q = request.GET\n"+
 		"    cursor.execute(q)\n")
 	facts := TaintFacts(node, source, fn)
@@ -75,10 +75,10 @@ func TestPySourceToSQLSink(t *testing.T) {
 
 // TestPySourceToCommandSink proves a request parameter reaching os.system is
 // reported as a TAINTED command finding.
-func TestPySourceToCommandSink(t *testing.T) {
+func TestPyTypedSourceToCommandSink(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+	node, source, fn := parseFirstPyFunction(t, "def view(request: Request):\n"+
 		"    cmd = request.GET\n"+
 		"    os.system(cmd)\n")
 	facts := TaintFacts(node, source, fn)
@@ -88,12 +88,54 @@ func TestPySourceToCommandSink(t *testing.T) {
 	}
 }
 
+// TestPyUntypedRequestNameIsNotSource proves a parameter named like a request is
+// not enough without framework/type evidence.
+func TestPyUntypedRequestNameIsNotSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+		"    cursor.execute(request.GET)\n")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if len(res.Findings) != 0 {
+		t.Fatalf("untyped request-name parameter must not be a source; got %+v", res.Findings)
+	}
+}
+
+// TestPySameNamedCacheExecuteIsNotSink proves a same-named unrelated execute
+// method is not treated as a SQL sink.
+func TestPySameNamedCacheExecuteIsNotSink(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstPyFunction(t, "def view(request: Request):\n"+
+		"    q = request.GET\n"+
+		"    cache.execute(q)\n")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if len(res.Findings) != 0 {
+		t.Fatalf("cache.execute must not be a SQL sink; got %+v", res.Findings)
+	}
+}
+
+func TestPyTaintCatalogVersionIsStable(t *testing.T) {
+	t.Parallel()
+
+	v1 := TaintCatalogVersion()
+	v2 := TaintCatalogVersion()
+	if v1 == "" || v1 != v2 {
+		t.Fatalf("TaintCatalogVersion not stable: %q vs %q", v1, v2)
+	}
+	if len(v1) != 64 {
+		t.Fatalf("TaintCatalogVersion length = %d, want sha256 hex length 64", len(v1))
+	}
+}
+
 // TestPyWrongKindSanitizer proves an html escaper does not suppress a sql sink
 // (the kind-set model end-to-end through the Python catalog).
 func TestPyWrongKindSanitizer(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+	node, source, fn := parseFirstPyFunction(t, "def view(request: Request):\n"+
 		"    raw = request.GET\n"+
 		"    safe = escape(raw)\n"+
 		"    cursor.execute(safe)\n")
@@ -123,7 +165,7 @@ func TestPyNonRequestParamIsNotSource(t *testing.T) {
 func TestPySinkInNestedFunctionNotAttributed(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+	node, source, fn := parseFirstPyFunction(t, "def view(request: Request):\n"+
 		"    q = request.GET\n"+
 		"    def inner():\n"+
 		"        cursor.execute(other)\n"+
@@ -140,7 +182,7 @@ func TestPySinkInNestedFunctionNotAttributed(t *testing.T) {
 func TestPyWithBlockSinkResolved(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+	node, source, fn := parseFirstPyFunction(t, "def view(request: Request):\n"+
 		"    q = request.GET\n"+
 		"    with conn.cursor() as cursor:\n"+
 		"        cursor.execute(q)\n")
@@ -156,7 +198,7 @@ func TestPyWithBlockSinkResolved(t *testing.T) {
 func TestPyTryBlockSinkResolved(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+	node, source, fn := parseFirstPyFunction(t, "def view(request: Request):\n"+
 		"    q = request.GET\n"+
 		"    try:\n"+
 		"        cursor.execute(q)\n"+

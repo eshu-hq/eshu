@@ -10,7 +10,7 @@ import (
 // jsDataflowFixture exercises both an intraprocedural flow (req.body into
 // db.query within view) and an interprocedural flow (req passed into runQuery,
 // whose parameter reaches a db.query sink).
-const jsDataflowFixture = `function view(req, db) {
+const jsDataflowFixture = `function view(req: Request, db) {
 	const q = req.body;
 	db.query(q);
 	runQuery(db, req);
@@ -38,7 +38,7 @@ func TestJSDataflowOffIsByteIdentical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParsePath (off) error = %v", err)
 	}
-	for _, bucket := range []string{"dataflow_functions", "taint_findings", "interproc_findings"} {
+	for _, bucket := range []string{"dataflow_catalog_versions", "dataflow_functions", "taint_findings", "interproc_findings"} {
 		if _, present := off[bucket]; present {
 			t.Fatalf("%s present when gate off", bucket)
 		}
@@ -55,6 +55,7 @@ func TestJSDataflowOffIsByteIdentical(t *testing.T) {
 	delete(on, "dataflow_functions")
 	delete(on, "taint_findings")
 	delete(on, "interproc_findings")
+	delete(on, "dataflow_catalog_versions")
 	if !reflect.DeepEqual(off, on) {
 		t.Fatalf("enabling dataflow changed more than the opt-in buckets")
 	}
@@ -128,7 +129,7 @@ func TestJSInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
 // method and carries the enclosing class name as class_context.
 func TestJSTaintInClassMethod(t *testing.T) {
 	got := parseJSDataflowFixture(t, "class Repo {\n"+
-		"\trun(req, db) {\n"+
+		"\trun(req: Request, db) {\n"+
 		"\t\tdb.query(req.body);\n"+
 		"\t}\n"+
 		"}\n")

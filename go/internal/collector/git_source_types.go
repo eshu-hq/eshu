@@ -109,6 +109,11 @@ type RepositorySnapshot struct {
 	// interproc source ports for the cross-repo fixpoint. Empty unless the parser
 	// emitted dataflow_sources; byte-identical when off.
 	FunctionSources []FunctionSourceSnapshot `json:"function_sources,omitempty"`
+	// DataflowCatalogVersions carries parser-emitted value-flow catalog content
+	// hashes. It is folded into snapshot freshness so catalog-only changes force
+	// re-evaluation even when a file produces no findings. Empty when the
+	// dataflow gate is off.
+	DataflowCatalogVersions []DataflowCatalogVersionSnapshot `json:"dataflow_catalog_versions,omitempty"`
 	// DataflowScanned records that the value-flow gate (ESHU_EMIT_DATAFLOW) was on
 	// for this snapshot, independent of whether TaintEvidence or
 	// InterprocTaintEvidence produced any findings. It drives a per-generation
@@ -116,6 +121,14 @@ type RepositorySnapshot struct {
 	// evidence even when the current finding set is empty. False — and omitted —
 	// when the gate is off, preserving the byte-identical-when-off guarantee.
 	DataflowScanned bool `json:"dataflow_scanned,omitempty"`
+}
+
+// DataflowCatalogVersionSnapshot is one parser-emitted value-flow catalog
+// content hash used only for freshness.
+type DataflowCatalogVersionSnapshot struct {
+	Language string `json:"language"`
+	Catalog  string `json:"catalog"`
+	Version  string `json:"version"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved

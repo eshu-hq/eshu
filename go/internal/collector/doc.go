@@ -53,6 +53,9 @@
 // with call facts for matching files only. SCIP must not shrink the discovered
 // parser file set: files selected by discovery but omitted from index.scip
 // still parse through the native parser and emit normal content facts.
+// Value-flow catalog content hashes are freshness-only snapshot metadata: they
+// retrigger gated taint analysis when matcher rules change without streaming
+// extra facts or changing gate-off snapshots.
 //
 // No-Regression Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`
 // covers a default SCIP-enabled snapshot where one selected Python file is

@@ -7,6 +7,7 @@
 // param/source flows the cross-repo composition fixpoint reloads and composes),
 // and "dataflow_sources" (each function's param-level taint entry points, which
 // the fixpoint needs as source ports and which the summaries do not carry).
+// "dataflow_catalog_versions" carries freshness-only catalog content hashes.
 //
 // Each row carries a lang label so a downstream consumer can distinguish Go,
 // TypeScript/JavaScript, and Python facts that share one schema. The renderers
