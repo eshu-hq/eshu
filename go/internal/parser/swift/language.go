@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 var (
@@ -35,8 +36,8 @@ type scopedContext struct {
 }
 
 // Parse extracts Swift imports, types, functions, variables, and calls.
-func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+func Parse(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
+	source, syntax, err := swiftSourceAndSyntax(path, parser)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	payload["protocols"] = []map[string]any{}
 
 	lines := strings.Split(string(source), "\n")
-	facts := collectSwiftSemanticFacts(lines)
+	facts := collectSwiftSemanticFacts(lines, syntax)
 	braceDepth := 0
 	stack := make([]scopedContext, 0)
 	seenVariables := make(map[string]struct{})
@@ -74,11 +75,11 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 
 		appendImport(payload, codeLine, lineNumber, isDependency)
 		matchedDeclaration := false
-		stack, matchedDeclaration = appendTypes(payload, stack, codeLine, rawLine, lineNumber, braceDepth, pendingAttributes)
-		if appendFunctions(payload, stack, codeLine, codeLine, lineNumber, options, pendingAttributes, facts) {
+		stack, matchedDeclaration = appendTypes(payload, stack, codeLine, rawLine, lineNumber, braceDepth, pendingAttributes, syntax)
+		if appendFunctions(payload, stack, codeLine, codeLine, lineNumber, options, pendingAttributes, facts, syntax) {
 			matchedDeclaration = true
 		}
-		if appendVariable(payload, stack, codeLine, lineNumber, seenVariables, variableTypes, facts) {
+		if appendVariable(payload, stack, codeLine, lineNumber, seenVariables, variableTypes, facts, syntax) {
 			matchedDeclaration = true
 		}
 		appendCalls(payload, codeLine, lineNumber, variableTypes, seenCalls, isDependency)
@@ -98,8 +99,8 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 }
 
 // PreScan returns Swift names used by the collector import-map pre-scan.
-func PreScan(path string) ([]string, error) {
-	payload, err := Parse(path, false, shared.Options{})
+func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
+	payload, err := Parse(path, false, shared.Options{}, parser)
 	if err != nil {
 		return nil, err
 	}
@@ -130,15 +131,21 @@ func appendTypes(
 	lineNumber int,
 	braceDepth int,
 	attributes []string,
+	syntax swiftSyntaxIndex,
 ) ([]scopedContext, bool) {
 	for _, typed := range swiftTypePatterns() {
 		if matches := typed.pattern.FindStringSubmatch(trimmed); len(matches) >= 2 {
 			name := matches[1]
 			bases := parseInheritanceClause(matches, 2)
+			endLine := lineNumber
+			if treeType := syntax.typeAtNameLine(name, lineNumber); treeType.name == name {
+				bases = treeType.bases
+				endLine = treeType.endLine
+			}
 			item := map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
-				"end_line":    lineNumber,
+				"end_line":    endLine,
 				"bases":       bases,
 				"lang":        "swift",
 			}
@@ -165,16 +172,17 @@ func appendFunctions(
 	options shared.Options,
 	attributes []string,
 	facts swiftSemanticFacts,
+	syntax swiftSyntaxIndex,
 ) bool {
 	matched := false
 	classContext := currentScopedName(stack, "class", "struct", "enum", "protocol")
 	scopeKind := currentScopedKind(stack, "class", "struct", "enum", "protocol")
 	if matches := functionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-		appendFunction(payload, matches[1], rawLine, lineNumber, options, classContext, scopeKind, attributes, facts)
+		appendFunction(payload, matches[1], rawLine, lineNumber, options, classContext, scopeKind, attributes, facts, syntax)
 		matched = true
 	}
 	if strings.HasPrefix(trimmed, "init(") || strings.Contains(trimmed, " init(") {
-		appendFunction(payload, "init", rawLine, lineNumber, options, classContext, scopeKind, attributes, facts)
+		appendFunction(payload, "init", rawLine, lineNumber, options, classContext, scopeKind, attributes, facts, syntax)
 		matched = true
 	}
 	return matched
@@ -190,14 +198,26 @@ func appendFunction(
 	scopeKind string,
 	attributes []string,
 	facts swiftSemanticFacts,
+	syntax swiftSyntaxIndex,
 ) {
 	args := extractParameters(source)
+	endLine := lineNumber
+	if treeFunction := syntax.functionAtStartLine(name, lineNumber); treeFunction.name == name {
+		args = treeFunction.args
+		endLine = treeFunction.endLine
+		if classContext == "" {
+			classContext = treeFunction.classContext
+		}
+		if scopeKind == "" {
+			scopeKind = treeFunction.scopeKind
+		}
+	}
 	item := map[string]any{
 		"name":        name,
 		"args":        args,
 		"context":     classContext,
 		"line_number": lineNumber,
-		"end_line":    lineNumber,
+		"end_line":    endLine,
 		"lang":        "swift",
 		"decorators":  []string{},
 	}
@@ -221,6 +241,7 @@ func appendVariable(
 	seenVariables map[string]struct{},
 	variableTypes map[string]string,
 	facts swiftSemanticFacts,
+	syntax swiftSyntaxIndex,
 ) bool {
 	matches := variablePattern.FindStringSubmatch(trimmed)
 	if len(matches) < 2 {
@@ -232,6 +253,7 @@ func appendVariable(
 	}
 	seenVariables[name] = struct{}{}
 	contextName := currentScopedName(stack, "class", "struct", "enum")
+	contextName = syntax.typeNameAtLineOr(contextName, lineNumber)
 	varType := ""
 	if len(matches) >= 3 {
 		varType = strings.TrimSpace(matches[2])

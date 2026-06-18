@@ -43,6 +43,12 @@ SET uid = EXCLUDED.uid,
 WHERE function_graph_ids.updated_at <= EXCLUDED.updated_at
 `
 
+const deleteFunctionGraphIDsForRepoSQL = `
+DELETE FROM function_graph_ids
+WHERE repo = $1
+  AND updated_at <= $2
+`
+
 const loadFunctionGraphIDsSQL = `
 SELECT function_id, uid
 FROM function_graph_ids
@@ -114,6 +120,96 @@ func (s FunctionGraphIDStore) UpsertGraphIDs(ctx context.Context, ids map[summar
 			end = len(functionIDs)
 		}
 		if err := s.upsertBatch(ctx, functionIDs[i:end], ids, updatedAt.UTC()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReplaceGraphIDs replaces one repository's complete FunctionID->uid snapshot.
+// Empty or unresolved uids are meaningful: they retract stale mappings for
+// functions that no longer resolve to graph Function nodes.
+func (s FunctionGraphIDStore) ReplaceGraphIDs(
+	ctx context.Context,
+	repo string,
+	ids map[summary.FunctionID]string,
+	updatedAt time.Time,
+) error {
+	if s.db == nil {
+		return fmt.Errorf("function graph id store database is required")
+	}
+	if updatedAt.IsZero() {
+		return fmt.Errorf("function graph id updated_at is required")
+	}
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return fmt.Errorf("function graph id repo is required")
+	}
+	if beginner, ok := s.db.(Beginner); ok {
+		tx, err := beginner.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("begin function graph id replacement transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := replaceFunctionGraphIDs(ctx, tx, repo, ids, updatedAt.UTC()); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit function graph id replacement transaction: %w", err)
+		}
+		return nil
+	}
+	return replaceFunctionGraphIDs(ctx, s.db, repo, ids, updatedAt.UTC())
+}
+
+func replaceFunctionGraphIDs(
+	ctx context.Context,
+	db ExecQueryer,
+	repo string,
+	ids map[summary.FunctionID]string,
+	updatedAt time.Time,
+) error {
+	for id := range ids {
+		functionID := strings.TrimSpace(string(id))
+		if functionID == "" {
+			return fmt.Errorf("function graph id is required")
+		}
+		if got := functionIDRepo(functionID); got != repo {
+			return fmt.Errorf("function graph id repo %q does not match replacement repo %q", got, repo)
+		}
+	}
+	if _, err := db.ExecContext(ctx, deleteFunctionGraphIDsForRepoSQL, repo, updatedAt); err != nil {
+		return fmt.Errorf("delete stale function graph ids for repo %q: %w", repo, err)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	store := FunctionGraphIDStore{db: db}
+	return store.upsertResolvedGraphIDs(ctx, ids, updatedAt)
+}
+
+func (s FunctionGraphIDStore) upsertResolvedGraphIDs(
+	ctx context.Context,
+	ids map[summary.FunctionID]string,
+	updatedAt time.Time,
+) error {
+	functionIDs := make([]summary.FunctionID, 0, len(ids))
+	for id, uid := range ids {
+		if strings.TrimSpace(string(id)) == "" || strings.TrimSpace(uid) == "" {
+			continue
+		}
+		functionIDs = append(functionIDs, id)
+	}
+	if len(functionIDs) == 0 {
+		return nil
+	}
+	sort.Slice(functionIDs, func(i, j int) bool { return functionIDs[i] < functionIDs[j] })
+	for i := 0; i < len(functionIDs); i += functionGraphIDBatchSize {
+		end := i + functionGraphIDBatchSize
+		if end > len(functionIDs) {
+			end = len(functionIDs)
+		}
+		if err := s.upsertBatch(ctx, functionIDs[i:end], ids, updatedAt); err != nil {
 			return err
 		}
 	}

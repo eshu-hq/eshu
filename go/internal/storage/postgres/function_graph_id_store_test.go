@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,5 +44,54 @@ func TestFunctionGraphIDStoreUpsertEmptyIsNoOp(t *testing.T) {
 	}
 	if len(db.execs) != 0 {
 		t.Fatalf("exec calls = %d, want 0", len(db.execs))
+	}
+}
+
+// TestFunctionGraphIDStoreReplaceGraphIDsDeletesRepoSnapshot proves replacement
+// clears stale repo mappings before inserting currently resolved graph uids.
+func TestFunctionGraphIDStoreReplaceGraphIDsDeletesRepoSnapshot(t *testing.T) {
+	t.Parallel()
+	db := &recordingExecQueryer{}
+	store := NewFunctionGraphIDStore(db)
+	at := time.Date(2026, time.June, 18, 1, 0, 0, 0, time.UTC)
+
+	err := store.ReplaceGraphIDs(context.Background(), "repo-1", map[summary.FunctionID]string{
+		"repo-1\x1fpkg\x1f\x1fview":  "uid-view",
+		"repo-1\x1fpkg\x1f\x1fempty": "",
+	}, at)
+	if err != nil {
+		t.Fatalf("ReplaceGraphIDs error: %v", err)
+	}
+
+	if len(db.execs) != 2 {
+		t.Fatalf("exec calls = %d, want delete plus upsert", len(db.execs))
+	}
+	if !strings.Contains(db.execs[0].query, "DELETE FROM function_graph_ids") {
+		t.Fatalf("first query = %q, want repo delete", db.execs[0].query)
+	}
+	if got := db.execs[0].args[0]; got != "repo-1" {
+		t.Fatalf("delete repo arg = %v, want repo-1", got)
+	}
+	if args := db.execs[1].args; len(args) != 4 || args[0] != "repo-1\x1fpkg\x1f\x1fview" || args[1] != "uid-view" {
+		t.Fatalf("upsert args wrong: %+v", args)
+	}
+}
+
+// TestFunctionGraphIDStoreReplaceGraphIDsAllowsEmptySnapshot proves a generation
+// with no resolved graph uids still retracts stale rows for the repo.
+func TestFunctionGraphIDStoreReplaceGraphIDsAllowsEmptySnapshot(t *testing.T) {
+	t.Parallel()
+	db := &recordingExecQueryer{}
+	store := NewFunctionGraphIDStore(db)
+
+	err := store.ReplaceGraphIDs(context.Background(), "repo-1", nil, time.Now())
+	if err != nil {
+		t.Fatalf("ReplaceGraphIDs error: %v", err)
+	}
+	if len(db.execs) != 1 {
+		t.Fatalf("exec calls = %d, want only repo delete", len(db.execs))
+	}
+	if !strings.Contains(db.execs[0].query, "DELETE FROM function_graph_ids") {
+		t.Fatalf("query = %q, want repo delete", db.execs[0].query)
 	}
 }

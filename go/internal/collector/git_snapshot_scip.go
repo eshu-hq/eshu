@@ -368,40 +368,23 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 		return nil, nil, nil, false, nil
 	}
 
-	language := parser.DetectSCIPProjectLanguage(fileSet.Files, config.Languages)
-	if language == "" {
+	groups := parser.DetectSCIPProjectLanguageGroups(fileSet.Files, config.Languages)
+	if len(groups) == 0 {
 		s.recordSCIPSnapshotAttempt(ctx, scipSnapshotLanguageUnknown, scipSnapshotResultNoLanguage)
 		return nil, nil, nil, false, nil
 	}
 	indexer := s.scipIndexer(config)
-	if !indexer.IsAvailable(language) {
-		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultBinaryMissing)
-		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultBinaryMissing)
-		return nil, nil, nil, false, nil
-	}
-
-	outputDir, err := os.MkdirTemp("", "eshu-scip-*")
+	scipFiles, usedAny, err := s.collectSCIPLanguageGroupFiles(
+		ctx,
+		repoPath,
+		groups,
+		indexer,
+		s.scipParser(config),
+	)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	defer func() {
-		_ = os.RemoveAll(outputDir)
-	}()
-
-	indexPath, err := indexer.Run(ctx, repoPath, language, outputDir)
-	if err != nil {
-		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultIndexerFailed)
-		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultIndexerFailed)
-		return nil, nil, nil, false, nil
-	}
-	result, err := s.scipParser(config).Parse(indexPath, repoPath)
-	if err != nil {
-		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultParseFailed)
-		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultParseFailed)
-		return nil, nil, nil, false, nil
-	}
-	if len(result.Files) == 0 {
-		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultEmpty)
+	if !usedAny {
 		return nil, nil, nil, false, nil
 	}
 
@@ -420,7 +403,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 			isDependency,
 			goPackageTargets,
 			repositoryID,
-			result.Files,
+			scipFiles,
 		)
 	} else {
 		shapeFiles, parsedFiles, languageSummary, err = s.buildParsedRepositoryFilesConcurrent(
@@ -432,7 +415,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 			isDependency,
 			goPackageTargets,
 			repositoryID,
-			result.Files,
+			scipFiles,
 		)
 	}
 	if err != nil {
@@ -440,10 +423,8 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 	}
 
 	if len(parsedFiles) == 0 {
-		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultEmpty)
 		return nil, nil, nil, false, nil
 	}
-	s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultUsed)
 	return shapeFiles, parsedFiles, languageSummary, true, nil
 }
 

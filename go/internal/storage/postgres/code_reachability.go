@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS code_reachability_rows (
 CREATE INDEX IF NOT EXISTS code_reachability_latest_lookup_idx
     ON code_reachability_rows (repository_id, entity_id, state, confidence DESC);
 
+CREATE INDEX IF NOT EXISTS code_reachability_entity_lookup_idx
+    ON code_reachability_rows (entity_id, state, confidence DESC);
+
 CREATE INDEX IF NOT EXISTS code_reachability_root_idx
     ON code_reachability_rows (repository_id, root_entity_id, depth, entity_id);
 
@@ -44,9 +47,13 @@ CREATE TABLE IF NOT EXISTS code_reachability_repository_watermarks (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     repository_id TEXT NOT NULL,
+    truncated BOOLEAN NOT NULL DEFAULT FALSE,
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (scope_id, generation_id, repository_id)
 );
+
+ALTER TABLE code_reachability_repository_watermarks
+    ADD COLUMN IF NOT EXISTS truncated BOOLEAN NOT NULL DEFAULT FALSE;
 `
 
 const upsertCodeReachabilityBatchPrefix = `
@@ -77,10 +84,11 @@ WHERE scope_id = $1
 
 const upsertCodeReachabilityRepositoryWatermarkSQL = `
 INSERT INTO code_reachability_repository_watermarks (
-    scope_id, generation_id, repository_id, updated_at
-) VALUES ($1, $2, $3, $4)
+    scope_id, generation_id, repository_id, truncated, updated_at
+) VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (scope_id, generation_id, repository_id) DO UPDATE
-SET updated_at = EXCLUDED.updated_at
+SET truncated = EXCLUDED.truncated,
+    updated_at = EXCLUDED.updated_at
 `
 
 // CodeReachabilitySchemaSQL returns the DDL for code reachability rows and
@@ -132,6 +140,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 	repositoryID string,
 	rows []reducer.CodeReachabilityRow,
 	watermark time.Time,
+	truncated bool,
 ) error {
 	scopeID = strings.TrimSpace(scopeID)
 	generationID = strings.TrimSpace(generationID)
@@ -147,7 +156,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 		if err != nil {
 			return fmt.Errorf("begin code reachability replacement: %w", err)
 		}
-		if err := replaceCodeReachabilityRepositoryRows(ctx, tx, scopeID, generationID, repositoryID, rows, watermark.UTC()); err != nil {
+		if err := replaceCodeReachabilityRepositoryRows(ctx, tx, scopeID, generationID, repositoryID, rows, watermark.UTC(), truncated); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -156,7 +165,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 		}
 		return nil
 	}
-	return replaceCodeReachabilityRepositoryRows(ctx, s.db, scopeID, generationID, repositoryID, rows, watermark.UTC())
+	return replaceCodeReachabilityRepositoryRows(ctx, s.db, scopeID, generationID, repositoryID, rows, watermark.UTC(), truncated)
 }
 
 // ListLatestByEntities returns the strongest active-generation reachability row
@@ -244,6 +253,7 @@ func replaceCodeReachabilityRepositoryRows(
 	repositoryID string,
 	rows []reducer.CodeReachabilityRow,
 	watermark time.Time,
+	truncated bool,
 ) error {
 	if _, err := db.ExecContext(ctx, deleteCodeReachabilityRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
 		return fmt.Errorf("delete code reachability rows: %w", err)
@@ -259,7 +269,7 @@ func replaceCodeReachabilityRepositoryRows(
 			}
 		}
 	}
-	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, watermark); err != nil {
+	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, truncated, watermark); err != nil {
 		return fmt.Errorf("upsert code reachability watermark: %w", err)
 	}
 	return nil

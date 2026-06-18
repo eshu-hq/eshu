@@ -6,6 +6,7 @@ import (
 	"sync"
 	"unsafe"
 
+	tree_sitter_swift "github.com/indigo-net/Brf.it/pkg/parser/treesitter/grammars/swift"
 	tree_sitter_kotlin "github.com/tree-sitter-grammars/tree-sitter-kotlin/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_c_sharp "github.com/tree-sitter/tree-sitter-c-sharp/bindings/go"
@@ -85,6 +86,7 @@ var builtinLanguageLoaders = map[string]languageLoader{
 	"python":     tree_sitter_python.Language,
 	"rust":       tree_sitter_rust.Language,
 	"scala":      tree_sitter_scala.Language,
+	"swift":      tree_sitter_swift.Language,
 	"tsx":        tree_sitter_typescript.LanguageTSX,
 	"typescript": tree_sitter_typescript.LanguageTypescript,
 }
@@ -111,6 +113,8 @@ func normalizeLanguageName(name string) (string, error) {
 		return "rust", nil
 	case "scala":
 		return "scala", nil
+	case "swift":
+		return "swift", nil
 	case "tsx":
 		return "tsx", nil
 	case "ts", "typescript":
