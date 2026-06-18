@@ -183,101 +183,41 @@ func buildReducerService(
 		// (#2869): the promoted handler emits file-scoped per-edge intents plus a
 		// per-repo refresh intent to the shared intent acceptance writer, and the
 		// partitioned runner + #2898 refresh fence project them.
-		RationaleEdgeIntentWriter:    repoDependencyIntentWriter,
-		DocumentationEdgeWriter:      edgeWriterForHandlers,
-		RationaleEdgeWriter:          edgeWriterForHandlers,
-		EvidenceFactLoader:           relationshipStore,
-		AssertionLoader:              relationshipStore,
-		ResolutionPersister:          relationshipStore,
-		ResolvedRelationshipLoader:   relationshipStore,
-		RepoDependencyIntentWriter:   repoDependencyIntentWriter,
-		RepoDependencyEdgeWriter:     edgeWriterForHandlers,
-		WorkloadDependencyEdgeWriter: edgeWriterForHandlers,
-		GenerationCheck:              postgres.NewGenerationFreshnessCheck(database),
-		PriorGenerationCheck:         postgres.NewPriorGenerationCheck(database),
-		Tracer:                       tracer,
-		Instruments:                  instruments,
-		// Terraform config-vs-state drift adapters (issue #163). All three
-		// must be non-nil for the reducer registry to register
-		// DomainConfigStateDrift (see internal/reducer/defaults.go:202-213).
-		TerraformBackendResolver: tfstatebackend.NewResolver(
-			postgres.PostgresTerraformBackendQuery{DB: database},
-		),
-		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
-			DB:               database,
-			Tracer:           tracer,
-			Logger:           logger,
-			PriorConfigDepth: parsePriorConfigDepth(getenv(driftPriorConfigDepthEnv), logger),
-			// Instruments drives eshu_dp_drift_unresolved_module_calls_total
-			// for the module-aware drift join (issue #169). Nil-safe in the
-			// loader itself; passing it here keeps the counter wired in
-			// production runs.
-			Instruments: instruments,
-		},
-		DriftLogger: logger,
-		// AWS runtime drift joins current AWS resource facts to active
-		// Terraform-state resources by ARN, then resolves the state backend to
-		// the owning config snapshot before classifying unmanaged resources.
-		AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
-			DB: database,
-			ConfigResolver: tfstatebackend.NewResolver(
-				postgres.PostgresTerraformBackendQuery{DB: database},
-			),
-			Tracer:      tracer,
-			Logger:      logger,
-			Instruments: instruments,
-		},
-		AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
-		AWSCloudRuntimeDriftLogger: logger,
-		// Curated search-document projection (design 430): load the scope's
-		// current indexed content and write derived EshuSearchDocument facts for
-		// the search lane. No graph write.
-		EshuSearchDocumentSourceLoader: postgres.NewEshuSearchDocumentSourceLoader(database),
-		EshuSearchDocumentWriter: reducer.PostgresEshuSearchDocumentWriter{
-			DB:          database,
-			Instruments: instruments,
-			Tracer:      tracer,
-		},
-		EshuSearchDocumentLogger: logger,
-		// Multi-cloud runtime drift wiring (issues #1997, #1998); see
-		// multiCloudRuntimeDriftWiring for the uid-keyed join contract.
-		MultiCloudRuntimeDriftEvidenceLoader:       multiCloudRuntimeDriftEvidenceLoader,
-		MultiCloudRuntimeDriftWriter:               multiCloudRuntimeDriftWriter,
-		MultiCloudRuntimeDriftLogger:               multiCloudRuntimeDriftLogger,
-		CloudInventoryEvidenceLoader:               cloudInventoryEvidenceLoader,
-		CloudInventoryAdmissionWriter:              cloudInventoryAdmissionWriter,
-		CloudInventoryGenerationCheck:              cloudInventoryGenerationCheck,
-		CloudInventoryTagEvidenceLoader:            cloudInventoryTagEvidenceLoader,
-		CloudInventoryIdentityPolicyEvidenceLoader: cloudInventoryIdentityPolicyEvidenceLoader,
-		CloudInventoryResourceChangeEvidenceLoader: cloudInventoryResourceChangeEvidenceLoader,
-		CloudResourceNodeWriter:                    graphWriters.cloudResourceNode,
-		EC2InstanceNodeWriter:                      graphWriters.ec2InstanceNode,
-		CloudResourceEdgeWriter:                    graphWriters.cloudResourceEdge,
-		GCPCloudResourceEdgeWriter:                 graphWriters.gcpCloudResourceEdge,
-		AzureCloudResourceEdgeWriter:               graphWriters.azureCloudResourceEdge,
-		WorkloadCloudRelationshipEdgeWriter:        graphWriters.workloadCloudRelationshipEdge,
-		KubernetesWorkloadNodeWriter:               graphWriters.kubernetesWorkloadNode,
-		SecurityGroupEndpointNodeWriter:            graphWriters.securityGroupEndpointNode,
-		SecurityGroupRuleNodeWriter:                graphWriters.securityGroupReachability,
-		SecurityGroupReachabilityWriter:            graphWriters.securityGroupReachability,
-		KubernetesCorrelationEdgeWriter:            graphWriters.kubernetesCorrelationEdge,
-		IAMEscalationEdgeWriter:                    graphWriters.iamEscalationEdge,
-		IAMCanPerformEdgeWriter:                    graphWriters.iamCanPerformEdge,
-		SecretsIAMGraphWriter:                      secretsIAMGraphWriter,
-		EndpointPresenceWriter:                     presence.secretsIAMWriter,
-		EndpointPresenceLookup:                     presence.secretsIAMLookup,
-		APIEndpointRepoPathPresenceWriter:          presence.handlesRouteWriter,
-		APIEndpointRepoPathPresenceLookup:          presence.handlesRouteLookup,
-		ObservabilityCoverageEdgeWriter:            graphWriters.observabilityCoverageEdge,
-		IAMCanAssumeEdgeWriter:                     graphWriters.iamCanAssumeEdge,
-		S3LogsToEdgeWriter:                         graphWriters.s3LogsToEdge,
-		S3ExternalPrincipalGrantWriter:             graphWriters.s3ExternalPrincipalGrant,
-		RDSPostureNodeWriter:                       graphWriters.rdsPostureNode,
-		EC2UsesProfileEdgeWriter:                   graphWriters.ec2UsesProfileEdge,
-		IAMInstanceProfileRoleEdgeWriter:           graphWriters.iamInstanceProfileRoleEdge,
-		EC2InternetExposureNodeWriter:              graphWriters.ec2InternetExposureNode,
-		EC2BlockDeviceKMSPostureNodeWriter:         graphWriters.ec2BlockDeviceKMSPostureNode,
-		S3InternetExposureNodeWriter:               graphWriters.s3InternetExposureNode,
+		RationaleEdgeIntentWriter:           repoDependencyIntentWriter,
+		DocumentationEdgeWriter:             edgeWriterForHandlers,
+		RationaleEdgeWriter:                 edgeWriterForHandlers,
+		EvidenceFactLoader:                  relationshipStore,
+		AssertionLoader:                     relationshipStore,
+		ResolutionPersister:                 relationshipStore,
+		ResolvedRelationshipLoader:          relationshipStore,
+		RepoDependencyIntentWriter:          repoDependencyIntentWriter,
+		RepoDependencyEdgeWriter:            edgeWriterForHandlers,
+		WorkloadDependencyEdgeWriter:        edgeWriterForHandlers,
+		GenerationCheck:                     postgres.NewGenerationFreshnessCheck(database),
+		PriorGenerationCheck:                postgres.NewPriorGenerationCheck(database),
+		Tracer:                              tracer,
+		Instruments:                         instruments,
+		CloudResourceNodeWriter:             graphWriters.cloudResourceNode,
+		EC2InstanceNodeWriter:               graphWriters.ec2InstanceNode,
+		CloudResourceEdgeWriter:             graphWriters.cloudResourceEdge,
+		GCPCloudResourceEdgeWriter:          graphWriters.gcpCloudResourceEdge,
+		AzureCloudResourceEdgeWriter:        graphWriters.azureCloudResourceEdge,
+		WorkloadCloudRelationshipEdgeWriter: graphWriters.workloadCloudRelationshipEdge,
+		SecurityGroupEndpointNodeWriter:     graphWriters.securityGroupEndpointNode,
+		SecurityGroupRuleNodeWriter:         graphWriters.securityGroupReachability,
+		SecurityGroupReachabilityWriter:     graphWriters.securityGroupReachability,
+		IAMEscalationEdgeWriter:             graphWriters.iamEscalationEdge,
+		IAMCanPerformEdgeWriter:             graphWriters.iamCanPerformEdge,
+		ObservabilityCoverageEdgeWriter:     graphWriters.observabilityCoverageEdge,
+		IAMCanAssumeEdgeWriter:              graphWriters.iamCanAssumeEdge,
+		S3LogsToEdgeWriter:                  graphWriters.s3LogsToEdge,
+		S3ExternalPrincipalGrantWriter:      graphWriters.s3ExternalPrincipalGrant,
+		RDSPostureNodeWriter:                graphWriters.rdsPostureNode,
+		EC2UsesProfileEdgeWriter:            graphWriters.ec2UsesProfileEdge,
+		IAMInstanceProfileRoleEdgeWriter:    graphWriters.iamInstanceProfileRoleEdge,
+		EC2InternetExposureNodeWriter:       graphWriters.ec2InternetExposureNode,
+		EC2BlockDeviceKMSPostureNodeWriter:  graphWriters.ec2BlockDeviceKMSPostureNode,
+		S3InternetExposureNodeWriter:        graphWriters.s3InternetExposureNode,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},
@@ -305,42 +245,117 @@ func buildReducerService(
 		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},
-		KubernetesCorrelationWriter: reducer.PostgresKubernetesCorrelationWriter{
-			DB: database,
-		},
-		SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
-			DB: database,
-		},
-		SupplyChainImpactWriter: reducer.PostgresSupplyChainImpactWriter{
-			DB: database,
-		},
-		SecurityAlertReconciliationWriter: reducer.PostgresSecurityAlertReconciliationWriter{
-			DB: database,
-		},
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},
-		SecretsIAMTrustChainEvidenceLoader: factStore,
-		SecretsIAMTrustChainWriter: reducer.PostgresSecretsIAMTrustChainWriter{
-			DB: database,
+		// Provider config-vs-state and cloud-runtime drift adapters; see
+		// reducer.DriftHandlers in internal/reducer/defaults_handlers.go. All three
+		// terraform members must be non-nil for the registry to register
+		// DomainConfigStateDrift.
+		DriftHandlers: reducer.DriftHandlers{
+			TerraformBackendResolver: tfstatebackend.NewResolver(
+				postgres.PostgresTerraformBackendQuery{DB: database},
+			),
+			DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
+				DB:               database,
+				Tracer:           tracer,
+				Logger:           logger,
+				PriorConfigDepth: parsePriorConfigDepth(getenv(driftPriorConfigDepthEnv), logger),
+				// Instruments drives eshu_dp_drift_unresolved_module_calls_total
+				// for the module-aware drift join (issue #169). Nil-safe in the
+				// loader itself; passing it here keeps the counter wired in
+				// production runs.
+				Instruments: instruments,
+			},
+			DriftLogger: logger,
+			// AWS runtime drift joins current AWS resource facts to active
+			// Terraform-state resources by ARN, then resolves the state backend to
+			// the owning config snapshot before classifying unmanaged resources.
+			AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
+				DB: database,
+				ConfigResolver: tfstatebackend.NewResolver(
+					postgres.PostgresTerraformBackendQuery{DB: database},
+				),
+				Tracer:      tracer,
+				Logger:      logger,
+				Instruments: instruments,
+			},
+			AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
+			AWSCloudRuntimeDriftLogger: logger,
+			// Multi-cloud runtime drift wiring (issues #1997, #1998); see
+			// multiCloudRuntimeDriftWiring for the uid-keyed join contract.
+			MultiCloudRuntimeDriftEvidenceLoader: multiCloudRuntimeDriftEvidenceLoader,
+			MultiCloudRuntimeDriftWriter:         multiCloudRuntimeDriftWriter,
+			MultiCloudRuntimeDriftLogger:         multiCloudRuntimeDriftLogger,
 		},
-		IncidentRoutingEvidenceLoader: factStore,
-		IncidentRoutingEvidenceWriter: graphWriters.incidentRoutingEvidence,
-		CodeTaintEvidenceLoader:       factStore,
-		CodeTaintEvidenceWriter:       graphWriters.codeTaintEvidence,
-		CodeInterprocEvidenceLoader:   factStore,
-		CodeInterprocEvidenceWriter:   graphWriters.codeInterprocEvidence,
-		CodeFunctionSummaryLoader:     factStore,
-		CodeFunctionSummaryWriter:     functionSummaryStore,
-		CodeFunctionSourceLoader:      factStore,
-		CodeFunctionSourceWriter:      functionSourceStore,
-		CodeFunctionGraphIDLoader:     factStore,
-		CodeFunctionGraphIDWriter:     functionGraphIDStore,
-		ValueFlowFixpointProjector:    valueFlowFixpointProjector,
-		// Durable incident -> repository correlation (#2161); see helper for rationale.
-		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
-		BackendRepositoryResolver:            incidentRepoCorrelationResolver,
-		IncidentRepositoryCorrelationWriter:  incidentRepoCorrelationWriter,
+		// Curated search-document projection (design 430): load the scope's
+		// current indexed content and write derived EshuSearchDocument facts for
+		// the search lane. No graph write.
+		SearchDocumentHandlers: reducer.SearchDocumentHandlers{
+			EshuSearchDocumentSourceLoader: postgres.NewEshuSearchDocumentSourceLoader(database),
+			EshuSearchDocumentWriter: reducer.PostgresEshuSearchDocumentWriter{
+				DB:          database,
+				Instruments: instruments,
+				Tracer:      tracer,
+			},
+			EshuSearchDocumentLogger: logger,
+		},
+		CloudInventoryHandlers: reducer.CloudInventoryHandlers{
+			CloudInventoryEvidenceLoader:               cloudInventoryEvidenceLoader,
+			CloudInventoryAdmissionWriter:              cloudInventoryAdmissionWriter,
+			CloudInventoryGenerationCheck:              cloudInventoryGenerationCheck,
+			CloudInventoryTagEvidenceLoader:            cloudInventoryTagEvidenceLoader,
+			CloudInventoryIdentityPolicyEvidenceLoader: cloudInventoryIdentityPolicyEvidenceLoader,
+			CloudInventoryResourceChangeEvidenceLoader: cloudInventoryResourceChangeEvidenceLoader,
+		},
+		KubernetesHandlers: reducer.KubernetesHandlers{
+			KubernetesCorrelationWriter: reducer.PostgresKubernetesCorrelationWriter{
+				DB: database,
+			},
+			KubernetesWorkloadNodeWriter:    graphWriters.kubernetesWorkloadNode,
+			KubernetesCorrelationEdgeWriter: graphWriters.kubernetesCorrelationEdge,
+		},
+		SupplyChainSecurityHandlers: reducer.SupplyChainSecurityHandlers{
+			SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
+				DB: database,
+			},
+			SupplyChainImpactWriter: reducer.PostgresSupplyChainImpactWriter{
+				DB: database,
+			},
+			SecurityAlertReconciliationWriter: reducer.PostgresSecurityAlertReconciliationWriter{
+				DB: database,
+			},
+			SecretsIAMTrustChainEvidenceLoader: factStore,
+			SecretsIAMTrustChainWriter: reducer.PostgresSecretsIAMTrustChainWriter{
+				DB: database,
+			},
+			SecretsIAMGraphWriter:             secretsIAMGraphWriter,
+			EndpointPresenceWriter:            presence.secretsIAMWriter,
+			EndpointPresenceLookup:            presence.secretsIAMLookup,
+			APIEndpointRepoPathPresenceWriter: presence.handlesRouteWriter,
+			APIEndpointRepoPathPresenceLookup: presence.handlesRouteLookup,
+		},
+		IncidentRoutingHandlers: reducer.IncidentRoutingHandlers{
+			IncidentRoutingEvidenceLoader: factStore,
+			IncidentRoutingEvidenceWriter: graphWriters.incidentRoutingEvidence,
+			// Durable incident -> repository correlation (#2161); see helper for rationale.
+			AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
+			BackendRepositoryResolver:            incidentRepoCorrelationResolver,
+			IncidentRepositoryCorrelationWriter:  incidentRepoCorrelationWriter,
+		},
+		CodeEvidenceHandlers: reducer.CodeEvidenceHandlers{
+			CodeTaintEvidenceLoader:     factStore,
+			CodeTaintEvidenceWriter:     graphWriters.codeTaintEvidence,
+			CodeInterprocEvidenceLoader: factStore,
+			CodeInterprocEvidenceWriter: graphWriters.codeInterprocEvidence,
+			CodeFunctionSummaryLoader:   factStore,
+			CodeFunctionSummaryWriter:   functionSummaryStore,
+			CodeFunctionSourceLoader:    factStore,
+			CodeFunctionSourceWriter:    functionSourceStore,
+			CodeFunctionGraphIDLoader:   factStore,
+			CodeFunctionGraphIDWriter:   functionGraphIDStore,
+			ValueFlowFixpointProjector:  valueFlowFixpointProjector,
+		},
 	})
 	if err != nil {
 		return reducer.Service{}, err

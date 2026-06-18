@@ -384,9 +384,11 @@ func TestImplementedDefaultDomainDefinitionsIncludesConfigStateDriftWhenAdapters
 	loader := stubDriftEvidenceLoader{}
 	logger := slog.New(slog.DiscardHandler)
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		TerraformBackendResolver: resolver,
-		DriftEvidenceLoader:      loader,
-		DriftLogger:              logger,
+		DriftHandlers: DriftHandlers{
+			TerraformBackendResolver: resolver,
+			DriftEvidenceLoader:      loader,
+			DriftLogger:              logger,
+		},
 	})
 	found := false
 	for _, def := range definitions {
@@ -417,8 +419,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdap
 	t.Parallel()
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		AWSCloudRuntimeDriftEvidenceLoader: &stubAWSCloudRuntimeDriftEvidenceLoader{},
-		AWSCloudRuntimeDriftWriter:         &stubAWSCloudRuntimeDriftFindingWriter{},
+		DriftHandlers: DriftHandlers{
+			AWSCloudRuntimeDriftEvidenceLoader: &stubAWSCloudRuntimeDriftEvidenceLoader{},
+			AWSCloudRuntimeDriftWriter:         &stubAWSCloudRuntimeDriftFindingWriter{},
+		},
 	})
 	found := false
 	for _, def := range definitions {
@@ -449,8 +453,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesMultiCloudRuntimeDriftWhenAd
 	t.Parallel()
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		MultiCloudRuntimeDriftEvidenceLoader: &stubMultiCloudRuntimeDriftEvidenceLoader{},
-		MultiCloudRuntimeDriftWriter:         &stubMultiCloudRuntimeDriftFindingWriter{},
+		DriftHandlers: DriftHandlers{
+			MultiCloudRuntimeDriftEvidenceLoader: &stubMultiCloudRuntimeDriftEvidenceLoader{},
+			MultiCloudRuntimeDriftWriter:         &stubMultiCloudRuntimeDriftFindingWriter{},
+		},
 	})
 	found := false
 	for _, def := range definitions {
@@ -481,8 +487,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesCloudInventoryAdmissionWhenA
 	t.Parallel()
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		CloudInventoryEvidenceLoader:  &stubCloudInventoryEvidenceLoader{},
-		CloudInventoryAdmissionWriter: &stubCloudInventoryAdmissionWriter{},
+		CloudInventoryHandlers: CloudInventoryHandlers{
+			CloudInventoryEvidenceLoader:  &stubCloudInventoryEvidenceLoader{},
+			CloudInventoryAdmissionWriter: &stubCloudInventoryAdmissionWriter{},
+		},
 	})
 	found := false
 	for _, def := range definitions {
@@ -687,11 +695,13 @@ func TestNewDefaultRegistryWiresHandlesRoutePresenceWriterIndependently(t *testi
 	handlesRouteWriter := &recordingPresenceWriter{}
 
 	registry, err := NewDefaultRegistry(DefaultHandlers{
-		FactLoader:                        &stubFactLoader{},
-		WorkloadMaterializer:              NewWorkloadMaterializer(&recordingCypherExecutor{}),
-		WorkloadProjectionInputLoader:     &stubWorkloadProjectionInputLoader{},
-		EndpointPresenceWriter:            secretsIAMWriter,
-		APIEndpointRepoPathPresenceWriter: handlesRouteWriter,
+		FactLoader:                    &stubFactLoader{},
+		WorkloadMaterializer:          NewWorkloadMaterializer(&recordingCypherExecutor{}),
+		WorkloadProjectionInputLoader: &stubWorkloadProjectionInputLoader{},
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			EndpointPresenceWriter:            secretsIAMWriter,
+			APIEndpointRepoPathPresenceWriter: handlesRouteWriter,
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewDefaultRegistry() error = %v", err)

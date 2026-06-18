@@ -6,7 +6,9 @@ func TestImplementedDefaultDomainDefinitionsOmitsCodeInterprocWithoutWriter(t *t
 	t.Parallel()
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		CodeInterprocEvidenceLoader: stubCodeInterprocEvidenceLoader{},
+		CodeEvidenceHandlers: CodeEvidenceHandlers{
+			CodeInterprocEvidenceLoader: stubCodeInterprocEvidenceLoader{},
+		},
 	})
 	for _, def := range definitions {
 		if def.Domain == DomainCodeInterprocEvidence {
@@ -21,8 +23,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesCodeInterprocWhenWired(t *te
 	loader := stubCodeInterprocEvidenceLoader{}
 	writer := &recordingCodeInterprocEvidenceWriter{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		CodeInterprocEvidenceLoader: loader,
-		CodeInterprocEvidenceWriter: writer,
+		CodeEvidenceHandlers: CodeEvidenceHandlers{
+			CodeInterprocEvidenceLoader: loader,
+			CodeInterprocEvidenceWriter: writer,
+		},
 	})
 
 	found := false
@@ -54,8 +58,10 @@ func TestNewDefaultRegistryAcceptsCodeInterprocOwnership(t *testing.T) {
 	t.Parallel()
 
 	registry, err := NewDefaultRegistry(DefaultHandlers{
-		CodeInterprocEvidenceLoader: stubCodeInterprocEvidenceLoader{},
-		CodeInterprocEvidenceWriter: &recordingCodeInterprocEvidenceWriter{},
+		CodeEvidenceHandlers: CodeEvidenceHandlers{
+			CodeInterprocEvidenceLoader: stubCodeInterprocEvidenceLoader{},
+			CodeInterprocEvidenceWriter: &recordingCodeInterprocEvidenceWriter{},
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewDefaultRegistry returned error with interproc wired: %v", err)

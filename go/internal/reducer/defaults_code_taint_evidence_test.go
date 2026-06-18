@@ -6,7 +6,9 @@ func TestImplementedDefaultDomainDefinitionsOmitsCodeTaintWithoutWriter(t *testi
 	t.Parallel()
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		CodeTaintEvidenceLoader: stubCodeTaintEvidenceLoader{},
+		CodeEvidenceHandlers: CodeEvidenceHandlers{
+			CodeTaintEvidenceLoader: stubCodeTaintEvidenceLoader{},
+		},
 	})
 	for _, def := range definitions {
 		if def.Domain == DomainCodeTaintEvidence {
@@ -21,8 +23,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesCodeTaintWhenWired(t *testin
 	loader := stubCodeTaintEvidenceLoader{}
 	writer := &recordingCodeTaintEvidenceWriter{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		CodeTaintEvidenceLoader: loader,
-		CodeTaintEvidenceWriter: writer,
+		CodeEvidenceHandlers: CodeEvidenceHandlers{
+			CodeTaintEvidenceLoader: loader,
+			CodeTaintEvidenceWriter: writer,
+		},
 	})
 
 	found := false

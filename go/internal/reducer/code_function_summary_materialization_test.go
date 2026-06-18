@@ -159,7 +159,9 @@ func TestImplementedDefaultDomainDefinitionsOmitsCodeFunctionSummaryWithoutWrite
 	t.Parallel()
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		CodeFunctionSummaryLoader: stubCodeFunctionSummaryLoader{},
+		CodeEvidenceHandlers: CodeEvidenceHandlers{
+			CodeFunctionSummaryLoader: stubCodeFunctionSummaryLoader{},
+		},
 	})
 	for _, def := range definitions {
 		if def.Domain == DomainCodeFunctionSummary {
@@ -172,8 +174,10 @@ func TestNewDefaultRegistryAcceptsCodeFunctionSummaryWhenWired(t *testing.T) {
 	t.Parallel()
 
 	registry, err := NewDefaultRegistry(DefaultHandlers{
-		CodeFunctionSummaryLoader: stubCodeFunctionSummaryLoader{},
-		CodeFunctionSummaryWriter: &recordingCodeFunctionSummaryWriter{},
+		CodeEvidenceHandlers: CodeEvidenceHandlers{
+			CodeFunctionSummaryLoader: stubCodeFunctionSummaryLoader{},
+			CodeFunctionSummaryWriter: &recordingCodeFunctionSummaryWriter{},
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewDefaultRegistry returned error with summary wired: %v", err)

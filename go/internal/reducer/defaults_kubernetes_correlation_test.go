@@ -26,8 +26,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesKubernetesCorrelationWhenAda
 	loader := &stubFactLoader{}
 	writer := &recordingKubernetesCorrelationWriter{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		FactLoader:                  loader,
-		KubernetesCorrelationWriter: writer,
+		FactLoader: loader,
+		KubernetesHandlers: KubernetesHandlers{
+			KubernetesCorrelationWriter: writer,
+		},
 	})
 	found := false
 	for _, def := range definitions {
