@@ -44,6 +44,7 @@ nav:
     - Ask Code Questions: use/code-questions.md
     - Trace Infrastructure: use/trace-infrastructure.md
     - Supply-Chain Traceability: supply-chain-traceability.md
+    - Supply-Chain Demo Runbook: guides/supply-chain-demo.md
     - Starter Prompts: guides/starter-prompts.md
     - Explore Relationship Graphs: guides/relationship-graphs.md
     - Visualize Query Results: guides/visualization.md

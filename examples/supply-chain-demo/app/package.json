@@ -1,0 +1,14 @@
+{
+  "name": "synthetic-supply-chain-demo-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synthetic demo service pinning a synthetic vulnerable dependency",
+  "license": "Apache-2.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "synthetic-vulnerable-npm": "1.0.0"
+  }
+}

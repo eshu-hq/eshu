@@ -1,0 +1,5 @@
+# Keep the demo scan deterministic: ignore installed dependency trees and build
+# output so discovery only sees the committed manifest and lockfile.
+node_modules/
+dist/
+*.log

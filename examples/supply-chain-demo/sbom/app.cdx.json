@@ -1,0 +1,51 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:00000000-0000-4000-8000-000000000019",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-01T00:00:00Z",
+    "tools": [
+      {
+        "vendor": "eshu-hq",
+        "name": "supply-chain-demo-sbom",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "container",
+      "bom-ref": "pkg:oci/synthetic-supply-chain-demo-app@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "name": "synthetic-supply-chain-demo-app",
+      "version": "1.0.0",
+      "purl": "pkg:oci/synthetic-supply-chain-demo-app@sha256%3A1111111111111111111111111111111111111111111111111111111111111111",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/synthetic-vulnerable-npm@1.0.0",
+      "name": "synthetic-vulnerable-npm",
+      "version": "1.0.0",
+      "purl": "pkg:npm/synthetic-vulnerable-npm@1.0.0",
+      "scope": "required"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:oci/synthetic-supply-chain-demo-app@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "dependsOn": [
+        "pkg:npm/synthetic-vulnerable-npm@1.0.0"
+      ]
+    },
+    {
+      "ref": "pkg:npm/synthetic-vulnerable-npm@1.0.0",
+      "dependsOn": []
+    }
+  ]
+}

@@ -82,12 +82,16 @@ credibility risk for a GCP-first or Azure-first buyer.
 
 ## Running The Chain End To End
 
-The runnable CVE-to-impact demo (issue
-[#3019](https://github.com/eshu-hq/eshu/issues/3019)) walks the full chain from
-a clean clone — a fixture repository with a deterministic vulnerable
-dependency, image build, SBOM attachment, ingestion, and a Claude Code session
-that returns the chain, including the refusal path when owned evidence is
-missing.
+The [Supply-Chain Demo Runbook](guides/supply-chain-demo.md) is the runnable
+CVE-to-impact demo (issue
+[#3019](https://github.com/eshu-hq/eshu/issues/3019)). It walks the chain from a
+clean clone using the synthetic corpus in
+[`examples/supply-chain-demo/`](https://github.com/eshu-hq/eshu/tree/main/examples/supply-chain-demo):
+a fixture repository with a deterministic vulnerable dependency, the refusal path
+when owned advisory evidence is missing, and — with the Compose stack and seeded
+advisory facts — the full image build, SBOM attachment, and a Claude Code session
+that returns the chain. The runbook is explicit about which steps run fully
+offline and which require the stack.
 
 ## Related
 
