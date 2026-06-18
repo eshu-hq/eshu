@@ -42,9 +42,7 @@ const (
 	SinkSecretReference SinkKind = "secret_reference"
 	// SinkSQLTable is reaching a SQL table (data read/write).
 	SinkSQLTable SinkKind = "sql_table"
-	// SinkShellExec is reaching a shell/command-execution sink. It is part of the
-	// closed vocabulary but is not yet materialized as a graph fact (see
-	// GraphBacked); the tracer reports it unresolved rather than fabricating it.
+	// SinkShellExec is reaching a shell/command-execution sink.
 	SinkShellExec SinkKind = "shell_exec"
 	// SinkInternetEndpoint is reaching an endpoint exposed to the public internet
 	// (egress/exfiltration terminal), modeled by the security-group graph.
@@ -167,16 +165,17 @@ var sinkCatalog = []SinkSpec{
 		GraphBacked:      true,
 		Provenance:       "reducer/security_group_reachability.go (:SecurityGroupRule -[:TO]-> :CidrBlock{is_internet:true})",
 	},
-	// Shell-exec sink: declared in the closed vocabulary, but no graph fact models
-	// command execution yet. Left non-graph-backed on purpose so the tracer
-	// reports it unresolved instead of inventing a match. Tracked by the follow-up
-	// to emit an EXECUTES_SHELL graph fact.
+	// Shell-exec sink: a function that constructs a command through a recognized
+	// Go, Python, or Node command-execution API. The materializer records
+	// structural call-site metadata only, never command text or arguments.
 	{
 		Kind:             SinkShellExec,
 		DisplayName:      "Shell/command execution",
+		Relationship:     "EXECUTES_SHELL",
+		TargetLabel:      "ShellCommand",
 		BaselineSeverity: SeverityCritical,
-		GraphBacked:      false,
-		Provenance:       "not yet materialized; no command-execution graph fact exists (follow-up #2800)",
+		GraphBacked:      true,
+		Provenance:       "reducer/shell_exec_materialization.go and storage/cypher/edge_writer_shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
 	},
 }
 
@@ -262,7 +261,7 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 // catalog. The well-formedness test fails when the catalog changes without a
 // deliberate update to this constant, implementing the taintModelVersion
 // discipline: a curated edit trips downstream re-evaluation.
-const sinkCatalogVersionGolden = "2c1bbc9c1fa24a21939144d43b65609a5c9ad2841daf607f7d4a1a031c8789e4"
+const sinkCatalogVersionGolden = "c12d5bf8f698ec7227344f93b24cac72e67b868f28632f2f76523c1d227b99a6"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
 // cloud-sink catalog. Any change to the catalog (added, removed, or edited spec)

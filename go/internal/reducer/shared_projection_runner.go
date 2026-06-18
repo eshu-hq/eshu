@@ -31,6 +31,7 @@ var sharedProjectionDomains = []string{
 	DomainDocumentationEdges,
 	DomainRationaleEdges,
 	DomainSQLRelationships,
+	DomainShellExec,
 	DomainHandlesRoute,
 	DomainRunsIn,
 	DomainInvokesCloudAction,

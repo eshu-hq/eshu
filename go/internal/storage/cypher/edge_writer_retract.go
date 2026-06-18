@@ -92,6 +92,16 @@ func (w *EdgeWriter) RetractEdges(
 			return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
 		}
 	}
+	if domain == reducer.DomainShellExec {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmt := BuildRetractShellExecEdgesByFilePath(filePaths, evidenceSource)
+			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+		}
+	}
 	if domain == reducer.DomainRepoDependency {
 		stmts := []Statement{
 			{
@@ -184,6 +194,8 @@ func buildRetractStatement(
 		return BuildRetractRationaleEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainSQLRelationships:
 		return BuildRetractSQLRelationshipEdges(repoIDs, evidenceSource), nil
+	case reducer.DomainShellExec:
+		return BuildRetractShellExecEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainDeployableUnitEdges:
 		return BuildRetractDeployableUnitCorrelationEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainHandlesRoute:

@@ -16,7 +16,7 @@ flowchart LR
     PackageEvidence["package-level interface, method, and generic evidence"]
     Options["golang.Options"]
     Parse["golang.Parse"]
-    Payload["functions, calls, types, roots, imports, embedded SQL"]
+    Payload["functions, calls, types, roots, imports, embedded SQL, shell exec"]
     Collector["collector materialization"]
 
     Engine --> PreScan
@@ -37,7 +37,8 @@ deterministic.
 This package is responsible for Go tree-sitter parsing, Go payload assembly,
 Go dead-code root evidence, import alias tracking, receiver and call metadata,
 function and method return-type metadata, composite-literal type references,
-package interface pre-scan rows, and embedded SQL extraction.
+package interface pre-scan rows, embedded SQL extraction, and command-execution
+call-site extraction.
 
 The parent parser package still owns registry lookup, path normalization,
 content metadata inference, runtime parser allocation, and the compatibility
@@ -69,6 +70,9 @@ The godoc contract is in `doc.go`.
   Go semantic roots.
 - `EmbeddedSQLQueries` returns typed SQL table evidence from recognized Go
   database call sites.
+- `EmbeddedShellCommands` returns structural `os/exec.Command` and
+  `os/exec.CommandContext` call-site evidence without retaining command text,
+  arguments, or environment values.
 - The `dataflow_functions` bucket (opt-in via `Options.EmitDataflow`) carries
   per-function control-flow graphs and reaching-definition def->use edges, built
   by `cfg_lower.go`/`cfg_bindings.go`/`cfg_emit.go` over the
@@ -89,8 +93,9 @@ The godoc contract is in `doc.go`.
   Direct parser callers without stable repository and package identity still get
   the local dataflow/finding buckets but do not emit malformed durable
   FunctionIDs.
-- `EmbeddedSQLQuery`, `Options`, `GoImportedInterfaceParamMethods`, and
-  `GoDirectMethodCallRoots` carry the typed contracts used by those functions.
+- `EmbeddedSQLQuery`, `EmbeddedShellCommand`, `Options`,
+  `GoImportedInterfaceParamMethods`, and `GoDirectMethodCallRoots` carry the
+  typed contracts used by those functions.
 
 ## Dependencies
 

@@ -114,21 +114,21 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 	facts1 := drainFactChannel(collected1.Facts)
 	facts2 := drainFactChannel(collected2.Facts)
 
-	// Identify which result is the full repo (6 facts) vs empty repo (3 facts).
+	// Identify which result is the full repo vs empty repo.
 	var fullCollected CollectedGeneration
 	var fullFacts []facts.Envelope
 	var emptyFacts []facts.Envelope
 	switch {
-	case len(facts1) == 11 && len(facts2) == 8:
+	case len(facts1) == 12 && len(facts2) == 9:
 		fullCollected = collected1
 		fullFacts = facts1
 		emptyFacts = facts2
-	case len(facts1) == 8 && len(facts2) == 11:
+	case len(facts1) == 9 && len(facts2) == 12:
 		fullCollected = collected2
 		fullFacts = facts2
 		emptyFacts = facts1
 	default:
-		t.Fatalf("unexpected fact counts: %d and %d, want 11 and 8", len(facts1), len(facts2))
+		t.Fatalf("unexpected fact counts: %d and %d, want 12 and 9", len(facts1), len(facts2))
 	}
 
 	// Validate common scope/generation fields on the full repo.
@@ -218,6 +218,7 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 		"code_call_materialization",
 		"deployment_mapping",
 		"sql_relationship_materialization",
+		"shell_exec_materialization",
 		"inheritance_materialization",
 	} {
 		if _, ok := followupDomains[wantDomain]; !ok {
@@ -225,8 +226,8 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 		}
 	}
 
-	// Validate empty repo has repo + 7 followups.
-	if got, want := len(emptyFacts), 8; got != want {
+	// Validate empty repo has repo + 8 followups.
+	if got, want := len(emptyFacts), 9; got != want {
 		t.Fatalf("len(empty facts) = %d, want %d", got, want)
 	}
 

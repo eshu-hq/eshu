@@ -50,6 +50,7 @@ func Parse(
 	payload := basePayload(path, "python", isDependency)
 	payload["modules"] = []map[string]any{}
 	payload["type_annotations"] = []map[string]any{}
+	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(string(source))
 	root := tree.RootNode()
 	scope := options.NormalizedVariableScope()
 	lambdaHandlers := pythonLambdaHandlerRoots(repoRoot, path)

@@ -4,7 +4,8 @@
 // Parse builds the Go payload consumed by collector materialization, including
 // functions, methods, structs, interfaces, imports, variables, function calls,
 // method return-type metadata, dead-code root evidence, composite-literal type
-// references, and embedded SQL rows. Function and method rows carry
+// references, embedded SQL rows, and command-execution call-site rows. Function
+// and method rows carry
 // package_import_path and stable scip_symbol values only when callers provide
 // GoPackageImportPath; package-qualified imported calls carry matching
 // stable_symbol_key values only when the import path is known. Return-type
@@ -58,5 +59,7 @@
 // GoPackageImportPath are present, a "dataflow_summaries" bucket of durable
 // summary.Effects rows for reducer persistence. The gate is off by default and
 // the payload is byte-identical when off, so existing fact contracts are
-// untouched unless a caller opts in.
+// untouched unless a caller opts in. Embedded shell-command evidence records
+// only structural os/exec call metadata; command text, arguments, and
+// environment values are intentionally omitted.
 package golang

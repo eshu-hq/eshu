@@ -124,11 +124,13 @@ Delta snapshots add repository fact metadata (`delta_generation`,
 `delta_relative_paths`, and `delta_deleted_relative_paths`), emit file and
 content tombstones for deleted paths, and skip repo-wide reducer follow-up facts
 until reducer-owned shared projection domains have their own file-scoped delta
-contract. Source-local projection and content writes still run for the changed
-files in the generation. Delta parsing limits parse/materialization/fact
-emission to changed file targets, but keeps pre-scan over the full discovered
-parser file set plus explicit targets so imports and Go package semantic context
-match a full snapshot.
+contract. Full snapshots emit the shell-exec follow-up alongside SQL and
+inheritance follow-ups so stale command-execution edges retract when command
+calls disappear. Source-local projection and content writes still run for the
+changed files in the generation. Delta parsing limits
+parse/materialization/fact emission to changed file targets, but keeps pre-scan
+over the full discovered parser file set plus explicit targets so imports and Go
+package semantic context match a full snapshot.
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under

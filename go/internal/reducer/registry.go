@@ -268,6 +268,21 @@ func DefaultDomainDefinitions() []DomainDefinition {
 			},
 		},
 		{
+			Domain:  DomainShellExecMaterialization,
+			Summary: "materialize canonical shell execution edges from parser command-call evidence",
+			Ownership: OwnershipShape{
+				CrossSource:    true,
+				CrossScope:     true,
+				CanonicalWrite: true,
+			},
+			TruthContract: truth.Contract{
+				CanonicalKind: "shell_exec_materialization",
+				SourceLayers: []truth.Layer{
+					truth.LayerSourceDeclaration,
+				},
+			},
+		},
+		{
 			Domain:  DomainInheritanceMaterialization,
 			Summary: "materialize canonical inheritance, override, and alias edges from parser entity bases and trait adaptation metadata",
 			Ownership: OwnershipShape{

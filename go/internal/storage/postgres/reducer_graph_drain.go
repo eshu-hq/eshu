@@ -17,6 +17,7 @@ SELECT EXISTS (
         'workload_materialization',
         'semantic_entity_materialization',
         'sql_relationship_materialization',
+        'shell_exec_materialization',
         'inheritance_materialization'
       )
 )

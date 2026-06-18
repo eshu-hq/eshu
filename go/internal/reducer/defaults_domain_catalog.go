@@ -78,6 +78,11 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.SQLRelationshipIntentWriter,
 			}
+		case DomainShellExecMaterialization:
+			def.Handler = ShellExecMaterializationHandler{
+				FactLoader:   handlers.FactLoader,
+				IntentWriter: handlers.ShellExecIntentWriter,
+			}
 		case DomainInheritanceMaterialization:
 			def.Handler = InheritanceMaterializationHandler{
 				FactLoader:   handlers.FactLoader,

@@ -236,7 +236,8 @@ diagnose stuck, slow, or failed package-registry graph writes.
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
 `DefaultBatchSize` = 500). Domain-specific sub-batch sizes are available for
-`DomainCodeCalls`, `DomainInheritanceEdges`, and `DomainSQLRelationships`.
+`DomainCodeCalls`, `DomainInheritanceEdges`, `DomainSQLRelationships`, and
+`DomainShellExec`.
 `DomainCodeCalls` writes direct call evidence as `CALLS`, JSX component plus Go
 and TypeScript type-reference evidence as `REFERENCES`, and Python metaclass
 evidence as `USES_METACLASS`. When reducer rows include
@@ -249,6 +250,21 @@ can emit `QUERIES_TABLE` to a `SqlTable`; trigger rows can emit both `TRIGGERS`
 to a `SqlTable` and `EXECUTES` to a `SqlFunction`. `EXECUTES` remains part of
 dead-code reachability for stored routines and must stay in the relationship
 retraction set.
+`DomainShellExec` writes `Function-[:EXECUTES_SHELL]->ShellCommand` from parser
+command-call evidence. The ShellCommand node is keyed by a deterministic uid and
+stores API, language, source path, and line number only; raw command text,
+arguments, and environment values are not graph properties.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestEdgeWriter(WriteEdgesShellExec|RetractEdgesShellExecDeltaUsesFileScope)'
+-count=1` covers the static-token MERGE shape and file-scoped retract. The
+writer adds one `UNWIND` + `MATCH Function uid` + `MERGE ShellCommand uid`
+statement and no per-row graph round trip.
+
+No-Observability-Change: shell-exec writes use the existing
+`EdgeWriter.WriteEdges` / `RetractEdges` path, statement summaries,
+retry wrapping, shared-edge write metrics, and domain labels. No new metric
+instrument, runtime knob, or graph backend branch was added.
 
 `DomainRunsIn` writes `Function-[:RUNS_IN]->Workload` edges that bind a proven
 route-handler Function to the deployed runtime it runs in (#2722, under epic
