@@ -44,7 +44,8 @@ func init() {
 	mcpStartCmd.Flags().StringP("transport", "t", "stdio", "Transport mode: stdio, http, or sse")
 	mcpStartCmd.Flags().String("host", "0.0.0.0", "Host to bind HTTP MCP server")
 	mcpStartCmd.Flags().IntP("port", "p", 8080, "Port for HTTP MCP server")
-	mcpStartCmd.Flags().String("workspace-root", "", "Explicit workspace root for local lightweight ownership")
+	mcpStartCmd.Flags().String("workspace-root", "", "Explicit workspace root for the local Eshu owner")
+	mcpStartCmd.Flags().String("profile", "", "Runtime profile for a new local owner: local_authoritative (default; embedded NornicDB graph for call-graph and Cypher answers) or local_lightweight (Postgres only, no graph). For a Neo4j-backed authoritative owner, set ESHU_QUERY_PROFILE and ESHU_GRAPH_BACKEND instead.")
 	mcpCmd.AddCommand(mcpStartCmd)
 
 	// mcp setup
@@ -135,9 +136,18 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 	host, _ := cmd.Flags().GetString("host")
 	port, _ := cmd.Flags().GetInt("port")
 	workspaceRootFlag, _ := cmd.Flags().GetString("workspace-root")
+	profileFlag, _ := cmd.Flags().GetString("profile")
 	transport, err := normalizeMCPTransport(rawTransport)
 	if err != nil {
 		return err
+	}
+
+	profileOverrides, err := mcpStartProfileOverrides(profileFlag)
+	if err != nil {
+		return err
+	}
+	if len(profileOverrides) > 0 && transport != "stdio" {
+		return fmt.Errorf("--profile applies to the local stdio owner only; it is not valid with --transport %s", transport)
 	}
 
 	if transport == "stdio" {
@@ -154,7 +164,11 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("resolve eshu executable: %w", err)
 		}
-		return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "mcp-stdio", workspaceRoot}, eshuEnviron())
+		env := eshuEnviron()
+		if len(profileOverrides) > 0 {
+			env = mergeEnvironment(env, profileOverrides)
+		}
+		return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "mcp-stdio", workspaceRoot}, env)
 	}
 
 	binary, err := eshuLookPath("eshu-mcp-server")
@@ -191,6 +205,44 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Starting Eshu MCP Server (%s transport)...\n", transport)
 	return eshuExec(binary, []string{"eshu-mcp-server"}, env)
+}
+
+// mcpStartProfileOverrides translates an explicit --profile request into the
+// environment overrides the local owner reads. An empty request yields no
+// overrides so the mcp-stdio owner applies its authoritative default and a
+// running owner of any profile can still be attached. Only the two local
+// profiles are accepted; production and full-stack are rejected with guidance.
+func mcpStartProfileOverrides(profileFlag string) (map[string]string, error) {
+	raw := strings.TrimSpace(profileFlag)
+	if raw == "" {
+		return nil, nil
+	}
+	profile, err := query.ParseQueryProfile(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse --profile: %w", err)
+	}
+	switch profile {
+	case query.ProfileLocalLightweight:
+		// Clear any inherited ESHU_GRAPH_BACKEND: lightweight rejects a non-empty
+		// graph backend, so an explicit --profile local_lightweight must fully
+		// determine the runtime config rather than fail on a shell-set backend.
+		return map[string]string{
+			"ESHU_QUERY_PROFILE": string(profile),
+			"ESHU_GRAPH_BACKEND": "",
+		}, nil
+	case query.ProfileLocalAuthoritative:
+		return map[string]string{
+			"ESHU_QUERY_PROFILE": string(profile),
+			"ESHU_GRAPH_BACKEND": string(query.GraphBackendNornicDB),
+		}, nil
+	default:
+		return nil, fmt.Errorf(
+			"eshu mcp start supports only %q or %q profiles, got %q",
+			query.ProfileLocalLightweight,
+			query.ProfileLocalAuthoritative,
+			profile,
+		)
+	}
 }
 
 // normalizeMCPTransport keeps the historical sse flag value as an alias for

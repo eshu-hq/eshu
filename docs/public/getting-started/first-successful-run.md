@@ -151,7 +151,12 @@ API-backed commands. The bounded query that `first-run` runs uses the same API.
 eshu mcp start --workspace-root "$PWD"
 ```
 
-This attaches MCP over stdio to the running local owner. See
+This attaches MCP over stdio to the running local owner. Run on its own (without
+`eshu first-run` or `eshu graph start` first), `eshu mcp start` boots its own
+owner on the `local_authoritative` profile by default — embedded Postgres,
+NornicDB, reducer, and ingester in one binary — so graph-backed questions like
+"who calls this function?" work on a fresh install. Add
+`--profile local_lightweight` for the faster Postgres-only owner. See
 [Local MCP](../run-locally/mcp-local.md) and
 [Set up MCP for your client](#set-up-mcp-for-your-client).
 
