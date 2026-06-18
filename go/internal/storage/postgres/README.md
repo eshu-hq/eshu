@@ -133,12 +133,19 @@ High-signal invariants for this package:
   functions removed by a later full snapshot is tracked in #2947; delta
   generations must not delete unrelated functions just because they were not
   reparsed.
+- `FunctionSourceStore` stores durable parser-emitted param-level source entry
+  points by `function_id`, parameter index, kind, and label. Source rows are
+  generation-independent metadata for reducer Program assembly, not facts or
+  graph truth. Ingestion replaces rows for functions present in the current
+  summary batch before inserting current sources, with the same updated-at guard
+  used by summaries, so removing a source parameter does not leave stale taint
+  entry points and older replays cannot delete newer rows.
 - `ValueFlowProgramInputStore` loads active value-flow Program assembly inputs
   after completed `code_calls` shared projection. It joins caller/callee
   Function content entities to `summary.FunctionID` through `repo_id`,
   `entity_name`, `class_context`, and `package_import_path`, skips incomplete
-  identities, and loads only the candidate repositories' summaries through
-  `LoadRepoSnapshot`.
+  identities, and loads only the candidate repositories' summaries and source
+  entry points through repo-scoped reads.
 - Relationship evidence backfill stays bounded to latest active repository
   facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
   relationship facts are included explicitly because they are provider-resource
@@ -171,6 +178,19 @@ through `summary_count`, `call_edge_count`, `program_edge_count`,
 `skipped_missing_identity`, `skipped_missing_summary`, and
 `skipped_unconfirmed_call_flow`; individual Postgres reads remain covered by the
 existing instrumented DB query spans and `eshu_dp_postgres_query_duration_seconds`.
+
+No-Regression Evidence: #2959 value-flow source persistence is covered by
+`go test ./internal/storage/postgres -run
+'TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProjectorEnqueue|TestValueFlowProgramInputLoaderBuildsBoundedProgramInput'
+-count=1`, which failed before `function_sources` persistence and loader
+readback existed and then passed after source rows were replaced before
+projector enqueue and loaded into `ValueFlowProgramInput.Sources`. The table is
+bounded by repository prefix and stable FunctionID keys; it adds no graph write,
+queue domain, worker, lease, or runtime default.
+
+Observability Evidence: #2959 adds the low-cardinality ingestion commit-stage
+log `upsert_function_sources` with `source_count`. It adds no metric name,
+metric label, worker, queue domain, or runtime status field.
 
 ### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
 

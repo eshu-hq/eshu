@@ -50,12 +50,15 @@ commit. When no generation is ready, the service calls `AfterBatchDrained` if
 at least one generation was committed since the last drain, then waits
 `PollInterval` (1 second in `cmd/ingester`). On receipt of a generation it
 calls `Committer.CommitScopeGeneration` with the `facts.Envelope` channel, or a
-summary-aware commit method when parser-emitted value-flow summaries are
-present, and records `CollectorObserveDuration`, `FactsEmitted`,
-`GenerationFactCount`, and `FactsCommitted`. Value-flow summaries are not fact
-records, so they do not change fact-count metrics; summary-aware committers log
-`value_flow_summary_count` on the collector commit message and persist them in
+summary-aware commit method when parser-emitted value-flow summaries or sources
+are present, and records `CollectorObserveDuration`, `FactsEmitted`,
+`GenerationFactCount`, and `FactsCommitted`. Value-flow summaries and source
+entry points are not fact records, so they do not change fact-count metrics;
+summary-aware committers log `value_flow_summary_count` and
+`value_flow_source_count` on the collector commit message and persist them in
 storage before downstream projector enqueue.
+The routing helper treats either summaries or sources as value-flow metadata so
+claim-fenced and unfenced commit paths preserve the same durable boundary.
 If the durable commit returns an error and `DeadLetters` is wired, `Service`
 records bounded scope/generation replay metadata without storing fact payloads
 or local repository paths.
@@ -120,12 +123,13 @@ per repository:
    observability state buckets are emitted as versioned `observability.*`
    source facts during fact streaming, not as graph truth.
 5. **Materialize** — `shape.Materialize` turns parsed files into
-   `ContentFileMeta` records and `ContentEntitySnapshot` rows. Parser-emitted
-   `dataflow_summaries` rows are copied into `ValueFlowSummarySnapshot`
-   metadata after materialization; malformed rows without repository, package,
-   and function identity are dropped before durable commit. Body strings are
-   released after materialization; `streamFacts` re-reads them from disk at emit
-   time so snapshot memory is `O(single_file)`.
+  `ContentFileMeta` records and `ContentEntitySnapshot` rows. Parser-emitted
+  `dataflow_summaries` and `dataflow_sources` rows are copied into
+  `ValueFlowSummarySnapshot` and `ValueFlowSourceSnapshot` metadata after
+  materialization; malformed rows without repository, package, function
+  identity, or source slot/kind are dropped before durable commit. Body strings are
+  released after materialization; `streamFacts` re-reads them from disk at emit
+  time so snapshot memory is `O(single_file)`.
 
 `buildStreamingGeneration` launches a background goroutine that streams
 `facts.Envelope` values through a buffered channel (`factStreamBuffer = 500`).
@@ -164,6 +168,10 @@ No-Observability-Change: documentation extraction stays inside existing `collect
 No-Regression Evidence: #2941 value-flow summary persistence is covered by `go test ./internal/collector ./internal/storage/postgres ./cmd/ingester ./cmd/bootstrap-index -run 'TestBuildValueFlowSummaries|TestSnapshotFreshnessHintIncludesValueFlowSummaries|TestBuildStreamingGenerationDoesNotCountValueFlowSummariesAsFacts|TestFunctionSummaryStoreRejectsBlankPackageComponent|TestFunctionSummaryStoreLoadsRepoSnapshot|TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProjectorEnqueue|TestIngestionStoreCommitScopeGenerationRollsBackWhenFunctionSummaryPersistenceFails|TestBuildIngesterCollectorServiceWiresEmitDataflowGate|TestBuildBootstrapCollectorWiresEmitDataflowGate' -count=1`. It proves summary row extraction, malformed ID drops, freshness-hint changes for summary-only changes, fact-count isolation, repo-scoped summary reload, transaction rollback before projector enqueue, and runtime gate wiring.
 
 Observability Evidence: #2941 reuses `collector.observe`, existing fact counters, and ingestion commit-stage logs. Summary persistence adds the low-cardinality `upsert_function_summaries` commit stage with `summary_count`, `repo_count`, and `recomputed_count`, plus `value_flow_summary_count` on collector commit logs when summaries are present. It adds no worker, queue domain, metric name, or metric label.
+
+No-Regression Evidence: #2959 source entry-point persistence is covered by `go test ./internal/collector ./internal/storage/postgres -run 'TestBuildValueFlowSources|TestSnapshotFreshnessHintIncludesValueFlowSources|TestBuildStreamingGenerationDoesNotCountValueFlowSourcesAsFacts|TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProjectorEnqueue|TestValueFlowProgramInputLoaderBuildsBoundedProgramInput' -count=1`. It proves source row extraction, malformed source drops, freshness-hint changes for source-only changes, fact-count isolation, transactional source upsert before projector enqueue, and reducer loader source readback.
+
+Observability Evidence: #2959 reuses `collector.observe`, existing fact counters, and ingestion commit-stage logs. Source persistence adds the low-cardinality `upsert_function_sources` commit stage with `source_count`, plus `value_flow_source_count` on collector commit logs when sources are present. It adds no worker, queue domain, metric name, or metric label.
 
 No-Regression Evidence: `go test ./internal/collector -run
 'Test(NativeRepositorySnapshotterCarriesDeletedOnlyDeltaMetadata|NativeRepositorySnapshotterDeltaTargetsKeepFullPreScanContext|NativeRepositorySnapshotterPreservesDeltaMetadataPathWhitespace|UpdateRepositoryReturnsChangedAndDeletedFileTargets|BuildSelectedRepositoriesCarriesGitDeltaFileTargets|BuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones|BuildStreamingGenerationPreservesDeltaPathWhitespace|BuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot|BuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta)'

@@ -118,6 +118,23 @@ func DataflowSummaryRow(lang string, id summary.FunctionID, effects summary.Effe
 	return row
 }
 
+// DataflowSourceRow renders one param-level interprocedural source entry point
+// into a "dataflow_sources" payload row. The row is consumed by the reducer
+// fixpoint loader, which needs explicit taint entry points in addition to
+// persisted function summaries.
+func DataflowSourceRow(lang string, source interproc.Source) map[string]any {
+	row := map[string]any{
+		"function_id": string(source.Port.Func),
+		"param_index": source.Port.Slot.Index,
+		"source_kind": source.Kind,
+		"lang":        lang,
+	}
+	if source.Label != "" {
+		row["source_label"] = source.Label
+	}
+	return row
+}
+
 // blockPayloads renders basic blocks with their statements and sorted successors.
 func blockPayloads(blocks []cfg.Block) []map[string]any {
 	out := make([]map[string]any, 0, len(blocks))
@@ -189,6 +206,23 @@ func SortFindingRows(rows []map[string]any) {
 func SortSummaryRows(rows []map[string]any) {
 	sort.SliceStable(rows, func(i, j int) bool {
 		return stringFromRow(rows[i], "function_id") < stringFromRow(rows[j], "function_id")
+	})
+}
+
+// SortSourceRows orders "dataflow_sources" rows by FunctionID, param index,
+// kind, and label so the bucket is byte-stable across runs.
+func SortSourceRows(rows []map[string]any) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if fi, fj := stringFromRow(rows[i], "function_id"), stringFromRow(rows[j], "function_id"); fi != fj {
+			return fi < fj
+		}
+		if pi, pj := intFromRow(rows[i], "param_index"), intFromRow(rows[j], "param_index"); pi != pj {
+			return pi < pj
+		}
+		if ki, kj := stringFromRow(rows[i], "source_kind"), stringFromRow(rows[j], "source_kind"); ki != kj {
+			return ki < kj
+		}
+		return stringFromRow(rows[i], "source_label") < stringFromRow(rows[j], "source_label")
 	})
 }
 

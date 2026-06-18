@@ -101,6 +101,24 @@ func TestDataflowSummaryRowRendersEffectsAndOmitsEmpty(t *testing.T) {
 	}
 }
 
+func TestDataflowSourceRowRendersParamEntryPoint(t *testing.T) {
+	row := DataflowSourceRow("go", interproc.Source{
+		Port: interproc.Port{
+			Func: interproc.FunctionID("repo\x1fpkg\x1f\x1fhandle"),
+			Slot: interproc.Slot{Kind: interproc.SlotParam, Index: 0},
+		},
+		Kind:  "http_request",
+		Label: "request",
+	})
+	if row["function_id"] != "repo\x1fpkg\x1f\x1fhandle" ||
+		row["param_index"] != 0 ||
+		row["source_kind"] != "http_request" ||
+		row["source_label"] != "request" ||
+		row["lang"] != "go" {
+		t.Fatalf("source row = %+v, want durable param source entry point", row)
+	}
+}
+
 // TestSortSummaryRowsByFunctionID proves rows are ordered by function_id.
 func TestSortSummaryRowsByFunctionID(t *testing.T) {
 	rows := []map[string]any{

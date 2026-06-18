@@ -3,7 +3,7 @@
 //
 // The package turns selected sources into cloned or native filesystem
 // snapshots, discovery reports, parser metadata, content entity snapshots,
-// parser-emitted value-flow summary metadata, and facts.Envelope streams. Git-backed selection also captures source-observed
+// parser-emitted value-flow summary/source metadata, and facts.Envelope streams. Git-backed selection also captures source-observed
 // branch/ref heads so downstream query routes can expose branch selectors
 // without inventing names. It is the source of truth for snapshot input shape,
 // but graph projection and query-time truth belong to downstream projector,
@@ -16,7 +16,8 @@
 // repository snapshots; only metadata-only state candidates are emitted for
 // the Terraform-state collector path to approve and read.
 // Claim-aware collection copies hosted tenant boundaries from workflow work
-// items into commit mutations so storage can fence fact persistence.
+// items into commit mutations so storage can fence fact persistence; value-flow
+// summaries and source entry points share that durable commit boundary.
 // Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook
 // narrative, bounded DOCX summaries, conservative delimited spreadsheet files,
 // bounded XLSX workbook summaries, bounded PPTX slide summaries, bounded ZIP

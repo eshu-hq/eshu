@@ -89,6 +89,11 @@ The godoc contract is in `doc.go`.
   Direct parser callers without stable repository and package identity still get
   the local dataflow/finding buckets but do not emit malformed durable
   FunctionIDs.
+- The `dataflow_sources` bucket uses the same identity gate and carries
+  param-level source entry points such as `*http.Request` parameters for the
+  reducer fixpoint. The reducer persists and reloads those rows as
+  `interproc.Source` values because summaries alone do not identify taint entry
+  ports.
 - Function rows carry `package_import_path` when `GoPackageImportPath` is
   present. That metadata lets downstream content entities reconstruct the same
   `summary.FunctionID(repo, package, receiver, name)` tuple used by

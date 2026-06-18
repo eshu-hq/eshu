@@ -43,10 +43,14 @@
 // same facts.Envelope metadata shape as full fact loads. FunctionSummaryStore
 // persists parser value-flow summaries inside ingestion transactions before
 // projector enqueue, using repo-scoped reloads and idempotent timestamp-guarded
-// upserts. ValueFlowProgramInputStore reads completed active code-call shared
-// intents, joins Function content-entity metadata to summary identities, and
-// reloads only the candidate repositories' function summaries for reducer
-// Program assembly. Payload value filters
+// upserts. FunctionSourceStore persists parser value-flow source entry points
+// before projector enqueue and replaces rows for functions in the current
+// summary batch with an updated-at guard so removed source parameters do not
+// stay active and older replays cannot delete newer rows.
+// ValueFlowProgramInputStore reads completed active code-call shared intents,
+// joins Function content-entity metadata to summary identities, and reloads
+// only the candidate repositories' function summaries and source entry points
+// for reducer Program assembly. Payload value filters
 // are available only for top-level payload fields that are part of a reducer
 // domain's truth contract. Active code-call symbol definition reads join
 // through ingestion_scopes.active_generation_id and only return non-tombstoned

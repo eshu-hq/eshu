@@ -18,7 +18,7 @@ func (s IngestionStore) CommitScopeGenerationWithStreamError(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr, nil)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr, nil, nil)
 }
 
 // CommitClaimedScopeGenerationWithStreamError persists one claimed generation
@@ -36,7 +36,7 @@ func (s IngestionStore) CommitClaimedScopeGenerationWithStreamError(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, nil)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, nil, nil)
 }
 
 // CommitScopeGenerationWithStreamErrorAndFunctionSummaries persists one scope
@@ -49,8 +49,9 @@ func (s IngestionStore) CommitScopeGenerationWithStreamErrorAndFunctionSummaries
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 	summaries []collector.ValueFlowSummarySnapshot,
+	sources []collector.ValueFlowSourceSnapshot,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr, summaries)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, factStreamErr, summaries, sources)
 }
 
 // CommitClaimedScopeGenerationWithStreamErrorAndFunctionSummaries persists one
@@ -64,10 +65,11 @@ func (s IngestionStore) CommitClaimedScopeGenerationWithStreamErrorAndFunctionSu
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 	summaries []collector.ValueFlowSummarySnapshot,
+	sources []collector.ValueFlowSourceSnapshot,
 ) error {
 	if err := validateClaimMutation(mutation); err != nil {
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, summaries)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, factStreamErr, summaries, sources)
 }

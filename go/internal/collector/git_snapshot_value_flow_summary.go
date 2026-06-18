@@ -35,6 +35,43 @@ func buildValueFlowSummaries(parsedFiles []map[string]any) []ValueFlowSummarySna
 	return out
 }
 
+// buildValueFlowSources extracts parser-emitted dataflow_sources rows from
+// parsed files. Rows without stable function identity, param index, or source
+// kind are ignored at the collector boundary.
+func buildValueFlowSources(parsedFiles []map[string]any) []ValueFlowSourceSnapshot {
+	var out []ValueFlowSourceSnapshot
+	for _, parsedFile := range parsedFiles {
+		for _, row := range summaryRows(parsedFile["dataflow_sources"]) {
+			id := summary.FunctionID(snapshotPayloadString(row, "function_id"))
+			param, ok := intFromPayload(row["param_index"])
+			kind := snapshotPayloadString(row, "source_kind", "kind")
+			if !validValueFlowSummaryID(id) || !ok || param < 0 || strings.TrimSpace(kind) == "" {
+				continue
+			}
+			out = append(out, ValueFlowSourceSnapshot{
+				FunctionID: id,
+				ParamIndex: param,
+				Kind:       kind,
+				Label:      snapshotPayloadString(row, "source_label", "label"),
+				Language:   snapshotPayloadString(row, "lang", "language"),
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].FunctionID != out[j].FunctionID {
+			return out[i].FunctionID < out[j].FunctionID
+		}
+		if out[i].ParamIndex != out[j].ParamIndex {
+			return out[i].ParamIndex < out[j].ParamIndex
+		}
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Label < out[j].Label
+	})
+	return out
+}
+
 func summaryRows(value any) []map[string]any {
 	switch rows := value.(type) {
 	case []map[string]any:

@@ -55,6 +55,9 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 				Version: "callee-version",
 			}},
 		},
+		sources: map[string][][]any{
+			"repo-app": {{string(caller), 0, "http_request", "request", "go"}},
+		},
 	}
 	store := NewValueFlowProgramInputStore(db)
 
@@ -81,6 +84,12 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 	program, stats := reducer.BuildValueFlowProgram(input)
 	if stats.ProgramEdgeCount != 1 || stats.SinkCount != 1 {
 		t.Fatalf("program=%#v stats=%#v, want one edge and one sink", program, stats)
+	}
+	if len(program.Sources) != 1 {
+		t.Fatalf("program.Sources = %#v, want one source", program.Sources)
+	}
+	if got, want := program.Sources[0].Kind, "http_request"; got != want {
+		t.Fatalf("program source kind = %q, want %q", got, want)
 	}
 }
 
@@ -116,6 +125,7 @@ type valueFlowProgramLoaderDB struct {
 	candidates [][]any
 	edges      [][]any
 	summaries  map[string][]summary.SnapshotFunction
+	sources    map[string][][]any
 }
 
 func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
@@ -136,6 +146,9 @@ func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string
 			rows = append(rows, []any{string(fn.ID), effects, fn.Version})
 		}
 		return &valueFlowProgramRows{data: rows, idx: -1}, nil
+	case strings.Contains(query, "FROM function_sources") && len(args) == 1:
+		repo, _ := args[0].(string)
+		return &valueFlowProgramRows{data: db.sources[repo], idx: -1}, nil
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -171,6 +184,8 @@ func (r *valueFlowProgramRows) Scan(dest ...any) error {
 			*d = val.([]byte)
 		case *time.Time:
 			*d = val.(time.Time)
+		case *int:
+			*d = val.(int)
 		default:
 			return fmt.Errorf("unsupported scan dest type %T", dest[i])
 		}

@@ -27,8 +27,10 @@ See `doc.go` for the godoc contract. The surface is:
   row.
 - `DataflowSummaryRow(lang, id, effects) map[string]any` — one
   `dataflow_summaries` row for a durable `summary.FunctionID`.
-- `SortFunctionRows`, `SortFindingRows`, `SortSummaryRows` — deterministic
-  ordering for byte-stable buckets.
+- `DataflowSourceRow(lang, source) map[string]any` — one `dataflow_sources`
+  row for a param-level `interproc.Source` entry point.
+- `SortFunctionRows`, `SortFindingRows`, `SortSummaryRows`, `SortSourceRows` —
+  deterministic ordering for byte-stable buckets.
 
 ## Dependencies
 
@@ -48,8 +50,8 @@ telemetry.
 - **Optional fields are omitted when empty** (`class_context`, `sink_label`,
   `source_label`, `neutralized`, `cloud`) to keep rows minimal and byte-stable.
 - **Ordering lives here, not in the analysis.** `SortFunctionRows`,
-  `SortFindingRows`, and `SortSummaryRows` must be applied by the caller after
-  collecting rows so the bucket is deterministic.
+  `SortFindingRows`, `SortSummaryRows`, and `SortSourceRows` must be applied by
+  the caller after collecting rows so the bucket is deterministic.
 
 ## Related docs
 

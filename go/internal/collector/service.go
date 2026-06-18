@@ -64,6 +64,10 @@ type CollectedGeneration struct {
 	// ValueFlowSummaries carries parser-emitted function summary effects. They are
 	// not fact records and must be persisted by summary-aware durable committers.
 	ValueFlowSummaries []ValueFlowSummarySnapshot
+	// ValueFlowSources carries parser-emitted param-level source entry points.
+	// They are not fact records and must be persisted by value-flow-aware
+	// durable committers.
+	ValueFlowSources []ValueFlowSourceSnapshot
 }
 
 // FactsFromSlice creates a CollectedGeneration with facts from a pre-built
@@ -114,6 +118,7 @@ type FunctionSummaryCommitter interface {
 		scope.ScopeGeneration,
 		<-chan facts.Envelope,
 		[]ValueFlowSummarySnapshot,
+		[]ValueFlowSourceSnapshot,
 	) error
 }
 
@@ -127,6 +132,7 @@ type StreamErrorFunctionSummaryCommitter interface {
 		<-chan facts.Envelope,
 		func() error,
 		[]ValueFlowSummarySnapshot,
+		[]ValueFlowSourceSnapshot,
 	) error
 }
 
@@ -166,6 +172,7 @@ type FunctionSummaryClaimedCommitter interface {
 		scope.ScopeGeneration,
 		<-chan facts.Envelope,
 		[]ValueFlowSummarySnapshot,
+		[]ValueFlowSourceSnapshot,
 	) error
 }
 
@@ -180,6 +187,7 @@ type StreamErrorFunctionSummaryClaimedCommitter interface {
 		<-chan facts.Envelope,
 		func() error,
 		[]ValueFlowSummarySnapshot,
+		[]ValueFlowSourceSnapshot,
 	) error
 }
 
@@ -355,11 +363,11 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 	factCount := int64(collected.FactCount)
 
 	var err error
-	if len(collected.ValueFlowSummaries) > 0 {
+	if hasValueFlowMetadata(collected) {
 		if collected.FactStreamErr != nil {
 			streamCommitter, ok := s.Committer.(StreamErrorFunctionSummaryCommitter)
 			if !ok {
-				err = errors.New("collector committer must support fact stream errors with value-flow summaries")
+				err = errors.New("collector committer must support fact stream errors with value-flow metadata")
 				if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
 					err = errors.Join(err, streamErr)
 				}
@@ -371,12 +379,13 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 					collected.Facts,
 					collected.FactStreamErr,
 					collected.ValueFlowSummaries,
+					collected.ValueFlowSources,
 				)
 			}
 		} else {
 			committer, ok := s.Committer.(FunctionSummaryCommitter)
 			if !ok {
-				err = errors.New("collector committer must support value-flow summaries")
+				err = errors.New("collector committer must support value-flow metadata")
 				if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
 					err = errors.Join(err, streamErr)
 				}
@@ -387,6 +396,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 					collected.Generation,
 					collected.Facts,
 					collected.ValueFlowSummaries,
+					collected.ValueFlowSources,
 				)
 			}
 		}
@@ -444,6 +454,9 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 		logAttrs = append(logAttrs, slog.Int("fact_count", collected.FactCount))
 		if len(collected.ValueFlowSummaries) > 0 {
 			logAttrs = append(logAttrs, slog.Int("value_flow_summary_count", len(collected.ValueFlowSummaries)))
+		}
+		if len(collected.ValueFlowSources) > 0 {
+			logAttrs = append(logAttrs, slog.Int("value_flow_source_count", len(collected.ValueFlowSources)))
 		}
 		logAttrs = append(logAttrs, slog.Float64("duration_seconds", duration))
 

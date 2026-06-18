@@ -59,6 +59,9 @@ reducer/query adapter.
   generation-independent `FunctionID`. Upserts are idempotent on `function_id`
   and reject blank repo components so future cross-repo recomposition cannot
   silently collide.
+- `FunctionSourceStore` / `NewFunctionSourceStore` — additive durable
+  persistence for value-flow param-level source entry points keyed by
+  generation-independent `FunctionID`, parameter index, kind, and label.
 
 **Queue stores**
 

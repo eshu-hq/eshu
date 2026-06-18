@@ -100,6 +100,76 @@ func query(db *sql.DB, r *http.Request) {
 	}
 }
 
+// TestGoDataflowSourcesEmitParamEntryPoints proves the parser emits durable
+// param-level source entry points for the reducer fixpoint alongside summaries.
+func TestGoDataflowSourcesEmitParamEntryPoints(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import "net/http"
+
+func handle(r *http.Request) string {
+	return r.FormValue("q")
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+		EmitDataflow:        true,
+		RepositoryID:        "repo-alpha",
+		GoPackageImportPath: "example.com/repo/handlers",
+	})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+
+	rows, ok := got["dataflow_sources"].([]map[string]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("dataflow_sources = %T %#v, want one row", got["dataflow_sources"], got["dataflow_sources"])
+	}
+	row := rows[0]
+	id, _ := row["function_id"].(string)
+	if !strings.HasPrefix(id, "repo-alpha\x1fexample.com/repo/handlers\x1f") || !strings.Contains(id, "handle") {
+		t.Fatalf("source FunctionID = %q, want durable handle id", id)
+	}
+	if got, want := row["param_index"], 0; got != want {
+		t.Fatalf("param_index = %#v, want %d", got, want)
+	}
+	if got, want := row["source_kind"], "http_request"; got != want {
+		t.Fatalf("source_kind = %#v, want %q", got, want)
+	}
+}
+
+func TestGoDataflowSourcesRequireDurableIdentity(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import "net/http"
+
+func handle(r *http.Request) string {
+	return r.FormValue("q")
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+		EmitDataflow: true,
+		RepositoryID: "repo-alpha",
+	})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	if _, present := got["dataflow_sources"]; present {
+		t.Fatalf("dataflow_sources emitted without Go package import path: %+v", got["dataflow_sources"])
+	}
+}
+
 // TestGoDataflowSummariesSortedByID proves the summaries bucket is byte-stable:
 // rows are ordered by function_id.
 func TestGoDataflowSummariesSortedByID(t *testing.T) {

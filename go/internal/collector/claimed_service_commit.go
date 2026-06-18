@@ -22,14 +22,14 @@ func (s ClaimedService) commitCollected(
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateFactEmitBatch)
 		defer span.End()
 	}
-	if len(collected.ValueFlowSummaries) > 0 {
+	if hasValueFlowMetadata(collected) {
 		if collected.FactStreamErr != nil {
 			streamCommitter, ok := s.Committer.(StreamErrorFunctionSummaryClaimedCommitter)
 			if !ok {
 				if err := cleanupCollectedFactStream(collected); err != nil {
 					return err
 				}
-				return errors.New("claim-aware collector committer must support fact stream errors with value-flow summaries")
+				return errors.New("claim-aware collector committer must support fact stream errors with value-flow metadata")
 			}
 			return streamCommitter.CommitClaimedScopeGenerationWithStreamErrorAndFunctionSummaries(
 				ctx,
@@ -39,6 +39,7 @@ func (s ClaimedService) commitCollected(
 				collected.Facts,
 				collected.FactStreamErr,
 				collected.ValueFlowSummaries,
+				collected.ValueFlowSources,
 			)
 		}
 		committer, ok := s.Committer.(FunctionSummaryClaimedCommitter)
@@ -46,7 +47,7 @@ func (s ClaimedService) commitCollected(
 			if err := cleanupCollectedFactStream(collected); err != nil {
 				return err
 			}
-			return errors.New("claim-aware collector committer must support value-flow summaries")
+			return errors.New("claim-aware collector committer must support value-flow metadata")
 		}
 		return committer.CommitClaimedScopeGenerationWithFunctionSummaries(
 			ctx,
@@ -55,6 +56,7 @@ func (s ClaimedService) commitCollected(
 			collected.Generation,
 			collected.Facts,
 			collected.ValueFlowSummaries,
+			collected.ValueFlowSources,
 		)
 	}
 	if committer, ok := s.Committer.(ClaimedCommitter); ok {

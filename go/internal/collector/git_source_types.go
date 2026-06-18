@@ -103,6 +103,10 @@ type RepositorySnapshot struct {
 	// They are not fact records; the ingestion committer persists and recomposes
 	// them in the same transaction that writes the generation's facts.
 	ValueFlowSummaries []ValueFlowSummarySnapshot `json:"value_flow_summaries,omitempty"`
+	// ValueFlowSources carries parser-emitted param-level source entry points.
+	// They are not fact records; the ingestion committer persists them in the
+	// same transaction that writes the generation's facts.
+	ValueFlowSources []ValueFlowSourceSnapshot `json:"value_flow_sources,omitempty"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved
@@ -151,6 +155,16 @@ type InterprocTaintEvidenceSnapshot struct {
 type ValueFlowSummarySnapshot struct {
 	FunctionID summary.FunctionID `json:"function_id"`
 	Effects    summary.Effects    `json:"effects"`
+	Language   string             `json:"language,omitempty"`
+}
+
+// ValueFlowSourceSnapshot is one parser-emitted param-level source entry point
+// ready for durable reducer fixpoint input loading.
+type ValueFlowSourceSnapshot struct {
+	FunctionID summary.FunctionID `json:"function_id"`
+	ParamIndex int                `json:"param_index"`
+	Kind       string             `json:"kind"`
+	Label      string             `json:"label,omitempty"`
 	Language   string             `json:"language,omitempty"`
 }
 

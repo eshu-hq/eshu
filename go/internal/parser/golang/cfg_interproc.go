@@ -20,7 +20,11 @@ import (
 // is why they are emitted for every function regardless of whether this file
 // produced any finding. Both returned slices are deterministic (summaries sorted
 // by function id, findings by the solver).
-func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, importPath string) (findings, summaries []map[string]any) {
+func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, importPath string) (
+	findings []map[string]any,
+	summaries []map[string]any,
+	sourceRows []map[string]any,
+) {
 	localFuncs := goLocalFunctionIDs(root, source, repositoryID, importPath)
 	effectsByID := map[summary.FunctionID]summary.Effects{}
 	var sources []interproc.Source
@@ -48,10 +52,15 @@ func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, im
 			summaries = append(summaries, dataflowemit.DataflowSummaryRow("go", id, effects))
 		}
 		dataflowemit.SortSummaryRows(summaries)
+		sourceRows = make([]map[string]any, 0, len(sources))
+		for _, source := range sources {
+			sourceRows = append(sourceRows, dataflowemit.DataflowSourceRow("go", source))
+		}
+		dataflowemit.SortSourceRows(sourceRows)
 	}
 
 	if len(sources) == 0 {
-		return nil, summaries
+		return nil, summaries, sourceRows
 	}
 	program := valueflow.BuildProgram(effectsByID, sources, nil)
 	result := interproc.SolvePartitioned(program, interproc.DefaultLimits())
@@ -60,5 +69,5 @@ func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, im
 	for _, finding := range result.Findings {
 		findings = append(findings, dataflowemit.InterprocFindingRow("go", finding))
 	}
-	return findings, summaries
+	return findings, summaries, sourceRows
 }

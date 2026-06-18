@@ -92,6 +92,11 @@ var bootstrapDefinitions = []Definition{
 		Path: "schema/data-plane/postgres/028_function_summaries.sql",
 		SQL:  functionSummarySchemaSQL,
 	},
+	{
+		Name: "function_sources",
+		Path: "schema/data-plane/postgres/029_function_sources.sql",
+		SQL:  functionSourceSchemaSQL,
+	},
 }
 
 const scopeSchemaSQL = `

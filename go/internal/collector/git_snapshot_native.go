@@ -255,6 +255,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	snapshot.TaintEvidence = buildTaintEvidence(repoPath, parsedFiles, materialization.Entities)
 	snapshot.InterprocTaintEvidence = buildInterprocTaintEvidence(repoPath, parsedFiles, materialization.Entities)
 	snapshot.ValueFlowSummaries = buildValueFlowSummaries(parsedFiles)
+	snapshot.ValueFlowSources = buildValueFlowSources(parsedFiles)
 	snapshot.FileData = parsedFiles
 	snapshot.ContentFileMetas = materializationRecordsToMetas(materialization.Records)
 	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, documentationFiles, commitSHA)

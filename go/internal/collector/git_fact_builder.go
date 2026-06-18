@@ -102,6 +102,7 @@ func buildStreamingGenerationWithContext(
 		FactCount:          factCount,
 		DiscoveryAdvisory:  snapshot.DiscoveryAdvisory,
 		ValueFlowSummaries: append([]ValueFlowSummarySnapshot(nil), snapshot.ValueFlowSummaries...),
+		ValueFlowSources:   append([]ValueFlowSourceSnapshot(nil), snapshot.ValueFlowSources...),
 	}
 }
 

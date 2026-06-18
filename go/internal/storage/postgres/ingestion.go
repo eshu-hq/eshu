@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -70,7 +71,7 @@ func (s IngestionStore) CommitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, nil)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, nil, nil)
 }
 
 // CommitScopeGenerationWithFunctionSummaries persists one scope generation and
@@ -82,8 +83,9 @@ func (s IngestionStore) CommitScopeGenerationWithFunctionSummaries(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 	summaries []collector.ValueFlowSummarySnapshot,
+	sources []collector.ValueFlowSourceSnapshot,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, summaries)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, summaries, sources)
 }
 
 // CommitClaimedScopeGenerationWithFunctionSummaries persists one claimed
@@ -96,12 +98,13 @@ func (s IngestionStore) CommitClaimedScopeGenerationWithFunctionSummaries(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 	summaries []collector.ValueFlowSummarySnapshot,
+	sources []collector.ValueFlowSourceSnapshot,
 ) error {
 	if err := validateClaimMutation(mutation); err != nil {
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, summaries)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, summaries, sources)
 }
 
 // CommitClaimedScopeGeneration persists one claimed generation only while the
@@ -119,7 +122,7 @@ func (s IngestionStore) CommitClaimedScopeGeneration(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, nil)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, nil, nil)
 }
 
 func (s IngestionStore) commitScopeGeneration(
@@ -131,6 +134,7 @@ func (s IngestionStore) commitScopeGeneration(
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
 	summaries []collector.ValueFlowSummarySnapshot,
+	sources []collector.ValueFlowSourceSnapshot,
 ) error {
 	if err := validateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
@@ -296,6 +300,20 @@ func (s IngestionStore) commitScopeGeneration(
 			slog.Int("recomputed_count", stats.Recomputed),
 		)
 	}
+	if len(summaries) > 0 || len(sources) > 0 {
+		stageStart = time.Now()
+		if err := NewFunctionSourceStore(tx).ReplaceSourcesForFunctions(
+			ctx,
+			functionSourceIDsForSummaries(summaries),
+			sources,
+			s.now(),
+		); err != nil {
+			return fmt.Errorf("upsert function sources: %w", err)
+		}
+		s.logCommitStage(ctx, scopeValue, generation, "upsert_function_sources", stageStart,
+			slog.Int("source_count", len(sources)),
+		)
+	}
 
 	queue := ProjectorQueue{db: tx, Now: s.now}
 	stageStart = time.Now()
@@ -312,6 +330,14 @@ func (s IngestionStore) commitScopeGeneration(
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
 
 	return nil
+}
+
+func functionSourceIDsForSummaries(summaries []collector.ValueFlowSummarySnapshot) []summary.FunctionID {
+	out := make([]summary.FunctionID, 0, len(summaries))
+	for _, row := range summaries {
+		out = append(out, row.FunctionID)
+	}
+	return out
 }
 
 // logCommitStage emits one low-cardinality timing record for the durable

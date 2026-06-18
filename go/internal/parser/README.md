@@ -14,8 +14,9 @@ converge.
 `Options.EmitDataflow` is the opt-in value-flow gate. When enabled, capable
 adapters may emit `dataflow_functions`, `taint_findings`,
 `interproc_findings`, and, only with stable repository and package identity,
-`dataflow_summaries`. The gate is off by default; direct parser callers without
-durable identity must not emit summary rows with malformed FunctionIDs.
+`dataflow_summaries` and `dataflow_sources`. The gate is off by default; direct
+parser callers without durable identity must not emit summary or source rows
+with malformed FunctionIDs.
 
 ## Where this fits in the pipeline
 

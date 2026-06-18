@@ -36,6 +36,12 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 			Effects:    summary.Effects{ParamToReturn: []int{0}},
 			Language:   "go",
 		}},
+		[]collector.ValueFlowSourceSnapshot{{
+			FunctionID: functionID,
+			ParamIndex: 0,
+			Kind:       "http_request",
+			Language:   "go",
+		}},
 	)
 	if err != nil {
 		t.Fatalf("CommitScopeGenerationWithFunctionSummaries() error = %v, want nil", err)
@@ -43,7 +49,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 	if !db.tx.committed {
 		t.Fatal("transaction committed = false, want true")
 	}
-	summaryExec, enqueueExec := -1, -1
+	summaryExec, sourceExec, enqueueExec := -1, -1, -1
 	for i, exec := range db.tx.execs {
 		if strings.Contains(exec.query, "INSERT INTO function_summaries") {
 			summaryExec = i
@@ -54,6 +60,15 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 				t.Fatalf("summary version arg empty in %#v", exec.args)
 			}
 		}
+		if strings.Contains(exec.query, "INSERT INTO function_sources") {
+			sourceExec = i
+			if got, want := exec.args[0], string(functionID); got != want {
+				t.Fatalf("source function id arg = %v, want %v", got, want)
+			}
+			if got, want := exec.args[1], 0; got != want {
+				t.Fatalf("source param index arg = %v, want %v", got, want)
+			}
+		}
 		if strings.Contains(exec.query, "INSERT INTO fact_work_items") {
 			enqueueExec = i
 		}
@@ -61,11 +76,17 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 	if summaryExec < 0 {
 		t.Fatalf("function summary upsert missing from execs: %#v", db.tx.execs)
 	}
+	if sourceExec < 0 {
+		t.Fatalf("function source upsert missing from execs: %#v", db.tx.execs)
+	}
 	if enqueueExec < 0 {
 		t.Fatalf("projector enqueue missing from execs: %#v", db.tx.execs)
 	}
 	if summaryExec > enqueueExec {
 		t.Fatalf("summary exec index = %d, enqueue exec index = %d; want summaries before enqueue", summaryExec, enqueueExec)
+	}
+	if sourceExec > enqueueExec {
+		t.Fatalf("source exec index = %d, enqueue exec index = %d; want sources before enqueue", sourceExec, enqueueExec)
 	}
 }
 
@@ -91,6 +112,7 @@ func TestIngestionStoreCommitScopeGenerationRollsBackWhenFunctionSummaryPersiste
 			Effects:    summary.Effects{ParamToReturn: []int{0}},
 			Language:   "go",
 		}},
+		nil,
 	)
 	if err == nil {
 		t.Fatal("CommitScopeGenerationWithFunctionSummaries() error = nil, want summary persistence failure")
@@ -108,6 +130,54 @@ func TestIngestionStoreCommitScopeGenerationRollsBackWhenFunctionSummaryPersiste
 		if strings.Contains(exec.query, "INSERT INTO fact_work_items") {
 			t.Fatalf("projector enqueue happened after failed summaries: %#v", db.tx.execs)
 		}
+	}
+}
+
+func TestIngestionStoreCommitScopeGenerationRetractsRemovedFunctionSources(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 18, 6, 0, 0, 0, time.UTC)
+	db := &fakeTransactionalDB{tx: &fakeTx{}}
+	store := NewIngestionStore(db)
+	store.Now = func() time.Time { return now }
+	store.SkipRelationshipBackfill = true
+	scopeValue := repositoryScopeFixture()
+	generation := repositoryGenerationFixture(now)
+	envelopes := []facts.Envelope{repositoryEnvelopeFixture(scopeValue, generation)}
+	functionID := summary.NewFunctionID("repo-123", "example.com/repo/pkg", "", "Handle")
+
+	err := store.CommitScopeGenerationWithFunctionSummaries(
+		context.Background(),
+		scopeValue,
+		generation,
+		testFactChannel(envelopes),
+		[]collector.ValueFlowSummarySnapshot{{
+			FunctionID: functionID,
+			Effects:    summary.Effects{ParamToReturn: []int{0}},
+			Language:   "go",
+		}},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("CommitScopeGenerationWithFunctionSummaries() error = %v, want nil", err)
+	}
+	deleteExec, enqueueExec := -1, -1
+	for i, exec := range db.tx.execs {
+		if strings.Contains(exec.query, "DELETE FROM function_sources") {
+			deleteExec = i
+			if got, want := exec.args[0], string(functionID); got != want {
+				t.Fatalf("deleted source function id arg = %v, want %v", got, want)
+			}
+		}
+		if strings.Contains(exec.query, "INSERT INTO fact_work_items") {
+			enqueueExec = i
+		}
+	}
+	if deleteExec < 0 {
+		t.Fatalf("function source delete missing from execs: %#v", db.tx.execs)
+	}
+	if enqueueExec < 0 || deleteExec > enqueueExec {
+		t.Fatalf("source delete index = %d, enqueue index = %d; want delete before enqueue", deleteExec, enqueueExec)
 	}
 }
 

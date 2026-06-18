@@ -66,6 +66,13 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 				row.FunctionID, row.Language, summary.StructuralHash(row.Effects))
 		}
 	}
+	if len(snapshot.ValueFlowSources) > 0 {
+		writeFreshnessHashf(h, "value_flow_sources=%d\n", len(snapshot.ValueFlowSources))
+		for _, row := range snapshot.ValueFlowSources {
+			writeFreshnessHashf(h, "source:%s:%d:%s:%s:%s\n",
+				row.FunctionID, row.ParamIndex, row.Kind, row.Label, row.Language)
+		}
+	}
 
 	for _, candidate := range snapshot.TerraformStateCandidates {
 		writeFreshnessHashf(h, "tfstate_candidate:%s:%s:%d\n",

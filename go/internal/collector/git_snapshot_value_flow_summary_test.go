@@ -63,6 +63,49 @@ func TestBuildValueFlowSummariesDropsMalformedRows(t *testing.T) {
 	}
 }
 
+func TestBuildValueFlowSourcesMapsParserRows(t *testing.T) {
+	t.Parallel()
+
+	functionID := summary.NewFunctionID("repo-alpha", "example.com/repo-alpha/pkg", "", "Handle")
+	parsedFiles := []map[string]any{{
+		"dataflow_sources": []map[string]any{{
+			"function_id":  string(functionID),
+			"lang":         "go",
+			"param_index":  float64(0),
+			"source_kind":  "http_request",
+			"source_label": "request",
+		}},
+	}}
+
+	got := buildValueFlowSources(parsedFiles)
+	if len(got) != 1 {
+		t.Fatalf("source count = %d, want 1", len(got))
+	}
+	if got[0].FunctionID != functionID {
+		t.Fatalf("FunctionID = %q, want %q", got[0].FunctionID, functionID)
+	}
+	if got[0].ParamIndex != 0 || got[0].Kind != "http_request" || got[0].Label != "request" {
+		t.Fatalf("source row = %#v, want param 0 http_request request", got[0])
+	}
+}
+
+func TestBuildValueFlowSourcesDropsMalformedRows(t *testing.T) {
+	t.Parallel()
+
+	parsedFiles := []map[string]any{{
+		"dataflow_sources": []map[string]any{
+			{"function_id": "", "lang": "go", "param_index": float64(0), "source_kind": "http_request"},
+			{"function_id": "handler", "lang": "go", "param_index": float64(0), "source_kind": "http_request"},
+			{"function_id": string(summary.NewFunctionID("repo-alpha", "example.com/pkg", "", "Handle")), "lang": "go", "source_kind": "http_request"},
+			{"function_id": string(summary.NewFunctionID("repo-alpha", "example.com/pkg", "", "Handle")), "lang": "go", "param_index": float64(0)},
+		},
+	}}
+
+	if got := buildValueFlowSources(parsedFiles); len(got) != 0 {
+		t.Fatalf("source count = %d, want 0 for malformed rows", len(got))
+	}
+}
+
 func TestSnapshotFreshnessHintIncludesValueFlowSummaries(t *testing.T) {
 	t.Parallel()
 
@@ -88,6 +131,36 @@ func TestSnapshotFreshnessHintIncludesValueFlowSummaries(t *testing.T) {
 
 	if snapshotFreshnessHint(base) == snapshotFreshnessHint(changed) {
 		t.Fatal("freshness hints match, want summary structural changes to avoid commit-time skip")
+	}
+}
+
+func TestSnapshotFreshnessHintIncludesValueFlowSources(t *testing.T) {
+	t.Parallel()
+
+	functionID := summary.NewFunctionID("repo-alpha", "example.com/repo-alpha/pkg", "", "Handle")
+	base := RepositorySnapshot{
+		FileCount: 1,
+		ContentFileMetas: []ContentFileMeta{{
+			RelativePath: "handler.go",
+			Digest:       "digest-1",
+		}},
+		ValueFlowSources: []ValueFlowSourceSnapshot{{
+			FunctionID: functionID,
+			ParamIndex: 0,
+			Kind:       "http_request",
+			Language:   "go",
+		}},
+	}
+	changed := base
+	changed.ValueFlowSources = []ValueFlowSourceSnapshot{{
+		FunctionID: functionID,
+		ParamIndex: 1,
+		Kind:       "http_request",
+		Language:   "go",
+	}}
+
+	if snapshotFreshnessHint(base) == snapshotFreshnessHint(changed) {
+		t.Fatal("freshness hints match, want source entry-point changes to avoid commit-time skip")
 	}
 }
 
@@ -130,6 +203,48 @@ func TestBuildStreamingGenerationDoesNotCountValueFlowSummariesAsFacts(t *testin
 	}
 	drainFactStream(withSummaries.Facts)
 	drainFactStream(withoutSummaries.Facts)
+}
+
+func TestBuildStreamingGenerationDoesNotCountValueFlowSourcesAsFacts(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 18, 6, 0, 0, 0, time.UTC)
+	repo := repositoryidentity.Metadata{ID: "repo-alpha", Name: "repo-alpha"}
+	withoutSources := buildStreamingGenerationWithContext(
+		context.Background(),
+		t.TempDir(),
+		repo,
+		"run-1",
+		observedAt,
+		RepositorySnapshot{FileCount: 1},
+		false,
+	)
+	withSources := buildStreamingGenerationWithContext(
+		context.Background(),
+		t.TempDir(),
+		repo,
+		"run-1",
+		observedAt,
+		RepositorySnapshot{
+			FileCount: 1,
+			ValueFlowSources: []ValueFlowSourceSnapshot{{
+				FunctionID: summary.NewFunctionID("repo-alpha", "example.com/repo-alpha/pkg", "", "Handle"),
+				ParamIndex: 0,
+				Kind:       "http_request",
+				Language:   "go",
+			}},
+		},
+		false,
+	)
+
+	if withSources.FactCount != withoutSources.FactCount {
+		t.Fatalf("FactCount with sources = %d, want %d", withSources.FactCount, withoutSources.FactCount)
+	}
+	if len(withSources.ValueFlowSources) != 1 {
+		t.Fatalf("ValueFlowSources count = %d, want 1", len(withSources.ValueFlowSources))
+	}
+	drainFactStream(withSources.Facts)
+	drainFactStream(withoutSources.Facts)
 }
 
 func equalSummaryEffects(a, b summary.Effects) bool {

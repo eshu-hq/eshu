@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -66,6 +67,17 @@ WHERE intent.scope_id = $1
   AND intent.payload->>'caller_entity_id' <> ''
   AND intent.payload->>'callee_entity_id' <> ''
 ORDER BY caller_entity_id ASC, callee_entity_id ASC, relationship_type ASC
+`
+
+const listValueFlowProgramSourcesSQL = `
+SELECT function_id,
+       param_index,
+       source_kind,
+       source_label,
+       lang
+FROM function_sources
+WHERE repo = $1
+ORDER BY function_id ASC, param_index ASC, source_kind ASC, source_label ASC
 `
 
 // ValueFlowProgramInputStore loads bounded runtime inputs for value-flow Program
@@ -157,6 +169,10 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramInput(
 	if err != nil {
 		return reducer.ValueFlowProgramInput{}, err
 	}
+	sources, err := s.loadValueFlowProgramSources(ctx, repos)
+	if err != nil {
+		return reducer.ValueFlowProgramInput{}, err
+	}
 	return reducer.ValueFlowProgramInput{
 		ScopeID:                candidate.scopeID,
 		GenerationID:           candidate.generationID,
@@ -164,6 +180,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramInput(
 		SourceRunID:            candidate.sourceRunID,
 		Summaries:              summaries,
 		CallEdges:              edges,
+		Sources:                sources,
 		SkippedMissingIdentity: skipped,
 	}, nil
 }
@@ -229,6 +246,50 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramSummaries(
 		}
 		for _, fn := range snap.Functions {
 			out[fn.ID] = fn.Effects
+		}
+	}
+	return out, nil
+}
+
+func (s ValueFlowProgramInputStore) loadValueFlowProgramSources(
+	ctx context.Context,
+	repos map[string]struct{},
+) ([]interproc.Source, error) {
+	var out []interproc.Source
+	for _, repo := range sortedValueFlowProgramRepos(repos) {
+		rows, err := s.db.QueryContext(ctx, listValueFlowProgramSourcesSQL, repo)
+		if err != nil {
+			return nil, fmt.Errorf("query value-flow program sources: %w", err)
+		}
+		for rows.Next() {
+			var functionID string
+			var paramIndex int
+			var kind string
+			var label string
+			var lang string
+			if err := rows.Scan(&functionID, &paramIndex, &kind, &label, &lang); err != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("scan value-flow program source: %w", err)
+			}
+			if strings.TrimSpace(functionID) == "" || strings.TrimSpace(kind) == "" || paramIndex < 0 {
+				continue
+			}
+			out = append(out, interproc.Source{
+				Port: interproc.Port{
+					Func: interproc.FunctionID(functionID),
+					Slot: interproc.Slot{Kind: interproc.SlotParam, Index: paramIndex},
+				},
+				Kind:  strings.TrimSpace(kind),
+				Label: strings.TrimSpace(label),
+			})
+			_ = lang
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("query value-flow program sources: %w", err)
+		}
+		if err := rows.Close(); err != nil {
+			return nil, fmt.Errorf("close value-flow program sources: %w", err)
 		}
 	}
 	return out, nil
