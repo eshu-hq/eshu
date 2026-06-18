@@ -130,9 +130,9 @@ JavaScript-family adapters also preserve import alias metadata, CommonJS
 `resolved_source` metadata through the JavaScript helper subpackage even when
 the config uses comments or trailing commas, returned and constructor-argument
 function-value references, static relative re-export metadata, constructor
-calls, and local receiver type metadata from
-`const value = new Type()` so reducer call materialization can resolve bounded
-cross-file calls.
+calls, and local receiver type metadata from `const value = new Type()` and
+typed parameters so reducer call materialization can resolve bounded cross-file
+calls.
 JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
 the wrapper and dbt SQL lineage callback, while the child package owns
 ordered-object metadata, dependency manifests, npm/Composer/NuGet/SwiftPM
@@ -238,12 +238,13 @@ evidence so RubyGems manifest and lockfile rows use the same parser payload
 path as `.rb` source files.
 
 **SCIP path**: the collector snapshotter enables SCIP by default for the
-configured SCIP-capable language list, detects the dominant language via
-`DetectSCIPProjectLanguage`, verifies the matching `scip-*` binary is on
-`PATH`, runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index
-via `SCIPIndexParser.Parse`. The SCIP result supplements the native
-tree-sitter parse for supported languages (Go, Python, TypeScript, JavaScript,
-Rust, Java, C, C++).
+configured SCIP-capable language list, groups selected files by language and
+package/workspace root, verifies the matching `scip-*` binary is on `PATH`,
+runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index via
+`SCIPIndexParser.Parse`. The SCIP result supplements the native tree-sitter
+parse for supported languages (Go, Python, TypeScript, JavaScript, Rust, Java,
+C, C++), and files omitted from an index still complete through the native
+parser path.
 
 ## Exported surface
 

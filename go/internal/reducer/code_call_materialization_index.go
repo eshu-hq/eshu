@@ -33,6 +33,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	goMethodReturnTypeCandidates := make(map[string]map[string]map[string]struct{})
 	rustTraitMethodCandidates := make(map[string]map[string]map[string]struct{})
 	symbolCandidates := make(map[string]map[string]codeCallSymbolResolution)
+	typeScriptCandidates := newTypeScriptIndexCandidates()
 	pythonClassBaseCandidates := make(map[string]map[string]map[string]pythonClassBaseCandidate)
 
 	for _, env := range envelopes {
@@ -118,6 +119,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 					}
 				}
 				addGoMethodReturnTypeCandidate(goMethodReturnTypeCandidates, repositoryID, item)
+				typeScriptCandidates.addFunction(repositoryID, item, entityID)
 				addRustTraitMethodCandidate(rustTraitMethodCandidates, repositoryID, item, entityID)
 			}
 		}
@@ -169,6 +171,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				if bucket == "classes" {
 					addPythonClassBaseCandidate(pythonClassBaseCandidates, repositoryID, item)
 				}
+				typeScriptCandidates.addType(bucket, repositoryID, item)
 			}
 		}
 	}
@@ -238,18 +241,13 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	}
 	index.rustTraitMethodsByRepo = uniqueRustTraitMethodCandidates(rustTraitMethodCandidates)
 	index.pythonClassBasesByRepo = uniquePythonClassBasesByRepo(pythonClassBaseCandidates)
+	index.typeScriptInterfaceMethodsByRepo = typeScriptCandidates.uniqueMethods()
 	index.entityByStableSymbolKey = uniqueCodeCallSymbolCandidates(symbolCandidates)
 	index.goExportByImportPath = buildGoCrossRepoExportIndex(envelopes)
 	return index
 }
 
-func addCodeCallRepoDirNameCandidate(
-	candidates map[string]map[string]map[string]map[string]struct{},
-	repositoryID string,
-	filePath string,
-	name string,
-	entityID string,
-) {
+func addCodeCallRepoDirNameCandidate(candidates map[string]map[string]map[string]map[string]struct{}, repositoryID, filePath, name, entityID string) {
 	dir := codeCallDirectoryKey(filePath)
 	if repositoryID == "" || name == "" || entityID == "" {
 		return

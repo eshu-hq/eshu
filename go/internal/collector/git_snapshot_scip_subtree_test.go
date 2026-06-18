@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -69,6 +70,121 @@ func TestSCIPSnapshotRunsEachSupportedLanguageSubtree(t *testing.T) {
 	}
 	if got, _ := parsedFiles[1]["function_calls_scip"].([]map[string]any); len(got) != 1 {
 		t.Fatalf("go function_calls_scip = %#v, want SCIP supplement", parsedFiles[1]["function_calls_scip"])
+	}
+}
+
+func TestSCIPSnapshotRunsSameLanguagePackageSubtrees(t *testing.T) {
+	repoRoot := t.TempDir()
+	apiRoot := filepath.Join(repoRoot, "services", "api")
+	jobsRoot := filepath.Join(repoRoot, "services", "jobs")
+	apiPath := filepath.Join(apiRoot, "app.py")
+	jobsPath := filepath.Join(jobsRoot, "worker.py")
+	writeCollectorTestFile(t, filepath.Join(apiRoot, "pyproject.toml"), "[project]\nname = \"api\"\n")
+	writeCollectorTestFile(t, filepath.Join(jobsRoot, "pyproject.toml"), "[project]\nname = \"jobs\"\n")
+	writeCollectorTestFile(t, apiPath, "def main():\n    return helper()\n")
+	writeCollectorTestFile(t, jobsPath, "def run():\n    return task()\n")
+
+	indexer := &languagePathSCIPIndexer{available: map[string]bool{"python": true}}
+	config := LoadSnapshotSCIPConfig(func(string) string {
+		return ""
+	})
+	config.Indexer = indexer
+	config.Parser = languagePathSCIPParser{
+		resultsByRoot: map[string]parser.SCIPParseResult{
+			apiRoot: {
+				Files: map[string]map[string]any{
+					apiPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python api/main()."}}},
+				},
+			},
+			jobsRoot: {
+				Files: map[string]map[string]any{
+					jobsPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python jobs/run()."}}},
+				},
+			},
+		},
+	}
+	snapshotter := NativeRepositorySnapshotter{SCIP: config}
+
+	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
+		context.Background(),
+		repoRoot,
+		discovery.RepoFileSet{Files: []string{apiPath, jobsPath}},
+		defaultCollectorTestEngine(t),
+		"commit-sha",
+		false,
+		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
+	)
+	if err != nil {
+		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
+	}
+
+	if got, want := indexer.runLanguages, []string{"python", "python"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("SCIP run languages = %#v, want %#v", got, want)
+	}
+	if got, want := indexer.runRoots, []string{apiRoot, jobsRoot}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("SCIP run roots = %#v, want %#v", got, want)
+	}
+	if got, _ := parsedFiles[0]["function_calls_scip"].([]map[string]any); len(got) != 1 {
+		t.Fatalf("api function_calls_scip = %#v, want SCIP supplement", parsedFiles[0]["function_calls_scip"])
+	}
+	if got, _ := parsedFiles[1]["function_calls_scip"].([]map[string]any); len(got) != 1 {
+		t.Fatalf("jobs function_calls_scip = %#v, want SCIP supplement", parsedFiles[1]["function_calls_scip"])
+	}
+}
+
+func TestSCIPSnapshotSameLanguageSubtreeFailurePreservesOtherRoots(t *testing.T) {
+	repoRoot := t.TempDir()
+	apiRoot := filepath.Join(repoRoot, "services", "api")
+	jobsRoot := filepath.Join(repoRoot, "services", "jobs")
+	apiPath := filepath.Join(apiRoot, "app.py")
+	jobsPath := filepath.Join(jobsRoot, "worker.py")
+	writeCollectorTestFile(t, filepath.Join(apiRoot, "pyproject.toml"), "[project]\nname = \"api\"\n")
+	writeCollectorTestFile(t, filepath.Join(jobsRoot, "pyproject.toml"), "[project]\nname = \"jobs\"\n")
+	writeCollectorTestFile(t, apiPath, "def main():\n    return helper()\n")
+	writeCollectorTestFile(t, jobsPath, "def run():\n    return task()\n")
+
+	indexer := &languagePathSCIPIndexer{
+		available:       map[string]bool{"python": true},
+		runErrorsByRoot: map[string]error{apiRoot: errors.New("indexer failed")},
+	}
+	config := LoadSnapshotSCIPConfig(func(string) string {
+		return ""
+	})
+	config.Indexer = indexer
+	config.Parser = languagePathSCIPParser{
+		resultsByRoot: map[string]parser.SCIPParseResult{
+			jobsRoot: {
+				Files: map[string]map[string]any{
+					jobsPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python jobs/run()."}}},
+				},
+			},
+		},
+	}
+	snapshotter := NativeRepositorySnapshotter{SCIP: config}
+
+	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
+		context.Background(),
+		repoRoot,
+		discovery.RepoFileSet{Files: []string{apiPath, jobsPath}},
+		defaultCollectorTestEngine(t),
+		"commit-sha",
+		false,
+		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
+	)
+	if err != nil {
+		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
+	}
+
+	if got, want := indexer.runRoots, []string{apiRoot, jobsRoot}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("SCIP run roots = %#v, want %#v", got, want)
+	}
+	if _, ok := parsedFiles[0]["function_calls_scip"]; ok {
+		t.Fatalf("api function_calls_scip = %#v, want native fallback only", parsedFiles[0]["function_calls_scip"])
+	}
+	if got, _ := parsedFiles[1]["function_calls_scip"].([]map[string]any); len(got) != 1 {
+		t.Fatalf("jobs function_calls_scip = %#v, want SCIP supplement", parsedFiles[1]["function_calls_scip"])
 	}
 }
 
@@ -154,6 +270,7 @@ type languagePathSCIPIndexer struct {
 	availabilityChecks []string
 	runLanguages       []string
 	runRoots           []string
+	runErrorsByRoot    map[string]error
 }
 
 func (i *languagePathSCIPIndexer) IsAvailable(language string) bool {
@@ -164,14 +281,21 @@ func (i *languagePathSCIPIndexer) IsAvailable(language string) bool {
 func (i *languagePathSCIPIndexer) Run(_ context.Context, projectPath string, language string, outputDir string) (string, error) {
 	i.runLanguages = append(i.runLanguages, language)
 	i.runRoots = append(i.runRoots, projectPath)
+	if err := i.runErrorsByRoot[projectPath]; err != nil {
+		return "", err
+	}
 	return filepath.Join(outputDir, language+".scip"), nil
 }
 
 type languagePathSCIPParser struct {
-	results map[string]parser.SCIPParseResult
+	results       map[string]parser.SCIPParseResult
+	resultsByRoot map[string]parser.SCIPParseResult
 }
 
-func (p languagePathSCIPParser) Parse(indexPath string, _ string) (parser.SCIPParseResult, error) {
+func (p languagePathSCIPParser) Parse(indexPath string, projectRoot string) (parser.SCIPParseResult, error) {
+	if result, ok := p.resultsByRoot[projectRoot]; ok {
+		return result, nil
+	}
 	language := filepath.Base(indexPath)
 	language = language[:len(language)-len(filepath.Ext(language))]
 	return p.results[language], nil

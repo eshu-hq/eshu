@@ -147,6 +147,7 @@ func (w *barrierCodeReachabilityRowWriter) ReplaceRepositoryRows(
 	repositoryID string,
 	_ []CodeReachabilityRow,
 	watermark time.Time,
+	_ bool,
 ) error {
 	key := scopeID + "\x00" + generationID + "\x00" + repositoryID
 	w.mu.Lock()

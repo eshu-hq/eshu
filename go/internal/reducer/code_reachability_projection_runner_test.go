@@ -107,6 +107,7 @@ type fakeCodeReachabilityRowWriter struct {
 	generationID string
 	repositoryID string
 	watermark    time.Time
+	truncated    bool
 	rows         []CodeReachabilityRow
 }
 
@@ -117,11 +118,13 @@ func (f *fakeCodeReachabilityRowWriter) ReplaceRepositoryRows(
 	repositoryID string,
 	rows []CodeReachabilityRow,
 	watermark time.Time,
+	truncated bool,
 ) error {
 	f.scopeID = scopeID
 	f.generationID = generationID
 	f.repositoryID = repositoryID
 	f.watermark = watermark
+	f.truncated = truncated
 	f.rows = append(f.rows, rows...)
 	return nil
 }
