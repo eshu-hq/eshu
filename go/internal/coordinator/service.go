@@ -93,6 +93,12 @@ type TempoPlanner interface {
 	PlanTempoWork(context.Context, TempoPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// GCPPlanner plans GCP Cloud Asset Inventory workflow rows from collector
+// instance configuration.
+type GCPPlanner interface {
+	PlanGCPWork(context.Context, GCPPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // GrafanaPlanner plans Grafana observability workflow rows from collector
 // instance configuration.
 type GrafanaPlanner interface {
@@ -148,6 +154,7 @@ type Service struct {
 	JiraPlanner                       JiraPlanner
 	PrometheusMimirPlanner            PrometheusMimirPlanner
 	TempoPlanner                      TempoPlanner
+	GCPPlanner                        GCPPlanner
 	GrafanaPlanner                    GrafanaPlanner
 	LokiPlanner                       LokiPlanner
 	VaultLivePlanner                  VaultLivePlanner
@@ -385,6 +392,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleTempoWork(ctx, observedAt, schedulingInstances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleGCPWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

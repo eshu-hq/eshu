@@ -282,9 +282,10 @@ already prove the allowed scheduling path.
   fields and the claim-capable flag may remain set while disabled; enabled
   instances are still fully target-validated before reconciliation and
   planning.
-- GCP collector instances are accepted only as non-operational registrations.
-  Leave `claims_enabled=false`; enabling claims fails startup until a GCP
-  workflow planner exists.
+- GCP collector instances may enable claims only when their configuration sets
+  `live_collection_enabled=true` and contains at least one enabled bounded
+  scope. The planner creates workflow rows only; it does not resolve
+  credentials, call Google Cloud APIs, or change Helm defaults.
 - Derived package and vulnerability target planning is visible in
   `workflow_runs.requested_scope_set` using bounded `target_class`,
   `source_family`, and reason-code aggregates. `planning_mode=single_pass`
@@ -309,17 +310,19 @@ handles, source payloads, or token values. When wired to
 aggregate governance audit counts by event type, decision, scope class, actor
 class, and reason code.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'TestLoadConfig(RejectsGCPClaimEnabledUntilSchedulerSupportLands|AcceptsClaimDisabledGCPRegistration)' -count=1`
-proves coordinator startup rejects enabled claimable GCP instances with an
-explicit scheduler-support error while accepting claim-disabled GCP registration
-beside an operational collector. The guard runs before any workflow row,
-provider call, graph write, read-model write, queue claim, worker-count change,
-or ServiceMonitor change.
+No-Regression Evidence: `go test ./internal/coordinator -run 'TestLoadConfig.*GCP|TestGCPWorkPlanner|TestServiceRunActiveMode(SchedulesGCPWork|SkipsGCPWorkWhenPriorTargetIsOpen|FiltersDeniedGCPTenantScopes)' -count=1`
+proves claim-enabled GCP instances still fail startup without explicit live
+mode, explicit live-mode instances plan one durable work item per enabled
+bounded scope, disabled scopes are skipped, credential handles stay out of
+`requested_scope_set`, and active reconciliation uses the shared open-target
+admission and tenant-authorization guards. This is planning only: no provider
+call, graph write, read-model write, worker-count change, Helm exposure, or
+ServiceMonitor change is introduced.
 
-No-Observability-Change: this is startup config validation only. Operators see
-the validation error before the coordinator starts; existing collector-instance
-config review, reconcile metrics, workflow rows, and `/api/v0/index-status`
-remain unchanged because a claim-enabled GCP runtime creates no durable work.
+No-Observability-Change: GCP planning reuses coordinator reconcile metrics,
+workflow rows, claim status rows, duplicate-skip logs, and `/api/v0/index-status`.
+Provider request, page, warning, and fact-emission telemetry remains gated to
+the GCP collector runtime and the explicit live Cloud Asset Inventory transport.
 
 ## Semantic-provider execution worker
 

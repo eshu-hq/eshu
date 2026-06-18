@@ -84,9 +84,9 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		RequiredPhases:     nil,
 	},
 	scope.CollectorGCP: {
-		// GCP is a known collector contract for fixture-backed cloud facts, but
-		// workflow scheduler support is not wired yet. Coordinator validation
-		// keeps claim-enabled instances from becoming operational.
+		// GCP is a known collector contract for fixture-backed and gated live
+		// cloud facts. It has no graph-readiness phase requirements until the
+		// cloud-resource graph writer and anchor publisher are implemented.
 		CollectorKind:      scope.CollectorGCP,
 		CanonicalKeyspaces: nil,
 		RequiredPhases:     nil,

@@ -201,11 +201,7 @@ func (c Config) Validate() error {
 func validateCollectorClaimSchedulingSupported(instance workflow.DesiredCollectorInstance) error {
 	switch instance.CollectorKind {
 	case scope.CollectorGCP:
-		return fmt.Errorf(
-			"collector instance %q uses collector_kind %q with claims_enabled=true, but GCP workflow scheduler support is not wired yet",
-			instance.InstanceID,
-			instance.CollectorKind,
-		)
+		return validateGCPClaimSchedulerConfiguration(instance)
 	default:
 		return nil
 	}

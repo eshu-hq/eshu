@@ -165,6 +165,7 @@ func run(parent context.Context) error {
 		JiraPlanner:                       coordinator.JiraWorkPlanner{},
 		PrometheusMimirPlanner:            coordinator.PrometheusMimirWorkPlanner{},
 		TempoPlanner:                      coordinator.TempoWorkPlanner{},
+		GCPPlanner:                        coordinator.GCPWorkPlanner{},
 		GrafanaPlanner:                    coordinator.GrafanaWorkPlanner{},
 		LokiPlanner:                       coordinator.LokiWorkPlanner{},
 		VaultLivePlanner:                  coordinator.VaultLiveWorkPlanner{},

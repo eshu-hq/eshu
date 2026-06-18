@@ -152,7 +152,7 @@ func TestLoadConfigRejectsActiveModeWithoutClaimEnabledCollectors(t *testing.T) 
 	}
 }
 
-func TestLoadConfigRejectsGCPClaimEnabledUntilSchedulerSupportLands(t *testing.T) {
+func TestLoadConfigRejectsGCPClaimEnabledWithoutExplicitLiveMode(t *testing.T) {
 	t.Parallel()
 
 	_, err := LoadConfig(func(key string) string {
@@ -162,17 +162,62 @@ func TestLoadConfigRejectsGCPClaimEnabledUntilSchedulerSupportLands(t *testing.T
 		case "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED":
 			return "true"
 		case "ESHU_COLLECTOR_INSTANCES_JSON":
-			return `[{"instance_id":"collector-gcp-primary","collector_kind":"gcp","mode":"continuous","enabled":true,"claims_enabled":true}]`
+			return `[{
+				"instance_id":"collector-gcp-primary",
+				"collector_kind":"gcp",
+				"mode":"continuous",
+				"enabled":true,
+				"claims_enabled":true,
+				"configuration":{"scopes":[{"enabled":true,"parent_scope_kind":"project","parent_scope_id":"project-alpha","credential_ref":"credential-handle"}]}
+			}]`
 		default:
 			return ""
 		}
 	})
 	if err == nil {
-		t.Fatal("LoadConfig() error = nil, want GCP scheduler support rejection")
+		t.Fatal("LoadConfig() error = nil, want GCP live-mode opt-in rejection")
 	}
 	if got := err.Error(); !strings.Contains(got, `collector_kind "gcp"`) ||
-		!strings.Contains(got, "scheduler support is not wired yet") {
-		t.Fatalf("LoadConfig() error = %q, want explicit GCP scheduler support message", got)
+		!strings.Contains(got, "live_collection_enabled=true") {
+		t.Fatalf("LoadConfig() error = %q, want explicit GCP live-mode message", got)
+	}
+}
+
+func TestLoadConfigAcceptsGCPClaimEnabledWithExplicitLiveMode(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE":
+			return "active"
+		case "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED":
+			return "true"
+		case "ESHU_COLLECTOR_INSTANCES_JSON":
+			return `[{
+				"instance_id":"collector-gcp-primary",
+				"collector_kind":"gcp",
+				"mode":"continuous",
+				"enabled":true,
+				"claims_enabled":true,
+				"configuration":{
+					"live_collection_enabled":true,
+					"scopes":[{
+						"enabled":true,
+						"parent_scope_kind":"project",
+						"parent_scope_id":"project-alpha",
+						"asset_type_family":"compute",
+						"content_family":"resource",
+						"location_bucket":"global",
+						"credential_ref":"credential-handle"
+					}]
+				}
+			}]`
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
 	}
 }
 
