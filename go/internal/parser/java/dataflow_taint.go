@@ -141,7 +141,7 @@ func javaImportSet(node *tree_sitter.Node, source []byte) map[string]struct{} {
 		if current.Kind() != "import_declaration" {
 			return
 		}
-		name := strings.TrimSpace(javaImportName(current, source))
+		name := javaImportSourcePath(current, source)
 		if name != "" {
 			imports[name] = struct{}{}
 		}
@@ -149,9 +149,22 @@ func javaImportSet(node *tree_sitter.Node, source []byte) map[string]struct{} {
 	return imports
 }
 
+func javaImportSourcePath(node *tree_sitter.Node, source []byte) string {
+	raw := strings.TrimSpace(nodeText(node, source))
+	importPath := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(raw, "import"), ";"))
+	importPath = strings.TrimSpace(strings.TrimPrefix(importPath, "static "))
+	return importPath
+}
+
 func javaHasImport(imports map[string]struct{}, qualified string) bool {
-	_, ok := imports[qualified]
-	return ok
+	if _, ok := imports[qualified]; ok {
+		return true
+	}
+	if lastDot := strings.LastIndex(qualified, "."); lastDot > 0 {
+		_, ok := imports[qualified[:lastDot]+".*"]
+		return ok
+	}
+	return false
 }
 
 func javaClassifySinkCall(

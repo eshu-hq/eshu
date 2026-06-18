@@ -76,11 +76,12 @@ for continued values.
 
 Java taint support is intentionally conservative. A source requires a real
 Spring import for `@RequestParam`, `@PathVariable`, or `@RequestBody`; a
-same-named local annotation is ignored. A SQL sink requires receiver type
-evidence from the existing Java call-inference index plus the matching
-`java.sql`, `jakarta.persistence`, or `javax.persistence` import or qualified
-type for JDBC `Statement` / `PreparedStatement` or JPA `EntityManager`;
-same-named local helper classes do not match.
+same-named local annotation is ignored. Exact and package-wildcard Spring
+imports are accepted. A SQL sink requires receiver type evidence from the
+existing Java call-inference index plus the matching exact, package-wildcard,
+or qualified type evidence for `java.sql`, `jakarta.persistence`, or
+`javax.persistence` JDBC/JPA receivers; same-named local helper classes do not
+match.
 
 Java value-flow summaries use stable `RepositoryID`, Java package name, class
 context, and method signature identities so overloaded methods do not collide.
@@ -90,11 +91,14 @@ resolved only when the class has a single same-name/same-arity candidate; this
 keeps unknown overloads as false negatives instead of inventing false edges.
 Durable `dataflow_summaries` and `dataflow_sources` rows are omitted without
 both repository and package identity, matching the stable identity contract.
+The Java CFG lowerer lowers try, catch, and finally bodies enough for sink lines
+inside those blocks to map back to CFG statements.
 
 No-Regression Evidence: `go test ./internal/parser -run
-'TestJava(DataflowOffIsByteIdentical|TaintSpringRequestParamToJDBCSink|TaintIgnoresSameNamedLocalAnnotationAndSink|InterprocSummariesAndSources)'
+'TestJava(DataflowOffIsByteIdentical|TaintSpringRequestParamToJDBCSink|TaintWildcardImportsToJDBCSink|TaintTryBlockJDBCSink|TaintIgnoresSameNamedLocalAnnotationAndSink|InterprocSummariesAndSources)'
 -count=1` failed before Java emitted value-flow buckets, before sink matching
-required import evidence, and before Java emitted summaries/sources/interproc
+required import evidence, before wildcard import evidence was accepted, before
+try bodies were lowered, and before Java emitted summaries/sources/interproc
 rows, then passed after the Java lowering and catalog were added. The gate-off
 test proves default Java payloads remain byte-identical except for the opt-in
 value-flow buckets when the gate is enabled.

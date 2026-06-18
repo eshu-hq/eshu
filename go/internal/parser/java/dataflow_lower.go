@@ -47,6 +47,8 @@ func (l *javaLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Bl
 		return l.lowerIf(node, cur)
 	case "for_statement", "enhanced_for_statement", "while_statement":
 		return l.lowerLoop(node, cur)
+	case "try_statement", "try_with_resources_statement":
+		return l.lowerTry(node, cur)
 	case "return_statement", "throw_statement":
 		l.addUses(cur, node)
 		return cur, false
@@ -149,6 +151,81 @@ func (l *javaLowerer) lowerLoop(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Bl
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
 	return exit, true
+}
+
+func (l *javaLowerer) lowerTry(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
+	if resources := node.ChildByFieldName("resources"); resources != nil {
+		l.addUses(cur, resources)
+	}
+	merge := l.builder.AddBlock()
+	reachable := false
+
+	if body := javaTryBody(node); body != nil {
+		tryBlock := l.builder.AddBlock()
+		l.builder.AddEdge(cur, tryBlock)
+		end, ok := l.lowerStmt(body, tryBlock)
+		if ok {
+			l.builder.AddEdge(end, merge)
+			reachable = true
+		}
+	}
+
+	walkDirectNamed(node, func(child *tree_sitter.Node) {
+		if child.Kind() != "catch_clause" {
+			return
+		}
+		catchBlock := l.builder.AddBlock()
+		l.builder.AddEdge(cur, catchBlock)
+		if param := child.ChildByFieldName("parameter"); param != nil {
+			if name := javaParameterName(param, l.source); name != "" {
+				l.addStmt(catchBlock, nodeLine(param), []string{name}, nil)
+			}
+		}
+		if body := javaTryBody(child); body != nil {
+			end, ok := l.lowerStmt(body, catchBlock)
+			if ok {
+				l.builder.AddEdge(end, merge)
+				reachable = true
+			}
+		}
+	})
+
+	if !reachable {
+		return merge, false
+	}
+	if finallyBody := javaFinallyBody(node); finallyBody != nil {
+		finallyBlock := l.builder.AddBlock()
+		l.builder.AddEdge(merge, finallyBlock)
+		return l.lowerStmt(finallyBody, finallyBlock)
+	}
+	return merge, true
+}
+
+func javaTryBody(node *tree_sitter.Node) *tree_sitter.Node {
+	if node == nil {
+		return nil
+	}
+	if body := node.ChildByFieldName("body"); body != nil {
+		return body
+	}
+	var body *tree_sitter.Node
+	walkDirectNamed(node, func(child *tree_sitter.Node) {
+		if body == nil && child.Kind() == "block" {
+			body = child
+		}
+	})
+	return body
+}
+
+func javaFinallyBody(node *tree_sitter.Node) *tree_sitter.Node {
+	var body *tree_sitter.Node
+	walkDirectNamed(node, func(child *tree_sitter.Node) {
+		if child.Kind() != "finally_clause" {
+			return
+		}
+		body = javaTryBody(child)
+	})
+	return body
 }
 
 func (l *javaLowerer) addStmt(block cfg.BlockID, line int, defs, uses []string) {

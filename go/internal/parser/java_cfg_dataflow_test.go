@@ -77,6 +77,54 @@ func TestJavaTaintSpringRequestParamToJDBCSink(t *testing.T) {
 	}
 }
 
+func TestJavaTaintWildcardImportsToJDBCSink(t *testing.T) {
+	src := `import java.sql.*;
+import org.springframework.web.bind.annotation.*;
+
+class SearchController {
+  String search(@RequestParam String q, Statement stmt) throws Exception {
+    String sql = "select " + q;
+    stmt.executeQuery(sql);
+    return "ok";
+  }
+}
+`
+	got := parseJavaDataflowFixture(t, src)
+	rows, ok := got["taint_findings"].([]map[string]any)
+	if !ok {
+		t.Fatalf("taint_findings bucket missing or wrong type: %T", got["taint_findings"])
+	}
+	if !hasJavaTaintFinding(rows, "search", "SearchController", "TAINTED", "sql") {
+		t.Fatalf("expected a TAINTED sql finding with wildcard imports, got %+v", rows)
+	}
+}
+
+func TestJavaTaintTryBlockJDBCSink(t *testing.T) {
+	src := `import java.sql.Statement;
+import org.springframework.web.bind.annotation.RequestParam;
+
+class SearchController {
+  String search(@RequestParam String q, Statement stmt) throws Exception {
+    String sql = "select " + q;
+    try {
+      stmt.executeQuery(sql);
+    } catch (Exception ex) {
+      throw ex;
+    }
+    return "ok";
+  }
+}
+`
+	got := parseJavaDataflowFixture(t, src)
+	rows, ok := got["taint_findings"].([]map[string]any)
+	if !ok {
+		t.Fatalf("taint_findings bucket missing or wrong type: %T", got["taint_findings"])
+	}
+	if !hasJavaTaintFinding(rows, "search", "SearchController", "TAINTED", "sql") {
+		t.Fatalf("expected a TAINTED sql finding inside try body, got %+v", rows)
+	}
+}
+
 func TestJavaTaintIgnoresSameNamedLocalAnnotationAndSink(t *testing.T) {
 	src := `import org.springframework.web.bind.annotation.RequestParam;
 
