@@ -56,7 +56,8 @@ func TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testi
 	if len(targets) != 1 {
 		t.Fatalf("targets len = %d, want 1: %+v", len(targets), targets)
 	}
-	if targets[0].FunctionID != fn || targets[0].Kind != string(exposure.SinkIAMPrivilegedAction) {
+	if targets[0].FunctionID != fn || targets[0].Kind != string(exposure.SinkIAMPrivilegedAction) ||
+		targets[0].Label != "IAM effective privileged action" {
 		t.Fatalf("target = %+v, want correlated IAM cloud-action target", targets[0])
 	}
 	if len(graph.seenCyphers) != 1 {

@@ -456,7 +456,7 @@ so existing fact-based `code_interproc_evidence` inputs stay isolated.
 No-Regression Evidence: #2969 adds one Function.uid-bounded graph read that
 joins INVOKES_CLOUD_ACTION to CAN_PERFORM cloud permission targets only after a
 single exact RUNS_IN workload fan-out. `go test ./internal/reducer -run
-'TestGraphValueFlowCloudSinkTargetLoaderLoadsCorrelatedCloudActionPermissions'
+'TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions'
 -count=1` failed before the loader returned permission-backed sinks, then
 passed with ambiguous workload fan-out still empty.
 
