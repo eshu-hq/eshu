@@ -61,6 +61,12 @@ type CollectedGeneration struct {
 	// DiscoveryAdvisory is optional focused-run tuning evidence for the
 	// collected repository. It is not persisted with facts.
 	DiscoveryAdvisory *DiscoveryAdvisoryReport
+	// ValueFlowSummaries carries parser-emitted function summary effects. They are
+	// not fact records and must be persisted by summary-aware durable committers.
+	ValueFlowSummaries []ValueFlowSummarySnapshot
+	// ValueFlowSummariesObserved marks a summary-aware generation, including a
+	// complete observation that produced zero summary rows.
+	ValueFlowSummariesObserved bool
 }
 
 // FactsFromSlice creates a CollectedGeneration with facts from a pre-built
@@ -102,6 +108,31 @@ type StreamErrorCommitter interface {
 	) error
 }
 
+// FunctionSummaryCommitter persists parser-emitted value-flow summaries inside
+// the same durable boundary as the generation facts.
+type FunctionSummaryCommitter interface {
+	CommitScopeGenerationWithFunctionSummaries(
+		context.Context,
+		scope.IngestionScope,
+		scope.ScopeGeneration,
+		<-chan facts.Envelope,
+		[]ValueFlowSummarySnapshot,
+	) error
+}
+
+// StreamErrorFunctionSummaryCommitter persists summaries and can fail the same
+// transaction if the fact producer reports an asynchronous stream error.
+type StreamErrorFunctionSummaryCommitter interface {
+	CommitScopeGenerationWithStreamErrorAndFunctionSummaries(
+		context.Context,
+		scope.IngestionScope,
+		scope.ScopeGeneration,
+		<-chan facts.Envelope,
+		func() error,
+		[]ValueFlowSummarySnapshot,
+	) error
+}
+
 // ClaimedCommitter can verify workflow claim fencing in the same durable
 // transaction that persists facts for a claimed collector item.
 type ClaimedCommitter interface {
@@ -125,6 +156,33 @@ type StreamErrorClaimedCommitter interface {
 		scope.ScopeGeneration,
 		<-chan facts.Envelope,
 		func() error,
+	) error
+}
+
+// FunctionSummaryClaimedCommitter persists claimed generation summaries inside
+// the same fenced transaction as the generation facts.
+type FunctionSummaryClaimedCommitter interface {
+	CommitClaimedScopeGenerationWithFunctionSummaries(
+		context.Context,
+		workflow.ClaimMutation,
+		scope.IngestionScope,
+		scope.ScopeGeneration,
+		<-chan facts.Envelope,
+		[]ValueFlowSummarySnapshot,
+	) error
+}
+
+// StreamErrorFunctionSummaryClaimedCommitter persists claimed summaries and can
+// fail the same transaction if the fact producer reports a stream error.
+type StreamErrorFunctionSummaryClaimedCommitter interface {
+	CommitClaimedScopeGenerationWithStreamErrorAndFunctionSummaries(
+		context.Context,
+		workflow.ClaimMutation,
+		scope.IngestionScope,
+		scope.ScopeGeneration,
+		<-chan facts.Envelope,
+		func() error,
+		[]ValueFlowSummarySnapshot,
 	) error
 }
 
@@ -300,7 +358,42 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 	factCount := int64(collected.FactCount)
 
 	var err error
-	if collected.FactStreamErr != nil {
+	if collected.ValueFlowSummariesObserved || len(collected.ValueFlowSummaries) > 0 {
+		if collected.FactStreamErr != nil {
+			streamCommitter, ok := s.Committer.(StreamErrorFunctionSummaryCommitter)
+			if !ok {
+				err = errors.New("collector committer must support fact stream errors with value-flow summaries")
+				if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
+					err = errors.Join(err, streamErr)
+				}
+			} else {
+				err = streamCommitter.CommitScopeGenerationWithStreamErrorAndFunctionSummaries(
+					ctx,
+					collected.Scope,
+					collected.Generation,
+					collected.Facts,
+					collected.FactStreamErr,
+					collected.ValueFlowSummaries,
+				)
+			}
+		} else {
+			committer, ok := s.Committer.(FunctionSummaryCommitter)
+			if !ok {
+				err = errors.New("collector committer must support value-flow summaries")
+				if streamErr := cleanupCollectedFactStream(collected); streamErr != nil {
+					err = errors.Join(err, streamErr)
+				}
+			} else {
+				err = committer.CommitScopeGenerationWithFunctionSummaries(
+					ctx,
+					collected.Scope,
+					collected.Generation,
+					collected.Facts,
+					collected.ValueFlowSummaries,
+				)
+			}
+		}
+	} else if collected.FactStreamErr != nil {
 		streamCommitter, ok := s.Committer.(StreamErrorCommitter)
 		if !ok {
 			err = errors.New("collector committer must support fact stream errors")
@@ -352,6 +445,9 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 			logAttrs = append(logAttrs, a)
 		}
 		logAttrs = append(logAttrs, slog.Int("fact_count", collected.FactCount))
+		if len(collected.ValueFlowSummaries) > 0 {
+			logAttrs = append(logAttrs, slog.Int("value_flow_summary_count", len(collected.ValueFlowSummaries)))
+		}
 		logAttrs = append(logAttrs, slog.Float64("duration_seconds", duration))
 
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseEmission))

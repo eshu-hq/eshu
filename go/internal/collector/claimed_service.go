@@ -51,9 +51,9 @@ const FailureClassAttemptBudgetExhausted = "attempt_budget_exhausted"
 // FailureClassAttemptBudgetExhausted. MaxAttempts == 0 preserves the legacy
 // unbounded behavior for callers that have not yet wired a budget.
 type ClaimedService struct {
-	ControlStore        ClaimControlStore
-	ClaimDispatcher     ClaimDispatcher
-	Source              ClaimedSource
+	ControlStore    ClaimControlStore
+	ClaimDispatcher ClaimDispatcher
+	Source          ClaimedSource
 	// SourceResolver resolves the claim-aware source adapter for one dispatched
 	// claim target (collector kind and instance id). When a ClaimDispatcher
 	// selects targets across multiple collector families and instances, the
@@ -280,56 +280,6 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
 	return s.completeGenerationDeadLetterReplay(ctx, collected)
-}
-
-func (s ClaimedService) commitCollected(
-	ctx context.Context,
-	mutation workflow.ClaimMutation,
-	collected CollectedGeneration,
-) error {
-	if s.Tracer != nil && s.CollectorKind == scope.CollectorTerraformState {
-		var span trace.Span
-		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateFactEmitBatch)
-		defer span.End()
-	}
-	if committer, ok := s.Committer.(ClaimedCommitter); ok {
-		if collected.FactStreamErr != nil {
-			streamCommitter, ok := s.Committer.(StreamErrorClaimedCommitter)
-			if !ok {
-				if err := cleanupCollectedFactStream(collected); err != nil {
-					return err
-				}
-				return errors.New("claim-aware collector committer must support fact stream errors")
-			}
-			return streamCommitter.CommitClaimedScopeGenerationWithStreamError(
-				ctx,
-				mutation,
-				collected.Scope,
-				collected.Generation,
-				collected.Facts,
-				collected.FactStreamErr,
-			)
-		}
-		return committer.CommitClaimedScopeGeneration(
-			ctx,
-			mutation,
-			collected.Scope,
-			collected.Generation,
-			collected.Facts,
-		)
-	}
-	return errors.New("claim-aware collector committer must implement ClaimedCommitter")
-}
-
-func cleanupCollectedFactStream(collected CollectedGeneration) error {
-	drainFactStream(collected.Facts)
-	if collected.FactStreamErr == nil {
-		return nil
-	}
-	if err := collected.FactStreamErr(); err != nil {
-		return fmt.Errorf("read fact stream: %w", err)
-	}
-	return nil
 }
 
 func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflow.ClaimMutation, item workflow.WorkItem) <-chan error {

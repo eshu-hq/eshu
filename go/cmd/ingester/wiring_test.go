@@ -113,6 +113,29 @@ func TestBuildIngesterCollectorServiceUsesNativeSnapshotter(t *testing.T) {
 	}
 }
 
+func TestBuildIngesterCollectorServiceWiresEmitDataflowGate(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildIngesterCollectorService(
+		postgres.SQLDB{},
+		mapGetenv(map[string]string{"ESHU_EMIT_DATAFLOW": "true"}),
+		func() (string, error) { return t.TempDir(), nil },
+		func() []string { return []string{"PATH=/usr/bin"} },
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
+	}
+
+	source := service.Source.(*collector.GitSource)
+	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
+	if !snapshotter.EmitDataflow {
+		t.Fatal("EmitDataflow = false, want true when ESHU_EMIT_DATAFLOW=true")
+	}
+}
+
 func TestBuildIngesterCollectorServiceUsesWebhookSelectorWithoutScheduledFallback(t *testing.T) {
 	t.Parallel()
 

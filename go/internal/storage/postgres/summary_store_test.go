@@ -109,6 +109,27 @@ func TestFunctionSummaryStoreRejectsBlankRepoComponent(t *testing.T) {
 	}
 }
 
+func TestFunctionSummaryStoreRejectsBlankPackageComponent(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewFunctionSummaryStore(db)
+	err := store.UpsertSnapshot(context.Background(), summary.Snapshot{Functions: []summary.SnapshotFunction{{
+		ID:      summary.NewFunctionID("repo-alpha", "", "", "handler"),
+		Effects: summary.Effects{ParamToReturn: []int{0}},
+		Version: "version-1",
+	}}}, time.Date(2026, 6, 18, 4, 0, 0, 0, time.UTC))
+	if err == nil {
+		t.Fatal("UpsertSnapshot() error = nil, want blank package rejection")
+	}
+	if !strings.Contains(err.Error(), "package is required") {
+		t.Fatalf("UpsertSnapshot() error = %v, want package requirement", err)
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("exec count = %d, want 0", len(db.execs))
+	}
+}
+
 func TestFunctionSummaryStoreRejectsMalformedFunctionID(t *testing.T) {
 	t.Parallel()
 
@@ -168,6 +189,58 @@ func TestFunctionSummaryStoreEmptySnapshotDoesNotWrite(t *testing.T) {
 	}
 }
 
+func TestFunctionSummaryStoreReplaceRepoSnapshotDeletesStaleRows(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewFunctionSummaryStore(db)
+	now := time.Date(2026, 6, 18, 7, 0, 0, 0, time.UTC)
+	snap := summary.Snapshot{Functions: []summary.SnapshotFunction{{
+		ID:      summary.NewFunctionID("repo-alpha", "pkg", "", "handler"),
+		Effects: summary.Effects{ParamToReturn: []int{0}},
+		Version: "version-1",
+	}}}
+
+	if err := store.ReplaceRepoSnapshot(context.Background(), "repo-alpha", snap, now); err != nil {
+		t.Fatalf("ReplaceRepoSnapshot() error = %v", err)
+	}
+	if got, want := len(db.execs), 2; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	deleteExec := db.execs[1]
+	for _, want := range []string{
+		"DELETE FROM function_summaries",
+		"WHERE repo = $1",
+		"updated_at <= $2",
+		"NOT (function_id = ANY($3))",
+	} {
+		if !strings.Contains(deleteExec.query, want) {
+			t.Fatalf("delete query missing %q:\n%s", want, deleteExec.query)
+		}
+	}
+	if got, want := deleteExec.args[0], "repo-alpha"; got != want {
+		t.Fatalf("delete repo arg = %v, want %v", got, want)
+	}
+}
+
+func TestFunctionSummaryStoreReplaceRepoSnapshotDeletesAllWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewFunctionSummaryStore(db)
+	now := time.Date(2026, 6, 18, 7, 0, 0, 0, time.UTC)
+
+	if err := store.ReplaceRepoSnapshot(context.Background(), "repo-alpha", summary.Snapshot{}, now); err != nil {
+		t.Fatalf("ReplaceRepoSnapshot() error = %v", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.execs[0].query, "DELETE FROM function_summaries") {
+		t.Fatalf("empty replace did not delete stale rows:\n%s", db.execs[0].query)
+	}
+}
+
 func TestFunctionSummaryStoreLoadsSnapshotIntoStableStore(t *testing.T) {
 	t.Parallel()
 
@@ -202,6 +275,39 @@ func TestFunctionSummaryStoreLoadsSnapshotIntoStableStore(t *testing.T) {
 	}
 	if !strings.Contains(db.queries[0].query, "ORDER BY function_id ASC") {
 		t.Fatalf("load query missing deterministic ordering:\n%s", db.queries[0].query)
+	}
+}
+
+func TestFunctionSummaryStoreLoadsRepoSnapshot(t *testing.T) {
+	t.Parallel()
+
+	snap := summarySnapshotFixture()
+	rows := make([][]any, 0, len(snap.Functions))
+	for _, fn := range snap.Functions {
+		effects, err := json.Marshal(fn.Effects)
+		if err != nil {
+			t.Fatalf("marshal effects: %v", err)
+		}
+		rows = append(rows, []any{string(fn.ID), effects, fn.Version})
+	}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: rows}}}
+	store := NewFunctionSummaryStore(db)
+
+	loaded, err := store.LoadRepoSnapshot(context.Background(), "repo-alpha")
+	if err != nil {
+		t.Fatalf("LoadRepoSnapshot() error = %v", err)
+	}
+	if got := len(loaded.Functions); got != len(snap.Functions) {
+		t.Fatalf("loaded function count = %d, want %d", got, len(snap.Functions))
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.queries[0].query, "WHERE repo = $1") {
+		t.Fatalf("repo load query missing repo filter:\n%s", db.queries[0].query)
+	}
+	if got, want := db.queries[0].args[0], "repo-alpha"; got != want {
+		t.Fatalf("repo load arg = %v, want %v", got, want)
 	}
 }
 

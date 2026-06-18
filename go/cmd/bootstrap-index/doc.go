@@ -9,8 +9,9 @@
 // exits before opening stores. Otherwise the binary opens Postgres, verifies
 // the graph schema marker, initializes graph schema only for a marker-missing
 // direct bootstrap path, opens the graph backend, runs collector and projector
-// goroutines concurrently against a Postgres FOR UPDATE SKIP LOCKED queue, and
-// then drives the post-collection passes that the facts-first ordering
+// goroutines concurrently against a Postgres FOR UPDATE SKIP LOCKED queue,
+// wires ESHU_EMIT_DATAFLOW into the native snapshotter for opt-in value-flow
+// summary persistence, and then drives the post-collection passes that the facts-first ordering
 // documented in CLAUDE.md requires.
 // Projector work superseded by a newer same-scope generation exits that worker
 // item without acking stale graph state. Its canonical writer configuration

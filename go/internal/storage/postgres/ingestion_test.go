@@ -685,6 +685,9 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (Row
 	if strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'") {
 		return &queueFakeRows{}, nil
 	}
+	if strings.Contains(query, "FROM function_summaries") {
+		return &queueFakeRows{}, nil
+	}
 	return nil, errors.New("unexpected query in transaction")
 }
 

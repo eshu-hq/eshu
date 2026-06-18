@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -69,7 +70,38 @@ func (s IngestionStore) CommitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 ) error {
-	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil)
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, nil)
+}
+
+// CommitScopeGenerationWithFunctionSummaries persists one scope generation and
+// recomposes parser-emitted value-flow summaries in the same transaction before
+// projector work is enqueued.
+func (s IngestionStore) CommitScopeGenerationWithFunctionSummaries(
+	ctx context.Context,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+	summaries []collector.ValueFlowSummarySnapshot,
+) error {
+	return s.commitScopeGeneration(ctx, workflow.ClaimMutation{}, false, scopeValue, generation, factStream, nil, summaries)
+}
+
+// CommitClaimedScopeGenerationWithFunctionSummaries persists one claimed
+// generation and its parser-emitted value-flow summaries while the workflow
+// claim fence is current.
+func (s IngestionStore) CommitClaimedScopeGenerationWithFunctionSummaries(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+	summaries []collector.ValueFlowSummarySnapshot,
+) error {
+	if err := validateClaimMutation(mutation); err != nil {
+		drainFacts(factStream)
+		return err
+	}
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, summaries)
 }
 
 // CommitClaimedScopeGeneration persists one claimed generation only while the
@@ -87,7 +119,7 @@ func (s IngestionStore) CommitClaimedScopeGeneration(
 		drainFacts(factStream)
 		return err
 	}
-	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil)
+	return s.commitScopeGeneration(ctx, mutation, true, scopeValue, generation, factStream, nil, nil)
 }
 
 func (s IngestionStore) commitScopeGeneration(
@@ -98,6 +130,7 @@ func (s IngestionStore) commitScopeGeneration(
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 	factStreamErr func() error,
+	summaries []collector.ValueFlowSummarySnapshot,
 ) error {
 	if err := validateGenerationInput(scopeValue, generation); err != nil {
 		return errors.Join(err, drainFactsAndCheckStream(factStream, factStreamErr))
@@ -250,6 +283,18 @@ func (s IngestionStore) commitScopeGeneration(
 			return err
 		}
 		s.logCommitStage(ctx, scopeValue, generation, "relationship_backfill", stageStart)
+	}
+	if summaries != nil {
+		stageStart = time.Now()
+		stats, err := upsertFunctionSummariesForGeneration(ctx, tx, scopeValue, generation, summaries, s.now())
+		if err != nil {
+			return err
+		}
+		s.logCommitStage(ctx, scopeValue, generation, "upsert_function_summaries", stageStart,
+			slog.Int("summary_count", len(summaries)),
+			slog.Int("repo_count", stats.Repos),
+			slog.Int("recomputed_count", stats.Recomputed),
+		)
 	}
 
 	queue := ProjectorQueue{db: tx, Now: s.now}

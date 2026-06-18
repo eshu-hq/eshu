@@ -96,11 +96,13 @@ func buildStreamingGenerationWithContext(
 	)
 
 	return CollectedGeneration{
-		Scope:             scopeValue,
-		Generation:        generation,
-		Facts:             factCh,
-		FactCount:         factCount,
-		DiscoveryAdvisory: snapshot.DiscoveryAdvisory,
+		Scope:                      scopeValue,
+		Generation:                 generation,
+		Facts:                      factCh,
+		FactCount:                  factCount,
+		DiscoveryAdvisory:          snapshot.DiscoveryAdvisory,
+		ValueFlowSummaries:         append([]ValueFlowSummarySnapshot(nil), snapshot.ValueFlowSummaries...),
+		ValueFlowSummariesObserved: snapshot.ValueFlowSummariesObserved,
 	}
 }
 

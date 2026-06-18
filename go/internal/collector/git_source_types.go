@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -98,6 +99,14 @@ type RepositorySnapshot struct {
 	// parser emitted interproc_findings (gated by ESHU_EMIT_DATAFLOW); byte-
 	// identical when off. Evidence, never canonical truth.
 	InterprocTaintEvidence []InterprocTaintEvidenceSnapshot `json:"interproc_taint_evidence,omitempty"`
+	// ValueFlowSummaries carries parser-emitted durable function summary effects.
+	// They are not fact records; the ingestion committer persists and recomposes
+	// them in the same transaction that writes the generation's facts.
+	ValueFlowSummaries []ValueFlowSummarySnapshot `json:"value_flow_summaries,omitempty"`
+	// ValueFlowSummariesObserved marks that the value-flow summary lane ran for
+	// this snapshot, even when no functions emitted summary rows. Storage uses
+	// this to distinguish gate-off snapshots from complete empty observations.
+	ValueFlowSummariesObserved bool `json:"value_flow_summaries_observed,omitempty"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved
@@ -138,6 +147,15 @@ type InterprocTaintEvidenceSnapshot struct {
 	SourceKind         string  `json:"source_kind"`
 	Confidence         float64 `json:"confidence"`
 	Cloud              bool    `json:"cloud,omitempty"`
+}
+
+// ValueFlowSummarySnapshot is one parser-emitted structural value-flow summary
+// ready for durable summary.Store recomposition. FunctionID carries repository
+// and package identity, so rows are stable across generations and commits.
+type ValueFlowSummarySnapshot struct {
+	FunctionID summary.FunctionID `json:"function_id"`
+	Effects    summary.Effects    `json:"effects"`
+	Language   string             `json:"language,omitempty"`
 }
 
 // ContentFileSnapshot captures one portable file-content record.

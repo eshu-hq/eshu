@@ -60,7 +60,11 @@ flowchart TD
 ### Phase 1 — collection and first-pass reduction
 
 `drainCollector` runs `collector.GitSource.Next` in a loop, committing each
-scope generation via `committer.CommitScopeGeneration`. The committer is wired
+scope generation via `committer.CommitScopeGeneration`. When
+`ESHU_EMIT_DATAFLOW` is true, the bootstrap snapshotter uses the same parser
+value-flow gate as the ingester and collector-git runtimes, so
+`dataflow_summaries` are committed as non-fact function summary metadata before
+projector enqueue. The committer is wired
 with `SkipRelationshipBackfill=true`, which suppresses the per-commit backfill
 path that would be quadratically expensive across all repos.
 
@@ -172,6 +176,8 @@ dependency injection:
   session executor for canonical writes
 - `bootstrapNornicDBPhaseGroupExecutor` (`nornicdb_wiring.go:109`) — NornicDB
   phase-group chunking `Executor` wrapper
+- `buildBootstrapCollector` (`wiring.go`) — wires `ESHU_EMIT_DATAFLOW` into the
+  native snapshotter for opt-in value-flow summary persistence
 
 Function-type aliases (`openBootstrapDBFn`, `applyBootstrapFn`,
 `ensureBootstrapGraphSchemaFn`, `openGraphFn`, `buildCollectorFn`,

@@ -24,6 +24,23 @@ Postgres instrumentation wrapper (`postgres.exec`, `postgres.query`, and
 caller wraps the `ExecQueryer`; reducer/runtime activation remains tracked by
 #2823 follow-up work.
 
+## Function Summary Snapshot Replacement (#2941)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'Test(FunctionSummary|IngestionStoreCommitScopeGeneration.*FunctionSummar|IngestionStoreCommitScopeGenerationPrunesEmptyObservedFunctionSummaries)'
+-count=1` proves full summary-aware repository generations replace the durable
+repo summary snapshot, delete older rows absent from the complete observation,
+and still prune when the observed summary set is empty. Delta generations keep
+the prior repo-scoped reload and patch semantics, so unchanged functions are not
+deleted just because a delta did not reparse them.
+
+No-Observability-Change: the change adds no table, route, worker, queue domain,
+graph write, metric name, metric label, or runtime default. Operators still see
+the same `upsert_function_summaries` ingestion commit-stage log with
+`summary_count`, `repo_count`, and `recomputed_count`, plus existing
+instrumented Postgres query/exec spans and
+`eshu_dp_postgres_query_duration_seconds` for wrapped stores.
+
 ## Admission Decision Evidence Bounds (#2694)
 
 No-Regression Evidence: `go test ./internal/query -run 'TestAdmissionDecision|TestOpenAPISpecIncludesAdmissionDecisions' -count=1` and `go test ./internal/storage/postgres -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1` prove `admission_decisions.list` now rejects unsupported lightweight profiles before store reads, requests `limit+1` evidence rows per decision, reports `evidence_limit` and `evidence_truncated`, and pushes the per-decision evidence cap into the Postgres read query. The list page limit remains capped at 200 decisions and the embedded evidence preview is capped at 20 rows per decision.
