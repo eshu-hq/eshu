@@ -730,6 +730,28 @@ repoSync:
 	}
 }
 
+func TestHelmRejectsHorizontalIngesterUntilShardDrainBarrierExists(t *testing.T) {
+	t.Parallel()
+
+	output := renderHelmChartFailure(t, "--set", "ingester.replicas=2")
+	if !strings.Contains(output, "ingester.replicas greater than 1 is not supported") {
+		t.Fatalf("helm template error = %q, want horizontal ingester guard", output)
+	}
+}
+
+func TestHelmIngesterDoesNotRenderShardPodIndexEnv(t *testing.T) {
+	t.Parallel()
+
+	manifests := renderHelmChart(t)
+	ingester := requireHelmManifest(t, manifests, "StatefulSet", "eshu")
+	env := helmEnvByName(requireHelmContainer(t, ingester, "ingester"))
+	for _, name := range []string{"ESHU_REPO_SHARD_COUNT", "ESHU_REPO_SHARD_INDEX"} {
+		if _, ok := env[name]; ok {
+			t.Fatalf("%s rendered in Helm ingester env; shard env must stay unset until horizontal ingesters are guarded", name)
+		}
+	}
+}
+
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 

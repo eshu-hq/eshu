@@ -38,12 +38,10 @@ workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
 ## Scale And Tune
 
 - Scale API and MCP for request traffic.
-- Scale ingester replicas only with repository sharding enabled. Helm sets
-  `ESHU_REPO_SHARD_COUNT` from `ingester.replicas` and
-  `ESHU_REPO_SHARD_INDEX` from the StatefulSet pod index label, so each replica
-  syncs a deterministic subset before clone, parse, and fact emission. Use
-  StatefulSet-managed workspace claims for this shape; the chart rejects a
-  shared existing claim with multiple ingester replicas.
+- Keep Helm ingester replicas at `1`. Repository sharding is available through
+  `ESHU_REPO_SHARD_COUNT` / `ESHU_REPO_SHARD_INDEX` for controlled runtimes, but
+  charted horizontal ingesters remain disabled until global deferred maintenance
+  has a fleet-wide drain barrier.
 - Scale resolution-engine workers or lanes only when reducer telemetry shows
   queue age rising while workers are busy.
 - Fix Postgres contention before adding reducer replicas.

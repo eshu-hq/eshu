@@ -438,12 +438,12 @@ claim/execute spans for the value-flow evidence domains.
   per-repo snapshotting. Raising this value beyond CPU capacity increases
   context-switching without reducing wall time.
 - `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX` deterministically filter
-  discovered repository IDs before filesystem or Git sync begins. This lets
-  Kubernetes ingester replicas split repo-level parse work across their own
-  StatefulSet workspaces instead of cloning and parsing the same repositories.
-  The shard hash uses only the normalized repository ID; shard IDs are not part
-  of repository, file, entity, or fact identity. The existing `sourceRunID`
-  still reflects the selected batch for that replica.
+  discovered repository IDs before filesystem or Git sync begins. The shard hash
+  uses only the normalized repository ID; shard IDs are not part of repository,
+  file, entity, or fact identity. The existing `sourceRunID` still reflects the
+  selected batch for that process. Helm does not enable horizontal ingester
+  replicas until the global deferred-maintenance hook has a fleet-wide drain
+  barrier.
 - `ESHU_LARGE_REPO_FILE_THRESHOLD` (default `1000`) classifies repositories for
   the large-repo semaphore. The classification is a fast pre-scan that exits
   early once the threshold is exceeded.

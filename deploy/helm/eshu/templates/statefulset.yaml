@@ -94,12 +94,6 @@ spec:
               value: {{ .Values.repoSync.source.cloneDepth | quote }}
             - name: ESHU_REPO_LIMIT
               value: {{ .Values.repoSync.source.limit | quote }}
-            - name: ESHU_REPO_SHARD_COUNT
-              value: {{ .Values.ingester.replicas | quote }}
-            - name: ESHU_REPO_SHARD_INDEX
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
             - name: NEO4J_URI
               value: {{ .Values.neo4j.uri | quote }}
             {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}

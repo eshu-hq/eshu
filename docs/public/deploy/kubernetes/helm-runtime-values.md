@@ -175,11 +175,10 @@ Defaults: enabled, bootstrap on, `initialDelaySeconds=0`,
 `repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. SSH auth is
 valid only for `explicit` or `filesystem` source modes, not `githubOrg`.
 
-When `ingester.replicas` is greater than one, the chart injects
-`ESHU_REPO_SHARD_COUNT` with the replica count and
-`ESHU_REPO_SHARD_INDEX` from the StatefulSet pod index label through the
-downward API. Repository sharding happens before filesystem or Git sync, so
-replicas split clone, parse, and fact-emission work instead of duplicating the
-same repository batch. Use StatefulSet-managed workspace claims for this shape;
-the chart rejects `ingester.replicas > 1` with a single
-`ingester.persistence.existingClaim`.
+Keep `ingester.replicas=1` in Helm. The collector supports env-driven
+repository sharding for controlled runtimes, but the chart does not enable
+horizontal ingesters until the fleet has a durable barrier for the global
+deferred relationship-maintenance hook that runs after a collector batch drains.
+The chart rejects `ingester.replicas > 1` instead of relying on pod-index labels
+or allowing one shard to reopen downstream reducer work while another shard is
+still committing source facts.
