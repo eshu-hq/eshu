@@ -7,11 +7,23 @@ import (
 )
 
 func (e *Engine) parseElixir(path string, isDependency bool, options Options) (map[string]any, error) {
-	return elixirparser.Parse(path, isDependency, sharedOptions(options))
+	parser, err := e.runtime.Parser("elixir")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return elixirparser.ParseWithParser(path, isDependency, sharedOptions(options), parser)
 }
 
 func (e *Engine) preScanElixir(path string) ([]string, error) {
-	names, err := elixirparser.PreScan(path)
+	parser, err := e.runtime.Parser("elixir")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	names, err := elixirparser.PreScanWithParser(path, parser)
 	if err != nil {
 		return nil, err
 	}
