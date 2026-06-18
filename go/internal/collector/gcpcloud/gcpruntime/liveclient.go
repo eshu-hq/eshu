@@ -71,9 +71,15 @@ type LiveClient struct {
 	// Endpoint overrides the Cloud Asset Inventory endpoint for tests or
 	// controlled deployments. Empty uses CloudAssetInventoryEndpoint.
 	Endpoint string
+	// ResourceManagerEndpoint overrides the Cloud Resource Manager endpoint for
+	// direct/effective tag API calls. Empty uses CloudResourceManagerEndpoint.
+	ResourceManagerEndpoint string
 	// PageSize bounds assets.list page size. Values <=0 use DefaultLivePageSize;
 	// values above MaxLivePageSize are capped.
 	PageSize int
+	// TagPageSize bounds Resource Manager tag page size. Values <=0 use
+	// DefaultLiveTagPageSize; values above MaxLiveTagPageSize are capped.
+	TagPageSize int
 	// RequestTimeout bounds one HTTP attempt. Values <=0 use
 	// DefaultLiveRequestTimeout.
 	RequestTimeout time.Duration

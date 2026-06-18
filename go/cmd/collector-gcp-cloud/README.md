@@ -73,13 +73,13 @@ Claimed-live mode uses:
 The collector instance `configuration` must include
 `live_collection_enabled=true` and at least one enabled scope. Scope entries
 carry parent scope kind/id, asset/content/location shard fields, and
-`credential_ref`; generation id and fencing token come from the workflow work
-item, not static config.
+`credential_ref`. Set `direct_tags_enabled` or `effective_tags_enabled` per
+scope to opt into Resource Manager tag evidence. Generation id and fencing token
+come from the workflow work item, not static config.
 
 ## Deferred
 
-Helm values, ServiceMonitor wiring, direct/effective tag APIs, and sanitized
-live smoke proof are deferred slices. Shared GCP reducer admission and API/MCP
+Sanitized live smoke proof is deferred. Shared GCP reducer admission and API/MCP
 readback are implemented outside this command. See
 `docs/public/reference/gcp-cloud-collector-contract.md`.
 

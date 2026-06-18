@@ -11,6 +11,7 @@
 // configuration with live_collection_enabled=true, constructs the explicit
 // gcpruntime.LiveClient, and runs through collector.ClaimedService so claim
 // acquire, heartbeat, fenced commit, retry, and terminal failure behavior follow
-// the shared workflow lifecycle. Helm values, ServiceMonitor wiring, and live
-// smoke proof remain gated per docs/public/reference/gcp-cloud-collector-contract.md.
+// the shared workflow lifecycle. Per-scope direct_tags_enabled and
+// effective_tags_enabled flags opt into Resource Manager tag evidence. Live
+// smoke proof remains gated per docs/public/reference/gcp-cloud-collector-contract.md.
 package main

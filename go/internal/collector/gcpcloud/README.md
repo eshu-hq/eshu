@@ -23,8 +23,9 @@ graph rows, persist raw provider payloads, or admit reducer truth. The
 fixture-backed and claimed-live `cmd/collector-gcp-cloud` runtime wiring, shared
 cloud inventory admission/readback, tag evidence admission, image identity
 admission, relationship resolution, and IAM trust facts live in sibling packages
-and reducers. Claim-enabled scheduler activation, direct/effective tag APIs,
-chart values, and live smoke proof remain gated follow-up work. See
+and reducers. Claim-enabled scheduler activation, opt-in direct/effective tag
+API evidence, and chart values are implemented; live smoke proof remains gated
+follow-up work. See
 [GCP Cloud Collector Contract](../../../../docs/public/reference/gcp-cloud-collector-contract.md).
 
 ## Collection flow

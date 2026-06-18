@@ -69,6 +69,138 @@ func TestLiveClientFetchPageUsesBoundedAssetsListRequest(t *testing.T) {
 	}
 }
 
+func TestLiveClientFetchTagPageUsesBoundedResourceManagerRequest(t *testing.T) {
+	var gotPath string
+	var gotPageSize string
+	var gotPageToken string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		gotPath = r.URL.Path
+		gotPageSize = r.URL.Query().Get("pageSize")
+		gotPageToken = r.URL.Query().Get("pageToken")
+		if got := r.URL.Query().Get("parent"); got != "//compute.googleapis.com/projects/sanitized-project/zones/us-central1-a/instances/api-1" {
+			t.Fatalf("parent query = %q, want full resource name", got)
+		}
+		_, _ = w.Write([]byte(`{
+			"tagBindings": [{
+				"tagValue": "tagValues/456",
+				"tagValueNamespacedName": "123/env/prod"
+			}],
+			"nextPageToken": "NEXT"
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := LiveClient{
+		TokenSource:             staticTokenSource("live-token"),
+		HTTPClient:              server.Client(),
+		ResourceManagerEndpoint: server.URL,
+		TagPageSize:             MaxLiveTagPageSize + 1,
+	}
+	page, err := client.FetchTagPage(context.Background(), TagRequest{
+		Scope:            testScope().withDefaults(),
+		FullResourceName: "//compute.googleapis.com/projects/sanitized-project/zones/us-central1-a/instances/api-1",
+		AssetType:        "compute.googleapis.com/Instance",
+		SourceKind:       TagSourceKindDirect,
+		PageToken:        "PAGE",
+	})
+	if err != nil {
+		t.Fatalf("FetchTagPage: %v", err)
+	}
+	if gotPath != "/v3/tagBindings" {
+		t.Fatalf("path = %q, want /v3/tagBindings", gotPath)
+	}
+	if gotPageSize != "300" {
+		t.Fatalf("pageSize = %q, want bounded max", gotPageSize)
+	}
+	if gotPageToken != "PAGE" {
+		t.Fatalf("pageToken = %q, want PAGE", gotPageToken)
+	}
+	if page.NextPageToken != "NEXT" {
+		t.Fatalf("NextPageToken = %q, want NEXT", page.NextPageToken)
+	}
+	if got := page.Tags["123/env"]; got != "prod" {
+		t.Fatalf("tags = %#v, want 123/env=prod", page.Tags)
+	}
+}
+
+func TestLiveClientFetchEffectiveTagPageKeepsInheritanceState(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{
+			"effectiveTags": [{
+				"tagValue": "tagValues/456",
+				"namespacedTagValue": "123/team/platform",
+				"tagKey": "tagKeys/123",
+				"namespacedTagKey": "123/team",
+				"inherited": true
+			}]
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := LiveClient{
+		TokenSource:             staticTokenSource("live-token"),
+		HTTPClient:              server.Client(),
+		ResourceManagerEndpoint: server.URL,
+	}
+	page, err := client.FetchTagPage(context.Background(), TagRequest{
+		Scope:            testScope().withDefaults(),
+		FullResourceName: "//compute.googleapis.com/projects/sanitized-project/zones/us-central1-a/instances/api-1",
+		AssetType:        "compute.googleapis.com/Instance",
+		SourceKind:       TagSourceKindEffective,
+	})
+	if err != nil {
+		t.Fatalf("FetchTagPage: %v", err)
+	}
+	if got := page.Tags["123/team"]; got != "platform" {
+		t.Fatalf("tags = %#v, want 123/team=platform", page.Tags)
+	}
+	if got := page.InheritanceState["123/team"]; got != "inherited" {
+		t.Fatalf("InheritanceState = %#v, want inherited", page.InheritanceState)
+	}
+}
+
+func TestLiveClientTagThrottleRetriesThenWarns(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		http.Error(w, "quota body must stay out of errors", http.StatusTooManyRequests)
+	}))
+	t.Cleanup(server.Close)
+
+	client := LiveClient{
+		TokenSource:             staticTokenSource("live-token"),
+		HTTPClient:              server.Client(),
+		ResourceManagerEndpoint: server.URL,
+		MaxAttempts:             2,
+		RetryBackoff:            func(int) time.Duration { return 0 },
+	}
+	_, err := client.FetchTagPage(context.Background(), TagRequest{
+		Scope:            testScope().withDefaults(),
+		FullResourceName: "//compute.googleapis.com/projects/sanitized-project/zones/us-central1-a/instances/api-1",
+		AssetType:        "compute.googleapis.com/Instance",
+		SourceKind:       TagSourceKindDirect,
+	})
+	if err == nil {
+		t.Fatal("FetchTagPage returned nil error, want quota warning")
+	}
+	var warning ProviderWarning
+	if !errors.As(err, &warning) {
+		t.Fatalf("err = %T, want ProviderWarning", err)
+	}
+	if warning.WarningKind != gcpcloud.WarningKindQuota {
+		t.Fatalf("warning kind = %q, want quota", warning.WarningKind)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	if strings.Contains(err.Error(), "quota body") {
+		t.Fatalf("error leaked provider body: %q", err.Error())
+	}
+}
+
 func TestNewADCLiveClientUsesAssetsListOAuthScope(t *testing.T) {
 	if CloudAssetInventoryOAuthScope != "https://www.googleapis.com/auth/cloud-platform" {
 		t.Fatalf("CloudAssetInventoryOAuthScope = %q, want assets.list OAuth scope", CloudAssetInventoryOAuthScope)

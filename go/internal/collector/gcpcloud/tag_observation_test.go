@@ -45,6 +45,32 @@ func TestNewTagObservationEnvelopeFingerprintsValues(t *testing.T) {
 	}
 }
 
+func TestNewTagObservationEnvelopeSeparatesSourceKindAndInheritance(t *testing.T) {
+	key := testRedactionKey(t)
+	direct := testTagObservation()
+	direct.SourceKind = "direct"
+	direct.InheritanceState = map[string]string{"env": "direct"}
+	effective := testTagObservation()
+	effective.SourceKind = "effective"
+	effective.InheritanceState = map[string]string{"env": "inherited"}
+
+	directEnv, err := NewTagObservationEnvelope(direct, key)
+	if err != nil {
+		t.Fatalf("direct NewTagObservationEnvelope error: %v", err)
+	}
+	effectiveEnv, err := NewTagObservationEnvelope(effective, key)
+	if err != nil {
+		t.Fatalf("effective NewTagObservationEnvelope error: %v", err)
+	}
+	if directEnv.StableFactKey == effectiveEnv.StableFactKey {
+		t.Fatalf("stable key collision for direct/effective tags: %q", directEnv.StableFactKey)
+	}
+	state, ok := effectiveEnv.Payload["tag_inheritance_state"].(map[string]string)
+	if !ok || state["env"] != "inherited" {
+		t.Fatalf("tag_inheritance_state = %#v, want env=inherited", effectiveEnv.Payload["tag_inheritance_state"])
+	}
+}
+
 // TestNewTagObservationEnvelopeRejectsInvalid proves the builder fails closed on a
 // missing resource name, asset type, no usable tags, or a zero redaction key.
 func TestNewTagObservationEnvelopeRejectsInvalid(t *testing.T) {

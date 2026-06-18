@@ -27,6 +27,9 @@ type TagObservation struct {
 	Tags map[string]string
 	// SourceKind is the bounded tag source (e.g. "direct", "effective").
 	SourceKind string
+	// InheritanceState maps tag key -> bounded inheritance state. It is used for
+	// effective tag evidence to distinguish direct from inherited bindings.
+	InheritanceState map[string]string
 	// UpdateTime is the read/update time.
 	UpdateTime time.Time
 	// SourceRecordID overrides the default record id.
@@ -67,6 +70,7 @@ func NewTagObservationEnvelope(obs TagObservation, key redact.Key) (facts.Envelo
 		"full_resource_name": fullName,
 		"asset_type":         assetType,
 		"content_family":     obs.Boundary.ContentFamily,
+		"source_kind":        strings.TrimSpace(obs.SourceKind),
 	})
 
 	payload := map[string]any{
@@ -85,6 +89,9 @@ func NewTagObservationEnvelope(obs TagObservation, key redact.Key) (facts.Envelo
 		"read_time":                timeOrNil(obs.Boundary.ReadTime),
 		"update_time":              timeOrNil(obs.UpdateTime.UTC()),
 		"redaction_policy_version": RedactionPolicyVersion,
+	}
+	if inheritance := cleanInheritanceState(obs.InheritanceState, fingerprints); len(inheritance) > 0 {
+		payload["tag_inheritance_state"] = inheritance
 	}
 
 	return newEnvelope(
@@ -121,4 +128,29 @@ func fingerprintTagValues(tags map[string]string, key redact.Key) (map[string]st
 	}
 	sort.Strings(keys)
 	return out, keys
+}
+
+func cleanInheritanceState(states map[string]string, fingerprints map[string]string) map[string]string {
+	if len(states) == 0 || len(fingerprints) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(states))
+	for key, state := range states {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := fingerprints[key]; !ok {
+			continue
+		}
+		state = strings.TrimSpace(state)
+		switch state {
+		case "direct", "inherited":
+			out[key] = state
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

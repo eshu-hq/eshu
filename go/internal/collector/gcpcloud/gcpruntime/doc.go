@@ -10,14 +10,13 @@
 // with gcpcloud.GenerationTracker so a stale scan cannot replace current facts,
 // and emits bounded-label telemetry by fact kind.
 //
-// The PageProvider interface isolates all Cloud Asset Inventory transport.
+// The PageProvider interface isolates Cloud Asset Inventory transport.
 // FixturePageProvider serves parsed pages from memory or files for tests and the
 // binary's offline smoke path; LiveClient is the explicitly injected live REST
-// seam for assets.list and is not wired as a default. No test performs a live
-// Google Cloud call.
+// seam for assets.list and opt-in Resource Manager direct/effective tag pages.
+// No test performs a live Google Cloud call.
 //
 // Shared GCP reducer admission and API/MCP readback live outside this package;
-// command wiring for live transport, claim-enabled scheduler activation, Helm
-// values, environment-variable contracts, and sanitized target smoke proof
-// remain gated follow-ups per docs/public/reference/gcp-cloud-collector-contract.md.
+// sanitized target smoke proof remains gated per
+// docs/public/reference/gcp-cloud-collector-contract.md.
 package gcpruntime

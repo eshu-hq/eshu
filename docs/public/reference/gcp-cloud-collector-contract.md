@@ -101,8 +101,9 @@ configured, with `source_kind=label`, and emits
 `gcp_iam_policy_observation` from parsed CAI IAM bindings when members are
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
-managed-zone identity are usable. Direct/effective GCP tag API collection and
-sanitized live target smoke remain follow-up work under #1997. Raw
+managed-zone identity are usable. Opt-in direct/effective Resource Manager tag
+API collection emits tag-key/value-fingerprint evidence and inheritance state;
+sanitized live target smoke remains follow-up work under #1997. Raw
 `gcp_iam_policy_observation`,
 `gcp_dns_record`, and `gcp_collection_warning` facts are intentionally
 provenance-only or audit evidence until separate reducer/read-model contracts
@@ -395,13 +396,12 @@ Implemented slices:
    and GCP IAM trust facts.
 5. Explicit-injection `gcpruntime.LiveClient` REST transport for bounded
    `assets.list` page reads.
-6. Claimed-live command wiring, scheduler planning, and default-off Helm
-   exposure with ServiceMonitor coverage.
+6. Claimed-live command wiring, scheduler planning, default-off Helm exposure
+   with ServiceMonitor coverage, and opt-in direct/effective tag API evidence.
 
 Remaining gated slices:
 
-1. Direct/effective GCP tag API collection.
-2. Sanitized live smoke proof.
+1. Sanitized live smoke proof.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, `gcp_tag_observation`,

@@ -31,9 +31,9 @@ var newGCPADCLiveClient = gcpruntime.NewADCLiveClient
 // durable committer is the shared Postgres ingestion store, wrapped by the GCP
 // status committer so commit outcomes record the bounded claim metric.
 //
-// This slice is fixture-driven scaffolding: the page provider is always the
-// offline FixturePageProvider. The live Cloud Asset Inventory transport, Helm
-// values, and reducer/API readback are deferred slices.
+// Fixture mode always uses the offline FixturePageProvider. Claimed-live mode is
+// built by buildClaimedService so live transport stays explicit and
+// workflow-owned.
 func buildCollectorService(
 	database postgres.SQLDB,
 	configPath string,
