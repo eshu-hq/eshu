@@ -17,8 +17,9 @@ type pySourceParam struct {
 }
 
 type pySourceTypeSpec struct {
-	TypeName string `json:"type_name"`
-	Kind     string `json:"kind"`
+	TypeName string   `json:"type_name"`
+	Kind     string   `json:"kind"`
+	Modules  []string `json:"modules,omitempty"`
 }
 
 type pySinkSpec struct {
@@ -27,18 +28,19 @@ type pySinkSpec struct {
 	Kind     taint.Kind `json:"kind"`
 }
 
-const pySourceMatcherVersion = "source-annotation-exact-v2"
+const pySourceMatcherVersion = "source-import-evidence-v3"
 
 // The Python source/sink/sanitizer catalog is deliberately small and
 // conservative. Sources require framework request type evidence; sinks require a
 // qualified receiver/module except for Python's eval/exec builtins.
 var (
 	pySourceTypeSpecs = []pySourceTypeSpec{
-		{TypeName: "Request", Kind: "http_request"},
+		{TypeName: "Request", Kind: "http_request", Modules: []string{"flask", "fastapi", "starlette.requests"}},
 		{TypeName: "flask.Request", Kind: "http_request"},
 		{TypeName: "fastapi.Request", Kind: "http_request"},
 		{TypeName: "starlette.requests.Request", Kind: "http_request"},
 		{TypeName: "django.http.HttpRequest", Kind: "http_request"},
+		{TypeName: "HttpRequest", Kind: "http_request", Modules: []string{"django.http"}},
 	}
 	pySinkSpecs = []pySinkSpec{
 		{Receiver: "cursor", Method: "execute", Kind: "sql"},
@@ -191,6 +193,7 @@ func sourceParams(node *tree_sitter.Node, source []byte) []pySourceParam {
 	if params == nil {
 		return nil
 	}
+	imports := pyFrameworkRequestImports(node, source)
 	cursor := params.Walk()
 	defer cursor.Close()
 	var out []pySourceParam
@@ -200,7 +203,7 @@ func sourceParams(node *tree_sitter.Node, source []byte) []pySourceParam {
 		if name == "" {
 			continue
 		}
-		if kind, ok := frameworkRequestKind(nodeText(&param, source)); ok {
+		if kind, ok := frameworkRequestKind(nodeText(&param, source), imports); ok {
 			out = append(out, pySourceParam{Name: name, Kind: kind})
 		}
 	}
@@ -221,12 +224,18 @@ func parameterName(node *tree_sitter.Node, source []byte) string {
 	return ""
 }
 
-func frameworkRequestKind(paramText string) (string, bool) {
+func frameworkRequestKind(paramText string, imports pyFrameworkRequestEvidence) (string, bool) {
 	typeTokens := annotationTypeTokens(paramText)
 	for _, spec := range pySourceTypeSpecs {
 		for _, token := range typeTokens {
-			if token == spec.TypeName {
+			if len(spec.Modules) == 0 && token == spec.TypeName {
 				return spec.Kind, true
+			}
+			if imports.TypeKind(token) == spec.Kind {
+				return spec.Kind, true
+			}
+			if kind, ok := imports.NamespaceTypeKind(token); ok {
+				return kind, true
 			}
 		}
 	}

@@ -28,7 +28,8 @@ func parseRoot(t *testing.T, src string) (*tree_sitter.Node, []byte) {
 func TestTSInterprocFindingAcrossFunctions(t *testing.T) {
 	t.Parallel()
 
-	root, source := parseRoot(t, "function handler(req: Request, db) {\n"+
+	root, source := parseRoot(t, "import type { Request } from 'express';\n"+
+		"function handler(req: Request, db) {\n"+
 		"\tquery(db, req);\n"+
 		"}\n"+
 		"function query(db, q) {\n"+
@@ -54,7 +55,8 @@ func TestTSInterprocFindingAcrossFunctions(t *testing.T) {
 func TestTSInterprocNoEdgeToNestedFunction(t *testing.T) {
 	t.Parallel()
 
-	root, source := parseRoot(t, "function outer() {\n"+
+	root, source := parseRoot(t, "import type { Request } from 'express';\n"+
+		"function outer() {\n"+
 		"\tfunction query(db, q) {\n"+
 		"\t\tdb.query(q);\n"+
 		"\t}\n"+
@@ -77,7 +79,8 @@ func TestTSInterprocNoEdgeToNestedFunction(t *testing.T) {
 func TestTSInterprocMultiArgSameBinding(t *testing.T) {
 	t.Parallel()
 
-	root, source := parseRoot(t, "function handler(req: Request) {\n"+
+	root, source := parseRoot(t, "import type { Request } from 'express';\n"+
+		"function handler(req: Request) {\n"+
 		"\tsink2(req, req);\n"+
 		"}\n"+
 		"function sink2(a, b) {\n"+
@@ -103,7 +106,8 @@ func TestTSInterprocMultiArgSameBinding(t *testing.T) {
 func TestTSInterprocNoFalseEdgeFromMethodCall(t *testing.T) {
 	t.Parallel()
 
-	root, source := parseRoot(t, "function query(req: Request) {\n"+
+	root, source := parseRoot(t, "import type { Request } from 'express';\n"+
+		"function query(req: Request) {\n"+
 		"\tdb.query(req);\n"+
 		"}\n"+
 		"function handler(req: Request) {\n"+

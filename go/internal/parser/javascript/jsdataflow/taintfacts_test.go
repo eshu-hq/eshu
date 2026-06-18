@@ -62,7 +62,8 @@ func taintedCount(res taint.Result, kind taint.Kind) int {
 func TestTSTypedSourceToSQLSink(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
+	node, source, fn := parseFirstFunction(t, "import type { Request } from 'express';\n"+
+		"function handler(req: Request) {\n"+
 		"\tconst q = req.body;\n"+
 		"\tdb.query(q);\n"+
 		"}")
@@ -70,6 +71,39 @@ func TestTSTypedSourceToSQLSink(t *testing.T) {
 	res := taint.Analyze(fn, facts, taint.DefaultLimits())
 	if taintedCount(res, "sql") != 1 {
 		t.Fatalf("want 1 TAINTED sql finding, got %+v", res.Findings)
+	}
+}
+
+// TestTSAliasedFrameworkRequestImportIsSource proves framework request evidence
+// follows the imported alias, not only the exported type name.
+func TestTSAliasedFrameworkRequestImportIsSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "import type { Request as ExpressRequest } from 'express';\n"+
+		"function handler(req: ExpressRequest) {\n"+
+		"\tconst q = req.body;\n"+
+		"\tdb.query(q);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if taintedCount(res, "sql") != 1 {
+		t.Fatalf("want 1 TAINTED sql finding for aliased express Request, got %+v", res.Findings)
+	}
+}
+
+// TestTSLocalRequestImportIsNotSource proves an unrelated type named Request is
+// not framework request evidence.
+func TestTSLocalRequestImportIsNotSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "import type { Request } from './types';\n"+
+		"function handler(req: Request) {\n"+
+		"\tdb.query(req.body);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if len(res.Findings) != 0 {
+		t.Fatalf("local Request import must not be a source; got %+v", res.Findings)
 	}
 }
 
@@ -108,7 +142,8 @@ func TestTSRequestPrefixTypeIsNotSource(t *testing.T) {
 func TestTSSameNamedCacheQueryIsNotSink(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
+	node, source, fn := parseFirstFunction(t, "import type { Request } from 'express';\n"+
+		"function handler(req: Request) {\n"+
 		"\tconst q = req.body;\n"+
 		"\tcache.query(q);\n"+
 		"}")
@@ -124,7 +159,8 @@ func TestTSSameNamedCacheQueryIsNotSink(t *testing.T) {
 func TestTSChildProcessCommandSinkRequiresFrameworkReceiver(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
+	node, source, fn := parseFirstFunction(t, "import type { Request } from 'express';\n"+
+		"function handler(req: Request) {\n"+
 		"\tconst cmd = req.body;\n"+
 		"\tchild_process.exec(cmd);\n"+
 		"}")
@@ -153,7 +189,8 @@ func TestTSTaintCatalogVersionIsStable(t *testing.T) {
 func TestTSWrongKindSanitizer(t *testing.T) {
 	t.Parallel()
 
-	node, source, fn := parseFirstFunction(t, "function handler(req: Request) {\n"+
+	node, source, fn := parseFirstFunction(t, "import type { Request } from 'express';\n"+
+		"function handler(req: Request) {\n"+
 		"\tconst raw = req.body;\n"+
 		"\tconst safe = escape(raw);\n"+
 		"\tdb.query(safe);\n"+
