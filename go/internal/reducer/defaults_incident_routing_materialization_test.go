@@ -6,7 +6,9 @@ func TestImplementedDefaultDomainDefinitionsOmitsIncidentRoutingWithoutWriter(t 
 	t.Parallel()
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		IncidentRoutingEvidenceLoader: stubIncidentRoutingEvidenceLoader{},
+		IncidentRoutingHandlers: IncidentRoutingHandlers{
+			IncidentRoutingEvidenceLoader: stubIncidentRoutingEvidenceLoader{},
+		},
 	})
 	for _, def := range definitions {
 		if def.Domain == DomainIncidentRoutingMaterialization {
@@ -21,8 +23,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesIncidentRoutingWhenWired(t *
 	loader := stubIncidentRoutingEvidenceLoader{}
 	writer := &recordingIncidentRoutingEvidenceWriter{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		IncidentRoutingEvidenceLoader: loader,
-		IncidentRoutingEvidenceWriter: writer,
+		IncidentRoutingHandlers: IncidentRoutingHandlers{
+			IncidentRoutingEvidenceLoader: loader,
+			IncidentRoutingEvidenceWriter: writer,
+		},
 	})
 
 	found := false

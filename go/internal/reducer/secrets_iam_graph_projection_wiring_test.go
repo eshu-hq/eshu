@@ -28,8 +28,10 @@ func TestAppendAdditiveDomainsWiresSecretsIAMGraphProjection(t *testing.T) {
 	writer := &recordingGraphWriter{}
 
 	withWriter := appendAdditiveDomainDefinitions(nil, DefaultHandlers{
-		FactLoader:            loader,
-		SecretsIAMGraphWriter: writer,
+		FactLoader: loader,
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			SecretsIAMGraphWriter: writer,
+		},
 	})
 	def, ok := hasDomain(withWriter, DomainSecretsIAMGraphProjection)
 	if !ok {
@@ -54,8 +56,10 @@ func TestNewDefaultRegistryRegistersSecretsIAMGraphProjection(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewDefaultRegistry(DefaultHandlers{
-		FactLoader:            fakeFactLoader{},
-		SecretsIAMGraphWriter: &recordingGraphWriter{},
+		FactLoader: fakeFactLoader{},
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			SecretsIAMGraphWriter: &recordingGraphWriter{},
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewDefaultRegistry() error = %v, want nil with secrets/IAM graph writer wired", err)

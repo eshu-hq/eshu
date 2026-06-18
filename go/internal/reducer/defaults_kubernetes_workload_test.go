@@ -29,8 +29,10 @@ func TestImplementedDefaultDomainDefinitionsIncludesKubernetesWorkloadMaterializ
 	publisher := &recordingGraphProjectionPhasePublisher{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		FactLoader:                    loader,
-		KubernetesWorkloadNodeWriter:  writer,
 		GraphProjectionPhasePublisher: publisher,
+		KubernetesHandlers: KubernetesHandlers{
+			KubernetesWorkloadNodeWriter: writer,
+		},
 	})
 	found := false
 	for _, def := range definitions {

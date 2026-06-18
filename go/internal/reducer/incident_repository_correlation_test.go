@@ -376,7 +376,9 @@ func TestIncidentRepositoryCorrelationHandlerRejectsWrongDomain(t *testing.T) {
 func TestImplementedDefaultDomainDefinitionsOmitsIncidentRepositoryCorrelationWithoutWriter(t *testing.T) {
 	t.Parallel()
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		AppliedPagerDutyServiceRoutingLoader: stubAppliedRoutingLoader{},
+		IncidentRoutingHandlers: IncidentRoutingHandlers{
+			AppliedPagerDutyServiceRoutingLoader: stubAppliedRoutingLoader{},
+		},
 	})
 	for _, def := range definitions {
 		if def.Domain == DomainIncidentRepositoryCorrelation {
@@ -394,9 +396,11 @@ func TestImplementedDefaultDomainDefinitionsIncludesIncidentRepositoryCorrelatio
 	resolver := &stubBackendRepositoryResolver{}
 	writer := &recordingIncidentRepoCorrelationWriter{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		AppliedPagerDutyServiceRoutingLoader: loader,
-		BackendRepositoryResolver:            resolver,
-		IncidentRepositoryCorrelationWriter:  writer,
+		IncidentRoutingHandlers: IncidentRoutingHandlers{
+			AppliedPagerDutyServiceRoutingLoader: loader,
+			BackendRepositoryResolver:            resolver,
+			IncidentRepositoryCorrelationWriter:  writer,
+		},
 	})
 	found := false
 	for _, def := range definitions {
