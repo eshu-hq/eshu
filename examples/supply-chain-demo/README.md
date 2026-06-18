@@ -178,11 +178,13 @@ this directory, so the runbook and the test cannot drift.
 ## Scripted full-chain proof (live stack)
 
 `scripts/run-full-chain-proof.sh` drives the **repo → owned package → OSV
-advisory → published impact finding** chain against a local Docker Compose stack
-and asserts a reducer-published finding plus `collector-readiness:
-implemented`. It transcribes the recipe proven live in the #3014 run, using a
-real registry package with a real advisory (`lodash` 4.17.11) for the owned
-evidence (a synthetic package has no real advisory to join).
+advisory → published impact finding → workload** chain against a local Docker
+Compose stack and asserts a reducer-published finding that is anchored to a
+workload (with the SBOM attestation attached). It transcribes the recipe proven
+live in the #3014 + #3061 runs, using a real registry package with a real
+advisory (`lodash` 4.17.11) for the owned evidence (a synthetic package has no
+real advisory to join) plus a K8s Deployment manifest in the same repo for the
+workload anchor.
 
 ```bash
 ESHU_SRC=/path/to/eshu examples/supply-chain-demo/scripts/run-full-chain-proof.sh
@@ -191,10 +193,11 @@ ESHU_SRC=/path/to/eshu examples/supply-chain-demo/scripts/run-full-chain-proof.s
 ## Not covered here
 
 - The 10–15 minute screen recording is a manual deliverable.
-- The image → SBOM-subject → workload half is not yet scripted (see the TODO in
-  `scripts/run-full-chain-proof.sh`): it needs the OCI-registry and
-  SBOM-attestation collectors plus a workload correlated to the image digest in
-  `sbom/app.cdx.json`.
+- The OCI image-**identity** sub-hop (a registry-observed image digest as
+  `image_ref` on the finding) is not exercised: the OCI-registry collector is
+  registry/ECR-gated, so the workload anchor here comes from the K8s manifest
+  rather than a registry image identity. The SBOM attestation does attach
+  (`reducer_sbom_attestation_attachment`).
 
 ## Related docs
 
