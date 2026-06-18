@@ -18,8 +18,8 @@ func codeTaintEvidenceDomainDefinition() DomainDefinition {
 		Domain:  DomainCodeTaintEvidence,
 		Summary: "project value-flow taint findings into graph evidence nodes attached to their Function",
 		Ownership: OwnershipShape{
-			CrossSource:    false,
-			CrossScope:     false,
+			CrossSource:    true,
+			CrossScope:     true,
 			CanonicalWrite: true,
 		},
 		TruthContract: truth.Contract{

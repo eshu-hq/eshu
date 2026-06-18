@@ -12,6 +12,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainDeploymentMapping:                        {},
 	DomainDataLineage:                              {},
 	DomainCodeInterprocEvidence:                    {},
+	DomainCodeTaintEvidence:                        {},
 	DomainOwnership:                                {},
 	DomainGovernance:                               {},
 	DomainWorkloadMaterialization:                  {},

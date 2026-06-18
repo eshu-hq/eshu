@@ -16,6 +16,16 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+// reducerGraphDrainFor returns a ReducerGraphDrain when the projector drain gate
+// is enabled, otherwise nil. Extracted from buildReducerService to keep main.go
+// within the repo file-size budget.
+func reducerGraphDrainFor(enabled bool, queryer postgres.Queryer) reducer.ReducerGraphDrain {
+	if !enabled {
+		return nil
+	}
+	return postgres.NewReducerGraphDrain(queryer)
+}
+
 // registerReducerObservableGauges wires the reducer's OpenTelemetry observable
 // gauges: queue depth/oldest-age (eshu_dp_queue_depth,
 // eshu_dp_queue_oldest_age_seconds), the active worker-pool gauge

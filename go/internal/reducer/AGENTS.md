@@ -343,6 +343,29 @@ log key; operators still diagnose the path through the existing workload
 materialization completion logs, the shared-projection terminal/blocked counters,
 and Postgres query instrumentation.
 
+No-Regression Evidence: #2889 wires the already-registered `DomainCodeTaintEvidence`
+materialization domain at runtime — a Postgres `CodeTaintEvidenceLoader`, the
+canonical graph writer, and the domain registration in `knownDomains` — so
+value-flow taint findings project into graph evidence nodes attached to their
+Function. It is ADDITIVE: a new domain following the existing reducer
+retract-by-evidence-source + canonical-write pattern (evidence source
+`reducer/code-taint`), with no change to any existing domain's selection, write,
+or readiness path. The domain is marked `CrossSource`/`CrossScope` to match how its
+findings span files. `go test ./internal/reducer -run 'CodeTaintEvidence' -count=1`,
+`go test ./internal/storage/postgres -run 'CodeTaintEvidenceLoader' -count=1`, and
+`go test ./internal/projector -run 'CodeTaintEvidenceIntents' -count=1` cover the
+loader, the handler, and intent emission; `go test ./cmd/reducer -count=1` proves
+the runtime wiring registers the loader/writer without disturbing the other
+domains.
+
+No-Observability-Change: the new domain reuses the generic reducer
+claim/execute/ack instrumentation — its materialization is diagnosed through the
+existing reducer run spans, per-domain execution counters (the `domain` attribute
+gains the `code_taint_evidence` value, an existing label, not a new instrument),
+durable queue/status rows, and Postgres query duration metrics. It adds no route,
+graph query shape, new metric instrument, new metric label key, span, lease,
+runtime knob, or log key.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
