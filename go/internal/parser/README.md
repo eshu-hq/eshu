@@ -310,7 +310,7 @@ Rust, Java, C, C++).
 | Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
 | JSON | `json` | `.json`, `.jsonc` | — |
-| Kotlin | `kotlin` | `.kt` | — |
+| Kotlin | `kotlin` | `.kt` | grammar wired; parser rewrite pending |
 | NuGet project | `nuget_project` | `.csproj` | — |
 | Perl | `perl` | `.pl`, `.pm` | — |
 | PHP | `php` | `.php` | — |
@@ -354,8 +354,18 @@ native parser coverage for selected files outside the SCIP index.
 ## Dependencies
 
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
-- Tree-sitter grammar bindings: C, C#, C++, Go, Java, JavaScript, Python, Rust,
-  Scala, TypeScript
+- Tree-sitter grammar bindings: C, C#, C++, Go, Java, JavaScript, Kotlin,
+  Python, Rust, Scala, TypeScript
+- Kotlin grammar packaging uses
+  `github.com/tree-sitter-grammars/tree-sitter-kotlin v1.1.0`, an MIT-licensed
+  module with generated `bindings/go` sources and checked-in `src/parser.c` and
+  `src/scanner.c`. Refresh by running
+  `go get github.com/tree-sitter-grammars/tree-sitter-kotlin@<version>` from
+  `go/`, then `go test ./internal/parser -run TestRuntimeParserLoadsKotlinGrammar -count=1`.
+  No-Regression Evidence: `TestRuntimeParserLoadsKotlinGrammar` failed before
+  wiring and passes with the binding package test against module v1.1.0; this
+  adds one lazy loader without changing existing cache keys. No-Observability-Change:
+  no metric, span, log, status, env var, queue, graph query, or runtime knob changes.
 - `internal/parser/java` — typed Java metadata evidence extracted before parent
   payload assembly
 - `internal/parser/javascript` — tsconfig import resolution and package.json

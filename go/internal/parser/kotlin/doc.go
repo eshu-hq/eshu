@@ -6,4 +6,11 @@
 // for bounded Kotlin entrypoint and framework callbacks. PreScan uses the same
 // extraction path so import-map discovery sees the same function, class, and
 // interface names as normal parsing.
+//
+// No-Regression Evidence: multiline class/function syntax is indexed through
+// the shared tree-sitter runtime before line-level semantic inference, so
+// existing payload buckets stay stable while class scope and end-line metadata
+// survive multiline declarations. No-Observability-Change: this parser-local
+// extraction change adds no metric, span, log, status field, queue behavior,
+// graph query, environment variable, or runtime knob.
 package kotlin

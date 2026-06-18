@@ -739,6 +739,7 @@ type Instruments struct {
 	FileParseDuration    metric.Float64Histogram
 	ReposSnapshotted     metric.Int64Counter
 	FilesParsed          metric.Int64Counter
+	SCIPSnapshotAttempts metric.Int64Counter
 
 	// Streaming fact production metrics
 	FactBatchesCommitted metric.Int64Counter
@@ -2920,6 +2921,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register FilesParsed counter: %w", err)
+	}
+
+	inst.SCIPSnapshotAttempts, err = meter.Int64Counter(
+		"eshu_dp_scip_snapshot_attempts_total",
+		metric.WithDescription("Total SCIP snapshot attempts by selected language and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SCIPSnapshotAttempts counter: %w", err)
 	}
 
 	inst.FactBatchesCommitted, err = meter.Int64Counter(
