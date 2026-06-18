@@ -35,6 +35,13 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractStaleCodeInterprocEvidenceCypher = `MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function)
+WHERE rel.scope_id = $scope_id
+  AND rel.evidence_source = $evidence_source
+  AND rel.generation_id <> $generation_id
+WITH rel LIMIT $limit
+DELETE rel`
+
 // CodeInterprocEvidenceWriter materializes reducer-owned cross-function taint
 // evidence as TAINT_FLOWS_TO edges between Function nodes.
 type CodeInterprocEvidenceWriter struct {
@@ -118,6 +125,45 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidence(
 				codeInterprocEvidenceRelType,
 				len(scopeIDs),
 				generationID,
+			),
+		},
+	}
+	return w.dispatch(ctx, []Statement{stmt})
+}
+
+// RetractStaleCodeInterprocEvidence removes one bounded batch of TAINT_FLOWS_TO
+// edges whose generation is not the current generation for the exact
+// scope/source pair. It is safe for side cleanup after current evidence has
+// been written; unlike RetractCodeInterprocEvidence it must not delete all
+// evidence for the scope.
+func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	evidenceSource string,
+	limit int,
+) error {
+	if err := validateStaleEvidenceRetractInputs(scopeID, generationID, evidenceSource); err != nil {
+		return err
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code interproc evidence writer executor is required")
+	}
+	limit = positiveEvidenceCleanupLimit(limit)
+	stmt := Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractStaleCodeInterprocEvidenceCypher,
+		Parameters: map[string]any{
+			"scope_id":                      scopeID,
+			"generation_id":                 generationID,
+			"evidence_source":               evidenceSource,
+			"limit":                         limit,
+			StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+			StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+			StatementMetadataSummaryKey: fmt.Sprintf(
+				"edge=%s stale_retract scopes=1 current_generations=1 limit=%d",
+				codeInterprocEvidenceRelType,
+				limit,
 			),
 		},
 	}

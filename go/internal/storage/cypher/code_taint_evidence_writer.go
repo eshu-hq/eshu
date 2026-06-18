@@ -3,6 +3,7 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -49,6 +50,13 @@ SET rel.kind = row.kind,
 const retractCodeTaintEvidenceCypher = `MATCH (n:CodeTaintEvidence)
 WHERE n.scope_id IN $scope_ids
   AND n.evidence_source = $evidence_source
+DETACH DELETE n`
+
+const retractStaleCodeTaintEvidenceCypher = `MATCH (n:CodeTaintEvidence)
+WHERE n.scope_id = $scope_id
+  AND n.evidence_source = $evidence_source
+  AND n.generation_id <> $generation_id
+WITH n LIMIT $limit
 DETACH DELETE n`
 
 // CodeTaintEvidenceWriter materializes reducer-owned value-flow taint evidence
@@ -140,6 +148,45 @@ func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidence(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractStaleCodeTaintEvidence removes one bounded batch of taint evidence
+// nodes whose generation is not the current generation for the exact
+// scope/source pair. It is safe for side cleanup after current evidence has
+// been written; unlike RetractCodeTaintEvidence it must not delete all evidence
+// for the scope.
+func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidence(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	evidenceSource string,
+	limit int,
+) error {
+	if err := validateStaleEvidenceRetractInputs(scopeID, generationID, evidenceSource); err != nil {
+		return err
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code taint evidence writer executor is required")
+	}
+	limit = positiveEvidenceCleanupLimit(limit)
+	stmt := Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractStaleCodeTaintEvidenceCypher,
+		Parameters: map[string]any{
+			"scope_id":                      scopeID,
+			"generation_id":                 generationID,
+			"evidence_source":               evidenceSource,
+			"limit":                         limit,
+			StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
+			StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
+			StatementMetadataSummaryKey: fmt.Sprintf(
+				"label=%s stale_retract scopes=1 current_generations=1 limit=%d",
+				codeTaintEvidenceLabel,
+				limit,
+			),
+		},
+	}
+	return w.dispatch(ctx, []Statement{stmt})
+}
+
 func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
 	if len(stmts) == 0 {
 		return nil
@@ -156,4 +203,24 @@ func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statemen
 		}
 	}
 	return nil
+}
+
+func validateStaleEvidenceRetractInputs(scopeID string, generationID string, evidenceSource string) error {
+	if strings.TrimSpace(scopeID) == "" {
+		return fmt.Errorf("scope_id must not be blank")
+	}
+	if strings.TrimSpace(generationID) == "" {
+		return fmt.Errorf("generation_id must not be blank")
+	}
+	if strings.TrimSpace(evidenceSource) == "" {
+		return fmt.Errorf("evidence_source must not be blank")
+	}
+	return nil
+}
+
+func positiveEvidenceCleanupLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultBatchSize
+	}
+	return limit
 }
