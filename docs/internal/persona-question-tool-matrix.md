@@ -124,6 +124,10 @@ Role: doer.
 
 Role: doer.
 
+End-to-end walkthrough: [AWS to Azure Re-platforming Demo](../public/guides/aws-to-azure-replatforming-demo.md)
+(ingest AWS posture + Terraform state, compose a provider-neutral migration
+packet, then generate `azurerm_*` Terraform with the LLM).
+
 | Question | Start with |
 | --- | --- |
 | Compose a replatforming plan for this scope. | `compose_replatforming_plan`, `get_replatforming_rollups` |
