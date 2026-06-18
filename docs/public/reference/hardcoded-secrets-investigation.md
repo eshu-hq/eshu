@@ -102,9 +102,14 @@ the response entirely. Set `include_suppressed = true` to surface them; they are
 returned with `suppressed: true` and their `suppression_notes` populated so a
 reviewer can see *why* Eshu down-weighted them.
 
-The `coverage` block always reports `suppressed_count` and the
-`include_suppressed` flag, so a zero-finding default result can be explained:
-the candidates may have existed but been suppressed as fixture noise.
+The `coverage` block reports `suppressed_count` and the `include_suppressed`
+flag. `suppressed_count` counts only the suppressed findings *among the rows the
+query returned*. Because the default query (`include_suppressed = false`)
+filters suppressed rows out before they are counted, `suppressed_count` is `0`
+in that mode — including in the zero-finding case. It does not reveal whether
+suppressed candidates existed. To find out whether candidates were down-weighted
+as fixture or placeholder noise, re-run with `include_suppressed = true`: then
+the suppressed rows are returned and `suppressed_count` reflects them.
 
 ## Tool and HTTP
 
