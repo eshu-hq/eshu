@@ -88,6 +88,21 @@ func TestTSUntypedRequestNameIsNotSource(t *testing.T) {
 	}
 }
 
+// TestTSRequestPrefixTypeIsNotSource proves options/config types that merely
+// start with Request are not framework request evidence.
+func TestTSRequestPrefixTypeIsNotSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "function handler(opts: RequestOptions) {\n"+
+		"\tdb.query(opts.sql);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if len(res.Findings) != 0 {
+		t.Fatalf("RequestOptions must not be a request source; got %+v", res.Findings)
+	}
+}
+
 // TestTSSameNamedCacheQueryIsNotSink proves a same-named unrelated query method
 // is not treated as a SQL sink.
 func TestTSSameNamedCacheQueryIsNotSink(t *testing.T) {

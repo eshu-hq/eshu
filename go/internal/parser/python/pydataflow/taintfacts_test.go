@@ -102,6 +102,20 @@ func TestPyUntypedRequestNameIsNotSource(t *testing.T) {
 	}
 }
 
+// TestPyRequestPrefixTypeIsNotSource proves options/factory annotations that
+// merely start with Request are not framework request evidence.
+func TestPyRequestPrefixTypeIsNotSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstPyFunction(t, "def view(opts: RequestFactory):\n"+
+		"    cursor.execute(opts.query)\n")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if len(res.Findings) != 0 {
+		t.Fatalf("RequestFactory must not be a request source; got %+v", res.Findings)
+	}
+}
+
 // TestPySameNamedCacheExecuteIsNotSink proves a same-named unrelated execute
 // method is not treated as a SQL sink.
 func TestPySameNamedCacheExecuteIsNotSink(t *testing.T) {

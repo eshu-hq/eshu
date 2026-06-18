@@ -27,6 +27,8 @@ type pySinkSpec struct {
 	Kind     taint.Kind `json:"kind"`
 }
 
+const pySourceMatcherVersion = "source-annotation-exact-v2"
+
 // The Python source/sink/sanitizer catalog is deliberately small and
 // conservative. Sources require framework request type evidence; sinks require a
 // qualified receiver/module except for Python's eval/exec builtins.
@@ -220,24 +222,50 @@ func parameterName(node *tree_sitter.Node, source []byte) string {
 }
 
 func frameworkRequestKind(paramText string) (string, bool) {
-	normalized := strings.ReplaceAll(paramText, " ", "")
-	normalized = strings.ReplaceAll(normalized, "\t", "")
+	typeTokens := annotationTypeTokens(paramText)
 	for _, spec := range pySourceTypeSpecs {
-		if strings.Contains(normalized, ":"+spec.TypeName) {
-			return spec.Kind, true
+		for _, token := range typeTokens {
+			if token == spec.TypeName {
+				return spec.Kind, true
+			}
 		}
 	}
 	return "", false
+}
+
+func annotationTypeTokens(paramText string) []string {
+	_, annotation, ok := strings.Cut(paramText, ":")
+	if !ok {
+		return nil
+	}
+	if beforeDefault, _, hasDefault := strings.Cut(annotation, "="); hasDefault {
+		annotation = beforeDefault
+	}
+	annotation = strings.TrimSpace(annotation)
+	if annotation == "" {
+		return nil
+	}
+	var tokens []string
+	for _, part := range strings.FieldsFunc(annotation, func(r rune) bool {
+		return r == '|'
+	}) {
+		token := strings.TrimSpace(part)
+		if token != "" {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
 }
 
 // TaintCatalogVersion returns a deterministic content hash for the Python
 // source/sink/sanitizer catalog.
 func TaintCatalogVersion() string {
 	payload := struct {
-		SourceTypes []pySourceTypeSpec      `json:"source_types"`
-		Sinks       []pySinkSpec            `json:"sinks"`
-		Sanitizers  map[string][]taint.Kind `json:"sanitizers"`
-	}{SourceTypes: pySourceTypeSpecs, Sinks: pySinkSpecs, Sanitizers: pySanitizerCallKinds}
+		SourceMatcher string                  `json:"source_matcher"`
+		SourceTypes   []pySourceTypeSpec      `json:"source_types"`
+		Sinks         []pySinkSpec            `json:"sinks"`
+		Sanitizers    map[string][]taint.Kind `json:"sanitizers"`
+	}{SourceMatcher: pySourceMatcherVersion, SourceTypes: pySourceTypeSpecs, Sinks: pySinkSpecs, Sanitizers: pySanitizerCallKinds}
 	encoded, _ := json.Marshal(payload)
 	sum := sha256.Sum256(encoded)
 	return hex.EncodeToString(sum[:])
