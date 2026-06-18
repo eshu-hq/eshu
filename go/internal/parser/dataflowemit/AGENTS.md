@@ -3,7 +3,7 @@
 ## Read first
 
 1. `README.md` - package boundary and the bucket schema
-2. `doc.go` - godoc contract: the three buckets and the lang label
+2. `doc.go` - godoc contract: the value-flow buckets and the lang label
 3. `emit.go` - the row renderers and deterministic sorting
 4. The Go original this generalizes: `../golang/cfg_emit.go`,
    `../golang/cfg_interproc.go`
@@ -11,9 +11,9 @@
 
 ## Invariants this package enforces
 
-- One row schema across all languages; rows differ only by the `lang` label and
-  the facts. Changing a key here is a wire-contract change to every language's
-  payload and to the reducer that consumes it.
+- One row schema across all languages for each bucket they emit; rows differ
+  only by the `lang` label and the facts. Changing a key here is a wire-contract
+  change to every language's payload and to the reducer that consumes it.
 - Optional fields (`class_context`, `sink_label`, `source_label`, `neutralized`,
   `cloud`) are omitted when empty. Do not emit empty/zero values for them.
 - Output is deterministic only after `SortFunctionRows`/`SortFindingRows`; the

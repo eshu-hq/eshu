@@ -21,8 +21,8 @@ func sanitize(s string) string { return s }
 `
 
 // TestGoDataflowOffIsByteIdentical proves the dataflow gate is byte-identical
-// when off: enabling it adds exactly the "dataflow_functions" bucket and changes
-// nothing else, so existing fact contracts are untouched by default.
+// when off: enabling it adds only opt-in value-flow buckets and changes nothing
+// else, so existing fact contracts are untouched by default.
 func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
@@ -52,6 +52,8 @@ func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 	// Removing the opt-in buckets must reproduce the off payload exactly.
 	delete(on, "dataflow_functions")
 	delete(on, "taint_findings")
+	delete(on, "interproc_findings")
+	delete(on, "dataflow_summaries")
 	if !reflect.DeepEqual(off, on) {
 		t.Fatalf("enabling dataflow changed more than the opt-in buckets")
 	}

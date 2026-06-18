@@ -11,15 +11,18 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// goInterprocFindingPayloads derives a value-flow summary for every function in a
-// file, composes them into an interprocedural port graph, and solves it,
-// returning the cross-function taint findings. Resolution is intra-file (a callee
-// is a function defined in the same file); cross-file and cross-repo composition
-// is the reducer's job over the shared graph. The returned rows are deterministic
-// (the solver sorts findings).
-func goInterprocFindingPayloads(root *tree_sitter.Node, source []byte, repositoryID, importPath string) []map[string]any {
+// goInterprocPayloads derives a value-flow summary for every function in a file,
+// renders each as a "dataflow_summaries" row, then composes the summaries into an
+// interprocedural port graph and solves it, rendering the cross-function taint
+// findings. Resolution is intra-file (a callee is a function defined in the same
+// file); cross-file and cross-repo composition is the reducer's job over the
+// shared graph — and that composition consumes the per-function summaries, which
+// is why they are emitted for every function regardless of whether this file
+// produced any finding. Both returned slices are deterministic (summaries sorted
+// by function id, findings by the solver).
+func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, importPath string) (findings, summaries []map[string]any) {
 	localFuncs := goLocalFunctionIDs(root, source, repositoryID, importPath)
-	summaries := map[summary.FunctionID]summary.Effects{}
+	effectsByID := map[summary.FunctionID]summary.Effects{}
 	var sources []interproc.Source
 
 	walkNamed(root, func(node *tree_sitter.Node) {
@@ -35,19 +38,27 @@ func goInterprocFindingPayloads(root *tree_sitter.Node, source []byte, repositor
 		id := goFunctionID(repositoryID, importPath, goReceiverContext(node, source), name)
 		fn := goLowerFunction(node, source, cfg.DefaultLimits())
 		spec := goEffectsSpec(node, source, fn, localFuncs)
-		summaries[id] = valueflow.DeriveEffects(fn, spec)
+		effectsByID[id] = valueflow.DeriveEffects(fn, spec)
 		sources = append(sources, goInterprocSources(node, source, id)...)
 	})
 
-	if len(sources) == 0 {
-		return nil
+	if strings.TrimSpace(repositoryID) != "" && strings.TrimSpace(importPath) != "" {
+		summaries = make([]map[string]any, 0, len(effectsByID))
+		for id, effects := range effectsByID {
+			summaries = append(summaries, dataflowemit.DataflowSummaryRow("go", id, effects))
+		}
+		dataflowemit.SortSummaryRows(summaries)
 	}
-	program := valueflow.BuildProgram(summaries, sources, nil)
+
+	if len(sources) == 0 {
+		return nil, summaries
+	}
+	program := valueflow.BuildProgram(effectsByID, sources, nil)
 	result := interproc.SolvePartitioned(program, interproc.DefaultLimits())
 
-	rows := make([]map[string]any, 0, len(result.Findings))
+	findings = make([]map[string]any, 0, len(result.Findings))
 	for _, finding := range result.Findings {
-		rows = append(rows, dataflowemit.InterprocFindingRow("go", finding))
+		findings = append(findings, dataflowemit.InterprocFindingRow("go", finding))
 	}
-	return rows
+	return findings, summaries
 }

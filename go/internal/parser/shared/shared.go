@@ -44,9 +44,10 @@ type Options struct {
 	// by value-flow FunctionIDs when EmitDataflow is enabled.
 	RepositoryID string
 	// EmitDataflow opts the parser into emitting per-function control-flow and
-	// reaching-definition facts, taint findings, and interprocedural findings for
-	// every value-flow-capable language. Off by default; the payload is
-	// byte-identical to before this feature when off.
+	// reaching-definition facts, taint findings, interprocedural findings, and
+	// durable summary effects for value-flow-capable languages that support each
+	// bucket. Off by default; the payload is byte-identical to before this feature
+	// when off.
 	EmitDataflow bool
 }
 
