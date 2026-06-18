@@ -105,3 +105,36 @@ func TestCodeFunctionSummaryHandlerReplacesEmptyFullSnapshot(t *testing.T) {
 		t.Fatalf("replace calls/snapshot = %d/%#v, want empty repo replacement", writer.replaceCalls, writer.replaceSnapshot)
 	}
 }
+
+func TestCodeFunctionSummaryHandlerReplacesCompanionStoresOnEmptyFullSnapshot(t *testing.T) {
+	t.Parallel()
+
+	sourceWriter := &recordingCodeFunctionSourceWriter{}
+	graphIDWriter := &recordingCodeFunctionGraphIDWriter{}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader:        stubCodeFunctionSummaryLoader{},
+		Writer:        &recordingCodeFunctionSummaryWriter{},
+		SourceLoader:  stubCodeFunctionSourceLoader{},
+		SourceWriter:  sourceWriter,
+		GraphIDLoader: stubCodeFunctionGraphIDLoader{},
+		GraphIDWriter: graphIDWriter,
+	}
+	intent := codeFunctionSummaryIntent()
+	intent.Payload = map[string]any{"repo_id": "repo-1", "full_snapshot": true}
+
+	if _, err := handler.Handle(context.Background(), intent); err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if sourceWriter.calls != 1 || len(sourceWriter.repos) != 1 || sourceWriter.repos[0] != "repo-1" {
+		t.Fatalf("source replacement calls = %+v, want one empty repo-1 replacement", sourceWriter)
+	}
+	if len(sourceWriter.sets) != 1 || len(sourceWriter.sets[0]) != 0 {
+		t.Fatalf("source replacement set = %+v, want empty", sourceWriter.sets)
+	}
+	if graphIDWriter.calls != 1 || len(graphIDWriter.repos) != 1 || graphIDWriter.repos[0] != "repo-1" {
+		t.Fatalf("graph-id replacement calls = %+v, want one empty repo-1 replacement", graphIDWriter)
+	}
+	if len(graphIDWriter.sets) != 1 || len(graphIDWriter.sets[0]) != 0 {
+		t.Fatalf("graph-id replacement set = %+v, want empty", graphIDWriter.sets)
+	}
+}

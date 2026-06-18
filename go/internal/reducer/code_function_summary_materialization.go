@@ -168,7 +168,7 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		if err != nil {
 			return Result{}, fmt.Errorf("load code function sources: %w", err)
 		}
-		for _, repo := range codeFunctionSourceRepos(effects, sources) {
+		for _, repo := range codeFunctionSourceRepos(effects, sources, codeFunctionSummaryCompanionRepo(fullSnapshot, repo)) {
 			if err := h.SourceWriter.ReplaceSources(ctx, repo, codeFunctionSourcesForRepo(repo, sources), now); err != nil {
 				return Result{}, fmt.Errorf("persist code function sources for repo %q: %w", repo, err)
 			}
@@ -182,7 +182,7 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		if err != nil {
 			return Result{}, fmt.Errorf("load code function graph ids: %w", err)
 		}
-		for _, repo := range codeFunctionGraphIDRepos(effects, ids) {
+		for _, repo := range codeFunctionGraphIDRepos(effects, ids, codeFunctionSummaryCompanionRepo(fullSnapshot, repo)) {
 			if err := h.GraphIDWriter.ReplaceGraphIDs(ctx, repo, codeFunctionGraphIDsForRepo(repo, ids), now); err != nil {
 				return Result{}, fmt.Errorf("persist code function graph ids for repo %q: %w", repo, err)
 			}
@@ -237,8 +237,12 @@ func (h CodeFunctionSummaryMaterializationHandler) now() time.Time {
 func codeFunctionSourceRepos(
 	effects map[summary.FunctionID]summary.Effects,
 	sources []interproc.Source,
+	requiredRepo string,
 ) []string {
 	seen := make(map[string]struct{})
+	if requiredRepo != "" {
+		seen[requiredRepo] = struct{}{}
+	}
 	for fnID := range effects {
 		if repo := durableFunctionRepo(string(fnID)); repo != "" {
 			seen[repo] = struct{}{}
@@ -270,8 +274,12 @@ func codeFunctionSourcesForRepo(repo string, sources []interproc.Source) []inter
 func codeFunctionGraphIDRepos(
 	effects map[summary.FunctionID]summary.Effects,
 	ids map[summary.FunctionID]string,
+	requiredRepo string,
 ) []string {
 	seen := make(map[string]struct{})
+	if requiredRepo != "" {
+		seen[requiredRepo] = struct{}{}
+	}
 	for fnID := range effects {
 		if repo := durableFunctionRepo(string(fnID)); repo != "" {
 			seen[repo] = struct{}{}
@@ -298,6 +306,13 @@ func codeFunctionGraphIDsForRepo(repo string, ids map[summary.FunctionID]string)
 		}
 	}
 	return out
+}
+
+func codeFunctionSummaryCompanionRepo(fullSnapshot bool, repo string) string {
+	if !fullSnapshot {
+		return ""
+	}
+	return repo
 }
 
 func codeFunctionSummaryFullSnapshot(intent Intent) (bool, string) {
