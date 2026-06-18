@@ -584,6 +584,42 @@ repo refresh fence` log — so an operator sees inheritance selection-path and
 fence behavior through the same surface as the other partitioned domains. No new
 metric name, label, queue domain, or runtime knob.
 
+### SQL Relationships File-Scoped Partition Promotion (#2868)
+
+`SQLRelationshipMaterializationHandler` wrote REFERENCES_TABLE / HAS_COLUMN /
+TRIGGERS / EXECUTES edges directly; #2868 promotes it onto the partitioned runner
+exactly like #2867, anchored on `source.path`/`source.repo_id`. Per-edge write-only
+intents key on `sql-relationships:v1:files:<repo>:<sha256(repo,source_path,edge)>`
+(edge identity mixed in to avoid the dedup collapse), fenced behind one per-repo
+refresh intent (file-scoped `delta_file_paths` on a delta, repo-wide otherwise)
+emitted under the shared `repoWideRetractRefreshPartitionKey`. The `EXECUTES`
+trigger→stored-routine edge is preserved and explicitly asserted to survive
+partitioning.
+
+The readiness gate was moved from `semantic_nodes_committed` to
+`canonical_nodes_committed`: SQL edges connect `SqlTable`/`SqlColumn`/`SqlView`/
+`SqlFunction`/`SqlTrigger`/`SqlIndex` nodes, which `projector/canonical.go` and
+`canonical_node_writer.go` commit as **canonical** nodes (the semantic-entity
+reducer never emits `Sql*` labels) — so gating on semantic-nodes would have stalled
+projection for any repo with SQL entities but no semantic entities, the same latent
+bug #2867 fixed for inheritance. This is pre-empted here rather than caught in a
+remote run.
+
+No-Regression Evidence: state-modeling convergence tests in
+`go/internal/reducer/sql_relationship_materialization_partition_test.go` prove the
+partitioned path is byte-identical to the direct retract+write path (full + delta,
+multi-edge-per-file, seeded non-empty graph, real `ProcessPartitionOnce` + #2898
+fence, `UnhashedFallbackRows=0`, EXECUTES survival). `go test ./internal/reducer
+./cmd/reducer -count=1` and `go test ./internal/reducer -race -count=1` are green.
+Throughput cannot regress (moves to the indexed partitioned runner; retract scope
+unchanged; one bounded refresh-fence `SELECT` per per-edge cycle). Remote
+end-to-end confirmation pending (the gate fix is the primary remote risk and is
+already corrected with code evidence).
+
+Observability Evidence: reuses the partitioned-runner signals — `IndexedSelection`,
+`UnhashedFallbackRows`, and the #2898 `RefreshFenceDeferred` field + log. No new
+metric, label, queue domain, or runtime knob.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
