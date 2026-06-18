@@ -224,6 +224,8 @@ func (s *fairDispatcherStore) HeartbeatClaim(ctx context.Context, mutation workf
 }
 
 func (s *fairDispatcherStore) CompleteClaim(_ context.Context, mutation workflow.ClaimMutation) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.completeCalls++
 	s.lastComplete = mutation
 	return nil
