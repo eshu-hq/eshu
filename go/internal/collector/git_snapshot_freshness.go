@@ -38,6 +38,19 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 	for _, e := range snapshot.ContentEntities {
 		writeFreshnessHashf(h, "entity:%s:%s:%d\n", e.RelativePath, e.EntityType, e.StartLine)
 	}
+
+	// Value-flow taint evidence (opt-in via ESHU_EMIT_DATAFLOW). Folded in only
+	// when present so a gate-off snapshot keeps its existing hint (no churn),
+	// while enabling the gate or a taint-only change yields a distinct hint and
+	// is not skipped by the commit-time freshness comparison.
+	if len(snapshot.TaintEvidence) > 0 {
+		writeFreshnessHashf(h, "taint_evidence=%d\n", len(snapshot.TaintEvidence))
+		for _, ev := range snapshot.TaintEvidence {
+			writeFreshnessHashf(h, "taint:%s:%d:%d:%s:%s:%s\n",
+				ev.FunctionUID, ev.SourceLine, ev.SinkLine, ev.SinkKind, ev.SourceKind, ev.Binding)
+		}
+	}
+
 	for _, candidate := range snapshot.TerraformStateCandidates {
 		writeFreshnessHashf(h, "tfstate_candidate:%s:%s:%d\n",
 			candidate.RelativePath,

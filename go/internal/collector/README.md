@@ -210,8 +210,13 @@ progress messages.
   `DeletedRelativePaths`
 - `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
   `FileData`, `ContentFileMetas`, `DocumentationFileMetas`, `ContentEntities`,
-  source-observed `GitRefs`, `DiscoveryAdvisory`, and optional delta metadata
-  for file-scoped Git resyncs
+  source-observed `GitRefs`, `DiscoveryAdvisory`, optional delta metadata
+  for file-scoped Git resyncs, and `TaintEvidence`
+- `TaintEvidenceSnapshot` — one intraprocedural value-flow taint finding resolved
+  to its graph `Function` entity uid, carried as evidence (confidence +
+  provenance). Populated only when the parser emits `taint_findings` (gated by
+  `ESHU_EMIT_DATAFLOW`); `streamFacts` emits each as a `code_taint_evidence`
+  fact. Empty (and byte-identical) when the gate is off
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content

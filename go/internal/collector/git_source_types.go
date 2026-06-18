@@ -87,6 +87,34 @@ type RepositorySnapshot struct {
 	// guaranteeing a periodic full re-projection that retracts drift the delta
 	// path missed (epic #2340).
 	Reconcile bool `json:"reconcile,omitempty"`
+	// TaintEvidence carries intraprocedural value-flow taint findings resolved to
+	// the graph Function entity they concern. Empty unless the parser emitted
+	// taint_findings (gated by ESHU_EMIT_DATAFLOW), so the snapshot is
+	// byte-identical when the value-flow gate is off. It is evidence with
+	// confidence and provenance, never canonical truth.
+	TaintEvidence []TaintEvidenceSnapshot `json:"taint_evidence,omitempty"`
+}
+
+// TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved
+// to the graph Function entity it concerns. The finding-to-entity join is done
+// here in the collector, where the parse payload carries both the function
+// entities and the findings, so the reducer can project the evidence against the
+// Function node by uid without re-resolving names.
+type TaintEvidenceSnapshot struct {
+	FunctionUID  string  `json:"function_uid"`
+	RelativePath string  `json:"relative_path"`
+	FunctionName string  `json:"function_name"`
+	Language     string  `json:"language"`
+	Kind         string  `json:"kind"`
+	SinkKind     string  `json:"sink_kind"`
+	SourceKind   string  `json:"source_kind"`
+	Binding      string  `json:"binding"`
+	SourceLine   int     `json:"source_line"`
+	SinkLine     int     `json:"sink_line"`
+	Confidence   float64 `json:"confidence"`
+	ClassContext string  `json:"class_context,omitempty"`
+	SinkLabel    string  `json:"sink_label,omitempty"`
+	SourceLabel  string  `json:"source_label,omitempty"`
 }
 
 // ContentFileSnapshot captures one portable file-content record.
