@@ -437,6 +437,13 @@ claim/execute spans for the value-flow evidence domains.
 - `ESHU_SNAPSHOT_WORKERS` (default `min(NumCPU,8)`) controls concurrent
   per-repo snapshotting. Raising this value beyond CPU capacity increases
   context-switching without reducing wall time.
+- `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX` deterministically filter
+  discovered repository IDs before filesystem or Git sync begins. This lets
+  Kubernetes ingester replicas split repo-level parse work across their own
+  StatefulSet workspaces instead of cloning and parsing the same repositories.
+  The shard hash uses only the normalized repository ID; shard IDs are not part
+  of repository, file, entity, or fact identity. The existing `sourceRunID`
+  still reflects the selected batch for that replica.
 - `ESHU_LARGE_REPO_FILE_THRESHOLD` (default `1000`) classifies repositories for
   the large-repo semaphore. The classification is a fast pre-scan that exits
   early once the threshold is exceeded.
@@ -474,6 +481,18 @@ claim/execute spans for the value-flow evidence domains.
   `eshu_dp_repos_snapshotted_total`, `eshu_dp_file_parse_duration_seconds`,
   and generation/fact counters. It adds no new runtime, worker, queue, graph
   write, span, metric label, or status field.
+- No-Regression Evidence: repository sharding filters the selector's discovered
+  IDs before filesystem or Git sync. `go test ./internal/collector -run
+  'Test(LoadRepoSyncConfig.*RepositoryShard|NativeRepositorySelectorAppliesRepositoryShardBeforeGitSync)'
+  -count=1` proves shard env parsing, invalid index rejection, and pre-sync
+  subset selection. It adds no graph write, queue, worker, lease, fact identity,
+  or reducer identity contract change.
+- Observability Evidence: sharded selection logs `collector repository shard
+  selected` with shard count, shard index, selected count, and discovered count.
+  Existing `collector stream started`, `collector stream completed`,
+  `collector snapshot stage completed`, `eshu_dp_scope_assign_duration_seconds`,
+  `eshu_dp_repos_snapshotted_total`, and fact counters continue to expose
+  per-shard progress without adding high-cardinality repository labels.
 - Performance Evidence: On 2026-05-15, pprof from the remote full-corpus
   Compose run showed bootstrap startup CPU in filesystem repository copy and
   ignore matching before graph projection began. A focused local benchmark for

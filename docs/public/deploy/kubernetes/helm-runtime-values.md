@@ -174,3 +174,12 @@ Defaults: enabled, bootstrap on, `initialDelaySeconds=0`,
 
 `repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. SSH auth is
 valid only for `explicit` or `filesystem` source modes, not `githubOrg`.
+
+When `ingester.replicas` is greater than one, the chart injects
+`ESHU_REPO_SHARD_COUNT` with the replica count and
+`ESHU_REPO_SHARD_INDEX` from the StatefulSet pod index label through the
+downward API. Repository sharding happens before filesystem or Git sync, so
+replicas split clone, parse, and fact-emission work instead of duplicating the
+same repository batch. Use StatefulSet-managed workspace claims for this shape;
+the chart rejects `ingester.replicas > 1` with a single
+`ingester.persistence.existingClaim`.

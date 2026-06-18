@@ -171,6 +171,8 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
 | ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT | 100 | Max webhook triggers claimed per selector pass |
 | ESHU_REPO_SCHEDULED_SYNC_ENABLED | true | Enable broad scheduled repository selection when no webhook triggers are queued |
+| ESHU_REPO_SHARD_COUNT | 1 | Deterministic repository shard count. Helm sets this to `ingester.replicas` for the StatefulSet. |
+| ESHU_REPO_SHARD_INDEX | 0 | Deterministic repository shard index. Helm reads the StatefulSet pod index label through the downward API. |
 | ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,
@@ -215,6 +217,12 @@ The ingester inherits collector and projector telemetry. Key signals:
 
 - The ingester is the only runtime that should hold the workspace PVC in
   Kubernetes. Do not attach the volume to other workloads.
+- Kubernetes ingester replicas shard repository selection before clone or
+  snapshot work by `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX`. The
+  chart sets the count from `ingester.replicas` and the index from the
+  StatefulSet pod index label, so multiple replicas split repositories instead
+  of repeating the same parse workload. Each replica still uses its own
+  StatefulSet workspace claim when `volumeClaimTemplates` are used.
 - Version probes are pre-startup checks. Keep `buildinfo.PrintVersionFlag` at
   the top of `main` so container images can report their build without
   requiring database credentials.

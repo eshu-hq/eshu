@@ -81,3 +81,8 @@ ingester:
 
 Set `ingester.persistence.existingClaim` when your platform owns the PVC. Set
 `ingester.persistence.enabled=false` only for short-lived experiments.
+For horizontal ingester replicas, keep the default StatefulSet
+`volumeClaimTemplates` shape so each replica gets its own workspace claim. The
+chart shards repository selection across replicas; using one shared
+`existingClaim` would put multiple clone and parse workers on the same
+workspace, so the chart rejects that combination.
