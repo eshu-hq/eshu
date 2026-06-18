@@ -42,6 +42,7 @@ type CodeFunctionSummaryLoader interface {
 // CodeFunctionSummaryWriter persists a resolved function-summary snapshot to the
 // durable store. It is satisfied by postgres.FunctionSummaryStore.
 type CodeFunctionSummaryWriter interface {
+	LoadSnapshot(ctx context.Context) (summary.Snapshot, error)
 	UpsertSnapshot(ctx context.Context, snap summary.Snapshot, updatedAt time.Time) error
 }
 
@@ -73,7 +74,11 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		return Result{}, fmt.Errorf("load code function summaries: %w", err)
 	}
 
-	store := summary.NewStore()
+	current, err := h.Writer.LoadSnapshot(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("load durable code function summary snapshot: %w", err)
+	}
+	store := summary.Load(current)
 	store.Upsert(effects)
 	snap := store.Snapshot()
 

@@ -37,6 +37,7 @@ type CodeReachabilityRowWriter interface {
 		repositoryID string,
 		rows []CodeReachabilityRow,
 		watermark time.Time,
+		truncated bool,
 	) error
 }
 
@@ -223,7 +224,7 @@ func (r *CodeReachabilityProjectionRunner) projectPartitions(
 				}
 				rows, stats := BuildCodeReachabilityRowsWithStats(input)
 				if err := r.RowWriter.ReplaceRepositoryRows(
-					ctx, input.ScopeID, input.GenerationID, input.RepositoryID, rows, input.UpdatedAt,
+					ctx, input.ScopeID, input.GenerationID, input.RepositoryID, rows, input.UpdatedAt, stats.Truncated,
 				); err != nil {
 					errOnce.Do(func() {
 						firstErr = fmt.Errorf("write code reachability rows: %w", err)
