@@ -6,11 +6,11 @@
 packages need without importing the parent `internal/parser` dispatcher. It
 contains common payload bucket helpers, source reads, tree-sitter node helpers,
 string utilities, integer coercion, and parser options shared by adapter
-packages. Parser options include the stable repository identity used by
-value-flow FunctionIDs. The shared Go semantic-root options also carry the
-empty-method-list convention used when an imported package can reach exported
-methods through an escaped interface value and the qualified roots for imported
-receiver method calls.
+packages. Parser options include the `EmitDataflow` gate and the stable
+repository identity used by value-flow FunctionIDs. The shared Go semantic-root
+options also carry the empty-method-list convention used when an imported
+package can reach exported methods through an escaped interface value and the
+qualified roots for imported receiver method calls.
 
 ## Dependency boundary
 
@@ -91,9 +91,15 @@ explicit method names from package interface declarations.
 The parent parser decides which package directory receives those roots; child
 packages should only carry the typed option.
 
+`Options.EmitDataflow` controls opt-in `dataflow_functions`, `taint_findings`,
+`interproc_findings`, and durable `dataflow_summaries` buckets. The gate is off
+by default so normal parser payloads remain byte-identical.
+
 `Options.RepositoryID` must be generation-independent and must not contain local
-checkout paths, hostnames, IPs, credentials, or commit SHAs. It is only used by
-value-flow-capable adapters when `EmitDataflow` is enabled.
+checkout paths, hostnames, IPs, credentials, or commit SHAs. Value-flow-capable
+adapters use it with stable language package identity when `EmitDataflow` is
+enabled; durable `dataflow_summaries` must be omitted when either identity
+component is absent.
 
 `SortNamedMaps` sorts by `line_number` first and `name` second. That preserves
 the parent parser ordering contract used before language packages were split.

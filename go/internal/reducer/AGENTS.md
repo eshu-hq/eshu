@@ -410,6 +410,21 @@ It adds no graph query, queue, worker, lease, batch, runtime knob, metric
 instrument, metric label key, span, route, status field, or log key; operators
 still inspect existing code-call intent rows and materialization completion logs.
 
+No-Regression Evidence: Python code-call resolver registration resolves
+declared-base classmethod calls using parser-emitted `bases` and class-scoped
+methods before weak repository-wide fallback. The focused reducer test for
+constructors, qualified class receivers, ambiguous inherited methods, and
+self-method calls failed before the resolver when an unrelated `from_dict` made
+the inherited method ambiguous, then passed after the resolver returned the
+unique declared-base method and preserved multiple-base ambiguity. The
+resolutionparity package test stayed green with no golden update.
+
+No-Observability-Change: Python declared-base resolver registration only changes
+the resolver branch chosen before code-call row emission. It adds no graph
+query, queue, worker, lease, batch, runtime knob, metric instrument, metric
+label key, span, route, status field, or log key; operators still inspect
+existing code-call intent rows and materialization completion logs.
+
 No-Regression Evidence: Java code-call resolver registration moves receiver and
 argument type evidence ahead of the weak repository-wide fallback without
 changing edge identity. `go test ./internal/reducer -run

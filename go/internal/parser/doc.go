@@ -13,9 +13,12 @@
 // SCIP definition payloads retain their source symbol string so downstream
 // reducer indexes can resolve cross-repository calls by source-backed symbol
 // identity instead of generation-bearing storage IDs.
+// Options.EmitDataflow is the opt-in value-flow gate; durable
+// dataflow_summaries rows require stable repository and package identity so
+// FunctionID values remain generation-independent and persistence-safe.
 //
 // No-Regression Evidence: SCIP protobuf parsing is enabled by default through
-// collector configuration only when an allowed language and its external
+// collector configuration only when an allowed language group and its external
 // scip-* binary are available. It supplements native parser output; selected
 // files that are absent from an index.scip document set still rely on the
 // native parser path for complete file coverage.
