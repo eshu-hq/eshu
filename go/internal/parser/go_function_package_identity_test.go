@@ -53,6 +53,36 @@ func handle(x string) string { return x }
 	}
 }
 
+func TestGoPackageSemanticRootsDeriveNestedModuleImportPath(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	apiRoot := filepath.Join(repoRoot, "services", "api")
+	filePath := filepath.Join(apiRoot, "handlers", "handler.go")
+	writeTestFile(t, filepath.Join(apiRoot, "go.mod"), `module example.com/services/api
+
+go 1.24
+`)
+	writeTestFile(t, filePath, `package handlers
+
+func handle(x string) string { return x }
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+
+	packageTargets, err := engine.PreScanGoPackageSemanticRoots(repoRoot, []string{filePath})
+	if err != nil {
+		t.Fatalf("PreScanGoPackageSemanticRoots() error = %v", err)
+	}
+
+	got := packageTargets[filepath.Dir(filePath)].ImportPath
+	if want := "example.com/services/api/handlers"; got != want {
+		t.Fatalf("ImportPath = %q, want %q", got, want)
+	}
+}
+
 func goFunctionRowByName(t *testing.T, payload map[string]any, name string) map[string]any {
 	t.Helper()
 
