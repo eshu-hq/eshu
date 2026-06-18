@@ -203,7 +203,7 @@ func TestServiceStartsCodeValueFlowStaleCleanupRunner(t *testing.T) {
 	})
 
 	deadline := time.After(time.Second)
-	for len(taint.calls) != 1 {
+	for taint.callCount() != 1 {
 		select {
 		case <-deadline:
 			t.Fatal("taint stale cleanup was not called")
@@ -250,6 +250,7 @@ type codeValueFlowSweepCall struct {
 }
 
 type recordingCodeValueFlowTaintSweeper struct {
+	mu    sync.Mutex
 	calls []codeValueFlowSweepCall
 }
 
@@ -260,6 +261,8 @@ func (w *recordingCodeValueFlowTaintSweeper) RetractStaleCodeTaintEvidence(
 	evidenceSource string,
 	limit int,
 ) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.calls = append(w.calls, codeValueFlowSweepCall{
 		scopeID:        scopeID,
 		generationID:   generationID,
@@ -267,6 +270,12 @@ func (w *recordingCodeValueFlowTaintSweeper) RetractStaleCodeTaintEvidence(
 		limit:          limit,
 	})
 	return nil
+}
+
+func (w *recordingCodeValueFlowTaintSweeper) callCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.calls)
 }
 
 type recordingCodeValueFlowInterprocSweeper struct {
