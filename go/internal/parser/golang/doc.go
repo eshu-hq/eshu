@@ -4,12 +4,14 @@
 // Parse builds the Go payload consumed by collector materialization, including
 // functions, methods, structs, interfaces, imports, variables, function calls,
 // method return-type metadata, dead-code root evidence, composite-literal type
-// references, and embedded SQL rows. Return-type metadata normalizes pointers,
-// slices, arrays, selector types, and generic instantiations to the terminal
-// element type. Import rows preserve explicit aliases, and chained method calls
-// carry receiver proof only when local lexical evidence identifies the root
-// receiver type. Receiver inference covers typed parameters on declarations
-// and function literals, constructor-assigned locals, and
+// references, and embedded SQL rows. Function and method rows carry
+// package_import_path only when callers provide GoPackageImportPath.
+// Return-type metadata normalizes pointers, slices, arrays, selector types, and
+// generic instantiations to the terminal element type. Import rows preserve
+// explicit aliases, and chained method calls carry receiver proof only when
+// local lexical evidence identifies the root receiver type. Receiver inference
+// covers typed parameters on declarations and function literals,
+// constructor-assigned locals, and
 // map-value range variables while function-value references cover call
 // arguments, composite literal fields, returned method values, callback
 // literals, composite-literal registries, direct method calls, generic
