@@ -508,9 +508,22 @@ run-history skip cannot satisfy), and `…NilFencePreservesLegacyBehavior` (a ni
 fence keeps the pre-fix path byte-identical), plus
 `TestBuildRepoWideRetractRefreshIntentsPairsOnePerRepo` for the paired-emission
 invariant. `go test ./internal/reducer ./cmd/reducer -count=1` and
-`go test ./internal/reducer -race -count=1` are green. Remote full-corpus
-no-regression confirmation against the 896-repository corpus is the pre-merge
-gate (high blast radius: the worker is shared by six active domains).
+`go test ./internal/reducer -race -count=1` are green.
+
+Remote before/after proof (fresh NornicDB v1.1.6 + Postgres + reducer stack via
+Docker Compose, clean volumes, default 8 partitions, against a fixture repo with
+six Express routes bound to six distinct handlers): the **unfixed** build emits
+six per-edge handles_route intents and completes all of them, yet only **1 of 6**
+`HANDLES_ROUTE` and **1 of 6** `RUNS_IN` edges survive — the per-partition
+repo-wide retract silently drops the rest (#2910). The **fixed** build emits seven
+intents (six per-edge + one refresh), completes all of them, and **all 6**
+`HANDLES_ROUTE` and **all 6** `RUNS_IN` edges survive. Both runs drained with
+`fact_work_items` succeeded=11, failed=0, dead_letter=0, so the loss is silent,
+not a failure. This confirms the correctness fix end-to-end on a real graph
+backend; throughput cannot regress because the change issues strictly fewer
+repo-wide retracts and byte-identical writes (one bounded indexed
+`shared_projection_intents` existence `SELECT` per per-edge partition cycle is the
+only added work).
 
 Observability Evidence: the worker adds one bounded result field
 (`RefreshFenceDeferred`) and the runner emits
