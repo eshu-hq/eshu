@@ -620,6 +620,40 @@ Observability Evidence: reuses the partitioned-runner signals — `IndexedSelect
 `UnhashedFallbackRows`, and the #2898 `RefreshFenceDeferred` field + log. No new
 metric, label, queue domain, or runtime knob.
 
+### Rationale Edges Target-File Partition Promotion (#2869)
+
+`RationaleEdgeMaterializationHandler` wrote EXPLAINS edges directly; #2869 promotes
+it onto the partitioned runner like #2867/#2868, anchored on `target.path`/
+`target.repo_id` (the entity the comment precedes). Per-edge write-only intents key
+on `rationale-edges:v1:files:<repo>:<sha256(repo,target_path,edge)>` (edge identity
+mixed in to avoid the dedup collapse), fenced behind one per-repo refresh intent
+emitted under the shared `repoWideRetractRefreshPartitionKey`.
+
+The readiness gate moved from `semantic_nodes_committed` to
+`canonical_nodes_committed`: `canonical_rationale_edges.go` shows the EXPLAINS edge
+MATCHes a canonical code-entity target (`:Function|Class|Struct|Interface|TypeAlias|
+Enum|File`) and MERGEs the identity-only `:Rationale` node inline within the edge
+write — `Rationale` is published by neither `projector/canonical.go`,
+`canonical_node_writer.go`, nor the semantic-entity reducer, so both endpoints exist
+at canonical-nodes. Gating on semantic-nodes would have stalled any repo with
+rationale comments but no semantic entities (the #2867/#2868 latent bug, pre-empted
+here with code evidence).
+
+No-Regression Evidence: state-modeling convergence tests in
+`go/internal/reducer/rationale_edge_materialization_partition_test.go` prove the
+partitioned path is byte-identical to the direct path (full + delta,
+multi-edge-per-file, seeded non-empty graph, real `ProcessPartitionOnce` + #2898
+fence, `UnhashedFallbackRows=0`). `go test ./internal/reducer ./cmd/reducer
+-count=1` and `go test ./internal/reducer -race -count=1` are green. Throughput
+cannot regress (indexed partitioned runner; retract scope unchanged; one bounded
+refresh-fence `SELECT` per per-edge cycle). Remote end-to-end confirmation pending
+(the gate fix is the primary remote risk and is corrected with code evidence, the
+same flow already remote-confirmed for #2867 and #2868).
+
+Observability Evidence: reuses the partitioned-runner signals — `IndexedSelection`,
+`UnhashedFallbackRows`, and the #2898 `RefreshFenceDeferred` field + log. No new
+metric, label, queue domain, or runtime knob.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
