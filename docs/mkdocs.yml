@@ -216,6 +216,7 @@ nav:
     - Local Host & Capabilities:
       - Backend Conformance: reference/backend-conformance.md
       - Capability Conformance Spec: reference/capability-conformance-spec.md
+      - Local Lightweight Capability Audit: reference/local-lightweight-capability-audit.md
       - Capability Catalog: reference/capability-catalog.md
       - Competitive Audit Preflight: reference/competitive-audit-preflight.md
       - Truth Label Protocol: reference/truth-label-protocol.md
