@@ -245,11 +245,12 @@ belong in status, telemetry, or runtime wiring.
 
 ### Vulnerability Intelligence Promotion Proof
 
-The `eshu-collector-vulnerability-intelligence` lane is remote-E2E-gated until a
-live run records `promotion_state: implemented` for it in the machine-readable
-report above. This is the lane-specific procedure to drive and record that
-proof; it specializes the generic steps for the four sources (CISA KEV, FIRST
-EPSS, OSV, NVD). Tracking issue:
+A live remote-E2E run on 2026-06-18 recorded `promotion_state: implemented` for
+the `eshu-collector-vulnerability-intelligence` lane (see the recorded run
+below). This is the lane-specific procedure used to drive and record that proof;
+it specializes the generic steps for the four sources (CISA KEV, FIRST EPSS, OSV,
+NVD) and the owned-package impact join. Re-run it to refresh the evidence in a
+new environment. Tracking issue:
 [#3014](https://github.com/eshu-hq/eshu/issues/3014).
 
 1. Bring up the stack with the collector enabled and its targets configured.
@@ -274,33 +275,40 @@ EPSS, OSV, NVD). Tracking issue:
 #### Recorded live run (2026-06-18)
 
 Isolated minimal stack (project `eshu-3014-vulnproof`), live collection of
-CVE-2021-44228 / Maven `log4j-core` 2.14.1 targets. KEV, EPSS, OSV collected
-against their public endpoints; NVD ran key-gated (no API key configured — a
-single CVE-by-ID lookup stayed inside the anonymous-tier rate limit). All four
-`vulnerability_source_states` rows reached `terminal_status = succeeded` with no
-error class; the four `vulnerability_intelligence` workflow work items completed
-(0 pending/failed); `graph_projection_phase_repair_queue` depth 0.
+CVE-2021-44228 / Maven `log4j-core` 2.14.1 targets plus owned-package-derived
+OSV targets. KEV, EPSS, OSV collected against their public endpoints; NVD ran
+key-gated (no API key configured — a single CVE-by-ID lookup stayed inside the
+anonymous-tier rate limit). All `vulnerability_source_states` rows reached
+`terminal_status = succeeded` with no error class; the `vulnerability_intelligence`
+workflow work items completed (0 pending/failed);
+`graph_projection_phase_repair_queue` depth 0. The lane reached
+`promotion_state: implemented` once owned-package evidence joined the advisory
+into published impact findings (see the end-to-end row and reading below).
 
 | Source | Target | Fact count (live) | Source-state | Work-item drain | Readiness surface | Promotion state |
 | --- | --- | --- | --- | --- | --- | --- |
-| CISA KEV | `vuln-intel://cisa/kev` | 1623 `vulnerability.known_exploited` | `succeeded`, no retry error | completed | `collector-readiness` = `partial` | source-truth proven |
-| FIRST EPSS | `vuln-intel://first/epss` | 1 `vulnerability.epss_score` | `succeeded`, no retry error | completed | `collector-readiness` = `partial` | source-truth proven |
-| OSV | `vuln-intel://osv/maven/log4j-core` | 14 `vulnerability.affected_package` + 8 `vulnerability.cve` | `succeeded`, no retry error | completed | `collector-readiness` = `partial` | source-truth proven |
-| NVD | `vuln-intel://nvd/cve` | 395 `vulnerability.affected_product` (+215 `vulnerability.reference`) | `succeeded` key-gated (anonymous tier) | completed | `collector-readiness` = `partial` | source-truth proven |
+| CISA KEV | `vuln-intel://cisa/kev` | 1623 `vulnerability.known_exploited` | `succeeded`, no retry error | completed | `collector-readiness` = `implemented` | source-truth proven |
+| FIRST EPSS | `vuln-intel://first/epss` | 1 `vulnerability.epss_score` | `succeeded`, no retry error | completed | `collector-readiness` = `implemented` | source-truth proven |
+| OSV | `vuln-intel://osv/maven/log4j-core` | 14 `vulnerability.affected_package` + 8 `vulnerability.cve` | `succeeded`, no retry error | completed | `collector-readiness` = `implemented` | source-truth proven |
+| NVD | `vuln-intel://nvd/cve` | 395 `vulnerability.affected_product` (+215 `vulnerability.reference`) | `succeeded` key-gated (anonymous tier) | completed | `collector-readiness` = `implemented` | source-truth proven |
 | `vulnerability.source_snapshot` | all four sources | 4 (one per source) | surfaced via `vulnerability_source_states` | n/a | readiness API | source-truth proven |
-| CVE → impact end-to-end | CVE-2021-44228 | 0 published findings | n/a | n/a | impact read returns no finding | **not yet** — owned-package evidence required |
+| CVE → impact end-to-end | owned `lodash` 4.17.11 + derived OSV/GHSA | 7 published `reducer_supply_chain_impact_finding` facts, all `confidence: exact` | n/a | clean (`fact_work_items` succeeded, repair queue 0) | API `impact/findings?ecosystem=npm` returns 7; `affected_exact` | **implemented** |
 
-**Reading:** live source collection from all four feeds is proven, with
-per-source freshness/retry state, fact counts, source snapshots, and clean
-work-item drain. The lane's `collector-readiness` promotion state is **`partial`,
-not `implemented`**: a *published* CVE→impact finding requires owned
-package/manifest/lockfile/image/SBOM evidence for the affected package, which a
-source-only stack does not carry. The impact read therefore returns no finding —
-the correct, honest outcome (Eshu does not promote from advisory truth alone).
-Flipping the lane to `implemented` requires re-running with owned-package
-evidence (a repository declaring `org.apache.logging.log4j:log4j-core` 2.14.1)
-so the OSV advisory joins it into a published impact finding. Until that
-end-to-end run is recorded, the lane stays remote-E2E-gated.
+**Reading:** the run proceeded in two phases against the same isolated stack.
+Phase 1 proved live source collection from all four feeds (per-source
+freshness/retry, fact counts, source snapshots, clean work-item drain). Phase 2
+added owned-package evidence — a repository declaring `lodash` 4.17.11 — so the
+collector's `derive_from_owned_packages` planned an OSV target
+(`vuln-intel://osv/npm/lodash?version=4.17.11`, succeeded), the reducer joined
+the advisory to the owned package consumption, and **published 7 supply-chain
+impact findings** (CVE-2019-10744, CVE-2020-8203, CVE-2020-28500, CVE-2021-23337,
+CVE-2025-13465, CVE-2026-2950, CVE-2026-4800), each `affected_exact` with
+`confidence: exact`. The API read surface returns the findings
+(`impact/findings?ecosystem=npm` → 7), and `collector-readiness` reports the
+`vulnerability_intelligence` family at **`promotion_state: implemented`,
+`reducer_readback: available`**. This satisfies the end-to-end gate: a published
+CVE reaches a published impact finding through the supply-chain reducer, joined
+to owned evidence — never from CVSS, EPSS, KEV, or product-only CPEs alone.
 
 ## Maintainer Details
 
