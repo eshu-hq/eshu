@@ -60,6 +60,15 @@ func resolveLanguageSpecificCallee(
 	return "", "", ""
 }
 
+func codeCallLanguageResolverBlocksRepoFallback(ctx codeCallResolveContext) bool {
+	switch ctx.language {
+	case "java":
+		return javaImportedReceiverBindingBlocksRepoFallback(ctx)
+	default:
+		return false
+	}
+}
+
 func resolveGoPackageQualifiedCallee(ctx codeCallResolveContext) (string, string, codeprovenance.Method) {
 	entityID := resolveGoPackageQualifiedCalleeEntityID(ctx.index, ctx.repositoryID, ctx.fileData, ctx.call)
 	if entityID == "" {

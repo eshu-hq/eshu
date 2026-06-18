@@ -103,6 +103,41 @@ public class SearchController {
 	}
 }
 
+func TestParseEmitsQualifiedJavaReceiverType(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Worker.java")
+	writeJavaTestFile(t, filePath, `package example;
+
+import com.acme.Service;
+
+public class Worker {
+    public void run(com.other.Service service) {
+        service.process();
+    }
+}
+`)
+	parser := tree_sitter.NewParser()
+	if err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_java.Language())); err != nil {
+		t.Fatalf("SetLanguage(java) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	got, err := Parse(filePath, false, shared.Options{}, parser)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	call := assertJavaBucketItem(t, got, "function_calls", "process")
+	if call["inferred_obj_type"] != "Service" {
+		t.Fatalf("inferred_obj_type = %#v, want Service", call["inferred_obj_type"])
+	}
+	if call["inferred_obj_qualified_type"] != "com.other.Service" {
+		t.Fatalf("inferred_obj_qualified_type = %#v, want com.other.Service", call["inferred_obj_qualified_type"])
+	}
+}
+
 func writeJavaTestFile(t *testing.T, path string, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
