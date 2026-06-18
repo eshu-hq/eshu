@@ -366,6 +366,33 @@ durable queue/status rows, and Postgres query duration metrics. It adds no route
 graph query shape, new metric instrument, new metric label key, span, lease,
 runtime knob, or log key.
 
+No-Regression Evidence: #2906 wires the already-registered
+`DomainCodeInterprocEvidence` materialization domain at runtime — a Postgres
+`CodeInterprocEvidenceLoader`, the canonical graph writer, and the domain
+registration in `knownDomains` — so cross-function value-flow findings project
+into `TAINT_FLOWS_TO` edges between their source and sink Function nodes. It is
+ADDITIVE and mirrors the `code_taint_evidence` wiring above: a new domain
+following the existing reducer retract-by-evidence-source + canonical-write
+pattern (evidence source `reducer/code-interproc`), with no change to any
+existing domain's selection, write, or readiness path, and no new schema (the
+edge reuses the existing `iam_can_assume`/`handles_route` reducer-owned-edge
+shape). `go test ./internal/reducer -run 'CodeInterproc' -count=1`,
+`go test ./internal/storage/postgres -run 'CodeInterproc' -count=1`, and
+`go test ./internal/projector -run 'CodeInterproc' -count=1` cover the loader,
+the handler, and intent emission; `go test ./cmd/reducer -count=1` proves the
+runtime wiring registers the loader/writer without disturbing the other domains.
+The `configureReducerQueue` extraction in `main_helpers.go` is a pure move of the
+existing work-queue setup (no behavior change) to keep `main.go` within the
+file-size budget.
+
+No-Observability-Change: the interproc domain reuses the same generic reducer
+claim/execute/ack instrumentation — diagnosed through existing reducer run spans,
+per-domain execution counters (the `domain` attribute gains the
+`code_interproc_evidence` value, an existing label, not a new instrument),
+durable queue/status rows, and Postgres query duration metrics. It adds no route,
+graph query shape, new metric instrument, new metric label key, span, lease,
+runtime knob, or log key.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

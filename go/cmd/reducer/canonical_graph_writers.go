@@ -18,6 +18,7 @@ type canonicalGraphWriters struct {
 	observabilityCoverageEdge     *sourcecypher.ObservabilityCoverageEdgeWriter
 	incidentRoutingEvidence       *sourcecypher.IncidentRoutingEvidenceWriter
 	codeTaintEvidence             *sourcecypher.CodeTaintEvidenceWriter
+	codeInterprocEvidence         *sourcecypher.CodeInterprocEvidenceWriter
 	iamCanAssumeEdge              *sourcecypher.IAMCanAssumeEdgeWriter
 	s3LogsToEdge                  *sourcecypher.S3LogsToEdgeWriter
 	s3ExternalPrincipalGrant      *sourcecypher.S3ExternalPrincipalGrantWriter
@@ -46,6 +47,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int) canonic
 		observabilityCoverageEdge:     sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),
 		incidentRoutingEvidence:       sourcecypher.NewIncidentRoutingEvidenceWriter(exec, batchSize),
 		codeTaintEvidence:             sourcecypher.NewCodeTaintEvidenceWriter(exec, batchSize),
+		codeInterprocEvidence:         sourcecypher.NewCodeInterprocEvidenceWriter(exec, batchSize),
 		iamCanAssumeEdge:              sourcecypher.NewIAMCanAssumeEdgeWriter(exec, batchSize),
 		s3LogsToEdge:                  sourcecypher.NewS3LogsToEdgeWriter(exec, batchSize),
 		s3ExternalPrincipalGrant:      sourcecypher.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
