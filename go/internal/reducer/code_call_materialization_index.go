@@ -30,6 +30,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	repoDirNameCandidates := make(map[string]map[string]map[string]map[string]struct{})
 	goMethodReturnTypeCandidates := make(map[string]map[string]map[string]struct{})
 	symbolCandidates := make(map[string]map[string]codeCallSymbolResolution)
+	typeScriptCandidates := newTypeScriptIndexCandidates()
 
 	for _, env := range envelopes {
 		if env.FactKind != "file" {
@@ -114,6 +115,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 					}
 				}
 				addGoMethodReturnTypeCandidate(goMethodReturnTypeCandidates, repositoryID, item)
+				typeScriptCandidates.addFunction(repositoryID, item, entityID)
 			}
 		}
 		for _, bucket := range []string{"classes", "structs", "interfaces", "type_aliases"} {
@@ -161,6 +163,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 						}
 					}
 				}
+				typeScriptCandidates.addType(bucket, repositoryID, item)
 			}
 		}
 	}
@@ -228,6 +231,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			}
 		}
 	}
+	index.typeScriptInterfaceMethodsByRepo = typeScriptCandidates.uniqueMethods()
 	index.entityByStableSymbolKey = uniqueCodeCallSymbolCandidates(symbolCandidates)
 	index.goExportByImportPath = buildGoCrossRepoExportIndex(envelopes)
 	return index
