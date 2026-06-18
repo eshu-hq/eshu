@@ -43,7 +43,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 	if !db.tx.committed {
 		t.Fatal("transaction committed = false, want true")
 	}
-	summaryExec, enqueueExec := -1, -1
+	summaryExec, generationSummaryExec, enqueueExec := -1, -1, -1
 	for i, exec := range db.tx.execs {
 		if strings.Contains(exec.query, "INSERT INTO function_summaries") {
 			summaryExec = i
@@ -54,6 +54,15 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 				t.Fatalf("summary version arg empty in %#v", exec.args)
 			}
 		}
+		if strings.Contains(exec.query, "INSERT INTO function_summary_generations") {
+			generationSummaryExec = i
+			if got, want := exec.args[0], generation.GenerationID; got != want {
+				t.Fatalf("generation summary generation arg = %v, want %v", got, want)
+			}
+			if got, want := exec.args[1], string(functionID); got != want {
+				t.Fatalf("generation summary function id arg = %v, want %v", got, want)
+			}
+		}
 		if strings.Contains(exec.query, "INSERT INTO fact_work_items") {
 			enqueueExec = i
 		}
@@ -61,11 +70,19 @@ func TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProje
 	if summaryExec < 0 {
 		t.Fatalf("function summary upsert missing from execs: %#v", db.tx.execs)
 	}
+	if generationSummaryExec < 0 {
+		t.Fatalf("function generation summary upsert missing from execs: %#v", db.tx.execs)
+	}
 	if enqueueExec < 0 {
 		t.Fatalf("projector enqueue missing from execs: %#v", db.tx.execs)
 	}
-	if summaryExec > enqueueExec {
-		t.Fatalf("summary exec index = %d, enqueue exec index = %d; want summaries before enqueue", summaryExec, enqueueExec)
+	if summaryExec > enqueueExec || generationSummaryExec > enqueueExec {
+		t.Fatalf(
+			"summary exec index = %d generation summary exec index = %d enqueue exec index = %d; want summaries before enqueue",
+			summaryExec,
+			generationSummaryExec,
+			enqueueExec,
+		)
 	}
 }
 

@@ -133,6 +133,12 @@ High-signal invariants for this package:
   functions removed by a later full snapshot is tracked in #2947; delta
   generations must not delete unrelated functions just because they were not
   reparsed.
+- `ValueFlowProgramInputStore` loads active value-flow Program assembly inputs
+  after completed `code_calls` shared projection. It joins caller/callee
+  Function content entities to `summary.FunctionID` through `repo_id`,
+  `entity_name`, `class_context`, and `package_import_path`, skips incomplete
+  identities, and loads only the candidate repositories' summaries through
+  `LoadRepoSnapshot`.
 - Relationship evidence backfill stays bounded to latest active repository
   facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
   relationship facts are included explicitly because they are provider-resource
@@ -148,6 +154,23 @@ tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
 No-Regression Evidence: #2941 parser summary persistence is covered by `go test ./internal/storage/postgres -run 'TestFunctionSummaryStoreRejectsBlankPackageComponent|TestFunctionSummaryStoreLoadsRepoSnapshot|TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProjectorEnqueue|TestIngestionStoreCommitScopeGenerationRollsBackWhenFunctionSummaryPersistenceFails' -count=1`. It proves malformed blank-package identities fail closed, repo-scoped reloads stay bounded by `repo = $1`, summary upsert happens before projector enqueue in the ingestion transaction, and failed summary persistence rolls back without enqueuing projector work.
 
 Observability Evidence: #2941 adds the existing ingestion commit-stage log `upsert_function_summaries` with `summary_count`, `repo_count`, and `recomputed_count`; it adds no metric name, metric label, queue domain, worker, or table beyond the existing `function_summaries` schema.
+
+No-Regression Evidence: #2954 value-flow Program input loading is covered by
+`go test ./internal/storage/postgres -run 'TestValueFlowProgramInputLoader'
+-count=1`, which failed before `ValueFlowProgramInputStore` existed and then
+passed after the loader selected active completed `code_calls`, joined Function
+entity metadata to summary identities, counted missing identity skips, and used
+repo-scoped `FunctionSummaryStore.LoadRepoSnapshot` reads. The SQL is bounded by
+active scope/generation/source-run/acceptance-unit candidates and candidate
+repository IDs; it adds no table, graph write, queue domain, worker, lease, or
+runtime default.
+
+Observability Evidence: #2954 storage loading itself adds no metric name,
+metric label, or log line. The reducer assembly runner records loader outcomes
+through `summary_count`, `call_edge_count`, `program_edge_count`,
+`skipped_missing_identity`, `skipped_missing_summary`, and
+`skipped_unconfirmed_call_flow`; individual Postgres reads remain covered by the
+existing instrumented DB query spans and `eshu_dp_postgres_query_duration_seconds`.
 
 ### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
 

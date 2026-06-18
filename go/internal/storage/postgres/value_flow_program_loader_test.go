@@ -1,0 +1,217 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+)
+
+func TestValueFlowProgramInputLoaderSQLUsesActiveCompletedCodeCallsAndFunctionMetadata(t *testing.T) {
+	for _, want := range []string{
+		"JOIN ingestion_scopes AS scope",
+		"scope.active_generation_id = acceptance.generation_id",
+		"intent.projection_domain = 'code_calls'",
+		"intent.completed_at IS NOT NULL",
+		"NOT EXISTS",
+		"pending_intent.completed_at IS NULL",
+		"newer_generation.ingested_at > generation.ingested_at",
+		"LEFT JOIN content_entities AS caller",
+		"LEFT JOIN content_entities AS callee",
+		"caller.metadata->>'package_import_path'",
+		"callee.metadata->>'class_context'",
+	} {
+		if !strings.Contains(listValueFlowProgramCallEdgesSQL, want) &&
+			!strings.Contains(listPendingValueFlowProgramInputsSQL, want) {
+			t.Fatalf("value-flow program loader SQL missing %q", want)
+		}
+	}
+}
+
+func TestValueFlowProgramInputLoaderSQLWaitsForEveryCodeCallIntent(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"NOT EXISTS",
+		"pending_intent.scope_id = acceptance.scope_id",
+		"pending_intent.acceptance_unit_id = acceptance.acceptance_unit_id",
+		"pending_intent.source_run_id = acceptance.source_run_id",
+		"pending_intent.generation_id = acceptance.generation_id",
+		"pending_intent.projection_domain = 'code_calls'",
+		"pending_intent.completed_at IS NULL",
+	} {
+		if !strings.Contains(listPendingValueFlowProgramInputsSQL, want) {
+			t.Fatalf("pending value-flow input SQL missing %q:\n%s", want, listPendingValueFlowProgramInputsSQL)
+		}
+	}
+}
+
+func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 18, 6, 45, 0, 0, time.UTC)
+	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
+	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
+	db := &valueFlowProgramLoaderDB{
+		candidates: [][]any{{"scope-1", "repo-app", "run-1", "generation-1", now}},
+		edges: [][]any{{
+			"entity:caller", "entity:callee", "CALLS", "scip",
+			"repo-app", "Function", "Handle", "", "example.com/app",
+			"repo-lib", "Function", "Query", "", "example.com/lib",
+		}},
+		summaries: map[string][]summary.SnapshotFunction{
+			"repo-app": {{
+				ID:      caller,
+				Effects: summary.Effects{ParamToCallArg: []summary.CallArgFlow{{Callee: callee, Param: 0, Arg: 1}}},
+				Version: "caller-version",
+			}},
+			"repo-lib": {{
+				ID:      callee,
+				Effects: summary.Effects{ParamToSink: []summary.ParamSink{{Param: 1, SinkKind: "sql"}}},
+				Version: "callee-version",
+			}},
+		},
+	}
+	store := NewValueFlowProgramInputStore(db)
+
+	inputs, err := store.LoadPendingValueFlowProgramInputs(ctx, 10)
+	if err != nil {
+		t.Fatalf("LoadPendingValueFlowProgramInputs() error = %v", err)
+	}
+	if len(inputs) != 1 {
+		t.Fatalf("len(inputs) = %d, want 1", len(inputs))
+	}
+	input := inputs[0]
+	if got, want := input.RepositoryID, "repo-app"; got != want {
+		t.Fatalf("RepositoryID = %q, want %q", got, want)
+	}
+	if len(input.CallEdges) != 1 {
+		t.Fatalf("CallEdges = %#v, want one edge", input.CallEdges)
+	}
+	if got := input.CallEdges[0].CallerFunctionID; got != caller {
+		t.Fatalf("CallerFunctionID = %q, want %q", got, caller)
+	}
+	if got := input.CallEdges[0].CalleeFunctionID; got != callee {
+		t.Fatalf("CalleeFunctionID = %q, want %q", got, callee)
+	}
+	program, stats := reducer.BuildValueFlowProgram(input)
+	if stats.ProgramEdgeCount != 1 || stats.SinkCount != 1 {
+		t.Fatalf("program=%#v stats=%#v, want one edge and one sink", program, stats)
+	}
+	if got, want := db.summaryLoads[0].generationID, "generation-1"; got != want {
+		t.Fatalf("summary generation load = %q, want %q", got, want)
+	}
+}
+
+func TestValueFlowProgramInputLoaderCountsMissingFunctionIdentity(t *testing.T) {
+	ctx := context.Background()
+	db := &valueFlowProgramLoaderDB{
+		candidates: [][]any{{"scope-1", "repo-app", "run-1", "generation-1", time.Now().UTC()}},
+		edges: [][]any{{
+			"entity:caller", "entity:callee", "CALLS", "scip",
+			"repo-app", "Function", "Handle", "", "",
+			"repo-lib", "Function", "Query", "", "example.com/lib",
+		}},
+		summaries: map[string][]summary.SnapshotFunction{},
+	}
+	store := NewValueFlowProgramInputStore(db)
+
+	inputs, err := store.LoadPendingValueFlowProgramInputs(ctx, 10)
+	if err != nil {
+		t.Fatalf("LoadPendingValueFlowProgramInputs() error = %v", err)
+	}
+	if len(inputs) != 1 {
+		t.Fatalf("len(inputs) = %d, want 1", len(inputs))
+	}
+	if got, want := inputs[0].SkippedMissingIdentity, 1; got != want {
+		t.Fatalf("SkippedMissingIdentity = %d, want %d", got, want)
+	}
+	if len(inputs[0].CallEdges) != 0 {
+		t.Fatalf("CallEdges = %#v, want none without package identity", inputs[0].CallEdges)
+	}
+}
+
+type valueFlowProgramLoaderDB struct {
+	candidates   [][]any
+	edges        [][]any
+	summaries    map[string][]summary.SnapshotFunction
+	summaryLoads []valueFlowProgramSummaryLoad
+}
+
+type valueFlowProgramSummaryLoad struct {
+	repo         string
+	generationID string
+}
+
+func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+	switch {
+	case strings.Contains(query, "FROM shared_projection_acceptance AS acceptance"):
+		return &valueFlowProgramRows{data: db.candidates, idx: -1}, nil
+	case strings.Contains(query, "LEFT JOIN content_entities AS caller"):
+		return &valueFlowProgramRows{data: db.edges, idx: -1}, nil
+	case strings.Contains(query, "FROM function_summary_generations") && len(args) == 2:
+		repo, _ := args[0].(string)
+		generationID, _ := args[1].(string)
+		db.summaryLoads = append(db.summaryLoads, valueFlowProgramSummaryLoad{
+			repo:         repo,
+			generationID: generationID,
+		})
+		functions := db.summaries[repo]
+		rows := make([][]any, 0, len(functions))
+		for _, fn := range functions {
+			effects, err := json.Marshal(fn.Effects)
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, []any{string(fn.ID), effects, fn.Version})
+		}
+		return &valueFlowProgramRows{data: rows, idx: -1}, nil
+	default:
+		return nil, fmt.Errorf("unexpected query: %s", query)
+	}
+}
+
+func (db *valueFlowProgramLoaderDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return sharedIntentResult{}, nil
+}
+
+type valueFlowProgramRows struct {
+	data [][]any
+	idx  int
+}
+
+func (r *valueFlowProgramRows) Next() bool {
+	r.idx++
+	return r.idx < len(r.data)
+}
+
+func (r *valueFlowProgramRows) Scan(dest ...any) error {
+	if r.idx < 0 || r.idx >= len(r.data) {
+		return fmt.Errorf("scan out of range")
+	}
+	row := r.data[r.idx]
+	if len(dest) != len(row) {
+		return fmt.Errorf("scan: got %d dest, have %d cols", len(dest), len(row))
+	}
+	for i, val := range row {
+		switch d := dest[i].(type) {
+		case *string:
+			*d = val.(string)
+		case *[]byte:
+			*d = val.([]byte)
+		case *time.Time:
+			*d = val.(time.Time)
+		default:
+			return fmt.Errorf("unsupported scan dest type %T", dest[i])
+		}
+	}
+	return nil
+}
+
+func (r *valueFlowProgramRows) Err() error   { return nil }
+func (r *valueFlowProgramRows) Close() error { return nil }

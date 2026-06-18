@@ -24,6 +24,9 @@ func TestFunctionSummarySchemaSQL(t *testing.T) {
 		"updated_at TIMESTAMPTZ NOT NULL",
 		"function_summaries_repo_idx",
 		"function_summaries_updated_idx",
+		"CREATE TABLE IF NOT EXISTS function_summary_generations",
+		"PRIMARY KEY (generation_id, function_id)",
+		"function_summary_generations_repo_generation_idx",
 	} {
 		if !strings.Contains(sql, want) {
 			t.Fatalf("schema missing %q:\n%s", want, sql)
@@ -85,6 +88,36 @@ func TestFunctionSummaryStoreUpsertsSnapshot(t *testing.T) {
 	}
 	if exec.args[0] != string(snap.Functions[0].ID) || exec.args[6] != string(snap.Functions[1].ID) {
 		t.Fatalf("function id args = %#v, want deterministic snapshot order", exec.args)
+	}
+}
+
+func TestFunctionSummaryStoreUpsertsGenerationSnapshot(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 18, 4, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewFunctionSummaryStore(db)
+	snap := summarySnapshotFixture()
+
+	if err := store.UpsertGenerationSnapshot(context.Background(), "generation-1", snap, now); err != nil {
+		t.Fatalf("UpsertGenerationSnapshot() error = %v", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	exec := db.execs[0]
+	for _, want := range []string{
+		"INSERT INTO function_summary_generations",
+		"generation_id",
+		"ON CONFLICT (generation_id, function_id) DO UPDATE",
+		"WHERE function_summary_generations.updated_at <= EXCLUDED.updated_at",
+	} {
+		if !strings.Contains(exec.query, want) {
+			t.Fatalf("generation upsert query missing %q:\n%s", want, exec.query)
+		}
+	}
+	if got, want := exec.args[0], "generation-1"; got != want {
+		t.Fatalf("generation id arg = %v, want %v", got, want)
 	}
 }
 
@@ -256,6 +289,48 @@ func TestFunctionSummaryStoreLoadsRepoSnapshot(t *testing.T) {
 	}
 	if got, want := db.queries[0].args[0], "repo-alpha"; got != want {
 		t.Fatalf("repo load arg = %v, want %v", got, want)
+	}
+}
+
+func TestFunctionSummaryStoreLoadsRepoGenerationSnapshot(t *testing.T) {
+	t.Parallel()
+
+	snap := summarySnapshotFixture()
+	rows := make([][]any, 0, len(snap.Functions))
+	for _, fn := range snap.Functions {
+		effects, err := json.Marshal(fn.Effects)
+		if err != nil {
+			t.Fatalf("marshal effects: %v", err)
+		}
+		rows = append(rows, []any{string(fn.ID), effects, fn.Version})
+	}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: rows}}}
+	store := NewFunctionSummaryStore(db)
+
+	loaded, err := store.LoadRepoGenerationSnapshot(context.Background(), "repo-alpha", "generation-1")
+	if err != nil {
+		t.Fatalf("LoadRepoGenerationSnapshot() error = %v", err)
+	}
+	if got := len(loaded.Functions); got != len(snap.Functions) {
+		t.Fatalf("loaded function count = %d, want %d", got, len(snap.Functions))
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	for _, want := range []string{
+		"FROM function_summary_generations",
+		"WHERE repo = $1",
+		"generation_id = $2",
+	} {
+		if !strings.Contains(db.queries[0].query, want) {
+			t.Fatalf("generation load query missing %q:\n%s", want, db.queries[0].query)
+		}
+	}
+	if got, want := db.queries[0].args[0], "repo-alpha"; got != want {
+		t.Fatalf("repo load arg = %v, want %v", got, want)
+	}
+	if got, want := db.queries[0].args[1], "generation-1"; got != want {
+		t.Fatalf("generation load arg = %v, want %v", got, want)
 	}
 }
 

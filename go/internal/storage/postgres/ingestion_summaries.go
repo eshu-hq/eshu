@@ -18,6 +18,7 @@ type functionSummaryCommitStats struct {
 func upsertFunctionSummariesForGeneration(
 	ctx context.Context,
 	db ExecQueryer,
+	generationID string,
 	summaries []collector.ValueFlowSummarySnapshot,
 	updatedAt time.Time,
 ) (functionSummaryCommitStats, error) {
@@ -50,11 +51,14 @@ func upsertFunctionSummariesForGeneration(
 		}
 		summaryStore := summary.Load(existing)
 		recomputed := summaryStore.Upsert(updatesByRepo[repo])
-		if len(recomputed) == 0 {
-			continue
+		fullSnapshot := summaryStore.Snapshot()
+		if len(recomputed) > 0 {
+			snap := snapshotForFunctionIDs(fullSnapshot, recomputed)
+			if err := store.UpsertSnapshot(ctx, snap, updatedAt); err != nil {
+				return functionSummaryCommitStats{}, err
+			}
 		}
-		snap := snapshotForFunctionIDs(summaryStore.Snapshot(), recomputed)
-		if err := store.UpsertSnapshot(ctx, snap, updatedAt); err != nil {
+		if err := store.UpsertGenerationSnapshot(ctx, generationID, fullSnapshot, updatedAt); err != nil {
 			return functionSummaryCommitStats{}, err
 		}
 		stats.Recomputed += len(recomputed)

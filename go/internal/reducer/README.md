@@ -24,6 +24,30 @@ rather than being asserted dead. See
 [dead-code-reachability.md](../query/dead-code-reachability.md) for the
 concurrency, bounds, backend-parity, and benchmark/observability evidence.
 
+Value-flow Program assembly is the loader-only bridge for #2954. It consumes
+completed active `code_calls` rows plus persisted function summaries, maps
+Function content-entity UIDs to `summary.FunctionID`, and builds
+`interproc.Program` values through `valueflow.BuildProgram`. The runner does not
+call `SolvePartitioned`, write `TAINT_FLOWS_TO`, change queue semantics, or
+register a runtime worker yet; it exposes counts for missing identity, missing
+summary rows, and unconfirmed call flows so the later writer can fail closed.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'Test(ValueFlowProgramAssemblyRunner|BuildValueFlowProgram)' -count=1` failed
+before the assembly helper and runner existed, then passed after active CALLS
+identity filtering, missing-summary counting, and aggregate cycle accounting
+were implemented. The slice performs in-memory filtering only and does not add a
+queue domain, graph query, graph write, worker, lease, or runtime default. The
+runner reports missing caller or callee identities under the same
+`skipped_missing_identity` counter so incomplete endpoints stay visible without
+fabricated Program edges.
+
+Observability Evidence: `ValueFlowProgramAssemblyRunner.ProcessOnce` logs
+`summary_count`, `call_edge_count`, `program_edge_count`, `source_count`,
+`sink_count`, `skipped_missing_identity`, `skipped_missing_summary`,
+`skipped_unconfirmed_call_flow`, and `duration_seconds` when it assembles at
+least one input. No metric name or metric label is added.
+
 ## Where this fits in the pipeline
 
 ```mermaid
