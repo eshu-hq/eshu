@@ -28,16 +28,49 @@ func viewAndRunQueryEntities() []content.EntityRecord {
 
 func TestFunctionIDName(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"\x1fpkg\x1frecv\x1fhandle": "handle",
-		"\x1f\x1f\x1fview":          "view",
-		"bare":                      "bare",
-		"":                          "",
+	cases := []struct {
+		id           string
+		wantReceiver string
+		wantName     string
+	}{
+		{"\x1fpkg\x1fA\x1fHandle", "A", "Handle"},
+		{"\x1fpkg\x1frecv\x1fhandle", "recv", "handle"},
+		{"\x1f\x1f\x1fview", "", "view"},
+		{"bare", "", "bare"},
+		{"", "", ""},
 	}
-	for id, want := range cases {
-		if got := functionIDName(id); got != want {
-			t.Fatalf("functionIDName(%q) = %q, want %q", id, got, want)
+	for _, tc := range cases {
+		receiver, name := functionIDReceiverName(tc.id)
+		if receiver != tc.wantReceiver || name != tc.wantName {
+			t.Fatalf("functionIDReceiverName(%q) = (%q, %q), want (%q, %q)", tc.id, receiver, name, tc.wantReceiver, tc.wantName)
 		}
+	}
+}
+
+// TestBuildInterprocTaintEvidencePreservesReceiver proves two methods with the
+// same name on different receivers are disambiguated by their class_context, so
+// a valid cross-function finding between them is not dropped as ambiguous.
+func TestBuildInterprocTaintEvidencePreservesReceiver(t *testing.T) {
+	t.Parallel()
+
+	parsed := []map[string]any{{"path": "/repo/src/handler.go", "interproc_findings": []map[string]any{{
+		"source_func": "\x1fpkg\x1fA\x1fHandle",
+		"sink_func":   "\x1fpkg\x1fB\x1fHandle",
+		"source_kind": "http_request",
+		"sink_kind":   "sql",
+		"confidence":  0.6,
+		"lang":        "go",
+	}}}}
+	entities := []content.EntityRecord{
+		{EntityID: "func-a-handle", Path: "src/handler.go", EntityType: "Function", EntityName: "Handle", StartLine: 3, Metadata: map[string]any{"class_context": "A"}},
+		{EntityID: "func-b-handle", Path: "src/handler.go", EntityType: "Function", EntityName: "Handle", StartLine: 9, Metadata: map[string]any{"class_context": "B"}},
+	}
+	evidence := buildInterprocTaintEvidence("/repo", parsed, entities)
+	if len(evidence) != 1 {
+		t.Fatalf("same-named methods on distinct receivers must resolve, got %d: %+v", len(evidence), evidence)
+	}
+	if evidence[0].SourceFunctionUID != "func-a-handle" || evidence[0].SinkFunctionUID != "func-b-handle" {
+		t.Fatalf("receiver-disambiguated endpoints mis-resolved: %+v", evidence[0])
 	}
 }
 

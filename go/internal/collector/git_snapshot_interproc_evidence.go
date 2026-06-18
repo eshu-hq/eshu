@@ -15,37 +15,45 @@ import (
 const interprocEvidenceFactKind = "code_interproc_evidence"
 
 // buildInterprocTaintEvidence resolves each file's interproc_findings to the
-// graph Function entities they span. The parser's FunctionID carries the function
-// name but not the entity uid, so each endpoint is resolved by name within the
-// file. A name that is not unique within the file, or that does not materialize
-// as an entity, is treated as unresolved and the finding is dropped (no orphan or
+// graph Function entities they span. The parser's FunctionID carries the
+// function's receiver and name but not the entity uid, so each endpoint is
+// resolved by (receiver, name) within the file. The receiver is the method's
+// class context, mirrored on the function entity as class_context metadata; both
+// the entity and the finding derive it from the same goReceiverContext helper, so
+// same-named methods on different receivers (e.g. (A) Handle vs (B) Handle)
+// disambiguate cleanly instead of colliding on the bare name. A (receiver, name)
+// pair that is not unique within the file, or that does not materialize as an
+// entity, is treated as unresolved and the finding is dropped (no orphan or
 // mis-attributed edge). Empty when the parser emitted no interproc findings, so
 // the snapshot is byte-identical when the value-flow gate is off.
 func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, entities []content.EntityRecord) []InterprocTaintEvidenceSnapshot {
-	// Per-file unique function-name -> uid. A name seen twice in one file is
+	// Per-file unique (receiver, name) -> uid. A pair seen twice in one file is
 	// marked ambiguous and never resolves.
-	uidByName := make(map[string]string)
+	uidByFunction := make(map[string]string)
 	ambiguous := make(map[string]struct{})
+	functionKey := func(relativePath, receiver, name string) string {
+		return relativePath + "\x00" + receiver + "\x00" + name
+	}
 	for _, entity := range entities {
 		if entity.EntityType != taintEvidenceFunctionLabel {
 			continue
 		}
-		key := entity.Path + "\x00" + entity.EntityName
-		if _, exists := uidByName[key]; exists {
+		key := functionKey(entity.Path, entityClassContext(entity), entity.EntityName)
+		if _, exists := uidByFunction[key]; exists {
 			ambiguous[key] = struct{}{}
 			continue
 		}
-		uidByName[key] = entity.EntityID
+		uidByFunction[key] = entity.EntityID
 	}
-	resolve := func(relativePath, name string) (string, bool) {
+	resolve := func(relativePath, receiver, name string) (string, bool) {
 		if name == "" {
 			return "", false
 		}
-		key := relativePath + "\x00" + name
+		key := functionKey(relativePath, receiver, name)
 		if _, bad := ambiguous[key]; bad {
 			return "", false
 		}
-		uid, ok := uidByName[key]
+		uid, ok := uidByFunction[key]
 		return uid, ok
 	}
 
@@ -62,10 +70,10 @@ func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, 
 		relativePath = filepath.ToSlash(filepath.Clean(relativePath))
 
 		for _, finding := range findings {
-			sourceName := functionIDName(snapshotPayloadString(finding, "source_func"))
-			sinkName := functionIDName(snapshotPayloadString(finding, "sink_func"))
-			sourceUID, okSource := resolve(relativePath, sourceName)
-			sinkUID, okSink := resolve(relativePath, sinkName)
+			sourceReceiver, sourceName := functionIDReceiverName(snapshotPayloadString(finding, "source_func"))
+			sinkReceiver, sinkName := functionIDReceiverName(snapshotPayloadString(finding, "sink_func"))
+			sourceUID, okSource := resolve(relativePath, sourceReceiver, sourceName)
+			sinkUID, okSink := resolve(relativePath, sinkReceiver, sinkName)
 			if !okSource || !okSink {
 				continue
 			}
@@ -87,16 +95,33 @@ func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, 
 	return evidence
 }
 
-// functionIDName returns the function name component of a value-flow FunctionID
-// (repo\x1fpkg\x1freceiver\x1fname): the substring after the last separator.
-func functionIDName(functionID string) string {
+// functionIDReceiverName splits a value-flow FunctionID
+// (repo\x1fpkg\x1freceiver\x1fname) into its receiver and name components: the
+// last separator-delimited field is the name and the field before it is the
+// receiver (empty for a top-level function). A FunctionID with no separator is
+// treated as a bare name with no receiver.
+func functionIDReceiverName(functionID string) (receiver, name string) {
 	if functionID == "" {
+		return "", ""
+	}
+	parts := strings.Split(functionID, "\x1f")
+	name = parts[len(parts)-1]
+	if len(parts) >= 2 {
+		receiver = parts[len(parts)-2]
+	}
+	return receiver, name
+}
+
+// entityClassContext returns the receiver/class context recorded on a function
+// entity (the class_context metadata key, set by the parser from the same
+// goReceiverContext helper that builds a FunctionID's receiver component). It is
+// the empty string for a top-level function or when the metadata is absent.
+func entityClassContext(entity content.EntityRecord) string {
+	if entity.Metadata == nil {
 		return ""
 	}
-	if idx := strings.LastIndexByte(functionID, '\x1f'); idx >= 0 {
-		return functionID[idx+1:]
-	}
-	return functionID
+	context, _ := entity.Metadata["class_context"].(string)
+	return context
 }
 
 // interprocEvidenceFactEnvelope builds the fact envelope for one resolved cross-
