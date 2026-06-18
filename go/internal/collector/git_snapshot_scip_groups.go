@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
@@ -16,45 +17,148 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFiles(
 	indexer scipProjectIndexer,
 	resultParser scipResultParser,
 ) (map[string]map[string]any, bool, error) {
+	subtrees := scipLanguageSubtrees(repoPath, groups)
+	if len(subtrees) == 0 {
+		return map[string]map[string]any{}, false, nil
+	}
+	workerCount := min(max(1, s.scipConfig().Workers), len(subtrees))
+	if workerCount <= 1 {
+		return s.collectSCIPLanguageGroupFilesSequential(ctx, subtrees, indexer, resultParser)
+	}
+	return s.collectSCIPLanguageGroupFilesConcurrent(ctx, subtrees, indexer, resultParser, workerCount)
+}
+
+func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFilesSequential(
+	ctx context.Context,
+	subtrees []scipLanguageSubtree,
+	indexer scipProjectIndexer,
+	resultParser scipResultParser,
+) (map[string]map[string]any, bool, error) {
 	scipFiles := make(map[string]map[string]any)
 	usedAny := false
-	for _, subtree := range scipLanguageSubtrees(repoPath, groups) {
-		language := subtree.Language
-		if !indexer.IsAvailable(language) {
-			s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultBinaryMissing)
-			s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultBinaryMissing)
-			continue
-		}
-
-		outputDir, err := os.MkdirTemp("", "eshu-scip-*")
+	for _, subtree := range subtrees {
+		result, err := s.collectSCIPLanguageSubtreeFiles(ctx, subtree, indexer, resultParser)
 		if err != nil {
 			return nil, false, err
 		}
-		indexPath, runErr := indexer.Run(ctx, subtree.Root, language, outputDir)
-		if runErr != nil {
-			_ = os.RemoveAll(outputDir)
-			s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultIndexerFailed)
-			s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultIndexerFailed)
+		if !result.used {
 			continue
 		}
-		result, parseErr := resultParser.Parse(indexPath, subtree.Root)
-		_ = os.RemoveAll(outputDir)
-		if parseErr != nil {
-			s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultParseFailed)
-			s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultParseFailed)
-			continue
-		}
-		if len(result.Files) == 0 {
-			s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultEmpty)
-			continue
-		}
-		for path, payload := range result.Files {
+		for path, payload := range result.files {
 			scipFiles[path] = payload
 		}
 		usedAny = true
-		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultUsed)
 	}
 	return scipFiles, usedAny, nil
+}
+
+func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFilesConcurrent(
+	ctx context.Context,
+	subtrees []scipLanguageSubtree,
+	indexer scipProjectIndexer,
+	resultParser scipResultParser,
+	workerCount int,
+) (map[string]map[string]any, bool, error) {
+	jobs := make(chan scipSubtreeFilesJob, len(subtrees))
+	results := make(chan scipSubtreeFilesResult, len(subtrees))
+
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				result, err := s.collectSCIPLanguageSubtreeFiles(ctx, job.subtree, indexer, resultParser)
+				result.index = job.index
+				result.err = err
+				results <- result
+			}
+		}()
+	}
+	for index, subtree := range subtrees {
+		jobs <- scipSubtreeFilesJob{index: index, subtree: subtree}
+	}
+	close(jobs)
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	resultsByIndex := make([]scipSubtreeFilesResult, len(subtrees))
+	for result := range results {
+		resultsByIndex[result.index] = result
+	}
+
+	scipFiles := make(map[string]map[string]any)
+	usedAny := false
+	var firstErr error
+	for _, result := range resultsByIndex {
+		if result.err != nil && firstErr == nil {
+			firstErr = result.err
+		}
+		if !result.used {
+			continue
+		}
+		for path, payload := range result.files {
+			scipFiles[path] = payload
+		}
+		usedAny = true
+	}
+	if firstErr != nil {
+		return nil, false, firstErr
+	}
+	return scipFiles, usedAny, nil
+}
+
+type scipSubtreeFilesJob struct {
+	index   int
+	subtree scipLanguageSubtree
+}
+
+type scipSubtreeFilesResult struct {
+	index int
+	files map[string]map[string]any
+	used  bool
+	err   error
+}
+
+func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
+	ctx context.Context,
+	subtree scipLanguageSubtree,
+	indexer scipProjectIndexer,
+	resultParser scipResultParser,
+) (scipSubtreeFilesResult, error) {
+	language := subtree.Language
+	if !indexer.IsAvailable(language) {
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultBinaryMissing)
+		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultBinaryMissing)
+		return scipSubtreeFilesResult{}, nil
+	}
+
+	outputDir, err := os.MkdirTemp("", "eshu-scip-*")
+	if err != nil {
+		return scipSubtreeFilesResult{}, err
+	}
+	indexPath, runErr := indexer.Run(ctx, subtree.Root, language, outputDir)
+	if runErr != nil {
+		_ = os.RemoveAll(outputDir)
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultIndexerFailed)
+		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultIndexerFailed)
+		return scipSubtreeFilesResult{}, nil
+	}
+	result, parseErr := resultParser.Parse(indexPath, subtree.Root)
+	_ = os.RemoveAll(outputDir)
+	if parseErr != nil {
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultParseFailed)
+		s.logSCIPSnapshotFallback(ctx, language, scipSnapshotResultParseFailed)
+		return scipSubtreeFilesResult{}, nil
+	}
+	if len(result.Files) == 0 {
+		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultEmpty)
+		return scipSubtreeFilesResult{}, nil
+	}
+	s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultUsed)
+	return scipSubtreeFilesResult{files: result.Files, used: true}, nil
 }
 
 type scipLanguageSubtree struct {

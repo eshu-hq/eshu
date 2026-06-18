@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 type SnapshotSCIPConfig struct {
 	Enabled   bool
 	Languages []string
+	Workers   int
 	Indexer   scipProjectIndexer
 	Parser    scipResultParser
 }
@@ -44,6 +46,7 @@ func LoadSnapshotSCIPConfig(getenv func(string) string) SnapshotSCIPConfig {
 	return SnapshotSCIPConfig{
 		Enabled:   scipEnabledFromEnv(getenv("SCIP_INDEXER")),
 		Languages: languages,
+		Workers:   scipWorkersFromEnv(getenv("SCIP_WORKERS")),
 	}
 }
 
@@ -58,6 +61,18 @@ func scipEnabledFromEnv(raw string) bool {
 	default:
 		return true
 	}
+}
+
+func scipWorkersFromEnv(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 1
+	}
+	workers, err := strconv.Atoi(raw)
+	if err != nil || workers < 1 {
+		return 1
+	}
+	return workers
 }
 
 func (s NativeRepositorySnapshotter) scipConfig() SnapshotSCIPConfig {
