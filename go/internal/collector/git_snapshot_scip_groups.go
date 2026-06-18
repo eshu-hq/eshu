@@ -59,7 +59,7 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFilesConcurrent(
 	resultParser scipResultParser,
 	workerCount int,
 ) (map[string]map[string]any, bool, error) {
-	jobs := make(chan scipLanguageSubtree, len(subtrees))
+	jobs := make(chan scipSubtreeFilesJob, len(subtrees))
 	results := make(chan scipSubtreeFilesResult, len(subtrees))
 
 	var wg sync.WaitGroup
@@ -67,15 +67,16 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFilesConcurrent(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for subtree := range jobs {
-				result, err := s.collectSCIPLanguageSubtreeFiles(ctx, subtree, indexer, resultParser)
+			for job := range jobs {
+				result, err := s.collectSCIPLanguageSubtreeFiles(ctx, job.subtree, indexer, resultParser)
+				result.index = job.index
 				result.err = err
 				results <- result
 			}
 		}()
 	}
-	for _, subtree := range subtrees {
-		jobs <- subtree
+	for index, subtree := range subtrees {
+		jobs <- scipSubtreeFilesJob{index: index, subtree: subtree}
 	}
 	close(jobs)
 	go func() {
@@ -83,10 +84,15 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFilesConcurrent(
 		close(results)
 	}()
 
+	resultsByIndex := make([]scipSubtreeFilesResult, len(subtrees))
+	for result := range results {
+		resultsByIndex[result.index] = result
+	}
+
 	scipFiles := make(map[string]map[string]any)
 	usedAny := false
 	var firstErr error
-	for result := range results {
+	for _, result := range resultsByIndex {
 		if result.err != nil && firstErr == nil {
 			firstErr = result.err
 		}
@@ -104,7 +110,13 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFilesConcurrent(
 	return scipFiles, usedAny, nil
 }
 
+type scipSubtreeFilesJob struct {
+	index   int
+	subtree scipLanguageSubtree
+}
+
 type scipSubtreeFilesResult struct {
+	index int
 	files map[string]map[string]any
 	used  bool
 	err   error

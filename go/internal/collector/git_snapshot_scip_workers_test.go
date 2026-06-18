@@ -96,6 +96,60 @@ func TestSCIPLanguageSubtreesRunWithBoundedWorkers(t *testing.T) {
 	}
 }
 
+func TestSCIPLanguageGroupFilesConcurrentPreservesSubtreeMergeOrder(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	childRoot := filepath.Join(repoRoot, "services", "api")
+	filePath := filepath.Join(childRoot, "app.py")
+	writeCollectorTestFile(t, filePath, "def main():\n    return helper()\n")
+
+	indexer := delayedSCIPIndexer{
+		available: map[string]bool{"python": true},
+		delays: map[string]time.Duration{
+			repoRoot:  40 * time.Millisecond,
+			childRoot: time.Millisecond,
+		},
+	}
+	resultParser := rootSCIPParser{resultsByRoot: map[string]parser.SCIPParseResult{
+		repoRoot: {
+			Files: map[string]map[string]any{
+				filePath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python parent/main()."}}},
+			},
+		},
+		childRoot: {
+			Files: map[string]map[string]any{
+				filePath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python child/main()."}}},
+			},
+		},
+	}}
+	snapshotter := NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Workers: 2}}
+
+	scipFiles, usedAny, err := snapshotter.collectSCIPLanguageGroupFilesConcurrent(
+		context.Background(),
+		[]scipLanguageSubtree{
+			{Language: "python", Root: repoRoot},
+			{Language: "python", Root: childRoot},
+		},
+		indexer,
+		resultParser,
+		2,
+	)
+	if err != nil {
+		t.Fatalf("collectSCIPLanguageGroupFilesConcurrent() error = %v, want nil", err)
+	}
+	if !usedAny {
+		t.Fatal("usedAny = false, want true")
+	}
+	calls, ok := scipFiles[filePath]["function_calls_scip"].([]map[string]any)
+	if !ok || len(calls) != 1 {
+		t.Fatalf("function_calls_scip = %#v, want one deterministic SCIP call", scipFiles[filePath]["function_calls_scip"])
+	}
+	if got, want := calls[0]["callee_symbol"], "scip-python python child/main()."; got != want {
+		t.Fatalf("callee_symbol = %#v, want %#v", got, want)
+	}
+}
+
 func BenchmarkSCIPLanguageSubtreeWorkers(b *testing.B) {
 	for _, workers := range []int{1, 4} {
 		b.Run(fmt.Sprintf("workers_%d", workers), func(b *testing.B) {
@@ -181,6 +235,27 @@ func (i *concurrentSCIPIndexer) maxActive() int {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.max
+}
+
+type delayedSCIPIndexer struct {
+	available map[string]bool
+	delays    map[string]time.Duration
+}
+
+func (i delayedSCIPIndexer) IsAvailable(language string) bool {
+	return i.available[language]
+}
+
+func (i delayedSCIPIndexer) Run(ctx context.Context, projectPath string, language string, outputDir string) (string, error) {
+	delay := i.delays[projectPath]
+	if delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	return filepath.Join(outputDir, language+".scip"), nil
 }
 
 type rootSCIPParser struct {
