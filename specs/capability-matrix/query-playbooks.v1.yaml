@@ -1,5 +1,6 @@
 capabilities:
   - capability: query.playbooks
+    tools: [list_query_playbooks, resolve_query_playbook]
     profiles:
       local_lightweight:
         max_truth_level: exact

@@ -1,6 +1,8 @@
 package capabilitycatalog
 
 import (
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -184,4 +186,97 @@ func TestBuildFlagsInvalidOverlayMaturityWithoutReasonFinding(t *testing.T) {
 	if got[FindingMissingMaturityReason] != 0 {
 		t.Fatalf("missing reason findings = %d, want 0 for invalid maturity (%+v)", got[FindingMissingMaturityReason], findings)
 	}
+}
+
+func TestRealSpecsResolveIssue2743ToolMappings(t *testing.T) {
+	t.Parallel()
+
+	matrix, err := LoadMatrix(repoSpecsDir(t))
+	if err != nil {
+		t.Fatalf("LoadMatrix: %v", err)
+	}
+	overlay, err := LoadOverlay(repoSpecsDir(t) + "/" + OverlayFileName)
+	if err != nil {
+		t.Fatalf("LoadOverlay: %v", err)
+	}
+
+	queryPlaybooks, ok := realSpecCapability(matrix, "query.playbooks")
+	if !ok {
+		t.Fatal("query.playbooks capability missing from real matrix")
+	}
+	wantTools := []string{"list_query_playbooks", "resolve_query_playbook"}
+	for _, tool := range wantTools {
+		if !slices.Contains(queryPlaybooks.Tools, tool) {
+			t.Fatalf("query.playbooks tools = %v, want %q declared in matrix", queryPlaybooks.Tools, tool)
+		}
+		if exemption, ok := realSpecToolExemption(overlay, tool); ok {
+			t.Fatalf("%q should be a matrix tool, not overlay exemption: %+v", tool, exemption)
+		}
+	}
+
+	for _, exemption := range overlay.ToolExemptions {
+		if exemption.Issue != 2743 {
+			continue
+		}
+		t.Fatalf("%q still references #2743; completed follow-up exemptions need durable reasons", exemption.Tool)
+	}
+
+	for _, exemption := range overlay.ToolExemptions {
+		reason := strings.ToLower(exemption.Reason)
+		if strings.Contains(reason, "pending capability-matrix row") || strings.Contains(reason, "promote to matrix") {
+			t.Fatalf("%q exemption reason is still temporary: %q", exemption.Tool, exemption.Reason)
+		}
+	}
+
+	resolvedTools := []string{
+		"get_repo_story",
+		"get_repo_summary",
+		"get_service_story",
+		"get_workload_context",
+		"get_workload_story",
+		"investigate_service",
+		"derive_visualization_packet",
+		"visualize_graph_query",
+		"list_query_playbooks",
+		"resolve_query_playbook",
+	}
+	for _, tool := range resolvedTools {
+		if realSpecToolDeclared(matrix, tool) {
+			continue
+		}
+		exemption, ok := realSpecToolExemption(overlay, tool)
+		if !ok {
+			t.Fatalf("%q is neither matrix-declared nor durably exempted", tool)
+		}
+		if strings.TrimSpace(exemption.Reason) == "" {
+			t.Fatalf("%q exemption missing durable reason", tool)
+		}
+	}
+}
+
+func realSpecCapability(matrix Matrix, id string) (MatrixCapability, bool) {
+	for _, capability := range matrix.Capabilities {
+		if capability.Capability == id {
+			return capability, true
+		}
+	}
+	return MatrixCapability{}, false
+}
+
+func realSpecToolExemption(overlay Overlay, tool string) (OverlayToolExemption, bool) {
+	for _, exemption := range overlay.ToolExemptions {
+		if exemption.Tool == tool {
+			return exemption, true
+		}
+	}
+	return OverlayToolExemption{}, false
+}
+
+func realSpecToolDeclared(matrix Matrix, tool string) bool {
+	for _, capability := range matrix.Capabilities {
+		if slices.Contains(capability.Tools, tool) {
+			return true
+		}
+	}
+	return false
 }
