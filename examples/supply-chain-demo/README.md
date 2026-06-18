@@ -175,12 +175,26 @@ It asserts:
 These fixtures are the single source of truth: the test reads them directly from
 this directory, so the runbook and the test cannot drift.
 
+## Scripted full-chain proof (live stack)
+
+`scripts/run-full-chain-proof.sh` drives the **repo → owned package → OSV
+advisory → published impact finding** chain against a local Docker Compose stack
+and asserts a reducer-published finding plus `collector-readiness:
+implemented`. It transcribes the recipe proven live in the #3014 run, using a
+real registry package with a real advisory (`lodash` 4.17.11) for the owned
+evidence (a synthetic package has no real advisory to join).
+
+```bash
+ESHU_SRC=/path/to/eshu examples/supply-chain-demo/scripts/run-full-chain-proof.sh
+```
+
 ## Not covered here
 
 - The 10–15 minute screen recording is a manual deliverable.
-- B2/B3 (seeding advisory facts, attaching the SBOM to a live image, correlating
-  a workload) are deployment/collector steps, intentionally not scripted, because
-  they depend on the running stack rather than this static corpus.
+- The image → SBOM-subject → workload half is not yet scripted (see the TODO in
+  `scripts/run-full-chain-proof.sh`): it needs the OCI-registry and
+  SBOM-attestation collectors plus a workload correlated to the image digest in
+  `sbom/app.cdx.json`.
 
 ## Related docs
 
