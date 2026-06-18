@@ -223,7 +223,13 @@ func mcpStartProfileOverrides(profileFlag string) (map[string]string, error) {
 	}
 	switch profile {
 	case query.ProfileLocalLightweight:
-		return map[string]string{"ESHU_QUERY_PROFILE": string(profile)}, nil
+		// Clear any inherited ESHU_GRAPH_BACKEND: lightweight rejects a non-empty
+		// graph backend, so an explicit --profile local_lightweight must fully
+		// determine the runtime config rather than fail on a shell-set backend.
+		return map[string]string{
+			"ESHU_QUERY_PROFILE": string(profile),
+			"ESHU_GRAPH_BACKEND": "",
+		}, nil
 	case query.ProfileLocalAuthoritative:
 		return map[string]string{
 			"ESHU_QUERY_PROFILE": string(profile),

@@ -97,6 +97,13 @@ func TestRunMCPStartStdioProfileFlagInjectsLightweight(t *testing.T) {
 	restore, calls := stubServiceRuntime()
 	defer restore()
 
+	// An inherited ESHU_GRAPH_BACKEND (e.g. from a Compose/local shell) must be
+	// cleared by --profile local_lightweight; otherwise the child resolves
+	// lightweight + a non-empty backend and fails.
+	originalEnviron := eshuEnviron
+	eshuEnviron = func() []string { return []string{"PATH=/tmp", "ESHU_GRAPH_BACKEND=nornicdb"} }
+	defer func() { eshuEnviron = originalEnviron }()
+
 	wantExecErr := errors.New("exec sentinel")
 	calls.executable = func() (string, error) { return "/tmp/eshu", nil }
 	calls.getwd = func() (string, error) { return repoRoot, nil }
@@ -115,7 +122,7 @@ func TestRunMCPStartStdioProfileFlagInjectsLightweight(t *testing.T) {
 
 	assertEnvValue(t, calls.env, "ESHU_QUERY_PROFILE", "local_lightweight")
 	if got := envValue(calls.env, "ESHU_GRAPH_BACKEND"); got != "" {
-		t.Fatalf("ESHU_GRAPH_BACKEND = %q, want empty for lightweight", got)
+		t.Fatalf("ESHU_GRAPH_BACKEND = %q, want empty (cleared) for lightweight", got)
 	}
 }
 
