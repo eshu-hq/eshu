@@ -112,13 +112,16 @@ Payload bucket ordering is part of the fact-input contract. `Parse` sorts
 functions, structs, interfaces, variables, imports, and function calls before
 returning.
 
-Function and method rows may carry `return_type` when tree-sitter exposes a
-single named, pointer, selector, generic, or qualified result type. The value is
-normalized to the terminal type name, so pointers, slices, arrays, imported
-selectors, and generic instantiations keep only the element or terminal type
-name. Reducer code-call materialization uses that evidence for Go method chains
-only when call metadata proves the chain receiver type with
-`chain_receiver_obj_type` and `chain_receiver_method`.
+Function and method rows may carry `package_import_path` when the parent parser
+passes `GoPackageImportPath`; blank package identity is omitted so direct parser
+callers without module context keep the previous payload shape. They may also
+carry `return_type` when tree-sitter exposes a single named, pointer, selector,
+generic, or qualified result type. The return value is normalized to the
+terminal type name, so pointers, slices, arrays, imported selectors, and generic
+instantiations keep only the element or terminal type name. Reducer code-call
+materialization uses that evidence for Go method chains only when call metadata
+proves the chain receiver type with `chain_receiver_obj_type` and
+`chain_receiver_method`.
 
 Method receiver class context is normalized to the base receiver type before
 payload emission. A receiver such as Map[K, V], *Set[T], or

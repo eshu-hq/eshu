@@ -51,6 +51,7 @@ func Parse(
 		lookup,
 	)
 	scope := options.NormalizedVariableScope()
+	packageImportPath := strings.TrimSpace(options.GoPackageImportPath)
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -74,6 +75,9 @@ func Parse(
 			}
 			if classContext := goReceiverContext(node, source); classContext != "" {
 				item["class_context"] = classContext
+			}
+			if packageImportPath != "" {
+				item["package_import_path"] = packageImportPath
 			}
 			if returnType := goTypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
 				item["return_type"] = returnType

@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -132,18 +131,17 @@ func (e *Engine) PreScanGoPackageSemanticRootsWithWorkers(
 		return nil, err
 	}
 
-	// Resolve module path and per-package import paths from the module root.
-	modulePath := goModulePath(resolvedRepoRoot)
+	// Resolve per-package import paths from the nearest Go module root so
+	// monorepos with nested modules still produce durable function identity.
 	packageImportPaths := make(map[string]string)
-	if modulePath != "" {
-		for packageDir := range packageDirs {
-			if importPath, ok := goImportPathForDir(resolvedRepoRoot, modulePath, packageDir); ok {
-				packageImportPaths[packageDir] = importPath
-			}
+	modulePathsByDir := make(map[string]string)
+	for packageDir := range packageDirs {
+		if importPath, ok := goImportPathForNearestModule(resolvedRepoRoot, packageDir, modulePathsByDir); ok {
+			packageImportPaths[packageDir] = importPath
 		}
-		for i := range prescanFiles {
-			prescanFiles[i].importPath = packageImportPaths[prescanFiles[i].packageDir]
-		}
+	}
+	for i := range prescanFiles {
+		prescanFiles[i].importPath = packageImportPaths[prescanFiles[i].packageDir]
 	}
 
 	// Seed result map with one options entry per Go package directory observed
@@ -177,7 +175,7 @@ func (e *Engine) PreScanGoPackageSemanticRootsWithWorkers(
 	// Aggregate pass 2 (producer view): qualified exported-interface param
 	// methods keyed by importPath.functionName, then fan out to every package's
 	// options so cross-package consumers see all known exports.
-	if modulePath != "" {
+	if len(packageImportPaths) > 0 {
 		qualifiedTargets := make(GoImportedInterfaceParamMethods)
 		for _, fe := range prescanFiles {
 			if fe.importPath == "" {
@@ -395,31 +393,6 @@ func packagePrescanPassWorkerCount(workers int, fileCount int) int {
 		return fileCount
 	}
 	return workers
-}
-
-func goModulePath(repoRoot string) string {
-	body, err := os.ReadFile(filepath.Join(repoRoot, "go.mod"))
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(body), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[0] == "module" {
-			return strings.TrimSpace(fields[1])
-		}
-	}
-	return ""
-}
-
-func goImportPathForDir(repoRoot string, modulePath string, packageDir string) (string, bool) {
-	rel, err := filepath.Rel(repoRoot, packageDir)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", false
-	}
-	if rel == "." {
-		return modulePath, true
-	}
-	return modulePath + "/" + filepath.ToSlash(rel), true
 }
 
 func mergeGoImportedInterfaceParamMethods(
