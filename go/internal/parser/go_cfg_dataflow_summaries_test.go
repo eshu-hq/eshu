@@ -34,7 +34,11 @@ func query(db *sql.DB, r *http.Request) {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+		EmitDataflow:        true,
+		RepositoryID:        "repo-alpha",
+		GoPackageImportPath: "example.com/repo/handlers",
+	})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -56,6 +60,10 @@ func query(db *sql.DB, r *http.Request) {
 	query := byName("query")
 	if query == nil {
 		t.Fatalf("no summary row for query: %+v", rows)
+	}
+	queryID, _ := query["function_id"].(string)
+	if !strings.HasPrefix(queryID, "repo-alpha\x1fexample.com/repo/handlers\x1f") {
+		t.Fatalf("query summary FunctionID missing durable repo/package prefix: %q", queryID)
 	}
 	sinks, _ := query["param_to_sink"].([]map[string]any)
 	hasSQLSink := false
@@ -107,7 +115,11 @@ func mike(x string) string { return x }
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+		EmitDataflow:        true,
+		RepositoryID:        "repo-alpha",
+		GoPackageImportPath: "example.com/repo/many",
+	})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -140,11 +152,37 @@ func handle(x string) string { return x }
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{
+		EmitDataflow:        true,
+		GoPackageImportPath: "example.com/repo/handlers",
+	})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
 	if _, present := got["dataflow_summaries"]; present {
 		t.Fatalf("dataflow_summaries emitted without repository id: %+v", got["dataflow_summaries"])
+	}
+}
+
+// TestGoDataflowSummariesRequireGoPackageImportPath proves durable Go
+// FunctionIDs keep their package component; repository identity alone is not
+// enough to disambiguate functions with the same name across packages.
+func TestGoDataflowSummariesRequireGoPackageImportPath(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+func handle(x string) string { return x }
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	if _, present := got["dataflow_summaries"]; present {
+		t.Fatalf("dataflow_summaries emitted without Go package import path: %+v", got["dataflow_summaries"])
 	}
 }

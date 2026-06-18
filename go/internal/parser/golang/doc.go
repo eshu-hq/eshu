@@ -50,8 +50,9 @@
 // (cross-function taint findings within the file, built by cfg_effects.go and
 // cfg_interproc.go: each function's value-flow summary is derived over
 // internal/parser/valueflow and composed into an interprocedural port graph
-// solved by internal/parser/interproc), and, when RepositoryID is present, a
-// "dataflow_summaries" bucket of durable summary.Effects rows for reducer
-// persistence. The gate is off by default and the payload is byte-identical when
-// off, so existing fact contracts are untouched unless a caller opts in.
+// solved by internal/parser/interproc), and, when RepositoryID and
+// GoPackageImportPath are present, a "dataflow_summaries" bucket of durable
+// summary.Effects rows for reducer persistence. The gate is off by default and
+// the payload is byte-identical when off, so existing fact contracts are
+// untouched unless a caller opts in.
 package golang

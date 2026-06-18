@@ -42,7 +42,7 @@ func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, im
 		sources = append(sources, goInterprocSources(node, source, id)...)
 	})
 
-	if strings.TrimSpace(repositoryID) != "" {
+	if strings.TrimSpace(repositoryID) != "" && strings.TrimSpace(importPath) != "" {
 		summaries = make([]map[string]any, 0, len(effectsByID))
 		for id, effects := range effectsByID {
 			summaries = append(summaries, dataflowemit.DataflowSummaryRow("go", id, effects))
