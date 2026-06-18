@@ -41,18 +41,14 @@ before touching any file in this directory.
   in-flight idempotency. `IdentityKey` is a narrow override for domains that
   must store several rows under one durable `PartitionKey` without collapsing
   their `intent_id`s; audit every caller before using it.
-- **Edge domains gate on readiness phases** — `sharedProjectionReadinessPhase` in
-  `shared_projection.go`; `code_calls` and `inheritance_edges` gate on
-  `canonical_nodes_committed` (their `:Function`/`:Class` targets are canonical
-  nodes — gating these on `semantic_nodes_committed` stalls forever because that
-  phase is only published when the semantic-entity reducer runs, #2867);
-  `sql_relationships` still gates on `semantic_nodes_committed` until its own
-  promotion lands.
+- **Edge domains gate on readiness phases** — `sharedProjectionReadinessPhase`;
+  `code_calls`, `inheritance_edges`, `sql_relationships`, and `rationale_edges`
+  gate on `canonical_nodes_committed` because their targets are canonical or
+  created inline. `semantic_nodes_committed` can stall them forever (#2867-#2869).
 - **Promoted edge domains keep their handler's evidence source** — a domain moved
-  onto the shared-projection runner from a dedicated handler must keep its original
-  `evidence_source` (`sharedProjectionDomainEvidenceSource`), not the runner's
-  global `finalization/workloads`, or an upgrade's retract will not match the old
-  handler's edges. `inheritance_edges` keeps `reducer/inheritance` (#2867).
+  onto the shared-projection runner must keep its original `evidence_source`, not
+  the runner's global source: inheritance, SQL, and rationale keep
+  `reducer/inheritance`, `reducer/sql-relationship`, and `reducer/rationale-edge`.
 - **SQL trigger functions materialize as `EXECUTES` edges** —
   `ExtractSQLRelationshipRows` reads `function_name` from `SqlTrigger`
   metadata and writes trigger-to-`SqlFunction` `EXECUTES` rows

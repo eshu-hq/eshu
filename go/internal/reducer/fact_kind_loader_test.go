@@ -30,11 +30,10 @@ func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
 			{FactKind: "file"},
 		},
 	}
-	writer := &recordingSQLRelEdgeWriter{}
+	writer := &recordingSQLRelationshipIntentWriter{}
 	handler := SQLRelationshipMaterializationHandler{
-		FactLoader:           loader,
-		EdgeWriter:           writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
+		FactLoader:   loader,
+		IntentWriter: writer,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -59,9 +58,6 @@ func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
 	}
 	if got, want := strings.Join(loader.kindCalls[1], ","), "content_entity"; got != want {
 		t.Fatalf("ListFactsByKind() second kinds = %q, want %q", got, want)
-	}
-	if got, want := len(writer.retractRows), 0; got != want {
-		t.Fatalf("retract count = %d, want %d", got, want)
 	}
 }
 

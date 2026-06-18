@@ -74,9 +74,8 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			}
 		case DomainSQLRelationshipMaterialization:
 			def.Handler = SQLRelationshipMaterializationHandler{
-				FactLoader:           handlers.FactLoader,
-				EdgeWriter:           handlers.SQLRelationshipEdgeWriter,
-				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				FactLoader:   handlers.FactLoader,
+				IntentWriter: handlers.SQLRelationshipIntentWriter,
 			}
 		case DomainInheritanceMaterialization:
 			def.Handler = InheritanceMaterializationHandler{
@@ -91,9 +90,8 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			}
 		case DomainRationaleMaterialization:
 			def.Handler = RationaleEdgeMaterializationHandler{
-				FactLoader:           handlers.FactLoader,
-				EdgeWriter:           handlers.RationaleEdgeWriter,
-				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				FactLoader:   handlers.FactLoader,
+				IntentWriter: handlers.RationaleEdgeIntentWriter,
 			}
 		}
 		definitions = append(definitions, def)

@@ -86,11 +86,10 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 			Payload:  map[string]any{"repo_id": "repo-1"},
 		}},
 	}
-	writer := &recordingSQLRelEdgeWriter{}
+	writer := &recordingSQLRelationshipIntentWriter{}
 	handler := SQLRelationshipMaterializationHandler{
-		FactLoader:           loader,
-		EdgeWriter:           writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
+		FactLoader:   loader,
+		IntentWriter: writer,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{

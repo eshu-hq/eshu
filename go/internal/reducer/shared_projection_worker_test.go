@@ -445,7 +445,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 		pending: []SharedProjectionIntentRow{
 			{
 				IntentID:         "blocked-1",
-				ProjectionDomain: DomainSQLRelationships,
+				ProjectionDomain: DomainDocumentationEdges,
 				PartitionKey:     "pk-a",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-blocked",
@@ -456,7 +456,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 			},
 			{
 				IntentID:         "ready-1",
-				ProjectionDomain: DomainSQLRelationships,
+				ProjectionDomain: DomainDocumentationEdges,
 				PartitionKey:     "pk-b",
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-ready",
@@ -471,7 +471,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 	result, err := SelectPartitionBatch(
 		context.Background(),
 		reader,
-		DomainSQLRelationships,
+		DomainDocumentationEdges,
 		0,
 		1,
 		10,

@@ -130,9 +130,13 @@ func TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls(t *testing
 	t.Parallel()
 
 	// inheritance_edges joins this set (#2867): its :Class targets commit at
-	// canonical-nodes. Gating it on semantic-nodes stalls projection because that
-	// phase is published only when the semantic-entity reducer runs.
-	for _, domain := range []string{DomainCodeCalls, DomainInheritanceEdges} {
+	// canonical-nodes. sql_relationships joins it too (#2868): its Sql* targets are
+	// canonical nodes as well. rationale_edges joins it (#2869): the EXPLAINS edge's
+	// target is a canonical code entity and the :Rationale source is MERGEd inline by
+	// the edge writer, so canonical-nodes is the only prerequisite. Gating any of
+	// them on semantic-nodes stalls projection because that phase is published only
+	// when the semantic-entity reducer runs.
+	for _, domain := range []string{DomainCodeCalls, DomainInheritanceEdges, DomainSQLRelationships, DomainRationaleEdges} {
 		domain := domain
 		t.Run(domain, func(t *testing.T) {
 			t.Parallel()
@@ -151,7 +155,7 @@ func TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls(t *testing
 func TestSharedProjectionReadinessPhaseUsesSemanticNodesForSemanticEdgeDomains(t *testing.T) {
 	t.Parallel()
 
-	tests := []string{DomainSQLRelationships, DomainDocumentationEdges, DomainRationaleEdges}
+	tests := []string{DomainDocumentationEdges}
 	for _, domain := range tests {
 		domain := domain
 		t.Run(domain, func(t *testing.T) {

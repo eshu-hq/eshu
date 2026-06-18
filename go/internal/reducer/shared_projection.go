@@ -120,7 +120,7 @@ type SharedProjectionAcceptanceKey struct {
 
 func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) {
 	switch domain {
-	case DomainCodeCalls, DomainInvokesCloudAction, DomainInheritanceEdges:
+	case DomainCodeCalls, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships, DomainRationaleEdges:
 		// Functions commit at canonical-nodes. The CloudAction target is created
 		// inline by the same INVOKES_CLOUD_ACTION MERGE, so canonical-nodes is the
 		// only prerequisite phase: there is no cross-acceptance-unit dependency to
@@ -133,8 +133,29 @@ func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) 
 		// forever even though the class nodes already exist (confirmed by a remote
 		// run: canonical_nodes_committed matched the intent's acceptance key exactly
 		// while semantic_nodes_committed was never published).
+		//
+		// sql_relationships connects SqlTable/SqlColumn/SqlView/SqlFunction/
+		// SqlTrigger/SqlIndex nodes. Those are CANONICAL nodes: projector/canonical.go
+		// maps the sql_* canonical entity kinds to those labels and the canonical node
+		// writer commits them at canonical-nodes; the semantic-entity reducer never
+		// emits any Sql* label. Gating sql on semantic-nodes was the same latent stall
+		// as inheritance — that phase is only published when the semantic-entity
+		// reducer runs, so a repo with SQL entities but no semantic entities would
+		// defer its SQL edges forever even though the canonical Sql* nodes already
+		// exist (#2868).
+		//
+		// rationale_edges connects an identity-only :Rationale node to a canonical
+		// code entity (:Function|:Class|:Struct|:Interface|:TypeAlias|:Enum|:File).
+		// The Rationale node is MERGEd inline by the EXPLAINS edge writer itself
+		// (canonical_rationale_edges.go), not by the semantic-entity reducer, so the
+		// only prerequisite is that the canonical target node exists — which commits
+		// at canonical-nodes. Gating it on semantic-nodes was the same latent stall
+		// as inheritance and sql: that phase is published only when the
+		// semantic-entity reducer runs, so a repo with rationale comments but no
+		// semantic entities would defer its EXPLAINS edges forever even though the
+		// canonical code-entity nodes already exist (#2869).
 		return GraphProjectionPhaseCanonicalNodesCommitted, true
-	case DomainSQLRelationships, DomainDocumentationEdges, DomainRationaleEdges:
+	case DomainDocumentationEdges:
 		return GraphProjectionPhaseSemanticNodesCommitted, true
 	case DomainHandlesRoute, DomainRunsIn:
 		// Endpoints (handles_route) and Workloads (runs_in) both commit at

@@ -12,13 +12,10 @@ import (
 func TestSQLRelationshipMaterializationHandlerScopesDeltaRetractToFiles(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingSQLRelEdgeWriter{}
+	writer := &recordingSQLRelationshipIntentWriter{}
 	handler := SQLRelationshipMaterializationHandler{
-		FactLoader: &stubFactLoader{envelopes: sqlRelationshipDeltaEntityFacts()},
-		EdgeWriter: writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
+		FactLoader:   &stubFactLoader{envelopes: sqlRelationshipDeltaEntityFacts()},
+		IntentWriter: writer,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -34,13 +31,13 @@ func TestSQLRelationshipMaterializationHandlerScopesDeltaRetractToFiles(t *testi
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if writer.retractDomain != DomainSQLRelationships {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainSQLRelationships)
+	// The per-repo refresh intent owns the file-scoped retract and carries the
+	// changed files' repo-qualified paths.
+	refresh := writer.refreshRows()
+	if len(refresh) != 1 {
+		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if len(writer.retractRows) != 1 {
-		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
-	}
-	payload := writer.retractRows[0].Payload
+	payload := refresh[0].Payload
 	if got, ok := payload["delta_projection"].(bool); !ok || !got {
 		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
 	}
@@ -52,22 +49,26 @@ func TestSQLRelationshipMaterializationHandlerScopesDeltaRetractToFiles(t *testi
 	if !reflect.DeepEqual(gotPaths, wantPaths) {
 		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
 	}
-	if len(writer.writeRows) != 1 {
-		t.Fatalf("writeRows len = %d, want 1", len(writer.writeRows))
+	// The changed file's REFERENCES_TABLE edge still projects.
+	if len(writer.edgeRows()) != 1 {
+		t.Fatalf("per-edge intents = %d, want 1", len(writer.edgeRows()))
 	}
 }
 
 func TestSQLRelationshipMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrites(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingSQLRelEdgeWriter{}
+	writer := &recordingSQLRelationshipIntentWriter{}
 	handler := SQLRelationshipMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
 				FactKind: factKindRepository,
+				ScopeID:  "scope-db",
 				Payload: map[string]any{
 					"repo_id":                        "repo-123",
+					"path":                           "/repo",
 					"local_path":                     "/repo",
+					"source_run_id":                  "run-1",
 					"delta_generation":               true,
 					"delta_deleted_relative_paths":   []string{"db/deleted.sql"},
 					"delta_relative_paths":           []string{"db/deleted.sql"},
@@ -75,10 +76,7 @@ func TestSQLRelationshipMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWri
 				},
 			},
 		}},
-		EdgeWriter: writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
+		IntentWriter: writer,
 	}
 
 	result, err := handler.Handle(context.Background(), Intent{
@@ -94,25 +92,25 @@ func TestSQLRelationshipMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWri
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if result.CanonicalWrites != 0 {
-		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	// Only the refresh intent (it owns the file-scoped retract); no per-edge
+	// writes because the only changed file was deleted (no surviving entities).
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
 	}
-	if writer.retractDomain != DomainSQLRelationships {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainSQLRelationships)
+	refresh := writer.refreshRows()
+	if len(refresh) != 1 {
+		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if len(writer.retractRows) != 1 {
-		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
-	}
-	gotPaths, ok := writer.retractRows[0].Payload["delta_file_paths"].([]string)
+	gotPaths, ok := refresh[0].Payload["delta_file_paths"].([]string)
 	if !ok {
-		t.Fatalf("delta_file_paths type = %T, want []string", writer.retractRows[0].Payload["delta_file_paths"])
+		t.Fatalf("delta_file_paths type = %T, want []string", refresh[0].Payload["delta_file_paths"])
 	}
 	wantPaths := []string{"/repo/db/deleted.sql"}
 	if !reflect.DeepEqual(gotPaths, wantPaths) {
 		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
 	}
-	if len(writer.writeRows) != 0 {
-		t.Fatalf("writeRows len = %d, want 0", len(writer.writeRows))
+	if len(writer.edgeRows()) != 0 {
+		t.Fatalf("per-edge intents = %d, want 0", len(writer.edgeRows()))
 	}
 }
 
@@ -155,9 +153,12 @@ func sqlRelationshipDeltaEntityFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
 			FactKind: factKindRepository,
+			ScopeID:  "scope-db",
 			Payload: map[string]any{
 				"repo_id":                        "repo-123",
+				"path":                           "/repo",
 				"local_path":                     "/repo",
+				"source_run_id":                  "run-1",
 				"delta_generation":               true,
 				"delta_relative_paths":           []string{"db/schema.sql", "../outside.sql"},
 				"delta_deleted_relative_paths":   []string{},
@@ -166,22 +167,26 @@ func sqlRelationshipDeltaEntityFacts() []facts.Envelope {
 		},
 		{
 			FactKind: "content_entity",
+			ScopeID:  "scope-db",
 			Payload: map[string]any{
 				"repo_id":       "repo-123",
 				"entity_id":     "content-entity:e_tbl1",
 				"entity_type":   "SqlTable",
 				"entity_name":   "public.users",
 				"relative_path": "db/schema.sql",
+				"path":          "/repo/db/schema.sql",
 			},
 		},
 		{
 			FactKind: "content_entity",
+			ScopeID:  "scope-db",
 			Payload: map[string]any{
 				"repo_id":       "repo-123",
 				"entity_id":     "content-entity:e_view1",
 				"entity_type":   "SqlView",
 				"entity_name":   "public.active_users",
 				"relative_path": "db/schema.sql",
+				"path":          "/repo/db/schema.sql",
 				"entity_metadata": map[string]any{
 					"source_tables": []any{"public.users"},
 				},

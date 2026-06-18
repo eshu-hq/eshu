@@ -54,7 +54,7 @@ flowchart TB
   Service --> Repair["GraphProjectionPhaseRepairer.Run()\ngoroutine"]
   Service --> Orphans["GraphOrphanSweepRunner.Run()\ngoroutine"]
   SPR --> ProcessPartition["ProcessPartitionOnce()\nper domain × partition"]
-  ProcessPartition --> ReadinessGate["GraphProjectionReadinessLookup\n(semantic_nodes_committed gate)"]
+  ProcessPartition --> ReadinessGate["GraphProjectionReadinessLookup\n(domain-specific readiness gate)"]
   ReadinessGate --> EdgeWriter["EdgeWriter.ExecuteGroup()\nvia storage/cypher"]
 ```
 
@@ -1350,8 +1350,10 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   understanding this failure mode.
 - **Edge domain readiness gates** — shared projection domains
   `code_calls`, `sql_relationships`, and `inheritance_edges` gate on
-  `canonical_nodes_committed` or `semantic_nodes_committed` being present
-  before writing edges (`shared_projection.go:91–99`).
+  their domain-specific readiness phase before writing edges
+  (`shared_projection.go:91–99`). `code_calls` and `sql_relationships` require
+  `canonical_nodes_committed`; `inheritance_edges` requires
+  `semantic_nodes_committed`.
 - **Code-call chunks must not retract each other** — a code-call accepted
   unit can exceed `DefaultCodeCallAcceptanceScanLimit`. The runner processes a
   capped slice, marks it complete, and then continues with later slices from
