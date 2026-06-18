@@ -25,8 +25,8 @@ See `doc.go` for the godoc contract. The surface is:
 - `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
   annotations (sources, sinks, sanitizers) from the Python catalog, mapped onto
   the control-flow graph, for the `internal/parser/taint` engine. Sources require
-  framework request type evidence; sinks require a qualified receiver/module
-  except for Python builtins.
+  qualified framework request annotations or import-backed request aliases; sinks
+  require a qualified receiver/module except for Python builtins.
 - `TaintCatalogVersion() string` — deterministic SHA-256 content hash for the
   Python taint catalog, emitted by the parser so collector freshness changes
   when catalog-only matching rules change.
@@ -51,6 +51,18 @@ See `doc.go` for the godoc contract. The surface is:
 
 None. The lowering is a pure function; a reducer that drives the pipeline owns
 telemetry.
+
+No-Regression Evidence: import-aware request source matching stays inside the
+pure per-file taint catalog path and does not change CFG lowering, graph writes,
+queue behavior, or parser dispatch. Verified by
+`go test ./internal/parser/python ./internal/parser/python/pydataflow ./internal/parser -count=1`
+and the Go no-regression focused gate
+`go test ./internal/parser/golang ./internal/parser -run 'TestGo.*Taint|TestGo.*Dataflow|Test.*Catalog' -count=1`.
+
+No-Observability-Change: the matcher adds no metric, span, log, status field,
+runtime knob, queue, worker, or graph query. Operators still diagnose parser
+cost through existing collector parse-stage logs and
+`eshu_dp_file_parse_duration_seconds`.
 
 ## Performance and concurrency
 
@@ -92,9 +104,11 @@ or shared state of its own — the partitioned, race-free fixpoint lives in
 - Nested function/lambda bodies are not descended into (a safe false negative,
   never a false edge).
 - **Taint catalog (`taintfacts.go`) is conservative.** Sources require typed
-  framework request parameters such as `Request`; sinks require known receivers
-  or modules such as `cursor.execute` or `os.system`, except for Python builtins
-  such as `eval` and `exec`. Sanitizers are narrow and unambiguous
+  framework request parameters with qualified annotations or known framework
+  imports such as FastAPI, Flask, Starlette, or Django. A local type named
+  `Request` is not enough. Sinks require known receivers or modules such as
+  `cursor.execute` or `os.system`, except for Python builtins such as `eval` and
+  `exec`. Sanitizers are narrow and unambiguous
   (`escape` → html); a name that neutralizes different kinds by import (`quote`
   is urllib URL-encoding but also shlex shell-quoting) is omitted, since a missed
   sanitizer is safer than a missed vulnerability.

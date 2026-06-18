@@ -17,6 +17,7 @@
 // TaintFacts derives intraprocedural taint annotations (sources, sinks,
 // sanitizers) for a function from a small, conservative TS/JS catalog mapped onto
 // the control-flow graph, ready for the internal/parser/taint engine. Sources
-// require framework request type evidence; sinks require a qualified
-// receiver/module except for language builtins such as eval.
+// require framework request type evidence from qualified annotations or
+// framework imports; sinks require a qualified receiver/module except for
+// language builtins such as eval.
 package jsdataflow

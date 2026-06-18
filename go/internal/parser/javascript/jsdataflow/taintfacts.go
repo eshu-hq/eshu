@@ -17,8 +17,9 @@ type jsSourceParam struct {
 }
 
 type jsSourceTypeSpec struct {
-	TypeName string `json:"type_name"`
-	Kind     string `json:"kind"`
+	TypeName string   `json:"type_name"`
+	Kind     string   `json:"kind"`
+	Modules  []string `json:"modules,omitempty"`
 }
 
 type jsSinkSpec struct {
@@ -27,19 +28,20 @@ type jsSinkSpec struct {
 	Kind     taint.Kind `json:"kind"`
 }
 
-const jsSourceMatcherVersion = "source-annotation-exact-v2"
+const jsSourceMatcherVersion = "source-import-evidence-v3"
 
 // The TS/JS source/sink/sanitizer catalog is deliberately small and conservative.
 // Sources require framework request type evidence; sinks require a qualified
 // receiver/module except for the language builtin eval.
 var (
 	jsSourceTypeSpecs = []jsSourceTypeSpec{
-		{TypeName: "Request", Kind: "http_request"},
+		{TypeName: "Request", Kind: "http_request", Modules: []string{"express"}},
 		{TypeName: "Express.Request", Kind: "http_request"},
 		{TypeName: "express.Request", Kind: "http_request"},
-		{TypeName: "FastifyRequest", Kind: "http_request"},
-		{TypeName: "NextApiRequest", Kind: "http_request"},
+		{TypeName: "FastifyRequest", Kind: "http_request", Modules: []string{"fastify"}},
+		{TypeName: "NextApiRequest", Kind: "http_request", Modules: []string{"next", "next/types"}},
 		{TypeName: "Koa.Context", Kind: "http_request"},
+		{TypeName: "Context", Kind: "http_request", Modules: []string{"koa"}},
 	}
 	jsSinkSpecs = []jsSinkSpec{
 		{Receiver: "db", Method: "query", Kind: "sql"},
@@ -204,12 +206,13 @@ func classifyCallSink(call *tree_sitter.Node, source []byte) (string, taint.Kind
 
 func sourceParams(node *tree_sitter.Node, source []byte) []jsSourceParam {
 	var out []jsSourceParam
+	imports := jsFrameworkRequestImports(node, source)
 	for _, param := range parameterNodes(node) {
 		name := parameterName(&param, source)
 		if name == "" {
 			continue
 		}
-		if kind, ok := frameworkRequestKind(nodeText(&param, source)); ok {
+		if kind, ok := frameworkRequestKind(nodeText(&param, source), imports); ok {
 			out = append(out, jsSourceParam{Name: name, Kind: kind})
 		}
 	}
@@ -246,12 +249,18 @@ func parameterName(node *tree_sitter.Node, source []byte) string {
 	return ""
 }
 
-func frameworkRequestKind(paramText string) (string, bool) {
+func frameworkRequestKind(paramText string, imports jsFrameworkRequestEvidence) (string, bool) {
 	typeTokens := annotationTypeTokens(paramText)
 	for _, spec := range jsSourceTypeSpecs {
 		for _, token := range typeTokens {
-			if token == spec.TypeName {
+			if len(spec.Modules) == 0 && token == spec.TypeName {
 				return spec.Kind, true
+			}
+			if imports.TypeKind(token) == spec.Kind {
+				return spec.Kind, true
+			}
+			if kind, ok := imports.NamespaceTypeKind(token); ok {
+				return kind, true
 			}
 		}
 	}

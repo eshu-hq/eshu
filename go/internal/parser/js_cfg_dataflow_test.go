@@ -10,7 +10,9 @@ import (
 // jsDataflowFixture exercises both an intraprocedural flow (req.body into
 // db.query within view) and an interprocedural flow (req passed into runQuery,
 // whose parameter reaches a db.query sink).
-const jsDataflowFixture = `function view(req: Request, db) {
+const jsDataflowFixture = `import type { Request } from "express";
+
+function view(req: Request, db) {
 	const q = req.body;
 	db.query(q);
 	runQuery(db, req);
@@ -128,7 +130,8 @@ func TestJSInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
 // TestJSTaintInClassMethod proves intraprocedural taint is emitted for a class
 // method and carries the enclosing class name as class_context.
 func TestJSTaintInClassMethod(t *testing.T) {
-	got := parseJSDataflowFixture(t, "class Repo {\n"+
+	got := parseJSDataflowFixture(t, "import type { Request } from 'express';\n"+
+		"class Repo {\n"+
 		"\trun(req: Request, db) {\n"+
 		"\t\tdb.query(req.body);\n"+
 		"\t}\n"+

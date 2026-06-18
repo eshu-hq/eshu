@@ -26,8 +26,8 @@ See `doc.go` for the godoc contract. The surface is:
 - `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
   annotations (sources, sinks, sanitizers) from the TS/JS catalog, mapped onto
   the control-flow graph, for the `internal/parser/taint` engine. Sources require
-  framework request type evidence; sinks require a qualified receiver/module
-  except for language builtins.
+  qualified framework request annotations or import-backed request aliases; sinks
+  require a qualified receiver/module except for language builtins.
 - `TaintCatalogVersion() string` — deterministic SHA-256 content hash for the
   TS/JS taint catalog, emitted by the parser so collector freshness changes when
   catalog-only matching rules change.
@@ -53,6 +53,18 @@ See `doc.go` for the godoc contract. The surface is:
 None. The lowering is a pure function; a reducer that drives the pipeline owns
 telemetry.
 
+No-Regression Evidence: import-aware request source matching stays inside the
+pure per-file taint catalog path and does not change CFG lowering, graph writes,
+queue behavior, or parser dispatch. Verified by
+`go test ./internal/parser/javascript ./internal/parser/javascript/jsdataflow ./internal/parser -count=1`
+and the Go no-regression focused gate
+`go test ./internal/parser/golang ./internal/parser -run 'TestGo.*Taint|TestGo.*Dataflow|Test.*Catalog' -count=1`.
+
+No-Observability-Change: the matcher adds no metric, span, log, status field,
+runtime knob, queue, worker, or graph query. Operators still diagnose parser
+cost through existing collector parse-stage logs and
+`eshu_dp_file_parse_duration_seconds`.
+
 ## Gotchas / invariants
 
 - **`statement_block` holds statements directly** in the TS/JS grammar (unlike
@@ -64,6 +76,9 @@ telemetry.
 - **Nested function/arrow bodies are not descended into** for the enclosing
   function's uses, so a closure's captures are not attributed here (closures are
   a later pass) — a safe false negative, never a false edge.
+- **Request source evidence is import-aware**: unqualified request type aliases
+  must come from known framework modules such as Express, Fastify, Next.js, or
+  Koa. A local type named `Request` is not enough.
 - **Bounded + deterministic** via the cfg engine; counted overflow, never a
   silent drop.
 

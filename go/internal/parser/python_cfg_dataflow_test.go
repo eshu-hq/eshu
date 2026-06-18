@@ -10,7 +10,9 @@ import (
 // pythonDataflowFixture exercises both an intraprocedural flow (request.GET into
 // cursor.execute within view) and an interprocedural flow (request passed into
 // run_query, whose parameter reaches a cursor.execute sink).
-const pythonDataflowFixture = `def view(request: Request, db):
+const pythonDataflowFixture = `from fastapi import Request
+
+def view(request: Request, db):
     q = request.GET
     cursor.execute(q)
     run_query(db, request)
