@@ -23,6 +23,7 @@ Widget build() => Text('hi');
 	}
 
 	assertBucketName(t, payload, "imports", "package:flutter/material.dart")
+	assertBucketNameCount(t, payload, "imports", "package:flutter/material.dart", 1)
 	assertBucketName(t, payload, "classes", "HomePage")
 	function := assertBucketName(t, payload, "functions", "build")
 	if got := function["source"]; got != "Widget build() => Text('hi');" {
@@ -171,6 +172,36 @@ func TestParseDoesNotTreatConstructorCallsAsConstructors(t *testing.T) {
 	}
 }
 
+func TestParseCapturesMultilineDartMethodSignature(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, filepath.Join("pkg", "lib", "worker.dart"), `class Worker {
+  Future<String> fetchData(
+    Uri endpoint,
+  ) async {
+    return endpoint.toString();
+  }
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	method := assertFunctionByNameAndClass(t, payload, "fetchData", "Worker")
+	if got, want := method["line_number"], 2; got != want {
+		t.Fatalf("fetchData line_number = %#v, want %#v", got, want)
+	}
+	if got, want := method["end_line"], 5; got != want {
+		t.Fatalf("fetchData end_line = %#v, want %#v", got, want)
+	}
+	if got := method["source"]; got == "" {
+		t.Fatalf("fetchData source is empty in %#v", method)
+	}
+	assertBucketName(t, payload, "function_calls", "toString")
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 
@@ -214,6 +245,24 @@ func assertFunctionByNameAndClass(t *testing.T, payload map[string]any, name str
 	}
 	t.Fatalf("functions missing name %q class_context %q in %#v", name, classContext, items)
 	return nil
+}
+
+func assertBucketNameCount(t *testing.T, payload map[string]any, bucket string, name string, want int) {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	count := 0
+	for _, item := range items {
+		if item["name"] == name {
+			count++
+		}
+	}
+	if count != want {
+		t.Fatalf("payload[%q] name %q count = %d, want %d in %#v", bucket, name, count, want, items)
+	}
 }
 
 func assertStringSliceContains(t *testing.T, item map[string]any, key string, want string) {

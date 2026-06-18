@@ -4,14 +4,18 @@
 
 1. README.md - package boundary and payload buckets
 2. doc.go - godoc contract for the Dart adapter
-3. parser.go - regex parser and pre-scan behavior
-4. parser_test.go - behavior coverage for payload shape
+3. parser.go - public parser and pre-scan entrypoints
+4. syntax_index.go - tree-sitter declaration extraction
+5. calls.go - legacy call row extraction
+6. parser_test.go - behavior coverage for payload shape
 
 ## Invariants this package enforces
 
 - Dependency direction stays one way: parent parser code may import this
   package, but this package must not import internal/parser.
 - Parse preserves the legacy Dart payload shape and deterministic bucket order.
+- Parent engine paths must call ParseWithParser and PreScanWithParser with the
+  runtime-owned Dart parser instead of constructing a new runtime per file.
 - `dead_code_root_kinds` must stay syntax-local: top-level `main`,
   constructors, `@override`, Flutter `build`/`createState`, and public `lib/`
   declarations outside `lib/src/`.
@@ -27,15 +31,17 @@
 
 ## Failure modes and how to debug
 
-- Missing declarations or root metadata usually mean a regex stopped matching
-  the line-oriented fixture shape.
+- Missing declarations or root metadata usually mean the syntax index is not
+  covering the relevant Dart grammar node shape.
 - Duplicate or unstable call rows usually mean seen-call tracking or bucket
   sorting changed.
+- Duplicate import rows usually mean wrapper and concrete import/export nodes
+  are both being emitted.
 
 ## Anti-patterns specific to this package
 
 - Importing the parent parser package.
-- Adding tree-sitter state for this simple adapter without a behavior need.
+- Bypassing the parent runtime parser path for engine parse or pre-scan calls.
 - Emitting new bucket keys without matching downstream shape work.
 
 ## What NOT to change without an ADR

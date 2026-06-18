@@ -13,6 +13,26 @@ func TestRuntimeParserLoadsKotlinGrammar(t *testing.T) {
 	parser.Close()
 }
 
+func TestRuntimeParserLoadsDartGrammar(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewRuntime()
+	parser, err := runtime.Parser("dart")
+	if err != nil {
+		t.Fatalf("Parser(dart) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	tree := parser.Parse([]byte("class Demo { void run() {} }"), nil)
+	if tree == nil {
+		t.Fatalf("Parser(dart).Parse returned nil tree")
+	}
+	defer tree.Close()
+	if got, want := tree.RootNode().Kind(), "program"; got != want {
+		t.Fatalf("Dart root node kind = %q, want %q", got, want)
+	}
+}
+
 func TestRuntimeParserLoadsSwiftGrammar(t *testing.T) {
 	t.Parallel()
 
