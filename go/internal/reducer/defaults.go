@@ -57,6 +57,13 @@ type DefaultHandlers struct {
 	// partitioned runner and the #2898 refresh fence project them.
 	SQLRelationshipIntentWriter SQLRelationshipIntentWriter
 
+	// RationaleEdgeIntentWriter persists durable shared-intent rows for rationale
+	// EXPLAINS edge materialization (#2869). The promoted
+	// RationaleEdgeMaterializationHandler emits file-scoped per-edge intents plus a
+	// per-repo refresh intent instead of writing canonical edges directly, so the
+	// partitioned runner and the #2898 refresh fence project them.
+	RationaleEdgeIntentWriter RationaleEdgeIntentWriter
+
 	// GraphProjectionPhasePublisher persists durable graph-readiness publications
 	// for canonical and semantic node writers.
 	GraphProjectionPhasePublisher GraphProjectionPhasePublisher
@@ -78,8 +85,9 @@ type DefaultHandlers struct {
 	// exact documentation entity mentions.
 	DocumentationEdgeWriter SharedProjectionEdgeWriter
 
-	// RationaleEdgeWriter writes canonical EXPLAINS edges from reducer-owned
-	// intent-comment rationale metadata.
+	// RationaleEdgeWriter is retained for compatibility with older reducer tests
+	// and wiring. Rationale materialization no longer uses it directly: it rides the
+	// shared-projection intent path via RationaleEdgeIntentWriter (#2869).
 	RationaleEdgeWriter SharedProjectionEdgeWriter
 
 	// Cross-repo relationship resolution adapters. All optional; nil disables

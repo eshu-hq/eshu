@@ -156,7 +156,12 @@ func buildReducerService(
 		// the promoted handler emits file-scoped per-edge intents plus a per-repo
 		// refresh intent to the shared intent acceptance writer, and the partitioned
 		// runner + #2898 refresh fence project them.
-		SQLRelationshipIntentWriter:  repoDependencyIntentWriter,
+		SQLRelationshipIntentWriter: repoDependencyIntentWriter,
+		// Rationale EXPLAINS edges ride the same shared-projection intent path
+		// (#2869): the promoted handler emits file-scoped per-edge intents plus a
+		// per-repo refresh intent to the shared intent acceptance writer, and the
+		// partitioned runner + #2898 refresh fence project them.
+		RationaleEdgeIntentWriter:    repoDependencyIntentWriter,
 		DocumentationEdgeWriter:      edgeWriterForHandlers,
 		RationaleEdgeWriter:          edgeWriterForHandlers,
 		EvidenceFactLoader:           relationshipStore,

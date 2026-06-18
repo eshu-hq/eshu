@@ -32,16 +32,16 @@ const (
 //
 // The retract the refresh owns may be repo-wide (delete every edge for the repo)
 // or file-scoped (delete only the changed files' edges on a delta generation):
-// inheritance_edges and sql_relationships retract repo-wide by default and
-// file-scoped under a delta, while the three symbol→runtime domains always
-// retract repo-wide. The fence mechanism is identical either way — the refresh
+// inheritance_edges, sql_relationships, and rationale_edges retract repo-wide by
+// default and file-scoped under a delta, while the three symbol→runtime domains
+// always retract repo-wide. The fence mechanism is identical either way — the refresh
 // intent owns the single retract and the per-edge writes are deferred until it
 // commits — because the refresh carries whichever delta scope the materializer
 // attached. Repo-keyed domains (platform_infra, workload_dependency, …) keep one
 // partition per repo, so they do not spread and are intentionally excluded.
 func domainHasRepoWideRetract(domain string) bool {
 	switch domain {
-	case DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships:
+	case DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships, DomainRationaleEdges:
 		return true
 	default:
 		return false

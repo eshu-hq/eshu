@@ -90,9 +90,8 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			}
 		case DomainRationaleMaterialization:
 			def.Handler = RationaleEdgeMaterializationHandler{
-				FactLoader:           handlers.FactLoader,
-				EdgeWriter:           handlers.RationaleEdgeWriter,
-				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				FactLoader:   handlers.FactLoader,
+				IntentWriter: handlers.RationaleEdgeIntentWriter,
 			}
 		}
 		definitions = append(definitions, def)
