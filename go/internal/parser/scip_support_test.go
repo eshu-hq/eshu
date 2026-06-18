@@ -24,6 +24,22 @@ func TestDetectSCIPProjectLanguagePrefersDominantAllowedLanguage(t *testing.T) {
 	}
 }
 
+func TestDetectSCIPProjectLanguagePrefersLowerPriorityDominantLanguage(t *testing.T) {
+	t.Parallel()
+
+	got := DetectSCIPProjectLanguage(
+		[]string{
+			"/tmp/repo/a.py",
+			"/tmp/repo/service/main.go",
+			"/tmp/repo/service/server.go",
+		},
+		[]string{"go", "python"},
+	)
+	if got != "go" {
+		t.Fatalf("DetectSCIPProjectLanguage() = %q, want %q", got, "go")
+	}
+}
+
 func TestDetectSCIPProjectLanguageBreaksTiesLikePythonContract(t *testing.T) {
 	t.Parallel()
 
