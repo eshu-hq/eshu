@@ -58,15 +58,23 @@ func (w *EdgeWriter) RetractEdges(
 	}
 
 	if domain == reducer.DomainDocumentationEdges {
+		// Documentation is scope-scoped: every retract anchors on
+		// section.scope_id, so the durable owner is the row's scope id (not its
+		// repository id). Thread collectScopeIDs here for both the delta and the
+		// whole-scope path to keep the partition-key dimension aligned with the
+		// retract anchor.
+		scopeIDs := collectScopeIDs(rows)
 		deltaScope, hasDeltaScope, err := collectDocumentationDeltaScope(rows)
 		if err != nil {
 			return err
 		}
 		if hasDeltaScope {
-			scopeIDs := collectRepoIDs(rows)
 			stmts := buildDocumentationDeltaRetractStatements(scopeIDs, deltaScope, evidenceSource)
 			return w.executeDocumentationRetractStatements(ctx, stmts)
 		}
+		return WrapRetryableNeo4jError(
+			w.executor.Execute(ctx, BuildRetractDocumentationEdges(scopeIDs, evidenceSource)),
+		)
 	}
 
 	repoIDs := collectRepoIDs(rows)
@@ -169,8 +177,9 @@ func buildRetractStatement(
 		return BuildRetractCodeCallEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainInheritanceEdges:
 		return BuildRetractInheritanceEdges(repoIDs, evidenceSource), nil
-	case reducer.DomainDocumentationEdges:
-		return BuildRetractDocumentationEdges(repoIDs, evidenceSource), nil
+	// DomainDocumentationEdges is handled before this shared repo-id path in
+	// RetractEdges because documentation retracts anchor on section.scope_id, not
+	// a repository id. It must never reach this repo-id-bound builder.
 	case reducer.DomainRationaleEdges:
 		return BuildRetractRationaleEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainSQLRelationships:
@@ -225,6 +234,31 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 		}
 		seen[repoID] = struct{}{}
 		result = append(result, repoID)
+	}
+	return result
+}
+
+// collectScopeIDs gathers the durable scope ids carried by retract rows,
+// deduped and order-preserving. Documentation edges anchor every retract on
+// section.scope_id, so the retract must bind the row's scope id (preferring the
+// ScopeID field, falling back to the payload scope_id) rather than its
+// repository id. Blank ids are skipped.
+func collectScopeIDs(rows []reducer.SharedProjectionIntentRow) []string {
+	seen := make(map[string]struct{}, len(rows))
+	var result []string
+	for _, row := range rows {
+		scopeID := strings.TrimSpace(row.ScopeID)
+		if scopeID == "" {
+			scopeID = strings.TrimSpace(payloadString(row.Payload, "scope_id"))
+		}
+		if scopeID == "" {
+			continue
+		}
+		if _, ok := seen[scopeID]; ok {
+			continue
+		}
+		seen[scopeID] = struct{}{}
+		result = append(result, scopeID)
 	}
 	return result
 }
