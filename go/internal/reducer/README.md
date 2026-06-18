@@ -53,6 +53,7 @@ flowchart TB
   Service --> RDPR["RepoDependencyProjectionRunner.Run()\ngoroutine"]
   Service --> Repair["GraphProjectionPhaseRepairer.Run()\ngoroutine"]
   Service --> Orphans["GraphOrphanSweepRunner.Run()\ngoroutine"]
+  Service --> SearchVectors["SearchVectorBuildRunner.Run()\ngoroutine"]
   SPR --> ProcessPartition["ProcessPartitionOnce()\nper domain × partition"]
   ProcessPartition --> ReadinessGate["GraphProjectionReadinessLookup\n(domain-specific readiness gate)"]
   ReadinessGate --> EdgeWriter["EdgeWriter.ExecuteGroup()\nvia storage/cypher"]
@@ -590,6 +591,23 @@ shape. Observability Evidence: `go test ./internal/reducer -run
 'TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry|TestWriteEshuSearchDocumentsRecordsSearchIndexErrors'
 -count=1` and `go test ./internal/telemetry -run
 'TestSearchIndexInstrumentsRecordBoundedLabels|TestSpanNames' -count=1`.
+
+`SearchVectorBuildRunner` is a side runner that can build deterministic local
+vector rows after search documents are active. The command layer wires it only
+when `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` is `hash` or `local_hash`; this
+package owns the runner loop and depends on narrow pending-list and builder
+ports. A sweep reads pending active scopes, builds vectors in bounded document
+batches, and continues through independent scope failures while returning a
+joined error for operator visibility. The runner writes no graph truth and has
+no hosted-provider, credential, egress, or external vector-store surface.
+
+SearchVectorBuildRunner Evidence: `go test ./internal/reducer -run
+'TestSearchVectorBuildRunner|TestServiceStartsSearchVectorBuildRunner'
+-count=1` proves bounded pending-scope consumption, per-scope build calls,
+failure continuation with joined errors, dependency validation, and side-runner
+startup through `Service.Run`. Cycle logs include scanned scope count,
+attempted scope count, built/skipped/failed document counts, duration, and
+`failure_class=search_vector_build_error` when a pending scan or build fails.
 
 ## Intent lifecycle
 

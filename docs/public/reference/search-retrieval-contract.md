@@ -179,11 +179,12 @@ generation rows are ignored without rebuilding an index in the request path. A
 projection sweep re-enqueues active scopes whose search documents exist but
 index stats are missing, allowing retry to converge after partial failures.
 
-When API or MCP starts with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` (or
-`local_hash`), `semantic` and `hybrid` public requests use the same active
-document scope through `EshuSearchDocumentStore.ListActiveDocuments`, then serve
-ready active-generation local vectors from the Postgres sidecar metadata and
-payload tables. The stored vector identity must match
+When the reducer starts with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` (or
+`local_hash`), it builds ready active-generation local vectors for active
+search documents into the Postgres sidecar metadata and payload tables. When
+API or MCP starts with the same setting, `semantic` and `hybrid` public
+requests use those persisted rows through the active document scope. The stored
+vector identity must match
 `searchembed.NewHashEmbedder(searchembed.DefaultDimensions)`, the active
 document content hash, and the configured vector index version. Missing, stale,
 partial, rebuilding, failed, incompatible, or malformed vector state must return
@@ -216,8 +217,8 @@ The public surface:
 - serves from the active persisted search index without a request-time full
   rebuild or corpus cap;
 - uses the explicit local hash embedder path for `semantic` and `hybrid` only
-  when API/MCP is configured with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` and
-  active persisted vector state is ready and compatible;
+  when the reducer has built ready vector rows and API/MCP is configured with
+  `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER`;
 - caps returned results at 100;
 - returns the canonical Eshu envelope when requested;
 - reports derived truth basis, freshness, graph handles, `search_method`,

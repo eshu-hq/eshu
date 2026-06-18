@@ -94,6 +94,9 @@
 // state and vector value rows persist derived numeric embeddings by active
 // generation, model, content hash, and index version without changing API/MCP
 // query behavior.
+// EshuSearchVectorPendingStore lists active curated search-document scopes whose
+// model/version-specific ready vector metadata and payload rows are incomplete;
+// it does not build vectors itself.
 // CodeReachabilityStore persists reducer-materialized code reachable-set rows
 // keyed by active generation plus per-repository completion watermarks so
 // dead-code reads can use a standing lookup before falling back to completed

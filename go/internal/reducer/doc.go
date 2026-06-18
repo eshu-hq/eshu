@@ -22,7 +22,9 @@
 // retraction or graph orphan cleanup. GraphOrphanSweepRunner marks and deletes
 // only aged zero-relationship graph nodes from a closed label set; it is a
 // safety cleanup after owned retractions, not a replacement for relationship or
-// source-local canonical cleanup. SupplyChainImpactHandler also evaluates
+// source-local canonical cleanup. SearchVectorBuildRunner builds only derived
+// local vector rows for active curated search documents and never writes graph
+// truth or calls hosted providers. SupplyChainImpactHandler also evaluates
 // vulnerability.suppression facts and writes the resulting VEX or operator
 // policy decision onto every impact finding; provider dismissals stay
 // evidence and never auto-hide findings. The handler also computes an
