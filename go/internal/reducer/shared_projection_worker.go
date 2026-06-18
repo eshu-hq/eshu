@@ -106,6 +106,13 @@ type PartitionProcessResult struct {
 	// handlers whose target was not materialized — distinct from readiness-blocked
 	// rows. The runner logs the originating `domain` alongside the count.
 	TerminalNoEndpoint int
+	// RefreshFenceDeferred counts per-edge rows held this cycle by the repo-wide
+	// retract fence (#2898): their repo's single repo-wide retract (the per-repo
+	// refresh intent) has not completed yet, so writing now could be wiped. They
+	// are left pending and re-selected next cycle. A persistently non-zero value
+	// for a repo means its refresh intent is not completing — a stall signal,
+	// distinct from readiness-blocked and terminal-no-endpoint.
+	RefreshFenceDeferred int
 }
 
 // SelectPartitionBatch selects one accepted partition batch, matching the
@@ -247,6 +254,7 @@ func ProcessPartitionOnce(
 	readinessLookup GraphProjectionReadinessLookup,
 	readinessPrefetch GraphProjectionReadinessPrefetch,
 	endpointPresence EndpointPresenceLookup,
+	refreshFence SharedProjectionRefreshFenceLookup,
 ) (PartitionProcessResult, error) {
 	leaseStart := time.Now()
 	claimed, err := leaseManager.ClaimPartitionLease(
@@ -316,6 +324,29 @@ func ProcessPartitionOnce(
 		retractRows = append(retractRows, batch.LatestRows...)
 		retractRows = append(retractRows, batch.TerminalRows...)
 	}
+	writeRows := batch.LatestRows
+	completedLatestRows := batch.LatestRows
+	deferred := 0
+
+	// Repo-wide-retract domains (#2898/#2910): when a fence is wired, the single
+	// repo-wide retract is owned by the per-repo refresh intent and per-edge rows
+	// write only after that retract has committed. This removes the per-partition
+	// repo-wide retract that wipes sibling partitions' edges. Other domains and the
+	// nil-fence path keep the retract-then-write-everything behavior byte-identical.
+	if refreshFence != nil && domainHasRepoWideRetract(cfg.Domain) {
+		plan, planErr := planRepoWideRetractWork(ctx, cfg.Domain, batch.LatestRows, refreshFence)
+		if planErr != nil {
+			return PartitionProcessResult{
+				LeaseAcquired:             true,
+				LeaseClaimDurationSeconds: leaseDuration,
+				SelectionDurationSeconds:  selectionDuration,
+			}, planErr
+		}
+		retractRows = plan.retractRows
+		writeRows = plan.writeRows
+		completedLatestRows = plan.completedRows
+		deferred = plan.deferred
+	}
 
 	processingStart := time.Now()
 	retractStart := time.Now()
@@ -328,7 +359,7 @@ func ProcessPartitionOnce(
 	}
 	retractDuration := time.Since(retractStart).Seconds()
 
-	upsertRows := filterUpsertRows(batch.LatestRows)
+	upsertRows := filterUpsertRows(writeRows)
 	writeStart := time.Now()
 	if err := edgeWriter.WriteEdges(ctx, cfg.Domain, upsertRows, evidenceSource); err != nil {
 		return PartitionProcessResult{
@@ -342,7 +373,7 @@ func ProcessPartitionOnce(
 	var processedIDs []string
 	processedIDs = append(processedIDs, batch.StaleIDs...)
 	processedIDs = append(processedIDs, batch.SupersededIDs...)
-	for _, row := range batch.LatestRows {
+	for _, row := range completedLatestRows {
 		processedIDs = append(processedIDs, row.IntentID)
 	}
 	// Terminal rows are completed with no edge (drained, never deferred), so the
@@ -371,7 +402,8 @@ func ProcessPartitionOnce(
 		UpsertedRows:                 len(upsertRows),
 		RetractedRows:                len(retractRows),
 		StaleIntents:                 len(batch.StaleIDs),
-		BlockedReadiness:             batch.BlockedCount,
+		BlockedReadiness:             batch.BlockedCount + deferred,
+		RefreshFenceDeferred:         deferred,
 		MaxIntentWaitSeconds:         maxSharedIntentWaitSeconds(now, batch.LatestRows),
 		MaxBlockedIntentWaitSeconds:  maxSharedIntentWaitSeconds(now, batch.BlockedRows),
 		LeaseClaimDurationSeconds:    leaseDuration,

@@ -106,8 +106,14 @@ type SharedProjectionRunner struct {
 	// disables the gate, leaving handles_route — and every other domain —
 	// byte-identical to its pre-#2809 behavior.
 	EndpointPresenceLookup EndpointPresenceLookup
-	Config                 SharedProjectionRunnerConfig
-	Wait                   func(context.Context, time.Duration) error
+	// RefreshFenceLookup gates the repo-wide-retract domains (handles_route,
+	// runs_in, invokes_cloud_action) so each repo's single repo-wide retract runs
+	// once via its refresh intent and per-edge writes are held until it completes
+	// (#2898/#2910). A nil lookup leaves those domains byte-identical to their
+	// pre-fix per-partition retract behavior.
+	RefreshFenceLookup SharedProjectionRefreshFenceLookup
+	Config             SharedProjectionRunnerConfig
+	Wait               func(context.Context, time.Duration) error
 
 	// Telemetry fields (optional)
 	Tracer      trace.Tracer
@@ -311,6 +317,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.ReadinessLookup,
 		r.ReadinessPrefetch,
 		r.EndpointPresenceLookup,
+		r.RefreshFenceLookup,
 	)
 
 	duration := time.Since(start).Seconds()
@@ -345,6 +352,21 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 			slog.Int("partition_id", partitionID),
 			slog.Int("partition_count", partitionCount),
 			slog.Int("terminal_no_endpoint_count", result.TerminalNoEndpoint),
+			telemetry.PhaseAttr(telemetry.PhaseShared),
+		)
+	}
+	if result.RefreshFenceDeferred > 0 && r.Logger != nil {
+		// Operator signal (#2898): per-edge rows held until their repo's single
+		// repo-wide retract (refresh intent) completes. Expected briefly each cycle
+		// while a repo's refresh partition is still pending; a value that stays
+		// non-zero for a repo means its refresh intent is not completing.
+		r.Logger.InfoContext(
+			ctx,
+			"shared projection deferred per-edge rows behind repo refresh fence",
+			slog.String("domain", domain),
+			slog.Int("partition_id", partitionID),
+			slog.Int("partition_count", partitionCount),
+			slog.Int("refresh_fence_deferred_count", result.RefreshFenceDeferred),
 			telemetry.PhaseAttr(telemetry.PhaseShared),
 		)
 	}

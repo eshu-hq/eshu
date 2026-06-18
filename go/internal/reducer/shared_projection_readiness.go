@@ -164,11 +164,16 @@ func filterRowsByReadiness(
 	// no-op, so every other domain — and these domains when presence is unwired —
 	// is unaffected.
 	if keyspace, keyFor, gated := symbolRuntimePresenceGate(domain); gated && endpointPresence != nil && len(readyRows) > 0 {
-		presentRows, absentRows, presenceErr := filterRowsByTargetPresence(ctx, readyRows, endpointPresence, keyspace, keyFor)
+		// The per-repo refresh intent (#2898) carries no endpoint of its own — it
+		// exists only to issue the single repo-wide retract — so exempt it from the
+		// presence gate. Subjecting it would key on an empty path and drain it as
+		// terminal-no-endpoint, so the repo-wide retract would never run.
+		refreshReady, edgeReady := splitRepoRefreshRows(readyRows)
+		presentRows, absentRows, presenceErr := filterRowsByTargetPresence(ctx, edgeReady, endpointPresence, keyspace, keyFor)
 		if presenceErr != nil {
 			return nil, nil, nil, fmt.Errorf("look up %s target presence: %w", domain, presenceErr)
 		}
-		readyRows = presentRows
+		readyRows = append(refreshReady, presentRows...)
 		terminalRows = absentRows
 	}
 

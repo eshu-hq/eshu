@@ -145,35 +145,14 @@ func (h CodeCallMaterializationHandler) Handle(
 			fileScopesByRepoID,
 		)...,
 	)
+	// Symbol→runtime domains (handles_route, runs_in, invokes_cloud_action) do a
+	// repo-wide retract but emit per-edge partition keys; each per-edge batch is
+	// paired in the same pass with a whole-scope refresh intent that owns the
+	// single repo-wide retract, so the worker can fence per-edge writes behind it
+	// and stop partitions wiping each other's edges (#2898/#2910).
 	intentRows = append(
 		intentRows,
-		buildHandlesRouteIntentRows(
-			envelopes,
-			entityIndex,
-			contextByRepoID,
-			createdAt,
-			handlesRouteEvidenceSource,
-		)...,
-	)
-	intentRows = append(
-		intentRows,
-		buildRunsInIntentRows(
-			envelopes,
-			entityIndex,
-			contextByRepoID,
-			createdAt,
-			runsInEvidenceSource,
-		)...,
-	)
-	intentRows = append(
-		intentRows,
-		buildInvokesCloudActionIntentRows(
-			envelopes,
-			entityIndex,
-			contextByRepoID,
-			createdAt,
-			invokesCloudActionEvidenceSource,
-		)...,
+		buildSymbolRuntimeIntentRows(envelopes, entityIndex, contextByRepoID, createdAt)...,
 	)
 	intentBuildDuration := time.Since(intentBuildStart)
 
