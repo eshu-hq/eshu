@@ -1,46 +1,67 @@
 # How It Works
 
-Eshu turns your repositories into a queryable graph in five steps. Understanding the pipeline helps you ask better questions and interpret the answers.
+Eshu turns your repositories and external sources into a queryable graph through
+a fact-based pipeline:
+`sync → discover → parse → emit facts → enqueue → reduce → project → query`.
+Facts are the durable boundary between intake and the graph, so work can be
+retried, replayed, and recovered. Understanding the pipeline helps you ask
+better questions and interpret the answers.
 
 ## 1. Discovery
 
-Eshu walks the file tree of each repository, honoring `.gitignore` and `.eshuignore`. Hidden and cache directories (`.git`, `.terraform`, `.terragrunt-cache`, `node_modules`, `vendor/`) are pruned automatically. What remains is the set of files that represent your actual code and infrastructure.
+Eshu syncs each repository, then walks its file tree honoring `.gitignore` and `.eshuignore`. Hidden and cache directories (`.git`, `.terraform`, `.terragrunt-cache`, `node_modules`, `vendor/`) are pruned automatically. What remains is the set of files that represent your actual code and infrastructure.
 
 ## 2. Parsing
 
 Each file is routed to the appropriate parser:
 
-- **Source code** — tree-sitter grammars for 30+ languages extract functions, classes, imports, and call relationships
+- **Source code** — tree-sitter and native Go grammars extract functions, classes, imports, inheritance, and call relationships across 20+ languages
 - **Terraform / HCL** — dedicated HCL parser extracts resources, modules, variables, and module source references
 - **Kubernetes / Helm / Kustomize** — YAML parser identifies workloads, services, config maps, and overlay relationships
 - **ArgoCD** — Application and ApplicationSet manifests are parsed to extract deployment targets, sync policies, and source repos
 - **Crossplane** — XRD and Claim definitions are extracted to map infrastructure provisioning
-- **CloudFormation** — resource and output definitions are parsed from JSON/YAML templates
+- **CloudFormation / Docker Compose** — resource, output, and service definitions are parsed from JSON/YAML templates
 
 Language parsing is owned by native Go packages. Add new parser capability by
 extending the Go parser or relationship packages with fixtures and focused
 tests.
 
-## 3. Graph construction
+## 3. Fact emission and external collectors
 
-Parser output becomes nodes and edges. Some are direct facts, some are inferred from multiple signals:
+Parsers emit versioned facts rather than writing the graph directly. External
+collectors emit facts too, so the graph reaches beyond the repository tree:
+cloud inventory and posture from AWS service scanners, container images from
+registries, dependencies from package ecosystems, vulnerability intelligence
+(CISA KEV, FIRST EPSS, OSV, NVD), Kubernetes runtime, observability, CI/CD, and
+incident sources. Every fact is generation-stamped so a later run can supersede
+an earlier one without losing provenance.
 
-- **Direct facts** — files, functions, classes, imports, Terraform resources, K8s manifests, ArgoCD apps
-- **Inferred relationships** — deployment chains (ArgoCD app → K8s Deployment → image → repo), shared infrastructure consumption (multiple workloads → same RDS module), service aliases, cross-repo module references
+## 4. Queue and reduce
 
-The inference layer is what makes Eshu different from a code search tool. It connects a Terraform module source URL to the repository that contains it, and traces an ArgoCD Application through K8s resources to the Helm chart and source code that define the workload.
+Facts are stored in Postgres and queued as reducer work. The reducer (the
+resolution engine) claims that work, admits each fact into canonical state or
+keeps it as provenance, and **correlates** evidence across sources — connecting a
+Terraform module source URL to the repository that contains it, or tracing an
+ArgoCD Application through Kubernetes resources to the image and source that
+define a workload. This correlation layer is what makes Eshu different from a
+code search tool. Queued, idempotent work is what lets it run concurrently and
+recover from partial failure.
 
-## 4. Storage
+## 5. Graph and content projection
 
-The graph is written to the backing database:
+The reducer materializes canonical nodes and edges, gating edge writes behind
+readiness phases so endpoints exist before an edge is merged:
 
 - **NornicDB** — default graph backend for local and deployable service paths
 - **Neo4j** — explicit Bolt-compatible official alternative
 - **PostgreSQL** — content store for source text retrieval and full-text search
 
+Direct facts (files, functions, Terraform resources, K8s manifests, images,
+packages) and inferred relationships (deployment chains, shared-infrastructure
+consumption, code-to-cloud handler and runtime bridges) land in the same model.
 All three query interfaces (CLI, MCP, HTTP) read from the same storage layer.
 
-## 5. Querying
+## 6. Querying
 
 Queries resolve user-friendly input ("payment-service", "shared-rds-cluster") into canonical graph entities — repositories, workloads, workload instances, cloud resources — and traverse the graph from there.
 

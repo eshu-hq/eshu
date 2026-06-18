@@ -1,8 +1,23 @@
 # Connect MCP
 
 MCP is the assistant-facing path into Eshu. Use it when Claude, Codex, Cursor,
-VS Code, or another MCP client needs indexed code, deployment, and
-infrastructure context.
+VS Code, or another MCP client needs indexed code, dependency, supply-chain,
+deployment, and infrastructure context — answered with evidence instead of
+guesses.
+
+## Ask by role
+
+Point your assistant at Eshu and lead with the question your role actually has.
+These map to the [tool families](../reference/mcp-reference.md) Eshu exposes.
+
+| Role | Ask your assistant |
+| --- | --- |
+| Security / supply chain | "Use Eshu: which deployed images are affected by this advisory, and is the vulnerable code reachable?" |
+| Software engineer | "Use Eshu to find this symbol and its callers across indexed repos." |
+| Platform / SRE | "Use Eshu to trace this service to its Kubernetes and Terraform evidence." |
+| Architect / tech lead | "Use Eshu to compose a re-platforming plan for this workload." |
+| Engineering leadership | "Use Eshu to explain the blast radius of this change before it lands." |
+| New engineer | "Use Eshu to explain this service with its source and deployment evidence." |
 
 ## Choose a connection shape
 
@@ -81,6 +96,7 @@ Codex.
 
 - "Use Eshu to find this symbol and its callers."
 - "Use Eshu to trace this service to its Kubernetes and Terraform evidence."
+- "Use Eshu to find which deployed images contain this vulnerable package."
 - "Use Eshu to explain the blast radius of this change."
 - "Use Eshu to list the indexed repositories."
 

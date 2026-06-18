@@ -14,6 +14,8 @@ from zero to one indexed repository, a status check, and a first useful answer.
 | Run Eshu on your laptop | [Run locally](run-locally/index.md) |
 | Connect Codex, Claude, Cursor, VS Code, or another MCP client | [Connect MCP](mcp/index.md) |
 | Index repositories and ask questions | [Use Eshu](use/index.md) |
+| Trace a vulnerable dependency to its images and owners | [Use Cases](use-cases.md) |
+| Audit secrets, IAM, and supply-chain posture | [Security Intelligence](reference/security-intelligence.md) |
 | Deploy Eshu for a team | [Deploy to Kubernetes](deploy/kubernetes/index.md) |
 | Deploy Eshu on EKS | [Deploy to EKS](deploy/eks/index.md) |
 | Keep a running service healthy | [Operate Eshu](operate/index.md) |
@@ -40,6 +42,7 @@ If you are not sure which one you need, start with
 - [Index repositories](use/index-repositories.md)
 - [Ask code questions](use/code-questions.md)
 - [Trace infrastructure](use/trace-infrastructure.md)
+- [Work through use cases](use-cases.md), from supply-chain triage to environment comparison
 - [Use starter prompts](guides/starter-prompts.md)
 
 ## If You Are Operating Eshu

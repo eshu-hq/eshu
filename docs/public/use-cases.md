@@ -1,7 +1,44 @@
 # Use Cases
 
-Eshu is useful when the answer crosses repositories, deployment config, runtime
-topology, and documentation.
+Eshu is useful when the answer crosses repositories, dependencies, supply chain,
+deployment config, runtime topology, and documentation. Each area below names
+the MCP tools that lead the workflow.
+
+## Triage A Vulnerability
+
+The launch beachhead. Ask:
+
+- "Which deployed images and workloads are affected by this advisory?"
+- "Is the vulnerable symbol actually reachable, or only present?"
+- "What is the priority once KEV, EPSS, OSV, and NVD are reconciled?"
+
+Start with `list_supply_chain_impact_findings` to see affected entities, then
+`explain_supply_chain_impact` for the evidence chain and `list_advisory_evidence`
+for the underlying advisory records. Reachability and suppression are reflected
+in the findings so a present-but-unreachable dependency is not over-reported.
+
+## Audit Secrets And IAM
+
+Ask:
+
+- "Where are hardcoded secrets in this code?"
+- "What secrets can this workload or principal reach, and through which path?"
+- "Which identities trust each other or can escalate privilege?"
+
+Use `investigate_hardcoded_secrets` for in-code findings, then
+`list_secrets_iam_secret_access_paths` and
+`list_secrets_iam_identity_trust_chains` for the access and trust graph.
+
+## Verify Image Provenance
+
+Ask:
+
+- "Which SBOM attestations are attached to this image, by subject digest?"
+- "Do our security-alert findings reconcile with the indexed evidence?"
+
+Use `list_sbom_attestation_attachments` for attachment evidence and
+`list_security_alert_reconciliations` to compare alert findings with indexed
+truth.
 
 ## Before You Merge
 
@@ -59,6 +96,28 @@ Ask:
 
 Use `compare_environments` through MCP or the HTTP API. Include the workload and
 both environment names.
+
+## Reclaim And Re-platform Infrastructure
+
+Ask:
+
+- "Which cloud resources are not managed by any indexed IaC?"
+- "How would I bring this resource under Terraform?"
+- "What is the readiness plan to re-platform this workload to another cloud?"
+
+Use `find_unmanaged_resources` to find drift, `propose_terraform_import_plan` to
+generate an import path, and `compose_replatforming_plan` for a multi-cloud
+re-platforming plan.
+
+## Map Dependencies
+
+Ask:
+
+- "What does this package depend on across ecosystems?"
+- "Which repositories and images pull in this dependency?"
+
+Use `list_package_registry_dependencies` to walk the dependency set across the
+indexed package ecosystems.
 
 ## Read Next
 

@@ -1,7 +1,8 @@
 # Eshu
 
-**A self-hosted code-to-cloud context graph that gives engineers and AI
-assistants repo-aware answers with evidence.**
+**A self-hosted context graph that connects your code, dependencies, supply
+chain, infrastructure, and runtime into one queryable, evidence-backed source of
+truth — for engineers and the AI assistants working beside them.**
 
 <p align="center">
   <a href="LICENSE">
@@ -19,28 +20,44 @@ assistants repo-aware answers with evidence.**
   <img src="https://img.shields.io/badge/helm-OCI-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm OCI Chart">
 </p>
 
-Eshu indexes source code, infrastructure, deployment config, runtime topology,
-external collector facts, and documentation into one queryable graph. It is the
-shared context layer for questions that normally force an engineer to open five
+Eshu indexes source code, dependencies, container images, infrastructure,
+deployment config, runtime topology, external collector facts, and documentation
+into one queryable graph. It is the durable institutional-knowledge layer your
+team and its assistants query instead of re-deriving the answer from five
 repositories, three dashboards, a Helm chart, and a Terraform module.
+
+The launch beachhead is **supply-chain traceability**: a single trace from a
+vulnerable dependency through the container images that ship it, the workloads
+that run them, and the source and Terraform that own them — every hop backed by
+evidence.
 
 Use Eshu to ask:
 
+- "Which deployed images contain this vulnerable package, and what source and
+  Terraform own them?"
 - "Who calls this function across all indexed repos?"
 - "What deploys this service to production?"
-- "Which workloads share this database or queue?"
+- "Which workloads share this database, queue, or secret?"
 - "What breaks if I change this Terraform module?"
 - "Show the evidence behind this service-to-infrastructure link."
 
 ## What Eshu Can Do
 
-| Ability | What you get |
+These map to the capability families reported by the `get_capability_catalog`
+MCP tool and the public tool families in
+[MCP Reference](docs/public/reference/mcp-reference.md).
+
+| Capability area | What you get |
 | --- | --- |
-| Code intelligence | Find symbols, callers, call chains, imports, dead-code candidates, and repository context across indexed repos. |
-| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations. |
-| AI assistant context | Serve indexed truth through MCP so Codex, Claude, Cursor, VS Code, and other clients can answer with evidence instead of guessing. |
-| Change-risk analysis | Ask for blast radius, shared dependencies, impacted infrastructure, and direct versus transitive relationships before a change lands. |
-| Operations visibility | Track ingestion, reducer queues, graph writes, health, metrics, traces, logs, and stale-answer symptoms. |
+| Code intelligence | Find symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages. <!-- capability-state: id=code_search.symbol_lookup state=general_availability --> |
+| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=general_availability --> |
+| Supply-chain traceability | Track dependencies across 13 package ecosystems, reconcile 4 advisory sources (CISA KEV, FIRST EPSS, OSV, NVD), and follow SBOM-to-image attachments with subject-digest evidence. <!-- capability-state: id=supply_chain.impact_findings.list state=general_availability --> |
+| Vulnerability reachability | Go reachability via govulncheck <!-- capability-state: id=reachability.go.govulncheck state=general_availability -->; value-flow reachability for Python, TypeScript, and JavaScript <!-- capability-state: id=reachability.python.value_flow state=gated --> <!-- capability-state: id=reachability.typescript.value_flow state=gated --> <!-- capability-state: id=reachability.javascript.value_flow state=gated -->; bounded JVM reachability <!-- capability-state: id=reachability.jvm.bounded state=preview -->. |
+| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=general_availability --> |
+| Change-risk analysis | Ask for blast radius, shared dependencies, change surface, and direct versus transitive relationships before a change lands. <!-- capability-state: id=platform_impact.blast_radius state=general_availability --> |
+| IaC and re-platforming | Find unmanaged resources, propose Terraform import plans, and compose multi-cloud re-platforming plans. <!-- capability-state: id=replatforming.plan.readiness state=general_availability --> |
+| AI assistant context | Serve indexed truth through 130+ read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> |
+| Operations visibility | Track ingestion, reducer queues, graph writes, runtime drift, freshness, health, metrics, traces, and logs. <!-- capability-state: id=freshness.changed_since state=general_availability --> |
 | Extensibility | Add parsers, collectors, package-registry sources, Terraform providers, and language support with fixture-backed tests. |
 
 ## Pick Your First Path

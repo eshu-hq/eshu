@@ -1,7 +1,9 @@
 # Eshu Mandatory Agent Rules
 
-Eshu is a code-to-cloud context graph for CLI, MCP, and HTTP API workflows.
-Treat it as a production data platform, not a script collection.
+Eshu is a self-hosted context graph that connects code, dependencies, supply
+chain, infrastructure, and runtime into one queryable, evidence-backed source of
+truth for CLI, MCP, and HTTP API workflows. Treat it as a production data
+platform, not a script collection.
 
 This file is mandatory. AI agents MUST follow it continuously while working in
 this repository. The linked [Agent Engineering Guide](docs/internal/agent-guide.md)

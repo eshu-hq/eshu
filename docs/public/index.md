@@ -1,9 +1,14 @@
 # Eshu
 
-Eshu connects code, infrastructure, workloads, deployment topology, external
-collector facts, and documentation into one queryable graph. Engineers and AI
-assistants use it when an answer would otherwise require opening several
-repositories, dashboards, Terraform modules, and Helm charts by hand.
+Eshu connects code, dependencies, container images, infrastructure, workloads,
+deployment topology, external collector facts, and documentation into one
+queryable graph. It is the durable institutional-knowledge layer engineers and
+AI assistants query instead of re-deriving an answer from several repositories,
+dashboards, Terraform modules, and Helm charts by hand.
+
+The launch beachhead is supply-chain traceability: trace a vulnerable dependency
+through the images that ship it, the workloads that run them, and the source and
+Terraform that own them — with evidence at every hop.
 
 [First Successful Run](getting-started/first-successful-run.md){ .md-button .md-button--primary }
 [Start Here](start-here.md){ .md-button }
@@ -30,10 +35,12 @@ repositories, dashboards, Terraform modules, and Helm charts by hand.
 
 | Ability | Example question |
 | --- | --- |
+| Supply-chain traceability | "Which deployed images contain this vulnerable package, and what owns them?" |
 | Code intelligence | "Who calls `process_payment` across indexed repos?" |
 | Deployment tracing | "What deploys this service into QA and prod?" |
 | Infrastructure ownership | "Trace this cloud resource back to the Terraform that defines it." |
-| Shared dependency discovery | "Which workloads share this database?" |
+| Shared dependency discovery | "Which workloads share this database, queue, or secret?" |
+| Security and IAM posture | "What secrets and IAM roles can this workload reach?" |
 | Change-risk analysis | "What breaks if I change this shared client?" |
 | Assistant context | "Use Eshu to explain this service with source and deployment evidence." |
 
