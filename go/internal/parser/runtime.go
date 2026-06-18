@@ -6,6 +6,7 @@ import (
 	"sync"
 	"unsafe"
 
+	tree_sitter_dart "github.com/UserNobody14/tree-sitter-dart/bindings/go"
 	tree_sitter_swift "github.com/indigo-net/Brf.it/pkg/parser/treesitter/grammars/swift"
 	tree_sitter_kotlin "github.com/tree-sitter-grammars/tree-sitter-kotlin/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -79,6 +80,7 @@ var builtinLanguageLoaders = map[string]languageLoader{
 	"c":          tree_sitter_c.Language,
 	"c_sharp":    tree_sitter_c_sharp.Language,
 	"cpp":        tree_sitter_cpp.Language,
+	"dart":       tree_sitter_dart.Language,
 	"go":         tree_sitter_go.Language,
 	"java":       tree_sitter_java.Language,
 	"javascript": tree_sitter_javascript.Language,
@@ -99,6 +101,8 @@ func normalizeLanguageName(name string) (string, error) {
 		return "c_sharp", nil
 	case "c++", "cpp", "cxx":
 		return "cpp", nil
+	case "dart":
+		return "dart", nil
 	case "go":
 		return "go", nil
 	case "java":

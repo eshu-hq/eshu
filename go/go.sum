@@ -57,6 +57,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3 h1:H5xDQaE3Xow
 github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3/go.mod h1:wP83P5OoQ5p6ip3ScPr0BAq0BvuPAvacpEuSzyouqAI=
 github.com/PuerkitoBio/goquery v1.12.0 h1:pAcL4g3WRXekcB9AU/y1mbKez2dbY2AajVhtkO8RIBo=
 github.com/PuerkitoBio/goquery v1.12.0/go.mod h1:802ej+gV2y7bbIhOIoPY5sT183ZW0YFofScC4q/hIpQ=
+github.com/UserNobody14/tree-sitter-dart v0.0.0-20260520003023-a9bdfa3db2fb h1:FiLZ1SaC4O9W+opTLv1fuPWWaGTclcMm/0DehtlNGNs=
+github.com/UserNobody14/tree-sitter-dart v0.0.0-20260520003023-a9bdfa3db2fb/go.mod h1:6zSIbyfHyxL/+XWRHElGLw+EUPYbDOyhDqIiAX6svrE=
 github.com/agext/levenshtein v1.2.1 h1:QmvMAjj2aEICytGiWzmxoE0x2KZvE0fvmqMOfy2tjT8=
 github.com/agext/levenshtein v1.2.1/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/agnivade/levenshtein v1.2.1 h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KOX7eoM=
@@ -671,6 +673,8 @@ github.com/scip-code/scip/bindings/go/scip v0.7.0 h1:on80ynl7eSovvMUy3uxWkJm+kep
 github.com/scip-code/scip/bindings/go/scip v0.7.0/go.mod h1:XC4dP3um0lKaSDRFIMwYlkBjFxKy1Rw7xFt6KDtRjAk=
 github.com/sergi/go-diff v1.3.1 h1:xkr+Oxo4BOQKmkn/B9eMK0g5Kg/983T9DqqPHwYqD+8=
 github.com/sergi/go-diff v1.3.1/go.mod h1:aMJSSKb2lpPvRNec0+w3fl7LP9IOFzdc9Pa4NFbPK1I=
+github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82 h1:6C8qej6f1bStuePVkLSFxoU22XBS165D3klxlzRg8F4=
+github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82/go.mod h1:xe4pgH49k4SsmkQq5OT8abwhWmnzkhpgnXeekbx2efw=
 github.com/sosodev/duration v1.4.0 h1:35ed0KiVFriGHHzZZJaZLgmTEEICIyt8Sx0RQfj9IjE=
 github.com/sosodev/duration v1.4.0/go.mod h1:RQIBBX0+fMLc/D9+Jb/fwvVmo0eZvDDEERAikUR6SDg=
 github.com/sourcegraph/beaut v0.0.0-20240611013027-627e4c25335a h1:j/CQ27s679M9wRGBRJYyXGrfkYuQA6VMnD7R08mHD9c=

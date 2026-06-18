@@ -2,10 +2,10 @@
 
 ## Purpose
 
-This package owns the line-oriented Dart parser adapter used by the parent
-parser engine. It extracts import/export names, class-style declarations,
-top-level function rows, variables, simple call evidence, and parser-backed
-dead-code root metadata for bounded Dart and Flutter roots.
+This package owns the Dart parser adapter used by the parent parser engine. It
+uses tree-sitter syntax for import/export names, class-style declarations,
+function rows, variables, and Dart/Flutter dead-code root metadata, while
+keeping lightweight call evidence in the legacy payload shape.
 
 ## Ownership boundary
 
@@ -15,12 +15,16 @@ orchestration, repo path handling, and parse telemetry.
 
 ## Exported surface
 
-The godoc contract is in doc.go. Current exports are Parse and PreScan.
+The godoc contract is in doc.go. Current exports are Parse, ParseWithParser,
+PreScan, and PreScanWithParser. The parent engine uses the `WithParser`
+variants so Dart shares the same runtime-owned tree-sitter parser lifecycle as
+other grammar-backed adapters.
 
 ## Dependencies
 
-This package imports the Go standard library and internal/parser/shared. It
-must not import the parent internal/parser package.
+This package imports the Go standard library, internal/parser/shared,
+github.com/tree-sitter/go-tree-sitter, and the Dart grammar binding. It must
+not import the parent internal/parser package.
 
 ## Telemetry
 
@@ -36,8 +40,10 @@ Parse, then sorts those names before returning them to the parent engine.
 constructors, `@override`, Flutter `build`/`createState`, and public `lib/`
 declarations outside `lib/src/`. Annotations attached to class declarations are
 consumed at the declaration boundary so they do not become member decorators.
-Constructor detection only runs at class-member depth; constructor calls inside
-method bodies must remain call evidence, not constructor declarations.
+Constructor detection comes from constructor signature nodes inside class
+bodies; constructor calls inside method bodies must remain call evidence, not
+constructor declarations. Import collection must avoid double-counting
+`import_or_export` wrapper nodes and their concrete library children.
 
 ## Related docs
 

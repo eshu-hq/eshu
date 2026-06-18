@@ -6,12 +6,24 @@ import (
 )
 
 func (e *Engine) parseDart(path string, isDependency bool, options Options) (map[string]any, error) {
-	return dartparser.Parse(path, isDependency, shared.Options{
+	parser, err := e.runtime.Parser("dart")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return dartparser.ParseWithParser(path, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
 		VariableScope: options.VariableScope,
-	})
+	}, parser)
 }
 
 func (e *Engine) preScanDart(path string) ([]string, error) {
-	return dartparser.PreScan(path)
+	parser, err := e.runtime.Parser("dart")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return dartparser.PreScanWithParser(path, parser)
 }
