@@ -232,6 +232,108 @@ func pick(in string) string {
 	}
 }
 
+// TestLowerSelectorAccessPathsAreFieldSensitive proves selector assignments
+// define the selected field path and selector reads use that same field path
+// rather than collapsing all fields into the base binding.
+func TestLowerSelectorAccessPathsAreFieldSensitive(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+type payload struct{ SQL, Display string }
+
+func handler(in string) {
+	var data payload
+	data.SQL = in
+	data.Display = "safe"
+	sink(data.SQL)
+	sink(data.Display)
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "data.SQL:7->9") {
+		t.Fatalf("missing data.SQL field def reaching data.SQL sink in\n  %v", got)
+	}
+	if contains(got, "data.SQL:7->10") {
+		t.Fatalf("data.SQL def reached sibling data.Display sink in\n  %v", got)
+	}
+}
+
+// TestLowerPointerAliasSelectorAccessPath proves a simple pointer alias to a
+// local struct normalizes selector writes back to the original field path.
+func TestLowerPointerAliasSelectorAccessPath(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+type payload struct{ SQL string }
+
+func handler(in string) {
+	var data payload
+	alias := &data
+	alias.SQL = in
+	sink(data.SQL)
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "data.SQL:8->9") {
+		t.Fatalf("missing aliased data.SQL field def reaching data.SQL sink in\n  %v", got)
+	}
+}
+
+// TestLowerPointerAliasChainSelectorAccessPath proves alias chains over an
+// existing pointer alias still normalize selector writes to the original field.
+func TestLowerPointerAliasChainSelectorAccessPath(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+type payload struct{ SQL string }
+
+func handler(in string) {
+	var data payload
+	alias := &data
+	next := alias
+	next.SQL = in
+	sink(data.SQL)
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "data.SQL:9->10") {
+		t.Fatalf("missing chained alias data.SQL field def reaching data.SQL sink in\n  %v", got)
+	}
+}
+
+// TestLowerStructValueCopyDoesNotAliasFieldMutation proves a plain value copy is
+// not treated as a pointer alias for later selector writes.
+func TestLowerStructValueCopyDoesNotAliasFieldMutation(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+type payload struct{ SQL string }
+
+func handler(in string) {
+	var data payload
+	copy := data
+	copy.SQL = in
+	sink(data.SQL)
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if contains(got, "copy.SQL:8->9") || contains(got, "data.SQL:8->9") {
+		t.Fatalf("plain struct value copy must not alias later field mutation in\n  %v", got)
+	}
+}
+
 func contains(haystack []string, needle string) bool {
 	for _, v := range haystack {
 		if v == needle {

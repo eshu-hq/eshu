@@ -14,7 +14,7 @@
 // operate on the language-neutral cfg.Function, taint.Finding, interproc.Finding,
 // interproc.Source, and summary.Effects types, so every language adapter emits an
 // identical bucket shape. SortFunctionRows, SortFindingRows, SortSummaryRows, and
-// SortSourceRows make the buckets byte-stable across runs; optional fields (class_context, sink_label,
-// source_label, neutralized, cloud, and empty effect lists) are omitted when
-// empty so the rows stay minimal.
+// SortSourceRows make the buckets byte-stable across runs; optional fields
+// (class_context, sink_label, source_label, neutralized, cloud, overflow, and
+// empty effect lists) are omitted when empty so the rows stay minimal.
 package dataflowemit

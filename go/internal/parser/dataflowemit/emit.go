@@ -38,6 +38,7 @@ func DataflowFunctionRow(lang, name string, line int, classContext string, fn cf
 			"blocks":        fn.Overflow.Blocks,
 			"stmts":         fn.Overflow.Stmts,
 			"def_use_edges": fn.Overflow.DefUseEdges,
+			"access_paths":  fn.Overflow.AccessPaths,
 		}
 	}
 	return row

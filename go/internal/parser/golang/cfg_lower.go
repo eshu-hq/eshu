@@ -14,7 +14,13 @@ import (
 // which can miss a reaching definition but never invents a false edge.
 func goLowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) cfg.Function {
 	builder := cfg.NewBuilder(limits)
-	lowerer := &goCFGLowerer{builder: builder, source: source, labels: map[string]cfg.BlockID{}}
+	lowerer := &goCFGLowerer{
+		builder: builder,
+		source:  source,
+		labels:  map[string]cfg.BlockID{},
+		aliases: goBindingAliases{},
+		limits:  limits,
+	}
 
 	entry := builder.AddBlock()
 	builder.SetEntry(entry)
@@ -25,7 +31,9 @@ func goLowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) c
 		lowerer.lowerStmtList(body, entry)
 	}
 	lowerer.resolveGotos()
-	return builder.Build()
+	fn := builder.Build()
+	fn.Overflow.AccessPaths += lowerer.accessPathOverflows
+	return fn
 }
 
 // goCFGLowerer threads the active builder and source through the recursive
@@ -34,10 +42,13 @@ func goLowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) c
 // label can be added after lowering (a forward goto references a label not yet
 // lowered, so edges are resolved in a second pass).
 type goCFGLowerer struct {
-	builder *cfg.Builder
-	source  []byte
-	labels  map[string]cfg.BlockID
-	gotos   []pendingGoto
+	builder             *cfg.Builder
+	source              []byte
+	labels              map[string]cfg.BlockID
+	aliases             goBindingAliases
+	limits              cfg.Limits
+	accessPathOverflows int
+	gotos               []pendingGoto
 }
 
 // pendingGoto is a goto site awaiting its edge to the target label's block.
@@ -128,8 +139,9 @@ func (l *goCFGLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.B
 		return cur, false
 	case "short_var_declaration", "assignment_statement", "var_declaration",
 		"const_declaration", "inc_statement", "dec_statement":
-		defs, uses := goStmtDefsUses(node, l.source)
+		defs, uses := goStmtDefsUsesWithOptions(node, l.source, l.aliases, l.accessPathOptions())
 		l.addStmt(cur, nodeLine(node), defs, uses)
+		l.updateAliases(node)
 		return cur, true
 	default:
 		l.addUses(cur, node)
@@ -146,6 +158,7 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 	if cond := node.ChildByFieldName("condition"); cond != nil {
 		l.addUses(cur, cond)
 	}
+	entryAliases := l.aliases.clone()
 
 	merge := l.builder.AddBlock()
 	mergeReachable := false
@@ -156,15 +169,19 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 	if cons := node.ChildByFieldName("consequence"); cons != nil {
 		thenBlk, thenReach = l.lowerStmt(cons, thenBlk)
 	}
+	thenAliases := l.aliases.clone()
 	if thenReach {
 		l.builder.AddEdge(thenBlk, merge)
 		mergeReachable = true
 	}
 
+	elseAliases := entryAliases.clone()
 	if alt := node.ChildByFieldName("alternative"); alt != nil {
+		l.aliases = entryAliases.clone()
 		elseBlk := l.builder.AddBlock()
 		l.builder.AddEdge(cur, elseBlk)
 		elseBlk, elseReach := l.lowerStmt(alt, elseBlk)
+		elseAliases = l.aliases.clone()
 		if elseReach {
 			l.builder.AddEdge(elseBlk, merge)
 			mergeReachable = true
@@ -174,12 +191,17 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 		l.builder.AddEdge(cur, merge)
 		mergeReachable = true
 	}
+	if !thenReach {
+		thenAliases = elseAliases.clone()
+	}
+	l.aliases = goMergeAliases(thenAliases, elseAliases)
 	return merge, mergeReachable
 }
 
 // lowerFor lowers a for loop, threading a back-edge from the loop body to the
 // header so in-loop definitions reach the header on later iterations.
 func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
+	entryAliases := l.aliases.clone()
 	clause := goForClause(node)
 
 	// for range: the range clause defines its loop variables each iteration.
@@ -220,21 +242,23 @@ func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Bl
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
 	// The loop may run zero times, so control after it is reachable.
+	l.aliases = entryAliases
 	return exit, true
 }
 
 // lowerForRange lowers a for-range loop: the range clause defines its loop
 // variables at the header on every iteration and reads the ranged expression.
 func (l *goCFGLowerer) lowerForRange(node *tree_sitter.Node, clause *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
+	entryAliases := l.aliases.clone()
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 
 	var defs, uses []string
 	if left := clause.ChildByFieldName("left"); left != nil {
-		defs = goAssignTargets(left, l.source)
+		defs = goAssignTargetsWithOptions(left, l.source, l.aliases, l.accessPathOptions())
 	}
 	if right := clause.ChildByFieldName("right"); right != nil {
-		uses = goExprUses(right, l.source)
+		uses = goExprUsesWithOptions(right, l.source, l.aliases, l.accessPathOptions())
 	}
 	l.addStmt(header, nodeLine(clause), defs, uses)
 
@@ -250,6 +274,7 @@ func (l *goCFGLowerer) lowerForRange(node *tree_sitter.Node, clause *tree_sitter
 
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
+	l.aliases = entryAliases
 	return exit, true
 }
 
@@ -282,8 +307,31 @@ func (l *goCFGLowerer) addStmt(block cfg.BlockID, line int, defs, uses []string)
 
 // addUses records the identifier uses of an expression-bearing node.
 func (l *goCFGLowerer) addUses(block cfg.BlockID, node *tree_sitter.Node) {
-	uses := goExprUses(node, l.source)
+	uses := goExprUsesWithOptions(node, l.source, l.aliases, l.accessPathOptions())
 	l.addStmt(block, nodeLine(node), nil, uses)
+}
+
+func (l *goCFGLowerer) accessPathOptions() goAccessPathOptions {
+	maxParts := l.limits.MaxAccessPathParts
+	if maxParts <= 0 {
+		maxParts = cfg.DefaultLimits().MaxAccessPathParts
+	}
+	return goAccessPathOptions{
+		maxParts:  maxParts,
+		truncated: &l.accessPathOverflows,
+	}
+}
+
+func (l *goCFGLowerer) updateAliases(node *tree_sitter.Node) {
+	switch node.Kind() {
+	case "short_var_declaration", "assignment_statement":
+		l.aliases.applyAssignment(node, l.source)
+	case "var_declaration", "const_declaration", "inc_statement", "dec_statement":
+		defs, _ := goStmtDefsUsesWithAliases(node, l.source, nil)
+		for _, def := range defs {
+			delete(l.aliases, def)
+		}
+	}
 }
 
 // goForClause returns the for_clause or range_clause child of a for statement,

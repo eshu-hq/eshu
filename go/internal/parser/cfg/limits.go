@@ -17,6 +17,10 @@ type Limits struct {
 	// stops in deterministic order and Overflow.DefUseEdges counts the dropped
 	// edges.
 	MaxDefUseEdges int
+	// MaxAccessPathParts caps language-lowered selector access paths. Lowerers
+	// that support field-sensitive bindings truncate paths past this depth and
+	// record Overflow.AccessPaths.
+	MaxAccessPathParts int
 }
 
 // DefaultLimits returns the caps used when a caller does not supply its own.
@@ -24,9 +28,10 @@ type Limits struct {
 // still bounding adversarial or generated input.
 func DefaultLimits() Limits {
 	return Limits{
-		MaxBlocks:      4096,
-		MaxStmts:       16384,
-		MaxDefUseEdges: 65536,
+		MaxBlocks:          4096,
+		MaxStmts:           16384,
+		MaxDefUseEdges:     65536,
+		MaxAccessPathParts: 4,
 	}
 }
 
@@ -42,6 +47,9 @@ func (l Limits) normalized() Limits {
 	}
 	if l.MaxDefUseEdges <= 0 {
 		l.MaxDefUseEdges = def.MaxDefUseEdges
+	}
+	if l.MaxAccessPathParts <= 0 {
+		l.MaxAccessPathParts = def.MaxAccessPathParts
 	}
 	return l
 }

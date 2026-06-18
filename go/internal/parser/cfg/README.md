@@ -49,7 +49,9 @@ Builder calls to a `Function`. Overflow is surfaced as data on the result
   sorted; the fixpoint iterates blocks in ascending ID order. Do not introduce
   map iteration into emitted output.
 - **Overflow is counted, never silent.** Tripping a cap records a count on
-  `Overflow`; it never drops data without a signal.
+  `Overflow`; it never drops data without a signal. Language lowerers can also
+  record field-sensitive access-path truncation through `Overflow.AccessPaths`
+  when `Limits.MaxAccessPathParts` is exceeded.
 
 ## Related docs
 

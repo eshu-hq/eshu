@@ -51,7 +51,11 @@ telemetry.
   do not become facts; the collector folds them into the snapshot hint so
   catalog-only matching changes re-run value-flow analysis on unchanged files.
 - **Optional fields are omitted when empty** (`class_context`, `sink_label`,
-  `source_label`, `neutralized`, `cloud`) to keep rows minimal and byte-stable.
+  `source_label`, `neutralized`, `cloud`, `overflow`) to keep rows minimal and
+  byte-stable.
+- **Overflow shape is shared.** When present on `dataflow_functions`, `overflow`
+  carries counted `blocks`, `stmts`, `def_use_edges`, and `access_paths` values
+  from `cfg.Function.Overflow`.
 - **Ordering lives here, not in the analysis.** `SortFunctionRows`,
   `SortFindingRows`, and `SortSummaryRows` must be applied by the caller after
   collecting rows so the bucket is deterministic.

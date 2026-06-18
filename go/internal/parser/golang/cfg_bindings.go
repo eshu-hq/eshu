@@ -1,12 +1,14 @@
 package golang
 
-import (
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-)
+import tree_sitter "github.com/tree-sitter/go-tree-sitter"
 
 // blankIdentifier is Go's write-only sink; it is never a meaningful definition
 // or use for value-flow purposes.
 const blankIdentifier = "_"
+
+// goDefaultAccessPathParts matches cfg.DefaultLimits().MaxAccessPathParts for
+// helper callers that do not pass a CFG limit object.
+const goDefaultAccessPathParts = 4
 
 // goFunctionParamNames returns the receiver and parameter binding names of a
 // function or method declaration, in declaration order. Anonymous parameters
@@ -44,26 +46,31 @@ func goParameterListNames(list *tree_sitter.Node, source []byte) []string {
 	return names
 }
 
-// goStmtDefsUses returns the bindings a statement defines and the bindings it
-// uses for reaching-definition purposes. It handles the definition-bearing Go
-// statement kinds; callers route other kinds through goExprUses.
-func goStmtDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string) {
+// goStmtDefsUsesWithAliases returns the bindings a statement defines and the
+// bindings it uses for reaching-definition purposes. It handles the
+// definition-bearing Go statement kinds; callers route other kinds through
+// goExprUsesWithOptions.
+func goStmtDefsUsesWithAliases(node *tree_sitter.Node, source []byte, aliases goBindingAliases) (defs, uses []string) {
+	return goStmtDefsUsesWithOptions(node, source, aliases, goAccessPathOptions{})
+}
+
+func goStmtDefsUsesWithOptions(node *tree_sitter.Node, source []byte, aliases goBindingAliases, options goAccessPathOptions) (defs, uses []string) {
 	switch node.Kind() {
 	case "short_var_declaration":
 		if left := node.ChildByFieldName("left"); left != nil {
-			defs = goAssignTargets(left, source)
+			defs = goAssignTargetsWithOptions(left, source, aliases, options)
 		}
 		if right := node.ChildByFieldName("right"); right != nil {
-			uses = goExprUses(right, source)
+			uses = goExprUsesWithOptions(right, source, aliases, options)
 		}
 	case "assignment_statement":
-		defs, uses = goAssignmentDefsUses(node, source)
+		defs, uses = goAssignmentDefsUsesWithOptions(node, source, aliases, options)
 	case "var_declaration", "const_declaration":
-		defs, uses = goSpecDefsUses(node, source)
+		defs, uses = goSpecDefsUsesWithOptions(node, source, aliases, options)
 	case "inc_statement", "dec_statement":
 		// x++ / x-- both read and write the operand.
-		if operand := firstNamedChild(node); operand != nil && operand.Kind() == "identifier" {
-			if name := nodeText(operand, source); name != "" && name != blankIdentifier {
+		if operand := firstNamedChild(node); operand != nil {
+			if name, ok := goAccessPathWithOptions(operand, source, aliases, options); ok && name != blankIdentifier {
 				defs = []string{name}
 				uses = []string{name}
 			}
@@ -72,11 +79,11 @@ func goStmtDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string)
 	return defs, uses
 }
 
-// goAssignmentDefsUses splits an assignment into defined and used bindings. A
-// plain identifier target is a definition; a selector or index target reads its
-// base (field/element flow is modeled later). A compound operator (for example
-// +=) also reads the target.
-func goAssignmentDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string) {
+// goAssignmentDefsUsesWithOptions splits an assignment into defined and used
+// bindings. A plain identifier target is a definition; a selector target is a
+// precise access-path definition. A compound operator (for example +=) also
+// reads the target.
+func goAssignmentDefsUsesWithOptions(node *tree_sitter.Node, source []byte, aliases goBindingAliases, options goAccessPathOptions) (defs, uses []string) {
 	left := node.ChildByFieldName("left")
 	right := node.ChildByFieldName("right")
 	compound := goIsCompoundAssign(node, source)
@@ -86,30 +93,27 @@ func goAssignmentDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []s
 		defer cursor.Close()
 		for _, target := range left.NamedChildren(cursor) {
 			target := target
-			if target.Kind() == "identifier" {
-				name := nodeText(&target, source)
-				if name == "" || name == blankIdentifier {
-					continue
-				}
+			if name, ok := goAccessPathWithOptions(&target, source, aliases, options); ok && name != blankIdentifier {
 				defs = append(defs, name)
 				if compound {
 					uses = append(uses, name)
 				}
 				continue
 			}
-			// Non-identifier target (a.b, a[i]): the base is read, not defined.
-			uses = append(uses, goExprUses(&target, source)...)
+			// Unsupported target (for example a[i]) reads its components but is
+			// not modeled as a precise definition in this field-sensitive pass.
+			uses = append(uses, goExprUsesWithOptions(&target, source, aliases, options)...)
 		}
 	}
 	if right != nil {
-		uses = append(uses, goExprUses(right, source)...)
+		uses = append(uses, goExprUsesWithOptions(right, source, aliases, options)...)
 	}
 	return defs, uses
 }
 
-// goSpecDefsUses collects definitions and uses from a var or const declaration's
-// specs.
-func goSpecDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string) {
+// goSpecDefsUsesWithOptions collects definitions and uses from a var or const
+// declaration's specs.
+func goSpecDefsUsesWithOptions(node *tree_sitter.Node, source []byte, aliases goBindingAliases, options goAccessPathOptions) (defs, uses []string) {
 	walkNamed(node, func(child *tree_sitter.Node) {
 		if child.Kind() != "var_spec" && child.Kind() != "const_spec" {
 			return
@@ -130,7 +134,7 @@ func goSpecDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string)
 		}
 		cursor.Close()
 		if value := child.ChildByFieldName("value"); value != nil {
-			uses = append(uses, goExprUses(value, source)...)
+			uses = append(uses, goExprUsesWithOptions(value, source, aliases, options)...)
 		}
 	})
 	return defs, uses
@@ -139,25 +143,31 @@ func goSpecDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string)
 // goAssignTargets returns the identifier targets on the left of an assignment or
 // short variable declaration, skipping the blank identifier.
 func goAssignTargets(left *tree_sitter.Node, source []byte) []string {
+	return goAssignTargetsWithAliases(left, source, nil)
+}
+
+func goAssignTargetsWithAliases(left *tree_sitter.Node, source []byte, aliases goBindingAliases) []string {
+	return goAssignTargetsWithOptions(left, source, aliases, goAccessPathOptions{})
+}
+
+func goAssignTargetsWithOptions(left *tree_sitter.Node, source []byte, aliases goBindingAliases, options goAccessPathOptions) []string {
 	var targets []string
 	cursor := left.Walk()
 	defer cursor.Close()
 	for _, child := range left.NamedChildren(cursor) {
-		if child.Kind() != "identifier" {
-			continue
-		}
-		if name := nodeText(&child, source); name != "" && name != blankIdentifier {
+		if name, ok := goAssignTargetPathWithOptions(&child, source, aliases, options); ok && name != "" && name != blankIdentifier {
 			targets = append(targets, name)
 		}
 	}
 	return targets
 }
 
-// goExprUses returns the identifier names read within an expression subtree. It
-// does not descend into nested function literals, so a closure's captured
-// variables are not attributed to the enclosing function (closures are modeled
-// later). The blank identifier is never a use.
-func goExprUses(node *tree_sitter.Node, source []byte) []string {
+// goExprUsesWithOptions returns the identifier and selector access-path names
+// read within an expression subtree. It does not descend into nested function
+// literals, so a closure's captured variables are not attributed to the
+// enclosing function (closures are modeled later). The blank identifier is never
+// a use.
+func goExprUsesWithOptions(node *tree_sitter.Node, source []byte, aliases goBindingAliases, options goAccessPathOptions) []string {
 	if node == nil {
 		return nil
 	}
@@ -167,9 +177,15 @@ func goExprUses(node *tree_sitter.Node, source []byte) []string {
 		if current == nil || current.Kind() == "func_literal" {
 			return
 		}
-		if current.Kind() == "identifier" {
-			if name := nodeText(current, source); name != "" && name != blankIdentifier {
+		if name, ok := goAccessPathWithOptions(current, source, aliases, options); ok {
+			if name != "" && name != blankIdentifier {
 				uses = append(uses, name)
+				if current.Kind() == "selector_expression" {
+					uses = appendBaseAccessPath(uses, current, source, aliases, options)
+				}
+			}
+			if current.Kind() == "selector_expression" {
+				return
 			}
 		}
 		cursor := current.Walk()

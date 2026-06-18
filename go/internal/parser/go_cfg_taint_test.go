@@ -115,6 +115,38 @@ func render(r *http.Request) template.HTML {
 	}
 }
 
+// TestGoTaintFieldSensitiveSourceToSQLSink proves a source assigned into one
+// struct field reaches a sink through that field without tainting a sibling.
+func TestGoTaintFieldSensitiveSourceToSQLSink(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+type payload struct {
+	SQL     string
+	Display string
+}
+
+func handle(r *http.Request, db *sql.DB) {
+	var data payload
+	data.SQL = r.FormValue("q")
+	data.Display = "safe"
+	db.Query(data.SQL)
+	db.Query(data.Display)
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if !hasFinding(rows, "TAINTED", "sql", "data.SQL") {
+		t.Fatalf("expected TAINTED sql finding for data.SQL, got %+v", rows)
+	}
+	if hasFinding(rows, "TAINTED", "sql", "data.Display") {
+		t.Fatalf("did not expect sibling field data.Display to be tainted, got %+v", rows)
+	}
+}
+
 // TestGoTaintOffIsByteIdentical proves the taint findings bucket is absent when
 // the dataflow gate is off.
 func TestGoTaintOffIsByteIdentical(t *testing.T) {
