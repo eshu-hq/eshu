@@ -73,11 +73,15 @@ func Parse(
 			if docstring := goDocstring(node, source); docstring != "" {
 				item["docstring"] = docstring
 			}
-			if classContext := goReceiverContext(node, source); classContext != "" {
+			classContext := goReceiverContext(node, source)
+			if classContext != "" {
 				item["class_context"] = classContext
 			}
 			if packageImportPath != "" {
 				item["package_import_path"] = packageImportPath
+				if scipSymbol := goSCIPSymbol(packageImportPath, classContext, name); scipSymbol != "" {
+					item["scip_symbol"] = scipSymbol
+				}
 			}
 			if returnType := goTypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
 				item["return_type"] = returnType
@@ -278,6 +282,14 @@ func goAnnotateCallMetadata(
 
 	item["receiver_identifier"] = receiverIdentifier
 	item["receiver_is_import_alias"] = receiverIsImportAlias
+	if receiverIsImportAlias {
+		if importPath := goImportPathForAlias(receiverIdentifier, importAliases); importPath != "" {
+			name, _ := item["name"].(string)
+			if stableSymbol := goSCIPSymbol(importPath, "", name); stableSymbol != "" {
+				item["stable_symbol_key"] = stableSymbol
+			}
+		}
+	}
 	if !receiverIsImportAlias {
 		if receiverType := goInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings); receiverType != "" {
 			item["inferred_obj_type"] = receiverType

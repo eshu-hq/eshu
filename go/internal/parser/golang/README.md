@@ -112,16 +112,21 @@ Payload bucket ordering is part of the fact-input contract. `Parse` sorts
 functions, structs, interfaces, variables, imports, and function calls before
 returning.
 
-Function and method rows may carry `package_import_path` when the parent parser
-passes `GoPackageImportPath`; blank package identity is omitted so direct parser
-callers without module context keep the previous payload shape. They may also
-carry `return_type` when tree-sitter exposes a single named, pointer, selector,
-generic, or qualified result type. The return value is normalized to the
-terminal type name, so pointers, slices, arrays, imported selectors, and generic
-instantiations keep only the element or terminal type name. Reducer code-call
-materialization uses that evidence for Go method chains only when call metadata
-proves the chain receiver type with `chain_receiver_obj_type` and
-`chain_receiver_method`.
+Function and method rows may carry `package_import_path` and `scip_symbol` when
+the parent parser passes `GoPackageImportPath`; blank package identity is
+omitted so direct parser callers without module context keep the previous
+payload shape. Native Go symbols use the same stable `scip-go gomod` string
+shape consumed by reducer symbol resolution: top-level functions use
+`<import-path> <name>().`, and methods include the normalized receiver context
+as `<import-path> <receiver>#<name>().`. Package-qualified imported calls carry a
+matching `stable_symbol_key` when the selector receiver resolves to a concrete
+import path. Function and method rows may also carry `return_type` when
+tree-sitter exposes a single named, pointer, selector, generic, or qualified
+result type. The return value is normalized to the terminal type name, so
+pointers, slices, arrays, imported selectors, and generic instantiations keep
+only the element or terminal type name. Reducer code-call materialization uses
+that evidence for Go method chains only when call metadata proves the chain
+receiver type with `chain_receiver_obj_type` and `chain_receiver_method`.
 
 Method receiver class context is normalized to the base receiver type before
 payload emission. A receiver such as Map[K, V], *Set[T], or
@@ -218,6 +223,24 @@ the defining package.
 Embedded SQL evidence only records recognized database/sql and sqlx call sites
 where a string literal contains an obvious table reference. Line numbers refer
 to the original Go source.
+
+No-Regression Evidence: `go test ./internal/parser -run
+'TestGo(FunctionRowsCarryPackageImportPathWhenKnown|FunctionRowsOmitBlankPackageImportPath|MethodRowsCarryReceiverScopedSCIPSymbolWhenPackageKnown|PackageQualifiedCallsCarryStableSymbolKey)'
+-count=1` failed before native Go function rows emitted `scip_symbol` and
+package-qualified imported calls emitted `stable_symbol_key`, then passed after
+symbol emission was tied only to stable package import paths. `go test
+./internal/reducer -run
+'TestExtractCodeCallRows(PrefersNativeGoSCIPSymbolForCrossRepoCall|NativeGoSCIPSymbolIdentityStableAcrossGenerations|ResolvesCrossRepoSCIPEdgeBySymbol)'
+-count=1` proves the existing reducer symbol index resolves those native Go
+symbols at SCIP provenance and remains generation-stable.
+
+No-Observability-Change: native Go symbol emission adds deterministic string
+fields to existing parser payload rows. It adds no parser stage, queue,
+worker, graph write, metric, span, status field, runtime knob, or external
+SCIP invocation; operators still diagnose parser behavior through existing
+collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`, and
+code-call materialization through existing reducer execution counters and
+code-call completion logs.
 
 ## Related docs
 

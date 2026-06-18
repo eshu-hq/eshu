@@ -132,6 +132,80 @@ func TestExtractCodeCallRowsCrossRepoSCIPSymbolIdentityStableAcrossGenerations(t
 	}
 }
 
+// TestExtractCodeCallRowsNativeGoSCIPSymbolIdentityStableAcrossGenerations is
+// the native-Go reprojection proof for issue #2846. It uses the same symbol
+// shape emitted by the Go parser and proves a package-qualified Go-to-Go call
+// resolves by SCIP provenance with stable identity across generations.
+func TestExtractCodeCallRowsNativeGoSCIPSymbolIdentityStableAcrossGenerations(t *testing.T) {
+	t.Parallel()
+
+	goSymbol := "scip-go gomod github.com/org/repoa/pkg Process()."
+	build := func() []facts.Envelope {
+		return []facts.Envelope{
+			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-a"}},
+			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-b"}},
+			goModFileEnvelope("repo-a", "go.mod", "github.com/org/repoa"),
+			{FactKind: "file", Payload: map[string]any{
+				"repo_id":       "repo-a",
+				"relative_path": "pkg/process.go",
+				"parsed_file_data": map[string]any{
+					"path": "pkg/process.go",
+					"functions": []any{
+						map[string]any{
+							"name":                "Process",
+							"line_number":         3,
+							"end_line":            5,
+							"uid":                 "content-entity:repoa-process",
+							"package_import_path": "github.com/org/repoa/pkg",
+							"scip_symbol":         goSymbol,
+						},
+					},
+				},
+			}},
+			{FactKind: "file", Payload: map[string]any{
+				"repo_id":       "repo-b",
+				"relative_path": "cmd/main.go",
+				"parsed_file_data": map[string]any{
+					"path": "cmd/main.go",
+					"functions": []any{
+						map[string]any{"name": "main", "line_number": 5, "end_line": 7, "uid": "content-entity:repob-main"},
+					},
+					"imports": []any{
+						map[string]any{"name": "github.com/org/repoa/pkg", "lang": "go", "line_number": 3},
+					},
+					"function_calls": []any{
+						map[string]any{
+							"name":                     "Process",
+							"full_name":                "pkg.Process",
+							"receiver_identifier":      "pkg",
+							"receiver_is_import_alias": true,
+							"stable_symbol_key":        goSymbol,
+							"line_number":              6,
+							"lang":                     "go",
+						},
+					},
+				},
+			}},
+		}
+	}
+
+	_, firstRows := ExtractCodeCallRows(stampGeneration(build(), "gen-1"))
+	_, secondRows := ExtractCodeCallRows(stampGeneration(build(), "gen-2"))
+
+	first := crossRepoIdentityForCaller(t, firstRows, "content-entity:repob-main")
+	second := crossRepoIdentityForCaller(t, secondRows, "content-entity:repob-main")
+
+	if first.resolutionMethod != string(codeprovenance.MethodSCIP) {
+		t.Fatalf("resolution_method = %q, want %q", first.resolutionMethod, codeprovenance.MethodSCIP)
+	}
+	if first.calleeEntityID != "content-entity:repoa-process" {
+		t.Fatalf("callee_entity_id = %q, want the durable repo-a uid %q", first.calleeEntityID, "content-entity:repoa-process")
+	}
+	if first != second {
+		t.Fatalf("native Go cross-repo SCIP identity churned across generations: gen-1 %#v != gen-2 %#v", first, second)
+	}
+}
+
 // TestExtractCodeCallRowsCrossRepoPackageExportIdentityStableAcrossGenerations
 // is the reprojection-stability proof required by issue #2717 for the
 // package-export cross-repo path. It runs resolution twice over the same call
