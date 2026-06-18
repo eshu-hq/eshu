@@ -2,10 +2,10 @@
 
 ## Purpose
 
-`internal/parser/swift` owns Swift language extraction that can run without
-importing the parent `internal/parser` package. It emits the Swift payload,
-dead-code root hints, and pre-scan names for imports, nominal types, functions,
-variables, and bounded call metadata.
+`internal/parser/swift` owns Swift language extraction without importing the
+parent `internal/parser` package. It emits the Swift payload, dead-code root
+hints, and pre-scan names for imports, nominal types, functions, variables, and
+bounded call metadata.
 
 ## Ownership boundary
 
@@ -23,8 +23,8 @@ The godoc contract is in `doc.go`. Current exports are:
 
 ## Dependencies
 
-This package imports `internal/parser/shared` and the Go standard library. It
-must not import the parent parser package.
+This package imports `internal/parser/shared`, `go-tree-sitter`, and the Go
+standard library. It must not import the parent parser package.
 
 ## Telemetry
 
@@ -33,21 +33,24 @@ the collector snapshot path.
 
 ## Gotchas / invariants
 
-Swift source is parsed with bounded regex helpers, not tree-sitter. Keep helper
-output deterministic because pre-scan output feeds repository import maps.
-Dead-code roots must be emitted as `dead_code_root_kinds` metadata, not query
-source fallbacks. Declaration matching accepts common Swift access and storage
-modifiers before types and properties so `public protocol`, `open class`, and
-`public var body` stay visible to the root model. Leading attributes are
-stripped before declaration and call matching, including argument-bearing forms
-such as `@available(...)` and `@Test("...")`, so attributes attach to the next
-declaration without becoming function-call evidence. Current roots cover
+Tree-sitter supplies declaration spans, inheritance clauses, function spans,
+parameters, initializer ownership, and protocol methods. Existing bounded regex
+helpers still own imports, attributes, variables, calls, and dead-code root
+classification. Keep output deterministic because pre-scan output feeds
+repository import maps. Dead-code roots must be emitted as
+`dead_code_root_kinds` metadata, not query source fallbacks. Current roots cover
 `@main` types, `main`, SwiftUI `App` types and `body`, protocol methods and
 same-file implementations, constructors on concrete types, overrides, UIKit
 application delegate callbacks, Vapor route handlers, XCTest methods, and Swift
-Testing `@Test` functions.
-Helpers should stay package-local unless another language-owned package has a
-real caller.
+Testing `@Test` functions. Helpers should stay package-local unless another
+language-owned package has a real caller.
+
+No-Regression Evidence: multiline Swift declarations are indexed through the
+shared tree-sitter runtime before line-level semantic inference, preserving
+existing buckets while retaining bases, class context, args, end lines,
+constructor roots, protocol roots, and pre-scan names. No-Observability-Change:
+this parser-local extraction change adds no metric, span, log, status field,
+queue behavior, graph query, environment variable, or runtime knob.
 
 ## Related docs
 

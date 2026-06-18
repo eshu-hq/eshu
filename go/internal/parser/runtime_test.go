@@ -12,3 +12,23 @@ func TestRuntimeParserLoadsKotlinGrammar(t *testing.T) {
 	}
 	parser.Close()
 }
+
+func TestRuntimeParserLoadsSwiftGrammar(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewRuntime()
+	parser, err := runtime.Parser("swift")
+	if err != nil {
+		t.Fatalf("Parser(swift) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	tree := parser.Parse([]byte("struct Demo { func run() {} }"), nil)
+	if tree == nil {
+		t.Fatalf("Parser(swift).Parse returned nil tree")
+	}
+	defer tree.Close()
+	if got, want := tree.RootNode().Kind(), "source_file"; got != want {
+		t.Fatalf("Swift root node kind = %q, want %q", got, want)
+	}
+}

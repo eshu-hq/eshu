@@ -57,6 +57,18 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 				ev.SourceFunctionUID, ev.SinkFunctionUID, ev.SinkKind, ev.SourceKind)
 		}
 	}
+	// Function-summary uids (opt-in via ESHU_EMIT_DATAFLOW). Folded in only when
+	// present so a gate-off snapshot keeps its existing hint (no churn), while the
+	// commit that begins emitting graph_uid yields a distinct hint even for an
+	// otherwise-unchanged repo — otherwise shouldSkipUnchangedGeneration would
+	// drain the fact stream and the new graph_uid would never persist. Iterated in
+	// the builder's deterministic order.
+	if len(snapshot.FunctionSummaries) > 0 {
+		writeFreshnessHashf(h, "function_summaries=%d\n", len(snapshot.FunctionSummaries))
+		for _, s := range snapshot.FunctionSummaries {
+			writeFreshnessHashf(h, "summary:%s:%s\n", s.FunctionID, s.GraphUID)
+		}
+	}
 
 	for _, candidate := range snapshot.TerraformStateCandidates {
 		writeFreshnessHashf(h, "tfstate_candidate:%s:%s:%d\n",

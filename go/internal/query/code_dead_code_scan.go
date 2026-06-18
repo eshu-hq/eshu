@@ -300,10 +300,21 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 			if err != nil {
 				return nil, err
 			}
+			coverage := codeReachabilityCoverage{Available: false, Truncated: true}
+			if coverageStore, ok := h.Content.(codeReachabilityCoverageStore); ok {
+				coverage, err = coverageStore.CodeReachabilityCoverage(ctx, repoID)
+				if err != nil {
+					return nil, err
+				}
+			}
 			if len(repoIncoming) > 0 {
 				for entityID, edge := range repoIncoming {
 					mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
 				}
+			}
+			if coverage.Available && !coverage.Truncated {
+				continue
+			} else if len(repoIncoming) > 0 {
 				legacyEntityIDs = missingDeadCodeIncomingEntityIDs(entityIDs, repoIncoming)
 				if len(legacyEntityIDs) == 0 {
 					continue
@@ -350,6 +361,15 @@ type deadCodeIncomingContentStore interface {
 
 type codeReachabilityContentStore interface {
 	CodeReachabilityIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]deadCodeIncomingEdge, error)
+}
+
+type codeReachabilityCoverage struct {
+	Available bool
+	Truncated bool
+}
+
+type codeReachabilityCoverageStore interface {
+	CodeReachabilityCoverage(ctx context.Context, repoID string) (codeReachabilityCoverage, error)
 }
 
 type deadCodeCandidateContentStore interface {
