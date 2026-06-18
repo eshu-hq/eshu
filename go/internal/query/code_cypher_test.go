@@ -16,6 +16,7 @@ func TestHandleVisualizeQuery_ReturnsURL(t *testing.T) {
 	body := `{"cypher_query": "MATCH (n) RETURN n LIMIT 10"}`
 	req := httptest.NewRequest("POST", "/api/v0/code/visualize", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 
 	h.handleVisualizeQuery(w, req)
@@ -24,9 +25,25 @@ func TestHandleVisualizeQuery_ReturnsURL(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
+	}
+	if envelope.Truth == nil {
+		t.Fatal("truth envelope = nil, want graph-query-link capability")
+	}
+	if got, want := envelope.Truth.Capability, "visualization.graph_query_link"; got != want {
+		t.Fatalf("truth capability = %q, want %q", got, want)
+	}
+	if got, want := envelope.Truth.Level, TruthLevelDerived; got != want {
+		t.Fatalf("truth level = %q, want %q", got, want)
+	}
+	if got, want := envelope.Truth.Basis, TruthBasisHybrid; got != want {
+		t.Fatalf("truth basis = %q, want %q", got, want)
+	}
+	resp, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
 	u, ok := resp["url"].(string)
 	if !ok || !strings.Contains(u, "browser") {

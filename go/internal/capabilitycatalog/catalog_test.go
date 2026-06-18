@@ -254,6 +254,59 @@ func TestRealSpecsResolveIssue2743ToolMappings(t *testing.T) {
 	}
 }
 
+// TestNarrativeStoryToolsAreMatrixDeclared locks issue #3028: the narrative,
+// story, report, and visualization MCP tools that make Eshu a context graph
+// rather than a code-search tool must be first-class matrix surfaces, not
+// overlay exemptions. Each tool must be declared by a capability the matrix
+// owns and must no longer appear in the overlay tool_exemptions block.
+func TestNarrativeStoryToolsAreMatrixDeclared(t *testing.T) {
+	t.Parallel()
+
+	matrix, err := LoadMatrix(repoSpecsDir(t))
+	if err != nil {
+		t.Fatalf("LoadMatrix: %v", err)
+	}
+	overlay, err := LoadOverlay(repoSpecsDir(t) + "/" + OverlayFileName)
+	if err != nil {
+		t.Fatalf("LoadOverlay: %v", err)
+	}
+
+	narrativeTools := []string{
+		"get_repo_story",
+		"get_repo_summary",
+		"get_service_story",
+		"get_service_intelligence_report",
+		"get_workload_context",
+		"get_workload_story",
+		"investigate_service",
+		"derive_visualization_packet",
+		"visualize_graph_query",
+	}
+	for _, tool := range narrativeTools {
+		tool := tool
+		t.Run(tool, func(t *testing.T) {
+			t.Parallel()
+			if !realSpecToolDeclared(matrix, tool) {
+				t.Fatalf("%q must be declared by a capability-matrix row, not exempted", tool)
+			}
+			if exemption, ok := realSpecToolExemption(overlay, tool); ok {
+				t.Fatalf("%q must no longer be an overlay exemption: %+v", tool, exemption)
+			}
+		})
+	}
+
+	// The pure visualization-packet derivation tool has no runtime capability of
+	// its own (it preserves the source response truth envelope), so issue #3028
+	// gives it a dedicated catalog-only capability row.
+	deriveCap, ok := realSpecCapability(matrix, "visualization.packet_derivation")
+	if !ok {
+		t.Fatal("visualization.packet_derivation capability missing from real matrix")
+	}
+	if !slices.Contains(deriveCap.Tools, "derive_visualization_packet") {
+		t.Fatalf("visualization.packet_derivation tools = %v, want derive_visualization_packet", deriveCap.Tools)
+	}
+}
+
 func realSpecCapability(matrix Matrix, id string) (MatrixCapability, bool) {
 	for _, capability := range matrix.Capabilities {
 		if capability.Capability == id {

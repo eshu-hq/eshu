@@ -106,6 +106,63 @@ func TestSearchResources_LocalLightweightReturnsStructuredUnsupportedCapability(
 	}
 }
 
+func TestGetRepositoryStory_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
+	handler := &RepositoryHandler{Profile: ProfileLocalLightweight}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/story", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	handler.getRepositoryStory(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"unsupported_capability"`) {
+		t.Fatalf("body = %s, want unsupported_capability envelope", body)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"platform_impact.context_overview"`) {
+		t.Fatalf("body = %s, want context_overview capability", body)
+	}
+}
+
+func TestGetWorkloadContext_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
+	handler := &EntityHandler{Profile: ProfileLocalLightweight}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/w-1/context", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	handler.getWorkloadContext(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"unsupported_capability"`) {
+		t.Fatalf("body = %s, want unsupported_capability envelope", body)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"platform_impact.context_overview"`) {
+		t.Fatalf("body = %s, want context_overview capability", body)
+	}
+}
+
+func TestGetWorkloadStory_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
+	handler := &EntityHandler{Profile: ProfileLocalLightweight}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/w-1/story", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	handler.getWorkloadStory(w, req)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"unsupported_capability"`) {
+		t.Fatalf("body = %s, want unsupported_capability envelope", body)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"platform_impact.context_overview"`) {
+		t.Fatalf("body = %s, want context_overview capability", body)
+	}
+}
+
 func TestCompareEnvironments_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
 	handler := &CompareHandler{Profile: ProfileLocalLightweight}
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/compare/environments", strings.NewReader(`{"workload_id":"w","left":"dev","right":"prod"}`))

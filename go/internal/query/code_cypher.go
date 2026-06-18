@@ -275,7 +275,16 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 		url.QueryEscape(req.CypherQuery),
 	)
 
-	WriteJSON(w, http.StatusOK, map[string]any{"url": browserURL})
+	WriteSuccess(w, r, http.StatusOK, map[string]any{"url": browserURL}, h.visualizationGraphQueryLinkTruth())
+}
+
+func (h *CodeHandler) visualizationGraphQueryLinkTruth() *TruthEnvelope {
+	return BuildTruthEnvelope(
+		h.profile(),
+		"visualization.graph_query_link",
+		TruthBasisHybrid,
+		"derived graph-browser link for caller-supplied read-only Cypher without executing a graph query",
+	)
 }
 
 // handleSearchBundles searches indexed repositories as pre-indexed bundles.

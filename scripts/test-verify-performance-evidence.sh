@@ -99,6 +99,21 @@ git -C "${evidence_repo}" add .
 git -C "${evidence_repo}" commit -q -m 'hot change with evidence'
 expect_pass "${evidence_repo}"
 
+package_evidence_repo="$(init_repo package-evidence)"
+mkdir -p "${package_evidence_repo}/go/internal/query"
+printf 'package query\nconst query = "MATCH (r:Repository) RETURN r"\n' \
+  >"${package_evidence_repo}/go/internal/query/repository.go"
+cat >"${package_evidence_repo}/go/internal/query/evidence-notes.md" <<'MD'
+# Query Evidence Notes
+
+No-Regression Evidence: focused query tests prove the bounded read shape.
+
+No-Observability-Change: existing query spans cover the changed path.
+MD
+git -C "${package_evidence_repo}" add .
+git -C "${package_evidence_repo}" commit -q -m 'hot change with package evidence note'
+expect_pass "${package_evidence_repo}"
+
 deleted_evidence_repo="$(init_repo deleted-evidence)"
 mkdir -p "${deleted_evidence_repo}/go/internal/collector/oldsource"
 printf 'package oldsource\nconst query = "MATCH (n) RETURN n"\n' \
