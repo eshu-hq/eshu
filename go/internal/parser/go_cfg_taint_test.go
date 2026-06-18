@@ -206,6 +206,99 @@ func render(r *http.Request) template.HTML {
 	}
 }
 
+// TestGoTaintContainerElementSourceToSQLSink proves a source assigned into a
+// container element reaches later indexed reads through an explicit whole-
+// container approximation instead of silently dropping element flow.
+func TestGoTaintContainerElementSourceToSQLSink(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	values := map[string]string{}
+	values["query"] = r.FormValue("q")
+	db.Query(values["query"])
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if !hasFinding(rows, "TAINTED", "sql", "values[*]") {
+		t.Fatalf("expected TAINTED sql finding for values[*], got %+v", rows)
+	}
+}
+
+// TestGoTaintClosureCaptureSourceToSQLSink proves a function literal that
+// captures a tainted variable carries that taint into the literal body.
+func TestGoTaintClosureCaptureSourceToSQLSink(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	q := r.FormValue("q")
+	func() {
+		db.Query(q)
+	}()
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if !hasFinding(rows, "TAINTED", "sql", "q") {
+		t.Fatalf("expected TAINTED sql finding for captured q, got %+v", rows)
+	}
+}
+
+// TestGoTaintUncalledClosureDoesNotReport proves storing a closure is not enough
+// to claim its captured sink executes.
+func TestGoTaintUncalledClosureDoesNotReport(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	q := r.FormValue("q")
+	_ = func() {
+		db.Query(q)
+	}
+}
+`)
+	rows, _ := got["taint_findings"].([]map[string]any)
+	if hasFinding(rows, "TAINTED", "sql", "q") {
+		t.Fatalf("did not expect uncalled closure to report captured q, got %+v", rows)
+	}
+}
+
+// TestGoTaintClosureLocalShadowDoesNotCapture proves a function-literal-local
+// binding with the same name does not inherit taint from the outer binding.
+func TestGoTaintClosureLocalShadowDoesNotCapture(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	q := r.FormValue("q")
+	func() {
+		q := "safe"
+		db.Query(q)
+	}()
+}
+`)
+	rows, _ := got["taint_findings"].([]map[string]any)
+	if hasFinding(rows, "TAINTED", "sql", "q") {
+		t.Fatalf("did not expect closure-local shadow q to inherit taint, got %+v", rows)
+	}
+}
+
 // TestGoTaintOffIsByteIdentical proves the taint findings bucket is absent when
 // the dataflow gate is off.
 func TestGoTaintOffIsByteIdentical(t *testing.T) {

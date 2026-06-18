@@ -80,7 +80,9 @@ The godoc contract is in `doc.go`.
   access paths such as `payload.SQL`, and straight-line pointer aliases to local
   structs are normalized before edges are emitted. Deep access paths are capped
   by `cfg.DefaultLimits().MaxAccessPathParts` and counted in the row `overflow`
-  payload when truncated. Off by default and byte-identical when off.
+  payload when truncated. Indexed container elements use an explicit `[*]`
+  whole-container approximation, and invoked function literals contribute
+  captured-variable uses. Off by default and byte-identical when off.
 - The `taint_findings` bucket (same opt-in gate) carries intraprocedural
   source-to-sink taint findings with confidence and provenance, built by
   `cfg_taint_facts.go` (the Go source/sink/sanitizer catalog) over the
@@ -188,6 +190,14 @@ boundary. Selector uses still include their base binding as compatibility
 evidence for existing receiver and source-parameter summary logic. Deep selector
 paths are truncated deterministically with a `.*` suffix and a counted
 `overflow.access_paths` value rather than being emitted unbounded.
+
+Container element flow is conservative by design. Indexed map, slice, and array
+reads and writes lower to `container[*]`, which makes the over-approximation
+visible in emitted def-use and taint bindings instead of silently treating one
+key as exact. Function-literal capture flow is limited to invoked literals and
+callback arguments seen at a call site; storing a closure value does not claim
+the closure executes. Names declared inside the literal shadow outer bindings
+for capture purposes.
 
 Per-file amortization is required for variable-type lookups. The helpers that
 collect dead-code roots and imported-method-call roots query variable types

@@ -172,9 +172,15 @@ func goExprUsesWithOptions(node *tree_sitter.Node, source []byte, aliases goBind
 		return nil
 	}
 	var uses []string
-	var visit func(*tree_sitter.Node)
-	visit = func(current *tree_sitter.Node) {
-		if current == nil || current.Kind() == "func_literal" {
+	var visit func(*tree_sitter.Node, bool)
+	visit = func(current *tree_sitter.Node, includeFuncLiteralCaptures bool) {
+		if current == nil {
+			return
+		}
+		if current.Kind() == "func_literal" {
+			if includeFuncLiteralCaptures {
+				uses = append(uses, goFuncLiteralCaptureUses(current, source, aliases, options)...)
+			}
 			return
 		}
 		if name, ok := goAccessPathWithOptions(current, source, aliases, options); ok {
@@ -188,15 +194,53 @@ func goExprUsesWithOptions(node *tree_sitter.Node, source []byte, aliases goBind
 				return
 			}
 		}
+		if current.Kind() == "call_expression" {
+			cursor := current.Walk()
+			defer cursor.Close()
+			for _, child := range current.NamedChildren(cursor) {
+				child := child
+				visit(&child, child.Kind() == "func_literal" || child.Kind() == "argument_list")
+			}
+			return
+		}
 		cursor := current.Walk()
 		defer cursor.Close()
 		for _, child := range current.NamedChildren(cursor) {
 			child := child
-			visit(&child)
+			visit(&child, includeFuncLiteralCaptures)
 		}
 	}
-	visit(node)
+	visit(node, false)
 	return uses
+}
+
+func goFuncLiteralCaptureUses(node *tree_sitter.Node, source []byte, aliases goBindingAliases, options goAccessPathOptions) []string {
+	local := map[string]struct{}{}
+	for _, name := range goParameterListNames(node.ChildByFieldName("parameters"), source) {
+		local[name] = struct{}{}
+	}
+	body := node.ChildByFieldName("body")
+	if body == nil {
+		return nil
+	}
+	walkScopeBindings(body, func(child *tree_sitter.Node) {
+		switch child.Kind() {
+		case "short_var_declaration", "var_declaration", "const_declaration":
+			defs, _ := goStmtDefsUsesWithOptions(child, source, nil, options)
+			for _, def := range defs {
+				local[def] = struct{}{}
+			}
+		}
+	})
+	uses := goExprUsesWithOptions(body, source, aliases, options)
+	out := make([]string, 0, len(uses))
+	for _, use := range uses {
+		if _, shadowed := local[use]; shadowed {
+			continue
+		}
+		out = appendUnique(out, use)
+	}
+	return out
 }
 
 // goIsCompoundAssign reports whether an assignment uses a compound operator such
