@@ -57,8 +57,12 @@
 // relationships without creating service, runtime, image, code-review, work
 // item, or root-cause graph truth. EC2InternetExposureNodeWriter stamps
 // reducer-owned exposure properties onto existing EC2 CloudResource nodes with
-// MATCH-only Cypher and never fabricates instances. OrphanSweepStore uses
-// static-label, zero-relationship MATCH/SET/DELETE statements over the closed
-// Repository, Platform, EvidenceArtifact, File, Directory, and Module label
-// set and deletes only nodes whose orphan marker aged past the configured TTL.
+// MATCH-only Cypher and never fabricates instances. CodeTaintEvidenceWriter and
+// CodeInterprocEvidenceWriter keep side-cleanup stale value-flow deletes scoped
+// to one active scope/source and `generation_id <> current_generation`, with a
+// bounded LIMIT so current evidence survives gate-disabled generations.
+// OrphanSweepStore uses static-label, zero-relationship MATCH/SET/DELETE
+// statements over the closed Repository, Platform, EvidenceArtifact, File,
+// Directory, and Module label set and deletes only nodes whose orphan marker
+// aged past the configured TTL.
 package cypher

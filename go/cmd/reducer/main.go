@@ -38,6 +38,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
+	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
@@ -77,6 +78,16 @@ func buildReducerService(
 	graphOrphanSweepRunner := graphOrphanSweepRunnerFor(neo4jExec, graphReader, intentStore, graphOrphanSweepCfg)
 	if graphOrphanSweepRunner != nil {
 		graphOrphanSweepRunner.Logger = logger
+	}
+	codeValueFlowStaleCleanupRunner := codeValueFlowStaleCleanupRunnerFor(
+		database,
+		graphWriters.codeTaintEvidence,
+		graphWriters.codeInterprocEvidence,
+		intentStore,
+		codeValueFlowStaleCleanupCfg,
+	)
+	if codeValueFlowStaleCleanupRunner != nil {
+		codeValueFlowStaleCleanupRunner.Logger = logger
 	}
 	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader, cloudInventoryIdentityPolicyEvidenceLoader, cloudInventoryResourceChangeEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
@@ -382,13 +393,14 @@ func buildReducerService(
 			Instruments: instruments,
 			Logger:      logger,
 		},
-		GenerationRetentionRunner: generationRetentionRunner,
-		GraphOrphanSweepRunner:    graphOrphanSweepRunner,
-		Workers:                   workers,
-		BatchClaimSize:            loadReducerBatchClaimSize(getenv, workers, graphBackend),
-		Tracer:                    tracer,
-		Instruments:               instruments,
-		Logger:                    logger,
+		GenerationRetentionRunner:       generationRetentionRunner,
+		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
+		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
+		Workers:                         workers,
+		BatchClaimSize:                  loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		Tracer:                          tracer,
+		Instruments:                     instruments,
+		Logger:                          logger,
 	}, nil
 }
 
