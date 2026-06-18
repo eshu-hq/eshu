@@ -534,6 +534,45 @@ from readiness-blocked and terminal-no-endpoint. No metric name, label, queue
 domain, span, or runtime knob changes; the added field and log are the only
 operator-facing surface.
 
+### Inheritance Edges File-Scoped Partition Promotion (#2867)
+
+`InheritanceMaterializationHandler` wrote INHERITS/IMPLEMENTS/OVERRIDES/ALIASES
+edges **directly** (synchronous `EdgeWriter.RetractEdges`/`WriteEdges` in the
+materialization handler). #2867 promotes it onto the #2755 indexed partitioned
+runner: the handler now emits durable shared-projection intents via
+`UpsertIntents`, keyed file-scoped, and the generic worker projects them. Each
+edge becomes a write-only per-edge intent under a file-scoped key
+(`inheritance-edges:v1:files:<repo>:<sha256(repo,child_path,edge)>`), fenced
+behind one per-repo refresh intent that owns the single retract — repo-wide on
+`child.repo_id` by default, or file-scoped on `child.path` (carrying the changed
+files' `delta_file_paths`) on a delta generation — reusing the merged #2898
+refresh fence. The per-edge key mixes the edge identity so many edges in one file
+do not collapse under the worker's `(acceptance key, partition key)` dedup, while
+the refresh is emitted under the shared `repoWideRetractRefreshPartitionKey` so
+the fence reconstructs it exactly.
+
+No-Regression Evidence: the promoted path is proven byte-identical to the direct
+path by state-modeling convergence tests in
+`go/internal/reducer/inheritance_materialization_partition_test.go`:
+`TestInheritancePartitionConvergesFullReprojection` (repo-wide retract + write
+across 3 child files / 4 edges, seeded from a non-empty prior graph) and
+`TestInheritancePartitionConvergesDelta` (a changed-file retract replaces only the
+changed files' edges; an unchanged file's prior edge survives) — both drive the
+real `ProcessPartitionOnce` + #2898 fence and assert identical edge sets, with
+`UnhashedFallbackRows=0` and file-scoped per-edge keys. Throughput cannot regress:
+inheritance moves from a single synchronous handler write onto the indexed
+partitioned runner (more parallelism, indexed `partition_hash` selection), the
+retract scope is unchanged (same delta/repo-wide dispatch), and the only added
+per-edge work is the bounded refresh-fence `SELECT`. `go test ./internal/reducer
+./cmd/reducer -count=1` and `go test ./internal/reducer -race -count=1` are green.
+
+Observability Evidence: the promotion reuses the existing partitioned-runner
+signals — `IndexedSelection`, `UnhashedFallbackRows`, and the #2898
+`RefreshFenceDeferred` field + `shared projection deferred per-edge rows behind
+repo refresh fence` log — so an operator sees inheritance selection-path and
+fence behavior through the same surface as the other partitioned domains. No new
+metric name, label, queue domain, or runtime knob.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
