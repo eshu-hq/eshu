@@ -393,6 +393,21 @@ durable queue/status rows, and Postgres query duration metrics. It adds no route
 graph query shape, new metric instrument, new metric label key, span, lease,
 runtime knob, or log key.
 
+No-Regression Evidence: Python code-call resolver registration resolves
+declared-base classmethod calls using parser-emitted `bases` and class-scoped
+methods before weak repository-wide fallback. The focused reducer test for
+constructors, qualified class receivers, ambiguous inherited methods, and
+self-method calls failed before the resolver when an unrelated `from_dict` made
+the inherited method ambiguous, then passed after the resolver returned the
+unique declared-base method and preserved multiple-base ambiguity. The
+resolutionparity package test stayed green with no golden update.
+
+No-Observability-Change: Python declared-base resolver registration only changes
+the resolver branch chosen before code-call row emission. It adds no graph
+query, queue, worker, lease, batch, runtime knob, metric instrument, metric
+label key, span, route, status field, or log key; operators still inspect
+existing code-call intent rows and materialization completion logs.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
