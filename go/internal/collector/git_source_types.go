@@ -93,6 +93,11 @@ type RepositorySnapshot struct {
 	// byte-identical when the value-flow gate is off. It is evidence with
 	// confidence and provenance, never canonical truth.
 	TaintEvidence []TaintEvidenceSnapshot `json:"taint_evidence,omitempty"`
+	// InterprocTaintEvidence carries cross-function value-flow findings, each
+	// resolved to the source and sink Function entities it spans. Empty unless the
+	// parser emitted interproc_findings (gated by ESHU_EMIT_DATAFLOW); byte-
+	// identical when off. Evidence, never canonical truth.
+	InterprocTaintEvidence []InterprocTaintEvidenceSnapshot `json:"interproc_taint_evidence,omitempty"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved
@@ -115,6 +120,24 @@ type TaintEvidenceSnapshot struct {
 	ClassContext string  `json:"class_context,omitempty"`
 	SinkLabel    string  `json:"sink_label,omitempty"`
 	SourceLabel  string  `json:"source_label,omitempty"`
+}
+
+// InterprocTaintEvidenceSnapshot is one cross-function value-flow finding
+// resolved to the source and sink Function entities it spans. Both endpoints are
+// resolved here in the collector by function name within the file (the parser's
+// FunctionID carries the name but not the graph uid), so the reducer can project
+// a source->sink evidence edge without re-resolving.
+type InterprocTaintEvidenceSnapshot struct {
+	SourceFunctionUID  string  `json:"source_function_uid"`
+	SinkFunctionUID    string  `json:"sink_function_uid"`
+	RelativePath       string  `json:"relative_path"`
+	SourceFunctionName string  `json:"source_function_name"`
+	SinkFunctionName   string  `json:"sink_function_name"`
+	Language           string  `json:"language"`
+	SinkKind           string  `json:"sink_kind"`
+	SourceKind         string  `json:"source_kind"`
+	Confidence         float64 `json:"confidence"`
+	Cloud              bool    `json:"cloud,omitempty"`
 }
 
 // ContentFileSnapshot captures one portable file-content record.

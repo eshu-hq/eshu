@@ -217,6 +217,12 @@ progress messages.
   provenance). Populated only when the parser emits `taint_findings` (gated by
   `ESHU_EMIT_DATAFLOW`); `streamFacts` emits each as a `code_taint_evidence`
   fact. Empty (and byte-identical) when the gate is off
+- `InterprocTaintEvidenceSnapshot` — one cross-function value-flow finding
+  resolved to the source and sink `Function` entity uids it spans (resolved by
+  function name within the file, since the parser `FunctionID` carries the name
+  but not the uid; ambiguous or unresolved endpoints are dropped). Populated only
+  when the parser emits `interproc_findings`; `streamFacts` emits each as a
+  `code_interproc_evidence` fact. Empty (and byte-identical) when the gate is off
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content

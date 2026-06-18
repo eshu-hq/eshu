@@ -72,7 +72,7 @@ func buildStreamingGenerationWithContext(
 	}
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
-		len(snapshot.TaintEvidence) +
+		len(snapshot.TaintEvidence) + len(snapshot.InterprocTaintEvidence) +
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
 		terraformStateBackendExpressionWarningFactCount(repo.ID, snapshot.FileData) +
@@ -295,6 +295,10 @@ func streamFacts(
 		ch <- taintEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence)
 	}
 	snapshot.TaintEvidence = nil
+	for _, evidence := range snapshot.InterprocTaintEvidence {
+		ch <- interprocEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence)
+	}
+	snapshot.InterprocTaintEvidence = nil
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	if snapshot.Delta {
