@@ -49,30 +49,64 @@ func ensureSyntheticUID(item map[string]any, bucket string, relativePath string)
 // goldenPath is the checked-in per-language resolution-tier distribution.
 const goldenPath = "testdata/resolution_tiers.golden.json"
 
-// languageFixtures pins which sample-project corpus and file extensions feed
-// each language's resolution-tier tally. Keep the set small and deterministic;
-// these corpora are the parser fixtures already used elsewhere.
-var languageFixtures = []struct {
+type resolutionTierFixture struct {
 	language string
 	dir      string
 	exts     []string
-}{
-	{"go", "sample_project_go", []string{".go"}},
-	{"python", "sample_project", []string{".py"}},
-	{"typescript", "sample_project_typescript", []string{".ts", ".tsx"}},
-	{"java", "sample_project_java", []string{".java"}},
+	smoke    *goldenCallGraphFixture
+}
+
+// sampleProjectLanguageFixtures pins richer sample-project corpora for
+// languages where the repository already has enough files to observe tier
+// distribution beyond a single exact-edge smoke fixture.
+var sampleProjectLanguageFixtures = []resolutionTierFixture{
+	{language: "go", dir: "sample_project_go", exts: []string{".go"}},
+	{language: "python", dir: "sample_project", exts: []string{".py"}},
+	{language: "typescript", dir: "sample_project_typescript", exts: []string{".ts", ".tsx"}},
+	{language: "java", dir: "sample_project_java", exts: []string{".java"}},
+}
+
+func languageFixtures() []resolutionTierFixture {
+	fixtures := append([]resolutionTierFixture(nil), sampleProjectLanguageFixtures...)
+	covered := make(map[string]struct{}, len(fixtures))
+	for _, fixture := range fixtures {
+		covered[fixture.language] = struct{}{}
+	}
+	// Long-tail languages without richer sample-project corpora get explicit
+	// same-file smoke snapshots from source-authored exact-edge fixtures. These
+	// keep languages visible in the tier golden without claiming broad tier
+	// distribution for import-binding, SCIP, or cross-repo behavior.
+	for index := range sourceCallGraphFixtures {
+		source := &sourceCallGraphFixtures[index]
+		if _, ok := covered[source.language]; ok {
+			continue
+		}
+		fixtures = append(fixtures, resolutionTierFixture{
+			language: source.language,
+			smoke:    source,
+		})
+		covered[source.language] = struct{}{}
+	}
+	sort.Slice(fixtures, func(i, j int) bool {
+		return fixtures[i].language < fixtures[j].language
+	})
+	return fixtures
 }
 
 // tallyResolutionTiers parses every matching file in one language corpus with
 // the real parser engine, runs the reducer's code-call extraction, and counts
 // the resolution_method of each emitted row. A row that somehow lacks a method
 // is tallied as unspecified so a dropped-method regression is visible.
-func tallyResolutionTiers(t *testing.T, dir string, exts []string) map[string]int {
+func tallyResolutionTiers(t *testing.T, fixture resolutionTierFixture) map[string]int {
 	t.Helper()
 
-	repoRoot, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "sample_projects", dir))
+	if fixture.smoke != nil {
+		return tallySourceResolutionTiers(t, *fixture.smoke)
+	}
+
+	repoRoot, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "sample_projects", fixture.dir))
 	if err != nil {
-		t.Fatalf("filepath.Abs(%q) error = %v", dir, err)
+		t.Fatalf("filepath.Abs(%q) error = %v", fixture.dir, err)
 	}
 	engine, err := parser.DefaultEngine()
 	if err != nil {
@@ -87,7 +121,7 @@ func tallyResolutionTiers(t *testing.T, dir string, exts []string) map[string]in
 		if info.IsDir() {
 			return nil
 		}
-		for _, ext := range exts {
+		for _, ext := range fixture.exts {
 			if strings.EqualFold(filepath.Ext(path), ext) {
 				paths = append(paths, path)
 				break
@@ -99,6 +133,9 @@ func tallyResolutionTiers(t *testing.T, dir string, exts []string) map[string]in
 		t.Fatalf("walk %q error = %v", repoRoot, walkErr)
 	}
 	sort.Strings(paths)
+	if len(paths) == 0 {
+		t.Fatalf("fixture %q matched no files in %q", fixture.language, repoRoot)
+	}
 
 	envelopes := make([]facts.Envelope, 0, len(paths))
 	for _, path := range paths {
@@ -114,15 +151,82 @@ func tallyResolutionTiers(t *testing.T, dir string, exts []string) map[string]in
 		envelopes = append(envelopes, facts.Envelope{
 			FactKind: "file",
 			Payload: map[string]any{
-				"repo_id":          "resolutionparity-" + dir,
+				"repo_id":          "resolutionparity-" + fixture.language,
 				"relative_path":    relativePath,
 				"parsed_file_data": parsed,
 			},
 		})
 	}
 
-	tally := make(map[string]int)
 	_, rows := reducer.ExtractCodeCallRows(envelopes)
+	return tallyCodeCallRows(rows)
+}
+
+func tallySourceResolutionTiers(t *testing.T, fixture goldenCallGraphFixture) map[string]int {
+	t.Helper()
+
+	repoRoot := t.TempDir()
+	var paths []string
+	for relativePath, source := range fixture.files {
+		path := filepath.Join(repoRoot, filepath.FromSlash(relativePath))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir fixture dir error = %v", err)
+		}
+		if err := os.WriteFile(path, []byte(strings.TrimLeft(source, "\n")), 0o644); err != nil {
+			t.Fatalf("write fixture file %q error = %v", relativePath, err)
+		}
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
+	}
+	importsMap, err := engine.PreScanRepositoryPaths(repoRoot, paths)
+	if err != nil {
+		t.Fatalf("PreScanRepositoryPaths() error = %v", err)
+	}
+
+	repoID := "resolutionparity-tier-" + fixture.language
+	envelopes := []facts.Envelope{{
+		FactKind: "repository",
+		Payload: map[string]any{
+			"repo_id":     repoID,
+			"imports_map": importsMap,
+		},
+	}}
+	uidByName := map[string]string{
+		fixture.caller: "content-entity:" + fixture.language + ":" + fixture.caller,
+		fixture.callee: "content-entity:" + fixture.language + ":" + fixture.callee,
+	}
+	for _, path := range paths {
+		parsed, err := engine.ParsePath(repoRoot, path, false, parser.Options{})
+		if err != nil {
+			t.Fatalf("ParsePath(%q) error = %v", path, err)
+		}
+		relativePath, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			t.Fatalf("Rel(%q) error = %v", path, err)
+		}
+		relativePath = filepath.ToSlash(relativePath)
+		assignGoldenCallGraphUIDs(parsed, uidByName, fixture.uidByPath, relativePath)
+		envelopes = append(envelopes, facts.Envelope{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          repoID,
+				"relative_path":    relativePath,
+				"parsed_file_data": parsed,
+			},
+		})
+	}
+
+	_, rows := reducer.ExtractCodeCallRows(envelopes)
+	return tallyCodeCallRows(rows)
+}
+
+func tallyCodeCallRows(rows []map[string]any) map[string]int {
+	tally := make(map[string]int)
 	for _, row := range rows {
 		method, _ := row["resolution_method"].(string)
 		if strings.TrimSpace(method) == "" {
@@ -140,9 +244,10 @@ func tallyResolutionTiers(t *testing.T, dir string, exts []string) map[string]in
 func TestResolutionTierGoldens(t *testing.T) {
 	t.Parallel()
 
-	got := make(map[string]map[string]int, len(languageFixtures))
-	for _, fixture := range languageFixtures {
-		tally := tallyResolutionTiers(t, fixture.dir, fixture.exts)
+	fixtures := languageFixtures()
+	got := make(map[string]map[string]int, len(fixtures))
+	for _, fixture := range fixtures {
+		tally := tallyResolutionTiers(t, fixture)
 		// Every classified method emitted MUST be in the closed vocabulary.
 		for method := range tally {
 			if !codeprovenance.Valid(method) {
@@ -159,8 +264,27 @@ func TestResolutionTierGoldens(t *testing.T) {
 	}
 
 	want := readGolden(t)
-	for _, fixture := range languageFixtures {
+	for _, fixture := range fixtures {
 		assertTallyEqual(t, fixture.language, want[fixture.language], got[fixture.language])
+	}
+}
+
+func TestResolutionTierSmokeFixturesCoverSourceLanguages(t *testing.T) {
+	t.Parallel()
+
+	covered := map[string]struct{}{}
+	for _, fixture := range languageFixtures() {
+		covered[fixture.language] = struct{}{}
+	}
+
+	var missing []string
+	for _, language := range callGraphSourceLanguages() {
+		if _, ok := covered[language]; !ok {
+			missing = append(missing, language)
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("missing resolution-tier smoke fixture for source languages: %v", missing)
 	}
 }
 
