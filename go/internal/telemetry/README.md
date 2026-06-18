@@ -97,6 +97,7 @@ when the reducer has a graph orphan observer.
 | `Neo4jDeadlockRetries` | `eshu_dp_neo4j_deadlock_retries_total` |
 | `ReposSnapshotted` | `eshu_dp_repos_snapshotted_total` |
 | `FilesParsed` | `eshu_dp_files_parsed_total` |
+| `SCIPSnapshotAttempts` | `eshu_dp_scip_snapshot_attempts_total` |
 | `FactBatchesCommitted` | `eshu_dp_fact_batches_committed_total` |
 | `ContentReReads` | `eshu_dp_content_rereads_total` |
 | `ContentReReadSkips` | `eshu_dp_content_reread_skips_total` |

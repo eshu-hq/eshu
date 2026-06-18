@@ -3,9 +3,21 @@ package parser
 import kotlinparser "github.com/eshu-hq/eshu/go/internal/parser/kotlin"
 
 func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, options Options) (map[string]any, error) {
-	return kotlinparser.Parse(repoRoot, path, isDependency, sharedOptions(options))
+	parser, err := e.runtime.Parser("kotlin")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return kotlinparser.Parse(repoRoot, path, isDependency, sharedOptions(options), parser)
 }
 
 func (e *Engine) preScanKotlin(repoRoot string, path string) ([]string, error) {
-	return kotlinparser.PreScan(repoRoot, path)
+	parser, err := e.runtime.Parser("kotlin")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return kotlinparser.PreScan(repoRoot, path, parser)
 }

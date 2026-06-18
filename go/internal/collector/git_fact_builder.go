@@ -70,10 +70,15 @@ func buildStreamingGenerationWithContext(
 	if snapshot.Delta {
 		followupFactCount = 0
 	}
+	dataflowScannedFactCount := 0
+	if snapshot.DataflowScanned && !snapshot.Delta {
+		dataflowScannedFactCount = 1
+	}
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		len(snapshot.TaintEvidence) + len(snapshot.InterprocTaintEvidence) +
 		len(snapshot.FunctionSummaries) + len(snapshot.FunctionSources) +
+		dataflowScannedFactCount +
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
 		terraformStateBackendExpressionWarningFactCount(repo.ID, snapshot.FileData) +
@@ -323,6 +328,19 @@ func streamFacts(
 	if snapshot.Delta {
 		return
 	}
+
+	// Value-flow reconciliation marker — emitted only on full (non-delta)
+	// generations whenever the gate ran, even with zero findings above. It must
+	// NOT fire on deltas: a delta carries only changed-file findings, while the
+	// evidence reducers retract the whole scope then write what they load, so a
+	// marker-triggered delta would wipe evidence for unchanged files. On a full
+	// generation the loaded finding set is complete, so retract-then-write is
+	// correct and stale edges/nodes are cleared when the finding set goes empty
+	// (#2919).
+	if snapshot.DataflowScanned {
+		ch <- dataflowScannedFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+	}
+
 	ch <- workloadIdentityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
