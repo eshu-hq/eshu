@@ -74,6 +74,11 @@
 // registry seam before and after the weak repository-wide fallback; the generic
 // resolver still preserves ambiguity and never promotes a language branch into a
 // guessed canonical edge without explicit evidence.
+// ValueFlowProgramAssemblyRunner loads completed active code-call projection
+// rows plus persisted function summaries and assembles interprocedural Programs
+// without running the solver or writing graph evidence; it exposes skipped
+// caller/callee identity, missing-summary, and unconfirmed-call-flow counts so
+// the later fixpoint writer can fail closed instead of guessing.
 // IncidentRoutingMaterializationHandler writes exact PagerDuty
 // IncidentRoutingEvidence graph rows only for safe declared/applied/live
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes
