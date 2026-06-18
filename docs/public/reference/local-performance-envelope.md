@@ -476,6 +476,64 @@ No-Observability-Change: the conflict key is an internal claim fence; it adds no
 metric, label, span, log field, status route, or runtime knob, and the hashed key
 keeps raw ARNs, paths, IDs, and IP-shaped values out of the queue.
 
+### Generic-Worker Repo-Wide Retract Suppression (#2898/#2910)
+
+The generic shared-projection worker (`ProcessPartitionOnce`) retracted each
+partition batch then wrote it, unconditionally per partition. For the three
+symbol→runtime domains that combine a **repo-wide** retract with a **per-edge**
+partition key — `handles_route` (#2721), `runs_in` (#2722),
+`invokes_cloud_action` (#2723) — a repo whose edges hash to more than one
+partition lost every edge except the last-processed partition's each cycle
+(#2910), because each partition's repo-wide retract wiped the sibling partitions'
+just-written edges. The fix routes the single repo-wide retract through a per-repo
+whole-scope refresh intent emitted in the same materialization pass as the
+per-edge intents, and fences per-edge writes behind the refresh's durable
+completion (`HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents` on the
+whole-scope partition key). The repo-wide retract runs once per `(repo,
+source_run)` and happens-before every per-edge write, so partitions no longer
+delete one another's edges, under both concurrent in-process workers and multiple
+replicas.
+
+No-Regression Evidence: the change cannot increase graph-write cost — it issues
+**at most the same** repo-wide retract (one per repo per cycle, versus one per
+populated partition before) and the **byte-identical** per-edge writes; the only
+added work is one bounded, indexed `shared_projection_intents` existence `SELECT`
+per per-edge partition cycle (the same `completed_at` lookup CALLS already uses).
+Correctness is proven by state-modeling tests in
+`go/internal/reducer/shared_projection_worker_retract_race_test.go`:
+`TestProcessPartitionOnceHandlesRouteFenceConverges` (all three edges of a
+partition-spanning repo survive), `…FenceHoldsWritesBeforeRetract` (per-edge
+writes are deferred until the repo-wide retract commits — the concurrent case a
+run-history skip cannot satisfy), and `…NilFencePreservesLegacyBehavior` (a nil
+fence keeps the pre-fix path byte-identical), plus
+`TestBuildRepoWideRetractRefreshIntentsPairsOnePerRepo` for the paired-emission
+invariant. `go test ./internal/reducer ./cmd/reducer -count=1` and
+`go test ./internal/reducer -race -count=1` are green.
+
+Remote before/after proof (fresh NornicDB v1.1.6 + Postgres + reducer stack via
+Docker Compose, clean volumes, default 8 partitions, against a fixture repo with
+six Express routes bound to six distinct handlers): the **unfixed** build emits
+six per-edge handles_route intents and completes all of them, yet only **1 of 6**
+`HANDLES_ROUTE` and **1 of 6** `RUNS_IN` edges survive — the per-partition
+repo-wide retract silently drops the rest (#2910). The **fixed** build emits seven
+intents (six per-edge + one refresh), completes all of them, and **all 6**
+`HANDLES_ROUTE` and **all 6** `RUNS_IN` edges survive. Both runs drained with
+`fact_work_items` succeeded=11, failed=0, dead_letter=0, so the loss is silent,
+not a failure. This confirms the correctness fix end-to-end on a real graph
+backend; throughput cannot regress because the change issues strictly fewer
+repo-wide retracts and byte-identical writes (one bounded indexed
+`shared_projection_intents` existence `SELECT` per per-edge partition cycle is the
+only added work).
+
+Observability Evidence: the worker adds one bounded result field
+(`RefreshFenceDeferred`) and the runner emits
+`shared projection deferred per-edge rows behind repo refresh fence` with the
+`domain`, `partition_id`, `partition_count`, and `refresh_fence_deferred_count`,
+so an operator can see a repo whose refresh intent is not completing — distinct
+from readiness-blocked and terminal-no-endpoint. No metric name, label, queue
+domain, span, or runtime knob changes; the added field and log are the only
+operator-facing surface.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
