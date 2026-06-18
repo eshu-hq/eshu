@@ -83,6 +83,11 @@ The godoc contract is in `doc.go`.
   composes them into an interprocedural port graph solved by
   `internal/parser/interproc`. Call resolution is intra-file; cross-file and
   cross-repo composition is the reducer's job.
+- The `dataflow_summaries` bucket (same opt-in gate, only when `RepositoryID` is
+  present) carries each function's durable `summary.Effects` row for reducer
+  persistence and cross-repo composition. Direct parser callers without a stable
+  repository id still get the local dataflow/finding buckets but do not emit
+  malformed durable FunctionIDs.
 - `EmbeddedSQLQuery`, `Options`, `GoImportedInterfaceParamMethods`, and
   `GoDirectMethodCallRoots` carry the typed contracts used by those functions.
 

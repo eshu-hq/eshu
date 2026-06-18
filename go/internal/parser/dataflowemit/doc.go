@@ -2,13 +2,16 @@
 // deterministic parser payload buckets the reducer consumes: "dataflow_functions"
 // (per-function control-flow graphs and reaching-definition def->use edges),
 // "taint_findings" (intraprocedural source-to-sink findings with confidence and
-// provenance), and "interproc_findings" (cross-function findings).
+// provenance), "interproc_findings" (cross-function findings), and
+// "dataflow_summaries" (each function's structural value-flow Effects — the TITO
+// param/source flows the cross-repo composition fixpoint reloads and composes).
 //
 // Each row carries a lang label so a downstream consumer can distinguish Go,
 // TypeScript/JavaScript, and Python facts that share one schema. The renderers
-// operate on the language-neutral cfg.Function, taint.Finding, and
-// interproc.Finding types, so every language adapter emits an identical bucket
-// shape. SortFunctionRows and SortFindingRows make the buckets byte-stable across
-// runs; optional fields (class_context, sink_label, source_label, neutralized,
-// cloud) are omitted when empty so the rows stay minimal.
+// operate on the language-neutral cfg.Function, taint.Finding, interproc.Finding,
+// and summary.Effects types, so every language adapter emits an identical bucket
+// shape. SortFunctionRows, SortFindingRows, and SortSummaryRows make the buckets
+// byte-stable across runs; optional fields (class_context, sink_label,
+// source_label, neutralized, cloud, and empty effect lists) are omitted when
+// empty so the rows stay minimal.
 package dataflowemit
