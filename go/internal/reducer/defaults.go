@@ -50,6 +50,13 @@ type DefaultHandlers struct {
 	// refresh fence project them.
 	InheritanceIntentWriter InheritanceIntentWriter
 
+	// SQLRelationshipIntentWriter persists durable shared-intent rows for SQL
+	// relationship edge materialization (#2868). The promoted
+	// SQLRelationshipMaterializationHandler emits file-scoped per-edge intents plus
+	// a per-repo refresh intent instead of writing canonical edges directly, so the
+	// partitioned runner and the #2898 refresh fence project them.
+	SQLRelationshipIntentWriter SQLRelationshipIntentWriter
+
 	// GraphProjectionPhasePublisher persists durable graph-readiness publications
 	// for canonical and semantic node writers.
 	GraphProjectionPhasePublisher GraphProjectionPhasePublisher
@@ -61,9 +68,10 @@ type DefaultHandlers struct {
 	// and wiring. Code-call materialization no longer uses it directly.
 	CodeCallEdgeWriter SharedProjectionEdgeWriter
 
-	// SQLRelationshipEdgeWriter writes canonical SQL relationship edges
-	// (REFERENCES_TABLE, HAS_COLUMN, TRIGGERS) from reducer-owned SQL entity
-	// metadata.
+	// SQLRelationshipEdgeWriter is retained for compatibility with older reducer
+	// tests and wiring. SQL relationship materialization no longer uses it directly:
+	// it rides the shared-projection intent path via SQLRelationshipIntentWriter
+	// (#2868).
 	SQLRelationshipEdgeWriter SharedProjectionEdgeWriter
 
 	// DocumentationEdgeWriter writes canonical DOCUMENTS edges from reducer-owned

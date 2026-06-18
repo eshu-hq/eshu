@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -15,8 +16,8 @@ func TestSQLRelationshipHandlerRejectsMismatchedDomain(t *testing.T) {
 	t.Parallel()
 
 	handler := SQLRelationshipMaterializationHandler{
-		FactLoader: &stubFactLoader{},
-		EdgeWriter: &recordingSQLRelEdgeWriter{},
+		FactLoader:   &stubFactLoader{},
+		IntentWriter: &recordingSQLRelationshipIntentWriter{},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -36,7 +37,7 @@ func TestSQLRelationshipHandlerRequiresFactLoader(t *testing.T) {
 	t.Parallel()
 
 	handler := SQLRelationshipMaterializationHandler{
-		EdgeWriter: &recordingSQLRelEdgeWriter{},
+		IntentWriter: &recordingSQLRelationshipIntentWriter{},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -52,7 +53,7 @@ func TestSQLRelationshipHandlerRequiresFactLoader(t *testing.T) {
 	}
 }
 
-func TestSQLRelationshipHandlerRequiresEdgeWriter(t *testing.T) {
+func TestSQLRelationshipHandlerRequiresIntentWriter(t *testing.T) {
 	t.Parallel()
 
 	handler := SQLRelationshipMaterializationHandler{
@@ -68,7 +69,7 @@ func TestSQLRelationshipHandlerRequiresEdgeWriter(t *testing.T) {
 		AvailableAt:  time.Now(),
 	})
 	if err == nil {
-		t.Fatal("expected error when edge writer is nil")
+		t.Fatal("expected error when intent writer is nil")
 	}
 }
 
@@ -492,65 +493,31 @@ func TestExtractSQLRelationshipRowsDeduplicates(t *testing.T) {
 	}
 }
 
-func TestSQLRelationshipHandlerWritesEdges(t *testing.T) {
+func TestSQLRelationshipHandlerEmitsIntents(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC)
-	writer := &recordingSQLRelEdgeWriter{}
+	writer := &recordingSQLRelationshipIntentWriter{}
 	handler := SQLRelationshipMaterializationHandler{
 		FactLoader: &stubFactLoader{
 			envelopes: []facts.Envelope{
-				{
-					FactKind: "content_entity",
-					Payload: map[string]any{
-						"repo_id":     "repo-123",
-						"entity_id":   "content-entity:e_tbl1",
-						"entity_type": "SqlTable",
-						"entity_name": "public.users",
-					},
-				},
-				{
-					FactKind: "content_entity",
-					Payload: map[string]any{
-						"repo_id":     "repo-123",
-						"entity_id":   "content-entity:e_view1",
-						"entity_type": "SqlView",
-						"entity_name": "public.active_users",
-						"entity_metadata": map[string]any{
-							"source_tables":   []any{"public.users"},
-							"sql_entity_type": "SqlView",
-						},
-					},
-				},
-				{
-					FactKind: "content_entity",
-					Payload: map[string]any{
-						"repo_id":     "repo-123",
-						"entity_id":   "content-entity:e_col1",
-						"entity_type": "SqlColumn",
-						"entity_name": "public.users.email",
-						"entity_metadata": map[string]any{
-							"table_name":      "public.users",
-							"sql_entity_type": "SqlColumn",
-						},
-					},
-				},
-				{
-					FactKind: "content_entity",
-					Payload: map[string]any{
-						"repo_id":     "repo-123",
-						"entity_id":   "content-entity:e_trig1",
-						"entity_type": "SqlTrigger",
-						"entity_name": "users_touch",
-						"entity_metadata": map[string]any{
-							"table_name":      "public.users",
-							"sql_entity_type": "SqlTrigger",
-						},
-					},
-				},
+				sqlRelationshipRepositoryEnvelope(false, nil),
+				sqlRelationshipContentEntity("content-entity:e_tbl1", "SqlTable", "public.users", "db/schema.sql", nil),
+				sqlRelationshipContentEntity("content-entity:e_view1", "SqlView", "public.active_users", "db/schema.sql", map[string]any{
+					"source_tables":   []any{"public.users"},
+					"sql_entity_type": "SqlView",
+				}),
+				sqlRelationshipContentEntity("content-entity:e_col1", "SqlColumn", "public.users.email", "db/schema.sql", map[string]any{
+					"table_name":      "public.users",
+					"sql_entity_type": "SqlColumn",
+				}),
+				sqlRelationshipContentEntity("content-entity:e_trig1", "SqlTrigger", "users_touch", "db/schema.sql", map[string]any{
+					"table_name":      "public.users",
+					"sql_entity_type": "SqlTrigger",
+				}),
 			},
 		},
-		EdgeWriter: writer,
+		IntentWriter: writer,
 	}
 
 	intent := Intent{
@@ -574,39 +541,47 @@ func TestSQLRelationshipHandlerWritesEdges(t *testing.T) {
 	if result.Status != ResultStatusSucceeded {
 		t.Fatalf("result.Status = %q, want %q", result.Status, ResultStatusSucceeded)
 	}
-	if result.CanonicalWrites != 3 {
-		t.Fatalf("result.CanonicalWrites = %d, want 3", result.CanonicalWrites)
+	// One per-repo refresh intent (owns the retract) plus three per-edge intents
+	// (HAS_COLUMN, REFERENCES_TABLE, TRIGGERS).
+	if result.CanonicalWrites != 4 {
+		t.Fatalf("result.CanonicalWrites = %d, want 4", result.CanonicalWrites)
 	}
 
-	if writer.retractDomain != DomainSQLRelationships {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainSQLRelationships)
+	refresh := writer.refreshRows()
+	if len(refresh) != 1 {
+		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if writer.retractEvidenceSource != sqlRelationshipEvidenceSource {
-		t.Fatalf("retractEvidenceSource = %q, want %q", writer.retractEvidenceSource, sqlRelationshipEvidenceSource)
+	if got := refresh[0].ProjectionDomain; got != DomainSQLRelationships {
+		t.Fatalf("refresh domain = %q, want %q", got, DomainSQLRelationships)
 	}
-	if writer.writeDomain != DomainSQLRelationships {
-		t.Fatalf("writeDomain = %q, want %q", writer.writeDomain, DomainSQLRelationships)
-	}
-	if writer.writeEvidenceSource != sqlRelationshipEvidenceSource {
-		t.Fatalf("writeEvidenceSource = %q, want %q", writer.writeEvidenceSource, sqlRelationshipEvidenceSource)
-	}
-	if len(writer.writeRows) != 3 {
-		t.Fatalf("len(writeRows) = %d, want 3", len(writer.writeRows))
+	if refresh[0].PartitionKey != sqlRelationshipWholeScopePartitionKey("repo-123") {
+		t.Fatalf("refresh partition key = %q, want whole-scope key", refresh[0].PartitionKey)
 	}
 
-	// Rows are sorted; HAS_COLUMN < REFERENCES_TABLE < TRIGGERS
-	if got, want := writer.writeRows[0].Payload["relationship_type"], "HAS_COLUMN"; got != want {
-		t.Fatalf("writeRows[0].relationship_type = %v, want %v", got, want)
+	edges := writer.edgeRows()
+	if len(edges) != 3 {
+		t.Fatalf("per-edge intents = %d, want 3", len(edges))
 	}
-	if got, want := writer.writeRows[1].Payload["relationship_type"], "REFERENCES_TABLE"; got != want {
-		t.Fatalf("writeRows[1].relationship_type = %v, want %v", got, want)
+	gotTypes := make([]string, 0, len(edges))
+	for _, edge := range edges {
+		if edge.ProjectionDomain != DomainSQLRelationships {
+			t.Fatalf("edge domain = %q, want %q", edge.ProjectionDomain, DomainSQLRelationships)
+		}
+		if !rowUsesRefreshFence(edge) {
+			t.Fatalf("edge intent %q not marked retract_via_refresh", edge.IntentID)
+		}
+		if !strings.HasPrefix(edge.PartitionKey, sqlRelationshipPartitionKeyVersion+":files:") {
+			t.Fatalf("edge partition key %q lacks file-scoped prefix", edge.PartitionKey)
+		}
+		gotTypes = append(gotTypes, anyToString(edge.Payload["relationship_type"]))
 	}
-	if got, want := writer.writeRows[2].Payload["relationship_type"], "TRIGGERS"; got != want {
-		t.Fatalf("writeRows[2].relationship_type = %v, want %v", got, want)
+	sort.Strings(gotTypes)
+	if want := []string{"HAS_COLUMN", "REFERENCES_TABLE", "TRIGGERS"}; strings.Join(gotTypes, ",") != strings.Join(want, ",") {
+		t.Fatalf("edge relationship types = %v, want %v", gotTypes, want)
 	}
 }
 
-func TestSQLRelationshipHandlerLogsStageTiming(t *testing.T) {
+func TestSQLRelationshipHandlerLogsCompletion(t *testing.T) {
 	var logs bytes.Buffer
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
@@ -614,32 +589,8 @@ func TestSQLRelationshipHandlerLogsStageTiming(t *testing.T) {
 
 	now := time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC)
 	handler := SQLRelationshipMaterializationHandler{
-		FactLoader: &stubFactLoader{
-			envelopes: []facts.Envelope{
-				{
-					FactKind: "content_entity",
-					Payload: map[string]any{
-						"repo_id":     "repo-123",
-						"entity_id":   "content-entity:e_tbl1",
-						"entity_type": "SqlTable",
-						"entity_name": "public.users",
-					},
-				},
-				{
-					FactKind: "content_entity",
-					Payload: map[string]any{
-						"repo_id":     "repo-123",
-						"entity_id":   "content-entity:e_view1",
-						"entity_type": "SqlView",
-						"entity_name": "public.active_users",
-						"entity_metadata": map[string]any{
-							"source_tables": []any{"public.users"},
-						},
-					},
-				},
-			},
-		},
-		EdgeWriter: &recordingSQLRelEdgeWriter{},
+		FactLoader:   &stubFactLoader{envelopes: sqlRelationshipEntityFacts()},
+		IntentWriter: &recordingSQLRelationshipIntentWriter{},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -659,16 +610,9 @@ func TestSQLRelationshipHandlerLogsStageTiming(t *testing.T) {
 	logText := logs.String()
 	for _, want := range []string{
 		`"msg":"sql relationship materialization completed"`,
-		`"fact_count":2`,
-		`"repo_count":1`,
 		`"edge_count":1`,
-		`"write_row_count":1`,
-		`"load_facts_duration_seconds":`,
-		`"extract_duration_seconds":`,
-		`"retract_duration_seconds":`,
-		`"build_write_rows_duration_seconds":`,
-		`"graph_write_duration_seconds":`,
-		`"total_duration_seconds":`,
+		`"repo_count":1`,
+		`"intent_count":2`,
 	} {
 		if !strings.Contains(logText, want) {
 			t.Fatalf("logs missing %s:\n%s", want, logText)
@@ -676,22 +620,25 @@ func TestSQLRelationshipHandlerLogsStageTiming(t *testing.T) {
 	}
 }
 
-func TestSQLRelationshipHandlerSkipsFirstGenerationRetract(t *testing.T) {
+func TestSQLRelationshipHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingSQLRelEdgeWriter{}
+	// Content entities with no repository envelope -> no projection context, so
+	// the handler emits nothing rather than fabricating an unfenceable edge (the
+	// refresh no-op-retracts safely on a first generation; there is no first-gen
+	// skip to assert anymore).
+	writer := &recordingSQLRelationshipIntentWriter{}
 	handler := SQLRelationshipMaterializationHandler{
-		FactLoader: &stubFactLoader{envelopes: sqlRelationshipEntityFacts()},
-		EdgeWriter: writer,
-		PriorGenerationCheck: func(_ context.Context, scopeID, generationID string) (bool, error) {
-			if scopeID != "scope-db" || generationID != "gen-1" {
-				t.Fatalf("PriorGenerationCheck(%q, %q), want scope-db/gen-1", scopeID, generationID)
-			}
-			return false, nil
-		},
+		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
+			sqlRelationshipContentEntity("content-entity:e_tbl1", "SqlTable", "public.users", "db/schema.sql", nil),
+			sqlRelationshipContentEntity("content-entity:e_view1", "SqlView", "public.active_users", "db/schema.sql", map[string]any{
+				"source_tables": []any{"public.users"},
+			}),
+		}},
+		IntentWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-sql-rel-1",
 		ScopeID:      "scope-db",
 		GenerationID: "gen-1",
@@ -704,24 +651,21 @@ func TestSQLRelationshipHandlerSkipsFirstGenerationRetract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if writer.retractDomain != "" || len(writer.retractRows) != 0 {
-		t.Fatalf("retract = domain %q rows %d, want skipped", writer.retractDomain, len(writer.retractRows))
+	if result.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
 	}
-	if len(writer.writeRows) == 0 {
-		t.Fatal("writeRows is empty, want SQL edges still written")
+	if len(writer.rows) != 0 {
+		t.Fatalf("emitted %d intents, want 0 without a projection context", len(writer.rows))
 	}
 }
 
-func TestSQLRelationshipHandlerRetractsWhenPriorGenerationExists(t *testing.T) {
+func TestSQLRelationshipHandlerEmitsRefreshThatOwnsRetract(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingSQLRelEdgeWriter{}
+	writer := &recordingSQLRelationshipIntentWriter{}
 	handler := SQLRelationshipMaterializationHandler{
-		FactLoader: &stubFactLoader{envelopes: sqlRelationshipEntityFacts()},
-		EdgeWriter: writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
-			return true, nil
-		},
+		FactLoader:   &stubFactLoader{envelopes: sqlRelationshipEntityFacts()},
+		IntentWriter: writer,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -737,68 +681,54 @@ func TestSQLRelationshipHandlerRetractsWhenPriorGenerationExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if writer.retractDomain != DomainSQLRelationships {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainSQLRelationships)
+	refresh := writer.refreshRows()
+	if len(refresh) != 1 {
+		t.Fatalf("refresh intents = %d, want 1", len(refresh))
+	}
+	if got := anyToString(refresh[0].Payload["intent_type"]); got != repoRefreshIntentType {
+		t.Fatalf("refresh intent_type = %q, want %q", got, repoRefreshIntentType)
+	}
+	if got := anyToString(refresh[0].Payload["action"]); got != repoRefreshAction {
+		t.Fatalf("refresh action = %q, want %q", got, repoRefreshAction)
 	}
 }
 
 // --- test stubs ---
 
+func sqlRelationshipRepositoryEnvelope(delta bool, changedRelPaths []string) facts.Envelope {
+	payload := map[string]any{
+		"repo_id":       "repo-123",
+		"path":          "/repo",
+		"source_run_id": "run-1",
+	}
+	if delta {
+		payload["delta_generation"] = true
+		payload["delta_relative_paths"] = changedRelPaths
+	}
+	return facts.Envelope{FactKind: factKindRepository, ScopeID: "scope-db", Payload: payload}
+}
+
+func sqlRelationshipContentEntity(id, entityType, name, relPath string, metadata map[string]any) facts.Envelope {
+	payload := map[string]any{
+		"repo_id":       "repo-123",
+		"entity_id":     id,
+		"entity_type":   entityType,
+		"entity_name":   name,
+		"relative_path": relPath,
+		"path":          "/repo/" + relPath,
+	}
+	if metadata != nil {
+		payload["entity_metadata"] = metadata
+	}
+	return facts.Envelope{FactKind: factKindContentEntity, ScopeID: "scope-db", Payload: payload}
+}
+
 func sqlRelationshipEntityFacts() []facts.Envelope {
 	return []facts.Envelope{
-		{
-			FactKind: "content_entity",
-			Payload: map[string]any{
-				"repo_id":     "repo-123",
-				"entity_id":   "content-entity:e_tbl1",
-				"entity_type": "SqlTable",
-				"entity_name": "public.users",
-			},
-		},
-		{
-			FactKind: "content_entity",
-			Payload: map[string]any{
-				"repo_id":     "repo-123",
-				"entity_id":   "content-entity:e_view1",
-				"entity_type": "SqlView",
-				"entity_name": "public.active_users",
-				"entity_metadata": map[string]any{
-					"source_tables": []any{"public.users"},
-				},
-			},
-		},
+		sqlRelationshipRepositoryEnvelope(false, nil),
+		sqlRelationshipContentEntity("content-entity:e_tbl1", "SqlTable", "public.users", "db/schema.sql", nil),
+		sqlRelationshipContentEntity("content-entity:e_view1", "SqlView", "public.active_users", "db/schema.sql", map[string]any{
+			"source_tables": []any{"public.users"},
+		}),
 	}
-}
-
-type recordingSQLRelEdgeWriter struct {
-	retractDomain         string
-	retractEvidenceSource string
-	retractRows           []SharedProjectionIntentRow
-	writeDomain           string
-	writeEvidenceSource   string
-	writeRows             []SharedProjectionIntentRow
-}
-
-func (r *recordingSQLRelEdgeWriter) RetractEdges(
-	_ context.Context,
-	domain string,
-	rows []SharedProjectionIntentRow,
-	evidenceSource string,
-) error {
-	r.retractDomain = domain
-	r.retractEvidenceSource = evidenceSource
-	r.retractRows = append(r.retractRows, rows...)
-	return nil
-}
-
-func (r *recordingSQLRelEdgeWriter) WriteEdges(
-	_ context.Context,
-	domain string,
-	rows []SharedProjectionIntentRow,
-	evidenceSource string,
-) error {
-	r.writeDomain = domain
-	r.writeEvidenceSource = evidenceSource
-	r.writeRows = append(r.writeRows, rows...)
-	return nil
 }
