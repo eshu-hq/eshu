@@ -59,6 +59,9 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 				ev.SourceFunctionUID, ev.SinkFunctionUID, ev.SinkKind, ev.SourceKind)
 		}
 	}
+	if snapshot.ValueFlowSummariesObserved {
+		writeFreshnessHashf(h, "value_flow_summaries_observed=true\n")
+	}
 	if len(snapshot.ValueFlowSummaries) > 0 {
 		writeFreshnessHashf(h, "value_flow_summaries=%d\n", len(snapshot.ValueFlowSummaries))
 		for _, row := range snapshot.ValueFlowSummaries {

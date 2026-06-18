@@ -91,6 +91,24 @@ func TestSnapshotFreshnessHintIncludesValueFlowSummaries(t *testing.T) {
 	}
 }
 
+func TestSnapshotFreshnessHintIncludesObservedEmptyValueFlowSummaries(t *testing.T) {
+	t.Parallel()
+
+	base := RepositorySnapshot{
+		FileCount: 1,
+		ContentFileMetas: []ContentFileMeta{{
+			RelativePath: "handler.go",
+			Digest:       "digest-1",
+		}},
+	}
+	observedEmpty := base
+	observedEmpty.ValueFlowSummariesObserved = true
+
+	if snapshotFreshnessHint(base) == snapshotFreshnessHint(observedEmpty) {
+		t.Fatal("freshness hints match, want observed empty summary lane to avoid commit-time skip")
+	}
+}
+
 func TestBuildStreamingGenerationDoesNotCountValueFlowSummariesAsFacts(t *testing.T) {
 	t.Parallel()
 
@@ -130,6 +148,30 @@ func TestBuildStreamingGenerationDoesNotCountValueFlowSummariesAsFacts(t *testin
 	}
 	drainFactStream(withSummaries.Facts)
 	drainFactStream(withoutSummaries.Facts)
+}
+
+func TestBuildStreamingGenerationPreservesEmptyObservedValueFlowSummaries(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 18, 6, 0, 0, 0, time.UTC)
+	repo := repositoryidentity.Metadata{ID: "repo-alpha", Name: "repo-alpha"}
+	collected := buildStreamingGenerationWithContext(
+		context.Background(),
+		t.TempDir(),
+		repo,
+		"run-1",
+		observedAt,
+		RepositorySnapshot{FileCount: 1, ValueFlowSummariesObserved: true},
+		false,
+	)
+
+	if !collected.ValueFlowSummariesObserved {
+		t.Fatal("ValueFlowSummariesObserved = false, want true")
+	}
+	if len(collected.ValueFlowSummaries) != 0 {
+		t.Fatalf("ValueFlowSummaries count = %d, want 0", len(collected.ValueFlowSummaries))
+	}
+	drainFactStream(collected.Facts)
 }
 
 func equalSummaryEffects(a, b summary.Effects) bool {

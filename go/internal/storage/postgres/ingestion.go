@@ -284,9 +284,9 @@ func (s IngestionStore) commitScopeGeneration(
 		}
 		s.logCommitStage(ctx, scopeValue, generation, "relationship_backfill", stageStart)
 	}
-	if len(summaries) > 0 {
+	if summaries != nil {
 		stageStart = time.Now()
-		stats, err := upsertFunctionSummariesForGeneration(ctx, tx, summaries, s.now())
+		stats, err := upsertFunctionSummariesForGeneration(ctx, tx, scopeValue, generation, summaries, s.now())
 		if err != nil {
 			return err
 		}

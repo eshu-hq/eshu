@@ -64,6 +64,9 @@ type CollectedGeneration struct {
 	// ValueFlowSummaries carries parser-emitted function summary effects. They are
 	// not fact records and must be persisted by summary-aware durable committers.
 	ValueFlowSummaries []ValueFlowSummarySnapshot
+	// ValueFlowSummariesObserved marks a summary-aware generation, including a
+	// complete observation that produced zero summary rows.
+	ValueFlowSummariesObserved bool
 }
 
 // FactsFromSlice creates a CollectedGeneration with facts from a pre-built
@@ -355,7 +358,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 	factCount := int64(collected.FactCount)
 
 	var err error
-	if len(collected.ValueFlowSummaries) > 0 {
+	if collected.ValueFlowSummariesObserved || len(collected.ValueFlowSummaries) > 0 {
 		if collected.FactStreamErr != nil {
 			streamCommitter, ok := s.Committer.(StreamErrorFunctionSummaryCommitter)
 			if !ok {

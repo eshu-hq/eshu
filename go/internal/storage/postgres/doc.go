@@ -42,8 +42,10 @@
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. FunctionSummaryStore
 // persists parser value-flow summaries inside ingestion transactions before
-// projector enqueue, using repo-scoped reloads and idempotent timestamp-guarded
-// upserts. Payload value filters
+// projector enqueue. Delta generations patch a repo-scoped reload with
+// idempotent timestamp-guarded upserts, while full summary-aware generations
+// replace the repo snapshot and delete stale rows missing from the complete
+// observation. Payload value filters
 // are available only for top-level payload fields that are part of a reducer
 // domain's truth contract. Active code-call symbol definition reads join
 // through ingestion_scopes.active_generation_id and only return non-tombstoned
