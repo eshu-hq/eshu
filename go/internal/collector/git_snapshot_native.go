@@ -254,7 +254,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	annotateParsedFilesWithEntityIDs(repoPath, parsedFiles, materialization.Entities)
 	snapshot.TaintEvidence = buildTaintEvidence(repoPath, parsedFiles, materialization.Entities)
 	snapshot.InterprocTaintEvidence = buildInterprocTaintEvidence(repoPath, parsedFiles, materialization.Entities)
-	snapshot.FunctionSummaries = buildFunctionSummaries(parsedFiles)
+	snapshot.FunctionSummaries = buildFunctionSummaries(repoPath, parsedFiles, materialization.Entities)
 	snapshot.FunctionSources = buildFunctionSources(parsedFiles)
 	snapshot.FileData = parsedFiles
 	snapshot.ContentFileMetas = materializationRecordsToMetas(materialization.Records)
