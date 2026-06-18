@@ -28,6 +28,49 @@ func publishIntentGraphPhase(
 	return nil
 }
 
+func publishIntentGraphPhaseWithRepair(
+	ctx context.Context,
+	publisher GraphProjectionPhasePublisher,
+	repairQueue GraphProjectionPhaseRepairQueue,
+	intent Intent,
+	keyspace GraphProjectionKeyspace,
+	phase GraphProjectionPhase,
+	observedAt time.Time,
+) error {
+	if publisher == nil {
+		return nil
+	}
+	state, ok := graphProjectionPhaseStateForIntent(intent, keyspace, phase, observedAt)
+	if !ok {
+		return nil
+	}
+	if err := publishGraphProjectionPhaseStatesWithRepair(ctx, publisher, repairQueue, []GraphProjectionPhaseState{state}); err != nil {
+		return fmt.Errorf("publish %s phase: %w", phase, err)
+	}
+	return nil
+}
+
+func publishGraphProjectionPhaseStatesWithRepair(
+	ctx context.Context,
+	publisher GraphProjectionPhasePublisher,
+	repairQueue GraphProjectionPhaseRepairQueue,
+	states []GraphProjectionPhaseState,
+) error {
+	if publisher == nil || len(states) == 0 {
+		return nil
+	}
+	if err := publisher.PublishGraphProjectionPhases(ctx, states); err != nil {
+		if repairQueue != nil {
+			repairs := GraphProjectionPhaseRepairsFromStates(states, err.Error(), time.Now().UTC())
+			if enqueueErr := repairQueue.Enqueue(ctx, repairs); enqueueErr != nil {
+				return fmt.Errorf("%w (enqueue repairs: %v)", err, enqueueErr)
+			}
+		}
+		return err
+	}
+	return nil
+}
+
 func graphProjectionPhaseStateForIntent(
 	intent Intent,
 	keyspace GraphProjectionKeyspace,

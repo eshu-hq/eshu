@@ -48,6 +48,47 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesMissingReadiness(t *testi
 	}
 }
 
+func TestGraphProjectionPhaseRepairerRunOnceRepublishesWorkloadReadinessWithoutAcceptanceRow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC)
+	repair := GraphProjectionPhaseRepair{
+		Key:           workloadMaterializationRepoReadinessKey("scope-a", "repository:r_1", "gen-1"),
+		Phase:         GraphProjectionPhaseWorkloadMaterialization,
+		CommittedAt:   now.Add(-time.Minute),
+		EnqueuedAt:    now.Add(-30 * time.Second),
+		NextAttemptAt: now,
+	}
+	queue := &fakeGraphProjectionPhaseRepairQueue{due: []GraphProjectionPhaseRepair{repair}}
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	repairer := GraphProjectionPhaseRepairer{
+		Queue: queue,
+		AcceptedGen: func(SharedProjectionAcceptanceKey) (string, bool) {
+			return "", false
+		},
+		StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
+		Publisher:   publisher,
+		Config:      GraphProjectionPhaseRepairerConfig{BatchLimit: 10, RetryDelay: time.Minute},
+	}
+
+	repaired, err := repairer.RunOnce(context.Background(), now)
+	if err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+	if got, want := repaired, 1; got != want {
+		t.Fatalf("repaired = %d, want %d", got, want)
+	}
+	if got, want := len(publisher.calls), 1; got != want {
+		t.Fatalf("publisher calls = %d, want %d", got, want)
+	}
+	if got, want := publisher.calls[0][0].Key, repair.Key; got != want {
+		t.Fatalf("published key = %+v, want %+v", got, want)
+	}
+	if got, want := len(queue.deleted), 1; got != want {
+		t.Fatalf("deleted repairs = %d, want %d", got, want)
+	}
+}
+
 func TestGraphProjectionPhaseRepairerRunOnceSkipsStaleGeneration(t *testing.T) {
 	t.Parallel()
 
