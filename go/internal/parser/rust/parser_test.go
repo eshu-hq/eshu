@@ -310,6 +310,17 @@ pub trait Render<'a, T> {
     fn render<E>(&self, input: &'a T) -> Result<T, E>;
 }
 
+pub trait Area {
+    fn area(&self) -> f64;
+}
+
+pub fn compare<T>(shape: &T) -> f64
+where
+    T: Area,
+{
+    shape.area()
+}
+
 type Cache<'a, T> = &'a [T];
 `)
 	parser := newRustParser(t)
@@ -338,7 +349,15 @@ type Cache<'a, T> = &'a [T];
 	assertRustStringSliceContains(t, render, "attribute_paths", "async_trait::async_trait")
 
 	renderFn := assertRustBucketName(t, payload, "functions", "render")
+	assertRustStringField(t, renderFn, "trait_context", "Render")
 	assertRustStringSliceField(t, renderFn, "type_parameters", []string{"E"})
+
+	areaFn := assertRustBucketName(t, payload, "functions", "area")
+	assertRustStringField(t, areaFn, "trait_context", "Area")
+
+	areaCall := assertRustBucketName(t, payload, "function_calls", "area")
+	assertRustStringField(t, areaCall, "full_name", "shape.area")
+	assertRustStringField(t, areaCall, "inferred_obj_type", "T")
 
 	cache := assertRustBucketName(t, payload, "type_aliases", "Cache")
 	assertRustStringSliceField(t, cache, "lifetime_parameters", []string{"a"})
