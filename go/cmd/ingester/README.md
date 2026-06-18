@@ -115,6 +115,18 @@ barrier, and multi-shard drain rendezvous. `go test ./cmd/ingester -run
 'TestBuildIngesterCollectorService(DefersRelationshipBackfillToBatchDrain|RunsDrainHookForEmptyShardedBatches)|TestBuildIngesterServiceProducesCompositeRunner'
 -count=1` covers the batch-drain hook wiring and empty-shard participation.
 
+No-Regression Evidence: #3073 keeps the barrier transaction order but closes the
+latest-epoch `Rows` before inserting a new barrier epoch, preventing a Postgres
+driver from executing the insert while the transaction still has an active
+cursor. `go test ./internal/storage/postgres -run
+'Test(IngestionStoreShardDrainBarrier|EnsureDeferredMaintenanceBarrierEpoch|BootstrapDefinitionsIncludeDeferredMaintenanceBarrier)'
+-count=1` failed before the cursor was closed and passes after the fix.
+
+No-Observability-Change: #3073 adds no metric, label, span, log field, worker,
+queue, lease, runtime knob, or graph write. Operators still diagnose this path
+through existing barrier wait/completion logs, `deferred_relationship_maintenance_failure`
+errors, and Postgres query instrumentation.
+
 Observability Evidence: source commits log a
 `deferred_maintenance_shared_barrier` commit stage, and the existing Postgres
 instrumentation emits query duration for the advisory-lock statements. Deferred

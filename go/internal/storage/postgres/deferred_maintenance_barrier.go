@@ -262,15 +262,21 @@ func ensureDeferredMaintenanceBarrierEpoch(
 	if err != nil {
 		return 0, fmt.Errorf("query deferred maintenance barrier: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	var latestEpoch int64
 	var latestShardCount int
 	var completedAt sql.NullTime
+	var scanErr error
 	if rows.Next() {
 		if err := rows.Scan(&latestEpoch, &latestShardCount, &completedAt); err != nil {
-			return 0, fmt.Errorf("scan deferred maintenance barrier: %w", err)
+			scanErr = fmt.Errorf("scan deferred maintenance barrier: %w", err)
 		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, fmt.Errorf("close deferred maintenance barrier rows: %w", err)
+	}
+	if scanErr != nil {
+		return 0, scanErr
 	}
 	if err := rows.Err(); err != nil {
 		return 0, fmt.Errorf("scan deferred maintenance barrier rows: %w", err)
