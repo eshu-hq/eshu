@@ -36,32 +36,15 @@ func (g *recordingCloudSinkGraph) Run(
 	return append([]map[string]any(nil), g.rows...), nil
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderLoadsCatalogBackedSinks(t *testing.T) {
+func TestGraphValueFlowCloudSinkTargetLoaderLoadsInvokesCloudActionBridge(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
 	graph := &recordingCloudSinkGraph{rows: []map[string]any{
 		{
 			"function_uid": "uid-handler",
-			"sink_rel":     "CAN_ASSUME",
-			"sink_labels":  []string{"CloudResource"},
-		},
-		{
-			"function_uid":     "uid-handler",
-			"sink_rel":         "TO",
-			"sink_labels":      []string{"CidrBlock"},
-			"sink_is_internet": true,
-		},
-		{
-			"function_uid":     "uid-handler",
-			"sink_rel":         "TO",
-			"sink_labels":      []string{"CidrBlock"},
-			"sink_is_internet": false,
-		},
-		{
-			"function_uid": "uid-handler",
-			"sink_rel":     "QUERIES_TABLE",
-			"sink_labels":  []string{"SqlTable"},
+			"sink_kind":    string(exposure.SinkIAMPrivilegedAction),
+			"sink_label":   "IAM effective privileged action",
 		},
 	}}
 	loader := GraphValueFlowCloudSinkTargetLoader{Graph: graph}
@@ -70,30 +53,24 @@ func TestGraphValueFlowCloudSinkTargetLoaderLoadsCatalogBackedSinks(t *testing.T
 	if err != nil {
 		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
 	}
-	if len(targets) != 2 {
-		t.Fatalf("targets len = %d, want 2: %+v", len(targets), targets)
+	if len(targets) != 1 {
+		t.Fatalf("targets len = %d, want 1: %+v", len(targets), targets)
 	}
-	if targets[0].FunctionID != fn || targets[0].Kind != string(exposure.SinkIAMPrivilegedAction) {
-		t.Fatalf("first target = %+v, want IAM cloud target for function", targets[0])
-	}
-	if targets[1].Kind != string(exposure.SinkInternetEndpoint) {
-		t.Fatalf("second target = %+v, want internet endpoint target", targets[1])
+	if targets[0].FunctionID != fn || targets[0].Kind != string(exposure.SinkIAMPrivilegedAction) ||
+		targets[0].Label != "IAM effective privileged action" {
+		t.Fatalf("target = %+v, want IAM cloud-action bridge target for function", targets[0])
 	}
 	if strings.Contains(graph.seenCypher, "OPTIONAL MATCH") || strings.Contains(graph.seenCypher, "MATCH (fn)") {
 		t.Fatalf("cloud sink query must stay anchored and scalar, got:\n%s", graph.seenCypher)
 	}
-	if !strings.Contains(graph.seenCypher, "MATCH (fn:Function)-[sinkRel]->(sinkNode)") {
-		t.Fatalf("cloud sink query must anchor on Function and outgoing sink edge:\n%s", graph.seenCypher)
+	if !strings.Contains(graph.seenCypher, "MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)") {
+		t.Fatalf("cloud sink query must use materialized cloud-action bridge:\n%s", graph.seenCypher)
 	}
-	if !strings.Contains(graph.seenCypher, "fn.uid IN $function_uids") || !strings.Contains(graph.seenCypher, "type(sinkRel) IN $sink_rels") {
-		t.Fatalf("cloud sink query must be bounded by function uid and catalog rels:\n%s", graph.seenCypher)
+	if !strings.Contains(graph.seenCypher, "fn.uid IN $function_uids") {
+		t.Fatalf("cloud sink query must stay bounded by function uid:\n%s", graph.seenCypher)
 	}
-	rels, ok := graph.seenParams["sink_rels"].([]string)
-	if !ok {
-		t.Fatalf("sink_rels param type = %T, want []string", graph.seenParams["sink_rels"])
-	}
-	if valueFlowTestContainsString(rels, "QUERIES_TABLE") || valueFlowTestContainsString(rels, "EXECUTES_SHELL") {
-		t.Fatalf("non-graph-backed sink rel leaked into params: %+v", rels)
+	if _, ok := graph.seenParams["sink_rels"]; ok {
+		t.Fatalf("cloud-action bridge query should not pass unused sink_rels param: %+v", graph.seenParams)
 	}
 }
 

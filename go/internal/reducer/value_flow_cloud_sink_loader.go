@@ -18,10 +18,9 @@ type GraphValueFlowCloudSinkTargetLoader struct {
 
 const valueFlowCloudSinkTargetBatchLimit = 500
 
-// LoadCloudSinkTargets converts catalog-backed Function -> cloud sink graph
+// LoadCloudSinkTargets converts materialized Function -> CloudAction graph
 // edges into function-level fixpoint targets. The query is bounded by the
-// durable Function.uid snapshot and the closed graph-backed sink relationship
-// vocabulary; non-graph-backed sink kinds never enter the query parameters.
+// durable Function.uid snapshot and does not infer principal reachability.
 func (l GraphValueFlowCloudSinkTargetLoader) LoadCloudSinkTargets(
 	ctx context.Context,
 	graphIDs map[summary.FunctionID]string,
@@ -38,12 +37,10 @@ func (l GraphValueFlowCloudSinkTargetLoader) LoadCloudSinkTargets(
 		return nil, nil
 	}
 	var rows []map[string]any
-	sinkRels := valueFlowGraphBackedSinkRelationships()
 	for start := 0; start < len(functionUIDs); start += valueFlowCloudSinkTargetBatchLimit {
 		end := min(start+valueFlowCloudSinkTargetBatchLimit, len(functionUIDs))
 		chunkRows, err := l.Graph.Run(ctx, valueFlowCloudSinkTargetsCypher, map[string]any{
 			"function_uids": functionUIDs[start:end],
-			"sink_rels":     sinkRels,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("load graph-backed value-flow cloud sink targets: %w", err)
@@ -117,6 +114,16 @@ func valueFlowCloudSinkTargetsFromRows(
 }
 
 func valueFlowCloudSinkSpecFromRow(row map[string]any) (exposure.SinkSpec, bool) {
+	if kind := strings.TrimSpace(anyToString(row["sink_kind"])); kind != "" {
+		label := strings.TrimSpace(anyToString(row["sink_label"]))
+		if label == "" {
+			label = kind
+		}
+		return exposure.SinkSpec{
+			Kind:        exposure.SinkKind(kind),
+			DisplayName: label,
+		}, true
+	}
 	rel := strings.TrimSpace(anyToString(row["sink_rel"]))
 	labels := valueFlowStringSlice(row["sink_labels"])
 	props := map[string]string{}
@@ -185,11 +192,9 @@ func valueFlowScalarString(raw any) (string, bool) {
 	}
 }
 
-const valueFlowCloudSinkTargetsCypher = `MATCH (fn:Function)-[sinkRel]->(sinkNode)
+const valueFlowCloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
 WHERE fn.uid IN $function_uids
-  AND type(sinkRel) IN $sink_rels
 RETURN fn.uid AS function_uid,
-       type(sinkRel) AS sink_rel,
-       labels(sinkNode) AS sink_labels,
-       sinkNode.is_internet AS sink_is_internet
-ORDER BY function_uid, sink_rel`
+       "iam_privileged_action" AS sink_kind,
+       "IAM effective privileged action" AS sink_label
+ORDER BY function_uid, sink_kind`
