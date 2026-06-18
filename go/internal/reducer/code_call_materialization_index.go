@@ -20,6 +20,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		uniqueNameByRepoDir:     make(map[string]map[string]map[string]string),
 		constructorByPath:       make(map[string]map[string]string),
 		goMethodReturnTypes:     make(map[string]map[string]string),
+		rustTraitMethodsByRepo:  make(map[string]map[string]string),
 		pythonClassBasesByRepo:  make(map[string]map[string][]string),
 		entityFileByID:          make(map[string]string),
 		entityTypeByID:          make(map[string]string),
@@ -30,6 +31,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
 	repoDirNameCandidates := make(map[string]map[string]map[string]map[string]struct{})
 	goMethodReturnTypeCandidates := make(map[string]map[string]map[string]struct{})
+	rustTraitMethodCandidates := make(map[string]map[string]map[string]struct{})
 	symbolCandidates := make(map[string]map[string]codeCallSymbolResolution)
 	typeScriptCandidates := newTypeScriptIndexCandidates()
 	pythonClassBaseCandidates := make(map[string]map[string]map[string]pythonClassBaseCandidate)
@@ -118,6 +120,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				}
 				addGoMethodReturnTypeCandidate(goMethodReturnTypeCandidates, repositoryID, item)
 				typeScriptCandidates.addFunction(repositoryID, item, entityID)
+				addRustTraitMethodCandidate(rustTraitMethodCandidates, repositoryID, item, entityID)
 			}
 		}
 		for _, bucket := range []string{"classes", "structs", "interfaces", "type_aliases"} {
@@ -165,7 +168,6 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 						}
 					}
 				}
-				typeScriptCandidates.addType(bucket, repositoryID, item)
 				if bucket == "classes" {
 					addPythonClassBaseCandidate(pythonClassBaseCandidates, repositoryID, item)
 				}
@@ -237,7 +239,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			}
 		}
 	}
-	index.typeScriptInterfaceMethodsByRepo = typeScriptCandidates.uniqueMethods()
+	index.rustTraitMethodsByRepo = uniqueRustTraitMethodCandidates(rustTraitMethodCandidates)
 	index.pythonClassBasesByRepo = uniquePythonClassBasesByRepo(pythonClassBaseCandidates)
 	index.typeScriptInterfaceMethodsByRepo = typeScriptCandidates.uniqueMethods()
 	index.entityByStableSymbolKey = uniqueCodeCallSymbolCandidates(symbolCandidates)
@@ -245,13 +247,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	return index
 }
 
-func addCodeCallRepoDirNameCandidate(
-	candidates map[string]map[string]map[string]map[string]struct{},
-	repositoryID string,
-	filePath string,
-	name string,
-	entityID string,
-) {
+func addCodeCallRepoDirNameCandidate(candidates map[string]map[string]map[string]map[string]struct{}, repositoryID, filePath, name, entityID string) {
 	dir := codeCallDirectoryKey(filePath)
 	if repositoryID == "" || name == "" || entityID == "" {
 		return
