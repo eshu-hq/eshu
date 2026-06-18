@@ -260,7 +260,7 @@ const openAPIPathsStatusAndCompare = `
                               "credential_configured": {"type": "boolean"},
                               "model_id": {"type": "string"},
                               "endpoint_profile_id": {"type": "string"},
-                              "source_classes": {"type": "array", "items": {"type": "string", "enum": ["documentation", "diagrams_images", "tickets_chat", "code_hints"]}},
+                              "source_classes": {"type": "array", "items": {"type": "string", "enum": ["documentation", "diagrams_images", "tickets_chat", "code_hints", "search_documents"]}},
                               "source_policy_configured": {"type": "boolean"},
                               "state": {"type": "string", "enum": ["configured", "unconfigured", "healthy", "unhealthy"]},
                               "reason": {"type": "string"},

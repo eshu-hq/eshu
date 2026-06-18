@@ -79,10 +79,20 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 		"queue",
 		"budget",
 		"audit",
+		"provider_profiles",
 	} {
 		if _, ok := semanticProperties[want]; !ok {
 			t.Fatalf("/api/v0/status/semantic-extraction response schema missing %q", want)
 		}
+	}
+	providerProfiles := mustMapField(t, semanticProperties, "provider_profiles")
+	providerProfileItems := mustMapField(t, providerProfiles, "items")
+	providerProfileProperties := mustMapField(t, providerProfileItems, "properties")
+	sourceClasses := mustMapField(t, providerProfileProperties, "source_classes")
+	sourceClassItems := mustMapField(t, sourceClasses, "items")
+	sourceClassEnums := mustStringSliceField(t, sourceClassItems, "enum")
+	if !containsString(sourceClassEnums, "search_documents") {
+		t.Fatalf("semantic-extraction source_classes enum = %#v, want search_documents", sourceClassEnums)
 	}
 	answerNarrationPath := mustMapField(t, paths, "/api/v0/status/answer-narration")
 	answerNarrationGet := mustMapField(t, answerNarrationPath, "get")
