@@ -159,6 +159,9 @@ func appendRustCall(payload map[string]any, node *tree_sitter.Node, source []byt
 	if fullName := rustCallFullName(node, source); fullName != "" {
 		item["full_name"] = fullName
 	}
+	if receiverType := rustCallReceiverType(node, source); receiverType != "" {
+		item["inferred_obj_type"] = receiverType
+	}
 	shared.AppendBucket(payload, "function_calls", item)
 }
 

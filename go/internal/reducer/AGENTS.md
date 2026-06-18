@@ -419,6 +419,20 @@ queue/status rows, and Postgres query duration metrics. It adds no route, graph
 query shape, new metric instrument, new metric label key, span, lease, runtime
 knob, or log key.
 
+No-Regression Evidence: Rust trait-bound receiver resolution registers a
+language resolver before weak repository-wide fallback and indexes only unique
+trait declaration methods. The focused parser test failed before trait
+declaration methods carried `trait_context` and direct parameter calls carried
+`inferred_obj_type`; the focused reducer test failed before `shape.area`
+resolved through `T: Area`. They pass after the resolver returns the unique
+trait method and preserves ambiguity for bounds such as `T: Area + Surface`.
+
+No-Observability-Change: Rust trait-bound receiver resolution only changes the
+in-memory code-call resolver branch used before row emission. It adds no graph
+query, queue, worker, lease, batch, runtime knob, metric instrument, metric
+label key, span, route, status field, or log key; operators still inspect
+existing code-call intent rows and materialization completion logs.
+
 No-Regression Evidence: Python code-call resolver registration resolves
 declared-base classmethod calls using parser-emitted `bases` and class-scoped
 methods before weak repository-wide fallback. The focused reducer test for

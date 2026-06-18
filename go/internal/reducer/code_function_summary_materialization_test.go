@@ -21,8 +21,13 @@ func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryEffects(
 
 type recordingCodeFunctionSummaryWriter struct {
 	calls     int
+	previous  summary.Snapshot
 	snapshot  summary.Snapshot
 	updatedAt time.Time
+}
+
+func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (summary.Snapshot, error) {
+	return w.previous, nil
 }
 
 func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, snap summary.Snapshot, updatedAt time.Time) error {
@@ -76,6 +81,42 @@ func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 	}
 	if result.CanonicalWrites != 2 || result.Status != ResultStatusSucceeded {
 		t.Fatalf("result = %+v, want 2 canonical writes succeeded", result)
+	}
+}
+
+// TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot proves a
+// delta generation keeps unchanged callees in the versioning store before
+// persisting the updated caller snapshot.
+func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T) {
+	t.Parallel()
+
+	callerID := summary.FunctionID("repo-1\x1fpkg\x1f\x1fhandler")
+	calleeID := summary.FunctionID("repo-1\x1fpkg\x1f\x1fvalidate")
+	previousStore := summary.NewStore()
+	previousStore.Upsert(map[summary.FunctionID]summary.Effects{
+		calleeID: {ParamToSink: []summary.ParamSink{{Param: 0, SinkKind: "authz"}}},
+		callerID: {ParamToCallArg: []summary.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}}},
+	})
+	writer := &recordingCodeFunctionSummaryWriter{previous: previousStore.Snapshot()}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+			callerID: {
+				ParamToCallArg: []summary.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}},
+				SourceToReturn: []string{"http_request"},
+			},
+		}},
+		Writer: writer,
+	}
+
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+
+	if len(writer.snapshot.Functions) != 2 {
+		t.Fatalf("snapshot functions = %d, want previous callee plus updated caller", len(writer.snapshot.Functions))
+	}
+	if _, ok := summary.Load(writer.snapshot).Version(calleeID); !ok {
+		t.Fatalf("snapshot dropped unchanged callee %q", calleeID)
 	}
 }
 

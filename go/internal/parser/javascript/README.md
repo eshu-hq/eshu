@@ -91,6 +91,8 @@ exports, methods on CommonJS default-exported classes, Hapi handlers, Next.js
 route exports, Fastify route-object handlers, framework callbacks, TypeScript
 interface implementation methods, module-contract exports, and public API
 re-exports must remain grounded in syntax or bounded repository files.
+Receiver type metadata is likewise bounded to local syntax: constructor
+assignments, typed fields, typed parameters, and simple typed function returns.
 Function values passed as call or constructor arguments are emitted as
 reference evidence so worker processors and route-handler callbacks do not
 look unused only because the framework owns invocation. CommonJS default-export

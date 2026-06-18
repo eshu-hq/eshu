@@ -240,6 +240,8 @@ func appendRustFunction(
 			item["trait_context"] = rustBaseTypeName(implDetails.trait)
 			rustApplyRootKinds(item, []string{"rust.trait_impl_method"})
 		}
+	} else if traitName := rustNearestTraitName(node, source); traitName != "" {
+		item["trait_context"] = traitName
 	}
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
@@ -401,6 +403,16 @@ func rustNearestImplDetails(node *tree_sitter.Node, source []byte) rustImplBlock
 		return rustImplDetails(current, source)
 	}
 	return rustImplBlockDetails{}
+}
+
+func rustNearestTraitName(node *tree_sitter.Node, source []byte) string {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() != "trait_item" {
+			continue
+		}
+		return strings.TrimSpace(shared.NodeText(firstNamedDescendant(current, "type_identifier"), source))
+	}
+	return ""
 }
 
 func rustImplDetails(node *tree_sitter.Node, source []byte) rustImplBlockDetails {

@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -83,5 +84,114 @@ func TestExtractCodeCallRowsResolvesRustImplScopedCallsUsingImplContext(t *testi
 	}
 	if got, want := rows[0]["callee_file"], "impl_blocks.rs"; got != want {
 		t.Fatalf("callee_file = %#v, want %#v", got, want)
+	}
+}
+
+func TestExtractCodeCallRowsResolvesRustTraitBoundReceiverCalls(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-rust"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-rust",
+				"relative_path": "src/lib.rs",
+				"parsed_file_data": map[string]any{
+					"path": "src/lib.rs",
+					"functions": []any{
+						map[string]any{"uid": "fn-area", "name": "area", "line_number": 2, "end_line": 2, "lang": "rust", "trait_context": "Area"},
+						map[string]any{"uid": "fn-draw-area", "name": "area", "line_number": 6, "end_line": 6, "lang": "rust", "trait_context": "Draw"},
+						map[string]any{"uid": "fn-compare", "name": "compare", "line_number": 10, "end_line": 14, "lang": "rust", "where_predicates": []any{"T: Area"}},
+					},
+					"function_calls": []any{
+						map[string]any{"name": "area", "full_name": "shape.area", "line_number": 13, "lang": "rust", "inferred_obj_type": "T"},
+					},
+				},
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertCodeCallRow(t, rows, "fn-compare", "fn-area")
+	assertNoRustCodeCallRow(t, rows, "fn-compare", "fn-draw-area")
+	if got := resolutionMethodForCallee(t, rows, "fn-area"); got != codeprovenance.MethodTypeInferred {
+		t.Fatalf("resolution_method = %q, want %q", got, codeprovenance.MethodTypeInferred)
+	}
+}
+
+func TestExtractCodeCallRowsLeavesRustAmbiguousTraitBoundReceiverCallsUnresolved(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-rust"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-rust",
+				"relative_path": "src/lib.rs",
+				"parsed_file_data": map[string]any{
+					"path": "src/lib.rs",
+					"functions": []any{
+						map[string]any{"uid": "fn-area", "name": "area", "line_number": 2, "end_line": 2, "lang": "rust", "trait_context": "Area"},
+						map[string]any{"uid": "fn-surface-area", "name": "area", "line_number": 6, "end_line": 6, "lang": "rust", "trait_context": "Surface"},
+						map[string]any{"uid": "fn-compare", "name": "compare", "line_number": 10, "end_line": 14, "lang": "rust", "where_predicates": []any{"T: Area + Surface"}},
+					},
+					"function_calls": []any{
+						map[string]any{"name": "area", "full_name": "shape.area", "line_number": 13, "lang": "rust", "inferred_obj_type": "T"},
+					},
+				},
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertNoRustCodeCallRow(t, rows, "fn-compare", "fn-area")
+	assertNoRustCodeCallRow(t, rows, "fn-compare", "fn-surface-area")
+}
+
+func TestExtractCodeCallRowsLeavesRustAssociatedTypeBoundsUnresolved(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-rust"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-rust",
+				"relative_path": "src/lib.rs",
+				"parsed_file_data": map[string]any{
+					"path": "src/lib.rs",
+					"functions": []any{
+						map[string]any{"uid": "fn-area", "name": "area", "line_number": 2, "end_line": 2, "lang": "rust", "trait_context": "Area"},
+						map[string]any{"uid": "fn-compare", "name": "compare", "line_number": 10, "end_line": 14, "lang": "rust", "where_predicates": []any{"T::Item: Area"}},
+					},
+					"function_calls": []any{
+						map[string]any{"name": "area", "full_name": "shape.area", "line_number": 13, "lang": "rust", "inferred_obj_type": "T"},
+					},
+				},
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertNoRustCodeCallRow(t, rows, "fn-compare", "fn-area")
+}
+
+func assertNoRustCodeCallRow(t *testing.T, rows []map[string]any, callerID string, calleeID string) {
+	t.Helper()
+	for _, row := range rows {
+		if anyToString(row["caller_entity_id"]) == callerID && anyToString(row["callee_entity_id"]) == calleeID {
+			t.Fatalf("unexpected code-call row %s -> %s in %#v", callerID, calleeID, rows)
+		}
 	}
 }

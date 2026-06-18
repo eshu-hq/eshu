@@ -157,6 +157,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/indigo-net/Brf.it v0.21.0
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.21
