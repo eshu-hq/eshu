@@ -104,6 +104,28 @@ func TestVectorRetrievalDefaultUsesExactBaseline(t *testing.T) {
 	}
 }
 
+func TestVectorRetrievalApproximateFindsNearCrossDominantBucketVector(t *testing.T) {
+	t.Parallel()
+
+	docs := []searchdocs.Document{
+		doc("cross-bucket-best", "repo-1", "cross-best", "cross-best body"),
+		doc("same-bucket-weaker", "repo-1", "axis", "axis body"),
+	}
+	backend := Backend{Index: mustIndex(t, docs, Options{
+		Embedder:        fixedVectorEmbedder{dims: 2},
+		VectorRetrieval: VectorRetrievalApproximate,
+	})}
+	req := request("tilted-query", "repo-1", searchbench.ModeSemantic, 1)
+
+	candidates, err := backend.Search(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Search error = %v", err)
+	}
+	if got, want := strings.Join(candidateIDs(candidates), ","), "cross-bucket-best"; got != want {
+		t.Fatalf("approx ids = %s, want %s", got, want)
+	}
+}
+
 func TestVectorRetrievalSkipsMalformedDocumentVectors(t *testing.T) {
 	t.Parallel()
 

@@ -15,6 +15,7 @@ const (
 	DomainWorkloadDependency  = "workload_dependency"
 	DomainCodeCalls           = "code_calls"
 	DomainSQLRelationships    = "sql_relationships"
+	DomainShellExec           = "shell_exec"
 	DomainInheritanceEdges    = "inheritance_edges"
 	DomainDocumentationEdges  = "documentation_edges"
 	DomainRationaleEdges      = "rationale_edges"
@@ -120,7 +121,7 @@ type SharedProjectionAcceptanceKey struct {
 
 func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) {
 	switch domain {
-	case DomainCodeCalls, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships, DomainRationaleEdges:
+	case DomainCodeCalls, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships, DomainShellExec, DomainRationaleEdges:
 		// Functions commit at canonical-nodes. The CloudAction target is created
 		// inline by the same INVOKES_CLOUD_ACTION MERGE, so canonical-nodes is the
 		// only prerequisite phase: there is no cross-acceptance-unit dependency to

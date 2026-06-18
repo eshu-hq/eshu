@@ -32,13 +32,15 @@ handling does not rebuild a full corpus index. The response reports
 `indexed_document_count`, `corpus_limit`, and `corpus_may_be_truncated`;
 `corpus_limit=0` means there is no request-time corpus cap, while `limit` still
 bounds returned results.
-When `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` is set on API
-or MCP, `semantic` and `hybrid` requests load ready active-generation local
-vector metadata and payload rows for the repository scope. The stored vector
-identity must match the deterministic no-network hash embedder, active search
-document content hash, and vector index version before the route reports vector
-participation. Missing, stale, partial, rebuilding, failed, incompatible, or
-malformed vector state falls back to keyword candidates with an explicit
+When `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` is set on the
+reducer, it builds ready active-generation local vector metadata and payload
+rows for repository scopes with active search documents. When the same setting
+is set on API or MCP, `semantic` and `hybrid` requests load those rows for the
+repository scope. The stored vector identity must match the deterministic
+no-network hash embedder, active search document content hash, and vector index
+version before the route reports vector participation. Missing, stale, partial,
+rebuilding, failed, incompatible, or malformed vector state falls back to
+keyword candidates with an explicit
 `retrieval_state` / `vector_retrieval_state` instead of claiming semantic or
 hybrid participation. That local path is bounded by `corpus_limit=500` and is
 not a hosted-provider, graph-write, or external vector-store integration. Unset

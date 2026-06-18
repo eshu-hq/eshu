@@ -5,7 +5,8 @@
 This package owns the Python language adapter used by the parent parser engine.
 It turns Python source and notebook code cells into parser payload buckets for
 functions, classes, modules, variables, imports, calls, annotations, framework
-metadata, ORM table mappings, and dead-code root evidence.
+metadata, ORM table mappings, shell-exec call-site evidence, and dead-code root
+evidence.
 
 ## Python parse flow
 
@@ -15,7 +16,7 @@ flowchart LR
     Source[".py file or notebook code cells"]
     Config["SAM/serverless config scan"]
     Parse["python.Parse"]
-    Payload["functions, classes, imports, calls, routes, tables, roots"]
+    Payload["functions, classes, imports, calls, routes, tables, shell exec, roots"]
     Collector["collector materialization"]
 
     Parent --> Parse
@@ -52,6 +53,9 @@ The godoc contract is in doc.go.
   byte-identical when off.
 - PreScan reuses Parse for collector import-map discovery.
 - NotebookSource extracts executable Python code cells from notebook JSON.
+- The `embedded_shell_commands` bucket records import-backed `subprocess` and
+  `os.system` call sites with function, line, API, and language metadata only.
+  It does not retain command strings, arguments, or environment values.
 
 ## Dependencies
 

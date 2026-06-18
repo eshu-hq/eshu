@@ -19,8 +19,10 @@
 // that type literals are invocations. SQL
 // relationship rows may materialize as QUERIES_TABLE, TRIGGERS, EXECUTES, table
 // references, or column containment, with EXECUTES preserving trigger-bound
-// SqlFunction reachability for dead-code analysis. When reducer evidence includes endpoint
-// entity labels, EdgeWriter anchors code and SQL relationship writes on
+// SqlFunction reachability for dead-code analysis. Shell execution rows
+// materialize Function-[:EXECUTES_SHELL]->ShellCommand using structural
+// call-site metadata only; command text and arguments are not stored. When
+// reducer evidence includes endpoint entity labels, EdgeWriter anchors code and SQL relationship writes on
 // whitelisted exact labels such as Function, Class, File, Interface, Struct,
 // TypeAlias, SqlTrigger, SqlTable, and SqlFunction plus uid, and falls back to
 // the older label-family shape only for legacy rows with supported fallback

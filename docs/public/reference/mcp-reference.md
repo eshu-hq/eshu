@@ -40,7 +40,7 @@ families are:
 | Content and citations | `get_file_content`, `get_file_lines`, `get_entity_content`, `build_evidence_citation_packet`, `search_file_content`, `search_entity_content` |
 | Visualization packets | `derive_visualization_packet` |
 | Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations` |
-| CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_advisory_evidence`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
+| CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_advisory_evidence`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `get_vulnerability_scanner_read_contract`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
 | Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |
 | Semantic evidence and retrieval | `list_semantic_documentation_observations`, `list_semantic_code_hints`, `search_semantic_context` |
 | Runtime status | `list_collectors`, `list_ingesters`, `get_ingester_status`, `get_index_status`, `get_semantic_capability_status`, `get_answer_narration_status`, `get_capability_catalog`, `list_component_extensions`, `get_component_extension_diagnostics` |
@@ -171,3 +171,6 @@ kinds must preserve API/MCP parity before they are advertised as hydrated.
 - [MCP Guide](../guides/mcp-guide.md)
 - [HTTP API Reference](http-api.md)
 - [Truth Label Protocol](truth-label-protocol.md)
+- [Vulnerability Scanner Read Contract](vulnerability-scanner-read-contract.md)
+- [Hardcoded Secrets Investigation](hardcoded-secrets-investigation.md)
+- [Supply-Chain Traceability](../supply-chain-traceability.md)

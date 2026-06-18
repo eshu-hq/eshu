@@ -22,7 +22,9 @@
 // retraction or graph orphan cleanup. GraphOrphanSweepRunner marks and deletes
 // only aged zero-relationship graph nodes from a closed label set; it is a
 // safety cleanup after owned retractions, not a replacement for relationship or
-// source-local canonical cleanup. SupplyChainImpactHandler also evaluates
+// source-local canonical cleanup. SearchVectorBuildRunner builds only derived
+// local vector rows for active curated search documents and never writes graph
+// truth or calls hosted providers. SupplyChainImpactHandler also evaluates
 // vulnerability.suppression facts and writes the resulting VEX or operator
 // policy decision onto every impact finding; provider dismissals stay
 // evidence and never auto-hide findings. The handler also computes an
@@ -74,7 +76,10 @@
 // value-flow summaries, param sources, and FunctionID-to-graph-uid mappings.
 // ValueFlowProgramAssemblyRunner can assemble bounded Programs from active
 // CALLS, persisted summaries, and durable param-source rows without solving or
-// writing graph evidence. The fixpoint path loads graph-backed cloud sink
+// writing graph evidence. Shell execution materialization consumes parser
+// command-call facts and projects Function-[:EXECUTES_SHELL]->ShellCommand using
+// structural metadata only; command text and arguments never enter reducer
+// payloads or graph properties. The fixpoint path loads graph-backed cloud sink
 // targets from the closed exposure catalog, then runs the cross-repo fixpoint
 // projection through a distinct
 // reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence source so direct

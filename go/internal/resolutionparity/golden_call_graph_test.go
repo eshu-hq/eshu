@@ -17,7 +17,8 @@ import (
 func TestGoldenCallGraphCorrectnessHarness(t *testing.T) {
 	t.Parallel()
 
-	for _, fixture := range append(sourceCallGraphFixtures, importBindingCallGraphFixture()) {
+	fixtures := append(sourceCallGraphFixtures, importBindingCallGraphFixture(), javaImportBindingCallGraphFixture())
+	for _, fixture := range fixtures {
 		fixture := fixture
 		t.Run(fixture.language, func(t *testing.T) {
 			t.Parallel()
@@ -174,6 +175,50 @@ def helper():
 		uidByPath: map[string]string{
 			"lib_a.py:helper": "content-entity:python_import_binding:helper",
 			"lib_b.py:helper": "content-entity:python_import_binding:helper_decoy",
+		},
+	}
+}
+
+func javaImportBindingCallGraphFixture() goldenCallGraphFixture {
+	return goldenCallGraphFixture{
+		language: "java_import_binding",
+		files: map[string]string{
+			"example/Worker.java": `
+package example;
+
+import com.acme.Service;
+
+class Worker {
+  void caller(Service service) {
+    service.process(new Task());
+  }
+}
+`,
+			"com/acme/Service.java": `
+package com.acme;
+
+class Service {
+  void process(Task task) {}
+}
+
+class Task {}
+`,
+			"com/other/Service.java": `
+package com.other;
+
+class Service {
+  void process(Task task) {}
+}
+
+class Task {}
+`,
+		},
+		caller: "caller",
+		callee: "process",
+		method: codeprovenance.MethodImportBinding,
+		uidByPath: map[string]string{
+			"com/acme/Service.java:process":  "content-entity:java_import_binding:process",
+			"com/other/Service.java:process": "content-entity:java_import_binding:process_decoy",
 		},
 	}
 }

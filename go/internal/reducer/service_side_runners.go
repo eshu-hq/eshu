@@ -38,6 +38,9 @@ func (s Service) startSideRunners(
 	if s.CodeValueFlowStaleCleanupRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.CodeValueFlowStaleCleanupRunner)
 	}
+	if s.SearchVectorBuildRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.SearchVectorBuildRunner)
+	}
 }
 
 func startServiceSideRunner(

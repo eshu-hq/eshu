@@ -460,6 +460,18 @@ from unlabeled queries.
   metrics, or logs, and continues to rely on `searchretrieval.Runner`
   observations for operator-facing request duration, counts, truncation, and
   failure classes.
+- Issue #3043 in-process angular-LSH vector retrieval (2026-06-18): Benchmark
+  Evidence: `go test ./internal/searchhybrid -run '^$' -bench
+  BenchmarkBackendVectorRetrieval -benchmem -count=3` on Apple M4 Pro over the
+  same deterministic 10,000-document / 64-dimension synthetic corpus. Exact
+  cosine measured 37.54 / 33.70 / 38.02 ms/op, 2,036,176-2,036,184 B/op, and
+  282 allocs/op. The approximate path now uses deterministic multi-table
+  angular LSH with one-bit neighbor probing plus exact cosine rerank over ANN
+  candidates; it measured 16.71 / 17.85 / 19.41 ms/op, 1,092,306-1,092,312
+  B/op, and 197 allocs/op. This remains package-level synthetic evidence only. It
+  supports the explicitly enabled persisted local vector path and does not add a
+  hosted provider, external vector store, canonical graph write, or new runtime
+  telemetry surface.
 
 ## Recommendation
 

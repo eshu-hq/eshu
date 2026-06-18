@@ -41,7 +41,7 @@ const (
 // partition per repo, so they do not spread and are intentionally excluded.
 func domainHasRepoWideRetract(domain string) bool {
 	switch domain {
-	case DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships, DomainRationaleEdges:
+	case DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainInheritanceEdges, DomainSQLRelationships, DomainShellExec, DomainRationaleEdges:
 		return true
 	default:
 		return false

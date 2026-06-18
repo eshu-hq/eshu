@@ -6,7 +6,8 @@ This package owns the JavaScript-family parser adapter for JavaScript,
 TypeScript, and TSX. It reads source files through a caller-provided
 `ParserFactory`, builds the legacy parser payload buckets, annotates imports
 with tsconfig `resolved_source` evidence, and marks parser-proven dead-code
-roots from package, framework, module-contract, route, and public API evidence.
+roots from package, framework, module-contract, route, public API, and
+child_process shell-exec evidence.
 
 ## JavaScript-family parse flow
 
@@ -17,7 +18,7 @@ flowchart LR
     Source["JavaScript, TypeScript, or TSX source"]
     Resolver["tsconfig and package.json helpers"]
     Adapter["javascript.Parse"]
-    Payload["imports, calls, components, routes, roots, declarations"]
+    Payload["imports, calls, components, routes, shell exec, roots, declarations"]
     Collector["collector materialization"]
 
     Parent --> Factory
@@ -51,6 +52,10 @@ The godoc contract is in `doc.go`. Current exports are `ParserFactory`,
 `NewTSConfigImportResolver`, `TSConfigImportResolver.ResolveSource`,
 `TSConfigSourceCandidates`, `PackageFileRootKinds`, `NearestPackageRoot`, and
 `PackagePublicSourcePaths`, and `ExpressServerSymbols`.
+
+The `embedded_shell_commands` payload bucket records import-backed
+`child_process` calls with function, line, API, and language metadata only. It
+does not retain command strings, arguments, or environment values.
 
 ## Dependencies
 

@@ -43,6 +43,7 @@ nav:
     - Index Repositories: use/index-repositories.md
     - Ask Code Questions: use/code-questions.md
     - Trace Infrastructure: use/trace-infrastructure.md
+    - Supply-Chain Traceability: supply-chain-traceability.md
     - Starter Prompts: guides/starter-prompts.md
     - Explore Relationship Graphs: guides/relationship-graphs.md
     - Visualize Query Results: guides/visualization.md
@@ -193,6 +194,11 @@ nav:
     - Standalone Vulnerability Scanner Boundary: reference/standalone-vulnerability-scanner-boundary.md
     - Vulnerability Scanner Confidence Matrix: reference/vulnerability-scanner-confidence.md
     - Security Intelligence Source Coverage: reference/security-intelligence-source-coverage.md
+    - GitLab Gemnasium Integration: reference/gitlab-gemnasium-integration.md
+    - Vulnerability Scanner Read Contract: reference/vulnerability-scanner-read-contract.md
+    - Hardcoded Secrets Investigation: reference/hardcoded-secrets-investigation.md
+    - SARIF Export: reference/sarif-export.md
+    - Value-Flow Emission: reference/value-flow-emission.md
     - Story Missing Evidence Alignment: reference/story-missing-evidence.md
     - Dependency And Lockfile Coverage: reference/dependency-coverage.md
     - Runtime Admin API: reference/runtime-admin-api.md

@@ -30,6 +30,7 @@ func Parse(
 	payload["interfaces"] = []map[string]any{}
 	payload["structs"] = []map[string]any{}
 	payload["embedded_sql_queries"] = embeddedSQLQueryPayloads(string(source))
+	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(string(source))
 	root := tree.RootNode()
 	// Build the parent-lookup once per file so every helper that walks
 	// ancestors does so in amortized O(1) per step instead of paying
@@ -243,6 +244,24 @@ func embeddedSQLQueryPayloads(source string) []map[string]any {
 			"operation":            query.Operation,
 			"line_number":          query.LineNumber,
 			"api":                  query.API,
+		})
+	}
+	return payload
+}
+
+func embeddedShellCommandPayloads(source string) []map[string]any {
+	commands := EmbeddedShellCommands(source)
+	if len(commands) == 0 {
+		return []map[string]any{}
+	}
+	payload := make([]map[string]any, 0, len(commands))
+	for _, command := range commands {
+		payload = append(payload, map[string]any{
+			"function_name":        command.FunctionName,
+			"function_line_number": command.FunctionLineNumber,
+			"line_number":          command.LineNumber,
+			"api":                  command.API,
+			"language":             command.Language,
 		})
 	}
 	return payload

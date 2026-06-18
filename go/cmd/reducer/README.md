@@ -35,6 +35,7 @@ flowchart TB
   Build --> Retention["GenerationRetentionRunner\nbounded superseded-generation cleanup"]
   Build --> OrphanSweep["GraphOrphanSweepRunner\nbounded zero-relationship graph cleanup"]
   Build --> ValueFlowCleanup["CodeValueFlowStaleCleanupRunner\nbounded stale evidence cleanup"]
+  Build --> SearchVectorBuild["SearchVectorBuildRunner\nopt-in local search vector build"]
   Build --> SvcObj["reducer.Service"]
   SvcObj --> AdminSurface["app.NewHostedWithStatusServer\n/healthz /readyz /metrics /admin/status"]
   AdminSurface --> RunLoop["service.Run(ctx)\nblocks until SIGINT/SIGTERM"]
@@ -86,7 +87,8 @@ flowchart TB
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, the
    generation retention cleanup runner, the graph orphan cleanup runner, the
    value-flow stale evidence cleanup runner, the shared admission-decision
-   writer for mapped reducer admission outcomes, and the
+   writer for mapped reducer admission outcomes, the opt-in local
+   search-vector build runner, and the
    `postgres.NewReducerQueue`.
 6. `app.NewHostedWithStatusServer` — mounts the shared admin surface.
 7. `signal.NotifyContext` for `os.Interrupt` / `syscall.SIGTERM`.
@@ -246,6 +248,21 @@ never deferred, so the backlog cannot stall.
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | `100` | Active repository scopes scanned per cleanup cycle |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | `500` | Maximum stale evidence nodes or edges deleted per scope and evidence family in one Cypher statement |
 
+### Local semantic search vectors
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | When set to `hash` or `local_hash`, run the reducer side runner that builds deterministic no-network vector sidecar rows for active curated search documents. Unset leaves vector build disabled and keeps API/MCP semantic reads degraded until ready rows exist. |
+
+`SearchVectorBuildRunner` scans active repository scopes whose
+`reducer_eshu_search_document` facts do not have complete ready sidecar vector
+rows, then calls the shared search-vector builder with the deterministic local
+hash embedder. It writes only Postgres metadata/value rows keyed by model id,
+content hash, vector index version, scope, generation, and document id. It does
+not call hosted providers, configure credentials, write graph truth, or mark an
+external vector store ready. API and MCP still require their own
+`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` setting before they read those vectors.
+
 Default wiring guard: `go test ./cmd/reducer -run
 TestProductionWiringConsumesCapabilityDefaults -count=1` asserts that
 production config consumes capability-owned defaults instead of duplicating
@@ -320,12 +337,12 @@ The direct process contract includes `eshu-reducer --version` and
 - `internal/reducer` — `Service`, `DefaultHandlers`, all domain handler
   types, `SharedProjectionRunner`, `CodeCallProjectionRunner`,
   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`,
-  `GraphOrphanSweepRunner`
+  `GraphOrphanSweepRunner`, `SearchVectorBuildRunner`
 - `internal/storage/postgres` — `NewReducerQueue`, `InstrumentedDB`,
   `NewSharedIntentStore`, `NewGraphProjectionPhaseStateStore`,
   `NewGraphProjectionPhaseRepairQueueStore`, `NewGenerationRetentionStore`,
-  `NewAdmissionDecisionStore`, `NewReducerGraphDrain`, all fact/relationship
-  stores
+  `NewAdmissionDecisionStore`, `NewReducerGraphDrain`,
+  `NewEshuSearchVectorPendingStore`, all fact/relationship stores
 - `internal/storage/cypher` — `InstrumentedExecutor`, `NewEdgeWriter`,
   `NewOrphanSweepStore`
 - `internal/runtime` — `OpenPostgres`, `LoadGraphBackend`, retry policy
@@ -353,6 +370,10 @@ ESHU_POSTGRES_DSN.
 - Graph orphan sweep: `eshu_dp_graph_orphan_nodes` reports bounded
   zero-relationship node counts by closed `node_label`; cycle logs include
   lease acquisition, counts, marks, deletes, duration, and failure class.
+- Search vector build: opt-in local vector build cycles log scanned scopes,
+  attempted scopes, document counts, vector counts, failed documents, duration,
+  and `failure_class=search_vector_build_error` on build or pending scan
+  failures.
 - Admission decisions: mapped reducer domains persist bounded explainability
   rows in `admission_decisions` after their existing canonical writers succeed;
   the path adds no raw provider locators or graph writes.
@@ -377,6 +398,9 @@ ESHU_POSTGRES_DSN.
 - The projector drain gate (ESHU_QUERY_PROFILE=local-authoritative +
   ESHU_GRAPH_BACKEND=nornicdb) delays semantic-entity claims until
   source-local projectors have finished.
+- Local semantic/hybrid search needs the reducer build flag and API/MCP read
+  flag enabled independently. Enabling the reducer flag alone builds ready
+  sidecar rows but does not change public route behavior.
 - In that same local-authoritative NornicDB profile, `CodeCallProjectionRunner`
   is wired with `NewReducerGraphDrain` so code-call edge projection waits until
   reducer-owned graph domains have drained. Keep this as a scheduling gate, not

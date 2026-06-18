@@ -67,6 +67,11 @@ func (w *EdgeWriter) groupBatchSizeForDomain(domain string) int {
 			return 0
 		}
 		return w.SQLRelationshipGroupBatchSize
+	case reducer.DomainShellExec:
+		if w.SQLRelationshipGroupBatchSize <= 0 {
+			return 0
+		}
+		return w.SQLRelationshipGroupBatchSize
 	default:
 		return 0
 	}
@@ -238,6 +243,8 @@ func batchCypherForDomain(domain string) (string, error) {
 		return batchCanonicalRationaleExplainsEdgeCypher, nil
 	case reducer.DomainSQLRelationships:
 		return batchCanonicalSQLRelationshipUpsertCypher, nil
+	case reducer.DomainShellExec:
+		return batchCanonicalShellExecUpsertCypher, nil
 	case reducer.DomainDeployableUnitEdges:
 		return batchCanonicalDeployableUnitCorrelationUpsertCypher, nil
 	case reducer.DomainHandlesRoute:
@@ -358,6 +365,9 @@ func buildRowMap(
 
 	case reducer.DomainSQLRelationships:
 		return buildSQLRelationshipRowMap(row.Payload, evidenceSource)
+
+	case reducer.DomainShellExec:
+		return buildShellExecRowMap(row.Payload, evidenceSource)
 
 	case reducer.DomainDeployableUnitEdges:
 		return buildDeployableUnitCorrelationRowMap(row.Payload, evidenceSource)

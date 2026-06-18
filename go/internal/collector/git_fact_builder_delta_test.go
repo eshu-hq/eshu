@@ -190,7 +190,7 @@ func TestBuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot(t *testi
 	}
 }
 
-func TestBuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta(t *testing.T) {
+func TestBuildStreamingGenerationDeltaEmitsShellExecFollowupOnly(t *testing.T) {
 	t.Parallel()
 
 	repoPath := t.TempDir()
@@ -200,10 +200,17 @@ func TestBuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta(t *testin
 	snapshot.DeltaRelativePaths = []string{"app.py"}
 
 	collected := buildStreamingGeneration(repoPath, repo, "run-delta", time.Now().UTC(), snapshot, false)
+	var followups []facts.Envelope
 	for _, envelope := range drainFactChannel(collected.Facts) {
 		if envelope.FactKind == "shared_followup" {
-			t.Fatalf("delta generation emitted repo-wide reducer follow-up: %#v", envelope.Payload)
+			followups = append(followups, envelope)
 		}
+	}
+	if len(followups) != 1 {
+		t.Fatalf("delta generation emitted %d shared followups, want only shell exec: %#v", len(followups), followups)
+	}
+	if got, want := followups[0].Payload["reducer_domain"], "shell_exec_materialization"; got != want {
+		t.Fatalf("delta followup domain = %v, want %v; payload = %#v", got, want, followups[0].Payload)
 	}
 }
 

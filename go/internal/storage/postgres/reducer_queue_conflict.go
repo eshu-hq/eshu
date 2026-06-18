@@ -116,6 +116,7 @@ func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 	case reducer.DomainCodeCallMaterialization,
 		reducer.DomainSemanticEntityMaterialization,
 		reducer.DomainSQLRelationshipMaterialization,
+		reducer.DomainShellExecMaterialization,
 		reducer.DomainInheritanceMaterialization:
 		return reducerConflictDomainCodeGraph, scopeKey
 	case reducer.DomainWorkloadIdentity,

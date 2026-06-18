@@ -108,6 +108,9 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if service.CodeReachabilityProjectionRunner == nil {
 		t.Fatal("buildReducerService() code reachability projection runner = nil, want non-nil")
 	}
+	if service.SearchVectorBuildRunner != nil {
+		t.Fatal("buildReducerService() search vector build runner = non-nil, want disabled by default")
+	}
 	if service.CodeReachabilityProjectionRunner.InputLoader == nil {
 		t.Fatal("buildReducerService() code reachability input loader = nil, want non-nil")
 	}
@@ -171,6 +174,35 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	}
 	if got := service.GraphProjectionPhaseRepairer.Config.RetryDelay; got <= 0 {
 		t.Fatalf("buildReducerService() graph projection repair retry delay = %v, want positive", got)
+	}
+}
+
+func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalEmbedderEnabled(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeReducerDB{}
+	service, err := buildReducerService(
+		db,
+		stubGraphExecutor{},
+		stubCypherExecutor{},
+		postgres.NewSharedIntentStore(db),
+		stubCypherReader{},
+		stubCypherReader{},
+		func(key string) string {
+			if key == envSemanticSearchLocalEmbedder {
+				return "hash"
+			}
+			return ""
+		},
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildReducerService() error = %v, want nil", err)
+	}
+	if service.SearchVectorBuildRunner == nil {
+		t.Fatal("buildReducerService() search vector build runner = nil, want enabled local vector builder")
 	}
 }
 

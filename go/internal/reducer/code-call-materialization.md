@@ -79,7 +79,16 @@ reducer adds type-signature candidates such as
 `configureBootJarTask(BootJar,TaskProvider)` before falling back to broader
 names. That lets class-literal typed Gradle lambdas and helper-call return
 values resolve overloaded callback methods without treating every same-name
-overload as reached.
+overload as reached. When the receiver type is imported, the Java resolver
+checks the parser import row and the repository prescan import map before
+repo-wide fallback, then resolves the method only inside the imported class
+file. Ambiguous same-name classes in other packages stay unresolved unless an
+explicit import binds the receiver to exactly one file. Duplicate source roots
+for the same imported class stay unresolved instead of picking the first path;
+fully qualified receiver declarations must agree with the import source before
+they can use this shortcut, so `com.other.Service service` is not rebound to
+`import com.acme.Service`.
+successful imported receiver matches are recorded as `import_binding`.
 
 Parser rows with `call_kind=java.method_reference` resolve method-reference
 syntax such as `this::configureTask` to same-class methods and materialize as
@@ -169,3 +178,9 @@ and observability evidence for this change is recorded in `README.md`.
 No-Regression Evidence: `go test ./internal/reducer -run 'TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions|TestExtractCodeCallRowsResolvesCrossRepo|TestCodeCallDefinitionSymbolKeysIgnoreGenerationFields' -count=1` failed before the production handler loaded active cross-scope definition facts, then passed after definition rows supplied stable symbol keys and calls matched those keys before repo-unique fallback. `go test ./internal/storage/postgres -run TestFactStoreLoadActiveCodeCallSymbolDefinitionFacts -count=1` proves the Postgres loader is active-generation, non-tombstone, file-kind, symbol-allowlist, and keyset-page bounded. Ambiguous symbol keys with more than one target are deliberately not indexed, preserving the existing unique-or-unresolved rule.
 
 Observability Evidence: the existing `code call materialization completed` log now includes stable symbol key count, active definition fact count, and active symbol-definition load duration beside the existing fact count, repository count, row counts, and load/extract/intent/upsert timings. The change adds no metric instrument, metric label, span, route, runtime knob, queue table, or graph backend branch.
+
+## Java imported receiver resolution (issue #3004)
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestResolveGenericCalleeUsesJava(ImportedReceiverBeforeAmbiguousRepoName|ReceiverTypeBeforeRepoUniqueName)|TestResolveGenericCalleeLeavesAmbiguousJavaImportedReceiverUnresolved|TestExtractCodeCallRowsResolvesJava' -count=1` failed before Java imported receiver calls could beat ambiguous repository-wide same-name candidates and before duplicate import-bound class files stayed unresolved, then passed after the Java resolver used parser import rows plus the existing prescan `imports_map` to bind `inferred_obj_type` to one imported class file. `go test ./internal/reducer -run 'TestResolveGenericCallee(LeavesDuplicateJavaImportBindingUnresolvedBeforeMethodLookup|DoesNotBindQualifiedJavaReceiverToConflictingImport)' -count=1` proves duplicate import-bound class files block weak fallback before method lookup and qualified receiver declarations do not bind to conflicting same-leaf imports. `go test ./internal/parser/java -run TestParseEmitsQualifiedJavaReceiverType -count=1` proves the parser preserves qualified receiver evidence for that reducer guard. `go test ./internal/resolutionparity -run 'TestGoldenCallGraphCorrectnessHarness/java_import_binding|TestResolutionTierGoldens' -count=1` proves the source-derived Java fixture emits the exact imported target as `import_binding` and the existing tier distribution remains stable.
+
+No-Observability-Change: Java imported receiver resolution is an in-memory resolver branch over the existing per-call parsed import rows, prescan import map, and code entity index. It adds no graph query, graph write shape, queue table, worker, lease, batch setting, runtime knob, metric instrument, metric label, span, route, or log key. Operators still diagnose code-call extraction through the existing `code call materialization completed` log fields and reducer execution spans/counters.

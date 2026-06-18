@@ -22,7 +22,11 @@ Kubernetes-correlation, and security-group reachability domains stay blocked
 behind a hashed `resource_scope` fallback while their handlers still load,
 write, or retract whole scope generations. Queue conflict keys must not store
 raw provider locators, paths, credential-shaped values, provider payload
-excerpts, or IP address-shaped values.
+excerpts, or IP address-shaped values. The buyer-facing version of this
+promotion line, including the AWS-first cloud posture statement and the
+gated/roadmap surfaces, lives in the
+[roadmap promotion-readiness tables](../roadmap.md#promotion-readiness) and the
+[Supply-Chain Traceability](../supply-chain-traceability.md) entry point.
 
 ## Current Contract
 

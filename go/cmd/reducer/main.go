@@ -39,6 +39,10 @@ func buildReducerService(
 	}
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
+	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
@@ -179,6 +183,7 @@ func buildReducerService(
 		// refresh intent to the shared intent acceptance writer, and the partitioned
 		// runner + #2898 refresh fence project them.
 		SQLRelationshipIntentWriter: repoDependencyIntentWriter,
+		ShellExecIntentWriter:       repoDependencyIntentWriter,
 		// Rationale EXPLAINS edges ride the same shared-projection intent path
 		// (#2869): the promoted handler emits file-scoped per-edge intents plus a
 		// per-repo refresh intent to the shared intent acceptance writer, and the
@@ -437,6 +442,7 @@ func buildReducerService(
 		GenerationRetentionRunner:       generationRetentionRunner,
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
+		SearchVectorBuildRunner:         searchVectorBuildRunner,
 		Workers:                         workers,
 		BatchClaimSize:                  loadReducerBatchClaimSize(getenv, workers, graphBackend),
 		Tracer:                          tracer,
