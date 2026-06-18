@@ -393,6 +393,23 @@ durable queue/status rows, and Postgres query duration metrics. It adds no route
 graph query shape, new metric instrument, new metric label key, span, lease,
 runtime knob, or log key.
 
+No-Regression Evidence: TypeScript interface-typed receiver resolution indexes
+parser-proven `implemented_interfaces` class rows and class-context method rows,
+then resolves only when exactly one local implementation method exists. `go test
+./internal/parser -run TestDefaultEngineParsePathTypeScriptParameterReceiverCalls
+-count=1` failed before typed function parameters produced `inferred_obj_type`;
+`go test ./internal/reducer -run
+'TestExtractCodeCallRowsResolvesTypeScriptInterfaceTypedReceiver|TestExtractCodeCallRowsLeavesTypeScript(AmbiguousInterfaceReceiver|ExternalInterfaceReceiver)Unresolved'
+-count=1` failed before the resolver connected the interface receiver, then
+passed while keeping two-implementation ambiguity and external interfaces
+unresolved.
+
+No-Observability-Change: the TypeScript resolver only reclassifies existing
+code-call row emission to `type_inferred` when parser metadata proves one target.
+It adds no graph query, queue, worker, lease, batch, runtime knob, metric
+instrument, metric label key, span, route, status field, or log key; operators
+still inspect existing code-call intent rows and materialization completion logs.
+
 No-Regression Evidence: Rust trait-bound receiver resolution registers a
 language resolver before weak repository-wide fallback and indexes only unique
 trait declaration methods. The focused parser test failed before trait

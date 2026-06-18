@@ -1,20 +1,21 @@
 package reducer
 
 type codeEntityIndex struct {
-	entitiesByPathLine      map[string]string
-	spansByPath             map[string][]codeFunctionSpan
-	containersByPath        map[string][]codeFunctionSpan
-	uniqueNameByPath        map[string]map[string]string
-	uniqueNameByRepo        map[string]map[string]string
-	uniqueNameByRepoDir     map[string]map[string]map[string]string
-	constructorByPath       map[string]map[string]string
-	goMethodReturnTypes     map[string]map[string]string
-	rustTraitMethodsByRepo  map[string]map[string]string
-	pythonClassBasesByRepo  map[string]map[string][]string
-	entityFileByID          map[string]string
-	entityTypeByID          map[string]string
-	entityByStableSymbolKey map[string]codeCallSymbolResolution
-	javaScriptAliasesByPath map[string][]javaScriptStaticAliasSpan
+	entitiesByPathLine               map[string]string
+	spansByPath                      map[string][]codeFunctionSpan
+	containersByPath                 map[string][]codeFunctionSpan
+	uniqueNameByPath                 map[string]map[string]string
+	uniqueNameByRepo                 map[string]map[string]string
+	uniqueNameByRepoDir              map[string]map[string]map[string]string
+	constructorByPath                map[string]map[string]string
+	goMethodReturnTypes              map[string]map[string]string
+	rustTraitMethodsByRepo           map[string]map[string]string
+	pythonClassBasesByRepo           map[string]map[string][]string
+	entityFileByID                   map[string]string
+	entityTypeByID                   map[string]string
+	entityByStableSymbolKey          map[string]codeCallSymbolResolution
+	javaScriptAliasesByPath          map[string][]javaScriptStaticAliasSpan
+	typeScriptInterfaceMethodsByRepo map[string]map[string]map[string]string
 	// goExportByImportPath maps a Go package import path to the exported
 	// top-level functions defined for it across every repository in the
 	// generation. It anchors cross-repo package-export resolution: a key is the

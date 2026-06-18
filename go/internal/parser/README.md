@@ -130,9 +130,9 @@ JavaScript-family adapters also preserve import alias metadata, CommonJS
 `resolved_source` metadata through the JavaScript helper subpackage even when
 the config uses comments or trailing commas, returned and constructor-argument
 function-value references, static relative re-export metadata, constructor
-calls, and local receiver type metadata from
-`const value = new Type()` so reducer call materialization can resolve bounded
-cross-file calls.
+calls, and local receiver type metadata from `const value = new Type()` and
+typed parameters so reducer call materialization can resolve bounded cross-file
+calls.
 JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
 the wrapper and dbt SQL lineage callback, while the child package owns
 ordered-object metadata, dependency manifests, npm/Composer/NuGet/SwiftPM
