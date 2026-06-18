@@ -153,7 +153,17 @@ func Parse(
 				"line_number": nodeLine(node),
 				"lang":        "go",
 			}
-			goAnnotateCallMetadata(item, node, functionNode, source, importAliases, localReceiverBindings, awsSDKServiceBindings, lookup)
+			goAnnotateCallMetadata(
+				item,
+				node,
+				functionNode,
+				source,
+				importAliases,
+				localNameBindings,
+				localReceiverBindings,
+				awsSDKServiceBindings,
+				lookup,
+			)
 			shared.AppendBucket(payload, "function_calls", item)
 		case "composite_literal":
 			name := goCompositeLiteralTypeName(node.ChildByFieldName("type"), source)
@@ -270,6 +280,7 @@ func goAnnotateCallMetadata(
 	functionNode *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
+	localNameBindings []goLocalNameBinding,
 	localReceiverBindings []goLocalReceiverBinding,
 	awsSDKServiceBindings []goLocalReceiverBinding,
 	lookup *goParentLookup,
@@ -278,6 +289,9 @@ func goAnnotateCallMetadata(
 	if receiverIdentifier == "" {
 		goAnnotateCallChainMetadata(item, callNode, functionNode, source, localReceiverBindings)
 		return
+	}
+	if receiverIsImportAlias && goNameIsLocallyBound(receiverIdentifier, nodeLine(callNode), localNameBindings) {
+		receiverIsImportAlias = false
 	}
 
 	item["receiver_identifier"] = receiverIdentifier

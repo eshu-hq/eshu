@@ -117,6 +117,77 @@ func main() {
 	}
 }
 
+func TestGoPackageQualifiedCallsOmitStableSymbolKeyForShadowedImportAlias(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "main.go")
+	writeTestFile(t, filePath, `package main
+
+import client "github.com/acme/lib/client"
+
+type localClient struct{}
+
+func (localClient) Request() {}
+
+func handle(client localClient) {
+	client.Request()
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoPackageImportPath: "github.com/acme/app"})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	call := goFunctionCallRowByFullName(t, got, "client.Request")
+	if _, present := call["stable_symbol_key"]; present {
+		t.Fatalf("stable_symbol_key present for shadowed import alias: %+v", call)
+	}
+	if got, ok := call["receiver_is_import_alias"].(bool); !ok || got {
+		t.Fatalf("receiver_is_import_alias = %#v, want false; call=%+v", call["receiver_is_import_alias"], call)
+	}
+}
+
+func TestGoPackageQualifiedCallsOmitStableSymbolKeyForLocallyShadowedImportAlias(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "main.go")
+	writeTestFile(t, filePath, `package main
+
+import client "github.com/acme/lib/client"
+
+type localClient struct{}
+
+func (localClient) Request() {}
+
+func handle() {
+	client := localClient{}
+	client.Request()
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoPackageImportPath: "github.com/acme/app"})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	call := goFunctionCallRowByFullName(t, got, "client.Request")
+	if _, present := call["stable_symbol_key"]; present {
+		t.Fatalf("stable_symbol_key present for locally shadowed import alias: %+v", call)
+	}
+	if got, ok := call["receiver_is_import_alias"].(bool); !ok || got {
+		t.Fatalf("receiver_is_import_alias = %#v, want false; call=%+v", call["receiver_is_import_alias"], call)
+	}
+}
+
 func TestGoPackageSemanticRootsDeriveNestedModuleImportPath(t *testing.T) {
 	t.Parallel()
 
