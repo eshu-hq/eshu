@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -27,7 +28,11 @@ func TestBuildFunctionSummariesReadsBucket(t *testing.T) {
 			},
 		},
 	}}
-	summaries := buildFunctionSummaries(parsed)
+	entities := []content.EntityRecord{
+		{EntityID: "uid-view", Path: "src/handler.go", EntityType: "Function", EntityName: "view"},
+		{EntityID: "uid-query", Path: "src/handler.go", EntityType: "Function", EntityName: "query"},
+	}
+	summaries := buildFunctionSummaries("/repo", parsed, entities)
 	if len(summaries) != 2 {
 		t.Fatalf("want 2 summaries, got %d: %+v", len(summaries), summaries)
 	}
@@ -39,8 +44,14 @@ func TestBuildFunctionSummariesReadsBucket(t *testing.T) {
 	if len(query.ParamToSink) != 1 || query.ParamToSink[0]["sink_kind"] != "sql" {
 		t.Fatalf("query param_to_sink not read: %+v", query)
 	}
+	if query.GraphUID != "uid-query" {
+		t.Fatalf("query graph uid not resolved: %+v", query)
+	}
 	if len(byID["repo-1\x1fpkg\x1f\x1fview"].SourceToReturn) != 1 {
 		t.Fatalf("view source_to_return not read: %+v", byID["repo-1\x1fpkg\x1f\x1fview"])
+	}
+	if byID["repo-1\x1fpkg\x1f\x1fview"].GraphUID != "uid-view" {
+		t.Fatalf("view graph uid not resolved: %+v", byID["repo-1\x1fpkg\x1f\x1fview"])
 	}
 }
 

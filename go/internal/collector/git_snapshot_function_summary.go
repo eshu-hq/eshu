@@ -1,8 +1,10 @@
 package collector
 
 import (
+	"path/filepath"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -19,6 +21,7 @@ const functionSummaryFactKind = "code_function_summary"
 // entity-uid resolution is needed.
 type FunctionSummarySnapshot struct {
 	FunctionID     string           `json:"function_id"`
+	GraphUID       string           `json:"graph_uid,omitempty"`
 	Language       string           `json:"language,omitempty"`
 	ParamToReturn  []any            `json:"param_to_return,omitempty"`
 	ParamToSink    []map[string]any `json:"param_to_sink,omitempty"`
@@ -27,20 +30,38 @@ type FunctionSummarySnapshot struct {
 }
 
 // buildFunctionSummaries reads each parsed file's dataflow_summaries bucket and
-// returns one snapshot per function. Empty when the parser emitted no summaries
-// (the value-flow gate is off, or no RepositoryID was supplied), so the snapshot
-// is byte-identical when value-flow emission is disabled.
-func buildFunctionSummaries(parsedFiles []map[string]any) []FunctionSummarySnapshot {
+// returns one snapshot per function. Each function's graph Function uid is
+// resolved here — where the entities and the parse payload are co-located —
+// against the function's (relative path, receiver, name), so the cross-repo
+// fixpoint can project findings as TAINT_FLOWS_TO edges by uid without
+// re-resolving names. A function whose uid cannot be resolved still carries its
+// summary (the FunctionID is durable); only the graph projection needs the uid.
+// Empty when the parser emitted no summaries, so the snapshot is byte-identical
+// when value-flow emission is disabled.
+func buildFunctionSummaries(repoPath string, parsedFiles []map[string]any, entities []content.EntityRecord) []FunctionSummarySnapshot {
+	resolve := newFunctionUIDResolver(entities)
 	var summaries []FunctionSummarySnapshot
 	for _, parsedFile := range parsedFiles {
 		rows, _ := parsedFile["dataflow_summaries"].([]map[string]any)
+		if len(rows) == 0 {
+			continue
+		}
+		relativePath, err := filepath.Rel(repoPath, snapshotPayloadString(parsedFile, "path"))
+		if err != nil {
+			relativePath = ""
+		} else {
+			relativePath = filepath.ToSlash(filepath.Clean(relativePath))
+		}
 		for _, row := range rows {
 			functionID := snapshotPayloadString(row, "function_id")
 			if functionID == "" {
 				continue
 			}
+			receiver, name := functionIDReceiverName(functionID)
+			uid, _ := resolve(relativePath, receiver, name)
 			summary := FunctionSummarySnapshot{
 				FunctionID: functionID,
+				GraphUID:   uid,
 				Language:   snapshotPayloadString(row, "lang", "language"),
 			}
 			if v, ok := row["param_to_return"].([]any); ok {
@@ -77,6 +98,9 @@ func functionSummaryFactEnvelope(
 		"graph_kind":  functionSummaryFactKind,
 		"function_id": summary.FunctionID,
 		"repo_id":     repoID,
+	}
+	if summary.GraphUID != "" {
+		payload["graph_uid"] = summary.GraphUID
 	}
 	if summary.Language != "" {
 		payload["language"] = summary.Language

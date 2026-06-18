@@ -253,6 +253,17 @@ worker, queue, or batch. The `contentFactEnvelope`/`contentEntityFactEnvelope`
 move into `git_content_fact_envelopes.go` is a pure extraction (no behavior
 change) to keep `git_fact_builder.go` under the file-size cap.
 
+`buildFunctionSummaries` additionally resolves each function's graph `Function`
+uid (carried on the `code_function_summary` fact as `graph_uid`) so the cross-repo
+fixpoint can project findings as `TAINT_FLOWS_TO` edges by uid. The resolution
+reuses the same `(relative path, receiver, name)` entity match the per-file
+interproc-evidence path uses: `buildInterprocTaintEvidence`'s inline resolver was
+extracted to the shared `newFunctionUIDResolver` (a pure refactor —
+`TestBuildInterprocTaintEvidence*` is unchanged) and both call it, so both paths
+resolve uids identically. An unresolved uid leaves `graph_uid` empty; the summary
+still persists (only the graph projection needs it). This adds no fact, no graph
+write, and no new instrument — it only populates a field on an existing fact.
+
 No-Observability-Change: the summary facts flow through the existing `streamFacts`
 channel and Postgres fact persistence; they add no metric instrument, metric
 label, span, worker, queue domain, lease, runtime knob, or log key. Operators
