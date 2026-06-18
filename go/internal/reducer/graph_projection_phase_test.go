@@ -129,19 +129,29 @@ func TestGraphProjectionPhaseRepairValidateRejectsBlankPhase(t *testing.T) {
 func TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls(t *testing.T) {
 	t.Parallel()
 
-	phase, gated := sharedProjectionReadinessPhase(DomainCodeCalls)
-	if !gated {
-		t.Fatal("gated = false, want true")
-	}
-	if got, want := phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
-		t.Fatalf("phase = %q, want %q", got, want)
+	// inheritance_edges joins this set (#2867): its :Class targets commit at
+	// canonical-nodes. Gating it on semantic-nodes stalls projection because that
+	// phase is published only when the semantic-entity reducer runs.
+	for _, domain := range []string{DomainCodeCalls, DomainInheritanceEdges} {
+		domain := domain
+		t.Run(domain, func(t *testing.T) {
+			t.Parallel()
+
+			phase, gated := sharedProjectionReadinessPhase(domain)
+			if !gated {
+				t.Fatal("gated = false, want true")
+			}
+			if got, want := phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+				t.Fatalf("phase = %q, want %q", got, want)
+			}
+		})
 	}
 }
 
 func TestSharedProjectionReadinessPhaseUsesSemanticNodesForSemanticEdgeDomains(t *testing.T) {
 	t.Parallel()
 
-	tests := []string{DomainSQLRelationships, DomainInheritanceEdges}
+	tests := []string{DomainSQLRelationships, DomainDocumentationEdges, DomainRationaleEdges}
 	for _, domain := range tests {
 		domain := domain
 		t.Run(domain, func(t *testing.T) {

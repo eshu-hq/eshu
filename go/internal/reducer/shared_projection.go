@@ -120,13 +120,21 @@ type SharedProjectionAcceptanceKey struct {
 
 func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) {
 	switch domain {
-	case DomainCodeCalls, DomainInvokesCloudAction:
+	case DomainCodeCalls, DomainInvokesCloudAction, DomainInheritanceEdges:
 		// Functions commit at canonical-nodes. The CloudAction target is created
 		// inline by the same INVOKES_CLOUD_ACTION MERGE, so canonical-nodes is the
 		// only prerequisite phase: there is no cross-acceptance-unit dependency to
 		// wait on the way HANDLES_ROUTE waits on Endpoint materialization (#2723).
+		//
+		// inheritance_edges connects :Class canonical code entities, which commit at
+		// canonical-nodes too (#2867). It must NOT gate on semantic-nodes: that phase
+		// is published only when the semantic-entity reducer runs, which does not
+		// happen for every repo, so gating inheritance on it stalls projection
+		// forever even though the class nodes already exist (confirmed by a remote
+		// run: canonical_nodes_committed matched the intent's acceptance key exactly
+		// while semantic_nodes_committed was never published).
 		return GraphProjectionPhaseCanonicalNodesCommitted, true
-	case DomainSQLRelationships, DomainInheritanceEdges, DomainDocumentationEdges, DomainRationaleEdges:
+	case DomainSQLRelationships, DomainDocumentationEdges, DomainRationaleEdges:
 		return GraphProjectionPhaseSemanticNodesCommitted, true
 	case DomainHandlesRoute, DomainRunsIn:
 		// Endpoints (handles_route) and Workloads (runs_in) both commit at

@@ -2636,6 +2636,15 @@ path. The per-statement edge summary now reports `relationship=IMPLEMENTS`, and
 the existing inheritance materialization spans, edge batch counters, and graph
 query-duration metrics expose the writes with no new metric instrument or label.
 
+Promotion note (#2867): inheritance edges (INHERITS/IMPLEMENTS/OVERRIDES/ALIASES)
+are no longer written directly by the handler. `InheritanceMaterializationHandler`
+now emits durable shared-projection intents — one per-repo whole-scope refresh
+intent that owns the retract plus one write-only per-edge intent under an
+edge-unique file-scoped partition key — and the partitioned shared-projection
+runner projects them through the #2898 refresh fence. The retract Cypher and edge
+templates are unchanged; only the path that reaches them moved. See
+`shared-projection.md` (SQL and inheritance domains).
+
 ## EXPLAINS edges (#2230)
 
 `RationaleEdgeMaterializationHandler` (domain `rationale_materialization`)

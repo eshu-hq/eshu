@@ -43,6 +43,13 @@ type DefaultHandlers struct {
 	// and Python metaclass materialization.
 	CodeCallIntentWriter CodeCallIntentWriter
 
+	// InheritanceIntentWriter persists durable shared-intent rows for inheritance
+	// edge materialization (#2867). The promoted InheritanceMaterializationHandler
+	// emits file-scoped per-edge intents plus a per-repo refresh intent instead of
+	// writing canonical edges directly, so the partitioned runner and the #2898
+	// refresh fence project them.
+	InheritanceIntentWriter InheritanceIntentWriter
+
 	// GraphProjectionPhasePublisher persists durable graph-readiness publications
 	// for canonical and semantic node writers.
 	GraphProjectionPhasePublisher GraphProjectionPhasePublisher
@@ -58,11 +65,6 @@ type DefaultHandlers struct {
 	// (REFERENCES_TABLE, HAS_COLUMN, TRIGGERS) from reducer-owned SQL entity
 	// metadata.
 	SQLRelationshipEdgeWriter SharedProjectionEdgeWriter
-
-	// InheritanceEdgeWriter writes canonical INHERITS, OVERRIDES, and ALIASES
-	// edges from reducer-owned parser entity bases and trait adaptation
-	// metadata.
-	InheritanceEdgeWriter SharedProjectionEdgeWriter
 
 	// DocumentationEdgeWriter writes canonical DOCUMENTS edges from reducer-owned
 	// exact documentation entity mentions.

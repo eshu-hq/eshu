@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -34,13 +35,24 @@ var inheritanceContentEntityTypes = []string{
 	"Function",
 }
 
+// InheritanceIntentWriter persists durable shared-projection intents for
+// inheritance edge materialization (#2867). The promoted handler emits intents
+// instead of writing edges directly so the #2755 partitioned runner projects
+// them under file-scoped partition keys and the #2898 refresh fence owns the
+// single per-repo retract.
+type InheritanceIntentWriter interface {
+	UpsertIntents(ctx context.Context, rows []SharedProjectionIntentRow) error
+}
+
 // InheritanceMaterializationHandler reduces one inheritance follow-up into
-// canonical INHERITS, OVERRIDES, and ALIASES edge writes using parser entity
-// bases and PHP trait adaptation metadata.
+// durable shared-projection intent emission for INHERITS, IMPLEMENTS, OVERRIDES,
+// and ALIASES edges using parser entity bases and PHP trait adaptation metadata.
+// Each repository gets one whole-scope refresh intent that owns the retract, and
+// each edge gets a write-only per-edge intent under a file-scoped partition key
+// fenced behind that refresh (#2867).
 type InheritanceMaterializationHandler struct {
-	FactLoader           FactLoader
-	EdgeWriter           SharedProjectionEdgeWriter
-	PriorGenerationCheck PriorGenerationCheck
+	FactLoader   FactLoader
+	IntentWriter InheritanceIntentWriter
 }
 
 // Handle executes the inheritance materialization path.
@@ -57,8 +69,8 @@ func (h InheritanceMaterializationHandler) Handle(
 	if h.FactLoader == nil {
 		return Result{}, fmt.Errorf("inheritance materialization fact loader is required")
 	}
-	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("inheritance materialization edge writer is required")
+	if h.IntentWriter == nil {
+		return Result{}, fmt.Errorf("inheritance materialization intent writer is required")
 	}
 
 	slog.InfoContext(ctx, "inheritance materialization started",
@@ -75,7 +87,8 @@ func (h InheritanceMaterializationHandler) Handle(
 	deltaScope := buildInheritanceDeltaScope(envelopes)
 	repoIDs, rows := ExtractInheritanceRows(envelopes)
 	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
-	if len(repoIDs) == 0 {
+	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	if len(repoIDs) == 0 || len(contextByRepoID) == 0 {
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainInheritanceMaterialization,
@@ -84,43 +97,23 @@ func (h InheritanceMaterializationHandler) Handle(
 		}, nil
 	}
 
-	skipRetract, err := h.shouldSkipInheritanceRetract(ctx, intent)
-	if err != nil {
-		return Result{}, err
-	}
-	if skipRetract {
-		slog.InfoContext(ctx, "inheritance materialization skipped first-generation retract",
-			slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-			slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-			slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
-		)
-	} else {
-		if err := h.EdgeWriter.RetractEdges(
-			ctx,
-			DomainInheritanceEdges,
-			buildInheritanceRetractRows(repoIDs, deltaScope),
-			inheritanceEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical inheritance edges: %w", err)
-		}
+	createdAt := intent.EnqueuedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
 	}
 
-	writeRows := buildInheritanceIntentRows(rows)
-	if len(writeRows) > 0 {
-		if err := h.EdgeWriter.WriteEdges(
-			ctx,
-			DomainInheritanceEdges,
-			writeRows,
-			inheritanceEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("write canonical inheritance edges: %w", err)
+	intentRows := buildInheritanceSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, createdAt)
+	if len(intentRows) > 0 {
+		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
+			return Result{}, fmt.Errorf("write inheritance intents: %w", err)
 		}
 	}
 
 	slog.InfoContext(ctx, "inheritance materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.Int("edge_count", len(writeRows)),
+		slog.Int("intent_count", len(intentRows)),
+		slog.Int("edge_count", len(rows)),
 		slog.Int("repo_count", len(repoIDs)),
 	)
 
@@ -129,23 +122,12 @@ func (h InheritanceMaterializationHandler) Handle(
 		Domain:   DomainInheritanceMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical inheritance edges across %d repositories",
-			len(writeRows),
+			"emitted %d durable inheritance intents across %d repositories",
+			len(intentRows),
 			len(repoIDs),
 		),
-		CanonicalWrites: len(writeRows),
+		CanonicalWrites: len(intentRows),
 	}, nil
-}
-
-func (h InheritanceMaterializationHandler) shouldSkipInheritanceRetract(ctx context.Context, intent Intent) (bool, error) {
-	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
-		return false, nil
-	}
-	hasPrior, err := h.PriorGenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		return false, fmt.Errorf("check prior generation for inheritance retract: %w", err)
-	}
-	return !hasPrior, nil
 }
 
 // ExtractInheritanceRows builds canonical child/parent edge rows from content
@@ -203,7 +185,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 			}
 			seenEdges[edgeKey] = struct{}{}
 
-			rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "INHERITS"))
+			rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "INHERITS"))
 		}
 
 		if _, implementer := implementerEntityTypes[entityType]; implementer {
@@ -222,7 +204,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "IMPLEMENTS"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "IMPLEMENTS"))
 			}
 		}
 
@@ -243,7 +225,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "OVERRIDES"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "OVERRIDES"))
 			}
 
 			for _, aliasedTrait := range inheritanceTraitAliasTargets(adaptation) {
@@ -258,7 +240,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "ALIASES"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "ALIASES"))
 			}
 
 			aliasMapping, ok := inheritanceTraitAliasMapping(adaptation)
@@ -286,7 +268,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 			}
 			seenEdges[edgeKey] = struct{}{}
 
-			rows = append(rows, declaredInheritanceRow(childMethod.id, childMethod.entityType, parentMethod, repoID, "ALIASES"))
+			rows = append(rows, declaredInheritanceRow(childMethod.id, childMethod.entityType, childMethod.path, parentMethod, repoID, "ALIASES"))
 		}
 	}
 
@@ -317,11 +299,17 @@ type inheritanceMethodIndexKey struct {
 type inheritanceEntityRef struct {
 	id         string
 	entityType string
+	// path is the repo-qualified file path of the entity, captured so the
+	// promoted shared-projection path can place each edge under a file-scoped
+	// partition key and so the file-scoped delta retract (which keys on
+	// child.path) can target exactly the changed files (#2867).
+	path string
 }
 
 func declaredInheritanceRow(
 	childEntityID string,
 	childEntityType string,
+	childPath string,
 	parent inheritanceEntityRef,
 	repoID string,
 	relationshipType string,
@@ -329,6 +317,7 @@ func declaredInheritanceRow(
 	return map[string]any{
 		"child_entity_id":    childEntityID,
 		"child_entity_type":  childEntityType,
+		"child_path":         childPath,
 		"parent_entity_id":   parent.id,
 		"parent_entity_type": parent.entityType,
 		"repo_id":            repoID,
@@ -358,7 +347,11 @@ func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceInde
 		key := inheritanceIndexKey{repoID: repoID, name: entityName}
 		// First-seen wins; duplicates are ignored for matching purposes.
 		if _, exists := index[key]; !exists {
-			index[key] = inheritanceEntityRef{id: entityID, entityType: entityType}
+			index[key] = inheritanceEntityRef{
+				id:         entityID,
+				entityType: entityType,
+				path:       semanticPayloadString(env.Payload, "path"),
+			}
 		}
 	}
 	return index
@@ -386,7 +379,11 @@ func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMeth
 			name:         entityName,
 		}
 		if _, exists := index[key]; !exists {
-			index[key] = inheritanceEntityRef{id: entityID, entityType: "Function"}
+			index[key] = inheritanceEntityRef{
+				id:         entityID,
+				entityType: "Function",
+				path:       semanticPayloadString(env.Payload, "path"),
+			}
 		}
 	}
 	return index
@@ -419,21 +416,4 @@ func collectInheritanceRepoIDs(envelopes []facts.Envelope) []string {
 // metadata in a content_entity fact payload.
 func inheritancePayloadBases(payload map[string]any) []string {
 	return semanticPayloadMetadataStringSlice(payload, "bases")
-}
-
-// buildInheritanceIntentRows converts extracted edge rows into shared
-// projection intent rows.
-func buildInheritanceIntentRows(rows []map[string]any) []SharedProjectionIntentRow {
-	intents := make([]SharedProjectionIntentRow, 0, len(rows))
-	for _, row := range rows {
-		childID := anyToString(row["child_entity_id"])
-		parentID := anyToString(row["parent_entity_id"])
-		intents = append(intents, SharedProjectionIntentRow{
-			ProjectionDomain: DomainInheritanceEdges,
-			PartitionKey:     childID + "->" + parentID,
-			RepositoryID:     anyToString(row["repo_id"]),
-			Payload:          copyPayload(row),
-		})
-	}
-	return intents
 }
