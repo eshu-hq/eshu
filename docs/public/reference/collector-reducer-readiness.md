@@ -243,6 +243,65 @@ Collection bugs belong in collectors or workflow planning. Truth bugs belong in
 reducers, graph projection, or read-model stores. Operator visibility bugs
 belong in status, telemetry, or runtime wiring.
 
+### Vulnerability Intelligence Promotion Proof
+
+The `eshu-collector-vulnerability-intelligence` lane is remote-E2E-gated until a
+live run records `promotion_state: implemented` for it in the machine-readable
+report above. This is the lane-specific procedure to drive and record that
+proof; it specializes the generic steps for the four sources (CISA KEV, FIRST
+EPSS, OSV, NVD). Tracking issue:
+[#3014](https://github.com/eshu-hq/eshu/issues/3014).
+
+1. Bring up the stack with the collector enabled and its targets configured.
+   KEV, EPSS, and OSV collect against their public endpoints (or a configured
+   mirror/offline artifact). NVD is rate-limited: configure an NVD API key, or
+   run KEV/EPSS/OSV live and treat NVD as key-gated and record it as such — do
+   not silently skip it.
+2. Per source, confirm source-truth facts in Postgres by `collector_kind`,
+   `fact_kind`, scope, and active generation, and record the fact count.
+3. Confirm `vulnerability.source_snapshot` cache freshness is visible through
+   `get_capability_catalog` and the readiness API, and that
+   `vulnerability_source_states` is populated and surfaced through status /
+   API / MCP readiness (target freshness, checkpoint, retry state).
+4. Confirm reducer queues drain to zero with no dead letters.
+5. Confirm an end-to-end path: a published CVE joins owned package/manifest/
+   lockfile/image/SBOM evidence and surfaces as a published impact finding
+   through `list_supply_chain_impact_findings` / `explain_supply_chain_impact`
+   — not from CVSS, EPSS, KEV, or product-only CPEs alone.
+6. Read `collector_promotion_proofs` for the vulnerability-intelligence family
+   from `/admin/status` and confirm `promotion_state: implemented`.
+
+#### Recorded live run (2026-06-18)
+
+Isolated minimal stack (project `eshu-3014-vulnproof`), live collection of
+CVE-2021-44228 / Maven `log4j-core` 2.14.1 targets. KEV, EPSS, OSV collected
+against their public endpoints; NVD ran key-gated (no API key configured — a
+single CVE-by-ID lookup stayed inside the anonymous-tier rate limit). All four
+`vulnerability_source_states` rows reached `terminal_status = succeeded` with no
+error class; the four `vulnerability_intelligence` workflow work items completed
+(0 pending/failed); `graph_projection_phase_repair_queue` depth 0.
+
+| Source | Target | Fact count (live) | Source-state | Work-item drain | Readiness surface | Promotion state |
+| --- | --- | --- | --- | --- | --- | --- |
+| CISA KEV | `vuln-intel://cisa/kev` | 1623 `vulnerability.known_exploited` | `succeeded`, no retry error | completed | `collector-readiness` = `partial` | source-truth proven |
+| FIRST EPSS | `vuln-intel://first/epss` | 1 `vulnerability.epss_score` | `succeeded`, no retry error | completed | `collector-readiness` = `partial` | source-truth proven |
+| OSV | `vuln-intel://osv/maven/log4j-core` | 14 `vulnerability.affected_package` + 8 `vulnerability.cve` | `succeeded`, no retry error | completed | `collector-readiness` = `partial` | source-truth proven |
+| NVD | `vuln-intel://nvd/cve` | 395 `vulnerability.affected_product` (+215 `vulnerability.reference`) | `succeeded` key-gated (anonymous tier) | completed | `collector-readiness` = `partial` | source-truth proven |
+| `vulnerability.source_snapshot` | all four sources | 4 (one per source) | surfaced via `vulnerability_source_states` | n/a | readiness API | source-truth proven |
+| CVE → impact end-to-end | CVE-2021-44228 | 0 published findings | n/a | n/a | impact read returns no finding | **not yet** — owned-package evidence required |
+
+**Reading:** live source collection from all four feeds is proven, with
+per-source freshness/retry state, fact counts, source snapshots, and clean
+work-item drain. The lane's `collector-readiness` promotion state is **`partial`,
+not `implemented`**: a *published* CVE→impact finding requires owned
+package/manifest/lockfile/image/SBOM evidence for the affected package, which a
+source-only stack does not carry. The impact read therefore returns no finding —
+the correct, honest outcome (Eshu does not promote from advisory truth alone).
+Flipping the lane to `implemented` requires re-running with owned-package
+evidence (a repository declaring `org.apache.logging.log4j:log4j-core` 2.14.1)
+so the OSV advisory joins it into a published impact finding. Until that
+end-to-end run is recorded, the lane stays remote-E2E-gated.
+
 ## Maintainer Details
 
 Implementation details live with the owning packages:
