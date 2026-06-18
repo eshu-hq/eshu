@@ -22,6 +22,9 @@ const (
 	// DomainCodeTaintEvidence projects value-flow taint findings into graph
 	// evidence nodes attached to their Function.
 	DomainCodeTaintEvidence Domain = "code_taint_evidence"
+	// DomainCodeInterprocEvidence projects cross-function value-flow findings into
+	// TAINT_FLOWS_TO edges between the source and sink Function nodes.
+	DomainCodeInterprocEvidence Domain = "code_interproc_evidence"
 	// DomainOwnership resolves ownership and responsibility records.
 	DomainOwnership Domain = "ownership"
 	// DomainGovernance resolves governance and policy attribution.

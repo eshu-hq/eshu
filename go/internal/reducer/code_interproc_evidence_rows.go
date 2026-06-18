@@ -1,0 +1,65 @@
+package reducer
+
+import (
+	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// CodeInterprocEvidenceInput is one resolved cross-function value-flow finding
+// loaded for a scope generation: a finding whose source and sink functions the
+// collector already joined to their Function entity uids.
+type CodeInterprocEvidenceInput struct {
+	SourceFunctionUID  string
+	SinkFunctionUID    string
+	RelativePath       string
+	SourceFunctionName string
+	SinkFunctionName   string
+	Language           string
+	SinkKind           string
+	SourceKind         string
+	Confidence         float64
+	Cloud              bool
+}
+
+// ExtractCodeInterprocEvidenceRows projects cross-function findings into
+// deterministic graph edge rows. A finding missing either endpoint uid is dropped
+// (no edge to draw). Rows are keyed by a generation-independent edge uid so
+// reprojection is idempotent, and sorted by uid for byte-stable output.
+func ExtractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput) []map[string]any {
+	rows := make([]map[string]any, 0, len(inputs))
+	for _, in := range inputs {
+		if in.SourceFunctionUID == "" || in.SinkFunctionUID == "" {
+			continue
+		}
+		rows = append(rows, map[string]any{
+			"uid":                  codeInterprocEvidenceUID(in),
+			"source_function_uid":  in.SourceFunctionUID,
+			"sink_function_uid":    in.SinkFunctionUID,
+			"relative_path":        in.RelativePath,
+			"source_function_name": in.SourceFunctionName,
+			"sink_function_name":   in.SinkFunctionName,
+			"language":             in.Language,
+			"sink_kind":            in.SinkKind,
+			"source_kind":          in.SourceKind,
+			"confidence":           in.Confidence,
+			"cloud":                in.Cloud,
+		})
+	}
+	sort.Slice(rows, func(a, b int) bool {
+		return anyToString(rows[a]["uid"]) < anyToString(rows[b]["uid"])
+	})
+	return rows
+}
+
+// codeInterprocEvidenceUID derives the generation-independent identity of one
+// cross-function flow: the source and sink function uids plus the sink and source
+// kinds. Distinct flows between the same pair (different kinds) get distinct uids.
+func codeInterprocEvidenceUID(in CodeInterprocEvidenceInput) string {
+	return facts.StableID("CodeInterprocEvidence", map[string]any{
+		"source_function_uid": in.SourceFunctionUID,
+		"sink_function_uid":   in.SinkFunctionUID,
+		"sink_kind":           in.SinkKind,
+		"source_kind":         in.SourceKind,
+	})
+}

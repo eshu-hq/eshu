@@ -1,0 +1,152 @@
+package reducer
+
+import (
+	"context"
+	"testing"
+)
+
+type recordingCodeInterprocEvidenceWriter struct {
+	writeCalls      int
+	writtenRows     []map[string]any
+	writeScopeID    string
+	writeEvidence   string
+	retractCalls    int
+	retractScopeIDs []string
+	retractEvidence string
+}
+
+func (w *recordingCodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
+	_ context.Context, rows []map[string]any, scopeID, _ string, evidenceSource string,
+) error {
+	w.writeCalls++
+	w.writtenRows = append(w.writtenRows, rows...)
+	w.writeScopeID = scopeID
+	w.writeEvidence = evidenceSource
+	return nil
+}
+
+func (w *recordingCodeInterprocEvidenceWriter) RetractCodeInterprocEvidence(
+	_ context.Context, scopeIDs []string, _ string, evidenceSource string,
+) error {
+	w.retractCalls++
+	w.retractScopeIDs = append(w.retractScopeIDs, scopeIDs...)
+	w.retractEvidence = evidenceSource
+	return nil
+}
+
+type stubCodeInterprocEvidenceLoader struct {
+	inputs []CodeInterprocEvidenceInput
+}
+
+func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]CodeInterprocEvidenceInput, error) {
+	return l.inputs, nil
+}
+
+func codeInterprocEvidenceIntent() Intent {
+	return Intent{
+		IntentID:     "intent-interproc-1",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       DomainCodeInterprocEvidence,
+	}
+}
+
+func sampleCodeInterprocInput() CodeInterprocEvidenceInput {
+	return CodeInterprocEvidenceInput{
+		SourceFunctionUID: "func-source", SinkFunctionUID: "func-sink",
+		RelativePath: "src/handler.go", SourceFunctionName: "readRequest",
+		SinkFunctionName: "execQuery", Language: "go", SinkKind: "sql",
+		SourceKind: "http_request", Confidence: 0.7, Cloud: true,
+	}
+}
+
+// TestCodeInterprocEvidenceHandlerRetractsThenWrites proves the handler retracts
+// the prior generation (when one exists) and writes the projected edge rows.
+func TestCodeInterprocEvidenceHandlerRetractsThenWrites(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingCodeInterprocEvidenceWriter{}
+	handler := CodeInterprocEvidenceMaterializationHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+		Writer:               writer,
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+	}
+
+	result, err := handler.Handle(context.Background(), codeInterprocEvidenceIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if writer.retractCalls != 1 || writer.retractEvidence != codeInterprocEvidenceSource {
+		t.Fatalf("retract = %d calls (evidence %q), want 1 with reducer/code-interproc", writer.retractCalls, writer.retractEvidence)
+	}
+	if writer.writeCalls != 1 || len(writer.writtenRows) != 1 {
+		t.Fatalf("write = %d calls, %d rows, want 1/1", writer.writeCalls, len(writer.writtenRows))
+	}
+	row := writer.writtenRows[0]
+	if row["source_function_uid"] != "func-source" || row["sink_function_uid"] != "func-sink" || row["uid"] == "" {
+		t.Fatalf("row not projected with source/sink uid + edge uid: %+v", row)
+	}
+	if result.CanonicalWrites != 1 || result.Status != ResultStatusSucceeded {
+		t.Fatalf("result = %+v, want 1 canonical write succeeded", result)
+	}
+}
+
+// TestCodeInterprocEvidenceHandlerSkipsRetractOnFirstGeneration proves the
+// retract is skipped when there is no prior generation.
+func TestCodeInterprocEvidenceHandlerSkipsRetractOnFirstGeneration(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingCodeInterprocEvidenceWriter{}
+	handler := CodeInterprocEvidenceMaterializationHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+		Writer:               writer,
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
+	}
+	if _, err := handler.Handle(context.Background(), codeInterprocEvidenceIntent()); err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if writer.retractCalls != 0 {
+		t.Fatalf("retract called %d times on first generation, want 0", writer.retractCalls)
+	}
+	if writer.writeCalls != 1 {
+		t.Fatalf("write = %d calls, want 1", writer.writeCalls)
+	}
+}
+
+// TestCodeInterprocEvidenceHandlerRejectsWrongDomain proves the handler refuses
+// an intent for another domain.
+func TestCodeInterprocEvidenceHandlerRejectsWrongDomain(t *testing.T) {
+	t.Parallel()
+
+	handler := CodeInterprocEvidenceMaterializationHandler{
+		Loader: stubCodeInterprocEvidenceLoader{},
+		Writer: &recordingCodeInterprocEvidenceWriter{},
+	}
+	intent := codeInterprocEvidenceIntent()
+	intent.Domain = DomainDataLineage
+	if _, err := handler.Handle(context.Background(), intent); err == nil {
+		t.Fatal("Handle accepted a non-interproc domain")
+	}
+}
+
+// TestExtractCodeInterprocEvidenceRowsDropsUnresolvedAndIsIdempotent proves a
+// finding missing either endpoint uid is dropped and the edge uid is stable
+// across runs.
+func TestExtractCodeInterprocEvidenceRowsDropsUnresolvedAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	missingSink := sampleCodeInterprocInput()
+	missingSink.SinkFunctionUID = ""
+	missingSource := sampleCodeInterprocInput()
+	missingSource.SourceFunctionUID = ""
+	rows := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{
+		sampleCodeInterprocInput(), missingSink, missingSource,
+	})
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row (both unresolved dropped), got %d", len(rows))
+	}
+	again := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{sampleCodeInterprocInput()})
+	if rows[0]["uid"] != again[0]["uid"] {
+		t.Fatalf("edge uid not stable across runs: %v vs %v", rows[0]["uid"], again[0]["uid"])
+	}
+}
