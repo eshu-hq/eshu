@@ -159,17 +159,17 @@ func importBindingCallGraphFixture() goldenCallGraphFixture {
 		language: "python_import_binding",
 		files: map[string]string{
 			"app.py": `
-from lib_a import helper
+from lib_a import helper as renamed
 
 def caller():
-    return helper()
+    return renamed()
 `,
 			"lib_a.py": `
 def helper():
     return "a"
 `,
 			"lib_b.py": `
-def helper():
+def renamed():
     return "b"
 `,
 		},
@@ -177,8 +177,8 @@ def helper():
 		callee: "helper",
 		method: codeprovenance.MethodImportBinding,
 		uidByPath: map[string]string{
-			"lib_a.py:helper": "content-entity:python_import_binding:helper",
-			"lib_b.py:helper": "content-entity:python_import_binding:helper_decoy",
+			"lib_a.py:helper":  "content-entity:python_import_binding:helper",
+			"lib_b.py:renamed": "content-entity:python_import_binding:helper_decoy",
 		},
 	}
 }

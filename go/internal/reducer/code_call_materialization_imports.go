@@ -82,7 +82,10 @@ func codeCallPrefersImportedQualifiedTarget(call map[string]any, language string
 }
 
 func codeCallPrefersImportedTargetBeforeRepoFallback(call map[string]any, language string) bool {
-	return codeCallJavaScriptFamily(language) && !codeCallHasQualifiedFullName(anyToString(call["full_name"]))
+	if codeCallHasQualifiedFullName(anyToString(call["full_name"])) {
+		return false
+	}
+	return codeCallJavaScriptFamily(language) || language == "python"
 }
 
 func codeCallHasRepositoryImportedTargetBinding(
