@@ -231,16 +231,27 @@ progress messages.
   since each upserts by its `FunctionID`). The reducer reconstructs the `Effects`
   and persists them to the function-summary store for cross-repo composition.
   Empty (and byte-identical) when the gate is off.
+- `FunctionSourceSnapshot` — one function's param-level value-flow taint source
+  read from the parser's `dataflow_sources` bucket (the entry points the
+  cross-repo fixpoint needs as source ports). Populated only when the parser
+  emits `dataflow_sources`; `streamFacts` emits each as a `code_function_source`
+  fact, keyed idempotently on `(FunctionID, param index)`. The reducer persists
+  them to the function-source store. Empty (and byte-identical) when off.
 
-No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary' -count=1`
-proves `buildFunctionSummaries` reads the `dataflow_summaries` bucket into
-per-function snapshots and that `streamFacts` emits one `code_function_summary`
-fact per function, counted in `FactCount`, keyed idempotently on the `FunctionID`.
-It is one extra fact per summarized function only when the off-by-default
-value-flow gate is on; no new Cypher, graph write, worker, queue, or batch. The
-`contentFactEnvelope`/`contentEntityFactEnvelope` move into
-`git_content_fact_envelopes.go` is a pure extraction (no behavior change) to keep
-`git_fact_builder.go` under the file-size cap.
+No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary|FunctionSource' -count=1`,
+`go test ./internal/storage/postgres -run 'FunctionSource' -count=1`, and
+`go test ./internal/reducer -run 'CodeFunctionSummary' -count=1` prove
+`buildFunctionSummaries`/`buildFunctionSources` read the `dataflow_summaries` and
+`dataflow_sources` buckets into per-function snapshots; that `streamFacts` emits
+one `code_function_summary` fact per function and one `code_function_source` fact
+per source, counted in `FactCount`, keyed idempotently; that the function-summary
+reducer handler persists the summaries (and, when wired, the sources) to the
+durable Postgres stores; and that the new `function_sources` bootstrap schema is
+ordered and mirrored on disk. It is one extra fact per summarized function/source
+only when the off-by-default value-flow gate is on; no new Cypher, graph write,
+worker, queue, or batch. The `contentFactEnvelope`/`contentEntityFactEnvelope`
+move into `git_content_fact_envelopes.go` is a pure extraction (no behavior
+change) to keep `git_fact_builder.go` under the file-size cap.
 
 No-Observability-Change: the summary facts flow through the existing `streamFacts`
 channel and Postgres fact persistence; they add no metric instrument, metric

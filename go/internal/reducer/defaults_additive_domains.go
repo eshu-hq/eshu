@@ -425,9 +425,11 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	if handlers.CodeFunctionSummaryLoader != nil && handlers.CodeFunctionSummaryWriter != nil {
 		codeFunctionSummary := codeFunctionSummaryDomainDefinition()
 		codeFunctionSummary.Handler = CodeFunctionSummaryMaterializationHandler{
-			Loader:      handlers.CodeFunctionSummaryLoader,
-			Writer:      handlers.CodeFunctionSummaryWriter,
-			Instruments: handlers.Instruments,
+			Loader:       handlers.CodeFunctionSummaryLoader,
+			Writer:       handlers.CodeFunctionSummaryWriter,
+			SourceLoader: handlers.CodeFunctionSourceLoader,
+			SourceWriter: handlers.CodeFunctionSourceWriter,
+			Instruments:  handlers.Instruments,
 		}
 		definitions = append(definitions, codeFunctionSummary)
 	}

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
@@ -47,7 +48,7 @@ func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 	t.Parallel()
 
 	loader := stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
-		summary.FunctionID("repo-1\x1fpkg\x1f\x1fview"): {SourceToReturn: []string{"http_request"}},
+		summary.FunctionID("repo-1\x1fpkg\x1f\x1fview"):  {SourceToReturn: []string{"http_request"}},
 		summary.FunctionID("repo-1\x1fpkg\x1f\x1fquery"): {ParamToSink: []summary.ParamSink{{Param: 0, SinkKind: "sql"}}},
 	}}
 	writer := &recordingCodeFunctionSummaryWriter{}
@@ -123,5 +124,58 @@ func TestNewDefaultRegistryAcceptsCodeFunctionSummaryWhenWired(t *testing.T) {
 	}
 	if _, ok := def.Handler.(CodeFunctionSummaryMaterializationHandler); !ok {
 		t.Fatalf("handler type = %T, want CodeFunctionSummaryMaterializationHandler", def.Handler)
+	}
+}
+
+type stubCodeFunctionSourceLoader struct {
+	sources []interproc.Source
+}
+
+func (l stubCodeFunctionSourceLoader) LoadCodeFunctionSources(context.Context, string, string) ([]interproc.Source, error) {
+	return l.sources, nil
+}
+
+type recordingCodeFunctionSourceWriter struct {
+	calls   int
+	sources []interproc.Source
+}
+
+func (w *recordingCodeFunctionSourceWriter) UpsertSources(_ context.Context, sources []interproc.Source, _ time.Time) error {
+	w.calls++
+	w.sources = sources
+	return nil
+}
+
+// TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired proves the handler also
+// persists param-level sources when the optional source loader/writer are set.
+func TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired(t *testing.T) {
+	t.Parallel()
+	srcWriter := &recordingCodeFunctionSourceWriter{}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{},
+		Writer: &recordingCodeFunctionSummaryWriter{},
+		SourceLoader: stubCodeFunctionSourceLoader{sources: []interproc.Source{
+			{Port: interproc.Port{Func: "repo-1\x1fpkg\x1f\x1fhandle", Slot: interproc.Slot{Kind: interproc.SlotParam, Index: 0}}, Kind: "http_request"},
+		}},
+		SourceWriter: srcWriter,
+	}
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle error: %v", err)
+	}
+	if srcWriter.calls != 1 || len(srcWriter.sources) != 1 || srcWriter.sources[0].Kind != "http_request" {
+		t.Fatalf("sources not persisted: %+v", srcWriter)
+	}
+}
+
+// TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired proves source persistence
+// is skipped (no panic) when the optional source loader/writer are absent.
+func TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired(t *testing.T) {
+	t.Parallel()
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{},
+		Writer: &recordingCodeFunctionSummaryWriter{},
+	}
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle error: %v", err)
 	}
 }

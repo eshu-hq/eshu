@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -45,15 +46,36 @@ type CodeFunctionSummaryWriter interface {
 	UpsertSnapshot(ctx context.Context, snap summary.Snapshot, updatedAt time.Time) error
 }
 
+// CodeFunctionSourceLoader loads the param-level value-flow taint sources emitted
+// for one scope generation as interproc source ports.
+type CodeFunctionSourceLoader interface {
+	LoadCodeFunctionSources(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+	) ([]interproc.Source, error)
+}
+
+// CodeFunctionSourceWriter persists the param-level taint sources to the durable
+// store. It is satisfied by postgres.FunctionSourceStore.
+type CodeFunctionSourceWriter interface {
+	UpsertSources(ctx context.Context, sources []interproc.Source, updatedAt time.Time) error
+}
+
 // CodeFunctionSummaryMaterializationHandler persists one generation's function
 // summaries: it loads the raw Effects, recomputes their content versions through
 // a summary.Store, and upserts the resulting snapshot. The upsert is idempotent
 // on FunctionID, so re-running a generation converges rather than duplicating.
+// When the optional source loader/writer are wired it also persists that
+// generation's param-level taint sources, which the cross-repo fixpoint needs as
+// entry points alongside the summaries.
 type CodeFunctionSummaryMaterializationHandler struct {
-	Loader      CodeFunctionSummaryLoader
-	Writer      CodeFunctionSummaryWriter
-	Now         func() time.Time
-	Instruments *telemetry.Instruments
+	Loader       CodeFunctionSummaryLoader
+	Writer       CodeFunctionSummaryWriter
+	SourceLoader CodeFunctionSourceLoader
+	SourceWriter CodeFunctionSourceWriter
+	Now          func() time.Time
+	Instruments  *telemetry.Instruments
 }
 
 // Handle executes one function-summary persistence intent.
@@ -77,8 +99,21 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 	store.Upsert(effects)
 	snap := store.Snapshot()
 
-	if err := h.Writer.UpsertSnapshot(ctx, snap, h.now()); err != nil {
+	now := h.now()
+	if err := h.Writer.UpsertSnapshot(ctx, snap, now); err != nil {
 		return Result{}, fmt.Errorf("persist code function summaries: %w", err)
+	}
+
+	sourceCount := 0
+	if h.SourceLoader != nil && h.SourceWriter != nil {
+		sources, err := h.SourceLoader.LoadCodeFunctionSources(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("load code function sources: %w", err)
+		}
+		if err := h.SourceWriter.UpsertSources(ctx, sources, now); err != nil {
+			return Result{}, fmt.Errorf("persist code function sources: %w", err)
+		}
+		sourceCount = len(sources)
 	}
 
 	slog.Info(
@@ -86,6 +121,7 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
 		"function_count", len(snap.Functions),
+		"source_count", sourceCount,
 	)
 
 	return Result{

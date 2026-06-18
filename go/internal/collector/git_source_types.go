@@ -104,6 +104,11 @@ type RepositorySnapshot struct {
 	// composition. Empty unless the parser emitted dataflow_summaries (gated by
 	// ESHU_EMIT_DATAFLOW and a supplied RepositoryID); byte-identical when off.
 	FunctionSummaries []FunctionSummarySnapshot `json:"function_summaries,omitempty"`
+	// FunctionSources carries each function's param-level value-flow taint sources
+	// read from the parser's dataflow_sources bucket. The reducer persists them as
+	// interproc source ports for the cross-repo fixpoint. Empty unless the parser
+	// emitted dataflow_sources; byte-identical when off.
+	FunctionSources []FunctionSourceSnapshot `json:"function_sources,omitempty"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved
