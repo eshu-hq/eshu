@@ -49,6 +49,16 @@ func (s NativeRepositorySelector) SelectRepositories(
 	if err != nil {
 		return SelectionBatch{}, err
 	}
+	repositoryIDs := filterRepositoryIDsByShard(selection.RepositoryIDs, s.Config)
+	if s.Config.RepoShardCount > 1 && s.Logger != nil {
+		s.Logger.InfoContext(ctx, "collector repository shard selected",
+			slog.String("collector_kind", "git"),
+			slog.Int("repo_shard_count", s.Config.RepoShardCount),
+			slog.Int("repo_shard_index", s.Config.RepoShardIndex),
+			slog.Int("repository_count", len(repositoryIDs)),
+			slog.Int("discovered_repository_count", len(selection.RepositoryIDs)),
+		)
+	}
 
 	switch s.Config.SourceMode {
 	case "filesystem":
@@ -56,7 +66,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		if syncFilesystemFn == nil {
 			syncFilesystemFn = syncFilesystemRepositories
 		}
-		repoPaths, err := syncFilesystemFn(ctx, s.Config, selection.RepositoryIDs)
+		repoPaths, err := syncFilesystemFn(ctx, s.Config, repositoryIDs)
 		if err != nil {
 			return SelectionBatch{}, err
 		}
@@ -76,7 +86,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 				})
 			}
 		}
-		synced, err := syncGitFn(ctx, s.Config, selection.RepositoryIDs)
+		synced, err := syncGitFn(ctx, s.Config, repositoryIDs)
 		if err != nil {
 			return SelectionBatch{}, err
 		}

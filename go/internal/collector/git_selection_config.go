@@ -66,6 +66,8 @@ type RepoSyncConfig struct {
 	LargeRepoThreshold     int
 	LargeRepoMaxConcurrent int
 	StreamBuffer           int
+	RepoShardCount         int
+	RepoShardIndex         int
 	// ReconcileInterval is how long a git scope may go without a projected full
 	// observation before the sweep forces one to retract delta-path drift. Zero
 	// disables reconciliation (epic #2340).
@@ -104,6 +106,10 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	}
 	cloneDepth := intFromEnv(getenv, "ESHU_CLONE_DEPTH", 1)
 	repoLimit := intFromEnv(getenv, "ESHU_REPO_LIMIT", 4000)
+	repoShardCount, repoShardIndex, err := loadRepoShardConfig(getenv)
+	if err != nil {
+		return RepoSyncConfig{}, err
+	}
 
 	config := RepoSyncConfig{
 		ReposDir:               reposDir,
@@ -132,6 +138,8 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		LargeRepoThreshold:     largeRepoThreshold(getenv),
 		LargeRepoMaxConcurrent: largeRepoMaxConcurrent(getenv),
 		StreamBuffer:           streamBufferSize(getenv),
+		RepoShardCount:         repoShardCount,
+		RepoShardIndex:         repoShardIndex,
 		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
 		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
 	}
