@@ -1,0 +1,87 @@
+name: Supply-Chain Demo
+
+# Builds the synthetic supply-chain demo image (issue #3019) and generates a
+# CycloneDX SBOM for it. The image and every component in it are synthetic; this
+# workflow exists so the demo has a real, reproducible image identity and an SBOM
+# that can be attached as an OCI referrer.
+#
+# This is a TEMPLATE. It is not an active workflow in the eshu repository. Copy
+# it into the fixture/demo application's own repository at
+# .github/workflows/build-image-and-sbom.yml, where it represents the
+# build-and-attest step of the supply chain. It is workflow_dispatch-only here so
+# a consumer opts into when it runs.
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/supply-chain-demo-app
+
+jobs:
+  build-demo-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=demo,enable={{is_default_branch}}
+
+      - name: Build and push demo image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: examples/supply-chain-demo
+          file: examples/supply-chain-demo/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+
+      - name: Generate CycloneDX SBOM for the demo image
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: supply-chain-demo-app.cdx.json
+          artifact-name: supply-chain-demo-app-sbom.cdx.json
+          upload-artifact: true
+          upload-release-assets: false
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v4.1.0
+
+      - name: Attach SBOM as OCI referrer
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        run: |
+          cosign attach sbom \
+            --sbom supply-chain-demo-app.cdx.json \
+            --type cyclonedx \
+            "${IMAGE_REF}"

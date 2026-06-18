@@ -243,3 +243,4 @@ consumer's SARIF ingestion path.
 - [CLI Reference](cli-reference.md)
 - [Security Intelligence](security-intelligence.md)
 - [Supply Chain Traceability](../supply-chain-traceability.md)
+- [Supply-Chain Demo Runbook](../guides/supply-chain-demo.md)

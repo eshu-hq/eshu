@@ -1,0 +1,10 @@
+{
+  "name": "synthetic-supply-chain-demo-missing-evidence",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synthetic demo repo whose dependency has no owned advisory evidence",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "synthetic-missing-evidence-npm": "1.0.0"
+  }
+}
