@@ -274,12 +274,12 @@ publishes `cloud_resource_uid` phase rows yet. Do not require those phases for
 AWS workflow-run completion until the cloud-resource graph writer and anchor
 publisher are implemented and wired.
 
-`gcp` collector instances are registration-only in the workflow contract. The
-collector kind is known so fixture-backed GCP facts and future scheduler work
-can share one contract name, but it declares no canonical keyspaces, no required
-reducer phases, and no claimable workflow support. Coordinator config
-validation rejects enabled GCP instances with `claims_enabled=true` until a GCP
-workflow planner and runtime gate are implemented.
+`gcp` collector instances are known to the workflow contract for fixture-backed
+facts and gated live Cloud Asset Inventory work. The coordinator may plan
+claimable GCP work only when the collector instance explicitly opts into live
+collection, but the workflow contract still declares no canonical keyspaces and
+no required reducer phases. Do not add graph-readiness requirements until a GCP
+cloud-resource graph writer and anchor publisher are implemented.
 
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s
@@ -322,9 +322,9 @@ None. The coordinator (`internal/coordinator`) and storage
   `internal/reducer/aws` package is scaffold-only; until a live AWS reducer or
   projector publishes `cloud_resource_uid` phase rows, completed AWS workflow
   work items must not wait on those future checkpoints.
-- GCP readiness currently has no operational workflow completeness phases and
-  no scheduler. GCP may appear as a known collector contract, but it must stay
-  claim-disabled until planner support exists.
+- GCP readiness currently has no operational workflow completeness phases. GCP
+  may be planned by the coordinator only through explicit live opt-in, and
+  completed GCP workflow work items must not wait on future graph checkpoints.
 - `CompletenessState` rows from `ReconcileRunProgress` are sorted by
   `CollectorKind`, `Keyspace`, `PhaseName` — callers can compare slices
   element-by-element for drift detection.

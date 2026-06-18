@@ -10,8 +10,9 @@
 // Config is loaded from workflow-coordinator environment variables; deployment
 // mode is "dark" or "active" and active mode requires claims enabled with at
 // least one enabled claim-capable collector instance. GCP collector instances
-// are accepted only as claim-disabled registrations until a GCP scheduler
-// exists.
+// may enable claims only with explicit live collection opt-in and bounded
+// scopes; GCP planning creates workflow rows but does not resolve credentials
+// or call Google Cloud APIs.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
@@ -34,11 +35,13 @@
 // TempoWorkPlanner plans one bounded trace-signal work item per enabled
 // Grafana Tempo target parsed from collector instance configuration, skipping
 // disabled targets. GrafanaWorkPlanner plans one bounded observability work item
-// per enabled Grafana target parsed from configuration.targets, skipping disabled
-// targets and partitioning by a per-target fairness key so concurrent reconciles
-// never claim the same target twice. ScannerWorkerWorkPlanner plans explicit
-// scanner-worker source evidence targets so a healthy worker must still have
-// claimable work before a proof can count source evidence. AWSScheduledWorkPlanner and
+// per enabled Grafana target parsed from configuration.targets, skipping
+// disabled targets and partitioning by a per-target fairness key so concurrent
+// reconciles never claim the same target twice. GCPWorkPlanner plans one
+// bounded Cloud Asset Inventory work item per enabled GCP scope after explicit
+// live opt-in. ScannerWorkerWorkPlanner plans explicit scanner-worker source
+// evidence targets so a healthy worker must still have claimable work before a
+// proof can count source evidence. AWSScheduledWorkPlanner and
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
 // schedules or webhook freshness triggers. ComponentExtensionWorkPlanner plans
 // source-evidence-only work for verified claim-capable component activations
