@@ -143,7 +143,8 @@ func BuildRetractInheritanceEdges(repoIDs []string, evidenceSource string) State
 }
 
 // BuildRetractSQLRelationshipEdges builds a SQL relationship edge retraction
-// statement for REFERENCES_TABLE, HAS_COLUMN, and TRIGGERS edges.
+// statement for SQL table query, table reference, containment, trigger, and
+// routine execution edges.
 func BuildRetractSQLRelationshipEdges(repoIDs []string, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalRetract,

@@ -68,6 +68,35 @@ func TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters(t *testin
 	}
 }
 
+func TestEdgeWriterRetractEdgesSQLRelationshipFallbackIncludesQueriesTable(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("Execute calls = %d, want %d", got, want)
+	}
+	stmt := executor.calls[0]
+	if !strings.Contains(stmt.Cypher, "QUERIES_TABLE") {
+		t.Fatalf("fallback retract cypher missing QUERIES_TABLE: %s", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {
+		t.Fatalf("fallback retract cypher missing repo_id predicate: %s", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["evidence_source"], "reducer/sql-relationships"; got != want {
+		t.Fatalf("evidence_source = %v, want %v", got, want)
+	}
+}
+
 func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesFileScopedGroup(t *testing.T) {
 	t.Parallel()
 

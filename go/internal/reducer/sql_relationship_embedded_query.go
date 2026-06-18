@@ -63,6 +63,9 @@ func embeddedSQLQuerySources(envelopes []facts.Envelope) []sqlEmbeddedQuerySourc
 		relativePath := semanticPayloadString(env.Payload, "relative_path")
 		sourcePath := semanticPayloadString(env.Payload, "path")
 		if sourcePath == "" {
+			sourcePath = semanticPayloadString(parsedFileData, "path")
+		}
+		if sourcePath == "" {
 			continue
 		}
 		functionIDs := embeddedSQLFunctionIDsByNameLine(parsedFileData)

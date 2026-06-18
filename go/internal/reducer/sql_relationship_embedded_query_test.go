@@ -76,6 +76,27 @@ func TestExtractSQLRelationshipRowsSkipsEmbeddedQueryWithoutSourcePath(t *testin
 	}
 }
 
+func TestExtractSQLRelationshipRowsReadsEmbeddedQueryPathFromParsedFileData(t *testing.T) {
+	t.Parallel()
+
+	fileFact := sqlRelationshipFileWithEmbeddedQuery("public.users")
+	delete(fileFact.Payload, "path")
+	parsedFileData := fileFact.Payload["parsed_file_data"].(map[string]any)
+	parsedFileData["path"] = "/repo/cmd/api/handlers.go"
+	envelopes := []facts.Envelope{
+		sqlRelationshipContentEntity("content-entity:users", "SqlTable", "public.users", "db/schema.sql", nil),
+		fileFact,
+	}
+
+	_, rows := ExtractSQLRelationshipRows(envelopes)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1 from parsed_file_data.path; rows=%+v", len(rows), rows)
+	}
+	if got, want := rows[0]["source_path"], "/repo/cmd/api/handlers.go"; got != want {
+		t.Fatalf("source_path = %v, want %v", got, want)
+	}
+}
+
 func TestSQLRelationshipHandlerEmitsEmbeddedQueryIntent(t *testing.T) {
 	t.Parallel()
 
