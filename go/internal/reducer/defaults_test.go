@@ -206,8 +206,8 @@ func TestDefaultDomainDefinitionsMatchImplementedRuntimeCatalog(t *testing.T) {
 	t.Parallel()
 
 	got := DefaultDomainDefinitions()
-	if len(got) != 10 {
-		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 10", len(got))
+	if len(got) != 11 {
+		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 11", len(got))
 	}
 	if got[0].Domain != DomainWorkloadIdentity {
 		t.Fatalf("DefaultDomainDefinitions()[0].Domain = %q, want %q", got[0].Domain, DomainWorkloadIdentity)

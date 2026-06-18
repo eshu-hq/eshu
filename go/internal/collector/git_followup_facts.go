@@ -187,6 +187,31 @@ func sqlRelationshipMaterializationFactEnvelope(
 	)
 }
 
+func shellExecMaterializationFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": "shell_exec_materialization",
+		"entity_key":     "shell:" + filepath.Base(repoPath),
+		"reason":         "repository snapshot emitted shell execution materialization follow-up",
+		"repo_id":        repoID,
+	}
+
+	return factEnvelope(
+		"shared_followup",
+		scopeID,
+		generationID,
+		observedAt,
+		"shared_followup:"+repoID+":shell_exec_materialization",
+		payload,
+		repoPath,
+	)
+}
+
 func inheritanceMaterializationFactEnvelope(
 	repoPath string,
 	repoID string,

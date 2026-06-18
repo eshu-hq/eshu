@@ -125,6 +125,58 @@ func TestTraceExposurePathRendersReachableSink(t *testing.T) {
 	}
 }
 
+func TestTraceExposurePathRendersShellExecSink(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{
+		Profile: ProfileLocalAuthoritative,
+		Content: exposureSourceContentStore{entity: httpHandlerSourceEntity()},
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				sinkRels, _ := params["sink_rels"].([]string)
+				found := false
+				for _, rel := range sinkRels {
+					if rel == "EXECUTES_SHELL" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("sink_rels = %#v, missing EXECUTES_SHELL", sinkRels)
+				}
+				return []map[string]any{
+					{
+						"chain": []any{
+							map[string]any{"id": "fn:handler", "name": "HandleRequest", "labels": []any{"Function"}},
+						},
+						"sink_rel":    "EXECUTES_SHELL",
+						"sink_node":   map[string]any{"id": "shell-command:abc123", "name": "command execution", "labels": []any{"ShellCommand"}},
+						"sink_labels": []any{"ShellCommand"},
+						"depth":       0,
+					},
+				}, nil
+			},
+		},
+	}
+
+	rec, body := postExposurePath(t, handler, `{"source_entity_id":"fn:handler"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	paths, ok := body["paths"].([]any)
+	if !ok || len(paths) != 1 {
+		t.Fatalf("paths = %#v, want 1", body["paths"])
+	}
+	path := paths[0].(map[string]any)
+	sink := path["sink"].(map[string]any)
+	if got := sink["kind"]; got != "shell_exec" {
+		t.Fatalf("sink kind = %#v, want shell_exec", got)
+	}
+	if got := path["severity"]; got != "high" {
+		t.Fatalf("severity = %#v, want high", got)
+	}
+}
+
 // TestTraceExposurePathUnresolvedWhenNoSink proves that when the graph yields no
 // reachable sink (production reality until the bridge edges materialize), the
 // handler returns an unresolved finding with an honest reason and zero paths —

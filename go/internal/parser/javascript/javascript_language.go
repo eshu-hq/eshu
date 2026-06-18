@@ -42,6 +42,7 @@ func Parse(
 
 	payload := basePayload(path, outputLanguage, isDependency)
 	payload["components"] = []map[string]any{}
+	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(string(source), outputLanguage)
 	if outputLanguage != "javascript" {
 		payload["interfaces"] = []map[string]any{}
 		payload["type_aliases"] = []map[string]any{}

@@ -55,6 +55,12 @@ type DefaultHandlers struct {
 	// partitioned runner and the #2898 refresh fence project them.
 	SQLRelationshipIntentWriter SQLRelationshipIntentWriter
 
+	// ShellExecIntentWriter persists durable shared-intent rows for shell-exec
+	// edge materialization. The handler emits file-scoped per-edge intents plus a
+	// per-repo refresh intent instead of writing canonical edges directly, so the
+	// partitioned runner and the refresh fence project them.
+	ShellExecIntentWriter ShellExecIntentWriter
+
 	// RationaleEdgeIntentWriter persists durable shared-intent rows for rationale
 	// EXPLAINS edge materialization (#2869). The promoted
 	// RationaleEdgeMaterializationHandler emits file-scoped per-edge intents plus a

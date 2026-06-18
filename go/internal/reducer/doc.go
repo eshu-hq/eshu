@@ -74,7 +74,10 @@
 // value-flow summaries, param sources, and FunctionID-to-graph-uid mappings.
 // ValueFlowProgramAssemblyRunner can assemble bounded Programs from active
 // CALLS, persisted summaries, and durable param-source rows without solving or
-// writing graph evidence. The fixpoint path loads graph-backed cloud sink
+// writing graph evidence. Shell execution materialization consumes parser
+// command-call facts and projects Function-[:EXECUTES_SHELL]->ShellCommand using
+// structural metadata only; command text and arguments never enter reducer
+// payloads or graph properties. The fixpoint path loads graph-backed cloud sink
 // targets from the closed exposure catalog, then runs the cross-repo fixpoint
 // projection through a distinct
 // reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence source so direct

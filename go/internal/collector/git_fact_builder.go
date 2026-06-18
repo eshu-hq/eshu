@@ -66,7 +66,7 @@ func buildStreamingGenerationWithContext(
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
-	followupFactCount := 7
+	followupFactCount := 8
 	if snapshot.Delta {
 		followupFactCount = 0
 	}
@@ -347,6 +347,7 @@ func streamFacts(
 	ch <- codeCallMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- deploymentMappingFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+	ch <- shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 }
 

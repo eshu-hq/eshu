@@ -103,7 +103,7 @@ func (h *ImpactHandler) traceExposurePath(w http.ResponseWriter, r *http.Request
 
 	unresolvedReason := ""
 	if len(candidates) == 0 {
-		unresolvedReason = "no reachable cloud sink found; the code-to-cloud bridge edges (Function->Endpoint #2721, Function/Workload->CloudResource #2723) and the SQL sink edge (#2799) are not materialized yet, so the cloud-sink segment is unresolved"
+		unresolvedReason = "no reachable cloud sink found; either no graph-backed sink edge is reachable within the bounded CALLS traversal, or the remaining code-to-cloud bridge edges are not materialized for this source"
 	}
 
 	finding := exposure.BuildExposureFinding(exposure.ExposureFindingInput{

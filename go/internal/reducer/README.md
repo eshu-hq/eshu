@@ -122,6 +122,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainCodeCallMaterialization` | Materialize canonical code-call edges |
 | `DomainSemanticEntityMaterialization` | Materialize Annotation, Typedef, TypeAlias, Component semantic nodes |
 | `DomainSQLRelationshipMaterialization` | Materialize canonical SQL relationship edges |
+| `DomainShellExecMaterialization` | Materialize canonical shell execution edges |
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints and package-version publication evidence without ownership promotion |
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |

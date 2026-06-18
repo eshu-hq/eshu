@@ -36,24 +36,20 @@ optional target-property predicates), modeled on
 | `secret_reference`          | `SECRETS_IAM_GRANTS_SECRET_READ` → SecretsIAMSecretMetadataPath | high | yes |
 | `internet_exposed_endpoint` | `TO` → CidrBlock `{is_internet: true}`                       | high     | yes          |
 | `sql_table`                 | `QUERIES_TABLE` → SqlTable                                    | medium   | yes          |
-| `shell_exec`                | *(none yet — no command-exec fact, [#2800](https://github.com/eshu-hq/eshu/issues/2800))*           | critical | **no** |
+| `shell_exec`                | `EXECUTES_SHELL` → ShellCommand                              | critical | yes          |
 
 Every graph-backed spec cites the reducer/graph file that authors its edge, so
 the catalog stays auditable against the real materializers.
 
 ### Honesty contract
 
-One sink kind is part of the closed vocabulary but has **no materialized graph
-fact** today and is declared non-graph-backed:
-
-- `shell_exec` — no command/shell-execution graph fact exists; tracked by
-  [#2800](https://github.com/eshu-hq/eshu/issues/2800).
-
-A non-graph-backed spec names no relationship/target and `MatchSink` never
-returns it. The bounded tracer reports such a sink `unresolved` rather than
-inventing a match. This is the package's core invariant — **never fabricate a
-path**. When a follow-up materializes the edge, flip the spec to graph-backed
-and re-pin the version golden.
+A sink kind without a materialized graph fact must stay non-graph-backed: it
+names no relationship/target and `MatchSink` never returns it. Shell execution
+is now graph-backed only through `Function-[:EXECUTES_SHELL]->ShellCommand`;
+the materializer stores structural call-site metadata and omits command text,
+arguments, and environment values. The bounded tracer still reports
+`unresolved` when no declared sink edge is reachable rather than inventing a
+match. This is the package's core invariant: never fabricate a path.
 
 ### Content-hash discipline
 
