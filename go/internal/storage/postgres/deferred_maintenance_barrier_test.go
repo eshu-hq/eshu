@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -182,6 +183,53 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 	assertExecContains(t, tx.execs, "completed_at = $4")
 }
 
+func TestEnsureDeferredMaintenanceBarrierEpochClosesLatestRowsBeforeInsert(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 18, 12, 0, 0, 0, time.UTC)
+	rows := &closeTrackingRows{}
+	tx := &openRowsRejectingTx{latestRows: rows}
+
+	epoch, err := ensureDeferredMaintenanceBarrierEpoch(context.Background(), tx, 2, now)
+	if err != nil {
+		t.Fatalf("ensureDeferredMaintenanceBarrierEpoch() error = %v, want nil", err)
+	}
+	if epoch != 1 {
+		t.Fatalf("epoch = %d, want 1", epoch)
+	}
+	if !rows.closed {
+		t.Fatal("latest barrier rows were not closed")
+	}
+	if got, want := tx.execCount, 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+}
+
+func TestEnsureDeferredMaintenanceBarrierEpochClosesLatestRowsOnScanError(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 18, 12, 0, 0, 0, time.UTC)
+	rows := &closeTrackingRows{
+		next:    true,
+		scanErr: errors.New("decode latest epoch"),
+	}
+	tx := &openRowsRejectingTx{latestRows: rows}
+
+	_, err := ensureDeferredMaintenanceBarrierEpoch(context.Background(), tx, 2, now)
+	if err == nil {
+		t.Fatal("ensureDeferredMaintenanceBarrierEpoch() error = nil, want scan error")
+	}
+	if !strings.Contains(err.Error(), "scan deferred maintenance barrier") {
+		t.Fatalf("ensureDeferredMaintenanceBarrierEpoch() error = %v, want scan context", err)
+	}
+	if !rows.closed {
+		t.Fatal("latest barrier rows were not closed after scan error")
+	}
+	if got, want := tx.execCount, 0; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+}
+
 func TestIngestionStoreShardDrainBarrierRejectsShardCountChangeDuringOpenEpoch(t *testing.T) {
 	t.Parallel()
 
@@ -239,3 +287,55 @@ func assertExecContains(t *testing.T, execs []fakeExecCall, substring string) {
 	}
 	t.Fatalf("execs missing query containing %q", substring)
 }
+
+type closeTrackingRows struct {
+	next    bool
+	closed  bool
+	scanErr error
+}
+
+func (r *closeTrackingRows) Next() bool {
+	if !r.next {
+		return false
+	}
+	r.next = false
+	return true
+}
+
+func (r *closeTrackingRows) Scan(...any) error {
+	if r.scanErr != nil {
+		return r.scanErr
+	}
+	return errors.New("scan called unexpectedly")
+}
+
+func (r *closeTrackingRows) Err() error { return nil }
+
+func (r *closeTrackingRows) Close() error {
+	r.closed = true
+	return nil
+}
+
+type openRowsRejectingTx struct {
+	latestRows *closeTrackingRows
+	execCount  int
+}
+
+func (tx *openRowsRejectingTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+	if !strings.Contains(query, "FROM deferred_maintenance_barriers") {
+		return nil, errors.New("unexpected query")
+	}
+	return tx.latestRows, nil
+}
+
+func (tx *openRowsRejectingTx) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+	if !tx.latestRows.closed {
+		return nil, errors.New("exec called before latest barrier rows were closed")
+	}
+	tx.execCount++
+	return fakeResult{}, nil
+}
+
+func (*openRowsRejectingTx) Commit() error { return nil }
+
+func (*openRowsRejectingTx) Rollback() error { return nil }
