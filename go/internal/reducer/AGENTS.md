@@ -393,6 +393,32 @@ durable queue/status rows, and Postgres query duration metrics. It adds no route
 graph query shape, new metric instrument, new metric label key, span, lease,
 runtime knob, or log key.
 
+No-Regression Evidence: #2931 registers and wires `DomainCodeFunctionSummary` — a
+Postgres `CodeFunctionSummaryLoader` (rebuilds `summary.Effects` from
+`code_function_summary` facts) and a `CodeFunctionSummaryWriter` (the merged
+`FunctionSummaryStore.UpsertSnapshot`). The handler loads one generation's
+Effects, recomputes content versions through an in-memory `summary.Store`, and
+upserts the snapshot, idempotent on `FunctionID`. It is ADDITIVE: a new domain
+gated on its loader+writer (so it never registers without a handler), following
+the existing claim/execute/ack path, with no change to any existing domain's
+selection, write, or readiness path. Unlike the evidence domains it persists to a
+durable Postgres table (`function_summaries`) rather than the graph, so it adds no
+Cypher. `go test ./internal/reducer -run 'CodeFunctionSummary' -count=1`,
+`go test ./internal/storage/postgres -run 'CodeFunctionSummary' -count=1`, and
+`go test ./internal/projector -run 'CodeFunctionSummary' -count=1` cover the
+handler (versioned-snapshot persistence, wrong-domain reject, registration gate),
+the JSONB-coerced Effects loader, and intent emission; `go test ./cmd/reducer
+-count=1` proves the runtime wiring registers the loader/writer without disturbing
+the other domains.
+
+No-Observability-Change: the summary domain reuses the same generic reducer
+claim/execute/ack instrumentation — diagnosed through existing reducer run spans,
+per-domain execution counters (the `domain` attribute gains the
+`code_function_summary` value, an existing label, not a new instrument), durable
+queue/status rows, and Postgres query duration metrics. It adds no route, graph
+query shape, new metric instrument, new metric label key, span, lease, runtime
+knob, or log key.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

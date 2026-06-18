@@ -517,6 +517,15 @@ type DefaultHandlers struct {
 	// TAINT_FLOWS_TO edges between Function nodes.
 	CodeInterprocEvidenceWriter CodeInterprocEvidenceWriter
 
+	// CodeFunctionSummaryLoader loads value-flow Effects from
+	// code_function_summary facts. Non-nil alongside the writer to register
+	// DomainCodeFunctionSummary.
+	CodeFunctionSummaryLoader CodeFunctionSummaryLoader
+
+	// CodeFunctionSummaryWriter persists the resolved function-summary snapshot to
+	// the durable store for cross-repo composition.
+	CodeFunctionSummaryWriter CodeFunctionSummaryWriter
+
 	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
 	// routing facts (provider service id + Terraform backend locator) for the
 	// incident-repository correlation domain. It must be non-nil alongside
