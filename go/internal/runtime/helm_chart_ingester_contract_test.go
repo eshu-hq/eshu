@@ -352,6 +352,63 @@ func TestHelmRendersShardEnvForHorizontalIngester(t *testing.T) {
 	}
 }
 
+func TestHelmWorkspaceSetupInitIsPersistentVolumeRetrySafe(t *testing.T) {
+	t.Parallel()
+
+	manifests := renderHelmChart(t, "--kube-version", "1.32.0", "--set", "ingester.replicas=2")
+	ingester := requireHelmManifest(t, manifests, "StatefulSet", "eshu")
+	podSpec := helmPodSpec(t, ingester)
+	var workspaceSetup map[string]any
+	for _, container := range helmMapSlice(podSpec["initContainers"]) {
+		if container["name"] == "workspace-setup" {
+			workspaceSetup = container
+			break
+		}
+	}
+	if workspaceSetup == nil {
+		t.Fatal("workspace-setup init container missing")
+	}
+
+	securityContext := helmMap(workspaceSetup["securityContext"])
+	if got, want := securityContext["runAsNonRoot"], true; got != want {
+		t.Fatalf("workspace-setup runAsNonRoot = %#v, want %v", got, want)
+	}
+	if got, want := securityContext["runAsUser"], 10001; got != want {
+		t.Fatalf("workspace-setup runAsUser = %#v, want %d", got, want)
+	}
+	if got, want := securityContext["runAsGroup"], 10001; got != want {
+		t.Fatalf("workspace-setup runAsGroup = %#v, want %d", got, want)
+	}
+	capabilities := helmMap(securityContext["capabilities"])
+	if got, want := helmStringSlice(capabilities["drop"]), []string{"ALL"}; !stringSlicesEqual(got, want) {
+		t.Fatalf("workspace-setup dropped capabilities = %#v, want %#v", got, want)
+	}
+	if got := helmStringSlice(capabilities["add"]); len(got) != 0 {
+		t.Fatalf("workspace-setup added capabilities = %#v, want none", got)
+	}
+
+	command := strings.Join(helmStringSlice(workspaceSetup["command"]), "\n")
+	for _, want := range []string{
+		"mkdir -p /data/.eshu /data/repos",
+		`tmp="$(mktemp /data/repos/.eshuignore.XXXXXX)"`,
+		`cp /var/run/eshu-config/.eshuignore "$tmp"`,
+		`chmod 0644 "$tmp"`,
+		`mv -f "$tmp" /data/repos/.eshuignore`,
+	} {
+		if !strings.Contains(command, want) {
+			t.Fatalf("workspace-setup command = %q, want %q", command, want)
+		}
+	}
+	for _, forbidden := range []string{
+		"chown ",
+		"cp /var/run/eshu-config/.eshuignore /data/repos/.eshuignore",
+	} {
+		if strings.Contains(command, forbidden) {
+			t.Fatalf("workspace-setup command = %q, want no %q", command, forbidden)
+		}
+	}
+}
+
 func TestHelmIngesterDoesNotRenderShardPodIndexEnv(t *testing.T) {
 	t.Parallel()
 
