@@ -407,6 +407,21 @@ query, queue, worker, lease, batch, runtime knob, metric instrument, metric
 label key, span, route, status field, or log key; operators still inspect
 existing code-call intent rows and materialization completion logs.
 
+No-Regression Evidence: Java code-call resolver registration moves receiver and
+argument type evidence ahead of the weak repository-wide fallback without
+changing edge identity. `go test ./internal/reducer -run
+'TestResolveGenericCalleeUsesJavaReceiverTypeBeforeRepoUniqueName|TestExtractCodeCallRowsResolvesJava'
+-count=1` fails before the Java resolver because the edge is classified as
+`repo_unique_name`, then passes with `type_inferred`. `go test
+./internal/resolutionparity -count=1` proves the intentional Java tier shift from
+9 `repo_unique_name` rows to 5 `repo_unique_name` and 4 `type_inferred` rows.
+
+No-Observability-Change: Java resolver registration only reclassifies the
+existing code-call provenance method before row emission. It adds no graph query,
+queue, worker, lease, batch, runtime knob, metric instrument, metric label key,
+span, route, status field, or log key; operators still inspect the existing
+code-call intent rows and materialization completion logs.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

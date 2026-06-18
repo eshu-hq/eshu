@@ -1,7 +1,8 @@
 # resolutionparity
 
 Per-language call-resolution accuracy goldens and the CI parity gate for
-code-edge resolution provenance (issue #2226, part of epic #2218).
+code-edge resolution provenance (issue #2226, part of epic #2218), plus the
+source-derived caller-to-callee correctness gate for issue #2708.
 
 ## What it does
 
@@ -24,6 +25,26 @@ tiers fails CI.
 It runs in the normal `go test ./...` matrix, so the parity gate fires on any
 parser or edge-writer change without extra CI wiring.
 
+`TestGoldenCallGraphCorrectnessHarness` adds a second gate. It parses
+source-authored fixtures, injects deterministic entity uids, runs
+`reducer.ExtractCodeCallRows`, and compares the observed caller→callee edges
+with independent expected edges through `parser/goldenaudit`. This catches a
+wrong target even when the edge keeps the same `resolution_method` tier.
+
+The exact-edge gate currently has source-backed passing fixtures for C, C#,
+C++, Dart, Elixir, Go, Groovy, Haskell, Java, JavaScript, Kotlin, Perl, PHP,
+Python, Ruby, Rust, Scala, Swift, TSX, and TypeScript. It also includes a
+Python `import_binding` fixture and a SCIP-shaped fixture that exercises the
+reducer's `function_calls_scip` path without requiring external `scip-*`
+binaries in CI.
+
+`sourceCallGraphFixtureGaps` is intentionally empty when all registered
+call-graph source languages have exact-edge fixtures. The coverage test fails
+when a source language is neither covered by a fixture nor listed as an explicit
+gap, and the shadowing test fails if a passing fixture remains in the gap map.
+Dart and Swift currently use source-backed type-entity caller fixtures because
+their parsers still emit declaration-line spans for function bodies.
+
 ## Updating the golden
 
 The golden is a regression snapshot of deterministic pipeline output, not a
@@ -44,9 +65,10 @@ tier:
 
 ## Notes
 
-- The fixtures carry no SCIP index and no repository import map, so the `scip`
-  and `import_binding` tiers do not appear here; those tiers are covered by the
-  reducer's focused fixtures in `internal/reducer`. This package guards the
-  heuristic-resolver tier *distribution* against drift.
+- `TestResolutionTierGoldens` still uses the sample-project corpora and guards
+  the heuristic-resolver tier *distribution* against drift.
+- `TestGoldenCallGraphCorrectnessHarness` uses source-authored truth and guards
+  target correctness. Do not generate its expected caller→callee edges from
+  Eshu's own output.
 - Any emitted method outside the ADR #2222 vocabulary fails the test
   immediately, guarding the closed-set invariant per language.

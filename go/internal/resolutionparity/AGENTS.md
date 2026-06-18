@@ -1,7 +1,8 @@
 # AGENTS.md — resolutionparity
 
 Scoped agent rules for `go/internal/resolutionparity`, the per-language
-resolution-tier parity gate (issue #2226).
+resolution-tier parity gate (issue #2226) and source-derived exact call-graph
+accuracy harness (issue #2708).
 
 - The golden `testdata/resolution_tiers.golden.json` is a **regression snapshot**
   of real parser + reducer output, not a hand-authored target. Never edit it by
@@ -16,5 +17,11 @@ resolution-tier parity gate (issue #2226).
   vocabulary, and the ADR must change together.
 - Keep `languageFixtures` deterministic: sorted file walk, stable repo_id, no
   reliance on map iteration order. The tally is order-independent; keep it so.
+- Keep source-derived exact-edge fixture truth independent of Eshu output. Do not
+  generate expected caller-to-callee edges from reducer rows.
+- `sourceCallGraphFixtures` is for passing, mandatory fixtures only.
+  `sourceCallGraphFixtureGaps` is for explicit parser/reducer gaps only. A
+  language must never appear in both sets because that would silently skip a
+  working fixture.
 - This is test-only code (no runtime/hot path). Do not add Cypher, concurrency,
   or runtime behavior here.
