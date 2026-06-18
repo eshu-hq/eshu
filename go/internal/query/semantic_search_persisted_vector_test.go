@@ -164,6 +164,16 @@ func TestPersistedLocalSemanticSearchHybridUsesConfiguredVectorRetrieval(t *test
 	}
 }
 
+func TestDefaultPersistedLocalSemanticSearchHybridConfigUsesExactVectorRetrieval(t *testing.T) {
+	t.Parallel()
+
+	config := DefaultPersistedLocalSemanticSearchHybridConfig()
+
+	if got, want := config.VectorRetrieval, searchhybrid.VectorRetrievalExact; got != want {
+		t.Fatalf("VectorRetrieval = %q, want %q", got, want)
+	}
+}
+
 func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForPartialState(t *testing.T) {
 	t.Parallel()
 

@@ -34,7 +34,7 @@ func DefaultPersistedLocalSemanticSearchHybridConfig() PersistedLocalSemanticSea
 		EmbeddingModelID:   defaultPersistedLocalVectorModelID,
 		VectorIndexVersion: defaultPersistedLocalVectorIndexVersion,
 		CorpusLimit:        semanticSearchLocalHybridCorpusLimit,
-		VectorRetrieval:    searchhybrid.VectorRetrievalApproximate,
+		VectorRetrieval:    searchhybrid.VectorRetrievalExact,
 	}
 }
 
@@ -323,7 +323,7 @@ func normalizePersistedLocalSemanticSearchHybridConfig(
 		config.CorpusLimit = semanticSearchLocalHybridCorpusLimit
 	}
 	if config.VectorRetrieval == "" {
-		config.VectorRetrieval = searchhybrid.VectorRetrievalApproximate
+		config.VectorRetrieval = searchhybrid.VectorRetrievalExact
 	}
 	return config
 }

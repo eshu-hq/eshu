@@ -189,11 +189,12 @@ document content hash, and the configured vector index version. Missing, stale,
 partial, rebuilding, failed, incompatible, or malformed vector state must return
 explicit unavailable or degraded retrieval state instead of claiming vector
 participation. This is a deterministic no-network local path capped at 500
-loaded documents. Ready local vectors are retrieved through the in-process
-angular-LSH ANN candidate index with exact cosine reranking. The route reports
-`retrieval_state=semantic_active` or `hybrid_active` only when ready persisted
-vector retrieval participates. It is not a hosted-provider, graph-write, or
-external vector-store integration.
+loaded documents. Ready local vectors are exact-scored by default so the public
+API/MCP path keeps exact cosine as its correctness baseline. Explicit staged ANN
+configuration may use the in-process angular-LSH candidate index with exact
+cosine reranking. The route reports `retrieval_state=semantic_active` or
+`hybrid_active` only when ready persisted vector retrieval participates. It is
+not a hosted-provider, graph-write, or external vector-store integration.
 
 Broader production ANN/vector-index retrieval is gated separately by issue #2578
 with storage-owner follow-up issue #2582. The first implementation storage owner
