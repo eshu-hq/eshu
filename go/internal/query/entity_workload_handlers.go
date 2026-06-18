@@ -10,6 +10,9 @@ import (
 // drilldown block and an explicit partial_reasons slot so a prompt-ready caller
 // sees bounds and missing evidence without raw Cypher.
 func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Request) {
+	if !requireContextOverview(w, r, h.profile(), "workload context requires authoritative platform context truth") {
+		return
+	}
 	workloadID := PathParam(r, "workload_id")
 	if workloadID == "" {
 		WriteError(w, http.StatusBadRequest, "workload_id is required")
@@ -49,6 +52,9 @@ func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Reques
 // block and an explicit partial_reasons slot, matching the workload context
 // route so answer composition sees consistent envelope metadata.
 func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request) {
+	if !requireContextOverview(w, r, h.profile(), "workload story requires authoritative platform context truth") {
+		return
+	}
 	workloadID := PathParam(r, "workload_id")
 	if workloadID == "" {
 		WriteError(w, http.StatusBadRequest, "workload_id is required")

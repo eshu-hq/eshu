@@ -14,7 +14,7 @@
 # Treat edits here as a contract change. See
 # docs/public/reference/capability-catalog.md.
 version: v1
-updated_at: 2026-06-16
+updated_at: 2026-06-18
 owners:
   - platform-engineering
 
@@ -32,28 +32,13 @@ capabilities:
 # the tool to an existing entry as an alias surface; an empty capability marks a
 # genuine utility or operator surface that is not a distinct product capability.
 tool_exemptions:
-  # Narrative, report-composition, and visualization helpers intentionally
-  # remain outside distinct capability rows. They either preserve the source
-  # response's truth envelope or compose already-cataloged surfaces without
-  # introducing a new runtime capability contract.
-  - tool: get_repo_story
-    reason: repository narrative helper over platform context and evidence surfaces, not a separate capability contract
-  - tool: get_repo_summary
-    reason: repository summary helper over platform context, not a separate capability contract
-  - tool: get_service_story
-    reason: service dossier helper over platform context and evidence surfaces, not a separate capability contract
-  - tool: get_service_intelligence_report
-    reason: deterministic report composer over service story, incident, supply-chain, and deployment evidence surfaces
-  - tool: get_workload_context
-    reason: workload context drilldown under platform context overview, not a separate capability contract
-  - tool: get_workload_story
-    reason: workload narrative drilldown under platform context overview, not a separate capability contract
-  - tool: investigate_service
-    reason: service investigation helper over platform context coverage, not a separate capability contract
-  - tool: derive_visualization_packet
-    reason: pure visualization derivation from a previously authorized source response and source truth envelope
-  - tool: visualize_graph_query
-    reason: diagnostics-only graph visualization helper for explicit operator Cypher, not a product capability claim
+  # Narrative, report-composition, and visualization tools are now first-class
+  # capability-matrix surfaces (issue #3028): the repo/service/workload story,
+  # summary, dossier, intelligence-report, and investigation tools are declared
+  # surfaces of platform_impact.context_overview (the same truth envelope they
+  # emit at runtime); derive_visualization_packet has its own
+  # visualization.packet_derivation row; and visualize_graph_query has its own
+  # visualization.graph_query_link row. None remain exempt here.
 
   # Genuine retrieval, diagnostic, and operator utilities that are not distinct
   # product capabilities.

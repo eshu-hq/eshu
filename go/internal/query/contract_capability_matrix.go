@@ -345,6 +345,26 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 	},
+	// visualization.packet_derivation is a pure transform of a caller-supplied
+	// source response; it runs no graph or content query and preserves the source
+	// truth envelope, so it is supported in every profile with a derived ceiling
+	// and no graph requirement.
+	"visualization.packet_derivation": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+	},
+	// visualization.graph_query_link formats a graph-browser URL for caller
+	// Cypher; the handler performs no graph read and emits no truth envelope, so
+	// it is supported in every profile (unlike graph_query.read_only_cypher,
+	// which executes the query and needs a graph).
+	"visualization.graph_query_link": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+	},
 	"documentation_findings.list": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

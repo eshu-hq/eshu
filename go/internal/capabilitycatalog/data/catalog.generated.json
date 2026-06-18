@@ -2996,7 +2996,35 @@
           "kind": "mcp"
         },
         {
+          "tool": "get_repo_story",
+          "kind": "mcp"
+        },
+        {
+          "tool": "get_repo_summary",
+          "kind": "mcp"
+        },
+        {
           "tool": "get_service_context",
+          "kind": "mcp"
+        },
+        {
+          "tool": "get_service_intelligence_report",
+          "kind": "mcp"
+        },
+        {
+          "tool": "get_service_story",
+          "kind": "mcp"
+        },
+        {
+          "tool": "get_workload_context",
+          "kind": "mcp"
+        },
+        {
+          "tool": "get_workload_story",
+          "kind": "mcp"
+        },
+        {
+          "tool": "investigate_service",
           "kind": "mcp"
         }
       ],
@@ -5210,6 +5238,96 @@
         {
           "kind": "remote_validation",
           "ref": "prod-inheritance"
+        }
+      ],
+      "console": false
+    },
+    {
+      "capability": "visualization.graph_query_link",
+      "display_name": "Visualization Graph Query Link",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "visualize_graph_query",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-visualization-graph-query-link"
+        }
+      ],
+      "console": false
+    },
+    {
+      "capability": "visualization.packet_derivation",
+      "display_name": "Visualization Packet Derivation",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "derive_visualization_packet",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-visualization-packet"
         }
       ],
       "console": false

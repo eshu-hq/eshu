@@ -127,17 +127,7 @@ func (h *RepositoryHandler) listRepositoriesFromContent(ctx context.Context) ([]
 // enriched context including entry points, infrastructure entities, language
 // distribution, cross-repo relationships, and consumer repositories.
 func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "platform_impact.context_overview") {
-		WriteContractError(
-			w,
-			r,
-			http.StatusNotImplemented,
-			"repository context requires authoritative platform context truth",
-			"unsupported_capability",
-			"platform_impact.context_overview",
-			h.profile(),
-			requiredProfile("platform_impact.context_overview"),
-		)
+	if !requireContextOverview(w, r, h.profile(), "repository context requires authoritative platform context truth") {
 		return
 	}
 
@@ -281,6 +271,10 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 }
 
 func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
+	if !requireContextOverview(w, r, h.profile(), "repository story requires authoritative platform context truth") {
+		return
+	}
+
 	repoID, ok := h.resolveRepositoryPathSelector(w, r)
 	if !ok {
 		return
