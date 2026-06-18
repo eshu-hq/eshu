@@ -32,46 +32,28 @@ capabilities:
 # the tool to an existing entry as an alias surface; an empty capability marks a
 # genuine utility or operator surface that is not a distinct product capability.
 tool_exemptions:
-  # Query playbook tools belong to the query.playbooks capability, which does
-  # not yet declare tools in the matrix. Tracked by #2743.
-  - tool: list_query_playbooks
-    capability: query.playbooks
-    reason: query playbook catalog read; promote to matrix tools in #2743
-    issue: 2743
-  - tool: resolve_query_playbook
-    capability: query.playbooks
-    reason: query playbook resolver read; promote to matrix tools in #2743
-    issue: 2743
-
-  # Narrative, context, and visualization tools without a capability-matrix row.
-  # Tracked by #2743.
+  # Narrative, report-composition, and visualization helpers intentionally
+  # remain outside distinct capability rows. They either preserve the source
+  # response's truth envelope or compose already-cataloged surfaces without
+  # introducing a new runtime capability contract.
   - tool: get_repo_story
-    reason: repository narrative surface pending capability-matrix row
-    issue: 2743
+    reason: repository narrative helper over platform context and evidence surfaces, not a separate capability contract
   - tool: get_repo_summary
-    reason: repository summary narrative surface pending capability-matrix row
-    issue: 2743
+    reason: repository summary helper over platform context, not a separate capability contract
   - tool: get_service_story
-    reason: service narrative surface pending capability-matrix row
-    issue: 2743
+    reason: service dossier helper over platform context and evidence surfaces, not a separate capability contract
   - tool: get_service_intelligence_report
-    reason: service intelligence report surface composing the service story pending capability-matrix row
-    issue: 2743
+    reason: deterministic report composer over service story, incident, supply-chain, and deployment evidence surfaces
   - tool: get_workload_context
-    reason: workload context surface pending capability-matrix row
-    issue: 2743
+    reason: workload context drilldown under platform context overview, not a separate capability contract
   - tool: get_workload_story
-    reason: workload narrative surface pending capability-matrix row
-    issue: 2743
+    reason: workload narrative drilldown under platform context overview, not a separate capability contract
   - tool: investigate_service
-    reason: service investigation narrative surface pending capability-matrix row
-    issue: 2743
+    reason: service investigation helper over platform context coverage, not a separate capability contract
   - tool: derive_visualization_packet
-    reason: visualization packet surface pending capability-matrix row
-    issue: 2743
+    reason: pure visualization derivation from a previously authorized source response and source truth envelope
   - tool: visualize_graph_query
-    reason: graph visualization surface pending capability-matrix row
-    issue: 2743
+    reason: diagnostics-only graph visualization helper for explicit operator Cypher, not a product capability claim
 
   # Genuine retrieval, diagnostic, and operator utilities that are not distinct
   # product capabilities.
