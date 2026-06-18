@@ -14,6 +14,7 @@ intake. Runtime ownership lives in
 | `ociRegistryCollector` | OCI registry collector | direct target list | disabled |
 | `terraformStateCollector` | Terraform-state collector | workflow claims | disabled |
 | `awsCloudCollector` | AWS cloud collector | workflow claims | disabled |
+| `gcpCloudCollector` | GCP cloud collector | workflow claims | disabled |
 | `packageRegistryCollector` | Package-registry collector | workflow claims | disabled |
 | `sbomAttestationCollector` | SBOM-attestation collector | workflow claims | disabled |
 | `securityAlertCollector` | Provider security-alert collector | workflow claims | disabled |
@@ -33,7 +34,7 @@ policy JSON that both the workflow coordinator and worker must share.
 
 ## Claim-Driven Contract
 
-Terraform-state, AWS cloud, package-registry, SBOM-attestation, provider
+Terraform-state, AWS cloud, GCP cloud, package-registry, SBOM-attestation, provider
 security-alert, PagerDuty, Jira, and vulnerability-intelligence collectors
 require:
 
@@ -69,6 +70,7 @@ same registry volume into both workloads with
 | OCI registry | at least one target with `provider` and `repository` | Use target env fields or `extraEnv` Secret refs for credentials. |
 | Terraform state | `instanceId`, `collectorInstances`, redaction Secret, redaction key key, `redaction.rulesetVersion` | Redaction env is mandatory. See [Terraform State Collector](../../services/collector-terraform-state.md). |
 | AWS cloud | `instanceId`, `collectorInstances` | Use `serviceAccount.*` for IRSA. Redaction Secret is optional in Helm but required by the binary when ECS, Lambda, or Security Hub scans are enabled. See [AWS Cloud Collector](../../services/collector-aws-cloud.md). |
+| GCP cloud | `instanceId`, `collectorInstances` with a matching enabled `gcp` instance, `live_collection_enabled=true`, at least one enabled scope with `credential_ref`, and redaction Secret/key | Uses `serviceAccount.*` for Workload Identity annotations. Helm mounts redaction material as a read-only Secret file and starts `-mode claimed-live`; credential values must stay out of values. |
 | Package registry | `instanceId`, `collectorInstances` | Claim-driven package metadata fetch. |
 | SBOM attestation | `instanceId`, `collectorInstances` with a `sbom_attestation` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `sbom_attestation` instance | Fetches configured HTTP(S) SBOM documents or OCI referrer blobs and emits typed source facts. Attachment, subject mismatch, parse warnings, and verification status are reducer/read-surface concerns. |
 | Security alert | `instanceId`, `collectorInstances` with a `security_alert` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `security_alert` instance | Fetches bounded GitHub Dependabot repository alert pages and emits only `security_alert.repository_alert` source facts. Target `token_env` values must resolve from `extraEnv` Secret refs; any `api_base_url` override must use HTTPS; repository names and tokens should stay out of public values files. |
@@ -104,11 +106,11 @@ Rendering fails for inactive workflow coordination with claim-driven collectors,
 empty collector instance lists, missing Confluence or Terraform-state required
 values, OCI registry with no targets, webhook listener with no provider,
 enabled webhook providers without Secret names, and PagerDuty or Jira webhook
-providers without `scopeId`. For SBOM-attestation, provider security-alert,
+providers without `scopeId`. For GCP cloud, SBOM-attestation, provider security-alert,
 PagerDuty, Jira, and vulnerability-intelligence collectors, rendering
 additionally fails when the
 collector-local instance list does not contain a matching enabled claim-driven
-instance or when
+instance, when required GCP live scope fields are absent, or when
 `workflowCoordinator.collectorInstances` does not contain an enabled
 claim-driven instance for that collector kind. Component extension rendering
 fails if the workflow coordinator is not active with claims enabled, if

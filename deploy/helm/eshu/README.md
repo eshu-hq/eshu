@@ -49,6 +49,10 @@ guidance belong in the public Kubernetes docs.
   and worker. Mount the same component registry volume into both workloads;
   strict trust mode is not charted until provenance verifier values are
   first-class chart inputs.
+- `gcpCloudCollector` is off by default. When enabled, it starts only explicit
+  claimed-live mode, requires active workflow claims, mounts the redaction key
+  from a read-only Secret file, and expects read-only GCP credentials from pod
+  identity rather than chart values.
 
 ## Verification
 

@@ -57,6 +57,7 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-jira ./cmd/collector-jira \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-scanner-worker ./cmd/scanner-worker \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-aws-cloud ./cmd/collector-aws-cloud \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-gcp-cloud ./cmd/collector-gcp-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status

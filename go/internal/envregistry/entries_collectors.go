@@ -56,6 +56,9 @@ var collectorEntries = func() []Entry {
 		"ESHU_AWS_COLLECTOR_INSTANCE_ID", "ESHU_AWS_COLLECTOR_OWNER_ID",
 		"ESHU_AWS_COLLECTOR_POLL_INTERVAL", "", "ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL")...)
 	add(Entry{Name: "ESHU_AWS_REDACTION_KEY", Type: VarString, Subsystem: "collector-aws-cloud", Description: "Encryption key for redacting AWS secrets when sensitive service scans are enabled."})
+	add(collectorFrameworkEntries("collector-gcp-cloud",
+		"ESHU_GCP_COLLECTOR_INSTANCE_ID", "ESHU_GCP_COLLECTOR_OWNER_ID",
+		"ESHU_GCP_COLLECTOR_POLL_INTERVAL", "", "ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL")...)
 
 	// Collectors whose poll/lease/heartbeat omit the "_COLLECTOR_" infix.
 	add(collectorFrameworkEntries("collector-jira",

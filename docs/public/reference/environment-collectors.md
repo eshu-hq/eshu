@@ -60,6 +60,22 @@ reuses coordinator reconcile metrics, workflow rows, claim status, and
 | `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-aws-cloud | Heartbeat interval for active workflow claims. |
 | `ESHU_AWS_REDACTION_KEY` | unset | collector-aws-cloud | Deployment-scoped key for Batch container-environment, CloudWatch alarm dimension, CodeBuild environment-variable PLAINTEXT value, Cognito free-text, ECS task-definition, Lambda environment, Security Hub action-target, and Organizations account redaction markers. Required when a target scope enables `batch`, `cloudwatch`, `codebuild`, `cognito`, `ecs`, `lambda`, `organizations`, or `securityhub`. |
 
+## GCP Cloud Collector
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_GCP_COLLECTOR_INSTANCE_ID` | required when more than one enabled GCP instance exists | collector-gcp-cloud | Selects the claim-capable `gcp` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. |
+| `ESHU_GCP_COLLECTOR_OWNER_ID` | host/process-derived | collector-gcp-cloud | Owner label written into workflow claim rows. |
+| `ESHU_GCP_COLLECTOR_POLL_INTERVAL` | `1s` | collector-gcp-cloud | Delay between empty claim polls. |
+| `ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-gcp-cloud | Lease TTL used when claiming and refreshing work. |
+| `ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-gcp-cloud | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+
+The GCP collector also requires `-mode claimed-live` and
+`-redaction-key-file` at process startup. Helm supplies the redaction key path
+from `gcpCloudCollector.redaction.*` as a read-only Secret volume mount. The
+collector instance configuration must set `live_collection_enabled=true`, and
+enabled scopes must reference credentials by name with `credential_ref`.
+
 ## Vault Live Collector
 
 The Vault live collector is claim-only. It selects an enabled `vault_live`

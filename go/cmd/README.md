@@ -38,6 +38,7 @@ exact binary set on `PATH`.
 | `eshu-collector-tempo` | `collector-tempo/` | Long-running live Tempo trace-signal metadata collector |
 | `eshu-scanner-worker` | `scanner-worker/` | Long-running isolated security analyzer worker |
 | `eshu-collector-aws-cloud` | `collector-aws-cloud/` | Long-running AWS cloud collector |
+| `eshu-collector-gcp-cloud` | `collector-gcp-cloud/` | Long-running GCP Cloud Asset Inventory collector |
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
@@ -67,6 +68,7 @@ flowchart LR
   loki[collector-loki] --> postgres
   tempo[collector-tempo] --> postgres
   aws[collector-aws-cloud] --> postgres
+  gcp[collector-gcp-cloud] --> postgres
   scanner[scanner-worker] --> postgres
   webhook[webhook-listener] --> postgres
   api[api] --> graph
