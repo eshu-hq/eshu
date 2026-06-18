@@ -26,7 +26,7 @@ func emitValueFlowBuckets(payload map[string]any, root *tree_sitter.Node, source
 	if len(findings) > 0 {
 		payload["taint_findings"] = findings
 	}
-	if interprocRows := pythonInterprocFindingPayloads(root, source); len(interprocRows) > 0 {
+	if interprocRows := pythonInterprocFindingPayloads(root, source, options.RepositoryID); len(interprocRows) > 0 {
 		payload["interproc_findings"] = interprocRows
 	}
 }
@@ -79,10 +79,11 @@ func pythonEmitDataflowBuckets(root *tree_sitter.Node, source []byte) (dataflow,
 // pythonInterprocFindingPayloads composes a file's per-function value-flow
 // summaries into an interprocedural port graph and renders the cross-function
 // taint findings. Resolution is intra-file; cross-file and cross-repo composition
-// is the reducer's job. Import path is empty here: within one file the function
-// identity needs no repository or package, and the reducer rekeys later.
-func pythonInterprocFindingPayloads(root *tree_sitter.Node, source []byte) []map[string]any {
-	findings := pydataflow.InterprocFindings(root, source, "")
+// is the reducer's job. Import path is empty here until package ownership
+// metadata is available for Python, but repository identity is stable and
+// durable.
+func pythonInterprocFindingPayloads(root *tree_sitter.Node, source []byte, repositoryID string) []map[string]any {
+	findings := pydataflow.InterprocFindings(root, source, repositoryID, "")
 	if len(findings) == 0 {
 		return nil
 	}

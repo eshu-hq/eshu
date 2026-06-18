@@ -26,7 +26,7 @@ func emitValueFlowBuckets(payload map[string]any, root *tree_sitter.Node, source
 	if len(findings) > 0 {
 		payload["taint_findings"] = findings
 	}
-	if interprocRows := jsInterprocFindingPayloads(root, source, lang); len(interprocRows) > 0 {
+	if interprocRows := jsInterprocFindingPayloads(root, source, lang, options.RepositoryID); len(interprocRows) > 0 {
 		payload["interproc_findings"] = interprocRows
 	}
 }
@@ -77,10 +77,10 @@ func jsEmitDataflowBuckets(root *tree_sitter.Node, source []byte, lang string) (
 // jsInterprocFindingPayloads composes a file's per-function value-flow summaries
 // into an interprocedural port graph and renders the cross-function taint
 // findings. Resolution is intra-file; cross-file and cross-repo composition is
-// the reducer's job. Import path is empty here: within one file the function
-// identity needs no repository or package, and the reducer rekeys later.
-func jsInterprocFindingPayloads(root *tree_sitter.Node, source []byte, lang string) []map[string]any {
-	findings := jsdataflow.InterprocFindings(root, source, "")
+// the reducer's job. Import path is empty here until package ownership metadata
+// is available for JS/TS, but repository identity is stable and durable.
+func jsInterprocFindingPayloads(root *tree_sitter.Node, source []byte, lang string, repositoryID string) []map[string]any {
+	findings := jsdataflow.InterprocFindings(root, source, repositoryID, "")
 	if len(findings) == 0 {
 		return nil
 	}

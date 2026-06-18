@@ -87,6 +87,11 @@ var bootstrapDefinitions = []Definition{
 		Path: "schema/data-plane/postgres/013_graph_projection_phase_repair_queue.sql",
 		SQL:  graphProjectionPhaseRepairQueueSchemaSQL,
 	},
+	{
+		Name: "function_summaries",
+		Path: "schema/data-plane/postgres/028_function_summaries.sql",
+		SQL:  functionSummarySchemaSQL,
+	},
 }
 
 const scopeSchemaSQL = `

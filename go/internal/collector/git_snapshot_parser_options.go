@@ -11,6 +11,7 @@ func snapshotParserOptions(
 	filePath string,
 	goPackageTargets parser.GoPackageSemanticRoots,
 	emitDataflow bool,
+	repositoryID string,
 ) parser.Options {
 	goOptions := goPackageTargets[filepath.Dir(filePath)]
 	return parser.Options{
@@ -19,6 +20,7 @@ func snapshotParserOptions(
 		GoImportedInterfaceParamMethods: goOptions.ImportedInterfaceParamMethods,
 		GoDirectMethodCallRoots:         goOptions.DirectMethodCallRoots,
 		GoPackageImportPath:             goOptions.ImportPath,
+		RepositoryID:                    repositoryID,
 		EmitDataflow:                    emitDataflow,
 	}
 }

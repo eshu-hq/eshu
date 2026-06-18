@@ -40,6 +40,9 @@ type Options struct {
 	GoImportedInterfaceParamMethods GoImportedInterfaceParamMethods
 	GoDirectMethodCallRoots         GoDirectMethodCallRoots
 	GoPackageImportPath             string
+	// RepositoryID is the stable, generation-independent repository identity used
+	// by value-flow FunctionIDs when EmitDataflow is enabled.
+	RepositoryID string
 	// EmitDataflow opts the parser into emitting per-function control-flow and
 	// reaching-definition facts, taint findings, and interprocedural findings for
 	// every value-flow-capable language. Off by default; the payload is

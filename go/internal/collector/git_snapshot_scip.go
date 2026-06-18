@@ -93,6 +93,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
+	repositoryID string,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	if shapeFiles, parsedFiles, languageSummary, used, err := s.trySCIPSnapshot(
 		ctx,
@@ -102,6 +103,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 		commitSHA,
 		isDependency,
 		goPackageTargets,
+		repositoryID,
 	); err != nil {
 		return nil, nil, nil, err
 	} else if used {
@@ -109,9 +111,9 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 	}
 
 	if s.ParseWorkers <= 1 {
-		return s.buildParsedRepositoryFilesSequential(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets, nil)
+		return s.buildParsedRepositoryFilesSequential(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets, repositoryID, nil)
 	}
-	return s.buildParsedRepositoryFilesConcurrent(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets, nil)
+	return s.buildParsedRepositoryFilesConcurrent(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets, repositoryID, nil)
 }
 
 func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
@@ -122,6 +124,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
+	repositoryID string,
 	scipFiles map[string]map[string]any,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
@@ -133,7 +136,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 		}
 
 		startTime := time.Now()
-		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets, s.EmitDataflow))
+		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets, s.EmitDataflow, repositoryID))
 		duration := fileParseDurationSeconds(startTime)
 
 		if err != nil {
@@ -210,6 +213,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
+	repositoryID string,
 	scipFiles map[string]map[string]any,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	fileCount := len(fileSet.Files)
@@ -243,7 +247,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 				}
 
 				startTime := time.Now()
-				parsed, err := engine.ParsePath(repoPath, job.path, isDependency, snapshotParserOptions(job.path, goPackageTargets, s.EmitDataflow))
+				parsed, err := engine.ParsePath(repoPath, job.path, isDependency, snapshotParserOptions(job.path, goPackageTargets, s.EmitDataflow, repositoryID))
 				duration := fileParseDurationSeconds(startTime)
 
 				if err != nil {
@@ -356,6 +360,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
+	repositoryID string,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, bool, error) {
 	config := s.scipConfig()
 	if !config.Enabled {
@@ -405,6 +410,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 			commitSHA,
 			isDependency,
 			goPackageTargets,
+			repositoryID,
 			result.Files,
 		)
 	} else {
@@ -416,6 +422,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 			commitSHA,
 			isDependency,
 			goPackageTargets,
+			repositoryID,
 			result.Files,
 		)
 	}

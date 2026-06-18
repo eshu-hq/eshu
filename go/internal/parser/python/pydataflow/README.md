@@ -29,9 +29,11 @@ See `doc.go` for the godoc contract. The surface is:
   `LocalFunctionIDs`, `FunctionID` — build a function's value-flow summary spec
   (params, sources/sinks/sanitizers, returns, intra-file call-arg sites) for
   cross-function composition.
-- `InterprocFindings(root, source, importPath) []interproc.Finding` — compose the
-  per-function summaries of a file into an interprocedural port graph and solve
-  it, returning the cross-function taint findings. Resolution is intra-file.
+- `InterprocFindings(root, source, repositoryID, importPath) []interproc.Finding`
+  — compose the per-function summaries of a file into an interprocedural port
+  graph and solve it, returning the cross-function taint findings. Resolution is
+  intra-file; `repositoryID` must be stable and generation-independent for
+  durable summary persistence.
 
 ## Dependencies
 

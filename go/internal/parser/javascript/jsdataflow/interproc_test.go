@@ -34,7 +34,7 @@ func TestTSInterprocFindingAcrossFunctions(t *testing.T) {
 		"function query(db, q) {\n"+
 		"\tdb.query(q);\n"+
 		"}\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 
 	found := false
 	for _, f := range findings {
@@ -62,7 +62,7 @@ func TestTSInterprocNoEdgeToNestedFunction(t *testing.T) {
 		"function handler(req, db) {\n"+
 		"\tquery(db, req);\n"+
 		"}\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
 		if strings.Contains(string(f.SourceFunc), "handler") && f.SourceFunc != f.SinkFunc {
 			t.Fatalf("handler must not resolve to outer's private nested query: %+v", f)
@@ -83,7 +83,7 @@ func TestTSInterprocMultiArgSameBinding(t *testing.T) {
 		"function sink2(a, b) {\n"+
 		"\tdb.query(a);\n"+
 		"}\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 
 	found := false
 	for _, f := range findings {
@@ -109,7 +109,7 @@ func TestTSInterprocNoFalseEdgeFromMethodCall(t *testing.T) {
 		"function handler(req) {\n"+
 		"\tconn.query(req);\n"+
 		"}\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
 		if strings.Contains(string(f.SourceFunc), "handler") && f.SourceFunc != f.SinkFunc {
 			t.Fatalf("false cross-function finding from handler via method call conn.query: %+v", f)

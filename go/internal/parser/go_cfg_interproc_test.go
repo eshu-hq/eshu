@@ -54,6 +54,48 @@ func query(db *sql.DB, r *http.Request) {
 	}
 }
 
+// TestGoInterprocFunctionIDsIncludeRepositoryID proves persisted value-flow
+// identities are keyed by stable repository identity, not a blank repo slot.
+func TestGoInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	query(db, r)
+}
+
+func query(db *sql.DB, r *http.Request) {
+	db.Query(r.FormValue("q"))
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+
+	rows, ok := got["interproc_findings"].([]map[string]any)
+	if !ok {
+		t.Fatalf("interproc_findings bucket missing or wrong type: %T", got["interproc_findings"])
+	}
+	for _, row := range rows {
+		sourceFunc, _ := row["source_func"].(string)
+		sinkFunc, _ := row["sink_func"].(string)
+		if !strings.HasPrefix(sourceFunc, "repo-alpha\x1f") || !strings.HasPrefix(sinkFunc, "repo-alpha\x1f") {
+			t.Fatalf("interproc FunctionIDs must include repo-alpha, got %+v", row)
+		}
+	}
+}
+
 // TestGoInterprocNoFalseEdgeFromMethodCall proves a method call (conn.Query)
 // whose field name matches a local function (Query) does NOT resolve to that
 // local function, so no false cross-function finding is produced from the caller.

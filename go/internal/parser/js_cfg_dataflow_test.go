@@ -106,6 +106,24 @@ func TestJSInterprocFindingAcrossFunctions(t *testing.T) {
 	}
 }
 
+// TestJSInterprocFunctionIDsIncludeRepositoryID proves JS/TS value-flow
+// identities carry stable repository identity when emitted for durable summary
+// persistence.
+func TestJSInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
+	got := parseJSDataflowFixtureWithOptions(t, jsDataflowFixture, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	rows, ok := got["interproc_findings"].([]map[string]any)
+	if !ok {
+		t.Fatalf("interproc_findings bucket missing or wrong type: %T", got["interproc_findings"])
+	}
+	for _, row := range rows {
+		sourceFunc, _ := row["source_func"].(string)
+		sinkFunc, _ := row["sink_func"].(string)
+		if !strings.HasPrefix(sourceFunc, "repo-alpha\x1f") || !strings.HasPrefix(sinkFunc, "repo-alpha\x1f") {
+			t.Fatalf("interproc FunctionIDs must include repo-alpha, got %+v", row)
+		}
+	}
+}
+
 // TestJSTaintInClassMethod proves intraprocedural taint is emitted for a class
 // method and carries the enclosing class name as class_context.
 func TestJSTaintInClassMethod(t *testing.T) {
@@ -136,6 +154,11 @@ func TestJSTaintInClassMethod(t *testing.T) {
 // value-flow gate enabled.
 func parseJSDataflowFixture(t *testing.T, src string) map[string]any {
 	t.Helper()
+	return parseJSDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true})
+}
+
+func parseJSDataflowFixtureWithOptions(t *testing.T, src string, options Options) map[string]any {
+	t.Helper()
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "views.ts")
 	writeTestFile(t, filePath, src)
@@ -144,7 +167,7 @@ func parseJSDataflowFixture(t *testing.T, src string) map[string]any {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, options)
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
