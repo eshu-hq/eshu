@@ -403,6 +403,8 @@ func buildReducerService(
 		},
 		IncidentRoutingEvidenceLoader: factStore,
 		IncidentRoutingEvidenceWriter: graphWriters.incidentRoutingEvidence,
+		CodeTaintEvidenceLoader:       factStore,
+		CodeTaintEvidenceWriter:       graphWriters.codeTaintEvidence,
 		// Durable incident -> repository correlation (#2161); see helper for rationale.
 		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
 		BackendRepositoryResolver:            incidentRepoCorrelationResolver,
@@ -420,10 +422,7 @@ func buildReducerService(
 	edgeWriter.InheritanceGroupBatchSize = inheritanceEdgeGroupBatchSize
 	edgeWriter.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
 
-	var reducerGraphDrain reducer.ReducerGraphDrain
-	if projectorDrainGate {
-		reducerGraphDrain = postgres.NewReducerGraphDrain(database)
-	}
+	reducerGraphDrain := reducerGraphDrainFor(projectorDrainGate, database)
 
 	workers := loadReducerWorkerCount(getenv, graphBackend)
 	return reducer.Service{
