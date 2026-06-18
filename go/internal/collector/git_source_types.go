@@ -98,6 +98,12 @@ type RepositorySnapshot struct {
 	// parser emitted interproc_findings (gated by ESHU_EMIT_DATAFLOW); byte-
 	// identical when off. Evidence, never canonical truth.
 	InterprocTaintEvidence []InterprocTaintEvidenceSnapshot `json:"interproc_taint_evidence,omitempty"`
+	// FunctionSummaries carries each function's raw value-flow Effects read from
+	// the parser's dataflow_summaries bucket, keyed by the durable FunctionID. The
+	// reducer persists them to the function-summary store for cross-repo
+	// composition. Empty unless the parser emitted dataflow_summaries (gated by
+	// ESHU_EMIT_DATAFLOW and a supplied RepositoryID); byte-identical when off.
+	FunctionSummaries []FunctionSummarySnapshot `json:"function_summaries,omitempty"`
 	// DataflowScanned records that the value-flow gate (ESHU_EMIT_DATAFLOW) was on
 	// for this snapshot, independent of whether TaintEvidence or
 	// InterprocTaintEvidence produced any findings. It drives a per-generation

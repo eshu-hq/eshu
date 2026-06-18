@@ -77,6 +77,7 @@ func buildStreamingGenerationWithContext(
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		len(snapshot.TaintEvidence) + len(snapshot.InterprocTaintEvidence) +
+		len(snapshot.FunctionSummaries) +
 		dataflowScannedFactCount +
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
@@ -304,6 +305,16 @@ func streamFacts(
 		ch <- interprocEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence)
 	}
 	snapshot.InterprocTaintEvidence = nil
+
+	// Value-flow function summary facts (opt-in via ESHU_EMIT_DATAFLOW; the slice
+	// is empty otherwise so this loop is a no-op when the gate is off). Emitted on
+	// both delta and full generations: each summary upserts by its durable
+	// FunctionID, so a delta that only re-summarizes changed files refreshes those
+	// functions without disturbing the rest.
+	for _, summary := range snapshot.FunctionSummaries {
+		ch <- functionSummaryFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, summary)
+	}
+	snapshot.FunctionSummaries = nil
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	if snapshot.Delta {
