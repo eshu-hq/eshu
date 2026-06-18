@@ -54,6 +54,7 @@ func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 	delete(on, "taint_findings")
 	delete(on, "interproc_findings")
 	delete(on, "dataflow_summaries")
+	delete(on, "dataflow_sources")
 	if !reflect.DeepEqual(off, on) {
 		t.Fatalf("enabling dataflow changed more than the opt-in buckets")
 	}
