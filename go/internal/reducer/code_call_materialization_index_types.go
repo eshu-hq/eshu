@@ -9,6 +9,7 @@ type codeEntityIndex struct {
 	uniqueNameByRepoDir     map[string]map[string]map[string]string
 	constructorByPath       map[string]map[string]string
 	goMethodReturnTypes     map[string]map[string]string
+	rustTraitMethodsByRepo  map[string]map[string]string
 	entityFileByID          map[string]string
 	entityTypeByID          map[string]string
 	entityByStableSymbolKey map[string]codeCallSymbolResolution
