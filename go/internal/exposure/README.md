@@ -35,7 +35,7 @@ optional target-property predicates), modeled on
 | `iam_privileged_action`     | `CAN_PERFORM` / `CAN_ESCALATE_TO` / `CAN_ASSUME` → CloudResource | high / critical / high | yes |
 | `secret_reference`          | `SECRETS_IAM_GRANTS_SECRET_READ` → SecretsIAMSecretMetadataPath | high | yes |
 | `internet_exposed_endpoint` | `TO` → CidrBlock `{is_internet: true}`                       | high     | yes          |
-| `sql_table`                 | *(none yet — `QUERIES_TABLE` unmaterialized, [#2799](https://github.com/eshu-hq/eshu/issues/2799))* | medium | **no** |
+| `sql_table`                 | `QUERIES_TABLE` → SqlTable                                    | medium   | yes          |
 | `shell_exec`                | *(none yet — no command-exec fact, [#2800](https://github.com/eshu-hq/eshu/issues/2800))*           | critical | **no** |
 
 Every graph-backed spec cites the reducer/graph file that authors its edge, so
@@ -43,12 +43,9 @@ the catalog stays auditable against the real materializers.
 
 ### Honesty contract
 
-Two sink kinds are part of the closed vocabulary but have **no materialized graph
-fact** today and are declared non-graph-backed:
+One sink kind is part of the closed vocabulary but has **no materialized graph
+fact** today and is declared non-graph-backed:
 
-- `sql_table` — `Function-[:QUERIES_TABLE]->SqlTable` is only a MATCH clause in
-  `query/impact.go` with no edge writer; tracked by
-  [#2799](https://github.com/eshu-hq/eshu/issues/2799).
 - `shell_exec` — no command/shell-execution graph fact exists; tracked by
   [#2800](https://github.com/eshu-hq/eshu/issues/2800).
 

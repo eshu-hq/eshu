@@ -313,6 +313,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 			})
 		}
 	}
+	rows = appendEmbeddedSQLQueryRows(rows, seenEdges, entityByName, envelopes)
 
 	// Sort for deterministic output.
 	sort.Slice(rows, func(i, j int) bool {

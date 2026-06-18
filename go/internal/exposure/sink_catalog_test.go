@@ -128,9 +128,7 @@ func TestMatchSinkRecognizesFixtures(t *testing.T) {
 		{name: "cidr without flag rejected", rel: "TO", target: "CidrBlock", wantMatch: false},
 		{name: "plain call rejected", rel: "CALLS", target: "Function", wantMatch: false},
 		{name: "unknown relationship rejected", rel: "WAT", target: "CloudResource", wantMatch: false},
-		// QUERIES_TABLE is not materialized yet (#2799), so the sql_table sink is
-		// non-graph-backed and must NOT match — the honesty contract in action.
-		{name: "sql queries_table not yet graph-backed", rel: "QUERIES_TABLE", target: "SqlTable", wantMatch: false},
+		{name: "sql queries_table", rel: "QUERIES_TABLE", target: "SqlTable", wantKind: SinkSQLTable, wantMatch: true},
 		{name: "shell exec not graph-backed", rel: "EXECUTES_SHELL", target: "ShellCommand", wantMatch: false},
 	}
 
@@ -155,7 +153,7 @@ func TestMatchSinkRecognizesFixtures(t *testing.T) {
 // sink kind in the closed vocabulary that has no materialized graph fact must be
 // excluded from GraphBackedSinkSpecs and must never be returned by MatchSink,
 // even if a caller passes a relationship a future materializer might use. Today
-// that is sql_table (#2799) and shell_exec (#2800).
+// that is shell_exec (#2800).
 func TestNonGraphBackedSinksAreNeverMatched(t *testing.T) {
 	t.Parallel()
 
@@ -173,16 +171,13 @@ func TestNonGraphBackedSinksAreNeverMatched(t *testing.T) {
 		}
 		// A non-graph-backed spec must declare no recognition edge, so it cannot
 		// be matched. Probing with any relationship/target must miss.
-		if _, ok := MatchSink("QUERIES_TABLE", "SqlTable", nil); ok && spec.Kind == SinkSQLTable {
-			t.Fatalf("non-graph-backed sink %q was matched by MatchSink", spec.Kind)
-		}
 		if _, ok := MatchSink("EXECUTES_SHELL", "ShellCommand", nil); ok && spec.Kind == SinkShellExec {
 			t.Fatalf("non-graph-backed sink %q was matched by MatchSink", spec.Kind)
 		}
 	}
 
-	if graphBacked[SinkSQLTable] {
-		t.Fatal("sql_table must be non-graph-backed until #2799 materializes QUERIES_TABLE")
+	if !graphBacked[SinkSQLTable] {
+		t.Fatal("sql_table must be graph-backed once QUERIES_TABLE is materialized")
 	}
 	if graphBacked[SinkShellExec] {
 		t.Fatal("shell_exec must be non-graph-backed until #2800 materializes a command-execution fact")

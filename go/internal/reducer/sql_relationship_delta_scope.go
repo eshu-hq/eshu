@@ -47,7 +47,13 @@ func loadSQLRelationshipMaterializationFacts(
 	if err != nil {
 		return nil, err
 	}
-	return deduplicateSQLRelationshipEnvelopes(append(repositoryFacts, contentFacts...)), nil
+	fileFacts, err := loadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKindFile})
+	if err != nil {
+		return nil, err
+	}
+	envelopes := append(repositoryFacts, contentFacts...)
+	envelopes = append(envelopes, fileFacts...)
+	return deduplicateSQLRelationshipEnvelopes(envelopes), nil
 }
 
 func deduplicateSQLRelationshipEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
@@ -91,6 +97,12 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 		entityID := semanticPayloadString(envelope.Payload, "entity_id")
 		if entityID != "" {
 			return factKindContentEntity + ":" + entityID
+		}
+	case factKindFile:
+		repositoryID := semanticPayloadString(envelope.Payload, "repo_id")
+		relativePath := semanticPayloadString(envelope.Payload, "relative_path")
+		if repositoryID != "" && relativePath != "" {
+			return factKindFile + ":" + repositoryID + ":" + relativePath
 		}
 	}
 	return ""

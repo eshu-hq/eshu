@@ -243,11 +243,12 @@ evidence as `USES_METACLASS`. When reducer rows include
 `caller_entity_type` and `callee_entity_type`, code-call and code-reference
 writes use the exact endpoint label plus `uid`; incomplete legacy rows still
 use the label-family fallback.
-`DomainSQLRelationships` writes SQL table, column, view, function, index, and
-trigger evidence with label-scoped endpoints. Trigger rows can emit both
-`TRIGGERS` to a `SqlTable` and `EXECUTES` to a `SqlFunction`; the latter is
-part of dead-code reachability for stored routines and must stay in the
-relationship retraction set.
+`DomainSQLRelationships` writes SQL table, column, view, function, index,
+trigger, and embedded-query evidence with label-scoped endpoints. Function rows
+can emit `QUERIES_TABLE` to a `SqlTable`; trigger rows can emit both `TRIGGERS`
+to a `SqlTable` and `EXECUTES` to a `SqlFunction`. `EXECUTES` remains part of
+dead-code reachability for stored routines and must stay in the relationship
+retraction set.
 
 `DomainRunsIn` writes `Function-[:RUNS_IN]->Workload` edges that bind a proven
 route-handler Function to the deployed runtime it runs in (#2722, under epic
@@ -989,10 +990,11 @@ committed zero nodes.
   lookup path instead of the broader label-family fallback. Unknown or missing
   labels still fall back to the older query shape for legacy rows.
 - SQL relationship endpoint labels are also whitelist values. `EdgeWriter`
-  routes `SqlTrigger` to `SqlTable` with `TRIGGERS`, `SqlTrigger` to
-  `SqlFunction` with `EXECUTES`, and `SqlFunction` / `SqlView` to `SqlTable`
-  with table-reference edges. Keep `EXECUTES` in both write and retract paths,
-  or trigger-bound stored routines can look unreachable to dead-code queries.
+  routes `Function` to `SqlTable` with `QUERIES_TABLE`, `SqlTrigger` to
+  `SqlTable` with `TRIGGERS`, `SqlTrigger` to `SqlFunction` with `EXECUTES`,
+  and `SqlFunction` / `SqlView` to `SqlTable` with table-reference edges. Keep
+  `EXECUTES` in both write and retract paths, or trigger-bound stored routines
+  can look unreachable to dead-code queries.
 - Canonical stale entity retractions run after current entity upserts and are
   emitted per projectable label, not as broad label-family `MATCH (n)` scans or
   giant `uid IN` exclusion filters. Current nodes have already been stamped with

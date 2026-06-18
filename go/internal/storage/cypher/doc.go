@@ -17,13 +17,14 @@
 // OVERRIDES, ALIASES, INSTANTIATES, or USES_METACLASS. Go and TypeScript
 // type-reference metadata must remain REFERENCES so graph truth does not claim
 // that type literals are invocations. SQL
-// relationship rows may materialize as TRIGGERS, EXECUTES, table references,
-// or column containment, with EXECUTES preserving trigger-bound SqlFunction
-// reachability for dead-code analysis. When reducer evidence includes endpoint
+// relationship rows may materialize as QUERIES_TABLE, TRIGGERS, EXECUTES, table
+// references, or column containment, with EXECUTES preserving trigger-bound
+// SqlFunction reachability for dead-code analysis. When reducer evidence includes endpoint
 // entity labels, EdgeWriter anchors code and SQL relationship writes on
 // whitelisted exact labels such as Function, Class, File, Interface, Struct,
 // TypeAlias, SqlTrigger, SqlTable, and SqlFunction plus uid, and falls back to
-// the older label-family shape only for legacy code rows.
+// the older label-family shape only for legacy rows with supported fallback
+// templates.
 // Canonical entity retractions run after current entity upserts and keep
 // concrete labels in the Cypher anchor so stale-node and stale-edge cleanup
 // remains selective on supported graph backends. Stale File-to-entity CONTAINS

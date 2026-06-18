@@ -186,6 +186,14 @@ SET rel.confidence = 0.9,
 
 // --- Batched UNWIND Cypher (SQL relationship edges) ---
 
+const batchCanonicalSQLQueriesTableUpsertCypher = `UNWIND $rows AS row
+MATCH (source:Function {uid: row.source_entity_id})
+MATCH (target:SqlTable {uid: row.target_entity_id})
+MERGE (source)-[rel:QUERIES_TABLE]->(target)
+SET rel.confidence = 0.95,
+    rel.reason = 'Parser embedded SQL evidence resolved a function table query edge',
+    rel.evidence_source = row.evidence_source`
+
 const batchCanonicalSQLRelationshipUpsertCypher = `UNWIND $rows AS row
 MATCH (source:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.source_entity_id})
 MATCH (target:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.target_entity_id})
