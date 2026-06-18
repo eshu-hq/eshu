@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
@@ -29,13 +30,33 @@ type FunctionGraphIDSnapshotLoader interface {
 	LoadGraphIDs(ctx context.Context) (map[summary.FunctionID]string, error)
 }
 
+// ValueFlowCloudSinkTarget is a graph-backed cloud sink attached to a Function.
+// The function-level bridge is expanded onto observed parameter ports before the
+// interprocedural fixpoint runs so missing parameter evidence does not fabricate
+// value-flow precision.
+type ValueFlowCloudSinkTarget struct {
+	FunctionID summary.FunctionID
+	Kind       string
+	Label      string
+}
+
+// FunctionCloudSinkTargetLoader reloads graph-backed cloud sink targets for the
+// cross-repo fixpoint. The graphIDs map is the durable FunctionID->Function.uid
+// snapshot and bounds graph-backed lookup to functions already known to the
+// value-flow runtime.
+type FunctionCloudSinkTargetLoader interface {
+	LoadCloudSinkTargets(ctx context.Context, graphIDs map[summary.FunctionID]string) ([]ValueFlowCloudSinkTarget, error)
+}
+
 // ValueFlowFixpointEvidenceLoader composes durable function summaries, source
-// ports, and graph ids into the existing code_interproc_evidence reducer input.
+// ports, graph ids, and graph-backed cloud sink targets into the existing
+// code_interproc_evidence reducer input.
 type ValueFlowFixpointEvidenceLoader struct {
-	SummarySnapshotLoader FunctionSummarySnapshotLoader
-	SourceSnapshotLoader  FunctionSourceSnapshotLoader
-	GraphIDSnapshotLoader FunctionGraphIDSnapshotLoader
-	Logger                *slog.Logger
+	SummarySnapshotLoader   FunctionSummarySnapshotLoader
+	SourceSnapshotLoader    FunctionSourceSnapshotLoader
+	GraphIDSnapshotLoader   FunctionGraphIDSnapshotLoader
+	CloudSinkSnapshotLoader FunctionCloudSinkTargetLoader
+	Logger                  *slog.Logger
 }
 
 // LoadCodeInterprocEvidence solves the cross-repo value-flow Program assembled
@@ -54,15 +75,22 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 	if err != nil {
 		return nil, err
 	}
+	if len(sources) == 0 {
+		return nil, nil
+	}
 	graphIDs, err := l.loadGraphIDs(ctx, scopeID, generationID)
 	if err != nil {
 		return nil, err
 	}
-	if len(effects) == 0 || len(sources) == 0 {
+	cloudSinks, err := l.loadCloudSinks(ctx, graphIDs, effects, sources)
+	if err != nil {
+		return nil, err
+	}
+	if len(effects) == 0 && len(cloudSinks) == 0 {
 		return nil, nil
 	}
 
-	program := valueflow.BuildProgram(effects, sources, nil)
+	program := valueflow.BuildProgram(effects, sources, cloudSinks)
 	result := interproc.SolvePartitioned(program, interproc.DefaultLimits())
 	inputs := make([]CodeInterprocEvidenceInput, 0, len(result.Findings))
 	for _, finding := range result.Findings {
@@ -86,6 +114,7 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 			"generation_id", generationID,
 			"summary_count", len(effects),
 			"source_count", len(sources),
+			"cloud_sink_count", len(cloudSinks),
 			"finding_count", len(inputs),
 			"overflow_count", result.Overflow,
 			"unresolved_endpoint_count", unresolvedCodeInterprocEndpointCount(inputs),
@@ -150,6 +179,101 @@ func (l ValueFlowFixpointEvidenceLoader) loadGraphIDs(
 		}
 	}
 	return graphIDs, nil
+}
+
+func (l ValueFlowFixpointEvidenceLoader) loadCloudSinks(
+	ctx context.Context,
+	graphIDs map[summary.FunctionID]string,
+	effects map[summary.FunctionID]summary.Effects,
+	sources []interproc.Source,
+) ([]interproc.Sink, error) {
+	if l.CloudSinkSnapshotLoader == nil {
+		return nil, nil
+	}
+	targets, err := l.CloudSinkSnapshotLoader.LoadCloudSinkTargets(ctx, graphIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load graph-backed cloud sinks: %w", err)
+	}
+	return expandCloudSinkTargets(targets, effects, sources), nil
+}
+
+func expandCloudSinkTargets(
+	targets []ValueFlowCloudSinkTarget,
+	effects map[summary.FunctionID]summary.Effects,
+	sources []interproc.Source,
+) []interproc.Sink {
+	if len(targets) == 0 {
+		return nil
+	}
+	portsByFunction := observedParamPorts(effects, sources)
+	sinks := make([]interproc.Sink, 0, len(targets))
+	for _, target := range targets {
+		if target.FunctionID == "" || strings.TrimSpace(target.Kind) == "" {
+			continue
+		}
+		params := portsByFunction[target.FunctionID]
+		if len(params) == 0 {
+			continue
+		}
+		for _, param := range params {
+			sinks = append(sinks, interproc.Sink{
+				Port: interproc.Port{
+					Func: interproc.FunctionID(target.FunctionID),
+					Slot: interproc.Slot{Kind: interproc.SlotParam, Index: param},
+				},
+				Kind:  target.Kind,
+				Label: target.Label,
+				Cloud: true,
+			})
+		}
+	}
+	return sinks
+}
+
+func observedParamPorts(
+	effects map[summary.FunctionID]summary.Effects,
+	sources []interproc.Source,
+) map[summary.FunctionID][]int {
+	seen := map[summary.FunctionID]map[int]struct{}{}
+	add := func(id summary.FunctionID, param int) {
+		if id == "" || param < 0 {
+			return
+		}
+		params := seen[id]
+		if params == nil {
+			params = map[int]struct{}{}
+			seen[id] = params
+		}
+		params[param] = struct{}{}
+	}
+	for id, fx := range effects {
+		for _, param := range fx.ParamToReturn {
+			add(id, param)
+		}
+		for _, sink := range fx.ParamToSink {
+			add(id, sink.Param)
+		}
+		for _, flow := range fx.ParamToCallArg {
+			add(id, flow.Param)
+			add(flow.Callee, flow.Arg)
+		}
+	}
+	for _, source := range sources {
+		if source.Port.Slot.Kind == interproc.SlotParam {
+			add(summary.FunctionID(source.Port.Func), source.Port.Slot.Index)
+		}
+	}
+
+	out := make(map[summary.FunctionID][]int, len(seen))
+	for id, params := range seen {
+		values := make([]int, 0, len(params))
+		for param := range params {
+			values = append(values, param)
+		}
+		sort.Ints(values)
+		out[id] = values
+	}
+	return out
 }
 
 func functionName(id summary.FunctionID) string {

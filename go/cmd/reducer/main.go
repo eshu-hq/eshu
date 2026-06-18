@@ -84,15 +84,14 @@ func buildReducerService(
 	functionSummaryStore := postgres.NewFunctionSummaryStore(database)
 	functionSourceStore := postgres.NewFunctionSourceStore(database)
 	functionGraphIDStore := postgres.NewFunctionGraphIDStore(database)
-	valueFlowFixpointProjector := reducer.ValueFlowFixpointEvidenceProjector{
-		Loader: reducer.ValueFlowFixpointEvidenceLoader{
-			SummarySnapshotLoader: functionSummaryStore,
-			SourceSnapshotLoader:  functionSourceStore,
-			GraphIDSnapshotLoader: functionGraphIDStore,
-			Logger:                logger,
-		},
-		Writer: graphWriters.codeInterprocEvidence,
-	}
+	valueFlowFixpointProjector := newValueFlowFixpointProjector(
+		functionSummaryStore,
+		functionSourceStore,
+		functionGraphIDStore,
+		graphReader,
+		graphWriters.codeInterprocEvidence,
+		logger,
+	)
 	semanticEntityExecutor := semanticEntityExecutorForGraphBackend(
 		neo4jExec,
 		graphBackend,
