@@ -63,6 +63,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildIAMCanAssumeMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}

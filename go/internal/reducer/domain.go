@@ -11,6 +11,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainCloudAssetResolution:                     {},
 	DomainDeploymentMapping:                        {},
 	DomainDataLineage:                              {},
+	DomainCodeInterprocEvidence:                    {},
 	DomainOwnership:                                {},
 	DomainGovernance:                               {},
 	DomainWorkloadMaterialization:                  {},

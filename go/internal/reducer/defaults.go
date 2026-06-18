@@ -508,6 +508,15 @@ type DefaultHandlers struct {
 	// nodes attached to their Function.
 	CodeTaintEvidenceWriter CodeTaintEvidenceWriter
 
+	// CodeInterprocEvidenceLoader loads resolved cross-function taint findings
+	// from code_interproc_evidence facts. Non-nil alongside the writer to register
+	// DomainCodeInterprocEvidence.
+	CodeInterprocEvidenceLoader CodeInterprocEvidenceLoader
+
+	// CodeInterprocEvidenceWriter projects cross-function findings into
+	// TAINT_FLOWS_TO edges between Function nodes.
+	CodeInterprocEvidenceWriter CodeInterprocEvidenceWriter
+
 	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
 	// routing facts (provider service id + Terraform backend locator) for the
 	// incident-repository correlation domain. It must be non-nil alongside

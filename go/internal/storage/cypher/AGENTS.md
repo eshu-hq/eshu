@@ -191,6 +191,36 @@ No-Observability-Change: the writer flows through the existing `Executor`/
 metric label, worker, queue domain, runtime knob, backend branch, or other new
 graph-write route surface.
 
+## CodeInterprocEvidence writer (cross-function value-flow projection, #2906)
+
+`CodeInterprocEvidenceWriter` upserts cross-function value-flow findings as
+`TAINT_FLOWS_TO` edges between the source and sink `Function` nodes. It is the
+reducer-owned graph-write for the `code_interproc_evidence` projection domain and
+mirrors the existing reducer-owned scoped edges (`iam_can_assume`,
+`handles_route`): the flow is an edge, not a node, so it needs no new schema
+constraint or index.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run 'TestCodeInterprocEvidenceWriter' -count=1`
+proves the writer emits one batched, backend-neutral `UNWIND $rows` statement that
+`MATCH (s:Function {uid})` and `MATCH (t:Function {uid})` (never `MERGE`, so a
+finding whose endpoint is absent draws no edge to a phantom node),
+`MERGE (s)-[rel:TAINT_FLOWS_TO {evidence_uid: row.uid}]->(t)`, and that retraction
+is a single `DELETE` scoped to `scope_id` + `evidence_source`. Input shape: one
+row per resolved cross-function finding per scope generation (bounded by
+`DefaultBatchSize`); the MERGE-on-`evidence_uid` identity keeps the upsert
+O(rows) and idempotent, and the MERGE is bounded by the two MATCHed endpoints so
+it needs no global relationship index. Backend: NornicDB default and Neo4j
+compatibility, same `Executor`/`GroupExecutor` path as every other evidence
+writer. The domain is gated off until its loader and writer are wired in
+`cmd/reducer`, so there is no production graph-write load on this path yet.
+
+No-Observability-Change: the writer flows through the existing `Executor`/
+`GroupExecutor` dispatch, `Statement` phase/label/summary metadata
+(`code_interproc_evidence` phase, `TAINT_FLOWS_TO` label), retry wrapping
+(`WrapRetryableNeo4jError`), and failure logging. It adds no new metric name,
+metric label, worker, queue domain, runtime knob, backend branch, or other new
+graph-write route surface.
+
 ## Failure modes and how to debug
 
 - Symptom: `eshu_dp_neo4j_deadlock_retries_total` rising → likely causes:
