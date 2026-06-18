@@ -194,5 +194,3 @@ func TestSourceNextClaimedRejectsZeroRedactionKey(t *testing.T) {
 		t.Fatal("NextClaimed() error = nil, want zero redaction key rejection")
 	}
 }
-
-var _ = scope.CollectorAzure
