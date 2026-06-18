@@ -2,7 +2,8 @@
 
 This gate defines the security and schema review required before Eshu may send
 curated search-document text to a hosted embedding provider or internal
-gateway. It is the approval boundary for #3047 and blocks #3042.
+gateway. It documents the approval boundary for #3047 and blocks #3042 until a
+separate approval record names the accepted implementation details.
 
 This page does not add provider traffic, runtime flags, credential loading,
 provider SDKs, API fields, MCP fields, reducer behavior, queue behavior, graph
@@ -123,8 +124,10 @@ credentials must not be metric labels.
 
 ## Approval Gate
 
-#3042 may implement hosted search embeddings only after #3047 is closed or
-explicitly waived by the owning reviewers. The approval must name:
+#3042 may implement hosted search embeddings only after the owning reviewers add
+a concrete approval record to #3047 or an explicitly linked security/schema
+review. Closing #3047 by adding this gate is not sufficient. The approval record
+must name:
 
 - the accepted source class;
 - the adapter package boundary outside `go/internal/searchhybrid`;
@@ -135,8 +138,9 @@ explicitly waived by the owning reviewers. The approval must name:
 - the vector metadata required for active-generation compatibility;
 - the operator-facing telemetry and status contract.
 
-Until then, safe repo-local work is limited to documentation, fail-closed tests,
-and status contracts that perform no outbound provider traffic.
+Until that approval record exists, safe repo-local work is limited to
+documentation, fail-closed tests, and status contracts that perform no outbound
+provider traffic.
 
 ## Verification
 
