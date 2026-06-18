@@ -1,0 +1,50 @@
+# Per-ecosystem reachability capability rows (issue #3021).
+#
+# Reachability is not a standalone tool. It is surfaced as the reachability
+# envelope on supply-chain impact findings, so every row shares the impact
+# surfaces that actually carry it: list_supply_chain_impact_findings and
+# explain_supply_chain_impact. Reachability never changes impact truth; it is
+# prioritization evidence. Truth ceilings are derived (computed/bounded), not
+# exact graph truth.
+#
+# value_flow ecosystems (python, typescript, javascript) are unsupported in
+# every profile here because they are operationally gated by ESHU_EMIT_DATAFLOW,
+# which is off by default. The matrix cannot express an env-var gate, so the
+# overlay (specs/capability-catalog.v1.yaml) records the gated maturity and the
+# opt-in behavior. The notes describe behavior when the gate is enabled.
+capabilities:
+  - capability: reachability.go.govulncheck
+    tools: [list_supply_chain_impact_findings, explain_supply_chain_impact]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-go-reachability}], notes: requires reducer supply-chain impact facts; reachability correlation is graph-backed and unavailable on the local host alone}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/reducer}], notes: always-on Go reachability via govulncheck call-graph evidence correlated by the reducer; not_called is emitted only with ecosystem-specific scanner semantics, otherwise unknown}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/reducer}], notes: always-on Go reachability via govulncheck call-graph evidence correlated by the reducer; no env gate}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cve_package_repository_or_digest_scope, verification: [{remote_validation: prod-supply-chain-impact}], notes: always-on Go reachability via govulncheck call-graph evidence; reachable, not_called, unknown, unavailable, and missing_evidence states ride the impact findings envelope}
+  - capability: reachability.python.value_flow
+    tools: [list_supply_chain_impact_findings, explain_supply_chain_impact]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-python-value-flow-reachability}], notes: Python value-flow reachability is gated by ESHU_EMIT_DATAFLOW (off by default); no value-flow facts are emitted unless opted in}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: local-authoritative-unsupported-python-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; when opted in, derived per-ecosystem Python value-flow taint evidence becomes partial prioritization evidence on the impact envelope}
+      local_full_stack: {status: unsupported, max_truth_level: unsupported, required_runtime: full_stack, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: local-full-stack-unsupported-python-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; opt-in Python value-flow taint evidence is derived, never exact, and does not change impact truth}
+      production: {status: unsupported, max_truth_level: unsupported, required_runtime: deployed_services, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: prod-unsupported-python-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; not part of the default deployed-services contract}
+  - capability: reachability.typescript.value_flow
+    tools: [list_supply_chain_impact_findings, explain_supply_chain_impact]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-typescript-value-flow-reachability}], notes: TypeScript value-flow reachability is gated by ESHU_EMIT_DATAFLOW (off by default); no value-flow facts are emitted unless opted in}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: local-authoritative-unsupported-typescript-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; when opted in, derived TypeScript value-flow taint evidence is partial prioritization evidence on the impact envelope}
+      local_full_stack: {status: unsupported, max_truth_level: unsupported, required_runtime: full_stack, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: local-full-stack-unsupported-typescript-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; opt-in TypeScript value-flow taint evidence is derived, never exact, and does not change impact truth}
+      production: {status: unsupported, max_truth_level: unsupported, required_runtime: deployed_services, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: prod-unsupported-typescript-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; not part of the default deployed-services contract}
+  - capability: reachability.javascript.value_flow
+    tools: [list_supply_chain_impact_findings, explain_supply_chain_impact]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-javascript-value-flow-reachability}], notes: JavaScript value-flow reachability is gated by ESHU_EMIT_DATAFLOW (off by default); no value-flow facts are emitted unless opted in}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: local-authoritative-unsupported-javascript-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; when opted in, derived JavaScript value-flow taint evidence is partial prioritization evidence on the impact envelope}
+      local_full_stack: {status: unsupported, max_truth_level: unsupported, required_runtime: full_stack, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: local-full-stack-unsupported-javascript-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; opt-in JavaScript value-flow taint evidence is derived, never exact, and does not change impact truth}
+      production: {status: unsupported, max_truth_level: unsupported, required_runtime: deployed_services, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: prod-unsupported-javascript-value-flow-reachability}], notes: gated by ESHU_EMIT_DATAFLOW; not part of the default deployed-services contract}
+  - capability: reachability.jvm.bounded
+    tools: [list_supply_chain_impact_findings, explain_supply_chain_impact]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-jvm-reachability}], notes: requires reducer supply-chain impact facts; JVM reachability correlation is graph-backed and unavailable on the local host alone}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/reducer}], notes: bounded Maven/Gradle reachability from the JVM reducer family using active parser/SCIP package-API evidence; jvm_package_api_reachable is partial prioritization evidence, never proof of not_called}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/reducer}], notes: bounded Maven/Gradle reachability from the JVM reducer family; bounded by stored parser/SCIP API evidence, not a full call graph}
+      production: {status: unsupported, max_truth_level: unsupported, required_runtime: deployed_services, p95_latency_ms: null, max_scope_size: cve_package_repository_or_digest_scope, verification: [{integration_test: prod-unsupported-jvm-reachability}], notes: JVM reachability is bounded/partial and not part of the default deployed-services contract; surfaces as a local graph-backed preview only}

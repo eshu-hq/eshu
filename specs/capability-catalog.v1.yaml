@@ -28,6 +28,60 @@ capabilities:
     owner_package: internal/searchretrieval
     console: true
 
+  # Per-ecosystem reachability rows (issue #3021). Reachability rides the
+  # supply-chain impact envelope, so these rows share its surfaces. Go is
+  # always on and derives general_availability from the matrix. value_flow
+  # ecosystems are operationally gated by ESHU_EMIT_DATAFLOW, which the matrix
+  # cannot express, so they take an overlay gated maturity. JVM is bounded and
+  # derives preview from its local-only matrix support.
+  - capability: reachability.go.govulncheck
+    display_name: Go Reachability (govulncheck)
+    owner_package: internal/collector/vulnerabilityintelligence
+    linked_issues: [3021, 2704, 2705]
+    docs:
+      - reference/vulnerability-scanner-confidence.md
+    known_gaps:
+      - "Reachability is prioritization evidence on the impact envelope; not_called is emitted only with ecosystem-specific scanner semantics, otherwise unknown."
+    console: true
+  - capability: reachability.python.value_flow
+    display_name: Python Reachability (value flow)
+    owner_package: internal/parser/python/pydataflow
+    maturity: gated
+    maturity_reason: "Python value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in."
+    linked_issues: [3021, 2704, 2705]
+    docs:
+      - reference/vulnerability-scanner-confidence.md
+    known_gaps:
+      - "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+  - capability: reachability.typescript.value_flow
+    display_name: TypeScript Reachability (value flow)
+    owner_package: internal/parser/javascript/jsdataflow
+    maturity: gated
+    maturity_reason: "TypeScript value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in."
+    linked_issues: [3021, 2704, 2705]
+    docs:
+      - reference/vulnerability-scanner-confidence.md
+    known_gaps:
+      - "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+  - capability: reachability.javascript.value_flow
+    display_name: JavaScript Reachability (value flow)
+    owner_package: internal/parser/javascript/jsdataflow
+    maturity: gated
+    maturity_reason: "JavaScript value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in."
+    linked_issues: [3021, 2704, 2705]
+    docs:
+      - reference/vulnerability-scanner-confidence.md
+    known_gaps:
+      - "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+  - capability: reachability.jvm.bounded
+    display_name: JVM Reachability (bounded)
+    owner_package: internal/reducer
+    linked_issues: [3021, 2704, 2705]
+    docs:
+      - reference/vulnerability-scanner-confidence.md
+    known_gaps:
+      - "Bounded/partial: the JVM reducer family derives Maven/Gradle reachability from stored parser/SCIP package-API evidence (jvm_package_api_reachable), not a full call graph, so it never proves not_called and stays a local graph-backed preview."
+
 # MCP tools that the matrix tools field does not reference. A capability maps
 # the tool to an existing entry as an alias surface; an empty capability marks a
 # genuine utility or operator surface that is not a distinct product capability.
