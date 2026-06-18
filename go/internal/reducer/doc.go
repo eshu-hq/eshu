@@ -71,9 +71,12 @@
 // facts can readiness-gate on those endpoints, then writes edges only when both
 // normalized ARM IDs resolve exactly in the same source generation.
 // Code function summary materialization persists generation-independent
-// value-flow summaries, param sources, and FunctionID-to-graph-uid mappings,
-// loads graph-backed cloud sink targets from the closed exposure catalog, then
-// runs the cross-repo fixpoint projection through a distinct
+// value-flow summaries, param sources, and FunctionID-to-graph-uid mappings.
+// ValueFlowProgramAssemblyRunner can assemble bounded Programs from active
+// CALLS, persisted summaries, and durable param-source rows without solving or
+// writing graph evidence. The fixpoint path loads graph-backed cloud sink
+// targets from the closed exposure catalog, then runs the cross-repo fixpoint
+// projection through a distinct
 // reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence source so direct
 // code_interproc_evidence rows remain isolated. Cloud action permission targets
 // join only through an exact single RUNS_IN workload fan-out plus

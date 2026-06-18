@@ -34,6 +34,9 @@
 // CodeValueFlowCurrentGenerationStore pages active repository scope generations
 // from ingestion_scopes so reducer-owned value-flow stale cleanup can run even
 // when a current generation emits no value-flow facts.
+// ValueFlowProgramInputStore loads active completed CALLS edges with repo-scoped
+// function summaries and function_sources so reducer Program assembly has
+// durable param-level source ports without reading transient parser memory.
 // CollectorGenerationDeadLetterStore persists bounded commit-failure metadata
 // for generations that failed before projector work rows existed and exposes a
 // source-level replay request/completion path plus unresolved status aggregates

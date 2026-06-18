@@ -58,6 +58,13 @@ FROM function_summaries
 ORDER BY function_id ASC
 `
 
+const loadFunctionSummariesByRepoSQL = `
+SELECT function_id, effects, version
+FROM function_summaries
+WHERE repo = $1
+ORDER BY function_id ASC
+`
+
 // FunctionSummarySchemaSQL returns the DDL for durable value-flow function
 // summaries.
 func FunctionSummarySchemaSQL() string {
@@ -136,6 +143,35 @@ func (s FunctionSummaryStore) LoadSnapshot(ctx context.Context) (summary.Snapsho
 	}
 	if err := rows.Err(); err != nil {
 		return summary.Snapshot{}, fmt.Errorf("load function summaries: %w", err)
+	}
+	return snap, nil
+}
+
+// LoadRepoSnapshot reloads persisted summaries for one repository in
+// deterministic function_id order.
+func (s FunctionSummaryStore) LoadRepoSnapshot(ctx context.Context, repo string) (summary.Snapshot, error) {
+	if s.db == nil {
+		return summary.Snapshot{}, fmt.Errorf("function summary store database is required")
+	}
+	if strings.TrimSpace(repo) == "" {
+		return summary.Snapshot{}, fmt.Errorf("function summary repository is required")
+	}
+	rows, err := s.db.QueryContext(ctx, loadFunctionSummariesByRepoSQL, strings.TrimSpace(repo))
+	if err != nil {
+		return summary.Snapshot{}, fmt.Errorf("load function summaries for repo %q: %w", repo, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var snap summary.Snapshot
+	for rows.Next() {
+		fn, err := scanFunctionSummary(rows)
+		if err != nil {
+			return summary.Snapshot{}, err
+		}
+		snap.Functions = append(snap.Functions, fn)
+	}
+	if err := rows.Err(); err != nil {
+		return summary.Snapshot{}, fmt.Errorf("load function summaries for repo %q: %w", repo, err)
 	}
 	return snap, nil
 }

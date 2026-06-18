@@ -9,6 +9,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
+// TestFunctionGraphIDSchemaIndexesUID proves program-input loaders can join
+// CALLS graph endpoints back to durable FunctionIDs without scanning the whole
+// mapping table.
+func TestFunctionGraphIDSchemaIndexesUID(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(FunctionGraphIDSchemaSQL(), "function_graph_ids_uid_idx") {
+		t.Fatalf("FunctionGraphIDSchemaSQL() missing uid index:\n%s", FunctionGraphIDSchemaSQL())
+	}
+}
+
 // TestFunctionGraphIDStoreUpsertBuildsRows proves UpsertGraphIDs writes one row
 // per resolved mapping (with derived repo) and skips empty uids.
 func TestFunctionGraphIDStoreUpsertBuildsRows(t *testing.T) {
