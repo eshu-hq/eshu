@@ -79,21 +79,69 @@ func TestGraphValueFlowCloudSinkTargetLoaderLoadsCatalogBackedSinks(t *testing.T
 	if targets[1].Kind != string(exposure.SinkInternetEndpoint) {
 		t.Fatalf("second target = %+v, want internet endpoint target", targets[1])
 	}
-	if strings.Contains(graph.seenCypher, "OPTIONAL MATCH") || strings.Contains(graph.seenCypher, "MATCH (fn)") {
-		t.Fatalf("cloud sink query must stay anchored and scalar, got:\n%s", graph.seenCypher)
+	directCypher := graph.seenCyphers[0]
+	if strings.Contains(directCypher, "OPTIONAL MATCH") || strings.Contains(directCypher, "MATCH (fn)") {
+		t.Fatalf("cloud sink query must stay anchored and scalar, got:\n%s", directCypher)
 	}
-	if !strings.Contains(graph.seenCypher, "MATCH (fn:Function)-[sinkRel]->(sinkNode)") {
-		t.Fatalf("cloud sink query must anchor on Function and outgoing sink edge:\n%s", graph.seenCypher)
+	if !strings.Contains(directCypher, "MATCH (fn:Function)-[sinkRel]->(sinkNode)") {
+		t.Fatalf("cloud sink query must anchor on Function and outgoing sink edge:\n%s", directCypher)
 	}
-	if !strings.Contains(graph.seenCypher, "fn.uid IN $function_uids") || !strings.Contains(graph.seenCypher, "type(sinkRel) IN $sink_rels") {
-		t.Fatalf("cloud sink query must be bounded by function uid and catalog rels:\n%s", graph.seenCypher)
+	if !strings.Contains(directCypher, "fn.uid IN $function_uids") || !strings.Contains(directCypher, "type(sinkRel) IN $sink_rels") {
+		t.Fatalf("cloud sink query must be bounded by function uid and catalog rels:\n%s", directCypher)
 	}
-	rels, ok := graph.seenParams["sink_rels"].([]string)
+	rels, ok := graph.seenParamSets[0]["sink_rels"].([]string)
 	if !ok {
-		t.Fatalf("sink_rels param type = %T, want []string", graph.seenParams["sink_rels"])
+		t.Fatalf("sink_rels param type = %T, want []string", graph.seenParamSets[0]["sink_rels"])
 	}
 	if valueFlowTestContainsString(rels, "QUERIES_TABLE") || valueFlowTestContainsString(rels, "EXECUTES_SHELL") {
 		t.Fatalf("non-graph-backed sink rel leaked into params: %+v", rels)
+	}
+}
+
+func TestGraphValueFlowCloudSinkTargetLoaderLoadsCorrelatedCloudActionPermissions(t *testing.T) {
+	t.Parallel()
+
+	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
+	graph := &recordingCloudSinkGraph{rowsByCall: [][]map[string]any{
+		nil,
+		{
+			{
+				"function_uid": "uid-handler",
+				"sink_rel":     "CAN_PERFORM",
+				"sink_labels":  []string{"CloudResource"},
+			},
+		},
+	}}
+	loader := GraphValueFlowCloudSinkTargetLoader{Graph: graph}
+
+	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
+	if err != nil {
+		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
+	}
+	if len(targets) != 1 {
+		t.Fatalf("targets len = %d, want 1: %+v", len(targets), targets)
+	}
+	if targets[0].FunctionID != fn || targets[0].Kind != string(exposure.SinkIAMPrivilegedAction) {
+		t.Fatalf("target = %+v, want correlated IAM cloud-action target", targets[0])
+	}
+	if len(graph.seenCyphers) != 2 {
+		t.Fatalf("graph calls = %d, want direct sink and correlated cloud-action reads", len(graph.seenCyphers))
+	}
+	actionCypher := graph.seenCyphers[1]
+	for _, want := range []string{
+		"MATCH (fn:Function)",
+		"fn.uid IN $function_uids",
+		"INVOKES_CLOUD_ACTION",
+		"RUNS_IN",
+		"INSTANCE_OF",
+		"USES",
+		"CAN_PERFORM",
+		"WHERE size(workloads) = 1",
+		"action.action IN sinkRel.actions",
+	} {
+		if !strings.Contains(actionCypher, want) {
+			t.Fatalf("correlated cloud-action query missing %q:\n%s", want, actionCypher)
+		}
 	}
 }
 
@@ -139,8 +187,8 @@ func TestGraphValueFlowCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
 	if _, err := loader.LoadCloudSinkTargets(context.Background(), graphIDs); err != nil {
 		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
 	}
-	if len(graph.seenParamSets) != 2 {
-		t.Fatalf("graph calls = %d, want 2 chunks", len(graph.seenParamSets))
+	if len(graph.seenParamSets) != 4 {
+		t.Fatalf("graph calls = %d, want 2 reads per chunk across 2 chunks", len(graph.seenParamSets))
 	}
 	for _, params := range graph.seenParamSets {
 		uids, ok := params["function_uids"].([]string)

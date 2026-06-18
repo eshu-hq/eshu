@@ -445,6 +445,18 @@ after `DomainCodeFunctionSummary` persists those stores. The post-persist
 the distinct `reducer/code-interproc-fixpoint` evidence source and UID namespace,
 so existing fact-based `code_interproc_evidence` inputs stay isolated.
 
+No-Regression Evidence: #2969 adds one Function.uid-bounded graph read that
+joins INVOKES_CLOUD_ACTION to CAN_PERFORM cloud permission targets only after a
+single exact RUNS_IN workload fan-out. `go test ./internal/reducer -run
+'TestGraphValueFlowCloudSinkTargetLoaderLoadsCorrelatedCloudActionPermissions'
+-count=1` failed before the loader returned permission-backed sinks, then
+passed with ambiguous workload fan-out still empty.
+
+No-Observability-Change: the cloud-action permission read uses the existing
+value-flow fixpoint load path, graph query instrumentation, reducer
+spans/counters, and CodeInterprocEvidence writer summaries; it adds no worker,
+queue domain, metric instrument, metric label, runtime knob, or graph writer.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

@@ -75,15 +75,20 @@
 // loads graph-backed cloud sink targets from the closed exposure catalog, then
 // runs the cross-repo fixpoint projection through a distinct
 // reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence source so direct
-// code_interproc_evidence rows remain isolated. Cloud sink bridge edges are
-// attached only to observed parameter ports for that FunctionID; a graph edge
-// without parameter evidence stays visible as no value-flow finding rather than
+// code_interproc_evidence rows remain isolated. Cloud action permission targets
+// join only through an exact single RUNS_IN workload fan-out plus
+// WorkloadInstance USES CloudResource principal and matching CAN_PERFORM action;
+// ambiguous runtime identity stays empty. Cloud sink bridge edges are attached
+// only to observed parameter ports for that FunctionID; a graph edge without
+// parameter evidence stays visible as no value-flow finding rather than
 // fabricating precision.
 //
 // No-Regression Evidence: issue #2967 adds one bounded graph read anchored on
 // Function.uid values loaded from the durable FunctionID map and filtered by the
-// graph-backed exposure sink relationship allowlist. The fixpoint graph writer
-// shape is unchanged: cloud-backed findings still project as
+// graph-backed exposure sink relationship allowlist. Issue #2969 adds one
+// additional Function.uid-bounded read for correlated INVOKES_CLOUD_ACTION to
+// CAN_PERFORM permission paths, guarded by exact workload fan-out. The fixpoint
+// graph writer shape is unchanged: cloud-backed findings still project as
 // reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence between existing
 // Function nodes, with rel.cloud=true and no promotion to canonical truth.
 // No-Observability-Change: operators diagnose this path through the existing
