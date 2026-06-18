@@ -4,7 +4,8 @@
     "scope_unique_name": 1
   },
   "java": {
-    "repo_unique_name": 9
+    "repo_unique_name": 5,
+    "type_inferred": 4
   },
   "python": {
     "repo_unique_name": 4,
