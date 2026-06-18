@@ -177,13 +177,20 @@ func (l stubCodeFunctionSourceLoader) LoadCodeFunctionSources(context.Context, s
 }
 
 type recordingCodeFunctionSourceWriter struct {
-	calls   int
-	sources []interproc.Source
+	calls int
+	repos []string
+	sets  [][]interproc.Source
 }
 
-func (w *recordingCodeFunctionSourceWriter) UpsertSources(_ context.Context, sources []interproc.Source, _ time.Time) error {
+func (w *recordingCodeFunctionSourceWriter) ReplaceSources(
+	_ context.Context,
+	repo string,
+	sources []interproc.Source,
+	_ time.Time,
+) error {
 	w.calls++
-	w.sources = sources
+	w.repos = append(w.repos, repo)
+	w.sets = append(w.sets, sources)
 	return nil
 }
 
@@ -203,8 +210,35 @@ func TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired(t *testing.T) {
 	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
 		t.Fatalf("Handle error: %v", err)
 	}
-	if srcWriter.calls != 1 || len(srcWriter.sources) != 1 || srcWriter.sources[0].Kind != "http_request" {
+	if srcWriter.calls != 1 || len(srcWriter.sets) != 1 ||
+		len(srcWriter.sets[0]) != 1 || srcWriter.sets[0][0].Kind != "http_request" {
 		t.Fatalf("sources not persisted: %+v", srcWriter)
+	}
+}
+
+// TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot proves a generation
+// with summaries but no current source ports still clears the repo's durable
+// source snapshot.
+func TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot(t *testing.T) {
+	t.Parallel()
+	srcWriter := &recordingCodeFunctionSourceWriter{}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+			"repo-1\x1fpkg\x1f\x1fhandle": {ParamToReturn: []int{0}},
+		}},
+		Writer:       &recordingCodeFunctionSummaryWriter{},
+		SourceLoader: stubCodeFunctionSourceLoader{},
+		SourceWriter: srcWriter,
+	}
+
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle error: %v", err)
+	}
+	if srcWriter.calls != 1 || len(srcWriter.repos) != 1 || srcWriter.repos[0] != "repo-1" {
+		t.Fatalf("source replacement calls = %+v, want one repo-1 replacement", srcWriter)
+	}
+	if len(srcWriter.sets) != 1 || len(srcWriter.sets[0]) != 0 {
+		t.Fatalf("source replacement set = %+v, want empty", srcWriter.sets)
 	}
 }
 

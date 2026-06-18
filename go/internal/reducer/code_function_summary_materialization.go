@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
@@ -60,7 +62,7 @@ type CodeFunctionSourceLoader interface {
 // CodeFunctionSourceWriter persists the param-level taint sources to the durable
 // store. It is satisfied by postgres.FunctionSourceStore.
 type CodeFunctionSourceWriter interface {
-	UpsertSources(ctx context.Context, sources []interproc.Source, updatedAt time.Time) error
+	ReplaceSources(ctx context.Context, repo string, sources []interproc.Source, updatedAt time.Time) error
 }
 
 // CodeFunctionSummaryMaterializationHandler persists one generation's function
@@ -115,8 +117,10 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		if err != nil {
 			return Result{}, fmt.Errorf("load code function sources: %w", err)
 		}
-		if err := h.SourceWriter.UpsertSources(ctx, sources, now); err != nil {
-			return Result{}, fmt.Errorf("persist code function sources: %w", err)
+		for _, repo := range codeFunctionSourceRepos(effects, sources) {
+			if err := h.SourceWriter.ReplaceSources(ctx, repo, codeFunctionSourcesForRepo(repo, sources), now); err != nil {
+				return Result{}, fmt.Errorf("persist code function sources for repo %q: %w", repo, err)
+			}
 		}
 		sourceCount = len(sources)
 	}
@@ -144,4 +148,45 @@ func (h CodeFunctionSummaryMaterializationHandler) now() time.Time {
 		return h.Now()
 	}
 	return time.Now().UTC()
+}
+
+func codeFunctionSourceRepos(
+	effects map[summary.FunctionID]summary.Effects,
+	sources []interproc.Source,
+) []string {
+	seen := make(map[string]struct{})
+	for fnID := range effects {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	for _, src := range sources {
+		if repo := durableFunctionRepo(string(src.Port.Func)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	repos := make([]string, 0, len(seen))
+	for repo := range seen {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+	return repos
+}
+
+func codeFunctionSourcesForRepo(repo string, sources []interproc.Source) []interproc.Source {
+	var out []interproc.Source
+	for _, src := range sources {
+		if durableFunctionRepo(string(src.Port.Func)) == repo {
+			out = append(out, src)
+		}
+	}
+	return out
+}
+
+func durableFunctionRepo(functionID string) string {
+	functionID = strings.TrimSpace(functionID)
+	if idx := strings.Index(functionID, "\x1f"); idx >= 0 {
+		return functionID[:idx]
+	}
+	return ""
 }
