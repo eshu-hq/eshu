@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -14,14 +15,25 @@ import (
 
 const rationaleEvidenceSource = "reducer/rationale"
 
+// RationaleEdgeIntentWriter persists durable shared-projection intents for
+// rationale EXPLAINS edge materialization (#2869). The promoted handler emits
+// intents instead of writing edges directly so the #2755 partitioned runner
+// projects them under file-scoped partition keys and the #2898 refresh fence owns
+// the single per-repo retract.
+type RationaleEdgeIntentWriter interface {
+	UpsertIntents(ctx context.Context, rows []SharedProjectionIntentRow) error
+}
+
 // RationaleEdgeMaterializationHandler projects EXPLAINS edges from intent-comment
 // rationale (WHY/HACK/NOTE/TODO/FIXME) to the code entities they precede (issue
 // #2230). It owns identity-only Rationale nodes; comment text stays in the
-// Postgres content/fact store (design 430).
+// Postgres content/fact store (design 430). The promoted handler emits durable
+// shared-projection intents under file-scoped partition keys, with one whole-scope
+// refresh intent per repository owning the retract and each edge fenced behind it
+// (#2869).
 type RationaleEdgeMaterializationHandler struct {
-	FactLoader           FactLoader
-	EdgeWriter           SharedProjectionEdgeWriter
-	PriorGenerationCheck PriorGenerationCheck
+	FactLoader   FactLoader
+	IntentWriter RationaleEdgeIntentWriter
 }
 
 // Handle executes the rationale edge materialization path.
@@ -35,8 +47,8 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 	if h.FactLoader == nil {
 		return Result{}, fmt.Errorf("rationale materialization fact loader is required")
 	}
-	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("rationale materialization edge writer is required")
+	if h.IntentWriter == nil {
+		return Result{}, fmt.Errorf("rationale materialization intent writer is required")
 	}
 
 	slog.InfoContext(ctx, "rationale materialization started",
@@ -53,7 +65,8 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 	deltaScope := buildRationaleDeltaScope(envelopes)
 	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
 	repoIDs = mergeRationaleRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
-	if len(repoIDs) == 0 {
+	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	if len(repoIDs) == 0 || len(contextByRepoID) == 0 {
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainRationaleMaterialization,
@@ -62,58 +75,37 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 		}, nil
 	}
 
-	skipRetract, err := h.shouldSkipRationaleRetract(ctx, intent)
-	if err != nil {
-		return Result{}, err
-	}
-	if !skipRetract {
-		if err := h.EdgeWriter.RetractEdges(
-			ctx,
-			DomainRationaleEdges,
-			buildRationaleRetractRows(repoIDs, deltaScope),
-			rationaleEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical rationale edges: %w", err)
-		}
+	createdAt := intent.EnqueuedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
 	}
 
-	writeRows := buildRationaleIntentRows(rows)
-	if len(writeRows) > 0 {
-		if err := h.EdgeWriter.WriteEdges(
-			ctx,
-			DomainRationaleEdges,
-			writeRows,
-			rationaleEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("write canonical rationale edges: %w", err)
+	intentRows := buildRationaleSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, createdAt)
+	if len(intentRows) > 0 {
+		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
+			return Result{}, fmt.Errorf("write rationale intents: %w", err)
 		}
 	}
 
 	slog.InfoContext(ctx, "rationale materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.Int("edge_count", len(writeRows)),
+		slog.Int("intent_count", len(intentRows)),
+		slog.Int("edge_count", len(rows)),
 		slog.Int("repo_count", len(repoIDs)),
 	)
 
 	return Result{
-		IntentID:        intent.IntentID,
-		Domain:          DomainRationaleMaterialization,
-		Status:          ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf("materialized %d canonical rationale edges across %d repositories", len(writeRows), len(repoIDs)),
-		CanonicalWrites: len(writeRows),
+		IntentID: intent.IntentID,
+		Domain:   DomainRationaleMaterialization,
+		Status:   ResultStatusSucceeded,
+		EvidenceSummary: fmt.Sprintf(
+			"emitted %d durable rationale intents across %d repositories",
+			len(intentRows),
+			len(repoIDs),
+		),
+		CanonicalWrites: len(intentRows),
 	}, nil
-}
-
-func (h RationaleEdgeMaterializationHandler) shouldSkipRationaleRetract(ctx context.Context, intent Intent) (bool, error) {
-	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
-		return false, nil
-	}
-	hasPrior, err := h.PriorGenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		return false, fmt.Errorf("check prior generation for rationale retract: %w", err)
-	}
-	return !hasPrior, nil
 }
 
 // ExtractRationaleEdgeRows builds EXPLAINS edge rows from content entity facts
@@ -133,6 +125,11 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 		if entityID == "" || repoID == "" {
 			continue
 		}
+		// targetPath is the repo-qualified path of the code entity the comment
+		// precedes. It is the durable anchor for the file-scoped partition key and
+		// the target.path delta retract (the EXPLAINS edge precedes this entity), so
+		// it rides every emitted edge row as provenance (#2869).
+		targetPath := semanticPayloadString(env.Payload, "path")
 		for _, comment := range rationalePayloadComments(env.Payload) {
 			kind := strings.TrimSpace(anyToString(comment["kind"]))
 			text := strings.TrimSpace(anyToString(comment["text"]))
@@ -149,6 +146,7 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 			rows = append(rows, map[string]any{
 				"rationale_uid":    rationaleUID,
 				"target_entity_id": entityID,
+				"target_path":      targetPath,
 				"repo_id":          repoID,
 				"comment_kind":     kind,
 				"excerpt_hash":     excerptHash,
@@ -177,17 +175,4 @@ func rationalePayloadComments(payload map[string]any) []map[string]any {
 func rationaleExcerptHash(text string) string {
 	sum := sha256.Sum256([]byte(text))
 	return hex.EncodeToString(sum[:8])
-}
-
-func buildRationaleIntentRows(rows []map[string]any) []SharedProjectionIntentRow {
-	intents := make([]SharedProjectionIntentRow, 0, len(rows))
-	for _, row := range rows {
-		intents = append(intents, SharedProjectionIntentRow{
-			ProjectionDomain: DomainRationaleEdges,
-			PartitionKey:     anyToString(row["rationale_uid"]) + "->" + anyToString(row["target_entity_id"]),
-			RepositoryID:     anyToString(row["repo_id"]),
-			Payload:          copyPayload(row),
-		})
-	}
-	return intents
 }
