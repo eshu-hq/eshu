@@ -26,9 +26,9 @@
 // stale generation is rejected rather than replacing current facts.
 //
 // This GCP collector slice covers resource inventory, provider relationship
-// observations, label-backed tag observations, IAM policy observations, DNS
-// record observations, Cloud Run runtime image-reference observations,
-// collection-warning evidence, and the scoped telemetry contract. The live Cloud
-// Asset Inventory transport and Helm values are documented follow-ups. See
+// observations, label-backed and opt-in direct/effective tag observations, IAM
+// policy observations, DNS record observations, Cloud Run runtime image-reference
+// observations, collection-warning evidence, and the scoped telemetry contract.
+// The sanitized live smoke gate is a documented follow-up. See
 // docs/public/reference/gcp-cloud-collector-contract.md for the full contract.
 package gcpcloud

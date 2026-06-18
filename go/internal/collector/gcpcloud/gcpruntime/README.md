@@ -23,8 +23,8 @@ poll and commit.
 
 ## The PageProvider seam
 
-`PageProvider.FetchPage` is the only transport boundary. Two implementations
-ship in this slice:
+`PageProvider.FetchPage` is the CAI transport boundary. Two implementations ship
+in this slice:
 
 - `FixturePageProvider` serves parsed pages from memory (`NewFixturePageProvider`)
   or from files (`NewFixturePageProviderFromFiles`). It performs no network call
@@ -37,6 +37,12 @@ ship in this slice:
   `gcp_collection_warning` facts. It is **not wired as a default**, so the
   command path can use it only in explicit claimed-live mode; it is still not a
   default provider.
+
+`TagProvider.FetchTagPage` is the opt-in Resource Manager tag API boundary.
+`LiveClient` implements it for `tagBindings.list` and `effectiveTags.list`.
+Scopes call it only when `DirectTagsEnabled` or `EffectiveTagsEnabled` is true;
+tag values are fingerprinted before facts are emitted, and effective tags carry
+bounded direct/inherited state.
 
 No test performs a live Google Cloud call; live-client tests use local HTTP
 servers.
@@ -63,14 +69,13 @@ defaults to the contract form
 - A continuation token the provider cannot resume becomes a
   `page_token_expired` partial warning instead of silent truncation.
 
-## Deferred (not in this package)
+## Deferred
 
-Direct/effective GCP tag APIs, Helm values, ServiceMonitor wiring, and sanitized
-target smoke proof are deferred per
+Sanitized target smoke proof is deferred per
 `docs/public/reference/gcp-cloud-collector-contract.md`. Shared cloud inventory
 admission and API/MCP readback for `gcp_cloud_resource`, tag evidence admission,
 image identity admission, relationship resolution, and IAM trust facts are
-implemented outside this package and remain separate from chart promotion.
+implemented outside this package and remain separate from live promotion.
 
 ## Performance and observability evidence
 

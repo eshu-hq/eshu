@@ -13,10 +13,9 @@ import (
 )
 
 // fileConfig is the declarative on-disk configuration for the GCP cloud
-// collector binary. It is intentionally offline: scopes reference read-only
-// credentials by name and reference Cloud Asset Inventory pages as local fixture
-// files. The live transport, Helm values, and environment-variable contracts are
-// deferred slices, so this binary is fixture-driven scaffolding only.
+// collector binary's fixture mode. It is intentionally offline: scopes
+// reference read-only credentials by name and reference Cloud Asset Inventory
+// pages as local fixture files.
 type fileConfig struct {
 	// CollectorInstanceID is the configured runtime instance id. Required.
 	CollectorInstanceID string `json:"collector_instance_id"`

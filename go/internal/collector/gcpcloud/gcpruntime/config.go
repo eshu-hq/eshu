@@ -59,6 +59,12 @@ type ScopeConfig struct {
 	// of band. It is a name only; no secret material is stored here. It is
 	// required so the runtime never falls back to ambient credentials silently.
 	CredentialRef string
+	// DirectTagsEnabled opts this scope into Resource Manager tagBindings.list
+	// calls for directly attached tags.
+	DirectTagsEnabled bool
+	// EffectiveTagsEnabled opts this scope into Resource Manager
+	// effectiveTags.list calls for inherited/effective tags.
+	EffectiveTagsEnabled bool
 }
 
 // Validate checks the config has the minimum declarative identity to run.

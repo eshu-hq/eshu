@@ -176,7 +176,9 @@ func TestLoadClaimedRuntimeConfigSelectsGCPInstance(t *testing.T) {
 						"asset_type_family": "compute",
 						"content_family": "resource",
 						"location_bucket": "global",
-						"credential_ref": "readonly-ref"
+						"credential_ref": "readonly-ref",
+						"direct_tags_enabled": true,
+						"effective_tags_enabled": true
 					}]
 				}
 			}]`
@@ -218,6 +220,12 @@ func TestLoadClaimedRuntimeConfigSelectsGCPInstance(t *testing.T) {
 	}
 	if got, want := scopeCfg.CredentialRef, "readonly-ref"; got != want {
 		t.Fatalf("CredentialRef = %q, want %q", got, want)
+	}
+	if !scopeCfg.DirectTagsEnabled {
+		t.Fatal("DirectTagsEnabled = false, want true")
+	}
+	if !scopeCfg.EffectiveTagsEnabled {
+		t.Fatal("EffectiveTagsEnabled = false, want true")
 	}
 }
 

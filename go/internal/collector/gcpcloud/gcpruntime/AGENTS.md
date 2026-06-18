@@ -13,8 +13,9 @@
    mapping.
 6. `pageprovider.go` - the transport seam, `FixturePageProvider`, and the
    continuation-token resume contract.
-7. `config.go` - declarative config and credential-by-name policy.
-8. `telemetry.go` - bounded-label metric and structured-log helpers.
+7. `tagprovider.go` - the direct/effective Resource Manager tag API seam.
+8. `config.go` - declarative config and credential-by-name policy.
+9. `telemetry.go` - bounded-label metric and structured-log helpers.
 
 ## Invariants
 
@@ -23,11 +24,13 @@
   Fixture mode still uses `FixturePageProvider`; claimed-live command mode may
   inject `LiveClient` only after explicit workflow config. Live-client tests
   must use local HTTP servers, not live Google Cloud calls.
-- All transport goes through `PageProvider.FetchPage`. Do not import a Google
-  Cloud SDK into `source.go`; transport belongs behind a `PageProvider`.
+- CAI transport goes through `PageProvider.FetchPage`; direct/effective
+  Resource Manager tag API transport goes through `TagProvider.FetchTagPage`.
+  Do not import a Google Cloud SDK into `source.go`; transport belongs behind
+  these provider seams.
 - Parsed resource labels emit label-backed `gcp_tag_observation` facts through
-  `gcpcloud.Generation`; direct/effective GCP tag API collection belongs in a
-  later source slice.
+  `gcpcloud.Generation`. Direct/effective tag APIs are scope opt-ins only, and
+  tag values must be fingerprinted before fact emission.
 - Parsed Cloud Asset Inventory `relatedAsset` fields emit
   `gcp_cloud_relationship` facts through `gcpcloud.Generation`; reducer
   admission and graph projection belong in later slices.

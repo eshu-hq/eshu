@@ -29,6 +29,7 @@ type Generation struct {
 	boundary  Boundary
 	key       redact.Key
 	resources map[string]ResourceObservation
+	apiTags   []TagObservation
 	warnings  []WarningObservation
 	pageCount int
 }
@@ -62,6 +63,14 @@ func (g *Generation) AddPage(resources []ResourceObservation) error {
 // AddWarning records one explicit collection warning for the generation.
 func (g *Generation) AddWarning(obs WarningObservation) {
 	g.warnings = append(g.warnings, obs)
+}
+
+// AddTagObservation records one direct or effective tag observation fetched
+// outside the CAI resource page. The observation is emitted as source evidence
+// only; downstream reducers attach it only to already-admitted resources.
+func (g *Generation) AddTagObservation(obs TagObservation) {
+	obs.Boundary = g.boundary
+	g.apiTags = append(g.apiTags, obs)
 }
 
 // ObserveReadTime records a provider read time for the generation. When multiple
@@ -128,6 +137,11 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 		return nil, err
 	}
 	envelopes = append(envelopes, secretsIAMEnvelopes...)
+	apiTagEnvelopes, err := g.apiTagEnvelopes()
+	if err != nil {
+		return nil, err
+	}
+	envelopes = append(envelopes, apiTagEnvelopes...)
 	for _, warning := range g.warnings {
 		env, err := NewCollectionWarningEnvelope(warning)
 		if err != nil {
@@ -153,7 +167,7 @@ func (g *Generation) ResourceCount() int { return len(g.resources) }
 func (g *Generation) WarningCount() int { return len(g.warnings) }
 
 func (g *Generation) envelopeCapacity() int {
-	capacity := len(g.resources) + len(g.warnings)
+	capacity := len(g.resources) + len(g.warnings) + len(g.apiTags)
 	for _, resource := range g.resources {
 		capacity += len(resource.Relationships)
 	}
@@ -169,6 +183,24 @@ func (g *Generation) envelopeCapacity() int {
 		capacity += imageReferenceObservationCount(resource.ImageReferences)
 	}
 	return capacity
+}
+
+func (g *Generation) apiTagEnvelopes() ([]facts.Envelope, error) {
+	if g.key.IsZero() || len(g.apiTags) == 0 {
+		return nil, nil
+	}
+	envelopes := make([]facts.Envelope, 0, len(g.apiTags))
+	for _, obs := range g.apiTags {
+		env, err := NewTagObservationEnvelope(obs, g.key)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, env)
+	}
+	sort.Slice(envelopes, func(i, j int) bool {
+		return envelopes[i].StableFactKey < envelopes[j].StableFactKey
+	})
+	return envelopes, nil
 }
 
 func (g *Generation) tagObservationEnvelope(obs ResourceObservation) (facts.Envelope, bool, error) {

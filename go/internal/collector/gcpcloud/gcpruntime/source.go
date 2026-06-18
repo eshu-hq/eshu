@@ -30,6 +30,9 @@ type Source struct {
 	Config Config
 	// Provider is the page transport seam. It is required.
 	Provider PageProvider
+	// TagProvider is the optional direct/effective Resource Manager tag API seam.
+	// It is required only for scopes that explicitly opt in to tag APIs.
+	TagProvider TagProvider
 	// RedactionKey keys label/member fingerprinting in emitted facts. It is
 	// required so facts are never emitted with unkeyed redaction markers.
 	RedactionKey redact.Key
@@ -99,7 +102,12 @@ func (s *Source) collectScope(ctx context.Context, scopeCfg ScopeConfig) (collec
 	boundary := s.boundary(scopeCfg, generationID, observedAt)
 	generation := gcpcloud.NewGeneration(boundary, s.RedactionKey)
 
-	if err := s.drainPages(ctx, scopeCfg, generation); err != nil {
+	resources, err := s.drainPages(ctx, scopeCfg, generation)
+	if err != nil {
+		s.recordClaim(ctx, gcpcloud.ClaimStatusFailed)
+		return collector.CollectedGeneration{}, err
+	}
+	if err := s.drainTagPages(ctx, scopeCfg, generation, resources); err != nil {
 		s.recordClaim(ctx, gcpcloud.ClaimStatusFailed)
 		return collector.CollectedGeneration{}, err
 	}
@@ -126,11 +134,16 @@ func (s *Source) collectScope(ctx context.Context, scopeCfg ScopeConfig) (collec
 // each page's continuation token until the scope is drained. A continuation
 // token that the provider cannot resume becomes a page_token_expired warning so
 // partial coverage is durable evidence, not silent truncation.
-func (s *Source) drainPages(ctx context.Context, scopeCfg ScopeConfig, generation *gcpcloud.Generation) error {
+func (s *Source) drainPages(
+	ctx context.Context,
+	scopeCfg ScopeConfig,
+	generation *gcpcloud.Generation,
+) ([]gcpcloud.ResourceObservation, error) {
 	token := ""
+	resources := map[string]gcpcloud.ResourceObservation{}
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return nil, err
 		}
 		if token != "" {
 			s.recordPageTokenResume(ctx, scopeCfg.ParentScopeKind)
@@ -140,24 +153,29 @@ func (s *Source) drainPages(ctx context.Context, scopeCfg ScopeConfig, generatio
 			if errors.Is(err, errPageTokenNotFound) {
 				generation.AddWarning(s.expiredTokenWarning(scopeCfg, generation))
 				s.recordWarning(ctx, gcpcloud.WarningKindPageTokenExpired, gcpcloud.OutcomePartial)
-				return nil
+				return resourceList(resources), nil
 			}
 			var warning ProviderWarning
 			if errors.As(err, &warning) {
 				generation.AddWarning(s.providerWarning(scopeCfg, generation, warning))
 				s.recordWarning(ctx, warning.WarningKind, warning.Outcome)
-				return nil
+				return resourceList(resources), nil
 			}
-			return fmt.Errorf("fetch gcp page for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
+			return nil, fmt.Errorf("fetch gcp page for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 		}
 		s.recordPage(ctx, scopeCfg.ParentScopeKind)
 		generation.ObserveReadTime(page.ReadTime)
 		if addErr := generation.AddPage(page.Resources); addErr != nil {
-			return fmt.Errorf("accumulate gcp page for parent scope kind %q: %w", scopeCfg.ParentScopeKind, addErr)
+			return nil, fmt.Errorf("accumulate gcp page for parent scope kind %q: %w", scopeCfg.ParentScopeKind, addErr)
+		}
+		for _, resource := range page.Resources {
+			if key := resourceCollectionKey(resource); key != "" {
+				resources[key] = resource
+			}
 		}
 		token = page.NextPageToken
 		if token == "" {
-			return nil
+			return resourceList(resources), nil
 		}
 	}
 }
@@ -282,6 +300,11 @@ func (s *Source) validate() error {
 	}
 	if s.RedactionKey.IsZero() {
 		return errors.New("gcp collector redaction key is required")
+	}
+	for _, scopeCfg := range s.Config.resolvedScopes() {
+		if len(tagSourceKinds(scopeCfg)) > 0 && s.TagProvider == nil {
+			return errors.New("gcp collector tag provider is required when direct or effective tags are enabled")
+		}
 	}
 	return nil
 }

@@ -45,6 +45,8 @@ type claimedGCPScopeConfig struct {
 	ContentFamily   string `json:"content_family"`
 	LocationBucket  string `json:"location_bucket"`
 	CredentialRef   string `json:"credential_ref"`
+	DirectTags      bool   `json:"direct_tags_enabled"`
+	EffectiveTags   bool   `json:"effective_tags_enabled"`
 	Enabled         bool   `json:"enabled"`
 }
 
@@ -180,13 +182,15 @@ func parseClaimedGCPConfiguration(
 
 func mapClaimedGCPScope(target claimedGCPScopeConfig) (gcpruntime.ScopeConfig, error) {
 	scopeCfg := gcpruntime.ScopeConfig{
-		ScopeID:         strings.TrimSpace(target.ScopeID),
-		ParentScopeKind: gcpcloud.ParentScopeKind(strings.TrimSpace(target.ParentScopeKind)),
-		ParentScopeID:   strings.TrimSpace(target.ParentScopeID),
-		AssetTypeFamily: strings.TrimSpace(target.AssetTypeFamily),
-		ContentFamily:   strings.TrimSpace(target.ContentFamily),
-		LocationBucket:  strings.TrimSpace(target.LocationBucket),
-		CredentialRef:   strings.TrimSpace(target.CredentialRef),
+		ScopeID:              strings.TrimSpace(target.ScopeID),
+		ParentScopeKind:      gcpcloud.ParentScopeKind(strings.TrimSpace(target.ParentScopeKind)),
+		ParentScopeID:        strings.TrimSpace(target.ParentScopeID),
+		AssetTypeFamily:      strings.TrimSpace(target.AssetTypeFamily),
+		ContentFamily:        strings.TrimSpace(target.ContentFamily),
+		LocationBucket:       strings.TrimSpace(target.LocationBucket),
+		CredentialRef:        strings.TrimSpace(target.CredentialRef),
+		DirectTagsEnabled:    target.DirectTags,
+		EffectiveTagsEnabled: target.EffectiveTags,
 	}
 	scopeCfg = claimedScopeWithDefaults(scopeCfg)
 	if err := validateClaimedGCPScope(scopeCfg); err != nil {

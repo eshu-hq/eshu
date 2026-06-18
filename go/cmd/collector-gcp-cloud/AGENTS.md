@@ -22,11 +22,13 @@
   `collector.ClaimedService`, workflow claims, and explicit
   `live_collection_enabled=true` collector instance configuration before wiring
   `gcpruntime.LiveClient`.
+- Direct/effective Resource Manager tag API collection is a per-scope opt-in via
+  `direct_tags_enabled` and `effective_tags_enabled`; do not make it implicit.
 - Reference credentials by NAME only (`credential_ref`). Never read, store, or
   log credential material or names. The redaction key comes from a file path and
   is never logged.
-- Do not add Helm values, chart claims, reducer/API readback, or live smoke
-  claims in this command package. Those remain separate gated slices.
+- Do not add reducer/API readback or live smoke claims in this command package.
+  Those remain separate gated slices.
 - Keep the status committer's recorded metric labels bounded enums only.
 - Keep every source file under 500 lines.
 
