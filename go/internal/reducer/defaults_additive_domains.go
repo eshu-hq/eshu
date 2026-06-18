@@ -435,6 +435,20 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, codeFunctionSummary)
 	}
+	if handlers.CodeValueFlowSummaryReader != nil &&
+		handlers.CodeValueFlowSourceReader != nil &&
+		handlers.CodeValueFlowGraphIDReader != nil &&
+		handlers.CodeInterprocEvidenceWriter != nil {
+		fixpoint := codeValueFlowFixpointDomainDefinition()
+		fixpoint.Handler = CodeValueFlowFixpointHandler{
+			SummaryReader: handlers.CodeValueFlowSummaryReader,
+			SourceReader:  handlers.CodeValueFlowSourceReader,
+			GraphIDReader: handlers.CodeValueFlowGraphIDReader,
+			Writer:        handlers.CodeInterprocEvidenceWriter,
+			Instruments:   handlers.Instruments,
+		}
+		definitions = append(definitions, fixpoint)
+	}
 	if handlers.AppliedPagerDutyServiceRoutingLoader != nil && handlers.IncidentRepositoryCorrelationWriter != nil {
 		incidentRepoCorrelation := incidentRepositoryCorrelationDomainDefinition()
 		incidentRepoCorrelation.Handler = IncidentRepositoryCorrelationHandler{

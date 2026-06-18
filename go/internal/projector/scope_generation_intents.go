@@ -69,6 +69,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildCodeValueFlowFixpointReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildIAMCanAssumeMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}

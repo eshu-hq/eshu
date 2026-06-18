@@ -29,6 +29,10 @@ const (
 	// summary (its structural Effects) to the function-summary store so the
 	// interprocedural fixpoint can recompose summaries across runs and repos.
 	DomainCodeFunctionSummary Domain = "code_function_summary"
+	// DomainCodeValueFlowFixpoint composes the persisted summaries across repos,
+	// solves the interprocedural fixpoint, and projects cross-repo TAINT_FLOWS_TO
+	// evidence (a source in one repo reaching a sink in another).
+	DomainCodeValueFlowFixpoint Domain = "code_value_flow_fixpoint"
 	// DomainOwnership resolves ownership and responsibility records.
 	DomainOwnership Domain = "ownership"
 	// DomainGovernance resolves governance and policy attribution.

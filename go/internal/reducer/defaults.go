@@ -544,6 +544,14 @@ type DefaultHandlers struct {
 	// durable store for the cross-repo fixpoint's TAINT_FLOWS_TO projection.
 	CodeFunctionGraphIDWriter CodeFunctionGraphIDWriter
 
+	// CodeValueFlowSummaryReader / SourceReader / GraphIDReader load the global,
+	// cross-repo value-flow inputs for the fixpoint. All three plus
+	// CodeInterprocEvidenceWriter must be non-nil to register
+	// DomainCodeValueFlowFixpoint.
+	CodeValueFlowSummaryReader CodeValueFlowSummaryReader
+	CodeValueFlowSourceReader  CodeValueFlowSourceReader
+	CodeValueFlowGraphIDReader CodeValueFlowGraphIDReader
+
 	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
 	// routing facts (provider service id + Terraform backend locator) for the
 	// incident-repository correlation domain. It must be non-nil alongside

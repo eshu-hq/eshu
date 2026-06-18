@@ -438,6 +438,40 @@ claim/execute/ack instrumentation as the summary domain; it adds no metric
 instrument, metric label, span, worker, queue domain, lease, runtime knob, or log
 key beyond the existing per-domain counters.
 
+No-Regression Evidence: #2931 registers `DomainCodeValueFlowFixpoint` — the
+cross-repo value-flow composition. `CodeValueFlowFixpointHandler` loads the global
+persisted summaries (`FunctionSummaryStore.LoadSnapshot`), param-level sources
+(`FunctionSourceStore.LoadSources`), and the `FunctionID`->uid map
+(`FunctionGraphIDStore.LoadGraphIDs`), composes one `interproc.Program`
+(`valueflow.BuildProgram`), solves the partitioned fixpoint
+(`interproc.SolvePartitioned`, `DefaultLimits` = 8192 findings), and projects each
+cross-repo finding as a `TAINT_FLOWS_TO` edge by uid, reusing the merged
+`CodeInterprocEvidenceWriter` with a distinct `reducer/code-value-flow` evidence
+source. Accuracy: `go test ./internal/reducer -run 'CodeValueFlowFixpoint'
+-count=1` proves a source in repo A reaching a sink in repo B via a `CALLS`/TITO
+edge yields exactly one edge between the two repos' Function uids, and that a
+finding whose endpoint has no resolved uid draws no edge (no phantom node).
+Performance and concurrency: the solver is the partitioned fixpoint already proven
+order-independent and concurrency-safe in `internal/parser/interproc` (#2730), run
+here over the global function set; the work is bounded by the persisted function
+count and the `MaxFindings` cap, and is behind the off-by-default
+`ESHU_EMIT_DATAFLOW` gate, so default deployments do **zero** of it (no stored
+summaries => the program is empty). The projection is idempotent: each run
+retracts this scope's prior `reducer/code-value-flow` edges then re-MERGEs by
+`evidence_uid`, so concurrent reducer workers and re-runs converge rather than
+duplicating. A known cost is that each summarizing generation re-reads the global
+stores and re-solves; the optimization to solve only the affected weakly-connected
+component is a follow-up (tracked on #2931), measured against the corpus when the
+gate is enabled.
+
+No-Observability-Change: the fixpoint domain reuses the same generic reducer
+claim/execute/ack instrumentation; the `domain` attribute gains the
+`code_value_flow_fixpoint` value (an existing label, not a new instrument). It
+adds no new metric instrument, metric label key, span, worker, queue domain,
+lease, runtime knob, or log key; operators diagnose it through the existing
+per-domain execution counters, reducer run spans, and the durable
+`TAINT_FLOWS_TO` evidence edges it MERGEs.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
