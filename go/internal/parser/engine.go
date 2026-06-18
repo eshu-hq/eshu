@@ -197,6 +197,19 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 	}
 
 	var names []string
+	if definition.Provider != nil {
+		if !definition.Provider.Capabilities().PreScan {
+			return preScanPathResult{}, nil
+		}
+		names, err = definition.Provider.PreScan(PreScanRequest{
+			RepoRoot: resolvedRepoRoot,
+			Path:     resolvedPath,
+		})
+		if err != nil {
+			return preScanPathResult{}, err
+		}
+		return preScanPathResult{path: resolvedPath, names: names}, nil
+	}
 	switch definition.Language {
 	case "c":
 		names, err = e.preScanC(resolvedPath)
@@ -276,6 +289,14 @@ func (e *Engine) parseDefinition(
 	isDependency bool,
 	options Options,
 ) (map[string]any, error) {
+	if definition.Provider != nil {
+		return definition.Provider.Parse(ParseRequest{
+			RepoRoot:     repoRoot,
+			Path:         resolvedPath,
+			IsDependency: isDependency,
+			Options:      options,
+		})
+	}
 	switch definition.Language {
 	case "c":
 		return e.parseC(repoRoot, resolvedPath, isDependency, options)

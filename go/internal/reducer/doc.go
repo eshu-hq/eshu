@@ -70,6 +70,10 @@
 // facts into CloudResource nodes only so managed_by azure_cloud_relationship
 // facts can readiness-gate on those endpoints, then writes edges only when both
 // normalized ARM IDs resolve exactly in the same source generation.
+// Code-call resolution dispatches language-specific resolver branches through a
+// registry seam before and after the weak repository-wide fallback; the generic
+// resolver still preserves ambiguity and never promotes a language branch into a
+// guessed canonical edge without explicit evidence.
 // IncidentRoutingMaterializationHandler writes exact PagerDuty
 // IncidentRoutingEvidence graph rows only for safe declared/applied/live
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes
@@ -113,4 +117,14 @@
 // DocumentationEvidenceLoader for the docs family, and an optional
 // IncidentEvidenceLoader for the incidents family) so the existing
 // reducer_service_catalog_correlation fact contract is unchanged.
+//
+// No-Regression Evidence: code-call language resolver registration preserves
+// the previous Go branch order and resolution methods while allowing a new
+// language resolver to run before `repo_unique_name` without editing the generic
+// resolver. It changes no graph query, queue, worker, lease, batch, runtime knob,
+// or storage contract.
+//
+// No-Observability-Change: resolver dispatch still emits existing durable
+// code-call intent rows and the existing code-call materialization completion
+// logs; no metric, span, status field, route, or log contract changes.
 package reducer

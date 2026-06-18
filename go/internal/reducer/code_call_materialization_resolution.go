@@ -19,6 +19,17 @@ func resolveGenericCallee(
 	call map[string]any,
 ) (string, string, codeprovenance.Method) {
 	language := codeCallLanguage(call, rawPath, relativePath)
+	ctx := codeCallResolveContext{
+		index:             index,
+		repositoryID:      repositoryID,
+		repositoryImports: repositoryImports,
+		reexportIndex:     reexportIndex,
+		rawPath:           rawPath,
+		relativePath:      relativePath,
+		fileData:          fileData,
+		call:              call,
+		language:          language,
+	}
 	if codeCallPrefersImportedQualifiedTarget(call, language) {
 		if entityID, calleeFile := resolveImportedCrossFileCallee(
 			index,
@@ -48,18 +59,11 @@ func resolveGenericCallee(
 		return entityID, codeCallPreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
 	}
 
-	if language == "go" {
-		if entityID := resolveGoPackageQualifiedCalleeEntityID(index, repositoryID, fileData, call); entityID != "" {
-			return entityID, index.entityFileByID[entityID], codeprovenance.MethodImportBinding
-		}
-		if entityID := resolveGoMethodReturnChainCalleeEntityID(index, repositoryID, call); entityID != "" {
-			return entityID, index.entityFileByID[entityID], codeprovenance.MethodTypeInferred
-		}
-	}
-	if language == "go" && !codeCallHasQualifiedScope(call, language) {
-		if entityID := resolveGoSameDirectoryCalleeEntityID(index, repositoryID, rawPath, relativePath, call, language); entityID != "" {
-			return entityID, index.entityFileByID[entityID], codeprovenance.MethodScopeUniqueName
-		}
+	if entityID, calleeFile, method := resolveLanguageSpecificCallee(
+		ctx,
+		codeCallLanguageResolverPhaseBeforeRepoFallback,
+	); entityID != "" {
+		return entityID, calleeFile, method
 	}
 	for _, name := range codeCallExactCandidateNames(call, language) {
 		if entityID := index.uniqueNameByRepo[repositoryID][name]; entityID != "" {
@@ -74,10 +78,11 @@ func resolveGenericCallee(
 		}
 	}
 
-	if language == "go" {
-		if entityID := resolveGoCrossRepoExportCalleeEntityID(index, repositoryID, fileData, call); entityID != "" {
-			return entityID, index.entityFileByID[entityID], codeprovenance.MethodCrossRepoExportPackage
-		}
+	if entityID, calleeFile, method := resolveLanguageSpecificCallee(
+		ctx,
+		codeCallLanguageResolverPhaseAfterRepoFallback,
+	); entityID != "" {
+		return entityID, calleeFile, method
 	}
 
 	entityID, calleeFile := resolveImportedCrossFileCallee(

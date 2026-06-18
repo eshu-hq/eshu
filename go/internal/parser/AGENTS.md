@@ -71,11 +71,12 @@
 - **Add a new language adapter** →
   1. Add a `Definition` entry to `defaultDefinitions()` in `registry.go` with a
      unique `ParserKey`, `Language`, `Extensions` and/or `ExactNames`.
-  2. Create `<language>_language.go` with a `parse<Language>` function matching
-     the signature used by `parseDefinition`.
-  3. Add the case to `parseDefinition` in `engine.go`.
-  4. Add the pre-scan case to `preScanOnePath` if the language has import
-     resolution needs.
+  2. Prefer a `LanguageProvider` on the definition so parse/pre-scan behavior
+     enters through the provider contract instead of shared engine switches.
+  3. Create `<language>_language.go` or a language-owned package for the parse
+     and optional pre-scan behavior.
+  4. Add capability flags that truthfully describe tree-sitter, SCIP, and
+     pre-scan support; register reducer code-call resolver depth separately.
   5. Add fixtures in the parser fixture corpus and run
      `go test ./internal/parser -count=1`.
   6. Update `internal/content/shape` if the new language emits entity keys that
@@ -177,3 +178,9 @@
 - `Registry` mutability contract — the registry is used concurrently by the
   pre-scan worker pool; any mutable state addition requires proof of
   thread-safety and a test.
+
+## Evidence notes
+
+No-Regression Evidence: `go test ./internal/parser -run 'TestEngine(DispatchesRegisteredLanguageProvider|SkipsProviderPreScanWithoutCapability)' -count=1` failed before provider dispatch and pre-scan capability gating existed, then passed after custom registry providers could parse and opt into pre-scan without shared engine switch edits. `go test ./internal/reducer -run TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName -count=1` failed before language-specific code-call resolvers were registered outside the generic resolver, then passed after the Go resolver branches moved behind phase-ordered registration while preserving the previous branch order.
+
+No-Observability-Change: provider dispatch and code-call resolver registration add no graph query, queue, worker, lease, batch, runtime knob, metric instrument, metric label, route, or status field. Operators still diagnose parser behavior through existing collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`, and code-call materialization through existing durable intent rows plus the existing completion log.
