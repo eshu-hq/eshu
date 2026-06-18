@@ -10,18 +10,16 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// goFunctionID builds a function's summary identity from its package import path,
-// receiver, and name. The repository is left empty here; the reducer rekeys with
-// the repository when it assembles the cross-repo graph. Within one file this is
-// enough to resolve local calls.
-func goFunctionID(importPath, receiver, name string) summary.FunctionID {
-	return summary.NewFunctionID("", importPath, receiver, name)
+// goFunctionID builds a function's summary identity from stable repository
+// identity, package import path, receiver, and name.
+func goFunctionID(repositoryID, importPath, receiver, name string) summary.FunctionID {
+	return summary.NewFunctionID(repositoryID, importPath, receiver, name)
 }
 
 // goLocalFunctionIDs maps each top-level function name in a file to its summary
 // identity, for intra-file call resolution. Methods are keyed by name only (v1);
 // receiver-qualified resolution is a later step.
-func goLocalFunctionIDs(root *tree_sitter.Node, source []byte, importPath string) map[string]summary.FunctionID {
+func goLocalFunctionIDs(root *tree_sitter.Node, source []byte, repositoryID, importPath string) map[string]summary.FunctionID {
 	out := map[string]summary.FunctionID{}
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "function_declaration" {
@@ -29,7 +27,7 @@ func goLocalFunctionIDs(root *tree_sitter.Node, source []byte, importPath string
 		}
 		name := nodeText(node.ChildByFieldName("name"), source)
 		if name != "" {
-			out[name] = goFunctionID(importPath, "", name)
+			out[name] = goFunctionID(repositoryID, importPath, "", name)
 		}
 	})
 	return out

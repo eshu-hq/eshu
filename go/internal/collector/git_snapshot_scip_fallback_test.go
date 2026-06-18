@@ -50,6 +50,7 @@ func TestSCIPSnapshotConcurrentParseMergesSCIPSupplement(t *testing.T) {
 		"commit-sha",
 		false,
 		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
 	)
 	if err != nil {
 		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
@@ -120,6 +121,7 @@ func TestSCIPSnapshotFallbackLogsBoundedReason(t *testing.T) {
 				"commit-sha",
 				false,
 				parser.GoPackageSemanticRoots{},
+				"repo-alpha",
 			)
 			if err != nil {
 				t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)

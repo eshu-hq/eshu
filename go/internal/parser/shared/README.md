@@ -6,10 +6,11 @@
 packages need without importing the parent `internal/parser` dispatcher. It
 contains common payload bucket helpers, source reads, tree-sitter node helpers,
 string utilities, integer coercion, and parser options shared by adapter
-packages. The shared Go semantic-root options also carry the empty-method-list
-convention used when an imported package can reach exported methods through an
-escaped interface value and the qualified roots for imported receiver method
-calls.
+packages. Parser options include the stable repository identity used by
+value-flow FunctionIDs. The shared Go semantic-root options also carry the
+empty-method-list convention used when an imported package can reach exported
+methods through an escaped interface value and the qualified roots for imported
+receiver method calls.
 
 ## Dependency boundary
 
@@ -58,6 +59,19 @@ projector, or reducer package.
 This package emits no metrics, spans, or logs. Parser timing remains owned by
 the collector snapshot path.
 
+## Performance and observability evidence
+
+- No-Regression Evidence: `Options.RepositoryID` is an immutable string copied
+  through existing parser option structs; it adds no traversal, graph write,
+  queue operation, database query, lock, goroutine, or worker coordination.
+  Focused verification is `go test ./internal/parser ./internal/collector
+  ./internal/storage/postgres -run
+  'Test(SnapshotParserOptionsThreadsRepositoryID|GoInterprocFunctionIDsIncludeRepositoryID|JSInterprocFunctionIDsIncludeRepositoryID|PythonInterprocFunctionIDsIncludeRepositoryID|FunctionSummary|BootstrapDefinitionsIncludeFunctionSummaries)'
+  -count=1`.
+- No-Observability-Change: this package remains telemetry-free; parser timing,
+  parse failures, and collector stage metrics stay on the existing collector
+  runtime path, unchanged by the repository identity field.
+
 ## Gotchas / invariants
 
 Child parser packages depend on this package to avoid import cycles. Keep it
@@ -76,6 +90,10 @@ explicit method names from package interface declarations.
 `GoDirectMethodCallRoots` uses lower-case qualified import-path receiver keys.
 The parent parser decides which package directory receives those roots; child
 packages should only carry the typed option.
+
+`Options.RepositoryID` must be generation-independent and must not contain local
+checkout paths, hostnames, IPs, credentials, or commit SHAs. It is only used by
+value-flow-capable adapters when `EmitDataflow` is enabled.
 
 `SortNamedMaps` sorts by `line_number` first and `name` second. That preserves
 the parent parser ordering contract used before language packages were split.

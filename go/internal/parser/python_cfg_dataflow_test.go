@@ -94,9 +94,32 @@ func TestPythonInterprocFindingAcrossFunctions(t *testing.T) {
 	}
 }
 
+// TestPythonInterprocFunctionIDsIncludeRepositoryID proves Python value-flow
+// identities carry stable repository identity when emitted for durable summary
+// persistence.
+func TestPythonInterprocFunctionIDsIncludeRepositoryID(t *testing.T) {
+	got := parsePythonDataflowFixtureWithOptions(t, pythonDataflowFixture, Options{EmitDataflow: true, RepositoryID: "repo-alpha"})
+	rows, ok := got["interproc_findings"].([]map[string]any)
+	if !ok {
+		t.Fatalf("interproc_findings bucket missing or wrong type: %T", got["interproc_findings"])
+	}
+	for _, row := range rows {
+		sourceFunc, _ := row["source_func"].(string)
+		sinkFunc, _ := row["sink_func"].(string)
+		if !strings.HasPrefix(sourceFunc, "repo-alpha\x1f") || !strings.HasPrefix(sinkFunc, "repo-alpha\x1f") {
+			t.Fatalf("interproc FunctionIDs must include repo-alpha, got %+v", row)
+		}
+	}
+}
+
 // parsePythonDataflowFixture writes a Python fixture and parses it with the
 // value-flow gate enabled.
 func parsePythonDataflowFixture(t *testing.T, src string) map[string]any {
+	t.Helper()
+	return parsePythonDataflowFixtureWithOptions(t, src, Options{EmitDataflow: true})
+}
+
+func parsePythonDataflowFixtureWithOptions(t *testing.T, src string, options Options) map[string]any {
 	t.Helper()
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "views.py")
@@ -106,7 +129,7 @@ func parsePythonDataflowFixture(t *testing.T, src string) map[string]any {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, options)
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}

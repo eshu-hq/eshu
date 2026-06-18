@@ -8,12 +8,10 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// FunctionID builds a function's summary identity from its package import path
-// and name. The repository is left empty here; the reducer rekeys with the
-// repository when it assembles the cross-repo graph. Within one file this is
-// enough to resolve local calls.
-func FunctionID(importPath, name string) summary.FunctionID {
-	return summary.NewFunctionID("", importPath, "", name)
+// FunctionID builds a function's summary identity from stable repository
+// identity, package import path, and name.
+func FunctionID(repositoryID, importPath, name string) summary.FunctionID {
+	return summary.NewFunctionID(repositoryID, importPath, "", name)
 }
 
 // LocalFunctionIDs maps each top-level function declaration name in a file to its
@@ -21,7 +19,7 @@ func FunctionID(importPath, name string) summary.FunctionID {
 // declaration but does not descend into its body: a function nested inside
 // another function is lexically private to it and must not become visible to
 // unrelated top-level callers, which would invent a false cross-function edge.
-func LocalFunctionIDs(root *tree_sitter.Node, source []byte, importPath string) map[string]summary.FunctionID {
+func LocalFunctionIDs(root *tree_sitter.Node, source []byte, repositoryID, importPath string) map[string]summary.FunctionID {
 	out := map[string]summary.FunctionID{}
 	var walk func(*tree_sitter.Node)
 	walk = func(node *tree_sitter.Node) {
@@ -30,7 +28,7 @@ func LocalFunctionIDs(root *tree_sitter.Node, source []byte, importPath string) 
 		}
 		if node.Kind() == "function_declaration" {
 			if name := nodeText(node.ChildByFieldName("name"), source); name != "" {
-				out[name] = FunctionID(importPath, name)
+				out[name] = FunctionID(repositoryID, importPath, name)
 			}
 			// Do not descend: nested declarations are not file-visible.
 			return

@@ -33,7 +33,7 @@ func TestPyInterprocFindingAcrossFunctions(t *testing.T) {
 		"    query(db, request)\n"+
 		"def query(db, q):\n"+
 		"    cursor.execute(q)\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 
 	found := false
 	for _, f := range findings {
@@ -57,7 +57,7 @@ func TestPyInterprocNoFalseEdgeFromMethodCall(t *testing.T) {
 		"    cursor.execute(request)\n"+
 		"def view(request):\n"+
 		"    conn.query(request)\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
 		if strings.Contains(string(f.SourceFunc), "view") && f.SourceFunc != f.SinkFunc {
 			t.Fatalf("false cross-function finding from view via method call conn.query: %+v", f)
@@ -76,7 +76,7 @@ func TestPyInterprocNoEdgeToNestedFunction(t *testing.T) {
 		"        cursor.execute(q)\n"+
 		"def view(request, db):\n"+
 		"    query(db, request)\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
 		if strings.Contains(string(f.SourceFunc), "view") && f.SourceFunc != f.SinkFunc {
 			t.Fatalf("view must not resolve to outer's private nested query: %+v", f)
@@ -97,7 +97,7 @@ func TestPyInterprocNoEdgeToClassMethod(t *testing.T) {
 		"        cursor.execute(q)\n"+
 		"def view(request):\n"+
 		"    query(other, request)\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 	for _, f := range findings {
 		if strings.Contains(string(f.SourceFunc), "view") && f.SourceFunc != f.SinkFunc {
 			t.Fatalf("view must not resolve to class C's method query: %+v", f)
@@ -116,7 +116,7 @@ func TestPyInterprocMultiArgSameBinding(t *testing.T) {
 		"    sink2(request, request)\n"+
 		"def sink2(a, b):\n"+
 		"    cursor.execute(a)\n")
-	findings := InterprocFindings(root, source, "")
+	findings := InterprocFindings(root, source, "repo-alpha", "")
 
 	found := false
 	for _, f := range findings {

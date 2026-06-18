@@ -17,8 +17,8 @@ import (
 // is a function defined in the same file); cross-file and cross-repo composition
 // is the reducer's job over the shared graph. The returned rows are deterministic
 // (the solver sorts findings).
-func goInterprocFindingPayloads(root *tree_sitter.Node, source []byte, importPath string) []map[string]any {
-	localFuncs := goLocalFunctionIDs(root, source, importPath)
+func goInterprocFindingPayloads(root *tree_sitter.Node, source []byte, repositoryID, importPath string) []map[string]any {
+	localFuncs := goLocalFunctionIDs(root, source, repositoryID, importPath)
 	summaries := map[summary.FunctionID]summary.Effects{}
 	var sources []interproc.Source
 
@@ -32,7 +32,7 @@ func goInterprocFindingPayloads(root *tree_sitter.Node, source []byte, importPat
 		if name == "" {
 			return
 		}
-		id := goFunctionID(importPath, goReceiverContext(node, source), name)
+		id := goFunctionID(repositoryID, importPath, goReceiverContext(node, source), name)
 		fn := goLowerFunction(node, source, cfg.DefaultLimits())
 		spec := goEffectsSpec(node, source, fn, localFuncs)
 		summaries[id] = valueflow.DeriveEffects(fn, spec)

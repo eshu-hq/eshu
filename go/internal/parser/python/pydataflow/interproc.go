@@ -13,8 +13,8 @@ import (
 // returning the cross-function taint findings. Resolution is intra-file; cross-
 // file and cross-repo composition is the reducer's job over the shared graph. The
 // findings are deterministic (the solver sorts them).
-func InterprocFindings(root *tree_sitter.Node, source []byte, importPath string) []interproc.Finding {
-	localFuncs := LocalFunctionIDs(root, source, importPath)
+func InterprocFindings(root *tree_sitter.Node, source []byte, repositoryID, importPath string) []interproc.Finding {
+	localFuncs := LocalFunctionIDs(root, source, repositoryID, importPath)
 	summaries := map[summary.FunctionID]summary.Effects{}
 	var sources []interproc.Source
 
@@ -30,7 +30,7 @@ func InterprocFindings(root *tree_sitter.Node, source []byte, importPath string)
 		}
 		if node.Kind() == "function_definition" {
 			if name := nodeText(node.ChildByFieldName("name"), source); name != "" {
-				id := FunctionID(importPath, name)
+				id := FunctionID(repositoryID, importPath, name)
 				fn := LowerFunction(node, source, cfg.DefaultLimits())
 				spec := EffectsSpec(node, source, fn, localFuncs)
 				summaries[id] = valueflow.DeriveEffects(fn, spec)

@@ -54,6 +54,11 @@ reducer/query adapter.
   Reads require scope, embedding model, and vector index version, join through
   `ingestion_scopes.active_generation_id`, cap pages at 500 rows, and return
   deterministic document ordering.
+- `FunctionSummaryStore` / `NewFunctionSummaryStore` — additive durable
+  persistence for value-flow `summary.Snapshot` rows keyed by
+  generation-independent `FunctionID`. Upserts are idempotent on `function_id`
+  and reject blank repo components so future cross-repo recomposition cannot
+  silently collide.
 
 **Queue stores**
 
@@ -265,7 +270,8 @@ reducer/query adapter.
   `IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
   `VulnerabilitySourceStateSchemaSQL`, `TenantWorkspaceGrantSchemaSQL`,
   `ScopedAPITokenSchemaSQL`,
-  `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`
+  `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`,
+  `FunctionSummarySchemaSQL`
 
 **IaC reachability**
 

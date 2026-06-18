@@ -8,7 +8,7 @@ import (
 func TestSnapshotParserOptionsUseModuleVariablesForJava(t *testing.T) {
 	t.Parallel()
 
-	got := snapshotParserOptions(filepath.Join("src", "main", "java", "Demo.java"), nil, false)
+	got := snapshotParserOptions(filepath.Join("src", "main", "java", "Demo.java"), nil, false, "repo-alpha")
 	if got.VariableScope != "module" {
 		t.Fatalf("VariableScope = %q, want module for Java", got.VariableScope)
 	}
@@ -25,7 +25,7 @@ func TestSnapshotParserOptionsKeepAllVariablesForDynamicLanguages(t *testing.T) 
 		filepath.Join("src", "worker.js"),
 		filepath.Join("src", "tasks.py"),
 	} {
-		got := snapshotParserOptions(path, nil, false)
+		got := snapshotParserOptions(path, nil, false, "repo-alpha")
 		if got.VariableScope != "all" {
 			t.Fatalf("%s VariableScope = %q, want all", path, got.VariableScope)
 		}
@@ -37,11 +37,23 @@ func TestSnapshotParserOptionsKeepAllVariablesForDynamicLanguages(t *testing.T) 
 func TestSnapshotParserOptionsThreadsEmitDataflow(t *testing.T) {
 	t.Parallel()
 
-	if got := snapshotParserOptions(filepath.Join("src", "handler.go"), nil, false); got.EmitDataflow {
+	if got := snapshotParserOptions(filepath.Join("src", "handler.go"), nil, false, "repo-alpha"); got.EmitDataflow {
 		t.Fatal("EmitDataflow = true, want false when gate off")
 	}
-	if got := snapshotParserOptions(filepath.Join("src", "handler.go"), nil, true); !got.EmitDataflow {
+	if got := snapshotParserOptions(filepath.Join("src", "handler.go"), nil, true, "repo-alpha"); !got.EmitDataflow {
 		t.Fatal("EmitDataflow = false, want true when gate on")
+	}
+}
+
+// TestSnapshotParserOptionsThreadsRepositoryID proves collector-owned stable
+// repository identity reaches value-flow-capable parsers without deriving it
+// from local paths or commit generations.
+func TestSnapshotParserOptionsThreadsRepositoryID(t *testing.T) {
+	t.Parallel()
+
+	got := snapshotParserOptions(filepath.Join("src", "handler.go"), nil, true, "repo-alpha")
+	if got.RepositoryID != "repo-alpha" {
+		t.Fatalf("RepositoryID = %q, want repo-alpha", got.RepositoryID)
 	}
 }
 

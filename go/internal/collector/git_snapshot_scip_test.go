@@ -135,6 +135,7 @@ func TestSCIPSnapshotDefaultsToSCIPWhenBinaryAvailable(t *testing.T) {
 		"commit-sha",
 		false,
 		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
 	)
 	if err != nil {
 		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
@@ -178,6 +179,7 @@ func TestSCIPSnapshotExplicitDisableFallsBackToNative(t *testing.T) {
 		"commit-sha",
 		false,
 		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
 	)
 	if err != nil {
 		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
@@ -218,6 +220,7 @@ func TestSCIPSnapshotUnavailableBinaryFallsBackToNative(t *testing.T) {
 		"commit-sha",
 		false,
 		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
 	)
 	if err != nil {
 		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
@@ -266,6 +269,7 @@ func TestSCIPSnapshotLanguagesNarrowDominantSelection(t *testing.T) {
 		"commit-sha",
 		false,
 		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
 	)
 	if err != nil {
 		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
@@ -338,6 +342,7 @@ func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
 		"commit-sha",
 		false,
 		parser.GoPackageSemanticRoots{},
+		"repo-alpha",
 	)
 	if err != nil {
 		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)

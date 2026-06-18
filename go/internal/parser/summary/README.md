@@ -25,6 +25,8 @@ See `doc.go` for the godoc contract. The surface is:
 
 - `FunctionID`, `NewFunctionID` — durable, generation-independent identity.
 - `Effects`, `ParamSink`, `CallArgFlow`, `Summary` — the summary model (TITO).
+- `StructuralHash` — deterministic hash of a function's own effects for
+  persistence diagnostics and idempotency.
 - `Store`, `NewStore`, `Upsert`, `Version`, `Summary`, `IDs` — the incremental
   store. `Upsert` returns the sorted IDs it recomputed.
 - `Snapshot`, `SnapshotFunction`, `Load` — the durable, reloadable form.

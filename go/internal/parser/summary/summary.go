@@ -73,6 +73,13 @@ func (e Effects) callees() []FunctionID {
 	return out
 }
 
+// StructuralHash returns the deterministic hash of a function's own effects,
+// excluding callee versions. Persistence adapters store it as a diagnostic and
+// idempotency aid, but Store versioning remains the source of truth.
+func StructuralHash(e Effects) string {
+	return structuralHash(e)
+}
+
 // structuralHash returns a deterministic hash of a function's own effects,
 // excluding any callee version, so it changes only when the function's own facts
 // change.

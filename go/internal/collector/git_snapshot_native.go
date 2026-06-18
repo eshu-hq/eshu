@@ -223,6 +223,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		commitSHA,
 		repository.IsDependency,
 		goPackageTargets,
+		repoMetadata.ID,
 	)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("build parsed repository files for %q: %w", repoPath, err)

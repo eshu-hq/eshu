@@ -3,6 +3,27 @@
 Keep this file for scoped evidence that is too detailed for the package
 orientation README.
 
+## Function Summary Store (#2890)
+
+No-Regression Evidence: `go test ./internal/parser/summary -count=1` and
+`go test ./internal/storage/postgres -run 'Test(FunctionSummary|BootstrapDefinitionsIncludeFunctionSummaries)' -count=1`
+prove the additive `function_summaries` DDL is registered in bootstrap, mirrors
+its SQL file, persists `summary.Snapshot` rows through stale-write-guarded
+`ON CONFLICT (function_id) DO UPDATE`, rejects blank repository components
+before write so cross-repo summary rows cannot silently collide, and reloads
+snapshots into `summary.Load` without recomputing unchanged effects. The table
+is keyed by generation-independent `FunctionID`; it adds no graph truth,
+reducer queue domain, API/MCP route, parser emission default, or canonical
+projection.
+
+No-Observability-Change: #2890 adds no worker, route, queue claim, lease,
+graph write, metric instrument, metric label, span name, status field, runtime
+default, or provider call. Store calls remain covered by the existing
+Postgres instrumentation wrapper (`postgres.exec`, `postgres.query`, and
+`eshu_dp_postgres_query_duration_seconds{store=...,operation=...}`) when the
+caller wraps the `ExecQueryer`; reducer/runtime activation remains tracked by
+#2823 follow-up work.
+
 ## Admission Decision Evidence Bounds (#2694)
 
 No-Regression Evidence: `go test ./internal/query -run 'TestAdmissionDecision|TestOpenAPISpecIncludesAdmissionDecisions' -count=1` and `go test ./internal/storage/postgres -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1` prove `admission_decisions.list` now rejects unsupported lightweight profiles before store reads, requests `limit+1` evidence rows per decision, reports `evidence_limit` and `evidence_truncated`, and pushes the per-decision evidence cap into the Postgres read query. The list page limit remains capped at 200 decisions and the embedded evidence preview is capped at 20 rows per decision.
