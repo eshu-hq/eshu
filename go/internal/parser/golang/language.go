@@ -73,11 +73,15 @@ func Parse(
 			if docstring := goDocstring(node, source); docstring != "" {
 				item["docstring"] = docstring
 			}
-			if classContext := goReceiverContext(node, source); classContext != "" {
+			classContext := goReceiverContext(node, source)
+			if classContext != "" {
 				item["class_context"] = classContext
 			}
 			if packageImportPath != "" {
 				item["package_import_path"] = packageImportPath
+				if scipSymbol := goSCIPSymbol(packageImportPath, classContext, name); scipSymbol != "" {
+					item["scip_symbol"] = scipSymbol
+				}
 			}
 			if returnType := goTypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
 				item["return_type"] = returnType
@@ -149,7 +153,17 @@ func Parse(
 				"line_number": nodeLine(node),
 				"lang":        "go",
 			}
-			goAnnotateCallMetadata(item, node, functionNode, source, importAliases, localReceiverBindings, awsSDKServiceBindings, lookup)
+			goAnnotateCallMetadata(
+				item,
+				node,
+				functionNode,
+				source,
+				importAliases,
+				localNameBindings,
+				localReceiverBindings,
+				awsSDKServiceBindings,
+				lookup,
+			)
 			shared.AppendBucket(payload, "function_calls", item)
 		case "composite_literal":
 			name := goCompositeLiteralTypeName(node.ChildByFieldName("type"), source)
@@ -266,6 +280,7 @@ func goAnnotateCallMetadata(
 	functionNode *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
+	localNameBindings []goLocalNameBinding,
 	localReceiverBindings []goLocalReceiverBinding,
 	awsSDKServiceBindings []goLocalReceiverBinding,
 	lookup *goParentLookup,
@@ -275,9 +290,20 @@ func goAnnotateCallMetadata(
 		goAnnotateCallChainMetadata(item, callNode, functionNode, source, localReceiverBindings)
 		return
 	}
+	if receiverIsImportAlias && goNameIsLocallyBound(receiverIdentifier, nodeLine(callNode), localNameBindings) {
+		receiverIsImportAlias = false
+	}
 
 	item["receiver_identifier"] = receiverIdentifier
 	item["receiver_is_import_alias"] = receiverIsImportAlias
+	if receiverIsImportAlias {
+		if importPath := goImportPathForAlias(receiverIdentifier, importAliases); importPath != "" {
+			name, _ := item["name"].(string)
+			if stableSymbol := goSCIPSymbol(importPath, "", name); stableSymbol != "" {
+				item["stable_symbol_key"] = stableSymbol
+			}
+		}
+	}
 	if !receiverIsImportAlias {
 		if receiverType := goInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings); receiverType != "" {
 			item["inferred_obj_type"] = receiverType

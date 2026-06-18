@@ -155,23 +155,20 @@ the language adapter returns,
 `inferContentMetadata` sets `artifact_type`, `template_dialect`, and
 `iac_relevant` on the payload. The final payload also carries `repo_path`.
 
-Go embedded SQL extraction now lives in the Go helper subpackage, while the
-parent parser keeps the `embedded_sql_queries` payload contract. The Go helper
-also emits direct-method-call roots, imported-package direct-method-call roots,
-package-level generic constraint roots, package-level chained receiver roots
-from local interface methods that return imported types, and qualified
-same-repo package interface roots when parser pre-scan proves that a concrete
-value escapes through an imported package function parameter. Generic receiver
+Go embedded SQL extraction lives in the Go helper subpackage while the parent
+parser keeps the `embedded_sql_queries` payload contract. The Go helper also
+emits direct-method-call roots, imported-package direct-method-call roots,
+package-level generic and chained receiver roots, qualified same-repo package
+interface roots, and, when module identity is available, stable `scip-go gomod`
+symbols on definitions plus matching imported-call symbol keys. Generic receiver
 type names are normalized to their base type before payload emission so methods
 declared on receivers such as `Map[K, V]` can meet call evidence for `Map`
 instances.
-Go composite literals also emit
-`function_calls` rows with
-`call_kind=go.composite_literal_type_reference`. Those rows are parser metadata
-for dead-code root evidence. The reducer materializes them as deduplicated
-REFERENCES edges, not canonical CALLS edges, so sibling files in one Go
-package can keep local structs such as wiring configs out of dead-code
-candidate lists without claiming that type references are invocations.
+Go composite literals also emit `function_calls` rows with
+`call_kind=go.composite_literal_type_reference`. The reducer materializes them
+as deduplicated REFERENCES edges, not canonical CALLS edges, so sibling files
+can keep local structs out of dead-code candidate lists without claiming type
+references are invocations.
 Java method-reference, literal-reflection, ServiceLoader provider, and Spring
 auto-configuration rows follow the same rule: they prove reachability roots but
 do not claim an invocation happened.
@@ -490,16 +487,13 @@ errors are surfaced in `collector snapshot stage completed` logs with
 - `preScanPathsConcurrent` sorts results by input index before merging to
   preserve deterministic output. Do not remove this sort; out-of-order merging
   makes import maps non-deterministic across runs.
-- SCIP and tree-sitter parse results for the same file may overlap. The
-  collector's SCIP path builds supplemented facts by combining both; do not
-  assume SCIP output supersedes tree-sitter output entirely.
+- SCIP and tree-sitter parse results for the same file may overlap; the
+  collector combines both and SCIP output does not supersede tree-sitter.
 - `scip_symbol` is a source symbol identity, not a storage identity; keep it
   independent of fact, generation, and content entity IDs.
-- Swift grammar uses `github.com/indigo-net/Brf.it` v0.21.0, vendored from
-  `github.com/alex-pinkus/tree-sitter-swift` v0.7.1 under MIT; update by
-  bumping the module and rerunning the Swift runtime parser load test.
+- Swift grammar uses `github.com/indigo-net/Brf.it` v0.21.0; update by bumping
+  the module and rerunning the Swift runtime parser load test.
   No-Regression Evidence: it builds with `go-tree-sitter` v0.25.0 and parses a Swift struct. No-Observability-Change: existing collector parse timing and parse errors still diagnose this cached grammar loader.
 
 ## Related docs
-
-- `docs/public/architecture.md`, `docs/public/reference/local-testing.md`, `docs/public/reference/telemetry/index.md`, `go/internal/collector/README.md`, and `go/internal/facts/`.
+- `docs/public/architecture.md`, local testing, telemetry, collector README, and `go/internal/facts/`.

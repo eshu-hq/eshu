@@ -100,6 +100,66 @@ func TestExtractCodeCallRowsResolvesCrossRepoExportedGoFunction(t *testing.T) {
 	}
 }
 
+// TestExtractCodeCallRowsPrefersNativeGoSCIPSymbolForCrossRepoCall proves the
+// native Go parser's stable SCIP-style symbols promote exact Go-to-Go
+// cross-repo calls above the weaker package-export fallback.
+func TestExtractCodeCallRowsPrefersNativeGoSCIPSymbolForCrossRepoCall(t *testing.T) {
+	t.Parallel()
+
+	scipSymbol := "scip-go gomod github.com/org/repoa/pkg Process()."
+	envelopes := []facts.Envelope{
+		{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-a"}},
+		{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-b"}},
+		goModFileEnvelope("repo-a", "go.mod", "github.com/org/repoa"),
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-a",
+			"relative_path": "pkg/process.go",
+			"parsed_file_data": map[string]any{
+				"path": "pkg/process.go",
+				"functions": []any{
+					map[string]any{
+						"name":                "Process",
+						"line_number":         3,
+						"end_line":            5,
+						"uid":                 "content-entity:repoa-process",
+						"package_import_path": "github.com/org/repoa/pkg",
+						"scip_symbol":         scipSymbol,
+					},
+				},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-b",
+			"relative_path": "cmd/main.go",
+			"parsed_file_data": map[string]any{
+				"path": "cmd/main.go",
+				"functions": []any{
+					map[string]any{"name": "main", "line_number": 5, "end_line": 7, "uid": "content-entity:repob-main"},
+				},
+				"imports": []any{
+					map[string]any{"name": "github.com/org/repoa/pkg", "lang": "go", "line_number": 3},
+				},
+				"function_calls": []any{
+					map[string]any{
+						"name":                     "Process",
+						"full_name":                "pkg.Process",
+						"receiver_identifier":      "pkg",
+						"receiver_is_import_alias": true,
+						"stable_symbol_key":        scipSymbol,
+						"line_number":              6,
+						"lang":                     "go",
+					},
+				},
+			},
+		}},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	if got := resolutionMethodForCallee(t, rows, "content-entity:repoa-process"); got != codeprovenance.MethodSCIP {
+		t.Fatalf("resolution_method = %q, want %q (rows=%#v)", got, codeprovenance.MethodSCIP, rows)
+	}
+}
+
 // TestExtractCodeCallRowsLeavesCrossRepoUnexportedGoFunctionUnresolved proves an
 // unexported (lowercase) function is not part of the cross-repo export surface,
 // so a call to it from another repo produces no cross-repo row.
