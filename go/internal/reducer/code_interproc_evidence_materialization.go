@@ -49,6 +49,7 @@ type CodeInterprocEvidenceLoader interface {
 type CodeInterprocEvidenceWriter interface {
 	WriteCodeInterprocEvidence(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractCodeInterprocEvidence(ctx context.Context, scopeIDs []string, generationID, evidenceSource string) error
+	RetractCodeInterprocEvidenceSource(ctx context.Context, evidenceSource string) error
 }
 
 // CodeInterprocEvidenceMaterializationHandler reduces one cross-function

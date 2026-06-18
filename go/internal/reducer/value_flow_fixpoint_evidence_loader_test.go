@@ -144,10 +144,10 @@ func TestExtractCodeInterprocFixpointEvidenceRowsUsesSeparateUIDNamespace(t *tes
 	}
 }
 
-// TestValueFlowFixpointEvidenceProjectorRetractsOnlyFixpointEvidence proves
-// summary-driven projection uses a separate evidence source from direct
-// code_interproc_evidence facts.
-func TestValueFlowFixpointEvidenceProjectorRetractsOnlyFixpointEvidence(t *testing.T) {
+// TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence proves
+// summary-driven projection retracts the full fixpoint-owned evidence source
+// before writing the global solve, rather than scope-stamping stale rows.
+func TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
@@ -160,8 +160,11 @@ func TestValueFlowFixpointEvidenceProjectorRetractsOnlyFixpointEvidence(t *testi
 	if err != nil {
 		t.Fatalf("ProjectValueFlowFixpointEvidence returned error: %v", err)
 	}
-	if writer.retractCalls != 1 || writer.retractEvidence != codeInterprocFixpointEvidenceSource {
-		t.Fatalf("retract evidence = %q calls=%d, want fixpoint source", writer.retractEvidence, writer.retractCalls)
+	if writer.globalRetracts != 1 || writer.globalEvidence != codeInterprocFixpointEvidenceSource {
+		t.Fatalf("global retract evidence = %q calls=%d, want fixpoint source", writer.globalEvidence, writer.globalRetracts)
+	}
+	if writer.retractCalls != 0 || len(writer.retractScopeIDs) != 0 {
+		t.Fatalf("scoped retract used for global fixpoint solve: %+v", writer)
 	}
 	if writer.writeCalls != 1 || writer.writeEvidence != codeInterprocFixpointEvidenceSource {
 		t.Fatalf("write evidence = %q calls=%d, want fixpoint source", writer.writeEvidence, writer.writeCalls)
