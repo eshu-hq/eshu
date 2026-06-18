@@ -7,14 +7,50 @@ import (
 	"log/slog"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
+
+// configureReducerQueue builds the reducer work queue and applies the retry,
+// claim-domain, projector-drain, and semantic-claim tuning loaded from the
+// environment, logging the source-local-projector and semantic-claim-limit
+// settings when they are active. Extracted from buildReducerService to keep
+// main.go within the repo file-size budget.
+func configureReducerQueue(
+	database postgres.ExecQueryer,
+	retryCfg runtimecfg.RetryPolicyConfig,
+	claimDomains []reducer.Domain,
+	projectorDrainGate bool,
+	getenv func(string) string,
+	graphBackend runtimecfg.GraphBackend,
+	logger *slog.Logger,
+) postgres.ReducerQueue {
+	workQueue := postgres.NewReducerQueue(database, "reducer", time.Minute)
+	workQueue.RetryDelay = retryCfg.RetryDelay
+	workQueue.MaxAttempts = retryCfg.MaxAttempts
+	workQueue.ClaimDomains = claimDomains
+	workQueue.RequireProjectorDrainBeforeClaim = projectorDrainGate
+	workQueue.ExpectedSourceLocalProjectors = loadReducerExpectedSourceLocalProjectors(getenv)
+	workQueue.SemanticEntityClaimLimit = loadReducerSemanticEntityClaimLimit(getenv, graphBackend)
+	if workQueue.ExpectedSourceLocalProjectors > 0 && logger != nil {
+		logger.Info("semantic reducers will wait for expected source-local projectors",
+			"expected_source_local_projectors", workQueue.ExpectedSourceLocalProjectors,
+		)
+	}
+	if projectorDrainGate && logger != nil {
+		logger.Info("semantic reducer claim limit configured",
+			"semantic_entity_claim_limit", workQueue.SemanticEntityClaimLimit,
+		)
+	}
+	return workQueue
+}
 
 // reducerGraphDrainFor returns a ReducerGraphDrain when the projector drain gate
 // is enabled, otherwise nil. Extracted from buildReducerService to keep main.go

@@ -211,23 +211,7 @@ func buildReducerService(
 			"domains", reducerDomainStrings(claimDomains),
 		)
 	}
-	workQueue := postgres.NewReducerQueue(database, "reducer", time.Minute)
-	workQueue.RetryDelay = retryCfg.RetryDelay
-	workQueue.MaxAttempts = retryCfg.MaxAttempts
-	workQueue.ClaimDomains = claimDomains
-	workQueue.RequireProjectorDrainBeforeClaim = projectorDrainGate
-	workQueue.ExpectedSourceLocalProjectors = loadReducerExpectedSourceLocalProjectors(getenv)
-	workQueue.SemanticEntityClaimLimit = loadReducerSemanticEntityClaimLimit(getenv, graphBackend)
-	if workQueue.ExpectedSourceLocalProjectors > 0 && logger != nil {
-		logger.Info("semantic reducers will wait for expected source-local projectors",
-			"expected_source_local_projectors", workQueue.ExpectedSourceLocalProjectors,
-		)
-	}
-	if projectorDrainGate && logger != nil {
-		logger.Info("semantic reducer claim limit configured",
-			"semantic_entity_claim_limit", workQueue.SemanticEntityClaimLimit,
-		)
-	}
+	workQueue := configureReducerQueue(database, retryCfg, claimDomains, projectorDrainGate, getenv, graphBackend, logger)
 
 	executor, err := reducer.NewDefaultRuntime(reducer.DefaultHandlers{
 		DeployableUnitCorrelationHandler: reducer.DeployableUnitCorrelationHandler{
@@ -405,6 +389,8 @@ func buildReducerService(
 		IncidentRoutingEvidenceWriter: graphWriters.incidentRoutingEvidence,
 		CodeTaintEvidenceLoader:       factStore,
 		CodeTaintEvidenceWriter:       graphWriters.codeTaintEvidence,
+		CodeInterprocEvidenceLoader:   factStore,
+		CodeInterprocEvidenceWriter:   graphWriters.codeInterprocEvidence,
 		// Durable incident -> repository correlation (#2161); see helper for rationale.
 		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
 		BackendRepositoryResolver:            incidentRepoCorrelationResolver,
