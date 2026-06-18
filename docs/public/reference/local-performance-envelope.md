@@ -613,8 +613,13 @@ fence, `UnhashedFallbackRows=0`, EXECUTES survival). `go test ./internal/reducer
 ./cmd/reducer -count=1` and `go test ./internal/reducer -race -count=1` are green.
 Throughput cannot regress (moves to the indexed partitioned runner; retract scope
 unchanged; one bounded refresh-fence `SELECT` per per-edge cycle). Remote
-end-to-end confirmation pending (the gate fix is the primary remote risk and is
-already corrected with code evidence).
+confirmation (fresh NornicDB + reducer stack, fixture `schema.sql` — two tables, a
+view, a function, a trigger): all 8 extracted SQL relationship edges materialize
+(6 `HAS_COLUMN`, 1 `TRIGGERS`, 1 `EXECUTES`), every one under the same `source.path`
+so the many-edges-one-file collapse case all survive, the `EXECUTES` trigger→function
+edge is preserved, intents drain `9/9 pending=0`, queue `succeeded=11`. The
+canonical-nodes gate fix means projection drained cleanly with no readiness stall
+(unlike inheritance's first run before its gate was corrected).
 
 Observability Evidence: reuses the partitioned-runner signals — `IndexedSelection`,
 `UnhashedFallbackRows`, and the #2898 `RefreshFenceDeferred` field + log. No new
