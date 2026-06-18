@@ -81,6 +81,9 @@ one or more enabled `scopes` that share a single `credential_ref`:
 The coordinator-assigned generation id and fencing token come from each claimed
 work item; configured scopes carry no fencing token. The live credential is
 resolved from the ambient Azure workload identity, never from configuration.
+Claimed-live wires the live Resource Graph provider, which serves the
+`resource_graph` lane only; a scope declaring `resource_changes` or
+`arm_fallback` is rejected at startup.
 
 ## Live-call safety
 

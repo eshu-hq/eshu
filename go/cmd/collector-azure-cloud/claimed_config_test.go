@@ -147,6 +147,43 @@ func TestLoadClaimedRuntimeConfigRejectsMultipleCredentialRefs(t *testing.T) {
 	}
 }
 
+func TestLoadClaimedRuntimeConfigRejectsNonLiveSourceLane(t *testing.T) {
+	t.Parallel()
+
+	for _, lane := range []string{"resource_changes", "arm_fallback"} {
+		lane := lane
+		t.Run(lane, func(t *testing.T) {
+			t.Parallel()
+			_, err := loadClaimedRuntimeConfig(func(key string) string {
+				if key != envCollectorInstances {
+					return ""
+				}
+				return `[{
+					"instance_id": "azure-primary",
+					"collector_kind": "azure",
+					"mode": "continuous",
+					"enabled": true,
+					"claims_enabled": true,
+					"configuration": {
+						"live_collection_enabled": true,
+						"scopes": [{
+							"enabled": true,
+							"tenant_id": "tenant-abc",
+							"scope_kind": "subscription",
+							"provider_scope_id": "11111111-1111-1111-1111-111111111111",
+							"credential_ref": "azure-read-only-spn",
+							"source_lane": "` + lane + `"
+						}]
+					}
+				}]`
+			})
+			if err == nil {
+				t.Fatalf("loadClaimedRuntimeConfig() error = nil, want rejection of non-live source_lane %q", lane)
+			}
+		})
+	}
+}
+
 func TestLoadClaimedRuntimeConfigRejectsHeartbeatNotLessThanLease(t *testing.T) {
 	t.Parallel()
 

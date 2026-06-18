@@ -123,11 +123,30 @@ func (s *Source) scanTarget(
 
 	result, err := azurecloud.NewCollector(provider, s.Metrics, azurecloud.WithRedactionKey(s.RedactionKey)).Collect(ctx, boundary)
 	if err != nil {
+		s.recordClaim(ctx, azurecloud.ClaimStatusFailed)
 		return collector.CollectedGeneration{}, fmt.Errorf("collect azure scope generation: %w", err)
+	}
+
+	// Record the coverage-aware claim outcome: partial scope access or any
+	// collection warning is a partial claim, not a full success. The status
+	// committer separately records the commit outcome.
+	if result.Partial || result.WarningCount > 0 {
+		s.recordClaim(ctx, azurecloud.ClaimStatusPartial)
+	} else {
+		s.recordClaim(ctx, azurecloud.ClaimStatusSucceeded)
 	}
 
 	s.logScan(ctx, target, result, observedAt)
 	return collector.FactsFromSlice(scopeValue, generationValue, result.Facts), nil
+}
+
+// recordClaim records one claim lifecycle outcome on the bounded claim counter.
+// A nil Metrics disables recording so the source runs without a meter.
+func (s *Source) recordClaim(ctx context.Context, status string) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordClaim(ctx, status)
 }
 
 func (s *Source) boundary(

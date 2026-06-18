@@ -179,6 +179,59 @@ func TestSourceNextClaimedRejectsGenerationRunMismatch(t *testing.T) {
 	}
 }
 
+// recordingMetrics captures claim outcomes so tests can assert that partial
+// coverage is recorded as a partial claim, not a full success.
+type recordingMetrics struct {
+	azurecloud.NopMetrics
+	claims []string
+}
+
+func (m *recordingMetrics) RecordClaim(_ context.Context, status string) {
+	m.claims = append(m.claims, status)
+}
+
+func TestSourceNextClaimedRecordsPartialClaimOnPartialScope(t *testing.T) {
+	t.Parallel()
+
+	provider := NewFixturePageProvider(twoPageFixture(), azurecloud.ScopeAccess{
+		Partial:             true,
+		HiddenResourceCount: 3,
+		Reason:              azurecloud.WarningPermissionHidden,
+		Message:             "subscription not readable",
+	})
+	src := newClaimedFixtureSource(t, provider, testTarget())
+	metrics := &recordingMetrics{}
+	src.Metrics = metrics
+
+	collected, ok, err := src.NextClaimed(context.Background(), azureClaimedWorkItem(claimedScopeID(t)))
+	if err != nil || !ok {
+		t.Fatalf("NextClaimed() ok=%v err=%v", ok, err)
+	}
+	drain(t, collected)
+
+	if len(metrics.claims) != 1 || metrics.claims[0] != azurecloud.ClaimStatusPartial {
+		t.Fatalf("recorded claims = %v, want exactly [%q]", metrics.claims, azurecloud.ClaimStatusPartial)
+	}
+}
+
+func TestSourceNextClaimedRecordsSucceededClaimOnFullScope(t *testing.T) {
+	t.Parallel()
+
+	src := newClaimedFixtureSource(t, NewFixturePageProvider(twoPageFixture(), azurecloud.ScopeAccess{}), testTarget())
+	metrics := &recordingMetrics{}
+	src.Metrics = metrics
+
+	collected, ok, err := src.NextClaimed(context.Background(), azureClaimedWorkItem(claimedScopeID(t)))
+	if err != nil || !ok {
+		t.Fatalf("NextClaimed() ok=%v err=%v", ok, err)
+	}
+	drain(t, collected)
+
+	if len(metrics.claims) != 1 || metrics.claims[0] != azurecloud.ClaimStatusSucceeded {
+		t.Fatalf("recorded claims = %v, want exactly [%q]", metrics.claims, azurecloud.ClaimStatusSucceeded)
+	}
+}
+
 func TestSourceNextClaimedRejectsZeroRedactionKey(t *testing.T) {
 	t.Parallel()
 
