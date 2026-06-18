@@ -88,6 +88,9 @@ type WorkloadMaterializationHandler struct {
 	DependencyLookup             WorkloadDependencyGraphLookup
 	WorkloadDependencyEdgeWriter SharedProjectionEdgeWriter
 	PhasePublisher               GraphProjectionPhasePublisher
+	// RepairQueue captures exact workload-materialization phase rows when graph
+	// writes have committed but phase publication fails.
+	RepairQueue GraphProjectionPhaseRepairQueue
 	// EndpointPresenceWriter records property-keyed (repo_id, path) :Endpoint
 	// presence after the endpoint nodes commit so the handles_route projection
 	// gate can prove a specific endpoint exists (#2809). A nil writer (the
@@ -138,14 +141,31 @@ func (h WorkloadMaterializationHandler) Handle(
 	}
 	if len(candidates) == 0 {
 		phaseStarted := time.Now()
-		if err := publishIntentGraphPhase(
+		repoIDs, repoErr := scopeRepositoryGraphIDs(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
+		if repoErr != nil {
+			return Result{}, repoErr
+		}
+		if err := publishIntentGraphPhaseWithRepair(
 			ctx,
 			h.PhasePublisher,
+			h.RepairQueue,
 			intent,
 			GraphProjectionKeyspaceServiceUID,
 			GraphProjectionPhaseWorkloadMaterialization,
 			time.Now().UTC(),
 		); err != nil {
+			if repairErr := enqueueRepoReadinessPhaseRepairs(
+				ctx,
+				h.RepairQueue,
+				h.EndpointPresenceWriter,
+				intent.ScopeID,
+				intent.GenerationID,
+				repoIDs,
+				time.Now().UTC(),
+				err,
+			); repairErr != nil {
+				return Result{}, fmt.Errorf("%w (enqueue repo readiness repairs: %v)", err, repairErr)
+			}
 			return Result{}, err
 		}
 		// Also publish the deterministic per-repo readiness row (#2891) for every
@@ -153,13 +173,10 @@ func (h WorkloadMaterializationHandler) Handle(
 		// workload candidate — still resolves its handles_route phase gate (and is
 		// then terminalized by the absent-endpoint presence gate), instead of
 		// looping forever. Additive to the per-EntityKey publish above.
-		repoIDs, repoErr := scopeRepositoryGraphIDs(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
-		if repoErr != nil {
-			return Result{}, repoErr
-		}
-		if err := publishRepoReadinessPhases(
+		if err := publishRepoReadinessPhasesWithRepair(
 			ctx,
 			h.PhasePublisher,
+			h.RepairQueue,
 			h.EndpointPresenceWriter,
 			intent.ScopeID,
 			intent.GenerationID,
@@ -235,6 +252,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		materializeResult.DeploymentSourcesWritten +
 		materializeResult.RuntimePlatformsWritten +
 		materializeResult.EndpointsWritten
+	repoReadinessRepoIDs := projectionRepoReadinessRepoIDs(projection)
 
 	dependencyRetractRows := 0
 	dependencyWriteRows := 0
@@ -279,14 +297,27 @@ func (h WorkloadMaterializationHandler) Handle(
 		}
 	}
 	phaseStarted := time.Now()
-	if err := publishIntentGraphPhase(
+	if err := publishIntentGraphPhaseWithRepair(
 		ctx,
 		h.PhasePublisher,
+		h.RepairQueue,
 		intent,
 		GraphProjectionKeyspaceServiceUID,
 		GraphProjectionPhaseWorkloadMaterialization,
 		time.Now().UTC(),
 	); err != nil {
+		if repairErr := enqueueRepoReadinessPhaseRepairs(
+			ctx,
+			h.RepairQueue,
+			h.EndpointPresenceWriter,
+			intent.ScopeID,
+			intent.GenerationID,
+			repoReadinessRepoIDs,
+			time.Now().UTC(),
+			err,
+		); repairErr != nil {
+			return Result{}, fmt.Errorf("%w (enqueue repo readiness repairs: %v)", err, repairErr)
+		}
 		return Result{}, err
 	}
 	// Also publish the deterministic per-repo readiness row (#2891) for every repo
@@ -295,13 +326,14 @@ func (h WorkloadMaterializationHandler) Handle(
 	// reconstructs this exact key from (scope, repo_id, generation), so its
 	// code-stage intent finds the phase row across the source-run boundary the old
 	// intent-keyed lookup could never cross. Additive to the per-EntityKey publish.
-	if err := publishRepoReadinessPhases(
+	if err := publishRepoReadinessPhasesWithRepair(
 		ctx,
 		h.PhasePublisher,
+		h.RepairQueue,
 		h.EndpointPresenceWriter,
 		intent.ScopeID,
 		intent.GenerationID,
-		projectionRepoReadinessRepoIDs(projection),
+		repoReadinessRepoIDs,
 		time.Now().UTC(),
 	); err != nil {
 		return Result{}, err

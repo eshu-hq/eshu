@@ -80,22 +80,77 @@ func publishRepoReadinessPhases(
 	repoIDs []string,
 	observedAt time.Time,
 ) error {
+	return publishRepoReadinessPhasesWithRepair(ctx, publisher, nil, presenceWriter, scopeID, generationID, repoIDs, observedAt)
+}
+
+func publishRepoReadinessPhasesWithRepair(
+	ctx context.Context,
+	publisher GraphProjectionPhasePublisher,
+	repairQueue GraphProjectionPhaseRepairQueue,
+	presenceWriter EndpointPresenceWriter,
+	scopeID, generationID string,
+	repoIDs []string,
+	observedAt time.Time,
+) error {
 	if publisher == nil || len(repoIDs) == 0 {
 		return nil
 	}
-	if presenceWriter != nil {
-		for _, keyspace := range repoReadinessPresenceKeyspaces {
-			if err := presenceWriter.RetractStaleRepoGenerations(ctx, keyspace, scopeID, generationID, repoIDs); err != nil {
-				return fmt.Errorf("retract stale %s presence before repo readiness: %w", keyspace, err)
-			}
-		}
+	if err := retractStaleRepoReadinessPresence(ctx, presenceWriter, scopeID, generationID, repoIDs); err != nil {
+		return err
 	}
 	states := repoReadinessPhaseStates(scopeID, generationID, repoIDs, observedAt)
 	if len(states) == 0 {
 		return nil
 	}
-	if err := publisher.PublishGraphProjectionPhases(ctx, states); err != nil {
+	if err := publishGraphProjectionPhaseStatesWithRepair(ctx, publisher, repairQueue, states); err != nil {
 		return fmt.Errorf("publish repo workload-materialization readiness phases: %w", err)
+	}
+	return nil
+}
+
+func enqueueRepoReadinessPhaseRepairs(
+	ctx context.Context,
+	repairQueue GraphProjectionPhaseRepairQueue,
+	presenceWriter EndpointPresenceWriter,
+	scopeID, generationID string,
+	repoIDs []string,
+	observedAt time.Time,
+	cause error,
+) error {
+	if repairQueue == nil || len(repoIDs) == 0 {
+		return nil
+	}
+	if err := retractStaleRepoReadinessPresence(ctx, presenceWriter, scopeID, generationID, repoIDs); err != nil {
+		return err
+	}
+	states := repoReadinessPhaseStates(scopeID, generationID, repoIDs, observedAt)
+	if len(states) == 0 {
+		return nil
+	}
+	reason := ""
+	if cause != nil {
+		reason = cause.Error()
+	}
+	repairs := GraphProjectionPhaseRepairsFromStates(states, reason, time.Now().UTC())
+	if err := repairQueue.Enqueue(ctx, repairs); err != nil {
+		return fmt.Errorf("enqueue repo workload-materialization readiness repairs: %w", err)
+	}
+	return nil
+}
+
+func retractStaleRepoReadinessPresence(
+	ctx context.Context,
+	presenceWriter EndpointPresenceWriter,
+	scopeID, generationID string,
+	repoIDs []string,
+) error {
+	if presenceWriter == nil {
+		return nil
+	}
+	for _, keyspace := range repoReadinessPresenceKeyspaces {
+		if err := presenceWriter.RetractStaleRepoGenerations(ctx, keyspace, scopeID, generationID, repoIDs); err != nil {
+			return fmt.Errorf("retract stale %s presence before repo readiness: %w", keyspace, err)
+		}
 	}
 	return nil
 }

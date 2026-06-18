@@ -53,6 +53,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				DependencyLookup:             handlers.WorkloadDependencyLookup,
 				WorkloadDependencyEdgeWriter: handlers.WorkloadDependencyEdgeWriter,
 				PhasePublisher:               handlers.GraphProjectionPhasePublisher,
+				RepairQueue:                  handlers.GraphProjectionRepairQueue,
 				// The handles_route (repo_id, path) presence writer (#2809) is wired
 				// independently of the secrets/IAM uid presence writer, so workload
 				// materialization records endpoint presence whenever the handles_route

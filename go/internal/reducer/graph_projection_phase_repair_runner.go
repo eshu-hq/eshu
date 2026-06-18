@@ -151,17 +151,19 @@ func (r *GraphProjectionPhaseRepairer) RunOnce(ctx context.Context, now time.Tim
 			continue
 		}
 
-		acceptanceKey := SharedProjectionAcceptanceKey{
-			ScopeID:          repair.Key.ScopeID,
-			AcceptanceUnitID: repair.Key.AcceptanceUnitID,
-			SourceRunID:      repair.Key.SourceRunID,
-		}
-		acceptedGeneration, ok := r.AcceptedGen(acceptanceKey)
-		if !ok || acceptedGeneration != repair.Key.GenerationID {
-			if err := r.Queue.Delete(ctx, []GraphProjectionPhaseRepair{repair}); err != nil {
-				return repairedCount, fmt.Errorf("delete stale graph projection repair row: %w", err)
+		if repairNeedsAcceptedGeneration(repair) {
+			acceptanceKey := SharedProjectionAcceptanceKey{
+				ScopeID:          repair.Key.ScopeID,
+				AcceptanceUnitID: repair.Key.AcceptanceUnitID,
+				SourceRunID:      repair.Key.SourceRunID,
 			}
-			continue
+			acceptedGeneration, ok := r.AcceptedGen(acceptanceKey)
+			if !ok || acceptedGeneration != repair.Key.GenerationID {
+				if err := r.Queue.Delete(ctx, []GraphProjectionPhaseRepair{repair}); err != nil {
+					return repairedCount, fmt.Errorf("delete stale graph projection repair row: %w", err)
+				}
+				continue
+			}
 		}
 
 		state := GraphProjectionPhaseState{
@@ -220,6 +222,16 @@ func (r *GraphProjectionPhaseRepairer) RunOnce(ctx context.Context, now time.Tim
 	}
 
 	return repairedCount, nil
+}
+
+func repairNeedsAcceptedGeneration(repair GraphProjectionPhaseRepair) bool {
+	// Workload-materialization service readiness rows deliberately use
+	// generation_id as source_run_id so code-stage symbol-runtime rows can find
+	// them across the workload/code source-run boundary. They may not have a
+	// matching shared_projection_acceptance row, and the generation-scoped phase
+	// key is still safe to replay.
+	return repair.Phase != GraphProjectionPhaseWorkloadMaterialization ||
+		repair.Key.Keyspace != GraphProjectionKeyspaceServiceUID
 }
 
 func (r *GraphProjectionPhaseRepairer) validate() error {
