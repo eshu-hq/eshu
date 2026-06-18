@@ -50,6 +50,13 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 				ev.FunctionUID, ev.SourceLine, ev.SinkLine, ev.SinkKind, ev.SourceKind, ev.Binding)
 		}
 	}
+	if len(snapshot.InterprocTaintEvidence) > 0 {
+		writeFreshnessHashf(h, "interproc_evidence=%d\n", len(snapshot.InterprocTaintEvidence))
+		for _, ev := range snapshot.InterprocTaintEvidence {
+			writeFreshnessHashf(h, "interproc:%s:%s:%s:%s\n",
+				ev.SourceFunctionUID, ev.SinkFunctionUID, ev.SinkKind, ev.SourceKind)
+		}
+	}
 
 	for _, candidate := range snapshot.TerraformStateCandidates {
 		writeFreshnessHashf(h, "tfstate_candidate:%s:%s:%d\n",
