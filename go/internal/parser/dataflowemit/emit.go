@@ -118,6 +118,32 @@ func DataflowSummaryRow(lang string, id summary.FunctionID, effects summary.Effe
 	return row
 }
 
+// DataflowSourceRow renders one interprocedural taint source — a parameter port
+// that is a taint entry point (e.g. an *http.Request param) — into a
+// "dataflow_sources" payload row. lang labels the row's source language. The row
+// carries the durable FunctionID, the parameter index, and the source kind, so
+// the cross-repo fixpoint can reconstruct the entry points the per-file analysis
+// derived from the AST but does not otherwise persist.
+func DataflowSourceRow(lang string, src interproc.Source) map[string]any {
+	return map[string]any{
+		"function_id": string(src.Port.Func),
+		"param_index": src.Port.Slot.Index,
+		"kind":        src.Kind,
+		"lang":        lang,
+	}
+}
+
+// SortSourceRows orders "dataflow_sources" rows by (function_id, param_index) so
+// the bucket is byte-stable across runs.
+func SortSourceRows(rows []map[string]any) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if fi, fj := stringFromRow(rows[i], "function_id"), stringFromRow(rows[j], "function_id"); fi != fj {
+			return fi < fj
+		}
+		return intFromRow(rows[i], "param_index") < intFromRow(rows[j], "param_index")
+	})
+}
+
 // blockPayloads renders basic blocks with their statements and sorted successors.
 func blockPayloads(blocks []cfg.Block) []map[string]any {
 	out := make([]map[string]any, 0, len(blocks))

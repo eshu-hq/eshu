@@ -20,7 +20,7 @@ import (
 // is why they are emitted for every function regardless of whether this file
 // produced any finding. Both returned slices are deterministic (summaries sorted
 // by function id, findings by the solver).
-func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, importPath string) (findings, summaries []map[string]any) {
+func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, importPath string) (findings, summaries, sourceRows []map[string]any) {
 	localFuncs := goLocalFunctionIDs(root, source, repositoryID, importPath)
 	effectsByID := map[summary.FunctionID]summary.Effects{}
 	var sources []interproc.Source
@@ -42,16 +42,25 @@ func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, im
 		sources = append(sources, goInterprocSources(node, source, id)...)
 	})
 
+	// Summaries and the param-level sources are durable persistence facts, so they
+	// require the repository identity that keys the FunctionID. The per-file
+	// findings below do not, so a bare parser caller still gets them.
 	if strings.TrimSpace(repositoryID) != "" && strings.TrimSpace(importPath) != "" {
 		summaries = make([]map[string]any, 0, len(effectsByID))
 		for id, effects := range effectsByID {
 			summaries = append(summaries, dataflowemit.DataflowSummaryRow("go", id, effects))
 		}
 		dataflowemit.SortSummaryRows(summaries)
+
+		sourceRows = make([]map[string]any, 0, len(sources))
+		for _, src := range sources {
+			sourceRows = append(sourceRows, dataflowemit.DataflowSourceRow("go", src))
+		}
+		dataflowemit.SortSourceRows(sourceRows)
 	}
 
 	if len(sources) == 0 {
-		return nil, summaries
+		return nil, summaries, sourceRows
 	}
 	program := valueflow.BuildProgram(effectsByID, sources, nil)
 	result := interproc.SolvePartitioned(program, interproc.DefaultLimits())
@@ -60,5 +69,5 @@ func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, im
 	for _, finding := range result.Findings {
 		findings = append(findings, dataflowemit.InterprocFindingRow("go", finding))
 	}
-	return findings, summaries
+	return findings, summaries, sourceRows
 }

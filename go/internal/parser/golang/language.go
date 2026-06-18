@@ -196,12 +196,15 @@ func Parse(
 		if len(findings) > 0 {
 			payload["taint_findings"] = findings
 		}
-		interprocRows, summaryRows := goInterprocPayloads(root, source, options.RepositoryID, options.GoPackageImportPath)
+		interprocRows, summaryRows, sourceRows := goInterprocPayloads(root, source, options.RepositoryID, options.GoPackageImportPath)
 		if len(interprocRows) > 0 {
 			payload["interproc_findings"] = interprocRows
 		}
 		if len(summaryRows) > 0 {
 			payload["dataflow_summaries"] = summaryRows
+		}
+		if len(sourceRows) > 0 {
+			payload["dataflow_sources"] = sourceRows
 		}
 	}
 
