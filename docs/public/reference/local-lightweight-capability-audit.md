@@ -15,10 +15,10 @@ page does not duplicate that list, it explains the decision behind it.
 | Matrix scope | Capabilities | `local_lightweight` unsupported |
 | --- | --- | --- |
 | Core matrix (`capability-matrix.v1.yaml`) | 88 | 63 |
-| Full matrix (core + 14 fragments) | 107 | 70 |
+| Full matrix (core + 16 fragments) | 114 | 75 |
 
 The "63 of 352 cells" figure in epic #3012 is the core matrix (88 capabilities ×
-4 profiles). The fragment files add seven more graph/reducer-backed refusals.
+4 profiles). The fragment files add twelve more graph/reducer-backed refusals.
 
 ## The governing rule: refuse, do not silently downgrade
 
@@ -56,7 +56,7 @@ facts that simply do not exist in the content-index-only profile.
 | Category | Examples (capability IDs) | Why the content index cannot serve it | Decision |
 | --- | --- | --- | --- |
 | Call-graph traversal | `call_graph.transitive_callers`, `call_graph.transitive_callees`, `call_graph.call_chain_path`, `call_graph.metrics` | No `CALLS` edges exist outside the graph (see audit below) | Refuse |
-| Graph-backed code analysis | `graph_query.read_only_cypher`, `symbol_graph.import_dependencies`, `code_quality.refactoring`, `code_quality.dead_code`, `code_to_cloud.trace_exposure_path` | Need graph traversal or graph-only metrics (`parameter_count`, `cyclomatic_complexity`) | Refuse |
+| Graph-backed code analysis | `graph_query.read_only_cypher`, `symbol_graph.import_dependencies`, `code_quality.refactoring`, `code_quality.dead_code`, `code_to_cloud.trace_exposure_path` | Need graph traversal or the current graph-backed code-quality contract; parser metadata coverage is not a bounded content-index variant | Refuse |
 | Platform / infrastructure graph | `platform_impact.*` (deployment chain, blast radius, entity map, resource-to-code, environment compare, …) | Require an authoritative platform/infrastructure graph | Refuse |
 | Reducer-materialized correlations | `ci_cd.run_correlations.*`, `service_catalog.correlations.list`, `kubernetes.correlations.list`, `observability.coverage.correlations.list` | Correlation facts are produced by the reducer, absent in lightweight | Refuse |
 | Supply chain & security | `supply_chain.*`, `secrets_iam.*`, `aws_runtime_drift.findings.list`, `iac_management.*`, `iac_inventory.resources.list` | Require reducer-materialized SBOM/IAM/drift/IaC facts | Refuse |
@@ -93,13 +93,20 @@ be fabricated. Refuse stands.
 
 Function **line span** is available in the content index
 (`content_entities.start_line` / `end_line`), but the refactoring check also
-needs `parameter_count` and `cyclomatic_complexity`, which are written only as
-graph node properties (`coalesce(e.parameter_count, 0)`,
-`coalesce(e.cyclomatic_complexity, 0)` in `go/internal/query/code_quality.go`)
-and never populated in `content_entities`. A "long function" sub-signal could be
-derived, but the high-arg and complexity signals cannot, so the capability as
-specified cannot be honestly served. Refuse stands; a future content-index
-`parameter_count` projection would be the prerequisite for revisiting this.
+needs `parameter_count` and `cyclomatic_complexity`. Those values are available
+for at least Go parser function rows as entity metadata: the Go parser emits the
+fields, `shape.Materialize` copies parser item metadata into
+`content.EntityRecord.Metadata`, and the Postgres content writer persists that
+map in `content_entities.metadata`. The shipped `code_quality.refactoring`
+handler is still a graph-backed contract, however: it reads graph node
+properties in `go/internal/query/code_quality.go`, and there is no bounded
+content-index variant that reads JSONB metadata, defines language coverage, or
+surfaces "metric unavailable" rows for parsers that do not emit the fields. A
+"long function" sub-signal could be derived, and some languages can provide the
+other metrics from metadata, but the capability as specified cannot yet be
+honestly served from the content index alone. Refuse stands; a future bounded
+content-index variant would need explicit metadata coverage and missing-metric
+semantics before revisiting this.
 
 ### Call-graph metrics (in-degree / out-degree) — Refuse
 
@@ -113,14 +120,14 @@ Epic #3012 also changed the default `eshu mcp start` owner to
 `local_authoritative` (see [Local Host Lifecycle](local-host-lifecycle.md) and
 [Local Performance Envelope](local-performance-envelope.md)). That is the
 primary fix: a fresh MCP session boots the embedded graph and answers these 63
-capabilities directly. `local_lightweight` therefore remains a deliberate,
+core-matrix capabilities directly. `local_lightweight` therefore remains a deliberate,
 faster Postgres-only opt-in (`--profile local_lightweight`), and its refusals
 are correct by design rather than a coverage gap.
 
 ## Follow-up
 
 Re-opening any refuse decision requires landing the missing data in the content
-index first (for example a parser-emitted `parameter_count` column, or
-content-index call edges), with the new bounded variant added to the matrix and
+index first (for example content-index call edges or a bounded code-quality
+metadata read model), with the new bounded variant added to the matrix and
 proven by a `go_test` verification entry. None of those projections exist today,
 so no matrix change ships with this audit.
