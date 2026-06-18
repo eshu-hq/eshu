@@ -26,9 +26,14 @@ const interprocEvidenceFactKind = "code_interproc_evidence"
 // entity, is treated as unresolved and the finding is dropped (no orphan or
 // mis-attributed edge). Empty when the parser emitted no interproc findings, so
 // the snapshot is byte-identical when the value-flow gate is off.
-func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, entities []content.EntityRecord) []InterprocTaintEvidenceSnapshot {
-	// Per-file unique (receiver, name) -> uid. A pair seen twice in one file is
-	// marked ambiguous and never resolves.
+// newFunctionUIDResolver builds a per-repo resolver from the function entities:
+// given a function's (relative path, receiver, name) it returns the graph Function
+// uid. A (path, receiver, name) triple that materializes as more than one entity
+// is ambiguous and never resolves, so a finding never attaches to the wrong node.
+// The receiver is the entity's class context, the same component the FunctionID
+// carries, so both the per-file evidence path and the cross-repo summary path
+// resolve uids identically.
+func newFunctionUIDResolver(entities []content.EntityRecord) func(relativePath, receiver, name string) (string, bool) {
 	uidByFunction := make(map[string]string)
 	ambiguous := make(map[string]struct{})
 	functionKey := func(relativePath, receiver, name string) string {
@@ -45,7 +50,7 @@ func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, 
 		}
 		uidByFunction[key] = entity.EntityID
 	}
-	resolve := func(relativePath, receiver, name string) (string, bool) {
+	return func(relativePath, receiver, name string) (string, bool) {
 		if name == "" {
 			return "", false
 		}
@@ -56,6 +61,10 @@ func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, 
 		uid, ok := uidByFunction[key]
 		return uid, ok
 	}
+}
+
+func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, entities []content.EntityRecord) []InterprocTaintEvidenceSnapshot {
+	resolve := newFunctionUIDResolver(entities)
 
 	var evidence []InterprocTaintEvidenceSnapshot
 	for _, parsedFile := range parsedFiles {

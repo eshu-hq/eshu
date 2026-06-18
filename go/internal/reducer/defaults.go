@@ -544,6 +544,28 @@ type DefaultHandlers struct {
 	// the durable store for cross-repo composition.
 	CodeFunctionSummaryWriter CodeFunctionSummaryWriter
 
+	// CodeFunctionSourceLoader loads param-level taint sources from
+	// code_function_source facts. Optional; when present alongside the source
+	// writer, the function-summary handler also persists sources.
+	CodeFunctionSourceLoader CodeFunctionSourceLoader
+
+	// CodeFunctionSourceWriter persists param-level taint sources to the durable
+	// store for the cross-repo fixpoint.
+	CodeFunctionSourceWriter CodeFunctionSourceWriter
+
+	// CodeFunctionGraphIDLoader loads the FunctionID->graph-uid map from
+	// code_function_summary facts. Optional; when present alongside the graph-id
+	// writer, the function-summary handler also persists the uid map.
+	CodeFunctionGraphIDLoader CodeFunctionGraphIDLoader
+
+	// CodeFunctionGraphIDWriter persists the FunctionID->graph-uid map to the
+	// durable store for the cross-repo fixpoint's TAINT_FLOWS_TO projection.
+	CodeFunctionGraphIDWriter CodeFunctionGraphIDWriter
+
+	// ValueFlowFixpointProjector projects durable value-flow fixpoint findings
+	// after function summaries, sources, and graph ids are persisted.
+	ValueFlowFixpointProjector ValueFlowFixpointProjector
+
 	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
 	// routing facts (provider service id + Terraform backend locator) for the
 	// incident-repository correlation domain. It must be non-nil alongside

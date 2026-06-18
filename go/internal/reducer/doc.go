@@ -70,6 +70,32 @@
 // facts into CloudResource nodes only so managed_by azure_cloud_relationship
 // facts can readiness-gate on those endpoints, then writes edges only when both
 // normalized ARM IDs resolve exactly in the same source generation.
+// Code function summary materialization persists generation-independent
+// value-flow summaries, param sources, and FunctionID-to-graph-uid mappings,
+// loads graph-backed cloud sink targets from the closed exposure catalog, then
+// runs the cross-repo fixpoint projection through a distinct
+// reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence source so direct
+// code_interproc_evidence rows remain isolated. Cloud action permission targets
+// join only through an exact single RUNS_IN workload fan-out plus
+// WorkloadInstance USES CloudResource principal and matching CAN_PERFORM action;
+// ambiguous runtime identity stays empty. Cloud sink bridge edges are attached
+// only to observed parameter ports for that FunctionID; a graph edge without
+// parameter evidence stays visible as no value-flow finding rather than
+// fabricating precision.
+//
+// No-Regression Evidence: issue #2967 adds one bounded graph read anchored on
+// Function.uid values loaded from the durable FunctionID map and filtered by the
+// graph-backed exposure sink relationship allowlist. Issue #2969 adds one
+// additional Function.uid-bounded read for correlated INVOKES_CLOUD_ACTION to
+// CAN_PERFORM permission paths, guarded by exact workload fan-out. The fixpoint
+// graph writer shape is unchanged: cloud-backed findings still project as
+// reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence between existing
+// Function nodes, with rel.cloud=true and no promotion to canonical truth.
+// No-Observability-Change: operators diagnose this path through the existing
+// value-flow fixpoint load log fields, reducer execution spans/counters, graph
+// query instrumentation, and CodeInterprocEvidence writer statement summaries;
+// no worker, queue domain, metric instrument, metric label, runtime knob, or
+// graph write route changes.
 // Code-call resolution dispatches language-specific resolver branches through a
 // registry seam before and after the weak repository-wide fallback; the generic
 // resolver still preserves ambiguity and never promotes a language branch into a

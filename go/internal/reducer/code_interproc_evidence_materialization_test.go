@@ -13,6 +13,8 @@ type recordingCodeInterprocEvidenceWriter struct {
 	retractCalls    int
 	retractScopeIDs []string
 	retractEvidence string
+	globalRetracts  int
+	globalEvidence  string
 }
 
 func (w *recordingCodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
@@ -31,6 +33,15 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractCodeInterprocEvidence(
 	w.retractCalls++
 	w.retractScopeIDs = append(w.retractScopeIDs, scopeIDs...)
 	w.retractEvidence = evidenceSource
+	return nil
+}
+
+func (w *recordingCodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSource(
+	_ context.Context,
+	evidenceSource string,
+) error {
+	w.globalRetracts++
+	w.globalEvidence = evidenceSource
 	return nil
 }
 

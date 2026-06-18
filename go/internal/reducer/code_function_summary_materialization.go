@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -46,15 +49,63 @@ type CodeFunctionSummaryWriter interface {
 	UpsertSnapshot(ctx context.Context, snap summary.Snapshot, updatedAt time.Time) error
 }
 
+// CodeFunctionSourceLoader loads the param-level value-flow taint sources emitted
+// for one scope generation as interproc source ports.
+type CodeFunctionSourceLoader interface {
+	LoadCodeFunctionSources(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+	) ([]interproc.Source, error)
+}
+
+// CodeFunctionSourceWriter persists the param-level taint sources to the durable
+// store. It is satisfied by postgres.FunctionSourceStore.
+type CodeFunctionSourceWriter interface {
+	ReplaceSources(ctx context.Context, repo string, sources []interproc.Source, updatedAt time.Time) error
+}
+
+// CodeFunctionGraphIDLoader loads the FunctionID->graph-uid map emitted for one
+// scope generation.
+type CodeFunctionGraphIDLoader interface {
+	LoadCodeFunctionGraphIDs(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+	) (map[summary.FunctionID]string, error)
+}
+
+// CodeFunctionGraphIDWriter persists the FunctionID->graph-uid map. It is
+// satisfied by postgres.FunctionGraphIDStore.
+type CodeFunctionGraphIDWriter interface {
+	ReplaceGraphIDs(ctx context.Context, repo string, ids map[summary.FunctionID]string, updatedAt time.Time) error
+}
+
+// ValueFlowFixpointProjector projects durable cross-repo value-flow findings
+// after summaries, sources, and graph ids have been persisted.
+type ValueFlowFixpointProjector interface {
+	ProjectValueFlowFixpointEvidence(ctx context.Context, scopeID, generationID string) (ValueFlowFixpointProjectionResult, error)
+}
+
 // CodeFunctionSummaryMaterializationHandler persists one generation's function
 // summaries: it loads the raw Effects, recomputes their content versions through
 // a summary.Store, and upserts the resulting snapshot. The upsert is idempotent
 // on FunctionID, so re-running a generation converges rather than duplicating.
+// When the optional source and graph-id loader/writers are wired it also persists
+// that generation's param-level taint sources and the FunctionID->uid map, which
+// the cross-repo fixpoint needs alongside the summaries. When the optional
+// fixpoint projector is wired it runs after those durable writes complete, so
+// graph projection cannot race ahead of persistence.
 type CodeFunctionSummaryMaterializationHandler struct {
-	Loader      CodeFunctionSummaryLoader
-	Writer      CodeFunctionSummaryWriter
-	Now         func() time.Time
-	Instruments *telemetry.Instruments
+	Loader                  CodeFunctionSummaryLoader
+	Writer                  CodeFunctionSummaryWriter
+	SourceLoader            CodeFunctionSourceLoader
+	SourceWriter            CodeFunctionSourceWriter
+	GraphIDLoader           CodeFunctionGraphIDLoader
+	GraphIDWriter           CodeFunctionGraphIDWriter
+	ValueFlowFixpointWriter ValueFlowFixpointProjector
+	Now                     func() time.Time
+	Instruments             *telemetry.Instruments
 }
 
 // Handle executes one function-summary persistence intent.
@@ -82,8 +133,46 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 	store.Upsert(effects)
 	snap := store.Snapshot()
 
-	if err := h.Writer.UpsertSnapshot(ctx, snap, h.now()); err != nil {
+	now := h.now()
+	if err := h.Writer.UpsertSnapshot(ctx, snap, now); err != nil {
 		return Result{}, fmt.Errorf("persist code function summaries: %w", err)
+	}
+
+	sourceCount := 0
+	if h.SourceLoader != nil && h.SourceWriter != nil {
+		sources, err := h.SourceLoader.LoadCodeFunctionSources(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("load code function sources: %w", err)
+		}
+		for _, repo := range codeFunctionSourceRepos(effects, sources) {
+			if err := h.SourceWriter.ReplaceSources(ctx, repo, codeFunctionSourcesForRepo(repo, sources), now); err != nil {
+				return Result{}, fmt.Errorf("persist code function sources for repo %q: %w", repo, err)
+			}
+		}
+		sourceCount = len(sources)
+	}
+
+	graphIDCount := 0
+	if h.GraphIDLoader != nil && h.GraphIDWriter != nil {
+		ids, err := h.GraphIDLoader.LoadCodeFunctionGraphIDs(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("load code function graph ids: %w", err)
+		}
+		for _, repo := range codeFunctionGraphIDRepos(effects, ids) {
+			if err := h.GraphIDWriter.ReplaceGraphIDs(ctx, repo, codeFunctionGraphIDsForRepo(repo, ids), now); err != nil {
+				return Result{}, fmt.Errorf("persist code function graph ids for repo %q: %w", repo, err)
+			}
+		}
+		graphIDCount = len(ids)
+	}
+
+	fixpoint := ValueFlowFixpointProjectionResult{}
+	if h.ValueFlowFixpointWriter != nil {
+		var err error
+		fixpoint, err = h.ValueFlowFixpointWriter.ProjectValueFlowFixpointEvidence(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("project value-flow fixpoint evidence: %w", err)
+		}
 	}
 
 	slog.Info(
@@ -91,14 +180,23 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
 		"function_count", len(snap.Functions),
+		"source_count", sourceCount,
+		"graph_id_count", graphIDCount,
+		"fixpoint_finding_count", fixpoint.FindingCount,
+		"fixpoint_graph_rows", fixpoint.GraphRows,
+		"fixpoint_unresolved_endpoint_count", fixpoint.UnresolvedEndpointCount,
 	)
 
 	return Result{
-		IntentID:        intent.IntentID,
-		Domain:          DomainCodeFunctionSummary,
-		Status:          ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf("persisted %d function summary row(s)", len(snap.Functions)),
-		CanonicalWrites: len(snap.Functions),
+		IntentID: intent.IntentID,
+		Domain:   DomainCodeFunctionSummary,
+		Status:   ResultStatusSucceeded,
+		EvidenceSummary: fmt.Sprintf(
+			"persisted %d function summary row(s), projected %d fixpoint edge(s)",
+			len(snap.Functions),
+			fixpoint.GraphRows,
+		),
+		CanonicalWrites: len(snap.Functions) + fixpoint.GraphRows,
 	}, nil
 }
 
@@ -108,4 +206,78 @@ func (h CodeFunctionSummaryMaterializationHandler) now() time.Time {
 		return h.Now()
 	}
 	return time.Now().UTC()
+}
+
+func codeFunctionSourceRepos(
+	effects map[summary.FunctionID]summary.Effects,
+	sources []interproc.Source,
+) []string {
+	seen := make(map[string]struct{})
+	for fnID := range effects {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	for _, src := range sources {
+		if repo := durableFunctionRepo(string(src.Port.Func)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	repos := make([]string, 0, len(seen))
+	for repo := range seen {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+	return repos
+}
+
+func codeFunctionSourcesForRepo(repo string, sources []interproc.Source) []interproc.Source {
+	var out []interproc.Source
+	for _, src := range sources {
+		if durableFunctionRepo(string(src.Port.Func)) == repo {
+			out = append(out, src)
+		}
+	}
+	return out
+}
+
+func codeFunctionGraphIDRepos(
+	effects map[summary.FunctionID]summary.Effects,
+	ids map[summary.FunctionID]string,
+) []string {
+	seen := make(map[string]struct{})
+	for fnID := range effects {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	for fnID := range ids {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	repos := make([]string, 0, len(seen))
+	for repo := range seen {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+	return repos
+}
+
+func codeFunctionGraphIDsForRepo(repo string, ids map[summary.FunctionID]string) map[summary.FunctionID]string {
+	out := make(map[summary.FunctionID]string)
+	for fnID, uid := range ids {
+		if durableFunctionRepo(string(fnID)) == repo {
+			out[fnID] = uid
+		}
+	}
+	return out
+}
+
+func durableFunctionRepo(functionID string) string {
+	functionID = strings.TrimSpace(functionID)
+	if idx := strings.Index(functionID, "\x1f"); idx >= 0 {
+		return functionID[:idx]
+	}
+	return ""
 }

@@ -254,7 +254,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	annotateParsedFilesWithEntityIDs(repoPath, parsedFiles, materialization.Entities)
 	snapshot.TaintEvidence = buildTaintEvidence(repoPath, parsedFiles, materialization.Entities)
 	snapshot.InterprocTaintEvidence = buildInterprocTaintEvidence(repoPath, parsedFiles, materialization.Entities)
-	snapshot.FunctionSummaries = buildFunctionSummaries(parsedFiles)
+	snapshot.FunctionSummaries = buildFunctionSummaries(repoPath, parsedFiles, materialization.Entities)
+	snapshot.FunctionSources = buildFunctionSources(parsedFiles)
 	// Record that the value-flow gate ran so a per-generation marker fact is
 	// emitted even when no findings were produced, letting the reducer retract
 	// stale evidence when a generation's finding set goes empty (#2919).

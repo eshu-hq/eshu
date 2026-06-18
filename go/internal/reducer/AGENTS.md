@@ -423,6 +423,44 @@ queue/status rows, and Postgres query duration metrics. It adds no route, graph
 query shape, new metric instrument, new metric label key, span, lease, runtime
 knob, or log key.
 
+No-Regression Evidence: #2931 also persists the durable `FunctionID`->graph-uid
+map the cross-repo fixpoint needs to project findings by uid. The same
+`code_function_summary` handler gains an OPTIONAL graph-id loader/writer (a
+`CodeFunctionGraphIDLoader` reading the `graph_uid` the collector resolved onto
+each `code_function_summary` fact, and a `CodeFunctionGraphIDWriter` =
+`FunctionGraphIDStore.UpsertGraphIDs`). When wired it upserts the map alongside
+the summaries and sources, idempotent on `FunctionID`, skipping unresolved
+(empty) uids. It is additive and behind the same off-by-default value-flow gate;
+no new Cypher (a durable `function_graph_ids` Postgres table), graph write,
+worker, queue, or batch. `go test ./internal/reducer -run 'CodeFunctionSummary'
+-count=1` and `go test ./internal/storage/postgres -run 'FunctionGraphID|Bootstrap'
+-count=1` cover the handler graph-id persistence and the store/ordered bootstrap
+schema; `go test ./cmd/reducer -count=1` proves the wiring.
+
+No-Observability-Change: the graph-id persistence reuses the same generic reducer
+claim/execute/ack instrumentation as the summary domain; it adds no metric
+instrument, metric label, span, worker, queue domain, lease, runtime knob, or log
+key beyond the existing per-domain counters.
+
+No-Regression Evidence: #2964 composes durable function summaries, param
+sources, and the FunctionID->uid map through `ValueFlowFixpointEvidenceLoader`
+after `DomainCodeFunctionSummary` persists those stores. The post-persist
+`ValueFlowFixpointEvidenceProjector` reuses the `TAINT_FLOWS_TO` writer but uses
+the distinct `reducer/code-interproc-fixpoint` evidence source and UID namespace,
+so existing fact-based `code_interproc_evidence` inputs stay isolated.
+
+No-Regression Evidence: #2969 adds one Function.uid-bounded graph read that
+joins INVOKES_CLOUD_ACTION to CAN_PERFORM cloud permission targets only after a
+single exact RUNS_IN workload fan-out. `go test ./internal/reducer -run
+'TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions'
+-count=1` failed before the loader returned permission-backed sinks, then
+passed with ambiguous workload fan-out still empty.
+
+No-Observability-Change: the cloud-action permission read uses the existing
+value-flow fixpoint load path, graph query instrumentation, reducer
+spans/counters, and CodeInterprocEvidence writer summaries; it adds no worker,
+queue domain, metric instrument, metric label, runtime knob, or graph writer.
+
 No-Regression Evidence: Rust trait-bound receiver resolution registers a
 language resolver before weak repository-wide fallback and indexes only unique
 trait declaration methods. The focused parser test failed before trait
