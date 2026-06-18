@@ -3,9 +3,6 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
