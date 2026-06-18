@@ -20,6 +20,15 @@ type SchemaApplication struct {
 	CompatibleFingerprints []string
 }
 
+const (
+	graphSchemaNeo4jFingerprint    = "ca479d532a310372af959c4fbabb17532d7c07e2d7342210b93283986beb07d2"
+	graphSchemaNornicDBFingerprint = "3ffc1b84196c30fa96194c8f56cc53f63ca733008d6684492722dbc5ded2e9e3"
+)
+
+// graphSchemaCompatibleFingerprints lists additive predecessor schema
+// fingerprints that older graph writers may safely use after bootstrap records
+// the current marker. Destructive schema changes and schema changes coupled to
+// new reducer domains must not list predecessors.
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{}
 
 // SchemaApplicationForBackend returns the graph schema fingerprint and

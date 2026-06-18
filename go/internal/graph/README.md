@@ -186,6 +186,26 @@ Observability Evidence: structured schema statement logs expose backend, phase,
 ordinal, total, duration, bounded statement summary, and failure class so a
 Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
 
+No-Regression Evidence: #2902 adds
+`TestSchemaApplicationsDeclareCompatibilityDecision`, which pins the
+current Neo4j fingerprint
+`ca479d532a310372af959c4fbabb17532d7c07e2d7342210b93283986beb07d2`
+(196 statements) and NornicDB fingerprint
+`3ffc1b84196c30fa96194c8f56cc53f63ca733008d6684492722dbc5ded2e9e3`
+(259 statements). The test failed while the current markers listed older
+pre-CodeTaintEvidence fingerprints, then passed after compatibility stayed
+empty for this schema. The DDL additions are coupled to a new reducer domain,
+and older reducers fail before write safety can be evaluated if they claim a
+future `code_taint_evidence` intent. No DDL, statement ordering, graph query,
+writer query, or runtime startup SQL changed.
+
+No-Observability-Change: graph schema compatibility remains a Postgres marker
+read/write contract through `graphschemacompat`; this update changes only the
+compiled compatibility list returned with the current schema application. Schema
+DDL execution still emits the existing structured statement logs, and runtime
+startup refusal/acceptance continues through the existing caller logs and
+Postgres query instrumentation.
+
 ## Gotchas / invariants
 
 - `cypherSafePattern` (`entity.go:12`) accepts `[a-zA-Z_][a-zA-Z0-9_]*` only.
@@ -220,8 +240,12 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
   update the active ADR chunk status row.
 - Additive rolling-upgrade compatibility is explicit: a newer
   `SchemaApplication` may list older writer fingerprints as compatible. A
-  destructive schema change must leave the compatibility list empty so stale
-  graph writers refuse before they write.
+  destructive schema change, or an additive schema change coupled to a new
+  reducer domain older workers cannot parse, must leave the compatibility list
+  empty so stale graph writers refuse before they write. Any schema fingerprint
+  change must update `TestSchemaApplicationsDeclareCompatibilityDecision`
+  and either add safe predecessor fingerprints or deliberately leave
+  compatibility empty with a documented atomic-rollout reason.
 - Terraform schema labels include resource/config entities plus backend,
   import, moved, removed, check, and lockfile-provider evidence. Keep that list
   aligned with `internal/content/shape` and `internal/storage/cypher`.
