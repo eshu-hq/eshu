@@ -1,6 +1,5 @@
 // Package resolutionparity holds the per-language call-resolution accuracy
-// goldens and the CI parity gate for code-edge resolution provenance (issue
-// #2226).
+// goldens and CI parity gates for code-edge resolution provenance.
 //
 // Once code-call edges carry a resolution_method (ADR #2222, emitted by the
 // reducer in #2223), the distribution of resolution tiers per language becomes
@@ -11,7 +10,9 @@
 // shifts the tiers, which is how a per-language resolution regression is caught
 // in the normal `go test ./...` CI matrix.
 //
-// The golden is a regression snapshot of deterministic pipeline output, not a
-// hand-authored target. Update it deliberately with the documented procedure in
-// README.md when a tier shift is intended and explained.
+// The exact caller-to-callee gate is separate from the tier snapshot. It uses
+// source-authored fixture truth and the parser/goldenaudit scorer to fail when
+// a call resolves to the wrong target, even if its provenance tier is unchanged.
+// The tier golden remains a regression snapshot of deterministic pipeline
+// output; the exact-edge fixture truth must stay independent of Eshu output.
 package resolutionparity

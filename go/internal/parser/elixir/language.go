@@ -45,8 +45,10 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		if trimmed == "end" {
 			var popped scope
 			scopes, popped = popScope(scopes)
-			if options.IndexSource && popped.item != nil {
+			if popped.item != nil {
 				popped.item["end_line"] = lineNumber
+			}
+			if options.IndexSource && popped.item != nil {
 				popped.item["source"] = strings.Join(lines[popped.lineNumber-1:lineNumber], "\n")
 			}
 			lastMeaningfulLine = trimmed
