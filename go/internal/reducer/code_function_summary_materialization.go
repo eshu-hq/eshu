@@ -62,20 +62,38 @@ type CodeFunctionSourceWriter interface {
 	UpsertSources(ctx context.Context, sources []interproc.Source, updatedAt time.Time) error
 }
 
+// CodeFunctionGraphIDLoader loads the FunctionID->graph-uid map emitted for one
+// scope generation.
+type CodeFunctionGraphIDLoader interface {
+	LoadCodeFunctionGraphIDs(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+	) (map[summary.FunctionID]string, error)
+}
+
+// CodeFunctionGraphIDWriter persists the FunctionID->graph-uid map. It is
+// satisfied by postgres.FunctionGraphIDStore.
+type CodeFunctionGraphIDWriter interface {
+	UpsertGraphIDs(ctx context.Context, ids map[summary.FunctionID]string, updatedAt time.Time) error
+}
+
 // CodeFunctionSummaryMaterializationHandler persists one generation's function
 // summaries: it loads the raw Effects, recomputes their content versions through
 // a summary.Store, and upserts the resulting snapshot. The upsert is idempotent
 // on FunctionID, so re-running a generation converges rather than duplicating.
-// When the optional source loader/writer are wired it also persists that
-// generation's param-level taint sources, which the cross-repo fixpoint needs as
-// entry points alongside the summaries.
+// When the optional source and graph-id loader/writers are wired it also persists
+// that generation's param-level taint sources and the FunctionID->uid map, which
+// the cross-repo fixpoint needs alongside the summaries.
 type CodeFunctionSummaryMaterializationHandler struct {
-	Loader       CodeFunctionSummaryLoader
-	Writer       CodeFunctionSummaryWriter
-	SourceLoader CodeFunctionSourceLoader
-	SourceWriter CodeFunctionSourceWriter
-	Now          func() time.Time
-	Instruments  *telemetry.Instruments
+	Loader        CodeFunctionSummaryLoader
+	Writer        CodeFunctionSummaryWriter
+	SourceLoader  CodeFunctionSourceLoader
+	SourceWriter  CodeFunctionSourceWriter
+	GraphIDLoader CodeFunctionGraphIDLoader
+	GraphIDWriter CodeFunctionGraphIDWriter
+	Now           func() time.Time
+	Instruments   *telemetry.Instruments
 }
 
 // Handle executes one function-summary persistence intent.
@@ -116,12 +134,25 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		sourceCount = len(sources)
 	}
 
+	graphIDCount := 0
+	if h.GraphIDLoader != nil && h.GraphIDWriter != nil {
+		ids, err := h.GraphIDLoader.LoadCodeFunctionGraphIDs(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("load code function graph ids: %w", err)
+		}
+		if err := h.GraphIDWriter.UpsertGraphIDs(ctx, ids, now); err != nil {
+			return Result{}, fmt.Errorf("persist code function graph ids: %w", err)
+		}
+		graphIDCount = len(ids)
+	}
+
 	slog.Info(
 		"code function summary persistence completed",
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
 		"function_count", len(snap.Functions),
 		"source_count", sourceCount,
+		"graph_id_count", graphIDCount,
 	)
 
 	return Result{

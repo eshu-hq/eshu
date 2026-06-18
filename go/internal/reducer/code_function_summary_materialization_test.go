@@ -179,3 +179,41 @@ func TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired(t *testing.T) {
 		t.Fatalf("Handle error: %v", err)
 	}
 }
+
+type stubCodeFunctionGraphIDLoader struct {
+	ids map[summary.FunctionID]string
+}
+
+func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDs(context.Context, string, string) (map[summary.FunctionID]string, error) {
+	return l.ids, nil
+}
+
+type recordingCodeFunctionGraphIDWriter struct {
+	calls int
+	ids   map[summary.FunctionID]string
+}
+
+func (w *recordingCodeFunctionGraphIDWriter) UpsertGraphIDs(_ context.Context, ids map[summary.FunctionID]string, _ time.Time) error {
+	w.calls++
+	w.ids = ids
+	return nil
+}
+
+// TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired proves the handler also
+// persists the FunctionID->uid map when the optional graph-id loader/writer are set.
+func TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired(t *testing.T) {
+	t.Parallel()
+	gidWriter := &recordingCodeFunctionGraphIDWriter{}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader:        stubCodeFunctionSummaryLoader{},
+		Writer:        &recordingCodeFunctionSummaryWriter{},
+		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[summary.FunctionID]string{"repo-1\x1fpkg\x1f\x1fview": "uid-view"}},
+		GraphIDWriter: gidWriter,
+	}
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle error: %v", err)
+	}
+	if gidWriter.calls != 1 || gidWriter.ids["repo-1\x1fpkg\x1f\x1fview"] != "uid-view" {
+		t.Fatalf("graph ids not persisted: %+v", gidWriter)
+	}
+}
