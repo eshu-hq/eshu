@@ -81,8 +81,8 @@ ingester:
 
 Set `ingester.persistence.existingClaim` when your platform owns the PVC. Set
 `ingester.persistence.enabled=false` only for short-lived experiments.
-Helm currently supports one ingester replica. Repository sharding exists at the
-runtime env layer, but the chart rejects horizontal ingesters until deferred
-relationship maintenance has a fleet-wide drain barrier. When charted
-horizontal ingesters are introduced, they must keep the default StatefulSet
-`volumeClaimTemplates` shape so each replica gets its own workspace claim.
+Keep the default StatefulSet `volumeClaimTemplates` shape when
+`ingester.replicas` is greater than one so each sharded ingester owns a distinct
+workspace claim. The chart rejects `ingester.persistence.existingClaim` for
+horizontal ingesters because a shared PVC would let multiple shards mutate the
+same checkout tree.

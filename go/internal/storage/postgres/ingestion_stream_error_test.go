@@ -70,7 +70,7 @@ func TestIngestionStoreCommitClaimedScopeGenerationRollsBackOnFactStreamError(t 
 	if !db.tx.rolledBack {
 		t.Fatal("transaction rolledBack = false, want true")
 	}
-	if got, want := len(db.tx.execs), 4; got != want {
+	if got, want := len(db.tx.execs), 5; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for _, exec := range db.tx.execs {

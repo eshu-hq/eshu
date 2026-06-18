@@ -20,6 +20,8 @@ type proofDomainTx struct {
 func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	_ = ctx
 	switch {
+	case strings.Contains(query, "pg_advisory_xact_lock"):
+		return proofResult{}, nil
 	case strings.Contains(query, "UPDATE scope_generations") && strings.Contains(query, "status = 'superseded'"):
 		scopeID := args[1].(string)
 		generationID := args[2].(string)

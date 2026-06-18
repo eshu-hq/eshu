@@ -137,9 +137,14 @@ type Service struct {
 	// AfterBatchDrained runs once after at least one committed generation and
 	// the current source batch is exhausted.
 	AfterBatchDrained func(context.Context) error
-	Tracer            trace.Tracer           // optional — nil means no tracing
-	Instruments       *telemetry.Instruments // optional — nil means no metrics
-	Logger            *slog.Logger           // optional — nil means no structured logging
+	// AfterEmptyBatchDrained also runs AfterBatchDrained once when the current
+	// source batch is exhausted without commits. Repeated idle polls are
+	// suppressed until another generation is committed. Use only for runtimes
+	// that need configured empty shards to participate in a fleet barrier.
+	AfterEmptyBatchDrained bool
+	Tracer                 trace.Tracer           // optional — nil means no tracing
+	Instruments            *telemetry.Instruments // optional — nil means no metrics
+	Logger                 *slog.Logger           // optional — nil means no structured logging
 }
 
 // Run polls the source and commits each collected generation atomically.
@@ -155,6 +160,7 @@ func (s Service) Run(ctx context.Context) error {
 	}
 
 	committedSinceDrain := false
+	emptyDrainObserved := false
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -170,11 +176,13 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		if !ok {
 			s.endCollectorObserve(observation, nil)
-			if committedSinceDrain && s.AfterBatchDrained != nil {
+			shouldDrain := committedSinceDrain || (s.AfterEmptyBatchDrained && !emptyDrainObserved)
+			if shouldDrain && s.AfterBatchDrained != nil {
 				if err := s.AfterBatchDrained(ctx); err != nil {
 					return fmt.Errorf("after collector batch drained: %w", err)
 				}
 				committedSinceDrain = false
+				emptyDrainObserved = true
 			}
 			if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
 				return nil
@@ -197,6 +205,7 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		s.endCollectorObserve(observation, nil)
 		committedSinceDrain = true
+		emptyDrainObserved = false
 	}
 }
 

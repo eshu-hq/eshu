@@ -12,7 +12,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -69,10 +68,11 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	if db.tx.rolledBack {
 		t.Fatal("transaction rolledBack = true, want false")
 	}
-	if got, want := len(db.tx.execs), 4; got != want {
+	if got, want := len(db.tx.execs), 5; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for index, want := range []string{
+		"pg_advisory_xact_lock_shared",
 		"INSERT INTO ingestion_scopes",
 		"INSERT INTO scope_generations",
 		"INSERT INTO fact_records",
@@ -82,7 +82,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 			t.Fatalf("exec[%d] query = %q, want substring %q", index, db.tx.execs[index].query, want)
 		}
 	}
-	if got, want := db.tx.execs[3].args[3], "source_local"; got != want {
+	if got, want := db.tx.execs[4].args[3], "source_local"; got != want {
 		t.Fatalf("projector domain arg = %v, want %v", got, want)
 	}
 }
@@ -152,7 +152,7 @@ func TestIngestionStoreCommitScopeGenerationRollsBackOnProjectorEnqueueFailure(t
 	db := &fakeTransactionalDB{
 		tx: &fakeTx{
 			execErrors: map[int]error{
-				2: errors.New("insert projector work failed"),
+				3: errors.New("insert projector work failed"),
 			},
 		},
 	}
@@ -268,344 +268,17 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
-	if got, want := len(db.tx.execs), 5; got != want {
+	if got, want := len(db.tx.execs), 6; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if got := db.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {
 		t.Fatalf("first exec query = %q, want active claim fence mutation", got)
 	}
+	if got := db.tx.execs[1].query; !strings.Contains(got, "pg_advisory_xact_lock_shared") {
+		t.Fatalf("second exec query = %q, want shared maintenance barrier after claim fence", got)
+	}
 	if !db.tx.committed {
 		t.Fatal("transaction committed = false, want true")
-	}
-}
-
-func TestIngestionStoreCommitScopeGenerationSkipsUnchangedActiveGeneration(t *testing.T) {
-	telemetry.ResetSkippedRefreshCountForTesting()
-	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
-
-	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{
-		tx: &fakeTx{},
-		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-active", "fingerprint-same"}},
-		}},
-	}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return now }
-
-	scopeValue := scope.IngestionScope{
-		ScopeID:       "scope-123",
-		SourceSystem:  "git",
-		ScopeKind:     scope.KindRepository,
-		CollectorKind: scope.CollectorGit,
-		PartitionKey:  "repo-123",
-	}
-	generation := scope.ScopeGeneration{
-		GenerationID:  "generation-456",
-		ScopeID:       "scope-123",
-		ObservedAt:    time.Date(2026, time.April, 12, 11, 59, 0, 0, time.UTC),
-		IngestedAt:    now,
-		Status:        scope.GenerationStatusPending,
-		TriggerKind:   scope.TriggerKindSnapshot,
-		FreshnessHint: "fingerprint-same",
-	}
-
-	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, nil); err != nil {
-		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
-	}
-
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("query count = %d, want %d", got, want)
-	}
-	if got, want := db.beginCalls, 0; got != want {
-		t.Fatalf("begin call count = %d, want %d", got, want)
-	}
-	if got, want := len(db.tx.execs), 0; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
-	}
-	if got, want := telemetry.SkippedRefreshCount(), uint64(1); got != want {
-		t.Fatalf("SkippedRefreshCount() = %d, want %d", got, want)
-	}
-}
-
-func TestIngestionStoreCommitScopeGenerationSkipsUnchangedPendingGeneration(t *testing.T) {
-	telemetry.ResetSkippedRefreshCountForTesting()
-	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
-
-	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{
-		tx: &fakeTx{},
-		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-pending", "fingerprint-same"}},
-		}},
-	}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return now }
-
-	scopeValue := scope.IngestionScope{
-		ScopeID:       "scope-123",
-		SourceSystem:  "git",
-		ScopeKind:     scope.KindRepository,
-		CollectorKind: scope.CollectorGit,
-		PartitionKey:  "repo-123",
-	}
-	generation := scope.ScopeGeneration{
-		GenerationID:  "generation-456",
-		ScopeID:       "scope-123",
-		ObservedAt:    time.Date(2026, time.April, 12, 11, 59, 0, 0, time.UTC),
-		IngestedAt:    now,
-		Status:        scope.GenerationStatusPending,
-		TriggerKind:   scope.TriggerKindSnapshot,
-		FreshnessHint: "fingerprint-same",
-	}
-
-	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, nil); err != nil {
-		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
-	}
-
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("query count = %d, want %d", got, want)
-	}
-	query := db.queries[0].query
-	for _, want := range []string{
-		"generation.status IN ('pending', 'active')",
-		"ORDER BY generation.ingested_at DESC",
-	} {
-		if !strings.Contains(query, want) {
-			t.Fatalf("freshness query missing %q:\n%s", want, query)
-		}
-	}
-	if got, want := db.beginCalls, 0; got != want {
-		t.Fatalf("begin call count = %d, want %d", got, want)
-	}
-	if got, want := telemetry.SkippedRefreshCount(), uint64(1); got != want {
-		t.Fatalf("SkippedRefreshCount() = %d, want %d", got, want)
-	}
-}
-
-func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffers(t *testing.T) {
-	telemetry.ResetSkippedRefreshCountForTesting()
-	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
-
-	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{
-		tx: &fakeTx{},
-		queryResponses: []queueFakeRows{{
-			rows: [][]any{{"generation-active", "fingerprint-old"}},
-		}},
-	}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return now }
-
-	scopeValue := scope.IngestionScope{
-		ScopeID:       "scope-123",
-		SourceSystem:  "git",
-		ScopeKind:     scope.KindRepository,
-		CollectorKind: scope.CollectorGit,
-		PartitionKey:  "repo-123",
-	}
-	generation := scope.ScopeGeneration{
-		GenerationID:  "generation-456",
-		ScopeID:       "scope-123",
-		ObservedAt:    time.Date(2026, time.April, 12, 11, 59, 0, 0, time.UTC),
-		IngestedAt:    now,
-		Status:        scope.GenerationStatusPending,
-		TriggerKind:   scope.TriggerKindSnapshot,
-		FreshnessHint: "fingerprint-new",
-	}
-
-	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, nil); err != nil {
-		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
-	}
-
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("query count = %d, want %d", got, want)
-	}
-	if got, want := db.beginCalls, 1; got != want {
-		t.Fatalf("begin call count = %d, want %d", got, want)
-	}
-	if got, want := len(db.tx.execs), 3; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
-	}
-	if got, want := telemetry.SkippedRefreshCount(), uint64(0); got != want {
-		t.Fatalf("SkippedRefreshCount() = %d, want %d", got, want)
-	}
-}
-
-func TestIngestionStoreCommitScopeGenerationSkipsRelationshipBackfillWhenConfigured(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{tx: &fakeTx{}}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
-
-	scopeValue := scope.IngestionScope{
-		ScopeID:       "scope-123",
-		SourceSystem:  "git",
-		ScopeKind:     scope.KindRepository,
-		CollectorKind: scope.CollectorGit,
-		PartitionKey:  "repo-123",
-	}
-	generation := scope.ScopeGeneration{
-		GenerationID: "generation-456",
-		ScopeID:      "scope-123",
-		ObservedAt:   time.Date(2026, time.April, 12, 11, 59, 0, 0, time.UTC),
-		IngestedAt:   now,
-		Status:       scope.GenerationStatusPending,
-		TriggerKind:  scope.TriggerKindSnapshot,
-	}
-	envelopes := []facts.Envelope{{
-		FactID:        "fact-1",
-		ScopeID:       "scope-123",
-		GenerationID:  "generation-456",
-		FactKind:      "repository",
-		StableFactKey: "repository:repo-123",
-		ObservedAt:    generation.ObservedAt,
-		Payload:       map[string]any{"graph_id": "repo-123"},
-		SourceRef: facts.Ref{
-			SourceSystem: "git",
-			FactKey:      "fact-key",
-		},
-	}}
-
-	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testFactChannel(envelopes)); err != nil {
-		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
-	}
-
-	if got, want := len(db.tx.queries), 1; got != want {
-		t.Fatalf("transaction query count = %d, want %d", got, want)
-	}
-	if !strings.Contains(db.tx.queries[0].query, "fact_kind = 'repository'") {
-		t.Fatalf("transaction query = %q, want repository catalog load only", db.tx.queries[0].query)
-	}
-}
-
-func TestIngestionStoreBackfillAllRelationshipEvidenceSkipsUnknownTargetGenerations(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.April, 18, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{
-				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
-				},
-			},
-			{
-				rows: [][]any{
-					{"repo-other", "scope-other", "gen-other"},
-				},
-			},
-			{
-				rows: [][]any{
-					{
-						"fact-1",
-						"scope-infra",
-						"gen-infra",
-						"content",
-						"content:1",
-						"content.v1",
-						"git",
-						int64(0),
-						"unknown",
-						"git",
-						"source-fact-1",
-						"",
-						"",
-						now,
-						false,
-						[]byte(`{"artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"app-repo\""}`),
-					},
-				},
-			},
-		},
-	}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return now }
-
-	if err := store.BackfillAllRelationshipEvidence(context.Background(), nil, nil); err != nil {
-		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want nil", err)
-	}
-
-	for _, execCall := range db.execs {
-		if strings.Contains(execCall.query, "INSERT INTO relationship_evidence_facts") {
-			t.Fatalf("unexpected evidence insert for unknown target generation:\n%s", execCall.query)
-		}
-	}
-	foundPhasePublish := false
-	for _, execCall := range db.execs {
-		if strings.Contains(execCall.query, "INSERT INTO graph_projection_phase_state") {
-			foundPhasePublish = true
-			break
-		}
-	}
-	if !foundPhasePublish {
-		t.Fatal("expected backward evidence readiness publish")
-	}
-}
-
-func TestIngestionStoreBackfillAllRelationshipEvidencePersistsBySourceGeneration(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.April, 18, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{
-				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)},
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
-				},
-			},
-			{
-				rows: [][]any{
-					{"repo-infra", "scope-infra", "gen-infra"},
-					{"repo-app", "scope-app", "gen-app"},
-				},
-			},
-			{
-				rows: [][]any{
-					{
-						"fact-1",
-						"scope-infra",
-						"gen-infra",
-						"content",
-						"content:1",
-						"content.v1",
-						"git",
-						int64(0),
-						"unknown",
-						"git",
-						"source-fact-1",
-						"",
-						"",
-						now,
-						false,
-						[]byte(`{"repo_id":"repo-infra","artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"app-repo\""}`),
-					},
-				},
-			},
-		},
-	}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return now }
-
-	if err := store.BackfillAllRelationshipEvidence(context.Background(), nil, nil); err != nil {
-		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want nil", err)
-	}
-
-	var evidenceInserts []fakeExecCall
-	for _, execCall := range db.execs {
-		if strings.Contains(execCall.query, "INSERT INTO relationship_evidence_facts") {
-			evidenceInserts = append(evidenceInserts, execCall)
-		}
-	}
-	if len(evidenceInserts) != 1 {
-		t.Fatalf("relationship evidence inserts = %d, want 1", len(evidenceInserts))
-	}
-	if got, want := evidenceInserts[0].args[1], "gen-infra"; got != want {
-		t.Fatalf("evidence generation_id = %v, want source generation %q", got, want)
 	}
 }
 

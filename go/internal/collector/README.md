@@ -46,9 +46,13 @@ real collection attempt, which keeps drained or idle polls out of trace export.
 When a generation is available, the span covers source collection and durable
 commit. When no generation is ready, the service calls `AfterBatchDrained` if
 at least one generation was committed since the last drain, then waits
-`PollInterval` (1 second in `cmd/ingester`). On receipt of a generation it
-calls `Committer.CommitScopeGeneration` with the `facts.Envelope` channel and
-records `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
+`PollInterval` (1 second in `cmd/ingester`). Runtimes that must include empty
+source batches in a fleet barrier may set `AfterEmptyBatchDrained`; the default
+keeps idle polls from running drain hooks, and the opt-in path suppresses
+repeated idle-poll hooks until a later generation commit starts a new drain
+window. On receipt of a generation it calls `Committer.CommitScopeGeneration`
+with the `facts.Envelope` channel and records
+`CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
 `FactsCommitted`.
 If the durable commit returns an error and `DeadLetters` is wired, `Service`
 records bounded scope/generation replay metadata without storing fact payloads
@@ -148,7 +152,19 @@ These claims remain document evidence only; projector, reducer, and query stages
 own correlation, drift, and truth decisions.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
-it.
+it unless `AfterEmptyBatchDrained` is set for a caller that needs configured
+empty source batches to participate in a cross-process barrier. The empty path
+is edge-triggered: it runs once for an empty drain window and does not repeat
+until a later generation commit resets the window.
+
+No-Regression Evidence: `go test ./internal/collector -run
+'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnceWhileIdle)'
+-count=1` proves the default hook remains commit-gated and the empty-batch hook
+is opt-in and not an idle timer.
+
+No-Observability-Change: `AfterEmptyBatchDrained` only changes whether the
+caller-supplied drain hook runs once for an exhausted empty batch. It adds no
+metric, span, status field, worker, queue, graph write, or runtime label.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1` covers DOCX, CSV/TSV, XLSX, PPTX, ZIP packet summaries, deterministic diagrams, claim hints, repository fact readback, and MCP routing.
 
@@ -176,9 +192,9 @@ progress messages.
 ## Exported surface
 
 - `Service` — poll-and-dispatch loop; wire `Source`, `Committer`,
-  `PollInterval`, and optionally `DeadLetters`, `AfterBatchDrained`, `Tracer`,
-  `Instruments`, `Logger`. `DeadLetters` records commit failures and clears
-  replay state after later successful commits
+  `PollInterval`, and optionally `DeadLetters`, `AfterBatchDrained`,
+  `AfterEmptyBatchDrained`, `Tracer`, `Instruments`, `Logger`. `DeadLetters`
+  records commit failures and clears replay state after later successful commits
 - `Source` — interface: `Next(context.Context) (CollectedGeneration, bool, error)`
 - `ObservedSource` — optional source interface that receives a
   `StartObserveFunc` and returns a `CollectorObservation` so real collection

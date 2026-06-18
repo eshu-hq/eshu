@@ -10,8 +10,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 42 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 42", len(defs))
+	if len(defs) != 43 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 43", len(defs))
 	}
 
 	wantNames := []string{
@@ -42,6 +42,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"graph_projection_phase_repair_queue",
 		"workflow_control_plane",
 		"workflow_coordinator_state",
+		"deferred_maintenance_barriers",
 		"iac_reachability",
 		"webhook_refresh_triggers",
 		"aws_pagination_checkpoints",

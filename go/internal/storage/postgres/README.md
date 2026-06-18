@@ -132,10 +132,26 @@ High-signal invariants for this package:
   distinct catalog matches before evidence is persisted. Streaming commit-time
   evidence discovery remains repository-scope only; cloud-scope relationship
   facts enter repository generations through deferred backfill.
+- Deferred relationship maintenance coordinates sharded ingesters through
+  `deferred_maintenance_barriers` and
+  `deferred_maintenance_barrier_arrivals`. Each shard records its local batch
+  drain in the current epoch; only the shard that completes the epoch runs
+  global maintenance. The leader then takes an exclusive transaction-level
+  Postgres advisory lock while normal source generation commits take the
+  matching shared lock before writing `fact_records` and projector work, so the
+  post-drain backfill/reopen pass waits for in-flight fact commits and blocks
+  next-cycle commits until global maintenance commits or rolls back. If a shard
+  arrives with a different shard count while an epoch is open, storage fails
+  closed instead of creating competing epochs.
 
 No-Regression Evidence: scoped hot-path notes live in
 [`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit
 tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesExclusiveBarrier|ShardDrainBarrier)|TestBootstrapDefinitionsIncludeDeferredMaintenanceBarrier'
+-count=1` covers the shared source-commit barrier and exclusive deferred
+maintenance barrier, the multi-shard drain rendezvous, and bootstrap DDL.
 
 ### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
 

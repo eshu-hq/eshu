@@ -38,10 +38,12 @@ workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
 ## Scale And Tune
 
 - Scale API and MCP for request traffic.
-- Keep Helm ingester replicas at `1`. Repository sharding is available through
-  `ESHU_REPO_SHARD_COUNT` / `ESHU_REPO_SHARD_INDEX` for controlled runtimes, but
-  charted horizontal ingesters remain disabled until global deferred maintenance
-  has a fleet-wide drain barrier.
+- Scale Helm ingesters with `ingester.replicas` when repository discovery and
+  parsing need more throughput. The chart maps shard count from replicas and
+  shard index from the StatefulSet pod ordinal on Kubernetes `1.32` or newer,
+  and the ingester coordinates deferred relationship maintenance with a
+  Postgres shard-drain epoch plus a shared/exclusive advisory barrier around
+  commits and global maintenance.
 - Scale resolution-engine workers or lanes only when reducer telemetry shows
   queue age rising while workers are busy.
 - Fix Postgres contention before adding reducer replicas.

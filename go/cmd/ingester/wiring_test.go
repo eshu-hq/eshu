@@ -223,6 +223,32 @@ func TestBuildIngesterCollectorServiceDefersRelationshipBackfillToBatchDrain(t *
 	if service.AfterBatchDrained == nil {
 		t.Fatal("AfterBatchDrained = nil, want deferred relationship maintenance hook")
 	}
+	if service.AfterEmptyBatchDrained {
+		t.Fatal("AfterEmptyBatchDrained = true, want false for single-shard ingester")
+	}
+}
+
+func TestBuildIngesterCollectorServiceRunsDrainHookForEmptyShardedBatches(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildIngesterCollectorService(
+		postgres.SQLDB{},
+		mapGetenv(map[string]string{
+			"ESHU_REPO_SHARD_COUNT": "2",
+			"ESHU_REPO_SHARD_INDEX": "1",
+		}),
+		func() (string, error) { return t.TempDir(), nil },
+		func() []string { return []string{"PATH=/usr/bin"} },
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
+	}
+	if !service.AfterEmptyBatchDrained {
+		t.Fatal("AfterEmptyBatchDrained = false, want true for sharded ingester")
+	}
 }
 
 func TestBuildIngesterProjectorRuntimeWiresPhasePublisherAndRepairQueue(t *testing.T) {

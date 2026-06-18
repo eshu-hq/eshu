@@ -51,8 +51,8 @@ func TestIngestionStoreCommitClaimedScopeGenerationLocksTenantGrantBeforeFactWri
 	if got := db.tx.execs[0].query; !strings.Contains(got, "workflow_claims") {
 		t.Fatalf("first exec query = %q, want heartbeat claim fence before grant lock", got)
 	}
-	if got := db.tx.execs[3].query; !strings.Contains(got, "INSERT INTO fact_records") {
-		t.Fatalf("fourth exec query = %q, want fact write after grant lock", got)
+	if got := db.tx.execs[4].query; !strings.Contains(got, "INSERT INTO fact_records") {
+		t.Fatalf("fifth exec query = %q, want fact write after grant lock and maintenance barrier", got)
 	}
 	if !db.tx.committed {
 		t.Fatal("transaction committed = false, want true")

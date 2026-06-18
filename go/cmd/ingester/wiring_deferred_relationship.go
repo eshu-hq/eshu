@@ -13,28 +13,20 @@ import (
 
 func ingesterDeferredRelationshipMaintenance(
 	committer postgres.IngestionStore,
+	barrierConfig postgres.DeferredMaintenanceBarrierConfig,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) func(context.Context) error {
 	return func(ctx context.Context) error {
-		if err := committer.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
+		if err := committer.RunDeferredRelationshipMaintenanceAfterShardDrain(ctx, barrierConfig, tracer, instruments); err != nil {
 			if logger != nil {
-				logger.ErrorContext(ctx, "deferred relationship backfill failed",
+				logger.ErrorContext(ctx, "deferred relationship maintenance failed",
 					slog.String("error", err.Error()),
-					telemetry.FailureClassAttr("backfill_deferred_failure"),
+					telemetry.FailureClassAttr("deferred_relationship_maintenance_failure"),
 				)
 			}
-			return fmt.Errorf("deferred relationship backfill: %w", err)
-		}
-		if err := committer.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
-			if logger != nil {
-				logger.ErrorContext(ctx, "reopen deployment_mapping work items failed",
-					slog.String("error", err.Error()),
-					telemetry.FailureClassAttr("reopen_deployment_mapping_failure"),
-				)
-			}
-			return fmt.Errorf("reopen deployment_mapping work items: %w", err)
+			return fmt.Errorf("deferred relationship maintenance: %w", err)
 		}
 		return nil
 	}
