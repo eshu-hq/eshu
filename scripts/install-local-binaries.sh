@@ -67,6 +67,7 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-tempo" ./cmd/collector-tempo
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-scanner-worker" ./cmd/scanner-worker
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-aws-cloud" ./cmd/collector-aws-cloud
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-gcp-cloud" ./cmd/collector-gcp-cloud
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-kubernetes-live" ./cmd/collector-kubernetes-live
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-vault-live" ./cmd/collector-vault-live
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-webhook-listener" ./cmd/webhook-listener

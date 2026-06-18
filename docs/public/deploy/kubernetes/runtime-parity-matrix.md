@@ -48,6 +48,7 @@ workloads stop rendering, or enabled Helm collector families lose
 | OCI registry | `collector-oci-registry` | `oci-registry-collector` | Health, readiness, metrics, explicit target values, and workflow claim compatibility. |
 | Terraform state | `collector-terraform-state` | `terraform-state-collector` | Claim-driven runtime with redaction key references and active coordinator. |
 | AWS cloud | `collector-aws-cloud` | `aws-cloud-collector` | Claim-driven runtime with scoped account and region targets. |
+| GCP cloud | not in base remote E2E | `gcp-cloud-collector` | Helm template coverage for explicit claimed-live mode, read-only redaction Secret mount, and ServiceMonitor coverage; live target proof belongs in the scoped GCP smoke gate. |
 | Package registry | `collector-package-registry` | `package-registry-collector` | Bounded target or derived owned-package mode with metrics coverage. |
 | SBOM attestation | `collector-sbom-attestation` | `sbom-attestation-collector` | Claim-driven SBOM/attestation source facts only. |
 | Security alerts | `collector-security-alerts` | `security-alert-collector` | Provider access preflight plus claim-driven worker runtime. |

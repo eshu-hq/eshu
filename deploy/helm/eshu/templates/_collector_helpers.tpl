@@ -68,6 +68,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderGCPCloudCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "gcpCloudCollector.collectorInstances must contain at least one instance when gcpCloudCollector.enabled=true" .Values.gcpCloudCollector.collectorInstances | toJson | quote }}
+- name: ESHU_GCP_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.gcpCloudCollector.instanceId | quote }}
+- name: ESHU_GCP_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_GCP_COLLECTOR_POLL_INTERVAL
+  value: {{ .Values.gcpCloudCollector.pollInterval | quote }}
+{{- with .Values.gcpCloudCollector.claimLeaseTTL }}
+- name: ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.gcpCloudCollector.heartbeatInterval }}
+- name: ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.gcpCloudCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderPackageRegistryCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "packageRegistryCollector.collectorInstances must contain at least one instance when packageRegistryCollector.enabled=true" .Values.packageRegistryCollector.collectorInstances | toJson | quote }}

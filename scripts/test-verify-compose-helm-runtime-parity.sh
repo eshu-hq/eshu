@@ -169,6 +169,13 @@ metadata:
   name: eshu-resolution-engine-metrics
   labels:
     app.kubernetes.io/component: resolution-engine
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: eshu-gcp-cloud-collector-metrics
+  labels:
+    app.kubernetes.io/component: gcp-cloud-collector
 YAML
 SH
     chmod +x "${dir}/_bin/helm"

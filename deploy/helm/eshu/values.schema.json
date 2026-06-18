@@ -596,6 +596,60 @@
         }
       ]
     },
+    "gcpCloudCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "instanceId": { "type": "string" },
+        "pollInterval": { "type": "string" },
+        "claimLeaseTTL": { "type": "string" },
+        "heartbeatInterval": { "type": "string" },
+        "collectorInstances": { "$ref": "#/definitions/collectorInstances" },
+        "serviceAccount": {
+          "type": "object",
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "type": "string" },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
+        "redaction": {
+          "type": "object",
+          "properties": {
+            "secretName": { "type": "string" },
+            "keyKey": { "type": "string" },
+            "mountPath": { "type": "string" }
+          }
+        },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "properties": {
+              "collectorInstances": { "minItems": 1 },
+              "instanceId": { "minLength": 1 },
+              "redaction": {
+                "properties": {
+                  "secretName": { "minLength": 1 },
+                  "keyKey": { "minLength": 1 },
+                  "mountPath": { "minLength": 1 }
+                },
+                "required": ["secretName", "keyKey", "mountPath"]
+              }
+            }
+          }
+        }
+      ]
+    },
     "packageRegistryCollector": {
       "type": "object",
       "properties": {

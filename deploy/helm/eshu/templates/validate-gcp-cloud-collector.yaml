@@ -1,0 +1,62 @@
+{{- if .Values.gcpCloudCollector.enabled -}}
+{{- if not .Values.workflowCoordinator.enabled -}}
+{{- fail "workflowCoordinator.enabled=true is required when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.gcpCloudCollector.instanceId -}}
+{{- fail "gcpCloudCollector.instanceId is required when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.gcpCloudCollector.collectorInstances -}}
+{{- fail "gcpCloudCollector.collectorInstances must contain at least one instance when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.gcpCloudCollector.redaction.secretName -}}
+{{- fail "gcpCloudCollector.redaction.secretName is required when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.gcpCloudCollector.redaction.keyKey -}}
+{{- fail "gcpCloudCollector.redaction.keyKey is required when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.gcpCloudCollector.redaction.mountPath -}}
+{{- fail "gcpCloudCollector.redaction.mountPath is required when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- $gcpLocalMatch := false -}}
+{{- $gcpLocalEnabledScope := false -}}
+{{- range .Values.gcpCloudCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "gcp") (eq (default "" .instance_id) $.Values.gcpCloudCollector.instanceId) (default false .enabled) (default false .claims_enabled) (default false .configuration.live_collection_enabled) -}}
+{{- $gcpLocalMatch = true -}}
+{{- range (default (list) .configuration.scopes) -}}
+{{- if default false .enabled -}}
+{{- $gcpLocalEnabledScope = true -}}
+{{- if not .credential_ref -}}
+{{- fail "gcpCloudCollector.collectorInstances enabled scopes must set credential_ref" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $gcpLocalMatch -}}
+{{- fail "gcpCloudCollector.collectorInstances must contain an enabled claim-driven gcp instance with live_collection_enabled=true matching gcpCloudCollector.instanceId" -}}
+{{- end -}}
+{{- if not $gcpLocalEnabledScope -}}
+{{- fail "gcpCloudCollector.collectorInstances must contain at least one enabled GCP scope" -}}
+{{- end -}}
+{{- $gcpCoordinatorMatch := false -}}
+{{- $gcpCoordinatorEnabledScope := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "gcp") (default false .claims_enabled) (default false .enabled) (default false .configuration.live_collection_enabled) -}}
+{{- $gcpCoordinatorMatch = true -}}
+{{- range (default (list) .configuration.scopes) -}}
+{{- if default false .enabled -}}
+{{- $gcpCoordinatorEnabledScope = true -}}
+{{- if not .credential_ref -}}
+{{- fail "workflowCoordinator.collectorInstances enabled gcp scopes must set credential_ref when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $gcpCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven gcp instance with live_collection_enabled=true when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not $gcpCoordinatorEnabledScope -}}
+{{- fail "workflowCoordinator.collectorInstances must contain at least one enabled GCP scope when gcpCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}

@@ -116,6 +116,21 @@ spec:
       {{- include "eshu.awsCloudCollectorSelectorLabels" . | nindent 6 }}
 ---
 {{- end }}
+{{- if .Values.gcpCloudCollector.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.gcpCloudCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gcp-cloud-collector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.gcpCloudCollectorSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
 {{- if .Values.packageRegistryCollector.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget

@@ -62,7 +62,7 @@ The script installs:
   `eshu-collector-terraform-state`, `eshu-collector-package-registry`,
   `eshu-collector-sbom-attestation`, `eshu-collector-pagerduty`,
   `eshu-collector-jira`, `eshu-collector-aws-cloud`,
-  `eshu-webhook-listener`
+  `eshu-collector-gcp-cloud`, `eshu-webhook-listener`
 - operator helpers: `eshu-bootstrap-data-plane`, `eshu-admin-status`
 
 Set `ESHU_VERSION=<version>` before running the script when you want the

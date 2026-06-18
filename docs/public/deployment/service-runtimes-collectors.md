@@ -35,7 +35,7 @@ The public Helm chart supports two collector styles:
 - Claim-driven collectors that receive `ESHU_COLLECTOR_INSTANCES_JSON`, select
   one enabled instance, claim durable work, and commit facts.
 
-Charted claim-driven Terraform-state, AWS cloud, package-registry,
+Charted claim-driven Terraform-state, AWS cloud, GCP cloud, package-registry,
 SBOM-attestation, provider security-alert, CI/CD run, PagerDuty, Jira work-item, live
 Grafana-stack,
 scanner-worker, and vulnerability-intelligence Deployments require:
@@ -64,6 +64,7 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | OCI Registry Collector | `oci_registry` | explicit registry targets; runtime also supports claim-aware mode | `/usr/local/bin/eshu-collector-oci-registry` | `deploy/helm/eshu/templates/deployment-oci-registry-collector.yaml` |
 | Terraform State Collector | `terraform_state` | workflow claims for configured state sources | `/usr/local/bin/eshu-collector-terraform-state` | `deploy/helm/eshu/templates/deployment-terraform-state-collector.yaml` |
 | AWS Cloud Collector | `aws` | workflow claims for account, region, and service slices | `/usr/local/bin/eshu-collector-aws-cloud` | `deploy/helm/eshu/templates/deployment-aws-cloud-collector.yaml` |
+| GCP Cloud Collector | `gcp` | workflow claims for configured Cloud Asset Inventory scopes | `/usr/local/bin/eshu-collector-gcp-cloud` | `deploy/helm/eshu/templates/deployment-gcp-cloud-collector.yaml` |
 | Vault Live Collector | `vault_live` | workflow claims for configured Vault cluster/namespace metadata targets | `/usr/local/bin/eshu-collector-vault-live` | not charted |
 | Package Registry Collector | `package_registry` | workflow claims for configured or derived package metadata targets | `/usr/local/bin/eshu-collector-package-registry` | `deploy/helm/eshu/templates/deployment-package-registry-collector.yaml` |
 | SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
@@ -111,6 +112,7 @@ the deployment platform inventory for that unsupported mode.
 | OCI Registry | Observes tags, manifests, and referrers from explicit `ociRegistryCollector.targets`; runtime also supports claim-aware `oci_registry` instances when `ESHU_COLLECTOR_INSTANCES_JSON` is present. |
 | Terraform State | Claim-driven. Selects one enabled `terraform_state` instance, opens exact local or S3 state sources, redacts sensitive values, and refuses to start without `ESHU_TFSTATE_REDACTION_KEY` and `ESHU_TFSTATE_REDACTION_RULESET_VERSION`. |
 | AWS Cloud | Claim-driven. Selects one enabled `aws` instance, claims account/region/service work, obtains claim-scoped credentials, and commits reported AWS facts for IAM, ECR, ECS, ELBv2, Route 53, EC2 networking, Lambda, EKS, SQS, SNS, EventBridge, GuardDuty, S3, RDS, Redshift (provisioned and Serverless), DynamoDB, CloudWatch Logs, CloudFront, Secrets Manager, SSM Parameter Store, Security Hub, Glue Data Catalog, ElastiCache, MemoryDB, MSK, and Step Functions. |
+| GCP Cloud | Claim-driven and charted. Selects one enabled `gcp` instance, requires `live_collection_enabled=true`, receives generation/fencing identity from workflow claims, reads Cloud Asset Inventory through ADC-backed read-only credentials, and commits GCP source facts only. Helm mounts the redaction key as a read-only Secret file and keeps chart exposure default-off. |
 | Vault Live | Claim-driven. Selects one enabled `vault_live` instance, resolves each target's read-only `token_env`, calls metadata-only Vault auth, policy, identity, mount, and KV v2 metadata endpoints, and commits only `secrets_iam_posture` source facts. It refuses to start without `ESHU_VAULT_LIVE_REDACTION_KEY`, never reads KV `/data`, and fingerprints Vault paths, names, accessors, aliases, policy hashes, and warning metadata with deterministic HMAC markers. |
 | Package Registry | Claim-driven. Selects one enabled `package_registry` instance, fetches the explicit `metadata_url` or a coordinator-derived npm/PyPI metadata target from owned dependency evidence, and commits package, version, dependency, artifact, and source-hint facts for npm, PyPI, Go module, Maven, NuGet, and generic metadata shapes. Derived Go module, Maven, NuGet, Composer, RubyGems, and Cargo package identities stay bounded to observed owned dependency evidence and emit missing-evidence warnings when no native metadata adapter URL is available. |
 | SBOM Attestation | Claim-driven. Selects one enabled `sbom_attestation` instance, fetches configured CycloneDX/SPDX SBOMs or in-toto attestations from HTTP(S) document URLs or OCI referrer blobs, and commits typed `sbom.*` and `attestation.*` facts. It redacts source URIs, preserves parse warnings as source facts, and keeps signature verification status separate from subject attachment truth. |
@@ -216,6 +218,7 @@ The collector metrics services live under:
 - `deploy/helm/eshu/templates/service-oci-registry-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-terraform-state-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-aws-cloud-collector-metrics.yaml`
+- `deploy/helm/eshu/templates/service-gcp-cloud-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-package-registry-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-sbom-attestation-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-security-alert-collector-metrics.yaml`

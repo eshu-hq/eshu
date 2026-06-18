@@ -3,8 +3,8 @@
 This page defines the provider-specific design baseline for the GCP cloud
 collector. It is a child of the
 [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) and
-does not promise charted live Google Cloud runtime deployment until scheduler
-activation, chart exposure, and sanitized smoke gates are proven.
+does not promise sanitized live Google Cloud target proof until the smoke gate is
+proven.
 
 The collector kind is `gcp`. It observes Google Cloud control-plane metadata
 through Cloud Asset Inventory and emits source facts only. Reducers own
@@ -34,8 +34,8 @@ uses workflow claims for generation/fencing identity, and runs through
 explicit-injection `gcpruntime.LiveClient` REST `PageProvider` for
 `assets.list`; it requires read-only caller-supplied credentials, bounded page
 size, response bytes, timeouts, retries, backoff, OAuth scope, and asset-family
-filters, and keeps the chart path default-off. No test makes a live Google Cloud
-call.
+filters. The Helm chart starts only explicit claimed-live mode and remains
+default-off. No test makes a live Google Cloud call.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `gcp_cloud_resource` identity are now implemented and fixture-proven. The
@@ -81,9 +81,8 @@ redaction-safe workload-pool subject fingerprint used by Kubernetes
 pool, namespace, Kubernetes ServiceAccount name, and IAM member strings are not
 persisted in those trust facts.
 
-The rest of this contract remains gated. Do not add Helm values, chart claims,
-or charted live exposure until later implementation PRs prove sanitized target
-smoke and the chart path. The
+The rest of this contract remains gated. Do not claim sanitized target smoke
+until later implementation PRs prove the live target path. The
 relationship, tag, IAM, DNS, and image-reference fact kinds and schema versions
 are registered in `go/internal/facts/gcp.go`, and **all five
 envelope builders are implemented and unit-proven**:
@@ -102,14 +101,16 @@ configured, with `source_kind=label`, and emits
 `gcp_iam_policy_observation` from parsed CAI IAM bindings when members are
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
-managed-zone identity are usable. Direct/effective GCP tag API collection,
-runtime scheduling, and chart promotion remain follow-up work under #1997. Raw
+managed-zone identity are usable. Direct/effective GCP tag API collection and
+sanitized live target smoke remain follow-up work under #1997. Raw
 `gcp_iam_policy_observation`,
 `gcp_dns_record`, and `gcp_collection_warning` facts are intentionally
 provenance-only or audit evidence until separate reducer/read-model contracts
 admit them.
 
 Command Runtime Evidence: `go test ./cmd/collector-gcp-cloud ./internal/collector/gcpcloud/... -count=1` proves fixture mode remains available, claimed-live mode is explicit, live collection is gated, workflow claims supply generation/fencing identity, and tests build the `gcpruntime.LiveClient` runner without live Google Cloud credentials.
+
+Chart Deployment Evidence: `go test ./internal/runtime -run 'TestHelmGCPCloudCollectorDeployment|TestGCPCloudCollectorBinaryIsBuiltInstalledAndDocumented' -count=1` proves GCP Helm exposure is default-off, starts `-mode claimed-live`, mounts redaction material from a read-only Secret file, renders metrics Service, ServiceMonitor, NetworkPolicy, and PodDisruptionBudget coverage, and builds the release/local binary entry.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/query
 ./internal/mcp -run CloudInventory -count=1` and `go test
@@ -394,13 +395,13 @@ Implemented slices:
    and GCP IAM trust facts.
 5. Explicit-injection `gcpruntime.LiveClient` REST transport for bounded
    `assets.list` page reads.
+6. Claimed-live command wiring, scheduler planning, and default-off Helm
+   exposure with ServiceMonitor coverage.
 
 Remaining gated slices:
 
-1. Live command credential wiring and claim-enabled scheduler/runtime
-   activation.
-2. Direct/effective GCP tag API collection.
-3. Helm values, ServiceMonitor/chart promotion, and sanitized live smoke proof.
+1. Direct/effective GCP tag API collection.
+2. Sanitized live smoke proof.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, `gcp_tag_observation`,
@@ -409,9 +410,8 @@ Observability change: the first slice adds the `gcp_cloud_resource`,
 series listed under
 [Telemetry](#telemetry)
 (`eshu_dp_gcp_cloud_*`). The runtime-scaffolding slice adds the fixture-backed
-binary and explicit-injection live transport described below; chart values,
-environment variables, live command wiring, and scheduler activation remain
-deferred.
+binary, explicit-injection live transport, claimed-live command path, and
+default-off Helm exposure described below.
 
 ## Runtime Scaffolding Evidence
 
@@ -424,12 +424,8 @@ Collector Performance Evidence: see the No-Regression Evidence block below.
 
 Collector Observability Evidence: see the Observability Evidence block below.
 
-Collector Deployment Evidence: this slice adds no Helm chart values, no
-ServiceMonitor, and no environment-variable contract. The binary is
-fixture-driven scaffolding launched with `-config` and `-redaction-key-file`
-file paths only. Deployment, chart, ServiceMonitor wiring, live command
-credential wiring, and claim-enabled scheduler activation are explicitly
-deferred to later gated slices. No deployment surface changes in this PR.
+Collector Deployment Evidence: the chart renders no GCP Deployment by default.
+When `gcpCloudCollector.enabled=true`, it starts `/usr/local/bin/eshu-collector-gcp-cloud -mode claimed-live`, requires active workflow claims plus a matching live-enabled `gcp` instance, mounts the redaction key from a read-only Secret file, uses pod identity for GCP credentials, and renders metrics Service, ServiceMonitor, NetworkPolicy, and PodDisruptionBudget coverage.
 
 No-Observability-Change: this slice uses the existing scoped GCP collector
 instruments registered in the first slice

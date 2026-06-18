@@ -57,6 +57,16 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering component activations. |
 | `ESHU_COMPONENT_COLLECTOR_SCOPE_KIND` | string | — | Scope kind for component activations (e.g. organization, team). |
 
+## collector-gcp-cloud
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_GCP_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_GCP_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_GCP_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
 ## collector-grafana
 
 | Variable | Type | Default | Notes |

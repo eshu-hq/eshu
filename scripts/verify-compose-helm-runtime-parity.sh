@@ -130,7 +130,7 @@ for component in api mcp-server ingester resolution-engine; do
     require_pattern "${helm_rendered}" "app.kubernetes.io/component: ${component}" "missing core ServiceMonitor coverage"
 done
 
-for component in confluence-collector oci-registry-collector terraform-state-collector aws-cloud-collector \
+for component in confluence-collector oci-registry-collector terraform-state-collector aws-cloud-collector gcp-cloud-collector \
     package-registry-collector sbom-attestation-collector security-alert-collector cicd-run-collector \
     pagerduty-collector jira-collector grafana-collector prometheus-mimir-collector loki-collector \
     tempo-collector scanner-worker vulnerability-intelligence-collector component-extension-collector; do
