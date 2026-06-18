@@ -175,7 +175,7 @@ func pythonFunctionBodyEnd(lines []string, start int, indent int) int {
 func pythonIdentifierShadowedBefore(lines []string, identifier string) bool {
 	pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(identifier) + `\s*=`)
 	for _, line := range lines {
-		if pattern.MatchString(line) {
+		if pattern.MatchString(pythonCodeForCallScan(line)) {
 			return true
 		}
 	}
@@ -183,5 +183,40 @@ func pythonIdentifierShadowedBefore(lines []string, identifier string) bool {
 }
 
 func pythonLineCalls(line string, name string) bool {
-	return regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\s*\(`).MatchString(line)
+	return regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\s*\(`).MatchString(pythonCodeForCallScan(line))
+}
+
+func pythonCodeForCallScan(line string) string {
+	var out strings.Builder
+	out.Grow(len(line))
+	var quote byte
+	escaped := false
+	for index := 0; index < len(line); index++ {
+		ch := line[index]
+		if quote == 0 {
+			if ch == '#' {
+				break
+			}
+			if ch == '\'' || ch == '"' {
+				quote = ch
+				out.WriteByte(' ')
+				continue
+			}
+			out.WriteByte(ch)
+			continue
+		}
+		out.WriteByte(' ')
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' {
+			escaped = true
+			continue
+		}
+		if ch == quote {
+			quote = 0
+		}
+	}
+	return out.String()
 }

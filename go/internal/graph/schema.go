@@ -182,6 +182,7 @@ var uidConstraintLabels = []string{
 	"SecretsIAMVaultAuthRole",
 	"SecretsIAMVaultPolicy",
 	"SecurityGroupRule",
+	"ShellCommand",
 	"SqlColumn",
 	"SqlFunction",
 	"SqlIndex",

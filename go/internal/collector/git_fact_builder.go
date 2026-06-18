@@ -68,7 +68,7 @@ func buildStreamingGenerationWithContext(
 	}
 	followupFactCount := 8
 	if snapshot.Delta {
-		followupFactCount = 0
+		followupFactCount = 1
 	}
 	dataflowScannedFactCount := 0
 	if snapshot.DataflowScanned && !snapshot.Delta {
@@ -326,6 +326,7 @@ func streamFacts(
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	if snapshot.Delta {
+		ch <- shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 		return
 	}
 
