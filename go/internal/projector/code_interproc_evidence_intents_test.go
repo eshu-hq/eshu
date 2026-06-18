@@ -41,6 +41,46 @@ func TestBuildCodeInterprocEvidenceReducerIntentFromFact(t *testing.T) {
 	}
 }
 
+// TestBuildCodeInterprocEvidenceReducerIntentFromMarkerOnly proves the dataflow
+// marker alone (no findings) queues a retraction intent so stale edges from a
+// prior generation are cleared when the current finding set is empty (#2919).
+func TestBuildCodeInterprocEvidenceReducerIntentFromMarkerOnly(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
+	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
+	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+		{FactKind: "file"},
+		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
+	})
+	if !ok {
+		t.Fatal("no intent queued for a dataflow marker without findings")
+	}
+	if intent.Domain != reducer.DomainCodeInterprocEvidence || intent.EntityKey != "code_interproc_evidence:scope-1" {
+		t.Fatalf("intent domain/key wrong: %+v", intent)
+	}
+	if intent.FactID != "marker-1" || intent.SourceSystem != "git" {
+		t.Fatalf("marker provenance not carried: %+v", intent)
+	}
+}
+
+// TestBuildCodeInterprocEvidenceReducerIntentPrefersFindingProvenance proves a
+// finding is preferred over the marker as the intent's provenance when both are
+// present.
+func TestBuildCodeInterprocEvidenceReducerIntentPrefersFindingProvenance(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
+	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
+	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
+		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "finding-1", CollectorKind: "git"},
+	})
+	if !ok || intent.FactID != "finding-1" {
+		t.Fatalf("finding provenance not preferred over marker: %+v", intent)
+	}
+}
+
 // TestAppendScopeGenerationReducerIntentsWiresCodeInterproc proves the interproc
 // builder is actually wired into the scope-generation intent chain, not just
 // defined in isolation.

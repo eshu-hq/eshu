@@ -58,6 +58,12 @@ var coreEntries = []Entry{
 	{Name: "ESHU_MCP_ADDR", Type: VarString, Default: ":8080", Subsystem: "mcp", Description: "MCP HTTP transport listen address."},
 
 	// reducer
+	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT", Type: VarInt, Default: "500", Subsystem: "reducer", Description: "Maximum stale value-flow evidence nodes or edges deleted per active scope and family in one reducer cleanup pass."},
+	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_ENABLED", Type: VarBool, Default: "true", Subsystem: "reducer", Description: "Enable the reducer side runner that removes stale CodeTaintEvidence nodes and TAINT_FLOWS_TO edges from older active-scope generations."},
+	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_OWNER", Type: VarString, Subsystem: "reducer", Description: "Lease owner for the single value-flow stale cleanup worker; defaults to a unique process token."},
+	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL", Type: VarDuration, Default: "5m", Subsystem: "reducer", Description: "TTL for the value-flow stale cleanup partition lease."},
+	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_POLL_INTERVAL", Type: VarDuration, Default: "1h", Subsystem: "reducer", Description: "Delay between value-flow stale cleanup passes."},
+	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT", Type: VarInt, Default: "100", Subsystem: "reducer", Description: "Active repository scopes scanned per value-flow stale cleanup pass."},
 	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT", Type: VarInt, Default: "100", Subsystem: "reducer", Description: "Maximum graph orphan nodes deleted per label in one sweep pass."},
 	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT", Type: VarInt, Default: "10000", Subsystem: "reducer", Description: "Maximum graph orphan nodes counted per label for telemetry in one sweep pass."},
 	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_ENABLED", Type: VarBool, Default: "true", Subsystem: "reducer", Description: "Enable the reducer side runner that marks and sweeps stale generation-owned graph orphans."},

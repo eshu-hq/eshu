@@ -258,6 +258,30 @@ channel and Postgres fact persistence; they add no metric instrument, metric
 label, span, worker, queue domain, lease, runtime knob, or log key. Operators
 diagnose the path through the existing fact-stream counters.
 
+- `DataflowScanned` — true when the value-flow gate (`ESHU_EMIT_DATAFLOW`) ran for
+  the snapshot, independent of whether any findings were produced. `streamFacts`
+  emits one per-generation `code_dataflow_scanned` marker fact when it is set, only
+  on full (non-delta) generations. The marker carries no findings; it is the
+  reconciliation signal that lets the reducer retract stale value-flow evidence
+  when a full generation's finding set goes empty (#2919). It is intentionally not
+  emitted on deltas: a delta carries only changed-file findings while the evidence
+  reducers retract the whole scope before writing, so a marker-triggered delta
+  would wipe evidence for unchanged files. False — and no marker — when the gate is
+  off, preserving the byte-identical-when-off guarantee.
+
+No-Regression Evidence: `go test ./internal/collector -run 'DataflowScanned' -count=1`
+and `go test ./internal/projector -run 'Marker|QueuesBoth' -count=1` prove the
+marker is emitted (and counted in `FactCount`) only when `DataflowScanned` is set,
+is absent when the gate is off, and that the projector queues both the
+`code_taint_evidence` and `code_interproc_evidence` retraction intents from the
+marker alone. The marker is one extra fact per generation only when the
+off-by-default gate is on; no new Cypher, graph write, worker, queue, or batch.
+
+No-Observability-Change: the marker flows through the existing `streamFacts`
+channel and Postgres fact persistence; it adds no metric instrument, metric
+label, span, worker, queue domain, lease, runtime knob, or log key. Operators
+diagnose it through the existing fact-stream counters and the reducer
+claim/execute spans for the value-flow evidence domains.
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content
