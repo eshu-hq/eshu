@@ -21,9 +21,13 @@ WORKDIR /app
 # Copy the manifest and lockfile first for cacheable, reproducible installs.
 COPY app/package.json app/package-lock.json ./
 
-# The synthetic dependency does not exist on a real registry, so `npm ci` is not
-# run here; the lockfile is what Eshu's repository scan reads. A real demo app
-# would run `npm ci --omit=dev` against a registry that hosts the package.
+# The synthetic dependency does not exist on a real registry, so `npm ci` cannot
+# fetch it. The lockfile is what Eshu's repository scan reads. To keep the image
+# actually runnable (Part B of the demo correlates a workload that runs it), copy
+# a minimal local stand-in for the package so
+# `require("synthetic-vulnerable-npm")` resolves. A real demo app would instead
+# run `npm ci --omit=dev` against a registry that hosts the package.
+COPY docker-stubs/synthetic-vulnerable-npm ./node_modules/synthetic-vulnerable-npm
 
 COPY app/server.js ./
 

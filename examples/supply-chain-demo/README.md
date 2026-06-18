@@ -20,6 +20,7 @@ feed; they mirror the convention in
 | `app/` | Synthetic vulnerable repo: `package.json` + `package-lock.json` pinning `synthetic-vulnerable-npm@1.0.0`, plus a tiny `server.js` that imports it. |
 | `app/.eshuignore` | Keeps the scan deterministic (ignores `node_modules/`, build output). |
 | `missing-evidence/` | Variant repo: the dependency is present but **no advisory is owned**, used to demonstrate the refusal path. |
+| `docker-stubs/` | Local stand-in for the synthetic vulnerable package so the demo image can start without fetching from a real registry. |
 | `sbom/app.cdx.json` | Static CycloneDX 1.4 SBOM whose `metadata.component` is a container with a synthetic `sha256:…` subject digest, listing the synthetic vulnerable component. |
 | `Dockerfile` | Builds the synthetic demo image so the chain has a real image identity (digest). |
 
@@ -112,6 +113,11 @@ docker build -f examples/supply-chain-demo/Dockerfile \
 docker image inspect synthetic-supply-chain-demo-app:1.0.0 \
   --format '{{ index .RepoDigests 0 }}'
 ```
+
+The Dockerfile does not run `npm ci` because `synthetic-vulnerable-npm` is not a
+real registry package. It copies a minimal local runtime module into
+`node_modules/` so the image starts while the repository scan still treats
+`package.json` and `package-lock.json` as the dependency source of truth.
 
 The template workflow `ci/build-image-and-sbom.yml` performs this build and
 generates a CycloneDX SBOM with `anchore/sbom-action`, attaching it as an OCI

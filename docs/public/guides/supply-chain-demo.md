@@ -89,6 +89,11 @@ docker image inspect synthetic-supply-chain-demo-app:1.0.0 \
   --format '{{ index .RepoDigests 0 }}'
 ```
 
+The Dockerfile does not run `npm ci` because `synthetic-vulnerable-npm` is not a
+real registry package. It copies a minimal local runtime module into
+`node_modules/` so the image starts while the repository scan still treats
+`package.json` and `package-lock.json` as the dependency source of truth.
+
 The template workflow `examples/supply-chain-demo/ci/build-image-and-sbom.yml`
 performs this build, generates a CycloneDX SBOM with `anchore/sbom-action`, and
 attaches it as an OCI referrer with `cosign`. It is a template to copy into the
