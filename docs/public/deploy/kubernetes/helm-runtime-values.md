@@ -174,3 +174,11 @@ Defaults: enabled, bootstrap on, `initialDelaySeconds=0`,
 
 `repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. SSH auth is
 valid only for `explicit` or `filesystem` source modes, not `githubOrg`.
+
+Keep `ingester.replicas=1` in Helm. The collector supports env-driven
+repository sharding for controlled runtimes, but the chart does not enable
+horizontal ingesters until the fleet has a durable barrier for the global
+deferred relationship-maintenance hook that runs after a collector batch drains.
+The chart rejects `ingester.replicas > 1` instead of relying on pod-index labels
+or allowing one shard to reopen downstream reducer work while another shard is
+still committing source facts.

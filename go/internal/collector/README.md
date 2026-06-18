@@ -442,6 +442,13 @@ claim/execute spans for the value-flow evidence domains.
   deterministic chunks so a single large monorepo can keep multiple parse
   workers busy while the composed snapshot is sorted back to the original file
   order.
+- `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX` deterministically filter
+  discovered repository IDs before filesystem or Git sync begins. The shard hash
+  uses only the normalized repository ID; shard IDs are not part of repository,
+  file, entity, or fact identity. The existing `sourceRunID` still reflects the
+  selected batch for that process. Helm does not enable horizontal ingester
+  replicas until the global deferred-maintenance hook has a fleet-wide drain
+  barrier.
 - `ESHU_LARGE_REPO_FILE_THRESHOLD` (default `1000`) classifies repositories for
   the large-repo semaphore. The classification is a fast pre-scan that exits
   early once the threshold is exceeded.

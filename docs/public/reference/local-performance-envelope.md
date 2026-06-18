@@ -476,6 +476,67 @@ No-Observability-Change: the conflict key is an internal claim fence; it adds no
 metric, label, span, log field, status route, or runtime knob, and the hashed key
 keeps raw ARNs, paths, IDs, and IP-shaped values out of the queue.
 
+### Resource Relationship And Posture Reducer Split Audit (#2783)
+
+Code-evidenced audit of the resource relationship + posture reducers #2754 kept on
+the `resource_scope` fallback, classifying each by whether it can move to a
+per-resource conflict key. The hazard is the reducer-queue analogue of #2898: a
+**scope-wide retract** over-retracts a neighbor's resources once work is partitioned
+by a per-resource key.
+
+Every **relationship/edge** and **posture** domain that mutates shared
+`:CloudResource` state stays **BLOCKED**, because each performs a load-bearing
+scope-wide retract in one of two shapes (both bound on `scope_id IN $scope_ids`,
+never a per-resource predicate):
+
+- **edge `DELETE`** — `MATCH (...)-[rel:...]->(...) WHERE rel.scope_id IN $scope_ids
+  AND rel.evidence_source = $evidence_source DELETE rel`: AWS/GCP/Azure relationship
+  (`cloud_resource_edge_writer.go`, `gcp_/azure_cloud_resource_edge_writer.go`),
+  workload→cloud (`workload_cloud_relationship_writer.go:36`), all IAM
+  (`iam_can_perform_/escalation_/can_assume_/instance_profile_role_edge_writer.go`),
+  S3 logs_to + external-grant, EC2 uses_profile, K8s correlation
+  (`kubernetes_correlation_edge_writer.go:67`), SG reachability
+  (`security_group_reachability_edge_writer.go:108`).
+- **posture property `REMOVE`** — `MATCH (resource:CloudResource) WHERE
+  resource.<prefix>_scope_id IN $scope_ids ... REMOVE resource.<prefix>_*`: S3/EC2
+  internet-exposure, RDS posture (`rds_posture_node_writer.go:38`), EC2
+  block-device-KMS posture. This strips posture off every CloudResource in the
+  scope, including a neighbor's.
+
+These retracts are load-bearing (cross-generation stale-edge / stale-posture
+cleanup; the writers stamp `scope_id` precisely because the endpoint
+`:CloudResource` nodes are cross-generation canonical), so promotion requires
+re-scoping the retract to a per-resource/generation predicate or an out-of-band
+stale sweep — **not** dropping it (which would trade over-retraction for stale
+leakage). Until that redesign lands they correctly stay on the explicit
+`resource_scope` fallback.
+
+Four **node** domains are **retract-clear** — a pure idempotent uid-keyed `MERGE`
+with no Retract method and no `DELETE`/`REMOVE` anywhere, mirroring #2782's promoted
+AWS resource node: EC2 instance node (`ec2_instance_node_writer.go:28`), K8s
+workload node (`kubernetes_workload_node_writer.go:24`), SG rule node and SG cidr
+node. They carry no over-retract hazard; the only gap before promotion to a
+per-resource key is a partition-filtered / bounded-load contention proof (the same
+proof shape #2782 delivered for the AWS node). They are the promote-now candidates;
+a follow-up should split the policy table's `risky` class into *retract-clear,
+load-unproven* (these four) versus the *retract-bearing* `blocked` set.
+
+No-Regression Evidence: audit-only, no runtime change. The classification is grounded
+in quoted retract Cypher (or its proven absence) plus each handler call site; the
+conflict-key policy lives in `reducer_queue_conflict.go` (`reducerConflictDomainKey`).
+Readiness gates remain in place for every domain (`canonicalNodesReady` /
+`workloadNodesReady` / `endpointsReady` before resolving against endpoint nodes;
+`status_blockage.go:50` surfaces `readiness` as its own blockage class), so no domain
+resolves edges/posture against uncommitted endpoints. `go test
+./internal/storage/postgres ./internal/reducer -count=1` stays green (no code change).
+
+No-Observability-Change: the `resource_scope` vs `cloud_resource_node` fence stays
+explicit and observable — `conflict_domain` is a persisted, indexed `fact_work_items`
+column (`schema.go:344,362,381`) surfaced grouped by `domain, conflict_domain,
+conflict_key` in the operator status-blockage query (`status_blockage.go:19-90`); no
+metric, label, route, or runtime knob changes, and no raw provider locator,
+credential-shaped value, or IP-shaped value enters a conflict key, doc, or commit.
+
 ### Generic-Worker Repo-Wide Retract Suppression (#2898/#2910)
 
 The generic shared-projection worker (`ProcessPartitionOnce`) retracted each
@@ -658,6 +719,30 @@ same flow already remote-confirmed for #2867 and #2868).
 Observability Evidence: reuses the partitioned-runner signals — `IndexedSelection`,
 `UnhashedFallbackRows`, and the #2898 `RefreshFenceDeferred` field + log. No new
 metric, label, queue domain, or runtime knob.
+
+### Documentation Edges scope_id Retract Reconciliation (#2870)
+
+Precursor to a future `documentation_edges` partition promotion. The documentation
+retract Cypher binds `WHERE section.scope_id IN $scope_ids`
+(`canonical_documentation_edges.go`), but `edge_writer_retract.go` threaded repo ids
+there (`collectRepoIDs`). It only worked because the handler stuffed the scope id
+into `RepositoryID` and left `ScopeID` empty; once the promotion emits intents with
+distinct `repo_id` and `scope_id` the retract would bind repo ids and clear nothing
+(or a neighbor's sections). Added `collectScopeIDs` and used it for both the delta
+and whole-scope documentation retract paths, and set `ScopeID` on the handler's
+retract rows.
+
+No-Regression Evidence: the change does not alter retract cost — it is the same
+statement shape with the correct `$scope_ids` value — proven by before/after Cypher
+tests in `go/internal/storage/cypher/edge_writer_documentation_test.go`
+(`TestEdgeWriterRetractEdgesDocumentationWholeScopeBindsScopeIDNotRepoID` and
+`...DeltaBindsScopeIDNotRepoID` bind the rows' scope ids, not repo ids) plus
+`TestBuildDocumentationRetractRowsCarryScopeID`. `go test ./internal/storage/cypher
+./internal/reducer ./cmd/reducer -count=1` and `-race` are green.
+
+No-Observability-Change: the reconciliation adds no metric, label, span, log field,
+queue domain, or runtime knob; the retract still runs through the existing edge
+writer and graph-write spans.
 
 ### Collector Fact Evidence Status Read (#1678)
 

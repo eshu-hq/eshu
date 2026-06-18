@@ -26,6 +26,9 @@
 {{- if and (eq .Values.repoSync.auth.method "ssh") (eq .Values.repoSync.source.mode "githubOrg") -}}
 {{- fail "repoSync.auth.method=ssh requires repoSync.source.mode=explicit or filesystem" -}}
 {{- end -}}
+{{- if gt (.Values.ingester.replicas | int) 1 -}}
+{{- fail "ingester.replicas greater than 1 is not supported until repository sharding has a fleet-wide deferred-maintenance barrier; keep ingester.replicas=1" -}}
+{{- end -}}
 {{- if and (eq .Values.exposure.ingress.backend "mcp") (not .Values.mcpServer.enabled) -}}
 {{- fail "exposure.ingress.backend=mcp requires mcpServer.enabled=true" -}}
 {{- end -}}
