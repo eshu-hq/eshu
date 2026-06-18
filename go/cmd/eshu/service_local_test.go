@@ -53,6 +53,128 @@ func TestRunMCPStartStdioExecsLocalHostWithResolvedWorkspaceRoot(t *testing.T) {
 	}
 }
 
+func TestRunMCPStartStdioDefaultsLeaveProfileToOwner(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v, want nil", err)
+	}
+
+	restore, calls := stubServiceRuntime()
+	defer restore()
+
+	wantExecErr := errors.New("exec sentinel")
+	calls.executable = func() (string, error) { return "/tmp/eshu", nil }
+	calls.getwd = func() (string, error) { return repoRoot, nil }
+	calls.exec = func(binary string, args []string, env []string) error {
+		calls.env = append([]string(nil), env...)
+		return wantExecErr
+	}
+
+	cmd := newMCPStartTestCommand()
+	if err := runMCPStart(cmd, nil); !errors.Is(err, wantExecErr) {
+		t.Fatalf("runMCPStart() error = %v, want %v", err, wantExecErr)
+	}
+
+	// With no --profile flag the parent must not pin a profile; the mcp-stdio
+	// owner picks the authoritative default itself, which keeps attach-to-any
+	// existing owner working.
+	if got := envValue(calls.env, "ESHU_QUERY_PROFILE"); got != "" {
+		t.Fatalf("ESHU_QUERY_PROFILE = %q, want empty (owner decides default)", got)
+	}
+	if got := envValue(calls.env, "ESHU_GRAPH_BACKEND"); got != "" {
+		t.Fatalf("ESHU_GRAPH_BACKEND = %q, want empty", got)
+	}
+}
+
+func TestRunMCPStartStdioProfileFlagInjectsLightweight(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v, want nil", err)
+	}
+
+	restore, calls := stubServiceRuntime()
+	defer restore()
+
+	wantExecErr := errors.New("exec sentinel")
+	calls.executable = func() (string, error) { return "/tmp/eshu", nil }
+	calls.getwd = func() (string, error) { return repoRoot, nil }
+	calls.exec = func(binary string, args []string, env []string) error {
+		calls.env = append([]string(nil), env...)
+		return wantExecErr
+	}
+
+	cmd := newMCPStartTestCommand()
+	if err := cmd.Flags().Set("profile", "local_lightweight"); err != nil {
+		t.Fatalf("Set(profile) error = %v, want nil", err)
+	}
+	if err := runMCPStart(cmd, nil); !errors.Is(err, wantExecErr) {
+		t.Fatalf("runMCPStart() error = %v, want %v", err, wantExecErr)
+	}
+
+	assertEnvValue(t, calls.env, "ESHU_QUERY_PROFILE", "local_lightweight")
+	if got := envValue(calls.env, "ESHU_GRAPH_BACKEND"); got != "" {
+		t.Fatalf("ESHU_GRAPH_BACKEND = %q, want empty for lightweight", got)
+	}
+}
+
+func TestRunMCPStartStdioProfileFlagInjectsAuthoritative(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v, want nil", err)
+	}
+
+	restore, calls := stubServiceRuntime()
+	defer restore()
+
+	wantExecErr := errors.New("exec sentinel")
+	calls.executable = func() (string, error) { return "/tmp/eshu", nil }
+	calls.getwd = func() (string, error) { return repoRoot, nil }
+	calls.exec = func(binary string, args []string, env []string) error {
+		calls.env = append([]string(nil), env...)
+		return wantExecErr
+	}
+
+	cmd := newMCPStartTestCommand()
+	if err := cmd.Flags().Set("profile", "local_authoritative"); err != nil {
+		t.Fatalf("Set(profile) error = %v, want nil", err)
+	}
+	if err := runMCPStart(cmd, nil); !errors.Is(err, wantExecErr) {
+		t.Fatalf("runMCPStart() error = %v, want %v", err, wantExecErr)
+	}
+
+	assertEnvValue(t, calls.env, "ESHU_QUERY_PROFILE", "local_authoritative")
+	assertEnvValue(t, calls.env, "ESHU_GRAPH_BACKEND", "nornicdb")
+}
+
+func TestRunMCPStartStdioRejectsUnknownProfile(t *testing.T) {
+	base := t.TempDir()
+	repoRoot := filepath.Join(base, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v, want nil", err)
+	}
+
+	restore, calls := stubServiceRuntime()
+	defer restore()
+	calls.executable = func() (string, error) { return "/tmp/eshu", nil }
+	calls.getwd = func() (string, error) { return repoRoot, nil }
+	calls.exec = func(string, []string, []string) error {
+		t.Fatalf("exec called, want profile validation error")
+		return nil
+	}
+
+	cmd := newMCPStartTestCommand()
+	if err := cmd.Flags().Set("profile", "production"); err != nil {
+		t.Fatalf("Set(profile) error = %v, want nil", err)
+	}
+	err := runMCPStart(cmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "local_authoritative") {
+		t.Fatalf("runMCPStart() error = %v, want profile validation error", err)
+	}
+}
+
 func TestRunMCPStartSSEAttachesRunningWorkspaceOwner(t *testing.T) {
 	base := t.TempDir()
 	repoRoot := filepath.Join(base, "repo")
@@ -267,5 +389,6 @@ func newMCPStartTestCommand() *cobra.Command {
 	cmd.Flags().String("host", "127.0.0.1", "")
 	cmd.Flags().Int("port", 0, "")
 	cmd.Flags().String("workspace-root", "", "")
+	cmd.Flags().String("profile", "", "")
 	return cmd
 }

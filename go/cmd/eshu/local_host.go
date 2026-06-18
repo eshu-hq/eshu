@@ -138,8 +138,21 @@ func runOwnedLocalHost(ctx context.Context, workspaceRoot string, mode localHost
 	return runOwnedLocalHostWithLayout(ctx, layout, mode)
 }
 
+// defaultProfileForMode picks the owner profile used when the operator has not
+// requested one explicitly. An MCP stdio owner defaults to local_authoritative
+// so a fresh `eshu mcp start` boots embedded Postgres + NornicDB + reducer +
+// ingester in one binary and can answer graph-backed questions (transitive
+// callers, import dependencies, read-only Cypher) immediately. Watch-mode owners
+// (the lightweight indexer) stay Postgres-only by default.
+func defaultProfileForMode(mode localHostMode) query.QueryProfile {
+	if mode == localHostModeMCPStdio {
+		return query.ProfileLocalAuthoritative
+	}
+	return query.ProfileLocalLightweight
+}
+
 func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, mode localHostMode) (retErr error) {
-	runtimeConfig, err := resolveLocalHostRuntimeConfig(os.Getenv)
+	runtimeConfig, err := resolveLocalHostRuntimeConfigWithDefault(os.Getenv, defaultProfileForMode(mode))
 	if err != nil {
 		return err
 	}

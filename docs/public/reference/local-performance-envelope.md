@@ -20,6 +20,41 @@ required. Cold start means starting from stopped processes.
 Memory budgets must be measured for each profile. `local_authoritative`
 measurements include the Eshu host process plus graph backend.
 
+### `eshu mcp start` default owner profile (#3026)
+
+`eshu mcp start`, when it starts its own owner, now selects `local_authoritative`
+by default (previously `local_lightweight`). This trades the Postgres-only cold
+start for the embedded-graph cold start so a fresh MCP session can answer
+graph-backed questions (transitive callers/callees, import dependencies,
+read-only Cypher, call-graph metrics) instead of returning
+`unsupported_capability`. `eshu index` and other watch-mode owners keep the
+`local_lightweight` default. The owner profile resolves in
+`defaultProfileForMode` / `resolveLocalHostRuntimeConfigWithDefault`
+(`go/cmd/eshu/local_host.go`, `go/cmd/eshu/local_host_config.go`); it is a
+default-selection change only, not a change to either profile's runtime path.
+
+- Affected stage: local owner cold start for the `eshu mcp start` stdio
+  owner-creation path. The attach path (an owner already running) is unchanged.
+- Expected cardinality: Tier 1 active repo (about `5K` files / `50K` entities).
+- No-Regression Evidence: the `local_authoritative` runtime path is the same
+  supervisor `eshu graph start` already uses (same `local-host` flow, embedded
+  NornicDB + reducer + ingester), so its envelope is unchanged: cold start under
+  `15s`, transitive caller and call-chain p95 under `2s` on an active repo, as
+  stated for `local_authoritative` above. The change only selects that
+  already-measured profile as the `eshu mcp start` default; it adds no hot-path
+  code. The higher cold-start cost versus `local_lightweight` is deliberate and
+  bounded by the `local_authoritative` row, and is opt-out via
+  `--profile local_lightweight` / `ESHU_QUERY_PROFILE=local_lightweight`.
+- Observability Evidence: No-Observability-Change. The booted profile is already
+  visible to operators — it is persisted in `owner.json` (`profile`,
+  `graph_backend`) and the supervisor logs `bootstrapping local graph schema...`
+  / `local graph schema ready` on the authoritative path. No new metric, span, or
+  status field is required to diagnose which profile started.
+- Proof ladder and stop threshold: focused `go test ./cmd/eshu` (profile
+  resolution and flag wiring), then a single-repo `eshu mcp start` cold start
+  timed against the `local_authoritative` row. Stop and profile if cold start
+  exceeds the `15s` envelope by more than `10%`.
+
 ## Dogfood Tiers
 
 | Tier | Shape | Use |

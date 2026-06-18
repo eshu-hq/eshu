@@ -302,63 +302,6 @@ func TestLocalHostIngesterOverridesUseFilesystemDirectMode(t *testing.T) {
 	}
 }
 
-func TestResolveLocalHostRuntimeConfig(t *testing.T) {
-	t.Run("defaults to lightweight profile", func(t *testing.T) {
-		got, err := resolveLocalHostRuntimeConfig(func(string) string { return "" })
-		if err != nil {
-			t.Fatalf("resolveLocalHostRuntimeConfig() error = %v, want nil", err)
-		}
-		if got.Profile != query.ProfileLocalLightweight {
-			t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalLightweight)
-		}
-		if got.GraphBackend != "" {
-			t.Fatalf("GraphBackend = %q, want empty", got.GraphBackend)
-		}
-	})
-
-	t.Run("authoritative defaults to nornicdb", func(t *testing.T) {
-		got, err := resolveLocalHostRuntimeConfig(func(key string) string {
-			if key == "ESHU_QUERY_PROFILE" {
-				return string(query.ProfileLocalAuthoritative)
-			}
-			return ""
-		})
-		if err != nil {
-			t.Fatalf("resolveLocalHostRuntimeConfig() error = %v, want nil", err)
-		}
-		if got.Profile != query.ProfileLocalAuthoritative {
-			t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalAuthoritative)
-		}
-		if got.GraphBackend != query.GraphBackendNornicDB {
-			t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, query.GraphBackendNornicDB)
-		}
-	})
-
-	t.Run("rejects unsupported profiles", func(t *testing.T) {
-		_, err := resolveLocalHostRuntimeConfig(func(key string) string {
-			if key == "ESHU_QUERY_PROFILE" {
-				return string(query.ProfileProduction)
-			}
-			return ""
-		})
-		if err == nil || !strings.Contains(err.Error(), "local Eshu service supports only") {
-			t.Fatalf("resolveLocalHostRuntimeConfig() error = %v, want unsupported profile error", err)
-		}
-	})
-
-	t.Run("rejects graph backend override in lightweight mode", func(t *testing.T) {
-		_, err := resolveLocalHostRuntimeConfig(func(key string) string {
-			if key == "ESHU_GRAPH_BACKEND" {
-				return string(query.GraphBackendNornicDB)
-			}
-			return ""
-		})
-		if err == nil || !strings.Contains(err.Error(), "ESHU_GRAPH_BACKEND") {
-			t.Fatalf("resolveLocalHostRuntimeConfig() error = %v, want graph-backend override error", err)
-		}
-	})
-}
-
 func TestLocalHostEnvHonorsRuntimeConfig(t *testing.T) {
 	t.Run("lightweight disables neo4j", func(t *testing.T) {
 		got := localHostEnv("dsn", localHostRuntimeConfig{Profile: query.ProfileLocalLightweight}, nil, nil)

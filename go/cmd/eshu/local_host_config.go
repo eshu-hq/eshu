@@ -92,8 +92,19 @@ func setOverrideIfUnset(overrides map[string]string, getenv func(string) string,
 	overrides[key] = value
 }
 
+// resolveLocalHostRuntimeConfig resolves the local owner runtime config using
+// the lightweight profile as the default when no profile is requested. It is the
+// default-preserving entry point for watch-mode owners (the lightweight indexer).
 func resolveLocalHostRuntimeConfig(getenv func(string) string) (localHostRuntimeConfig, error) {
-	profile := query.ProfileLocalLightweight
+	return resolveLocalHostRuntimeConfigWithDefault(getenv, query.ProfileLocalLightweight)
+}
+
+// resolveLocalHostRuntimeConfigWithDefault resolves the local owner runtime
+// config, falling back to defaultProfile only when ESHU_QUERY_PROFILE is unset.
+// An explicit ESHU_QUERY_PROFILE always wins so operators can opt out of the
+// mode default (for example forcing lightweight on a large repo).
+func resolveLocalHostRuntimeConfigWithDefault(getenv func(string) string, defaultProfile query.QueryProfile) (localHostRuntimeConfig, error) {
+	profile := defaultProfile
 	rawProfile := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE"))
 	if rawProfile != "" {
 		parsedProfile, err := query.ParseQueryProfile(rawProfile)
@@ -138,13 +149,22 @@ func resolveLocalHostRuntimeConfig(getenv func(string) string) (localHostRuntime
 	}, nil
 }
 
+// requestedAttachRuntimeConfig describes the runtime config the operator
+// explicitly requested for an `eshu mcp start` stdio session, used only to
+// detect a mismatch against an already-running owner. It is the mcp-stdio attach
+// counterpart of the owner-creation default, so it resolves with the same
+// authoritative default: a graph-backend-only signal such as
+// ESHU_GRAPH_BACKEND=nornicdb is treated as an authoritative request (matching a
+// running authoritative owner) rather than rejected as an invalid lightweight
+// combination. An empty environment is not an explicit request, so any running
+// owner is attached regardless of profile.
 func requestedAttachRuntimeConfig(getenv func(string) string) (localHostRuntimeConfig, bool, error) {
 	explicit := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE")) != "" || strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND")) != ""
 	if !explicit {
 		return localHostRuntimeConfig{}, false, nil
 	}
 
-	runtimeConfig, err := resolveLocalHostRuntimeConfig(getenv)
+	runtimeConfig, err := resolveLocalHostRuntimeConfigWithDefault(getenv, query.ProfileLocalAuthoritative)
 	if err != nil {
 		return localHostRuntimeConfig{}, false, err
 	}

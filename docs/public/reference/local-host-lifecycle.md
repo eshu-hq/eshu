@@ -90,9 +90,13 @@ Other commands such as `eshu mcp start` in stdio mode should attach to that
 service rather than trying to start competing ingesters for the same workspace.
 
 If `eshu mcp start` runs in stdio mode and no healthy service exists for the
-workspace, it
-may start an ephemeral local Eshu service for that workspace. In that mode it
-must:
+workspace, it may start an ephemeral local Eshu service for that workspace. That
+self-hosted owner defaults to the `local_authoritative` profile (embedded
+Postgres + NornicDB + reducer + ingester) so graph-backed MCP questions are
+answerable on a fresh install; `eshu mcp start --profile local_lightweight` (or
+`ESHU_QUERY_PROFILE=local_lightweight`) opts back into the Postgres-only owner.
+Watch-mode owners started by the lightweight indexer (`eshu index`) keep the
+`local_lightweight` default. In that mode it must:
 
 - acquire normal workspace ownership
 - start the same embedded Postgres and watcher lifecycle needed for its scope
