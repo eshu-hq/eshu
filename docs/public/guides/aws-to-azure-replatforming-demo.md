@@ -64,26 +64,34 @@ cloud credentials.
 
 ## Step 1 — Bring up a local `local_authoritative` stack
 
-Local binaries (fastest iteration, embedded graph):
+Docker Compose is the simplest path for this demo because it serves the HTTP API
+on `localhost:8080` and MCP on `localhost:8081` out of the box. Set an API key up
+front so you can authenticate the read calls in Step 5 (Compose enables auth and
+auto-generates a key otherwise):
 
 ```bash
 git clone https://github.com/eshu-hq/eshu.git
 cd eshu
-./scripts/install-local-binaries.sh
-export PATH="$(go env GOPATH)/bin:$PATH"
 
-eshu graph start --workspace-root "$PWD"
-```
-
-Or Docker Compose (closest to a deployed stack; serves the HTTP API on
-`localhost:8080` and MCP on `localhost:8081`):
-
-```bash
+export ESHU_API_KEY="demo-api-key"   # used as the API bearer token below
 docker compose up --build
 ```
 
-See [Local Binaries](../run-locally/local-binaries.md) and
-[Docker Compose](../run-locally/docker-compose.md) for details.
+The local-binaries path is good for fast iteration, but note that
+`eshu graph start` does **not** start the HTTP API — its read surface is MCP
+(`eshu mcp start`). If you take this path, drive Step 5 through the MCP tool
+rather than the `curl` API call, or run `eshu-api` separately:
+
+```bash
+./scripts/install-local-binaries.sh
+export PATH="$(go env GOPATH)/bin:$PATH"
+
+eshu graph start --workspace-root "$PWD"   # graph + ingester + reducer + MCP, no HTTP API
+```
+
+See [Local Binaries](../run-locally/local-binaries.md) (including
+[What still needs an API](../run-locally/local-binaries.md#what-still-needs-an-api))
+and [Docker Compose](../run-locally/docker-compose.md) for details.
 
 ## Step 2 — Ingest Terraform state and config
 
@@ -140,6 +148,7 @@ Scope it to an account (and optionally a region or service):
 ```bash
 curl -sS -X POST http://localhost:8080/api/v0/replatforming/plans \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ESHU_API_KEY}" \
   -d '{
         "scope_kind": "account",
         "account_id": "123456789012",
@@ -147,7 +156,9 @@ curl -sS -X POST http://localhost:8080/api/v0/replatforming/plans \
       }' | jq '.'
 ```
 
-With an MCP client (Claude Code), the equivalent prompt is:
+The Compose API requires a bearer token (`ESHU_AUTO_GENERATE_API_KEY` is on by
+default); use the `ESHU_API_KEY` you exported in Step 1. The MCP path does not
+need this header. With an MCP client (Claude Code), the equivalent prompt is:
 
 > "Compose a re-platforming plan for AWS account `123456789012`. Summarize the
 > migration waves, the blast-radius groups, the ready import count, and the
@@ -178,11 +189,20 @@ first. The packet is the bridge: it tells the LLM exactly which resources are
 import-ready, what they are, and how risky each move is, so the model maps
 AWS-shaped resources to Azure-shaped modules.
 
+A note on import blocks: a packet item's `import_candidate.import_block` is an
+**AWS** Terraform import block — it exists to bring the unmanaged AWS resource
+under Terraform management on the source side. Azure is a greenfield target in
+this demo (there are no pre-existing Azure resources to import), so the model
+should emit `azurerm_*` **resource definitions** for the migration, not Azure
+import blocks. Generate Azure import blocks only later, against real resource
+IDs, once the Azure resources actually exist.
+
 > "Here is the re-platforming plan. For every item in wave 1 (early-safe) whose
 > `import_candidate.status` is `ready`, generate the equivalent `azurerm_*`
-> Terraform resource and an Azure import block. Keep one module per
-> blast-radius group. For refused items, list the refusal reason and do not
-> emit Terraform. Do not invent dependencies that are not in the packet."
+> Terraform resource definition for a new Azure deployment. Keep one module per
+> blast-radius group. Do not emit Azure import blocks — these are new Azure
+> resources. For refused items, list the refusal reason and do not emit
+> Terraform. Do not invent dependencies that are not in the packet."
 
 Typical AWS → Azure target mappings the model will produce (review each — these
 are starting points, not guarantees):
