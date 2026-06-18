@@ -49,8 +49,12 @@ instrumented adapters.
   Older successful fingerprints do not let stale writers keep running after an
   incompatible schema change.
 - Compatibility is explicit. Additive schema changes may list older writer
-  fingerprints as compatible; destructive changes leave the list empty so old
-  writers refuse before graph writes.
+  fingerprints as compatible only when the whole runtime remains version-safe;
+  destructive changes and schema changes coupled to new reducer domains leave
+  the list empty so old writers refuse before graph writes. The graph package
+  pins the current fingerprint and compatibility decision in
+  `TestSchemaApplicationsDeclareCompatibilityDecision` so future schema
+  changes cannot silently roll without updating the compatibility contract.
 - `MarkApplied` only records completion. Call it after strict graph DDL succeeds
   or after bootstrap adoption proves the existing graph schema is complete.
 - The check reads Postgres only. It deliberately avoids `SHOW CONSTRAINTS` and

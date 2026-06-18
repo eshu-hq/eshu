@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"maps"
@@ -120,6 +121,14 @@ func TestRunAppliesAndMarksGraphSchemaWhenFingerprintMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("graphSchemaFingerprint() error = %v, want nil", err)
 	}
+	app, err := graph.SchemaApplicationForBackend(backend)
+	if err != nil {
+		t.Fatalf("SchemaApplicationForBackend() error = %v, want nil", err)
+	}
+	compatibleFingerprints, err := json.Marshal(app.CompatibleFingerprints)
+	if err != nil {
+		t.Fatalf("marshal compatible fingerprints: %v", err)
+	}
 	db := &fakeBootstrapDB{
 		queryRows: []fakeBootstrapRows{{rows: nil}},
 	}
@@ -160,7 +169,7 @@ func TestRunAppliesAndMarksGraphSchemaWhenFingerprintMissing(t *testing.T) {
 	if got := db.execs[0].args[2]; got != statementCount {
 		t.Fatalf("mark statement count arg = %v, want %d", got, statementCount)
 	}
-	if got, want := db.execs[0].args[3], "[]"; got != want {
+	if got, want := db.execs[0].args[3], string(compatibleFingerprints); got != want {
 		t.Fatalf("mark compatible fingerprints arg = %v, want %q", got, want)
 	}
 }
