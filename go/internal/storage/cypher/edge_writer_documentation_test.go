@@ -230,6 +230,84 @@ func TestEdgeWriterRetractEdgesDocumentationDeltaUsesSectionScope(t *testing.T) 
 	}
 }
 
+func TestEdgeWriterRetractEdgesDocumentationWholeScopeBindsScopeIDNotRepoID(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			ScopeID:      "scope-doc",
+			RepositoryID: "repo-code",
+			Payload: map[string]any{
+				"scope_id": "scope-doc",
+				"repo_id":  "repo-code",
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	stmt := executor.calls[0]
+	if !strings.Contains(stmt.Cypher, "section.scope_id IN $scope_ids") {
+		t.Fatalf("whole-scope retract cypher = %q, want scope filter", stmt.Cypher)
+	}
+	scopeIDs, ok := stmt.Parameters["scope_ids"].([]string)
+	if !ok {
+		t.Fatalf("scope_ids parameter type = %T, want []string", stmt.Parameters["scope_ids"])
+	}
+	if !reflect.DeepEqual(scopeIDs, []string{"scope-doc"}) {
+		t.Fatalf("scope_ids = %#v, want [scope-doc] (must bind row.ScopeID, not RepositoryID)", scopeIDs)
+	}
+}
+
+func TestEdgeWriterRetractEdgesDocumentationDeltaBindsScopeIDNotRepoID(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			ScopeID:      "scope-doc",
+			RepositoryID: "repo-code",
+			Payload: map[string]any{
+				"scope_id":         "scope-doc",
+				"repo_id":          "repo-code",
+				"delta_projection": true,
+				"document_ids":     []string{"doc:git:repo-123:README.md"},
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	stmt := executor.calls[0]
+	if !strings.Contains(stmt.Cypher, "section.document_id IN $document_ids") {
+		t.Fatalf("delta retract cypher = %q, want document_id filter", stmt.Cypher)
+	}
+	scopeIDs, ok := stmt.Parameters["scope_ids"].([]string)
+	if !ok {
+		t.Fatalf("scope_ids parameter type = %T, want []string", stmt.Parameters["scope_ids"])
+	}
+	if !reflect.DeepEqual(scopeIDs, []string{"scope-doc"}) {
+		t.Fatalf("scope_ids = %#v, want [scope-doc] (must bind row.ScopeID, not RepositoryID)", scopeIDs)
+	}
+}
+
 func TestEdgeWriterRetractEdgesDocumentationRejectsDeltaWithoutIdentity(t *testing.T) {
 	t.Parallel()
 

@@ -227,6 +227,7 @@ func buildDocumentationScopeRetractRows(scopeIDs []string) []SharedProjectionInt
 			continue
 		}
 		rows = append(rows, SharedProjectionIntentRow{
+			ScopeID:      scopeID,
 			RepositoryID: scopeID,
 			Payload:      map[string]any{"scope_id": scopeID},
 		})
@@ -246,6 +247,7 @@ func buildDocumentationDeltaRetractRows(
 			continue
 		}
 		rows = append(rows, SharedProjectionIntentRow{
+			ScopeID:      scopeID,
 			RepositoryID: scopeID,
 			Payload: map[string]any{
 				"scope_id":          scopeID,

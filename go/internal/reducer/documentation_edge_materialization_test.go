@@ -138,6 +138,29 @@ func TestBuildDocumentationRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	}
 }
 
+func TestBuildDocumentationRetractRowsCarryScopeID(t *testing.T) {
+	t.Parallel()
+
+	wholeScope := buildDocumentationRetractRows([]string{"scope-docs"}, documentationDeltaScope{})
+	if len(wholeScope) != 1 {
+		t.Fatalf("whole-scope retract rows len = %d, want 1", len(wholeScope))
+	}
+	if got := wholeScope[0].ScopeID; got != "scope-docs" {
+		t.Fatalf("whole-scope ScopeID = %q, want scope-docs", got)
+	}
+
+	delta := buildDocumentationRetractRows([]string{"scope-docs"}, documentationDeltaScope{
+		hasDelta:    true,
+		documentIDs: []string{"doc:git:repo-123:README.md"},
+	})
+	if len(delta) != 1 {
+		t.Fatalf("delta retract rows len = %d, want 1", len(delta))
+	}
+	if got := delta[0].ScopeID; got != "scope-docs" {
+		t.Fatalf("delta ScopeID = %q, want scope-docs", got)
+	}
+}
+
 func TestBuildDocumentationDeltaScopeIgnoresExternalDocumentPathMetadata(t *testing.T) {
 	t.Parallel()
 
