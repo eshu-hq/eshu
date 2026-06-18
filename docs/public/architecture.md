@@ -164,6 +164,7 @@ Focused references own the details:
 | Capability profiles and truth levels | [Capability Conformance Spec](reference/capability-conformance-spec.md) |
 | Truth labels | [Truth Label Protocol](reference/truth-label-protocol.md) |
 | Collector and reducer readiness | [Collector And Reducer Readiness](reference/collector-reducer-readiness.md) |
+| Supply-chain CVE-to-impact chain and launch surfaces | [Supply-Chain Traceability](supply-chain-traceability.md) |
 | Deployable-unit edge admission | [Deployable-Unit Correlation](reference/deployable-unit-correlation.md) |
 | Component packages and activation | [Component Package Manager](reference/component-package-manager.md) |
 | Fact schema and plugin trust | [Fact Schema Versioning](reference/fact-schema-versioning.md), [Plugin Trust Model](reference/plugin-trust-model.md) |

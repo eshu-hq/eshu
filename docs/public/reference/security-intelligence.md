@@ -589,3 +589,12 @@ read contracts, CLI behavior, and acceptance gates live in
 Keep this page focused on architecture, runtime boundaries, scanner isolation,
 and readiness semantics. Use the source-coverage page for parser evidence,
 advisory source contracts, provider security-alert collection, and read surfaces.
+
+User-facing references for individual supply-chain surfaces:
+
+- [Supply-Chain Traceability](../supply-chain-traceability.md) — the CVE-to-impact chain entry point.
+- [GitLab Gemnasium Integration](gitlab-gemnasium-integration.md) — GitLab Advisory Database normalization.
+- [Vulnerability Scanner Read Contract](vulnerability-scanner-read-contract.md) — what is admitted, refused, or partial.
+- [Hardcoded Secrets Investigation](hardcoded-secrets-investigation.md) — redacted secret findings.
+- [SARIF Export](sarif-export.md) — SARIF v2.1.0 finding export.
+- [Value-Flow Emission](value-flow-emission.md) — the `ESHU_EMIT_DATAFLOW` gate.

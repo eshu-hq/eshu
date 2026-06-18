@@ -82,6 +82,52 @@ should stay evidence-first. A collector is release-ready only when its source
 facts, reducer outputs, API/MCP reads, retry behavior, and observability have
 been proven together in the target runtime.
 
+## Promotion Readiness
+
+Eshu sequences promotion by proof gate, not by calendar quarter. A surface is
+"production-promoted" only after it has a dedicated, idempotent, conflict-safe
+materialization path with remote and Kubernetes proof. The tables below state
+what is promoted today and what gate each remaining surface is blocked on, so a
+buyer never has to read [Collector And Reducer Readiness](reference/collector-reducer-readiness.md)
+to learn that a surface is still gated. The launch entry point for the
+supply-chain chain is [Supply-Chain Traceability](supply-chain-traceability.md).
+
+### Cloud Posture Production-Readiness
+
+| Cloud posture surface | State | Gate before promotion |
+| --- | --- | --- |
+| AWS | Production-promoted | None. `aws_resource_materialization` is promoted to a versioned, hashed `cloud_resource_node` conflict family. |
+| GCP | Roadmap | Partition-filtered handler proof; currently a risky resource-scope fallback. |
+| Azure | Roadmap | Partition-filtered handler proof; currently a risky resource-scope fallback. |
+| EC2-instance / security-group nodes | Roadmap | Partition-filtered handler proof. |
+| Kubernetes live posture | Roadmap | Dedicated materializer with conflict-family promotion and EKS proof. |
+
+The multi-cloud re-platforming surface follows the same line: AWS-side drift is
+production-grade, and the Azure/GCP equivalent is roadmap. See the
+[`compose_replatforming_plan` contract](reference/replatforming-plan-contract.md).
+
+### Value-Flow Reachability Rollout
+
+Reachability is a per-ecosystem capability, not a single switch.
+
+| Ecosystem | State | Gate / condition |
+| --- | --- | --- |
+| Go | Production path | govulncheck reachability, always on. |
+| JVM (Maven, Gradle) | Partial | Bounded reducer family. |
+| Python | Preview, opt-in | [`ESHU_EMIT_DATAFLOW`](reference/value-flow-emission.md) gate. |
+| TypeScript / JavaScript | Preview, opt-in | [`ESHU_EMIT_DATAFLOW`](reference/value-flow-emission.md) gate. |
+
+Value-flow emission ships as an explicitly-gated preview. Launch copy that
+mentions taint analysis or value-flow tracking must reference the gate; see
+[Value-Flow Emission](reference/value-flow-emission.md) for the decision record.
+
+### Scanner-Worker Analyzer Rollout
+
+The scanner-worker lane is implemented at the lane level; concrete analyzers
+(secret, license, source, misconfiguration) promote individually as each proves
+source facts, reducer outputs, and API/MCP reads. The standalone scanner
+service boundary is tracked separately from the lane.
+
 ### Retrieval And Graph Backend Evaluation
 
 NornicDB remains the default graph backend for current Compose and Kubernetes

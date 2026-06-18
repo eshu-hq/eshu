@@ -17,6 +17,15 @@ This contract is defined **before** any serving route or MCP tool so that future
 API/MCP work composes one consistent shape instead of stitching existing routes
 together inconsistently. The serving route and tool land in a later slice.
 
+!!! note "Cloud coverage is AWS-first"
+    AWS-side runtime drift and source-state evidence behind `compose_replatforming_plan`
+    is production-grade. The Azure and GCP equivalents are roadmap, not parity:
+    only `aws_resource_materialization` is promoted to a versioned, hashed
+    conflict family today. See the
+    [cloud posture production-readiness table](../roadmap.md#cloud-posture-production-readiness)
+    and [Supply-Chain Traceability](../supply-chain-traceability.md) for the
+    promotion line.
+
 ## Version
 
 `contract_version` pins the wire shape. Clients must check it. The current
