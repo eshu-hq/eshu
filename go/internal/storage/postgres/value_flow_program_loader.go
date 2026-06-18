@@ -60,21 +60,15 @@ SELECT intent.payload->>'caller_entity_id' AS caller_entity_id,
        intent.payload->>'callee_entity_id' AS callee_entity_id,
        coalesce(nullif(intent.payload->>'relationship_type', ''), 'CALLS') AS relationship_type,
        coalesce(nullif(intent.payload->>'resolution_method', ''), 'unspecified') AS resolution_method,
-       coalesce(caller.repo_id, '') AS caller_repo_id,
-       coalesce(caller.entity_type, '') AS caller_entity_type,
-       coalesce(caller.entity_name, '') AS caller_entity_name,
-       coalesce(caller.metadata->>'class_context', '') AS caller_receiver,
-       coalesce(caller.metadata->>'package_import_path', '') AS caller_package,
-       coalesce(callee.repo_id, '') AS callee_repo_id,
-       coalesce(callee.entity_type, '') AS callee_entity_type,
-       coalesce(callee.entity_name, '') AS callee_entity_name,
-       coalesce(callee.metadata->>'class_context', '') AS callee_receiver,
-       coalesce(callee.metadata->>'package_import_path', '') AS callee_package
+       coalesce(caller_function.repo, '') AS caller_repo_id,
+       coalesce(caller_function.function_id, '') AS caller_function_id,
+       coalesce(callee_function.repo, '') AS callee_repo_id,
+       coalesce(callee_function.function_id, '') AS callee_function_id
 FROM shared_projection_intents AS intent
-LEFT JOIN content_entities AS caller
-  ON caller.entity_id = intent.payload->>'caller_entity_id'
-LEFT JOIN content_entities AS callee
-  ON callee.entity_id = intent.payload->>'callee_entity_id'
+LEFT JOIN function_graph_ids AS caller_function
+  ON caller_function.uid = intent.payload->>'caller_entity_id'
+LEFT JOIN function_graph_ids AS callee_function
+  ON callee_function.uid = intent.payload->>'callee_entity_id'
 WHERE intent.scope_id = $1
   AND intent.acceptance_unit_id = $2
   AND intent.source_run_id = $3
@@ -89,12 +83,10 @@ ORDER BY caller_entity_id ASC, callee_entity_id ASC, relationship_type ASC
 const listValueFlowProgramSourcesSQL = `
 SELECT function_id,
        param_index,
-       source_kind,
-       source_label,
-       lang
+       kind
 FROM function_sources
 WHERE repo = $1
-ORDER BY function_id ASC, param_index ASC, source_kind ASC, source_label ASC
+ORDER BY function_id ASC, param_index ASC, kind ASC
 `
 
 // ValueFlowProgramInputStore loads bounded runtime inputs for value-flow Program
@@ -227,14 +219,14 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramCallEdges(
 		if err := row.scan(rows); err != nil {
 			return nil, 0, nil, err
 		}
-		callerID, okCaller := row.caller.functionID()
-		calleeID, okCallee := row.callee.functionID()
-		if !okCaller || !okCallee {
+		callerID := summary.FunctionID(strings.TrimSpace(row.caller.functionID))
+		calleeID := summary.FunctionID(strings.TrimSpace(row.callee.functionID))
+		if callerID == "" || calleeID == "" {
 			skipped++
 			continue
 		}
-		repos[row.caller.repoID] = struct{}{}
-		repos[row.callee.repoID] = struct{}{}
+		repos[row.caller.repo()] = struct{}{}
+		repos[row.callee.repo()] = struct{}{}
 		edges = append(edges, reducer.ValueFlowCallEdge{
 			CallerEntityID:   row.callerEntityID,
 			CalleeEntityID:   row.calleeEntityID,
@@ -282,9 +274,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramSources(
 			var functionID string
 			var paramIndex int
 			var kind string
-			var label string
-			var lang string
-			if err := rows.Scan(&functionID, &paramIndex, &kind, &label, &lang); err != nil {
+			if err := rows.Scan(&functionID, &paramIndex, &kind); err != nil {
 				_ = rows.Close()
 				return nil, fmt.Errorf("scan value-flow program source: %w", err)
 			}
@@ -296,8 +286,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramSources(
 					Func: interproc.FunctionID(functionID),
 					Slot: interproc.Slot{Kind: interproc.SlotParam, Index: paramIndex},
 				},
-				Kind:  strings.TrimSpace(kind),
-				Label: strings.TrimSpace(label),
+				Kind: strings.TrimSpace(kind),
 			})
 		}
 		if err := rows.Err(); err != nil {
@@ -327,15 +316,9 @@ func (r *valueFlowProgramCallEdgeRow) scan(rows Rows) error {
 		&r.relationshipType,
 		&r.resolutionMethod,
 		&r.caller.repoID,
-		&r.caller.entityType,
-		&r.caller.name,
-		&r.caller.receiver,
-		&r.caller.pkg,
+		&r.caller.functionID,
 		&r.callee.repoID,
-		&r.callee.entityType,
-		&r.callee.name,
-		&r.callee.receiver,
-		&r.callee.pkg,
+		&r.callee.functionID,
 	); err != nil {
 		return fmt.Errorf("scan value-flow program call edge: %w", err)
 	}
@@ -344,25 +327,14 @@ func (r *valueFlowProgramCallEdgeRow) scan(rows Rows) error {
 
 type valueFlowProgramFunctionIdentity struct {
 	repoID     string
-	entityType string
-	name       string
-	receiver   string
-	pkg        string
+	functionID string
 }
 
-func (i valueFlowProgramFunctionIdentity) functionID() (summary.FunctionID, bool) {
-	if strings.TrimSpace(i.entityType) != "Function" ||
-		strings.TrimSpace(i.repoID) == "" ||
-		strings.TrimSpace(i.pkg) == "" ||
-		strings.TrimSpace(i.name) == "" {
-		return "", false
+func (i valueFlowProgramFunctionIdentity) repo() string {
+	if repo := strings.TrimSpace(i.repoID); repo != "" {
+		return repo
 	}
-	return summary.NewFunctionID(
-		strings.TrimSpace(i.repoID),
-		strings.TrimSpace(i.pkg),
-		strings.TrimSpace(i.receiver),
-		strings.TrimSpace(i.name),
-	), true
+	return functionIDRepo(strings.TrimSpace(i.functionID))
 }
 
 func sortedValueFlowProgramRepos(repos map[string]struct{}) []string {

@@ -21,14 +21,26 @@ func TestValueFlowProgramInputLoaderSQLUsesActiveCompletedCodeCallsAndFunctionMe
 		"intent.completed_at IS NOT NULL",
 		"pending_intent.completed_at IS NULL",
 		"newer_generation.ingested_at > generation.ingested_at",
-		"LEFT JOIN content_entities AS caller",
-		"LEFT JOIN content_entities AS callee",
-		"caller.metadata->>'package_import_path'",
-		"callee.metadata->>'class_context'",
+		"LEFT JOIN function_graph_ids AS caller_function",
+		"LEFT JOIN function_graph_ids AS callee_function",
+		"caller_function.uid = intent.payload->>'caller_entity_id'",
+		"callee_function.function_id",
 	} {
 		if !strings.Contains(listValueFlowProgramCallEdgesSQL, want) &&
 			!strings.Contains(listPendingValueFlowProgramInputsSQL, want) {
 			t.Fatalf("value-flow program loader SQL missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"package_import_path",
+		"FROM content_entities",
+		"source_kind",
+		"source_label",
+		"lang",
+	} {
+		if strings.Contains(listValueFlowProgramCallEdgesSQL, forbidden) ||
+			strings.Contains(listValueFlowProgramSourcesSQL, forbidden) {
+			t.Fatalf("value-flow program loader SQL must not contain %q", forbidden)
 		}
 	}
 }
@@ -42,8 +54,8 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 		candidates: [][]any{{"scope-1", "repo-app", "run-1", "generation-1", now}},
 		edges: [][]any{{
 			"entity:caller", "entity:callee", "CALLS", "scip",
-			"repo-app", "Function", "Handle", "", "example.com/app",
-			"repo-lib", "Function", "Query", "", "example.com/lib",
+			"", string(caller),
+			"", string(callee),
 		}},
 		summaries: map[string][]summary.SnapshotFunction{
 			"repo-app": {{
@@ -58,7 +70,7 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 			}},
 		},
 		sources: map[string][][]any{
-			"repo-app": {{string(caller), 0, "http_request", "request", "go"}},
+			"repo-app": {{string(caller), 0, "http_request"}},
 		},
 	}
 	store := NewValueFlowProgramInputStore(db)
@@ -101,8 +113,8 @@ func TestValueFlowProgramInputLoaderCountsMissingFunctionIdentity(t *testing.T) 
 		candidates: [][]any{{"scope-1", "repo-app", "run-1", "generation-1", time.Now().UTC()}},
 		edges: [][]any{{
 			"entity:caller", "entity:callee", "CALLS", "scip",
-			"repo-app", "Function", "Handle", "", "",
-			"repo-lib", "Function", "Query", "", "example.com/lib",
+			"repo-app", "",
+			"repo-lib", "repo-lib\x1fexample.com/lib\x1f\x1fQuery",
 		}},
 		summaries: map[string][]summary.SnapshotFunction{},
 	}
@@ -134,7 +146,7 @@ func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string
 	switch {
 	case strings.Contains(query, "FROM shared_projection_acceptance AS acceptance"):
 		return &valueFlowProgramRows{data: db.candidates, idx: -1}, nil
-	case strings.Contains(query, "LEFT JOIN content_entities AS caller"):
+	case strings.Contains(query, "LEFT JOIN function_graph_ids AS caller_function"):
 		return &valueFlowProgramRows{data: db.edges, idx: -1}, nil
 	case strings.Contains(query, "FROM function_summaries") && len(args) == 1:
 		repo, _ := args[0].(string)
