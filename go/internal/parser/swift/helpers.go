@@ -231,7 +231,7 @@ func isSwiftAttributePart(character byte) bool {
 		character == '.'
 }
 
-func collectSwiftSemanticFacts(lines []string) swiftSemanticFacts {
+func collectSwiftSemanticFacts(lines []string, syntax swiftSyntaxIndex) swiftSemanticFacts {
 	facts := swiftSemanticFacts{
 		protocolMethods:    make(map[string]map[string]struct{}),
 		typeConformances:   make(map[string]map[string]struct{}),
@@ -280,6 +280,12 @@ func collectSwiftSemanticFacts(lines []string) swiftSemanticFacts {
 		}
 		braceDepth += braceDelta(rawLine)
 		stack = popCompletedScopes(stack, braceDepth)
+	}
+	for typeName, conformances := range syntax.typeConformances() {
+		facts.typeConformances[typeName] = conformances
+	}
+	for protocolName, methods := range syntax.protocolMethods() {
+		facts.protocolMethods[protocolName] = methods
 	}
 	return facts
 }
