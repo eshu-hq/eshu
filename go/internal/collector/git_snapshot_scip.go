@@ -3,15 +3,8 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 	"time"
-
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
@@ -127,69 +120,25 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 	repositoryID string,
 	scipFiles map[string]map[string]any,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
-	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
-	parsedFiles := make([]map[string]any, 0, len(fileSet.Files))
-	languageStats := newParseLanguageStats()
-	for _, filePath := range fileSet.Files {
+	results := make([]parseResult, 0, len(fileSet.Files))
+	for index, filePath := range fileSet.Files {
+		result := s.parseRepositoryFile(
+			ctx,
+			repoPath,
+			parseFileJob{index: index, path: filePath},
+			engine,
+			commitSHA,
+			isDependency,
+			goPackageTargets,
+			repositoryID,
+			scipFiles,
+		)
 		if err := ctx.Err(); err != nil {
 			return nil, nil, nil, err
 		}
-
-		startTime := time.Now()
-		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets, s.EmitDataflow, repositoryID))
-		duration := fileParseDurationSeconds(startTime)
-
-		if err != nil {
-			// Skip files that cannot be parsed (e.g. malformed JSON,
-			// binary files with recognized extensions). A single bad
-			// file must not prevent the rest of the repository from
-			// being indexed.
-			if s.Instruments != nil {
-				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-					attribute.String("status", "skipped"),
-				))
-			}
-			continue
-		}
-		if scipPayload, ok := scipFiles[filePath]; ok {
-			mergeSCIPSupplement(parsed, scipPayload)
-		}
-
-		body, err := os.ReadFile(filePath)
-		if err != nil {
-			if s.Instruments != nil {
-				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-					attribute.String("status", "skipped"),
-				))
-			}
-			continue
-		}
-
-		relativePath, err := filepath.Rel(repoPath, filePath)
-		if err != nil {
-			if s.Instruments != nil {
-				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-					attribute.String("status", "skipped"),
-				))
-			}
-			continue
-		}
-		relativePath = filepath.ToSlash(filepath.Clean(relativePath))
-		shapeFiles = append(shapeFiles, shapeFileFromParsed(parsed, relativePath, string(body), commitSHA))
-		parsedFiles = append(parsedFiles, parsed)
-		language := snapshotPayloadString(parsed, "language", "lang")
-		languageStats.record(language, duration)
-
-		if s.Instruments != nil {
-			s.Instruments.FileParseDuration.Record(ctx, duration, metric.WithAttributes(
-				attribute.String("language", language),
-			))
-			s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-				attribute.String("status", "succeeded"),
-			))
-		}
+		results = append(results, result)
 	}
-	return shapeFiles, parsedFiles, languageStats.summaries(), nil
+	return parseResultsToSnapshotFiles(len(fileSet.Files), results)
 }
 
 func fileParseDurationSeconds(startedAt time.Time) float64 {
@@ -203,153 +152,6 @@ type parseResult struct {
 	language  string
 	duration  float64
 	skipped   bool
-}
-
-func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
-	ctx context.Context,
-	repoPath string,
-	fileSet discovery.RepoFileSet,
-	engine *parser.Engine,
-	commitSHA string,
-	isDependency bool,
-	goPackageTargets parser.GoPackageSemanticRoots,
-	repositoryID string,
-	scipFiles map[string]map[string]any,
-) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
-	fileCount := len(fileSet.Files)
-	if fileCount == 0 {
-		return nil, nil, nil, nil
-	}
-
-	// Create cancellable context for workers (only cancel on context error, not parse errors)
-	workerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Create channels
-	type fileJob struct {
-		index int
-		path  string
-	}
-	jobs := make(chan fileJob, fileCount)
-	results := make(chan parseResult, fileCount)
-
-	// Start workers
-	var wg sync.WaitGroup
-	for i := 0; i < s.ParseWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for job := range jobs {
-				// Check context
-				if err := workerCtx.Err(); err != nil {
-					results <- parseResult{index: job.index, skipped: true}
-					continue
-				}
-
-				startTime := time.Now()
-				parsed, err := engine.ParsePath(repoPath, job.path, isDependency, snapshotParserOptions(job.path, goPackageTargets, s.EmitDataflow, repositoryID))
-				duration := fileParseDurationSeconds(startTime)
-
-				if err != nil {
-					// Parse error: skip file but continue processing others
-					if s.Instruments != nil {
-						s.Instruments.FilesParsed.Add(workerCtx, 1, metric.WithAttributes(
-							attribute.String("status", "skipped"),
-						))
-					}
-					results <- parseResult{index: job.index, skipped: true}
-					continue
-				}
-				if scipPayload, ok := scipFiles[job.path]; ok {
-					mergeSCIPSupplement(parsed, scipPayload)
-				}
-
-				body, err := os.ReadFile(job.path)
-				if err != nil {
-					if s.Instruments != nil {
-						s.Instruments.FilesParsed.Add(workerCtx, 1, metric.WithAttributes(
-							attribute.String("status", "skipped"),
-						))
-					}
-					results <- parseResult{index: job.index, skipped: true}
-					continue
-				}
-
-				relativePath, err := filepath.Rel(repoPath, job.path)
-				if err != nil {
-					if s.Instruments != nil {
-						s.Instruments.FilesParsed.Add(workerCtx, 1, metric.WithAttributes(
-							attribute.String("status", "skipped"),
-						))
-					}
-					results <- parseResult{index: job.index, skipped: true}
-					continue
-				}
-				relativePath = filepath.ToSlash(filepath.Clean(relativePath))
-				language := snapshotPayloadString(parsed, "language", "lang")
-
-				if s.Instruments != nil {
-					s.Instruments.FileParseDuration.Record(workerCtx, duration, metric.WithAttributes(
-						attribute.String("language", language),
-					))
-					s.Instruments.FilesParsed.Add(workerCtx, 1, metric.WithAttributes(
-						attribute.String("status", "succeeded"),
-					))
-				}
-
-				results <- parseResult{
-					index:     job.index,
-					shapeFile: shapeFileFromParsed(parsed, relativePath, string(body), commitSHA),
-					parsed:    parsed,
-					language:  language,
-					duration:  duration,
-					skipped:   false,
-				}
-			}
-		}()
-	}
-
-	// Send jobs
-	for i, filePath := range fileSet.Files {
-		jobs <- fileJob{index: i, path: filePath}
-	}
-	close(jobs)
-
-	// Wait for workers to finish
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Collect results
-	resultSlice := make([]parseResult, 0, fileCount)
-	for result := range results {
-		resultSlice = append(resultSlice, result)
-	}
-
-	// Check for context error
-	if err := ctx.Err(); err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Sort by original index to preserve deterministic order
-	sort.Slice(resultSlice, func(i, j int) bool {
-		return resultSlice[i].index < resultSlice[j].index
-	})
-
-	// Extract successful results in original order
-	shapeFiles := make([]shape.File, 0, fileCount)
-	parsedFiles := make([]map[string]any, 0, fileCount)
-	languageStats := newParseLanguageStats()
-	for _, result := range resultSlice {
-		if !result.skipped {
-			shapeFiles = append(shapeFiles, result.shapeFile)
-			parsedFiles = append(parsedFiles, result.parsed)
-			languageStats.record(result.language, result.duration)
-		}
-	}
-
-	return shapeFiles, parsedFiles, languageStats.summaries(), nil
 }
 
 func (s NativeRepositorySnapshotter) trySCIPSnapshot(

@@ -437,6 +437,11 @@ claim/execute spans for the value-flow evidence domains.
 - `ESHU_SNAPSHOT_WORKERS` (default `min(NumCPU,8)`) controls concurrent
   per-repo snapshotting. Raising this value beyond CPU capacity increases
   context-switching without reducing wall time.
+- `ESHU_PARSE_WORKERS` partitions parser-supported files by stable repository
+  subtree before concurrent native parsing. Oversized subtrees are split into
+  deterministic chunks so a single large monorepo can keep multiple parse
+  workers busy while the composed snapshot is sorted back to the original file
+  order.
 - `ESHU_LARGE_REPO_FILE_THRESHOLD` (default `1000`) classifies repositories for
   the large-repo semaphore. The classification is a fast pre-scan that exits
   early once the threshold is exceeded.
@@ -474,6 +479,22 @@ claim/execute spans for the value-flow evidence domains.
   `eshu_dp_repos_snapshotted_total`, `eshu_dp_file_parse_duration_seconds`,
   and generation/fact counters. It adds no new runtime, worker, queue, graph
   write, span, metric label, or status field.
+- No-Regression Evidence: native parse subtree partitioning preserves snapshot
+  composition. `go test ./internal/collector -run
+  'Test(BuildParseSubtreePartitionsSplitsStableSubtrees|PartitionedConcurrentParseMatchesSequentialComposition|NativeRepositorySnapshotterLogsSnapshotStageTimings)'
+  -count=1` proves stable partition planning, deterministic sequential versus
+  concurrent output, and parse-stage partition logging.
+- Performance Evidence: focused local parse benchmark command:
+  `go test ./internal/collector -run '^$' -bench BenchmarkPartitionedParseLargeMonorepo -benchtime=1x -benchmem -count=1`.
+  On 2026-06-18 on Apple M4 Pro, the same 96-file synthetic large monorepo
+  fixture measured `workers_1` at 12.884 ms/op, 2.32 MB/op, 37,181 allocs/op
+  and `workers_4` at 7.232 ms/op, 2.39 MB/op, 37,463 allocs/op.
+- Observability Evidence: the existing `collector snapshot stage completed`
+  parse log now includes `parse_partition_count` alongside `parse_workers`,
+  file counts, skipped counts, and `language_parse_summary`. Existing
+  `eshu_dp_file_parse_duration_seconds` and `eshu_dp_files_parsed_total` metrics
+  continue to report per-file parse timing and success/skipped counts without
+  adding high-cardinality path or partition labels.
 - Performance Evidence: On 2026-05-15, pprof from the remote full-corpus
   Compose run showed bootstrap startup CPU in filesystem repository copy and
   ignore matching before graph projection began. A focused local benchmark for

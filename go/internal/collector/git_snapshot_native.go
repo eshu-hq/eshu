@@ -215,6 +215,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		return RepositorySnapshot{}, fmt.Errorf("repository metadata for %q: %w", repoPath, err)
 	}
 	parseStartedAt := time.Now()
+	parsePartitionCount := 1
+	if s.ParseWorkers > 1 {
+		parsePartitionCount = len(buildParseSubtreePartitions(repoPath, parserFileSet.Files, s.ParseWorkers))
+	}
 	shapeFiles, parsedFiles, languageParseSummary, err := s.buildParsedRepositoryFiles(
 		ctx,
 		repoPath,
@@ -233,6 +237,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("skipped_file_count", len(parserFileSet.Files)-len(parsedFiles)),
 		slog.Int("parse_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
+		slog.Int("parse_partition_count", parsePartitionCount),
 		slog.Any("language_parse_summary", languageParseSummary),
 	)
 

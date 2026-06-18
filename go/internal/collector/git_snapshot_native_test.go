@@ -252,6 +252,7 @@ func TestNativeRepositorySnapshotterLogsSnapshotStageTimings(t *testing.T) {
 		`"pre_scan_workers":2`,
 		`"go_package_target_count":0`,
 		`"parse_workers":2`,
+		`"parse_partition_count":2`,
 		`"language_parse_summary":`,
 		`"language":"hcl"`,
 		`"language":"python"`,
