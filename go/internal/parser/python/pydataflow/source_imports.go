@@ -59,9 +59,39 @@ func pyFrameworkRequestImports(funcNode *tree_sitter.Node, source []byte) pyFram
 		switch child.Kind() {
 		case "import_statement", "import_from_statement":
 			evidence.addImportStatement(&child, source)
+		case "if_statement":
+			if pyIsTypeCheckingBlock(&child, source) {
+				evidence.addTypeCheckingImports(&child, source)
+			}
 		}
 	}
 	return evidence
+}
+
+func pyIsTypeCheckingBlock(node *tree_sitter.Node, source []byte) bool {
+	condition := node.ChildByFieldName("condition")
+	if condition == nil {
+		return false
+	}
+	conditionText := strings.TrimSpace(nodeText(condition, source))
+	conditionText = strings.TrimSpace(strings.Trim(conditionText, "()"))
+	return conditionText == "TYPE_CHECKING" || conditionText == "typing.TYPE_CHECKING"
+}
+
+func (e pyFrameworkRequestEvidence) addTypeCheckingImports(node *tree_sitter.Node, source []byte) {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "import_statement", "import_from_statement":
+			e.addImportStatement(&child, source)
+		case "block", "if_statement", "try_statement":
+			e.addTypeCheckingImports(&child, source)
+		case "function_definition", "class_definition", "lambda":
+			continue
+		}
+	}
 }
 
 func (e pyFrameworkRequestEvidence) addImportStatement(node *tree_sitter.Node, source []byte) {

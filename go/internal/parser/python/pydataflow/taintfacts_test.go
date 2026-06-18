@@ -90,6 +90,24 @@ func TestPyAliasedFrameworkRequestImportIsSource(t *testing.T) {
 	}
 }
 
+// TestPyTypeCheckingFrameworkRequestImportIsSource proves typing-only framework
+// imports still provide request source evidence for runtime annotations.
+func TestPyTypeCheckingFrameworkRequestImportIsSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstPyFunction(t, "from typing import TYPE_CHECKING\n\n"+
+		"if TYPE_CHECKING:\n"+
+		"    from fastapi import Request\n\n"+
+		"def view(request: Request):\n"+
+		"    q = request.GET\n"+
+		"    cursor.execute(q)\n")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if pyTaintedCount(res, "sql") != 1 {
+		t.Fatalf("want 1 TAINTED sql finding for TYPE_CHECKING FastAPI Request, got %+v", res.Findings)
+	}
+}
+
 // TestPyLocalRequestImportIsNotSource proves an unrelated type named Request is
 // not framework request evidence.
 func TestPyLocalRequestImportIsNotSource(t *testing.T) {
