@@ -189,12 +189,15 @@ func (q ReducerQueue) enqueueReducerBatch(
 	var values strings.Builder
 
 	for i, intent := range batch {
-		payloadJSON, err := marshalPayload(map[string]any{
-			"entity_key":    intent.EntityKey,
-			"reason":        intent.Reason,
-			"fact_id":       intent.FactID,
-			"source_system": intent.SourceSystem,
-		})
+		payload := make(map[string]any, len(intent.Payload)+4)
+		for key, value := range intent.Payload {
+			payload[key] = value
+		}
+		payload["entity_key"] = intent.EntityKey
+		payload["reason"] = intent.Reason
+		payload["fact_id"] = intent.FactID
+		payload["source_system"] = intent.SourceSystem
+		payloadJSON, err := marshalPayload(payload)
 		if err != nil {
 			return fmt.Errorf("marshal reducer payload: %w", err)
 		}

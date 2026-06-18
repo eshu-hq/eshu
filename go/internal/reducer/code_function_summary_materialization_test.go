@@ -20,10 +20,14 @@ func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryEffects(
 }
 
 type recordingCodeFunctionSummaryWriter struct {
-	calls     int
-	previous  summary.Snapshot
-	snapshot  summary.Snapshot
-	updatedAt time.Time
+	calls           int
+	upsertCalls     int
+	replaceCalls    int
+	previous        summary.Snapshot
+	snapshot        summary.Snapshot
+	replaceSnapshot summary.Snapshot
+	replaceRepo     string
+	updatedAt       time.Time
 }
 
 func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (summary.Snapshot, error) {
@@ -32,7 +36,22 @@ func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (summ
 
 func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, snap summary.Snapshot, updatedAt time.Time) error {
 	w.calls++
+	w.upsertCalls++
 	w.snapshot = snap
+	w.updatedAt = updatedAt
+	return nil
+}
+
+func (w *recordingCodeFunctionSummaryWriter) ReplaceSnapshot(
+	_ context.Context,
+	repo string,
+	snap summary.Snapshot,
+	updatedAt time.Time,
+) error {
+	w.calls++
+	w.replaceCalls++
+	w.replaceRepo = repo
+	w.replaceSnapshot = snap
 	w.updatedAt = updatedAt
 	return nil
 }

@@ -21,6 +21,7 @@ type Intent struct {
 	AttemptCount    int
 	EntityKeys      []string
 	RelatedScopeIDs []string
+	Payload         map[string]any
 	Status          IntentStatus
 	EnqueuedAt      time.Time
 	AvailableAt     time.Time
@@ -95,6 +96,12 @@ func (i Intent) Clone() Intent {
 	cloned := i
 	cloned.EntityKeys = slices.Clone(i.EntityKeys)
 	cloned.RelatedScopeIDs = slices.Clone(i.RelatedScopeIDs)
+	if i.Payload != nil {
+		cloned.Payload = make(map[string]any, len(i.Payload))
+		for key, value := range i.Payload {
+			cloned.Payload[key] = value
+		}
+	}
 	if i.ClaimedAt != nil {
 		claimedAt := *i.ClaimedAt
 		cloned.ClaimedAt = &claimedAt

@@ -52,6 +52,7 @@ type ReducerIntent struct {
 	Reason       string
 	FactID       string
 	SourceSystem string
+	Payload      map[string]any
 }
 
 func (i ReducerIntent) ScopeGenerationKey() string {
