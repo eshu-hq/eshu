@@ -17,7 +17,11 @@ import (
 func TestGoldenCallGraphCorrectnessHarness(t *testing.T) {
 	t.Parallel()
 
-	fixtures := append(sourceCallGraphFixtures, importBindingCallGraphFixture(), javaImportBindingCallGraphFixture())
+	fixtures := append(sourceCallGraphFixtures,
+		importBindingCallGraphFixture(),
+		javaImportBindingCallGraphFixture(),
+		typeScriptImportBindingCallGraphFixture(),
+	)
 	for _, fixture := range fixtures {
 		fixture := fixture
 		t.Run(fixture.language, func(t *testing.T) {
@@ -220,6 +224,29 @@ class Task {}
 			"com/acme/Service.java:process":  "content-entity:java_import_binding:process",
 			"com/other/Service.java:process": "content-entity:java_import_binding:process_decoy",
 		},
+	}
+}
+
+func typeScriptImportBindingCallGraphFixture() goldenCallGraphFixture {
+	return goldenCallGraphFixture{
+		language: "typescript_import_binding",
+		files: map[string]string{
+			"main.ts": `
+import { helper } from "./lib";
+
+export function caller(): number {
+  return helper();
+}
+`,
+			"lib.ts": `
+export function helper(): number {
+  return 1;
+}
+`,
+		},
+		caller: "caller",
+		callee: "helper",
+		method: codeprovenance.MethodImportBinding,
 	}
 }
 

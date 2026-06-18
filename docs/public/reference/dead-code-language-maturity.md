@@ -86,3 +86,28 @@ write shape, queue table, worker, lease, batch setting, runtime knob, metric
 instrument, metric label, span, route, or log key; operators still diagnose
 code-call extraction through existing reducer execution spans/counters and the
 `code call materialization completed` log fields.
+
+## TypeScript Direct Import Evidence
+
+No-Regression Evidence: issue #3004 keeps unqualified TypeScript calls bounded
+to parser-proven direct imports before weak repository-wide fallback. The local
+proof was
+`go test ./internal/resolutionparity -run TestGoldenCallGraphCorrectnessHarness/typescript_import_binding -count=1`,
+which failed before the resolver emitted `repo_unique_name` for
+`import { helper } from "./lib"; helper()`, then passed after the
+JavaScript-family import-binding branch ran before repository fallback.
+`go test ./internal/reducer -run TestExtractCodeCallRowsBlocksTypeScriptDirectImportFallbackToRepoUnique -count=1`
+failed before unresolved parser-proven direct imports could block an unrelated
+repo-unique helper, then passed after unresolved direct imports stayed
+unresolved instead of fabricating a weak fallback edge.
+`go test ./internal/reducer -run 'TypeScript|Import|ReExport' -count=1`
+proves existing TypeScript interface, baseUrl, namespace import, and static
+re-export behavior still holds.
+
+No-Observability-Change: TypeScript direct import resolution reorders an
+existing in-memory resolver branch over parsed import rows, repository prescan
+import maps, and the existing static reexport index. It adds no graph query,
+graph write shape, queue table, worker, lease, batch setting, runtime knob,
+metric instrument, metric label, span, route, or log key; operators still
+diagnose code-call extraction through existing reducer execution
+spans/counters and the `code call materialization completed` log fields.

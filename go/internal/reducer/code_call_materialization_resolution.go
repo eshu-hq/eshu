@@ -58,12 +58,30 @@ func resolveGenericCallee(
 	if entityID := resolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {
 		return entityID, codeCallPreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
 	}
+	if codeCallPrefersImportedTargetBeforeRepoFallback(call, language) {
+		if entityID, calleeFile := resolveImportedCrossFileCallee(
+			index,
+			repositoryImports,
+			reexportIndex,
+			repositoryID,
+			rawPath,
+			relativePath,
+			fileData,
+			call,
+		); entityID != "" {
+			return entityID, calleeFile, codeprovenance.MethodImportBinding
+		}
+	}
 
 	if entityID, calleeFile, method := resolveLanguageSpecificCallee(
 		ctx,
 		codeCallLanguageResolverPhaseBeforeRepoFallback,
 	); entityID != "" {
 		return entityID, calleeFile, method
+	}
+	if codeCallPrefersImportedTargetBeforeRepoFallback(call, language) &&
+		codeCallHasRepositoryImportedTargetBinding(repositoryImports, rawPath, relativePath, fileData, call) {
+		return "", "", ""
 	}
 	if codeCallLanguageResolverBlocksRepoFallback(ctx) {
 		return "", "", ""
