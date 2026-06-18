@@ -402,6 +402,16 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, incidentRouting)
 	}
+	if handlers.CodeTaintEvidenceLoader != nil && handlers.CodeTaintEvidenceWriter != nil {
+		codeTaint := codeTaintEvidenceDomainDefinition()
+		codeTaint.Handler = CodeTaintEvidenceMaterializationHandler{
+			Loader:               handlers.CodeTaintEvidenceLoader,
+			Writer:               handlers.CodeTaintEvidenceWriter,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, codeTaint)
+	}
 	if handlers.AppliedPagerDutyServiceRoutingLoader != nil && handlers.IncidentRepositoryCorrelationWriter != nil {
 		incidentRepoCorrelation := incidentRepositoryCorrelationDomainDefinition()
 		incidentRepoCorrelation.Handler = IncidentRepositoryCorrelationHandler{

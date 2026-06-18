@@ -163,6 +163,34 @@ retry classification, backend query metrics, and phase failure logs still cover
 the write. The change adds no metric name, metric label, worker, queue domain,
 runtime knob, backend branch, or new graph-write route.
 
+## CodeTaintEvidence writer (value-flow projection, #2889)
+
+`CodeTaintEvidenceWriter` upserts value-flow taint findings as `CodeTaintEvidence`
+nodes attached to their `Function`. It is the reducer-owned graph-write for the
+`code_taint_evidence` projection domain.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run 'TestCodeTaintEvidenceWriter' -count=1`
+and `go test ./internal/graph -run 'TestSchemaStatements.*CodeTaintEvidence' -count=1`
+prove the writer emits one batched, backend-neutral `UNWIND $rows` statement that
+`MATCH (f:Function {uid})` (never `MERGE`, so a missing Function adds no orphan
+node), `MERGE (ev:CodeTaintEvidence {uid})`, and
+`MERGE (f)-[:HAS_TAINT_EVIDENCE]->(ev)`, and that retraction is a single
+`DETACH DELETE` scoped to `scope_id` + `evidence_source`. Input shape: one row per
+resolved finding per scope generation (bounded by `DefaultBatchSize`); the
+MERGE-on-uid identity plus the new `code_taint_evidence_uid_unique` constraint
+(NornicDB: a uid lookup index) keep the upsert O(rows) and idempotent. Backend:
+NornicDB default and Neo4j compatibility, same `Executor`/`GroupExecutor` path as
+every other evidence writer. The domain is gated off until its loader and writer
+are wired in `cmd/reducer`, so there is no production graph-write load on this
+path yet.
+
+No-Observability-Change: the writer flows through the existing `Executor`/
+`GroupExecutor` dispatch, `Statement` phase/label/summary metadata
+(`code_taint_evidence` phase, `CodeTaintEvidence` label), retry wrapping
+(`WrapRetryableNeo4jError`), and failure logging. It adds no new metric name,
+metric label, worker, queue domain, runtime knob, backend branch, or other new
+graph-write route surface.
+
 ## Failure modes and how to debug
 
 - Symptom: `eshu_dp_neo4j_deadlock_retries_total` rising → likely causes:

@@ -498,6 +498,16 @@ type DefaultHandlers struct {
 	// canonical IncidentRoutingEvidence graph nodes and evidence relationships.
 	IncidentRoutingEvidenceWriter IncidentRoutingEvidenceWriter
 
+	// CodeTaintEvidenceLoader loads resolved value-flow taint findings from
+	// code_taint_evidence facts. It must be non-nil alongside
+	// CodeTaintEvidenceWriter to register DomainCodeTaintEvidence; missing either
+	// drops every taint-evidence intent before it reaches graph truth.
+	CodeTaintEvidenceLoader CodeTaintEvidenceLoader
+
+	// CodeTaintEvidenceWriter projects taint findings into CodeTaintEvidence graph
+	// nodes attached to their Function.
+	CodeTaintEvidenceWriter CodeTaintEvidenceWriter
+
 	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
 	// routing facts (provider service id + Terraform backend locator) for the
 	// incident-repository correlation domain. It must be non-nil alongside
