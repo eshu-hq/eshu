@@ -38,7 +38,7 @@ queue, or graph-write evidence.
 | `ESHU_BOOTSTRAP_IS_DEPENDENCY` | `false` | collector | Marks bootstrap source as dependency package. |
 | `ESHU_BOOTSTRAP_PACKAGE_NAME` | unset | collector | Dependency package name. |
 | `ESHU_BOOTSTRAP_PACKAGE_LANGUAGE` | unset | collector | Dependency package language. |
-| `SCIP_INDEXER` | `true` | collector snapshotter | Enables SCIP supplement indexing when the selected language's `scip-*` binary is available. Set `false`, `0`, `no`, or `off` to force native-only parsing. |
+| `SCIP_INDEXER` | `true` | collector snapshotter | Enables SCIP supplement indexing when the selected language's `scip-*` binary is available. Set `false`, `0`, `no`, or `off` to force native-only parsing. Outcome volume is visible through `eshu_dp_scip_snapshot_attempts_total{language,result}`. |
 | `SCIP_LANGUAGES` | `python,typescript,javascript,go,rust,java,cpp,c` | collector snapshotter | Comma-separated SCIP language allowlist. Narrow this list to keep native parsing complete while limiting which language can run SCIP. |
 
 ## Incremental Refresh
