@@ -46,6 +46,12 @@ SET kind = EXCLUDED.kind,
 WHERE function_sources.updated_at <= EXCLUDED.updated_at
 `
 
+const deleteFunctionSourcesForRepoSQL = `
+DELETE FROM function_sources
+WHERE repo = $1
+  AND updated_at <= $2
+`
+
 const loadFunctionSourcesSQL = `
 SELECT function_id, param_index, kind
 FROM function_sources
@@ -119,6 +125,77 @@ func (s FunctionSourceStore) UpsertSources(ctx context.Context, sources []interp
 			end = len(sources)
 		}
 		if err := s.upsertBatch(ctx, sources[i:end], updatedAt.UTC()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReplaceSources replaces one repository's complete source snapshot. Empty
+// source sets are meaningful: they retract stale param-level source rows for
+// repos whose latest generation no longer exposes source ports.
+func (s FunctionSourceStore) ReplaceSources(
+	ctx context.Context,
+	repo string,
+	sources []interproc.Source,
+	updatedAt time.Time,
+) error {
+	if s.db == nil {
+		return fmt.Errorf("function source store database is required")
+	}
+	if updatedAt.IsZero() {
+		return fmt.Errorf("function source updated_at is required")
+	}
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return fmt.Errorf("function source repo is required")
+	}
+	if beginner, ok := s.db.(Beginner); ok {
+		tx, err := beginner.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("begin function source replacement transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := replaceFunctionSources(ctx, tx, repo, sources, updatedAt.UTC()); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit function source replacement transaction: %w", err)
+		}
+		return nil
+	}
+	return replaceFunctionSources(ctx, s.db, repo, sources, updatedAt.UTC())
+}
+
+func replaceFunctionSources(
+	ctx context.Context,
+	db ExecQueryer,
+	repo string,
+	sources []interproc.Source,
+	updatedAt time.Time,
+) error {
+	for _, src := range sources {
+		functionID := strings.TrimSpace(string(src.Port.Func))
+		if functionID == "" {
+			return fmt.Errorf("function source id is required")
+		}
+		if got := functionIDRepo(functionID); got != repo {
+			return fmt.Errorf("function source repo %q does not match replacement repo %q", got, repo)
+		}
+	}
+	if _, err := db.ExecContext(ctx, deleteFunctionSourcesForRepoSQL, repo, updatedAt); err != nil {
+		return fmt.Errorf("delete stale function sources for repo %q: %w", repo, err)
+	}
+	if len(sources) == 0 {
+		return nil
+	}
+	store := FunctionSourceStore{db: db}
+	for i := 0; i < len(sources); i += functionSourceBatchSize {
+		end := i + functionSourceBatchSize
+		if end > len(sources) {
+			end = len(sources)
+		}
+		if err := store.upsertBatch(ctx, sources[i:end], updatedAt); err != nil {
 			return err
 		}
 	}

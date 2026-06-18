@@ -18,7 +18,7 @@
 // FunctionID values remain generation-independent and persistence-safe.
 //
 // No-Regression Evidence: SCIP protobuf parsing is enabled by default through
-// collector configuration only when an allowed language and its external
+// collector configuration only when an allowed language group and its external
 // scip-* binary are available. It supplements native parser output; selected
 // files that are absent from an index.scip document set still rely on the
 // native parser path for complete file coverage.

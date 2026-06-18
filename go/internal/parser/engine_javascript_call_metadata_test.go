@@ -113,6 +113,39 @@ export class SearchService {
 	assertStringFieldValue(t, invokeCall, "inferred_obj_type", "Worker")
 }
 
+func TestDefaultEngineParsePathTypeScriptParameterReceiverCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "plugin.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`interface Transport {
+  request(): Promise<Response>;
+}
+
+export function run(transport: Transport) {
+  return transport.request();
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	requestCall := assertBucketItemByFieldValue(t, got, "function_calls", "full_name", "transport.request")
+	assertStringFieldValue(t, requestCall, "name", "request")
+	assertStringFieldValue(t, requestCall, "inferred_obj_type", "Transport")
+}
+
 func TestDefaultEngineParsePathTypeScriptFactoryReturnReceiverCalls(t *testing.T) {
 	t.Parallel()
 

@@ -130,9 +130,9 @@ JavaScript-family adapters also preserve import alias metadata, CommonJS
 `resolved_source` metadata through the JavaScript helper subpackage even when
 the config uses comments or trailing commas, returned and constructor-argument
 function-value references, static relative re-export metadata, constructor
-calls, and local receiver type metadata from
-`const value = new Type()` so reducer call materialization can resolve bounded
-cross-file calls.
+calls, and local receiver type metadata from `const value = new Type()` and
+typed parameters so reducer call materialization can resolve bounded cross-file
+calls.
 JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
 the wrapper and dbt SQL lineage callback, while the child package owns
 ordered-object metadata, dependency manifests, npm/Composer/NuGet/SwiftPM
@@ -238,12 +238,13 @@ evidence so RubyGems manifest and lockfile rows use the same parser payload
 path as `.rb` source files.
 
 **SCIP path**: the collector snapshotter enables SCIP by default for the
-configured SCIP-capable language list, detects the dominant language via
-`DetectSCIPProjectLanguage`, verifies the matching `scip-*` binary is on
-`PATH`, runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index
-via `SCIPIndexParser.Parse`. The SCIP result supplements the native
-tree-sitter parse for supported languages (Go, Python, TypeScript, JavaScript,
-Rust, Java, C, C++).
+configured SCIP-capable language list, groups selected files by language and
+package/workspace root, verifies the matching `scip-*` binary is on `PATH`,
+runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index via
+`SCIPIndexParser.Parse`. The SCIP result supplements the native tree-sitter
+parse for supported languages (Go, Python, TypeScript, JavaScript, Rust, Java,
+C, C++), and files omitted from an index still complete through the native
+parser path.
 
 ## Exported surface
 
@@ -320,7 +321,7 @@ Rust, Java, C, C++).
 | Rust | `rust` | `.rs` | yes |
 | Scala | `scala` | `.sc`, `.scala` | yes |
 | SQL | `sql` | `.sql` | — |
-| Swift | `swift` | `.swift` | — |
+| Swift | `swift` | `.swift` | grammar wired; parser rewrite pending |
 | TSX | `tsx` | `.tsx` | yes (TypeScript grammar) |
 | TypeScript | `typescript` | `.cts`, `.mts`, `.ts` | yes |
 | YAML | `yaml` | `.yaml`, `.yml` | — |
@@ -492,14 +493,13 @@ errors are surfaced in `collector snapshot stage completed` logs with
 - SCIP and tree-sitter parse results for the same file may overlap. The
   collector's SCIP path builds supplemented facts by combining both; do not
   assume SCIP output supersedes tree-sitter output entirely.
-- `scip_symbol` is a source symbol identity, not a storage identity. It must
-  remain independent of fact IDs, generation IDs, and content entity IDs so
-  downstream cross-repo symbol indexes can survive re-ingestion churn.
+- `scip_symbol` is a source symbol identity, not a storage identity; keep it
+  independent of fact, generation, and content entity IDs.
+- Swift grammar uses `github.com/indigo-net/Brf.it` v0.21.0, vendored from
+  `github.com/alex-pinkus/tree-sitter-swift` v0.7.1 under MIT; update by
+  bumping the module and rerunning the Swift runtime parser load test.
+  No-Regression Evidence: it builds with `go-tree-sitter` v0.25.0 and parses a Swift struct. No-Observability-Change: existing collector parse timing and parse errors still diagnose this cached grammar loader.
 
 ## Related docs
 
-- `docs/public/architecture.md` — parser ownership
-- `docs/public/reference/local-testing.md` — parser test gates
-- `docs/public/reference/telemetry/index.md` — `eshu_dp_file_parse_duration_seconds`
-- `go/internal/collector/README.md` — how the collector calls the parser
-- `go/internal/facts/` — fact contract shape for emitted entities
+- `docs/public/architecture.md`, `docs/public/reference/local-testing.md`, `docs/public/reference/telemetry/index.md`, `go/internal/collector/README.md`, and `go/internal/facts/`.

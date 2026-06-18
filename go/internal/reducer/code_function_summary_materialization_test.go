@@ -21,8 +21,13 @@ func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryEffects(
 
 type recordingCodeFunctionSummaryWriter struct {
 	calls     int
+	previous  summary.Snapshot
 	snapshot  summary.Snapshot
 	updatedAt time.Time
+}
+
+func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (summary.Snapshot, error) {
+	return w.previous, nil
 }
 
 func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, snap summary.Snapshot, updatedAt time.Time) error {
@@ -76,6 +81,42 @@ func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 	}
 	if result.CanonicalWrites != 2 || result.Status != ResultStatusSucceeded {
 		t.Fatalf("result = %+v, want 2 canonical writes succeeded", result)
+	}
+}
+
+// TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot proves a
+// delta generation keeps unchanged callees in the versioning store before
+// persisting the updated caller snapshot.
+func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T) {
+	t.Parallel()
+
+	callerID := summary.FunctionID("repo-1\x1fpkg\x1f\x1fhandler")
+	calleeID := summary.FunctionID("repo-1\x1fpkg\x1f\x1fvalidate")
+	previousStore := summary.NewStore()
+	previousStore.Upsert(map[summary.FunctionID]summary.Effects{
+		calleeID: {ParamToSink: []summary.ParamSink{{Param: 0, SinkKind: "authz"}}},
+		callerID: {ParamToCallArg: []summary.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}}},
+	})
+	writer := &recordingCodeFunctionSummaryWriter{previous: previousStore.Snapshot()}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+			callerID: {
+				ParamToCallArg: []summary.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}},
+				SourceToReturn: []string{"http_request"},
+			},
+		}},
+		Writer: writer,
+	}
+
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+
+	if len(writer.snapshot.Functions) != 2 {
+		t.Fatalf("snapshot functions = %d, want previous callee plus updated caller", len(writer.snapshot.Functions))
+	}
+	if _, ok := summary.Load(writer.snapshot).Version(calleeID); !ok {
+		t.Fatalf("snapshot dropped unchanged callee %q", calleeID)
 	}
 }
 
@@ -136,13 +177,20 @@ func (l stubCodeFunctionSourceLoader) LoadCodeFunctionSources(context.Context, s
 }
 
 type recordingCodeFunctionSourceWriter struct {
-	calls   int
-	sources []interproc.Source
+	calls int
+	repos []string
+	sets  [][]interproc.Source
 }
 
-func (w *recordingCodeFunctionSourceWriter) UpsertSources(_ context.Context, sources []interproc.Source, _ time.Time) error {
+func (w *recordingCodeFunctionSourceWriter) ReplaceSources(
+	_ context.Context,
+	repo string,
+	sources []interproc.Source,
+	_ time.Time,
+) error {
 	w.calls++
-	w.sources = sources
+	w.repos = append(w.repos, repo)
+	w.sets = append(w.sets, sources)
 	return nil
 }
 
@@ -162,8 +210,35 @@ func TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired(t *testing.T) {
 	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
 		t.Fatalf("Handle error: %v", err)
 	}
-	if srcWriter.calls != 1 || len(srcWriter.sources) != 1 || srcWriter.sources[0].Kind != "http_request" {
+	if srcWriter.calls != 1 || len(srcWriter.sets) != 1 ||
+		len(srcWriter.sets[0]) != 1 || srcWriter.sets[0][0].Kind != "http_request" {
 		t.Fatalf("sources not persisted: %+v", srcWriter)
+	}
+}
+
+// TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot proves a generation
+// with summaries but no current source ports still clears the repo's durable
+// source snapshot.
+func TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot(t *testing.T) {
+	t.Parallel()
+	srcWriter := &recordingCodeFunctionSourceWriter{}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+			"repo-1\x1fpkg\x1f\x1fhandle": {ParamToReturn: []int{0}},
+		}},
+		Writer:       &recordingCodeFunctionSummaryWriter{},
+		SourceLoader: stubCodeFunctionSourceLoader{},
+		SourceWriter: srcWriter,
+	}
+
+	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
+		t.Fatalf("Handle error: %v", err)
+	}
+	if srcWriter.calls != 1 || len(srcWriter.repos) != 1 || srcWriter.repos[0] != "repo-1" {
+		t.Fatalf("source replacement calls = %+v, want one repo-1 replacement", srcWriter)
+	}
+	if len(srcWriter.sets) != 1 || len(srcWriter.sets[0]) != 0 {
+		t.Fatalf("source replacement set = %+v, want empty", srcWriter.sets)
 	}
 }
 

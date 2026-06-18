@@ -18,9 +18,12 @@ func TestCodeReachabilitySchemaSQL(t *testing.T) {
 	for _, want := range []string{
 		"CREATE TABLE IF NOT EXISTS code_reachability_rows",
 		"CREATE TABLE IF NOT EXISTS code_reachability_repository_watermarks",
+		"truncated BOOLEAN NOT NULL DEFAULT FALSE",
+		"ADD COLUMN IF NOT EXISTS truncated",
 		"PRIMARY KEY (scope_id, generation_id, repository_id, root_entity_id, entity_id)",
 		"PRIMARY KEY (scope_id, generation_id, repository_id)",
 		"code_reachability_latest_lookup_idx",
+		"code_reachability_entity_lookup_idx",
 		"code_reachability_root_idx",
 	} {
 		if !strings.Contains(sqlStr, want) {
@@ -101,6 +104,7 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 			UpdatedAt:           now,
 		}},
 		now.Add(time.Minute),
+		false,
 	)
 	if err != nil {
 		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
@@ -111,8 +115,11 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 	if _, ok := db.rows["scope-1|generation-1|repo-1|entity:root|entity:live"]; !ok {
 		t.Fatalf("live replacement row missing: %#v", db.rows)
 	}
-	if got, want := db.watermarks["scope-1|generation-1|repo-1"], now.Add(time.Minute); !got.Equal(want) {
-		t.Fatalf("watermark = %v, want %v", got, want)
+	if got, want := db.watermarks["scope-1|generation-1|repo-1"].UpdatedAt, now.Add(time.Minute); !got.Equal(want) {
+		t.Fatalf("watermark updated_at = %v, want %v", got, want)
+	}
+	if got, want := db.watermarks["scope-1|generation-1|repo-1"].Truncated, false; got != want {
+		t.Fatalf("watermark truncated = %v, want %v", got, want)
 	}
 }
 
@@ -127,6 +134,7 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 		"repo-empty",
 		nil,
 		now,
+		true,
 	)
 	if err != nil {
 		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
@@ -134,8 +142,11 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 	if len(db.rows) != 0 {
 		t.Fatalf("rows = %#v, want empty replacement", db.rows)
 	}
-	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"], now; !got.Equal(want) {
-		t.Fatalf("watermark = %v, want %v", got, want)
+	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].UpdatedAt, now; !got.Equal(want) {
+		t.Fatalf("watermark updated_at = %v, want %v", got, want)
+	}
+	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].Truncated, true; got != want {
+		t.Fatalf("watermark truncated = %v, want %v", got, want)
 	}
 }
 
@@ -188,8 +199,13 @@ func TestCodeReachabilityStoreListLatestByEntitiesUsesActiveGeneration(t *testin
 
 type codeReachabilityTestDB struct {
 	rows       map[string]codeReachabilityStoredRow
-	watermarks map[string]time.Time
+	watermarks map[string]codeReachabilityWatermark
 	lastQuery  string
+}
+
+type codeReachabilityWatermark struct {
+	UpdatedAt time.Time
+	Truncated bool
 }
 
 type codeReachabilityStoredRow struct {
@@ -211,7 +227,7 @@ type codeReachabilityStoredRow struct {
 func newCodeReachabilityTestDB() *codeReachabilityTestDB {
 	return &codeReachabilityTestDB{
 		rows:       map[string]codeReachabilityStoredRow{},
-		watermarks: map[string]time.Time{},
+		watermarks: map[string]codeReachabilityWatermark{},
 	}
 }
 
@@ -260,8 +276,12 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
 		repositoryID := args[2].(string)
-		updatedAt := args[3].(time.Time)
-		db.watermarks[strings.Join([]string{scopeID, generationID, repositoryID}, "|")] = updatedAt
+		truncated := args[3].(bool)
+		updatedAt := args[4].(time.Time)
+		db.watermarks[strings.Join([]string{scopeID, generationID, repositoryID}, "|")] = codeReachabilityWatermark{
+			UpdatedAt: updatedAt,
+			Truncated: truncated,
+		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):
 		return sharedIntentResult{}, nil
