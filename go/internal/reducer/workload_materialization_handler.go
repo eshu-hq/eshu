@@ -148,6 +148,26 @@ func (h WorkloadMaterializationHandler) Handle(
 		); err != nil {
 			return Result{}, err
 		}
+		// Also publish the deterministic per-repo readiness row (#2891) for every
+		// repo in scope so a route-only repo — one with framework routes but no
+		// workload candidate — still resolves its handles_route phase gate (and is
+		// then terminalized by the absent-endpoint presence gate), instead of
+		// looping forever. Additive to the per-EntityKey publish above.
+		repoIDs, repoErr := scopeRepositoryGraphIDs(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
+		if repoErr != nil {
+			return Result{}, repoErr
+		}
+		if err := publishRepoReadinessPhases(
+			ctx,
+			h.PhasePublisher,
+			h.EndpointPresenceWriter,
+			intent.ScopeID,
+			intent.GenerationID,
+			repoIDs,
+			time.Now().UTC(),
+		); err != nil {
+			return Result{}, err
+		}
 		timing.phasePublishDuration = time.Since(phaseStarted)
 		timing.totalDuration = time.Since(totalStarted)
 		logWorkloadMaterializationCompleted(ctx, intent, candidates, nil, MaterializeResult{}, timing, 0, 0)
@@ -265,6 +285,23 @@ func (h WorkloadMaterializationHandler) Handle(
 		intent,
 		GraphProjectionKeyspaceServiceUID,
 		GraphProjectionPhaseWorkloadMaterialization,
+		time.Now().UTC(),
+	); err != nil {
+		return Result{}, err
+	}
+	// Also publish the deterministic per-repo readiness row (#2891) for every repo
+	// whose endpoints/workloads this projection materialized — the same repos that
+	// fed the presence publishes above. The handles_route/runs_in consumer
+	// reconstructs this exact key from (scope, repo_id, generation), so its
+	// code-stage intent finds the phase row across the source-run boundary the old
+	// intent-keyed lookup could never cross. Additive to the per-EntityKey publish.
+	if err := publishRepoReadinessPhases(
+		ctx,
+		h.PhasePublisher,
+		h.EndpointPresenceWriter,
+		intent.ScopeID,
+		intent.GenerationID,
+		projectionRepoReadinessRepoIDs(projection),
 		time.Now().UTC(),
 	); err != nil {
 		return Result{}, err

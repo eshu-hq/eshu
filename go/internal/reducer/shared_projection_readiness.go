@@ -3,8 +3,75 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
+
+// workloadMaterializationRepoReadinessKey builds the deterministic per-repo
+// readiness key that the workload-materialization handler publishes and that the
+// symbol→runtime shared-projection domains (handles_route, runs_in) reconstruct
+// to find it (#2891). The two stages run under DIFFERENT source runs — the
+// HANDLES_ROUTE/RUNS_IN intents carry the CODE stage's source_run, while the
+// workload-materialization phase commits under the WORKLOAD stage's run — so an
+// exact (scope, acceptance_unit, source_run, generation, keyspace) match between
+// the consumer's intent-derived key and the publisher's intent-derived key can
+// NEVER align. Both sides instead derive the key from only (scopeID, repoID,
+// generationID): the repo id is the acceptance unit, and the generation id
+// doubles as the source run so a code-stage row can reconstruct it without
+// knowing the workload stage's run. The keyspace is service_uid because the
+// workload_materialization phase commits the Endpoint and Workload nodes under
+// the service identity domain. Defining the key in ONE helper used by publisher
+// and consumer guarantees they cannot drift.
+func workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID string) GraphProjectionPhaseKey {
+	generationID = strings.TrimSpace(generationID)
+	return GraphProjectionPhaseKey{
+		ScopeID:          strings.TrimSpace(scopeID),
+		AcceptanceUnitID: strings.TrimSpace(repoID),
+		SourceRunID:      generationID,
+		GenerationID:     generationID,
+		Keyspace:         GraphProjectionKeyspaceServiceUID,
+	}
+}
+
+// sharedProjectionReadinessKeyForRow builds the readiness lookup key for one
+// intent row. For the symbol→runtime domains (handles_route, runs_in) it uses
+// the deterministic per-repo key (#2891) so the code-stage intent finds the
+// workload-stage phase row across the source-run boundary. For every other
+// domain it falls back to the intent-derived key (graphProjectionPhaseKeyForIntent),
+// keeping code_calls and the semantic edge domains byte-identical to their
+// pre-#2891 behavior.
+func sharedProjectionReadinessKeyForRow(
+	domain string,
+	row SharedProjectionIntentRow,
+	keyspace GraphProjectionKeyspace,
+) (GraphProjectionPhaseKey, bool) {
+	if domain == DomainHandlesRoute || domain == DomainRunsIn {
+		repoID := sharedProjectionRowRepoID(row)
+		key := workloadMaterializationRepoReadinessKey(row.ScopeID, repoID, row.GenerationID)
+		if err := key.Validate(); err != nil {
+			return GraphProjectionPhaseKey{}, false
+		}
+		return key, true
+	}
+	return graphProjectionPhaseKeyForIntent(row, row.GenerationID, keyspace)
+}
+
+// sharedProjectionRowRepoID extracts the repo id a symbol→runtime intent row
+// keys its readiness on, using the same precedence the presence-gate key
+// functions use (handlesRouteEndpointPresenceKey / runsInRepoWorkloadPresenceKey):
+// the payload repo_id first, then RepositoryID. Sharing this precedence keeps the
+// readiness repo id and the presence repo id the SAME string for the same row, so
+// the phase gate and the presence gate agree on which repo a row belongs to. This
+// is also the string the workload-materialization handler publishes its repo-keyed
+// phase row under (the APIEndpointRow/WorkloadRow RepoID), so consumer and
+// publisher reconstruct an identical key.
+func sharedProjectionRowRepoID(row SharedProjectionIntentRow) string {
+	repoID := payloadStr(row.Payload, "repo_id")
+	if repoID == "" {
+		repoID = strings.TrimSpace(row.RepositoryID)
+	}
+	return repoID
+}
 
 // filterRowsByReadiness partitions a domain's pending intent rows into three
 // disjoint sets: rows ready to project, rows still blocked on a prerequisite
@@ -52,7 +119,7 @@ func filterRowsByReadiness(
 		seen := make(map[GraphProjectionPhaseKey]struct{}, len(rows))
 		keys := make([]GraphProjectionPhaseKey, 0, len(rows))
 		for _, row := range rows {
-			key, ok := graphProjectionPhaseKeyForIntent(row, row.GenerationID, keyspace)
+			key, ok := sharedProjectionReadinessKeyForRow(domain, row, keyspace)
 			if !ok {
 				continue
 			}
@@ -76,7 +143,7 @@ func filterRowsByReadiness(
 	readyRows = make([]SharedProjectionIntentRow, 0, len(rows))
 	blockedRows = make([]SharedProjectionIntentRow, 0)
 	for _, row := range rows {
-		key, ok := graphProjectionPhaseKeyForIntent(row, row.GenerationID, keyspace)
+		key, ok := sharedProjectionReadinessKeyForRow(domain, row, keyspace)
 		if !ok {
 			continue
 		}
