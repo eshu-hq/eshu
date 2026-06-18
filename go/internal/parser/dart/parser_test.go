@@ -202,6 +202,32 @@ func TestParseCapturesMultilineDartMethodSignature(t *testing.T) {
 	assertBucketName(t, payload, "function_calls", "toString")
 }
 
+func TestParseSkipsDartCommentOnlyCalls(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, filepath.Join("pkg", "lib", "comments.dart"), `class Worker {
+  void run() {
+    // helperFromLineComment();
+    /*
+      helperFromBlockComment();
+    */
+    final text = 'helperFromString()';
+    activeHelper();
+  }
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketName(t, payload, "function_calls", "activeHelper")
+	assertBucketNameMissing(t, payload, "function_calls", "helperFromLineComment")
+	assertBucketNameMissing(t, payload, "function_calls", "helperFromBlockComment")
+	assertBucketNameMissing(t, payload, "function_calls", "helperFromString")
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 
@@ -229,6 +255,20 @@ func assertBucketName(t *testing.T, payload map[string]any, bucket string, name 
 	}
 	t.Fatalf("payload[%q] missing name %q in %#v", bucket, name, items)
 	return nil
+}
+
+func assertBucketNameMissing(t *testing.T, payload map[string]any, bucket string, name string) {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	for _, item := range items {
+		if item["name"] == name {
+			t.Fatalf("payload[%q] contains name %q in %#v", bucket, name, items)
+		}
+	}
 }
 
 func assertFunctionByNameAndClass(t *testing.T, payload map[string]any, name string, classContext string) map[string]any {
