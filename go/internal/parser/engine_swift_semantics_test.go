@@ -122,6 +122,82 @@ class Worker: Runnable {
 	assertSwiftNamedBucketContains(t, payload, "protocols", "Runnable")
 }
 
+func TestDefaultEngineParsePathSwiftMultilineTreeSitterScope(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "App.swift")
+	writeTestFile(
+		t,
+		filePath,
+		`import SwiftUI
+
+@main
+struct DemoApp:
+    App
+{
+    var body: some Scene { WindowGroup { ContentView() } }
+}
+
+protocol Runnable
+{
+    func run()
+}
+
+class Worker:
+    Runnable
+{
+    let logger: Logger
+
+    init(
+        logger: Logger
+    ) {
+        self.logger = logger
+    }
+
+    func run(
+        id: String
+    ) -> Result {
+        logger.info("run")
+    }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
+	}
+
+	assertSwiftTypeBases(t, payload, "DemoApp", []string{"App"})
+	assertSwiftTypeBases(t, payload, "Worker", []string{"Runnable"})
+	assertParserStringSliceContains(t, assertBucketItemByName(t, payload, "structs", "DemoApp"), "dead_code_root_kinds", "swift.swiftui_app_type")
+	assertParserStringSliceContains(t, assertBucketItemByName(t, payload, "variables", "body"), "dead_code_root_kinds", "swift.swiftui_body")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, payload, "run", "Runnable"), "dead_code_root_kinds", "swift.protocol_method")
+	assertParserStringSliceContains(t, assertFunctionByNameAndClass(t, payload, "init", "Worker"), "dead_code_root_kinds", "swift.constructor")
+
+	run := assertFunctionByNameAndClass(t, payload, "run", "Worker")
+	assertParserStringSliceEquals(t, run, "args", []string{"id"})
+	assertIntFieldValue(t, run, "line_number", 26)
+	assertIntFieldValue(t, run, "end_line", 30)
+	assertParserStringSliceContains(t, run, "dead_code_root_kinds", "swift.protocol_implementation_method")
+
+	names, err := engine.PreScanRepositoryPathsWithWorkers(repoRoot, []string{filePath}, 1)
+	if err != nil {
+		t.Fatalf("PreScanRepositoryPathsWithWorkers() error = %v, want nil", err)
+	}
+	for _, want := range []string{"DemoApp", "Runnable", "Worker", "init", "run"} {
+		if _, ok := names[want]; !ok {
+			t.Fatalf("pre-scan names missing %q in %#v", want, names)
+		}
+	}
+}
+
 func assertSwiftTypeBases(
 	t *testing.T,
 	payload map[string]any,
@@ -130,27 +206,29 @@ func assertSwiftTypeBases(
 ) {
 	t.Helper()
 
-	items, ok := payload["classes"].([]map[string]any)
-	if !ok {
-		t.Fatalf("classes = %T, want []map[string]any", payload["classes"])
-	}
-	for _, item := range items {
-		name, _ := item["name"].(string)
-		if name != typeName {
-			continue
+	for _, bucket := range []string{"classes", "structs", "enums", "protocols"} {
+		items, ok := payload[bucket].([]map[string]any)
+		if !ok {
+			t.Fatalf("%s = %T, want []map[string]any", bucket, payload[bucket])
 		}
-		bases, _ := item["bases"].([]string)
-		if len(bases) != len(wantBases) {
-			t.Fatalf("bases for %q = %#v, want %#v", typeName, item["bases"], wantBases)
-		}
-		for index, wantBase := range wantBases {
-			if bases[index] != wantBase {
-				t.Fatalf("bases for %q = %#v, want %#v", typeName, bases, wantBases)
+		for _, item := range items {
+			name, _ := item["name"].(string)
+			if name != typeName {
+				continue
 			}
+			bases, _ := item["bases"].([]string)
+			if len(bases) != len(wantBases) {
+				t.Fatalf("bases for %q = %#v, want %#v", typeName, item["bases"], wantBases)
+			}
+			for index, wantBase := range wantBases {
+				if bases[index] != wantBase {
+					t.Fatalf("bases for %q = %#v, want %#v", typeName, bases, wantBases)
+				}
+			}
+			return
 		}
-		return
 	}
-	t.Fatalf("classes missing name=%q in %#v", typeName, items)
+	t.Fatalf("Swift type buckets missing name=%q in %#v", typeName, payload)
 }
 
 func assertSwiftFunctionArgs(
