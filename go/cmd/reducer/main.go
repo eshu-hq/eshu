@@ -309,6 +309,8 @@ func buildReducerService(
 		CodeFunctionSummaryWriter:     postgres.NewFunctionSummaryStore(database),
 		CodeFunctionSourceLoader:      factStore,
 		CodeFunctionSourceWriter:      postgres.NewFunctionSourceStore(database),
+		CodeFunctionGraphIDLoader:     factStore,
+		CodeFunctionGraphIDWriter:     postgres.NewFunctionGraphIDStore(database),
 		// Durable incident -> repository correlation (#2161); see helper for rationale.
 		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
 		BackendRepositoryResolver:            incidentRepoCorrelationResolver,

@@ -65,20 +65,38 @@ type CodeFunctionSourceWriter interface {
 	ReplaceSources(ctx context.Context, repo string, sources []interproc.Source, updatedAt time.Time) error
 }
 
+// CodeFunctionGraphIDLoader loads the FunctionID->graph-uid map emitted for one
+// scope generation.
+type CodeFunctionGraphIDLoader interface {
+	LoadCodeFunctionGraphIDs(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+	) (map[summary.FunctionID]string, error)
+}
+
+// CodeFunctionGraphIDWriter persists the FunctionID->graph-uid map. It is
+// satisfied by postgres.FunctionGraphIDStore.
+type CodeFunctionGraphIDWriter interface {
+	ReplaceGraphIDs(ctx context.Context, repo string, ids map[summary.FunctionID]string, updatedAt time.Time) error
+}
+
 // CodeFunctionSummaryMaterializationHandler persists one generation's function
 // summaries: it loads the raw Effects, recomputes their content versions through
 // a summary.Store, and upserts the resulting snapshot. The upsert is idempotent
 // on FunctionID, so re-running a generation converges rather than duplicating.
-// When the optional source loader/writer are wired it also persists that
-// generation's param-level taint sources, which the cross-repo fixpoint needs as
-// entry points alongside the summaries.
+// When the optional source and graph-id loader/writers are wired it also persists
+// that generation's param-level taint sources and the FunctionID->uid map, which
+// the cross-repo fixpoint needs alongside the summaries.
 type CodeFunctionSummaryMaterializationHandler struct {
-	Loader       CodeFunctionSummaryLoader
-	Writer       CodeFunctionSummaryWriter
-	SourceLoader CodeFunctionSourceLoader
-	SourceWriter CodeFunctionSourceWriter
-	Now          func() time.Time
-	Instruments  *telemetry.Instruments
+	Loader        CodeFunctionSummaryLoader
+	Writer        CodeFunctionSummaryWriter
+	SourceLoader  CodeFunctionSourceLoader
+	SourceWriter  CodeFunctionSourceWriter
+	GraphIDLoader CodeFunctionGraphIDLoader
+	GraphIDWriter CodeFunctionGraphIDWriter
+	Now           func() time.Time
+	Instruments   *telemetry.Instruments
 }
 
 // Handle executes one function-summary persistence intent.
@@ -125,12 +143,27 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		sourceCount = len(sources)
 	}
 
+	graphIDCount := 0
+	if h.GraphIDLoader != nil && h.GraphIDWriter != nil {
+		ids, err := h.GraphIDLoader.LoadCodeFunctionGraphIDs(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("load code function graph ids: %w", err)
+		}
+		for _, repo := range codeFunctionGraphIDRepos(effects, ids) {
+			if err := h.GraphIDWriter.ReplaceGraphIDs(ctx, repo, codeFunctionGraphIDsForRepo(repo, ids), now); err != nil {
+				return Result{}, fmt.Errorf("persist code function graph ids for repo %q: %w", repo, err)
+			}
+		}
+		graphIDCount = len(ids)
+	}
+
 	slog.Info(
 		"code function summary persistence completed",
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
 		"function_count", len(snap.Functions),
 		"source_count", sourceCount,
+		"graph_id_count", graphIDCount,
 	)
 
 	return Result{
@@ -178,6 +211,39 @@ func codeFunctionSourcesForRepo(repo string, sources []interproc.Source) []inter
 	for _, src := range sources {
 		if durableFunctionRepo(string(src.Port.Func)) == repo {
 			out = append(out, src)
+		}
+	}
+	return out
+}
+
+func codeFunctionGraphIDRepos(
+	effects map[summary.FunctionID]summary.Effects,
+	ids map[summary.FunctionID]string,
+) []string {
+	seen := make(map[string]struct{})
+	for fnID := range effects {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	for fnID := range ids {
+		if repo := durableFunctionRepo(string(fnID)); repo != "" {
+			seen[repo] = struct{}{}
+		}
+	}
+	repos := make([]string, 0, len(seen))
+	for repo := range seen {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+	return repos
+}
+
+func codeFunctionGraphIDsForRepo(repo string, ids map[summary.FunctionID]string) map[summary.FunctionID]string {
+	out := make(map[summary.FunctionID]string)
+	for fnID, uid := range ids {
+		if durableFunctionRepo(string(fnID)) == repo {
+			out[fnID] = uid
 		}
 	}
 	return out

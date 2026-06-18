@@ -419,6 +419,25 @@ queue/status rows, and Postgres query duration metrics. It adds no route, graph
 query shape, new metric instrument, new metric label key, span, lease, runtime
 knob, or log key.
 
+No-Regression Evidence: #2931 also persists the durable `FunctionID`->graph-uid
+map the cross-repo fixpoint needs to project findings by uid. The same
+`code_function_summary` handler gains an OPTIONAL graph-id loader/writer (a
+`CodeFunctionGraphIDLoader` reading the `graph_uid` the collector resolved onto
+each `code_function_summary` fact, and a `CodeFunctionGraphIDWriter` =
+`FunctionGraphIDStore.UpsertGraphIDs`). When wired it upserts the map alongside
+the summaries and sources, idempotent on `FunctionID`, skipping unresolved
+(empty) uids. It is additive and behind the same off-by-default value-flow gate;
+no new Cypher (a durable `function_graph_ids` Postgres table), graph write,
+worker, queue, or batch. `go test ./internal/reducer -run 'CodeFunctionSummary'
+-count=1` and `go test ./internal/storage/postgres -run 'FunctionGraphID|Bootstrap'
+-count=1` cover the handler graph-id persistence and the store/ordered bootstrap
+schema; `go test ./cmd/reducer -count=1` proves the wiring.
+
+No-Observability-Change: the graph-id persistence reuses the same generic reducer
+claim/execute/ack instrumentation as the summary domain; it adds no metric
+instrument, metric label, span, worker, queue domain, lease, runtime knob, or log
+key beyond the existing per-domain counters.
+
 No-Regression Evidence: Rust trait-bound receiver resolution registers a
 language resolver before weak repository-wide fallback and indexes only unique
 trait declaration methods. The focused parser test failed before trait
