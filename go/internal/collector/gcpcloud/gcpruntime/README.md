@@ -7,8 +7,10 @@ poll and commit.
 
 ## Responsibilities
 
-- `Source` implements `collector.Source`. Each `Next` yields one
-  `collector.CollectedGeneration` for the next configured scope.
+- `Source` implements `collector.Source` for fixture mode and
+  `collector.ClaimedSource` for claim-driven mode. `Next` yields one configured
+  scope per poll; `NextClaimed` resolves one workflow work item into one
+  authorized scope and uses the work item's generation and fencing token.
 - Drains Cloud Asset Inventory pages through the `PageProvider` seam, accumulates
   `gcp_cloud_resource`, `gcp_cloud_relationship`,
   `gcp_tag_observation`, `gcp_iam_policy_observation`, `gcp_dns_record`,
@@ -33,7 +35,8 @@ ship in this slice:
   read-only, bounds page size, response bytes, timeout, retry attempts, backoff,
   and asset-family filters, and converts expected provider coverage gaps into
   `gcp_collection_warning` facts. It is **not wired as a default**, so the
-  command path still cannot make a Google Cloud call by accident.
+  command path can use it only in explicit claimed-live mode; it is still not a
+  default provider.
 
 No test performs a live Google Cloud call; live-client tests use local HTTP
 servers.
@@ -50,6 +53,10 @@ defaults to the contract form
 
 - One `Next` call yields one scope; when the scope batch is exhausted `Next`
   returns `ok=false` so the service waits for the next poll, then restarts.
+- One `NextClaimed` call validates collector kind, source system, collector
+  instance id, scope id, generation id, source run id, and positive fencing
+  token before collecting. Unauthorized scope claims fail without logging
+  configured parent ids or credential names.
 - A generation rejected by a newer fencing token emits a single
   `gcp_collection_warning` (`warning_kind=stale_generation`,
   `outcome=stale`) and never emits resource facts.
@@ -58,14 +65,12 @@ defaults to the contract form
 
 ## Deferred (not in this package)
 
-Direct/effective GCP tag APIs, command wiring for live transport,
-claim-enabled scheduler activation, Helm values, environment-variable contracts,
-ServiceMonitor wiring, and sanitized target smoke proof are deferred per
+Direct/effective GCP tag APIs, Helm values, ServiceMonitor wiring, and sanitized
+target smoke proof are deferred per
 `docs/public/reference/gcp-cloud-collector-contract.md`. Shared cloud inventory
 admission and API/MCP readback for `gcp_cloud_resource`, tag evidence admission,
 image identity admission, relationship resolution, and IAM trust facts are
-implemented outside this package and remain separate from live provider
-activation.
+implemented outside this package and remain separate from chart promotion.
 
 ## Performance and observability evidence
 

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -12,9 +16,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+var fallbackClaimSequence uint64
+
+var newGCPADCLiveClient = gcpruntime.NewADCLiveClient
 
 // buildCollectorService constructs the GCP cloud collector service from a
 // declarative config document and an offline fixture page provider. The inner
@@ -50,6 +60,64 @@ func buildCollectorService(
 		Instruments:  instruments,
 		Logger:       logger,
 	}, nil
+}
+
+func buildClaimedService(
+	ctx context.Context,
+	database postgres.ExecQueryer,
+	redactionKey redact.Key,
+	getenv func(string) string,
+	tracer trace.Tracer,
+	meter metric.Meter,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.ClaimedService, error) {
+	config, err := loadClaimedRuntimeConfig(getenv)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
+	liveClient, err := newGCPADCLiveClient(ctx, config.CredentialRef)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
+	gcpMetrics, err := gcpcloud.NewMetrics(meter)
+	if err != nil {
+		return collector.ClaimedService{}, fmt.Errorf("gcp collector metrics: %w", err)
+	}
+	ingestion := postgres.NewIngestionStore(database)
+	ingestion.Logger = logger
+	committer := newGCPStatusCommitter(ingestion, gcpMetrics)
+	return collector.ClaimedService{
+		ControlStore: postgres.NewWorkflowControlStore(database),
+		Source: &gcpruntime.Source{
+			Config:       config.Source,
+			Provider:     liveClient,
+			RedactionKey: redactionKey,
+			Metrics:      gcpMetrics,
+			Logger:       logger,
+		},
+		Committer:           committer,
+		CollectorKind:       scope.CollectorGCP,
+		CollectorInstanceID: config.Instance.InstanceID,
+		OwnerID:             config.OwnerID,
+		ClaimIDFunc:         newClaimID,
+		PollInterval:        config.PollInterval,
+		ClaimLeaseTTL:       config.ClaimLeaseTTL,
+		HeartbeatInterval:   config.HeartbeatInterval,
+		MaxAttempts:         workflow.DefaultClaimMaxAttempts(),
+		Clock:               time.Now,
+		Tracer:              tracer,
+		Instruments:         instruments,
+	}, nil
+}
+
+func newClaimID() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err == nil {
+		return "gcp-claim-" + hex.EncodeToString(raw[:])
+	}
+	next := atomic.AddUint64(&fallbackClaimSequence, 1)
+	return fmt.Sprintf("gcp-claim-fallback-%d-%d", time.Now().UTC().UnixNano(), next)
 }
 
 // buildSource builds the fixture-backed GCP source and its scoped metrics from a

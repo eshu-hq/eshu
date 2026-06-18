@@ -20,12 +20,11 @@ Kubernetes ServiceAccount names stay out of fact payloads.
 
 This package does not call Google Cloud APIs, schedule collector runs, write
 graph rows, persist raw provider payloads, or admit reducer truth. The
-fixture-backed `cmd/collector-gcp-cloud` runtime scaffolding, shared cloud
-inventory admission/readback, tag evidence admission, image identity admission,
-relationship resolution, and IAM trust facts live in sibling packages and
-reducers. Live Cloud Asset Inventory transport, credential resolution,
-claim-enabled scheduler activation, direct/effective tag APIs, chart values, and
-live smoke proof remain gated follow-up work. See
+fixture-backed and claimed-live `cmd/collector-gcp-cloud` runtime wiring, shared
+cloud inventory admission/readback, tag evidence admission, image identity
+admission, relationship resolution, and IAM trust facts live in sibling packages
+and reducers. Claim-enabled scheduler activation, direct/effective tag APIs,
+chart values, and live smoke proof remain gated follow-up work. See
 [GCP Cloud Collector Contract](../../../../docs/public/reference/gcp-cloud-collector-contract.md).
 
 ## Collection flow

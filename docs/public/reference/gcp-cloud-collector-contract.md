@@ -3,9 +3,8 @@
 This page defines the provider-specific design baseline for the GCP cloud
 collector. It is a child of the
 [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) and
-does not promise live Google Cloud runtime deployment until command credential
-wiring, scheduler activation, chart exposure, and sanitized smoke gates are
-proven.
+does not promise charted live Google Cloud runtime deployment until scheduler
+activation, chart exposure, and sanitized smoke gates are proven.
 
 The collector kind is `gcp`. It observes Google Cloud control-plane metadata
 through Cloud Asset Inventory and emits source facts only. Reducers own
@@ -28,12 +27,15 @@ implementation (`go/internal/collector/gcpcloud/gcpruntime`) that drains Cloud
 Asset Inventory pages through a `PageProvider` seam, fences generations, emits
 the scoped telemetry, and a `cmd/collector-gcp-cloud` binary that wires the
 source and a status-recording committer from a declarative offline config. The
-live Cloud Asset Inventory transport is now implemented as the explicit-injection
-`gcpruntime.LiveClient` REST `PageProvider` for `assets.list`. It requires a
-caller-supplied credential whose IAM grants are read-only, bounds page size,
-response bytes, timeouts, retry attempts, backoff, OAuth scope, and
-asset-family filters, and keeps the command, chart, and scheduler paths
-default-off. No test makes a live Google Cloud call.
+command also has explicit claimed-live mode: it selects one enabled
+claim-capable GCP collector instance, requires `live_collection_enabled=true`,
+uses workflow claims for generation/fencing identity, and runs through
+`collector.ClaimedService`. The live Cloud Asset Inventory transport is the
+explicit-injection `gcpruntime.LiveClient` REST `PageProvider` for
+`assets.list`; it requires read-only caller-supplied credentials, bounded page
+size, response bytes, timeouts, retries, backoff, OAuth scope, and asset-family
+filters, and keeps the chart path default-off. No test makes a live Google Cloud
+call.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `gcp_cloud_resource` identity are now implemented and fixture-proven. The
@@ -79,9 +81,9 @@ redaction-safe workload-pool subject fingerprint used by Kubernetes
 pool, namespace, Kubernetes ServiceAccount name, and IAM member strings are not
 persisted in those trust facts.
 
-The rest of this contract remains gated. Do not add Helm values, environment
-variables, chart claims, or live command/scheduler wiring until later
-implementation PRs prove sanitized target smoke and the chart path. The
+The rest of this contract remains gated. Do not add Helm values, chart claims,
+or charted live exposure until later implementation PRs prove sanitized target
+smoke and the chart path. The
 relationship, tag, IAM, DNS, and image-reference fact kinds and schema versions
 are registered in `go/internal/facts/gcp.go`, and **all five
 envelope builders are implemented and unit-proven**:
@@ -101,15 +103,13 @@ configured, with `source_kind=label`, and emits
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
 managed-zone identity are usable. Direct/effective GCP tag API collection,
-command credential wiring, runtime scheduling, and chart promotion remain
-follow-up work under #1997. Raw `gcp_iam_policy_observation`,
+runtime scheduling, and chart promotion remain follow-up work under #1997. Raw
+`gcp_iam_policy_observation`,
 `gcp_dns_record`, and `gcp_collection_warning` facts are intentionally
 provenance-only or audit evidence until separate reducer/read-model contracts
 admit them.
 
-The implemented slices stay fixture-testable without live Google Cloud access.
-Live smoke tests are promotion proof, not the minimum proof for the source
-contract.
+Command Runtime Evidence: `go test ./cmd/collector-gcp-cloud ./internal/collector/gcpcloud/... -count=1` proves fixture mode remains available, claimed-live mode is explicit, live collection is gated, workflow claims supply generation/fencing identity, and tests build the `gcpruntime.LiveClient` runner without live Google Cloud credentials.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/query
 ./internal/mcp -run CloudInventory -count=1` and `go test

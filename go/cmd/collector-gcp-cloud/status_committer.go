@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // gcpStatusCommitter wraps the durable collector committer and records the GCP
@@ -41,6 +43,46 @@ func (c gcpStatusCommitter) CommitScopeGeneration(
 	return err
 }
 
+func (c gcpStatusCommitter) CommitClaimedScopeGeneration(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+) error {
+	committer, ok := c.inner.(collector.ClaimedCommitter)
+	if !ok {
+		return errors.New("inner GCP committer must implement ClaimedCommitter")
+	}
+	err := committer.CommitClaimedScopeGeneration(ctx, mutation, scopeValue, generation, factStream)
+	c.recordOutcome(ctx, err)
+	return err
+}
+
+func (c gcpStatusCommitter) CommitClaimedScopeGenerationWithStreamError(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+	factStreamErr func() error,
+) error {
+	committer, ok := c.inner.(collector.StreamErrorClaimedCommitter)
+	if !ok {
+		return errors.New("inner GCP committer must implement StreamErrorClaimedCommitter")
+	}
+	err := committer.CommitClaimedScopeGenerationWithStreamError(
+		ctx,
+		mutation,
+		scopeValue,
+		generation,
+		factStream,
+		factStreamErr,
+	)
+	c.recordOutcome(ctx, err)
+	return err
+}
+
 func (c gcpStatusCommitter) recordOutcome(ctx context.Context, commitErr error) {
 	if c.metrics == nil {
 		return
@@ -52,4 +94,8 @@ func (c gcpStatusCommitter) recordOutcome(ctx context.Context, commitErr error) 
 	c.metrics.RecordClaim(ctx, gcpcloud.ClaimStatusSucceeded)
 }
 
-var _ collector.Committer = gcpStatusCommitter{}
+var (
+	_ collector.Committer                   = gcpStatusCommitter{}
+	_ collector.ClaimedCommitter            = gcpStatusCommitter{}
+	_ collector.StreamErrorClaimedCommitter = gcpStatusCommitter{}
+)
