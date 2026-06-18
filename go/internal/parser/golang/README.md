@@ -89,6 +89,11 @@ The godoc contract is in `doc.go`.
   Direct parser callers without stable repository and package identity still get
   the local dataflow/finding buckets but do not emit malformed durable
   FunctionIDs.
+- Function rows carry `package_import_path` when `GoPackageImportPath` is
+  present. That metadata lets downstream content entities reconstruct the same
+  `summary.FunctionID(repo, package, receiver, name)` tuple used by
+  `dataflow_summaries` when joining active `CALLS` endpoints to persisted
+  summaries.
 - `EmbeddedSQLQuery`, `Options`, `GoImportedInterfaceParamMethods`, and
   `GoDirectMethodCallRoots` carry the typed contracts used by those functions.
 
@@ -124,6 +129,10 @@ Method receiver class context is normalized to the base receiver type before
 payload emission. A receiver such as Map[K, V], *Set[T], or
 pkg.Graph[T] is emitted as Map, Set, or Graph, so reducer call
 materialization does not need to match every generic instantiation spelling.
+
+When `GoPackageImportPath` is present, every Function row carries
+`package_import_path`. The field is omitted when the option is blank, preserving
+direct parser payloads that do not have durable package identity.
 
 Import rows may carry `alias` for explicit Go package aliases. Blank and dot
 imports stay out of alias metadata because they do not provide a package

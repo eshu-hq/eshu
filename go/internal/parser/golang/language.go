@@ -75,6 +75,9 @@ func Parse(
 			if classContext := goReceiverContext(node, source); classContext != "" {
 				item["class_context"] = classContext
 			}
+			if packageImportPath := strings.TrimSpace(options.GoPackageImportPath); packageImportPath != "" {
+				item["package_import_path"] = packageImportPath
+			}
 			if returnType := goTypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
 				item["return_type"] = returnType
 			}

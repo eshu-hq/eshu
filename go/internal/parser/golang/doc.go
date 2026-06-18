@@ -52,7 +52,10 @@
 // internal/parser/valueflow and composed into an interprocedural port graph
 // solved by internal/parser/interproc), and, when RepositoryID and
 // GoPackageImportPath are present, a "dataflow_summaries" bucket of durable
-// summary.Effects rows for reducer persistence. The gate is off by default and
-// the payload is byte-identical when off, so existing fact contracts are
-// untouched unless a caller opts in.
+// summary.Effects rows for reducer persistence. Function rows also carry
+// package_import_path when GoPackageImportPath is present so reducer loaders can
+// map content-entity CALLS endpoints back to the same durable FunctionID tuple
+// used by the summary store. The dataflow gate is off by default and the
+// payload is byte-identical when off, so existing fact contracts are untouched
+// unless a caller opts in.
 package golang
