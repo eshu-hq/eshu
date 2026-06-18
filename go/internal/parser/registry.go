@@ -16,6 +16,7 @@ type Definition struct {
 	Extensions  []string
 	ExactNames  []string
 	PrefixNames []string
+	Provider    LanguageProvider
 }
 
 // Registry is an immutable catalog of parser definitions and lookup indexes.
@@ -474,6 +475,7 @@ func cloneDefinition(definition Definition) Definition {
 	cloned := Definition{
 		ParserKey: definition.ParserKey,
 		Language:  definition.Language,
+		Provider:  definition.Provider,
 	}
 	cloned.Extensions = slices.Clone(definition.Extensions)
 	cloned.ExactNames = slices.Clone(definition.ExactNames)

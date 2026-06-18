@@ -52,9 +52,10 @@ language handles; grammars are loaded on first use and reused across calls.
 
 `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form, calls
 `Registry.LookupByPath` to identify the language, then dispatches to the
-language-specific adapter wrapper. The wrapper keeps the parent parser
-signature stable while language-owned packages hold adapter logic that no
-longer needs parent internals. Language adapters may attach semantic metadata
+registered `LanguageProvider` when present before falling back to legacy
+built-in wrappers. The wrapper keeps the parent parser signature stable while
+language-owned packages hold adapter logic that no longer needs parent
+internals. Language adapters may attach semantic metadata
 such as
 `dead_code_root_kinds` when syntax or bounded config proves an entrypoint,
 framework callback, function-value callback, Python route/task/CLI decorator,
@@ -265,7 +266,9 @@ Rust, Java, C, C++).
 - `Registry.Definitions()` — cloned definitions in deterministic parser-key order
 - `Registry.ParserKeys()` — registered keys in deterministic order
 - `Registry.Extensions()` — registered extensions in sorted order
-- `Definition` — `ParserKey`, `Language`, `Extensions`, `ExactNames`, `PrefixNames`
+- `Definition` — `ParserKey`, `Language`, `Extensions`, `ExactNames`,
+  `PrefixNames`, and optional `LanguageProvider`
+- `LanguageProvider` — language-owned parse, pre-scan, and capability contract
 - `Runtime` — tree-sitter language handle cache; `Language(name)` returns a
   cached `*tree_sitter.Language`
 - `NewRuntime()` — constructs a fresh tree-sitter runtime
@@ -397,6 +400,8 @@ errors are surfaced in `collector snapshot stage completed` logs with
 - `Registry.LookupByPath` — the discovery package's file matcher predicate
   is built from this lookup, so a custom registry produces a custom file
   matcher automatically
+- `LanguageProvider` — custom registries can add parse/pre-scan behavior without
+  editing the shared engine dispatch switches
 - `internal/parser/goldenaudit` — helper package for source-authored golden
   graph fixtures. Use it when language-depth work needs to compare expected
   code graph nodes and edges against observed parser/reducer output without

@@ -2,9 +2,10 @@
 // caching, repository pre-scan orchestration, and optional SCIP reduction.
 //
 // Language subpackages own parse and pre-scan behavior behind thin parent
-// wrappers. This package owns the shared contract: path lookup, adapter
-// dispatch, payload metadata attachment, deterministic import-map merging, Go
-// package semantic pre-scan routing, and SCIP protobuf parsing. Exact-name
+// wrappers or registered LanguageProvider implementations. This package owns
+// the shared contract: path lookup, adapter dispatch, payload metadata
+// attachment, deterministic import-map merging, Go package semantic pre-scan
+// routing, and SCIP protobuf parsing. Exact-name
 // dispatch includes package-manager dependency files such as Cargo.toml,
 // Cargo.lock, Package.resolved, and mix.lock when the adapter owns their evidence
 // contract. Parser output feeds content shaping and durable facts, so parser
@@ -18,8 +19,14 @@
 // scip-* binary are available. It supplements native parser output; selected
 // files that are absent from an index.scip document set still rely on the
 // native parser path for complete file coverage.
+// LanguageProvider dispatch is provider-first but preserves legacy built-in
+// adapters when a definition has no provider, so existing parser output remains
+// unchanged.
 //
 // No-Observability-Change: SCIP parsing uses the existing collector snapshot
 // parse stage logs and file parse metrics; no parser metric, span, status
 // field, or runtime knob changes are required for this completeness guard.
+// LanguageProvider dispatch adds no runtime signal; provider implementations
+// continue to be diagnosed through the same collector parse-stage logs and
+// file parse duration metric.
 package parser
