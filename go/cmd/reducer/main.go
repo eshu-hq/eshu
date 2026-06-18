@@ -39,6 +39,10 @@ func buildReducerService(
 	}
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
+	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
@@ -437,6 +441,7 @@ func buildReducerService(
 		GenerationRetentionRunner:       generationRetentionRunner,
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
+		SearchVectorBuildRunner:         searchVectorBuildRunner,
 		Workers:                         workers,
 		BatchClaimSize:                  loadReducerBatchClaimSize(getenv, workers, graphBackend),
 		Tracer:                          tracer,

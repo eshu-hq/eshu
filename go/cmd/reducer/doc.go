@@ -11,7 +11,8 @@
 // telemetry, opens Postgres and the graph backend,
 // wires the reducer service with shared-projection, code-call,
 // repo-dependency, graph-projection-phase repair, generation-retention cleanup,
-// graph orphan sweep, and value-flow stale-evidence cleanup runners (plus the
+// graph orphan sweep, value-flow stale-evidence cleanup, and opt-in local
+// search-vector build runners (plus the
 // Terraform config-vs-state drift handler wired with the
 // PostgresTerraformBackendQuery and PostgresDriftEvidenceLoader adapters;
 // the loader's PriorConfigDepth field is set from ESHU_DRIFT_PRIOR_CONFIG_DEPTH
