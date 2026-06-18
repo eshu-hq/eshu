@@ -27,13 +27,24 @@ type CodeInterprocEvidenceInput struct {
 // (no edge to draw). Rows are keyed by a generation-independent edge uid so
 // reprojection is idempotent, and sorted by uid for byte-stable output.
 func ExtractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput) []map[string]any {
+	return extractCodeInterprocEvidenceRows(inputs, codeInterprocEvidenceUID)
+}
+
+// ExtractCodeInterprocFixpointEvidenceRows projects summary-fixpoint findings
+// into deterministic edge rows under a separate uid namespace so they cannot
+// clobber direct code_interproc_evidence rows in the graph writer's MERGE.
+func ExtractCodeInterprocFixpointEvidenceRows(inputs []CodeInterprocEvidenceInput) []map[string]any {
+	return extractCodeInterprocEvidenceRows(inputs, codeInterprocFixpointEvidenceUID)
+}
+
+func extractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput, uidForInput func(CodeInterprocEvidenceInput) string) []map[string]any {
 	rows := make([]map[string]any, 0, len(inputs))
 	for _, in := range inputs {
 		if in.SourceFunctionUID == "" || in.SinkFunctionUID == "" {
 			continue
 		}
 		rows = append(rows, map[string]any{
-			"uid":                  codeInterprocEvidenceUID(in),
+			"uid":                  uidForInput(in),
 			"source_function_uid":  in.SourceFunctionUID,
 			"sink_function_uid":    in.SinkFunctionUID,
 			"relative_path":        in.RelativePath,
@@ -57,6 +68,15 @@ func ExtractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput) []map
 // kinds. Distinct flows between the same pair (different kinds) get distinct uids.
 func codeInterprocEvidenceUID(in CodeInterprocEvidenceInput) string {
 	return facts.StableID("CodeInterprocEvidence", map[string]any{
+		"source_function_uid": in.SourceFunctionUID,
+		"sink_function_uid":   in.SinkFunctionUID,
+		"sink_kind":           in.SinkKind,
+		"source_kind":         in.SourceKind,
+	})
+}
+
+func codeInterprocFixpointEvidenceUID(in CodeInterprocEvidenceInput) string {
+	return facts.StableID("CodeInterprocFixpointEvidence", map[string]any{
 		"source_function_uid": in.SourceFunctionUID,
 		"sink_function_uid":   in.SinkFunctionUID,
 		"sink_kind":           in.SinkKind,

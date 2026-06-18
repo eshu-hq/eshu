@@ -9,9 +9,10 @@ import (
 )
 
 // buildCodeInterprocEvidenceReducerIntent queues one cross-function evidence
-// materialization intent per scope generation when any code_interproc_evidence
-// fact is present. The reducer handler loads all such facts for the generation,
-// so a single intent drives the whole projection.
+// materialization intent per scope generation when direct code_interproc_evidence
+// facts are present. Summary-driven fixpoint projection is triggered after the
+// function-summary handler persists durable summaries, sources, and graph ids so
+// it cannot retract direct interproc evidence under the same scope.
 func buildCodeInterprocEvidenceReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,

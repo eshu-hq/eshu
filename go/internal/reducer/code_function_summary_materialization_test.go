@@ -217,3 +217,48 @@ func TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired(t *testing.T) {
 		t.Fatalf("graph ids not persisted: %+v", gidWriter)
 	}
 }
+
+type recordingValueFlowFixpointProjector struct {
+	calls        int
+	scopeID      string
+	generationID string
+	result       ValueFlowFixpointProjectionResult
+}
+
+func (p *recordingValueFlowFixpointProjector) ProjectValueFlowFixpointEvidence(
+	_ context.Context,
+	scopeID string,
+	generationID string,
+) (ValueFlowFixpointProjectionResult, error) {
+	p.calls++
+	p.scopeID = scopeID
+	p.generationID = generationID
+	return p.result, nil
+}
+
+// TestCodeFunctionSummaryHandlerProjectsFixpointAfterPersistence proves the
+// summary-driven TAINT_FLOWS_TO projection is ordered after the summary/source/id
+// stores have been updated, not queued as a racing direct interproc intent.
+func TestCodeFunctionSummaryHandlerProjectsFixpointAfterPersistence(t *testing.T) {
+	t.Parallel()
+
+	projector := &recordingValueFlowFixpointProjector{
+		result: ValueFlowFixpointProjectionResult{FindingCount: 1, GraphRows: 1},
+	}
+	handler := CodeFunctionSummaryMaterializationHandler{
+		Loader:                  stubCodeFunctionSummaryLoader{},
+		Writer:                  &recordingCodeFunctionSummaryWriter{},
+		ValueFlowFixpointWriter: projector,
+	}
+
+	result, err := handler.Handle(context.Background(), codeFunctionSummaryIntent())
+	if err != nil {
+		t.Fatalf("Handle error: %v", err)
+	}
+	if projector.calls != 1 || projector.scopeID != "scope-1" || projector.generationID != "gen-1" {
+		t.Fatalf("fixpoint projector not called with intent scope: %+v", projector)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want fixpoint write counted", result.CanonicalWrites)
+	}
+}

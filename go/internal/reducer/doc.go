@@ -70,6 +70,11 @@
 // facts into CloudResource nodes only so managed_by azure_cloud_relationship
 // facts can readiness-gate on those endpoints, then writes edges only when both
 // normalized ARM IDs resolve exactly in the same source generation.
+// Code function summary materialization persists generation-independent
+// value-flow summaries, param sources, and FunctionID-to-graph-uid mappings,
+// then runs the cross-repo fixpoint projection through a distinct
+// reducer/code-interproc-fixpoint TAINT_FLOWS_TO evidence source so direct
+// code_interproc_evidence rows remain isolated.
 // Code-call resolution dispatches language-specific resolver branches through a
 // registry seam before and after the weak repository-wide fallback; the generic
 // resolver still preserves ambiguity and never promotes a language branch into a

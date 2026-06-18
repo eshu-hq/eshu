@@ -438,6 +438,13 @@ claim/execute/ack instrumentation as the summary domain; it adds no metric
 instrument, metric label, span, worker, queue domain, lease, runtime knob, or log
 key beyond the existing per-domain counters.
 
+No-Regression Evidence: #2964 composes durable function summaries, param
+sources, and the FunctionID->uid map through `ValueFlowFixpointEvidenceLoader`
+after `DomainCodeFunctionSummary` persists those stores. The post-persist
+`ValueFlowFixpointEvidenceProjector` reuses the `TAINT_FLOWS_TO` writer but uses
+the distinct `reducer/code-interproc-fixpoint` evidence source and UID namespace,
+so existing fact-based `code_interproc_evidence` inputs stay isolated.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

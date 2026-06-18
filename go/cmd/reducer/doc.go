@@ -30,7 +30,8 @@
 // CloudResource nodes, and the S3 internet-exposure writer sets the same
 // bounded property family on existing S3 CloudResource nodes, while the Azure
 // relationship edge writer projects managed ARM relationships only after Azure
-// CloudResource endpoint readiness),
+// CloudResource endpoint readiness, and the value-flow fixpoint projector writes
+// post-summary TAINT_FLOWS_TO evidence under its own evidence source),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer

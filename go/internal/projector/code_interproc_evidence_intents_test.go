@@ -41,6 +41,19 @@ func TestBuildCodeInterprocEvidenceReducerIntentFromFact(t *testing.T) {
 	}
 }
 
+func TestBuildCodeInterprocEvidenceReducerIntentSkipsFunctionSummaryFact(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
+	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
+	if _, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+		{FactKind: "file"},
+		{FactKind: facts.CodeFunctionSummaryFactKind, FactID: "summary-fact-1", CollectorKind: "git"},
+	}); ok {
+		t.Fatal("queued direct interproc intent for code_function_summary fact")
+	}
+}
+
 // TestAppendScopeGenerationReducerIntentsWiresCodeInterproc proves the interproc
 // builder is actually wired into the scope-generation intent chain, not just
 // defined in isolation.

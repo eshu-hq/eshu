@@ -78,22 +78,31 @@ type CodeFunctionGraphIDWriter interface {
 	UpsertGraphIDs(ctx context.Context, ids map[summary.FunctionID]string, updatedAt time.Time) error
 }
 
+// ValueFlowFixpointProjector projects durable cross-repo value-flow findings
+// after summaries, sources, and graph ids have been persisted.
+type ValueFlowFixpointProjector interface {
+	ProjectValueFlowFixpointEvidence(ctx context.Context, scopeID, generationID string) (ValueFlowFixpointProjectionResult, error)
+}
+
 // CodeFunctionSummaryMaterializationHandler persists one generation's function
 // summaries: it loads the raw Effects, recomputes their content versions through
 // a summary.Store, and upserts the resulting snapshot. The upsert is idempotent
 // on FunctionID, so re-running a generation converges rather than duplicating.
 // When the optional source and graph-id loader/writers are wired it also persists
 // that generation's param-level taint sources and the FunctionID->uid map, which
-// the cross-repo fixpoint needs alongside the summaries.
+// the cross-repo fixpoint needs alongside the summaries. When the optional
+// fixpoint projector is wired it runs after those durable writes complete, so
+// graph projection cannot race ahead of persistence.
 type CodeFunctionSummaryMaterializationHandler struct {
-	Loader        CodeFunctionSummaryLoader
-	Writer        CodeFunctionSummaryWriter
-	SourceLoader  CodeFunctionSourceLoader
-	SourceWriter  CodeFunctionSourceWriter
-	GraphIDLoader CodeFunctionGraphIDLoader
-	GraphIDWriter CodeFunctionGraphIDWriter
-	Now           func() time.Time
-	Instruments   *telemetry.Instruments
+	Loader                  CodeFunctionSummaryLoader
+	Writer                  CodeFunctionSummaryWriter
+	SourceLoader            CodeFunctionSourceLoader
+	SourceWriter            CodeFunctionSourceWriter
+	GraphIDLoader           CodeFunctionGraphIDLoader
+	GraphIDWriter           CodeFunctionGraphIDWriter
+	ValueFlowFixpointWriter ValueFlowFixpointProjector
+	Now                     func() time.Time
+	Instruments             *telemetry.Instruments
 }
 
 // Handle executes one function-summary persistence intent.
@@ -146,6 +155,15 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		graphIDCount = len(ids)
 	}
 
+	fixpoint := ValueFlowFixpointProjectionResult{}
+	if h.ValueFlowFixpointWriter != nil {
+		var err error
+		fixpoint, err = h.ValueFlowFixpointWriter.ProjectValueFlowFixpointEvidence(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("project value-flow fixpoint evidence: %w", err)
+		}
+	}
+
 	slog.Info(
 		"code function summary persistence completed",
 		"scope_id", intent.ScopeID,
@@ -153,14 +171,21 @@ func (h CodeFunctionSummaryMaterializationHandler) Handle(ctx context.Context, i
 		"function_count", len(snap.Functions),
 		"source_count", sourceCount,
 		"graph_id_count", graphIDCount,
+		"fixpoint_finding_count", fixpoint.FindingCount,
+		"fixpoint_graph_rows", fixpoint.GraphRows,
+		"fixpoint_unresolved_endpoint_count", fixpoint.UnresolvedEndpointCount,
 	)
 
 	return Result{
-		IntentID:        intent.IntentID,
-		Domain:          DomainCodeFunctionSummary,
-		Status:          ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf("persisted %d function summary row(s)", len(snap.Functions)),
-		CanonicalWrites: len(snap.Functions),
+		IntentID: intent.IntentID,
+		Domain:   DomainCodeFunctionSummary,
+		Status:   ResultStatusSucceeded,
+		EvidenceSummary: fmt.Sprintf(
+			"persisted %d function summary row(s), projected %d fixpoint edge(s)",
+			len(snap.Functions),
+			fixpoint.GraphRows,
+		),
+		CanonicalWrites: len(snap.Functions) + fixpoint.GraphRows,
 	}, nil
 }
 

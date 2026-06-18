@@ -11,7 +11,10 @@ import (
 
 // codeInterprocEvidenceSource is the evidence-source tag for reducer-owned
 // TAINT_FLOWS_TO edges, used for scoped retraction before reprojection.
-const codeInterprocEvidenceSource = "reducer/code-interproc"
+const (
+	codeInterprocEvidenceSource         = "reducer/code-interproc"
+	codeInterprocFixpointEvidenceSource = "reducer/code-interproc-fixpoint"
+)
 
 func codeInterprocEvidenceDomainDefinition() DomainDefinition {
 	return DomainDefinition{
@@ -76,6 +79,7 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 		return Result{}, fmt.Errorf("load code interproc evidence: %w", err)
 	}
 	rows := ExtractCodeInterprocEvidenceRows(inputs)
+	unresolvedEndpointCount := unresolvedCodeInterprocEndpointCount(inputs)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
@@ -102,14 +106,20 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 		"generation_id", intent.GenerationID,
 		"finding_count", len(inputs),
 		"graph_rows", len(rows),
+		"unresolved_endpoint_count", unresolvedEndpointCount,
 		"skip_retract", skipRetract,
 	)
 
 	return Result{
-		IntentID:        intent.IntentID,
-		Domain:          DomainCodeInterprocEvidence,
-		Status:          ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf("materialized %d cross-function taint edge(s) from %d finding(s)", len(rows), len(inputs)),
+		IntentID: intent.IntentID,
+		Domain:   DomainCodeInterprocEvidence,
+		Status:   ResultStatusSucceeded,
+		EvidenceSummary: fmt.Sprintf(
+			"materialized %d cross-function taint edge(s) from %d finding(s), skipped %d unresolved endpoint finding(s)",
+			len(rows),
+			len(inputs),
+			unresolvedEndpointCount,
+		),
 		CanonicalWrites: len(rows),
 	}, nil
 }
@@ -126,4 +136,14 @@ func (h CodeInterprocEvidenceMaterializationHandler) shouldSkipRetract(ctx conte
 		return false, fmt.Errorf("check prior generation for code interproc evidence retract: %w", err)
 	}
 	return !hasPrior, nil
+}
+
+func unresolvedCodeInterprocEndpointCount(inputs []CodeInterprocEvidenceInput) int {
+	count := 0
+	for _, input := range inputs {
+		if input.SourceFunctionUID == "" || input.SinkFunctionUID == "" {
+			count++
+		}
+	}
+	return count
 }
