@@ -170,6 +170,35 @@ When a caller later wires the store through the instrumented Postgres adapter,
 existing query/exec spans and `eshu_dp_postgres_query_duration_seconds` cover
 the SQL path.
 
+No-Regression Evidence: #2947 changes `code_function_summary` full-snapshot
+cleanup from a marker-only no-op for stale rows to repo-scoped replacement of
+`function_summaries`, `function_sources`, and `function_graph_ids`. Baseline:
+a full value-flow scan that emitted only `code_dataflow_scanned` could enqueue
+no summary replacement and leave deleted or renamed functions in the durable
+stores. After: projector intents carry `repo_id` and `full_snapshot=true`, the
+reducer filters the durable baseline outside that repo, validates every
+replacement function id belongs to the repo, and the store deletes rows with
+`repo = $1 AND updated_at <= $2` before upserting current rows in one
+transaction when a transaction-capable DB is present. Backend/proof shape:
+local Go unit tests against the Postgres store SQL fakes and reducer/projector
+fakes, with one stale same-repo function, one current same-repo function, one
+unrelated-repo function, and one marker-only empty full scan. Terminal row
+assertions: the same-repo stale row is absent, the unrelated repo is excluded
+from the replacement set, empty full snapshots replace with zero summary rows,
+and empty full snapshots issue one zero-row replacement each for companion
+source and graph-id stores. Verification: `go test ./internal/projector
+./internal/reducer ./internal/storage/postgres ./cmd/reducer -count=1`.
+
+No-Observability-Change: #2947 adds no metric instrument, metric label, span
+name, worker, queue domain, lease, route, graph write, runtime knob, status
+field, or batch/concurrency setting. Operators diagnose the path through
+existing reducer execution spans/counters, durable reducer queue rows, the
+`code function summary persistence completed` log fields `repo_id`,
+`full_snapshot`, `function_count`, `source_count`, and `graph_id_count`, plus
+instrumented Postgres exec/query spans and
+`eshu_dp_postgres_query_duration_seconds` when the store is wrapped by
+`InstrumentedDB`.
+
 No-Regression Evidence: #2633 adds a nullable `partition_hash` column, partial
 pending indexes for hashed and unhashed rows, and Postgres selectors for pending
 shared intents that hash into a leased code-call partition or still need the
