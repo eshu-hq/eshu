@@ -92,6 +92,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderAzureCloudCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "azureCloudCollector.collectorInstances must contain at least one instance when azureCloudCollector.enabled=true" .Values.azureCloudCollector.collectorInstances | toJson | quote }}
+- name: ESHU_AZURE_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.azureCloudCollector.instanceId | quote }}
+- name: ESHU_AZURE_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_AZURE_POLL_INTERVAL
+  value: {{ .Values.azureCloudCollector.pollInterval | quote }}
+{{- with .Values.azureCloudCollector.claimLeaseTTL }}
+- name: ESHU_AZURE_COLLECTOR_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.azureCloudCollector.heartbeatInterval }}
+- name: ESHU_AZURE_COLLECTOR_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.azureCloudCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderPackageRegistryCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "packageRegistryCollector.collectorInstances must contain at least one instance when packageRegistryCollector.enabled=true" .Values.packageRegistryCollector.collectorInstances | toJson | quote }}
