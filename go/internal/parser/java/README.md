@@ -5,13 +5,16 @@
 This package owns the Java tree-sitter adapter and Java metadata extraction
 used by the parent parser engine. It emits source payload buckets for Java
 classes, interfaces, annotations, enums, functions, variables, imports, calls,
-dead-code roots, reflection references, and static metadata class references.
+dead-code roots, reflection references, static metadata class references, and
+opt-in shared value-flow buckets for the supported Java taint subset.
 
 ## Ownership boundary
 
 The package is responsible for Java syntax traversal, Java-specific type and
 call inference, Java dead-code root classification, Java reflection evidence,
-and ServiceLoader or Spring metadata class references. The parent
+Java taint lowering over Spring request parameters and typed JDBC/JPA sinks,
+same-file Java summary/interprocedural extraction, and ServiceLoader or Spring
+metadata class references. The parent
 internal/parser package owns registry dispatch, Engine methods, runtime
 language lookup, and compatibility wrappers such as `parseJavaMetadata`.
 
@@ -23,8 +26,12 @@ The godoc contract is in `doc.go`. Current exports are `Parse`, `PreScan`,
 ## Dependencies
 
 The package imports `go/internal/parser/shared` for `Options`, file reads,
-payload helpers, and tree-sitter node helpers. It imports tree-sitter only for
-the caller-owned parser and node traversal. It must not import the parent
+payload helpers, and tree-sitter node helpers. The opt-in value-flow path uses
+`go/internal/parser/cfg`, `go/internal/parser/dataflowemit`,
+`go/internal/parser/interproc`, `go/internal/parser/summary`,
+`go/internal/parser/taint`, and `go/internal/parser/valueflow` so Java emits
+the same payload schema as Go, Python, and JS/TS. It imports tree-sitter only
+for the caller-owned parser and node traversal. It must not import the parent
 `go/internal/parser` package, collector packages, graph storage, or reducer
 code.
 
@@ -33,6 +40,12 @@ code.
 This package emits no telemetry directly. Parser runtime timing and error
 reporting remain owned by the parent parser engine and the collector surfaces
 that call it.
+
+No-Observability-Change: Java value-flow emission is behind the existing
+`Options.EmitDataflow` parser gate and adds no metric, span, log field, status
+field, queue, graph write, runtime knob, or high-cardinality label. Operators
+continue to diagnose parser cost through the existing collector parse timing
+metric `eshu_dp_file_parse_duration_seconds` and parse-stage logs.
 
 ## Gotchas / invariants
 
@@ -60,6 +73,35 @@ Metadata extraction accepts repository-relative or absolute paths and
 normalizes separators before matching metadata locations. Invalid or duplicate
 class names are ignored, and Spring factories preserve the starting line number
 for continued values.
+
+Java taint support is intentionally conservative. A source requires a real
+Spring import for `@RequestParam`, `@PathVariable`, or `@RequestBody`; a
+same-named local annotation is ignored. Exact and package-wildcard Spring
+imports are accepted. A SQL sink requires receiver type evidence from the
+existing Java call-inference index plus the matching exact, package-wildcard,
+or qualified type evidence for `java.sql`, `jakarta.persistence`, or
+`javax.persistence` JDBC/JPA receivers; same-named local helper classes do not
+match.
+
+Java value-flow summaries use stable `RepositoryID`, Java package name, class
+context, and method signature identities so overloaded methods do not collide.
+The per-file interprocedural pass only resolves same-class calls with bare
+method names or `this.` receivers. Calls with unresolved argument types are
+resolved only when the class has a single same-name/same-arity candidate; this
+keeps unknown overloads as false negatives instead of inventing false edges.
+Durable `dataflow_summaries` and `dataflow_sources` rows are omitted without
+both repository and package identity, matching the stable identity contract.
+The Java CFG lowerer lowers try, catch, and finally bodies enough for sink lines
+inside those blocks to map back to CFG statements.
+
+No-Regression Evidence: `go test ./internal/parser -run
+'TestJava(DataflowOffIsByteIdentical|TaintSpringRequestParamToJDBCSink|TaintWildcardImportsToJDBCSink|TaintTryBlockJDBCSink|TaintIgnoresSameNamedLocalAnnotationAndSink|InterprocSummariesAndSources)'
+-count=1` failed before Java emitted value-flow buckets, before sink matching
+required import evidence, before wildcard import evidence was accepted, before
+try bodies were lowered, and before Java emitted summaries/sources/interproc
+rows, then passed after the Java lowering and catalog were added. The gate-off
+test proves default Java payloads remain byte-identical except for the opt-in
+value-flow buckets when the gate is enabled.
 
 ## Related docs
 
