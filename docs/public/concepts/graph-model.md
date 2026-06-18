@@ -4,24 +4,37 @@ Eshu uses an **entity-first graph** that represents code, workloads, infrastruct
 
 ## Canonical entities
 
-Common node types include:
+The graph projects dozens of node labels grouped by domain. The lists here are
+representative, not exhaustive; the authoritative label set lives in
+`go/internal/graph/schema.go` and `go/internal/projector/canonical.go`.
 
-- **`Repository`**
-- **`File`**
-- **`Function`**
-- **`Class`**
-- **`Workload`**
-- **`WorkloadInstance`**
-- **`TerraformModule`**
-- **`TerraformResource`**
-- **`K8sResource`**
-- **`CloudResource`**
-- **`ExternalPrincipal`**
-- **`Image`**
-- **`Endpoint`**
-- **`Environment`**
+**Code and documentation:**
+
+- **`Repository`**, **`File`**, **`Function`**, **`Class`**, **`Interface`**,
+  **`Variable`**, **`Module`**
 - **`DocumentationSection`** (identity-only; section body stays in Postgres)
 - **`Rationale`** (identity-only; intent-comment text stays in Postgres)
+
+**Workloads and deployment:**
+
+- **`Workload`**, **`WorkloadInstance`**, **`K8sResource`**, **`Endpoint`**,
+  **`Environment`**
+- **`ArgoCDApplication`**, **`HelmChart`**, **`KustomizeOverlay`**,
+  **`CrossplaneXRD`**
+
+**Infrastructure:**
+
+- **`TerraformModule`**, **`TerraformResource`**, **`TerraformDataSource`**,
+  **`TerraformProvider`**, **`CloudFormationResource`**
+- **`CloudResource`**, **`Platform`**, **`CloudAction`**, **`ExternalPrincipal`**
+
+**Supply chain and security:**
+
+- **`Image`**, **`ContainerImage`**, **`OciImageManifest`**,
+  **`OciRegistryRepository`**
+- **`Package`**, **`PackageVersion`**, **`PackageDependency`**
+- secrets and IAM identity nodes such as **`SecretsIAMServiceAccount`**,
+  **`SecretsIAMVaultPolicy`**, and **`SecretsIAMSecretMetadataPath`**
 
 ## Relationship patterns
 
@@ -40,13 +53,28 @@ Some edges describe direct technical structure:
 
 Some edges describe deployable-system context:
 
-- `(:Workload)-[:HAS_INSTANCE]->(:WorkloadInstance)`
-- `(:WorkloadInstance)-[:RUNS_IMAGE]->(:Image)`
-- `(:WorkloadInstance)-[:DEPLOYED_AS]->(:K8sResource)`
-- `(:TerraformModule)-[:DEFINES]->(:TerraformResource)`
-- `(:TerraformResource)-[:PROVISIONS]->(:CloudResource)`
+- `(:WorkloadInstance)-[:INSTANCE_OF]->(:Workload)`
+- `(:WorkloadInstance)-[:RUNS_ON]->(:Platform)`
+- `(:KubernetesWorkload)-[:RUNS_IMAGE]->(:OciImageManifest)`
 - `(:WorkloadInstance)-[:USES]->(:CloudResource)`
 - `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)`
+
+The graph also carries newer edge families that connect code to cloud and
+capture supply-chain and security posture. These edge types are projected by the
+reducer; their authoritative definitions live alongside the node labels in
+`go/internal/graph` and the reducer projection packages:
+
+- **Code-to-cloud bridges** — `(:Function)-[:HANDLES_ROUTE]->(:Endpoint)` (a
+  handler function serves an endpoint), `(:Function)-[:RUNS_IN]->(:Workload)` (a
+  route-handler function runs in the workload it is deployed in), and
+  `(:Function)-[:INVOKES_CLOUD_ACTION]->(:CloudAction)` (code invokes a cloud
+  action).
+- **IAM reachability** — `CAN_ASSUME`, `CAN_ESCALATE_TO`, and `CAN_PERFORM`
+  capture how identities reach roles, escalate privilege, and perform actions.
+- **Supply chain** — package and dependency edges connect repositories and
+  images to the packages they declare and depend on.
+- **Data flow** — `REFERENCES` and `TAINT_FLOWS_TO` capture value flow used by
+  reachability analysis.
 
 ## Code edge resolution provenance
 
