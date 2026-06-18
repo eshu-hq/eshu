@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,8 @@ import (
 	"syscall"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
@@ -21,11 +24,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+type launchMode string
+
+const (
+	launchModeFixture     launchMode = "fixture"
+	launchModeClaimedLive launchMode = "claimed-live"
+)
+
 // launchOptions holds the parsed command-line inputs for the scaffolding binary.
-// This slice is fixture-driven: the config and redaction key are file paths so
-// the binary needs no live Google Cloud access and no environment-variable
-// contract (those are deferred slices).
 type launchOptions struct {
+	mode             launchMode
 	configPath       string
 	redactionKeyPath string
 }
@@ -62,18 +70,32 @@ func main() {
 // parseArgs parses the config and redaction-key file paths.
 func parseArgs(args []string) (launchOptions, error) {
 	flags := flag.NewFlagSet("collector-gcp-cloud", flag.ContinueOnError)
+	mode := flags.String("mode", string(launchModeFixture), "collector mode: fixture or claimed-live")
 	configPath := flags.String("config", "", "path to the declarative GCP collector config JSON")
 	keyPath := flags.String("redaction-key-file", "", "path to the read-only redaction key material file")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
-	if strings.TrimSpace(*configPath) == "" {
-		return launchOptions{}, fmt.Errorf("-config is required")
+	selectedMode := launchMode(strings.TrimSpace(*mode))
+	if selectedMode == "" {
+		selectedMode = launchModeFixture
+	}
+	switch selectedMode {
+	case launchModeFixture:
+		if strings.TrimSpace(*configPath) == "" {
+			return launchOptions{}, fmt.Errorf("-config is required in fixture mode")
+		}
+	case launchModeClaimedLive:
+		if strings.TrimSpace(*configPath) != "" {
+			return launchOptions{}, fmt.Errorf("-config is not used in claimed-live mode")
+		}
+	default:
+		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
 	}
 	if strings.TrimSpace(*keyPath) == "" {
 		return launchOptions{}, fmt.Errorf("-redaction-key-file is required")
 	}
-	return launchOptions{configPath: *configPath, redactionKeyPath: *keyPath}, nil
+	return launchOptions{mode: selectedMode, configPath: *configPath, redactionKeyPath: *keyPath}, nil
 }
 
 func run(parent context.Context, opts launchOptions) error {
@@ -123,15 +145,7 @@ func run(parent context.Context, opts launchOptions) error {
 		_ = db.Close()
 	}()
 
-	runner, err := buildCollectorService(
-		postgres.SQLDB{DB: db},
-		opts.configPath,
-		redactionKey,
-		tracer,
-		meter,
-		instruments,
-		logger,
-	)
+	runner, err := buildRuntimeRunner(parent, db, opts, redactionKey, tracer, meter, instruments, logger)
 	if err != nil {
 		return err
 	}
@@ -149,6 +163,40 @@ func run(parent context.Context, opts launchOptions) error {
 	defer stop()
 
 	return service.Run(ctx)
+}
+
+func buildRuntimeRunner(
+	ctx context.Context,
+	db *sql.DB,
+	opts launchOptions,
+	redactionKey redact.Key,
+	tracer trace.Tracer,
+	meter metric.Meter,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (app.Runner, error) {
+	switch opts.mode {
+	case launchModeFixture:
+		return buildCollectorService(
+			postgres.SQLDB{DB: db},
+			opts.configPath,
+			redactionKey,
+			tracer,
+			meter,
+			instruments,
+			logger,
+		)
+	case launchModeClaimedLive:
+		storeDB := &postgres.InstrumentedDB{
+			Inner:       postgres.SQLDB{DB: db},
+			Tracer:      tracer,
+			Instruments: instruments,
+			StoreName:   "collector_gcp_cloud",
+		}
+		return buildClaimedService(ctx, storeDB, redactionKey, os.Getenv, tracer, meter, instruments, logger)
+	default:
+		return nil, fmt.Errorf("unsupported mode %q", opts.mode)
+	}
 }
 
 // loadRedactionKey reads the read-only redaction key material from a file. The

@@ -7,12 +7,15 @@ import (
 	"time"
 
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/trace/noop"
+	"golang.org/x/oauth2"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func smokeRedactionKey(t *testing.T) redact.Key {
@@ -107,6 +110,76 @@ func TestStatusCommitterWritesFactsAndRecordsClaim(t *testing.T) {
 	}
 	if inner.scopeID != scopeValue.ScopeID {
 		t.Fatalf("inner scope id = %q, want %q", inner.scopeID, scopeValue.ScopeID)
+	}
+}
+
+func TestBuildClaimedServiceWiresLiveClaimRuntime(t *testing.T) {
+	oldFactory := newGCPADCLiveClient
+	t.Cleanup(func() {
+		newGCPADCLiveClient = oldFactory
+	})
+	var gotCredentialRef string
+	newGCPADCLiveClient = func(_ context.Context, credentialRef string) (gcpruntime.LiveClient, error) {
+		gotCredentialRef = credentialRef
+		return gcpruntime.LiveClient{
+			CredentialRef: credentialRef,
+			TokenSource:   oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test-token"}),
+		}, nil
+	}
+
+	service, err := buildClaimedService(
+		context.Background(),
+		postgres.SQLDB{},
+		smokeRedactionKey(t),
+		claimedRuntimeEnv,
+		noop.NewTracerProvider().Tracer("test"),
+		metricnoop.NewMeterProvider().Meter("test"),
+		nil,
+		slog.Default(),
+	)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	if got, want := service.CollectorInstanceID, "gcp-primary"; got != want {
+		t.Fatalf("CollectorInstanceID = %q, want %q", got, want)
+	}
+	if got, want := gotCredentialRef, "readonly-ref"; got != want {
+		t.Fatalf("credential ref = %q, want %q", got, want)
+	}
+	source, ok := service.Source.(*gcpruntime.Source)
+	if !ok {
+		t.Fatalf("Source type = %T, want *gcpruntime.Source", service.Source)
+	}
+	if _, ok := source.Provider.(gcpruntime.LiveClient); !ok {
+		t.Fatalf("Provider type = %T, want gcpruntime.LiveClient", source.Provider)
+	}
+}
+
+func claimedRuntimeEnv(key string) string {
+	switch key {
+	case envCollectorInstances:
+		return `[{
+			"instance_id": "gcp-primary",
+			"collector_kind": "gcp",
+			"mode": "continuous",
+			"enabled": true,
+			"claims_enabled": true,
+			"configuration": {
+				"live_collection_enabled": true,
+				"scopes": [{
+					"enabled": true,
+					"parent_scope_kind": "project",
+					"parent_scope_id": "project-alpha",
+					"credential_ref": "readonly-ref"
+				}]
+			}
+		}]`
+	case envCollectorInstanceID:
+		return "gcp-primary"
+	case envOwnerID:
+		return "pod-1"
+	default:
+		return ""
 	}
 }
 

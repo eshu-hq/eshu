@@ -139,3 +139,112 @@ func TestParseArgsRequiresConfigAndKey(t *testing.T) {
 		t.Fatalf("opts = %+v", opts)
 	}
 }
+
+func TestParseArgsAcceptsExplicitClaimedLiveModeWithoutFixtureConfig(t *testing.T) {
+	t.Parallel()
+
+	opts, err := parseArgs([]string{"-mode", "claimed-live", "-redaction-key-file", "k.key"})
+	if err != nil {
+		t.Fatalf("parseArgs() error = %v, want nil", err)
+	}
+	if got, want := opts.mode, launchModeClaimedLive; got != want {
+		t.Fatalf("mode = %q, want %q", got, want)
+	}
+	if opts.configPath != "" {
+		t.Fatalf("configPath = %q, want empty for claimed-live mode", opts.configPath)
+	}
+}
+
+func TestLoadClaimedRuntimeConfigSelectsGCPInstance(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadClaimedRuntimeConfig(func(key string) string {
+		switch key {
+		case envCollectorInstances:
+			return `[{
+				"instance_id": "gcp-primary",
+				"collector_kind": "gcp",
+				"mode": "continuous",
+				"enabled": true,
+				"claims_enabled": true,
+				"configuration": {
+					"live_collection_enabled": true,
+					"scopes": [{
+						"enabled": true,
+						"parent_scope_kind": "project",
+						"parent_scope_id": "project-alpha",
+						"asset_type_family": "compute",
+						"content_family": "resource",
+						"location_bucket": "global",
+						"credential_ref": "readonly-ref"
+					}]
+				}
+			}]`
+		case envCollectorInstanceID:
+			return "gcp-primary"
+		case envPollInterval:
+			return "2s"
+		case envClaimLeaseTTL:
+			return "2m"
+		case envHeartbeatInterval:
+			return "30s"
+		case envOwnerID:
+			return "pod-1"
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatalf("loadClaimedRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := config.Instance.InstanceID, "gcp-primary"; got != want {
+		t.Fatalf("InstanceID = %q, want %q", got, want)
+	}
+	if got, want := config.OwnerID, "pod-1"; got != want {
+		t.Fatalf("OwnerID = %q, want %q", got, want)
+	}
+	if got, want := config.PollInterval, 2*time.Second; got != want {
+		t.Fatalf("PollInterval = %v, want %v", got, want)
+	}
+	if got, want := len(config.Source.Scopes), 1; got != want {
+		t.Fatalf("Source scopes = %d, want %d", got, want)
+	}
+	scopeCfg := config.Source.Scopes[0]
+	if got, want := scopeCfg.ScopeID, "gcp:project:project-alpha:compute:resource:global"; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+	if scopeCfg.FencingToken != 0 {
+		t.Fatalf("FencingToken = %d, want work-item supplied token", scopeCfg.FencingToken)
+	}
+	if got, want := scopeCfg.CredentialRef, "readonly-ref"; got != want {
+		t.Fatalf("CredentialRef = %q, want %q", got, want)
+	}
+}
+
+func TestLoadClaimedRuntimeConfigRejectsLiveModeDisabled(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadClaimedRuntimeConfig(func(key string) string {
+		if key != envCollectorInstances {
+			return ""
+		}
+		return `[{
+			"instance_id": "gcp-primary",
+			"collector_kind": "gcp",
+			"mode": "continuous",
+			"enabled": true,
+			"claims_enabled": true,
+			"configuration": {
+				"scopes": [{
+					"enabled": true,
+					"parent_scope_kind": "project",
+					"parent_scope_id": "project-alpha",
+					"credential_ref": "readonly-ref"
+				}]
+			}
+		}]`
+	})
+	if err == nil {
+		t.Fatal("loadClaimedRuntimeConfig() error = nil, want live mode rejection")
+	}
+}

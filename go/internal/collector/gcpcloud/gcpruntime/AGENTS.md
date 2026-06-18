@@ -9,17 +9,20 @@
    fact family, payload boundary, telemetry, and fixture contract.
 4. `source.go` - the `collector.Source` implementation and scope/generation
    identity.
-5. `pageprovider.go` - the transport seam, `FixturePageProvider`, and the
+5. `claimed_source.go` - workflow claim validation and work-item-to-scope
+   mapping.
+6. `pageprovider.go` - the transport seam, `FixturePageProvider`, and the
    continuation-token resume contract.
-6. `config.go` - declarative config and credential-by-name policy.
-7. `telemetry.go` - bounded-label metric and structured-log helpers.
+7. `config.go` - declarative config and credential-by-name policy.
+8. `telemetry.go` - bounded-label metric and structured-log helpers.
 
 ## Invariants
 
 - This package contains the explicitly injected `LiveClient` REST seam for
-  Cloud Asset Inventory `assets.list`, but it is never wired as a default. The
-  command path still uses `FixturePageProvider`; live-client tests must use
-  local HTTP servers, not live Google Cloud calls.
+  Cloud Asset Inventory `assets.list`, but it is never wired as a default.
+  Fixture mode still uses `FixturePageProvider`; claimed-live command mode may
+  inject `LiveClient` only after explicit workflow config. Live-client tests
+  must use local HTTP servers, not live Google Cloud calls.
 - All transport goes through `PageProvider.FetchPage`. Do not import a Google
   Cloud SDK into `source.go`; transport belongs behind a `PageProvider`.
 - Parsed resource labels emit label-backed `gcp_tag_observation` facts through
@@ -42,6 +45,8 @@
   pages. A stale generation emits a single stale warning and never emits
   resource facts. Re-running the same generation id and fencing token is
   idempotent.
+- For claim-driven collection, generation id and fencing token must come from
+  the workflow work item, not static collector configuration.
 - A continuation token the provider cannot resume becomes a
   `page_token_expired` warning, not a hard failure or silent truncation. Typed
   live provider warnings become `gcp_collection_warning` facts.
@@ -56,10 +61,9 @@
 
 ## What Not To Change Without An ADR
 
-- Do not wire `LiveClient` (or any live transport) as a default page provider in
-  this package or in `cmd/collector-gcp-cloud`.
+- Do not wire `LiveClient` (or any live transport) as a default page provider.
 - Do not add reducer admission, graph writes, API/MCP readback, Helm values, or
-  environment-variable contracts here; those are deferred slices.
+  ServiceMonitor wiring here; those are separate slices.
 - Do not infer environment, workload, ownership, or deployable-unit truth from
   names, labels, folders, or project ids.
 
