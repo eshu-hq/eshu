@@ -25,6 +25,10 @@ const (
 	// DomainCodeInterprocEvidence projects cross-function value-flow findings into
 	// TAINT_FLOWS_TO edges between the source and sink Function nodes.
 	DomainCodeInterprocEvidence Domain = "code_interproc_evidence"
+	// DomainCodeFunctionSummary persists each function's durable value-flow
+	// summary (its structural Effects) to the function-summary store so the
+	// interprocedural fixpoint can recompose summaries across runs and repos.
+	DomainCodeFunctionSummary Domain = "code_function_summary"
 	// DomainOwnership resolves ownership and responsibility records.
 	DomainOwnership Domain = "ownership"
 	// DomainGovernance resolves governance and policy attribution.

@@ -100,9 +100,9 @@ func query(db *sql.DB, r *http.Request) {
 	}
 }
 
-// TestGoDataflowSourcesEmitParamEntryPoints proves the parser emits durable
+// TestGoDataflowSourcesEmitDurableParamEntryPoints proves the parser emits durable
 // param-level source entry points for the reducer fixpoint alongside summaries.
-func TestGoDataflowSourcesEmitParamEntryPoints(t *testing.T) {
+func TestGoDataflowSourcesEmitDurableParamEntryPoints(t *testing.T) {
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "handlers.go")
 	writeTestFile(t, filePath, `package handlers

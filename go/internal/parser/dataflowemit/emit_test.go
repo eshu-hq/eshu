@@ -129,3 +129,24 @@ func TestSortSummaryRowsByFunctionID(t *testing.T) {
 		t.Fatalf("not sorted by function_id: %+v", rows)
 	}
 }
+
+// TestDataflowSourceRowRendersPortAndKind proves the source row carries the
+// FunctionID, parameter index, and kind, and that SortSourceRows orders rows.
+func TestDataflowSourceRowRendersPortAndKind(t *testing.T) {
+	row := DataflowSourceRow("go", interproc.Source{
+		Port: interproc.Port{Func: interproc.FunctionID("repo\x1fpkg\x1f\x1fhandle"), Slot: interproc.Slot{Kind: interproc.SlotParam, Index: 2}},
+		Kind: "http_request",
+	})
+	if row["function_id"] != "repo\x1fpkg\x1f\x1fhandle" || row["param_index"] != 2 || row["kind"] != "http_request" || row["lang"] != "go" {
+		t.Fatalf("source row not rendered: %+v", row)
+	}
+	rows := []map[string]any{
+		{"function_id": "b", "param_index": 0},
+		{"function_id": "a", "param_index": 1},
+		{"function_id": "a", "param_index": 0},
+	}
+	SortSourceRows(rows)
+	if rows[0]["function_id"] != "a" || rows[0]["param_index"] != 0 || rows[2]["function_id"] != "b" {
+		t.Fatalf("SortSourceRows wrong: %+v", rows)
+	}
+}

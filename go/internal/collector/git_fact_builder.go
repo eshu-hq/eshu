@@ -70,9 +70,15 @@ func buildStreamingGenerationWithContext(
 	if snapshot.Delta {
 		followupFactCount = 0
 	}
+	dataflowScannedFactCount := 0
+	if snapshot.DataflowScanned && !snapshot.Delta {
+		dataflowScannedFactCount = 1
+	}
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		len(snapshot.TaintEvidence) + len(snapshot.InterprocTaintEvidence) +
+		len(snapshot.FunctionSummaries) +
+		dataflowScannedFactCount +
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
 		terraformStateBackendExpressionWarningFactCount(repo.ID, snapshot.FileData) +
@@ -302,10 +308,33 @@ func streamFacts(
 	}
 	snapshot.InterprocTaintEvidence = nil
 
+	// Value-flow function summary facts (opt-in via ESHU_EMIT_DATAFLOW; the slice
+	// is empty otherwise so this loop is a no-op when the gate is off). Emitted on
+	// both delta and full generations: each summary upserts by its durable
+	// FunctionID, so a delta that only re-summarizes changed files refreshes those
+	// functions without disturbing the rest.
+	for _, summary := range snapshot.FunctionSummaries {
+		ch <- functionSummaryFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, summary)
+	}
+	snapshot.FunctionSummaries = nil
+
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	if snapshot.Delta {
 		return
 	}
+
+	// Value-flow reconciliation marker — emitted only on full (non-delta)
+	// generations whenever the gate ran, even with zero findings above. It must
+	// NOT fire on deltas: a delta carries only changed-file findings, while the
+	// evidence reducers retract the whole scope then write what they load, so a
+	// marker-triggered delta would wipe evidence for unchanged files. On a full
+	// generation the loaded finding set is complete, so retract-then-write is
+	// correct and stale edges/nodes are cleared when the finding set goes empty
+	// (#2919).
+	if snapshot.DataflowScanned {
+		ch <- dataflowScannedFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+	}
+
 	ch <- workloadIdentityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
@@ -396,97 +425,4 @@ func fileFactEnvelope(
 	}
 
 	return factEnvelope("file", scopeID, generationID, observedAt, "file:"+repoID+":"+relativePath, payload, filePath)
-}
-
-func contentFactEnvelope(
-	repoPath string,
-	repoID string,
-	scopeID string,
-	generationID string,
-	observedAt time.Time,
-	fileSnapshot ContentFileSnapshot,
-) facts.Envelope {
-	payload := map[string]any{
-		"content_path":   fileSnapshot.RelativePath,
-		"content_body":   fileSnapshot.Body,
-		"content_digest": fileSnapshot.Digest,
-		"repo_id":        repoID,
-	}
-	if fileSnapshot.Language != "" {
-		payload["language"] = fileSnapshot.Language
-	}
-	if fileSnapshot.CommitSHA != "" {
-		payload["commit_sha"] = fileSnapshot.CommitSHA
-	}
-	if fileSnapshot.ArtifactType != "" {
-		payload["artifact_type"] = fileSnapshot.ArtifactType
-	}
-	if fileSnapshot.TemplateDialect != "" {
-		payload["template_dialect"] = fileSnapshot.TemplateDialect
-	}
-	if fileSnapshot.IACRelevant != nil {
-		payload["iac_relevant"] = strings.ToLower(fmt.Sprintf("%t", *fileSnapshot.IACRelevant))
-	}
-
-	return factEnvelope(
-		"content",
-		scopeID,
-		generationID,
-		observedAt,
-		"content:"+repoID+":"+fileSnapshot.RelativePath,
-		payload,
-		filepath.Join(repoPath, filepath.FromSlash(fileSnapshot.RelativePath)),
-	)
-}
-
-func contentEntityFactEnvelope(
-	repoPath string,
-	repoID string,
-	scopeID string,
-	generationID string,
-	observedAt time.Time,
-	entitySnapshot ContentEntitySnapshot,
-) facts.Envelope {
-	payload := map[string]any{
-		"graph_id":      entitySnapshot.EntityID,
-		"graph_kind":    "content_entity",
-		"entity_id":     entitySnapshot.EntityID,
-		"repo_id":       repoID,
-		"relative_path": entitySnapshot.RelativePath,
-		"entity_type":   entitySnapshot.EntityType,
-		"entity_name":   entitySnapshot.EntityName,
-		"start_line":    entitySnapshot.StartLine,
-		"end_line":      entitySnapshot.EndLine,
-		"language":      entitySnapshot.Language,
-		"source_cache":  entitySnapshot.SourceCache,
-		"indexed_at":    entitySnapshot.IndexedAt.UTC().Format(time.RFC3339Nano),
-	}
-	if entitySnapshot.StartByte != nil {
-		payload["start_byte"] = *entitySnapshot.StartByte
-	}
-	if entitySnapshot.EndByte != nil {
-		payload["end_byte"] = *entitySnapshot.EndByte
-	}
-	if entitySnapshot.ArtifactType != "" {
-		payload["artifact_type"] = entitySnapshot.ArtifactType
-	}
-	if entitySnapshot.TemplateDialect != "" {
-		payload["template_dialect"] = entitySnapshot.TemplateDialect
-	}
-	if entitySnapshot.IACRelevant != nil {
-		payload["iac_relevant"] = *entitySnapshot.IACRelevant
-	}
-	if len(entitySnapshot.Metadata) > 0 {
-		payload["entity_metadata"] = cloneAnyMap(entitySnapshot.Metadata)
-	}
-
-	return factEnvelope(
-		"content_entity",
-		scopeID,
-		generationID,
-		observedAt,
-		"content_entity:"+entitySnapshot.EntityID,
-		payload,
-		filepath.Join(repoPath, filepath.FromSlash(entitySnapshot.RelativePath)),
-	)
 }

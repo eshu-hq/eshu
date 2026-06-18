@@ -390,11 +390,10 @@ func TestInheritanceMaterializationHandlerUsesKindFilteredFactLoader(t *testing.
 			{FactKind: "file"},
 		},
 	}
-	writer := &recordingInheritanceEdgeWriter{}
+	writer := &recordingInheritanceIntentWriter{}
 	handler := InheritanceMaterializationHandler{
-		FactLoader:           loader,
-		EdgeWriter:           writer,
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
+		FactLoader:   loader,
+		IntentWriter: writer,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -420,8 +419,8 @@ func TestInheritanceMaterializationHandlerUsesKindFilteredFactLoader(t *testing.
 	if got, want := strings.Join(loader.kindCalls[1], ","), "content_entity"; got != want {
 		t.Fatalf("ListFactsByKind() second kinds = %q, want %q", got, want)
 	}
-	if got, want := len(writer.writeRows), 1; got != want {
-		t.Fatalf("inheritance write rows = %d, want %d", got, want)
+	if got, want := len(writer.edgeRows()), 1; got != want {
+		t.Fatalf("inheritance per-edge intents = %d, want %d", got, want)
 	}
 }
 

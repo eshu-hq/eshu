@@ -46,12 +46,16 @@ func goInterprocPayloads(root *tree_sitter.Node, source []byte, repositoryID, im
 		sources = append(sources, goInterprocSources(node, source, id)...)
 	})
 
+	// Summaries and the param-level sources are durable persistence facts, so they
+	// require the repository identity that keys the FunctionID. The per-file
+	// findings below do not, so a bare parser caller still gets them.
 	if strings.TrimSpace(repositoryID) != "" && strings.TrimSpace(importPath) != "" {
 		summaries = make([]map[string]any, 0, len(effectsByID))
 		for id, effects := range effectsByID {
 			summaries = append(summaries, dataflowemit.DataflowSummaryRow("go", id, effects))
 		}
 		dataflowemit.SortSummaryRows(summaries)
+
 		sourceRows = make([]map[string]any, 0, len(sources))
 		for _, source := range sources {
 			sourceRows = append(sourceRows, dataflowemit.DataflowSourceRow("go", source))

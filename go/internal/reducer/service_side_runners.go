@@ -35,6 +35,9 @@ func (s Service) startSideRunners(
 	if s.GraphOrphanSweepRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GraphOrphanSweepRunner)
 	}
+	if s.CodeValueFlowStaleCleanupRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.CodeValueFlowStaleCleanupRunner)
+	}
 }
 
 func startServiceSideRunner(

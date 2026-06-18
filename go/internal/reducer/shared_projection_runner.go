@@ -90,6 +90,23 @@ func (c SharedProjectionRunnerConfig) leaseOwner() string {
 	return c.LeaseOwner
 }
 
+// sharedProjectionDomainEvidenceSource returns the evidence source the worker must
+// stamp on a domain's edges, falling back to the runner's global source. Domains
+// promoted onto the shared-projection runner from a dedicated materialization
+// handler keep the handler's original evidence source so that, across an upgrade,
+// the refresh/delta retract still matches the edges the old handler wrote (a
+// mismatched source would leave stale edges un-retracted and change edge
+// provenance). inheritance_edges keeps reducer/inheritance (#2867); the symbol→runtime
+// domains have no pre-existing edges and stay on the runner's global source.
+func sharedProjectionDomainEvidenceSource(domain, fallback string) string {
+	switch domain {
+	case DomainInheritanceEdges:
+		return inheritanceEvidenceSource
+	default:
+		return fallback
+	}
+}
+
 // SharedProjectionRunner processes shared projection intents across all
 // domains and partitions. It runs as a long-lived goroutine alongside the
 // main reducer claim/execute/ack loop.
@@ -307,7 +324,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 			LeaseOwner:     r.Config.leaseOwner(),
 			LeaseTTL:       r.Config.leaseTTL(),
 			BatchLimit:     r.Config.batchLimit(),
-			EvidenceSource: r.Config.evidenceSource(),
+			EvidenceSource: sharedProjectionDomainEvidenceSource(domain, r.Config.evidenceSource()),
 		},
 		r.LeaseManager,
 		r.IntentReader,

@@ -38,6 +38,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
+	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
@@ -77,6 +78,16 @@ func buildReducerService(
 	graphOrphanSweepRunner := graphOrphanSweepRunnerFor(neo4jExec, graphReader, intentStore, graphOrphanSweepCfg)
 	if graphOrphanSweepRunner != nil {
 		graphOrphanSweepRunner.Logger = logger
+	}
+	codeValueFlowStaleCleanupRunner := codeValueFlowStaleCleanupRunnerFor(
+		database,
+		graphWriters.codeTaintEvidence,
+		graphWriters.codeInterprocEvidence,
+		intentStore,
+		codeValueFlowStaleCleanupCfg,
+	)
+	if codeValueFlowStaleCleanupRunner != nil {
+		codeValueFlowStaleCleanupRunner.Logger = logger
 	}
 	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader, cloudInventoryIdentityPolicyEvidenceLoader, cloudInventoryResourceChangeEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
@@ -147,20 +158,24 @@ func buildReducerService(
 		ReadinessPrefetch:                  graphProjectionReadinessPrefetch,
 		SemanticEntityWriter:               semanticEntityWriter,
 		SQLRelationshipEdgeWriter:          edgeWriterForHandlers,
-		InheritanceEdgeWriter:              edgeWriterForHandlers,
-		DocumentationEdgeWriter:            edgeWriterForHandlers,
-		RationaleEdgeWriter:                edgeWriterForHandlers,
-		EvidenceFactLoader:                 relationshipStore,
-		AssertionLoader:                    relationshipStore,
-		ResolutionPersister:                relationshipStore,
-		ResolvedRelationshipLoader:         relationshipStore,
-		RepoDependencyIntentWriter:         repoDependencyIntentWriter,
-		RepoDependencyEdgeWriter:           edgeWriterForHandlers,
-		WorkloadDependencyEdgeWriter:       edgeWriterForHandlers,
-		GenerationCheck:                    postgres.NewGenerationFreshnessCheck(database),
-		PriorGenerationCheck:               postgres.NewPriorGenerationCheck(database),
-		Tracer:                             tracer,
-		Instruments:                        instruments,
+		// Inheritance edges ride the shared-projection intent path (#2867): the
+		// handler emits file-scoped per-edge intents plus a per-repo refresh intent
+		// to the same shared intent acceptance writer CALLS-adjacent domains use,
+		// and the partitioned runner + #2898 refresh fence project them.
+		InheritanceIntentWriter:      repoDependencyIntentWriter,
+		DocumentationEdgeWriter:      edgeWriterForHandlers,
+		RationaleEdgeWriter:          edgeWriterForHandlers,
+		EvidenceFactLoader:           relationshipStore,
+		AssertionLoader:              relationshipStore,
+		ResolutionPersister:          relationshipStore,
+		ResolvedRelationshipLoader:   relationshipStore,
+		RepoDependencyIntentWriter:   repoDependencyIntentWriter,
+		RepoDependencyEdgeWriter:     edgeWriterForHandlers,
+		WorkloadDependencyEdgeWriter: edgeWriterForHandlers,
+		GenerationCheck:              postgres.NewGenerationFreshnessCheck(database),
+		PriorGenerationCheck:         postgres.NewPriorGenerationCheck(database),
+		Tracer:                       tracer,
+		Instruments:                  instruments,
 		// Terraform config-vs-state drift adapters (issue #163). All three
 		// must be non-nil for the reducer registry to register
 		// DomainConfigStateDrift (see internal/reducer/defaults.go:202-213).
@@ -294,6 +309,8 @@ func buildReducerService(
 		CodeTaintEvidenceWriter:       graphWriters.codeTaintEvidence,
 		CodeInterprocEvidenceLoader:   factStore,
 		CodeInterprocEvidenceWriter:   graphWriters.codeInterprocEvidence,
+		CodeFunctionSummaryLoader:     factStore,
+		CodeFunctionSummaryWriter:     postgres.NewFunctionSummaryStore(database),
 		// Durable incident -> repository correlation (#2161); see helper for rationale.
 		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
 		BackendRepositoryResolver:            incidentRepoCorrelationResolver,
@@ -376,13 +393,14 @@ func buildReducerService(
 			Instruments: instruments,
 			Logger:      logger,
 		},
-		GenerationRetentionRunner: generationRetentionRunner,
-		GraphOrphanSweepRunner:    graphOrphanSweepRunner,
-		Workers:                   workers,
-		BatchClaimSize:            loadReducerBatchClaimSize(getenv, workers, graphBackend),
-		Tracer:                    tracer,
-		Instruments:               instruments,
-		Logger:                    logger,
+		GenerationRetentionRunner:       generationRetentionRunner,
+		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
+		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
+		Workers:                         workers,
+		BatchClaimSize:                  loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		Tracer:                          tracer,
+		Instruments:                     instruments,
+		Logger:                          logger,
 	}, nil
 }
 

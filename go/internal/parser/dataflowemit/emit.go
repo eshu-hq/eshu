@@ -127,10 +127,12 @@ func DataflowSourceRow(lang string, source interproc.Source) map[string]any {
 		"function_id": string(source.Port.Func),
 		"param_index": source.Port.Slot.Index,
 		"source_kind": source.Kind,
+		"kind":        source.Kind,
 		"lang":        lang,
 	}
 	if source.Label != "" {
 		row["source_label"] = source.Label
+		row["label"] = source.Label
 	}
 	return row
 }

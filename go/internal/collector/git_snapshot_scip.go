@@ -364,35 +364,27 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, bool, error) {
 	config := s.scipConfig()
 	if !config.Enabled {
+		s.recordSCIPSnapshotAttempt(ctx, scipSnapshotLanguageUnknown, scipSnapshotResultDisabled)
 		return nil, nil, nil, false, nil
 	}
 
-	language := parser.DetectSCIPProjectLanguage(fileSet.Files, config.Languages)
-	if language == "" {
+	groups := parser.DetectSCIPProjectLanguageGroups(fileSet.Files, config.Languages)
+	if len(groups) == 0 {
+		s.recordSCIPSnapshotAttempt(ctx, scipSnapshotLanguageUnknown, scipSnapshotResultNoLanguage)
 		return nil, nil, nil, false, nil
 	}
 	indexer := s.scipIndexer(config)
-	if !indexer.IsAvailable(language) {
-		s.logSCIPSnapshotFallback(ctx, language, "binary_unavailable")
-		return nil, nil, nil, false, nil
-	}
-
-	outputDir, err := os.MkdirTemp("", "eshu-scip-*")
+	scipFiles, usedAny, err := s.collectSCIPLanguageGroupFiles(
+		ctx,
+		repoPath,
+		groups,
+		indexer,
+		s.scipParser(config),
+	)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	defer func() {
-		_ = os.RemoveAll(outputDir)
-	}()
-
-	indexPath, err := indexer.Run(ctx, repoPath, language, outputDir)
-	if err != nil {
-		s.logSCIPSnapshotFallback(ctx, language, "indexer_failed")
-		return nil, nil, nil, false, nil
-	}
-	result, err := s.scipParser(config).Parse(indexPath, repoPath)
-	if err != nil {
-		s.logSCIPSnapshotFallback(ctx, language, "parse_failed")
+	if !usedAny {
 		return nil, nil, nil, false, nil
 	}
 
@@ -411,7 +403,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 			isDependency,
 			goPackageTargets,
 			repositoryID,
-			result.Files,
+			scipFiles,
 		)
 	} else {
 		shapeFiles, parsedFiles, languageSummary, err = s.buildParsedRepositoryFilesConcurrent(
@@ -423,7 +415,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 			isDependency,
 			goPackageTargets,
 			repositoryID,
-			result.Files,
+			scipFiles,
 		)
 	}
 	if err != nil {

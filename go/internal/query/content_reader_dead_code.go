@@ -106,9 +106,10 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 }
 
 // CodeReachabilityIncomingEntityIDs returns dead-code reachability evidence
-// from reducer-materialized code_reachability_rows. This is the preferred
-// standing projection lookup; DeadCodeIncomingEntityIDs remains a compatibility
-// fallback for stores without materialized reachability.
+// from reducer-materialized code_reachability_rows. The lookup is entity-scoped
+// across active generations so a library scan can honor rows materialized from
+// a service repository that reaches the library symbol; DeadCodeIncomingEntityIDs
+// remains a compatibility fallback for stores without materialized reachability.
 func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	ctx context.Context,
 	repoID string,
@@ -130,11 +131,10 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	defer span.End()
 
 	placeholders := make([]string, 0, len(entityIDs))
-	args := make([]any, 0, len(entityIDs)+1)
-	args = append(args, repoID)
-	for i, entityID := range entityIDs {
+	args := make([]any, 0, len(entityIDs))
+	for _, entityID := range entityIDs {
 		args = append(args, entityID)
-		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2))
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
 	}
 	query := `
 		SELECT DISTINCT row.entity_id, row.min_resolution_method
@@ -145,8 +145,7 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 		JOIN scope_generations AS generation
 		  ON generation.generation_id = row.generation_id
 		 AND generation.status = 'active'
-		WHERE row.repository_id = $1
-		  AND row.entity_id IN (` + strings.Join(placeholders, ", ") + `)
+		WHERE row.entity_id IN (` + strings.Join(placeholders, ", ") + `)
 		  AND row.depth > 0
 	`
 	rows, err := cr.db.QueryContext(ctx, query, args...)
@@ -171,6 +170,53 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 		return nil, err
 	}
 	return incoming, nil
+}
+
+// CodeReachabilityCoverage reports whether the active generation has a
+// materialized reachability snapshot for repoID, and whether that snapshot hit
+// the traversal bound. Complete snapshots make absent entities authoritative
+// dead-code candidates; truncated or unavailable snapshots keep the legacy
+// incoming-edge fallback conservative.
+func (cr *ContentReader) CodeReachabilityCoverage(
+	ctx context.Context,
+	repoID string,
+) (codeReachabilityCoverage, error) {
+	repoID = strings.TrimSpace(repoID)
+	if cr == nil || cr.db == nil || repoID == "" {
+		return codeReachabilityCoverage{}, nil
+	}
+
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "code_reachability_coverage"),
+			attribute.String("db.sql.table", "code_reachability_repository_watermarks"),
+		),
+	)
+	defer span.End()
+
+	const query = `
+		WITH active_watermarks AS (
+			SELECT watermark.truncated
+			FROM code_reachability_repository_watermarks AS watermark
+			JOIN ingestion_scopes AS scope
+			  ON scope.scope_id = watermark.scope_id
+			 AND scope.active_generation_id = watermark.generation_id
+			JOIN scope_generations AS generation
+			  ON generation.generation_id = watermark.generation_id
+			 AND generation.status = 'active'
+			WHERE watermark.repository_id = $1
+		)
+		SELECT count(*) > 0 AS available,
+		       coalesce(bool_or(truncated), false) AS truncated
+		FROM active_watermarks
+	`
+	var coverage codeReachabilityCoverage
+	if err := cr.db.QueryRowContext(ctx, query, repoID).Scan(&coverage.Available, &coverage.Truncated); err != nil {
+		span.RecordError(err)
+		return codeReachabilityCoverage{}, fmt.Errorf("code reachability coverage: %w", err)
+	}
+	return coverage, nil
 }
 
 // mergeDeadCodeIncomingEdge records the strongest incoming edge seen for

@@ -122,6 +122,11 @@
 // DocumentationEvidenceLoader for the docs family, and an optional
 // IncidentEvidenceLoader for the incidents family) so the existing
 // reducer_service_catalog_correlation fact contract is unchanged.
+// CodeValueFlowStaleCleanupRunner scans active repository generations beside
+// the normal reducer queue and retracts reducer-owned value-flow evidence from
+// older generations only; its graph deletes are bounded and keyed by scope,
+// evidence source, and generation inequality so current evidence survives
+// concurrent materialization and gate-disabled refreshes.
 //
 // No-Regression Evidence: code-call language resolver registration preserves
 // the previous Go branch order and resolution methods while allowing a new

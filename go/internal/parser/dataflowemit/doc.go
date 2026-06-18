@@ -5,14 +5,15 @@
 // provenance), "interproc_findings" (cross-function findings), and
 // "dataflow_summaries" (each function's structural value-flow Effects — the TITO
 // param/source flows the cross-repo composition fixpoint reloads and composes),
-// plus "dataflow_sources" (param-level interprocedural source entry points).
+// and "dataflow_sources" (each function's param-level taint entry points, which
+// the fixpoint needs as source ports and which the summaries do not carry).
 //
 // Each row carries a lang label so a downstream consumer can distinguish Go,
 // TypeScript/JavaScript, and Python facts that share one schema. The renderers
 // operate on the language-neutral cfg.Function, taint.Finding, interproc.Finding,
-// and summary.Effects types, so every language adapter emits an identical bucket
-// shape. SortFunctionRows, SortFindingRows, SortSummaryRows, and SortSourceRows
-// make the buckets byte-stable across runs; optional fields (class_context, sink_label,
+// interproc.Source, and summary.Effects types, so every language adapter emits an
+// identical bucket shape. SortFunctionRows, SortFindingRows, SortSummaryRows, and
+// SortSourceRows make the buckets byte-stable across runs; optional fields (class_context, sink_label,
 // source_label, neutralized, cloud, and empty effect lists) are omitted when
 // empty so the rows stay minimal.
 package dataflowemit

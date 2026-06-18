@@ -4,6 +4,9 @@
 // The package owns tree-sitter extraction, import and re-export rows, component
 // evidence, TypeScript declarations, call metadata, dead-code root evidence,
 // tsconfig.json import resolution, and package.json public surface modeling.
+// Receiver type metadata is limited to local syntax evidence such as
+// constructor assignments, typed fields, typed parameters, and simple typed
+// function returns.
 // JavaScript and TypeScript dead-code helpers live in this package so root
 // modeling stays close to import, export, CommonJS default-export class, Hapi,
 // framework-route, Fastify route-object handler, constructor function-value,

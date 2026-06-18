@@ -22,21 +22,26 @@ const (
 	retractViaRefreshKey = "retract_via_refresh"
 )
 
-// domainHasRepoWideRetract reports whether a domain's RetractEdges deletes every
-// edge for a repo (not a file- or edge-scoped subset). These domains emit
-// per-edge partition keys, so their edges spread across partitions; the generic
-// worker would otherwise issue one repo-wide retract per partition and wipe
-// sibling partitions' just-written edges within a cycle (#2910). The retract
-// suppression (#2898) routes the single repo-wide retract through a per-repo
-// refresh intent and fences per-edge writes behind it.
+// domainHasRepoWideRetract reports whether a domain owns its retract at the
+// repository (or whole-repo delta) level rather than per partition. These domains
+// emit per-edge partition keys, so their edges spread across partitions; the
+// generic worker would otherwise issue the same scope-wide retract once per
+// partition and wipe sibling partitions' just-written edges within a cycle
+// (#2910). The retract suppression (#2898) routes the single retract through a
+// per-repo refresh intent and fences per-edge writes behind it.
 //
-// Only the three symbol→runtime domains that combine a repo-wide retract with a
-// per-edge partition key are listed. Repo-keyed domains (platform_infra,
-// workload_dependency, …) keep one partition per repo, so they do not spread and
-// are intentionally excluded.
+// The retract the refresh owns may be repo-wide (delete every edge for the repo)
+// or file-scoped (delete only the changed files' edges on a delta generation):
+// inheritance_edges retracts repo-wide by default and file-scoped under a delta,
+// while the three symbol→runtime domains always retract repo-wide. The fence
+// mechanism is identical either way — the refresh intent owns the single retract
+// and the per-edge writes are deferred until it commits — because the refresh
+// carries whichever delta scope the materializer attached. Repo-keyed domains
+// (platform_infra, workload_dependency, …) keep one partition per repo, so they
+// do not spread and are intentionally excluded.
 func domainHasRepoWideRetract(domain string) bool {
 	switch domain {
-	case DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction:
+	case DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainInheritanceEdges:
 		return true
 	default:
 		return false

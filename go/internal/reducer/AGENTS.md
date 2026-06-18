@@ -41,10 +41,18 @@ before touching any file in this directory.
   in-flight idempotency. `IdentityKey` is a narrow override for domains that
   must store several rows under one durable `PartitionKey` without collapsing
   their `intent_id`s; audit every caller before using it.
-- **Edge domains gate on readiness phases** — `shared_projection.go:91–99`;
-  `code_calls` gates on `canonical_nodes_committed`;
-  `sql_relationships` and `inheritance_edges` gate on
-  `semantic_nodes_committed`.
+- **Edge domains gate on readiness phases** — `sharedProjectionReadinessPhase` in
+  `shared_projection.go`; `code_calls` and `inheritance_edges` gate on
+  `canonical_nodes_committed` (their `:Function`/`:Class` targets are canonical
+  nodes — gating these on `semantic_nodes_committed` stalls forever because that
+  phase is only published when the semantic-entity reducer runs, #2867);
+  `sql_relationships` still gates on `semantic_nodes_committed` until its own
+  promotion lands.
+- **Promoted edge domains keep their handler's evidence source** — a domain moved
+  onto the shared-projection runner from a dedicated handler must keep its original
+  `evidence_source` (`sharedProjectionDomainEvidenceSource`), not the runner's
+  global `finalization/workloads`, or an upgrade's retract will not match the old
+  handler's edges. `inheritance_edges` keeps `reducer/inheritance` (#2867).
 - **SQL trigger functions materialize as `EXECUTES` edges** —
   `ExtractSQLRelationshipRows` reads `function_name` from `SqlTrigger`
   metadata and writes trigger-to-`SqlFunction` `EXECUTES` rows
@@ -392,6 +400,76 @@ per-domain execution counters (the `domain` attribute gains the
 durable queue/status rows, and Postgres query duration metrics. It adds no route,
 graph query shape, new metric instrument, new metric label key, span, lease,
 runtime knob, or log key.
+
+No-Regression Evidence: #2931 registers and wires `DomainCodeFunctionSummary` — a
+Postgres `CodeFunctionSummaryLoader` (rebuilds `summary.Effects` from
+`code_function_summary` facts) and a `CodeFunctionSummaryWriter` (the merged
+`FunctionSummaryStore.UpsertSnapshot`). The handler loads one generation's
+Effects, recomputes content versions through an in-memory `summary.Store`, and
+upserts the snapshot, idempotent on `FunctionID`. It is ADDITIVE: a new domain
+gated on its loader+writer (so it never registers without a handler), following
+the existing claim/execute/ack path, with no change to any existing domain's
+selection, write, or readiness path. Unlike the evidence domains it persists to a
+durable Postgres table (`function_summaries`) rather than the graph, so it adds no
+Cypher. `go test ./internal/reducer -run 'CodeFunctionSummary' -count=1`,
+`go test ./internal/storage/postgres -run 'CodeFunctionSummary' -count=1`, and
+`go test ./internal/projector -run 'CodeFunctionSummary' -count=1` cover the
+handler (versioned-snapshot persistence, wrong-domain reject, registration gate),
+the JSONB-coerced Effects loader, and intent emission; `go test ./cmd/reducer
+-count=1` proves the runtime wiring registers the loader/writer without disturbing
+the other domains.
+
+No-Observability-Change: the summary domain reuses the same generic reducer
+claim/execute/ack instrumentation — diagnosed through existing reducer run spans,
+per-domain execution counters (the `domain` attribute gains the
+`code_function_summary` value, an existing label, not a new instrument), durable
+queue/status rows, and Postgres query duration metrics. It adds no route, graph
+query shape, new metric instrument, new metric label key, span, lease, runtime
+knob, or log key.
+
+No-Regression Evidence: Rust trait-bound receiver resolution registers a
+language resolver before weak repository-wide fallback and indexes only unique
+trait declaration methods. The focused parser test failed before trait
+declaration methods carried `trait_context` and direct parameter calls carried
+`inferred_obj_type`; the focused reducer test failed before `shape.area`
+resolved through `T: Area`. They pass after the resolver returns the unique
+trait method and preserves ambiguity for bounds such as `T: Area + Surface`.
+
+No-Observability-Change: Rust trait-bound receiver resolution only changes the
+in-memory code-call resolver branch used before row emission. It adds no graph
+query, queue, worker, lease, batch, runtime knob, metric instrument, metric
+label key, span, route, status field, or log key; operators still inspect
+existing code-call intent rows and materialization completion logs.
+
+No-Regression Evidence: Python code-call resolver registration resolves
+declared-base classmethod calls using parser-emitted `bases` and class-scoped
+methods before weak repository-wide fallback. The focused reducer test for
+constructors, qualified class receivers, ambiguous inherited methods, and
+self-method calls failed before the resolver when an unrelated `from_dict` made
+the inherited method ambiguous, then passed after the resolver returned the
+unique declared-base method and preserved multiple-base ambiguity. The
+resolutionparity package test stayed green with no golden update.
+
+No-Observability-Change: Python declared-base resolver registration only changes
+the resolver branch chosen before code-call row emission. It adds no graph
+query, queue, worker, lease, batch, runtime knob, metric instrument, metric
+label key, span, route, status field, or log key; operators still inspect
+existing code-call intent rows and materialization completion logs.
+
+No-Regression Evidence: Java code-call resolver registration moves receiver and
+argument type evidence ahead of the weak repository-wide fallback without
+changing edge identity. `go test ./internal/reducer -run
+'TestResolveGenericCalleeUsesJavaReceiverTypeBeforeRepoUniqueName|TestExtractCodeCallRowsResolvesJava'
+-count=1` fails before the Java resolver because the edge is classified as
+`repo_unique_name`, then passes with `type_inferred`. `go test
+./internal/resolutionparity -count=1` proves the intentional Java tier shift from
+9 `repo_unique_name` rows to 5 `repo_unique_name` and 4 `type_inferred` rows.
+
+No-Observability-Change: Java resolver registration only reclassifies the
+existing code-call provenance method before row emission. It adds no graph query,
+queue, worker, lease, batch, runtime knob, metric instrument, metric label key,
+span, route, status field, or log key; operators still inspect the existing
+code-call intent rows and materialization completion logs.
 
 ## Anti-patterns
 
