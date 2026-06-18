@@ -20,6 +20,7 @@ func newValueFlowFixpointProjector(
 			SourceSnapshotLoader:    sourceLoader,
 			GraphIDSnapshotLoader:   graphIDLoader,
 			CloudSinkSnapshotLoader: reducer.GraphValueFlowCloudSinkTargetLoader{Graph: graphReader},
+			FixpointCache:           reducer.NewValueFlowFixpointCache(),
 			Logger:                  logger,
 		},
 		Writer: writer,
