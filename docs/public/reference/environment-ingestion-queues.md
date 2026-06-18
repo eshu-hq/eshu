@@ -28,7 +28,7 @@ queue, or graph-write evidence.
 | `ESHU_FILESYSTEM_DIRECT` | `false` | filesystem selector | Treat filesystem root as direct source rather than cloned cache flow. |
 | `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner uses `NumCPU` | collector | Concurrent repo snapshot workers. |
 | `ESHU_PARSE_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner uses `NumCPU` | collector snapshotter | Concurrent file parse workers inside each snapshot. |
-| `ESHU_EMIT_DATAFLOW` | `false` | collector snapshotter | Opt-in value-flow emission. When enabled (`1`, `true`, `yes`, `on`) the per-file parser emits the `dataflow_functions`, `taint_findings`, and `interproc_findings` buckets. Off by default; the snapshot payload is byte-identical when off. |
+| `ESHU_EMIT_DATAFLOW` | `false` | collector snapshotter | Opt-in value-flow emission. When enabled (`1`, `true`, `yes`, `on`) the per-file parser emits the `dataflow_functions`, `taint_findings`, and `interproc_findings` buckets (plus durable `dataflow_summaries` and `dataflow_sources` when a repository id and package import path are present). Off by default; the snapshot payload is byte-identical when off. See [Value-Flow Emission](value-flow-emission.md). |
 | `ESHU_STREAM_BUFFER` | `0` | collector | Generation stream buffer; `0` derives from worker count. |
 | `ESHU_LARGE_REPO_FILE_THRESHOLD` | `1000` | collector | File-count threshold for large-repo semaphore. |
 | `ESHU_LARGE_REPO_MAX_CONCURRENT` | `2` | collector | Concurrent large repo snapshots. |
