@@ -25,6 +25,8 @@ func TestSearchVectorBuildRunnerBuildsPendingScopes(t *testing.T) {
 		Pending: pending,
 		Builder: builder,
 		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
 			EmbeddingModelID:   "local-hash-v1",
 			VectorIndexVersion: "vector-v1",
 			ScopeLimit:         25,
@@ -42,6 +44,8 @@ func TestSearchVectorBuildRunnerBuildsPendingScopes(t *testing.T) {
 		VectorCount:   3,
 	}, result)
 	require.Equal(t, SearchVectorBuildPendingRequest{
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              25,
@@ -49,6 +53,8 @@ func TestSearchVectorBuildRunnerBuildsPendingScopes(t *testing.T) {
 	require.Equal(t, SearchVectorBuildRequest{
 		ScopeID:            "scope-a",
 		RepoID:             "repo-a",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              50,
@@ -73,6 +79,8 @@ func TestSearchVectorBuildRunnerReturnsBuildFailuresAfterContinuingScopes(t *tes
 		Pending: pending,
 		Builder: builder,
 		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
 			EmbeddingModelID:   "local-hash-v1",
 			VectorIndexVersion: "vector-v1",
 		},
@@ -106,6 +114,8 @@ func TestServiceStartsSearchVectorBuildRunner(t *testing.T) {
 		Pending: pending,
 		Builder: builder,
 		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
 			EmbeddingModelID:   "local-hash-v1",
 			VectorIndexVersion: "vector-v1",
 		},

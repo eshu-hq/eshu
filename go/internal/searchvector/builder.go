@@ -52,6 +52,8 @@ type BuildRequest struct {
 	ScopeID            string
 	RepoID             string
 	SourceKinds        []searchdocs.SourceKind
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	Limit              int
@@ -112,6 +114,8 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 				ScopeID:              row.ScopeID,
 				GenerationID:         row.GenerationID,
 				DocumentID:           row.Document.ID,
+				ProviderProfileID:    req.ProviderProfileID,
+				SourceClass:          req.SourceClass,
 				EmbeddingModelID:     req.EmbeddingModelID,
 				EmbeddingDimensions:  b.Embedder.Dimensions(),
 				EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
@@ -162,6 +166,8 @@ func (b Builder) upsertMetadata(
 		ScopeID:              row.ScopeID,
 		GenerationID:         row.GenerationID,
 		DocumentID:           row.Document.ID,
+		ProviderProfileID:    req.ProviderProfileID,
+		SourceClass:          req.SourceClass,
 		EmbeddingModelID:     req.EmbeddingModelID,
 		EmbeddingDimensions:  b.Embedder.Dimensions(),
 		EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
@@ -196,6 +202,12 @@ func (b Builder) validate(req BuildRequest) error {
 	if req.ScopeID == "" {
 		problems = append(problems, errors.New("scope id is required"))
 	}
+	if req.ProviderProfileID == "" {
+		problems = append(problems, errors.New("provider profile id is required"))
+	}
+	if req.SourceClass == "" {
+		problems = append(problems, errors.New("source class is required"))
+	}
 	if req.EmbeddingModelID == "" {
 		problems = append(problems, errors.New("embedding model id is required"))
 	}
@@ -215,6 +227,8 @@ func (b Builder) now() time.Time {
 func normalizeBuildRequest(req BuildRequest) BuildRequest {
 	req.ScopeID = strings.TrimSpace(req.ScopeID)
 	req.RepoID = strings.TrimSpace(req.RepoID)
+	req.ProviderProfileID = strings.TrimSpace(req.ProviderProfileID)
+	req.SourceClass = strings.TrimSpace(req.SourceClass)
 	req.EmbeddingModelID = strings.TrimSpace(req.EmbeddingModelID)
 	req.VectorIndexVersion = strings.TrimSpace(req.VectorIndexVersion)
 	if req.Limit <= 0 || req.Limit > defaultBuildLimit {

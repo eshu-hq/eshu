@@ -18,6 +18,8 @@ func TestEshuSearchVectorMetadataSchemaSQL(t *testing.T) {
 		"scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE",
 		"generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE",
 		"document_id TEXT NOT NULL",
+		"provider_profile_id TEXT NOT NULL",
+		"source_class TEXT NOT NULL",
 		"embedding_model_id TEXT NOT NULL",
 		"embedding_dimensions INTEGER NOT NULL",
 		"embedding_content_hash TEXT NOT NULL",
@@ -25,10 +27,11 @@ func TestEshuSearchVectorMetadataSchemaSQL(t *testing.T) {
 		"build_state TEXT NOT NULL",
 		"failure_class TEXT NULL",
 		"last_success_at TIMESTAMPTZ NULL",
-		"PRIMARY KEY (scope_id, generation_id, document_id, embedding_model_id, vector_index_version)",
+		"PRIMARY KEY (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version)",
 		"CHECK (build_state IN ('disabled', 'queued', 'building', 'ready', 'failed', 'stale'))",
 		"eshu_search_vector_metadata_state_idx",
 		"eshu_search_vector_metadata_model_idx",
+		"eshu_search_vector_metadata_model_v2_idx",
 	} {
 		if !strings.Contains(sql, want) {
 			t.Fatalf("schema missing %q:\n%s", want, sql)
@@ -69,6 +72,8 @@ func TestEshuSearchVectorMetadataStoreUpsertsBuildState(t *testing.T) {
 		ScopeID:              "repo-1",
 		GenerationID:         "gen-active",
 		DocumentID:           "searchdoc:code:e-1",
+		ProviderProfileID:    "local",
+		SourceClass:          "search_documents",
 		EmbeddingModelID:     "local-hash-v1",
 		EmbeddingDimensions:  384,
 		EmbeddingContentHash: "sha256:doc",
@@ -88,7 +93,7 @@ func TestEshuSearchVectorMetadataStoreUpsertsBuildState(t *testing.T) {
 	exec := db.execs[0]
 	for _, want := range []string{
 		"INSERT INTO eshu_search_vector_metadata",
-		"ON CONFLICT (scope_id, generation_id, document_id, embedding_model_id, vector_index_version) DO UPDATE",
+		"ON CONFLICT (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE",
 		"build_state = EXCLUDED.build_state",
 		"failure_class = EXCLUDED.failure_class",
 		"last_success_at = EXCLUDED.last_success_at",
@@ -97,7 +102,7 @@ func TestEshuSearchVectorMetadataStoreUpsertsBuildState(t *testing.T) {
 			t.Fatalf("upsert query missing %q:\n%s", want, exec.query)
 		}
 	}
-	if got, want := len(exec.args), 12; got != want {
+	if got, want := len(exec.args), 14; got != want {
 		t.Fatalf("upsert arg count = %d, want %d", got, want)
 	}
 }
@@ -112,6 +117,8 @@ func TestEshuSearchVectorMetadataStoreRejectsInvalidRowsBeforeWrite(t *testing.T
 		ScopeID:            "repo-1",
 		GenerationID:       "gen-active",
 		DocumentID:         "searchdoc:code:e-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		BuildState:         EshuSearchVectorBuildState("unknown"),
@@ -145,6 +152,8 @@ func TestEshuSearchVectorMetadataStoreListsOnlyActiveGeneration(t *testing.T) {
 				"repo-1",
 				"gen-active",
 				"searchdoc:code:e-1",
+				"semantic-search-default",
+				"search_documents",
 				"local-hash-v1",
 				int64(384),
 				"sha256:active",
@@ -161,6 +170,8 @@ func TestEshuSearchVectorMetadataStoreListsOnlyActiveGeneration(t *testing.T) {
 
 	rows, err := store.ListActive(context.Background(), EshuSearchVectorMetadataFilter{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "semantic-search-default",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              10,
@@ -182,10 +193,12 @@ func TestEshuSearchVectorMetadataStoreListsOnlyActiveGeneration(t *testing.T) {
 		"JOIN ingestion_scopes scope",
 		"scope.active_generation_id = meta.generation_id",
 		"meta.scope_id = $1",
-		"meta.embedding_model_id = $2",
-		"meta.vector_index_version = $3",
+		"meta.provider_profile_id = $2",
+		"meta.source_class = $3",
+		"meta.embedding_model_id = $4",
+		"meta.vector_index_version = $5",
 		"ORDER BY meta.document_id ASC",
-		"LIMIT $4",
+		"LIMIT $6",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("active list query missing %q:\n%s", want, q)
@@ -203,6 +216,8 @@ func TestEshuSearchVectorMetadataStoreClampsActiveListLimit(t *testing.T) {
 
 	rows, err := store.ListActive(context.Background(), EshuSearchVectorMetadataFilter{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              1000,
@@ -216,7 +231,7 @@ func TestEshuSearchVectorMetadataStoreClampsActiveListLimit(t *testing.T) {
 	if len(db.queries) != 1 {
 		t.Fatalf("queries = %d, want 1", len(db.queries))
 	}
-	if got, want := db.queries[0].args[3], 500; got != want {
+	if got, want := db.queries[0].args[5], 500; got != want {
 		t.Fatalf("limit arg = %v, want %d", got, want)
 	}
 }
@@ -231,6 +246,8 @@ func TestEshuSearchVectorMetadataStoreFiltersActiveListByDocumentIDs(t *testing.
 
 	_, err := store.ListActive(context.Background(), EshuSearchVectorMetadataFilter{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		DocumentIDs:        []string{"", "searchdoc:code:e-2", "searchdoc:code:e-1", "searchdoc:code:e-2"},
@@ -244,20 +261,20 @@ func TestEshuSearchVectorMetadataStoreFiltersActiveListByDocumentIDs(t *testing.
 	}
 	q := db.queries[0].query
 	for _, want := range []string{
-		"meta.document_id = ANY($4)",
-		"LIMIT $5",
+		"meta.document_id = ANY($6)",
+		"LIMIT $7",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("active list query missing %q:\n%s", want, q)
 		}
 	}
-	gotDocumentIDs := fmt.Sprint(db.queries[0].args[3])
+	gotDocumentIDs := fmt.Sprint(db.queries[0].args[5])
 	for _, want := range []string{"searchdoc:code:e-1", "searchdoc:code:e-2"} {
 		if !strings.Contains(gotDocumentIDs, want) {
 			t.Fatalf("document ids arg = %v, want %s", gotDocumentIDs, want)
 		}
 	}
-	if got, want := db.queries[0].args[4], 10; got != want {
+	if got, want := db.queries[0].args[6], 10; got != want {
 		t.Fatalf("limit arg = %v, want %d", got, want)
 	}
 }
@@ -278,6 +295,8 @@ func TestEshuSearchVectorMetadataStoreReadsBoundedStatus(t *testing.T) {
 
 	status, err := store.Status(context.Background(), EshuSearchVectorStatusRequest{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 	})
@@ -300,6 +319,8 @@ func TestEshuSearchVectorMetadataStoreReadsBoundedStatus(t *testing.T) {
 	for _, want := range []string{
 		"JOIN ingestion_scopes scope",
 		"scope.active_generation_id = meta.generation_id",
+		"meta.provider_profile_id = $2",
+		"meta.source_class = $3",
 		"GROUP BY scope.active_generation_id, meta.build_state",
 		"COUNT(*)",
 		"MAX(meta.updated_at)",

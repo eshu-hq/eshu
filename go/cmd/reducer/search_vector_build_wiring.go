@@ -55,6 +55,8 @@ func searchVectorBuildRunnerFor(
 			PollInterval:       30 * time.Second,
 			ScopeLimit:         100,
 			DocumentLimit:      500,
+			ProviderProfileID:  vectorConfig.ProviderProfileID,
+			SourceClass:        vectorConfig.SourceClass,
 			EmbeddingModelID:   vectorConfig.EmbeddingModelID,
 			VectorIndexVersion: vectorConfig.VectorIndexVersion,
 		},
@@ -73,6 +75,8 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 	result, err := a.builder.Build(ctx, searchvector.BuildRequest{
 		ScopeID:            req.ScopeID,
 		RepoID:             req.RepoID,
+		ProviderProfileID:  req.ProviderProfileID,
+		SourceClass:        req.SourceClass,
 		EmbeddingModelID:   req.EmbeddingModelID,
 		VectorIndexVersion: req.VectorIndexVersion,
 		Limit:              req.Limit,
@@ -93,6 +97,8 @@ func (a searchVectorPendingAdapter) ListPendingSearchVectorScopes(
 	req reducer.SearchVectorBuildPendingRequest,
 ) ([]reducer.SearchVectorBuildPendingScope, error) {
 	scopes, err := a.store.ListPendingSearchVectorScopes(ctx, postgres.EshuSearchVectorPendingRequest{
+		ProviderProfileID:  req.ProviderProfileID,
+		SourceClass:        req.SourceClass,
 		EmbeddingModelID:   req.EmbeddingModelID,
 		VectorIndexVersion: req.VectorIndexVersion,
 		Limit:              req.Limit,

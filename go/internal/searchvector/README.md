@@ -18,8 +18,8 @@ read-model state and are not graph truth.
 
 - `Builder` reads active documents, embeds their shared searchable text, and
   upserts ready or failed vector state across every active-document page.
-- `BuildRequest` identifies the scope, model, vector-index version, and
-  optional document filter.
+- `BuildRequest` identifies the scope, provider profile, source class, model,
+  vector-index version, and optional document filter.
 - `BuildResult` summarizes document, vector, and failed-document counts.
 - `FailureClassEmbedder` and `FailureClassInvalidVector` are bounded failure
   classes written to metadata.
@@ -44,6 +44,8 @@ operator-facing signals described in the telemetry docs.
   build must not silently cover only the first 500-document slice.
 - Paged builds anchor to the first observed generation so active-generation
   changes cannot mix rows from different generations in one build.
+- Provider profile and source class are part of the persisted vector identity;
+  local hash builds use the `local` profile and `search_documents` source class.
 - Embedding text and content hashes must stay byte-identical to
   `searchhybrid` retrieval indexing.
 - Embedder error text is not persisted; only bounded failure classes are stored.

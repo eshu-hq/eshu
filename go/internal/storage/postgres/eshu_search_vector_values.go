@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS eshu_search_vector_values (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     document_id TEXT NOT NULL,
+    provider_profile_id TEXT NOT NULL DEFAULT 'local',
+    source_class TEXT NOT NULL DEFAULT 'search_documents',
     embedding_model_id TEXT NOT NULL,
     embedding_dimensions INTEGER NOT NULL CHECK (embedding_dimensions > 0 AND embedding_dimensions <= 4096),
     embedding_content_hash TEXT NOT NULL,
@@ -25,12 +27,28 @@ CREATE TABLE IF NOT EXISTS eshu_search_vector_values (
     vector_values DOUBLE PRECISION[] NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (scope_id, generation_id, document_id, embedding_model_id, vector_index_version),
+    PRIMARY KEY (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version),
     CHECK (cardinality(vector_values) = embedding_dimensions)
 );
 
+ALTER TABLE eshu_search_vector_values
+    ADD COLUMN IF NOT EXISTS provider_profile_id TEXT NOT NULL DEFAULT 'local';
+
+ALTER TABLE eshu_search_vector_values
+    ADD COLUMN IF NOT EXISTS source_class TEXT NOT NULL DEFAULT 'search_documents';
+
+ALTER TABLE eshu_search_vector_values
+    DROP CONSTRAINT IF EXISTS eshu_search_vector_values_pkey;
+
+ALTER TABLE eshu_search_vector_values
+    ADD CONSTRAINT eshu_search_vector_values_pkey
+    PRIMARY KEY (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version);
+
 CREATE INDEX IF NOT EXISTS eshu_search_vector_values_model_idx
     ON eshu_search_vector_values (scope_id, generation_id, embedding_model_id, vector_index_version, document_id);
+
+CREATE INDEX IF NOT EXISTS eshu_search_vector_values_model_v2_idx
+    ON eshu_search_vector_values (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version, document_id);
 `
 
 const upsertEshuSearchVectorValueSQL = `
@@ -38,6 +56,8 @@ INSERT INTO eshu_search_vector_values (
     scope_id,
     generation_id,
     document_id,
+    provider_profile_id,
+    source_class,
     embedding_model_id,
     embedding_dimensions,
     embedding_content_hash,
@@ -45,8 +65,8 @@ INSERT INTO eshu_search_vector_values (
     vector_values,
     created_at,
     updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-ON CONFLICT (scope_id, generation_id, document_id, embedding_model_id, vector_index_version) DO UPDATE
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE
 SET embedding_dimensions = EXCLUDED.embedding_dimensions,
     embedding_content_hash = EXCLUDED.embedding_content_hash,
     vector_values = EXCLUDED.vector_values,
@@ -58,6 +78,8 @@ SELECT
     vec.scope_id,
     vec.generation_id,
     vec.document_id,
+    vec.provider_profile_id,
+    vec.source_class,
     vec.embedding_model_id,
     vec.embedding_dimensions,
     vec.embedding_content_hash,
@@ -73,15 +95,19 @@ JOIN eshu_search_vector_metadata meta
   ON meta.scope_id = vec.scope_id
  AND meta.generation_id = vec.generation_id
  AND meta.document_id = vec.document_id
+ AND meta.provider_profile_id = vec.provider_profile_id
+ AND meta.source_class = vec.source_class
  AND meta.embedding_model_id = vec.embedding_model_id
  AND meta.vector_index_version = vec.vector_index_version
  AND meta.embedding_content_hash = vec.embedding_content_hash
  AND meta.build_state = 'ready'
 WHERE vec.scope_id = $1
-  AND vec.embedding_model_id = $2
-  AND vec.vector_index_version = $3
+  AND vec.provider_profile_id = $2
+  AND vec.source_class = $3
+  AND vec.embedding_model_id = $4
+  AND vec.vector_index_version = $5
 ORDER BY vec.document_id ASC
-LIMIT $4
+LIMIT $6
 `
 
 // EshuSearchVectorValue records one derived embedding vector for a search
@@ -90,6 +116,8 @@ type EshuSearchVectorValue struct {
 	ScopeID              string
 	GenerationID         string
 	DocumentID           string
+	ProviderProfileID    string
+	SourceClass          string
 	EmbeddingModelID     string
 	EmbeddingDimensions  int
 	EmbeddingContentHash string
@@ -102,6 +130,8 @@ type EshuSearchVectorValue struct {
 // EshuSearchVectorValueFilter bounds active vector value reads.
 type EshuSearchVectorValueFilter struct {
 	ScopeID            string
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	DocumentIDs        []string
@@ -140,6 +170,8 @@ func (s EshuSearchVectorValueStore) Upsert(ctx context.Context, row EshuSearchVe
 		row.ScopeID,
 		row.GenerationID,
 		row.DocumentID,
+		row.ProviderProfileID,
+		row.SourceClass,
 		row.EmbeddingModelID,
 		row.EmbeddingDimensions,
 		row.EmbeddingContentHash,
@@ -169,11 +201,11 @@ func (s EshuSearchVectorValueStore) ListActive(
 	}
 
 	query := listActiveEshuSearchVectorValuesSQL
-	args := []any{filter.ScopeID, filter.EmbeddingModelID, filter.VectorIndexVersion}
+	args := []any{filter.ScopeID, filter.ProviderProfileID, filter.SourceClass, filter.EmbeddingModelID, filter.VectorIndexVersion}
 	if len(filter.DocumentIDs) > 0 {
-		query = strings.Replace(query, "\nORDER BY vec.document_id ASC", "\n  AND vec.document_id = ANY($4)\nORDER BY vec.document_id ASC", 1)
+		query = strings.Replace(query, "\nORDER BY vec.document_id ASC", "\n  AND vec.document_id = ANY($6)\nORDER BY vec.document_id ASC", 1)
 		args = append(args, pq.Array(filter.DocumentIDs))
-		query = strings.Replace(query, "LIMIT $4", "LIMIT $5", 1)
+		query = strings.Replace(query, "LIMIT $6", "LIMIT $7", 1)
 	}
 	args = append(args, filter.Limit)
 
@@ -204,6 +236,8 @@ func scanEshuSearchVectorValue(rows Rows) (EshuSearchVectorValue, error) {
 		&row.ScopeID,
 		&row.GenerationID,
 		&row.DocumentID,
+		&row.ProviderProfileID,
+		&row.SourceClass,
 		&row.EmbeddingModelID,
 		&dimensions,
 		&row.EmbeddingContentHash,
@@ -225,6 +259,8 @@ func normalizeEshuSearchVectorValue(row EshuSearchVectorValue) EshuSearchVectorV
 	row.ScopeID = strings.TrimSpace(row.ScopeID)
 	row.GenerationID = strings.TrimSpace(row.GenerationID)
 	row.DocumentID = strings.TrimSpace(row.DocumentID)
+	row.ProviderProfileID = strings.TrimSpace(row.ProviderProfileID)
+	row.SourceClass = strings.TrimSpace(row.SourceClass)
 	row.EmbeddingModelID = strings.TrimSpace(row.EmbeddingModelID)
 	row.EmbeddingContentHash = strings.TrimSpace(row.EmbeddingContentHash)
 	row.VectorIndexVersion = strings.TrimSpace(row.VectorIndexVersion)
@@ -241,6 +277,12 @@ func validateEshuSearchVectorValue(row EshuSearchVectorValue) error {
 	}
 	if row.DocumentID == "" {
 		problems = append(problems, errors.New("eshu search vector value requires document id"))
+	}
+	if row.ProviderProfileID == "" {
+		problems = append(problems, errors.New("eshu search vector value requires provider profile id"))
+	}
+	if row.SourceClass == "" {
+		problems = append(problems, errors.New("eshu search vector value requires source class"))
 	}
 	if row.EmbeddingModelID == "" {
 		problems = append(problems, errors.New("eshu search vector value requires embedding model id"))
@@ -277,6 +319,8 @@ func validateEshuSearchVectorValue(row EshuSearchVectorValue) error {
 
 func normalizeEshuSearchVectorValueFilter(filter EshuSearchVectorValueFilter) EshuSearchVectorValueFilter {
 	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
+	filter.ProviderProfileID = strings.TrimSpace(filter.ProviderProfileID)
+	filter.SourceClass = strings.TrimSpace(filter.SourceClass)
 	filter.EmbeddingModelID = strings.TrimSpace(filter.EmbeddingModelID)
 	filter.VectorIndexVersion = strings.TrimSpace(filter.VectorIndexVersion)
 	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
@@ -293,6 +337,12 @@ func validateEshuSearchVectorValueFilter(filter EshuSearchVectorValueFilter) err
 	var problems []error
 	if filter.ScopeID == "" {
 		problems = append(problems, errors.New("eshu search vector value filter requires scope id"))
+	}
+	if filter.ProviderProfileID == "" {
+		problems = append(problems, errors.New("eshu search vector value filter requires provider profile id"))
+	}
+	if filter.SourceClass == "" {
+		problems = append(problems, errors.New("eshu search vector value filter requires source class"))
 	}
 	if filter.EmbeddingModelID == "" {
 		problems = append(problems, errors.New("eshu search vector value filter requires embedding model id"))

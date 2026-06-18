@@ -20,6 +20,8 @@ func TestEshuSearchVectorPendingStoreListsScopes(t *testing.T) {
 	store := NewEshuSearchVectorPendingStore(db)
 
 	scopes, err := store.ListPendingSearchVectorScopes(context.Background(), EshuSearchVectorPendingRequest{
+		ProviderProfileID:  "semantic-search-default",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              50,
@@ -47,11 +49,17 @@ func TestEshuSearchVectorPendingStoreListsScopes(t *testing.T) {
 		"fact.payload->'document'->>'content_hash' AS content_hash",
 		"eshu_search_vector_metadata",
 		"eshu_search_vector_values",
+		"meta.provider_profile_id = $2",
+		"meta.source_class = $3",
+		"value.provider_profile_id = meta.provider_profile_id",
+		"value.source_class = meta.source_class",
 		"ready.document_id = docs.document_id",
 		"ready.embedding_content_hash = docs.content_hash",
+		"ready.provider_profile_id = $2",
+		"ready.source_class = $3",
 		"meta.build_state = 'ready'",
 		"WHERE ready.document_id IS NULL",
-		"LIMIT $4",
+		"LIMIT $6",
 	} {
 		if !strings.Contains(q, fragment) {
 			t.Errorf("query missing %q:\n%s", fragment, q)
@@ -60,13 +68,19 @@ func TestEshuSearchVectorPendingStoreListsScopes(t *testing.T) {
 	if got, want := db.queries[0].args[0], EshuSearchDocumentFactKind; got != want {
 		t.Errorf("fact kind arg = %v, want %v", got, want)
 	}
-	if got := db.queries[0].args[1]; got != "local-hash-v1" {
+	if got := db.queries[0].args[1]; got != "semantic-search-default" {
+		t.Errorf("provider profile arg = %v, want semantic-search-default", got)
+	}
+	if got := db.queries[0].args[2]; got != "search_documents" {
+		t.Errorf("source class arg = %v, want search_documents", got)
+	}
+	if got := db.queries[0].args[3]; got != "local-hash-v1" {
 		t.Errorf("model arg = %v, want local-hash-v1", got)
 	}
-	if got := db.queries[0].args[2]; got != "vector-v1" {
+	if got := db.queries[0].args[4]; got != "vector-v1" {
 		t.Errorf("version arg = %v, want vector-v1", got)
 	}
-	if got := db.queries[0].args[3]; got != 50 {
+	if got := db.queries[0].args[5]; got != 50 {
 		t.Errorf("limit arg = %v, want 50", got)
 	}
 }
@@ -76,7 +90,12 @@ func TestEshuSearchVectorPendingStoreRequiresDatabase(t *testing.T) {
 
 	_, err := (EshuSearchVectorPendingStore{}).ListPendingSearchVectorScopes(
 		context.Background(),
-		EshuSearchVectorPendingRequest{EmbeddingModelID: "local-hash-v1", VectorIndexVersion: "vector-v1"},
+		EshuSearchVectorPendingRequest{
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
+			EmbeddingModelID:   "local-hash-v1",
+			VectorIndexVersion: "vector-v1",
+		},
 	)
 
 	if err == nil {
@@ -90,6 +109,8 @@ func TestEshuSearchVectorPendingStoreCapsLimit(t *testing.T) {
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{}}}}
 	store := NewEshuSearchVectorPendingStore(db)
 	_, err := store.ListPendingSearchVectorScopes(context.Background(), EshuSearchVectorPendingRequest{
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              100000,
@@ -97,7 +118,7 @@ func TestEshuSearchVectorPendingStoreCapsLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if got := db.queries[0].args[3]; got != eshuSearchVectorPendingMaxLimit {
+	if got := db.queries[0].args[5]; got != eshuSearchVectorPendingMaxLimit {
 		t.Errorf("capped limit = %v, want %d", got, eshuSearchVectorPendingMaxLimit)
 	}
 }

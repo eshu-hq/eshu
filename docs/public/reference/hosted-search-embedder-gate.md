@@ -51,7 +51,7 @@ pass:
 | Field | Requirement |
 | --- | --- |
 | Scope | Repository or narrower canonical scope, with ACL state already admitted. |
-| Source class | Approved by the #3047 review and present in provider profile and policy. |
+| Source class | `search_documents`, present in provider profile and policy. |
 | Source selector | Policy allowlist must match the curated document source. |
 | Text | Redacted, bounded search text only; no raw provider payloads or graph dumps. |
 | Credential | Handle only; never a raw key, token, or credential-bearing URL. |
@@ -69,7 +69,7 @@ A hosted search-embedding response may persist only bounded derived state:
 - embedding vector with dimension and vector schema version;
 - provider profile id or local profile class;
 - model id or version;
-- source class and scope;
+- source class (`search_documents`) and scope;
 - content hash and active generation id;
 - redaction policy version;
 - vector index version;

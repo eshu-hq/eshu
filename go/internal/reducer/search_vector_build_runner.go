@@ -24,6 +24,8 @@ type SearchVectorBuildPendingScope struct {
 
 // SearchVectorBuildPendingRequest bounds pending local vector build discovery.
 type SearchVectorBuildPendingRequest struct {
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	Limit              int
@@ -41,6 +43,8 @@ type SearchVectorBuildPendingLister interface {
 type SearchVectorBuildRequest struct {
 	ScopeID            string
 	RepoID             string
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	Limit              int
@@ -64,6 +68,8 @@ type SearchVectorBuildRunnerConfig struct {
 	PollInterval       time.Duration
 	ScopeLimit         int
 	DocumentLimit      int
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 }
@@ -148,6 +154,8 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 	}
 	started := time.Now()
 	scopes, err := r.Pending.ListPendingSearchVectorScopes(ctx, SearchVectorBuildPendingRequest{
+		ProviderProfileID:  r.Config.ProviderProfileID,
+		SourceClass:        r.Config.SourceClass,
 		EmbeddingModelID:   r.Config.EmbeddingModelID,
 		VectorIndexVersion: r.Config.VectorIndexVersion,
 		Limit:              r.Config.scopeLimit(),
@@ -161,6 +169,8 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		build, err := r.Builder.BuildSearchVectors(ctx, SearchVectorBuildRequest{
 			ScopeID:            pending.ScopeID,
 			RepoID:             pending.RepoID,
+			ProviderProfileID:  r.Config.ProviderProfileID,
+			SourceClass:        r.Config.SourceClass,
 			EmbeddingModelID:   r.Config.EmbeddingModelID,
 			VectorIndexVersion: r.Config.VectorIndexVersion,
 			Limit:              r.Config.documentLimit(),
@@ -188,6 +198,12 @@ func (r *SearchVectorBuildRunner) validate() error {
 	if r.Config.EmbeddingModelID == "" {
 		problems = append(problems, errors.New("search vector embedding model id is required"))
 	}
+	if r.Config.ProviderProfileID == "" {
+		problems = append(problems, errors.New("search vector provider profile id is required"))
+	}
+	if r.Config.SourceClass == "" {
+		problems = append(problems, errors.New("search vector source class is required"))
+	}
 	if r.Config.VectorIndexVersion == "" {
 		problems = append(problems, errors.New("search vector index version is required"))
 	}
@@ -211,6 +227,8 @@ func (r *SearchVectorBuildRunner) logResult(ctx context.Context, result SearchVe
 		slog.Int("document_count", result.DocumentCount),
 		slog.Int("vector_count", result.VectorCount),
 		slog.Int("failed_count", result.FailedCount),
+		slog.String("provider_profile_id", r.Config.ProviderProfileID),
+		slog.String("source_class", r.Config.SourceClass),
 		slog.String("embedding_model_id", r.Config.EmbeddingModelID),
 		slog.String("vector_index_version", r.Config.VectorIndexVersion),
 		slog.Float64("duration_seconds", time.Since(started).Seconds()),

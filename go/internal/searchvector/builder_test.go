@@ -36,6 +36,8 @@ func TestBuilderPersistsReadyVectorsForActiveDocuments(t *testing.T) {
 		Clock:     func() time.Time { return now },
 	}.Build(context.Background(), BuildRequest{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              50,
@@ -59,6 +61,12 @@ func TestBuilderPersistsReadyVectorsForActiveDocuments(t *testing.T) {
 		t.Fatalf("value rows = %d, want 1", len(values.rows))
 	}
 	value := values.rows[0]
+	if got, want := value.ProviderProfileID, "local"; got != want {
+		t.Fatalf("value provider profile = %q, want %q", got, want)
+	}
+	if got, want := value.SourceClass, "search_documents"; got != want {
+		t.Fatalf("value source class = %q, want %q", got, want)
+	}
 	if got, want := value.EmbeddingContentHash, searchhybrid.DocumentContentHash(doc); got != want {
 		t.Fatalf("content hash = %q, want %q", got, want)
 	}
@@ -69,6 +77,12 @@ func TestBuilderPersistsReadyVectorsForActiveDocuments(t *testing.T) {
 		t.Fatalf("metadata rows = %d, want %d", got, want)
 	}
 	meta := metadata.rows[0]
+	if got, want := meta.ProviderProfileID, "local"; got != want {
+		t.Fatalf("metadata provider profile = %q, want %q", got, want)
+	}
+	if got, want := meta.SourceClass, "search_documents"; got != want {
+		t.Fatalf("metadata source class = %q, want %q", got, want)
+	}
 	if meta.BuildState != postgres.EshuSearchVectorBuildStateReady {
 		t.Fatalf("metadata state = %q, want ready", meta.BuildState)
 	}
@@ -116,6 +130,8 @@ func TestBuilderPagesThroughAllActiveDocuments(t *testing.T) {
 		Clock:     func() time.Time { return now },
 	}.Build(context.Background(), BuildRequest{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              1,
@@ -175,6 +191,8 @@ func TestBuilderAnchorsPagedBuildToFirstGeneration(t *testing.T) {
 		Clock:     func() time.Time { return now },
 	}.Build(context.Background(), BuildRequest{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 		Limit:              1,
@@ -222,6 +240,8 @@ func TestBuilderRecordsEmbeddingFailureAsBoundedMetadata(t *testing.T) {
 		Clock:     func() time.Time { return now },
 	}.Build(context.Background(), BuildRequest{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 	})
@@ -276,6 +296,8 @@ func TestBuilderRecordsInvalidVectorAsBoundedMetadata(t *testing.T) {
 		Clock:     func() time.Time { return now },
 	}.Build(context.Background(), BuildRequest{
 		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
 		EmbeddingModelID:   "local-hash-v1",
 		VectorIndexVersion: "vector-v1",
 	})
@@ -312,6 +334,8 @@ func TestBuilderValidatesBuildRequest(t *testing.T) {
 		"value store is required",
 		"embedder is required",
 		"scope id",
+		"provider profile id",
+		"source class",
 		"embedding model id",
 		"vector index version",
 	} {

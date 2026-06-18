@@ -68,8 +68,20 @@ func TestSemanticSearchHandlerPersistedVectorsServeReadySemanticPath(t *testing.
 	if got, want := metadata.calls, 1; got != want {
 		t.Fatalf("metadata store calls = %d, want %d", got, want)
 	}
+	if got, want := metadata.query.ProviderProfileID, "local"; got != want {
+		t.Fatalf("metadata provider profile = %q, want %q", got, want)
+	}
+	if got, want := metadata.query.SourceClass, "search_documents"; got != want {
+		t.Fatalf("metadata source class = %q, want %q", got, want)
+	}
 	if got, want := values.calls, 1; got != want {
 		t.Fatalf("value store calls = %d, want %d", got, want)
+	}
+	if got, want := values.query.ProviderProfileID, "local"; got != want {
+		t.Fatalf("value provider profile = %q, want %q", got, want)
+	}
+	if got, want := values.query.SourceClass, "search_documents"; got != want {
+		t.Fatalf("value source class = %q, want %q", got, want)
 	}
 	if got, want := fmt.Sprint(metadata.query.DocumentIDs), "[searchdoc:billing searchdoc:payments]"; got != want {
 		t.Fatalf("metadata document ids = %s, want %s", got, want)
@@ -172,6 +184,12 @@ func TestDefaultPersistedLocalSemanticSearchHybridConfigUsesExactVectorRetrieval
 	if got, want := config.VectorRetrieval, searchhybrid.VectorRetrievalExact; got != want {
 		t.Fatalf("VectorRetrieval = %q, want %q", got, want)
 	}
+	if got, want := config.ProviderProfileID, "local"; got != want {
+		t.Fatalf("ProviderProfileID = %q, want %q", got, want)
+	}
+	if got, want := config.SourceClass, "search_documents"; got != want {
+		t.Fatalf("SourceClass = %q, want %q", got, want)
+	}
 }
 
 func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForPartialState(t *testing.T) {
@@ -271,6 +289,20 @@ func TestSemanticSearchHandlerPersistedVectorsReportIndexUnreadyForInvalidStates
 			values: []postgres.EshuSearchVectorValue{
 				semanticSearchVectorValueWithHash(baseValue, "sha256:wrong"),
 			},
+		},
+		{
+			name: "provider_profile_mismatch",
+			metadata: []postgres.EshuSearchVectorMetadata{
+				semanticSearchVectorMetadataWithProvider(baseMetadata, "semantic-search-default"),
+			},
+			values: []postgres.EshuSearchVectorValue{baseValue},
+		},
+		{
+			name: "source_class_mismatch",
+			metadata: []postgres.EshuSearchVectorMetadata{
+				semanticSearchVectorMetadataWithSourceClass(baseMetadata, "documentation"),
+			},
+			values: []postgres.EshuSearchVectorValue{baseValue},
 		},
 	}
 	for _, tc := range tests {
@@ -383,6 +415,8 @@ func readySemanticSearchVectorMetadata(doc searchdocs.Document, dimensions int) 
 		ScopeID:              doc.RepoID,
 		GenerationID:         "gen-active",
 		DocumentID:           doc.ID,
+		ProviderProfileID:    "local",
+		SourceClass:          "search_documents",
 		EmbeddingModelID:     "local-hash-v1",
 		EmbeddingDimensions:  dimensions,
 		EmbeddingContentHash: searchhybrid.DocumentContentHash(doc),
@@ -402,12 +436,30 @@ func semanticSearchVectorMetadataWithState(
 	return row
 }
 
+func semanticSearchVectorMetadataWithProvider(
+	row postgres.EshuSearchVectorMetadata,
+	providerProfileID string,
+) postgres.EshuSearchVectorMetadata {
+	row.ProviderProfileID = providerProfileID
+	return row
+}
+
+func semanticSearchVectorMetadataWithSourceClass(
+	row postgres.EshuSearchVectorMetadata,
+	sourceClass string,
+) postgres.EshuSearchVectorMetadata {
+	row.SourceClass = sourceClass
+	return row
+}
+
 func semanticSearchVectorValue(doc searchdocs.Document, vector []float64) postgres.EshuSearchVectorValue {
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	return postgres.EshuSearchVectorValue{
 		ScopeID:              doc.RepoID,
 		GenerationID:         "gen-active",
 		DocumentID:           doc.ID,
+		ProviderProfileID:    "local",
+		SourceClass:          "search_documents",
 		EmbeddingModelID:     "local-hash-v1",
 		EmbeddingDimensions:  len(vector),
 		EmbeddingContentHash: searchhybrid.DocumentContentHash(doc),

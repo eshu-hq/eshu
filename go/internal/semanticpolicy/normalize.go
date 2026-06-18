@@ -191,7 +191,7 @@ func validateSettings(settings Settings) error {
 	if !slices.Contains([]string{RedactionStrict, RedactionStandard}, settings.Redaction.Mode) {
 		return fmt.Errorf("settings.redaction.mode %q is unsupported", settings.Redaction.Mode)
 	}
-	if !slices.Contains([]string{RetentionMetadataOnly}, settings.Retention.Posture) {
+	if !slices.Contains([]string{RetentionMetadataOnly, RetentionHashOnly}, settings.Retention.Posture) {
 		return fmt.Errorf("settings.retention.posture %q is unsupported", settings.Retention.Posture)
 	}
 	if !slices.Contains([]string{RetentionNone, RetentionHashOnly}, settings.Retention.Prompt) {
@@ -209,6 +209,7 @@ func isSupportedSourceClass(sourceClass string) bool {
 		semanticprofile.SourceDiagramsImages,
 		semanticprofile.SourceTicketsChat,
 		semanticprofile.SourceCodeHints,
+		semanticprofile.SourceSearchDocuments,
 	}, sourceClass)
 }
 

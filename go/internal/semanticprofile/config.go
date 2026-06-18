@@ -57,6 +57,8 @@ const (
 	SourceTicketsChat = "tickets_chat"
 	// SourceCodeHints allows assistant-mediated code relationship hints.
 	SourceCodeHints = "code_hints"
+	// SourceSearchDocuments allows curated search-document embedding builds.
+	SourceSearchDocuments = "search_documents"
 )
 
 var (
@@ -82,6 +84,7 @@ var (
 		SourceDiagramsImages,
 		SourceTicketsChat,
 		SourceCodeHints,
+		SourceSearchDocuments,
 	}
 	envVarNamePattern = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 )

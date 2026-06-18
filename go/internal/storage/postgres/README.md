@@ -118,13 +118,15 @@ High-signal invariants for this package:
   `eshu_search_index_stats` stores corpus size and average length so API/MCP
   search reads do not rebuild a full corpus per request. Vector metadata and
   value rows store derived embedding lifecycle state plus bounded numeric
-  payloads by active generation, model, content hash, and index version without
-  promoting vector similarity to graph truth. The pending sweeper re-enqueues
-  scopes whose active search documents exist but stats are missing.
+  payloads by active generation, provider profile, source class, model, content
+  hash, and index version without promoting vector similarity to graph truth.
+  The pending sweeper re-enqueues scopes whose active search documents exist but
+  stats are missing.
   `EshuSearchVectorPendingStore` lists active repository scopes whose curated
   search documents do not yet have ready vector metadata/value rows for the
-  configured model id and vector index version, allowing reducer vector builds
-  to converge without request-time scans.
+  configured provider profile, source class, model id, and vector index
+  version, allowing reducer vector builds to converge without request-time
+  scans.
 - Relationship evidence backfill stays bounded to latest active repository
   facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
   relationship facts are included explicitly because they are provider-resource

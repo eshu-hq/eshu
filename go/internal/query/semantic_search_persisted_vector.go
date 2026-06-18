@@ -15,12 +15,16 @@ import (
 
 const (
 	defaultPersistedLocalVectorModelID      = "local-hash-v1"
+	defaultPersistedLocalProviderProfileID  = "local"
+	defaultPersistedLocalSourceClass        = "search_documents"
 	defaultPersistedLocalVectorIndexVersion = "vector-v1"
 )
 
 // PersistedLocalSemanticSearchHybridConfig identifies the local vector index
 // state that API and MCP semantic search may serve.
 type PersistedLocalSemanticSearchHybridConfig struct {
+	ProviderProfileID  string
+	SourceClass        string
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	CorpusLimit        int
@@ -31,6 +35,8 @@ type PersistedLocalSemanticSearchHybridConfig struct {
 // local vector identity produced by the current search-vector builder.
 func DefaultPersistedLocalSemanticSearchHybridConfig() PersistedLocalSemanticSearchHybridConfig {
 	return PersistedLocalSemanticSearchHybridConfig{
+		ProviderProfileID:  defaultPersistedLocalProviderProfileID,
+		SourceClass:        defaultPersistedLocalSourceClass,
 		EmbeddingModelID:   defaultPersistedLocalVectorModelID,
 		VectorIndexVersion: defaultPersistedLocalVectorIndexVersion,
 		CorpusLimit:        semanticSearchLocalHybridCorpusLimit,
@@ -190,6 +196,8 @@ func (h *PersistedLocalSemanticSearchHybrid) readyVectors(
 	documentIDs := semanticSearchDocumentIDs(docs)
 	metadataRows, err := h.Metadata.ListActive(ctx, postgres.EshuSearchVectorMetadataFilter{
 		ScopeID:            scopeID,
+		ProviderProfileID:  h.Config.ProviderProfileID,
+		SourceClass:        h.Config.SourceClass,
 		EmbeddingModelID:   h.Config.EmbeddingModelID,
 		VectorIndexVersion: h.Config.VectorIndexVersion,
 		DocumentIDs:        documentIDs,
@@ -200,6 +208,8 @@ func (h *PersistedLocalSemanticSearchHybrid) readyVectors(
 	}
 	valueRows, err := h.Values.ListActive(ctx, postgres.EshuSearchVectorValueFilter{
 		ScopeID:            scopeID,
+		ProviderProfileID:  h.Config.ProviderProfileID,
+		SourceClass:        h.Config.SourceClass,
 		EmbeddingModelID:   h.Config.EmbeddingModelID,
 		VectorIndexVersion: h.Config.VectorIndexVersion,
 		DocumentIDs:        documentIDs,
@@ -291,6 +301,8 @@ func compatiblePersistedVector(
 	return metadata.GenerationID == value.GenerationID &&
 		metadata.ScopeID == value.ScopeID &&
 		metadata.DocumentID == value.DocumentID &&
+		metadata.ProviderProfileID == value.ProviderProfileID &&
+		metadata.SourceClass == value.SourceClass &&
 		metadata.EmbeddingModelID == value.EmbeddingModelID &&
 		metadata.VectorIndexVersion == value.VectorIndexVersion &&
 		metadata.EmbeddingDimensions == dimensions &&
@@ -315,6 +327,12 @@ func normalizePersistedLocalSemanticSearchHybridConfig(
 ) PersistedLocalSemanticSearchHybridConfig {
 	if config.EmbeddingModelID == "" {
 		config.EmbeddingModelID = defaultPersistedLocalVectorModelID
+	}
+	if config.ProviderProfileID == "" {
+		config.ProviderProfileID = defaultPersistedLocalProviderProfileID
+	}
+	if config.SourceClass == "" {
+		config.SourceClass = defaultPersistedLocalSourceClass
 	}
 	if config.VectorIndexVersion == "" {
 		config.VectorIndexVersion = defaultPersistedLocalVectorIndexVersion
