@@ -135,6 +135,73 @@ versionInfoCLI = do
 	}
 }
 
+func TestParseCapturesHaskellGuardedFunctionBinding(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Guards.hs", `module Guards where
+
+caller value
+  | value > 0 = helper value
+  | otherwise = helper 0
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	caller := assertBucketName(t, payload, "functions", "caller")
+	if got := caller["line_number"]; got != 3 {
+		t.Fatalf("functions[caller][line_number] = %#v, want 3", got)
+	}
+	if got := caller["end_line"]; got != 5 {
+		t.Fatalf("functions[caller][end_line] = %#v, want 5", got)
+	}
+	if got := caller["source"]; got != "caller value\n  | value > 0 = helper value\n  | otherwise = helper 0" {
+		t.Fatalf("functions[caller][source] = %#v, want guarded binding source", got)
+	}
+	helperCall := assertBucketField(t, payload, "function_calls", "full_name", "helper")
+	if got := helperCall["context"]; got != "caller" {
+		t.Fatalf("function_calls[helper][context] = %#v, want caller", got)
+	}
+}
+
+func TestParseKeepsHaskellLocalBindingsOutOfFunctionBucket(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Locals.hs", `module Locals where
+
+run action =
+  let versionOr candidate = if enabled then helper candidate else candidate
+   in versionOr action
+
+withWhere item = local item
+  where
+    local value = helper value
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	assertBucketName(t, payload, "functions", "run")
+	assertBucketName(t, payload, "functions", "withWhere")
+	assertBucketName(t, payload, "functions", "helper")
+	assertBucketMissingName(t, payload, "functions", "versionOr")
+	assertBucketMissingName(t, payload, "functions", "local")
+
+	names, err := PreScan(path)
+	if err != nil {
+		t.Fatalf("PreScan() error = %v, want nil", err)
+	}
+	assertStringSliceMissing(t, names, "versionOr")
+	assertStringSliceMissing(t, names, "local")
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 
@@ -204,4 +271,14 @@ func assertParserStringSliceContains(t *testing.T, item map[string]any, field st
 		}
 	}
 	t.Fatalf("item[%s] missing %q in %#v", field, want, values)
+}
+
+func assertStringSliceMissing(t *testing.T, values []string, unexpected string) {
+	t.Helper()
+
+	for _, value := range values {
+		if value == unexpected {
+			t.Fatalf("values unexpectedly contain %q in %#v", unexpected, values)
+		}
+	}
 }

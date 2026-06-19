@@ -15,6 +15,7 @@ import (
 	tree_sitter_cpp "github.com/tree-sitter/tree-sitter-cpp/bindings/go"
 	tree_sitter_elixir "github.com/tree-sitter/tree-sitter-elixir/bindings/go"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
+	tree_sitter_haskell "github.com/tree-sitter/tree-sitter-haskell/bindings/go"
 	tree_sitter_java "github.com/tree-sitter/tree-sitter-java/bindings/go"
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
 	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
@@ -84,6 +85,7 @@ var builtinLanguageLoaders = map[string]languageLoader{
 	"dart":       tree_sitter_dart.Language,
 	"elixir":     tree_sitter_elixir.Language,
 	"go":         tree_sitter_go.Language,
+	"haskell":    tree_sitter_haskell.Language,
 	"java":       tree_sitter_java.Language,
 	"javascript": tree_sitter_javascript.Language,
 	"kotlin":     tree_sitter_kotlin.Language,
@@ -109,6 +111,8 @@ func normalizeLanguageName(name string) (string, error) {
 		return "elixir", nil
 	case "go":
 		return "go", nil
+	case "haskell", "hs":
+		return "haskell", nil
 	case "java":
 		return "java", nil
 	case "javascript", "js":

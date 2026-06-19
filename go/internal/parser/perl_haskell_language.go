@@ -18,12 +18,24 @@ func (e *Engine) preScanPerl(path string) ([]string, error) {
 }
 
 func (e *Engine) parseHaskell(path string, isDependency bool, options Options) (map[string]any, error) {
-	return haskellparser.Parse(path, isDependency, shared.Options{
+	parser, err := e.runtime.Parser("haskell")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return haskellparser.ParseWithParser(path, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
 		VariableScope: options.VariableScope,
-	})
+	}, parser)
 }
 
 func (e *Engine) preScanHaskell(path string) ([]string, error) {
-	return haskellparser.PreScan(path)
+	parser, err := e.runtime.Parser("haskell")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return haskellparser.PreScanWithParser(path, parser)
 }
