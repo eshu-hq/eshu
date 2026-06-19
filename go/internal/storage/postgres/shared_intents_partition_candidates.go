@@ -15,6 +15,7 @@ import (
 var (
 	_ reducer.CodeCallProjectionPartitionCandidateReader = (*SharedIntentStore)(nil)
 	_ reducer.CodeCallProjectionUnhashedCandidateReader  = (*SharedIntentStore)(nil)
+	_ reducer.CodeCallProjectionRefreshFenceLookup       = (*SharedIntentStore)(nil)
 	_ reducer.SharedProjectionPartitionCandidateReader   = (*SharedIntentStore)(nil)
 	_ reducer.SharedProjectionUnhashedCandidateReader    = (*SharedIntentStore)(nil)
 )

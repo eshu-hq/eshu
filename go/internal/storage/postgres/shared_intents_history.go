@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/lib/pq"
@@ -69,6 +70,97 @@ SELECT EXISTS (
       )
     LIMIT 1
 )
+`
+
+const codeCallProjectionWholeFenceSQL = `
+WITH selected AS (
+    SELECT 1
+    FROM shared_projection_intents
+    WHERE intent_id = $1
+      AND scope_id = $2
+      AND acceptance_unit_id = $3
+      AND source_run_id = $4
+      AND projection_domain = $5
+      AND completed_at IS NULL
+    LIMIT 1
+),
+blocked AS (
+    SELECT 1
+    FROM shared_projection_intents AS candidate
+    WHERE candidate.scope_id = $2
+      AND candidate.acceptance_unit_id = $3
+      AND candidate.source_run_id = $4
+      AND candidate.projection_domain = $5
+      AND candidate.repository_id = $6
+      AND candidate.completed_at IS NULL
+      AND candidate.intent_id <> $1
+      AND (candidate.created_at, candidate.intent_id) < ($7, $1)
+    LIMIT 1
+)
+SELECT
+    EXISTS (SELECT 1 FROM selected) AS selected_exists,
+    EXISTS (SELECT 1 FROM blocked) AS blocked_by_fence
+`
+
+const codeCallProjectionFileFenceSQL = `
+WITH selected AS (
+    SELECT 1
+    FROM shared_projection_intents
+    WHERE intent_id = $1
+      AND scope_id = $2
+      AND acceptance_unit_id = $3
+      AND source_run_id = $4
+      AND projection_domain = $5
+      AND completed_at IS NULL
+    LIMIT 1
+),
+blocked AS (
+    SELECT 1
+    FROM shared_projection_intents AS candidate
+    WHERE candidate.scope_id = $2
+      AND candidate.acceptance_unit_id = $3
+      AND candidate.source_run_id = $4
+      AND candidate.projection_domain = $5
+      AND candidate.repository_id = $6
+      AND candidate.completed_at IS NULL
+      AND candidate.intent_id <> $1
+      AND (
+          (
+              $10::boolean
+              AND candidate.partition_key LIKE $9
+              AND candidate.payload->>'intent_type' = 'repo_refresh'
+              AND (
+                  candidate.partition_key = $8::text
+                  OR (
+                      $11::boolean
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM unnest($12::text[]) AS selected_file(path)
+                          WHERE NOT EXISTS (
+                              SELECT 1
+                              FROM jsonb_array_elements_text(
+                                  CASE
+                                      WHEN jsonb_typeof(candidate.payload->'delta_file_paths') = 'array'
+                                      THEN candidate.payload->'delta_file_paths'
+                                      ELSE '[]'::jsonb
+                                  END
+                              ) AS refresh_file(path)
+                              WHERE refresh_file.path = selected_file.path
+                          )
+                      )
+                  )
+              )
+          )
+          OR (
+              candidate.partition_key NOT LIKE $9
+              AND (candidate.created_at, candidate.intent_id) < ($7, $1)
+          )
+      )
+    LIMIT 1
+)
+SELECT
+    EXISTS (SELECT 1 FROM selected) AS selected_exists,
+    EXISTS (SELECT 1 FROM blocked) AS blocked_by_fence
 `
 
 // HasCompletedAcceptanceUnitDomainIntents reports whether any prior intent for
@@ -201,4 +293,110 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainInte
 		return false, fmt.Errorf("scan completed source-run refresh shared projection history: %w", err)
 	}
 	return exists, sqlRows.Err()
+}
+
+// CodeCallProjectionRowBlockedByRepoFence reports whether a pending code-call
+// row is fenced by another pending row in the same acceptance unit. It uses an
+// existence query so full-repo code-call projection does not load every pending
+// row into the reducer heap just to preserve refresh ordering.
+func (s *SharedIntentStore) CodeCallProjectionRowBlockedByRepoFence(
+	ctx context.Context,
+	key reducer.SharedProjectionAcceptanceKey,
+	row reducer.SharedProjectionIntentRow,
+	domain string,
+) (bool, error) {
+	repositoryID := strings.TrimSpace(row.RepositoryID)
+	if repositoryID == "" {
+		repositoryID = sharedIntentPayloadString(row.Payload, "repo_id")
+	}
+	if repositoryID == "" {
+		return false, nil
+	}
+	rowFiles := sharedIntentPayloadStringSlice(row.Payload, "delta_file_paths")
+	filePartitionPrefix := reducer.CodeCallProjectionFilePartitionKeyPrefix()
+	if !strings.HasPrefix(row.PartitionKey, filePartitionPrefix) {
+		return s.queryCodeCallProjectionFence(
+			ctx,
+			codeCallProjectionWholeFenceSQL,
+			row.IntentID,
+			key.ScopeID,
+			key.AcceptanceUnitID,
+			key.SourceRunID,
+			domain,
+			repositoryID,
+			row.CreatedAt.UTC(),
+		)
+	}
+
+	rowCanBeCoveredByFileRefresh := sharedIntentPayloadString(row.Payload, "intent_type") != "repo_refresh"
+	rowCanBeCoveredByFileRefreshByPath := rowCanBeCoveredByFileRefresh && len(rowFiles) > 0
+	return s.queryCodeCallProjectionFence(
+		ctx,
+		codeCallProjectionFileFenceSQL,
+		row.IntentID,
+		key.ScopeID,
+		key.AcceptanceUnitID,
+		key.SourceRunID,
+		domain,
+		repositoryID,
+		row.CreatedAt.UTC(),
+		row.PartitionKey,
+		filePartitionPrefix+"%",
+		rowCanBeCoveredByFileRefresh,
+		rowCanBeCoveredByFileRefreshByPath,
+		pq.Array(rowFiles),
+	)
+}
+
+func (s *SharedIntentStore) queryCodeCallProjectionFence(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (bool, error) {
+	sqlRows, err := s.db.QueryContext(
+		ctx,
+		query,
+		args...,
+	)
+	if err != nil {
+		return false, fmt.Errorf("query code call projection refresh fence: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	if !sqlRows.Next() {
+		return true, sqlRows.Err()
+	}
+	var selectedExists bool
+	var blocked bool
+	if err := sqlRows.Scan(&selectedExists, &blocked); err != nil {
+		return false, fmt.Errorf("scan code call projection refresh fence: %w", err)
+	}
+	if err := sqlRows.Err(); err != nil {
+		return false, err
+	}
+	return !selectedExists || blocked, nil
+}
+
+func sharedIntentPayloadStringSlice(payload map[string]any, key string) []string {
+	if payload == nil {
+		return nil
+	}
+	value, ok := payload[key]
+	if !ok || value == nil {
+		return nil
+	}
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		values := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text := strings.TrimSpace(fmt.Sprint(item)); text != "" {
+				values = append(values, text)
+			}
+		}
+		return values
+	default:
+		return nil
+	}
 }
