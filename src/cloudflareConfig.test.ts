@@ -1,3 +1,10 @@
+// @vitest-environment node
+//
+// This suite reads project files off disk with node:fs / node:path. The global
+// vitest environment is jsdom (see vite.config.ts), which is the wrong runtime
+// for filesystem assertions and was observed to leave node:path helpers such as
+// `join` unresolved on drifted installs (#3104). Pin this file to the node
+// environment so it always runs against real Node globals.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
