@@ -107,3 +107,61 @@ func TestCodeCallHaskellUnresolvedQualifiedImportBlocksRepoUniqueFallback(t *tes
 	_, rows := ExtractCodeCallRows(envelopes)
 	assertReducerNoCodeCallRow(t, rows, "uid:caller", "uid:pack-decoy")
 }
+
+func TestCodeCallHaskellAmbiguousQualifiedImportAliasBlocksResolution(t *testing.T) {
+	t.Parallel()
+
+	callerPath := "/repo/app/Main.hs"
+	leftPath := "/repo/src/Data/Text.hs"
+	rightPath := "/repo/src/Other/Text.hs"
+	envelopes := []facts.Envelope{
+		{FactKind: "repository", Payload: map[string]any{
+			"repo_id": "repo-haskell",
+			"imports_map": map[string][]string{
+				"Data.Text":  {leftPath},
+				"Other.Text": {rightPath},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-haskell",
+			"relative_path": "app/Main.hs",
+			"parsed_file_data": map[string]any{
+				"path": callerPath,
+				"functions": []any{
+					map[string]any{"name": "caller", "line_number": 5, "end_line": 7, "uid": "uid:caller"},
+				},
+				"imports": []any{
+					map[string]any{"name": "Data.Text", "alias": "T", "lang": "haskell"},
+					map[string]any{"name": "Other.Text", "alias": "T", "lang": "haskell"},
+				},
+				"function_calls": []any{
+					map[string]any{"name": "pack", "full_name": "T.pack", "line_number": 6, "lang": "haskell"},
+				},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-haskell",
+			"relative_path": "src/Data/Text.hs",
+			"parsed_file_data": map[string]any{
+				"path": leftPath,
+				"functions": []any{
+					map[string]any{"name": "pack", "line_number": 2, "end_line": 3, "uid": "uid:pack-left"},
+				},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-haskell",
+			"relative_path": "src/Other/Text.hs",
+			"parsed_file_data": map[string]any{
+				"path": rightPath,
+				"functions": []any{
+					map[string]any{"name": "pack", "line_number": 2, "end_line": 3, "uid": "uid:pack-right"},
+				},
+			},
+		}},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertReducerNoCodeCallRow(t, rows, "uid:caller", "uid:pack-left")
+	assertReducerNoCodeCallRow(t, rows, "uid:caller", "uid:pack-right")
+}

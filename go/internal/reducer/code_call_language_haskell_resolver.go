@@ -17,11 +17,11 @@ func init() {
 }
 
 func resolveHaskellQualifiedImportCallee(ctx codeCallResolveContext) (string, string, codeprovenance.Method) {
-	moduleName, methodName, ok := haskellQualifiedImportTarget(ctx)
-	if !ok || ctx.repositoryID == "" {
+	moduleNames, methodName, ok := haskellQualifiedImportTargets(ctx)
+	if !ok || len(moduleNames) != 1 || ctx.repositoryID == "" {
 		return "", "", ""
 	}
-	paths := ctx.repositoryImports[moduleName]
+	paths := ctx.repositoryImports[moduleNames[0]]
 	if len(paths) == 0 {
 		return "", "", ""
 	}
@@ -47,16 +47,21 @@ func resolveHaskellQualifiedImportCallee(ctx codeCallResolveContext) (string, st
 	return resolvedEntityID, ctx.index.entityFileByID[resolvedEntityID], codeprovenance.MethodImportBinding
 }
 
-func haskellQualifiedImportTarget(ctx codeCallResolveContext) (string, string, bool) {
+func haskellQualifiedImportTargets(ctx codeCallResolveContext) ([]string, string, bool) {
 	receiver, methodName, ok := haskellQualifiedCall(ctx.call)
 	if !ok {
-		return "", "", false
+		return nil, "", false
 	}
-	moduleName, ok := haskellImportedModuleName(ctx.fileData, receiver)
-	if !ok {
-		return "", "", false
+	moduleNames := haskellImportedModuleNames(ctx.fileData, receiver)
+	if len(moduleNames) == 0 {
+		return nil, "", false
 	}
-	return moduleName, methodName, true
+	return moduleNames, methodName, true
+}
+
+func haskellQualifiedImportTargetExists(ctx codeCallResolveContext) bool {
+	moduleNames, _, ok := haskellQualifiedImportTargets(ctx)
+	return ok && len(moduleNames) > 0
 }
 
 func haskellQualifiedCall(call map[string]any) (string, string, bool) {
@@ -70,11 +75,13 @@ func haskellQualifiedCall(call map[string]any) (string, string, bool) {
 	return receiver, methodName, receiver != "" && methodName != ""
 }
 
-func haskellImportedModuleName(fileData map[string]any, receiver string) (string, bool) {
+func haskellImportedModuleNames(fileData map[string]any, receiver string) []string {
 	receiver = strings.TrimSpace(receiver)
 	if receiver == "" {
-		return "", false
+		return nil
 	}
+	seen := map[string]struct{}{}
+	var moduleNames []string
 	for _, entry := range mapSlice(fileData["imports"]) {
 		if lang := strings.TrimSpace(anyToString(entry["lang"])); lang != "" && lang != "haskell" {
 			continue
@@ -88,8 +95,12 @@ func haskellImportedModuleName(fileData map[string]any, receiver string) (string
 			alias = moduleName
 		}
 		if receiver == alias || receiver == moduleName {
-			return moduleName, true
+			if _, ok := seen[moduleName]; ok {
+				continue
+			}
+			seen[moduleName] = struct{}{}
+			moduleNames = append(moduleNames, moduleName)
 		}
 	}
-	return "", false
+	return moduleNames
 }
