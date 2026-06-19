@@ -735,11 +735,12 @@ type Instruments struct {
 	WebhookStoreDuration                 metric.Float64Histogram
 
 	// Collector concurrency histograms and counters
-	RepoSnapshotDuration metric.Float64Histogram
-	FileParseDuration    metric.Float64Histogram
-	ReposSnapshotted     metric.Int64Counter
-	FilesParsed          metric.Int64Counter
-	SCIPSnapshotAttempts metric.Int64Counter
+	RepoSnapshotDuration    metric.Float64Histogram
+	FileParseDuration       metric.Float64Histogram
+	ReposSnapshotted        metric.Int64Counter
+	FilesParsed             metric.Int64Counter
+	SCIPSnapshotAttempts    metric.Int64Counter
+	SCIPProcessWaitDuration metric.Float64Histogram
 
 	// Streaming fact production metrics
 	FactBatchesCommitted metric.Int64Counter
@@ -2929,6 +2930,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SCIPSnapshotAttempts counter: %w", err)
+	}
+
+	scipProcessWaitBuckets := []float64{0, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60}
+	inst.SCIPProcessWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_scip_process_wait_seconds",
+		metric.WithDescription("Time spent waiting for a SCIP process slot before launching an external indexer"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(scipProcessWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SCIPProcessWaitDuration histogram: %w", err)
 	}
 
 	inst.FactBatchesCommitted, err = meter.Int64Counter(

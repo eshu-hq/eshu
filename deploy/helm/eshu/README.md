@@ -143,10 +143,11 @@ repository snapshots. The render contract is covered by `go test
 and measured the four-subtree synthetic SCIP fixture at `workers_1` 25.367
 ms/op and `workers_4` 6.388 ms/op on Apple M4 Pro.
 
-No-Observability-Change: this chart value renders only the existing
-`SCIP_WORKERS` runtime knob. Operators diagnose SCIP progress and fallback
-through `eshu_dp_scip_snapshot_attempts_total`, bounded fallback logs, parse
-stage summaries, parse metrics, and collector fact counters.
+Observability Evidence: `SCIP_WORKERS` saturation is visible through
+`eshu_dp_scip_process_wait_seconds{language}` and bounded debug logs for SCIP
+process slot acquisition with `wait_seconds`. Operators diagnose SCIP progress
+and fallback through `eshu_dp_scip_snapshot_attempts_total`, bounded fallback
+logs, parse stage summaries, parse metrics, and collector fact counters.
 
 No-Regression Evidence: `componentExtensionCollector` is opt-in and defaults to
 disabled, so the default chart render is unchanged. When enabled, it renders a

@@ -70,10 +70,12 @@
 // Observability Evidence: the completeness guard reuses the existing
 // `collector snapshot stage completed` parse summary,
 // `eshu_dp_file_parse_duration_seconds`, file parsed counters, fact emission
-// signals, and `eshu_dp_scip_snapshot_attempts_total` outcome counter. SCIP
-// binary, indexer, and parser fallback reasons are logged with bounded
-// language, reason, and failure_class fields; the path adds no worker, queue,
-// graph write, status field, span, or runtime setting.
+// signals, `eshu_dp_scip_snapshot_attempts_total` outcome counter, and
+// `eshu_dp_scip_process_wait_seconds` process-slot wait histogram. SCIP binary,
+// indexer, and parser fallback reasons are logged with bounded language,
+// reason, and failure_class fields; limiter slot acquisition logs bounded
+// language and wait_seconds fields. The path adds no worker, queue, graph write,
+// status field, span, or runtime setting.
 //
 // The scannerworker subpackage owns the hosted boundary for isolated security
 // analyzers. It defines claim input, target scope, resource limits,

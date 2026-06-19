@@ -81,15 +81,16 @@ func scipWorkersFromEnv(raw string) int {
 	return workers
 }
 
-func (c SnapshotSCIPConfig) acquireProcess(ctx context.Context) (func(), error) {
+func (c SnapshotSCIPConfig) acquireProcess(ctx context.Context) (func(), time.Duration, bool, error) {
+	startedAt := time.Now()
 	if c.processLimiter == nil {
-		return func() {}, nil
+		return func() {}, 0, false, nil
 	}
 	select {
 	case c.processLimiter <- struct{}{}:
-		return func() { <-c.processLimiter }, nil
+		return func() { <-c.processLimiter }, time.Since(startedAt), true, nil
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, time.Since(startedAt), true, ctx.Err()
 	}
 }
 

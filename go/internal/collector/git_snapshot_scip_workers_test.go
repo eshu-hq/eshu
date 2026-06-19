@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestLoadSnapshotSCIPConfigParsesWorkers(t *testing.T) {
@@ -161,6 +164,74 @@ func TestSCIPWorkersCapConcurrentSnapshots(t *testing.T) {
 	}
 }
 
+func TestSCIPWorkersRecordLimiterWaitDuration(t *testing.T) {
+	config := LoadSnapshotSCIPConfig(func(key string) string {
+		if key == "SCIP_WORKERS" {
+			return "1"
+		}
+		return ""
+	})
+
+	metricReader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(metricReader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("collector-scip-wait-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+
+	first := scipWorkerTestRepo(t, "first")
+	second := scipWorkerTestRepo(t, "second")
+	indexer := &concurrentSCIPIndexer{
+		available: map[string]bool{"python": true},
+		delay:     20 * time.Millisecond,
+	}
+	resultParser := rootSCIPParser{resultsByRoot: mergeSCIPWorkerResults(first.results, second.results)}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for _, repo := range []scipWorkerRepo{first, second} {
+		repo := repo
+		go func() {
+			<-start
+			snapshotter := NativeRepositorySnapshotter{SCIP: config, Instruments: instruments}
+			scipFiles, usedAny, err := snapshotter.collectSCIPLanguageGroupFiles(
+				context.Background(),
+				repo.root,
+				parser.DetectSCIPProjectLanguageGroups(repo.files, []string{"python"}),
+				indexer,
+				resultParser,
+			)
+			if err != nil {
+				errs <- err
+				return
+			}
+			if !usedAny || len(scipFiles) != len(repo.files) {
+				errs <- fmt.Errorf("SCIP files = %d used=%v, want %d true", len(scipFiles), usedAny, len(repo.files))
+				return
+			}
+			errs <- nil
+		}()
+	}
+	close(start)
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := metricReader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	attrs := map[string]string{"language": "python"}
+	if got, want := scipHistogramCount(t, rm, "eshu_dp_scip_process_wait_seconds", attrs), uint64(4); got != want {
+		t.Fatalf("eshu_dp_scip_process_wait_seconds{language=python} count = %d, want %d", got, want)
+	}
+	if got := scipHistogramSum(t, rm, "eshu_dp_scip_process_wait_seconds", attrs); got <= 0 {
+		t.Fatalf("eshu_dp_scip_process_wait_seconds{language=python} sum = %f, want > 0", got)
+	}
+}
+
 func TestSCIPLanguageGroupFilesConcurrentPreservesSubtreeMergeOrder(t *testing.T) {
 	t.Parallel()
 
@@ -260,6 +331,37 @@ func mergeSCIPWorkerResults(resultSets ...map[string]parser.SCIPParseResult) map
 		}
 	}
 	return merged
+}
+
+func scipHistogramSum(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	metricName string,
+	wantAttrs map[string]string,
+) float64 {
+	t.Helper()
+
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, metricRecord := range scopeMetrics.Metrics {
+			if metricRecord.Name != metricName {
+				continue
+			}
+			histogram, ok := metricRecord.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf(
+					"metric %s data = %T, want metricdata.Histogram[float64]",
+					metricName,
+					metricRecord.Data,
+				)
+			}
+			for _, dp := range histogram.DataPoints {
+				if collectorHasAttrs(dp.Attributes.ToSlice(), wantAttrs) {
+					return dp.Sum
+				}
+			}
+		}
+	}
+	return 0
 }
 
 func BenchmarkSCIPLanguageSubtreeWorkers(b *testing.B) {

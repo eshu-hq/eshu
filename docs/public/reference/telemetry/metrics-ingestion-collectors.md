@@ -18,6 +18,7 @@ loop metrics live in `go/internal/coordinator/metrics.go`.
 | `eshu_dp_repo_snapshot_duration_seconds` | Per-repository snapshot cost. |
 | `eshu_dp_file_parse_duration_seconds` | Per-file parse cost. |
 | `eshu_dp_scip_snapshot_attempts_total` | SCIP supplement attempt volume per selected language package or workspace root, labeled by bounded `language` and `result` (`used`, `disabled`, `no_supported_language`, `binary_unavailable`, `indexer_failed`, `parse_failed`, or `empty_result`). A sustained non-`used` rate means call precision is falling back to native parser output; investigate SCIP binary availability, indexer errors, parser errors, language allowlists, or empty index output. Repository names, root paths, file paths, and index paths stay out of labels. |
+| `eshu_dp_scip_process_wait_seconds` | Time spent waiting for the shared SCIP process limiter before launching an external indexer, labeled only by bounded `language`. Sustained wait growth means `SCIP_WORKERS` is saturated across concurrent repository snapshots; either raise the worker budget with CPU/memory proof, narrow `SCIP_LANGUAGES`, or lower snapshot concurrency. |
 | `eshu_dp_discovery_dirs_skipped_total` | Directory pruning by discovery policy. |
 | `eshu_dp_discovery_files_skipped_total` | File pruning by discovery policy. |
 | `eshu_dp_large_repo_classifications_total` | Large-repo classification volume. |

@@ -2,7 +2,9 @@ package collector
 
 import (
 	"context"
+	"log/slog"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -31,4 +33,30 @@ func (s NativeRepositorySnapshotter) recordSCIPSnapshotAttempt(ctx context.Conte
 		telemetry.AttrLanguage(language),
 		telemetry.AttrResult(result),
 	))
+}
+
+func (s NativeRepositorySnapshotter) recordSCIPProcessWait(ctx context.Context, language string, wait time.Duration) {
+	if s.Instruments == nil {
+		return
+	}
+	if strings.TrimSpace(language) == "" {
+		language = scipSnapshotLanguageUnknown
+	}
+	s.Instruments.SCIPProcessWaitDuration.Record(ctx, wait.Seconds(), metric.WithAttributes(
+		telemetry.AttrLanguage(language),
+	))
+}
+
+func (s NativeRepositorySnapshotter) logSCIPProcessSlotAcquired(ctx context.Context, language string, wait time.Duration) {
+	if s.Logger == nil {
+		return
+	}
+	if strings.TrimSpace(language) == "" {
+		language = scipSnapshotLanguageUnknown
+	}
+	s.Logger.DebugContext(ctx, "SCIP process slot acquired",
+		slog.String("language", language),
+		slog.Float64("wait_seconds", wait.Seconds()),
+		telemetry.PhaseAttr(telemetry.PhaseParsing),
+	)
 }
