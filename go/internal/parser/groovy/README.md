@@ -42,6 +42,9 @@ PipelineMetadata normalizes shared library versions such as `pipelines@v2`
 down to `pipelines`, matching existing parser payload behavior.
 
 Tree-sitter extraction owns class, method, import, and method-call entities.
+Class-qualified method calls carry `full_name`, `inferred_obj_type`, and `lang`
+metadata so reducer-owned code-call resolution can bind `Helper.run()` to the
+right class method without falling back to weak repository-wide name matching.
 Bare top-level pipeline calls can parse as no-body method declarations in the
 Groovy grammar; the parser keeps those as call rows and does not promote them to
 function entities. Metadata extraction remains lexical because Jenkins shared

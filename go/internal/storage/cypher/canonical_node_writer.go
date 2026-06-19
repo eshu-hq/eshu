@@ -390,6 +390,7 @@ var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
 	"ImplBlock":              {},
 	"Protocol":               {},
 	"ProtocolImplementation": {},
+	"ShellCommand":           {},
 }
 
 var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{

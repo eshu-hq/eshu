@@ -20,6 +20,7 @@ func TestGoldenCallGraphCorrectnessHarness(t *testing.T) {
 	fixtures := append(sourceCallGraphFixtures,
 		importBindingCallGraphFixture(),
 		elixirImportBindingCallGraphFixture(),
+		groovyClassQualifiedCallGraphFixture(),
 		haskellImportBindingCallGraphFixture(),
 		javaImportBindingCallGraphFixture(),
 		typeScriptImportBindingCallGraphFixture(),

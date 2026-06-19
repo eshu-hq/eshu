@@ -57,7 +57,7 @@ func (i *groovySyntaxIndex) collect(node *tree_sitter.Node, source []byte, class
 		name := groovyNodeName(node, source)
 		body := node.ChildByFieldName("body")
 		if name != "" && body == nil && classContext == "" && !groovyFunctionCallIgnored(name) {
-			i.appendCall(name, shared.NodeLine(node))
+			i.appendCall(name, "", "", shared.NodeLine(node))
 		}
 		if name != "" && body != nil {
 			item := map[string]any{
@@ -84,8 +84,9 @@ func (i *groovySyntaxIndex) collect(node *tree_sitter.Node, source []byte, class
 			i.imports = append(i.imports, item)
 		}
 	case "method_invocation":
-		if name := groovyInvocationName(node, source); name != "" && !groovyFunctionCallIgnored(name) {
-			i.appendCall(name, shared.NodeLine(node))
+		name, fullName, receiverType := groovyInvocationParts(node, source)
+		if name != "" && !groovyFunctionCallIgnored(name) {
+			i.appendCall(name, fullName, receiverType, shared.NodeLine(node))
 		}
 	}
 
@@ -97,16 +98,24 @@ func (i *groovySyntaxIndex) collect(node *tree_sitter.Node, source []byte, class
 	}
 }
 
-func (i *groovySyntaxIndex) appendCall(name string, lineNumber int) {
-	key := name + "\x00" + fmt.Sprint(lineNumber)
+func (i *groovySyntaxIndex) appendCall(name string, fullName string, receiverType string, lineNumber int) {
+	key := name + "\x00" + fullName + "\x00" + fmt.Sprint(lineNumber)
 	if _, ok := i.seenCalls[key]; ok {
 		return
 	}
 	i.seenCalls[key] = struct{}{}
-	i.calls = append(i.calls, map[string]any{
+	call := map[string]any{
 		"name":        name,
 		"line_number": lineNumber,
-	})
+		"lang":        "groovy",
+	}
+	if fullName != "" && fullName != name {
+		call["full_name"] = fullName
+	}
+	if receiverType != "" {
+		call["inferred_obj_type"] = receiverType
+	}
+	i.calls = append(i.calls, call)
 	slices.SortFunc(i.calls, func(left, right map[string]any) int {
 		if delta := intValue(left["line_number"]) - intValue(right["line_number"]); delta != 0 {
 			return delta
@@ -124,10 +133,16 @@ func groovyNodeName(node *tree_sitter.Node, source []byte) string {
 	return strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 }
 
-func groovyInvocationName(node *tree_sitter.Node, source []byte) string {
+func groovyInvocationParts(node *tree_sitter.Node, source []byte) (string, string, string) {
 	function := node.ChildByFieldName("function")
 	if function != nil {
-		return groovyLastIdentifier(function, source)
+		name := groovyLastIdentifier(function, source)
+		fullName := groovyQualifiedInvocationName(shared.NodeText(function, source))
+		receiverType := groovyReceiverType(fullName)
+		if receiverType == "" {
+			fullName = ""
+		}
+		return name, fullName, receiverType
 	}
 
 	cursor := node.Walk()
@@ -138,10 +153,10 @@ func groovyInvocationName(node *tree_sitter.Node, source []byte) string {
 			continue
 		}
 		if name := groovyLastIdentifier(&child, source); name != "" {
-			return name
+			return name, "", ""
 		}
 	}
-	return ""
+	return "", "", ""
 }
 
 func groovyInvocationNameChildIgnored(kind string) bool {
@@ -170,6 +185,50 @@ func groovyLastIdentifier(node *tree_sitter.Node, source []byte) string {
 		}
 	}
 	return strings.TrimSpace(name)
+}
+
+func groovyQualifiedInvocationName(value string) string {
+	compact := strings.Join(strings.Fields(strings.TrimSpace(value)), "")
+	if !strings.Contains(compact, ".") {
+		return ""
+	}
+	parts := strings.Split(compact, ".")
+	for _, part := range parts {
+		if !groovyIdentifierName(part) {
+			return ""
+		}
+	}
+	return compact
+}
+
+func groovyReceiverType(fullName string) string {
+	dot := strings.LastIndex(fullName, ".")
+	if dot <= 0 {
+		return ""
+	}
+	receiver := fullName[:dot]
+	receiverParts := strings.Split(receiver, ".")
+	if len(receiverParts) == 0 {
+		return ""
+	}
+	name := receiverParts[len(receiverParts)-1]
+	if name == "" || name[0] < 'A' || name[0] > 'Z' {
+		return ""
+	}
+	return name
+}
+
+func groovyIdentifierName(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index, r := range value {
+		if r == '_' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || index > 0 && r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func groovyFunctionCallIgnored(name string) bool {
