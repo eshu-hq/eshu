@@ -112,7 +112,13 @@
 .proof-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1180px) {
+  .proof-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .proof-card {
@@ -144,7 +150,13 @@
 .surface-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1180px) {
+  .surface-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .surface-card {
@@ -171,6 +183,12 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+@media (max-width: 1180px) {
+  .prompt-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .prompt-card {
   background: rgba(243, 235, 221, 0.045);
   border: 1px solid var(--line);
@@ -189,4 +207,159 @@
   font-size: 0.9rem;
   line-height: 1.58;
   margin: 0;
+}
+
+
+/* New sections added in the institutional-knowledge-layer reframe */
+.difference-section {
+  border-top: 1px solid var(--line);
+}
+
+.difference-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1180px) {
+  .difference-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .difference-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.difference-card {
+  background: rgba(243, 235, 221, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.difference-card strong {
+  color: var(--ember);
+  display: block;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.92rem;
+  margin-bottom: 14px;
+}
+
+.difference-card p {
+  color: var(--muted);
+  line-height: 1.62;
+  margin: 0;
+}
+
+.tryit-section {
+  background: rgba(15, 118, 110, 0.08);
+  border-top: 1px solid var(--line);
+}
+
+.tryit-steps {
+  counter-reset: tryit-step;
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+}
+
+.tryit-steps li {
+  background: #070b0f;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  counter-increment: tryit-step;
+  margin-bottom: 10px;
+  padding: 14px 18px 14px 56px;
+  position: relative;
+}
+
+.tryit-steps li::before {
+  color: var(--ember);
+  content: counter(tryit-step);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.92rem;
+  left: 18px;
+  position: absolute;
+  top: 16px;
+}
+
+.tryit-steps code {
+  background: transparent;
+  color: var(--bone);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.94rem;
+}
+
+.tryit-first-question {
+  color: var(--muted);
+  font-size: 1.04rem;
+  margin: 0 0 24px;
+  max-width: 740px;
+}
+
+.tryit-first-question::before {
+  content: "\2192  ";
+  color: var(--teal);
+}
+
+.references-section {
+  border-top: 1px solid var(--line);
+}
+
+.references-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.references-list li {
+  background: rgba(243, 235, 221, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.references-list a {
+  color: var(--teal);
+  font-weight: 850;
+}
+
+.references-list a:hover {
+  color: var(--ember);
+}
+
+/* Persona demo sub-elements */
+.persona-context {
+  color: var(--teal);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
+
+.persona-tool {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  margin: 18px 0 0;
+  padding-top: 14px;
+}
+
+.persona-tool code {
+  color: var(--ember);
+}
+
+.persona-matrix-link {
+  margin: 24px 0 0;
+}
+
+.persona-matrix-link a {
+  color: var(--teal);
+  font-weight: 850;
 }

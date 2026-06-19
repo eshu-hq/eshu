@@ -48,7 +48,7 @@
   }
 
   .hero-copy h1 {
-    font-size: 3.8rem;
+    font-size: 2.4rem;
   }
 
   .visual-canvas {
@@ -79,6 +79,9 @@
     .cleanup-section,
     .prompts-section,
     .use-cases-section,
+    .difference-section,
+    .tryit-section,
+    .references-section,
   .closing-section {
     padding: 62px 22px;
   }
@@ -96,7 +99,8 @@
   .proof-grid,
   .surface-grid,
   .prompt-grid,
-  .use-case-grid {
+  .use-case-grid,
+  .difference-grid {
     grid-template-columns: 1fr;
   }
 
@@ -107,7 +111,7 @@
 
 @media (max-width: 520px) {
   .hero-copy h1 {
-    font-size: 3.05rem;
+    font-size: 1.9rem;
   }
 
   .hero-actions {
