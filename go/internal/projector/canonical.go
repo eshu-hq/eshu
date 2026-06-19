@@ -171,6 +171,7 @@ var entityTypeLabelMap = map[string]string{
 	"impl_block":              "ImplBlock",
 	"protocol":                "Protocol",
 	"protocol_implementation": "ProtocolImplementation",
+	"shell_command":           "ShellCommand",
 
 	// Infrastructure entities
 	"k8s_resource":           "K8sResource",

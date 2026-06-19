@@ -180,6 +180,82 @@ new DeployHelper().deployApp('prod')
 	assertBucketItemByName(t, got, "function_calls", "deployApp")
 }
 
+func TestParseWithParserAddsGroovyClassQualifiedCallMetadata(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "DeployPipeline.groovy")
+	source := `class DeployPipeline {
+  def call() {
+    DeployHelper.deployApp('prod')
+  }
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+
+	parser := tree_sitter.NewParser()
+	if err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_groovy.Language())); err != nil {
+		parser.Close()
+		t.Fatalf("SetLanguage(groovy) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	got, err := ParseWithParser(path, false, shared.Options{}, parser)
+	if err != nil {
+		t.Fatalf("ParseWithParser() error = %v, want nil", err)
+	}
+
+	call := assertBucketItemByName(t, got, "function_calls", "deployApp")
+	if call["full_name"] != "DeployHelper.deployApp" {
+		t.Fatalf("full_name = %#v, want DeployHelper.deployApp", call["full_name"])
+	}
+	if call["inferred_obj_type"] != "DeployHelper" {
+		t.Fatalf("inferred_obj_type = %#v, want DeployHelper", call["inferred_obj_type"])
+	}
+	if call["lang"] != "groovy" {
+		t.Fatalf("lang = %#v, want groovy", call["lang"])
+	}
+}
+
+func TestParseWithParserKeepsGroovyLowercaseReceiverCallsUnqualified(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "DeployPipeline.groovy")
+	source := `class DeployPipeline {
+  def call(service) {
+    service.deployApp('prod')
+  }
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+
+	parser := tree_sitter.NewParser()
+	if err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_groovy.Language())); err != nil {
+		parser.Close()
+		t.Fatalf("SetLanguage(groovy) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	got, err := ParseWithParser(path, false, shared.Options{}, parser)
+	if err != nil {
+		t.Fatalf("ParseWithParser() error = %v, want nil", err)
+	}
+
+	call := assertBucketItemByName(t, got, "function_calls", "deployApp")
+	if _, ok := call["full_name"]; ok {
+		t.Fatalf("full_name = %#v, want absent for lowercase receiver", call["full_name"])
+	}
+	if _, ok := call["inferred_obj_type"]; ok {
+		t.Fatalf("inferred_obj_type = %#v, want absent for lowercase receiver", call["inferred_obj_type"])
+	}
+	if call["lang"] != "groovy" {
+		t.Fatalf("lang = %#v, want groovy", call["lang"])
+	}
+}
+
 func TestParseMarksJenkinsfileAndSharedLibraryCallAsRoots(t *testing.T) {
 	t.Parallel()
 

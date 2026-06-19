@@ -113,6 +113,38 @@ end
 	}
 }
 
+func groovyClassQualifiedCallGraphFixture() goldenCallGraphFixture {
+	return goldenCallGraphFixture{
+		language: "groovy_class_qualified",
+		files: map[string]string{
+			"vars/deployPipeline.groovy": `
+def caller() {
+  DeployHelper.deployApp('prod')
+}
+`,
+			"src/org/example/DeployHelper.groovy": `
+class DeployHelper {
+  static def deployApp(String target) {
+  }
+}
+`,
+			"src/org/example/OtherHelper.groovy": `
+class OtherHelper {
+  static def deployApp(String target) {
+  }
+}
+`,
+		},
+		caller: "caller",
+		callee: "deployApp",
+		method: codeprovenance.MethodTypeInferred,
+		uidByPath: map[string]string{
+			"src/org/example/DeployHelper.groovy:deployApp": "content-entity:groovy_class_qualified:deployApp",
+			"src/org/example/OtherHelper.groovy:deployApp":  "content-entity:groovy_class_qualified:deployApp_decoy",
+		},
+	}
+}
+
 func haskellImportBindingCallGraphFixture() goldenCallGraphFixture {
 	return goldenCallGraphFixture{
 		language: "haskell_import_binding",
