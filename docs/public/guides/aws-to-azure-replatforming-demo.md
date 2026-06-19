@@ -51,13 +51,13 @@ and Docker Compose provide `local_authoritative`.
 | --- | --- | --- |
 | Terraform state ingestion | Yes | A local `.tfstate` file (fixtures included). |
 | Terraform config ingestion | Yes | A Git repo with the matching `.tf` config. |
-| AWS posture ingestion | Yes (fixture mode) **or** a read-only account | `collector-aws-cloud -mode fixture` replays a checked-in estate with **zero** AWS credentials; live mode needs a read-only account. |
+| AWS posture ingestion | Yes (fixture mode) **or** a read-only account | `eshu-collector-aws-cloud -mode fixture` replays a checked-in estate with **zero** AWS credentials; live mode needs a read-only account. |
 | Reducer drift findings | Yes (once facts exist) | The reducer joins the above by ARN automatically. |
 | `compose_replatforming_plan` | Yes (once findings exist) | `local_authoritative`+ stack. |
 | `azurerm_*` generation | Yes | Claude Code (or any MCP-aware assistant). |
 
 The AWS posture layer can run **fully offline** with the fixture/replay
-collector mode (issue #3063): `collector-aws-cloud -mode fixture` emits the same
+collector mode (issue #3063): `eshu-collector-aws-cloud -mode fixture` emits the same
 `aws_resource` / `aws_relationship` facts as the live scanners from a
 checked-in estate, with no credentials and no network calls, so this demo runs
 from a clean clone with zero cloud access. Use the live, read-only path only
@@ -129,9 +129,13 @@ same `aws_resource` / `aws_relationship` facts the live scanners produce, with
 **no AWS credentials and no network calls**:
 
 ```bash
-collector-aws-cloud -mode fixture \
+eshu-collector-aws-cloud -mode fixture \
   -config go/cmd/collector-aws-cloud/testdata/fixture-estate.json
 ```
+
+The installed binary is `eshu-collector-aws-cloud` (from
+`scripts/install-local-binaries.sh`); from a source checkout you can equivalently
+run `go run ./cmd/collector-aws-cloud -mode fixture -config <path>`.
 
 The fixture estate (account `111122223333`, region `us-east-1`) declares two S3
 buckets; `arn:aws:s3:::eshu-fixture-unmanaged` has no matching Terraform state,

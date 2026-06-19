@@ -6,7 +6,7 @@
 # (issue #3063). It proves the fully offline path end-to-end with NO AWS
 # credentials and NO network calls:
 #
-#   collector-aws-cloud -mode fixture
+#   eshu-collector-aws-cloud -mode fixture
 #     -> aws_resource / aws_relationship facts committed to Postgres
 #     -> projector enqueues the aws_cloud_runtime_drift reducer intent
 #     -> reducer classifies arn:aws:s3:::eshu-fixture-unmanaged as cloud_only
@@ -189,7 +189,7 @@ eshu_compose_wait_for_named_exit "bootstrap-index" 240
 echo "==> Waiting for the API to report healthy"
 eshu_compose_wait_for_http "http://localhost:${ESHU_HTTP_PORT}/healthz" 60 2
 
-echo "==> Ingesting the offline AWS estate via collector-aws-cloud -mode fixture (no credentials, no network)"
+echo "==> Ingesting the offline AWS estate via eshu-collector-aws-cloud -mode fixture (no credentials, no network)"
 # The collector runs as a poll loop, so run it detached and stop it once the
 # orphan finding has materialized. The fixture source re-emits the same
 # deterministic facts on each poll, so an extra poll before teardown is

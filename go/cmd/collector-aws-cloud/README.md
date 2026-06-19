@@ -19,8 +19,8 @@ modes selected by `-mode` (default `claimed-live`):
   `scripts/verify_aws_runtime_drift_compose.sh`).
 
 ```bash
-# Offline replay (no credentials):
-collector-aws-cloud -mode fixture \
+# Offline replay (no credentials); the installed binary is eshu-collector-aws-cloud:
+eshu-collector-aws-cloud -mode fixture \
   -config go/cmd/collector-aws-cloud/testdata/fixture-estate.json
 ```
 
