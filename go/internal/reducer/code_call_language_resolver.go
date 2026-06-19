@@ -64,6 +64,8 @@ func codeCallLanguageResolverBlocksRepoFallback(ctx codeCallResolveContext) bool
 	switch ctx.language {
 	case "elixir":
 		return elixirAliasCallBlocksRepoFallback(ctx)
+	case "haskell":
+		return haskellQualifiedImportTargetExists(ctx)
 	case "java":
 		return javaImportedReceiverBindingBlocksRepoFallback(ctx)
 	default:

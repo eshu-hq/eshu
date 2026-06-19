@@ -20,6 +20,7 @@ func TestGoldenCallGraphCorrectnessHarness(t *testing.T) {
 	fixtures := append(sourceCallGraphFixtures,
 		importBindingCallGraphFixture(),
 		elixirImportBindingCallGraphFixture(),
+		haskellImportBindingCallGraphFixture(),
 		javaImportBindingCallGraphFixture(),
 		typeScriptImportBindingCallGraphFixture(),
 	)
@@ -152,140 +153,6 @@ func TestGoldenCallGraphFixtureGapsDoNotShadowFixtures(t *testing.T) {
 	sort.Strings(shadowed)
 	if len(shadowed) > 0 {
 		t.Fatalf("source-derived call-graph fixture gaps shadow active fixtures: %v", shadowed)
-	}
-}
-
-func importBindingCallGraphFixture() goldenCallGraphFixture {
-	return goldenCallGraphFixture{
-		language: "python_import_binding",
-		files: map[string]string{
-			"app.py": `
-from lib_a import helper as renamed
-
-def caller():
-    return renamed()
-`,
-			"lib_a.py": `
-def helper():
-    return "a"
-`,
-			"lib_b.py": `
-def renamed():
-    return "b"
-`,
-		},
-		caller: "caller",
-		callee: "helper",
-		method: codeprovenance.MethodImportBinding,
-		uidByPath: map[string]string{
-			"lib_a.py:helper":  "content-entity:python_import_binding:helper",
-			"lib_b.py:renamed": "content-entity:python_import_binding:helper_decoy",
-		},
-	}
-}
-
-func javaImportBindingCallGraphFixture() goldenCallGraphFixture {
-	return goldenCallGraphFixture{
-		language: "java_import_binding",
-		files: map[string]string{
-			"example/Worker.java": `
-package example;
-
-import com.acme.Service;
-
-class Worker {
-  void caller(Service service) {
-    service.process(new Task());
-  }
-}
-`,
-			"com/acme/Service.java": `
-package com.acme;
-
-class Service {
-  void process(Task task) {}
-}
-
-class Task {}
-`,
-			"com/other/Service.java": `
-package com.other;
-
-class Service {
-  void process(Task task) {}
-}
-
-class Task {}
-`,
-		},
-		caller: "caller",
-		callee: "process",
-		method: codeprovenance.MethodImportBinding,
-		uidByPath: map[string]string{
-			"com/acme/Service.java:process":  "content-entity:java_import_binding:process",
-			"com/other/Service.java:process": "content-entity:java_import_binding:process_decoy",
-		},
-	}
-}
-
-func elixirImportBindingCallGraphFixture() goldenCallGraphFixture {
-	return goldenCallGraphFixture{
-		language: "elixir_import_binding",
-		files: map[string]string{
-			"lib/worker.ex": `
-defmodule Demo.Worker do
-  alias Demo.Context
-
-  def caller do
-    Context.Basic.greet()
-  end
-end
-`,
-			"lib/context/basic.ex": `
-defmodule Demo.Context.Basic do
-  def greet do
-    :ok
-  end
-end
-`,
-			"lib/context_basic_decoy.ex": `
-defmodule Context.Basic do
-  def greet do
-    :decoy
-  end
-end
-`,
-		},
-		caller: "caller",
-		callee: "greet",
-		method: codeprovenance.MethodImportBinding,
-		uidByPath: map[string]string{
-			"lib/context/basic.ex:greet":       "content-entity:elixir_import_binding:greet",
-			"lib/context_basic_decoy.ex:greet": "content-entity:elixir_import_binding:greet_decoy",
-		},
-	}
-}
-
-func typeScriptImportBindingCallGraphFixture() goldenCallGraphFixture {
-	return goldenCallGraphFixture{
-		language: "typescript_import_binding",
-		files: map[string]string{
-			"main.ts": `
-import { helper } from "./lib";
-
-export function caller(): number {
-  return helper();
-}
-`,
-			"lib.ts": `
-export function helper(): number {
-  return 1;
-}
-`,
-		},
-		caller: "caller",
-		callee: "helper",
-		method: codeprovenance.MethodImportBinding,
 	}
 }
 
