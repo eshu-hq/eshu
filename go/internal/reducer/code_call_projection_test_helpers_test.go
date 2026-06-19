@@ -29,6 +29,12 @@ type historyAwareCodeCallIntentStore struct {
 	historyErr                    error
 }
 
+type fenceAwareCodeCallIntentStore struct {
+	*fakeCodeCallIntentStore
+	blockedByFence bool
+	checkedRows    []string
+}
+
 type staticReducerGraphDrain struct {
 	active bool
 	err    error
@@ -93,6 +99,16 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunRef
 		}
 	}
 	return true, nil
+}
+
+func (f *fenceAwareCodeCallIntentStore) CodeCallProjectionRowBlockedByRepoFence(
+	_ context.Context,
+	_ SharedProjectionAcceptanceKey,
+	row SharedProjectionIntentRow,
+	_ string,
+) (bool, error) {
+	f.checkedRows = append(f.checkedRows, row.IntentID)
+	return f.blockedByFence, nil
 }
 
 func codeCallProjectionTestRow(intentID, generationID string, createdAt time.Time) SharedProjectionIntentRow {

@@ -10,11 +10,17 @@ const (
 	codeCallProjectionPartitionFile
 )
 
+// CodeCallProjectionFilePartitionKeyPrefix returns the durable prefix used by
+// file-scoped code-call projection partition keys.
+func CodeCallProjectionFilePartitionKeyPrefix() string {
+	return codeCallPartitionKeyVersion + ":files:"
+}
+
 func codeCallProjectionPartitionKindForKey(partitionKey string) codeCallProjectionPartitionKind {
 	switch {
 	case strings.HasPrefix(partitionKey, codeCallPartitionKeyVersion+":whole:"):
 		return codeCallProjectionPartitionWhole
-	case strings.HasPrefix(partitionKey, codeCallPartitionKeyVersion+":files:"):
+	case strings.HasPrefix(partitionKey, CodeCallProjectionFilePartitionKeyPrefix()):
 		return codeCallProjectionPartitionFile
 	default:
 		return codeCallProjectionPartitionLegacy

@@ -83,6 +83,17 @@ type CodeCallProjectionCurrentRunRefreshHistoryLookup interface {
 	) (bool, error)
 }
 
+// CodeCallProjectionRefreshFenceLookup checks whether a pending code-call row
+// is blocked by an ordering fence without loading the whole acceptance unit.
+type CodeCallProjectionRefreshFenceLookup interface {
+	CodeCallProjectionRowBlockedByRepoFence(
+		ctx context.Context,
+		key SharedProjectionAcceptanceKey,
+		row SharedProjectionIntentRow,
+		domain string,
+	) (bool, error)
+}
+
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
 // active, letting local single-backend runners avoid graph write contention.
 type ReducerGraphDrain interface {

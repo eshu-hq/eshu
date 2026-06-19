@@ -387,6 +387,13 @@ func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
 			row.IntentID,
 		)
 	}
+	if lookup, ok := r.IntentReader.(CodeCallProjectionRefreshFenceLookup); ok {
+		blocked, err := lookup.CodeCallProjectionRowBlockedByRepoFence(ctx, key, row, DomainCodeCalls)
+		if err != nil {
+			return false, fmt.Errorf("check code call refresh fence: %w", err)
+		}
+		return blocked, nil
+	}
 	rows, ok := acceptanceRowsByKey[key]
 	if !ok {
 		var err error

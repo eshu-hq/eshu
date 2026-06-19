@@ -196,6 +196,79 @@ func TestCodeCallProjectionRunnerScansAcceptanceUnitForCoveringRefreshBeyondDoma
 	}
 }
 
+func TestCodeCallProjectionRunnerUsesBoundedRefreshFenceLookup(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 19, 9, 0, 0, 0, time.UTC)
+	partitionCount := 8
+	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	refreshPartition := codeCallRefreshPartitionKeyForDelta(
+		"repo-a",
+		[]string{"src/caller.go", "src/models.go"},
+	)
+	filePartitionID := mustPartitionForKey(t, filePartition, partitionCount)
+	if got := mustPartitionForKey(t, refreshPartition, partitionCount); got == filePartitionID {
+		t.Fatalf("refresh partition mapped to file partition %d; choose different fixture paths", filePartitionID)
+	}
+	fileRow := codeCallProjectionDeltaPartitionRow(
+		"caller-edge",
+		filePartition,
+		"repo-a",
+		"/repo/src/caller.go",
+		now,
+	)
+	refreshRow := codeCallProjectionFileRefreshRow(
+		"covering-refresh",
+		refreshPartition,
+		"repo-a",
+		[]string{"/repo/src/caller.go", "/repo/src/models.go"},
+		now.Add(time.Millisecond),
+	)
+	base := &fakeCodeCallIntentStore{
+		pendingByDomain: []SharedProjectionIntentRow{fileRow},
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			"scope-a|repo-a|run-1": {fileRow, refreshRow},
+		},
+	}
+	reader := &fenceAwareCodeCallIntentStore{
+		fakeCodeCallIntentStore: base,
+		blockedByFence:          true,
+	}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
+		Config: CodeCallProjectionRunnerConfig{
+			BatchLimit:          1,
+			AcceptanceScanLimit: 10,
+			PartitionCount:      partitionCount,
+		},
+	}
+
+	result, err := runner.selectAcceptanceUnitPartitionWorkWithStats(
+		context.Background(),
+		now,
+		filePartitionID,
+		partitionCount,
+	)
+	if err != nil {
+		t.Fatalf("selectAcceptanceUnitPartitionWorkWithStats() error = %v", err)
+	}
+	if result.Key != (SharedProjectionAcceptanceKey{}) {
+		t.Fatalf("selection = %#v, want file partition blocked by covering refresh", result)
+	}
+	if len(reader.checkedRows) == 0 {
+		t.Fatal("checkedRows empty, want bounded fence lookup")
+	}
+	for _, checkedRow := range reader.checkedRows {
+		if checkedRow != "caller-edge" {
+			t.Fatalf("checkedRows = %v, want only caller-edge lookups", reader.checkedRows)
+		}
+	}
+	if len(base.acceptanceLimitRequests) != 0 {
+		t.Fatalf("acceptanceLimitRequests = %v, want no full acceptance-unit load", base.acceptanceLimitRequests)
+	}
+}
+
 func TestCodeCallProjectionRunnerSkipsAcceptanceUnitUntilCanonicalNodesCommitted(t *testing.T) {
 	t.Parallel()
 
