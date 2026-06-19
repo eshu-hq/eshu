@@ -240,7 +240,11 @@ function ExposureFindingView({ finding }: { readonly finding: ExposureFinding })
       {resolved ? (
         <div className="exposure-paths">
           {finding.paths.map((path, index) => (
-            <ExposurePathCard key={pathKey(path, index)} path={path} />
+            <ExposurePathCard
+              exposureRank={finding.exposureRank}
+              key={pathKey(path, index)}
+              path={path}
+            />
           ))}
         </div>
       ) : (
@@ -250,7 +254,14 @@ function ExposureFindingView({ finding }: { readonly finding: ExposureFinding })
   );
 }
 
-function ExposurePathCard({ path }: { readonly path: ExposurePath }): React.JSX.Element {
+function ExposurePathCard({
+  exposureRank,
+  path
+}: {
+  readonly exposureRank: ExposureRank;
+  readonly path: ExposurePath;
+}): React.JSX.Element {
+  const origin = chainOrigin(exposureRank);
   return (
     <Panel
       className="exposure-path-panel"
@@ -269,10 +280,12 @@ function ExposurePathCard({ path }: { readonly path: ExposurePath }): React.JSX.
       </div>
 
       <ol className="exposure-chain" aria-label="Exposure path chain">
-        <li className="exposure-chain-node exposure-chain-internet">
-          <span className="exposure-node-kind">entry</span>
-          <span className="exposure-node-name">internet</span>
-        </li>
+        {origin !== null ? (
+          <li className={`exposure-chain-node ${origin.className}`}>
+            <span className="exposure-node-kind">entry</span>
+            <span className="exposure-node-name">{origin.label}</span>
+          </li>
+        ) : null}
         {path.nodes.map((node, index) => (
           <li className="exposure-chain-node" key={chainKey(node.entityId, node.name, index)}>
             <span className="exposure-node-kind">{nodeKindLabel(node.labels, index)}</span>
@@ -310,6 +323,25 @@ function UnresolvedNotice({ finding }: { readonly finding: ExposureFinding }): R
       </div>
     </Panel>
   );
+}
+
+// chainOrigin returns the synthetic leading chain node for a finding's exposure
+// rank, or null when no origin should be drawn. It must never over-claim public
+// reachability: only an internet_exposed source gets an "internet" entry. A
+// network_reachable source proves only network reachability, so it gets a
+// truthful "network boundary" entry; an internal source gets no synthetic
+// origin at all (the path starts at the in-process handler).
+function chainOrigin(
+  rank: ExposureRank
+): { readonly className: string; readonly label: string } | null {
+  switch (rank) {
+    case "internet_exposed":
+      return { className: "exposure-chain-internet", label: "internet" };
+    case "network_reachable":
+      return { className: "exposure-chain-network", label: "network boundary" };
+    default:
+      return null;
+  }
 }
 
 function formFromSearch(searchParams: URLSearchParams): ExposureFormState {

@@ -100,6 +100,10 @@
   border-color: color-mix(in oklab, var(--ember) 45%, transparent);
 }
 
+.exposure-chain-network {
+  border-color: color-mix(in oklab, var(--med) 42%, transparent);
+}
+
 .exposure-chain-sink {
   border-color: color-mix(in oklab, var(--crit) 50%, transparent);
 }

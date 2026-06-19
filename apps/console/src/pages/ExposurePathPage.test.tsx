@@ -88,6 +88,55 @@ describe("ExposurePathPage", () => {
     expect(screen.queryByText(/^Reaches /)).not.toBeInTheDocument();
   });
 
+  it("does not render an internet origin for a resolved network_reachable path", async () => {
+    const client = {
+      post: async () => ({
+        data: resolvedWireWithRank("network_reachable", "high"),
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?source=drainQueueHandler"]}>
+        <ExposurePathPage client={client} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
+
+    // The path resolves, so a chain renders...
+    expect(await screen.findByText("Reaches IAM privileged action")).toBeInTheDocument();
+    // ...but it must NOT claim internet reachability the backend did not prove.
+    expect(screen.queryByText("internet")).not.toBeInTheDocument();
+    // It surfaces the proven origin instead.
+    expect(screen.getByText("network boundary")).toBeInTheDocument();
+  });
+
+  it("renders no synthetic origin for a resolved internal path", async () => {
+    const client = {
+      post: async () => ({
+        data: resolvedWireWithRank("internal", "medium"),
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?source=drainQueueHandler"]}>
+        <ExposurePathPage client={client} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
+
+    expect(await screen.findByText("Reaches IAM privileged action")).toBeInTheDocument();
+    // An internal source proves no external reachability: no internet and no
+    // network-boundary origin is drawn.
+    expect(screen.queryByText("internet")).not.toBeInTheDocument();
+    expect(screen.queryByText("network boundary")).not.toBeInTheDocument();
+  });
+
   it("shows an explicit error when the trace request fails, with no path", async () => {
     const client = {
       post: async () => {
@@ -146,6 +195,43 @@ function reachableWire(): Record<string, unknown> {
         severity: "critical",
         reason:
           "internet-exposed handler transitively reaches a privileged IAM action; no authentication gate is modeled in Level 1, so this is a derived upper-bound severity"
+      }
+    ],
+    coverage: { max_depth: 5, paths_found: 1, truncated: false, unresolved_reason: "" }
+  };
+}
+
+// resolvedWireWithRank builds a finding that resolves a path (so a chain renders)
+// under a chosen exposure rank, used to prove the leading chain node is not a
+// hard-coded "internet" entry for non-internet ranks.
+function resolvedWireWithRank(
+  rank: "network_reachable" | "internal",
+  severity: "high" | "medium"
+): Record<string, unknown> {
+  return {
+    source: {
+      entity_id: "entity:e_drain",
+      name: "drainQueueHandler",
+      labels: ["Function", "MessageConsumer"]
+    },
+    source_kind: "message_consumer",
+    exposure_rank: rank,
+    truth_label: "derived",
+    state: "exact",
+    paths: [
+      {
+        nodes: [
+          { entity_id: "entity:e_drain", name: "drainQueueHandler", labels: ["Function"] }
+        ],
+        sink: {
+          kind: "iam_privileged_action",
+          display_name: "IAM privileged action",
+          node: { entity_id: "cloud:c_iam", name: "admin-policy", labels: ["IamPolicy"] }
+        },
+        depth: 1,
+        state: "exact",
+        severity,
+        reason: `${rank.replace(/_/g, " ")} handler reaches an IAM privileged action sink`
       }
     ],
     coverage: { max_depth: 5, paths_found: 1, truncated: false, unresolved_reason: "" }
