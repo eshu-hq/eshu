@@ -148,8 +148,9 @@ export function App(): React.JSX.Element {
           <div className="section-heading">
             <h2 id="developer-title">Run the graph</h2>
             <p>
-              Click a command and watch the answer change. Static demo, real
-              output shapes — the workflow is the product shape.
+              Click a CLI command or MCP tool and watch the answer change.
+              Static demo, real output shapes — the workflow is the product
+              shape.
             </p>
           </div>
           <div className="demo-workbench">

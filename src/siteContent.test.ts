@@ -16,8 +16,8 @@ describe("siteContent", () => {
     expect(siteContent.terminalCommands).toEqual([
       "eshu scan",
       "eshu trace service checkout",
-      "eshu list supply-chain impact findings",
-      "eshu compose replatforming plan --from aws"
+      "mcp: list_supply_chain_impact_findings",
+      "mcp: compose_replatforming_plan"
     ]);
   });
 
@@ -108,8 +108,8 @@ describe("siteContent", () => {
     expect(siteContent.commandDemos.map((command) => command.command)).toEqual([
       "eshu scan --json",
       "eshu trace service checkout",
-      "eshu list supply-chain impact findings",
-      "eshu compose replatforming plan --from aws"
+      "mcp: list_supply_chain_impact_findings",
+      "mcp: compose_replatforming_plan"
     ]);
     expect(
       siteContent.cleanupModes.map((mode) => mode.label).sort()
@@ -142,7 +142,7 @@ describe("siteContent", () => {
       ])
     );
 
-    expect(demosByCommand["eshu list supply-chain impact findings"]).toEqual(
+    expect(demosByCommand["mcp: list_supply_chain_impact_findings"]).toEqual(
       expect.arrayContaining([
         "Findings: 7",
         "Affected: npm:lodash@4.17.11",
@@ -152,7 +152,7 @@ describe("siteContent", () => {
       ])
     );
 
-    expect(demosByCommand["eshu compose replatforming plan --from aws"]).toEqual(
+    expect(demosByCommand["mcp: compose_replatforming_plan"]).toEqual(
       expect.arrayContaining([
         "Scope: aws/account=123456789012",
         "Plan: 4 items, ordered into migration waves",

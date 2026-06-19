@@ -144,8 +144,8 @@ export const siteContent = {
   terminalCommands: [
     "eshu scan",
     "eshu trace service checkout",
-    "eshu list supply-chain impact findings",
-    "eshu compose replatforming plan --from aws"
+    "mcp: list_supply_chain_impact_findings",
+    "mcp: compose_replatforming_plan"
   ] as const,
   demoTrace: {
     service: "checkout-service",
@@ -186,7 +186,7 @@ export const siteContent = {
       ]
     },
     {
-      command: "eshu list supply-chain impact findings",
+      command: "mcp: list_supply_chain_impact_findings",
       summary: "Published impact findings with evidence (refusal-on-insufficient-evidence).",
       activeNodeId: "supply-chain",
       output: [
@@ -202,7 +202,7 @@ export const siteContent = {
       ]
     },
     {
-      command: "eshu compose replatforming plan --from aws",
+      command: "mcp: compose_replatforming_plan",
       summary: "Bounded AWS -> Azure migration packet with per-item source state and safety gate.",
       activeNodeId: "iac",
       output: [
