@@ -134,10 +134,22 @@ LIMIT $3
 `
 
 const claimPartitionLeaseSQL = `
+WITH domain_claim_lock AS (
+    SELECT pg_advisory_xact_lock(hashtext('shared_projection_partition_leases'), hashtext($1))
+)
 INSERT INTO shared_projection_partition_leases (
     projection_domain, partition_id, partition_count,
     lease_owner, lease_expires_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6)
+) SELECT $1, $2, $3, $4, $5, $6
+FROM domain_claim_lock
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM shared_projection_partition_leases
+    WHERE projection_domain = $1
+      AND partition_count <> $3
+      AND lease_owner IS NOT NULL
+      AND (lease_expires_at IS NULL OR lease_expires_at > $6)
+)
 ON CONFLICT (projection_domain, partition_id, partition_count) DO UPDATE
 SET lease_owner = EXCLUDED.lease_owner,
     lease_expires_at = EXCLUDED.lease_expires_at,

@@ -18,6 +18,8 @@ ship single-worker settings as a fix for a concurrency bug.
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | NornicDB: `workers`; Neo4j: `workers * 4` capped at `64` | Reducer | Reducer intents leased per claim cycle |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | unset / disabled | Reducer | Optional cap on cross-scope semantic entity materialization claims after source-local drain |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Reducer | Maximum code-call shared intents scanned or loaded for one accepted repo/run before failing safely |
+| `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` | Reducer | File-scoped CALLS projection partitions |
+| `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` | Reducer | Concurrent file-scoped CALLS partition workers |
 | `ESHU_SHARED_PROJECTION_WORKERS` | `min(NumCPU,4)` | Reducer | Concurrent shared projection partition goroutines |
 | `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | `8` | Reducer | Partitions per shared projection domain |
 | `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | Reducer | Intents processed per partition batch |

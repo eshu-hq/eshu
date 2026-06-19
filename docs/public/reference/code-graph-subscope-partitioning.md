@@ -93,8 +93,9 @@ runtime knob is added or changed.
 Issue #2607 enables the dedicated code-call projection runner to process
 distinct file-scoped CALLS partitions concurrently when
 `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` and
-`ESHU_CODE_CALL_PROJECTION_WORKERS` are configured above `1`. Defaults remain
-single-partition and single-worker. The runner claims the same shared partition
+`ESHU_CODE_CALL_PROJECTION_WORKERS` are configured above `1`; hosted and
+runtime defaults now use `8` partitions and `4` workers for this lane. The
+runner claims the same shared partition
 lease table used by other shared domains, scans the bounded pending set before
 selection, and processes only the selected file partition's active rows. Whole
 or legacy rows still use the existing acceptance-unit load and fence
@@ -102,6 +103,11 @@ same-repository file partitions by creation order. The change does not alter
 Cypher statements, edge writer batching, reducer queue conflict keys, or metric
 labels; raw file paths stay in row payloads for retract scope, not partition
 keys or labels.
+The shared partition lease store serializes same-domain claims with a
+transaction-scoped advisory lock and rejects a new active `partition_count` while
+another count still has an unexpired owner, so count rescaling waits for old
+leases to release or expire before new workers can claim the same file sets
+under a remapped partition space.
 
 Issue #2622 extends the same file-scoped CALLS contract to safe full-refresh
 acceptance units. Full refresh still falls back to `code-calls:v1:whole:<repo>`

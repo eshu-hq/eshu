@@ -116,6 +116,22 @@ No-Observability-Change: the proof reads existing spans/metrics/status and the
 documented `/api/v0/repositories` and MCP responses; no telemetry, metric label,
 span, or status field is added or altered by the chart hooks.
 
+Performance Evidence: hosted resolution-engine pods render
+`ESHU_SHARED_PROJECTION_PARTITION_COUNT=8`,
+`ESHU_SHARED_PROJECTION_WORKERS=8`,
+`ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT=8`, and
+`ESHU_CODE_CALL_PROJECTION_WORKERS=4` by default so the charted `code_calls`
+lane no longer falls back to the runtime's old `1/1` ceiling. The chart render
+contract is covered by
+`go test ./internal/runtime -run TestHelmResolutionEngineRendersCodeCallProjectionConcurrency -count=1`.
+
+No-Observability-Change: these chart defaults only render environment values
+for the existing reducer sidecar lanes. They add no metric, span, route, graph
+query, queue table, Cypher, graph-write shape, or Kubernetes resource kind.
+Operators continue to use resolution-engine logs, `/admin/status`,
+partition-lease backlog, graph-write metrics, and pprof surfaces for code-call
+partition throughput, retries, and dead-letter diagnosis.
+
 No-Regression Evidence: `componentExtensionCollector` is opt-in and defaults to
 disabled, so the default chart render is unchanged. When enabled, it renders a
 separate `eshu-collector-component-extension` Deployment, metrics Service,

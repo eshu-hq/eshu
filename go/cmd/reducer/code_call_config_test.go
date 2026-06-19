@@ -42,10 +42,10 @@ func TestLoadCodeCallProjectionConfigDefaultsAcceptanceScanLimit(t *testing.T) {
 	if got, want := cfg.AcceptanceScanLimit, defaultCodeCallProjectionAcceptanceScanLimit; got != want {
 		t.Fatalf("AcceptanceScanLimit = %d, want %d", got, want)
 	}
-	if got, want := cfg.PartitionCount, defaultCodeCallProjectionPartitionCount; got != want {
+	if got, want := cfg.PartitionCount, 8; got != want {
 		t.Fatalf("PartitionCount = %d, want %d", got, want)
 	}
-	if got, want := cfg.Workers, defaultCodeCallProjectionWorkers; got != want {
+	if got, want := cfg.Workers, 4; got != want {
 		t.Fatalf("Workers = %d, want %d", got, want)
 	}
 }

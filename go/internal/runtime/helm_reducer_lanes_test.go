@@ -89,3 +89,17 @@ resolutionEngine:
 	requireHelmManifest(t, manifests, "Service", "eshu-resolution-engine-cloud-drift-metrics")
 	requireHelmManifest(t, manifests, "ServiceMonitor", "eshu-resolution-engine-metrics")
 }
+
+func TestHelmResolutionEngineRendersCodeCallProjectionConcurrency(t *testing.T) {
+	t.Parallel()
+
+	manifests := renderHelmChart(t)
+	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-resolution-engine")
+	container := requireHelmContainer(t, deployment, "resolution-engine")
+	env := helmEnvByName(container)
+
+	assertHelmLiteralEnv(t, env, "ESHU_SHARED_PROJECTION_PARTITION_COUNT", "8")
+	assertHelmLiteralEnv(t, env, "ESHU_SHARED_PROJECTION_WORKERS", "8")
+	assertHelmLiteralEnv(t, env, "ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT", "8")
+	assertHelmLiteralEnv(t, env, "ESHU_CODE_CALL_PROJECTION_WORKERS", "4")
+}

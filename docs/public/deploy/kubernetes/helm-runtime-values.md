@@ -55,6 +55,16 @@ Connection tuning renders environment variables only when values are non-empty.
 The chart owns those mappings in `deploy/helm/eshu/templates/_helpers.tpl`; keep
 operator docs at the values-block level unless a page needs one exact variable.
 
+The default global `env` also renders the hosted reducer partition defaults:
+`ESHU_SHARED_PROJECTION_PARTITION_COUNT=8`,
+`ESHU_SHARED_PROJECTION_WORKERS=8`,
+`ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT=8`, and
+`ESHU_CODE_CALL_PROJECTION_WORKERS=4`. Change code-call partition count only
+between clean drains or after old shared-projection leases have released or
+expired; the runtime serializes same-domain lease claims with a
+transaction-scoped advisory lock and refuses active leases from two partition
+counts so remapped file partitions cannot overlap.
+
 ## Resolution Engine Lanes
 
 `resolutionEngine.lanes=[]` renders one resolution-engine Deployment. Non-empty

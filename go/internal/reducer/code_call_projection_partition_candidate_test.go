@@ -14,7 +14,23 @@ func TestCodeCallProjectionRunnerSelectsPartitionCandidatesWithoutDomainScan(t *
 	partitionKey := "code-calls:v1:files:repo-a:src/caller.go"
 	partitionID := mustPartitionForKey(t, partitionKey, 8)
 	reader := &fakePartitionCandidateIntentStore{
-		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{},
+		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{
+			pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+				"scope-a|repo-a|run-1": {
+					{
+						IntentID:         "candidate-1",
+						ProjectionDomain: DomainCodeCalls,
+						PartitionKey:     partitionKey,
+						ScopeID:          "scope-a",
+						AcceptanceUnitID: "repo-a",
+						RepositoryID:     "repo-a",
+						SourceRunID:      "run-1",
+						GenerationID:     "gen-1",
+						CreatedAt:        now,
+					},
+				},
+			},
+		},
 		partitionRows: []SharedProjectionIntentRow{
 			{
 				IntentID:         "candidate-1",
@@ -68,7 +84,23 @@ func TestCodeCallProjectionRunnerReadsUnhashedPendingRowsWithoutDomainScan(t *te
 	partitionKey := "code-calls:v1:files:repo-a:src/legacy.go"
 	partitionID := mustPartitionForKey(t, partitionKey, 8)
 	reader := &fakePartitionCandidateIntentStore{
-		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{},
+		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{
+			pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+				"scope-a|repo-a|run-1": {
+					{
+						IntentID:         "legacy-unhashed",
+						ProjectionDomain: DomainCodeCalls,
+						PartitionKey:     partitionKey,
+						ScopeID:          "scope-a",
+						AcceptanceUnitID: "repo-a",
+						RepositoryID:     "repo-a",
+						SourceRunID:      "run-1",
+						GenerationID:     "gen-1",
+						CreatedAt:        now,
+					},
+				},
+			},
+		},
 		legacyRows: []SharedProjectionIntentRow{
 			{
 				IntentID:         "legacy-unhashed",
@@ -162,6 +194,63 @@ func TestCodeCallProjectionRunnerEmptyPartitionDoesNotFallbackToDomainScan(t *te
 	}
 	if len(reader.domainLimitRequests) != 0 {
 		t.Fatalf("domainLimitRequests = %v, want no global domain scan", reader.domainLimitRequests)
+	}
+}
+
+func TestCodeCallProjectionRunnerIndexedCandidateFenceSpansAcceptanceUnit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 19, 9, 0, 0, 0, time.UTC)
+	partitionCount := 8
+	wholeRow := codeCallProjectionWholeScopeRow("whole-refresh", "repo-a", now)
+	wholePartitionID := mustPartitionForKey(t, wholeRow.PartitionKey, partitionCount)
+	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	filePartitionID := mustPartitionForKey(t, filePartition, partitionCount)
+	if filePartitionID == wholePartitionID {
+		t.Fatalf("test partition keys mapped to same partition %d; choose different fixture paths", filePartitionID)
+	}
+	fileRow := codeCallProjectionDeltaPartitionRow(
+		"caller-edge",
+		filePartition,
+		"repo-a",
+		"/repo/src/caller.go",
+		now.Add(time.Millisecond),
+	)
+	reader := &fakePartitionCandidateIntentStore{
+		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{
+			pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+				"scope-a|repo-a|run-1": {wholeRow, fileRow},
+			},
+			leaseGranted: true,
+		},
+		partitionRows: []SharedProjectionIntentRow{wholeRow, fileRow},
+	}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		LeaseManager: reader,
+		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
+		Config: CodeCallProjectionRunnerConfig{
+			BatchLimit:     10,
+			PartitionCount: partitionCount,
+		},
+	}
+
+	result, err := runner.processPartitionOnce(context.Background(), now, filePartitionID, partitionCount)
+	if err != nil {
+		t.Fatalf("processPartitionOnce(file) error = %v", err)
+	}
+	if result.ProcessedIntents != 0 {
+		t.Fatalf("ProcessedIntents = %d, want file partition blocked by earlier whole scope", result.ProcessedIntents)
+	}
+	if len(reader.marked) != 0 {
+		t.Fatalf("marked = %v, want none while whole scope fences file partitions", reader.marked)
+	}
+	if len(reader.domainLimitRequests) != 0 {
+		t.Fatalf("domainLimitRequests = %v, want indexed candidate path without domain scan", reader.domainLimitRequests)
+	}
+	if len(reader.acceptanceLimitRequests) == 0 {
+		t.Fatal("acceptanceLimitRequests = nil, want full acceptance-unit fence check")
 	}
 }
 

@@ -24,9 +24,12 @@
 // backlog aggregates because those rows gate whether reducer-owned graph edges
 // are ready for query truth, and ReducerGraphDrain gives local NornicDB
 // code-call projection a read-only view of reducer graph-domain backlog before
-// it starts its edge write lane. CloudResource-consuming reducer edge domains
-// stay unclaimed until their matching cloud_resource_uid canonical-nodes phase
-// exists, including provider relationship domains such as AWS and Azure.
+// it starts its edge write lane. Shared projection partition leases use a
+// domain-scoped advisory lock and reject active partition-count rescaling for
+// one domain so remapped file partitions cannot overlap old in-flight writer
+// claims. CloudResource-consuming reducer edge domains stay unclaimed until
+// their matching cloud_resource_uid canonical-nodes phase exists, including
+// provider relationship domains such as AWS and Azure.
 // Resource materialization conflict keys are versioned and hashed before they
 // reach durable queue rows; domains whose handlers still load, write, or
 // retract whole scope generations stay behind an explicit resource-scope

@@ -379,9 +379,6 @@ func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
 	if codeCallProjectionRowBlockedByRepoFence(row, pending, rowIndex) {
 		return true, nil
 	}
-	if !codeCallProjectionIsFileScoped(row) || codeCallProjectionIsRepoRefresh(row) {
-		return false, nil
-	}
 
 	key, ok := row.AcceptanceKey()
 	if !ok {
@@ -399,7 +396,19 @@ func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
 		}
 		acceptanceRowsByKey[key] = rows
 	}
-	return codeCallProjectionRowBlockedByCoveringFileRefresh(row, rows), nil
+	acceptanceRowIndex := -1
+	for i, candidate := range rows {
+		if candidate.IntentID == row.IntentID {
+			acceptanceRowIndex = i
+			break
+		}
+	}
+	if acceptanceRowIndex < 0 {
+		// The candidate disappeared between partition selection and full-unit
+		// fence loading. Skip it instead of writing from a stale partition view.
+		return true, nil
+	}
+	return codeCallProjectionRowBlockedByRepoFence(row, rows, acceptanceRowIndex), nil
 }
 
 func codeCallProjectionRowBlockedByRepoFence(
@@ -436,24 +445,6 @@ func codeCallProjectionRowBlockedByRepoFence(
 		if codeCallProjectionRowRepository(candidate) == repositoryID &&
 			codeCallProjectionSameAcceptanceUnit(candidate, row) &&
 			(codeCallProjectionIsFileScoped(candidate) || codeCallProjectionIsWholeScoped(candidate)) {
-			return true
-		}
-	}
-	return false
-}
-
-func codeCallProjectionRowBlockedByCoveringFileRefresh(
-	row SharedProjectionIntentRow,
-	candidates []SharedProjectionIntentRow,
-) bool {
-	if !codeCallProjectionIsFileScoped(row) || codeCallProjectionIsRepoRefresh(row) {
-		return false
-	}
-	for _, candidate := range candidates {
-		if candidate.IntentID == row.IntentID || !codeCallProjectionIsFileScoped(candidate) {
-			continue
-		}
-		if codeCallProjectionRefreshCoversRow(candidate, row) {
 			return true
 		}
 	}
