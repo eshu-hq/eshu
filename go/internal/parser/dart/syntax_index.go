@@ -28,8 +28,9 @@ type dartFunctionSpan struct {
 }
 
 type dartNamedSpan struct {
-	name string
-	line int
+	name       string
+	importType string
+	line       int
 }
 
 type dartSyntaxIndex struct {
@@ -66,9 +67,21 @@ func (i *dartSyntaxIndex) collect(node *tree_sitter.Node, source []byte, lines [
 
 	nextScope := scope
 	switch node.Kind() {
-	case "library_import", "library_export":
+	case "library_import":
 		if imported := dartQuotedURI(shared.NodeText(node, source)); imported != "" {
-			i.imports = append(i.imports, dartNamedSpan{name: imported, line: shared.NodeLine(node)})
+			i.imports = append(i.imports, dartNamedSpan{
+				name:       imported,
+				importType: "import",
+				line:       shared.NodeLine(node),
+			})
+		}
+	case "library_export":
+		if imported := dartQuotedURI(shared.NodeText(node, source)); imported != "" {
+			i.imports = append(i.imports, dartNamedSpan{
+				name:       imported,
+				importType: "export",
+				line:       shared.NodeLine(node),
+			})
 		}
 	case "class_definition", "mixin_declaration", "enum_declaration", "extension_declaration", "extension_type_declaration":
 		if typ := dartTypeFromNode(node, source); typ.name != "" {

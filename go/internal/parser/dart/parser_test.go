@@ -12,6 +12,7 @@ func TestParseCapturesDartBuckets(t *testing.T) {
 	t.Parallel()
 
 	path := writeSource(t, "widget.dart", `import 'package:flutter/material.dart';
+export 'src/helper.dart';
 class HomePage {}
 final counter = makeCounter();
 Widget build() => Text('hi');
@@ -22,7 +23,14 @@ Widget build() => Text('hi');
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	assertBucketName(t, payload, "imports", "package:flutter/material.dart")
+	importRow := assertBucketName(t, payload, "imports", "package:flutter/material.dart")
+	if got, want := importRow["import_type"], "import"; got != want {
+		t.Fatalf("imports[package:flutter/material.dart][import_type] = %#v, want %#v", got, want)
+	}
+	exportRow := assertBucketName(t, payload, "imports", "src/helper.dart")
+	if got, want := exportRow["import_type"], "export"; got != want {
+		t.Fatalf("imports[src/helper.dart][import_type] = %#v, want %#v", got, want)
+	}
 	assertBucketNameCount(t, payload, "imports", "package:flutter/material.dart", 1)
 	assertBucketName(t, payload, "classes", "HomePage")
 	function := assertBucketName(t, payload, "functions", "build")

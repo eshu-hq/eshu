@@ -2,6 +2,37 @@ package resolutionparity
 
 import "github.com/eshu-hq/eshu/go/internal/codeprovenance"
 
+func dartImportBindingCallGraphFixture() goldenCallGraphFixture {
+	return goldenCallGraphFixture{
+		language: "dart_import_binding",
+		files: map[string]string{
+			"lib/service.dart": `
+import 'src/helper.dart';
+
+class Runner {
+  final value = Helper();
+}
+`,
+			"lib/src/helper.dart": `
+class Helper {
+}
+`,
+			"lib/src/other_helper.dart": `
+class Helper {
+}
+`,
+		},
+		caller: "Runner",
+		callee: "Helper",
+		method: codeprovenance.MethodImportBinding,
+		uidByPath: map[string]string{
+			"lib/service.dart:Runner":          "content-entity:dart_import_binding:Runner",
+			"lib/src/helper.dart:Helper":       "content-entity:dart_import_binding:Helper",
+			"lib/src/other_helper.dart:Helper": "content-entity:dart_import_binding:Helper_decoy",
+		},
+	}
+}
+
 func importBindingCallGraphFixture() goldenCallGraphFixture {
 	return goldenCallGraphFixture{
 		language: "python_import_binding",
