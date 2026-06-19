@@ -107,9 +107,29 @@ func elixirDefinitionTargetCall(node *tree_sitter.Node) *tree_sitter.Node {
 		}
 		for _, argument := range elixirNamedChildren(&child) {
 			argument := argument
-			if argument.Kind() == "call" {
-				return &argument
+			if target := elixirDefinitionTargetArgument(&argument); target != nil {
+				target := *target
+				return &target
 			}
+		}
+	}
+	return nil
+}
+
+func elixirDefinitionTargetArgument(argument *tree_sitter.Node) *tree_sitter.Node {
+	if argument == nil {
+		return nil
+	}
+	if argument.Kind() == "call" {
+		return argument
+	}
+	if argument.Kind() != "binary_operator" {
+		return nil
+	}
+	for _, child := range elixirNamedChildren(argument) {
+		child := child
+		if target := elixirDefinitionTargetArgument(&child); target != nil {
+			return target
 		}
 	}
 	return nil
@@ -347,6 +367,21 @@ func elixirModuleKind(payload map[string]any, moduleName string) string {
 
 func elixirHasImplDecorator(decorators []string) bool {
 	return slices.ContainsFunc(decorators, func(decorator string) bool {
-		return strings.HasPrefix(strings.TrimSpace(decorator), "@impl")
+		return elixirDecoratorIsImpl(strings.TrimSpace(decorator))
 	})
+}
+
+func elixirDecoratorIsImpl(decorator string) bool {
+	if decorator == "@impl" {
+		return true
+	}
+	if !strings.HasPrefix(decorator, "@impl") {
+		return false
+	}
+	switch decorator[len("@impl")] {
+	case ' ', '\t', '(':
+		return true
+	default:
+		return false
+	}
 }
