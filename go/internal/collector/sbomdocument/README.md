@@ -21,7 +21,12 @@ it returns a deterministic slice of `facts.Envelope` records:
   metadata.
 - `sbom.component` — one per projected component or SPDX package,
   including the document subject (CycloneDX `metadata.component` or the
-  SPDX package(s) that the document `DESCRIBES`).
+  SPDX package(s) that the document `DESCRIBES`). Each component carries a
+  `package_id` derived from its purl via
+  `packageidentity.PackageIDFromPURL`, the canonical versionless identity that
+  lets the impact reducer correlate the component with vulnerability and
+  package-registry facts (blank when the purl is absent or cannot be
+  normalized).
 - `sbom.external_reference` — one per CycloneDX `externalReferences[]`
   entry or SPDX `externalRefs[]` locator.
 - `sbom.dependency_relationship` — one per resolved CycloneDX

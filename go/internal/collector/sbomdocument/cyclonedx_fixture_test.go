@@ -60,6 +60,9 @@ func TestCycloneDXFixtureBuildsReducerConsumableFacts(t *testing.T) {
 	}
 	assertPayload(t, lodash.Payload, "name", "lodash")
 	assertPayload(t, lodash.Payload, "version", "4.17.21")
+	// package_id carries the canonical package identity so the component
+	// correlates with vulnerability and package-registry facts on the same key.
+	assertPayload(t, lodash.Payload, "package_id", "npm://registry.npmjs.org/lodash")
 	assertPayload(t, lodash.Payload, "type", "library")
 	assertPayload(t, lodash.Payload, "supplier_name", "OpenJS Foundation")
 	assertPayload(t, lodash.Payload, "supplier_url", "https://openjsf.org/")
