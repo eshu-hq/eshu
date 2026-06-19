@@ -83,6 +83,17 @@ capabilities:
       - reference/vulnerability-scanner-confidence.md
     known_gaps:
       - "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+  - capability: reachability.csharp.value_flow
+    display_name: C# Reachability (value flow)
+    owner_package: internal/parser/csharp
+    maturity: gated
+    maturity_reason: "C# value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in."
+    linked_issues: [3021, 2704, 2705, 3069]
+    docs:
+      - reference/vulnerability-scanner-confidence.md
+    known_gaps:
+      - "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+      - "ADO.NET sink receiver-type inference is intraprocedural and explicit-type only: a sink whose receiver is a var/implicit-typed local with no declared type is conservatively not matched (honesty over false positive)."
   - capability: reachability.jvm.bounded
     display_name: JVM Reachability (bounded)
     owner_package: internal/reducer

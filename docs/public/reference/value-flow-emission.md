@@ -62,6 +62,7 @@ reflects what each parser emits behind the gate.
 | Python | Gated value-flow. | `dataflow_functions`, `taint_findings`, `interproc_findings`. |
 | TypeScript / JavaScript | Gated value-flow. | `dataflow_functions`, `taint_findings`, `interproc_findings`. |
 | Java | Gated value-flow. <!-- capability-state: id=reachability.java.value_flow state=gated --> | `dataflow_functions`, `taint_findings`, `interproc_findings`, `dataflow_summaries`, `dataflow_sources` (the durable `dataflow_summaries` and `dataflow_sources` buckets only when both repository identity and Java package identity are present). |
+| C# | Gated value-flow. <!-- capability-state: id=reachability.csharp.value_flow state=gated --> | `dataflow_functions`, `taint_findings`, `interproc_findings`, `dataflow_summaries`, `dataflow_sources` (the durable `dataflow_summaries` and `dataflow_sources` buckets only when both repository identity and C# namespace identity are present). C# sources are ASP.NET Core model-binding parameters (`[FromQuery]`/`[FromBody]`/`[FromRoute]`/`[FromForm]` with a `Microsoft.AspNetCore.Mvc` using); sinks are ADO.NET `SqlCommand` execution (`ExecuteReader`/`ExecuteNonQuery`/`ExecuteScalar` with a `System.Data.SqlClient` or `Microsoft.Data.SqlClient` using) and `Process.Start` (with a `System.Diagnostics` using). Receiver-type inference is intraprocedural and explicit-type only, so a sink on a `var`/implicit-typed receiver is conservatively not matched. |
 | Other languages | Not emitted. | No value-flow buckets are attached by these parsers. |
 
 For Python and TypeScript/JavaScript, the interprocedural resolution is
@@ -69,8 +70,8 @@ intra-file only; the import path passed into the interprocedural composer is
 empty until package-ownership metadata is available for those ecosystems, while
 repository identity is stable and durable. The durable cross-package
 `dataflow_summaries` and `dataflow_sources` buckets are therefore emitted only by
-Go and Java today, because they require the package import path that only those
-parsers currently supply.
+Go, Java, and C# today, because they require the package/namespace import path
+that only those parsers currently supply.
 
 For per-ecosystem reachability and confidence posture, cross-reference the
 [Vulnerability Scanner Confidence Matrix](vulnerability-scanner-confidence.md)
