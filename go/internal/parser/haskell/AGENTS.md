@@ -4,8 +4,9 @@
 
 1. README.md - package boundary and where-block invariant
 2. doc.go - godoc contract for the Haskell adapter
-3. parser.go - regex parser and pre-scan behavior
-4. parser_test.go - behavior coverage for payload shape
+3. parser.go - parse and pre-scan behavior
+4. tree_sitter_syntax.go - tree-sitter syntax metadata augmentation
+5. parser_test.go - behavior coverage for payload shape
 
 ## Invariants this package enforces
 
@@ -15,6 +16,10 @@
   class rows.
 - Function-call rows are bounded lexical evidence from definition right-hand
   sides, not compiler-resolved Haskell name binding.
+- Tree-sitter metadata augments function spans and names without replacing the
+  bounded lexical call, where-block, import, and export helpers.
+- Caller-owned parser entrypoints must keep parser ownership with the caller
+  and must not close parsers they did not create.
 - Dead-code root metadata is limited to explicit module exports, `main`,
   typeclass methods, and instance methods. Do not mark every top-level
   declaration in implicit-export modules as public API.

@@ -302,7 +302,7 @@ parser path.
 | Go | `go` | `.go` | yes |
 | Go modules | `gomod` | `go.mod`, `go.sum` (exact filenames) | — |
 | Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | — |
-| Haskell | `haskell` | `.hs` | — |
+| Haskell | `haskell` | `.hs` | yes |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
 | Java | `java` | `.java` | yes |
 | Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
@@ -352,7 +352,7 @@ native parser coverage for selected files outside the SCIP index.
 ## Dependencies
 
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
-- Tree-sitter grammar bindings: C, C#, C++, Elixir, Go, Java, JavaScript, Kotlin, Python, Rust, Scala, TypeScript
+- Tree-sitter grammar bindings: C, C#, C++, Elixir, Go, Haskell, Java, JavaScript, Kotlin, Python, Rust, Scala, TypeScript
 - Elixir grammar packaging replaces `github.com/tree-sitter/tree-sitter-elixir` with the official `github.com/elixir-lang/tree-sitter-elixir v0.3.5` tag.
 - Kotlin grammar packaging uses
   `github.com/tree-sitter-grammars/tree-sitter-kotlin v1.1.0`, an MIT-licensed

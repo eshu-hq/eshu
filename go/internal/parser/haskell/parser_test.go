@@ -135,6 +135,130 @@ versionInfoCLI = do
 	}
 }
 
+func TestParseCapturesHaskellGuardedFunctionBinding(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Guards.hs", `module Guards where
+
+caller value
+  | value > 0 = helper value
+  | otherwise = helper 0
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	caller := assertBucketName(t, payload, "functions", "caller")
+	if got := caller["line_number"]; got != 3 {
+		t.Fatalf("functions[caller][line_number] = %#v, want 3", got)
+	}
+	if got := caller["end_line"]; got != 5 {
+		t.Fatalf("functions[caller][end_line] = %#v, want 5", got)
+	}
+	if got := caller["source"]; got != "caller value\n  | value > 0 = helper value\n  | otherwise = helper 0" {
+		t.Fatalf("functions[caller][source] = %#v, want guarded binding source", got)
+	}
+	helperCall := assertBucketField(t, payload, "function_calls", "full_name", "helper")
+	if got := helperCall["context"]; got != "caller" {
+		t.Fatalf("function_calls[helper][context] = %#v, want caller", got)
+	}
+}
+
+func TestParseKeepsHaskellLocalBindingsOutOfFunctionBucket(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Locals.hs", `module Locals where
+
+run action =
+  let versionOr candidate = if enabled then helper candidate else candidate
+   in versionOr action
+
+withWhere item = local item
+  where
+    local value = helper value
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	assertBucketName(t, payload, "functions", "run")
+	assertBucketName(t, payload, "functions", "withWhere")
+	assertBucketName(t, payload, "functions", "helper")
+	assertBucketMissingName(t, payload, "functions", "versionOr")
+	assertBucketMissingName(t, payload, "functions", "local")
+
+	names, err := PreScan(path)
+	if err != nil {
+		t.Fatalf("PreScan() error = %v, want nil", err)
+	}
+	assertStringSliceMissing(t, names, "versionOr")
+	assertStringSliceMissing(t, names, "local")
+}
+
+func TestParseKeepsMultilineLocalBindingsOutOfFunctionBucket(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "MultilineLocals.hs", `module MultilineLocals where
+
+run value =
+  let
+    inner candidate = helper candidate
+  in inner value
+
+withWhere value = outer value
+  where
+    outer candidate = helper candidate
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketName(t, payload, "functions", "run")
+	assertBucketName(t, payload, "functions", "withWhere")
+	assertBucketName(t, payload, "functions", "helper")
+	assertBucketMissingName(t, payload, "functions", "inner")
+	assertBucketMissingName(t, payload, "functions", "outer")
+
+	names, err := PreScan(path)
+	if err != nil {
+		t.Fatalf("PreScan() error = %v, want nil", err)
+	}
+	assertStringSliceMissing(t, names, "inner")
+	assertStringSliceMissing(t, names, "outer")
+}
+
+func TestParseSuppressesHaskellTreeFunctionParameterCalls(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "ParameterCalls.hs", `module ParameterCalls where
+
+caller value
+  | value > 0 = helper value
+  | otherwise = helper value
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketField(t, payload, "function_calls", "full_name", "helper")
+	assertBucketMissingField(t, payload, "function_calls", "full_name", "value")
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 
@@ -191,6 +315,20 @@ func assertBucketMissingName(t *testing.T, payload map[string]any, bucket string
 	}
 }
 
+func assertBucketMissingField(t *testing.T, payload map[string]any, bucket string, field string, value any) {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	for _, item := range items {
+		if item[field] == value {
+			t.Fatalf("payload[%q] unexpectedly contains %s=%#v in %#v", bucket, field, value, items)
+		}
+	}
+}
+
 func assertParserStringSliceContains(t *testing.T, item map[string]any, field string, want string) {
 	t.Helper()
 
@@ -204,4 +342,14 @@ func assertParserStringSliceContains(t *testing.T, item map[string]any, field st
 		}
 	}
 	t.Fatalf("item[%s] missing %q in %#v", field, want, values)
+}
+
+func assertStringSliceMissing(t *testing.T, values []string, unexpected string) {
+	t.Helper()
+
+	for _, value := range values {
+		if value == unexpected {
+			t.Fatalf("values unexpectedly contain %q in %#v", unexpected, values)
+		}
+	}
 }

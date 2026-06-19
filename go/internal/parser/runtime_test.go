@@ -50,6 +50,26 @@ func TestRuntimeParserLoadsElixirGrammar(t *testing.T) {
 	tree.Close()
 }
 
+func TestRuntimeParserLoadsHaskellGrammar(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewRuntime()
+	parser, err := runtime.Parser("haskell")
+	if err != nil {
+		t.Fatalf("Parser(haskell) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	tree := parser.Parse([]byte("module Main where\nmain = pure ()\n"), nil)
+	if tree == nil {
+		t.Fatalf("Parser(haskell).Parse returned nil tree")
+	}
+	defer tree.Close()
+	if got, want := tree.RootNode().Kind(), "haskell"; got != want {
+		t.Fatalf("Haskell root node kind = %q, want %q", got, want)
+	}
+}
+
 func TestRuntimeParserLoadsSwiftGrammar(t *testing.T) {
 	t.Parallel()
 
