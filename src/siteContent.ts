@@ -123,7 +123,7 @@ export const siteContent = {
     {
       title: "AI assistant context",
       description:
-        "140+ MCP tools, organized into 12 families. Truth envelopes on every read. Refusal over silent downgrade. Works with Claude Code, Codex, Cursor, VS Code — any MCP client."
+        "115+ MCP tools spanning the machine-verified capability catalog. Truth envelopes on every read. Refusal over silent downgrade. Works with Claude Code, Codex, Cursor, VS Code — any MCP client."
     },
     {
       title: "Institutional knowledge",
@@ -317,7 +317,7 @@ export const siteContent = {
     {
       title: "MCP",
       description:
-        "Give AI assistants graph-backed context. 140+ tools, 12 families. Works with Claude Code, Codex, Cursor, VS Code, any MCP client."
+        "Give AI assistants graph-backed context. 115+ tools across the capability catalog. Works with Claude Code, Codex, Cursor, VS Code, any MCP client."
     },
     {
       title: "HTTP API",

@@ -172,6 +172,25 @@ describe("siteContent", () => {
     expect(siteContent.coverage).toContain("capability catalog");
   });
 
+  it("states an MCP tool count within the machine-verified catalog, not inflated", () => {
+    // The capability catalog (specs/capability-matrix.v1.yaml ->
+    // internal/capabilitycatalog) holds 116 capabilities across 118 distinct
+    // MCP tools / 124 registered tool names. The earlier "140+ MCP tools,
+    // organized into 12 families" copy was unverifiable: there is no 12-family
+    // taxonomy and no 140-tool surface. Keep the marketing claim a true floor.
+    const mcpSurface = siteContent.surfaces.find((s) => s.title === "MCP");
+    const aiContext = siteContent.capabilities.find(
+      (c) => c.title === "AI assistant context"
+    );
+    for (const text of [mcpSurface?.description, aiContext?.description]) {
+      expect(text).toBeDefined();
+      expect(text).not.toMatch(/140\+/);
+      expect(text).not.toMatch(/\d+\s+families/);
+      expect(text).toContain("115+");
+      expect(text).toContain("capability catalog");
+    }
+  });
+
   it("anchors the 'Try it' section to the runnable setup and the demo runbooks", () => {
     expect(siteContent.tryIt.heading.toLowerCase()).toContain("try it");
     expect(siteContent.tryIt.steps.length).toBeGreaterThanOrEqual(4);
