@@ -5,11 +5,23 @@ import (
 )
 
 func (e *Engine) parseGroovy(path string, isDependency bool, options Options) (map[string]any, error) {
-	return groovyparser.Parse(path, isDependency, sharedOptions(options))
+	parser, err := e.runtime.Parser("groovy")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return groovyparser.ParseWithParser(path, isDependency, sharedOptions(options), parser)
 }
 
 func (e *Engine) preScanGroovy(path string) ([]string, error) {
-	return groovyparser.PreScan(path)
+	parser, err := e.runtime.Parser("groovy")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return groovyparser.PreScanWithParser(path, parser)
 }
 
 // ExtractGroovyPipelineMetadata returns the explicit Jenkins/Groovy signals

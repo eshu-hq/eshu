@@ -1,16 +1,33 @@
 package groovy
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	tree_sitter_groovy "github.com/dekobon/tree-sitter-groovy/bindings/go"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 // Parse builds the parent parser payload for a Groovy or Jenkinsfile source.
 func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
-	sourceBytes, err := shared.ReadSource(path)
+	parser := tree_sitter.NewParser()
+	language := tree_sitter.NewLanguage(tree_sitter_groovy.Language())
+	if err := parser.SetLanguage(language); err != nil {
+		parser.Close()
+		return nil, fmt.Errorf("set parser language groovy: %w", err)
+	}
+	defer parser.Close()
+
+	return ParseWithParser(path, isDependency, options, parser)
+}
+
+// ParseWithParser builds the Groovy payload with a caller-owned tree-sitter
+// parser.
+func ParseWithParser(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
+	sourceBytes, syntax, err := groovySourceAndSyntax(path, parser)
 	if err != nil {
 		return nil, err
 	}
@@ -23,18 +40,35 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	for key, value := range PipelineMetadata(sourceText).Map() {
 		payload[key] = value
 	}
-	for _, class := range ExtractClassEntities(sourceText) {
+	for _, class := range syntax.classes {
 		shared.AppendBucket(payload, "classes", class)
 	}
-	for _, function := range ExtractFunctionEntities(path, sourceText) {
+	for _, function := range syntax.functions {
+		if isSharedLibraryVarsFile(path) && function["name"] == "call" {
+			function["framework"] = "jenkins"
+			function["dead_code_root_kinds"] = []string{groovyRootSharedLibraryCall}
+		}
 		shared.AppendBucket(payload, "functions", function)
 	}
-	for _, call := range ExtractFunctionCallEntities(sourceText) {
+	if isJenkinsfile(path) && groovyJenkinsEntrypointPattern.MatchString(sourceText) && !hasGroovyRoot(syntax.functions, groovyRootJenkinsPipelineEntrypoint) {
+		shared.AppendBucket(payload, "functions", map[string]any{
+			"name":                 "Jenkinsfile",
+			"line_number":          firstGroovyJenkinsEntrypointLine(sourceText),
+			"end_line":             firstGroovyJenkinsEntrypointLine(sourceText),
+			"framework":            "jenkins",
+			"dead_code_root_kinds": []string{groovyRootJenkinsPipelineEntrypoint},
+		})
+	}
+	for _, call := range syntax.calls {
 		shared.AppendBucket(payload, "function_calls", call)
+	}
+	for _, imported := range syntax.imports {
+		shared.AppendBucket(payload, "imports", imported)
 	}
 	shared.SortNamedBucket(payload, "classes")
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "function_calls")
+	shared.SortNamedBucket(payload, "imports")
 	if options.IndexSource {
 		payload["source"] = sourceText
 	}
@@ -44,18 +78,27 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 // PreScan returns deterministic Groovy metadata names for repository pre-scan
 // import maps.
 func PreScan(path string) ([]string, error) {
-	sourceBytes, err := shared.ReadSource(path)
+	payload, err := Parse(path, false, shared.Options{})
 	if err != nil {
 		return nil, err
 	}
+	return preScanFromPayload(payload), nil
+}
 
-	metadata := PipelineMetadata(string(sourceBytes))
+// PreScanWithParser returns deterministic Groovy metadata names with a
+// caller-owned tree-sitter parser.
+func PreScanWithParser(path string, parser *tree_sitter.Parser) ([]string, error) {
+	payload, err := ParseWithParser(path, false, shared.Options{}, parser)
+	if err != nil {
+		return nil, err
+	}
+	return preScanFromPayload(payload), nil
+}
+
+func preScanFromPayload(payload map[string]any) []string {
 	names := make([]string, 0)
-	for _, values := range [][]string{
-		metadata.SharedLibraries,
-		metadata.PipelineCalls,
-		metadata.EntryPoints,
-	} {
+	for _, key := range []string{"shared_libraries", "pipeline_calls", "entry_points"} {
+		values, _ := payload[key].([]string)
 		for _, value := range values {
 			value = strings.TrimSpace(value)
 			if value == "" {
@@ -68,7 +111,7 @@ func PreScan(path string) ([]string, error) {
 		}
 	}
 	slices.Sort(names)
-	return names, nil
+	return names
 }
 
 func isSharedLibraryVarsFile(path string) bool {
