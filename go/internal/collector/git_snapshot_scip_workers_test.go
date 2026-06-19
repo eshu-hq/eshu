@@ -109,6 +109,58 @@ func TestSCIPLanguageSubtreesRunWithBoundedWorkers(t *testing.T) {
 	}
 }
 
+func TestSCIPWorkersCapConcurrentSnapshots(t *testing.T) {
+	config := LoadSnapshotSCIPConfig(func(key string) string {
+		if key == "SCIP_WORKERS" {
+			return "2"
+		}
+		return ""
+	})
+
+	first := scipWorkerTestRepo(t, "first")
+	second := scipWorkerTestRepo(t, "second")
+	indexer := &concurrentSCIPIndexer{
+		available: map[string]bool{"python": true},
+		delay:     50 * time.Millisecond,
+	}
+	resultParser := rootSCIPParser{resultsByRoot: mergeSCIPWorkerResults(first.results, second.results)}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for _, repo := range []scipWorkerRepo{first, second} {
+		repo := repo
+		go func() {
+			<-start
+			snapshotter := NativeRepositorySnapshotter{SCIP: config}
+			scipFiles, usedAny, err := snapshotter.collectSCIPLanguageGroupFiles(
+				context.Background(),
+				repo.root,
+				parser.DetectSCIPProjectLanguageGroups(repo.files, []string{"python"}),
+				indexer,
+				resultParser,
+			)
+			if err != nil {
+				errs <- err
+				return
+			}
+			if !usedAny || len(scipFiles) != len(repo.files) {
+				errs <- fmt.Errorf("SCIP files = %d used=%v, want %d true", len(scipFiles), usedAny, len(repo.files))
+				return
+			}
+			errs <- nil
+		}()
+	}
+	close(start)
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, want := indexer.maxActive(), 2; got > want {
+		t.Fatalf("max concurrent SCIP runs = %d, want at most %d", got, want)
+	}
+}
+
 func TestSCIPLanguageGroupFilesConcurrentPreservesSubtreeMergeOrder(t *testing.T) {
 	t.Parallel()
 
@@ -161,6 +213,53 @@ func TestSCIPLanguageGroupFilesConcurrentPreservesSubtreeMergeOrder(t *testing.T
 	if got, want := calls[0]["callee_symbol"], "scip-python python child/main()."; got != want {
 		t.Fatalf("callee_symbol = %#v, want %#v", got, want)
 	}
+}
+
+type scipWorkerRepo struct {
+	root    string
+	files   []string
+	results map[string]parser.SCIPParseResult
+}
+
+func scipWorkerTestRepo(t *testing.T, name string) scipWorkerRepo {
+	t.Helper()
+
+	repoRoot := filepath.Join(t.TempDir(), name)
+	apiRoot := filepath.Join(repoRoot, "services", "api")
+	jobsRoot := filepath.Join(repoRoot, "services", "jobs")
+	apiPath := filepath.Join(apiRoot, "app.py")
+	jobsPath := filepath.Join(jobsRoot, "worker.py")
+	writeCollectorTestFile(t, filepath.Join(apiRoot, "pyproject.toml"), "[project]\nname = \"api\"\n")
+	writeCollectorTestFile(t, filepath.Join(jobsRoot, "pyproject.toml"), "[project]\nname = \"jobs\"\n")
+	writeCollectorTestFile(t, apiPath, "def main():\n    return helper()\n")
+	writeCollectorTestFile(t, jobsPath, "def run():\n    return task()\n")
+
+	return scipWorkerRepo{
+		root:  repoRoot,
+		files: []string{apiPath, jobsPath},
+		results: map[string]parser.SCIPParseResult{
+			apiRoot: {
+				Files: map[string]map[string]any{
+					apiPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python api/main()."}}},
+				},
+			},
+			jobsRoot: {
+				Files: map[string]map[string]any{
+					jobsPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python jobs/run()."}}},
+				},
+			},
+		},
+	}
+}
+
+func mergeSCIPWorkerResults(resultSets ...map[string]parser.SCIPParseResult) map[string]parser.SCIPParseResult {
+	merged := make(map[string]parser.SCIPParseResult)
+	for _, results := range resultSets {
+		for root, result := range results {
+			merged[root] = result
+		}
+	}
+	return merged
 }
 
 func BenchmarkSCIPLanguageSubtreeWorkers(b *testing.B) {

@@ -139,7 +139,13 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 	if err != nil {
 		return scipSubtreeFilesResult{}, err
 	}
+	release, err := s.scipConfig().acquireProcess(ctx)
+	if err != nil {
+		_ = os.RemoveAll(outputDir)
+		return scipSubtreeFilesResult{}, err
+	}
 	indexPath, runErr := indexer.Run(ctx, subtree.Root, language, outputDir)
+	release()
 	if runErr != nil {
 		_ = os.RemoveAll(outputDir)
 		s.recordSCIPSnapshotAttempt(ctx, language, scipSnapshotResultIndexerFailed)

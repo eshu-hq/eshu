@@ -13,9 +13,10 @@ README.
   the large-repo semaphore. The classification is a fast pre-scan that exits
   early once the threshold is exceeded.
 - `SCIP_WORKERS` (default `4`) bounds concurrent SCIP language/subtree indexer
-  runs inside one repository snapshot. Set it to `1` only for
-  memory-constrained hosts; keep it aligned with CPU and memory headroom because
-  each slot may run a compiler-grade indexer.
+  processes across the ingester snapshotter, including concurrent repository
+  snapshots. Set it to `1` only for memory-constrained hosts; keep it aligned
+  with CPU and memory headroom because each slot may run a compiler-grade
+  indexer.
 - Repo-local `.eshu/discovery.json` and `.eshu/vendor-roots.json` override
   default discovery options before the operator-level
   `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` overlay is applied.
@@ -68,14 +69,14 @@ README.
   matching.
 - No-Regression Evidence: SCIP subtree worker fan-out preserves native fallback
   and SCIP supplement behavior. `go test ./internal/collector -run
-  'Test(LoadSnapshotSCIPConfigParsesWorkers|SCIPLanguageSubtreesRunWithBoundedWorkers|SCIPSnapshotRuns|SCIPSnapshotSameLanguage|SCIPSnapshotLanguageSubtree|SCIPSnapshotConcurrentParseMergesSCIPSupplement|SCIPSnapshotFallback)'
-  -count=1` proves the env contract, bounded concurrent subtree execution, and
-  existing fallback semantics.
+  'Test(LoadSnapshotSCIPConfigParsesWorkers|SCIPLanguageSubtreesRunWithBoundedWorkers|SCIPWorkersCapConcurrentSnapshots|SCIPSnapshotRuns|SCIPSnapshotSameLanguage|SCIPSnapshotLanguageSubtree|SCIPSnapshotConcurrentParseMergesSCIPSupplement|SCIPSnapshotFallback)'
+  -count=1` proves the env contract, bounded concurrent subtree execution,
+  cross-snapshot process limiting, and existing fallback semantics.
 - Performance Evidence: focused local SCIP worker benchmark command:
   `go test ./internal/collector -run '^$' -bench BenchmarkSCIPLanguageSubtreeWorkers -benchtime=1x -benchmem -count=1`.
   On 2026-06-19 on Apple M4 Pro, the four-subtree synthetic SCIP fixture
-  measured `workers_1` at 25.520 ms/op, 7.44 KB/op, 86 allocs/op and
-  `workers_4` at 6.569 ms/op, 11.69 KB/op, 104 allocs/op. The bounded #2998
+  measured `workers_1` at 25.367 ms/op, 7.44 KB/op, 85 allocs/op and
+  `workers_4` at 6.388 ms/op, 11.56 KB/op, 103 allocs/op. The bounded #2998
   slice keeps SCIP inside the repository snapshot parse stage but removes the
   serial default for language/package-root indexer runs.
 - Observability Evidence: SCIP worker fan-out reuses
@@ -124,9 +125,10 @@ README.
   unless their query contracts change.
 - SCIP indexing defaults on for `python,typescript,javascript,go,rust,java,cpp,c`
   when the matching `scip-*` binary is available, with `SCIP_WORKERS=4` for
-  bounded language/subtree fan-out. Set `SCIP_INDEXER=false`, `0`, `no`, or
-  `off` for native-only parsing, set `SCIP_LANGUAGES` to narrow the SCIP
-  language, or set `SCIP_WORKERS=1` for memory-constrained serial fallback.
+  bounded language/subtree fan-out across concurrent repository snapshots. Set
+  `SCIP_INDEXER=false`, `0`, `no`, or `off` for native-only parsing, set
+  `SCIP_LANGUAGES` to narrow the SCIP language, or set `SCIP_WORKERS=1` for
+  memory-constrained serial fallback.
   Missing binaries, indexer/parser failures, or selected files absent from
   `index.scip` fall back to native parser output. No-Regression Evidence:
   `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
