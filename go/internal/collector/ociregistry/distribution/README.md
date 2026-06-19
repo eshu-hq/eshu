@@ -77,6 +77,10 @@ No-Regression Evidence (#2381): `go test ./internal/collector/sdk ./internal/col
 
 No-Observability-Change (#2381): Distribution remains telemetry-free. The OCI runtime continues to wrap calls with `oci_registry.scan` and `oci_registry.api_call` spans plus existing OCI registry metrics and warning facts; the SDK emits no telemetry directly, and no registry host, repository path, tag, digest, URL, token, or credential value was added to metric labels or status details.
 
+No-Regression Evidence (#3113): the client now owns an explicit redirect credential policy. `NewClient` returns a per-client shallow copy of the caller's `*http.Client` carrying a `CheckRedirect` bound to that client's registry host and credentials, so a shared `*http.Client` reused across registries keeps independent per-host redirect policies (`Transport`/`Timeout`/`Jar` preserved). Same-host redirect hops re-authenticate and cross-host hops never receive the credential. Input shape: one manifest/blob GET that the registry answers with a same-host or cross-host redirect; no graph, queue, or backend writes are involved. Proven by `go test ./internal/collector/ociregistry/distribution -count=1` (20 tests), including `TestClientGetBlobKeepsAuthOnSameHostRedirect`, `TestClientGetBlobDropsAuthOnCrossHostRedirect`, and `TestNewClientDoesNotMutateSharedHTTPClientRedirectPolicy`. The first redirect test fails with `registry_auth_denied` before the fix.
+
+No-Observability-Change (#3113): the redirect policy adds no metrics, spans, or status fields and logs nothing. The credential is request-header only and never appears in error text, logs, or metric labels; operators continue to diagnose auth failures through the existing registry failure class/details surface.
+
 ## Related docs
 
 - `docs/public/deployment/service-runtimes-collectors.md`
