@@ -73,8 +73,8 @@ const (
 	defaultCodeCallProjectionBatchLimit          = 100
 	defaultCodeCallProjectionAcceptanceScanLimit = reducer.DefaultCodeCallAcceptanceScanLimit
 	defaultCodeCallProjectionLeaseOwner          = "code-call-projection-runner"
-	defaultCodeCallProjectionPartitionCount      = 1
-	defaultCodeCallProjectionWorkers             = 1
+	defaultCodeCallProjectionPartitionCount      = 8
+	defaultCodeCallProjectionWorkers             = 4
 	defaultRepoDependencyProjectionPollInterval  = 500 * time.Millisecond
 	defaultRepoDependencyProjectionLeaseTTL      = 60 * time.Second
 	defaultRepoDependencyProjectionBatchLimit    = 100

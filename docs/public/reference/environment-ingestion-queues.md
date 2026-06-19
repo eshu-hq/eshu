@@ -91,8 +91,8 @@ queue, or graph-write evidence.
 | `ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT` | `100` | reducer code-call sidecar | Claim batch size for code-call work. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | reducer code-call sidecar | Guard for complete accepted repo/run scan before rewriting `CALLS` edges. |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner` | reducer code-call sidecar | Lease owner name. |
-| `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `1` | reducer code-call sidecar | Partition count for file-scoped CALLS projection lanes. |
-| `ESHU_CODE_CALL_PROJECTION_WORKERS` | `1` | reducer code-call sidecar | Concurrent partition workers for file-scoped CALLS projection lanes. |
+| `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` | reducer code-call sidecar | Partition count for file-scoped CALLS projection lanes. |
+| `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` | reducer code-call sidecar | Concurrent partition workers for file-scoped CALLS projection lanes. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL` | `500ms` | reducer repo-dependency sidecar | Idle poll interval. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `60s` | reducer repo-dependency sidecar | Lease TTL. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` | reducer repo-dependency sidecar | Claim batch size. |
@@ -116,10 +116,26 @@ profile reports `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT=4` and
 NornicDB backend. The terminal #2599 remote proof must confirm `code_calls`
 `partition_count > 1`, zero dead letters, and drained or bounded queue state.
 
-No-Observability-Change: this only wires reducer sidecar environment values.
-The existing shared-projection lease rows, queue status, reducer logs, metrics,
-and pprof surfaces remain the operator evidence for partition count,
-throughput, retries, and dead letters.
+Performance Evidence: issue #2995 raises the reducer runtime defaults to
+`ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT=8` and
+`ESHU_CODE_CALL_PROJECTION_WORKERS=4`, and Helm now renders those defaults plus
+`ESHU_SHARED_PROJECTION_PARTITION_COUNT=8` for hosted resolution-engine pods.
+The storage lease claim now serializes same-domain claims with a
+transaction-scoped advisory lock and refuses a new `partition_count` while any
+active same-domain lease for another count remains unexpired, so rolling count
+changes fail closed instead of racing overlapping file sets. Covered locally by
+`go test ./cmd/reducer -run TestLoadCodeCallProjectionConfigDefaultsAcceptanceScanLimit -count=1`,
+`go test ./internal/runtime -run TestHelmResolutionEngineRendersCodeCallProjectionConcurrency -count=1`,
+and `go test ./internal/storage/postgres -run TestSharedIntentStoreClaimPartitionLeaseBlocksActivePartitionCountRescale -count=1`.
+
+No-Observability-Change: these changes only adjust reducer sidecar defaults,
+Helm-rendered environment, and partition lease admission. They add no metric,
+span, status field, route, graph query, queue table, Cypher, or graph-write
+shape. Operators still diagnose partition count, active claims, retries,
+dead letters, and throughput through existing shared-projection lease rows,
+`/admin/status` domain backlog, reducer code-call cycle logs,
+`eshu_dp_queue_claim_duration_seconds{queue="code_calls"}`, graph write
+metrics, and pprof surfaces.
 
 ## Graph Write Shape And NornicDB
 
