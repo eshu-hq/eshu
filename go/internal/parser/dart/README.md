@@ -43,7 +43,10 @@ consumed at the declaration boundary so they do not become member decorators.
 Constructor detection comes from constructor signature nodes inside class
 bodies; constructor calls inside method bodies must remain call evidence, not
 constructor declarations. Import collection must avoid double-counting
-`import_or_export` wrapper nodes and their concrete library children.
+`import_or_export` wrapper nodes and their concrete library children, and it
+marks Dart `library_import` rows with `import_type=import` and
+`library_export` rows with `import_type=export` so downstream resolvers do not
+treat export-only barrel files as local lexical imports.
 
 ## Related docs
 

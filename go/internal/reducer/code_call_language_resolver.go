@@ -62,6 +62,8 @@ func resolveLanguageSpecificCallee(
 
 func codeCallLanguageResolverBlocksRepoFallback(ctx codeCallResolveContext) bool {
 	switch ctx.language {
+	case "dart":
+		return dartImportCallBlocksRepoFallback(ctx)
 	case "elixir":
 		return elixirAliasCallBlocksRepoFallback(ctx)
 	case "haskell":

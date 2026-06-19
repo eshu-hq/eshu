@@ -37,11 +37,15 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	seenCalls := make(map[string]struct{})
 
 	for _, imported := range syntax.imports {
-		shared.AppendBucket(payload, "imports", map[string]any{
+		item := map[string]any{
 			"name":        imported.name,
 			"line_number": imported.line,
 			"lang":        "dart",
-		})
+		}
+		if imported.importType != "" {
+			item["import_type"] = imported.importType
+		}
+		shared.AppendBucket(payload, "imports", item)
 	}
 	for _, typ := range syntax.types {
 		item := map[string]any{
