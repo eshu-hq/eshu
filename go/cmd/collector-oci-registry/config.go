@@ -48,6 +48,16 @@ type targetJSON struct {
 	BearerTokenEnv string   `json:"bearer_token_env"`
 	AWSProfile     string   `json:"aws_profile"`
 	FencingToken   int64    `json:"fencing_token"`
+
+	// TLSCACertPath points at a PEM bundle the collector trusts in addition to
+	// the system pool. Use it to scan a registry served with a private or
+	// self-signed CA, such as a local registry:2 over TLS, without weakening
+	// trust globally.
+	TLSCACertPath string `json:"tls_ca_cert_path"`
+	// TLSInsecureSkipVerify disables certificate verification for this target.
+	// It is test/local-only, never a production default, and is rejected when a
+	// CA bundle is also supplied.
+	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify"`
 }
 
 type claimedRuntimeConfig struct {
@@ -288,6 +298,10 @@ func mapTarget(target targetJSON, getenv func(string) string) (ociruntime.Target
 		BearerToken:   getenv(strings.TrimSpace(target.BearerTokenEnv)),
 		AWSProfile:    strings.TrimSpace(target.AWSProfile),
 		FencingToken:  target.FencingToken,
+		TLS: ociruntime.TLSConfig{
+			CACertPath:         strings.TrimSpace(target.TLSCACertPath),
+			InsecureSkipVerify: target.TLSInsecureSkipVerify,
+		},
 	}, nil
 }
 

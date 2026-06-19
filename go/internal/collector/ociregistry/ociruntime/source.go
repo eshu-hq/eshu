@@ -83,7 +83,10 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 	if s.Tracer != nil {
 		var span trace.Span
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanOCIRegistryScan)
-		span.SetAttributes(attribute.String("provider", string(target.Provider)))
+		span.SetAttributes(
+			attribute.String("provider", string(target.Provider)),
+			attribute.String("tls_mode", string(target.TLSMode())),
+		)
 		defer span.End()
 	}
 	result := "success"
@@ -128,6 +131,7 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),
 			slog.String("provider", string(target.Provider)),
+			slog.String("tls_mode", string(target.TLSMode())),
 			slog.Int("reference_count", len(tags)),
 			slog.Int("fact_count", len(envelopes)),
 			slog.Float64("duration_seconds", time.Since(start).Seconds()),

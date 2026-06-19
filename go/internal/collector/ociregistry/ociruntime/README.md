@@ -22,6 +22,14 @@ flowchart LR
 ## Exported Surface
 
 - `Config` and `TargetConfig` describe bounded repository scan inputs.
+- `TLSConfig` customizes a target's transport trust. The zero value uses the
+  host system trust pool. `CACertPath` trusts a PEM bundle in addition to the
+  system pool so a registry served with a private or self-signed CA (such as a
+  local `registry:2` over TLS) can be scanned without a cloud account.
+  `InsecureSkipVerify` disables verification and is test/local-only,
+  default-off, and rejected alongside a custom CA. `TargetConfig.HTTPClient` and
+  `TargetConfig.TLSMode` resolve the bounded HTTP client and the
+  low-cardinality `tls_mode` for telemetry.
 - `RegistryClient` is the Distribution API contract used by scans.
 - `ClientFactory` and `ClientFactoryFunc` create provider-specific clients.
 - `Source` implements `collector.Source` for OCI registry targets.
@@ -49,7 +57,7 @@ Trace spans:
 
 | Span | Purpose |
 | --- | --- |
-| `oci_registry.scan` | One target scan. Use it to see whether the repository scan or the later commit is slow. |
+| `oci_registry.scan` | One target scan. Carries a `tls_mode` attribute (`system_roots`, `custom_ca`, or `insecure_skip_verify`) so an operator can see the resolved transport trust posture. Use it to see whether the repository scan or the later commit is slow. |
 | `oci_registry.api_call` | One registry API call. The `operation` span attribute is `ping`, `list_tags`, `get_manifest`, or `list_referrers`. |
 
 Metric labels deliberately exclude registry hosts, repository names, tags, and
