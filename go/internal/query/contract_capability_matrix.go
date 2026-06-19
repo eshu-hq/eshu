@@ -437,4 +437,14 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     nil,
 		ProductionMax:         nil,
 	},
+	// C# value-flow reachability is operationally gated by ESHU_EMIT_DATAFLOW
+	// (off by default), so it is unsupported in every profile here, mirroring the
+	// other value-flow ecosystems (#3069). The gated overlay maturity lives in
+	// specs/capability-catalog.v1.yaml.
+	"reachability.csharp.value_flow": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: nil,
+		LocalFullStackMax:     nil,
+		ProductionMax:         nil,
+	},
 }
