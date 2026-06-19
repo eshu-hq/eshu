@@ -190,14 +190,60 @@ workload anchor.
 ESHU_SRC=/path/to/eshu examples/supply-chain-demo/scripts/run-full-chain-proof.sh
 ```
 
+## Scripted image-identity proof (live stack, seeded image identity)
+
+`scripts/run-image-identity-proof.sh` completes the OCI image-**identity**
+sub-hop that the full-chain proof above deliberately skips: it proves a
+registry-observed image digest surfaces as **`image_ref`** on the impact
+finding. It uses the demo's own synthetic `synthetic-vulnerable-npm` package and
+a synthetic advisory — **no real registry and no real OSV feed**.
+
+It seeds the raw collector facts via a tier-1 SQL seed
+(`scripts/seed-image-identity-facts.sql`, modeled on
+`tests/fixtures/tfstate_drift/seed.sql`) so the three reducer domains can join
+them:
+
+| Seeded (raw collector facts) | Reducer-derived at runtime (not seeded) |
+| --- | --- |
+| `oci_registry.image_manifest` (digest identity) | `reducer_container_image_identity` (`exact_digest`, `image_ref`) |
+| `sbom.document` + `sbom.component` | `reducer_sbom_attestation_attachment` (subject digest matched) |
+| `attestation.statement` (subject binding) | `reducer_supply_chain_impact_finding` (`image_ref` populated) |
+| `vulnerability.cve` + `vulnerability.affected_package` (synthetic advisory) | |
+
+The corpus K8s Deployment references the **same** digest
+(`demo.invalid/vuln-demo-app@sha256:1111…1111`), which is what lets the
+image-identity reducer classify the digest as `exact_digest` and emit
+`image_ref`. The seed itself contains no secrets: every value is synthetic and
+public (`demo.invalid` is RFC 6761 reserved, the digest is an obvious
+placeholder, the advisory exists on no feed).
+
+```bash
+ESHU_SRC=/path/to/eshu examples/supply-chain-demo/scripts/run-image-identity-proof.sh
+```
+
+The script asserts a finding whose `image_ref` and `subject_digest` equal the
+seeded image identity, then prints PASS with the evidence path.
+
+A daemon-free Go test proves the same reducer join logic without a stack:
+
+```bash
+cd go && go test ./internal/reducer -run TestBuildSupplyChainImpactFindingsDemoImageIdentityHop -count=1
+```
+
+It feeds the exact reducer correlation facts the demo produces and asserts the
+finding carries `image_ref=demo.invalid/vuln-demo-app@sha256:1111…1111`,
+`impact_status=affected_derived`, `match_reason=sbom_component_path`, and the
+`sbom.component -> reducer_sbom_attestation_attachment ->
+reducer_container_image_identity` evidence path.
+
 ## Not covered here
 
 - The 10–15 minute screen recording is a manual deliverable.
-- The OCI image-**identity** sub-hop (a registry-observed image digest as
-  `image_ref` on the finding) is not exercised: the OCI-registry collector is
-  registry/ECR-gated, so the workload anchor here comes from the K8s manifest
-  rather than a registry image identity. The SBOM attestation does attach
-  (`reducer_sbom_attestation_attachment`).
+- A **real** OCI-registry / OSV collector run for the image-identity hop: the
+  OCI-registry collector is registry/ECR-gated and the synthetic advisory is on
+  no feed, so `run-image-identity-proof.sh` **seeds** those facts rather than
+  collecting them. The reducer join that produces `image_ref` is the real,
+  unmocked path.
 
 ## Related docs
 

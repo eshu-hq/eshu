@@ -140,12 +140,57 @@ It asserts `app/` reaches `ready_with_findings` with `CVE-2026-SYNTHETIC-NPM`
 directly from `examples/supply-chain-demo/`, so the runbook and the test cannot
 drift.
 
+## Image-identity proof (the `image_ref` sub-hop)
+
+The full-chain proof anchors findings to a workload via the K8s manifest but
+does **not** populate `image_ref` (the OCI-registry collector is registry/
+ECR-gated). `examples/supply-chain-demo/scripts/run-image-identity-proof.sh`
+completes that sub-hop: it proves a registry-observed image digest surfaces as
+`image_ref` on the impact finding, using the demo's synthetic
+`synthetic-vulnerable-npm` package and a synthetic advisory — **no real registry
+and no real OSV feed**.
+
+It seeds the raw collector facts with a tier-1 SQL seed
+(`scripts/seed-image-identity-facts.sql`, modeled on the tier-1 pattern in
+`tests/fixtures/tfstate_drift/seed.sql`) and lets the live reducers derive the
+correlation facts:
+
+| Seeded (raw collector facts) | Reducer-derived at runtime |
+| --- | --- |
+| `oci_registry.image_manifest` | `reducer_container_image_identity` (`exact_digest`, `image_ref`) |
+| `sbom.document` + `sbom.component` | `reducer_sbom_attestation_attachment` |
+| `attestation.statement` | `reducer_supply_chain_impact_finding` (`image_ref`) |
+| `vulnerability.cve` + `vulnerability.affected_package` (synthetic advisory) | |
+
+The corpus K8s Deployment references the **same** digest
+(`demo.invalid/vuln-demo-app@sha256:1111…1111`), which is what lets the
+image-identity reducer classify it as `exact_digest` and emit `image_ref`. The
+seed contains no secrets: `demo.invalid` is RFC 6761 reserved, the digest is an
+obvious placeholder, and the advisory exists on no feed.
+
+```bash
+ESHU_SRC=/path/to/eshu \
+  examples/supply-chain-demo/scripts/run-image-identity-proof.sh
+```
+
+It asserts a finding whose `image_ref` and `subject_digest` equal the seeded
+image identity. A daemon-free Go test proves the same reducer join offline:
+
+```bash
+cd go && go test ./internal/reducer \
+  -run TestBuildSupplyChainImpactFindingsDemoImageIdentityHop -count=1
+```
+
 ## Not covered
 
 - The 10–15 minute screen recording is a manual deliverable.
-- Seeding advisory facts, attaching the SBOM to a live image, and correlating a
-  workload (B2/B3) are deployment/collector steps that depend on the running
-  stack rather than this static corpus.
+- A **real** OCI-registry / OSV collector run for the image-identity hop: the
+  collector is registry/ECR-gated and the synthetic advisory is on no feed, so
+  the image-identity proof **seeds** those facts. The reducer join that emits
+  `image_ref` is the real, unmocked path.
+- Attaching the SBOM to a live image and correlating a workload (B2/B3) remain
+  deployment/collector steps that depend on the running stack rather than this
+  static corpus.
 
 ## Related
 
