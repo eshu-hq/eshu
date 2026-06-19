@@ -27,12 +27,40 @@ sub run {
 	assertBucketName(t, payload, "classes", "Worker")
 	assertBucketName(t, payload, "imports", "App::Util")
 	function := assertBucketName(t, payload, "functions", "run")
-	if got := function["source"]; got != "sub run {" {
-		t.Fatalf("functions[run][source] = %#v, want source line", got)
+	if got := function["source"]; got != "sub run {\n  my $task = build_task();\n  App::Util::execute($task);\n}" {
+		t.Fatalf("functions[run][source] = %#v, want source span", got)
 	}
 	assertBucketName(t, payload, "variables", "task")
 	assertBucketName(t, payload, "function_calls", "build_task")
 	assertBucketName(t, payload, "function_calls", "App::Util::execute")
+}
+
+func TestParseCapturesPerlSubroutineFromTreeSitterSpan(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "multiline.pm", `package App::Worker;
+sub
+  spaced_run {
+  build_task();
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	function := assertBucketName(t, payload, "functions", "spaced_run")
+	if got, want := function["line_number"], 2; got != want {
+		t.Fatalf("functions[spaced_run][line_number] = %#v, want %d", got, want)
+	}
+	if got, want := function["end_line"], 5; got != want {
+		t.Fatalf("functions[spaced_run][end_line] = %#v, want %d", got, want)
+	}
+	if got := function["source"]; got == nil {
+		t.Fatalf("functions[spaced_run][source] missing, want tree-sitter span source")
+	}
+	assertBucketName(t, payload, "function_calls", "build_task")
 }
 
 func TestParseMarksPerlDeadCodeRoots(t *testing.T) {
@@ -73,6 +101,8 @@ sub _private_helper {}
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
+	assertBucketName(t, payload, "imports", "strict")
+	assertBucketName(t, payload, "imports", "warnings")
 	assertParserStringSliceContains(t, assertBucketName(t, payload, "classes", "Controller"), "dead_code_root_kinds", "perl.package_namespace")
 	assertParserStringSliceContains(t, assertBucketName(t, payload, "functions", "new"), "dead_code_root_kinds", "perl.constructor")
 	assertParserStringSliceContains(t, assertBucketName(t, payload, "functions", "main"), "dead_code_root_kinds", "perl.script_entrypoint")
@@ -115,6 +145,25 @@ sub shared_name {}
 	internalShared := assertFunctionByNameAndContext(t, payload, "shared_name", "Internal")
 	if internalShared["dead_code_root_kinds"] != nil {
 		t.Fatalf("internal shared_name dead_code_root_kinds = %#v, want nil", internalShared["dead_code_root_kinds"])
+	}
+}
+
+func TestPreScanIncludesFullPerlPackageNames(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "util.pm", `package App::Util;
+
+sub execute {}
+`)
+
+	names, err := PreScan(path)
+	if err != nil {
+		t.Fatalf("PreScan() error = %v, want nil", err)
+	}
+	for _, want := range []string{"App::Util", "App::Util::execute"} {
+		if !stringSliceContains(names, want) {
+			t.Fatalf("PreScan() = %#v, want %q", names, want)
+		}
 	}
 }
 
@@ -176,4 +225,13 @@ func assertParserStringSliceContains(t *testing.T, item map[string]any, field st
 		}
 	}
 	t.Fatalf("item[%s] missing %q in %#v", field, want, values)
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, got := range values {
+		if got == want {
+			return true
+		}
+	}
+	return false
 }

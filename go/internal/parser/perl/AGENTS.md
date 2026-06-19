@@ -4,8 +4,9 @@
 
 1. README.md - package boundary and legacy payload shape
 2. doc.go - godoc contract for the Perl adapter
-3. parser.go - regex parser and pre-scan behavior
-4. parser_test.go - behavior coverage for payload shape
+3. parser.go - tree-sitter parser entrypoint and pre-scan behavior
+4. tree_sitter_syntax.go - Perl syntax-tree extraction and bucket mapping
+5. parser_test.go - behavior coverage for payload shape
 
 ## Invariants this package enforces
 
@@ -27,10 +28,10 @@
 
 ## Failure modes and how to debug
 
-- Missing package rows usually mean the package regex no longer accepts
-  namespace separators.
-- Missing call rows usually mean the call regex filtered a line shape that
-  parent parser tests rely on.
+- Missing package rows usually mean the syntax index stopped recognizing
+  `package_statement` or `package` nodes with namespace separators.
+- Missing call rows usually mean the syntax index stopped recognizing a Perl
+  call-expression node shape that parent parser tests rely on.
 - Dead-code false positives around `main`, `new`, `@EXPORT`, `@EXPORT_OK`,
   `AUTOLOAD`, `DESTROY`, or special blocks usually mean parser metadata did not
   survive into the content entity row.

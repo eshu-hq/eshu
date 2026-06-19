@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	tree_sitter_dart "github.com/UserNobody14/tree-sitter-dart/bindings/go"
+	tree_sitter_perl "github.com/alexaandru/go-sitter-forest/perl"
 	tree_sitter_groovy "github.com/dekobon/tree-sitter-groovy/bindings/go"
 	tree_sitter_swift "github.com/indigo-net/Brf.it/pkg/parser/treesitter/grammars/swift"
 	tree_sitter_kotlin "github.com/tree-sitter-grammars/tree-sitter-kotlin/bindings/go"
@@ -91,6 +92,7 @@ var builtinLanguageLoaders = map[string]languageLoader{
 	"java":       tree_sitter_java.Language,
 	"javascript": tree_sitter_javascript.Language,
 	"kotlin":     tree_sitter_kotlin.Language,
+	"perl":       tree_sitter_perl.GetLanguage,
 	"python":     tree_sitter_python.Language,
 	"rust":       tree_sitter_rust.Language,
 	"scala":      tree_sitter_scala.Language,
@@ -123,6 +125,8 @@ func normalizeLanguageName(name string) (string, error) {
 		return "javascript", nil
 	case "kotlin", "kt", "kts":
 		return "kotlin", nil
+	case "perl", "pl", "pm":
+		return "perl", nil
 	case "py", "python":
 		return "python", nil
 	case "rs", "rust":

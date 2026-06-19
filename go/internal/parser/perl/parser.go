@@ -1,145 +1,61 @@
 package perl
 
 import (
+	"fmt"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
+	tree_sitter_perl "github.com/alexaandru/go-sitter-forest/perl"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-var (
-	perlPackagePattern  = regexp.MustCompile(`^\s*package\s+([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)\s*;`)
-	perlUsePattern      = regexp.MustCompile(`^\s*use\s+([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)`)
-	perlSubPattern      = regexp.MustCompile(`^\s*sub\s+([A-Za-z_]\w*)`)
-	perlSpecialPattern  = regexp.MustCompile(`^\s*(BEGIN|UNITCHECK|CHECK|INIT|END)\s*\{`)
-	perlExportPattern   = regexp.MustCompile(`^\s*(?:our\s+)?@(?:EXPORT|EXPORT_OK)\s*=\s*qw\((.*)`)
-	perlVariablePattern = regexp.MustCompile(`\b(?:my|our)\s+[@$%]?([A-Za-z_]\w*)`)
-	perlCallPattern     = regexp.MustCompile(`([A-Za-z_:]+::[A-Za-z_]\w*|[A-Za-z_]\w*)\s*\(`)
-)
-
-// Parse reads path and returns the legacy Perl parser payload.
+// Parse builds the parent parser payload for a Perl source file.
 func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+	parser := tree_sitter.NewParser()
+	language := tree_sitter.NewLanguage(tree_sitter_perl.GetLanguage())
+	if err := parser.SetLanguage(language); err != nil {
+		parser.Close()
+		return nil, fmt.Errorf("set parser language perl: %w", err)
+	}
+	defer parser.Close()
+
+	return ParseWithParser(path, isDependency, options, parser)
+}
+
+// ParseWithParser builds the Perl payload with a caller-owned tree-sitter
+// parser.
+func ParseWithParser(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
+	source, syntax, err := perlSourceAndSyntax(path, parser)
 	if err != nil {
 		return nil, err
 	}
-
 	payload := shared.BasePayload(path, "perl", isDependency)
-	lines := strings.Split(string(source), "\n")
-	seenVariables := make(map[string]struct{})
-	seenCalls := make(map[string]struct{})
-	exportsByPackage := make(map[string]map[string]struct{})
 	functionItems := make(map[string]map[string]any)
-	currentPackage := ""
-	exportPackage := ""
-	collectingExports := false
-
-	for index, rawLine := range lines {
-		lineNumber := index + 1
-		trimmed := strings.TrimSpace(rawLine)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
+	for _, class := range syntax.classes {
+		shared.AppendBucket(payload, "classes", class)
+	}
+	for _, imported := range syntax.imports {
+		shared.AppendBucket(payload, "imports", imported)
+	}
+	for _, function := range syntax.functions {
+		item := function.item
+		if options.IndexSource && item["source"] == nil {
+			item["source"] = perlLineRangeSource(source, shared.IntValue(item["line_number"]), shared.IntValue(item["end_line"]))
 		}
-
-		if collectingExports {
-			exportedSubs := perlExportsForPackage(exportsByPackage, exportPackage)
-			done := perlCollectExportNames(trimmed, exportedSubs)
-			if done {
-				collectingExports = false
-				perlRefreshExportedFunctionRoots(functionItems, exportPackage, exportedSubs)
-			}
-			continue
-		}
-		if matches := perlExportPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			exportPackage = currentPackage
-			exportedSubs := perlExportsForPackage(exportsByPackage, exportPackage)
-			if !perlCollectExportNames(matches[1], exportedSubs) {
-				collectingExports = true
-			}
-			perlRefreshExportedFunctionRoots(functionItems, exportPackage, exportedSubs)
-			continue
-		}
-		if matches := perlPackagePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			currentPackage = matches[1]
-			item := map[string]any{
-				"name":        shared.LastPathSegment(matches[1], "::"),
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "perl",
-			}
-			if perlIsPublicPackage(currentPackage) {
-				item["dead_code_root_kinds"] = []string{"perl.package_namespace"}
-			}
-			shared.AppendBucket(payload, "classes", item)
-		}
-		if matches := perlUsePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			shared.AppendBucket(payload, "imports", map[string]any{
-				"name":        matches[1],
-				"line_number": lineNumber,
-				"lang":        "perl",
-			})
-		}
-		if matches := perlSpecialPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			item := map[string]any{
-				"name":                 matches[1],
-				"line_number":          lineNumber,
-				"end_line":             lineNumber,
-				"lang":                 "perl",
-				"decorators":           []string{},
-				"dead_code_root_kinds": []string{"perl.special_block"},
-			}
-			if currentPackage != "" {
-				item["class_context"] = shared.LastPathSegment(currentPackage, "::")
-			}
-			if options.IndexSource {
-				item["source"] = rawLine
-			}
-			shared.AppendBucket(payload, "functions", item)
-		}
-		if matches := perlSubPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			name := matches[1]
-			item := map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "perl",
-				"decorators":  []string{},
-			}
-			if currentPackage != "" {
-				item["class_context"] = shared.LastPathSegment(currentPackage, "::")
-			}
-			exportedSubs := exportsByPackage[currentPackage]
-			addPerlRootKind(item, perlFunctionRootKinds(name, currentPackage, exportedSubs, path)...)
-			if options.IndexSource {
-				item["source"] = rawLine
-			}
-			functionItems[perlFunctionKey(currentPackage, name)] = item
-			shared.AppendBucket(payload, "functions", item)
-		}
-		for _, match := range perlVariablePattern.FindAllStringSubmatch(trimmed, -1) {
-			if len(match) != 2 {
-				continue
-			}
-			name := match[1]
-			if _, ok := seenVariables[name]; ok {
-				continue
-			}
-			seenVariables[name] = struct{}{}
-			shared.AppendBucket(payload, "variables", map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "perl",
-			})
-		}
-		for _, match := range perlCallPattern.FindAllStringSubmatch(trimmed, -1) {
-			if len(match) != 2 {
-				continue
-			}
-			appendUniqueRegexCall(payload, seenCalls, match[1], lineNumber, "perl")
-		}
+		name, _ := item["name"].(string)
+		functionItems[perlFunctionKey(function.packageName, name)] = item
+		shared.AppendBucket(payload, "functions", item)
+	}
+	for packageName, exportedSubs := range syntax.exportsByPackage {
+		perlRefreshExportedFunctionRoots(functionItems, packageName, exportedSubs)
+	}
+	for _, variable := range syntax.variables {
+		shared.AppendBucket(payload, "variables", variable)
+	}
+	for _, call := range syntax.calls {
+		shared.AppendBucket(payload, "function_calls", call)
 	}
 
 	shared.SortNamedBucket(payload, "functions")
@@ -265,28 +181,15 @@ func PreScan(path string) ([]string, error) {
 		return nil, err
 	}
 	names := shared.CollectBucketNames(payload, "functions", "classes")
-	slices.Sort(names)
-	return names, nil
-}
-
-func appendUniqueRegexCall(
-	payload map[string]any,
-	seen map[string]struct{},
-	fullName string,
-	lineNumber int,
-	lang string,
-) {
-	if strings.TrimSpace(fullName) == "" {
-		return
+	for _, bucket := range []string{"functions", "classes"} {
+		items, _ := payload[bucket].([]map[string]any)
+		for _, item := range items {
+			fullName, _ := item["full_name"].(string)
+			fullName = strings.TrimSpace(fullName)
+			if fullName != "" {
+				names = append(names, fullName)
+			}
+		}
 	}
-	if _, ok := seen[fullName]; ok {
-		return
-	}
-	seen[fullName] = struct{}{}
-	shared.AppendBucket(payload, "function_calls", map[string]any{
-		"name":        fullName,
-		"full_name":   fullName,
-		"line_number": lineNumber,
-		"lang":        lang,
-	})
+	return shared.DedupeNonEmptyStrings(names), nil
 }
