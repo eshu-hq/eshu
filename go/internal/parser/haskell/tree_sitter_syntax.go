@@ -63,7 +63,7 @@ func haskellTreeFunctionInDeclarationScope(node *tree_sitter.Node) bool {
 	parent := node.Parent()
 	for parent != nil {
 		switch parent.Kind() {
-		case "let", "where", "where_clause", "expression", "do", "case", "lambda":
+		case "let", "let_in", "local_binds", "where", "where_clause", "expression", "do", "case", "lambda":
 			return false
 		case "module", "declarations", "class", "instance":
 			return true
@@ -101,15 +101,33 @@ func haskellTreeFunctionParameters(node *tree_sitter.Node, source []byte) map[st
 	}
 	for _, child := range haskellNamedChildren(patterns) {
 		child := child
-		if child.Kind() != "variable" {
-			continue
-		}
-		name := strings.TrimSpace(shared.NodeText(&child, source))
-		if name != "" {
-			params[name] = struct{}{}
-		}
+		collectHaskellTreePatternParameters(&child, source, params)
 	}
 	return params
+}
+
+func collectHaskellTreePatternParameters(node *tree_sitter.Node, source []byte, params map[string]struct{}) {
+	if node == nil {
+		return
+	}
+	if node.Kind() == "variable" || node.Kind() == "pat_name" {
+		name := strings.TrimSpace(shared.NodeText(node, source))
+		if haskellTreeParameterName(name) {
+			params[name] = struct{}{}
+			return
+		}
+	}
+	for _, child := range haskellNamedChildren(node) {
+		child := child
+		collectHaskellTreePatternParameters(&child, source, params)
+	}
+}
+
+func haskellTreeParameterName(name string) bool {
+	if name == "" || haskellIsKeyword(name) || strings.ContainsAny(name, " \t\r\n()[]{}") {
+		return false
+	}
+	return strings.ContainsAny(name[:1], "abcdefghijklmnopqrstuvwxyz_")
 }
 
 func applyHaskellTreeFunctionMetadata(

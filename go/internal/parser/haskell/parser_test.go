@@ -202,6 +202,63 @@ helper value = value
 	assertStringSliceMissing(t, names, "local")
 }
 
+func TestParseKeepsMultilineLocalBindingsOutOfFunctionBucket(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "MultilineLocals.hs", `module MultilineLocals where
+
+run value =
+  let
+    inner candidate = helper candidate
+  in inner value
+
+withWhere value = outer value
+  where
+    outer candidate = helper candidate
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketName(t, payload, "functions", "run")
+	assertBucketName(t, payload, "functions", "withWhere")
+	assertBucketName(t, payload, "functions", "helper")
+	assertBucketMissingName(t, payload, "functions", "inner")
+	assertBucketMissingName(t, payload, "functions", "outer")
+
+	names, err := PreScan(path)
+	if err != nil {
+		t.Fatalf("PreScan() error = %v, want nil", err)
+	}
+	assertStringSliceMissing(t, names, "inner")
+	assertStringSliceMissing(t, names, "outer")
+}
+
+func TestParseSuppressesHaskellTreeFunctionParameterCalls(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "ParameterCalls.hs", `module ParameterCalls where
+
+caller value
+  | value > 0 = helper value
+  | otherwise = helper value
+
+helper value = value
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketField(t, payload, "function_calls", "full_name", "helper")
+	assertBucketMissingField(t, payload, "function_calls", "full_name", "value")
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 
@@ -254,6 +311,20 @@ func assertBucketMissingName(t *testing.T, payload map[string]any, bucket string
 	for _, item := range items {
 		if item["name"] == name {
 			t.Fatalf("payload[%q] unexpectedly contains name %q in %#v", bucket, name, items)
+		}
+	}
+}
+
+func assertBucketMissingField(t *testing.T, payload map[string]any, bucket string, field string, value any) {
+	t.Helper()
+
+	items, ok := payload[bucket].([]map[string]any)
+	if !ok {
+		t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+	}
+	for _, item := range items {
+		if item[field] == value {
+			t.Fatalf("payload[%q] unexpectedly contains %s=%#v in %#v", bucket, field, value, items)
 		}
 	}
 }

@@ -192,6 +192,37 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 				seenCalls,
 			)
 		}
+		if currentFunction != "" && indent > currentFunctionIndent && haskellFunctionPattern.MatchString(trimmed) {
+			if currentFunctionItem != nil {
+				currentFunctionItem["end_line"] = lineNumber
+			}
+			if matches := haskellFunctionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+				name := matches[1]
+				if _, ok := seenVariables[name]; !ok {
+					seenVariables[name] = struct{}{}
+					shared.AppendBucket(payload, "variables", map[string]any{
+						"name":        name,
+						"line_number": lineNumber,
+						"end_line":    lineNumber,
+						"lang":        "haskell",
+					})
+				}
+				localParams := haskellFunctionParameters(trimmed[:strings.Index(trimmed, "=")])
+				for param := range currentFunctionParams {
+					localParams[param] = struct{}{}
+				}
+				haskellAppendFunctionCalls(
+					payload,
+					trimmed,
+					lineNumber,
+					currentFunction,
+					currentFunctionContext,
+					localParams,
+					seenCalls,
+				)
+			}
+			continue
+		}
 		if currentClass != "" {
 			if matches := haskellTypeSignaturePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
 				name := matches[1]
