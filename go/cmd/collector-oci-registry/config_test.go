@@ -100,6 +100,52 @@ func TestLoadRuntimeConfigMapsHarborGARAndACRTargets(t *testing.T) {
 	}
 }
 
+func TestLoadRuntimeConfigThreadsTLSTrustFields(t *testing.T) {
+	env := map[string]string{
+		envCollectorInstanceID: "oci-registry-test",
+		envTargetsJSON: `[{
+			"provider":"harbor",
+			"base_url":"https://registry.localhost",
+			"repository":"library/demo",
+			"references":["1.0.0"],
+			"tls_ca_cert_path":"/etc/eshu/ca.pem"
+		}]`,
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v", err)
+	}
+	target := config.Targets[0]
+	if got, want := target.TLS.CACertPath, "/etc/eshu/ca.pem"; got != want {
+		t.Fatalf("TLS.CACertPath = %q, want %q", got, want)
+	}
+	if target.TLS.InsecureSkipVerify {
+		t.Fatal("TLS.InsecureSkipVerify = true, want false when unset")
+	}
+}
+
+func TestLoadRuntimeConfigThreadsInsecureSkipVerify(t *testing.T) {
+	env := map[string]string{
+		envCollectorInstanceID: "oci-registry-test",
+		envTargetsJSON: `[{
+			"provider":"harbor",
+			"base_url":"https://registry.localhost",
+			"repository":"library/demo",
+			"references":["1.0.0"],
+			"tls_insecure_skip_verify":true
+		}]`,
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v", err)
+	}
+	if !config.Targets[0].TLS.InsecureSkipVerify {
+		t.Fatal("TLS.InsecureSkipVerify = false, want true when set")
+	}
+}
+
 func TestLoadClaimedRuntimeConfigSelectsClaimEnabledOCIInstance(t *testing.T) {
 	env := map[string]string{
 		envCollectorInstances: `[{

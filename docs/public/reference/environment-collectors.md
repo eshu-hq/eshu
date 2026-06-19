@@ -141,6 +141,23 @@ Artifact Registry, or Azure Container Registry. Credential fields name
 environment variables; the collector reads the secret values from those named
 variables instead of storing credentials in facts or status.
 
+Each target may also customize transport trust for registries served with a
+private or self-signed CA, such as a local `registry:2` over TLS used to prove
+the supply-chain image-identity hop without a cloud account:
+
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `tls_ca_cert_path` | unset | Filesystem path to a PEM bundle trusted in addition to the system pool. Use this to scan a registry served with a private or self-signed CA. |
+| `tls_insecure_skip_verify` | `false` | Disables server certificate verification for this target. Test/local-only, never a production default, and rejected when `tls_ca_cert_path` is also set so trust cannot be silently weakened. |
+
+Prefer `tls_ca_cert_path` over `tls_insecure_skip_verify`: pinning a CA bundle
+keeps certificate verification on. When no TLS field is set the collector uses
+the system trust pool, the safe default for public cloud registries. The
+resolved trust posture is surfaced as a low-cardinality `tls_mode`
+(`system_roots`, `custom_ca`, or `insecure_skip_verify`) on OCI scan spans and
+logs, and a misconfigured CA bundle fails the scan loudly rather than silently
+falling back to system trust.
+
 ## Package Registry Collector
 
 The package-registry collector is claim-only. It selects an enabled

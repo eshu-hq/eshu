@@ -181,13 +181,44 @@ cd go && go test ./internal/reducer \
   -run TestBuildSupplyChainImpactFindingsDemoImageIdentityHop -count=1
 ```
 
+## Image-identity proof against a real localhost TLS registry (no cloud account)
+
+The seeded proof above does not exercise the OCI-registry collector's actual
+transport: it injects `oci_registry.image_manifest` facts rather than fetching
+them. `examples/supply-chain-demo/scripts/run-oci-localtls-identity-proof.sh`
+closes that gap without a cloud account by standing up a real `registry:2` over
+TLS on `127.0.0.1` and pointing the collector at it with a custom CA:
+
+1. Mints an **ephemeral** CA + server cert with `openssl` at runtime (never
+   committed; removed on exit).
+2. Runs `registry:2` over TLS on `127.0.0.1` using that cert (orbstack docker).
+3. Builds the demo's synthetic image and pushes it to the local TLS registry.
+4. Runs the env-gated Go proof `TestLiveLocalTLSRegistryImageIdentity`, which
+   drives the real OCI collector `Source` against the registry trusting the
+   ephemeral CA via the target's `tls_ca_cert_path`, then asserts an
+   image-identity manifest fact carrying the registry-observed `sha256` digest.
+
+```bash
+ESHU_SRC=/path/to/eshu \
+  examples/supply-chain-demo/scripts/run-oci-localtls-identity-proof.sh
+```
+
+The collector trusts the registry through the `tls_ca_cert_path` target field
+documented in
+[Environment Collectors](../reference/environment-collectors.md#oci-registry-collector);
+the system-roots default correctly rejects the same registry, which the negative
+test `TestSourceRejectsLocalTLSRegistryWithoutCustomCA` proves. Everything is
+synthetic and local: the registry is `127.0.0.1`, the image is the demo's own
+synthetic app, and all key material lives in a temp dir.
+
 ## Not covered
 
 - The 10–15 minute screen recording is a manual deliverable.
-- A **real** OCI-registry / OSV collector run for the image-identity hop: the
-  collector is registry/ECR-gated and the synthetic advisory is on no feed, so
-  the image-identity proof **seeds** those facts. The reducer join that emits
-  `image_ref` is the real, unmocked path.
+- A **real** OCI-registry collector run for the image-identity hop's transport is
+  now covered for a localhost TLS registry by the proof script directly above;
+  the **seeded** proof remains the path that exercises the full reducer join to
+  `image_ref` (the synthetic advisory is on no feed). The reducer join that emits
+  `image_ref` is the real, unmocked path in both.
 - Attaching the SBOM to a live image and correlating a workload (B2/B3) remain
   deployment/collector steps that depend on the running stack rather than this
   static corpus.

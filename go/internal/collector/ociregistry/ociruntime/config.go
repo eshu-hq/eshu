@@ -41,6 +41,7 @@ type TargetConfig struct {
 	BearerToken   string
 	AWSProfile    string
 	FencingToken  int64
+	TLS           TLSConfig
 }
 
 func (c Config) validated() (Config, error) {
@@ -115,6 +116,7 @@ func (t TargetConfig) validated() (TargetConfig, error) {
 		BearerToken:   strings.TrimSpace(t.BearerToken),
 		AWSProfile:    strings.TrimSpace(t.AWSProfile),
 		FencingToken:  t.FencingToken,
+		TLS:           t.TLS,
 	}, nil
 }
 

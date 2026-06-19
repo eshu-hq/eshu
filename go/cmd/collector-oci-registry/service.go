@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -113,18 +114,29 @@ func newClaimID() string {
 type providerFactory struct{}
 
 func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfig) (ociruntime.RegistryClient, error) {
+	// Resolve the per-target HTTP client once so every provider honors any
+	// configured custom-CA trust (for example a localhost registry:2 over TLS).
+	// The resolved tls_mode is a low-cardinality value safe to surface to an
+	// operator; a misconfigured CA bundle fails loudly here rather than silently
+	// falling back to the system trust pool.
+	httpClient, _, err := target.HTTPClient()
+	if err != nil {
+		return nil, fmt.Errorf("resolve OCI registry TLS client (tls_mode=%s): %w", target.TLSMode(), err)
+	}
 	switch target.Provider {
 	case ociregistry.ProviderDockerHub:
 		return dockerhub.NewDistributionClient(ctx, dockerhub.Config{
 			Repository: target.Repository,
 			Username:   target.Username,
 			Password:   target.Password,
+			Client:     httpClient,
 		})
 	case ociregistry.ProviderGHCR:
 		return ghcr.NewDistributionClient(ctx, ghcr.Config{
 			Repository: target.Repository,
 			Username:   target.Username,
 			Password:   target.Password,
+			Client:     httpClient,
 		})
 	case ociregistry.ProviderJFrog:
 		return jfrog.NewDistributionClient(jfrog.Config{
@@ -133,9 +145,10 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 			Username:      target.Username,
 			Password:      target.Password,
 			BearerToken:   target.BearerToken,
+			Client:        httpClient,
 		})
 	case ociregistry.ProviderECR:
-		return newECRDistributionClient(ctx, target)
+		return newECRDistributionClient(ctx, target, httpClient)
 	case ociregistry.ProviderHarbor:
 		return harbor.NewDistributionClient(harbor.Config{
 			BaseURL:     target.Registry,
@@ -143,6 +156,7 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 			Username:    target.Username,
 			Password:    target.Password,
 			BearerToken: target.BearerToken,
+			Client:      httpClient,
 		})
 	case ociregistry.ProviderGoogleArtifactRegistry:
 		return gar.NewDistributionClient(gar.Config{
@@ -151,6 +165,7 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 			Username:     target.Username,
 			Password:     target.Password,
 			BearerToken:  target.BearerToken,
+			Client:       httpClient,
 		})
 	case ociregistry.ProviderAzureContainerRegistry:
 		return acr.NewDistributionClient(acr.Config{
@@ -159,13 +174,14 @@ func (providerFactory) Client(ctx context.Context, target ociruntime.TargetConfi
 			Username:     target.Username,
 			Password:     target.Password,
 			BearerToken:  target.BearerToken,
+			Client:       httpClient,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported OCI registry provider %q", target.Provider)
 	}
 }
 
-func newECRDistributionClient(ctx context.Context, target ociruntime.TargetConfig) (ociruntime.RegistryClient, error) {
+func newECRDistributionClient(ctx context.Context, target ociruntime.TargetConfig, httpClient *http.Client) (ociruntime.RegistryClient, error) {
 	options := make([]func(*awsconfig.LoadOptions) error, 0, 2)
 	if target.Region != "" {
 		options = append(options, awsconfig.WithRegion(target.Region))
@@ -185,5 +201,5 @@ func newECRDistributionClient(ctx context.Context, target ociruntime.TargetConfi
 	if registryHost == "" {
 		registryHost = target.Registry
 	}
-	return ecr.NewDistributionClient(registryHost, credentials.Username, credentials.Password, nil)
+	return ecr.NewDistributionClient(registryHost, credentials.Username, credentials.Password, httpClient)
 }
