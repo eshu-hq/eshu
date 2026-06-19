@@ -126,10 +126,31 @@ func groovyNodeName(node *tree_sitter.Node, source []byte) string {
 
 func groovyInvocationName(node *tree_sitter.Node, source []byte) string {
 	function := node.ChildByFieldName("function")
-	if function == nil {
-		return ""
+	if function != nil {
+		return groovyLastIdentifier(function, source)
 	}
-	return groovyLastIdentifier(function, source)
+
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if groovyInvocationNameChildIgnored(child.Kind()) {
+			continue
+		}
+		if name := groovyLastIdentifier(&child, source); name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
+func groovyInvocationNameChildIgnored(kind string) bool {
+	switch kind {
+	case "argument_list", "block", "closure":
+		return true
+	default:
+		return false
+	}
 }
 
 func groovyLastIdentifier(node *tree_sitter.Node, source []byte) string {

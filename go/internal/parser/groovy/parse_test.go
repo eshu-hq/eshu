@@ -144,6 +144,42 @@ def topLevelHelper() {
 	assertBucketItemByName(t, got, "function_calls", "deployApp")
 }
 
+func TestParseWithParserKeepsGroovyMethodInvocationCalls(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "DeployHelper.groovy")
+	source := `class DeployHelper {
+  def deployApp(String target) {
+    renderTarget(target)
+  }
+
+  private String renderTarget(String target) {
+    return "deploy-${target}"
+  }
+}
+
+new DeployHelper().deployApp('prod')
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+
+	parser := tree_sitter.NewParser()
+	if err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_groovy.Language())); err != nil {
+		parser.Close()
+		t.Fatalf("SetLanguage(groovy) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	got, err := ParseWithParser(path, false, shared.Options{}, parser)
+	if err != nil {
+		t.Fatalf("ParseWithParser() error = %v, want nil", err)
+	}
+
+	assertBucketItemByName(t, got, "function_calls", "renderTarget")
+	assertBucketItemByName(t, got, "function_calls", "deployApp")
+}
+
 func TestParseMarksJenkinsfileAndSharedLibraryCallAsRoots(t *testing.T) {
 	t.Parallel()
 
