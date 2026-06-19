@@ -234,22 +234,22 @@ func elixirImportBindingCallGraphFixture() goldenCallGraphFixture {
 		files: map[string]string{
 			"lib/worker.ex": `
 defmodule Demo.Worker do
-  alias Demo.Basic
+  alias Demo.Context
 
   def caller do
-    Basic.greet()
+    Context.Basic.greet()
   end
 end
 `,
-			"lib/basic.ex": `
-defmodule Demo.Basic do
+			"lib/context/basic.ex": `
+defmodule Demo.Context.Basic do
   def greet do
     :ok
   end
 end
 `,
-			"lib/other.ex": `
-defmodule Demo.Other do
+			"lib/context_basic_decoy.ex": `
+defmodule Context.Basic do
   def greet do
     :decoy
   end
@@ -260,8 +260,8 @@ end
 		callee: "greet",
 		method: codeprovenance.MethodImportBinding,
 		uidByPath: map[string]string{
-			"lib/basic.ex:greet": "content-entity:elixir_import_binding:greet",
-			"lib/other.ex:greet": "content-entity:elixir_import_binding:greet_decoy",
+			"lib/context/basic.ex:greet":       "content-entity:elixir_import_binding:greet",
+			"lib/context_basic_decoy.ex:greet": "content-entity:elixir_import_binding:greet_decoy",
 		},
 	}
 }

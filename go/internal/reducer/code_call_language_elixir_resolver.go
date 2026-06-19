@@ -68,6 +68,9 @@ func elixirAliasModuleName(fileData map[string]any, receiver string) string {
 		if alias == receiver {
 			return moduleName
 		}
+		if strings.HasPrefix(receiver, alias+".") {
+			return moduleName + strings.TrimPrefix(receiver, alias)
+		}
 	}
 	return ""
 }
