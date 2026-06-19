@@ -9,12 +9,12 @@ describe("App", () => {
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Find the true path through your stack."
+        name: "The institutional knowledge layer for engineering organizations."
       })
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "View on GitHub" })[0]).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "Try it locally" })[0]).toHaveAttribute(
       "href",
-      "https://github.com/eshu-hq/eshu"
+      "#try-it"
     );
     expect(screen.getAllByRole("link", { name: "Read the docs" })[0]).toHaveAttribute(
       "href",
@@ -31,11 +31,15 @@ describe("App", () => {
     expect(screen.getByLabelText("Source to runtime graph")).toBeInTheDocument();
     expect(screen.getByText(/eshu trace service checkout/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Where the graph shows up" })).toBeInTheDocument();
-    expect(screen.getAllByText(/SQL, Terraform, Kubernetes/)).toHaveLength(2);
+    expect(screen.getAllByText(/22. source languages/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Built for the whole organization" })).toBeInTheDocument();
-    expect(screen.getAllByText(/896 repos/)).toHaveLength(2);
-    expect(screen.getAllByText(/14m13\.6s/)).toHaveLength(1);
-    expect(screen.getByRole("heading", { name: "Prompts for different jobs" })).toBeInTheDocument();
+    // vulnerability_intelligence renders in the always-visible proof card; its
+    // other use is in the eshu-list command output, shown only when selected.
+    expect(
+      screen.getByText(/vulnerability_intelligence collector at promotion_state/)
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "First prompts by role" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Read more" })).toBeInTheDocument();
   });
 
   it("lets visitors explore commands, personas, and cleanup modes", () => {
@@ -44,14 +48,21 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Run the graph" })).toBeInTheDocument();
     expect(screen.getAllByText(/Graph ready for organization-wide questions/)).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "eshu trace service checkout" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "eshu trace service checkout" })
+    );
     expect(screen.getByText(/Service: checkout-service/)).toBeInTheDocument();
     expect(screen.getByText(/Trace status: partial/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Leadership" }));
-    expect(screen.getAllByText(/896 repositories and 8,347 fact queue rows in 14m13\.6s/)).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Security analyst" }));
+    expect(
+      screen.getByText("list_supply_chain_impact_findings")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Which of my workloads are affected by CVE-2025-13465/)
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Dead IaC" }));
-    expect(screen.getByText(/terraform\/modules\/legacy-cache/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Unmanaged resources" }));
+    expect(screen.getByText(/aws_s3_bucket.legacy-payment-logs/)).toBeInTheDocument();
   });
 });

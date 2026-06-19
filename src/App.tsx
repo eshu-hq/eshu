@@ -1,26 +1,45 @@
 import { useState } from "react";
 import {
+  AlertTriangle,
   ArrowRight,
-  BookOpenCheck,
   Boxes,
+  Cloud,
+  Code,
   GitBranch,
   Menu,
   Network,
   Route,
   SearchX,
+  ShieldCheck,
   Terminal,
+  Workflow,
   X
 } from "lucide-react";
 import { siteContent } from "./siteContent";
-import type { CommandDemo } from "./siteContent";
+import type { CommandDemo, CleanupMode, PersonaDemo } from "./siteContent";
 
-const capabilityIcons = [Route, BookOpenCheck, SearchX, Network, Boxes] as const;
+const capabilityIcons = [
+  ShieldCheck,
+  Route,
+  Workflow,
+  AlertTriangle,
+  Boxes,
+  Code,
+  Network,
+  Cloud
+] as const;
 
 export function App(): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [selectedCommand, setSelectedCommand] = useState(siteContent.commandDemos[0]);
-  const [selectedPersona, setSelectedPersona] = useState(siteContent.personaDemos[0]);
-  const [selectedCleanupMode, setSelectedCleanupMode] = useState(siteContent.cleanupModes[0]);
+  const [selectedCommand, setSelectedCommand] = useState<CommandDemo>(
+    siteContent.commandDemos[0]
+  );
+  const [selectedPersona, setSelectedPersona] = useState<PersonaDemo>(
+    siteContent.personaDemos[0]
+  );
+  const [selectedCleanupMode, setSelectedCleanupMode] = useState<CleanupMode>(
+    siteContent.cleanupModes[0]
+  );
 
   return (
     <div className="app-shell">
@@ -57,6 +76,7 @@ export function App(): React.JSX.Element {
               />
             </div>
             <h1>{siteContent.hero.heading}</h1>
+            <p className="hero-core-line">{siteContent.hero.coreLine}</p>
             <p>{siteContent.hero.description}</p>
             <div className="hero-actions" aria-label="Primary actions">
               <a className="button-primary" href={siteContent.hero.primaryCta.href}>
@@ -71,18 +91,21 @@ export function App(): React.JSX.Element {
           <SourceRuntimeGraph selectedCommand={selectedCommand} />
         </section>
 
-        <section className="capabilities-section" id="product" aria-labelledby="capabilities-title">
+        <section
+          className="capabilities-section"
+          id="product"
+          aria-labelledby="capabilities-title"
+        >
           <div className="section-heading">
             <h2 id="capabilities-title">What Eshu does</h2>
             <p>
-              The graph is useful because it connects evidence that usually
-              lives in separate tools.
+              Eight capability surfaces, each backed by real MCP tools, each
+              with refusal-on-insufficient-evidence. One graph holds them all.
             </p>
           </div>
           <div className="capability-list">
             {siteContent.capabilities.map((capability, index) => {
-              const Icon = capabilityIcons[index];
-
+              const Icon = capabilityIcons[index] ?? Network;
               return (
                 <article className="capability-row" key={capability.title}>
                   <Icon aria-hidden="true" />
@@ -94,12 +117,17 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="pipeline-section" id="how-it-works" aria-labelledby="pipeline-title">
+        <section
+          className="pipeline-section"
+          id="how-it-works"
+          aria-labelledby="pipeline-title"
+        >
           <div className="section-heading">
             <h2 id="pipeline-title">How it works</h2>
             <p>
               Eshu reads from the systems that already describe your stack,
-              then turns their relationships into one graph.
+              then turns their relationships into one graph with reducer-owned
+              truth.
             </p>
           </div>
           <ol className="pipeline-flow">
@@ -112,13 +140,17 @@ export function App(): React.JSX.Element {
           </ol>
         </section>
 
-        <section className="developer-section" id="cli" aria-labelledby="developer-title">
+        <section
+          className="developer-section"
+          id="cli"
+          aria-labelledby="developer-title"
+        >
           <div className="section-heading">
             <h2 id="developer-title">Run the graph</h2>
             <p>
-              Click a command and watch the answer change. This is a static
-              demo, but the workflow is the product shape: scan, trace, map,
-              verify.
+              Click a CLI command or MCP tool and watch the answer change.
+              Static demo, real output shapes — the workflow is the product
+              shape.
             </p>
           </div>
           <div className="demo-workbench">
@@ -143,7 +175,7 @@ export function App(): React.JSX.Element {
             <div className="terminal-card">
               <div className="terminal-title">
                 <Terminal aria-hidden="true" />
-                local graph session
+                graph session
               </div>
               <p>{selectedCommand.summary}</p>
               <pre>{selectedCommand.output.map((line) => `$ ${line}`).join("\n")}</pre>
@@ -151,7 +183,10 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="coverage-section" aria-labelledby="coverage-title">
+        <section
+          className="coverage-section"
+          aria-labelledby="coverage-title"
+        >
           <div className="section-heading">
             <h2 id="coverage-title">Code-to-cloud means more than code search</h2>
             <p>{siteContent.coverage}</p>
@@ -162,8 +197,8 @@ export function App(): React.JSX.Element {
           <div className="section-heading">
             <h2 id="proof-title">Built for the whole organization</h2>
             <p>
-              Eshu is meant to cover the shared engineering estate, not just a
-              single repo or one team&apos;s local search problem.
+              Eshu covers the shared engineering estate — not just one repo,
+              not just one team&apos;s local search problem.
             </p>
           </div>
           <div className="proof-grid">
@@ -177,12 +212,15 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="surfaces-section" aria-labelledby="surfaces-title">
+        <section
+          className="surfaces-section"
+          aria-labelledby="surfaces-title"
+        >
           <div className="section-heading">
             <h2 id="surfaces-title">Where the graph shows up</h2>
             <p>
-              A graph is only useful if engineers can reach it from the tools
-              they already use.
+              A graph is only useful if every role in the org can reach it
+              from the tools they already use.
             </p>
           </div>
           <div className="surface-grid">
@@ -195,13 +233,18 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="personas-section" aria-labelledby="personas-title">
+        <section
+          className="personas-section"
+          id="personas"
+          aria-labelledby="personas-title"
+        >
           <div className="section-heading">
             <h2 id="personas-title">Built for every engineering role</h2>
             <p>
-              Eshu is open source, but it should still earn organization-wide
-              trust: the same graph needs to answer different questions for
-              different people.
+              Same MCP server, same evidence graph, same truth envelope — for
+              engineers, security, platform, leadership, and customer-facing
+              teams. Eight of the eighteen personas, full reference in the
+              persona matrix.
             </p>
           </div>
           <div className="persona-tabs" aria-label="Role examples">
@@ -222,17 +265,31 @@ export function App(): React.JSX.Element {
             ))}
           </div>
           <article className="persona-answer">
+            <p className="persona-context">{selectedPersona.context}</p>
             <h3>{selectedPersona.question}</h3>
             <p>{selectedPersona.answer}</p>
+            <p className="persona-tool">
+              <code>{selectedPersona.primaryTool}</code>
+            </p>
           </article>
+          <p className="persona-matrix-link">
+            <a href={siteContent.references.fullPersonaMatrix}>
+              Full persona × question × tool matrix (all 18 personas) →
+            </a>
+          </p>
         </section>
 
-        <section className="cleanup-section" aria-labelledby="cleanup-title">
+        <section
+          className="cleanup-section"
+          id="cleanup"
+          aria-labelledby="cleanup-title"
+        >
           <div className="section-heading">
-            <h2 id="cleanup-title">Dead code and dead IaC use the same graph</h2>
+            <h2 id="cleanup-title">Dead code, dead IaC, and unmanaged resources</h2>
             <p>
-              Code search is only part of the job. Eshu also checks whether
-              infrastructure definitions still lead to anything real.
+              The same reachability model that finds unused code paths also
+              finds Terraform that no live workload depends on — and AWS
+              resources that exist without a Terraform module at all.
             </p>
           </div>
           <div className="cleanup-toggle" aria-label="Cleanup mode">
@@ -262,12 +319,56 @@ export function App(): React.JSX.Element {
           </article>
         </section>
 
-        <section className="prompts-section" aria-labelledby="prompts-title">
+        <section
+          className="difference-section"
+          aria-labelledby="difference-title"
+        >
           <div className="section-heading">
-            <h2 id="prompts-title">Prompts for different jobs</h2>
+            <h2 id="difference-title">{siteContent.difference.heading}</h2>
+          </div>
+          <div className="difference-grid">
+            {siteContent.difference.points.map((point) => (
+              <article className="difference-card" key={point.target}>
+                <strong>{point.target}</strong>
+                <p>{point.claim}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section
+          className="tryit-section"
+          id="try-it"
+          aria-labelledby="try-it-title"
+        >
+          <div className="section-heading">
+            <h2 id="try-it-title">{siteContent.tryIt.heading}</h2>
+          </div>
+          <ol className="tryit-steps">
+            {siteContent.tryIt.steps.map((step) => (
+              <li key={step}>
+                <code>{step}</code>
+              </li>
+            ))}
+          </ol>
+          <p className="tryit-first-question">{siteContent.tryIt.firstQuestion}</p>
+          <div className="hero-actions" aria-label="Get started">
+            <a className="button-primary" href={siteContent.tryIt.ctaHref}>
+              {siteContent.tryIt.ctaLabel}
+              <ArrowRight aria-hidden="true" />
+            </a>
+          </div>
+        </section>
+
+        <section
+          className="prompts-section"
+          aria-labelledby="prompts-title"
+        >
+          <div className="section-heading">
+            <h2 id="prompts-title">First prompts by role</h2>
             <p>
-              The docs already include starter prompts for the people who touch
-              production systems from different angles.
+              Drop one of these into Claude Code, Codex, Cursor, or VS Code.
+              Eshu answers with provenance.
             </p>
           </div>
           <div className="prompt-grid">
@@ -280,12 +381,16 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="use-cases-section" id="use-cases" aria-labelledby="use-cases-title">
+        <section
+          className="use-cases-section"
+          id="use-cases"
+          aria-labelledby="use-cases-title"
+        >
           <div className="section-heading">
-            <h2 id="use-cases-title">Questions the graph should answer</h2>
+            <h2 id="use-cases-title">Questions Eshu answers</h2>
             <p>
               These are the questions teams ask during refactors, incidents,
-              audits, and platform cleanup.
+              audits, migrations, and customer demos.
             </p>
           </div>
           <div className="use-case-grid">
@@ -296,6 +401,41 @@ export function App(): React.JSX.Element {
               </article>
             ))}
           </div>
+        </section>
+
+        <section
+          className="references-section"
+          aria-labelledby="references-title"
+        >
+          <div className="section-heading">
+            <h2 id="references-title">Read more</h2>
+          </div>
+          <ul className="references-list">
+            <li>
+              <a href={siteContent.references.fullPersonaMatrix}>
+                Persona × question × tool matrix →
+              </a>{" "}
+              all 18 personas, first questions, MCP tools.
+            </li>
+            <li>
+              <a href={siteContent.references.supplyChainDemo}>
+                Supply chain CVE-to-impact demo runbook →
+              </a>{" "}
+              runnable synthetic demo with refusal variant.
+            </li>
+            <li>
+              <a href={siteContent.references.replatformingDemo}>
+                AWS → Azure re-platforming demo runbook →
+              </a>{" "}
+              compose_replatforming_plan to LLM-generated Terraform.
+            </li>
+            <li>
+              <a href={siteContent.references.lightweightAudit}>
+                Local lightweight capability audit →
+              </a>{" "}
+              what refuses vs degrades per capability.
+            </li>
+          </ul>
         </section>
 
         <section className="closing-section" aria-labelledby="closing-title">
@@ -348,7 +488,7 @@ function SourceRuntimeGraph({
             <small>{node.detail}</small>
           </span>
         ))}
-        <span className="truth-label">source of truth</span>
+        <span className="truth-label">evidence-backed</span>
       </div>
     </aside>
   );
