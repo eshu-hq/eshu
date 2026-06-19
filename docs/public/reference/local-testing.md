@@ -112,6 +112,28 @@ Secrets/IAM graph writes and retracts still flow through
 entity labels, existing executor error wrapping, existing graph-write
 spans/metrics, and the existing reducer flag-on warning.
 
+## Helm Workspace Setup PVC Retry Proof
+
+No-Regression Evidence: baseline chart rendering ran `workspace-setup` as root
+with `drop: ALL`, copied `.eshuignore` directly to the final PVC path, and then
+ran `chown`, which failed on the default persistent-volume smoke and was not
+retry-safe after the final file existed. The fixed render runs as UID/GID
+`10001`, keeps `drop: ALL` with no added capabilities, creates `/data/.eshu`
+and `/data/repos`, and replaces `.eshuignore` through a temp file on the same
+data mount before `mv -f`. Verification covered
+`go test ./internal/runtime -run TestHelmWorkspaceSetupInitIsPersistentVolumeRetrySafe -count=1`,
+`go test ./internal/runtime -count=1`, `helm lint ./deploy/helm/eshu`,
+Compose/Helm runtime parity, and a remote Docker proof on linux/amd64 using the
+runtime base image with `--cap-drop ALL`, `--read-only`, UID/GID `10001`, and
+the same persisted data/config/tmp mount shape; both first and retry setup
+reported `ok`. Terminal queue and row counts are not applicable because this
+change runs before any Eshu process starts.
+
+No-Observability-Change: the setup change adds no metric, span, structured log,
+status field, queue, graph write, worker, lease, batch, or runtime data
+contract. Operators diagnose it through Kubernetes init-container state, pod
+events, and the existing ingester probes after startup.
+
 ## Two-Team K8s Governance Proof
 
 `scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local

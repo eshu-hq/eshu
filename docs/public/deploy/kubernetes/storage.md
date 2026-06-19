@@ -86,3 +86,8 @@ Keep the default StatefulSet `volumeClaimTemplates` shape when
 workspace claim. The chart rejects `ingester.persistence.existingClaim` for
 horizontal ingesters because a shared PVC would let multiple shards mutate the
 same checkout tree.
+
+The `workspace-setup` init container runs as the Eshu UID/GID, drops all Linux
+capabilities, and relies on the pod `fsGroup`/`fsGroupChangePolicy` contract
+for supported persistent volumes. It prepares `/data/.eshu`, `/data/repos`, and
+an idempotently replaced `/data/repos/.eshuignore` before the ingester starts.

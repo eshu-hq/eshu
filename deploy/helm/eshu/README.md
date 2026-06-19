@@ -37,6 +37,9 @@ guidance belong in the public Kubernetes docs.
 - Ingress and Gateway API exposure are mutually exclusive.
 - Helm-hook schema bootstrap cannot run against chart-managed NornicDB in the
   same install because hooks run before that backend exists.
+- `workspace-setup` is a non-root init container. It must keep dropped
+  capabilities, avoid ownership mutation, and rely on pod `fsGroup` handling for
+  supported persistent volumes.
 - `api.extraVolumes`/`api.extraVolumeMounts` (and the `mcpServer` equivalents)
   mount extra read-only material such as an operator-managed scoped-token
   registry Secret. Pair them with `api.env`/`mcpServer.env` to point
@@ -79,6 +82,18 @@ and rejects static shard env overrides and shared
 Observability Evidence: horizontal ingester rendering adds no metric, span,
 status, or log schema. Shard identity stays visible through rendered env vars
 and existing collector, queue, Postgres, and pod-level signals.
+
+No-Regression Evidence: `workspace-setup` runs as UID/GID `10001`, keeps
+`drop: ALL` with no added capabilities, creates `/data/.eshu` and `/data/repos`,
+and replaces `.eshuignore` through a temp file on the same PVC before `mv -f`.
+`go test ./internal/runtime -run
+TestHelmWorkspaceSetupInitIsPersistentVolumeRetrySafe -count=1` covers the
+default persistent-volume retry contract for horizontal ingesters.
+
+No-Observability-Change: the workspace setup change adds no metric, span, log,
+status, queue, or runtime data contract. Operators continue to diagnose init
+success or failure through Kubernetes init-container state, pod events, and the
+existing ingester probes after the container starts.
 
 The `api.extraVolumes` / `api.extraVolumeMounts` and `mcpServer.extraVolumes` /
 `mcpServer.extraVolumeMounts` hooks added for the two-team governance proof are
