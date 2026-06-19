@@ -22,6 +22,16 @@ func newIncidentEvidenceSource(db *sql.DB, logger *slog.Logger) serviceintelhttp
 	)
 }
 
+// newSupplyChainEvidenceSource builds the durable supply-chain evidence source
+// for the service intelligence report's supply_chain section over the shared
+// Postgres aggregate read model. The logger surfaces load failures to operators.
+func newSupplyChainEvidenceSource(db *sql.DB, logger *slog.Logger) serviceintelhttp.SupplyChainEvidenceSource {
+	return serviceintelhttp.NewDurableSupplyChainEvidenceSource(
+		query.NewPostgresSupplyChainImpactAggregateStore(db),
+		logger,
+	)
+}
+
 // newSupplyChainHandler builds the supply-chain read handler with its full set
 // of Postgres-backed evidence, advisory, impact, container-image, and security
 // alert stores. Extracted from newRouter to keep wiring.go cohesive; the field

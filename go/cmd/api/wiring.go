@@ -174,8 +174,9 @@ func wireAPI(
 	// incidents_support section is sourced from durable incident-routing evidence
 	// (catalog-service-id resolver + incident evidence loader, both over Postgres).
 	(&serviceintelhttp.ReportHandler{
-		Entities:  router.Entities,
-		Incidents: newIncidentEvidenceSource(db, logger),
+		Entities:    router.Entities,
+		Incidents:   newIncidentEvidenceSource(db, logger),
+		SupplyChain: newSupplyChainEvidenceSource(db, logger),
 	}).Mount(apiMux)
 
 	// Record per-endpoint duration/error metrics for every API route. The
