@@ -139,10 +139,14 @@ func (s NativeRepositorySnapshotter) collectSCIPLanguageSubtreeFiles(
 	if err != nil {
 		return scipSubtreeFilesResult{}, err
 	}
-	release, err := s.scipConfig().acquireProcess(ctx)
+	release, waitDuration, limited, err := s.scipConfig().acquireProcess(ctx)
 	if err != nil {
 		_ = os.RemoveAll(outputDir)
 		return scipSubtreeFilesResult{}, err
+	}
+	if limited {
+		s.recordSCIPProcessWait(ctx, language, waitDuration)
+		s.logSCIPProcessSlotAcquired(ctx, language, waitDuration)
 	}
 	indexPath, runErr := indexer.Run(ctx, subtree.Root, language, outputDir)
 	release()

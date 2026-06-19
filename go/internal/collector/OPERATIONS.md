@@ -69,9 +69,10 @@ README.
   matching.
 - No-Regression Evidence: SCIP subtree worker fan-out preserves native fallback
   and SCIP supplement behavior. `go test ./internal/collector -run
-  'Test(LoadSnapshotSCIPConfigParsesWorkers|SCIPLanguageSubtreesRunWithBoundedWorkers|SCIPWorkersCapConcurrentSnapshots|SCIPSnapshotRuns|SCIPSnapshotSameLanguage|SCIPSnapshotLanguageSubtree|SCIPSnapshotConcurrentParseMergesSCIPSupplement|SCIPSnapshotFallback)'
+  'Test(LoadSnapshotSCIPConfigParsesWorkers|SCIPLanguageSubtreesRunWithBoundedWorkers|SCIPWorkersCapConcurrentSnapshots|SCIPWorkersRecordLimiterWaitDuration|SCIPSnapshotRuns|SCIPSnapshotSameLanguage|SCIPSnapshotLanguageSubtree|SCIPSnapshotConcurrentParseMergesSCIPSupplement|SCIPSnapshotFallback)'
   -count=1` proves the env contract, bounded concurrent subtree execution,
-  cross-snapshot process limiting, and existing fallback semantics.
+  cross-snapshot process limiting, limiter wait telemetry, and existing fallback
+  semantics.
 - Performance Evidence: focused local SCIP worker benchmark command:
   `go test ./internal/collector -run '^$' -bench BenchmarkSCIPLanguageSubtreeWorkers -benchtime=1x -benchmem -count=1`.
   On 2026-06-19 on Apple M4 Pro, the four-subtree synthetic SCIP fixture
@@ -80,8 +81,10 @@ README.
   slice keeps SCIP inside the repository snapshot parse stage but removes the
   serial default for language/package-root indexer runs.
 - Observability Evidence: SCIP worker fan-out reuses
-  `eshu_dp_scip_snapshot_attempts_total{language,result}` and bounded fallback
-  logs. It adds no repository path, subtree, or process ID metric labels.
+  `eshu_dp_scip_snapshot_attempts_total{language,result}`, adds
+  `eshu_dp_scip_process_wait_seconds{language}` for shared process-slot
+  contention, and emits bounded fallback and process-slot logs. It adds no
+  repository path, subtree, or process ID metric labels.
 - Observability Evidence: The existing `collector snapshot stage completed`
   logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
   selector/copy window separately from per-repository discovery, pre-scan,

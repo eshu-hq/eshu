@@ -443,7 +443,8 @@ claim/execute spans for the value-flow evidence domains.
   `eshu_dp_fact_batches_committed_total`, `eshu_dp_generation_fact_count`,
   `eshu_dp_discovery_files_skipped_total` (labeled `skip_reason`),
   `eshu_dp_large_repo_classifications_total` (labeled `repo_size_tier`),
-  `eshu_dp_large_repo_semaphore_wait_seconds`
+  `eshu_dp_large_repo_semaphore_wait_seconds`,
+  `eshu_dp_scip_process_wait_seconds`
 - Log events: `git repository sync started`,
   `git repository sync progress`, `git repository sync completed`,
   `git repository sync failed`, `collector stream started`,
@@ -570,7 +571,10 @@ claim/execute spans for the value-flow evidence domains.
   SCIP language. Missing binaries, indexer/parser failures, or selected files
   absent from `index.scip` fall back to native parser output. No-Regression
   Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
-  Observability Evidence: bounded SCIP fallback logs name language, reason, and failure class; parse logs, metrics, and fact counters diagnose fallback.
+  Observability Evidence: bounded SCIP fallback logs name language, reason, and
+  failure class; `eshu_dp_scip_process_wait_seconds` exposes shared process
+  limiter saturation by language; parse logs, metrics, and fact counters
+  diagnose fallback.
 - Terraform-state ingestion currently uses explicit sources and Git-observed
   backend facts. The #140 target design adds repo-local `.tfstate` candidates
   as advisory metadata, but those candidates must not route raw state through
