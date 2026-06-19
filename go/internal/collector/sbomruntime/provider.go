@@ -17,10 +17,34 @@ import (
 
 const defaultHTTPTimeout = 30 * time.Second
 
+// ReferrerClient is the bounded OCI Distribution surface the provider needs to
+// fetch an OCI referrer document. *distribution.Client satisfies it.
+type ReferrerClient interface {
+	// GetManifest returns a manifest or image index by tag or digest reference.
+	GetManifest(ctx context.Context, repository, reference string) (distribution.ManifestResponse, error)
+	// GetBlob returns a content blob by digest reference.
+	GetBlob(ctx context.Context, repository, digest string) (distribution.BlobResponse, error)
+}
+
+// ReferrerClientFactory builds a provider-authenticated ReferrerClient for one
+// oci_referrer target. A nil client return means the factory does not handle the
+// target's provider, so the HTTPProvider falls back to its static-credential
+// client. This is the seam that lets provider=ecr targets mint short-lived
+// credentials from the AWS GetAuthorizationToken exchange.
+type ReferrerClientFactory interface {
+	// ReferrerClient returns an authenticated client for the target, or a nil
+	// client when the factory does not serve the target's provider.
+	ReferrerClient(ctx context.Context, target TargetConfig) (ReferrerClient, error)
+}
+
 // HTTPProvider fetches configured URLs and OCI referrer document payloads.
 type HTTPProvider struct {
 	HTTPClient *http.Client
 	Now        func() time.Time
+	// ClientFactory supplies provider-authenticated OCI Distribution clients for
+	// oci_referrer targets (for example the ECR GetAuthorizationToken exchange).
+	// A nil factory keeps the static-credential path for every target.
+	ClientFactory ReferrerClientFactory
 }
 
 // FetchDocument fetches one configured source or OCI referrer document.
@@ -86,13 +110,7 @@ func (p HTTPProvider) fetchURL(ctx context.Context, target TargetConfig, rawURL 
 }
 
 func (p HTTPProvider) fetchOCIReferrer(ctx context.Context, target TargetConfig) (Document, error) {
-	client, err := distribution.NewClient(distribution.ClientConfig{
-		BaseURL:     target.Registry,
-		Username:    target.Username,
-		Password:    target.Password,
-		BearerToken: target.BearerToken,
-		Client:      p.HTTPClient,
-	})
+	client, err := p.referrerClient(ctx, target)
 	if err != nil {
 		return Document{}, err
 	}
@@ -128,6 +146,29 @@ func (p HTTPProvider) fetchOCIReferrer(ctx context.Context, target TargetConfig)
 		MediaType:      blob.MediaType,
 		ObservedAt:     p.now().UTC(),
 	}, nil
+}
+
+// referrerClient resolves the OCI Distribution client for an oci_referrer
+// target. When a ClientFactory serves the target's provider (for example
+// provider=ecr) its authenticated client is used; otherwise the provider builds
+// a static-credential client from the target's configured credentials.
+func (p HTTPProvider) referrerClient(ctx context.Context, target TargetConfig) (ReferrerClient, error) {
+	if p.ClientFactory != nil {
+		client, err := p.ClientFactory.ReferrerClient(ctx, target)
+		if err != nil {
+			return nil, err
+		}
+		if client != nil {
+			return client, nil
+		}
+	}
+	return distribution.NewClient(distribution.ClientConfig{
+		BaseURL:     target.Registry,
+		Username:    target.Username,
+		Password:    target.Password,
+		BearerToken: target.BearerToken,
+		Client:      p.HTTPClient,
+	})
 }
 
 type ociArtifactManifest struct {

@@ -22,6 +22,10 @@ wiring.
 - `DistributionBaseURL` — returns the HTTPS Distribution API base URL for an
   ECR registry host.
 - `NewDistributionClient` — creates a Distribution client with ECR credentials.
+- `NewReferrerClient` / `ReferrerClientOptions` — build a Distribution client
+  whose basic-auth credentials come from a fresh `GetAuthorizationToken`
+  exchange, resolving the registry host from the options or the token-exchange
+  proxy endpoint. Used by the SBOM attestation `oci_referrer` ECR auth path.
 - `AuthorizationTokenAPI` — narrow fakeable ECR token API.
 - `GetDistributionCredentials` — requests and converts ECR auth data. The
   token request does not pass a registry id because AWS now treats that input as

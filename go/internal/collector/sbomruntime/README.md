@@ -47,6 +47,17 @@ flowchart LR
 - `source_type=configured_source` requires an HTTP(S) `document_url`.
 - `source_type=oci_referrer` requires provider, registry, repository,
   subject digest, and referrer digest.
+- `provider=ecr` `oci_referrer` targets need no static credentials. The runtime
+  mints short-lived OCI Distribution basic-auth from the AWS
+  `GetAuthorizationToken` exchange using the AWS default credential chain, the
+  same path the OCI registry collector uses. Optional target fields `region` and
+  `aws_profile` select the AWS config; `registry_host` overrides the registry
+  host (otherwise the configured `registry` is used). The decoded token is used
+  only as request credentials and is never logged. Other providers stay on the
+  static-credential path (`username_env`, `password_env`, `bearer_token_env`).
+- `ECRReferrerClientFactory` is the package seam that performs the ECR exchange;
+  AWS config loading is wired by the collector command, keeping the AWS SDK out
+  of this package.
 - Source URIs stored in facts remove user info, query strings, and fragments.
 - Document identity is stable across observations when the same source record
   and document digest are observed again.
@@ -69,3 +80,17 @@ flowchart LR
   the existing workflow failure class/details and the emitted SBOM/attestation
   fact or warning surfaces; SDK `HTTPError` adds only an inspectable error cause
   for status, retry-after, and transport classification.
+- No-Regression Evidence (#3113): the `oci_referrer` fetch now resolves its
+  Distribution client through an optional `ReferrerClientFactory`. A nil factory
+  and non-`ecr` providers keep the existing static-credential client and the
+  same single manifest/blob fetch shape. `provider=ecr` targets gain a fresh
+  `GetAuthorizationToken` exchange per collection. Verified by `go test
+  ./internal/collector/sbomruntime/... ./internal/collector/ociregistry/...
+  ./cmd/collector-sbom-attestation/... -count=1`.
+- Observability Evidence (#3113): the ECR auth path logs one structured info
+  line (`provider`, `scope_id`, `repository`, `registry_host`; never the token)
+  when the GetAuthorizationToken exchange is selected, so an operator can confirm
+  the ECR path engaged for a claim. The OCI Distribution client also owns an
+  explicit redirect credential policy: same-host hops re-authenticate and
+  cross-host hops (presigned object stores) never receive the registry
+  credential, fixing the prior `registry_auth_denied` on valid basic auth.

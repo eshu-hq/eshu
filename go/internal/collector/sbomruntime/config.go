@@ -60,6 +60,9 @@ type TargetConfig struct {
 	DocumentFormat     DocumentFormat
 	Provider           string
 	Registry           string
+	RegistryHost       string
+	Region             string
+	AWSProfile         string
 	Repository         string
 	DocumentURL        string
 	SourceURI          string
@@ -81,6 +84,9 @@ func (t TargetConfig) validate() (TargetConfig, error) {
 	t.DocumentFormat = DocumentFormat(strings.TrimSpace(string(t.DocumentFormat)))
 	t.Provider = strings.TrimSpace(t.Provider)
 	t.Registry = strings.TrimRight(strings.TrimSpace(t.Registry), "/")
+	t.RegistryHost = strings.TrimRight(strings.TrimSpace(t.RegistryHost), "/")
+	t.Region = strings.TrimSpace(t.Region)
+	t.AWSProfile = strings.TrimSpace(t.AWSProfile)
 	t.Repository = strings.Trim(strings.TrimSpace(t.Repository), "/")
 	t.DocumentURL = strings.TrimSpace(t.DocumentURL)
 	t.SourceURI = strings.TrimSpace(t.SourceURI)

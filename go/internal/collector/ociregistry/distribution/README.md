@@ -33,8 +33,10 @@ flowchart LR
 - `FetchBearerToken` — requests a pull token from a token service.
 - `ListTags` — reads tag names for one repository.
 - `GetManifest` — reads manifest or index bytes plus digest/media metadata.
+- `GetBlob` — reads a content blob by digest with a bounded body cap.
 - `ListReferrers` — reads descriptors attached to one subject digest.
 - `ManifestResponse` — raw manifest body with content digest and media type.
+- `BlobResponse` — raw blob body with digest and media type.
 - `ReferrersResponse` — descriptors returned by the Referrers API.
 
 ## Dependencies
@@ -62,12 +64,22 @@ client in the future claim-driven collector.
   tags, digests, URLs, or response bodies.
 - `ListReferrers` reports unsupported Referrers API as an error so callers can
   emit an `oci_registry.warning`.
+- The client installs an explicit redirect credential policy when the caller did
+  not set its own `CheckRedirect`: same-host redirect hops re-apply the registry
+  credential so multi-hop registry fetches (for example ECR manifest/blob hops)
+  keep authenticating, and cross-host hops never receive the credential so a
+  presigned object-store URL is reached without an extra `Authorization` header.
+  An injected client that sets `CheckRedirect` keeps full control of redirects.
 
 ## Evidence
 
 No-Regression Evidence (#2381): `go test ./internal/collector/sdk ./internal/collector/ociregistry/distribution ./internal/collector/ociregistry/ociruntime ./internal/collector/sbomruntime ./cmd/collector-oci-registry ./cmd/collector-sbom-attestation -count=1` proves OCI Distribution keeps `/v2/` auth-challenge ping handling, repository path escaping, tag/manifest/blob/referrers request behavior, token request query shaping, 404/405 referrer warning behavior, blob body caps, and registry failure-class/details while status and transport failures now unwrap bounded SDK `HTTPError` causes.
 
 No-Observability-Change (#2381): Distribution remains telemetry-free. The OCI runtime continues to wrap calls with `oci_registry.scan` and `oci_registry.api_call` spans plus existing OCI registry metrics and warning facts; the SDK emits no telemetry directly, and no registry host, repository path, tag, digest, URL, token, or credential value was added to metric labels or status details.
+
+No-Regression Evidence (#3113): the client now owns an explicit redirect credential policy. `NewClient` returns a per-client shallow copy of the caller's `*http.Client` carrying a `CheckRedirect` bound to that client's registry host and credentials, so a shared `*http.Client` reused across registries keeps independent per-host redirect policies (`Transport`/`Timeout`/`Jar` preserved). Same-host redirect hops re-authenticate and cross-host hops never receive the credential. Input shape: one manifest/blob GET that the registry answers with a same-host or cross-host redirect; no graph, queue, or backend writes are involved. Proven by `go test ./internal/collector/ociregistry/distribution -count=1` (20 tests), including `TestClientGetBlobKeepsAuthOnSameHostRedirect`, `TestClientGetBlobDropsAuthOnCrossHostRedirect`, and `TestNewClientDoesNotMutateSharedHTTPClientRedirectPolicy`. The first redirect test fails with `registry_auth_denied` before the fix.
+
+No-Observability-Change (#3113): the redirect policy adds no metrics, spans, or status fields and logs nothing. The credential is request-header only and never appears in error text, logs, or metric labels; operators continue to diagnose auth failures through the existing registry failure class/details surface.
 
 ## Related docs
 

@@ -175,6 +175,17 @@ for HTTP(S) document URLs or `source_type=oci_referrer` for registry referrer
 documents. Supported document formats are CycloneDX, SPDX, and in-toto
 statements.
 
+`oci_referrer` targets set `provider`, `registry`, `repository`,
+`subject_digest`, and `referrer_digest`. Static-credential providers read
+secrets from the `username_env`, `password_env`, and `bearer_token_env`
+variables. A `provider=ecr` target needs no static credentials: the collector
+mints short-lived OCI Distribution basic-auth from the AWS
+`GetAuthorizationToken` exchange using the AWS default credential chain, the
+same auth path the OCI registry collector uses. Optional target fields `region`
+and `aws_profile` select the AWS config, and `registry_host` overrides the
+registry host when it differs from `registry`. Decoded ECR tokens are used only
+as request credentials and are never logged.
+
 Collectors emit typed source facts only. Reducer-owned
 `reducer_sbom_attestation_attachment` facts decide whether a document subject
 is attached, mismatched, unverified, parse-only, unknown, ambiguous, or
