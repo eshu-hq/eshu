@@ -155,6 +155,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/dekobon/tree-sitter-groovy v0.2.2
 	github.com/eshu-hq/eshu/sdk/go/collector v0.0.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/golang-jwt/jwt/v5 v5.3.0

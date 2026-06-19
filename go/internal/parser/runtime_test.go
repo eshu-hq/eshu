@@ -70,6 +70,26 @@ func TestRuntimeParserLoadsHaskellGrammar(t *testing.T) {
 	}
 }
 
+func TestRuntimeParserLoadsGroovyGrammar(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewRuntime()
+	parser, err := runtime.Parser("groovy")
+	if err != nil {
+		t.Fatalf("Parser(groovy) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	tree := parser.Parse([]byte("class Demo { def run() { deploy() } }"), nil)
+	if tree == nil {
+		t.Fatalf("Parser(groovy).Parse returned nil tree")
+	}
+	defer tree.Close()
+	if got, want := tree.RootNode().Kind(), "source_file"; got != want {
+		t.Fatalf("Groovy root node kind = %q, want %q", got, want)
+	}
+}
+
 func TestRuntimeParserLoadsSwiftGrammar(t *testing.T) {
 	t.Parallel()
 

@@ -3,11 +3,12 @@
 ## Purpose
 
 This package owns Jenkins/Groovy parser extraction that does not need parent
-parser internals. It builds the Groovy payload, pre-scan names, and delivery
-metadata for shared libraries, pipeline calls, shell commands, Ansible
-playbook hints, entry points, and configd/pre-deploy flags. It also emits
-lexical class, function, and function-call entities so Groovy repositories can
-participate in code search and dead-code candidate reads.
+parser internals. It builds the Groovy payload, pre-scan names, syntax entities,
+and delivery metadata for shared libraries, pipeline calls, shell commands,
+Ansible playbook hints, entry points, and configd/pre-deploy flags. Class,
+method, import, and call entities are extracted from the Groovy tree-sitter
+grammar so Groovy repositories can participate in code search and dead-code
+candidate reads without the old regex declaration scanner.
 
 ## Ownership boundary
 
@@ -26,9 +27,9 @@ ShellCommands, AnsiblePlaybookHints, EntryPoints, UseConfigd, and HasPreDeploy.
 
 ## Dependencies
 
-This package imports `internal/parser/shared` and the Go standard library. It
-must not import the parent parser package, collector packages, graph storage,
-or reducer code.
+This package imports `internal/parser/shared`, `go-tree-sitter`, and the Groovy
+tree-sitter grammar binding. It must not import the parent parser package,
+collector packages, graph storage, or reducer code.
 
 ## Telemetry
 
@@ -39,6 +40,13 @@ parser engine.
 
 PipelineMetadata normalizes shared library versions such as `pipelines@v2`
 down to `pipelines`, matching existing parser payload behavior.
+
+Tree-sitter extraction owns class, method, import, and method-call entities.
+Bare top-level pipeline calls can parse as no-body method declarations in the
+Groovy grammar; the parser keeps those as call rows and does not promote them to
+function entities. Metadata extraction remains lexical because Jenkins shared
+library annotations, shell strings, and Ansible hints are bounded delivery
+evidence rather than Groovy syntax ownership.
 
 ExtractFunctionEntities marks declarative/scripted Jenkinsfiles with
 `groovy.jenkins_pipeline_entrypoint` when a top-level `pipeline {` or `node {`
