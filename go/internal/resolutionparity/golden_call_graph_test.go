@@ -19,6 +19,7 @@ func TestGoldenCallGraphCorrectnessHarness(t *testing.T) {
 
 	fixtures := append(sourceCallGraphFixtures,
 		importBindingCallGraphFixture(),
+		elixirImportBindingCallGraphFixture(),
 		javaImportBindingCallGraphFixture(),
 		typeScriptImportBindingCallGraphFixture(),
 	)
@@ -223,6 +224,44 @@ class Task {}
 		uidByPath: map[string]string{
 			"com/acme/Service.java:process":  "content-entity:java_import_binding:process",
 			"com/other/Service.java:process": "content-entity:java_import_binding:process_decoy",
+		},
+	}
+}
+
+func elixirImportBindingCallGraphFixture() goldenCallGraphFixture {
+	return goldenCallGraphFixture{
+		language: "elixir_import_binding",
+		files: map[string]string{
+			"lib/worker.ex": `
+defmodule Demo.Worker do
+  alias Demo.Basic
+
+  def caller do
+    Basic.greet()
+  end
+end
+`,
+			"lib/basic.ex": `
+defmodule Demo.Basic do
+  def greet do
+    :ok
+  end
+end
+`,
+			"lib/other.ex": `
+defmodule Demo.Other do
+  def greet do
+    :decoy
+  end
+end
+`,
+		},
+		caller: "caller",
+		callee: "greet",
+		method: codeprovenance.MethodImportBinding,
+		uidByPath: map[string]string{
+			"lib/basic.ex:greet": "content-entity:elixir_import_binding:greet",
+			"lib/other.ex:greet": "content-entity:elixir_import_binding:greet_decoy",
 		},
 	}
 }
