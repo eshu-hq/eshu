@@ -210,14 +210,16 @@ maximum accepted value is 5000.
 
 `GET /api/v0/services/{service_name}/intelligence-report` composes the service
 story into an operator-ready [service intelligence report](../service-intelligence-report.md)
-(schema `service_intelligence_report.v1`): identity, code-to-runtime trace, and
-deployment/configuration sections, each preserving the source truth label and
-evidence handles, plus deterministic suggested investigations. It runs no LLM
-path. The `supply_chain` and `incidents_support` sections are emitted
-`unsupported` with their fallback next calls until their evidence lanes are
-wired in. It accepts the same `service_id`, `repo`, and `environment` selectors
-as the service story route and returns the same capability (501), not-found
-(404), and ambiguity (409) contracts. The MCP tool
+(schema `service_intelligence_report.v1`): identity, code-to-runtime trace,
+deployment/configuration, supply-chain, and incident/support sections, each
+preserving the source truth label and evidence handles, plus deterministic
+suggested investigations. It runs no LLM path. The live route sources
+`supply_chain` from reducer-owned supply-chain impact inventory and
+`incidents_support` from durable incident-routing evidence; either section stays
+`unsupported` with its fallback next call when its evidence is empty or the load
+fails. It accepts the same `service_id`, `repo`, and `environment` selectors as
+the service story route and returns the same capability (501), not-found (404),
+and ambiguity (409) contracts. The MCP tool
 `get_service_intelligence_report` dispatches to this route, so API and MCP
 return the same report.
 

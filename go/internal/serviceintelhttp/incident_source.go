@@ -159,25 +159,47 @@ func buildReportInput(
 	ctx context.Context,
 	dossier map[string]any,
 	truth *query.TruthEnvelope,
-	source IncidentEvidenceSource,
+	incidentSource IncidentEvidenceSource,
+	supplyChainSources ...SupplyChainEvidenceSource,
 ) serviceintel.ReportInput {
 	input := serviceintel.FromServiceStory(dossier, truth)
-	if source == nil {
-		return input
-	}
 
 	workloadID := strings.TrimSpace(input.Subject.ServiceID)
 	if workloadID == "" {
 		return input
 	}
 
-	records, err := source.IncidentRecordsForWorkload(ctx, workloadID)
-	if err != nil || len(records) == 0 {
-		return input
+	if len(supplyChainSources) > 0 && supplyChainSources[0] != nil {
+		inventory, err := supplyChainSources[0].SupplyChainInventoryForWorkload(ctx, workloadID)
+		if err == nil && len(inventory) > 0 {
+			input.Sections = append(input.Sections, serviceintel.FromSupplyChainInventory(inventory, input.Subject, supplyChainTruth(truth)))
+		}
 	}
 
-	input.Sections = append(input.Sections, serviceintel.FromIncidentEvidence(records, input.Subject, incidentTruth(truth)))
+	if incidentSource != nil {
+		records, err := incidentSource.IncidentRecordsForWorkload(ctx, workloadID)
+		if err == nil && len(records) > 0 {
+			input.Sections = append(input.Sections, serviceintel.FromIncidentEvidence(records, input.Subject, incidentTruth(truth)))
+		}
+	}
 	return input
+}
+
+// supplyChainTruth builds the supply_chain section's truth from the
+// supply-chain-impact aggregate capability, reusing the resolved profile of the
+// service-story truth so the section reflects reducer-owned impact facts rather
+// than platform service-story truth.
+func supplyChainTruth(storyTruth *query.TruthEnvelope) *query.TruthEnvelope {
+	profile := query.ProfileProduction
+	if storyTruth != nil && storyTruth.Profile != "" {
+		profile = storyTruth.Profile
+	}
+	return query.BuildTruthEnvelope(
+		profile,
+		supplyChainImpactAggregateCapability,
+		query.TruthBasisSemanticFacts,
+		"resolved from reducer-owned supply-chain impact facts; provider APIs are not called",
+	)
 }
 
 // incidentTruth builds the incidents_support section's truth from the

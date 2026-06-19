@@ -11,6 +11,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
 )
 
+type fakeReportSupplyChainSource struct {
+	gotWorkload string
+}
+
+func (f *fakeReportSupplyChainSource) SupplyChainInventoryForWorkload(_ context.Context, workloadID string) (map[string]any, error) {
+	f.gotWorkload = workloadID
+	return map[string]any{"count": 2, "truncated": false}, nil
+}
+
 func TestResolveRouteServiceIntelligenceReport(t *testing.T) {
 	t.Parallel()
 	route, err := resolveRoute("get_service_intelligence_report", map[string]any{
@@ -54,7 +63,8 @@ func TestDispatchServiceIntelligenceReportParity(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	entities.Mount(mux)
-	(&serviceintelhttp.ReportHandler{Entities: entities}).Mount(mux)
+	supplyChain := &fakeReportSupplyChainSource{}
+	(&serviceintelhttp.ReportHandler{Entities: entities, SupplyChain: supplyChain}).Mount(mux)
 
 	result, err := dispatchTool(
 		context.Background(),
@@ -91,4 +101,34 @@ func TestDispatchServiceIntelligenceReportParity(t *testing.T) {
 	if identity["status"] != "supported" {
 		t.Fatalf("identity status = %v, want supported", identity["status"])
 	}
+	if supplyChain.gotWorkload != "workload:sample-service-api" {
+		t.Fatalf("supply-chain source workload = %q, want workload:sample-service-api", supplyChain.gotWorkload)
+	}
+	supply := reportSectionByKind(t, sections, "supply_chain")
+	if supply["status"] == "unsupported" {
+		t.Fatalf("sourced supply_chain section status = unsupported, want sourced")
+	}
+	packet, ok := supply["answer"].(map[string]any)
+	if !ok {
+		t.Fatalf("supply_chain answer = %#v", supply["answer"])
+	}
+	truth, ok := packet["truth"].(map[string]any)
+	if !ok {
+		t.Fatalf("supply_chain truth = %#v", packet["truth"])
+	}
+	if got, want := truth["capability"], "supply_chain.impact_findings.aggregate"; got != want {
+		t.Fatalf("supply_chain truth capability = %v, want %s", got, want)
+	}
+}
+
+func reportSectionByKind(t *testing.T, sections []any, kind string) map[string]any {
+	t.Helper()
+	for _, section := range sections {
+		row, ok := section.(map[string]any)
+		if ok && row["kind"] == kind {
+			return row
+		}
+	}
+	t.Fatalf("section %q not present in %#v", kind, sections)
+	return nil
 }

@@ -25,10 +25,13 @@ This package owns the report HTTP route only. It does not:
 - compose the report itself (that is `serviceintel.Compose`), or
 - run any LLM path.
 
-It does own the durable incident lane for the report: `DurableIncidentEvidenceSource`
-resolves the workload's catalog service id (`postgres.ServiceCatalogIDResolver`) and
-loads that service's incident routing evidence (`postgres.ServiceIncidentEvidenceLoader`),
-behind the `IncidentEvidenceSource` seam so the handler stays testable without a database.
+It owns the durable evidence lanes for the report:
+`DurableSupplyChainEvidenceSource` loads bounded reducer-owned supply-chain
+impact inventory through `query.SupplyChainImpactAggregateStore`, and
+`DurableIncidentEvidenceSource` resolves the workload's catalog service id
+(`postgres.ServiceCatalogIDResolver`) and loads that service's incident routing
+evidence (`postgres.ServiceIncidentEvidenceLoader`). Both sit behind seams so
+the handler stays testable without a database.
 
 ## Import direction (no cycle)
 
@@ -53,9 +56,29 @@ The route is mounted by `cmd/api` and `cmd/mcp-server` (which already import
   `serviceintel.incident_ambiguous_catalog_service`, never report-fatal), or no
   routed incidents all leave the section `unsupported` with its fallback rather
   than fabricating a false "no incidents".
-- The `supply_chain` section is emitted `unsupported` with its fallback next call
-  until its evidence lane gains a seam; the composer keeps it visible rather than
-  hiding it.
+- The `supply_chain` section is sourced from reducer-owned supply-chain impact
+  inventory and carries supply-chain-impact truth
+  (`supply_chain.impact_findings.aggregate`), not the service-story platform
+  truth. The read is scoped to the resolved workload id, uses the same precise
+  impact profile as the inventory route default, and stays bounded. No inventory
+  or a load error leaves the section `unsupported` with its fallback rather than
+  fabricating an empty supported section.
+
+No-Regression Evidence: the supply-chain source reads one bounded
+`impact_status` inventory page through the existing aggregate read model, scoped
+by resolved workload id and precise detection profile. `TestBuildReportInput*`
+proves sourced, empty, load-error, and blank-workload report composition;
+`TestDurableSupplyChainEvidenceSource*` proves the store filter, limit
+(`SupplyChainImpactAggregateMaxLimit+1`), count rollup, nil-empty behavior, and
+operator log on load failure; `TestDispatchServiceIntelligenceReportParity`
+proves the MCP tool receives the sourced section through the same HTTP route.
+
+No-Observability-Change: this adds no graph write, queue, worker, lease, metric,
+span name, deployment knob, or provider call. The new read uses the existing
+Postgres aggregate query path and request context; operators diagnose it through
+the existing service intelligence request route metrics/spans, existing
+supply-chain aggregate Postgres instrumentation, and the structured
+`serviceintel.supply_chain_load_error` log.
 
 ## Verification
 

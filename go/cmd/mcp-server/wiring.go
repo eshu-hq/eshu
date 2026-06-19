@@ -149,8 +149,9 @@ func wireAPI(
 	// never depends on serviceintel — no cycle. The incidents_support section is
 	// sourced from durable incident-routing evidence over Postgres.
 	(&serviceintelhttp.ReportHandler{
-		Entities:  router.Entities,
-		Incidents: newIncidentEvidenceSource(db, logger),
+		Entities:    router.Entities,
+		Incidents:   newIncidentEvidenceSource(db, logger),
+		SupplyChain: newSupplyChainEvidenceSource(db, logger),
 	}).Mount(mux)
 
 	// Record per-endpoint duration/error metrics for every read route, then wrap

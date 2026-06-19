@@ -66,10 +66,17 @@ response with no truth composes an `unsupported` report rather than fabricating
 confidence.
 
 The live API/MCP route (`GET /api/v0/services/{service_name}/intelligence-report`,
-`get_service_intelligence_report`) additionally sources `incidents_support` from
-durable incident-routing evidence: it resolves the workload's catalog service id,
-loads that service's routed incidents, and the section carries incident-context
-truth (`incident.context.read`). It attributes incidents only when the workload
+`get_service_intelligence_report`) additionally sources `supply_chain` from
+reducer-owned supply-chain impact inventory scoped to the resolved workload. That
+section carries supply-chain-impact truth
+(`supply_chain.impact_findings.aggregate`), not the service-story platform truth.
+No inventory or a load error leaves the section `unsupported` with its fallback
+rather than fabricating an empty supported section.
+
+The live route also sources `incidents_support` from durable incident-routing
+evidence: it resolves the workload's catalog service id, loads that service's
+routed incidents, and the section carries incident-context truth
+(`incident.context.read`). It attributes incidents only when the workload
 resolves to exactly one catalog service; an unresolved or ambiguous workload, a
 load error, or no routed incidents leave the section `unsupported` with its
 fallback rather than fabricating a false "no incidents".

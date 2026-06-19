@@ -393,6 +393,14 @@ func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 	}
 }
 
+func TestNewSupplyChainEvidenceSourceIsWired(t *testing.T) {
+	t.Parallel()
+
+	if source := newSupplyChainEvidenceSource(nil, nil); source == nil {
+		t.Fatal("newSupplyChainEvidenceSource() = nil, want durable supply-chain evidence source")
+	}
+}
+
 type staticStatusReader struct{}
 
 func (staticStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {

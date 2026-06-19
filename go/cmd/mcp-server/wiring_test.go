@@ -204,6 +204,14 @@ func TestNewMCPQueryRouterUsesSuppliedStatusReader(t *testing.T) {
 	}
 }
 
+func TestNewSupplyChainEvidenceSourceIsWired(t *testing.T) {
+	t.Parallel()
+
+	if source := newSupplyChainEvidenceSource(nil, nil); source == nil {
+		t.Fatal("newSupplyChainEvidenceSource() = nil, want durable supply-chain evidence source")
+	}
+}
+
 func TestOpenQueryGraphAcceptsNornicDBOnSharedBoltPath(t *testing.T) {
 	t.Parallel()
 

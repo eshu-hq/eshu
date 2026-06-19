@@ -21,6 +21,11 @@ type ReportHandler struct {
 	// when wired the handler appends a sourced incidents section. The source owns
 	// its own operator logging.
 	Incidents IncidentEvidenceSource
+	// SupplyChain is the optional durable supply-chain evidence source. When nil
+	// the supply_chain section stays unsupported with its fallback next call;
+	// when wired the handler appends a sourced supply-chain section. The source
+	// owns its own operator logging.
+	SupplyChain SupplyChainEvidenceSource
 }
 
 // Mount registers the service intelligence report route.
@@ -35,10 +40,10 @@ func (h *ReportHandler) Mount(mux *http.ServeMux) {
 // ambiguous or missing service, internal errors) are returned as the same error
 // envelope the service-story route returns, so the surfaces stay consistent.
 //
-// When an incident source is wired, the handler appends the incidents_support
-// section from durable incident-routing evidence; otherwise it (like supply_chain)
-// stays unsupported with its fallback next call. The composer keeps every section
-// visible rather than hiding the unsourced ones.
+// When durable evidence sources are wired, the handler appends the supply_chain
+// and incidents_support sections from their own evidence lanes. Unwired, empty,
+// or failed lanes stay unsupported with their fallback next calls. The composer
+// keeps every section visible rather than hiding the unsourced ones.
 func (h *ReportHandler) getServiceIntelligenceReport(w http.ResponseWriter, r *http.Request) {
 	if h.Entities == nil {
 		query.WriteError(w, http.StatusServiceUnavailable, "service intelligence report handler not configured")
@@ -57,6 +62,6 @@ func (h *ReportHandler) getServiceIntelligenceReport(w http.ResponseWriter, r *h
 		return
 	}
 
-	report := serviceintel.Compose(buildReportInput(r.Context(), dossier, truth, h.Incidents))
+	report := serviceintel.Compose(buildReportInput(r.Context(), dossier, truth, h.Incidents, h.SupplyChain))
 	query.WriteSuccess(w, r, http.StatusOK, report, report.Truth)
 }
