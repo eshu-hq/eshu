@@ -16,7 +16,10 @@ tiers fails CI.
 `TestResolutionTierGoldens`:
 
 1. Parses every matching file in a language's `tests/fixtures/sample_projects`
-   corpus with the real `parser.DefaultEngine()`.
+   corpus with the real `parser.DefaultEngine()`. Languages without a richer
+   sample-project tier corpus reuse source-authored exact-edge fixtures as
+   same-file smoke snapshots so every registered call-graph source language has
+   at least one tier entry.
 2. Injects deterministic synthetic uids onto parsed entities (the ingester
    assigns real uids downstream; the golden harness stands in for that).
 3. Runs `reducer.ExtractCodeCallRows` and tallies each row's `resolution_method`.
@@ -45,6 +48,12 @@ gap, and the shadowing test fails if a passing fixture remains in the gap map.
 Dart and Swift currently use source-backed type-entity caller fixtures because
 their parsers still emit declaration-line spans for function bodies.
 
+The source-backed entries in `resolution_tiers.golden.json` are deliberately
+limited smoke coverage. They keep long-tail languages from disappearing from the
+tier gate, but they do not prove non-`same_file` behavior such as import binding,
+SCIP, or cross-repo resolution. Broader tier distribution remains owned by the
+sample-project corpora and future language-specific fixtures.
+
 ## Updating the golden
 
 The golden is a regression snapshot of deterministic pipeline output, not a
@@ -65,8 +74,11 @@ tier:
 
 ## Notes
 
-- `TestResolutionTierGoldens` still uses the sample-project corpora and guards
-  the heuristic-resolver tier *distribution* against drift.
+- `TestResolutionTierGoldens` uses richer sample-project corpora where
+  available and source-authored same-file smoke fixtures for the remaining
+  call-graph languages. The sample corpora guard heuristic-resolver tier
+  *distribution* against drift; the smoke fixtures keep long-tail languages
+  visible until they earn broader corpora.
 - `TestGoldenCallGraphCorrectnessHarness` uses source-authored truth and guards
   target correctness. Do not generate its expected caller→callee edges from
   Eshu's own output.

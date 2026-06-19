@@ -1,16 +1,64 @@
 {
+  "c": {
+    "same_file": 1
+  },
+  "c_sharp": {
+    "same_file": 1
+  },
+  "cpp": {
+    "same_file": 1
+  },
+  "dart": {
+    "same_file": 1
+  },
+  "elixir": {
+    "same_file": 1
+  },
   "go": {
     "same_file": 97,
     "scope_unique_name": 1
+  },
+  "groovy": {
+    "same_file": 1
+  },
+  "haskell": {
+    "same_file": 1
   },
   "java": {
     "repo_unique_name": 5,
     "type_inferred": 4
   },
+  "javascript": {
+    "same_file": 1
+  },
+  "kotlin": {
+    "same_file": 1
+  },
+  "perl": {
+    "same_file": 1
+  },
+  "php": {
+    "same_file": 1
+  },
   "python": {
     "repo_unique_name": 4,
     "same_file": 11,
     "type_inferred": 6
+  },
+  "ruby": {
+    "same_file": 1
+  },
+  "rust": {
+    "same_file": 1
+  },
+  "scala": {
+    "same_file": 1
+  },
+  "swift": {
+    "same_file": 1
+  },
+  "tsx": {
+    "same_file": 1
   },
   "typescript": {
     "repo_unique_name": 85,
