@@ -79,8 +79,12 @@ func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplyChainSB
 		documentID: payloadStr(envelope.Payload, "document_id"),
 		purl:       purl,
 		cpe:        payloadStr(envelope.Payload, "cpe"),
-		packageID:  packageIDFromPURL(purl),
-		version:    firstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
+		// Prefer the canonical package_id the collector now emits so the
+		// component joins vulnerability facts on the same identity every
+		// other package fact uses; fall back to the version-stripped purl for
+		// components ingested before the collector carried package_id.
+		packageID: firstNonBlank(payloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
+		version:   firstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
 	}
 }
 
@@ -394,58 +398,6 @@ func unusableSupplyChainImageIdentityReason(image supplyChainImageIdentity) stri
 	default:
 		return "image identity evidence unsupported"
 	}
-}
-
-func componentMatchesAffectedPackage(component supplyChainSBOMComponent, pkg supplyChainAffectedPackage) bool {
-	if pkg.purl != "" && component.purl == pkg.purl {
-		return true
-	}
-	if pkg.packageID != "" && component.packageID == pkg.packageID {
-		return true
-	}
-	return false
-}
-
-func componentMatchesAffectedProduct(component supplyChainSBOMComponent, product supplyChainAffectedProduct) bool {
-	if product.criteria == "" || component.cpe == "" {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(product.criteria), strings.TrimSpace(component.cpe))
-}
-
-func packageIDFromPURL(purl string) string {
-	purl = strings.TrimSpace(purl)
-	if before, _, ok := strings.Cut(purl, "@"); ok {
-		return before
-	}
-	return purl
-}
-
-func versionFromPURL(purl string) string {
-	_, after, ok := strings.Cut(strings.TrimSpace(purl), "@")
-	if !ok {
-		return ""
-	}
-	if version, _, ok := strings.Cut(after, "?"); ok {
-		return version
-	}
-	return after
-}
-
-func versionFromCPE23Criteria(criteria string) string {
-	criteria = strings.TrimSpace(criteria)
-	if !strings.HasPrefix(criteria, "cpe:2.3:") {
-		return ""
-	}
-	parts := strings.Split(criteria, ":")
-	if len(parts) < 6 {
-		return ""
-	}
-	version := strings.TrimSpace(parts[5])
-	if version == "*" || version == "-" {
-		return ""
-	}
-	return version
 }
 
 func payloadBool(payload map[string]any, key string) bool {

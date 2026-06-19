@@ -126,6 +126,7 @@ func spdxComponentEnvelope(ctx FixtureContext, docID, componentID string, pkg sp
 		"version":             strings.TrimSpace(pkg.VersionInfo),
 		"type":                spdxComponentType(pkg),
 		"purl":                purl,
+		"package_id":          canonicalPackageIDFromPURL(purl),
 		"cpe":                 cpe,
 		"description":         strings.TrimSpace(firstNonBlank(pkg.Description, pkg.Summary)),
 		"publisher":           strings.TrimSpace(pkg.Originator),

@@ -30,6 +30,13 @@ truth; reducers admit user-facing truth.
   ecosystems.
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
+- `DefaultRegistry` returns the canonical registry host for an ecosystem so
+  every caller that derives a `PackageID` from a bare purl lands on the same
+  identity.
+- `PackageIDFromPURL` parses a purl, fills the default registry when the purl
+  carries none, and returns the canonical versionless `PackageID`. It returns
+  an empty string (and nil error) for blank or non-purl input so SBOM and other
+  purl-only sources can correlate on the same key without failing on odd input.
 
 ## Invariants
 

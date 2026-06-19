@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 func newEnvelope(ctx FixtureContext, factKind, stableKey, sourceRecordID string, payload map[string]any) facts.Envelope {
@@ -76,6 +77,19 @@ func documentID(format Format, sourceRecordID, documentDigest string) string {
 		"format":           string(format),
 		"source_record_id": strings.TrimSpace(sourceRecordID),
 	})
+}
+
+// canonicalPackageIDFromPURL derives the canonical package identity a component
+// shares with vulnerability and package-registry facts. It returns "" when the
+// purl is blank or cannot be normalized into a canonical identity, leaving the
+// component to correlate by version-stripped purl instead of failing the
+// document.
+func canonicalPackageIDFromPURL(purl string) string {
+	packageID, err := packageidentity.PackageIDFromPURL(purl)
+	if err != nil {
+		return ""
+	}
+	return packageID
 }
 
 func componentID(documentID, purl, name, version, identifier string) string {
