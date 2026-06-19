@@ -1186,6 +1186,10 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// secrets_iam_graph_projection reducer domain from reducer-owned secrets/IAM
 	// read-model facts (issue #1347, ADR #1314), not from parsed content-entity
 	// facts, so they have no entity_type mapping in this source-local map.
+	// ShellCommand is materialized by the shell_exec_materialization reducer
+	// domain as Function-[:EXECUTES_SHELL]->ShellCommand (reducer/
+	// shell_exec_materialization.go, storage/cypher/edge_writer_shell_exec.go),
+	// not from parsed content-entity facts, so it has no entity_type mapping here.
 	sourceLocalNonEntityLabels := map[string]struct{}{
 		"File":                         {},
 		"CloudResource":                {},
@@ -1200,6 +1204,7 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 		"SecretsIAMVaultAuthRole":      {},
 		"SecretsIAMVaultPolicy":        {},
 		"SecretsIAMSecretMetadataPath": {},
+		"ShellCommand":                 {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {
