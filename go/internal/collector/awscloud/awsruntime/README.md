@@ -75,6 +75,28 @@ See `doc.go` for the godoc contract.
 - `ScanStatusStore` - durable scanner-side status store for start, API count,
   throttle count, warning, and partial-run evidence.
 - `ClaimedSource` - implements the collector claimed-source contract.
+- `FixtureSource` - offline `collector.Source` for fixture/replay mode. It needs
+  no credentials, no AWS SDK, and no network: it converts a `FixtureConfig` into
+  the same `aws_resource` / `aws_relationship` envelopes the live scanners emit
+  via `awscloud.NewResourceEnvelope` / `awscloud.NewRelationshipEnvelope`.
+- `FixtureConfig`, `FixtureScope`, `FixtureResource`, `FixtureRelationship` -
+  the declarative offline estate `FixtureSource` replays. `FixtureScope` derives
+  a stable `aws:<account>:<region>:<service>` scope id and a clock-independent
+  generation id when those fields are blank, so re-ingest is idempotent.
+
+## Fixture mode (offline replay)
+
+`FixtureSource` is the offline twin of `ClaimedSource`. The `collector-aws-cloud`
+command wires it into a non-claimed `collector.Service` when run with
+`-mode fixture -config <estate.json>` (default mode stays `claimed-live`). Each
+`Next` yields one scope generation; the source reports the batch drained, then
+restarts it on the next poll, mirroring the GCP fixture source. Because the
+emitted envelopes are byte-identical to live facts, the offline path exercises
+the same projector and `aws_cloud_runtime_drift` reducer behavior. A checked-in
+estate and its drift intent live in
+`go/cmd/collector-aws-cloud/testdata/fixture-estate.json` and
+`tests/fixtures/aws_runtime_drift/`; the compose proof is
+`scripts/verify_aws_runtime_drift_compose.sh`.
 
 ## Dependencies
 

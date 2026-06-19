@@ -1,0 +1,46 @@
+{
+  "collector_instance_id": "aws-fixture-instance",
+  "poll_interval": "30m",
+  "scopes": [
+    {
+      "account_id": "111122223333",
+      "region": "us-east-1",
+      "service_kind": "s3",
+      "fencing_token": 1,
+      "resources": [
+        {
+          "arn": "arn:aws:s3:::eshu-fixture-managed",
+          "resource_id": "eshu-fixture-managed",
+          "resource_type": "aws_s3_bucket",
+          "name": "eshu-fixture-managed",
+          "state": "available",
+          "tags": {
+            "eshu-fixture": "managed",
+            "env": "demo"
+          }
+        },
+        {
+          "arn": "arn:aws:s3:::eshu-fixture-unmanaged",
+          "resource_id": "eshu-fixture-unmanaged",
+          "resource_type": "aws_s3_bucket",
+          "name": "eshu-fixture-unmanaged",
+          "state": "available",
+          "tags": {
+            "eshu-fixture": "unmanaged",
+            "env": "demo"
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "relationship_type": "shares_account_with",
+          "source_resource_id": "eshu-fixture-managed",
+          "source_arn": "arn:aws:s3:::eshu-fixture-managed",
+          "target_resource_id": "eshu-fixture-unmanaged",
+          "target_arn": "arn:aws:s3:::eshu-fixture-unmanaged",
+          "target_type": "aws_s3_bucket"
+        }
+      ]
+    }
+  ]
+}

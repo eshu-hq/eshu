@@ -51,16 +51,17 @@ and Docker Compose provide `local_authoritative`.
 | --- | --- | --- |
 | Terraform state ingestion | Yes | A local `.tfstate` file (fixtures included). |
 | Terraform config ingestion | Yes | A Git repo with the matching `.tf` config. |
-| AWS posture ingestion | No | A **read-only** AWS account; there is no offline AWS collector. |
+| AWS posture ingestion | Yes (fixture mode) **or** a read-only account | `eshu-collector-aws-cloud -mode fixture` replays a checked-in estate with **zero** AWS credentials; live mode needs a read-only account. |
 | Reducer drift findings | Yes (once facts exist) | The reducer joins the above by ARN automatically. |
 | `compose_replatforming_plan` | Yes (once findings exist) | `local_authoritative`+ stack. |
 | `azurerm_*` generation | Yes | Claude Code (or any MCP-aware assistant). |
 
-The AWS posture layer is the one step that requires a real account. Use a
-**read-only** sandbox account with no production data. A follow-up to make the
-AWS posture step fully offline (a fixture/replay AWS collector mode, issue #3063)
-is tracked separately so this demo can later run from a clean clone with zero
-cloud credentials.
+The AWS posture layer can run **fully offline** with the fixture/replay
+collector mode (issue #3063): `eshu-collector-aws-cloud -mode fixture` emits the same
+`aws_resource` / `aws_relationship` facts as the live scanners from a
+checked-in estate, with no credentials and no network calls, so this demo runs
+from a clean clone with zero cloud access. Use the live, read-only path only
+when you want your own account's real inventory.
 
 ## Step 1 — Bring up a local `local_authoritative` stack
 
@@ -116,7 +117,37 @@ states and matching Terraform configs are available under
 Without Terraform state, every observed cloud resource looks unmanaged, so this
 step is what makes the demo's "managed vs unmanaged" distinction meaningful.
 
-## Step 3 — Ingest AWS posture (read-only account)
+## Step 3 — Ingest AWS posture
+
+You can ingest AWS posture **fully offline** from a checked-in fixture estate,
+or against a real **read-only** account. Pick one.
+
+### Option A — Offline fixture mode (no credentials, recommended for the demo)
+
+Run the collector in fixture mode against the checked-in estate. It emits the
+same `aws_resource` / `aws_relationship` facts the live scanners produce, with
+**no AWS credentials and no network calls**:
+
+```bash
+eshu-collector-aws-cloud -mode fixture \
+  -config go/cmd/collector-aws-cloud/testdata/fixture-estate.json
+```
+
+The installed binary is `eshu-collector-aws-cloud` (from
+`scripts/install-local-binaries.sh`); from a source checkout you can equivalently
+run `go run ./cmd/collector-aws-cloud -mode fixture -config <path>`.
+
+The fixture estate (account `111122223333`, region `us-east-1`) declares two S3
+buckets; `arn:aws:s3:::eshu-fixture-unmanaged` has no matching Terraform state,
+so it deterministically surfaces as an `orphaned_cloud_resource` (`cloud_only`)
+finding in Step 5. Generation ids are derived from the scope id (never the
+clock), so re-running the collector is idempotent.
+
+The default mode is still `claimed-live`, so existing live deployments are
+unaffected; fixture mode is opt-in via `-mode fixture`. A compose-level proof of
+this offline path lives in `scripts/verify_aws_runtime_drift_compose.sh`.
+
+### Option B — Live read-only account
 
 Configure one `aws` collector instance with read-only credentials and a bounded
 service/region allowlist. See

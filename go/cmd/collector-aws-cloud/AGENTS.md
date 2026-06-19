@@ -3,19 +3,28 @@
 ## Read First
 
 1. `README.md` - command purpose, configuration, and invariants.
-2. `config.go` - collector instance selection and target-scope parsing.
-3. `service.go` - claim-aware runner and runtime wiring.
-4. `status_committer.go` - commit-side AWS scan status updates after fenced
+2. `main.go` - `-mode fixture|claimed-live` flag parsing and runner selection.
+3. `config.go` - collector instance selection and target-scope parsing.
+4. `fixture_config.go` - declarative fixture-mode config loading
+   (`loadFixtureConfig`) into `awsruntime.FixtureConfig`.
+5. `service.go` - `buildCollectorService` (fixture) and `buildClaimedService`
+   (live) runtime wiring.
+6. `status_committer.go` - commit-side AWS scan status updates after fenced
    fact persistence.
-5. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
+7. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
    contract.
-6. Service `awssdk` README files under
+8. Service `awssdk` README files under
    `go/internal/collector/awscloud/services/` - SDK adapter contracts.
-7. `docs/public/services/collector-aws-cloud.md` - security and
+9. `docs/public/services/collector-aws-cloud.md` - security and
    runtime requirements.
 
 ## Invariants
 
+- Keep `-mode` defaulting to `claimed-live`. Fixture mode is opt-in; flipping the
+  default would silently change live deployments. `-config` is required in
+  fixture mode and rejected in claimed-live mode.
+- Fixture mode requires no redaction key (AWS resource/relationship envelopes
+  carry no fingerprinted material). Do not add one.
 - Do not accept static AWS credential fields.
 - Require central AssumeRole targets to provide an external ID and an IAM role
   ARN in the configured `account_id`.

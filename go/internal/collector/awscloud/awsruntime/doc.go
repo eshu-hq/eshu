@@ -21,4 +21,14 @@
 // operation responses classify as terminal permission gaps for the claimed
 // scope; transient transport failures remain retryable through the shared
 // ClaimedService budget.
+//
+// For fully offline replay the package also exports FixtureSource, a
+// collector.Source that needs no credentials, no AWS SDK, and no network. It
+// converts a declarative FixtureConfig (FixtureScope, FixtureResource,
+// FixtureRelationship) into the same aws_resource / aws_relationship envelopes
+// the live scanners emit by reusing awscloud.NewResourceEnvelope and
+// awscloud.NewRelationshipEnvelope. Generation ids derive deterministically
+// from the scope id, never the clock, so re-ingest is idempotent and CI is
+// reproducible. The collector-aws-cloud command wires FixtureSource into a
+// non-claimed collector.Service when run with -mode fixture.
 package awsruntime
