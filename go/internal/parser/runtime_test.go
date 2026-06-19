@@ -70,6 +70,26 @@ func TestRuntimeParserLoadsHaskellGrammar(t *testing.T) {
 	}
 }
 
+func TestRuntimeParserLoadsPerlGrammar(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewRuntime()
+	parser, err := runtime.Parser("perl")
+	if err != nil {
+		t.Fatalf("Parser(perl) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	tree := parser.Parse([]byte("package App::Worker;\nsub run { return 1; }\n"), nil)
+	if tree == nil {
+		t.Fatalf("Parser(perl).Parse returned nil tree")
+	}
+	defer tree.Close()
+	if got, want := tree.RootNode().Kind(), "source_file"; got != want {
+		t.Fatalf("Perl root node kind = %q, want %q", got, want)
+	}
+}
+
 func TestRuntimeParserLoadsGroovyGrammar(t *testing.T) {
 	t.Parallel()
 
