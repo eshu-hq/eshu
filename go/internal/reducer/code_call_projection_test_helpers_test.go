@@ -148,8 +148,12 @@ func (f *fakeCodeCallIntentStore) ListPendingAcceptanceUnitIntents(_ context.Con
 		return f.acceptanceResponder(key, limit)
 	}
 
-	rows := make([]SharedProjectionIntentRow, 0, len(f.pendingByAcceptance[key.ScopeID+"|"+key.AcceptanceUnitID+"|"+key.SourceRunID]))
-	for _, row := range f.pendingByAcceptance[key.ScopeID+"|"+key.AcceptanceUnitID+"|"+key.SourceRunID] {
+	sourceRows, ok := f.pendingByAcceptance[key.ScopeID+"|"+key.AcceptanceUnitID+"|"+key.SourceRunID]
+	if !ok && f.pendingByAcceptance == nil {
+		sourceRows = f.pendingByDomain
+	}
+	rows := make([]SharedProjectionIntentRow, 0, len(sourceRows))
+	for _, row := range sourceRows {
 		if row.CompletedAt != nil {
 			continue
 		}
