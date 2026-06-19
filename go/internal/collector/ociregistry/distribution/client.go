@@ -72,13 +72,49 @@ func NewClient(config ClientConfig) (*Client, error) {
 	if client == nil {
 		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
-	return &Client{
+	c := &Client{
 		baseURL:     baseURL,
 		username:    config.Username,
 		password:    config.Password,
 		bearerToken: config.BearerToken,
 		client:      client,
-	}, nil
+	}
+	installRedirectCredentialPolicy(client, baseURL.Hostname(), c)
+	return c, nil
+}
+
+// installRedirectCredentialPolicy makes per-hop credential handling explicit and
+// deterministic instead of relying on the net/http default redirect heuristic.
+//
+// Registries such as ECR answer manifest and blob fetches with a redirect to a
+// presigned object-store URL on a different host. The original credential must
+// follow redirects that stay on the registry host so same-host hops still
+// authenticate, and it must never reach a different host because presigned
+// stores reject an extra Authorization header and forwarding the credential
+// would disclose it. net/http already enforces this in current releases, but it
+// is a version-dependent default; owning the policy here keeps the behavior
+// locked under the package's regression tests. The policy is installed only when
+// the caller did not supply its own CheckRedirect, so an injected client keeps
+// control of its redirect handling.
+func installRedirectCredentialPolicy(client *http.Client, registryHost string, c *Client) {
+	if client.CheckRedirect != nil {
+		return
+	}
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return fmt.Errorf("stopped after 10 redirects")
+		}
+		// Start each hop with no inherited credential, then re-apply the
+		// registry credential only when the hop stays on the registry host.
+		// Same-host hops (ECR keeps manifest/blob auth on the registry host)
+		// must re-authenticate; cross-host hops (presigned object stores)
+		// must never receive the credential.
+		req.Header.Del("Authorization")
+		if strings.EqualFold(req.URL.Hostname(), registryHost) {
+			c.applyAuth(req)
+		}
+		return nil
+	}
 }
 
 // Ping validates that the base endpoint speaks the OCI Distribution API or
@@ -230,11 +266,7 @@ func (c *Client) do(
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	if c.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.bearerToken)
-	} else if c.username != "" || c.password != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
+	c.applyAuth(req)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, collector.RegistryTransportFailure("oci", "", operation, sdk.HTTPError{
@@ -244,6 +276,19 @@ func (c *Client) do(
 		})
 	}
 	return resp, nil
+}
+
+// applyAuth sets the configured credential on a request. A bearer token wins
+// over basic credentials. It is called for the initial request and re-applied on
+// same-host redirects so multi-hop registry fetches keep authenticating.
+func (c *Client) applyAuth(req *http.Request) {
+	if c.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.bearerToken)
+		return
+	}
+	if c.username != "" || c.password != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
 }
 
 func (c *Client) resolve(endpoint string) url.URL {

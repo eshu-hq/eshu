@@ -33,8 +33,10 @@ flowchart LR
 - `FetchBearerToken` — requests a pull token from a token service.
 - `ListTags` — reads tag names for one repository.
 - `GetManifest` — reads manifest or index bytes plus digest/media metadata.
+- `GetBlob` — reads a content blob by digest with a bounded body cap.
 - `ListReferrers` — reads descriptors attached to one subject digest.
 - `ManifestResponse` — raw manifest body with content digest and media type.
+- `BlobResponse` — raw blob body with digest and media type.
 - `ReferrersResponse` — descriptors returned by the Referrers API.
 
 ## Dependencies
@@ -62,6 +64,12 @@ client in the future claim-driven collector.
   tags, digests, URLs, or response bodies.
 - `ListReferrers` reports unsupported Referrers API as an error so callers can
   emit an `oci_registry.warning`.
+- The client installs an explicit redirect credential policy when the caller did
+  not set its own `CheckRedirect`: same-host redirect hops re-apply the registry
+  credential so multi-hop registry fetches (for example ECR manifest/blob hops)
+  keep authenticating, and cross-host hops never receive the credential so a
+  presigned object-store URL is reached without an extra `Authorization` header.
+  An injected client that sets `CheckRedirect` keeps full control of redirects.
 
 ## Evidence
 

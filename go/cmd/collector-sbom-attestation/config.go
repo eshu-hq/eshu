@@ -27,6 +27,9 @@ type targetJSON struct {
 	DocumentFormat     string `json:"document_format"`
 	Provider           string `json:"provider"`
 	Registry           string `json:"registry"`
+	RegistryHost       string `json:"registry_host"`
+	Region             string `json:"region"`
+	AWSProfile         string `json:"aws_profile"`
 	Repository         string `json:"repository"`
 	DocumentURL        string `json:"document_url"`
 	SourceURI          string `json:"source_uri"`
@@ -170,6 +173,9 @@ func mapTarget(target targetJSON, getenv func(string) string) sbomruntime.Target
 		DocumentFormat:     sbomruntime.DocumentFormat(strings.TrimSpace(target.DocumentFormat)),
 		Provider:           strings.TrimSpace(target.Provider),
 		Registry:           strings.TrimRight(strings.TrimSpace(target.Registry), "/"),
+		RegistryHost:       strings.TrimRight(strings.TrimSpace(target.RegistryHost), "/"),
+		Region:             strings.TrimSpace(target.Region),
+		AWSProfile:         strings.TrimSpace(target.AWSProfile),
 		Repository:         strings.Trim(strings.TrimSpace(target.Repository), "/"),
 		DocumentURL:        strings.TrimSpace(target.DocumentURL),
 		SourceURI:          strings.TrimSpace(firstNonBlank(target.SourceURI, target.DocumentURL, target.Registry)),
