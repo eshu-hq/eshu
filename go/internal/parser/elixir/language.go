@@ -1,11 +1,15 @@
 package elixir
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
 
+	tree_sitter_elixir "github.com/tree-sitter/tree-sitter-elixir/bindings/go"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 var (
@@ -19,7 +23,20 @@ var (
 
 // Parse extracts Elixir modules, functions, imports, attributes, and calls.
 func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
-	source, err := shared.ReadSource(path)
+	parser := tree_sitter.NewParser()
+	language := tree_sitter.NewLanguage(tree_sitter_elixir.Language())
+	if err := parser.SetLanguage(language); err != nil {
+		parser.Close()
+		return nil, fmt.Errorf("set parser language elixir: %w", err)
+	}
+	defer parser.Close()
+
+	return ParseWithParser(path, isDependency, options, parser)
+}
+
+// ParseWithParser extracts Elixir payload data with a caller-owned tree-sitter parser.
+func ParseWithParser(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
+	source, syntax, err := elixirSourceAndSyntax(path, parser)
 	if err != nil {
 		return nil, err
 	}
@@ -211,12 +228,26 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	for _, bucket := range []string{"functions", "modules", "protocols", "variables", "imports", "function_calls"} {
 		shared.SortNamedBucket(payload, bucket)
 	}
+	applyElixirTreeFunctionMetadata(payload, syntax, deadCodeFacts, options)
+	applyElixirTreeCallContext(payload, syntax)
+	shared.SortNamedBucket(payload, "functions")
 	return payload, nil
 }
 
 // PreScan returns Elixir names used by the collector import-map pre-scan.
 func PreScan(path string) ([]string, error) {
 	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		return nil, err
+	}
+	names := shared.CollectBucketNames(payload, "functions", "modules", "protocols")
+	slices.Sort(names)
+	return names, nil
+}
+
+// PreScanWithParser returns Elixir pre-scan names with a caller-owned tree-sitter parser.
+func PreScanWithParser(path string, parser *tree_sitter.Parser) ([]string, error) {
+	payload, err := ParseWithParser(path, false, shared.Options{}, parser)
 	if err != nil {
 		return nil, err
 	}

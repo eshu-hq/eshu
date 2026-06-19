@@ -33,6 +33,23 @@ func TestRuntimeParserLoadsDartGrammar(t *testing.T) {
 	}
 }
 
+func TestRuntimeParserLoadsElixirGrammar(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewRuntime()
+	parser, err := runtime.Parser("elixir")
+	if err != nil {
+		t.Fatalf("Parser(elixir) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	tree := parser.Parse([]byte("defmodule Demo do\n  def run, do: :ok\nend\n"), nil)
+	if tree == nil {
+		t.Fatalf("Parser(elixir).Parse returned nil tree")
+	}
+	tree.Close()
+}
+
 func TestRuntimeParserLoadsSwiftGrammar(t *testing.T) {
 	t.Parallel()
 

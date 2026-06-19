@@ -298,7 +298,7 @@ parser path.
 | C++ | `cpp` | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp` | yes |
 | Dart | `dart` | `.dart` | — |
 | Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
-| Elixir | `elixir` | `.ex`, `.exs`, `mix.lock` | — |
+| Elixir | `elixir` | `.ex`, `.exs`, `mix.lock` | yes |
 | Go | `go` | `.go` | yes |
 | Go modules | `gomod` | `go.mod`, `go.sum` (exact filenames) | — |
 | Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | — |
@@ -352,8 +352,8 @@ native parser coverage for selected files outside the SCIP index.
 ## Dependencies
 
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
-- Tree-sitter grammar bindings: C, C#, C++, Go, Java, JavaScript, Kotlin,
-  Python, Rust, Scala, TypeScript
+- Tree-sitter grammar bindings: C, C#, C++, Elixir, Go, Java, JavaScript, Kotlin, Python, Rust, Scala, TypeScript
+- Elixir grammar packaging replaces `github.com/tree-sitter/tree-sitter-elixir` with the official `github.com/elixir-lang/tree-sitter-elixir v0.3.5` tag.
 - Kotlin grammar packaging uses
   `github.com/tree-sitter-grammars/tree-sitter-kotlin v1.1.0`, an MIT-licensed
   module with generated `bindings/go` sources and checked-in `src/parser.c` and
