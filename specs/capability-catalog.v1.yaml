@@ -73,6 +73,16 @@ capabilities:
       - reference/vulnerability-scanner-confidence.md
     known_gaps:
       - "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+  - capability: reachability.java.value_flow
+    display_name: Java Reachability (value flow)
+    owner_package: internal/parser/java
+    maturity: gated
+    maturity_reason: "Java value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in."
+    linked_issues: [3021, 2704, 2705, 3069]
+    docs:
+      - reference/vulnerability-scanner-confidence.md
+    known_gaps:
+      - "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
   - capability: reachability.jvm.bounded
     display_name: JVM Reachability (bounded)
     owner_package: internal/reducer

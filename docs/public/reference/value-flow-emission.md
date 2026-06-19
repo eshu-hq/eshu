@@ -61,14 +61,16 @@ reflects what each parser emits behind the gate.
 | Go | Gated value-flow. | `dataflow_functions`, `taint_findings`, `interproc_findings`, `dataflow_summaries`, `dataflow_sources` (the durable `dataflow_summaries` and `dataflow_sources` buckets only when both repository identity and package import path are present). |
 | Python | Gated value-flow. | `dataflow_functions`, `taint_findings`, `interproc_findings`. |
 | TypeScript / JavaScript | Gated value-flow. | `dataflow_functions`, `taint_findings`, `interproc_findings`. |
-| JVM / other languages | Not emitted. | No value-flow buckets are attached by these parsers. |
+| Java | Gated value-flow. <!-- capability-state: id=reachability.java.value_flow state=gated --> | `dataflow_functions`, `taint_findings`, `interproc_findings`, `dataflow_summaries`, `dataflow_sources` (the durable `dataflow_summaries` and `dataflow_sources` buckets only when both repository identity and Java package identity are present). |
+| Other languages | Not emitted. | No value-flow buckets are attached by these parsers. |
 
 For Python and TypeScript/JavaScript, the interprocedural resolution is
 intra-file only; the import path passed into the interprocedural composer is
 empty until package-ownership metadata is available for those ecosystems, while
 repository identity is stable and durable. The durable cross-package
-`dataflow_summaries` bucket is therefore a Go-only output today, because it
-requires the package import path that only the Go parser currently supplies.
+`dataflow_summaries` and `dataflow_sources` buckets are therefore emitted only by
+Go and Java today, because they require the package import path that only those
+parsers currently supply.
 
 For per-ecosystem reachability and confidence posture, cross-reference the
 [Vulnerability Scanner Confidence Matrix](vulnerability-scanner-confidence.md)
