@@ -40,19 +40,49 @@ WHERE fact.fact_kind = 'file'
     SELECT 1
     FROM (
       SELECT definition.item
-      FROM jsonb_array_elements(COALESCE(fact.payload->'parsed_file_data'->'functions', '[]'::jsonb)) AS definition(item)
+      FROM jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'functions') = 'array'
+          THEN fact.payload->'parsed_file_data'->'functions'
+          ELSE '[]'::jsonb
+        END
+      ) AS definition(item)
       UNION ALL
       SELECT definition.item
-      FROM jsonb_array_elements(COALESCE(fact.payload->'parsed_file_data'->'classes', '[]'::jsonb)) AS definition(item)
+      FROM jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'classes') = 'array'
+          THEN fact.payload->'parsed_file_data'->'classes'
+          ELSE '[]'::jsonb
+        END
+      ) AS definition(item)
       UNION ALL
       SELECT definition.item
-      FROM jsonb_array_elements(COALESCE(fact.payload->'parsed_file_data'->'structs', '[]'::jsonb)) AS definition(item)
+      FROM jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'structs') = 'array'
+          THEN fact.payload->'parsed_file_data'->'structs'
+          ELSE '[]'::jsonb
+        END
+      ) AS definition(item)
       UNION ALL
       SELECT definition.item
-      FROM jsonb_array_elements(COALESCE(fact.payload->'parsed_file_data'->'interfaces', '[]'::jsonb)) AS definition(item)
+      FROM jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'interfaces') = 'array'
+          THEN fact.payload->'parsed_file_data'->'interfaces'
+          ELSE '[]'::jsonb
+        END
+      ) AS definition(item)
       UNION ALL
       SELECT definition.item
-      FROM jsonb_array_elements(COALESCE(fact.payload->'parsed_file_data'->'type_aliases', '[]'::jsonb)) AS definition(item)
+      FROM jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'type_aliases') = 'array'
+          THEN fact.payload->'parsed_file_data'->'type_aliases'
+          ELSE '[]'::jsonb
+        END
+      ) AS definition(item)
     ) AS code_definition(item)
     WHERE code_definition.item->>'scip_symbol' = ANY($1::text[])
        OR code_definition.item->>'scip_symbol_key' = ANY($1::text[])
