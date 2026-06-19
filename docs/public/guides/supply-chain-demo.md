@@ -203,6 +203,12 @@ ESHU_SRC=/path/to/eshu \
   examples/supply-chain-demo/scripts/run-oci-localtls-identity-proof.sh
 ```
 
+The script pushes the image with [`oras`](https://oras.land) when it is
+installed, which trusts the ephemeral CA directly so a clean docker daemon does
+not need the CA installed in its per-host trust store. Without `oras` it falls
+back to `docker push`, which only succeeds when the daemon already trusts the
+CA. The collector proof itself never needs the docker daemon to trust anything.
+
 The collector trusts the registry through the `tls_ca_cert_path` target field
 documented in
 [Environment Collectors](../reference/environment-collectors.md#oci-registry-collector);
