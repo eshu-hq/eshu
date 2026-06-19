@@ -8,7 +8,10 @@
 4. `registry.go` - production service scanner registry.
 5. `source.go` - claim validation, target authorization, checkpoint expiry, and generation
    construction.
-6. `scan_status.go` - scanner-side durable status projection.
+6. `fixture_source.go` - offline fixture/replay `collector.Source`
+   (`FixtureSource`) plus its declarative config (`FixtureConfig`,
+   `FixtureScope`, `FixtureResource`, `FixtureRelationship`).
+7. `scan_status.go` - scanner-side durable status projection.
 7. `../checkpoint/README.md` - durable pagination checkpoint contract.
 8. `../README.md` - shared AWS fact-envelope contract.
 9. `docs/public/services/collector-aws-cloud.md` - runtime and
@@ -18,6 +21,11 @@
 
 - Authorize `(account_id, region, service_kind)` before acquiring credentials.
 - Keep static AWS credentials out of this package and out of tests.
+- Keep `fixture_source.go` fully offline: no AWS SDK imports, no network, no
+  credentials. It must reuse `awscloud.NewResourceEnvelope` /
+  `awscloud.NewRelationshipEnvelope` so fixture facts stay byte-identical to
+  live facts, and must derive generation ids from the scope id only (never the
+  clock) so replay is idempotent.
 - Preserve `aws.RetryModeAdaptive` on every loaded AWS SDK config.
 - Pass the command-validated STS external ID for central AssumeRole targets.
 - Keep the command-side credential guard intact: central scopes require a

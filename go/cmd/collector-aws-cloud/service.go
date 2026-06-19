@@ -21,6 +21,38 @@ import (
 
 var fallbackClaimSequence uint64
 
+// buildCollectorService constructs the offline AWS cloud collector service from
+// a declarative fixture config document. It wires an awsruntime.FixtureSource
+// over the shared Postgres ingestion store, so fixture facts flow through the
+// same durable commit, projector, and reducer path as live facts but with no
+// AWS credentials and no network calls.
+//
+// Fixture mode requires no redaction key: AWS resource and relationship
+// envelopes carry no fingerprinted material (see awscloud.NewResourceEnvelope),
+// unlike the GCP fixture source which fingerprints labels and members.
+func buildCollectorService(
+	database postgres.SQLDB,
+	configPath string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.Service, error) {
+	cfg, pollInterval, err := loadFixtureConfig(configPath)
+	if err != nil {
+		return collector.Service{}, err
+	}
+	committer := postgres.NewIngestionStore(database)
+	committer.Logger = logger
+	return collector.Service{
+		Source:       &awsruntime.FixtureSource{Config: cfg},
+		Committer:    committer,
+		PollInterval: pollInterval,
+		Tracer:       tracer,
+		Instruments:  instruments,
+		Logger:       logger,
+	}, nil
+}
+
 func buildClaimedService(
 	database postgres.ExecQueryer,
 	getenv func(string) string,

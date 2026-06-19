@@ -2,12 +2,30 @@
 
 ## Purpose
 
-`cmd/collector-aws-cloud` runs the claim-aware AWS cloud collector process. It
-loads an AWS collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`, claims
-bounded `(account_id, region, service_kind)` work items, obtains claim-scoped
-AWS credentials, scans the requested AWS service, records scanner-side status,
-and commits reported facts through the shared ingestion store. A commit wrapper
-records whether the fenced fact transaction reached durable storage.
+`cmd/collector-aws-cloud` runs the AWS cloud collector process in one of two
+modes selected by `-mode` (default `claimed-live`):
+
+- **`claimed-live`** (default) runs the claim-aware collector. It loads an AWS
+  collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`, claims bounded
+  `(account_id, region, service_kind)` work items, obtains claim-scoped AWS
+  credentials, scans the requested AWS service, records scanner-side status, and
+  commits reported facts through the shared ingestion store. A commit wrapper
+  records whether the fenced fact transaction reached durable storage.
+- **`fixture`** runs a fully offline replay. It loads a declarative fixture
+  estate from `-config` and constructs an `awsruntime.FixtureSource` that emits
+  the same `aws_resource` / `aws_relationship` facts as the live scanners, with
+  **no AWS credentials and no network calls**, committed through the shared
+  ingestion store. Used for demos and CI (see
+  `scripts/verify_aws_runtime_drift_compose.sh`).
+
+```bash
+# Offline replay (no credentials):
+collector-aws-cloud -mode fixture \
+  -config go/cmd/collector-aws-cloud/testdata/fixture-estate.json
+```
+
+`-config` is required in fixture mode and rejected in claimed-live mode. Fixture
+mode needs no redaction key.
 
 ## Ownership boundary
 
