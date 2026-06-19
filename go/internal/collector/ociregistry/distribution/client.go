@@ -77,14 +77,25 @@ func NewClient(config ClientConfig) (*Client, error) {
 		username:    config.Username,
 		password:    config.Password,
 		bearerToken: config.BearerToken,
-		client:      client,
 	}
-	installRedirectCredentialPolicy(client, baseURL.Hostname(), c)
+	c.client = clientWithRedirectCredentialPolicy(client, baseURL.Hostname(), c)
 	return c, nil
 }
 
-// installRedirectCredentialPolicy makes per-hop credential handling explicit and
-// deterministic instead of relying on the net/http default redirect heuristic.
+// clientWithRedirectCredentialPolicy returns an *http.Client that applies this
+// Distribution client's per-hop credential policy without mutating the caller's
+// client.
+//
+// The caller's client is often shared across Distribution clients for different
+// registry hosts and credentials (HTTPProvider.HTTPClient is one shared knob for
+// multi-target referrer fetches). Mutating its CheckRedirect would let the first
+// Distribution client capture its registry host and credentials in a closure
+// that every later client then reuses, dropping or misapplying Authorization on
+// valid same-host redirects. To avoid that, this returns a shallow copy of the
+// client that carries a CheckRedirect bound to this client's host and
+// credentials. Transport, Timeout, Jar, and the other fields are preserved by
+// the copy. A caller that already set CheckRedirect keeps full control of its
+// redirect handling, so its policy is left untouched on the copy.
 //
 // Registries such as ECR answer manifest and blob fetches with a redirect to a
 // presigned object-store URL on a different host. The original credential must
@@ -93,14 +104,13 @@ func NewClient(config ClientConfig) (*Client, error) {
 // stores reject an extra Authorization header and forwarding the credential
 // would disclose it. net/http already enforces this in current releases, but it
 // is a version-dependent default; owning the policy here keeps the behavior
-// locked under the package's regression tests. The policy is installed only when
-// the caller did not supply its own CheckRedirect, so an injected client keeps
-// control of its redirect handling.
-func installRedirectCredentialPolicy(client *http.Client, registryHost string, c *Client) {
+// locked under the package's regression tests.
+func clientWithRedirectCredentialPolicy(client *http.Client, registryHost string, c *Client) *http.Client {
 	if client.CheckRedirect != nil {
-		return
+		return client
 	}
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	copied := *client
+	copied.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
 			return fmt.Errorf("stopped after 10 redirects")
 		}
@@ -115,6 +125,7 @@ func installRedirectCredentialPolicy(client *http.Client, registryHost string, c
 		}
 		return nil
 	}
+	return &copied
 }
 
 // Ping validates that the base endpoint speaks the OCI Distribution API or

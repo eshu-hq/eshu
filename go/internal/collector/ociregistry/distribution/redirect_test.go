@@ -134,6 +134,75 @@ func TestClientGetBlobDropsAuthOnCrossHostRedirect(t *testing.T) {
 	}
 }
 
+// TestNewClientDoesNotMutateSharedHTTPClientRedirectPolicy proves two
+// Distribution clients built from one shared *http.Client keep independent
+// per-host redirect credential policies. The first client must not capture its
+// registry host and credentials in a CheckRedirect closure that the second
+// client then inherits, which would drop or misapply Authorization on a valid
+// same-host redirect for the second registry.
+func TestNewClientDoesNotMutateSharedHTTPClientRedirectPolicy(t *testing.T) {
+	t.Parallel()
+
+	const blobDigest = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+	newRegistry := func(user, pass string) (*httptest.Server, *string) {
+		wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+pass))
+		var redirectAuth string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != wantAuth {
+				w.Header().Set("WWW-Authenticate", `Basic realm="ecr"`)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			switch r.URL.Path {
+			case "/v2/team/api/blobs/" + blobDigest:
+				http.Redirect(w, r, "/internal/blob-store/"+blobDigest, http.StatusTemporaryRedirect)
+			case "/internal/blob-store/" + blobDigest:
+				redirectAuth = r.Header.Get("Authorization")
+				w.Header().Set("Content-Type", "application/vnd.cyclonedx+json")
+				_, _ = w.Write([]byte(`{"bomFormat":"CycloneDX"}`))
+			default:
+				t.Errorf("unexpected path %q", r.URL.Path)
+			}
+		}))
+		return server, &redirectAuth
+	}
+
+	// Both registries share one HTTP client, as HTTPProvider.HTTPClient does
+	// across multi-target referrer fetches.
+	shared := &http.Client{}
+
+	registryA, redirectAuthA := newRegistry("AWS", "tok-a")
+	defer registryA.Close()
+	registryB, redirectAuthB := newRegistry("AWS", "tok-b")
+	defer registryB.Close()
+
+	clientA, err := NewClient(ClientConfig{BaseURL: registryA.URL, Username: "AWS", Password: "tok-a", Client: shared})
+	if err != nil {
+		t.Fatalf("NewClient(A) error = %v", err)
+	}
+	clientB, err := NewClient(ClientConfig{BaseURL: registryB.URL, Username: "AWS", Password: "tok-b", Client: shared})
+	if err != nil {
+		t.Fatalf("NewClient(B) error = %v", err)
+	}
+
+	if _, err := clientA.GetBlob(context.Background(), "team/api", blobDigest); err != nil {
+		t.Fatalf("clientA.GetBlob() error = %v (redirectAuth=%q)", err, *redirectAuthA)
+	}
+	if _, err := clientB.GetBlob(context.Background(), "team/api", blobDigest); err != nil {
+		t.Fatalf("clientB.GetBlob() error = %v (redirectAuth=%q)", err, *redirectAuthB)
+	}
+
+	wantA := "Basic " + base64.StdEncoding.EncodeToString([]byte("AWS:tok-a"))
+	wantB := "Basic " + base64.StdEncoding.EncodeToString([]byte("AWS:tok-b"))
+	if *redirectAuthA != wantA {
+		t.Fatalf("registryA same-host redirect auth = %q, want %q", *redirectAuthA, wantA)
+	}
+	if *redirectAuthB != wantB {
+		t.Fatalf("registryB same-host redirect auth = %q, want %q", *redirectAuthB, wantB)
+	}
+}
+
 // rewritingTransport routes requests for synthetic test hostnames to real
 // httptest listeners while preserving the original request Host. It lets a test
 // exercise genuine cross-host redirect behavior over loopback.
