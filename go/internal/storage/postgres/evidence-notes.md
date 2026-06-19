@@ -3,6 +3,31 @@
 Keep this file for scoped evidence that is too detailed for the package
 orientation README.
 
+## Code-Call Symbol Definition JSONB Guards (#3122)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestFactStoreLoadActiveCodeCallSymbolDefinitionFacts' -count=1` failed before
+the loader guarded non-array parsed definition fields, then passed after
+`functions`, `classes`, `structs`, `interfaces`, and `type_aliases` are
+expanded only when `jsonb_typeof(...) = 'array'`. The live Helm proof on the
+public `eshu-hq/eshu` repository exercised 8,681 active file facts with 703
+symbol-definition fact rows; before the fix `code_call_materialization`
+dead-lettered with Postgres `SQLSTATE 22023`, and after the fix it succeeded
+and emitted 139,352 `code_calls` shared intents. The change preserves the
+existing active-generation, tombstone, symbol-key, ordering, and page-limit
+predicates, and treats malformed or JSON-null definition fields as empty
+candidate sets instead of widening graph truth.
+
+No-Observability-Change: #3122 changes only the guarded JSONB expression inside
+the existing active code-call symbol-definition fact read. It adds no table,
+route, queue domain, worker, lease, runtime knob, graph write, metric
+instrument, metric label, span name, or log field. Operators still diagnose
+this path through existing reducer execution spans/counters, the `code call
+materialization completed` log fields (`fact_count`,
+`symbol_definition_fact_count`, `code_call_row_count`, `intent_row_count`, and
+duration fields), reducer queue status, shared-intent backlog counts, and
+existing Postgres query instrumentation.
+
 ## Function Summary Store (#2890)
 
 No-Regression Evidence: `go test ./internal/parser/summary -count=1` and

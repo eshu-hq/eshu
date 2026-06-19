@@ -57,8 +57,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 		"generation.status = 'active'",
 		"fact.fact_kind = 'file'",
 		"fact.is_tombstone = FALSE",
-		"jsonb_array_elements(COALESCE(fact.payload->'parsed_file_data'->'functions'",
-		"jsonb_array_elements(COALESCE(fact.payload->'parsed_file_data'->'type_aliases'",
+		"jsonb_typeof(fact.payload->'parsed_file_data'->'functions') = 'array'",
+		"jsonb_typeof(fact.payload->'parsed_file_data'->'type_aliases') = 'array'",
 		"code_definition.item->>'scip_symbol' = ANY($1::text[])",
 		"code_definition.item->>'package_export_symbol' = ANY($1::text[])",
 		"'package:' || (code_definition.item->>'package_id') || '#'",
@@ -67,6 +67,31 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)
+		}
+	}
+}
+
+func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsGuardsNonArrayDefinitionPayloads(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{}},
+	}
+	store := NewFactStore(db)
+
+	_, err := store.LoadActiveCodeCallSymbolDefinitionFacts(
+		context.Background(),
+		[]string{"scip-go gomod github.com/acme/lib Client#Request()."},
+	)
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+
+	query := db.queries[0].query
+	for _, field := range []string{"functions", "classes", "structs", "interfaces", "type_aliases"} {
+		want := "jsonb_typeof(fact.payload->'parsed_file_data'->'" + field + "') = 'array'"
+		if !strings.Contains(query, want) {
+			t.Fatalf("query must guard %s before jsonb_array_elements; missing %q:\n%s", field, want, query)
 		}
 	}
 }
