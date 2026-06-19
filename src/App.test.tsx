@@ -33,7 +33,11 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Where the graph shows up" })).toBeInTheDocument();
     expect(screen.getAllByText(/22. source languages/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Built for the whole organization" })).toBeInTheDocument();
-    expect(screen.getAllByText(/vulnerability_intelligence/)).toHaveLength(2);
+    // vulnerability_intelligence renders in the always-visible proof card; its
+    // other use is in the eshu-list command output, shown only when selected.
+    expect(
+      screen.getByText(/vulnerability_intelligence collector at promotion_state/)
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "First prompts by role" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Read more" })).toBeInTheDocument();
   });
@@ -51,7 +55,12 @@ describe("App", () => {
     expect(screen.getByText(/Trace status: partial/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Security analyst" }));
-    expect(screen.getByText(/Findings: 7/)).toBeInTheDocument();
+    expect(
+      screen.getByText("list_supply_chain_impact_findings")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Which of my workloads are affected by CVE-2025-13465/)
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Unmanaged resources" }));
     expect(screen.getByText(/aws_s3_bucket.legacy-payment-logs/)).toBeInTheDocument();
