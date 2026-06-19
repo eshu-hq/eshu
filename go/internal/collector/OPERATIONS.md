@@ -12,10 +12,10 @@ README.
 - `ESHU_LARGE_REPO_FILE_THRESHOLD` (default `1000`) classifies repositories for
   the large-repo semaphore. The classification is a fast pre-scan that exits
   early once the threshold is exceeded.
-- `SCIP_WORKERS` (default `1`) bounds concurrent SCIP language/subtree indexer
-  runs inside one repository snapshot. Keep it at `1` for memory-constrained
-  hosts; raise it only when host CPU and memory can absorb multiple
-  compiler-grade indexers at once.
+- `SCIP_WORKERS` (default `4`) bounds concurrent SCIP language/subtree indexer
+  runs inside one repository snapshot. Set it to `1` only for
+  memory-constrained hosts; keep it aligned with CPU and memory headroom because
+  each slot may run a compiler-grade indexer.
 - Repo-local `.eshu/discovery.json` and `.eshu/vendor-roots.json` override
   default discovery options before the operator-level
   `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` overlay is applied.
@@ -73,9 +73,11 @@ README.
   existing fallback semantics.
 - Performance Evidence: focused local SCIP worker benchmark command:
   `go test ./internal/collector -run '^$' -bench BenchmarkSCIPLanguageSubtreeWorkers -benchtime=1x -benchmem -count=1`.
-  On 2026-06-18 on Apple M4 Pro, the four-subtree synthetic SCIP fixture
-  measured `workers_1` at 24.324 ms/op, 7.46 KB/op, 86 allocs/op and
-  `workers_4` at 6.506 ms/op, 11.34 KB/op, 102 allocs/op.
+  On 2026-06-19 on Apple M4 Pro, the four-subtree synthetic SCIP fixture
+  measured `workers_1` at 25.520 ms/op, 7.44 KB/op, 86 allocs/op and
+  `workers_4` at 6.569 ms/op, 11.69 KB/op, 104 allocs/op. The bounded #2998
+  slice keeps SCIP inside the repository snapshot parse stage but removes the
+  serial default for language/package-root indexer runs.
 - Observability Evidence: SCIP worker fan-out reuses
   `eshu_dp_scip_snapshot_attempts_total{language,result}` and bounded fallback
   logs. It adds no repository path, subtree, or process ID metric labels.
@@ -121,11 +123,13 @@ README.
   canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
   unless their query contracts change.
 - SCIP indexing defaults on for `python,typescript,javascript,go,rust,java,cpp,c`
-  when the matching `scip-*` binary is available. Set `SCIP_INDEXER=false`, `0`,
-  `no`, or `off` for native-only parsing, or set `SCIP_LANGUAGES` to narrow the
-  SCIP language. Missing binaries, indexer/parser failures, or selected files
-  absent from `index.scip` fall back to native parser output. No-Regression
-  Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
+  when the matching `scip-*` binary is available, with `SCIP_WORKERS=4` for
+  bounded language/subtree fan-out. Set `SCIP_INDEXER=false`, `0`, `no`, or
+  `off` for native-only parsing, set `SCIP_LANGUAGES` to narrow the SCIP
+  language, or set `SCIP_WORKERS=1` for memory-constrained serial fallback.
+  Missing binaries, indexer/parser failures, or selected files absent from
+  `index.scip` fall back to native parser output. No-Regression Evidence:
+  `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
   Observability Evidence: bounded SCIP fallback logs name language, reason, and
   failure class; parse logs, metrics, and fact counters diagnose fallback.
 - Terraform-state ingestion currently uses explicit sources and Git-observed

@@ -53,11 +53,12 @@
 // later declared/applied/observed coverage truth.
 // SCIP indexing is enabled by default when a selected file group's external
 // scip-* binary is available, and explicit SCIP_INDEXER=false/off/0/no keeps
-// native-only parsing. SCIP groups run sequentially by bounded language
-// priority and package/workspace root, then supplement native parser output
-// with call facts for matching files only. SCIP must not shrink the discovered
-// parser file set: files selected by discovery but omitted from index.scip
-// still parse through the native parser and emit normal content facts.
+// native-only parsing. SCIP groups are planned by bounded language priority and
+// package/workspace root, then run through a bounded worker pool before
+// supplementing native parser output with call facts for matching files only.
+// SCIP must not shrink the discovered parser file set: files selected by
+// discovery but omitted from index.scip still parse through the native parser
+// and emit normal content facts.
 // Value-flow catalog content hashes are freshness-only snapshot metadata: they
 // retrigger gated taint analysis when matcher rules change without streaming
 // extra facts or changing gate-off snapshots.

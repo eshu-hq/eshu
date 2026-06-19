@@ -25,6 +25,7 @@ func TestSCIPSnapshotRunsEachSupportedLanguageSubtree(t *testing.T) {
 	config := LoadSnapshotSCIPConfig(func(string) string {
 		return ""
 	})
+	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
 		results: map[string]parser.SCIPParseResult{
@@ -88,6 +89,7 @@ func TestSCIPSnapshotRunsSameLanguagePackageSubtrees(t *testing.T) {
 	config := LoadSnapshotSCIPConfig(func(string) string {
 		return ""
 	})
+	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
 		resultsByRoot: map[string]parser.SCIPParseResult{
@@ -151,6 +153,7 @@ func TestSCIPSnapshotSameLanguageSubtreeFailurePreservesOtherRoots(t *testing.T)
 	config := LoadSnapshotSCIPConfig(func(string) string {
 		return ""
 	})
+	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
 		resultsByRoot: map[string]parser.SCIPParseResult{
@@ -205,6 +208,7 @@ func TestSCIPSnapshotLanguageSubtreeFallbackPreservesOtherLanguages(t *testing.T
 	config := LoadSnapshotSCIPConfig(func(string) string {
 		return ""
 	})
+	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
 		results: map[string]parser.SCIPParseResult{

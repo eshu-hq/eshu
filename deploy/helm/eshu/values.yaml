@@ -866,6 +866,7 @@ exposure:
 ingester:
   replicas: 1
   revisionHistoryLimit: 3
+  scipWorkers: 4
   env: {}
   connectionTuning:
     postgres:

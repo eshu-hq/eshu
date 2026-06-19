@@ -98,6 +98,12 @@ spec:
               value: {{ .Values.repoSync.source.cloneDepth | quote }}
             - name: ESHU_REPO_LIMIT
               value: {{ .Values.repoSync.source.limit | quote }}
+            {{- $globalEnv := default (dict) .Values.env }}
+            {{- $ingesterEnv := default (dict) .Values.ingester.env }}
+            {{- if and (not (hasKey $globalEnv "SCIP_WORKERS")) (not (hasKey $ingesterEnv "SCIP_WORKERS")) }}
+            - name: SCIP_WORKERS
+              value: {{ .Values.ingester.scipWorkers | quote }}
+            {{- end }}
             {{- if gt (.Values.ingester.replicas | int) 1 }}
             - name: ESHU_REPO_SHARD_COUNT
               value: {{ .Values.ingester.replicas | quote }}

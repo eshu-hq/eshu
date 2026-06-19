@@ -111,6 +111,9 @@ func TestBuildIngesterCollectorServiceUsesNativeSnapshotter(t *testing.T) {
 	if !snapshotter.SCIP.Enabled {
 		t.Fatal("buildIngesterCollectorService() SCIP enabled by default = false, want true")
 	}
+	if got, want := snapshotter.SCIP.Workers, 4; got != want {
+		t.Fatalf("buildIngesterCollectorService() SCIP workers = %d, want %d", got, want)
+	}
 }
 
 func TestBuildIngesterCollectorServiceUsesWebhookSelectorWithoutScheduledFallback(t *testing.T) {
