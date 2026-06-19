@@ -51,6 +51,8 @@ spec:
               value: {{ .Values.nornicdb.ports.http | quote }}
             - name: NORNICDB_BOLT_PORT
               value: {{ .Values.nornicdb.ports.bolt | quote }}
+            - name: NORNICDB_ADDRESS
+              value: {{ .Values.nornicdb.bindAddress | quote }}
             {{- include "eshu.renderEnvMap" .Values.nornicdb.env | nindent 12 }}
           ports:
             - name: http

@@ -53,6 +53,7 @@ single-cluster installs:
 ```yaml
 nornicdb:
   enabled: true
+  bindAddress: 0.0.0.0
 
 neo4j:
   uri: bolt://eshu-nornicdb:7687

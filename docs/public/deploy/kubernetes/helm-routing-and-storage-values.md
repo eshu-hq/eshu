@@ -31,7 +31,23 @@ Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and
-`GOMEMLIMIT=48GiB`.
+`GOMEMLIMIT=48GiB`. The chart preserves the image entrypoint and sets
+`NORNICDB_ADDRESS` from `nornicdb.bindAddress`; the default `0.0.0.0` makes the
+charted HTTP and Bolt ports reachable through the ClusterIP Service.
+
+No-Regression Evidence: Helm render proof on Kubernetes 1.32 showed the
+bundled NornicDB Deployment preserves the pinned image entrypoint, sets
+`NORNICDB_ADDRESS=0.0.0.0`, and exposes the charted HTTP and Bolt ports through
+the Service. A Linux amd64 Docker proof with the same pinned backend image and
+entrypoint-preserving environment reached HTTP health and accepted a Bolt TCP
+connection through published ports. This changes only the Kubernetes startup
+contract for the bundled graph backend; it does not change Eshu queue workers,
+graph query text, reducer batching, or API/MCP read paths.
+
+No-Observability-Change: the chart keeps the existing NornicDB HTTP health
+probes, named `http` and `bolt` container ports, and the existing Service
+targetPorts. Operators still diagnose this path through the same pod readiness,
+container logs, Service endpoints, and graph-backed Eshu readiness checks.
 
 The bundled NornicDB deployment is the canonical graph lane. Search index
 persistence is off because BM25/vector indexing is disabled for the graph lane.
