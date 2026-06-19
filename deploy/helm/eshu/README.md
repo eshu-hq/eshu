@@ -134,13 +134,14 @@ partition throughput, retries, and dead-letter diagnosis.
 
 Performance Evidence: charted ingesters render `SCIP_WORKERS=4` from
 `ingester.scipWorkers` by default so SCIP language/package-root indexing no
-longer runs serially unless an operator explicitly sets the value to `1`. The
-render contract is covered by `go test ./internal/runtime -run
-'TestHelmIngesterRendersSCIPWorkers(Default|Override)' -count=1`; focused
-collector proof on 2026-06-19 used
+longer runs serially unless an operator explicitly sets the value to `1`, while
+the runtime limiter caps external SCIP indexer processes across concurrent
+repository snapshots. The render contract is covered by `go test
+./internal/runtime -run 'TestHelmIngesterRendersSCIPWorkers(Default|Override)'
+-count=1`; focused collector proof on 2026-06-19 used
 `go test ./internal/collector -run '^$' -bench BenchmarkSCIPLanguageSubtreeWorkers -benchtime=1x -benchmem -count=1`
-and measured the four-subtree synthetic SCIP fixture at `workers_1` 25.520
-ms/op and `workers_4` 6.569 ms/op on Apple M4 Pro.
+and measured the four-subtree synthetic SCIP fixture at `workers_1` 25.367
+ms/op and `workers_4` 6.388 ms/op on Apple M4 Pro.
 
 No-Observability-Change: this chart value renders only the existing
 `SCIP_WORKERS` runtime knob. Operators diagnose SCIP progress and fallback

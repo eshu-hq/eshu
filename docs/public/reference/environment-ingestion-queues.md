@@ -42,7 +42,7 @@ queue, or graph-write evidence.
 | `ESHU_BOOTSTRAP_PACKAGE_LANGUAGE` | unset | collector | Dependency package language. |
 | `SCIP_INDEXER` | `true` | collector snapshotter | Enables SCIP supplement indexing when selected language package or workspace roots have matching `scip-*` binaries available. Set `false`, `0`, `no`, or `off` to force native-only parsing. Outcome volume is visible through `eshu_dp_scip_snapshot_attempts_total{language,result}`. |
 | `SCIP_LANGUAGES` | `python,typescript,javascript,go,rust,java,cpp,c` | collector snapshotter | Comma-separated SCIP language allowlist. Narrow this list to keep native parsing complete while limiting which language package or workspace roots can run SCIP. |
-| `SCIP_WORKERS` | `4` | collector snapshotter | Bounded concurrent SCIP language/subtree indexer runs per repository snapshot. Set to `1` for memory-constrained serial fallback; keep higher values aligned with host CPU and memory because each slot may run a compiler-grade indexer. |
+| `SCIP_WORKERS` | `4` | collector snapshotter | Bounded concurrent SCIP language/subtree indexer processes across the ingester snapshotter, including concurrent repository snapshots. Set to `1` for memory-constrained serial fallback; keep higher values aligned with host CPU and memory because each slot may run a compiler-grade indexer. |
 
 ## Incremental Refresh
 

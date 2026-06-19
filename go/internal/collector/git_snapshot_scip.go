@@ -22,6 +22,8 @@ type SnapshotSCIPConfig struct {
 	Workers   int
 	Indexer   scipProjectIndexer
 	Parser    scipResultParser
+
+	processLimiter chan struct{}
 }
 
 type scipProjectIndexer interface {
@@ -45,10 +47,12 @@ func LoadSnapshotSCIPConfig(getenv func(string) string) SnapshotSCIPConfig {
 			}
 		}
 	}
+	workers := scipWorkersFromEnv(getenv("SCIP_WORKERS"))
 	return SnapshotSCIPConfig{
-		Enabled:   scipEnabledFromEnv(getenv("SCIP_INDEXER")),
-		Languages: languages,
-		Workers:   scipWorkersFromEnv(getenv("SCIP_WORKERS")),
+		Enabled:        scipEnabledFromEnv(getenv("SCIP_INDEXER")),
+		Languages:      languages,
+		Workers:        workers,
+		processLimiter: make(chan struct{}, workers),
 	}
 }
 
@@ -75,6 +79,18 @@ func scipWorkersFromEnv(raw string) int {
 		return defaultSnapshotSCIPWorkers
 	}
 	return workers
+}
+
+func (c SnapshotSCIPConfig) acquireProcess(ctx context.Context) (func(), error) {
+	if c.processLimiter == nil {
+		return func() {}, nil
+	}
+	select {
+	case c.processLimiter <- struct{}{}:
+		return func() { <-c.processLimiter }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (s NativeRepositorySnapshotter) scipConfig() SnapshotSCIPConfig {

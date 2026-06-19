@@ -187,8 +187,9 @@ valid only for `explicit` or `filesystem` source modes, not `githubOrg`.
 
 `ingester.scipWorkers` defaults to `4` and renders `SCIP_WORKERS` for the
 ingester. This keeps SCIP language/package-root indexing concurrent by default
-inside the repository snapshot parse stage while preserving `SCIP_WORKERS=1` as
-an explicit serial fallback for memory-constrained deployments.
+while capping external SCIP indexer processes across concurrent repository
+snapshots. `SCIP_WORKERS=1` remains the explicit serial fallback for
+memory-constrained deployments.
 
 Set `ingester.replicas` above `1` to run charted horizontal ingesters. The
 chart maps `ESHU_REPO_SHARD_COUNT` to the replica count and maps
