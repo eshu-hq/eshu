@@ -335,7 +335,8 @@ claim/execute spans for the value-flow evidence domains.
 - `LoadDiscoveryOptionsFromEnv(getenv)` — parses `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
   and `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS`
 - `LoadSnapshotSCIPConfig(getenv)` — parses the SCIP env contract
-- `SnapshotSCIPConfig` — `Enabled`, `Languages`, `Indexer`, `Parser`
+- `SnapshotSCIPConfig` — `Enabled`, `Languages`, `Indexer`, `Parser`,
+  `Workers`
 - `DiscoveryAdvisoryReport` — operator-facing JSON summary of discovery and
   materialization shape per snapshot run
 - `RegistryFailure` — bounded registry collector error type that carries

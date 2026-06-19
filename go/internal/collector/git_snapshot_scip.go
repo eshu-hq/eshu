@@ -13,6 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+const defaultSnapshotSCIPWorkers = 4
+
 // SnapshotSCIPConfig captures the optional SCIP runtime contract for the Go collector.
 type SnapshotSCIPConfig struct {
 	Enabled   bool
@@ -66,11 +68,11 @@ func scipEnabledFromEnv(raw string) bool {
 func scipWorkersFromEnv(raw string) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return 1
+		return defaultSnapshotSCIPWorkers
 	}
 	workers, err := strconv.Atoi(raw)
 	if err != nil || workers < 1 {
-		return 1
+		return defaultSnapshotSCIPWorkers
 	}
 	return workers
 }

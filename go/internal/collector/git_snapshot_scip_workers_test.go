@@ -20,10 +20,11 @@ func TestLoadSnapshotSCIPConfigParsesWorkers(t *testing.T) {
 		raw  string
 		want int
 	}{
-		{name: "empty", raw: "", want: 1},
+		{name: "empty", raw: "", want: 4},
+		{name: "single_worker_override", raw: "1", want: 1},
 		{name: "positive", raw: "3", want: 3},
-		{name: "zero", raw: "0", want: 1},
-		{name: "invalid", raw: "many", want: 1},
+		{name: "zero", raw: "0", want: 4},
+		{name: "invalid", raw: "many", want: 4},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -40,6 +41,18 @@ func TestLoadSnapshotSCIPConfigParsesWorkers(t *testing.T) {
 				t.Fatalf("Workers = %d, want %d", got, test.want)
 			}
 		})
+	}
+}
+
+func TestLoadSnapshotSCIPConfigDefaultsToConcurrentWorkers(t *testing.T) {
+	t.Parallel()
+
+	config := LoadSnapshotSCIPConfig(func(string) string {
+		return ""
+	})
+
+	if got, want := config.Workers, 4; got != want {
+		t.Fatalf("Workers = %d, want concurrent default %d", got, want)
 	}
 }
 

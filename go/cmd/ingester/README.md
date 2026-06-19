@@ -201,7 +201,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_DISABLE_NEO4J | — | Force local-lightweight writer when true |
 | SCIP_INDEXER | true | Enable external SCIP indexers when the selected language binary is available; set false/0/no/off for native-only parsing |
 | SCIP_LANGUAGES | python,typescript,javascript,go,rust,java,cpp,c | Languages eligible for SCIP indexing |
-| SCIP_WORKERS | 1 | Bounded concurrent SCIP language/subtree indexer runs per repository snapshot |
+| SCIP_WORKERS | 4 | Bounded concurrent SCIP language/subtree indexer runs per repository snapshot |
 | ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION | — | Fault-injection: scope generation ID for one-shot retry |
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED | false | Check queued webhook refresh triggers before scheduled repository polling |
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
