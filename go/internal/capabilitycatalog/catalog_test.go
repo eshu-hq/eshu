@@ -374,6 +374,7 @@ func TestRealSpecsReachabilityRows(t *testing.T) {
 		{"reachability.python.value_flow", MaturityGated, "internal/parser/python/pydataflow"},
 		{"reachability.typescript.value_flow", MaturityGated, "internal/parser/javascript/jsdataflow"},
 		{"reachability.javascript.value_flow", MaturityGated, "internal/parser/javascript/jsdataflow"},
+		{"reachability.java.value_flow", MaturityGated, "internal/parser/java"},
 		{"reachability.jvm.bounded", MaturityPreview, "internal/reducer"},
 	}
 	for _, tc := range cases {
@@ -407,7 +408,7 @@ func TestRealSpecsReachabilityRows(t *testing.T) {
 
 	// Gated value_flow rows must be unsupported in every profile until the
 	// operator opts in; the gate state cannot be expressed by the matrix.
-	for _, id := range []string{"reachability.python.value_flow", "reachability.typescript.value_flow", "reachability.javascript.value_flow"} {
+	for _, id := range []string{"reachability.python.value_flow", "reachability.typescript.value_flow", "reachability.javascript.value_flow", "reachability.java.value_flow"} {
 		entry := byID[id]
 		if entry.DerivedMaturity != MaturityNotImplemented {
 			t.Errorf("%s derived_maturity = %q, want not_implemented (gated off by default)", id, entry.DerivedMaturity)

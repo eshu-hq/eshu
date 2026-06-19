@@ -3699,6 +3699,77 @@
       "console": true
     },
     {
+      "capability": "reachability.java.value_flow",
+      "display_name": "Java Reachability (value flow)",
+      "owner_package": "internal/parser/java",
+      "maturity": "gated",
+      "derived_maturity": "not_implemented",
+      "maturity_reason": "Java value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in.",
+      "surfaces": [
+        {
+          "tool": "explain_supply_chain_impact",
+          "kind": "mcp"
+        },
+        {
+          "tool": "list_supply_chain_impact_findings",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "integration_test",
+          "ref": "local-authoritative-unsupported-java-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-full-stack-unsupported-java-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-java-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "prod-unsupported-java-value-flow-reachability"
+        }
+      ],
+      "known_gaps": [
+        "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+      ],
+      "linked_issues": [
+        3021,
+        2704,
+        2705,
+        3069
+      ],
+      "docs": [
+        "reference/vulnerability-scanner-confidence.md"
+      ],
+      "console": false
+    },
+    {
       "capability": "reachability.javascript.value_flow",
       "display_name": "JavaScript Reachability (value flow)",
       "owner_package": "internal/parser/javascript/jsdataflow",
