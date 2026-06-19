@@ -20,6 +20,7 @@ import {
   ListChecks,
   Network,
   PackageSearch,
+  Route as RouteIcon,
   Search,
   ServerCog,
   ShieldCheck,
@@ -64,6 +65,7 @@ import { TopologyPage } from "./pages/TopologyPage";
 import { DeadCodePage } from "./pages/DeadCodePage";
 import { CodeGraphPage } from "./pages/CodeGraphPage";
 import { ImpactPage } from "./pages/ImpactPage";
+import { ExposurePathPage } from "./pages/ExposurePathPage";
 import { CICDRunCorrelationsPage } from "./pages/CICDRunCorrelationsPage";
 import { ChangedSincePage } from "./pages/ChangedSincePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
@@ -87,6 +89,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/ask", label: "Ask Eshu", icon: Search },
       { to: "/impact", label: "Impact", icon: Network },
+      { to: "/exposure", label: "Exposure Path", icon: RouteIcon },
       { to: "/changed-since", label: "Changed Since", icon: History },
       { to: "/explorer", label: "Graph Explorer", icon: GitBranch },
       { to: "/service-story", label: "Service Story", icon: Waypoints },
@@ -348,6 +351,7 @@ export function App(): React.JSX.Element {
             <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/ask" element={<AskPage client={client} repositories={repositories} />} />
             <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
+            <Route path="/exposure" element={<ExposurePathPage client={client} />} />
             <Route path="/changed-since" element={<ChangedSincePage client={client} />} />
             <Route path="/explorer" element={<ExplorerPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/service-story" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />

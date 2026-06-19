@@ -1,0 +1,161 @@
+.exposure-query {
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 240px) minmax(160px, 240px) 120px auto;
+}
+
+.exposure-result {
+  display: grid;
+  gap: var(--gap);
+}
+
+.exposure-badges {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.exposure-badge-group {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.exposure-badge-label {
+  color: var(--subtle);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.exposure-truth {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.exposure-paths {
+  display: grid;
+  gap: var(--gap);
+}
+
+.exposure-path-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.exposure-chain {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.exposure-chain-node {
+  align-items: flex-start;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  margin: 4px 0;
+  padding: 8px 12px;
+  position: relative;
+}
+
+/* Directional connector between chain nodes. The arrow is decorative; the
+   ordered list + node text carry the meaning for assistive tech. */
+.exposure-chain-node:not(:last-child)::after {
+  align-self: center;
+  color: var(--subtle);
+  content: "\2192";
+  margin: 0 6px;
+  position: relative;
+}
+
+.exposure-chain {
+  align-items: center;
+}
+
+.exposure-node-kind {
+  color: var(--subtle);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.exposure-node-name {
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.exposure-chain-internet {
+  border-color: color-mix(in oklab, var(--ember) 45%, transparent);
+}
+
+.exposure-chain-network {
+  border-color: color-mix(in oklab, var(--med) 42%, transparent);
+}
+
+.exposure-chain-sink {
+  border-color: color-mix(in oklab, var(--crit) 50%, transparent);
+}
+
+.exposure-reason {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 14px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.exposure-unresolved-panel {
+  border-color: color-mix(in oklab, var(--med) 38%, var(--line));
+}
+
+.exposure-unresolved-lead {
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.exposure-coverage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.exposure-coverage span {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  padding: 5px 8px;
+}
+
+.exposure-coverage .exposure-truncated {
+  border-color: color-mix(in oklab, var(--med) 40%, transparent);
+  color: var(--med);
+}
+
+@media (max-width: 1180px) {
+  .exposure-query {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .exposure-query {
+    grid-template-columns: 1fr;
+  }
+}
