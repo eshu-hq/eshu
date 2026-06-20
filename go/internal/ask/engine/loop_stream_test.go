@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
+	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // TestAskStream_ForwardsTokenDeltas verifies that AskStream forwards token
@@ -38,6 +39,13 @@ func TestAskStream_ForwardsTokenDeltas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	// Prose token deltas are gated on the governed narration posture. Enable it
+	// so the forwarding path is exercised. (The scripted narration completion is
+	// not valid JSON, so narrate leaves Narrated=false and Prose unchanged —
+	// which is what lets this test assert on the raw streamed prose.)
+	eng.SetNarrationPosture(func() status.AnswerNarrationStatus {
+		return status.AnswerNarrationStatus{State: status.AnswerNarrationAvailable}
+	})
 
 	var tokenEvents []StreamEvent
 	var traceEvents []StreamEvent
@@ -78,6 +86,63 @@ func TestAskStream_ForwardsTokenDeltas(t *testing.T) {
 	}
 	if ans.Usage.InputTokens != 8 || ans.Usage.OutputTokens != 6 {
 		t.Errorf("usage = %+v, want input=8 output=6", ans.Usage)
+	}
+}
+
+// TestAskStream_GatesProseWhenNarrationClosed verifies the governance gate: when
+// the narration posture is not Available (the default-closed state), AskStream
+// must NOT emit prose token deltas — otherwise SSE clients would receive
+// unvalidated LLM prose that the JSON path suppresses (Narrated=false). Tool
+// lifecycle (trace) events still stream, and the final Answer is unchanged.
+func TestAskStream_GatesProseWhenNarrationClosed(t *testing.T) {
+	t.Parallel()
+
+	turn1 := provider.Completion{
+		ToolCalls: []provider.ToolCall{
+			{ID: "c1", Name: "find_code", Arguments: map[string]any{"q": "x"}},
+		},
+	}
+	turn2 := provider.Completion{Text: "here is the answer"}
+
+	adapter := &scriptedStreamingAdapter{
+		turns:       []provider.Completion{turn1, turn2},
+		tokenDeltas: [][]string{nil, {"here is ", "the answer"}},
+	}
+	runner := &recordingRunner{env: supportedEnvelope()}
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// No SetNarrationPosture call: posture defaults to Unavailable (closed).
+
+	var tokenEvents, traceEvents []StreamEvent
+	ans, err := eng.AskStream(context.Background(), "what is x?", func(ev StreamEvent) {
+		switch ev.Kind {
+		case KindToken:
+			tokenEvents = append(tokenEvents, ev)
+		case KindTraceEntry:
+			traceEvents = append(traceEvents, ev)
+		}
+	})
+	if err != nil {
+		t.Fatalf("AskStream: %v", err)
+	}
+
+	// The leak is closed: zero prose token events when narration is not allowed.
+	if len(tokenEvents) != 0 {
+		t.Errorf("token events = %d, want 0 (narration closed)", len(tokenEvents))
+	}
+	// Tool-lifecycle streaming is unaffected.
+	if len(traceEvents) != 1 {
+		t.Errorf("trace events = %d, want 1", len(traceEvents))
+	}
+	// The final answer is still assembled; it is just not narrated.
+	if ans.Narrated {
+		t.Error("Narrated = true, want false when narration posture is closed")
+	}
+	if len(ans.Trace) != 1 || ans.Trace[0].Tool != "find_code" {
+		t.Errorf("ans.Trace = %+v, want one find_code entry", ans.Trace)
 	}
 }
 

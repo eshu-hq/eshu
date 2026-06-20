@@ -143,6 +143,7 @@ func parseOpenAICompatStream(body interface {
 		toolCallIdx  []int
 		finishReason string
 		usage        openAICompatUsage
+		sawDone      bool
 	)
 
 	scanner := bufio.NewScanner(body)
@@ -153,6 +154,7 @@ func parseOpenAICompatStream(body interface {
 		}
 		payload := strings.TrimPrefix(line, "data: ")
 		if payload == "[DONE]" {
+			sawDone = true
 			break
 		}
 
@@ -189,8 +191,10 @@ func parseOpenAICompatStream(body interface {
 					ID:   tc.ID,
 					Type: tc.Type,
 					Function: openAICompatToolCallFunction{
-						Name:      tc.Function.Name,
-						Arguments: "",
+						Name: tc.Function.Name,
+						// Preserve any argument bytes that arrive in this first
+						// chunk; later chunks append to them.
+						Arguments: tc.Function.Arguments,
 					},
 				}
 				toolCallIdx = append(toolCallIdx, tc.Index)
@@ -217,6 +221,13 @@ func parseOpenAICompatStream(body interface {
 	}
 	if err := scanner.Err(); err != nil {
 		return Completion{}, fmt.Errorf("ask/provider: openai-compat stream read: %w", err)
+	}
+	// A well-formed stream terminates with "data: [DONE]". Reaching EOF without
+	// it means the connection dropped mid-stream (after the HTTP 200), so the
+	// accumulated text/tool calls are incomplete. Fail rather than return a
+	// truncated completion as if it were successful.
+	if !sawDone {
+		return Completion{}, fmt.Errorf("ask/provider: openai-compat stream ended before [DONE] terminator")
 	}
 
 	// Assemble the final completion from accumulated state.

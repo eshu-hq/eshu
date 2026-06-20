@@ -140,6 +140,67 @@ func TestOpenAICompatCompleteStream_ToolCall(t *testing.T) {
 	}
 }
 
+// TestOpenAICompatCompleteStream_RejectsStreamWithoutDONE verifies that a stream
+// which delivers content and then ends (EOF) without the "data: [DONE]"
+// terminator — a mid-stream disconnect after HTTP 200 — is treated as an error
+// rather than a successful (but truncated) completion.
+func TestOpenAICompatCompleteStream_RejectsStreamWithoutDONE(t *testing.T) {
+	t.Parallel()
+
+	body := `data: {"choices":[{"delta":{"content":"partial answer"},"finish_reason":null}],"usage":null}` + "\n\n"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body)) // no "data: [DONE]" — connection just ends
+	}))
+	defer srv.Close()
+
+	adapter := newOpenAICompatAdapter(srv.URL, "key", "model", srv.Client())
+	_, err := adapter.CompleteStream(t.Context(), []Message{{Role: RoleUser, Text: "hi"}}, nil, func(StreamEvent) {})
+	if err == nil {
+		t.Fatal("expected error for stream ending before [DONE], got nil")
+	}
+	if !strings.Contains(err.Error(), "[DONE]") {
+		t.Errorf("error = %v, want a missing-[DONE] terminator error", err)
+	}
+}
+
+// TestOpenAICompatCompleteStream_PreservesFirstToolArgDelta verifies that when
+// the first streamed tool-call chunk carries argument bytes alongside the id and
+// name, those bytes are not dropped when the entry is created.
+func TestOpenAICompatCompleteStream_PreservesFirstToolArgDelta(t *testing.T) {
+	t.Parallel()
+
+	// First chunk: id + name + the opening argument bytes together.
+	// Second chunk: the remaining argument bytes. Both must survive to parse.
+	body := `data: {"choices":[{"delta":{"content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"list_repos","arguments":"{\"limit\":"}}]},"finish_reason":null}],"usage":null}` + "\n\n" +
+		`data: {"choices":[{"delta":{"content":null,"tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"10}"}}]},"finish_reason":null}],"usage":null}` + "\n\n" +
+		`data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}` + "\n\n" +
+		`data: [DONE]` + "\n\n"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	adapter := newOpenAICompatAdapter(srv.URL, "key", "model", srv.Client())
+	comp, err := adapter.CompleteStream(t.Context(), []Message{{Role: RoleUser, Text: "hi"}}, nil, func(StreamEvent) {})
+	if err != nil {
+		// Without the fix, the first chunk's `{"limit":` is dropped, leaving the
+		// unparseable `10}`, which surfaces here as a malformed-arguments error.
+		t.Fatalf("CompleteStream error: %v", err)
+	}
+	if len(comp.ToolCalls) != 1 {
+		t.Fatalf("ToolCalls = %d, want 1", len(comp.ToolCalls))
+	}
+	if v, ok := comp.ToolCalls[0].Arguments["limit"]; !ok || v != float64(10) {
+		t.Errorf("Arguments[limit] = %v (ok=%v), want 10 — first arg delta was dropped", v, ok)
+	}
+}
+
 // TestOpenAICompatCompleteStream_ProviderError verifies that a non-2xx HTTP
 // status from the provider returns an error and the error message contains only
 // the status code (never the raw response body).

@@ -110,16 +110,22 @@ engine runs. Event sequence:
 
 | Event          | Data payload                                                             |
 |----------------|-------------------------------------------------------------------------|
-| `token`        | `{"delta":"string"}` — one per provider text token delta (streaming only) |
+| `token`        | `{"delta":"string"}` — one per provider text token delta (only when governed narration is enabled) |
 | `trace`        | `{"tool":"string","supported":bool,"truth_class":"string"}` — one per completed tool call |
 | `answer`       | Full JSON response identical to the 200 JSON path                       |
 | `error`        | `{"state":"unavailable","reason":"string"}` — on engine failure         |
 | `done`         | `{}` — end-of-stream marker                                             |
 
-`token` events are emitted live as the provider streams assistant text.
+`token` events carry assistant prose and are therefore subject to the same
+default-closed governance as `answer_prose`: they are emitted **only when the
+governed answer-narration posture is available** for the request. When narration
+is not enabled (the default), no `token` events are sent — clients receive the
+live `trace` events plus the final governed `answer` (whose `answer_prose` is
+present only when `Narrated` is true). This keeps the SSE and JSON paths
+consistent and prevents unvalidated LLM prose from reaching the client.
 When the adapter does not support streaming (e.g. a synchronous-only profile),
 the handler falls back to a synchronous run and emits `trace`, `answer`, and
-`done` without `token` events. Clients should handle both cases.
+`done` without `token` events. Clients should handle all cases.
 
 Disabled endpoint (`h.Asker == nil`) or validation failures (empty question,
 bad JSON) are returned as plain JSON with the appropriate HTTP status code

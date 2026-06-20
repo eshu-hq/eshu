@@ -6,6 +6,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // StreamEvent is the handler-layer streaming event emitted by AskStream.
@@ -68,6 +69,16 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		return Answer{}, ErrNoStreaming
 	}
 
+	// Resolve the governed narration posture once, up front, and reuse it for
+	// both the prose-token gate and the final narration decision so the two
+	// agree for this request. Narration is default-closed: streaming raw
+	// provider prose token-by-token would bypass that gate, because the JSON
+	// path suppresses answer_prose when Narrated is false. So prose token deltas
+	// are emitted only when narration is available; tool-lifecycle events stream
+	// regardless, and the governed prose is delivered once in the final answer.
+	posture := e.resolveNarrationPosture()
+	narrationAllowed := posture.State == status.AnswerNarrationAvailable
+
 	messages := []provider.Message{
 		{Role: provider.RoleSystem, Text: e.opts.SystemPrompt},
 		{Role: provider.RoleUser, Text: question},
@@ -78,7 +89,9 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		comp, err := sa.CompleteStream(ctx, messages, e.tools, func(ev provider.StreamEvent) {
 			switch ev.Kind {
 			case provider.StreamEventToken:
-				emit(StreamEvent{Kind: KindToken, TextDelta: ev.TextDelta})
+				if narrationAllowed {
+					emit(StreamEvent{Kind: KindToken, TextDelta: ev.TextDelta})
+				}
 			case provider.StreamEventToolCallStarted:
 				emit(StreamEvent{
 					Kind:       KindToolCallStarted,
@@ -97,7 +110,6 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		if len(comp.ToolCalls) == 0 {
 			// Final turn: model produced prose with no further tool calls.
 			ans.Prose = comp.Text
-			posture := e.resolveNarrationPosture()
 			e.narrate(ctx, &ans, posture)
 			return ans, nil
 		}
@@ -129,7 +141,6 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 	if ans.Prose == "" {
 		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
 	}
-	posture := e.resolveNarrationPosture()
 	e.narrate(ctx, &ans, posture)
 	return ans, nil
 }
