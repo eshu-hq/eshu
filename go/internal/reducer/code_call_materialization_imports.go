@@ -194,6 +194,26 @@ func resolveImportedCrossFileCallee(
 					return entityID, index.entityFileByID[entityID]
 				}
 			}
+			if entityID, calleeFile := resolvePythonImportedRepositorySymbolTarget(
+				index,
+				language,
+				rawPath,
+				relativePath,
+				target.importSource,
+				paths,
+				target.symbolName,
+			); entityID != "" {
+				return entityID, calleeFile
+			}
+		}
+		if entityID, calleeFile := resolvePythonImportedSourceCandidateTarget(
+			index,
+			language,
+			rawPath,
+			relativePath,
+			target,
+		); entityID != "" {
+			return entityID, calleeFile
 		}
 		if entityID, calleeFile := resolveReexportedCrossFileCallee(
 			index,

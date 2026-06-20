@@ -83,6 +83,11 @@ func resolveGenericCallee(
 		codeCallHasRepositoryImportedTargetBinding(repositoryImports, rawPath, relativePath, fileData, call) {
 		return "", "", ""
 	}
+	if language == "python" &&
+		codeCallPrefersImportedTargetBeforeRepoFallback(call, language) &&
+		codeCallHasExplicitImportedTarget(fileData, call) {
+		return "", "", ""
+	}
 	if codeCallLanguageResolverBlocksRepoFallback(ctx) {
 		return "", "", ""
 	}
