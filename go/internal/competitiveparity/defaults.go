@@ -58,8 +58,18 @@ func DefaultExpectations() []Expectation {
 			APIRoutes: []string{
 				"GET /api/v0/investigation-workflows",
 				"POST /api/v0/investigation-workflows/resolve",
+				"GET /api/v0/investigations/supply-chain/impact/packet",
+				"GET /api/v0/investigations/deployable-unit/packet",
+				"GET /api/v0/investigations/drift/packet",
 			},
-			MCPTools: []string{"list_investigation_workflows", "resolve_investigation_workflow"},
+			MCPTools: []string{
+				"list_investigation_workflows",
+				"resolve_investigation_workflow",
+				"export_supply_chain_impact_packet",
+				"export_deployable_unit_packet",
+				"export_cloud_runtime_drift_packet",
+			},
+			ConsolePages: []string{"VulnDetailPage", "CloudDriftPage"},
 			Exercises: []string{
 				"investigation_evidence_packet_artifact",
 				"evidence_packet_dogfood_fixture",
@@ -82,10 +92,9 @@ func DefaultExpectations() []Expectation {
 			}, {
 				Number: 3143,
 				Reason: "Evidence packet dogfood benchmark and scorer.",
-			}},
-			ResidualIssues: []IssueRef{{
+			}, {
 				Number: 3238,
-				Reason: "Expose investigation evidence packets through every target surface.",
+				Reason: "Packet API, MCP, and console surfaces shipped across every target surface.",
 			}},
 		},
 		{
