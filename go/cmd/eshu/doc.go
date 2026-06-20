@@ -27,7 +27,10 @@
 // which scores a captured `first-run --json` envelope against the
 // first-five-minutes onboarding criteria and rejects a health-only "answer";
 // `answer-quality-scorecard`, which scores captured redacted answer evidence
-// across API, MCP, CLI, and hosted surfaces; `competitive-parity validate`,
+// across API, MCP, CLI, and hosted surfaces; `evidence bundle export|validate`,
+// which writes and validates deterministic share-safe evidence_bundle.v1
+// snapshots across answer, packet, catalog, freshness, missing-evidence, and
+// reproduce handles; `competitive-parity validate`,
 // which checks shipped report, packet, and catalog surfaces against the #3265
 // peer-baseline gate; and `report`, which renders the offline operator digest
 // model and can write a shareable digest artifact),
