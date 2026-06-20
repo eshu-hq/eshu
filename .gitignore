@@ -102,3 +102,6 @@ todo.md
 # Claude Code per-user overrides; .claude/settings.json is committed so the
 # project hook works for everyone who clones.
 .claude/settings.local.json
+
+# Stray compiled cmd binaries from a bare `go build ./cmd/<name>` (build to a tmp dir instead)
+/go/capability-inventory
