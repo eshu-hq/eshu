@@ -110,6 +110,39 @@ func TestManifestMatchesPackageContract(t *testing.T) {
 	}
 }
 
+func TestDraftIndexMatchesPackageContract(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("community-extension-index.draft.yaml")
+	if err != nil {
+		t.Fatalf("os.ReadFile(community-extension-index.draft.yaml) error = %v, want nil", err)
+	}
+	var index communityExtensionIndex
+	if err := yaml.Unmarshal(raw, &index); err != nil {
+		t.Fatalf("yaml.Unmarshal(community-extension-index.draft.yaml) error = %v, want nil", err)
+	}
+	if len(index.Entries) != 1 {
+		t.Fatalf("index entries = %d, want 1", len(index.Entries))
+	}
+	entry := index.Entries[0]
+	if got, want := entry.ComponentID, ComponentID; got != want {
+		t.Fatalf("entry.componentId = %q, want %q", got, want)
+	}
+	indexFacts := map[string][]string{}
+	for _, fact := range entry.EmittedFacts {
+		indexFacts[fact.Kind] = fact.SourceConfidence
+	}
+	for _, declaration := range Contract().Facts {
+		confidences, ok := indexFacts[declaration.Kind]
+		if !ok {
+			t.Fatalf("index missing emitted fact %q", declaration.Kind)
+		}
+		if !slices.Equal(confidences, []string{string(sdk.SourceConfidenceReported)}) {
+			t.Fatalf("index fact %q sourceConfidence = %v, want [reported]", declaration.Kind, confidences)
+		}
+	}
+}
+
 func TestReferenceDoesNotImportEshuCoreInternals(t *testing.T) {
 	t.Parallel()
 
@@ -224,4 +257,14 @@ type componentManifest struct {
 			MetricsPrefix string `yaml:"metricsPrefix"`
 		} `yaml:"telemetry"`
 	} `yaml:"spec"`
+}
+
+type communityExtensionIndex struct {
+	Entries []struct {
+		ComponentID  string `yaml:"componentId"`
+		EmittedFacts []struct {
+			Kind             string   `yaml:"kind"`
+			SourceConfidence []string `yaml:"sourceConfidence"`
+		} `yaml:"emittedFacts"`
+	} `yaml:"entries"`
 }

@@ -118,9 +118,9 @@ entries:
     version: 0.1.0
     lifecycleChannel: community-maintained
     installable: true
-    manifestDigest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    manifestDigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     artifacts:
-      - image: ghcr.io/example/scorecard@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      - image: ghcr.io/example/scorecard@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
     compatibleCore: ">=0.0.5 <0.2.0"
     componentType: collector
     collectorKinds:
@@ -144,10 +144,24 @@ entries:
     provenance:
       required: true
       mode: sigstore
-      signature: sigstore:sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      signature: sigstore:sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
     conformance:
       schemaVersion: eshu.extension.conformance.v1
       status: passed
       proofUri: https://github.com/example/eshu-scorecard-collector/actions/runs/1234567890
+    publication:
+      status: published
+    compatibilityBadge:
+      manifestApiVersion: eshu.dev/v1alpha1
+      manifestDigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      compatibleCore: ">=0.0.5 <0.2.0"
+      artifactDigest: sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+      signatureStatus: signed
+      provenanceStatus: verified
+      runtimeProtocol: collector-sdk/v1alpha1
+      adapter: process
+      conformanceProofUri: https://github.com/example/eshu-scorecard-collector/actions/runs/1234567890
+      conformanceStatus: passed
+      policyResult: installable
 `
 }

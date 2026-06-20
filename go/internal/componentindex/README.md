@@ -13,9 +13,10 @@ This package owns index document validation only. It checks entry metadata,
 digest pins, lifecycle channels, duplicate component IDs, duplicate fact-kind
 claims, schema-version shape, source-confidence vocabulary, reducer consumer
 contracts, signature/provenance references, conformance proof references and
-status, review links, and revoked installable entries. It does not pull OCI
-artifacts, inspect GitHub topics, verify Sigstore provenance, mutate the local
-component registry, or bypass `component.Policy`.
+status, publication state, compatibility badge metadata, review links, and
+revoked installable entries. It does not pull OCI artifacts, inspect GitHub
+topics, verify Sigstore provenance, mutate the local component registry, or
+bypass `component.Policy`.
 
 ## Exported surface
 
@@ -25,9 +26,9 @@ stable `IssueCode` values for maintainer tooling.
 
 ## Dependencies
 
-The package currently uses only the Go standard library. It intentionally does
-not import registry, network, or GitHub clients, keeping verifier behavior
-offline and deterministic.
+The package uses the Go standard library, semver parsing, and local fact
+vocabulary helpers. It intentionally does not import registry, network, or
+GitHub clients, keeping verifier behavior offline and deterministic.
 
 ## Telemetry
 
@@ -49,6 +50,9 @@ spans, logs, or status fields.
 - Index entries must point at reducer consumer metadata, signature evidence, and
   passed conformance proof artifacts before they can be treated as
   publication-ready metadata.
+- Draft publication entries may record pending signature and provenance status,
+  but published entries must not use placeholder digests or pending badge
+  evidence.
 - Revocation wins over installable state.
 
 ## Related docs
