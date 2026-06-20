@@ -1,0 +1,282 @@
+package askwiring
+
+import (
+	"log/slog"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/ask/catalog"
+	"github.com/eshu-hq/eshu/go/internal/ask/engine"
+	"github.com/eshu-hq/eshu/go/internal/ask/governance"
+	"github.com/eshu-hq/eshu/go/internal/ask/provider"
+	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/mcp"
+	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
+	"github.com/eshu-hq/eshu/go/internal/status"
+)
+
+// EnvAskEnabled is the environment variable that enables the Ask Eshu endpoint.
+// Default is false (disabled). Set to "true" to enable.
+const EnvAskEnabled = "ESHU_ASK_ENABLED"
+
+// EnvAskNarrationEnabled is the environment variable that enables governed
+// answer narration. Both ESHU_ASK_ENABLED and ESHU_ASK_NARRATION_ENABLED must
+// be "true" for narration to be permitted; either alone is insufficient.
+//
+// Default: false (narration is default-closed).
+const EnvAskNarrationEnabled = "ESHU_ASK_NARRATION_ENABLED"
+
+// HandlerResult bundles the HTTP handler with a setter for the governed
+// narration posture. The setter is a no-op when the engine was not built
+// (adapter or engine construction failed).
+type HandlerResult struct {
+	Handler    *query.AskHandler
+	SetPosture func(func() status.AnswerNarrationStatus)
+}
+
+// AdapterReady reports whether the engine was successfully constructed. It is
+// used by callers to derive the ProviderConfigured gate in the narration
+// posture, ensuring the status endpoint reflects real runtime capability rather
+// than mere profile presence.
+func (r HandlerResult) AdapterReady() bool { return r.Handler.Asker != nil }
+
+// BuildAskHandler constructs a [query.AskHandler] for POST /api/v0/ask.
+//
+// Returns a HandlerResult with a nil-Asker handler (default-off → 503
+// unavailable) and a no-op SetPosture in any of the following cases:
+//   - ESHU_ASK_ENABLED is not "true"
+//   - No agent_reasoning provider profile is configured
+//   - The provider adapter cannot be constructed (logged at WARN)
+//   - The engine cannot be constructed (logged at WARN)
+//
+// When all conditions are met and the engine is built, returns a fully-wired
+// handler whose SetPosture injects the governed posture into the engine.
+// inProcessHandler must be the fully-mounted application mux; the engine's
+// MCPRunner dispatches tool calls in-process through it.
+//
+// Callers MUST call SetPosture after BuildNarrationPosture so the engine
+// narrates only when ResolvePosture returns Available (default-closed). The
+// narration posture must be built using AdapterReady() from this result so that
+// ProviderConfigured reflects whether the adapter was actually constructed.
+func BuildAskHandler(
+	getenv func(string) string,
+	inProcessHandler http.Handler,
+	apiKey string,
+	logger *slog.Logger,
+) HandlerResult {
+	noop := func(func() status.AnswerNarrationStatus) {}
+	h := &query.AskHandler{Logger: logger}
+
+	if !IsAskEnabled(getenv) {
+		return HandlerResult{Handler: h, SetPosture: noop}
+	}
+
+	profile, ok := ResolveAgentReasoningProfile(getenv, logger)
+	if !ok {
+		return HandlerResult{Handler: h, SetPosture: noop}
+	}
+
+	adapt, err := provider.NewAdapter(profile, getenv)
+	if err != nil {
+		if logger != nil {
+			logger.Warn("ask: provider adapter construction failed; ask unavailable",
+				"err_type", "provider_adapter")
+		}
+		return HandlerResult{Handler: h, SetPosture: noop}
+	}
+
+	cat, err := buildAskCatalog()
+	if err != nil {
+		if logger != nil {
+			logger.Warn("ask: catalog build failed; ask unavailable",
+				"err_type", "catalog_build")
+		}
+		return HandlerResult{Handler: h, SetPosture: noop}
+	}
+
+	tools := toolsetExcludingAsk(cat)
+
+	// The bearer token used by the in-process runner to authorize MCP tool
+	// calls on behalf of the system (shared-token path).
+	authHeader := ""
+	if apiKey != "" {
+		authHeader = "Bearer " + apiKey
+	}
+
+	runner := engine.NewMCPRunner(inProcessHandler, authHeader, logger)
+
+	eng, err := engine.New(adapt, runner, tools, engine.DefaultOptions())
+	if err != nil {
+		if logger != nil {
+			logger.Warn("ask: engine construction failed; ask unavailable",
+				"err_type", "engine_construction")
+		}
+		return HandlerResult{Handler: h, SetPosture: noop}
+	}
+
+	h.Asker = &engineAsker{eng: eng}
+	// Expose a setter so the caller can inject the posture after it is built
+	// from AdapterReady(). The engine is captured by closure; the setter is
+	// safe to call exactly once before serving requests.
+	return HandlerResult{
+		Handler:    h,
+		SetPosture: eng.SetNarrationPosture,
+	}
+}
+
+// BuildNarrationPosture constructs a func that resolves the current governed
+// answer-narration posture from runtime configuration. The returned func is
+// safe to call concurrently and reads only from the closed-over values, so it
+// can be shared between the engine and the status endpoint.
+//
+// adapterReady must reflect whether the ask provider adapter was ACTUALLY
+// successfully constructed (i.e. provider.NewAdapter succeeded). A profile
+// that is present in JSON but whose credential env var is unset will fail
+// adapter construction; in that case adapterReady must be false so the status
+// endpoint reports ProviderUnavailable rather than Available.
+//
+// Gate derivation (v1):
+//   - ProviderConfigured     = adapterReady (adapter was actually built).
+//   - ProviderTrafficEnabled = ESHU_ASK_ENABLED=true AND ESHU_ASK_NARRATION_ENABLED=true.
+//   - PolicyAllowed          = same as ProviderTrafficEnabled (v1 conservative default).
+//   - BudgetAvailable        = same as ProviderTrafficEnabled (v1 conservative default).
+//   - PublishSafetyEnabled   = same as ProviderTrafficEnabled (v1 conservative default).
+//
+// The posture is default-CLOSED: if any gate is false, ResolvePosture returns
+// a non-Available state and the engine will not narrate.
+func BuildNarrationPosture(
+	getenv func(string) string,
+	adapterReady bool,
+) func() status.AnswerNarrationStatus {
+	trafficEnabled := IsAskEnabled(getenv) && IsNarrationEnabled(getenv)
+
+	return func() status.AnswerNarrationStatus {
+		in := governance.PostureInputs{
+			ProviderConfigured:     adapterReady,
+			ProviderTrafficEnabled: trafficEnabled,
+			// v1 conservative wiring: policy, budget, and publish safety are
+			// gated to the same bool as traffic. They are documented as
+			// defaulting to false unless traffic is open, which satisfies the
+			// default-closed requirement while giving operators a single pair
+			// of flags (ESHU_ASK_ENABLED + ESHU_ASK_NARRATION_ENABLED) to
+			// open narration in v1 deployments.
+			PolicyAllowed:        trafficEnabled,
+			BudgetAvailable:      trafficEnabled,
+			PublishSafetyEnabled: trafficEnabled,
+		}
+		return governance.ResolvePosture(in, time.Now().UTC())
+	}
+}
+
+// IsAskEnabled reports whether ESHU_ASK_ENABLED is set to "true".
+func IsAskEnabled(getenv func(string) string) bool {
+	return strings.EqualFold(strings.TrimSpace(getenv(EnvAskEnabled)), "true")
+}
+
+// IsNarrationEnabled reports whether ESHU_ASK_NARRATION_ENABLED is "true".
+func IsNarrationEnabled(getenv func(string) string) bool {
+	return strings.EqualFold(strings.TrimSpace(getenv(EnvAskNarrationEnabled)), "true")
+}
+
+// ResolveAgentReasoningProfile finds the first agent_reasoning provider
+// profile from the JSON config in the environment. Returns (profile, true)
+// when found, (zero, false) otherwise.
+func ResolveAgentReasoningProfile(
+	getenv func(string) string,
+	logger *slog.Logger,
+) (semanticprofile.ProviderProfile, bool) {
+	raw := strings.TrimSpace(getenv(semanticprofile.EnvProviderProfilesJSON))
+	if raw == "" {
+		return semanticprofile.ProviderProfile{}, false
+	}
+	profiles, err := semanticprofile.ParseProfilesJSON(raw)
+	if err != nil {
+		if logger != nil {
+			logger.Warn("ask: cannot parse provider profiles; ask unavailable",
+				"err_type", "profile_parse")
+		}
+		return semanticprofile.ProviderProfile{}, false
+	}
+	for _, p := range profiles {
+		if slices.Contains(p.SourceClasses, semanticprofile.SourceAgentReasoning) {
+			return p, true
+		}
+	}
+	return semanticprofile.ProviderProfile{}, false
+}
+
+// buildAskCatalog parses the embedded surface-inventory artifact into the
+// ask/catalog planner format and annotates it.
+func buildAskCatalog() (*catalog.Catalog, error) {
+	raw := capabilitycatalog.RawSurfaceArtifact()
+	cat, err := catalog.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	cat.Annotate()
+	return cat, nil
+}
+
+// toolsetExcludingAsk builds the engine tool slice from all read-only MCP
+// tools, excluding the "ask" tool itself.
+//
+// Excluding "ask" prevents a recursive engine invocation: the MCP server
+// advertises "ask" as a client-facing tool, and that same tool dispatches POST
+// /api/v0/ask back to the in-process handler. If the engine's toolset includes
+// "ask", a model that selects the tool during an Ask session recursively calls
+// the engine — burning provider calls until the context deadline or a depth
+// limit stops it. Removing "ask" from the engine toolset makes the recursion
+// structurally impossible.
+func toolsetExcludingAsk(cat *catalog.Catalog) []provider.Tool {
+	defs := mcp.ReadOnlyTools()
+	filtered := make([]mcp.ToolDefinition, 0, len(defs))
+	for _, d := range defs {
+		if d.Name == "ask" {
+			continue
+		}
+		filtered = append(filtered, d)
+	}
+	return engine.Toolset(cat, filtered)
+}
+
+// engineAsker adapts *engine.Engine to query.Asker. It lives in askwiring to
+// avoid a cycle: ask/engine imports query; query must not import ask/engine.
+type engineAsker struct {
+	eng *engine.Engine
+}
+
+// Ask implements query.Asker. It forwards the question to the engine using
+// the request context (carries deadline + cancellation).
+func (a *engineAsker) Ask(r *http.Request, question string) (query.AskAnswer, error) {
+	ans, err := a.eng.Ask(r.Context(), question)
+	if err != nil {
+		return query.AskAnswer{}, err
+	}
+	return convertAnswer(ans), nil
+}
+
+// convertAnswer maps engine.Answer to query.AskAnswer without any import of
+// query in ask/engine (the conversion is one-way, caller-side only).
+func convertAnswer(ans engine.Answer) query.AskAnswer {
+	trace := make([]query.AskTraceEntry, len(ans.Trace))
+	for i, t := range ans.Trace {
+		trace[i] = query.AskTraceEntry{
+			Tool:       t.Tool,
+			Args:       t.Args,
+			Supported:  t.Supported,
+			TruthClass: query.AnswerTruthClass(t.TruthClass),
+			Err:        t.Err,
+		}
+	}
+	return query.AskAnswer{
+		Prose:       ans.Prose,
+		Narrated:    ans.Narrated,
+		Packets:     ans.Packets,
+		Trace:       trace,
+		Partial:     ans.Partial,
+		Limitations: ans.Limitations,
+	}
+}
