@@ -18,6 +18,15 @@ import "strings"
 //	pg_read_file       — arbitrary file read from the server filesystem
 //	lo_import          — imports a server-side file as a large object
 //	lo_export          — exports a large object to the server filesystem
+//	nextval            — advances a sequence (write side-effect)
+//	setval             — mutates a sequence (write side-effect)
+//	lo_unlink          — deletes a large object
+//	lo_create          — creates a large object
+//	into               — SELECT * INTO newtable creates a table (write side-effect);
+//	                     whole-word matching means identifiers such as into_account
+//	                     or info_table are NOT affected
+//	pg_advisory_lock / pg_advisory_xact_lock / pg_try_advisory_lock /
+//	pg_try_advisory_xact_lock — session or transaction advisory locks; DoS vector
 //
 // COPY … TO PROGRAM is covered by the COPY token; there is no need to special-
 // case the PROGRAM sub-keyword.
@@ -46,6 +55,10 @@ var sqlDenylist = map[string]struct{}{
 	"BEGIN":    {},
 	"COMMIT":   {},
 	"ROLLBACK": {},
+	// SELECT … INTO creates a table — write side-effect hidden inside SELECT syntax.
+	// No read-only query uses a bare INTO keyword (INSERT INTO is already denied via
+	// INSERT; subquery aliases use AS, not INTO).
+	"INTO": {},
 	// Dangerous built-in functions
 	"PG_SLEEP":             {},
 	"PG_TERMINATE_BACKEND": {},
@@ -53,6 +66,17 @@ var sqlDenylist = map[string]struct{}{
 	"PG_READ_FILE":         {},
 	"LO_IMPORT":            {},
 	"LO_EXPORT":            {},
+	// Sequence-mutation functions (write side-effects callable from SELECT)
+	"NEXTVAL": {},
+	"SETVAL":  {},
+	// Large-object mutation functions
+	"LO_UNLINK": {},
+	"LO_CREATE": {},
+	// Advisory lock functions — session/txn locks are a DoS vector
+	"PG_ADVISORY_LOCK":          {},
+	"PG_ADVISORY_XACT_LOCK":     {},
+	"PG_TRY_ADVISORY_LOCK":      {},
+	"PG_TRY_ADVISORY_XACT_LOCK": {},
 }
 
 // Bounded deny-reason strings for validateSQL. These constants must never echo

@@ -218,6 +218,71 @@ func TestValidateSQL(t *testing.T) {
 			reasonContains: "LO_EXPORT",
 		},
 
+		// ── DENY: SELECT INTO, sequence mutation, large-object, advisory locks ────
+		{
+			// SELECT * INTO newtable FROM t creates a table — write side-effect
+			// hidden inside SELECT syntax (critical bypass).
+			name:           "SELECT INTO creates a table",
+			query:          "SELECT * INTO newtable FROM t",
+			wantAllowed:    false,
+			reasonContains: "INTO",
+		},
+		{
+			// nextval('s') advances a sequence — write side-effect callable from SELECT.
+			name:           "nextval advances a sequence",
+			query:          "SELECT nextval('my_seq')",
+			wantAllowed:    false,
+			reasonContains: "NEXTVAL",
+		},
+		{
+			// setval('s', n) mutates a sequence — write side-effect callable from SELECT.
+			name:           "setval mutates a sequence",
+			query:          "SELECT setval('my_seq', 100)",
+			wantAllowed:    false,
+			reasonContains: "SETVAL",
+		},
+		{
+			name:           "lo_unlink deletes a large object",
+			query:          "SELECT lo_unlink(12345)",
+			wantAllowed:    false,
+			reasonContains: "LO_UNLINK",
+		},
+		{
+			name:           "lo_create creates a large object",
+			query:          "SELECT lo_create(0)",
+			wantAllowed:    false,
+			reasonContains: "LO_CREATE",
+		},
+		{
+			name:           "pg_advisory_lock — session lock DoS vector",
+			query:          "SELECT pg_advisory_lock(1)",
+			wantAllowed:    false,
+			reasonContains: "PG_ADVISORY_LOCK",
+		},
+		{
+			name:           "pg_try_advisory_xact_lock — transaction lock DoS vector",
+			query:          "SELECT pg_try_advisory_xact_lock(1)",
+			wantAllowed:    false,
+			reasonContains: "PG_TRY_ADVISORY_XACT_LOCK",
+		},
+
+		// ── ALLOW: false-positive guards for the new INTO and sequence entries ────
+		{
+			// currval is read-only (reads current sequence value without advancing it)
+			// and must NOT be denied.
+			name:        "currval is read-only and must be allowed",
+			query:       "SELECT currval('my_seq')",
+			wantAllowed: true,
+		},
+		{
+			// into_account and info_table are column/table identifiers whose tokens
+			// (INTO_ACCOUNT, INFO_TABLE) do not equal the bare INTO token. Whole-word
+			// matching must not produce false positives for these identifiers.
+			name:        "identifiers containing 'into' as a substring must not be denied",
+			query:       "SELECT into_account, info_table FROM t",
+			wantAllowed: true,
+		},
+
 		// ── DENY: structural / stacking ───────────────────────────────────────────
 		{
 			name:           "stacked statements",
