@@ -106,11 +106,12 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
 503 (disabled or provider absent). The engine never echoes provider prompts,
 raw provider bodies, or credentials.
 
-**Scoped tokens:** The caller's scoped token is enforced at the query layer;
-the in-process runner only reads surfaces the token is authorised to access.
+**Authentication:** This endpoint requires a **shared token** (admin/full-scope
+`ESHU_API_KEY`). Scoped tokens are not yet enabled for this route and receive
+`403 permission_denied`. Scoped-token support is a planned follow-up.
 
 **Follow-ups (out of scope for this PR):** SSE streaming; Tier-2 Cypher/SQL
-sandbox wiring.
+sandbox wiring; scoped-token support.
 
 ## Related References
 

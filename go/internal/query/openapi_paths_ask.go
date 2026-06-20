@@ -10,7 +10,7 @@ const openAPIPathsAsk = `
       "post": {
         "tags": ["ask"],
         "summary": "Ask Eshu a natural-language question",
-        "description": "Runs the bounded Tier-1 Ask Eshu agent loop for the given free-form question. The engine plans the most efficient retrieval path across NornicDB and Postgres, assembles evidence-backed AnswerPackets, and optionally narrates the result. This endpoint is DEFAULT-OFF: it returns 503 with state 'unavailable' unless ESHU_ASK_ENABLED=true and a valid agent_reasoning provider profile is configured. The caller's scoped token is enforced at the query layer; the engine only reads surfaces the token is authorized to access. SSE streaming and Tier-2 sandbox wiring are planned follow-ups.",
+        "description": "Runs the bounded Tier-1 Ask Eshu agent loop for the given free-form question. The engine plans the most efficient retrieval path across NornicDB and Postgres, assembles evidence-backed AnswerPackets, and optionally narrates the result. This endpoint is DEFAULT-OFF: it returns 503 with state 'unavailable' unless ESHU_ASK_ENABLED=true and a valid agent_reasoning provider profile is configured. Requires a shared token (admin/full-scope ESHU_API_KEY); scoped tokens receive 403 permission_denied because this route is not yet in the scoped-token allowlist. Scoped-token support, SSE streaming, and Tier-2 sandbox wiring are planned follow-ups.",
         "operationId": "ask",
         "requestBody": {
           "required": true,
