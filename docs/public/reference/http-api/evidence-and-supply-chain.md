@@ -237,6 +237,10 @@ themselves become external catalog confirmation. The separate
 returned reducer correlation page contains non-provenance exact or derived
 catalog confirmation; otherwise its `reason` explains local-only, ambiguous,
 missing, not-checked, or unavailable evidence.
+Rows for ambiguous, unresolved, stale, or rejected catalog declarations can also
+include `required_anchor_keys`, a bounded list of accepted proof anchors that
+would let the reducer promote the declaration without relying on catalog names
+alone.
 
 No-Regression Evidence: `go test ./internal/query -run 'TestServiceCatalogListCorrelationsExplains(LocalOnlyDescriptorEvidence|ExternalCatalogMatch|AmbiguousLocalDescriptor|NoEvidence)|TestServiceCatalogLocalDescriptorEvidenceQueryUsesActiveRepositoryScope|TestOpenAPISpecIncludesServiceCatalogCorrelations' -count=1` covers local-only descriptors, external catalog matches, ambiguous repo-local descriptor correlations, no-evidence responses, the active repository-scope source-fact query shape, and the OpenAPI response schema.
 

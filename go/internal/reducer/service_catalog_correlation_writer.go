@@ -129,6 +129,7 @@ func serviceCatalogCorrelationPayload(
 		"drift_status":             decision.DriftStatus,
 		"candidate_repository_ids": uniqueSortedStrings(decision.CandidateRepositoryIDs),
 		"evidence_fact_ids":        uniqueSortedStrings(decision.EvidenceFactIDs),
+		"required_anchor_keys":     append([]string(nil), decision.RequiredAnchorKeys...),
 		"source_layers":            serviceCatalogCorrelationSourceLayers(decision),
 	}
 }

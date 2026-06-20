@@ -177,6 +177,7 @@ when the reducer has a graph orphan observer.
 | `ContainerImageIdentityDecisions` | `eshu_dp_container_image_identity_decisions_total` |
 | `CICDRunCorrelations` | `eshu_dp_ci_cd_run_correlations_total` |
 | `ServiceCatalogCorrelations` | `eshu_dp_service_catalog_correlations_total` |
+| `ServiceCatalogCorrelationGuardrails` | `eshu_dp_service_catalog_correlation_guardrails_total` (labels: bounded `domain`, `guardrail`) |
 | `SearchDecayPolicyApplications` | `eshu_dp_search_decay_policy_applications_total` (labels: bounded `policy_id`, `evidence_class`, `outcome`) |
 | `SecretsIAMReducerTrustChains` | `eshu_dp_secrets_iam_reducer_trust_chains_total` (labels: bounded `result`, `confidence`) |
 | `SecretsIAMPostureObservations` | `eshu_dp_secrets_iam_posture_observations_total` (labels: bounded `risk_type`, `severity`) |

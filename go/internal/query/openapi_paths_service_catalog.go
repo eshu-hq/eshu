@@ -50,7 +50,12 @@ const openAPIPathsServiceCatalog = `
                           "drift_kind": {"type": "string"},
                           "drift_status": {"type": "string"},
                           "candidate_repository_ids": {"type": "array", "items": {"type": "string"}},
-                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
+                          "required_anchor_keys": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Accepted catalog anchor keys that would let a rejected, unresolved, stale, or ambiguous catalog declaration become a durable correlation."
+                          }
                         },
                         "required": ["correlation_id", "outcome", "provenance_only"]
                       }

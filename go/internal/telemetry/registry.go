@@ -21,6 +21,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionEdgeType,
 	MetricDimensionWritePhase,
 	MetricDimensionOutcome,
+	MetricDimensionGuardrail,
 	MetricDimensionPolicyID,
 	MetricDimensionEvidenceClass,
 	MetricDimensionBackendKind,

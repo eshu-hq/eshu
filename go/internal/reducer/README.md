@@ -827,6 +827,11 @@ Key metrics (all prefixed `eshu_dp_`):
   store catalog entity, owner, repository, service/workload IDs when explicitly
   supplied by evidence, drift status, candidate repository IDs, and evidence
   fact IDs for API/MCP freshness checks.
+- `service_catalog_correlation_guardrails_total` — service-catalog admission
+  guardrail events by reducer domain and bounded guardrail
+  (`candidate_fanout`, `dropped_ambiguous_candidate`,
+  `missing_anchor_entity`). It stays separate from the decision counter so
+  correlation outcomes remain closed to admission decisions.
 - `observability_coverage_correlations_total` — observability coverage
   correlation decisions by bounded outcome (`exact`, `derived`, `ambiguous`,
   `unresolved`, `stale`, `rejected`, `drifted`, `permission_hidden`), reducer

@@ -46,3 +46,24 @@ queries, partition lease rows, reducer execution counters, and instrumented
 Postgres query spans/duration metrics. The Postgres lookup is one scoped
 `EXISTS` query over pending `shared_projection_intents`; it does not return
 payload rows for the full acceptance unit.
+
+## Service-Catalog Correlation Fanout Guardrails (#3173)
+
+Contract Evidence: service-catalog correlation decisions now carry
+`required_anchor_keys` on bounded refusal outcomes (`ambiguous`, `unresolved`,
+`stale`, and `rejected`). The required anchors are closed contract names only:
+`repository_id`, canonical repository URL fields, or
+`git-repository-scope:<repo_id>`. The reducer still refuses name-only catalog
+repository claims and ambiguous repository matches; the new field explains the
+missing proof without adding raw repository URLs, repository ids, or provider
+values to metric labels.
+
+Observability Evidence: the handler summary exposes max candidate fanout,
+dropped ambiguous candidates, missing-anchor entities, and required anchor
+keys. `eshu_dp_service_catalog_correlations_total` remains a decision counter
+with only the closed correlation outcomes. Guardrail counts use
+`eshu_dp_service_catalog_correlation_guardrails_total` labeled by bounded
+`guardrail` values (`candidate_fanout`, `dropped_ambiguous_candidate`, and
+`missing_anchor_entity`). Focused verification:
+`go test ./internal/reducer -run 'TestBuildServiceCatalogCorrelation|TestServiceCatalogCorrelation|TestPostgresServiceCatalogCorrelation' -count=1`
+and `go test ./internal/reducer -count=1`.
