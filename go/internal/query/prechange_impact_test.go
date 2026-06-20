@@ -133,6 +133,45 @@ func TestPreChangeImpactAllowsEmptyDiff(t *testing.T) {
 	}
 }
 
+func TestPreChangeImpactRejectsRefsWithoutChangedInput(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{Content: fakePortContentStore{}, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	body := `{"repo_id":"repo-1","base_ref":"main","head_ref":"feature/pre-change"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/pre-change", bytes.NewBufferString(body))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("changed_paths or changes")) {
+		t.Fatalf("error body does not mention changed input requirement: %s", rec.Body.String())
+	}
+}
+
+func TestPreChangeImpactCodeSurfaceBackendUnavailableReturns503(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	body := `{"repo_id":"repo-1","topic":"authentication"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/pre-change", bytes.NewBufferString(body))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusServiceUnavailable; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+}
+
 func TestPreChangeImpactReportsHighFanoutTruncation(t *testing.T) {
 	t.Parallel()
 

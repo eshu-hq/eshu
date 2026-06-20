@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -106,6 +108,58 @@ func TestParseGitNameStatusDiffPreservesDeletedAndRenamedFiles(t *testing.T) {
 	}
 	if got, want := changes[2].Path, "go/new.go"; got != want {
 		t.Fatalf("renamed path = %q, want %q", got, want)
+	}
+}
+
+func TestGitDiffNameStatusDetectsCopiedFiles(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	runGit(t, repoPath, "init")
+	runGit(t, repoPath, "config", "user.email", "test@example.invalid")
+	runGit(t, repoPath, "config", "user.name", "Test User")
+	if err := os.MkdirAll(filepath.Join(repoPath, "go"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "go", "original.go"), []byte("package fixture\n\nfunc Original() {}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(original) error = %v", err)
+	}
+	runGit(t, repoPath, "add", "go/original.go")
+	runGit(t, repoPath, "commit", "-m", "seed original")
+	original, err := os.ReadFile(filepath.Join(repoPath, "go", "original.go"))
+	if err != nil {
+		t.Fatalf("ReadFile(original) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "go", "copy.go"), original, 0o644); err != nil {
+		t.Fatalf("WriteFile(copy) error = %v", err)
+	}
+	runGit(t, repoPath, "add", "go/copy.go")
+
+	changes, err := gitDiffNameStatus(repoPath, "HEAD", "")
+	if err != nil {
+		t.Fatalf("gitDiffNameStatus() error = %v", err)
+	}
+	if got, want := len(changes), 1; got != want {
+		t.Fatalf("len(changes) = %d, want %d: %+v", got, want, changes)
+	}
+	if got, want := changes[0].Status, "copied"; got != want {
+		t.Fatalf("copy status = %q, want %q; changes=%+v", got, want, changes)
+	}
+	if got, want := changes[0].OldPath, "go/original.go"; got != want {
+		t.Fatalf("copy old path = %q, want %q", got, want)
+	}
+	if got, want := changes[0].Path, "go/copy.go"; got != want {
+		t.Fatalf("copy path = %q, want %q", got, want)
+	}
+}
+
+func runGit(t *testing.T, repoPath string, args ...string) {
+	t.Helper()
+
+	cmd := exec.Command("git", append([]string{"-C", repoPath}, args...)...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s error = %v output=%s", strings.Join(args, " "), err, string(out))
 	}
 }
 

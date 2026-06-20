@@ -247,7 +247,7 @@ func fetchChangeImpact(client *APIClient, opts changeImpactOptions) (changeImpac
 }
 
 func gitDiffNameStatus(repoPath, baseRef, headRef string) ([]changeImpactFileChange, error) {
-	args := []string{"-C", repoPath, "diff", "--name-status", "--find-renames"}
+	args := []string{"-C", repoPath, "diff", "--name-status", "--find-renames", "--find-copies", "--find-copies-harder"}
 	switch {
 	case baseRef != "" && headRef != "":
 		args = append(args, baseRef, headRef)

@@ -30,6 +30,9 @@ type preChangeImpactRequest struct {
 	MaxDepth     int                   `json:"max_depth"`
 	Limit        int                   `json:"limit"`
 	Offset       int                   `json:"offset"`
+
+	changedPathsProvided bool
+	changesProvided      bool
 }
 
 type preChangeFileChange struct {
@@ -73,7 +76,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 	}
 	resp, err := h.preChangeImpactResponse(r, normalized)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		WriteError(w, preChangeImpactErrorStatus(err), err.Error())
 		return
 	}
 	truth := BuildTruthEnvelope(
@@ -136,10 +139,20 @@ func normalizePreChangeImpactRequest(req preChangeImpactRequest) (preChangeImpac
 	if len(req.ChangedPaths) > 0 && req.RepoID == "" {
 		return preChangeImpactRequest{}, fmt.Errorf("repo_id is required when changed files are provided")
 	}
+	if refsProvidedWithoutChangedInput(req) && req.Topic == "" && preChangeGraphTarget(req) == "" {
+		return preChangeImpactRequest{}, fmt.Errorf("changed_paths or changes are required when refs are provided")
+	}
 	if len(req.ChangedPaths) == 0 && req.BaseRef == "" && req.HeadRef == "" && req.Topic == "" && preChangeGraphTarget(req) == "" {
 		return preChangeImpactRequest{}, fmt.Errorf("changed files, refs, topic, or target is required")
 	}
 	return req, nil
+}
+
+func refsProvidedWithoutChangedInput(req preChangeImpactRequest) bool {
+	return (req.BaseRef != "" || req.HeadRef != "") &&
+		len(req.Changes) == 0 &&
+		!req.changedPathsProvided &&
+		!req.changesProvided
 }
 
 func normalizePreChangeFileChanges(changes []preChangeFileChange, paths []string) []preChangeFileChange {
@@ -265,7 +278,7 @@ func (h *ImpactHandler) preChangeImpactResponse(
 	changeReq := preChangeAsChangeSurfaceRequest(req)
 	codeSurface, err := h.changeSurfaceCodeSurface(r.Context(), changeReq)
 	if err != nil {
-		return nil, err
+		return nil, preChangeCodeSurfaceError{err: err}
 	}
 
 	var selected *changeSurfaceTargetCandidate
