@@ -64,12 +64,17 @@ record can be checked from package metadata and artifact evidence:
 - revocation state is explicit for component ID, publisher, artifact digest,
   version range, and policy review record.
 
-The community index must fail closed for missing signatures, stale or
-unsupported provenance, mutable artifact tags, unreviewed egress, credential
-value exposure, schema collisions, incompatible core ranges, unsupported runtime
-protocols, absent conformance proof, and revoked identities. Local and hosted
-runtime policy still re-verifies the package before install, enablement, or
-claim-capable work.
+The current community index verifier enforces offline publication metadata:
+digest shape, mutable artifact tags, lifecycle channel, duplicate component and
+fact-kind ownership, review links, conformance status fields, and revoked
+installable entries. It does not perform signature verification, SLSA
+provenance verification, egress execution, runtime protocol negotiation, or
+hosted policy evaluation by itself. Publication review must therefore fail
+closed for missing signatures, stale or unsupported provenance, unreviewed
+egress, credential value exposure, incompatible core ranges, unsupported runtime
+protocols, absent conformance proof, and revoked identities before entries are
+promoted beyond the metadata-only check. Local and hosted runtime policy still
+re-verifies the package before install, enablement, or claim-capable work.
 
 ## Compatibility Badge
 
