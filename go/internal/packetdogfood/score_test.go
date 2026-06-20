@@ -53,9 +53,34 @@ func TestParseBenchmarkRejectsNonPositiveBaseline(t *testing.T) {
 	raw := `{"schema":"evidence_packet_dogfood.v1","run_kind":"fixture","tasks":[
 	  {"name":"t","family":"drift","approaches":[
 	    {"approach":"raw_files","answer_time_ms":0,"found_answer":false,"token_budget":5000},
+	    {"approach":"eshu_tools","answer_time_ms":3000,"found_answer":true,"token_budget":2000},
 	    {"approach":"evidence_packet","answer_time_ms":1,"found_answer":true,"missing_evidence_named":true,"token_budget":1}]}]}`
 	if _, err := ParseBenchmark([]byte(raw)); err == nil {
 		t.Fatal("expected error for a baseline with a non-positive answer_time_ms")
+	}
+}
+
+func TestParseBenchmarkRequiresBothBaselines(t *testing.T) {
+	// A task that omits the eshu_tools baseline must be rejected: the gate cannot
+	// claim the packet beat Eshu tools without measuring that approach.
+	raw := `{"schema":"evidence_packet_dogfood.v1","run_kind":"fixture","tasks":[
+	  {"name":"t","family":"drift","approaches":[
+	    {"approach":"raw_files","answer_time_ms":60000,"found_answer":false,"token_budget":7000},
+	    {"approach":"evidence_packet","answer_time_ms":1300,"found_answer":true,"missing_evidence_named":true,"token_budget":800}]}]}`
+	if _, err := ParseBenchmark([]byte(raw)); err == nil {
+		t.Fatal("expected error for a task missing the eshu_tools baseline")
+	}
+}
+
+func TestParseBenchmarkRejectsUnknownApproach(t *testing.T) {
+	raw := `{"schema":"evidence_packet_dogfood.v1","run_kind":"fixture","tasks":[
+	  {"name":"t","family":"drift","approaches":[
+	    {"approach":"raw_files","answer_time_ms":60000,"found_answer":false,"token_budget":7000},
+	    {"approach":"eshu_tools","answer_time_ms":4000,"found_answer":true,"token_budget":2500},
+	    {"approach":"web_search","answer_time_ms":5000,"found_answer":true,"token_budget":3000},
+	    {"approach":"evidence_packet","answer_time_ms":1300,"found_answer":true,"missing_evidence_named":true,"token_budget":800}]}]}`
+	if _, err := ParseBenchmark([]byte(raw)); err == nil {
+		t.Fatal("expected error for a task with an unsupported approach")
 	}
 }
 

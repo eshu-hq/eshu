@@ -11,10 +11,17 @@ import (
 // exercise per issue #3143. The drift task satisfies the deployable-drift slot.
 var requiredFamilies = []string{"supply_chain_impact", "drift", "service_context"}
 
+// requiredApproaches is the closed set of approaches every task must measure. The
+// packet is the subject under test; raw_files and eshu_tools are the two
+// baselines it must beat. Requiring both baselines prevents a run from claiming
+// the packet beat existing Eshu tools without ever measuring that approach.
+var requiredApproaches = []Approach{ApproachRawFiles, ApproachEshuTools, ApproachEvidencePacket}
+
 // ParseBenchmark decodes and structurally validates a captured benchmark
-// artifact. It rejects an unknown schema, an empty task set, and any task that is
-// missing the evidence_packet approach or a baseline, so Score always operates on
-// a well-formed benchmark.
+// artifact. It rejects an unknown schema, an empty task set, and any task that
+// does not measure exactly the closed approach set (raw_files, eshu_tools,
+// evidence_packet), so Score always operates on a well-formed benchmark with both
+// baselines present.
 //
 // It also rejects any approach with a non-positive answer_time_ms or token_budget.
 // The benchmark gate only proves the packet beats the BEST (fastest, smallest)
@@ -36,11 +43,8 @@ func ParseBenchmark(raw []byte) (Benchmark, error) {
 		if strings.TrimSpace(task.Family) == "" {
 			return Benchmark{}, fmt.Errorf("task %d (%q) has no family", i, task.Name)
 		}
-		if _, ok := packetResult(task); !ok {
-			return Benchmark{}, fmt.Errorf("task %q has no evidence_packet approach", task.Name)
-		}
-		if len(baselineResults(task)) == 0 {
-			return Benchmark{}, fmt.Errorf("task %q has no baseline approach to compare against", task.Name)
+		if err := requireApproaches(task); err != nil {
+			return Benchmark{}, err
 		}
 		for _, approach := range task.Approaches {
 			if approach.AnswerTimeMS <= 0 || approach.TokenBudget <= 0 {
@@ -49,6 +53,43 @@ func ParseBenchmark(raw []byte) (Benchmark, error) {
 		}
 	}
 	return benchmark, nil
+}
+
+// requireApproaches enforces the closed approach vocabulary: every task must
+// measure raw_files, eshu_tools, and evidence_packet exactly once, and may
+// contain no other or duplicate approach. This guarantees both baselines are
+// present before scoring, so the gate can never claim the packet beat a baseline
+// that was never measured.
+func requireApproaches(task Task) error {
+	counts := map[Approach]int{}
+	for _, result := range task.Approaches {
+		counts[result.Approach]++
+	}
+	for _, approach := range requiredApproaches {
+		switch counts[approach] {
+		case 1:
+			// present exactly once
+		case 0:
+			return fmt.Errorf("task %q is missing the %q approach", task.Name, approach)
+		default:
+			return fmt.Errorf("task %q has the %q approach %d times; expected exactly one", task.Name, approach, counts[approach])
+		}
+	}
+	for approach := range counts {
+		if !isRequiredApproach(approach) {
+			return fmt.Errorf("task %q has unsupported approach %q", task.Name, approach)
+		}
+	}
+	return nil
+}
+
+func isRequiredApproach(approach Approach) bool {
+	for _, required := range requiredApproaches {
+		if required == approach {
+			return true
+		}
+	}
+	return false
 }
 
 // Score evaluates a benchmark across the dogfood dimensions and returns a

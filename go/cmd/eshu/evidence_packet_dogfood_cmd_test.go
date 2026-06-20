@@ -16,12 +16,15 @@ const passingDogfoodBenchmark = `{
   "tasks": [
     {"name":"sc","family":"supply_chain_impact","approaches":[
       {"approach":"raw_files","answer_time_ms":50000,"found_answer":false,"missing_evidence_named":false,"token_budget":8000},
+      {"approach":"eshu_tools","answer_time_ms":3800,"found_answer":true,"missing_evidence_named":false,"token_budget":2400},
       {"approach":"evidence_packet","answer_time_ms":1200,"found_answer":true,"missing_evidence_named":true,"token_budget":700}]},
     {"name":"dr","family":"drift","approaches":[
       {"approach":"raw_files","answer_time_ms":60000,"found_answer":false,"missing_evidence_named":false,"token_budget":7000},
+      {"approach":"eshu_tools","answer_time_ms":4100,"found_answer":true,"missing_evidence_named":false,"token_budget":2600},
       {"approach":"evidence_packet","answer_time_ms":1300,"found_answer":true,"missing_evidence_named":true,"token_budget":800}]},
     {"name":"svc","family":"service_context","approaches":[
       {"approach":"raw_files","answer_time_ms":55000,"found_answer":false,"missing_evidence_named":false,"token_budget":6500},
+      {"approach":"eshu_tools","answer_time_ms":4500,"found_answer":true,"missing_evidence_named":false,"token_budget":2500},
       {"approach":"evidence_packet","answer_time_ms":1400,"found_answer":true,"missing_evidence_named":true,"token_budget":900}]}
   ]
 }`
@@ -53,12 +56,9 @@ func TestEvidencePacketDogfoodPasses(t *testing.T) {
 }
 
 func TestEvidencePacketDogfoodFailsAndExitsNonZero(t *testing.T) {
-	// Remove the service_context task to break family coverage.
-	bad := strings.Replace(passingDogfoodBenchmark,
-		`,
-    {"name":"svc","family":"service_context","approaches":[
-      {"approach":"raw_files","answer_time_ms":55000,"found_answer":false,"missing_evidence_named":false,"token_budget":6500},
-      {"approach":"evidence_packet","answer_time_ms":1400,"found_answer":true,"missing_evidence_named":true,"token_budget":900}]}`, "", 1)
+	// Make the supply-chain packet slower than every baseline so it loses the
+	// answer_time dimension: the verdict must render FAILED and exit non-zero.
+	bad := strings.Replace(passingDogfoodBenchmark, `"answer_time_ms":1200`, `"answer_time_ms":999999`, 1)
 	out, err := runDogfoodCmd(t, nil, bad)
 	if err == nil {
 		t.Fatalf("expected non-zero exit for a failing benchmark\n%s", out)
