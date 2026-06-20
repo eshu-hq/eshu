@@ -208,67 +208,6 @@ func (h *AdminHandler) skip(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// replay replays terminally failed fact-projection work items.
-// POST /api/v0/admin/replay
-func (h *AdminHandler) replay(w http.ResponseWriter, r *http.Request) {
-	if h.Store == nil {
-		WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
-		return
-	}
-
-	var req struct {
-		WorkItemIDs  []string `json:"work_item_ids"`
-		ScopeID      string   `json:"scope_id"`
-		Stage        string   `json:"stage"`
-		FailureClass string   `json:"failure_class"`
-		OperatorNote string   `json:"operator_note"`
-		Limit        int      `json:"limit"`
-	}
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if len(req.WorkItemIDs) == 0 &&
-		strings.TrimSpace(req.ScopeID) == "" &&
-		strings.TrimSpace(req.Stage) == "" &&
-		strings.TrimSpace(req.FailureClass) == "" {
-		WriteError(w, http.StatusBadRequest,
-			"at least one selector is required: work_item_ids, scope_id, stage, or failure_class")
-		return
-	}
-
-	limit := req.Limit
-	if limit <= 0 {
-		limit = 100
-	}
-
-	items, err := h.Store.ReplayFailedWorkItems(r.Context(), ReplayWorkItemFilter{
-		WorkItemIDs:  req.WorkItemIDs,
-		ScopeID:      strings.TrimSpace(req.ScopeID),
-		Stage:        strings.TrimSpace(req.Stage),
-		FailureClass: strings.TrimSpace(req.FailureClass),
-		OperatorNote: strings.TrimSpace(req.OperatorNote),
-		Limit:        limit,
-	})
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay: %v", err))
-		return
-	}
-
-	ids := make([]string, 0, len(items))
-	for _, item := range items {
-		ids = append(ids, item.WorkItemID)
-	}
-
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"status":         "replayed",
-		"replayed_count": len(items),
-		"work_item_ids":  ids,
-		"replayed":       workItemsToSlice(items),
-	})
-}
-
 // backfill creates one durable operator backfill request.
 // POST /api/v0/admin/backfill
 func (h *AdminHandler) backfill(w http.ResponseWriter, r *http.Request) {

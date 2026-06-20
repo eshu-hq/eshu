@@ -417,6 +417,7 @@ func newRouter(
 		},
 		Admin: &query.AdminHandler{
 			Store: query.NewPostgresAdminStore(db),
+			Audit: adminRecoveryAuditAppender(governanceAudit),
 		},
 	}
 	if db == nil {

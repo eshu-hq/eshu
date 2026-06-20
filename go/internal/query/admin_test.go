@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
@@ -48,6 +49,16 @@ type stubAdminStore struct {
 	skipErr       error
 	replayed      []AdminWorkItem
 	replayErr     error
+	replayFilter  ReplayWorkItemFilter
+	claim         ReplayIdempotencyClaim
+	claimErr      error
+	claimKey      string
+	claimCalls    int
+	completeErr   error
+	completedKey  string
+	completed     bool
+	abandoned     bool
+	abandonedKey  string
 	backfillRow   *AdminBackfillRequest
 	backfillErr   error
 	replayEvents  []AdminReplayEvent
@@ -70,8 +81,27 @@ func (s *stubAdminStore) SkipRepositoryWorkItems(_ context.Context, _ string, _ 
 	return s.skipped, s.skipErr
 }
 
-func (s *stubAdminStore) ReplayFailedWorkItems(_ context.Context, _ ReplayWorkItemFilter) ([]AdminWorkItem, error) {
+func (s *stubAdminStore) ReplayFailedWorkItems(_ context.Context, f ReplayWorkItemFilter) ([]AdminWorkItem, error) {
+	s.replayFilter = f
 	return s.replayed, s.replayErr
+}
+
+func (s *stubAdminStore) ClaimReplayIdempotency(_ context.Context, key, _ string, _ time.Time) (ReplayIdempotencyClaim, error) {
+	s.claimCalls++
+	s.claimKey = key
+	return s.claim, s.claimErr
+}
+
+func (s *stubAdminStore) CompleteReplayIdempotency(_ context.Context, key string, _ int, _ []string, _ time.Time) error {
+	s.completed = true
+	s.completedKey = key
+	return s.completeErr
+}
+
+func (s *stubAdminStore) AbandonReplayIdempotency(_ context.Context, key string) error {
+	s.abandoned = true
+	s.abandonedKey = key
+	return nil
 }
 
 func (s *stubAdminStore) RequestBackfill(_ context.Context, _ BackfillInput) (*AdminBackfillRequest, error) {

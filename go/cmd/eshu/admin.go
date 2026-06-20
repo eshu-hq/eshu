@@ -1,6 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 )
 
@@ -71,7 +76,12 @@ func init() {
 		RunE:  runAdminFactsReplay,
 	}
 	replayCmd.Flags().String("work-item-id", "", "Specific work item ID")
-	replayCmd.Flags().String("repository-id", "", "Filter by repository ID")
+	replayCmd.Flags().String("scope-id", "", "Filter by ingestion scope ID")
+	replayCmd.Flags().String("stage", "", "Filter by stage (projector|reducer)")
+	replayCmd.Flags().String("failure-class", "", "Filter by failure class")
+	replayCmd.Flags().String("reason", "", "Required: why this replay is safe")
+	replayCmd.Flags().String("idempotency-key", "", "Idempotency key; one is generated when empty")
+	replayCmd.Flags().Bool("force", false, "Replay unsafe failure classes after addressing the cause")
 	replayCmd.Flags().Int("limit", 25, "Maximum items to replay")
 	addRemoteFlags(replayCmd)
 	adminFactsCmd.AddCommand(replayCmd)
@@ -195,15 +205,43 @@ func runAdminFactsDecisions(cmd *cobra.Command, args []string) error {
 
 func runAdminFactsReplay(cmd *cobra.Command, args []string) error {
 	workItemID, _ := cmd.Flags().GetString("work-item-id")
-	repoID, _ := cmd.Flags().GetString("repository-id")
+	scopeID, _ := cmd.Flags().GetString("scope-id")
+	stage, _ := cmd.Flags().GetString("stage")
+	failureClass, _ := cmd.Flags().GetString("failure-class")
+	reason, _ := cmd.Flags().GetString("reason")
+	idempotencyKey, _ := cmd.Flags().GetString("idempotency-key")
+	force, _ := cmd.Flags().GetBool("force")
 	limit, _ := cmd.Flags().GetInt("limit")
-	client := apiClientFromCmd(cmd)
-	body := map[string]any{"limit": limit}
-	if workItemID != "" {
-		body["work_item_id"] = workItemID
+
+	if strings.TrimSpace(reason) == "" {
+		return fmt.Errorf("--reason is required and must explain why the replay is safe")
 	}
-	if repoID != "" {
-		body["repository_id"] = repoID
+	if strings.TrimSpace(idempotencyKey) == "" {
+		generated, err := newReplayIdempotencyKey()
+		if err != nil {
+			return err
+		}
+		idempotencyKey = generated
+	}
+
+	client := apiClientFromCmd(cmd)
+	body := map[string]any{
+		"limit":           limit,
+		"reason":          reason,
+		"idempotency_key": idempotencyKey,
+		"force":           force,
+	}
+	if workItemID != "" {
+		body["work_item_ids"] = []string{workItemID}
+	}
+	if scopeID != "" {
+		body["scope_id"] = scopeID
+	}
+	if stage != "" {
+		body["stage"] = stage
+	}
+	if failureClass != "" {
+		body["failure_class"] = failureClass
 	}
 	var result any
 	if err := client.Post("/api/v0/admin/replay", body, &result); err != nil {
@@ -211,6 +249,16 @@ func runAdminFactsReplay(cmd *cobra.Command, args []string) error {
 	}
 	printJSON(result)
 	return nil
+}
+
+// newReplayIdempotencyKey returns a random key so repeated CLI invocations do
+// not accidentally collide while a single invocation stays retry-safe.
+func newReplayIdempotencyKey() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate idempotency key: %w", err)
+	}
+	return "cli-replay-" + hex.EncodeToString(buf), nil
 }
 
 func runAdminFactsDeadLetter(cmd *cobra.Command, args []string) error {

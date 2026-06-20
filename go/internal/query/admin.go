@@ -51,6 +51,9 @@ type AdminStore interface {
 	DeadLetterWorkItems(ctx context.Context, f DeadLetterFilter) ([]AdminWorkItem, error)
 	SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]AdminWorkItem, error)
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]AdminWorkItem, error)
+	ClaimReplayIdempotency(ctx context.Context, key, fingerprint string, now time.Time) (ReplayIdempotencyClaim, error)
+	CompleteReplayIdempotency(ctx context.Context, key string, count int, workItemIDs []string, now time.Time) error
+	AbandonReplayIdempotency(ctx context.Context, key string) error
 	RequestBackfill(ctx context.Context, input BackfillInput) (*AdminBackfillRequest, error)
 	ListReplayEvents(ctx context.Context, f ReplayEventFilter) ([]AdminReplayEvent, error)
 	ListDecisions(ctx context.Context, f DecisionQueryFilter) ([]AdminDecisionRow, error)
@@ -122,6 +125,10 @@ type ReplayWorkItemFilter struct {
 	FailureClass string
 	OperatorNote string
 	Limit        int
+	// ExcludeFailureClasses skips terminal work items whose failure_class is in
+	// this set. The replay handler populates it with the unsafe-to-replay
+	// classes unless the operator forces the replay.
+	ExcludeFailureClasses []string
 }
 
 // BackfillInput captures the parameters for a backfill request.
@@ -154,6 +161,20 @@ type AdminHandler struct {
 	Recovery  RecoveryService
 	Reindexer ReindexRequester
 	Store     AdminStore
+	// Audit records governance audit events for mutating recovery actions.
+	// A nil appender disables audit recording (the action still proceeds).
+	Audit GovernanceAuditAppender
+	// Clock supplies the current time for idempotency bookkeeping; nil uses
+	// time.Now().UTC().
+	Clock func() time.Time
+}
+
+// now returns the handler clock, defaulting to the wall clock.
+func (h *AdminHandler) now() time.Time {
+	if h.Clock != nil {
+		return h.Clock()
+	}
+	return time.Now().UTC()
 }
 
 // Mount registers all admin routes on the given mux.
