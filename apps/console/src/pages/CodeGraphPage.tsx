@@ -5,13 +5,14 @@ import { loadCodeImportCycles } from "../api/codeImports";
 import type { CodeImportCycleRow } from "../api/codeImports";
 import { loadDeadCodePage } from "../api/deadCode";
 import { EshuEnvelopeError } from "../api/envelope";
-import { codeRelationshipsToGraph } from "../api/eshuGraph";
-import type { CodeRelationshipsResponse } from "../api/eshuGraph";
+import { codeRelationshipsToGraph, codeRelationshipStoryToGraph, mergeGraphSourceMetadata } from "../api/eshuGraph";
+import type { CodeRelationshipsResponse, CodeRelationshipStoryCoverage, CodeRelationshipStoryResponse } from "../api/eshuGraph";
 import { loadRepositoryNameMap } from "../api/repoCatalog";
 import type { ConsoleModel, FindingRow, GraphModel, GraphNode } from "../console/types";
 import { fmt } from "../console/types";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { Badge, Panel, StatTile } from "../components/atoms";
+import { RelationshipTruthPanel } from "./RelationshipTruthPanel";
 
 interface ImportCycleState {
   readonly status: "idle" | "loading" | "ready" | "error";
@@ -28,6 +29,8 @@ const emptyImportCycleState: ImportCycleState = {
   truncated: false,
   nextOffset: null
 };
+
+const CODE_RELATIONSHIP_TYPES = ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO"] as const;
 
 export function CodeGraphPage({ model, client }: {
   readonly model: ConsoleModel;
@@ -46,6 +49,7 @@ export function CodeGraphPage({ model, client }: {
   const [err, setErr] = useState("");
   const [candidateErr, setCandidateErr] = useState("");
   const [cycleState, setCycleState] = useState<ImportCycleState>(emptyImportCycleState);
+  const [relationshipCoverage, setRelationshipCoverage] = useState<CodeRelationshipStoryCoverage | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,25 +91,45 @@ export function CodeGraphPage({ model, client }: {
     if (!client || !selected?.entityId) {
       setGraph(deadOnlyGraph(selected, candidates));
       setFocusedNodeId(selected?.entityId ?? selected?.id);
+      setRelationshipCoverage(undefined);
       return () => { cancelled = true; };
     }
     setBusy(true);
     setErr("");
-    void client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: selected.entityId, max_depth: 1 })
-      .then((env) => {
+    void client.post<CodeRelationshipStoryResponse>("/api/v0/code/relationships/story", {
+      entity_id: selected.entityId,
+      direction: "both",
+      relationship_types: [...CODE_RELATIONSHIP_TYPES],
+      limit: 50
+    })
+      .then(async (env) => {
         if (cancelled) return;
         if (env.error) throw new EshuEnvelopeError(env.error);
-        const loaded = codeRelationshipsToGraph(env.data ?? {}, {
+        const loaded = codeRelationshipStoryToGraph(env.data ?? {}, {
           id: selected.entityId ?? selected.id,
           name: symbolFromFinding(selected)
         });
-        setGraph(withDeadSiblings(loaded, selected, candidates));
+        let loadedGraph = loaded.graph;
+        try {
+          const sourceEnv = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: selected.entityId, max_depth: 1 });
+          if (!sourceEnv.error) {
+            const sourceGraph = codeRelationshipsToGraph(sourceEnv.data ?? {}, {
+              id: selected.entityId ?? selected.id,
+              name: symbolFromFinding(selected)
+            });
+            loadedGraph = mergeGraphSourceMetadata(loadedGraph, sourceGraph);
+          }
+        } catch { /* source-link hydration is best-effort; story truth remains primary */ }
+        if (cancelled) return;
+        setGraph(withDeadSiblings(loadedGraph, selected, candidates));
+        setRelationshipCoverage(loaded.coverage);
         setFocusedNodeId((current) => current ?? selected.entityId ?? selected.id);
       })
       .catch((error) => {
         if (!cancelled) {
           setErr(error instanceof Error ? error.message : "failed to load code graph");
           setGraph(deadOnlyGraph(selected, candidates));
+          setRelationshipCoverage(undefined);
         }
       })
       .finally(() => { if (!cancelled) setBusy(false); });
@@ -176,7 +200,7 @@ export function CodeGraphPage({ model, client }: {
       <div className="page-intro row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h2>Code graph</h2>
-          <p>Symbol and module relationships at code grain from <span className="mono">POST /api/v0/code/relationships</span>. Dead-code candidates from the same repository are shown as orphan analyzer nodes.</p>
+          <p>Symbol and module relationships at code grain from <span className="mono">POST /api/v0/code/relationships/story</span>. Dead-code candidates from the same repository are shown as orphan analyzer nodes.</p>
         </div>
         <select className="code-repo-select mono" value={selected?.id ?? ""} onChange={(event) => selectCandidate(event.target.value)}>
           {candidates.map((finding) => <option key={finding.id} value={finding.id}>{symbolFromFinding(finding)} · {finding.entity}</option>)}
@@ -238,6 +262,7 @@ export function CodeGraphPage({ model, client }: {
             {hotspots.map((row) => <div className="kv" key={row.id}><span className="mono" style={{ fontSize: ".76rem" }}>{row.label}</span><strong>{row.count}</strong></div>)}
             {hotspots.length === 0 ? <p className="empty" style={{ textAlign: "left" }}>No relationship hotspots returned.</p> : null}
           </div>
+          <RelationshipTruthPanel graph={graph} coverage={relationshipCoverage} />
           <ImportCyclesPanel state={cycleState} />
           <div className="section-label" style={{ marginTop: 16 }}>Dead in this repo · {deadInRepo.length}</div>
           {deadInRepo.length ? (
@@ -434,7 +459,7 @@ function sourceMetadataStatus(
 ): string {
   if (!node || href) return "";
   if (finding) return "Dead-code scan did not return repository/file metadata.";
-  return "Related symbol source metadata unavailable from POST /api/v0/code/relationships.";
+  return "Related symbol source metadata unavailable from POST /api/v0/code/relationships/story.";
 }
 
 async function loadCodeGraphCandidates(client: EshuApiClient): Promise<readonly FindingRow[]> {
