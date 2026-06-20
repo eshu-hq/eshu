@@ -159,6 +159,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"POST /api/v0/impact/deployment-config-influence":   {Backend: BackendBoth, Cost: CostHigh},
 		"POST /api/v0/impact/entity-map":                    {Backend: BackendNornicDB, Cost: CostHigh},
 		"POST /api/v0/impact/explain-dependency-path":       {Backend: BackendNornicDB, Cost: CostHigh},
+		"POST /api/v0/impact/pre-change":                    {Backend: BackendBoth, Cost: CostHigh},
 		"POST /api/v0/impact/resource-investigation":        {Backend: BackendNornicDB, Cost: CostHigh},
 		"POST /api/v0/impact/trace-deployment-chain":        {Backend: BackendBoth, Cost: CostHigh},
 		"POST /api/v0/impact/trace-exposure-path":           {Backend: BackendBoth, Cost: CostHigh},

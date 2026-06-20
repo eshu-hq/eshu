@@ -7,6 +7,7 @@ func askToolAnnotations() map[string]Annotation {
 	return map[string]Annotation{
 		"analyze_code_relationships":                      {Backend: BackendNornicDB, Cost: CostHigh},
 		"analyze_infra_relationships":                     {Backend: BackendNornicDB, Cost: CostModerate},
+		"analyze_pre_change_impact":                       {Backend: BackendBoth, Cost: CostHigh},
 		"build_evidence_citation_packet":                  {Backend: BackendPostgres, Cost: CostModerate},
 		"calculate_cyclomatic_complexity":                 {Backend: BackendNornicDB, Cost: CostHigh},
 		"check_documentation_evidence_packet_freshness":   {Backend: BackendPostgres, Cost: CostLow},
