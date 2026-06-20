@@ -44,6 +44,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | If you touched | Minimum verification |
 | --- | --- |
 | Answer-quality scorecard criteria, CLI, or docs | `cd go && go test ./internal/answerquality -count=1`, `cd go && go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`, and the docs build |
+| Remote remediation benchmark wrapper | `bash scripts/test-verify-remote-e2e-remediation-benchmark.sh` |
 | Docs, `CLAUDE.md`, `AGENTS.md`, or README files | `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` |
 | GitHub workflow or CodeQL setup guidance | `scripts/test-verify-codeql-setup.sh` and `scripts/verify-codeql-setup.sh` |
 | CLI/runtime wiring | `cd go && go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1` |
@@ -86,6 +87,11 @@ Before accepting a remote collector E2E run, also run the hosted runtime-state
 gate in [Remote E2E Runtime State](remote-e2e-runtime-state.md). It verifies
 the API, MCP server, ingester, resolution engine, workflow coordinator, hosted
 collectors, and checkpointed queue-zero signal.
+
+Use [Remote Remediation Benchmark](local-testing/remote-remediation-benchmark.md)
+to rerun the known CVE/package to owner/remediation packet proof and capture
+public-safe wall time, queue, fact-count, graph-write, and API/MCP parity
+artifacts.
 
 ## Secrets/IAM Activation Proof
 

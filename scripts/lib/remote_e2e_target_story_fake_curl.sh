@@ -97,6 +97,9 @@ if ((is_mcp == 1)); then
 		find_infra_resources)
 			cat "${state_dir}/mcp-cloud-resources.json"
 			;;
+		explain_supply_chain_impact)
+			cat "${state_dir}/mcp-impact-explain.json"
+			;;
 		*)
 			echo "unexpected mcp tool: ${tool_name}" >&2
 			exit 2
@@ -105,6 +108,12 @@ if ((is_mcp == 1)); then
 	exit 0
 fi
 case "$*" in
+	*"/api/v0/index-status"*)
+		cat "${state_dir}/index-status.json"
+		;;
+	*"/api/v0/supply-chain/impact/explain?cve_id=CVE-2026-0001&package_id=pkg%3Anpm%2Fleft-pad&repository_id=repo%3A%2F%2Fexample%2Fapi"*)
+		cat "${state_dir}/impact-explain.json"
+		;;
 	*"/api/v0/repositories/repo%3A%2F%2Fexample%2Fapi/story"*)
 		cat "${state_dir}/repo-story.json"
 		;;
