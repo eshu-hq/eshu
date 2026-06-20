@@ -277,9 +277,10 @@ is live, seeded, or fixture-only.
 
 ### Talk track
 
-1. Open with the scope: the corpus is synthetic, the vulnerable package and
-   advisory data are demo fixtures, and the evidence chain is meant to prove the
-   Eshu join behavior rather than expose a private environment.
+1. Open with the scope: the offline corpus and missing-evidence variant are
+   synthetic fixtures, while the default live proof uses public npm package
+   metadata and OSV advisory evidence. The walkthrough proves the Eshu join
+   behavior rather than exposing a private environment.
 2. Run the offline scanner against the owned demo app, then show the missing
    owned-evidence refusal:
 
