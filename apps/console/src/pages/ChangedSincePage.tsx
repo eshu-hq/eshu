@@ -11,8 +11,10 @@ import {
   loadRepositoryChangedSince,
   loadServiceChangedSince
 } from "../api/changedSince";
+import { buildEvidencePacketComparison } from "../api/evidencePacketDelta";
 import { fmt, uiFresh, uiTruth } from "../console/types";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
+import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
 import "./changedSincePage.css";
 
 interface FormState {
@@ -136,6 +138,7 @@ export function ChangedSincePage({
   const categoryCount = page?.categories.length ?? 0;
   const sampleCount = page?.categories.reduce((sum, category) => sum + sampleTotal(category), 0) ?? 0;
   const impactHref = page ? impactLink(page) : "";
+  const comparison = page && !page.unavailable ? buildEvidencePacketComparison(page) : null;
 
   return (
     <div className="page changed-since-page" style={{ maxWidth: "none" }}>
@@ -211,6 +214,7 @@ export function ChangedSincePage({
                   {page.mode === "service" ? "Service impact" : "Blast radius"}
                 </Link>
               </div>
+              {comparison ? <ChangedSincePacketComparison comparison={comparison} /> : null}
               <div className="table-scroll">
                 <table className="tbl wide">
                   <thead>

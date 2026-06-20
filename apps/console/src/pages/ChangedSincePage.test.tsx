@@ -88,9 +88,10 @@ function fakeClient(calls: string[]): EshuApiClient {
           counts: { added: 2, updated: 1, unchanged: 5, retired: 1, superseded: 0 },
           samples: {
             added: [{ fact_kind: "file", stable_fact_key: "src/main.go" }],
-            retired: [{ fact_kind: "file", stable_fact_key: "legacy/config.yaml" }]
+            retired: [{ fact_kind: "file", stable_fact_key: "legacy/config.yaml" }],
+            superseded: [{ fact_kind: "service_owner", stable_fact_key: "old/service-owner" }]
           },
-          truncated: { added: false, retired: false },
+          truncated: { added: false, retired: false, superseded: true },
           unavailable: false
         }, {
           category: "facts",
@@ -123,10 +124,17 @@ describe("ChangedSincePage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Changed Since" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("src/main.go")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("src/main.go").length).toBeGreaterThan(0));
     expect(screen.getByText("gen-prior -> gen-current")).toBeInTheDocument();
-    expect(screen.getByText("files")).toBeInTheDocument();
-    expect(screen.getByText("terraform_resource")).toBeInTheDocument();
+    expect(screen.getByText("Evidence packet comparison")).toBeInTheDocument();
+    expect(screen.getByText("Current generation")).toBeInTheDocument();
+    expect(screen.getByText("Baseline generation")).toBeInTheDocument();
+    expect(screen.getByText("25 samples per verdict; one bucket is truncated")).toBeInTheDocument();
+    expect(screen.getAllByText("files").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("terraform_resource").length).toBeGreaterThan(0);
+    expect(screen.getByText("removed/retracted")).toBeInTheDocument();
+    expect(screen.getByText("stale/missing")).toBeInTheDocument();
+    expect(screen.getAllByText("old/service-owner").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("Truth: exact").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Open blast radius" })).toHaveAttribute(
       "href",
@@ -148,8 +156,8 @@ describe("ChangedSincePage", () => {
     fireEvent.change(screen.getByLabelText("Since generation"), { target: { value: "svc-gen-prior" } });
     fireEvent.click(screen.getByRole("button", { name: "Load changes" }));
 
-    await waitFor(() => expect(screen.getByText("team/platform")).toBeInTheDocument());
-    expect(screen.getByText("ownership")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("team/platform").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("ownership").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Open service impact" })).toHaveAttribute(
       "href",
       "/impact?kind=service&target=svc-checkout"
