@@ -1,6 +1,10 @@
 package mcp
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
+)
 
 func TestInvestigationWorkflowToolsAdvertised(t *testing.T) {
 	t.Parallel()
@@ -61,5 +65,34 @@ func TestResolveRouteMapsInvestigationWorkflowTools(t *testing.T) {
 	}
 	if got, want := body["missing_evidence"].([]string), []string{"observability"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("missing_evidence = %#v, want %#v", got, want)
+	}
+}
+
+func TestInvestigationWorkflowNextCallParamsExistInToolSchemas(t *testing.T) {
+	t.Parallel()
+
+	registry := map[string]ToolDefinition{}
+	for _, tool := range ReadOnlyTools() {
+		registry[tool.Name] = tool
+	}
+	for _, workflow := range query.InvestigationWorkflowCatalog() {
+		for _, route := range workflow.MissingEvidenceRoutes {
+			for _, call := range route.Calls {
+				tool, ok := registry[call.Tool]
+				if !ok {
+					t.Fatalf("workflow %q call %q references unregistered tool %q", workflow.ID, call.ID, call.Tool)
+				}
+				schema, ok := tool.InputSchema.(map[string]any)
+				if !ok {
+					t.Fatalf("tool %q schema type = %T, want map[string]any", tool.Name, tool.InputSchema)
+				}
+				properties, _ := schema["properties"].(map[string]any)
+				for _, param := range call.Params {
+					if _, ok := properties[param.Name]; !ok {
+						t.Fatalf("workflow %q call %q param %q missing from tool %q schema %#v", workflow.ID, call.ID, param.Name, call.Tool, properties)
+					}
+				}
+			}
+		}
 	}
 }
