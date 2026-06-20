@@ -141,6 +141,56 @@ export const demoModel: ConsoleModel = {
   advisories: [
     { id: "CVE-2021-44228", cveId: "CVE-2021-44228", ghsaId: "GHSA-jfh8-c2jp-5v3q", severity: "critical", cvss: 10, kev: true, ecosystems: ["maven"], packageIds: ["pkg:maven/org.apache.logging.log4j/log4j-core"], publishedAt: "2021-12-10" }
   ],
+  collectorReadiness: [
+    {
+      blockingGate: "none",
+      claimDriven: false,
+      claimState: "direct",
+      displayName: "Git Repository",
+      evidence: ["source facts", "reducer facts", "API/MCP evidence"],
+      family: "Source collection",
+      health: "healthy",
+      instanceId: "git-primary",
+      kind: "git",
+      lastProof: "41280 observations",
+      reducerReadback: "available",
+      sourceScope: "repository",
+      state: "implemented",
+      stateLabel: "implemented"
+    },
+    {
+      blockingGate: "claim-driven collector registered with claims disabled",
+      claimDriven: true,
+      claimState: "direct",
+      displayName: "PagerDuty",
+      evidence: ["API/MCP evidence"],
+      family: "Operations evidence",
+      health: "healthy",
+      instanceId: "pagerduty-preview",
+      kind: "pagerduty",
+      lastProof: "not observed",
+      reducerReadback: "unavailable",
+      sourceScope: "pagerduty_account",
+      state: "gated",
+      stateLabel: "gated"
+    },
+    {
+      blockingGate: "no configured instance for this collector family",
+      claimDriven: true,
+      claimState: "none",
+      displayName: "Kubernetes Live",
+      evidence: ["API/MCP evidence"],
+      family: "Cloud and runtime",
+      health: "unsupported",
+      instanceId: "",
+      kind: "kubernetes_live",
+      lastProof: "not observed",
+      reducerReadback: "unavailable",
+      sourceScope: "cluster",
+      state: "unsupported",
+      stateLabel: "unsupported"
+    }
+  ],
   truth: {},
   provenance: {
     runtime: "demo",
@@ -151,7 +201,8 @@ export const demoModel: ConsoleModel = {
     dependencies: "demo",
     images: "demo",
     iacResources: "demo",
-    advisories: "demo"
+    advisories: "demo",
+    collectorReadiness: "demo"
   },
   graph: demoGraph,
   relationships: demoRelationships,

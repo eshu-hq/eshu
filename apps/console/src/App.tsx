@@ -43,6 +43,7 @@ import { AskPage } from "./pages/AskPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { OperationsPage } from "./pages/OperationsPage";
+import { CollectorReadinessPage } from "./pages/CollectorReadinessPage";
 import { IncidentContextPage } from "./pages/IncidentContextPage";
 import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
 import { VulnDetailPage } from "./pages/VulnDetailPage";
@@ -133,6 +134,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     label: "System",
     items: [
       { to: "/capabilities", label: "Capabilities", icon: ListChecks },
+      { to: "/collector-readiness", label: "Collector Readiness", icon: ShieldCheck, count: (m) => nonZero(m.collectorReadiness?.length ?? 0) },
       { to: "/operations", label: "Operations", icon: ServerCog }
     ]
   }
@@ -380,6 +382,7 @@ export function App(): React.JSX.Element {
             <Route path="/sbom" element={<SbomPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/dependencies" element={<DependenciesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/observability" element={<ObservabilityPage client={client} />} />
+            <Route path="/collector-readiness" element={<CollectorReadinessPage rows={visibleModel.collectorReadiness} provenance={visibleModel.provenance.collectorReadiness ?? "empty"} />} />
             <Route path="/operations" element={<OperationsPage model={visibleModel} />} />
             <Route path="/workspace/:entityKind/:entityId" element={<WorkspacePage />} />
           </Routes>

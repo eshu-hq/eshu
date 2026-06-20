@@ -19,7 +19,7 @@ export const emptySeries: SeriesBundle = {
 
 const SNAPSHOT_SECTIONS = [
   "runtime", "services", "languages", "ingesters", "findings", "vulnerabilities",
-  "sbom", "dependencies", "images", "iacResources", "advisories"
+  "sbom", "dependencies", "images", "iacResources", "advisories", "collectorReadiness"
 ] as const;
 
 function emptyRuntime(): RuntimeSummary {
@@ -43,6 +43,7 @@ export function emptySnapshot(provenance: SectionProvenance | null = null): Cons
     images: [],
     iacResources: [],
     advisories: [],
+    collectorReadiness: [],
     series: emptySeries,
     truth: {}, provenance: prov
   };

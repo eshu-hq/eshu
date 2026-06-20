@@ -7,12 +7,14 @@ import type {
   IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
   AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle
 } from "../api/eshuConsoleLive";
+import type { CollectorReadinessRow } from "../api/collectorReadiness";
 
 export type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
   IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
   AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle
 };
+export type { CollectorReadinessRow };
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type UiTruth = "exact" | "derived" | "inferred";
