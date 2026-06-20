@@ -109,14 +109,20 @@ read_counter_source() {
 queue_summary() {
 	local index_status="$1"
 	jq -c '
+		. as $status |
+		def queue_counter_present($name):
+			($status.queue | type == "object") and ($status.queue[$name] | type == "number");
+		if (["outstanding", "pending", "in_flight", "retrying", "failed", "dead_letter"] | all(.[]; queue_counter_present(.)) | not) then
+			error("queue counters missing or non-numeric")
+		else
 		{
-			status: (.status // "unknown"),
-			outstanding: (.queue.outstanding // 0),
-			pending: (.queue.pending // 0),
-			in_flight: (.queue.in_flight // 0),
-			retrying: (.queue.retrying // 0),
-			failed: (.queue.failed // 0),
-			dead_letter: (.queue.dead_letter // 0)
+			status: ($status.status // "unknown"),
+			outstanding: $status.queue.outstanding,
+			pending: $status.queue.pending,
+			in_flight: $status.queue.in_flight,
+			retrying: $status.queue.retrying,
+			failed: $status.queue.failed,
+			dead_letter: $status.queue.dead_letter
 		}
 		| . + {
 			queue_terminal_ok:
@@ -124,6 +130,7 @@ queue_summary() {
 				 (.in_flight == 0) and (.retrying == 0) and
 				 (.failed == 0) and (.dead_letter == 0))
 		}
+		end
 	' "${index_status}"
 }
 
@@ -143,8 +150,8 @@ explain_signature() {
 
 scan_artifact_privacy() {
 	local file="$1"
-	if jq -r '.. | strings' "${file}" 2>/dev/null | rg --quiet \
-		'ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|https?://|/security/dependabot|arn:(aws|aws-us-gov|aws-cn):|/(Users|home|private|var|tmp|Volumes|workspace|workspaces|repos|personal-repos)/|(^|[^0-9])[0-9]{12}([^0-9]|$)|([0-9]{1,3}\.){3}[0-9]{1,3}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(^|[[:space:]"'\''])[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+($|[[:space:]"'\'',])'; then
+	if jq -r '(.. | strings), (paths | .[] | select(type == "string"))' "${file}" 2>/dev/null | rg --quiet \
+		'ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|https?://|[A-Za-z][A-Za-z0-9+.-]*://|/security/dependabot|arn:(aws|aws-us-gov|aws-cn):|/(Users|home|private|var|tmp|Volumes|workspace|workspaces|repos|personal-repos)/|(^|[^0-9])[0-9]{12}([^0-9]|$)|([0-9]{1,3}\.){3}[0-9]{1,3}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(^|[[:space:]"'\''])[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+($|[[:space:]"'\'',])'; then
 		return 1
 	fi
 	return 0
@@ -186,13 +193,18 @@ sanitize_public_file "${target_story_raw}" "${target_story_public}"
 
 api_get_status "/index-status" "${index_status}"
 read_counter_source "${index_status}" "${counter_source}"
-queue_json="$(queue_summary "${index_status}")"
+if ! queue_json="$(queue_summary "${index_status}" 2>/dev/null)"; then
+	die "remote remediation benchmark queue fields must be present and numeric"
+fi
 if ! jq -e '.queue_terminal_ok == true' <<<"${queue_json}" >/dev/null; then
 	die "remote remediation benchmark queue is not terminal"
 fi
 
 fact_counts="$(metric_object "${counter_source}" '.fact_counts // .facts // {}' "${fact_counts_json}")"
 graph_writes="$(metric_object "${counter_source}" '.graph_writes // .graph.write_counts // .graph_writes_total // {}' "${graph_writes_json}")"
+if ! scan_artifact_privacy "${fact_counts_json}" || ! scan_artifact_privacy "${graph_writes_json}"; then
+	die "remote remediation benchmark counter keys look private"
+fi
 if ! jq -e '.state == "reported"' <<<"${fact_counts}" >/dev/null; then
 	die "remote remediation benchmark requires fact counts from index status or ESHU_REMOTE_E2E_BENCHMARK_COUNTERS_FILE"
 fi

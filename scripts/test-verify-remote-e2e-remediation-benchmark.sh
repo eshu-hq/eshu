@@ -170,4 +170,31 @@ if rg -q 'repo://example/api|pkg:npm/left-pad|registry.example|arn:aws|test-api-
   exit 1
 fi
 
+reset_state
+jq 'del(.queue.pending)' "${state_dir}/index-status.json" >"${state_dir}/index-status-new.json"
+mv "${state_dir}/index-status-new.json" "${state_dir}/index-status.json"
+if run_verifier; then
+  printf 'expected remediation benchmark verifier to fail when queue counters are missing\n' >&2
+  exit 1
+fi
+rg -F -q 'remote remediation benchmark queue fields must be present and numeric' /tmp/eshu-remediation-benchmark.err
+
+reset_state
+unsafe_counters="${state_dir}/unsafe-counters.json"
+cat >"${unsafe_counters}" <<'JSON'
+{
+  "fact_counts": {
+    "repo://example/api": 42
+  },
+  "graph_writes": {
+    "total": 9
+  }
+}
+JSON
+if ESHU_REMOTE_E2E_BENCHMARK_COUNTERS_FILE="${unsafe_counters}" run_verifier; then
+  printf 'expected remediation benchmark verifier to fail when counter keys contain private-shaped values\n' >&2
+  exit 1
+fi
+rg -F -q 'remote remediation benchmark counter keys look private' /tmp/eshu-remediation-benchmark.err
+
 printf 'remote remediation benchmark verifier test passed\n'
