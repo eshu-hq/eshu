@@ -778,6 +778,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/impact/developer-change-plan",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/impact/entity-map",
       "readiness": "implemented"
     },
@@ -2111,6 +2116,11 @@
     {
       "category": "mcp_tool",
       "name": "list_work_item_evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "plan_developer_change",
       "readiness": "implemented"
     },
     {

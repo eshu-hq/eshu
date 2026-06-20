@@ -99,6 +99,91 @@ func TestPreChangeImpactNormalizesFileListIntoAnswerPacket(t *testing.T) {
 	}
 }
 
+func TestDeveloperChangePlanBuildsReadOnlyActions(t *testing.T) {
+	t.Parallel()
+
+	store := fakePortContentStore{entities: []EntityContent{
+		{
+			EntityID:     "entity-auth",
+			EntityName:   "resolveGitHubAppAuth",
+			EntityType:   "Function",
+			RepoID:       "repo-1",
+			RelativePath: "go/internal/collector/reposync/auth.go",
+			Language:     "go",
+			StartLine:    44,
+			EndLine:      88,
+		},
+		{
+			EntityID:     "entity-new",
+			EntityName:   "newWorkspaceLock",
+			EntityType:   "Function",
+			RepoID:       "repo-1",
+			RelativePath: "go/internal/collector/reposync/workspace_lock.go",
+			Language:     "go",
+			StartLine:    12,
+			EndLine:      30,
+		},
+	}}
+	handler := &ImpactHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	body := `{
+		"repo_id":"repo-1",
+		"developer_intent":"rename workspace lock helper safely",
+		"changes":[
+			{"path":"go/internal/collector/reposync/auth.go","status":"modified"},
+			{"old_path":"go/internal/collector/reposync/lock.go","path":"go/internal/collector/reposync/workspace_lock.go","status":"renamed"},
+			{"path":"go/internal/collector/reposync/deleted.go","status":"deleted"}
+		],
+		"limit":10
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/developer-change-plan", bytes.NewBufferString(body))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	envelope := decodePreChangeEnvelope(t, rec)
+	if got, want := envelope.Truth.Capability, developerChangePlanCapability; got != want {
+		t.Fatalf("truth capability = %q, want %q", got, want)
+	}
+	data := envelope.Data.(map[string]any)
+	if got, want := data["schema_version"], "developer_change_plan.v1"; got != want {
+		t.Fatalf("schema_version = %#v, want %#v", got, want)
+	}
+	if got, want := data["read_only"], true; got != want {
+		t.Fatalf("read_only = %#v, want %#v", got, want)
+	}
+	actions := data["actions"].([]any)
+	if len(actions) < 4 {
+		t.Fatalf("actions count = %d, want at least 4: %#v", len(actions), actions)
+	}
+	if !developerPlanHasAction(actions, "rename_safety_check") {
+		t.Fatalf("actions missing rename_safety_check: %#v", actions)
+	}
+	if !developerPlanHasAction(actions, "block_unsafe_recommendation") {
+		t.Fatalf("actions missing block_unsafe_recommendation for deleted missing evidence: %#v", actions)
+	}
+	nextCalls := data["bounded_next_calls"].([]any)
+	if !developerPlanHasCall(nextCalls, "eshu change impact") {
+		t.Fatalf("bounded_next_calls missing CLI follow-up: %#v", nextCalls)
+	}
+	guidance := data["patch_guidance"].([]any)
+	if !developerPlanHasGuidance(guidance, "renamed") || !developerPlanHasGuidance(guidance, "deleted") {
+		t.Fatalf("patch_guidance missing renamed/deleted guidance: %#v", guidance)
+	}
+	packet := data["answer_packet"].(map[string]any)
+	if got, want := packet["prompt_family"], "developer.change_plan"; got != want {
+		t.Fatalf("answer_packet.prompt_family = %#v, want %#v", got, want)
+	}
+	if got, want := packet["partial"], true; got != want {
+		t.Fatalf("answer_packet.partial = %#v, want %#v", got, want)
+	}
+}
+
 func TestPreChangeImpactAllowsEmptyDiff(t *testing.T) {
 	t.Parallel()
 
@@ -268,6 +353,36 @@ func preChangeFileByStatus(t *testing.T, files []any, status string) map[string]
 	}
 	t.Fatalf("changed_files missing status %q: %#v", status, files)
 	return nil
+}
+
+func developerPlanHasAction(actions []any, kind string) bool {
+	for _, raw := range actions {
+		action, ok := raw.(map[string]any)
+		if ok && action["kind"] == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func developerPlanHasCall(calls []any, target string) bool {
+	for _, raw := range calls {
+		call, ok := raw.(map[string]any)
+		if ok && call["target"] == target {
+			return true
+		}
+	}
+	return false
+}
+
+func developerPlanHasGuidance(guidance []any, status string) bool {
+	for _, raw := range guidance {
+		row, ok := raw.(map[string]any)
+		if ok && row["status"] == status {
+			return true
+		}
+	}
+	return false
 }
 
 func decodePreChangeEnvelope(t *testing.T, rec *httptest.ResponseRecorder) ResponseEnvelope {

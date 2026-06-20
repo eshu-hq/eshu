@@ -81,7 +81,13 @@ orchestration. It does not own service runtime internals:
     through the API envelope; `vuln-scan provider-parity` compares
     operator-local provider alert summaries to Eshu findings with
     aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
-  - pre-change impact: `change impact` derives local rename/copy-aware Git diffs or accepts repeated `--file` paths, preserves changed-file status, and posts the canonical envelope request to `/api/v0/impact/pre-change` (`change_impact.go`)
+  - pre-change impact and developer plan: `change impact` derives local
+    rename/copy-aware Git diffs or accepts repeated `--file` paths, preserves
+    changed-file status, and posts the canonical envelope request to
+    `/api/v0/impact/pre-change`; `change plan` reuses the same input contract,
+    accepts optional `--intent`, and posts the read-only
+    `developer_change_plan.v1` request to `/api/v0/impact/developer-change-plan`
+    (`change_impact.go`, `change_plan.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`
@@ -190,6 +196,14 @@ datastore, graph-write, or reducer-claim side effects.
 
 No-Regression Evidence: operator digest CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestOperatorDigest' -count=1`.
+
+No-Observability-Change: `change impact` and `change plan` only derive local
+caller-supplied changed-file metadata, build bounded HTTP requests, and render
+canonical response envelopes. They add no spans, metrics, datastore access,
+graph traversal, queue claims, or provider calls in the CLI process.
+
+No-Regression Evidence: change planning CLI behavior is covered by
+`go test ./cmd/eshu -run 'TestChangePlan|TestFetchChangePlan|TestRunChangePlan|TestChangeImpact' -count=1`.
 
 No-Observability-Change: hosted-onboard starter playbook guidance projects the
 in-process query playbook catalog locally without runtime or datastore access.

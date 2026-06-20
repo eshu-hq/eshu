@@ -10,24 +10,25 @@ import (
 )
 
 type changeImpactOptions struct {
-	JSON         bool
-	RepoID       string
-	BaseRef      string
-	HeadRef      string
-	RepoPath     string
-	ChangedPaths []string
-	Changes      []changeImpactFileChange
-	Target       string
-	TargetType   string
-	ServiceName  string
-	WorkloadID   string
-	ResourceID   string
-	ModuleID     string
-	Topic        string
-	Environment  string
-	MaxDepth     int
-	Limit        int
-	Offset       int
+	JSON            bool
+	RepoID          string
+	DeveloperIntent string
+	BaseRef         string
+	HeadRef         string
+	RepoPath        string
+	ChangedPaths    []string
+	Changes         []changeImpactFileChange
+	Target          string
+	TargetType      string
+	ServiceName     string
+	WorkloadID      string
+	ResourceID      string
+	ModuleID        string
+	Topic           string
+	Environment     string
+	MaxDepth        int
+	Limit           int
+	Offset          int
 }
 
 type changeImpactFileChange struct {
@@ -50,6 +51,7 @@ type changeImpactError struct {
 }
 
 var changeImpactFetch = fetchChangeImpact
+var changePlanFetch = fetchChangePlan
 
 func init() {
 	rootCmd.AddCommand(newChangeCommand())
@@ -61,6 +63,7 @@ func newChangeCommand() *cobra.Command {
 		Short: "Inspect pre-change impact over Eshu evidence",
 	}
 	cmd.AddCommand(newChangeImpactCommand())
+	cmd.AddCommand(newChangePlanCommand())
 	return cmd
 }
 
@@ -71,6 +74,23 @@ func newChangeImpactCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  runChangeImpact,
 	}
+	addChangeImpactFlags(cmd)
+	return cmd
+}
+
+func newChangePlanCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "plan",
+		Short: "Build a read-only developer change plan over bounded impact evidence",
+		Args:  cobra.NoArgs,
+		RunE:  runChangePlan,
+	}
+	addChangeImpactFlags(cmd)
+	cmd.Flags().String("intent", "", "Optional developer intent used to rank and explain plan actions")
+	return cmd
+}
+
+func addChangeImpactFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("json", false, "Write the canonical pre-change impact envelope as JSON")
 	cmd.Flags().String("repo-id", "", "Repository selector for changed-path lookup")
 	cmd.Flags().String("base", "", "Git base ref for local diff derivation")
@@ -89,7 +109,6 @@ func newChangeImpactCommand() *cobra.Command {
 	cmd.Flags().Int("limit", 25, "Maximum rows per response section (max 100)")
 	cmd.Flags().Int("offset", 0, "Result offset for content-backed code investigation")
 	addRemoteFlags(cmd)
-	return cmd
 }
 
 func runChangeImpact(cmd *cobra.Command, _ []string) error {

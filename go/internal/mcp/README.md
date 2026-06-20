@@ -89,13 +89,13 @@ logging.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 146 tools from the tool definition files.
+`ReadOnlyTools` assembles 147 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 30 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
-| `ecosystemTools` | 21 | `tools_ecosystem.go`, `tools_graph_summary_packet.go`, `tools_prechange_impact.go` |
+| `ecosystemTools` | 22 | `tools_ecosystem.go`, `tools_graph_summary_packet.go`, `tools_prechange_impact.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
 | `cloudInventoryTools` | 1 | `tools_cloud_inventory.go` |
 | `cloudRuntimeDriftTools` | 1 | `tools_cloud_runtime_drift.go` |
@@ -189,6 +189,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `get_repository_stats` | GET | `/api/v0/repositories/{repo_id}/stats` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `analyze_pre_change_impact` | POST | `/api/v0/impact/pre-change` |
+| `plan_developer_change` | POST | `/api/v0/impact/developer-change-plan` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
 | `get_service_story` | GET | `/api/v0/services/{service_selector}/story` (canonical `workload:*` inputs also pass `service_id`; `service_name` plus `repo`/`repository_id`/`repo_id` forwards repository-scoped story selection to HTTP) |
@@ -282,12 +283,21 @@ scope, and bounds to `/api/v0/impact/pre-change`. The HTTP query layer owns
 path validation, change-surface evidence resolution, missing-evidence reasons,
 truth labels, truncation, and AnswerPacket metadata.
 
-No-Regression Evidence: pre-change MCP schema and dispatch parity are covered
-by `go test ./internal/mcp -run 'TestPreChangeImpact|TestResolveRouteMapsPreChange|TestReadOnlyTools' -count=1`.
+`plan_developer_change` follows the same transport-only boundary. MCP forwards
+the caller-derived changed files, optional base/head provenance, optional
+developer intent, target/topic scope, and bounds to
+`/api/v0/impact/developer-change-plan`. The HTTP query layer owns the read-only
+`developer_change_plan.v1` action list, patch guidance, missing-evidence
+blocking, recommended tests, bounded next calls, truth labels, truncation, and
+AnswerPacket metadata.
 
-No-Observability-Change: pre-change MCP dispatch adds no runtime span, metric,
-datastore access, graph traversal, or retry loop. It preserves the existing
-MCP `dispatch tool` debug log and canonical HTTP envelope.
+No-Regression Evidence: pre-change MCP schema and dispatch parity are covered
+by `go test ./internal/mcp -run 'TestPreChangeImpact|TestDeveloperChangePlan|TestResolveRouteMaps(PreChange|DeveloperChangePlan)|TestReadOnlyTools' -count=1`.
+
+No-Observability-Change: pre-change and developer-change-plan MCP dispatch add
+no runtime span, metric, datastore access, graph traversal, or retry loop. They
+preserve the existing MCP `dispatch tool` debug log and canonical HTTP
+envelope.
 
 Supply-chain tools keep the same transport-only contract. The impact explain
 tool forwards one `finding_id` or advisory/CVE plus package, repository, or
@@ -355,7 +365,7 @@ membership as trust.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 146 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 147 tool definitions |
 
 ## SSE session model
 

@@ -162,6 +162,67 @@ func TestResolveRouteMapsPreChangeImpactToBoundedBody(t *testing.T) {
 	}
 }
 
+func TestDeveloperChangePlanToolContract(t *testing.T) {
+	t.Parallel()
+
+	var tool *ToolDefinition
+	for _, candidate := range ecosystemTools() {
+		if candidate.Name == "plan_developer_change" {
+			tool = &candidate
+			break
+		}
+	}
+	if tool == nil {
+		t.Fatal("plan_developer_change tool is not registered")
+	}
+	schema := tool.InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	for _, key := range []string{"developer_intent", "repo_id", "changes", "changed_paths", "limit", "max_depth"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("tool schema missing %q", key)
+		}
+	}
+	if !strings.Contains(tool.Description, "developer_change_plan.v1") || !strings.Contains(tool.Description, "read-only") {
+		t.Fatalf("tool description = %q, want developer plan guidance", tool.Description)
+	}
+}
+
+func TestResolveRouteMapsDeveloperChangePlanToBoundedBody(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("plan_developer_change", map[string]any{
+		"developer_intent": "rename helper safely",
+		"repo_id":          "repo-1",
+		"changes": []any{map[string]any{
+			"path":     "go/internal/query/developer_change_plan.go",
+			"old_path": "go/internal/query/prechange_impact.go",
+			"status":   "renamed",
+		}},
+		"limit": float64(10),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "POST"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/impact/developer-change-plan"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body := route.body.(map[string]any)
+	if got, want := body["developer_intent"], "rename helper safely"; got != want {
+		t.Fatalf("body.developer_intent = %#v, want %#v", got, want)
+	}
+	if got, want := body["limit"], 10; got != want {
+		t.Fatalf("body.limit = %#v, want %#v", got, want)
+	}
+	changes := body["changes"].([]any)
+	first := changes[0].(map[string]any)
+	if got, want := first["status"], "renamed"; got != want {
+		t.Fatalf("changes[0].status = %#v, want %#v", got, want)
+	}
+}
+
 func TestDeploymentConfigInfluenceToolContract(t *testing.T) {
 	t.Parallel()
 

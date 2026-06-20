@@ -31,6 +31,26 @@ func ecosystemRoute(toolName string, args map[string]any) (*route, bool) {
 			"limit":         intOr(args, "limit", 25),
 			"offset":        intOr(args, "offset", 0),
 		}}, true
+	case "plan_developer_change":
+		return &route{method: "POST", path: "/api/v0/impact/developer-change-plan", body: map[string]any{
+			"developer_intent": str(args, "developer_intent"),
+			"target":           str(args, "target"),
+			"target_type":      str(args, "target_type"),
+			"service_name":     str(args, "service_name"),
+			"workload_id":      str(args, "workload_id"),
+			"resource_id":      str(args, "resource_id"),
+			"module_id":        str(args, "module_id"),
+			"topic":            str(args, "topic"),
+			"repo_id":          str(args, "repo_id"),
+			"base_ref":         str(args, "base_ref"),
+			"head_ref":         str(args, "head_ref"),
+			"changed_paths":    stringSlice(args, "changed_paths"),
+			"changes":          objectSlice(args, "changes"),
+			"environment":      str(args, "environment"),
+			"max_depth":        intOr(args, "max_depth", 4),
+			"limit":            intOr(args, "limit", 25),
+			"offset":           intOr(args, "offset", 0),
+		}}, true
 	default:
 		return nil, false
 	}

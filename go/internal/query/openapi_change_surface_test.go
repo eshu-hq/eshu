@@ -101,6 +101,56 @@ func TestOpenAPIPreChangeImpactDocumentsWorkflow(t *testing.T) {
 	}
 }
 
+func TestOpenAPIDeveloperChangePlanDocumentsWorkflow(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	planPath := mustMapField(t, paths, "/api/v0/impact/developer-change-plan")
+	post := mustMapField(t, planPath, "post")
+	if got, want := post["operationId"], "planDeveloperChange"; got != want {
+		t.Fatalf("operationId = %#v, want %#v", got, want)
+	}
+	requestBody := mustMapField(t, post, "requestBody")
+	content := mustMapField(t, requestBody, "content")
+	mediaType := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, mediaType, "schema")
+	anyOf, ok := schema["anyOf"].([]any)
+	if !ok {
+		t.Fatalf("developer change plan request anyOf type = %T, want []any", schema["anyOf"])
+	}
+	if !openAPIAnyOfRequires(anyOf, "changes", "repo_id") {
+		t.Fatal("developer change plan request anyOf missing changes + repo_id requirement")
+	}
+	properties := mustMapField(t, schema, "properties")
+	for _, key := range []string{"repo_id", "base_ref", "head_ref", "developer_intent", "changed_paths", "changes"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("developer change plan request schema missing %q", key)
+		}
+	}
+	responses := mustMapField(t, post, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	okContent := mustMapField(t, okResponse, "content")
+	okMediaType := mustMapField(t, okContent, "application/json")
+	okSchema := mustMapField(t, okMediaType, "schema")
+	okProperties := mustMapField(t, okSchema, "properties")
+	for _, key := range []string{"schema_version", "read_only", "actions", "patch_guidance", "answer_packet"} {
+		if _, ok := okProperties[key]; !ok {
+			t.Fatalf("developer change plan response schema missing %q", key)
+		}
+	}
+	if _, ok := responses["501"]; !ok {
+		t.Fatal("developer change plan route must document unsupported capability response")
+	}
+	if _, ok := responses["503"]; !ok {
+		t.Fatal("developer change plan route must document backend-unavailable response")
+	}
+}
+
 func openAPIAnyOfRequires(anyOf []any, requiredFields ...string) bool {
 	want := map[string]struct{}{}
 	for _, field := range requiredFields {
