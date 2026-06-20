@@ -112,5 +112,14 @@
 // evidence admission, relationship edges, image identity joins, drift, and
 // query truth; raw IAM policy observations, DNS records, and collection warnings
 // remain provenance-only or audit evidence until a later reducer/read-model
-// contract admits them.
+// contract admits them. SchemaVersion, SupportedSchemaVersions,
+// ClassifySchemaVersion, and ValidateSchemaVersion expose the central
+// fact-schema-version registry: one dispatch over every per-family schema
+// version so reducers, projectors, the component activation path, and
+// API/MCP/CLI diagnostics classify a collector's fact version the same way.
+// The Compatibility classes (supported, unsupported_major, unsupported_minor,
+// unknown_kind) implement the documented compatibility contract: a major
+// change is rejected with no silent fallback, a minor or patch ahead of the
+// supported version is not yet authoritative, and out-of-tree component kinds
+// are unknown to core compatibility.
 package facts

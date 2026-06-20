@@ -39,6 +39,41 @@ version of the same component ID with the same schema-version major set.
 When in doubt, bump higher. A conservative bump is cheaper than a silent
 semantic change that corrupts downstream truth.
 
+## Go Source Of Truth
+
+The supported schema version for every core fact kind lives in `go/internal/facts`.
+Callers classify a collector's fact version against it rather than copying
+version strings:
+
+- `facts.SchemaVersion(factKind)` returns the version a core consumer currently
+  supports for a core fact kind.
+- `facts.SupportedSchemaVersions()` returns the full core fact-kind to
+  supported-version registry.
+- `facts.ClassifySchemaVersion(factKind, candidate)` returns one of
+  `supported`, `unsupported_major`, `unsupported_minor`, or `unknown_kind`.
+- `facts.ValidateSchemaVersion(factKind, candidate)` returns an error for a
+  core-owned kind carrying an unsupported version and nil for supported versions
+  or fact kinds core does not own.
+
+The classifier implements the table above: a different major (or a blank or
+non-canonical version) is `unsupported_major` and rejected; a minor or patch
+ahead of the supported version is `unsupported_minor` and not yet authoritative;
+the supported version and older same-major versions are `supported`. An
+out-of-tree component fact kind is `unknown_kind`, so core compatibility does not
+falsely reject it.
+
+Operators read the registry and classify a collector version with the read-only
+CLI surface:
+
+```bash
+eshu component schema-versions                                  # every core fact kind
+eshu component schema-versions --json
+eshu component schema-versions --check terraform_state_resource=2.0.0  # classify one version
+```
+
+The `--check` form exits non-zero when the candidate version is not supported,
+so it gates a collector version before it is accepted.
+
 ## Runtime Behavior
 
 The runtime must fail clearly when a collector or component emits a fact schema
