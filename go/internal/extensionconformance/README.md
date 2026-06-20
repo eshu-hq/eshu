@@ -2,31 +2,38 @@
 
 ## Purpose
 
-`extensionconformance` checks optional component evidence before publication or
-hosted activation. It loads a component manifest, derives the collector SDK
-contract from the manifest-declared emitted facts, validates fixture results,
-and returns a report with blocker classifications.
+`extensionconformance` is the in-tree host wrapper around the public collector
+conformance harness. It loads a component manifest and fixture files from disk,
+maps the manifest onto the portable harness input, and delegates the verdict to
+`sdk/go/collector/conformance`. The verdict logic (manifest proof metadata,
+fixture contract validation, reducer-consumer checks, and the
+`eshu.extension.conformance.v1` report) lives once in the public SDK module so
+the same result is produced inside and outside the monorepo.
 
 ## Ownership boundary
 
-This package owns conformance orchestration only. It does not validate the
-manifest schema itself, manage installed component state, claim workflow work,
-write durable facts, project graph truth, or run remote proof environments.
-Those responsibilities stay with `internal/component`, the workflow
-coordinator, storage/reducer packages, and external proof harnesses.
+This package owns host-side orchestration only: manifest loading and fixture
+file I/O. The conformance verdict, report contract, and proof-metadata rules
+are owned by the public `sdk/go/collector/conformance` package. It does not
+manage installed component state, claim workflow work, write durable facts,
+project graph truth, or run remote proof environments. Those responsibilities
+stay with `internal/component`, the workflow coordinator, storage/reducer
+packages, and external proof harnesses.
 
 ## Exported surface
 
-See `doc.go` for the godoc contract. Callers use `Run` with a `Request` and
-receive a `Report` containing the mode, status, findings, and fixture summary.
-The exported mode, status, and finding constants keep CLI and automation output
-stable.
+See `doc.go` for the godoc contract. The exported `Mode`, `Status`,
+`FindingCode`, `Report`, `Finding`, and `Summary` types are aliases of the
+public `sdk/go/collector/conformance` types, so CLI and automation output stay
+byte-stable. Callers use `Run` with a `Request` (manifest path, fixture paths,
+mode) and receive the public `Report`. `FindingFixtureReadFailed` is the only
+host-local finding code, because file I/O is the host's responsibility.
 
 ## Dependencies
 
-- `go/internal/component` loads and validates component manifests.
-- `sdk/go/collector` validates collector SDK result fixtures against the
-  derived host contract.
+- `go/internal/component` loads and validates component manifests from disk.
+- `sdk/go/collector/conformance` owns the conformance verdict and report.
+- `sdk/go/collector` decodes and validates collector SDK result fixtures.
 
 The package intentionally avoids storage, graph, API, MCP, and workflow
 dependencies so fixture-mode checks stay cheap and deterministic.
@@ -57,3 +64,4 @@ No-Regression Evidence: fixture-mode conformance behavior is covered by
 - `docs/public/reference/component-package-manager.md`
 - `docs/public/reference/plugin-trust-model.md`
 - `sdk/go/collector/README.md`
+- `sdk/go/collector/conformance/README.md`
