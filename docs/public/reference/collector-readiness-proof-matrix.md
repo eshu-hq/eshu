@@ -182,8 +182,8 @@ queue depth, and redaction spot-check results.
   Loki, Tempo), OCI registry providers, and the JFrog package feed.
 - **Security-intelligence proof matrix artifact:** build the public-safe
   aggregate matrix with
-  `scripts/security_intelligence_release_gate.sh --phases proof-matrix` against
-  an operator-local `proof-matrix.json`, per
+  `scripts/security_intelligence_release_gate.sh --phases proof-matrix --proof-matrix /secure/local/eshu/proof-matrix.json`
+  against an operator-local `proof-matrix.json`, per
   [Security Intelligence Release Gate](security-intelligence-release-gate.md).
 
 ## Follow-Ups
