@@ -23,6 +23,48 @@ An extension never receives Postgres, graph, reducer, API, MCP, or
 workflow-control handles. Installed, enabled, and claim-capable component states
 remain separate.
 
+## Why A Monorepo By Default
+
+The default home for a collector is the core monorepo. One repository per small
+collector is explicitly **not** the default, and a new collector must not start
+its own repository to avoid review or shared contracts. Extraction is a
+deliberate graduation a collector earns by meeting the
+[Extraction Criteria](#extraction-criteria), not a starting point.
+
+The monorepo is the default because the costs it removes are larger than the
+isolation a separate repository adds:
+
+- **Contract stability.** Collectors, the public collector SDK
+  (`sdk/go/collector`), the fact schema versions in `go/internal/facts`, reducer
+  admission, and query truth co-evolve. In one tree a contract change and every
+  consumer move together in a single reviewed commit. Splitting a collector out
+  before its facts and consumer contracts are stable turns one atomic change
+  into a cross-repository version negotiation.
+- **Correlation correctness.** Code-to-cloud and supply-chain correlation depend
+  on join keys that several collectors and reducers produce and consume
+  together. Keeping correlation-critical collectors in tree keeps those keys
+  changing atomically. A premature split risks silent join-key drift, which is a
+  correctness failure, not a packaging inconvenience.
+- **One release, CI, and security surface.** A single repository has one
+  versioning, build, conformance, provenance, and vulnerability-response
+  surface. Each extracted repository adds its own release cadence, digest-pinned
+  artifact, trust policy, and CI — overhead that only pays off when the source's
+  vendor churn is genuinely independent.
+- **One proof surface.** Fixture conformance, reducer admission, graph/query
+  truth, and remote Compose proof run together in tree. Fragmenting them across
+  repositories makes it harder to prove the whole pipeline still agrees.
+- **Lower contributor and version-skew cost.** Dozens of tiny repositories
+  multiply scaffolding, dependency bumps, and the chance that a collector pins
+  an incompatible core or SDK version. The
+  [conformance flow](../extend/community-extension-authoring.md) already lets a
+  collector be validated against its manifest and SDK contracts without its own
+  repository, so isolation is available without paying the split cost early.
+
+Extraction becomes worth its cost only when a source family's vendor API or
+format churn is independent enough that a separate release cadence helps more
+than the shared contract, correlation, and proof guarantees it gives up. Until
+then, in tree is the safer and cheaper default.
+
 ## Extraction Criteria
 
 A collector family is eligible for out-of-tree extraction only when all rows are
@@ -58,6 +100,35 @@ depends on. Moving them out of tree would require a separate architecture gate
 with fixture truth, reducer graph truth, API/MCP truth, performance, and
 concurrency evidence proving the split does not weaken correlation correctness.
 
+## Source-Family Package Boundaries
+
+Extraction is decided per **source family**, not per individual collector. A
+family is the unit a single out-of-tree package may own: collectors that share a
+vendor, protocol, or evidence domain and can release on one cadence. Splitting a
+single small collector into its own repository is not a family boundary.
+
+The distinction that decides a family's default home is whether it **produces**
+correlation join keys or only **consumes** them. Families that produce the
+identity, deployment, or supply-chain join keys the graph is built on stay in
+tree; families that observe a vendor and emit source evidence consumed by
+reducers are extraction candidates.
+
+| Source family | Examples | Default home | Why |
+| --- | --- | --- | --- |
+| Core code-to-cloud | Git, parsers, Terraform state, AWS/GCP/Azure, Kubernetes-live | In tree | Produce the identity and deployment join keys; co-evolve with reducer admission and graph identity. |
+| Cloud posture and supply-chain producers | image identity, SBOM/attestation, OCI/package registries that mint supply-chain join keys | In tree | Mint or preserve join keys that supply-chain correlation depends on. |
+| Observability | Grafana, Loki, Tempo, Mimir, Prometheus metadata | Extraction candidate | Vendor-cadence metadata consumed by coverage/drift reducers; emits evidence without changing graph admission. |
+| Docs and knowledge | Confluence and other documentation sources | Extraction candidate | Documentation evidence on provider cadence; provenance-only until a consumer admits it. |
+| SaaS and incident integrations | PagerDuty, Jira, CI/CD providers | Extraction candidate | External-system evidence on vendor cadence; correlated by reducers rather than producing core keys. |
+| Scanner packs | isolated security analyzers and advisory/vulnerability-intelligence sources | Extraction candidate | Analyzer and advisory evidence packaged as a set; reducers own which findings become user-facing truth. |
+
+A family is a candidate only when it meets every row of the
+[Extraction Criteria](#extraction-criteria); membership in a candidate family is
+necessary, not sufficient. Vulnerability-intelligence facts, for example,
+participate in supply-chain correlation but do not **produce** the image or
+package join keys, so the scanner-pack family can move on vendor cadence while
+the join-key producers stay in tree.
+
 ## Extraction Candidates
 
 Vendor-API and support-source collectors are the first candidates when they
@@ -85,7 +156,7 @@ Each tracked collector family receives one classification:
 | Classification | Meaning |
 | --- | --- |
 | `keep_in_tree` | Correlation-critical core collector. It stays in tree until a separate architecture gate proves a split keeps correlation correct. |
-| `extraction_candidate` | Eligible family with no unmet criteria that has not yet been promoted to run out of tree as its default. |
+| `extraction_candidate` | Eligible family whose extraction *mechanics* (source coupling, fact contract, scope/generation, trust, and boundary proof) are met, but which has not been promoted to run out of tree as its default. Production graph/query readback may intentionally remain the in-tree collector's path until promotion; that pending production readback is why the family is a candidate and not yet `external_ready`. |
 | `blocked` | Eligible family with at least one unmet criterion. The unmet criteria are reported as concrete blockers. |
 | `external_ready` | The out-of-tree proof is complete and the family runs out of tree as its default path. |
 
