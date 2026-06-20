@@ -73,7 +73,10 @@ func SolveValueFlowSnapshotIncrementalDurable(
 			}
 			program := components[i].program(effects)
 			assembled[i] = true
-			result := interproc.Solve(program, interproc.Limits{MaxFindings: math.MaxInt})
+			result := boundedValueFlowComponentResult(
+				interproc.Solve(program, interproc.Limits{MaxFindings: math.MaxInt}),
+				limits,
+			)
 			cache.put(components[i].key, result)
 			results[i] = result
 			recomputed[i] = true
@@ -82,6 +85,7 @@ func SolveValueFlowSnapshotIncrementalDurable(
 	wg.Wait()
 
 	findings := make([]interproc.Finding, 0)
+	overflow := 0
 	for i, result := range results {
 		if assembled[i] {
 			stats.AssembledComponents++
@@ -92,6 +96,7 @@ func SolveValueFlowSnapshotIncrementalDurable(
 			stats.ReusedComponents++
 		}
 		findings = append(findings, result.Findings...)
+		overflow += result.Overflow
 	}
 	if store != nil {
 		entries := make(map[string]interproc.Result)
@@ -106,7 +111,7 @@ func SolveValueFlowSnapshotIncrementalDurable(
 			}
 		}
 	}
-	return capValueFlowFindings(findings, limits), stats, nil
+	return capValueFlowFindingsWithOverflow(findings, limits, overflow), stats, nil
 }
 
 type valueFlowSnapshotComponent struct {

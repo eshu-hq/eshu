@@ -112,7 +112,10 @@ func SolveValueFlowProgramIncrementalDurable(
 				results[i] = result
 				return
 			}
-			result := interproc.Solve(keyed[i].program, interproc.Limits{MaxFindings: math.MaxInt})
+			result := boundedValueFlowComponentResult(
+				interproc.Solve(keyed[i].program, interproc.Limits{MaxFindings: math.MaxInt}),
+				limits,
+			)
 			if cache != nil {
 				cache.put(keyed[i].key, result)
 			}
@@ -123,6 +126,7 @@ func SolveValueFlowProgramIncrementalDurable(
 	wg.Wait()
 
 	findings := make([]interproc.Finding, 0)
+	overflow := 0
 	for i, result := range results {
 		if recomputed[i] {
 			stats.RecomputedComponents++
@@ -130,6 +134,7 @@ func SolveValueFlowProgramIncrementalDurable(
 			stats.ReusedComponents++
 		}
 		findings = append(findings, result.Findings...)
+		overflow += result.Overflow
 	}
 	if store != nil {
 		entries := make(map[string]interproc.Result)
@@ -144,7 +149,7 @@ func SolveValueFlowProgramIncrementalDurable(
 			}
 		}
 	}
-	return capValueFlowFindings(findings, limits), stats, nil
+	return capValueFlowFindingsWithOverflow(findings, limits, overflow), stats, nil
 }
 
 type valueFlowComponentProgram struct {
@@ -199,7 +204,11 @@ func (c *ValueFlowFixpointCache) put(key string, result interproc.Result) {
 	c.entries[key] = result
 }
 
-func capValueFlowFindings(findings []interproc.Finding, limits interproc.Limits) interproc.Result {
+func boundedValueFlowComponentResult(result interproc.Result, limits interproc.Limits) interproc.Result {
+	return capValueFlowFindingsWithOverflow(result.Findings, limits, result.Overflow)
+}
+
+func capValueFlowFindingsWithOverflow(findings []interproc.Finding, limits interproc.Limits, overflow int) interproc.Result {
 	maxFindings := limits.MaxFindings
 	if maxFindings <= 0 {
 		maxFindings = interproc.DefaultLimits().MaxFindings
@@ -208,9 +217,9 @@ func capValueFlowFindings(findings []interproc.Finding, limits interproc.Limits)
 		return valueFlowFindingLess(findings[i], findings[j])
 	})
 	if len(findings) <= maxFindings {
-		return interproc.Result{Findings: findings}
+		return interproc.Result{Findings: findings, Overflow: overflow}
 	}
-	return interproc.Result{Findings: findings[:maxFindings], Overflow: len(findings) - maxFindings}
+	return interproc.Result{Findings: findings[:maxFindings], Overflow: overflow + len(findings) - maxFindings}
 }
 
 func valueFlowFindingLess(a, b interproc.Finding) bool {

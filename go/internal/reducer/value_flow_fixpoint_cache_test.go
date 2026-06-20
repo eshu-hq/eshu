@@ -254,6 +254,58 @@ func TestValueFlowFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *t
 	}
 }
 
+func TestValueFlowFixpointDurableCacheStoresBoundedComponentResults(t *testing.T) {
+	t.Parallel()
+
+	sourceA := summary.NewFunctionID("repo-a", "pkg", "", "sourceA")
+	sourceB := summary.NewFunctionID("repo-a", "pkg", "", "sourceB")
+	sinkA := summary.NewFunctionID("repo-a", "pkg", "", "sinkA")
+	sinkB := summary.NewFunctionID("repo-a", "pkg", "", "sinkB")
+	program := interproc.Program{
+		Edges: []interproc.Edge{
+			{From: valueFlowParamPort(sourceA, 0), To: valueFlowParamPort(sinkA, 0)},
+			{From: valueFlowParamPort(sourceA, 0), To: valueFlowParamPort(sinkB, 0)},
+			{From: valueFlowParamPort(sourceB, 0), To: valueFlowParamPort(sinkA, 0)},
+			{From: valueFlowParamPort(sourceB, 0), To: valueFlowParamPort(sinkB, 0)},
+		},
+		Sources: []interproc.Source{
+			{Port: valueFlowParamPort(sourceA, 0), Kind: "http_request"},
+			{Port: valueFlowParamPort(sourceB, 0), Kind: "cli"},
+		},
+		Sinks: []interproc.Sink{
+			{Port: valueFlowParamPort(sinkA, 0), Kind: "sql"},
+			{Port: valueFlowParamPort(sinkB, 0), Kind: "command"},
+		},
+	}
+	store := newMemoryValueFlowFixpointComponentStore()
+
+	result, stats, err := SolveValueFlowProgramIncrementalDurable(
+		context.Background(),
+		program,
+		valueFlowVersions("v1", sourceA, sourceB, sinkA, sinkB),
+		NewValueFlowFixpointCache(),
+		store,
+		interproc.Limits{MaxFindings: 1},
+	)
+	if err != nil {
+		t.Fatalf("durable solve error = %v", err)
+	}
+	if stats.RecomputedComponents != 1 {
+		t.Fatalf("stats = %+v, want one recomputed component", stats)
+	}
+	if len(result.Findings) != 1 || result.Overflow != 3 {
+		t.Fatalf("result = %+v, want one finding and three overflow", result)
+	}
+	if len(store.entries) != 1 {
+		t.Fatalf("stored entries = %d, want one component", len(store.entries))
+	}
+	for key, stored := range store.entries {
+		if len(stored.Findings) != 1 || stored.Overflow != 3 {
+			t.Fatalf("stored[%s] = %+v, want bounded finding plus overflow", key, stored)
+		}
+	}
+}
+
 func twoComponentValueFlowProgram(
 	leftSource summary.FunctionID,
 	leftSink summary.FunctionID,
