@@ -1,6 +1,9 @@
 package cfg
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // BlockID identifies a basic block within one function CFG. IDs are assigned in
 // construction order starting at zero.
@@ -19,18 +22,21 @@ const invalidStmt StmtID = -1
 // x = x + 1); uses observe the definitions reaching the statement entry, before
 // the statement's own definitions take effect.
 type Stmt struct {
-	ID   int
-	Line int
-	Defs []string
-	Uses []string
+	ID    int
+	Line  int
+	Defs  []string
+	Uses  []string
+	Guard string
 }
 
 // Block is a basic block: a maximal straight-line run of statements with a
-// single entry. Succs lists successor block IDs in ascending order.
+// single entry. Succs lists successor block IDs in ascending order. SuccGuards
+// optionally records branch-polarized guard text for a successor edge.
 type Block struct {
-	ID    int
-	Stmts []Stmt
-	Succs []int
+	ID         int
+	Stmts      []Stmt
+	Succs      []int
+	SuccGuards map[int]string
 }
 
 // DefUse is a resolved reaching definition: the definition at DefStmt reaches
@@ -44,31 +50,45 @@ type DefUse struct {
 	UseLine int
 }
 
+// ControlDependence records that a predicate statement controls execution of a
+// dependent basic block. It is statement provenance only; callers must not
+// persist it as graph structure.
+type ControlDependence struct {
+	GuardBlock     int
+	GuardStmt      int
+	GuardLine      int
+	Guard          string
+	DependentBlock int
+}
+
 // Overflow counts data dropped because a Limits cap tripped. All zero means the
 // Function is complete.
 type Overflow struct {
-	Blocks      int
-	Stmts       int
-	DefUseEdges int
-	AccessPaths int
+	Blocks              int
+	Stmts               int
+	DefUseEdges         int
+	ControlDependencies int
+	AccessPaths         int
 }
 
 // Any reports whether any cap tripped.
 func (o Overflow) Any() bool {
-	return o.Blocks > 0 || o.Stmts > 0 || o.DefUseEdges > 0 || o.AccessPaths > 0
+	return o.Blocks > 0 || o.Stmts > 0 || o.DefUseEdges > 0 || o.ControlDependencies > 0 || o.AccessPaths > 0
 }
 
 // Function is the bounded, deterministic result of Build: the basic blocks and
 // the def->use edges reaching definitions resolved across the CFG.
 type Function struct {
-	Blocks   []Block
-	DefUses  []DefUse
-	Overflow Overflow
+	Blocks              []Block
+	DefUses             []DefUse
+	ControlDependencies []ControlDependence
+	Overflow            Overflow
 }
 
 type builderBlock struct {
-	stmts []Stmt
-	succs map[BlockID]struct{}
+	stmts      []Stmt
+	succs      map[BlockID]struct{}
+	succGuards map[BlockID]string
 }
 
 // Builder accumulates basic blocks, statements, and control-flow edges for one
@@ -91,7 +111,7 @@ func NewBuilder(limits Limits) *Builder {
 // AddBlock appends a new empty basic block and returns its ID.
 func (b *Builder) AddBlock() BlockID {
 	id := BlockID(len(b.blocks))
-	b.blocks = append(b.blocks, &builderBlock{succs: map[BlockID]struct{}{}})
+	b.blocks = append(b.blocks, &builderBlock{succs: map[BlockID]struct{}{}, succGuards: map[BlockID]string{}})
 	if !b.hasEntry {
 		b.entry = id
 		b.hasEntry = true
@@ -112,16 +132,27 @@ func (b *Builder) SetEntry(block BlockID) {
 // its StmtID. Empty binding names are dropped. A statement against an unknown
 // block is ignored and returns invalidStmt.
 func (b *Builder) AddStmt(block BlockID, line int, defs, uses []string) StmtID {
+	return b.addStmt(block, line, defs, uses, "")
+}
+
+// AddGuardStmt appends a predicate statement to block and records its
+// human-facing guard expression for later control-dependence provenance.
+func (b *Builder) AddGuardStmt(block BlockID, line int, uses []string, guard string) StmtID {
+	return b.addStmt(block, line, nil, uses, strings.TrimSpace(guard))
+}
+
+func (b *Builder) addStmt(block BlockID, line int, defs, uses []string, guard string) StmtID {
 	if !b.validBlock(block) {
 		return invalidStmt
 	}
 	id := b.nextStmt
 	b.nextStmt++
 	stmt := Stmt{
-		ID:   id,
-		Line: line,
-		Defs: cleanBindings(defs),
-		Uses: cleanBindings(uses),
+		ID:    id,
+		Line:  line,
+		Defs:  cleanBindings(defs),
+		Uses:  cleanBindings(uses),
+		Guard: guard,
 	}
 	bb := b.blocks[block]
 	bb.stmts = append(bb.stmts, stmt)
@@ -132,10 +163,20 @@ func (b *Builder) AddStmt(block BlockID, line int, defs, uses []string) StmtID {
 // duplicate edges are de-duplicated; edges referencing unknown blocks are
 // ignored.
 func (b *Builder) AddEdge(from, to BlockID) {
+	b.AddGuardedEdge(from, to, "")
+}
+
+// AddGuardedEdge records a control-flow edge with branch-specific predicate
+// provenance. The guard text is used only for control-dependence evidence; the
+// edge itself behaves like AddEdge.
+func (b *Builder) AddGuardedEdge(from, to BlockID, guard string) {
 	if !b.validBlock(from) || !b.validBlock(to) {
 		return
 	}
 	b.blocks[from].succs[to] = struct{}{}
+	if trimmed := strings.TrimSpace(guard); trimmed != "" {
+		b.blocks[from].succGuards[to] = trimmed
+	}
 }
 
 func (b *Builder) validBlock(block BlockID) bool {
@@ -177,5 +218,16 @@ func (bb *builderBlock) sortedSuccs() []int {
 		out = append(out, int(s))
 	}
 	sort.Ints(out)
+	return out
+}
+
+func (bb *builderBlock) sortedSuccGuards() map[int]string {
+	if len(bb.succGuards) == 0 {
+		return nil
+	}
+	out := make(map[int]string, len(bb.succGuards))
+	for succ, guard := range bb.succGuards {
+		out[int(succ)] = guard
+	}
 	return out
 }

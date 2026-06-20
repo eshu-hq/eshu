@@ -2,6 +2,7 @@ package taint
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
 )
@@ -10,12 +11,14 @@ import (
 // node per (statement, binding) definition, with edges along def->use->new-def
 // chains. It is the substrate the taint fixpoint runs over.
 type graph struct {
-	defs     []defNode
-	defIndex map[StmtBinding]int
-	succs    [][]defEdge
-	reach    map[StmtBinding][]int // (useStmt, binding) -> reaching defIDs
-	stmtUses map[int][]string
-	stmtLine map[int]int
+	defs          []defNode
+	defIndex      map[StmtBinding]int
+	succs         [][]defEdge
+	reach         map[StmtBinding][]int // (useStmt, binding) -> reaching defIDs
+	stmtUses      map[int][]string
+	stmtLine      map[int]int
+	stmtBlock     map[int]int
+	guardsByBlock map[int][]cfg.ControlDependence
 }
 
 type defNode struct {
@@ -47,15 +50,18 @@ type taintState struct {
 // the value-flow graph the fixpoint walks.
 func newGraph(fn cfg.Function) *graph {
 	g := &graph{
-		defIndex: map[StmtBinding]int{},
-		reach:    map[StmtBinding][]int{},
-		stmtUses: map[int][]string{},
-		stmtLine: map[int]int{},
+		defIndex:      map[StmtBinding]int{},
+		reach:         map[StmtBinding][]int{},
+		stmtUses:      map[int][]string{},
+		stmtLine:      map[int]int{},
+		stmtBlock:     map[int]int{},
+		guardsByBlock: map[int][]cfg.ControlDependence{},
 	}
 	stmtDefs := map[int][]string{}
 	for _, block := range fn.Blocks {
 		for _, stmt := range block.Stmts {
 			g.stmtLine[stmt.ID] = stmt.Line
+			g.stmtBlock[stmt.ID] = block.ID
 			if len(stmt.Uses) > 0 {
 				g.stmtUses[stmt.ID] = stmt.Uses
 			}
@@ -71,6 +77,9 @@ func newGraph(fn cfg.Function) *graph {
 				g.defs = append(g.defs, defNode{stmt: stmt.ID, binding: binding, line: stmt.Line})
 			}
 		}
+	}
+	for _, dep := range fn.ControlDependencies {
+		g.guardsByBlock[dep.DependentBlock] = append(g.guardsByBlock[dep.DependentBlock], dep)
 	}
 
 	g.succs = make([][]defEdge, len(g.defs))
@@ -216,6 +225,7 @@ func (g *graph) evaluateSinks(facts Facts, states []taintState, maxFindings int)
 					SourceLine:  st.originLine,
 					SinkStmt:    sinkStmt,
 					SinkLine:    g.stmtLine[sinkStmt],
+					GuardReason: g.guardReasonForStmt(sinkStmt),
 					Neutralized: sortedKinds(st.neutralized),
 					Confidence:  confidence,
 				})
@@ -223,6 +233,34 @@ func (g *graph) evaluateSinks(facts Facts, states []taintState, maxFindings int)
 		}
 	}
 	return findings, generated - len(findings)
+}
+
+func (g *graph) guardReasonForStmt(stmt int) string {
+	block, ok := g.stmtBlock[stmt]
+	if !ok {
+		return ""
+	}
+	deps := g.guardsByBlock[block]
+	if len(deps) == 0 {
+		return ""
+	}
+	reasons := g.guardReasonsForBlock(block, map[int]struct{}{})
+	return strings.Join(reasons, " && ")
+}
+
+func (g *graph) guardReasonsForBlock(block int, seen map[int]struct{}) []string {
+	if _, ok := seen[block]; ok {
+		return nil
+	}
+	seen[block] = struct{}{}
+	var reasons []string
+	for _, dep := range g.guardsByBlock[block] {
+		reasons = append(reasons, g.guardReasonsForBlock(dep.GuardBlock, seen)...)
+		if dep.Guard != "" {
+			reasons = append(reasons, dep.Guard)
+		}
+	}
+	return reasons
 }
 
 // sourceSeed pairs a source definition with its mark for deterministic seeding.

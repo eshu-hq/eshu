@@ -151,6 +151,7 @@ type TaintEvidenceSnapshot struct {
 	ClassContext string  `json:"class_context,omitempty"`
 	SinkLabel    string  `json:"sink_label,omitempty"`
 	SourceLabel  string  `json:"source_label,omitempty"`
+	GuardReason  string  `json:"guard_reason,omitempty"`
 }
 
 // InterprocTaintEvidenceSnapshot is one cross-function value-flow finding

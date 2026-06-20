@@ -162,8 +162,10 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 			}
 		}
 	}
+	guardText := ""
 	if cond := node.ChildByFieldName("condition"); cond != nil {
-		l.addUses(cur, cond)
+		l.addGuardUses(cur, cond)
+		guardText = goGuardText(cond, l.source)
 	}
 	entryAliases := l.aliases.clone()
 
@@ -171,7 +173,7 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 	mergeReachable := false
 
 	thenBlk := l.builder.AddBlock()
-	l.builder.AddEdge(cur, thenBlk)
+	l.builder.AddGuardedEdge(cur, thenBlk, guardText)
 	thenReach := true
 	if cons := node.ChildByFieldName("consequence"); cons != nil {
 		thenBlk, thenReach = l.lowerStmt(cons, thenBlk)
@@ -186,7 +188,7 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 	if alt := node.ChildByFieldName("alternative"); alt != nil {
 		l.aliases = entryAliases.clone()
 		elseBlk := l.builder.AddBlock()
-		l.builder.AddEdge(cur, elseBlk)
+		l.builder.AddGuardedEdge(cur, elseBlk, goNegatedGuardText(guardText))
 		elseBlk, elseReach := l.lowerStmt(alt, elseBlk)
 		elseAliases = l.aliases.clone()
 		if elseReach {
@@ -195,7 +197,7 @@ func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Blo
 		}
 	} else {
 		// No else: the condition-false path falls through to the merge.
-		l.builder.AddEdge(cur, merge)
+		l.builder.AddGuardedEdge(cur, merge, goNegatedGuardText(guardText))
 		mergeReachable = true
 	}
 	if !thenReach {
@@ -230,12 +232,14 @@ func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Bl
 
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
+	guardText := ""
 	if cond != nil {
-		l.addUses(header, cond)
+		l.addGuardUses(header, cond)
+		guardText = goGuardText(cond, l.source)
 	}
 
 	bodyBlk := l.builder.AddBlock()
-	l.builder.AddEdge(header, bodyBlk)
+	l.builder.AddGuardedEdge(header, bodyBlk, guardText)
 	bodyReach := true
 	if body := node.ChildByFieldName("body"); body != nil {
 		bodyBlk, bodyReach = l.lowerStmt(body, bodyBlk)
@@ -248,7 +252,7 @@ func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Bl
 	}
 
 	exit := l.builder.AddBlock()
-	l.builder.AddEdge(header, exit)
+	l.builder.AddGuardedEdge(header, exit, goNegatedGuardText(guardText))
 	// The loop may run zero times, so control after it is reachable.
 	l.aliases = entryAliases
 	return exit, true
@@ -317,6 +321,16 @@ func (l *goCFGLowerer) addStmt(block cfg.BlockID, line int, defs, uses []string)
 func (l *goCFGLowerer) addUses(block cfg.BlockID, node *tree_sitter.Node) {
 	uses := goExprUsesWithOptions(node, l.source, l.aliases, l.accessPathOptions())
 	l.addStmt(block, nodeLine(node), nil, uses)
+}
+
+// addGuardUses records a branch predicate as both identifier uses and
+// human-facing guard provenance for control-dependence explanations.
+func (l *goCFGLowerer) addGuardUses(block cfg.BlockID, node *tree_sitter.Node) {
+	uses := goExprUsesWithOptions(node, l.source, l.aliases, l.accessPathOptions())
+	if len(uses) == 0 {
+		return
+	}
+	l.builder.AddGuardStmt(block, nodeLine(node), uses, goGuardText(node, l.source))
 }
 
 func (l *goCFGLowerer) accessPathOptions() goAccessPathOptions {

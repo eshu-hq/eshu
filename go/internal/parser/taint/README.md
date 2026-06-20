@@ -49,6 +49,10 @@ None. The package is a pure computation; overflow is surfaced as data on the
   but never iterated into output order. Overflow is counted, never silent.
 - **Confidence is fixed per finding kind** for intraprocedural flows (direct, no
   summary composition); the interprocedural pass will use lower confidence.
+- **Guard reasons are provenance, not truth upgrades.** When CFG
+  control-dependence data is available, findings may include a deterministic
+  `GuardReason` chain naming the predicates that gate the sink. The analyzer
+  still uses the existing kind-set sanitizer model for the taint verdict.
 
 ## Related docs
 

@@ -20,6 +20,7 @@ func codeTaintEvidenceRow() map[string]any {
 		"source_line":   4,
 		"sink_line":     5,
 		"confidence":    0.8,
+		"guard_reason":  "allowed",
 	}
 }
 
@@ -61,6 +62,7 @@ func TestCodeTaintEvidenceWriterMatchesFunctionAndMergesEvidence(t *testing.T) {
 		"MERGE (ev:CodeTaintEvidence {uid: row.uid})",
 		"MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev)",
 		"ev.confidence = row.confidence",
+		"ev.guard_reason = row.guard_reason",
 		"rel.sink_kind = row.sink_kind",
 		"ev.evidence_source = row.evidence_source",
 	} {

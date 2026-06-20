@@ -55,7 +55,7 @@ func sampleCodeTaintInput() CodeTaintEvidenceInput {
 	return CodeTaintEvidenceInput{
 		FunctionUID: "func-handle", FunctionName: "handle", RelativePath: "src/handler.go",
 		Language: "go", Kind: "TAINTED", SinkKind: "sql", SourceKind: "http_request",
-		Binding: "q", SourceLine: 4, SinkLine: 5, Confidence: 0.8,
+		Binding: "q", SourceLine: 4, SinkLine: 5, Confidence: 0.8, GuardReason: "allowed",
 	}
 }
 
@@ -83,6 +83,9 @@ func TestCodeTaintEvidenceHandlerRetractsThenWrites(t *testing.T) {
 	}
 	if writer.writtenRows[0]["function_uid"] != "func-handle" || writer.writtenRows[0]["uid"] == "" {
 		t.Fatalf("row not projected with function uid + node uid: %+v", writer.writtenRows[0])
+	}
+	if writer.writtenRows[0]["guard_reason"] != "allowed" {
+		t.Fatalf("guard reason not projected: %+v", writer.writtenRows[0])
 	}
 	if result.CanonicalWrites != 1 || result.Status != ResultStatusSucceeded {
 		t.Fatalf("result = %+v, want 1 canonical write succeeded", result)

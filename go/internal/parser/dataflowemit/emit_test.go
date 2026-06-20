@@ -3,6 +3,7 @@ package dataflowemit
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/parser/taint"
@@ -17,7 +18,7 @@ func TestTaintFindingRowOmitsEmptyOptionalFields(t *testing.T) {
 	if bare["lang"] != "python" {
 		t.Fatalf("lang = %v, want python", bare["lang"])
 	}
-	for _, key := range []string{"class_context", "sink_label", "source_label", "neutralized"} {
+	for _, key := range []string{"class_context", "sink_label", "source_label", "guard_reason", "neutralized"} {
 		if _, present := bare[key]; present {
 			t.Fatalf("optional field %q present when empty: %+v", key, bare)
 		}
@@ -25,9 +26,10 @@ func TestTaintFindingRowOmitsEmptyOptionalFields(t *testing.T) {
 
 	full := TaintFindingRow("python", "method", 9, "Repo", taint.Finding{
 		Kind: taint.FindingTainted, SinkKind: "sql", SinkLabel: "execute",
-		SourceLabel: "request", Neutralized: []taint.Kind{"html"},
+		SourceLabel: "request", GuardReason: "allowed", Neutralized: []taint.Kind{"html"},
 	})
-	if full["class_context"] != "Repo" || full["sink_label"] != "execute" || full["source_label"] != "request" {
+	if full["class_context"] != "Repo" || full["sink_label"] != "execute" ||
+		full["source_label"] != "request" || full["guard_reason"] != "allowed" {
 		t.Fatalf("optional fields not carried when set: %+v", full)
 	}
 	if got, _ := full["neutralized"].([]string); len(got) != 1 || got[0] != "html" {
@@ -101,6 +103,19 @@ func TestSortFindingRowsDeterministic(t *testing.T) {
 	}
 	if rows[2]["sink_line"] != 10 {
 		t.Fatalf("highest sink line should sort last: %+v", rows)
+	}
+}
+
+func TestDataflowFunctionRowCarriesControlDependencyOverflow(t *testing.T) {
+	row := DataflowFunctionRow("go", "handler", 3, "", cfg.Function{
+		Overflow: cfg.Overflow{ControlDependencies: 2},
+	})
+	overflow, ok := row["overflow"].(map[string]any)
+	if !ok {
+		t.Fatalf("overflow missing: %+v", row)
+	}
+	if got := overflow["control_dependencies"]; got != 2 {
+		t.Fatalf("control_dependencies overflow = %v, want 2", got)
 	}
 }
 

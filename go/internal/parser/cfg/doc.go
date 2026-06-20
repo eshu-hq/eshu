@@ -3,9 +3,10 @@
 //
 // Callers lower a source function into basic blocks, statements, and
 // control-flow edges through Builder, then call Build to run the
-// reaching-definitions fixpoint and obtain a Function. A statement carries only
-// the bindings it defines and uses, so the package is language neutral: Go,
-// TypeScript, and Python lowerings share it without the package knowing any
+// reaching-definitions fixpoint and derive block-level control-dependence
+// provenance. A statement carries the bindings it defines and uses plus optional
+// guard text supplied by a language lowering, so the package is language neutral:
+// Go, TypeScript, and Python lowerings share it without the package knowing any
 // syntax.
 //
 // Determinism is a contract. Identical Builder calls always yield a
@@ -16,9 +17,10 @@
 // Bounds are never silent. Every Limits cap that trips records a counted value
 // on Function.Overflow rather than dropping data quietly: past MaxBlocks or
 // MaxStmts the fixpoint is skipped (the CFG is still emitted), and past
-// MaxDefUseEdges emission stops in deterministic order with the dropped count
-// recorded. Language lowerers that emit field-sensitive bindings can also use
-// MaxAccessPathParts and record truncated selector paths on Overflow.AccessPaths.
-// Callers that hash the facts for incremental recomposition can rely on both
-// the determinism and the explicit overflow signal.
+// MaxDefUseEdges or MaxControlDependencies emission stops in deterministic order
+// with the dropped count recorded. Language lowerers that emit field-sensitive
+// bindings can also use MaxAccessPathParts and record truncated selector paths on
+// Overflow.AccessPaths. Callers that hash the facts for incremental
+// recomposition can rely on both the determinism and the explicit overflow
+// signal.
 package cfg

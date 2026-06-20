@@ -35,6 +35,7 @@ SET ev.id = row.uid,
     ev.class_context = row.class_context,
     ev.sink_label = row.sink_label,
     ev.source_label = row.source_label,
+    ev.guard_reason = row.guard_reason,
     ev.scope_id = row.scope_id,
     ev.generation_id = row.generation_id,
     ev.evidence_source = row.evidence_source

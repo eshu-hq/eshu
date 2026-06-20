@@ -19,6 +19,7 @@ func taintFindingFixture() []map[string]any {
 		"source_line":   4,
 		"sink_line":     5,
 		"confidence":    0.8,
+		"guard_reason":  "allowed",
 	}}
 }
 
@@ -55,6 +56,9 @@ func TestBuildTaintEvidenceResolvesFunctionUID(t *testing.T) {
 	}
 	if got.RelativePath != "src/handler.go" || got.SinkLine != 5 || got.Confidence != 0.8 {
 		t.Fatalf("provenance not mapped: %+v", got)
+	}
+	if got.GuardReason != "allowed" {
+		t.Fatalf("guard reason not mapped: %+v", got)
 	}
 }
 
@@ -106,6 +110,14 @@ func TestTaintEvidenceFactEnvelope(t *testing.T) {
 	}
 	if env.Payload["function_uid"] != "func-handle" || env.Payload["sink_kind"] != "sql" {
 		t.Fatalf("payload not mapped: %+v", env.Payload)
+	}
+	if _, present := env.Payload["guard_reason"]; present {
+		t.Fatalf("empty guard reason should be omitted: %+v", env.Payload)
+	}
+	withGuard := evidence
+	withGuard.GuardReason = "allowed"
+	if got := taintEvidenceFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", at, withGuard).Payload["guard_reason"]; got != "allowed" {
+		t.Fatalf("guard reason not carried in fact payload: %v", got)
 	}
 	// Re-emitting the same finding yields the same stable key (idempotent).
 	again := taintEvidenceFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", at, evidence)

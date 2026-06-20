@@ -84,6 +84,7 @@ type Finding struct {
 	SourceLine  int
 	SinkStmt    int
 	SinkLine    int
+	GuardReason string
 	// Neutralized lists the sink kinds neutralized along the path, sorted.
 	Neutralized []Kind
 	Confidence  float64

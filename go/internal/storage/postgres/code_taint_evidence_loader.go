@@ -49,6 +49,7 @@ func codeTaintEvidenceFromEnvelope(envelope facts.Envelope) reducer.CodeTaintEvi
 		ClassContext: payloadString(payload, "class_context"),
 		SinkLabel:    payloadString(payload, "sink_label"),
 		SourceLabel:  payloadString(payload, "source_label"),
+		GuardReason:  payloadString(payload, "guard_reason"),
 	}
 }
 
