@@ -16,6 +16,9 @@ func TestValidatePassesCompleteInventory(t *testing.T) {
 	if !surfaceHasRelatedIssue(report, "capability_catalog", 2715) {
 		t.Fatalf("capability_catalog related issues = %#v, want #2715", report.Surfaces)
 	}
+	if !surfaceHasPassedQuality(report, "operator_digest", QualityDimensionEvidenceClarity) {
+		t.Fatalf("operator_digest missing passed evidence clarity quality result: %#v", report.Surfaces)
+	}
 }
 
 func TestValidateFailsMissingSurfaceEvidence(t *testing.T) {
@@ -109,6 +112,32 @@ func TestValidateFailsMissingSurfaceEvidence(t *testing.T) {
 	}
 }
 
+func TestValidateFailsWeakQualityAlthoughPresencePasses(t *testing.T) {
+	inv := completeInventory()
+	inv.Docs["docs/public/reference/operator-digest.md"] = "operator_digest.v1 unsupported truth"
+
+	report := Validate(inv, defaultExpectationsForTest())
+	if report.Pass {
+		t.Fatal("report.Pass = true, want false for weak quality")
+	}
+	surface, ok := surfaceResult(report, "operator_digest")
+	if !ok {
+		t.Fatalf("operator_digest surface missing: %#v", report.Surfaces)
+	}
+	if !surface.PresencePass {
+		t.Fatalf("surface.PresencePass = false, want true: %#v", surface.Checks)
+	}
+	if surface.QualityPass {
+		t.Fatalf("surface.QualityPass = true, want false: %#v", surface.Quality)
+	}
+	if surface.QualityScore.Failed == 0 {
+		t.Fatalf("surface quality score did not record failures: %#v", surface.QualityScore)
+	}
+	if !surfaceHasFailedQuality(report, "operator_digest", QualityDimensionActionability) {
+		t.Fatalf("operator_digest missing failed actionability quality result: %#v", surface.Quality)
+	}
+}
+
 func completeInventory() Inventory {
 	return Inventory{
 		Commands: []string{
@@ -136,10 +165,10 @@ func completeInventory() Inventory {
 			"ServiceReportPage",
 		},
 		Docs: map[string]string{
-			"docs/public/reference/first-run-evidence.md":            "first-run-evidence redacted truth",
-			"docs/public/reference/operator-digest.md":               "operator_digest.v1 unsupported truth",
-			"docs/public/reference/investigation-evidence-packet.md": "investigation_evidence_packet.v2 missing_evidence source-backed",
-			"docs/public/reference/capability-catalog.md":            "capability catalog general_availability implemented maturity",
+			"docs/public/reference/first-run-evidence.md":            "first-run-evidence redacted truth Next commands Recommended follow-ups Missing evidence complete partial stale failed first-run report --from --format json Outcome Runtime shape First query Diagnosis human-readable onboarding artifact support/debug packet",
+			"docs/public/reference/operator-digest.md":               "operator_digest.v1 unsupported truth suggested_questions next_calls question_limit missing evidence truncation unsupported stale source_refs route names MCP tool what Eshu knows what it does not know asking next first-five-minutes onboarding incident handoff",
+			"docs/public/reference/investigation-evidence-packet.md": "investigation_evidence_packet.v2 missing_evidence source-backed reproduce exact route/tool/command partial truncated unsupported_reasons packet_id source_fact_ids citation handles what was observed what the reducer decided graph answers instant local artifact portable",
+			"docs/public/reference/capability-catalog.md":            "capability catalog general_availability implemented maturity known_gaps linked_issues proof_signals stale overlay entries generated to go run ./cmd/capability-inventory GET /api/v0/capabilities what gaps remain where it is exposed what proves it MCP tool Console prompt-ready",
 		},
 		Exercises: []ExerciseResult{
 			{ID: "first_run_report_artifact", OK: true, Detail: "rendered"},
@@ -174,6 +203,41 @@ func hasFailedCheck(report Report, surface string, kind CheckKind, target string
 			if check.Kind == kind && check.Target == target && check.Status == CheckFail {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func surfaceResult(report Report, surface string) (SurfaceResult, bool) {
+	for _, result := range report.Surfaces {
+		if result.ID == surface {
+			return result, true
+		}
+	}
+	return SurfaceResult{}, false
+}
+
+func surfaceHasPassedQuality(report Report, surface string, dimension QualityDimensionID) bool {
+	result, ok := surfaceResult(report, surface)
+	if !ok {
+		return false
+	}
+	for _, quality := range result.Quality {
+		if quality.Dimension == dimension && quality.Pass {
+			return true
+		}
+	}
+	return false
+}
+
+func surfaceHasFailedQuality(report Report, surface string, dimension QualityDimensionID) bool {
+	result, ok := surfaceResult(report, surface)
+	if !ok {
+		return false
+	}
+	for _, quality := range result.Quality {
+		if quality.Dimension == dimension && !quality.Pass {
+			return true
 		}
 	}
 	return false

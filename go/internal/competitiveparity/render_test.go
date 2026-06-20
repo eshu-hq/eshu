@@ -19,9 +19,14 @@ func TestRenderArtifactsAreBoundedAndDeterministic(t *testing.T) {
 	if decoded.SchemaVersion != SchemaVersion {
 		t.Fatalf("decoded.SchemaVersion = %q, want %q", decoded.SchemaVersion, SchemaVersion)
 	}
+	if len(decoded.Surfaces) == 0 || len(decoded.Surfaces[0].Quality) == 0 {
+		t.Fatalf("RenderJSON() missing quality details: %#v", decoded.Surfaces)
+	}
 	md := RenderMarkdown(report)
 	for _, want := range []string{
 		"# Competitive Parity Gate",
+		"Quality score:",
+		"`actionability`",
 		"graphify-style report readability",
 		"CodeGraphContext-style portable artifact usability",
 		"GitNexus-style agent workflow discoverability",

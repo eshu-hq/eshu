@@ -3,8 +3,9 @@
 //
 // The gate is intentionally offline. Callers supply CLI command paths, generated
 // API/MCP/console surface names, public documentation text, and local exercise
-// results. Validate scores that inventory against the default #3265 expectations
-// for first-run reports, operator digests, investigation evidence packets, and
-// the capability catalog, then returns a deterministic report renderable as JSON
-// or Markdown.
+// results. Validate scores that inventory against the default #3265/#3306
+// expectations for first-run reports, operator digests, investigation evidence
+// packets, and the capability catalog. The report separates reachability checks
+// from deterministic usefulness scoring so a present-but-weak artifact can fail
+// the gate, then renders as JSON or Markdown.
 package competitiveparity

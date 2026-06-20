@@ -33,6 +33,27 @@ const (
 	CheckFail CheckStatus = "fail"
 )
 
+// QualityDimensionID names one deterministic artifact-usefulness dimension.
+type QualityDimensionID string
+
+const (
+	// QualityDimensionActionability verifies that an artifact routes readers to
+	// ranked next actions or bounded follow-up calls.
+	QualityDimensionActionability QualityDimensionID = "actionability"
+	// QualityDimensionEvidenceClarity verifies explicit missing-evidence,
+	// stale, truncation, unsupported, or partial-state signals.
+	QualityDimensionEvidenceClarity QualityDimensionID = "evidence_clarity"
+	// QualityDimensionReproducibility verifies schema, scope, handles, route,
+	// tool, or command details needed to reproduce the evidence.
+	QualityDimensionReproducibility QualityDimensionID = "reproducibility"
+	// QualityDimensionReaderUsefulness verifies that the artifact helps a reader
+	// understand what matters and what to do next.
+	QualityDimensionReaderUsefulness QualityDimensionID = "reader_usefulness"
+	// QualityDimensionPeerBaselineCoverage verifies the peer-inspired UX
+	// baseline that motivated the surface family.
+	QualityDimensionPeerBaselineCoverage QualityDimensionID = "peer_baseline_coverage"
+)
+
 // Inventory is the offline input to the parity gate.
 type Inventory struct {
 	Commands     []string
@@ -63,6 +84,20 @@ type DocExpectation struct {
 	TruthTerms []string
 }
 
+// QualitySignal declares one deterministic signal used to score usefulness.
+type QualitySignal struct {
+	SourcePath string `json:"source_path"`
+	Term       string `json:"term"`
+}
+
+// QualityExpectation declares one usefulness dimension for a surface family.
+type QualityExpectation struct {
+	Dimension   QualityDimensionID
+	DisplayName string
+	Signals     []QualitySignal
+	MinScore    int
+}
+
 // Expectation declares one shipped surface family the gate validates.
 type Expectation struct {
 	ID             string
@@ -74,6 +109,7 @@ type Expectation struct {
 	ConsolePages   []string
 	Docs           []DocExpectation
 	Exercises      []string
+	Quality        []QualityExpectation
 	RelatedIssues  []IssueRef
 	ResidualIssues []IssueRef
 }
@@ -86,15 +122,38 @@ type CheckResult struct {
 	Detail string      `json:"detail"`
 }
 
+// QualityScore summarizes usefulness scoring for one surface.
+type QualityScore struct {
+	Score  int `json:"score"`
+	Max    int `json:"max"`
+	Passed int `json:"passed"`
+	Failed int `json:"failed"`
+}
+
+// QualityResult is one deterministic usefulness score result.
+type QualityResult struct {
+	Dimension   QualityDimensionID `json:"dimension"`
+	DisplayName string             `json:"display_name"`
+	Pass        bool               `json:"pass"`
+	Score       int                `json:"score"`
+	MaxScore    int                `json:"max_score"`
+	Detail      string             `json:"detail"`
+	Missing     []QualitySignal    `json:"missing,omitempty"`
+}
+
 // SurfaceResult is the validation outcome for one expected surface family.
 type SurfaceResult struct {
-	ID             string        `json:"id"`
-	DisplayName    string        `json:"display_name"`
-	PeerBaseline   string        `json:"peer_baseline"`
-	Pass           bool          `json:"pass"`
-	Checks         []CheckResult `json:"checks"`
-	RelatedIssues  []IssueRef    `json:"related_issues,omitempty"`
-	ResidualIssues []IssueRef    `json:"residual_issues,omitempty"`
+	ID             string          `json:"id"`
+	DisplayName    string          `json:"display_name"`
+	PeerBaseline   string          `json:"peer_baseline"`
+	Pass           bool            `json:"pass"`
+	PresencePass   bool            `json:"presence_pass"`
+	QualityPass    bool            `json:"quality_pass"`
+	QualityScore   QualityScore    `json:"quality_score"`
+	Checks         []CheckResult   `json:"checks"`
+	Quality        []QualityResult `json:"quality"`
+	RelatedIssues  []IssueRef      `json:"related_issues,omitempty"`
+	ResidualIssues []IssueRef      `json:"residual_issues,omitempty"`
 }
 
 // Summary reports aggregate pass/fail counts.
