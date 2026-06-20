@@ -77,6 +77,42 @@ active profile cannot answer correctly.
 - Repository-oriented routes accept a public repository selector and normalize
   it to the canonical `repo_id` server-side.
 
+## Ask Eshu — POST /api/v0/ask
+
+Synchronous natural-language answer endpoint. **Default-off**: returns
+`{"state":"unavailable","reason":"..."}` with HTTP 503 unless
+`ESHU_ASK_ENABLED=true` and a valid `agent_reasoning` provider profile is
+configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
+
+**Request body:**
+```json
+{"question": "string (required)", "format": "auto|markdown|mermaid|json|yaml|csv (optional)"}
+```
+
+**Response (200):**
+```json
+{
+  "answer_prose":     "string (LLM narration when available)",
+  "artifacts":        [{"format":"string","content":"string","issues":["string"]}],
+  "truth_class":      "deterministic|derived|fallback|semantic_observation|code_hint|unsupported",
+  "evidence_handles": [...],
+  "query_trace":      [{"tool":"string","args":{},"supported":bool,"truth_class":"string","err":"string"}],
+  "partial":          false,
+  "limitations":      ["string"]
+}
+```
+
+**Error responses:** 400 (empty/missing question), 401 (unauthenticated),
+503 (disabled or provider absent). The engine never echoes provider prompts,
+raw provider bodies, or credentials.
+
+**Authentication:** This endpoint requires a **shared token** (admin/full-scope
+`ESHU_API_KEY`). Scoped tokens are not yet enabled for this route and receive
+`403 permission_denied`. Scoped-token support is a planned follow-up.
+
+**Follow-ups (out of scope for this PR):** SSE streaming; Tier-2 Cypher/SQL
+sandbox wiring; scoped-token support.
+
 ## Related References
 
 - [Truth Label Protocol](truth-label-protocol.md)

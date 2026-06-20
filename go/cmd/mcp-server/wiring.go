@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
@@ -28,8 +27,6 @@ var (
 	_ query.GraphQuery   = (*query.Neo4jReader)(nil)
 	_ query.ContentStore = (*query.ContentReader)(nil)
 )
-
-const envSemanticSearchLocalEmbedder = "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER"
 
 func wireAPI(
 	ctx context.Context,
@@ -153,6 +150,14 @@ func wireAPI(
 		Incidents:   newIncidentEvidenceSource(db, logger),
 		SupplyChain: newSupplyChainEvidenceSource(db, logger),
 	}).Mount(mux)
+
+	// Mount POST /api/v0/ask so the MCP "ask" tool dispatch does not 404.
+	// The handler is default-off (nil Asker → 503 state:"unavailable") when
+	// ESHU_ASK_ENABLED is unset or no agent_reasoning provider profile is
+	// configured. This matches the cmd/api wiring: the MCP server does not
+	// provide an in-process engine, so the AskHandler always runs in
+	// default-off mode here; the MCP ask tool proxies through HTTP.
+	(&query.AskHandler{}).Mount(mux)
 
 	// Record per-endpoint duration/error metrics for every read route, then wrap
 	// with auth middleware (shared token + optional scoped-token registry;
@@ -355,99 +360,4 @@ func newMCPQueryRouter(
 			Profile: queryProfile,
 		},
 	}
-}
-
-func componentPolicyFromEnv(getenv func(string) string) component.Policy {
-	return component.ConfigureProvenanceFromEnv(component.Policy{
-		Mode:              strings.TrimSpace(getenv("ESHU_COMPONENT_TRUST_MODE")),
-		AllowedIDs:        componentEnvList(getenv("ESHU_COMPONENT_ALLOW_IDS")),
-		AllowedPublishers: componentEnvList(getenv("ESHU_COMPONENT_ALLOW_PUBLISHERS")),
-		RevokedIDs:        componentEnvList(getenv("ESHU_COMPONENT_REVOKE_IDS")),
-		RevokedPublishers: componentEnvList(getenv("ESHU_COMPONENT_REVOKE_PUBLISHERS")),
-		CoreVersion:       strings.TrimSpace(getenv("ESHU_COMPONENT_CORE_VERSION")),
-	}, getenv)
-}
-
-func componentEnvList(raw string) []string {
-	fields := strings.Split(raw, ",")
-	values := make([]string, 0, len(fields))
-	for _, field := range fields {
-		if value := strings.TrimSpace(field); value != "" {
-			values = append(values, value)
-		}
-	}
-	return values
-}
-
-func openQueryGraph(
-	ctx context.Context,
-	getenv func(string) string,
-	queryProfile query.QueryProfile,
-	logger *slog.Logger,
-) (neo4jdriver.DriverWithContext, string, error) {
-	neo4jDB := envOrDefault(getenv, "DEFAULT_DATABASE", "nornic")
-	if queryProfile == query.ProfileLocalLightweight || strings.EqualFold(envOrDefault(getenv, "ESHU_DISABLE_NEO4J", ""), "true") {
-		return nil, neo4jDB, nil
-	}
-
-	driver, cfg, err := internalruntime.OpenNeo4jDriver(ctx, getenv)
-	if err != nil {
-		return nil, "", err
-	}
-	if logger != nil {
-		logger.Info("neo4j connected", telemetry.EventAttr("runtime.neo4j.connected"), slog.String("neo4j_uri", cfg.URI))
-	}
-	return driver, cfg.DatabaseName, nil
-}
-
-func envOrDefault(getenv func(string) string, key, fallback string) string {
-	v := strings.TrimSpace(getenv(key))
-	if v == "" {
-		return fallback
-	}
-	return v
-}
-
-func loadSemanticSearchLocalEmbedder(getenv func(string) string) (string, error) {
-	raw := strings.TrimSpace(getenv(envSemanticSearchLocalEmbedder))
-	switch raw {
-	case "", "hash", "local_hash":
-		return raw, nil
-	default:
-		return "", fmt.Errorf("invalid %s %q", envSemanticSearchLocalEmbedder, raw)
-	}
-}
-
-func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {
-	raw := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE"))
-	if raw == "" {
-		return query.ProfileProduction, nil
-	}
-	profile, err := query.ParseQueryProfile(raw)
-	if err != nil {
-		return "", err
-	}
-	return profile, nil
-}
-
-func loadGraphBackend(getenv func(string) string) (query.GraphBackend, error) {
-	return query.ParseGraphBackend(strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND")))
-}
-
-func mountRuntimeSurface(
-	serviceName string,
-	reader status.Reader,
-	prometheusHandler http.Handler,
-	db *sql.DB,
-	driver neo4jdriver.DriverWithContext,
-) (*http.ServeMux, error) {
-	return internalruntime.NewStatusAdminMux(
-		serviceName,
-		reader,
-		nil,
-		internalruntime.WithPrometheusHandler(prometheusHandler),
-		internalruntime.WithReadinessProbes(
-			internalruntime.ReadinessProbesForDependencies(db, driver)...,
-		),
-	)
 }

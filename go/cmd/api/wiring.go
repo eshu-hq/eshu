@@ -168,6 +168,15 @@ func wireAPI(
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
 
+	// Mount the Ask Eshu endpoint. The handler is default-off (nil Asker →
+	// 503 unavailable) unless ESHU_ASK_ENABLED=true and a valid
+	// agent_reasoning provider profile is configured. The apiMux is passed
+	// as the in-process MCP runner handler so the engine dispatches tool
+	// calls through the already-mounted API surface. We call Mount after
+	// router.Mount so the mux is fully assembled before the runner is wired.
+	askHandler := buildAskHandler(getenv, apiMux, apiKey, logger)
+	askHandler.Mount(apiMux)
+
 	// Mount the service intelligence report route. It lives in its own package
 	// (which imports both query and serviceintel) and is mounted here rather than
 	// by the query router, so query never depends on serviceintel — no cycle. The
@@ -438,49 +447,4 @@ func newRouter(
 	router.Admin.Recovery = recoveryHandler
 	router.Admin.Reindexer = reindexer
 	return router, nil
-}
-
-func componentPolicyFromEnv(getenv func(string) string) component.Policy {
-	return component.ConfigureProvenanceFromEnv(component.Policy{
-		Mode:              strings.TrimSpace(getenv("ESHU_COMPONENT_TRUST_MODE")),
-		AllowedIDs:        componentEnvList(getenv("ESHU_COMPONENT_ALLOW_IDS")),
-		AllowedPublishers: componentEnvList(getenv("ESHU_COMPONENT_ALLOW_PUBLISHERS")),
-		RevokedIDs:        componentEnvList(getenv("ESHU_COMPONENT_REVOKE_IDS")),
-		RevokedPublishers: componentEnvList(getenv("ESHU_COMPONENT_REVOKE_PUBLISHERS")),
-		CoreVersion:       strings.TrimSpace(getenv("ESHU_COMPONENT_CORE_VERSION")),
-	}, getenv)
-}
-
-func componentEnvList(raw string) []string {
-	fields := strings.Split(raw, ",")
-	values := make([]string, 0, len(fields))
-	for _, field := range fields {
-		if value := strings.TrimSpace(field); value != "" {
-			values = append(values, value)
-		}
-	}
-	return values
-}
-
-func mountRuntimeSurface(
-	apiHandler http.Handler,
-	serviceName string,
-	reader status.Reader,
-	prometheusHandler http.Handler,
-	db *sql.DB,
-	driver neo4jdriver.DriverWithContext,
-) (http.Handler, error) {
-	adminMux, err := internalruntime.NewStatusAdminMux(
-		serviceName,
-		reader,
-		apiHandler,
-		internalruntime.WithPrometheusHandler(prometheusHandler),
-		internalruntime.WithReadinessProbes(
-			internalruntime.ReadinessProbesForDependencies(db, driver)...,
-		),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return adminMux, nil
 }

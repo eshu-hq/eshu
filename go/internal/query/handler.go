@@ -180,6 +180,7 @@ type APIRouter struct {
 	SurfaceInventory       *SurfaceInventoryHandler
 	Compare                *CompareHandler
 	Admin                  *AdminHandler
+	Ask                    *AskHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -369,5 +370,10 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Admin
 	if a.Admin != nil {
 		a.Admin.Mount(mux)
+	}
+
+	// Ask Eshu (default-off; nil Asker returns 503 unavailable)
+	if a.Ask != nil {
+		a.Ask.Mount(mux)
 	}
 }

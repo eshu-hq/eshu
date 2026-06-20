@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 142
+	expectedCount := 143
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -105,6 +105,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"count_repositories_by_language",
 		"list_repositories_by_language",
 		"get_repository_language_inventory",
+		"ask",
 	}
 
 	toolNames := make(map[string]bool)
