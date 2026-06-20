@@ -12,6 +12,7 @@
 // "live" vs "not available" per panel instead of failing the whole page.
 
 import type { EshuApiClient } from "./client";
+import { loadCollectorReadiness, type CollectorReadinessRow } from "./collectorReadiness";
 import type { EshuTruth, TruthLevel, FreshnessState } from "./envelope";
 import { loadImages } from "./imageInventory";
 import type { ImagePage, ImageRow } from "./imageInventory";
@@ -57,6 +58,7 @@ export interface ConsoleSnapshot {
   readonly images: readonly ImageRow[];
   readonly iacResources: readonly IacResourceRow[];
   readonly advisories: readonly AdvisoryRow[];
+  readonly collectorReadiness: readonly CollectorReadinessRow[];
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
@@ -288,6 +290,11 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   const imagesPromise = runSection("images", () => loadImagesSection(client, ctx));
   const iacPromise = runSection("iacResources", () => loadIacResources(client, ctx));
   const advisoriesPromise = runSection("advisories", () => loadAdvisories(client, ctx));
+  const collectorReadinessPromise = runSection("collectorReadiness", async () => {
+    const page = await loadCollectorReadiness(client);
+    if (page.truth) truth.collectorReadiness = page.truth;
+    return page.rows.length > 0 ? page.rows : null;
+  });
   const seriesPromise = loadSeriesBundle(client, runSection);
 
   // vulnerabilities and dead-code findings depend on catalog-derived repoNames,
@@ -309,6 +316,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     images,
     iacResources,
     advisories,
+    collectorReadiness,
     series
   ] = await Promise.all([
     runtimePromise,
@@ -322,6 +330,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     imagesPromise,
     iacPromise,
     advisoriesPromise,
+    collectorReadinessPromise,
     seriesPromise
   ] as const);
 
@@ -337,6 +346,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     images: images ?? [],
     iacResources: iacResources ?? [],
     advisories: advisories ?? [],
+    collectorReadiness: collectorReadiness ?? [],
     series,
     truth,
     provenance: prov
