@@ -128,6 +128,16 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/fact-schema-versions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/fact-schema-versions/{fact_kind}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/freshness/changed-since",
       "readiness": "implemented"
     },
@@ -1655,6 +1665,11 @@
     },
     {
       "category": "mcp_tool",
+      "name": "get_fact_schema_version",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
       "name": "get_file_content",
       "readiness": "implemented"
     },
@@ -1936,6 +1951,11 @@
     {
       "category": "mcp_tool",
       "name": "list_documentation_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_fact_schema_versions",
       "readiness": "implemented"
     },
     {

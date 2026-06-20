@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 139
+	expectedCount := 141
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -360,6 +360,8 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 		return map[string]any{"component_id": "dev.eshu.collector.aws"}
 	case "get_collector_extraction_readiness":
 		return map[string]any{"family": "pagerduty"}
+	case "get_fact_schema_version":
+		return map[string]any{"fact_kind": "terraform_state_resource"}
 	default:
 		return map[string]any{}
 	}

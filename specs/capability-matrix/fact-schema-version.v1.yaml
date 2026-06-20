@@ -1,0 +1,15 @@
+capabilities:
+  - capability: fact_schema_version.list
+    tools: [list_fact_schema_versions]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 50, max_scope_size: bounded_fact_schema_version_registry_page_1_500, verification: [{go_test: ./internal/query}], notes: static in-binary core fact-schema-version registry with count, total_count, limit, and truncated; no graph, Postgres, or registry read; does not move code}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 50, max_scope_size: bounded_fact_schema_version_registry_page_1_500, verification: [{go_test: ./internal/query}], notes: static in-binary core fact-schema-version registry; identical across profiles because the source is in-binary registry data}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 50, max_scope_size: bounded_fact_schema_version_registry_page_1_500, verification: [{go_test: ./internal/query}], notes: static in-binary core fact-schema-version registry; supported version per core fact kind}
+      production: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 100, max_scope_size: bounded_fact_schema_version_registry_page_1_500, verification: [{go_test: ./internal/query}], notes: static in-binary core fact-schema-version registry; identical across profiles because the source is in-binary registry data, not runtime state}
+  - capability: fact_schema_version.detail
+    tools: [get_fact_schema_version]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 50, max_scope_size: one_fact_kind, verification: [{go_test: ./internal/query}], notes: singleton fact-kind drilldown; optional candidate classifies as supported, unsupported_major, unsupported_minor, or unknown_kind; not_found when the fact kind is not core-owned}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 50, max_scope_size: one_fact_kind, verification: [{go_test: ./internal/query}], notes: singleton fact-kind drilldown with optional compatibility verdict; advisory and does not move code}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 50, max_scope_size: one_fact_kind, verification: [{go_test: ./internal/query}], notes: singleton fact-kind drilldown; compatibility classification matches the registry list for the same fact kind}
+      production: {status: supported, max_truth_level: exact, required_runtime: none, p95_latency_ms: 100, max_scope_size: one_fact_kind, verification: [{go_test: ./internal/query}], notes: singleton fact-kind drilldown; classification matches the list surface for the same fact kind}

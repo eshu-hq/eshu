@@ -117,6 +117,7 @@ func OpenAPISpec() string {
 			openAPIPathsAnswerNarrationStatus+
 			openAPIPathsComponentExtensions+
 			openAPIPathsCollectorExtractionReadiness+
+			openAPIPathsFactSchemaVersion+
 			openAPIPathsQueryPlaybooks+
 			openAPIPathsInvestigationWorkflows+
 			openAPIPathsSemanticSearch+

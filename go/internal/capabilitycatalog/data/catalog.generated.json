@@ -1782,6 +1782,88 @@
       "console": false
     },
     {
+      "capability": "fact_schema_version.detail",
+      "display_name": "Fact Schema Version Detail",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "get_fact_schema_version",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false
+    },
+    {
+      "capability": "fact_schema_version.list",
+      "display_name": "Fact Schema Version List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_fact_schema_versions",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "none"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false
+    },
+    {
       "capability": "freshness.changed_since",
       "display_name": "Freshness Changed Since",
       "maturity": "general_availability",

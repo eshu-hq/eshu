@@ -404,6 +404,7 @@ func newRouter(
 			Profile:       queryProfile,
 		},
 		ExtractionReadiness:    &query.CollectorExtractionReadinessHandler{Profile: queryProfile},
+		FactSchemaVersions:     &query.FactSchemaVersionHandler{Profile: queryProfile},
 		Playbooks:              &query.QueryPlaybookHandler{Profile: queryProfile},
 		InvestigationWorkflows: &query.InvestigationWorkflowHandler{Profile: queryProfile},
 		Metrics: &query.MetricsHandler{
