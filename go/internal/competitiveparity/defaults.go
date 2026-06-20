@@ -69,7 +69,7 @@ func DefaultExpectations() []Expectation {
 				"export_deployable_unit_packet",
 				"export_cloud_runtime_drift_packet",
 			},
-			ConsolePages: []string{"VulnDetailPage", "CloudDriftPage"},
+			ConsolePages: []string{"VulnDetailPage", "ImpactPage", "CloudDriftPage"},
 			Exercises: []string{
 				"investigation_evidence_packet_artifact",
 				"evidence_packet_dogfood_fixture",

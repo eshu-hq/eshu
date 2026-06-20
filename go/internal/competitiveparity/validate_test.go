@@ -71,6 +71,15 @@ func TestValidateFailsMissingSurfaceEvidence(t *testing.T) {
 			surface: "capability_catalog",
 		},
 		{
+			name: "missing deployable-unit packet console surface",
+			mutate: func(inv *Inventory) {
+				inv.ConsolePages = without(inv.ConsolePages, "ImpactPage")
+			},
+			want:    CheckConsolePage,
+			target:  "ImpactPage",
+			surface: "investigation_evidence_packet",
+		},
+		{
 			name: "stale docs claim",
 			mutate: func(inv *Inventory) {
 				delete(inv.Docs, "docs/public/reference/capability-catalog.md")
@@ -175,6 +184,7 @@ func completeInventory() Inventory {
 			"SurfaceInventoryPage",
 			"ServiceReportPage",
 			"VulnDetailPage",
+			"ImpactPage",
 			"CloudDriftPage",
 		},
 		Docs: map[string]string{
