@@ -18,9 +18,12 @@
 //   4. Evaluate every route and write a JSON report + screenshots + trace into
 //      the gitignored artifacts dir. Exit non-zero if any route fails.
 //
-// Usage (see apps/console/README.md):
-//   ESHU_E2E_API_KEY=<key> ESHU_E2E_API_BASE=http://127.0.0.1:9080 \
-//     node --import tsx apps/console/e2e/runConsoleLiveE2E.ts
+// This module exports runConsoleLiveE2E() and is loaded by the .mjs bootstrap
+// scripts/console-live-e2e-runtime.mjs, which transforms it through Vite's SSR
+// loader. That keeps the gate runnable on any supported Node version without
+// native TypeScript stripping (Node >= 23.6 only) or an extra dependency. Run
+// it via the npm script (see apps/console/README.md):
+//   npm run console:e2e
 
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
@@ -289,10 +292,13 @@ function routeUrl(page: Page, route: ConsoleRoute): string {
   return `${origin}${route.path}`;
 }
 
-// main runs the gate and returns a process exit code. It never calls
-// process.exit itself so the finally block always tears down the dev server and
-// frees the port, even when the gate fails.
-async function main(): Promise<number> {
+// runConsoleLiveE2E runs the gate and returns a process exit code (0 = pass).
+// It never calls process.exit itself so the finally block always tears down the
+// dev server and frees the port, even when the gate fails. It is invoked by the
+// .mjs bootstrap (scripts/console-live-e2e-runtime.mjs), which loads this
+// TypeScript module through Vite's SSR transformer so the gate runs on any
+// supported Node version without native TS stripping or an extra dependency.
+export async function runConsoleLiveE2E(): Promise<number> {
   if (apiKey.length === 0) {
     process.stderr.write(
       "console-live-e2e: ESHU_E2E_API_KEY is required so the console can authenticate against the live API\n"
@@ -380,14 +386,3 @@ async function main(): Promise<number> {
     await stopDevServer(server);
   }
 }
-
-main()
-  .then((code) => {
-    process.exitCode = code;
-  })
-  .catch((error: unknown) => {
-    process.stderr.write(
-      `console-live-e2e: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`
-    );
-    process.exitCode = 1;
-  });

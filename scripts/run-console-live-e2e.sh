@@ -47,5 +47,8 @@ for endpoint in /healthz /readyz; do
 done
 
 echo "run-console-live-e2e: running the browser gate"
+# Load the TypeScript runner through Vite (scripts/console-live-e2e-runtime.mjs)
+# so the gate runs on the repo's supported Node range without native TS stripping
+# (Node >= 23.6 only) or an extra dependency.
 ESHU_E2E_API_KEY="$api_key" ESHU_E2E_API_BASE="$api_base" \
-  node apps/console/e2e/runConsoleLiveE2E.ts
+  node scripts/console-live-e2e-runtime.mjs

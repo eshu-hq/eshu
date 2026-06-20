@@ -110,6 +110,13 @@ decision logic is the unit-tested pure module `src/e2e/routeAssertions.ts`, and
 the Playwright runner `e2e/runConsoleLiveE2E.ts` only captures browser signals
 and feeds them to that evaluator.
 
+The TypeScript runner is loaded through Vite's SSR transformer by the
+`scripts/console-live-e2e-runtime.mjs` bootstrap, so the gate runs on the repo's
+supported Node range without relying on native Node TypeScript stripping
+(default only on Node >= 23.6) or an extra dependency such as `tsx`. The runner
+itself is type-checked Docker-free as part of `npm run console:typecheck` (which
+chains `console:e2e:typecheck`).
+
 The gate seeds `localStorage` with `{ mode: "private", apiBaseUrl: "/eshu-api/" }`
 before the app boots, starts the console Vite dev server (which owns the
 `/eshu-api` proxy) with `VITE_ESHU_API_KEY` so the console authenticates, walks
