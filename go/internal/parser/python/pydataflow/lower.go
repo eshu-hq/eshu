@@ -261,6 +261,7 @@ func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID
 	}
 	if right := node.ChildByFieldName("right"); right != nil {
 		uses = l.uses(right)
+		uses = append(uses, pyUnpackSourceUses(node.ChildByFieldName("left"), right, l.source, l.aliases, l.accessPathOptions())...)
 	}
 	// The loop target is rebound each iteration, so any prior reference alias on
 	// it is stale inside the body.

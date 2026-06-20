@@ -38,6 +38,10 @@ func jsAccessPathWithOptions(node *tree_sitter.Node, source []byte, aliases jsBi
 	if !ok || len(parts) == 0 {
 		return "", ok
 	}
+	return jsRenderAccessPathPartsWithOptions(parts, aliases, options), true
+}
+
+func jsRenderAccessPathPartsWithOptions(parts []string, aliases jsBindingAliases, options jsAccessPathOptions) string {
 	parts = aliases.resolveBase(parts)
 	maxParts := options.normalizedMaxParts()
 	if len(parts) > maxParts {
@@ -46,9 +50,9 @@ func jsAccessPathWithOptions(node *tree_sitter.Node, source []byte, aliases jsBi
 		}
 		truncated := append([]string{}, parts[:maxParts]...)
 		truncated = append(truncated, "*")
-		return strings.Join(truncated, "."), true
+		return strings.Join(truncated, ".")
 	}
-	return strings.Join(parts, "."), true
+	return strings.Join(parts, ".")
 }
 
 // jsAccessPathParts decomposes a member/subscript expression into its path

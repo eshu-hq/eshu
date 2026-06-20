@@ -55,9 +55,9 @@ func EffectsSpec(funcNode *tree_sitter.Node, source []byte, fn cfg.Function, loc
 	}
 
 	funcLine := nodeLine(funcNode)
-	for i, name := range paramNames(funcNode, source) {
-		if stmtID, ok := index.defStmt(funcLine, name); ok {
-			spec.Params = append(spec.Params, valueflow.ParamSlot{Index: i, Stmt: stmtID, Binding: name})
+	for _, param := range paramBindings(funcNode, source) {
+		if stmtID, ok := index.defStmt(funcLine, param.name); ok {
+			spec.Params = append(spec.Params, valueflow.ParamSlot{Index: param.index, Stmt: stmtID, Binding: param.name})
 		}
 	}
 
@@ -166,18 +166,17 @@ func callArgSlots(funcNode *tree_sitter.Node, source []byte, index *lineIndex, l
 // framework request parameters, at their parameter ports.
 func interprocSources(funcNode *tree_sitter.Node, source []byte, id summary.FunctionID) []interproc.Source {
 	var sources []interproc.Source
-	params := paramNames(funcNode, source)
 	sourceKinds := map[string]string{}
 	for _, param := range sourceParams(funcNode, source) {
 		sourceKinds[param.Name] = param.Kind
 	}
-	for i, name := range params {
-		kind, ok := sourceKinds[name]
+	for _, param := range paramBindings(funcNode, source) {
+		kind, ok := sourceKinds[param.name]
 		if !ok {
 			continue
 		}
 		sources = append(sources, interproc.Source{
-			Port: interproc.Port{Func: interproc.FunctionID(id), Slot: interproc.Slot{Kind: interproc.SlotParam, Index: i}},
+			Port: interproc.Port{Func: interproc.FunctionID(id), Slot: interproc.Slot{Kind: interproc.SlotParam, Index: param.index}},
 			Kind: kind,
 		})
 	}

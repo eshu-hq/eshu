@@ -123,6 +123,9 @@ tool_exemptions:
 
   # Genuine retrieval, diagnostic, and operator utilities that are not distinct
   # product capabilities.
+  - tool: ask
+    reason: default-off natural-language answer orchestration surface pending dedicated capability-catalog modeling
+    issue: 3296
   - tool: get_file_content
     reason: file content retrieval utility
   - tool: get_file_lines

@@ -127,6 +127,71 @@ func TestLowerDestructuringAssignmentDropsAlias(t *testing.T) {
 	}
 }
 
+// TestLowerStarredAssignmentBindsElements proves tuple/list unpacking with a
+// starred target defines every bound name and reads the source container element
+// approximation.
+func TestLowerStarredAssignmentBindsElements(t *testing.T) {
+	t.Parallel()
+
+	src := "def f(p, k):\n" +
+		"    row[k] = p\n" +
+		"    first, *rest = row\n" +
+		"    use(first)\n" +
+		"    use(rest)\n"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "row[*]:2->3") {
+		t.Fatalf("starred unpacking did not read row[*]; got %v", got)
+	}
+	if !contains(got, "first:3->4") {
+		t.Fatalf("starred unpacking did not define first; got %v", got)
+	}
+	if !contains(got, "rest:3->5") {
+		t.Fatalf("starred unpacking did not define rest; got %v", got)
+	}
+}
+
+// TestLowerForStarredTargetBindsElements proves for-loop unpacking with a
+// starred target defines every bound name and reads the iterable element.
+func TestLowerForStarredTargetBindsElements(t *testing.T) {
+	t.Parallel()
+
+	src := "def f(p, k):\n" +
+		"    rows[k] = p\n" +
+		"    for first, *rest in rows:\n" +
+		"        use(first)\n" +
+		"        use(rest)\n"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "rows[*]:2->3") {
+		t.Fatalf("for-unpacking did not read rows[*]; got %v", got)
+	}
+	if !contains(got, "first:3->4") {
+		t.Fatalf("for-unpacking did not define first; got %v", got)
+	}
+	if !contains(got, "rest:3->5") {
+		t.Fatalf("for-unpacking did not define rest; got %v", got)
+	}
+}
+
+// TestLowerStarParametersDefineBindings proves Python *args and **kwargs
+// parameters are entry definitions for their bound identifiers.
+func TestLowerStarParametersDefineBindings(t *testing.T) {
+	t.Parallel()
+
+	src := "def f(*items, **kw):\n" +
+		"    use(items)\n" +
+		"    use(kw)\n"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "items:1->2") {
+		t.Fatalf("*items parameter did not define items; got %v", got)
+	}
+	if !contains(got, "kw:1->3") {
+		t.Fatalf("**kw parameter did not define kw; got %v", got)
+	}
+}
+
 // TestLowerAliasConflictingAcrossBranchesIsDropped proves an alias that differs
 // between the then and fall-through paths is dropped at the merge.
 func TestLowerAliasConflictingAcrossBranchesIsDropped(t *testing.T) {

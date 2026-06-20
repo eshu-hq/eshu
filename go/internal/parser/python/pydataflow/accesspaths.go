@@ -37,6 +37,10 @@ func pyAccessPathWithOptions(node *tree_sitter.Node, source []byte, aliases pyBi
 	if !ok || len(parts) == 0 {
 		return "", ok
 	}
+	return pyRenderAccessPathPartsWithOptions(parts, aliases, options), true
+}
+
+func pyRenderAccessPathPartsWithOptions(parts []string, aliases pyBindingAliases, options pyAccessPathOptions) string {
 	parts = aliases.resolveBase(parts)
 	maxParts := options.normalizedMaxParts()
 	if len(parts) > maxParts {
@@ -45,9 +49,9 @@ func pyAccessPathWithOptions(node *tree_sitter.Node, source []byte, aliases pyBi
 		}
 		truncated := append([]string{}, parts[:maxParts]...)
 		truncated = append(truncated, "*")
-		return strings.Join(truncated, "."), true
+		return strings.Join(truncated, ".")
 	}
-	return strings.Join(parts, "."), true
+	return strings.Join(parts, ".")
 }
 
 // pyAccessPathParts decomposes an attribute/subscript expression into its path

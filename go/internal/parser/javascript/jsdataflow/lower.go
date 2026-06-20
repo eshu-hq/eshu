@@ -112,21 +112,26 @@ func (l *lowerer) lowerDeclaration(node *tree_sitter.Node, cur cfg.BlockID) {
 			continue
 		}
 		name := child.ChildByFieldName("name")
-		if name == nil || name.Kind() != "identifier" {
-			// Object/array destructuring patterns are not bound (v1), mirroring
-			// forInTargets and paramNames; tracked as a follow-up. A safe false
-			// negative: no def, so taint into a destructured name is missed,
-			// never a false edge.
+		if name == nil {
 			continue
 		}
-		var uses []string
 		value := child.ChildByFieldName("value")
+		var uses []string
 		if value != nil {
 			uses = exprUsesWithOptions(value, l.source, l.aliases, l.accessPathOptions())
 		}
-		target := nodeText(name, l.source)
-		l.addStmt(cur, nodeLine(&child), []string{target}, uses)
-		l.aliases.applyAssignment(target, value, l.source)
+		targets := jsPatternBindingNames(name, l.source)
+		if name.Kind() != "identifier" {
+			uses = append(uses, jsPatternSourceUses(name, value, l.source, l.aliases, l.accessPathOptions())...)
+		}
+		l.addStmt(cur, nodeLine(&child), targets, uses)
+		if name.Kind() == "identifier" && len(targets) == 1 {
+			l.aliases.applyAssignment(targets[0], value, l.source)
+			continue
+		}
+		for _, target := range targets {
+			delete(l.aliases, accessPathBase(target))
+		}
 	}
 }
 
@@ -276,6 +281,9 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 	}
 	if right := node.ChildByFieldName("right"); right != nil {
 		uses = exprUsesWithOptions(right, l.source, l.aliases, l.accessPathOptions())
+		if left := node.ChildByFieldName("left"); left != nil && jsForLoopUsesIterableElements(node) {
+			uses = append(uses, jsForInPatternSourceUses(left, right, l.source, l.aliases, l.accessPathOptions())...)
+		}
 	}
 	l.addStmt(header, nodeLine(node), defs, uses)
 	body := l.builder.AddBlock()
@@ -301,6 +309,38 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 		}
 	}
 	return exit, true
+}
+
+func jsForLoopUsesIterableElements(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.Kind() == "of" {
+			return true
+		}
+	}
+	return false
+}
+
+func jsForInPatternSourceUses(pattern, iterable *tree_sitter.Node, source []byte, aliases jsBindingAliases, options jsAccessPathOptions) []string {
+	base, ok := jsAccessPathParts(iterable, source)
+	if !ok || len(base) == 0 {
+		return nil
+	}
+	element := appendArrayElementPath(base)
+	var uses []string
+	for _, binding := range jsPatternBindings(pattern, source, element) {
+		if len(binding.path) == 0 {
+			continue
+		}
+		use := jsRenderAccessPathPartsWithOptions(binding.path, aliases, options)
+		if use != "" {
+			uses = appendUnique(uses, use)
+		}
+	}
+	return uses
 }
 
 // lowerWhile lowers a while loop with a back-edge.
