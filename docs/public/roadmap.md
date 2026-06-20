@@ -94,16 +94,21 @@ supply-chain chain is [Supply-Chain Traceability](supply-chain-traceability.md).
 
 ### Cloud Posture Production-Readiness
 
+State uses the canonical readiness lanes defined in
+[Collector And Reducer Readiness](reference/collector-reducer-readiness.md#readiness-vocabulary).
+`implemented` is the only lane that asserts production readiness; everything else
+is honest about being not-yet-live.
+
 | Cloud posture surface | State | Gate before promotion |
 | --- | --- | --- |
-| AWS | Production-promoted | None. `aws_resource_materialization` is promoted to a versioned, hashed `cloud_resource_node` conflict family. |
-| GCP | Roadmap | Partition-filtered handler proof; currently a risky resource-scope fallback. |
-| Azure | Roadmap | Partition-filtered handler proof; currently a risky resource-scope fallback. |
-| EC2-instance / security-group nodes | Roadmap | Partition-filtered handler proof. |
-| Kubernetes live posture | Roadmap | Dedicated materializer with conflict-family promotion and EKS proof. |
+| AWS | `implemented` (production-promoted) | None. `aws_resource_materialization` is promoted to a versioned, hashed `cloud_resource_node` conflict family. |
+| GCP | `gated` | Partition-filtered handler proof and a sanitized live smoke; currently a risky resource-scope fallback. |
+| Azure | `gated` | Partition-filtered handler proof and a live tenant smoke ([#3024](https://github.com/eshu-hq/eshu/issues/3024)); currently a risky resource-scope fallback. |
+| EC2-instance / security-group nodes | `partial` | Partition-filtered handler proof; risky resource-scope fallback today. |
+| Kubernetes live posture | `foundation_only` | Dedicated materializer with conflict-family promotion and EKS proof. |
 
 The multi-cloud re-platforming surface follows the same line: AWS-side drift is
-production-grade, and the Azure/GCP equivalent is roadmap. See the
+`implemented`, and the Azure/GCP equivalent is `gated`. See the
 [`compose_replatforming_plan` contract](reference/replatforming-plan-contract.md).
 
 ### Value-Flow Reachability Rollout

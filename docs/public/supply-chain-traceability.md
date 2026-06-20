@@ -72,13 +72,18 @@ credibility risk for a GCP-first or Azure-first buyer.
 
 ## What Is Gated Or Preview
 
+Cloud posture state uses the canonical readiness lanes from
+[Collector And Reducer Readiness](reference/collector-reducer-readiness.md#readiness-vocabulary);
+reachability rows are per-ecosystem capability states.
+
 | Capability | State | Gate / condition |
 | --- | --- | --- |
 | Go reachability (govulncheck) | Always on | None |
 | Python / TypeScript / JavaScript value-flow reachability | Preview, opt-in | [`ESHU_EMIT_DATAFLOW`](reference/value-flow-emission.md) |
 | JVM reachability | Bounded | Own reducer family, partial coverage |
-| AWS cloud posture | Production-promoted | None |
-| Azure / GCP / Kubernetes-live cloud posture | Roadmap | See [roadmap](roadmap.md) |
+| AWS cloud posture | `implemented` (production-promoted) | None |
+| GCP / Azure cloud posture | `gated` | See [roadmap](roadmap.md#promotion-readiness) |
+| Kubernetes-live cloud posture | `foundation_only` | See [roadmap](roadmap.md#promotion-readiness) |
 
 ## Running The Chain End To End
 
