@@ -14,12 +14,13 @@ func TestInvestigationWorkflowResolveIncidentContextForwardsBoundedIncidentInput
 	}
 	resolved, err := workflow.Resolve(InvestigationWorkflowResolveInput{
 		Inputs: map[string]string{
-			"incident_id": "INC-1",
-			"provider":    "pagerduty",
-			"scope_id":    "scope-1",
-			"service_id":  "checkout",
-			"since":       "2026-06-18T00:00:00Z",
-			"until":       "2026-06-19T00:00:00Z",
+			"incident_id":         "INC-1",
+			"provider":            "pagerduty",
+			"provider_service_id": "PD-SVC-1",
+			"scope_id":            "scope-1",
+			"service_id":          "checkout",
+			"since":               "2026-06-18T00:00:00Z",
+			"until":               "2026-06-19T00:00:00Z",
 		},
 		MissingEvidence: []string{"incident"},
 	})
@@ -38,12 +39,15 @@ func TestInvestigationWorkflowResolveIncidentContextForwardsBoundedIncidentInput
 		"provider":             "pagerduty",
 		"provider_incident_id": "INC-1",
 		"scope_id":             "scope-1",
-		"service_id":           "checkout",
+		"service_id":           "PD-SVC-1",
 		"since":                "2026-06-18T00:00:00Z",
 		"until":                "2026-06-19T00:00:00Z",
 	}
 	if !reflect.DeepEqual(call.Arguments, wantArgs) {
 		t.Fatalf("arguments = %#v, want %#v", call.Arguments, wantArgs)
+	}
+	if got := call.Arguments["service_id"]; got == "checkout" {
+		t.Fatalf("incident provider service_id reused workflow service selector: %#v", call.Arguments)
 	}
 }
 

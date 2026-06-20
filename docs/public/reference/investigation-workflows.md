@@ -44,8 +44,8 @@ and may include `provider`, `account_id`, `project_id`, or `subscription_id`.
 `scope_id`, or environment context. The incident-context route is blocked until
 `incident_id` is supplied; service, runtime, observability, changes, and
 freshness missing-evidence routes are blocked until a service, repository, or
-scope anchor is supplied. Optional `provider`, `since`, and `until` inputs keep
-incident reads bounded when an incident ID is available.
+scope anchor is supplied. Optional `provider`, `provider_service_id`, `since`,
+and `until` inputs keep incident reads bounded when an incident ID is available.
 
 ## Starter Prompts
 
