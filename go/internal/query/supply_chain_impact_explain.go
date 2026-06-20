@@ -237,6 +237,41 @@ func BuildSupplyChainImpactNoEvidenceExplanation(
 	}
 }
 
+// BuildSupplyChainImpactAmbiguousExplanation returns a bounded refusal envelope
+// for a valid scope that matches multiple reducer-owned impact findings.
+func BuildSupplyChainImpactAmbiguousExplanation(
+	filter SupplyChainImpactExplanationFilter,
+	readiness SupplyChainImpactReadinessEnvelope,
+) SupplyChainImpactExplanationResult {
+	body := buildSupplyChainImpactRefusalExplanation(filter, readiness)
+	body.Outcome = "ambiguous_scope"
+	body.MissingEvidence = explanationUniqueStrings(append([]string{"ambiguous_scope"}, readiness.MissingEvidence...))
+	return body
+}
+
+func buildSupplyChainImpactRefusalExplanation(
+	filter SupplyChainImpactExplanationFilter,
+	readiness SupplyChainImpactReadinessEnvelope,
+) SupplyChainImpactExplanationResult {
+	return SupplyChainImpactExplanationResult{
+		EvidencePacketHandle: supplyChainImpactEvidencePacketHandle(filter, ""),
+		Input:                filter,
+		Advisory:             SupplyChainImpactAdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
+		Component:            SupplyChainImpactComponentExplanation{PackageID: filter.PackageID},
+		Version:              SupplyChainImpactVersionExplanation{VersionEvidence: "missing"},
+		Anchors: SupplyChainImpactExplanationAnchors{
+			RepositoryID:  filter.RepositoryID,
+			SubjectDigest: filter.SubjectDigest,
+			ImageRefs:     compactStrings([]string{filter.ImageRef}),
+			Workloads:     compactStrings([]string{filter.WorkloadID}),
+			Services:      compactStrings([]string{filter.ServiceID}),
+		},
+		Evidence:  []SupplyChainImpactEvidenceFactSummary{},
+		Readiness: readiness,
+		Freshness: SupplyChainImpactExplanationFreshness{State: explanationFreshnessState(readiness.Freshness)},
+	}
+}
+
 func supplyChainImpactEvidencePacketHandle(filter SupplyChainImpactExplanationFilter, findingID string) string {
 	if findingID = strings.TrimSpace(findingID); findingID != "" {
 		return "supply-chain-impact-explanation:finding:" + findingID

@@ -269,13 +269,15 @@ anchors. Provider-alert-only evidence is not used as an advisory-evidence seed.
 `GET /api/v0/supply-chain/impact/explain` and the MCP
 `explain_supply_chain_impact` tool use the same reducer-owned finding facts
 but return one explanation at a time. Callers must provide `finding_id` or an
-advisory/CVE plus package, repository, or image digest anchor. The route
+advisory/CVE plus package, repository, image digest/ref, workload, or service
+anchor. The route
 hydrates only the finding's `evidence_fact_ids`, returns advisory/source,
 component/version, vulnerable-range, fixed-version, dependency-chain,
 manifest/SBOM/image/workload/service/environment/provider-alert anchors when
 those facts exist, includes an `impact_path` with present and missing hops, and
 reports `outcome: no_finding` with readiness when a bounded scope has no
-finding. It does not infer reachability or deployment truth from provider
+finding or `outcome: ambiguous_scope` when the scope matches multiple reducer
+findings. It does not infer reachability or deployment truth from provider
 alerts, image tags, workload names, service names, environment names, or
 repository names.
 

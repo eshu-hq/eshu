@@ -78,7 +78,14 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if errors.Is(err, ErrSupplyChainImpactExplanationAmbiguous) {
-		WriteError(w, http.StatusConflict, "explain scope matched multiple impact findings; provide finding_id or a narrower advisory/package/repository/image/workload/service scope")
+		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.readinessScope(), nil, false)
+		body := BuildSupplyChainImpactAmbiguousExplanation(filter, readiness)
+		WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+			h.profile(),
+			supplyChainImpactExplanationCapability,
+			TruthBasisSemanticFacts,
+			"bounded explanation scope matched multiple reducer-owned impact findings; provide finding_id or a narrower advisory/package/repository/image/workload/service scope",
+		))
 		return
 	}
 	if err != nil {

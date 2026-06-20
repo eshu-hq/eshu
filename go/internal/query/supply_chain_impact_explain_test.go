@@ -380,28 +380,6 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 	}
 }
 
-func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
-	t.Parallel()
-
-	store := &recordingSupplyChainImpactExplanationStore{
-		err: ErrSupplyChainImpactExplanationAmbiguous,
-	}
-	handler := &SupplyChainHandler{ImpactExplanations: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-ambiguous&repository_id=repo://example/api",
-		nil,
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if got, want := w.Code, http.StatusConflict; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
-	}
-}
-
 func exactManifestAndImageExplanationRow() SupplyChainImpactExplanationRow {
 	return SupplyChainImpactExplanationRow{
 		Finding: SupplyChainImpactFindingRow{

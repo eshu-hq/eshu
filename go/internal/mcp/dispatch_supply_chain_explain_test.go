@@ -198,3 +198,60 @@ func TestDispatchToolSupplyChainImpactExplainPreservesRefusalEnvelope(t *testing
 		t.Fatalf("readiness_state = %#v, want %#v", got, want)
 	}
 }
+
+func TestDispatchToolSupplyChainImpactExplainPreservesAmbiguousScopeEnvelope(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v0/supply-chain/impact/explain", func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Query().Get("repository_id"), "repo://example/api"; got != want {
+			t.Fatalf("repository_id = %q, want %q", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"outcome":                "ambiguous_scope",
+				"evidence_packet_handle": "supply-chain-impact-explanation:scope:ambiguous",
+				"version": map[string]any{
+					"version_evidence": "missing",
+				},
+				"readiness": map[string]any{
+					"readiness_state": "ready_zero_findings",
+				},
+				"missing_evidence": []string{"ambiguous_scope"},
+			},
+			"truth": map[string]any{
+				"level":      "exact",
+				"capability": "supply_chain.impact_explanation.read",
+				"profile":    "production",
+				"basis":      "semantic_facts",
+			},
+			"error": nil,
+		})
+	})
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"explain_supply_chain_impact",
+		map[string]any{"advisory_id": "GHSA-ambiguous", "repository_id": "repo://example/api"},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope.Data = %T, want map[string]any", result.Envelope.Data)
+	}
+	if got, want := data["outcome"], "ambiguous_scope"; got != want {
+		t.Fatalf("outcome = %#v, want %#v", got, want)
+	}
+	if got, want := data["evidence_packet_handle"], "supply-chain-impact-explanation:scope:ambiguous"; got != want {
+		t.Fatalf("evidence_packet_handle = %#v, want %#v", got, want)
+	}
+	if !stringSliceContains(stringsOf(data["missing_evidence"]), "ambiguous_scope") {
+		t.Fatalf("missing_evidence = %#v, want ambiguous_scope", data["missing_evidence"])
+	}
+}

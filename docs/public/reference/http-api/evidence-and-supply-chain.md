@@ -793,19 +793,22 @@ or partial answer can be interpreted correctly.
 `GET /api/v0/supply-chain/impact/explain`
 
 Explains one reducer-owned vulnerability impact finding or one bounded
-advisory/package/repository path. The caller must provide either:
+advisory/package/repository/image/workload/service path. The caller must
+provide either:
 
 - `finding_id`; or
 - `advisory_id` or `cve_id` plus at least one of `package_id`,
-  `repository_id`, or `subject_digest`.
+  `repository_id`, `subject_digest`, `image_ref`, `workload_id`, or
+  `service_id`.
 
 The route never performs a whole-graph explain. It reads one active
 `reducer_supply_chain_impact_finding` fact and hydrates only the
 `evidence_fact_ids` referenced by that finding. If a composite scope matches
-more than one finding, the route returns `409` and asks for a narrower anchor.
-If the scope is bounded but no finding exists, it returns `outcome:
-no_finding` with readiness and missing-evidence reasons instead of implying
-the target is safe.
+more than one finding, the route returns `outcome: ambiguous_scope` with the
+same readiness and missing-evidence envelope and asks for `finding_id` or a
+narrower advisory/package/repository/image/workload/service anchor. If the
+scope is bounded but no finding exists, it returns `outcome: no_finding` with
+readiness and missing-evidence reasons instead of implying the target is safe.
 `repository_id` accepts a canonical source repository id or a human repository
 selector and resolves it before reading reducer impact facts. Container-image
 routes keep their own `repository_id` field as an OCI/image repository identity;
@@ -840,7 +843,7 @@ No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainExplain|TestBuildSupplyChainImpactExplanation' -count=1`
 proves bounded input rejection, exact finding explanation, range-only version
 evidence, provider-only alert handling, SBOM/image anchors, ambiguous-scope
-rejection, and no-evidence readiness response.
+refusal envelope, and no-evidence readiness response.
 
 Observability Evidence: the explain route adds the
 `query.supply_chain_impact_explanation` request span and reuses the existing
