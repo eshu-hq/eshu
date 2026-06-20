@@ -10,6 +10,23 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Cloudflare Pages configuration", () => {
+  it("pins the Pages build Node version to the Vite 7 runtime floor", () => {
+    const nodeVersion = readFileSync(
+      join(process.cwd(), ".nvmrc"),
+      "utf8"
+    ).trim();
+    const pagesRunbook = readFileSync(
+      join(process.cwd(), "CLOUDFLARE_PAGES.md"),
+      "utf8"
+    );
+
+    expect(nodeVersion).toBe("22.12.0");
+    expect(pagesRunbook).toContain(
+      "Node version | `22.12.0` (pinned via `.nvmrc`)"
+    );
+    expect(pagesRunbook).toContain("If a project sets `NODE_VERSION`");
+  });
+
   it("declares the static build output directory for Pages", () => {
     const wranglerConfig = readFileSync(
       join(process.cwd(), "wrangler.jsonc"),
