@@ -295,3 +295,63 @@ func TestTSAliasFieldTaintReachesSink(t *testing.T) {
 		t.Fatalf("want 1 TAINTED sql finding through alias obj.data, got %+v", res.Findings)
 	}
 }
+
+// TestLowerForOfTargetAliasDoesNotLeak proves a reference alias on a name that a
+// for-of loop rebinds each iteration does not survive the loop. After the loop
+// the name may hold a loop element, not the pre-loop object, so a field write
+// through it must NOT normalize to the pre-loop object (a false edge).
+func TestLowerForOfTargetAliasDoesNotLeak(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(p) {\n" +
+		"\tlet a = obj;\n" +
+		"\tfor (a of items) {}\n" +
+		"\ta.x = p;\n" +
+		"\tuse(obj.x);\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if contains(got, "obj.x:4->5") {
+		t.Fatalf("for-of target alias leaked: a.x wrongly normalized to obj.x; got %v", got)
+	}
+}
+
+// TestLowerForOfTerminatingBodyKeepsZeroIterationAlias proves a for-of loop
+// whose body cannot fall through does not invalidate the zero-iteration alias
+// state. The only reachable post-loop path is the header exit, where the target
+// was never rebound.
+func TestLowerForOfTerminatingBodyKeepsZeroIterationAlias(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(p) {\n" +
+		"\tlet a = obj;\n" +
+		"\tfor (a of items) { return; }\n" +
+		"\ta.x = p;\n" +
+		"\tuse(obj.x);\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "obj.x:4->5") {
+		t.Fatalf("zero-iteration alias should normalize a.x to obj.x; got %v", got)
+	}
+}
+
+// TestLowerForBodyReassignAliasDoesNotLeak proves an alias reassigned inside a
+// C-style loop body does not get restored to its pre-loop target after the loop.
+func TestLowerForBodyReassignAliasDoesNotLeak(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(p, n) {\n" +
+		"\tlet a = obj;\n" +
+		"\tfor (let i = 0; i < n; i = i + 1) {\n" +
+		"\t\ta = other;\n" +
+		"\t}\n" +
+		"\ta.x = p;\n" +
+		"\tuse(obj.x);\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if contains(got, "obj.x:6->7") {
+		t.Fatalf("loop-body reassigned alias leaked: a.x wrongly normalized to obj.x; got %v", got)
+	}
+}
