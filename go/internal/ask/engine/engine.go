@@ -35,8 +35,9 @@ Rules:
 // Runner dispatches a single named tool call to the Eshu query surface and
 // returns the canonical ResponseEnvelope produced by that query.
 //
-// Implementations must be safe for concurrent use: the engine loop may call
-// Run from multiple goroutines during a single Ask session.
+// The engine loop dispatches tool calls sequentially within a single Ask
+// session; implementations should still be safe for concurrent use by future
+// callers, but the current loop does not call Run from multiple goroutines.
 type Runner interface {
 	// Run executes the named tool with the given arguments and returns the
 	// canonical ResponseEnvelope or an error. A non-nil error indicates a
