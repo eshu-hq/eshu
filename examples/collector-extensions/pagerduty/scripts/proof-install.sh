@@ -57,5 +57,8 @@ case "${enable_out}" in
 		;;
 esac
 
+if [ "$(id -u)" -eq 0 ] && id eshu >/dev/null 2>&1; then
+	chown -R eshu:eshu "${component_home}"
+fi
 chmod -R a+rX "${component_home}"
 echo "pagerduty component installed and enabled (instance=${instance_id})"

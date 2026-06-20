@@ -11,6 +11,8 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.
 project="${PD_CE_PROOF_PROJECT:-pd-ce-proof}"
 collector="${PD_CE_PROOF_COLLECTOR:-${project}-component-extension-collector-1}"
 postgres="${PD_CE_PROOF_POSTGRES:-${project}-postgres-1}"
+api="${PD_CE_PROOF_API:-${project}-eshu-1}"
+mcp="${PD_CE_PROOF_MCP:-${project}-mcp-server-1}"
 component_home="${PD_CE_PROOF_COMPONENT_HOME:-/data/.eshu/components}"
 component_id="dev.eshu.examples.pagerduty"
 instance_id="${PD_CE_PROOF_INSTANCE_ID:-pagerduty-reference}"
@@ -39,6 +41,26 @@ mkdir -p "${artifacts_dir}"
 
 docker inspect "${collector}" >/dev/null 2>&1 || die "collector container not found: ${collector}"
 docker inspect "${postgres}" >/dev/null 2>&1 || die "postgres container not found: ${postgres}"
+docker inspect "${api}" >/dev/null 2>&1 || die "api container not found: ${api}"
+docker inspect "${mcp}" >/dev/null 2>&1 || die "mcp container not found: ${mcp}"
+
+capture_component_inventory() {
+	container="$1"
+	output="$2"
+	docker exec "${container}" sh -c '
+		token=""
+		while IFS= read -r line; do
+			case "$line" in
+				ESHU_API_KEY=*) token="${line#ESHU_API_KEY=}" ;;
+			esac
+		done < /data/.eshu/.env
+		[ -n "$token" ] || exit 2
+		curl -fsS \
+			-H "Authorization: Bearer ${token}" \
+			-H "Accept: application/eshu.envelope+json" \
+			"http://localhost:8080/api/v0/component-extensions?limit=100"
+	' >"${output}"
+}
 
 cli_json="$(docker exec "${collector}" eshu component list \
 	--component-home "${component_home}" \
@@ -229,6 +251,21 @@ cat >"${artifacts_dir}/provenance.json" <<JSON
   "source_evidence_only": true
 }
 JSON
+
+capture_component_inventory "${api}" "${artifacts_dir}/api-inventory.json"
+capture_component_inventory "${mcp}" "${artifacts_dir}/mcp-inventory.json"
+
+docker exec "${collector}" eshu component disable "${component_id}" \
+	--component-home "${component_home}" \
+	--instance "${instance_id}" \
+	--json >"${artifacts_dir}/disable.json"
+capture_component_inventory "${api}" "${artifacts_dir}/post-disable-inventory.json"
+
+docker exec "${collector}" eshu component uninstall "${component_id}" \
+	--component-home "${component_home}" \
+	--version 0.1.0 \
+	--json >"${artifacts_dir}/uninstall.json"
+capture_component_inventory "${api}" "${artifacts_dir}/post-uninstall-inventory.json"
 
 printf 'captured PagerDuty component-extension proof artifacts to %s\n' "${artifacts_dir}"
 "${repo_root}/scripts/verify-remote-e2e-pagerduty-component-extension.sh" --artifacts "${artifacts_dir}"

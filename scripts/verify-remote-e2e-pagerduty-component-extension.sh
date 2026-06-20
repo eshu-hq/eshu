@@ -18,10 +18,16 @@ Usage: $(basename "$0") --artifacts <dir> [--list]
 
 Required artifacts:
   inventory.json        component readback for dev.eshu.examples.pagerduty
+  api-inventory.json    API component-extension inventory readback
+  mcp-inventory.json    MCP-hosted component-extension inventory readback
   workflow-items.json   component workflow item terminal states
   facts.json            committed dev.eshu.examples.pagerduty.* fact counts
   parity.json           in-tree/reference fixture parity summary
   provenance.json       commit, digest, backend, queue state, telemetry handle
+  disable.json          CLI disable result for the reference activation
+  post-disable-inventory.json API inventory after disable
+  uninstall.json        CLI uninstall result for the inactive package
+  post-uninstall-inventory.json API inventory after uninstall
 USAGE
 }
 
@@ -62,11 +68,13 @@ print_checks() {
 	cat <<CHECKS
 pagerduty component-extension proof checks:
   1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true
-  2. workflow: pagerduty component workflow item terminal success; no retrying/failed/dead-letter
-  3. facts: all ${component_id} fact families have committed counts
-  4. parity: reference fixture parity is recorded as passed and expected/extension fact signatures match
-  5. provenance: records commit, digest, backend, queue state, and telemetry handle
-  6. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts
+  2. API/MCP: hosted component-extension inventory sees installed, enabled, claim-capable state
+  3. workflow: pagerduty component workflow item terminal success; no retrying/failed/dead-letter
+  4. facts: all ${component_id} fact families have committed counts
+  5. parity: reference fixture parity is recorded as passed and expected/extension fact signatures match
+  6. lifecycle: disable removes claim-capable state and uninstall removes package readback
+  7. provenance: records commit, digest, backend, queue state, and telemetry handle
+  8. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts
 CHECKS
 }
 
@@ -79,13 +87,49 @@ fi
 [[ -d "${artifacts_dir}" ]] || die "artifacts directory not found: ${artifacts_dir}"
 
 inventory="${artifacts_dir}/inventory.json"
+api_inventory="${artifacts_dir}/api-inventory.json"
+mcp_inventory="${artifacts_dir}/mcp-inventory.json"
 workflow_items="${artifacts_dir}/workflow-items.json"
 facts="${artifacts_dir}/facts.json"
 parity="${artifacts_dir}/parity.json"
 provenance="${artifacts_dir}/provenance.json"
-for required in "${inventory}" "${workflow_items}" "${facts}" "${parity}" "${provenance}"; do
+disable="${artifacts_dir}/disable.json"
+post_disable_inventory="${artifacts_dir}/post-disable-inventory.json"
+uninstall="${artifacts_dir}/uninstall.json"
+post_uninstall_inventory="${artifacts_dir}/post-uninstall-inventory.json"
+for required in "${inventory}" "${api_inventory}" "${mcp_inventory}" "${workflow_items}" \
+	"${facts}" "${parity}" "${provenance}" "${disable}" "${post_disable_inventory}" \
+	"${uninstall}" "${post_uninstall_inventory}"; do
 	[[ -f "${required}" ]] || die "missing required artifact: ${required}"
 done
+
+require_inventory_state() {
+	artifact="$1"
+	label="$2"
+	shift 2
+
+	rg --quiet '"component_home_configured"[[:space:]]*:[[:space:]]*true' "${artifact}" \
+		|| die "${label} inventory does not show component_home_configured=true"
+	rg --fixed-strings --quiet "\"${component_id}\"" "${artifact}" \
+		|| die "${label} inventory missing component ${component_id}"
+	rg --quiet '"verified"[[:space:]]*:[[:space:]]*true' "${artifact}" \
+		|| die "${label} inventory does not show verified=true"
+	for state in "$@"; do
+		rg --fixed-strings --quiet "\"${state}\"" "${artifact}" \
+			|| die "${label} inventory missing state ${state}"
+	done
+}
+
+require_inventory_absent() {
+	artifact="$1"
+	label="$2"
+
+	rg --quiet '"component_home_configured"[[:space:]]*:[[:space:]]*true' "${artifact}" \
+		|| die "${label} inventory does not show component_home_configured=true"
+	if rg --fixed-strings --quiet "\"${component_id}\"" "${artifact}"; then
+		die "${label} inventory still contains component ${component_id}"
+	fi
+}
 
 rg --fixed-strings --quiet "\"${component_id}\"" "${inventory}" \
 	|| die "inventory missing component ${component_id}"
@@ -93,6 +137,8 @@ for state in installed enabled trusted; do
 	rg --quiet "\"${state}\"[[:space:]]*:[[:space:]]*true" "${inventory}" \
 		|| die "inventory does not show ${state}=true"
 done
+require_inventory_state "${api_inventory}" "api" installed enabled claim_capable
+require_inventory_state "${mcp_inventory}" "mcp" installed enabled claim_capable
 
 rg --quiet '"state"[[:space:]]*:[[:space:]]*"(completed|succeeded)"' "${workflow_items}" \
 	|| die "no completed/succeeded PagerDuty component workflow item"
@@ -129,7 +175,33 @@ done
 rg --quiet '"component_digest"[[:space:]]*:[[:space:]]*"sha256:[A-Fa-f0-9]{8,}"' "${provenance}" \
 	|| die "provenance component_digest is not a sha256 digest"
 
-for artifact in "${inventory}" "${workflow_items}" "${facts}" "${parity}" "${provenance}"; do
+rg --quiet '"command"[[:space:]]*:[[:space:]]*"disable"' "${disable}" \
+	|| die "disable artifact missing command=disable"
+rg --quiet '"status"[[:space:]]*:[[:space:]]*"disabled"' "${disable}" \
+	|| die "disable artifact missing status=disabled"
+rg --fixed-strings --quiet "\"${component_id}\"" "${disable}" \
+	|| die "disable artifact missing component ${component_id}"
+rg --quiet '"instance_id"[[:space:]]*:[[:space:]]*"pagerduty-reference"' "${disable}" \
+	|| die "disable artifact missing pagerduty-reference instance"
+require_inventory_state "${post_disable_inventory}" "post-disable api" installed
+if rg --fixed-strings --quiet '"enabled"' "${post_disable_inventory}"; then
+	die "post-disable inventory still shows enabled state"
+fi
+if rg --fixed-strings --quiet '"claim_capable"' "${post_disable_inventory}"; then
+	die "post-disable inventory still shows claim_capable state"
+fi
+
+rg --quiet '"command"[[:space:]]*:[[:space:]]*"uninstall"' "${uninstall}" \
+	|| die "uninstall artifact missing command=uninstall"
+rg --quiet '"status"[[:space:]]*:[[:space:]]*"uninstalled"' "${uninstall}" \
+	|| die "uninstall artifact missing status=uninstalled"
+rg --fixed-strings --quiet "\"${component_id}\"" "${uninstall}" \
+	|| die "uninstall artifact missing component ${component_id}"
+require_inventory_absent "${post_uninstall_inventory}" "post-uninstall api"
+
+for artifact in "${inventory}" "${api_inventory}" "${mcp_inventory}" "${workflow_items}" \
+	"${facts}" "${parity}" "${provenance}" "${disable}" "${post_disable_inventory}" \
+	"${uninstall}" "${post_uninstall_inventory}"; do
 	for pattern in "${forbidden_patterns[@]}"; do
 		if rg --quiet "${pattern}" "${artifact}"; then
 			die "forbidden material matched /${pattern}/ in $(basename "${artifact}")"

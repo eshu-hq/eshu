@@ -20,6 +20,22 @@
 # in-tree PagerDuty source fact contract, not graph truth promotion.
 
 services:
+  eshu:
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.pagerduty
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+
+  mcp-server:
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.pagerduty
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+
   component-extension-pagerduty-install:
     profiles:
       - component-extension-collector
