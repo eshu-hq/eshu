@@ -18,13 +18,13 @@ const openAPIPathsSupplyChainImpactExplain = `
         ],
         "responses": {
           "200": {
-            "description": "Bounded finding explanation or no-evidence response",
+            "description": "Bounded finding explanation, no-evidence response, or ambiguous-scope refusal envelope",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "outcome": {"type": "string", "enum": ["finding_explained", "no_finding"]},
+                    "outcome": {"type": "string", "enum": ["finding_explained", "no_finding", "ambiguous_scope"]},
                     "evidence_packet_handle": {"type": "string", "description": "Opaque stable handle for this bounded explanation packet. Finding packets use the returned finding id; no-finding scopes use a hashed normalized scope so private anchors are not exposed in the handle."},
                     "input": {"type": "object"},
                     "finding": {"type": "object"},
@@ -169,8 +169,7 @@ const openAPIPathsSupplyChainImpactExplain = `
               }
             }
           },
-          "400": {"description": "Unbounded input"},
-          "409": {"description": "Scope matched more than one finding"}
+          "400": {"description": "Unbounded input"}
         }
       }
     },

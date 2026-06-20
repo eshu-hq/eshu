@@ -195,7 +195,7 @@ const openAPIPathsSupplyChainImpactFindings = `
                       "type": "object",
                       "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence. readiness_unavailable means the readiness lookup itself failed; the findings page is still returned but coverage cannot be classified.",
                       "properties": {
-                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, VCS/path/URL/editable dependency source, malformed/unsupported SBOM document, or unsupported image target)."},
+                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "ambiguous_scope", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. ambiguous_scope fires when a single explain scope matches multiple reducer-owned findings and the caller must narrow the request; unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, VCS/path/URL/editable dependency source, malformed/unsupported SBOM document, or unsupported image target)."},
                         "target_scope": {
                           "type": "object",
                           "properties": {
@@ -291,13 +291,13 @@ const openAPIPathsSupplyChainImpactFindings = `
                             "required": ["target_kind", "reason", "count"]
                           }
                         },
-                        "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "package_registry_metadata", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable", "unsupported_targets"]}},
+                        "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "package_registry_metadata", "sbom_or_image_evidence", "target_collection_incomplete", "ambiguous_scope", "readiness_unavailable", "unsupported_targets"]}},
                         "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete."},
                         "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown", "pending", "rate_limited", "failed", "partial"]},
                         "counts": {
                           "type": "object",
                           "properties": {
-                            "findings_returned": {"type": "integer", "description": "Number of findings in this page; not the total population. Compare with truncated to know if more pages exist."},
+                            "findings_returned": {"type": "integer", "description": "Number of findings in this page; not the total population. Compare with truncated to know if more pages exist. For ambiguous explain responses, this is the matched reducer finding count observed by the ambiguity probe while individual findings are withheld."},
                             "findings_truncated": {"type": "boolean"},
                             "findings_by_status": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Counts by impact_status across the returned page only."},
                             "evidence_facts_total": {"type": "integer"}

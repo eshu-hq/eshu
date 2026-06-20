@@ -223,8 +223,9 @@ explicit missing-evidence rows instead of disappearing from repository pages.
 Impact responses also attach a `readiness` envelope built by
 `BuildSupplyChainImpactReadiness` (`supply_chain_impact_readiness.go:121`) so a
 zero-finding result is classified as `not_configured`, `target_incomplete`,
-`evidence_incomplete`, `readiness_unavailable`, `ready_zero_findings`, or
-`ready_with_findings`. The envelope echoes the bounded target scope, lists
+`evidence_incomplete`, `readiness_unavailable`, `ready_zero_findings`,
+`ready_with_findings`, or `ambiguous_scope`. The envelope echoes the bounded
+target scope, lists
 per-family fact counts and `latest_observed_at` for `vulnerability.advisory`,
 `vulnerability.exploitability`, `package.consumption`, `package.registry`,
 `sbom.component`, `sbom.attestation`, and `container_image.identity`, and

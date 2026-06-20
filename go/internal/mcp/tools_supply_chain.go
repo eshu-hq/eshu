@@ -218,7 +218,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "explain_supply_chain_impact",
-			Description: "Explain one reducer-owned vulnerability finding or bounded advisory/package/repository path with evidence, anchors, remediation, freshness, and missing-evidence reasons. The remediation block reports current observed version, vulnerable range, first patched version, whether the manifest range admits that fix, direct/transitive designation, parent package needed for a transitive upgrade, and an exact/partial/unknown confidence. Remediation is strictly advisory; Eshu does not auto-open pull requests.",
+			Description: "Explain one reducer-owned vulnerability finding or bounded advisory/package/repository/image/workload/service path with evidence, anchors, remediation, freshness, missing-evidence reasons, and ambiguous-scope refusal envelopes. The remediation block reports current observed version, vulnerable range, first patched version, whether the manifest range admits that fix, direct/transitive designation, parent package needed for a transitive upgrade, and an exact/partial/unknown confidence. Remediation is strictly advisory; Eshu does not auto-open pull requests.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

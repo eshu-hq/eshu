@@ -25,6 +25,10 @@ const (
 	// ReadinessStateReadyWithFindings means required evidence is present and
 	// reducer-owned impact findings exist for the scope.
 	ReadinessStateReadyWithFindings SupplyChainImpactReadinessState = "ready_with_findings"
+	// ReadinessStateAmbiguousScope means the bounded scope matched multiple
+	// reducer-owned impact findings, so callers must narrow the request before
+	// interpreting readiness as clean or affected.
+	ReadinessStateAmbiguousScope SupplyChainImpactReadinessState = "ambiguous_scope"
 	// ReadinessStateReadinessUnavailable means the readiness lookup itself
 	// failed; the findings page is still returned but its coverage cannot be
 	// classified. Callers must not interpret zero findings as safe in this

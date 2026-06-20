@@ -237,6 +237,60 @@ func BuildSupplyChainImpactNoEvidenceExplanation(
 	}
 }
 
+// BuildSupplyChainImpactAmbiguousExplanation returns a bounded refusal envelope
+// for a valid scope that matches multiple reducer-owned impact findings.
+func BuildSupplyChainImpactAmbiguousExplanation(
+	filter SupplyChainImpactExplanationFilter,
+	readiness SupplyChainImpactReadinessEnvelope,
+	candidateCount int,
+) SupplyChainImpactExplanationResult {
+	readiness = supplyChainImpactAmbiguousReadiness(readiness, candidateCount)
+	body := buildSupplyChainImpactRefusalExplanation(filter, readiness)
+	body.Outcome = "ambiguous_scope"
+	body.MissingEvidence = explanationUniqueStrings(append([]string{"ambiguous_scope"}, readiness.MissingEvidence...))
+	return body
+}
+
+func supplyChainImpactAmbiguousReadiness(
+	readiness SupplyChainImpactReadinessEnvelope,
+	candidateCount int,
+) SupplyChainImpactReadinessEnvelope {
+	if readiness.State != ReadinessStateReadinessUnavailable {
+		readiness.State = ReadinessStateAmbiguousScope
+	}
+	if candidateCount < 2 {
+		candidateCount = 2
+	}
+	if readiness.Counts.FindingsReturned < candidateCount {
+		readiness.Counts.FindingsReturned = candidateCount
+	}
+	readiness.MissingEvidence = explanationUniqueStrings(append(readiness.MissingEvidence, "ambiguous_scope"))
+	return readiness
+}
+
+func buildSupplyChainImpactRefusalExplanation(
+	filter SupplyChainImpactExplanationFilter,
+	readiness SupplyChainImpactReadinessEnvelope,
+) SupplyChainImpactExplanationResult {
+	return SupplyChainImpactExplanationResult{
+		EvidencePacketHandle: supplyChainImpactEvidencePacketHandle(filter, ""),
+		Input:                filter,
+		Advisory:             SupplyChainImpactAdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
+		Component:            SupplyChainImpactComponentExplanation{PackageID: filter.PackageID},
+		Version:              SupplyChainImpactVersionExplanation{VersionEvidence: "missing"},
+		Anchors: SupplyChainImpactExplanationAnchors{
+			RepositoryID:  filter.RepositoryID,
+			SubjectDigest: filter.SubjectDigest,
+			ImageRefs:     compactStrings([]string{filter.ImageRef}),
+			Workloads:     compactStrings([]string{filter.WorkloadID}),
+			Services:      compactStrings([]string{filter.ServiceID}),
+		},
+		Evidence:  []SupplyChainImpactEvidenceFactSummary{},
+		Readiness: readiness,
+		Freshness: SupplyChainImpactExplanationFreshness{State: explanationFreshnessState(readiness.Freshness)},
+	}
+}
+
 func supplyChainImpactEvidencePacketHandle(filter SupplyChainImpactExplanationFilter, findingID string) string {
 	if findingID = strings.TrimSpace(findingID); findingID != "" {
 		return "supply-chain-impact-explanation:finding:" + findingID
@@ -266,10 +320,7 @@ func (f SupplyChainImpactExplanationFilter) hasBoundedScope() bool {
 	if strings.TrimSpace(f.AdvisoryID) == "" {
 		return false
 	}
-	return strings.TrimSpace(f.PackageID) != "" ||
-		strings.TrimSpace(f.RepositoryID) != "" ||
-		strings.TrimSpace(f.SubjectDigest) != "" ||
-		strings.TrimSpace(f.ImageRef) != ""
+	return f.hasTargetScope()
 }
 
 func (f SupplyChainImpactExplanationFilter) hasTargetScope() bool {

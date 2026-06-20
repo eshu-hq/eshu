@@ -41,7 +41,6 @@ func TestSupplyChainExplainImpactRequiresBoundedInput(t *testing.T) {
 		"/api/v0/supply-chain/impact/explain",
 		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test",
 		"/api/v0/supply-chain/impact/explain?package_id=pkg:npm/example",
-		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test&workload_id=workload:api",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {
@@ -377,28 +376,6 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 	}
 	if !containsString(resp.MissingEvidence, MissingEvidenceOwnedPackages) {
 		t.Fatalf("MissingEvidence = %#v, want %q", resp.MissingEvidence, MissingEvidenceOwnedPackages)
-	}
-}
-
-func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
-	t.Parallel()
-
-	store := &recordingSupplyChainImpactExplanationStore{
-		err: ErrSupplyChainImpactExplanationAmbiguous,
-	}
-	handler := &SupplyChainHandler{ImpactExplanations: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-ambiguous&repository_id=repo://example/api",
-		nil,
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if got, want := w.Code, http.StatusConflict; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 }
 

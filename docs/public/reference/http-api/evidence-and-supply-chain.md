@@ -726,10 +726,12 @@ matched` from `Eshu did not have the evidence to match yet`:
 
 - `readiness_state` is one of `not_configured`, `target_incomplete`,
   `evidence_incomplete`, `ready_zero_findings`, `ready_with_findings`,
-  `readiness_unavailable`, or `unsupported`. `readiness_unavailable` preserves
-  the findings page when the coverage lookup fails. `unsupported` means Eshu
-  observed real target evidence the matcher cannot resolve; callers MUST NOT
-  interpret it as clean or affected.
+  `ambiguous_scope`, `readiness_unavailable`, or `unsupported`.
+  `ambiguous_scope` means a single explain scope matched multiple reducer-owned
+  findings and the caller must narrow the request. `readiness_unavailable`
+  preserves the findings page when the coverage lookup fails. `unsupported`
+  means Eshu observed real target evidence the matcher cannot resolve; callers
+  MUST NOT interpret it as clean or affected.
 - `target_scope` echoes the bounded anchors the caller used. `impact_status`
   alone is not a fact-anchor: the readiness store skips its Postgres scan
   and returns an empty snapshot for impact_status-only requests, because
@@ -760,10 +762,11 @@ matched` from `Eshu did not have the evidence to match yet`:
   failure without raw advisory bodies or source URLs.
 - `missing_evidence[]` names the absent required join families, such as
   `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
-  `target_collection_incomplete`, `readiness_unavailable`, or
-  `unsupported_targets`. Reasons stay deduplicated, sorted, and free of
-  package names or advisory bodies; the list is empty on `ready_*` states
-  so callers cannot see contradictory "ready" + "missing" signals.
+  `target_collection_incomplete`, `ambiguous_scope`,
+  `readiness_unavailable`, or `unsupported_targets`. Reasons stay
+  deduplicated, sorted, and free of package names or advisory bodies; the list
+  is empty on `ready_*` states so callers cannot see contradictory "ready" +
+  "missing" signals.
 - `unsupported_targets[]` lists observed coverage-gap evidence Eshu cannot
   match. Each entry carries `target_kind` (`ecosystem`,
   `package_manager_file`, `sbom_target`, `package_registry_metadata`, or
@@ -784,7 +787,10 @@ matched` from `Eshu did not have the evidence to match yet`:
 - `counts` reports `findings_returned`, `findings_truncated`,
   `findings_by_status`, and `evidence_facts_total`. `findings_returned` and
   `findings_by_status` describe the returned page only; combine with
-  `truncated` to know if more pages exist.
+  `truncated` to know if more pages exist. Explain responses with
+  `outcome: ambiguous_scope` withhold individual findings but still report the
+  matched reducer finding count observed by the ambiguity probe, so callers do
+  not misread the refusal as zero findings.
 
 Readiness is computed from existing source and reducer facts only. The
 endpoint never invents findings; it surfaces counts and freshness so a zero
@@ -793,19 +799,22 @@ or partial answer can be interpreted correctly.
 `GET /api/v0/supply-chain/impact/explain`
 
 Explains one reducer-owned vulnerability impact finding or one bounded
-advisory/package/repository path. The caller must provide either:
+advisory/package/repository/image/workload/service path. The caller must
+provide either:
 
 - `finding_id`; or
 - `advisory_id` or `cve_id` plus at least one of `package_id`,
-  `repository_id`, or `subject_digest`.
+  `repository_id`, `subject_digest`, `image_ref`, `workload_id`, or
+  `service_id`.
 
 The route never performs a whole-graph explain. It reads one active
 `reducer_supply_chain_impact_finding` fact and hydrates only the
 `evidence_fact_ids` referenced by that finding. If a composite scope matches
-more than one finding, the route returns `409` and asks for a narrower anchor.
-If the scope is bounded but no finding exists, it returns `outcome:
-no_finding` with readiness and missing-evidence reasons instead of implying
-the target is safe.
+more than one finding, the route returns `outcome: ambiguous_scope` with the
+same readiness and missing-evidence envelope and asks for `finding_id` or a
+narrower advisory/package/repository/image/workload/service anchor. If the
+scope is bounded but no finding exists, it returns `outcome: no_finding` with
+readiness and missing-evidence reasons instead of implying the target is safe.
 `repository_id` accepts a canonical source repository id or a human repository
 selector and resolves it before reading reducer impact facts. Container-image
 routes keep their own `repository_id` field as an OCI/image repository identity;
@@ -840,7 +849,7 @@ No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainExplain|TestBuildSupplyChainImpactExplanation' -count=1`
 proves bounded input rejection, exact finding explanation, range-only version
 evidence, provider-only alert handling, SBOM/image anchors, ambiguous-scope
-rejection, and no-evidence readiness response.
+refusal envelope, and no-evidence readiness response.
 
 Observability Evidence: the explain route adds the
 `query.supply_chain_impact_explanation` request span and reuses the existing

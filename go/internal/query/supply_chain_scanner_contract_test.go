@@ -73,6 +73,19 @@ func TestVulnerabilityScannerReadContractIdentifiesFilters(t *testing.T) {
 	if backing := got["repository"]["backing"]; !strings.Contains(backing.(string), "reducer") {
 		t.Fatalf("repository backing = %#v, want reducer read model", backing)
 	}
+
+	routes := scannerContractObjectListByName(t, data["routes"], "routes")
+	impactExplain := routes["impact_explain"]
+	if impactExplain == nil {
+		t.Fatalf("contract missing impact_explain route; routes = %#v", routes)
+	}
+	ordering, _ := impactExplain["ordering"].(string)
+	if !strings.Contains(ordering, "outcome=ambiguous_scope") {
+		t.Fatalf("impact_explain ordering = %q, want ambiguous_scope refusal envelope", ordering)
+	}
+	if strings.Contains(ordering, "return conflict") {
+		t.Fatalf("impact_explain ordering = %q, want no stale conflict contract", ordering)
+	}
 }
 
 func TestVulnerabilityScannerReadContractDefinesRemediationPacket(t *testing.T) {
