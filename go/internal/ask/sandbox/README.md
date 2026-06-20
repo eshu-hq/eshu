@@ -52,6 +52,21 @@ caller query
    │  Decision{Allowed:true}
    ▼
 ┌─────────────────────────────────────────────────────┐
+│  Layer 3.5 — Cost gate (costgate.go)                │
+│  Active when Caps.MaxPlanCost > 0, or               │
+│  Caps.MaxEstimatedRows > 0, or ForbiddenPlanOps≠∅. │
+│  • Runs EXPLAIN (FORMAT JSON) inside the same       │
+│    read-only context (never a real execution).      │
+│  • Rejects if Total Cost > Caps.MaxPlanCost.        │
+│  • Rejects if Plan Rows > Caps.MaxEstimatedRows.    │
+│  • Rejects if any forbidden operator is found in    │
+│    the plan tree (e.g. "Seq Scan").                 │
+│  • Fail-closed: explainer error → rejection.        │
+│  • Cypher v1: passes straight to Layer 3.           │
+└─────────────────────────────────────────────────────┘
+   │  Decision{Allowed:true, plan in budget}
+   ▼
+┌─────────────────────────────────────────────────────┐
 │  Layer 3 — Guarded read-only-tx exec (pgexec.go)   │
 │  • SQL: BeginTx with ReadOnly:true (database-level  │
 │    enforcement as defense-in-depth after layers 1   │
@@ -94,12 +109,14 @@ makes it safe to return directly to the caller for logging and user display.
 
 `Caps` controls four limits:
 
-| Field        | Default | Purpose                                         |
-|--------------|---------|-------------------------------------------------|
-| MaxRows      | 1000    | Truncate result sets to prevent memory bloat.   |
-| MaxBytes     | 1 MiB   | Byte budget for results (wired by API layer).   |
-| Timeout      | 5s      | Cancel long-running queries.                    |
-| MaxQueryLen  | 8192 B  | Reject oversized query strings up-front.        |
+| Field             | Default   | Purpose                                                   |
+|-------------------|-----------|-----------------------------------------------------------|
+| MaxRows           | 1000      | Truncate result sets to prevent memory bloat.             |
+| MaxBytes          | 1 MiB     | Byte budget for results (wired by API layer).             |
+| Timeout           | 5s        | Cancel long-running queries.                              |
+| MaxQueryLen       | 8192 B    | Reject oversized query strings up-front.                  |
+| MaxPlanCost       | 1000.0    | Reject plans whose planner cost estimate exceeds budget.  |
+| MaxEstimatedRows  | 100,000   | Reject plans whose row estimate exceeds budget.           |
 
 `NewGuard` with a zero `Caps` automatically promotes to `DefaultCaps()`.
 
@@ -108,12 +125,13 @@ makes it safe to return directly to the caller for logging and user display.
 - **Tenant scope-predicate injection**: ensuring that a query only returns rows
   scoped to the authenticated tenant is the responsibility of the API layer
   (issue #3263). The Guard enforces read-only safety; it does not add `WHERE
-  tenant_id = ?` predicates.
-- **Cost / complexity gate**: per-query cost estimation is wired by the API layer
-  (#3263), not the Guard.
+  tenant_id = ?` predicates. This is the primary unsolved security problem that
+  blocks Tier-2 enablement; see the security-review design package #3302.
 - **Cypher execution**: Cypher graph queries against NornicDB require a graph
   backend client that is not wired in v1. `NewPostgresReadOnlyExecutor` returns
   an error immediately for `DialectCypher`.
+- **Cypher cost gate**: `CostGateExecutor` passes Cypher queries directly to the
+  inner Executor; EXPLAIN-based cost gating for NornicDB Cypher is deferred.
 
 ## Usage
 

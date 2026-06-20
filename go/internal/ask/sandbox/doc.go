@@ -21,8 +21,21 @@
 // # Resource Constraints
 //
 // Query execution is bounded by Caps: maximum row count, result byte size,
-// execution time, and query string length. These constraints prevent resource
-// exhaustion and long-running queries from impacting the graph backend.
+// execution time, query string length, maximum planner cost estimate
+// (MaxPlanCost), and maximum planner row estimate (MaxEstimatedRows). These
+// constraints prevent resource exhaustion and long-running queries from
+// impacting the graph backend.
+//
+// # Cost Gate
+//
+// CostGateExecutor wraps an inner Executor and enforces a pre-execution cost
+// check for SQL queries via EXPLAIN (FORMAT JSON). It is Layer 3.5 between
+// Validate (Layer 2) and actual execution (Layer 3). An over-budget plan or a
+// plan containing a forbidden operator is rejected with ErrPlanBudgetExceeded
+// before the query reaches the backend. The cost gate is active only when
+// Caps.MaxPlanCost or Caps.MaxEstimatedRows is non-zero, or
+// CostGateConfig.ForbiddenPlanOperators is non-empty. Construct via
+// NewCostGateExecutor; inject a SQLExplainer for EXPLAIN (FORMAT JSON) access.
 //
 // # Dialects
 //
