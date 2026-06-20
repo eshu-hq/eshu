@@ -143,15 +143,16 @@ func TestAskRunsToolThenAnswers(t *testing.T) {
 	}
 }
 
-// TestAskMaxIterationsFallsBack: adapter always returns a tool-call completion;
-// asserts the loop stops at MaxIterations, Answer.Partial is true, a
-// "reached max reasoning iterations" limitation is present, and prose is derived
-// from a packet summary (not fabricated text).
+// TestAskMaxIterationsFallsBack: adapter always returns a tool-call completion so
+// the loop never reaches a final turn. Asserts the precise production fallback:
+// adapter called exactly MaxIterations times, Partial=true, both limitation
+// strings present, Prose=="" (engine-built packets carry no Summary so
+// bestPacketSummary returns ""), and evidence is present in Packets and Trace.
 func TestAskMaxIterationsFallsBack(t *testing.T) {
 	t.Parallel()
 
-	// Build a turns slice that is longer than MaxIterations — adapter always
-	// returns a tool call.
+	// Build a turns slice longer than MaxIterations so the adapter always
+	// returns a tool call and never yields a final text turn.
 	always := provider.Completion{
 		ToolCalls: []provider.ToolCall{
 			{ID: "cx", Name: "find_code", Arguments: map[string]any{"q": "loop"}},
@@ -181,42 +182,101 @@ func TestAskMaxIterationsFallsBack(t *testing.T) {
 		t.Fatalf("Ask returned unexpected error: %v", err)
 	}
 
-	// Loop must have called adapter exactly maxIter times.
+	// Bound honored: adapter called exactly MaxIterations times.
 	if adapter.calls != maxIter {
 		t.Errorf("adapter.calls = %d, want %d", adapter.calls, maxIter)
 	}
 
+	// Loop exit marks the answer partial.
 	if !ans.Partial {
 		t.Error("Answer.Partial = false, want true")
 	}
 
-	foundLimitation := false
+	// Both limitation strings must appear.
+	foundIter := false
+	foundNoEvidence := false
 	for _, lim := range ans.Limitations {
-		if strings.Contains(lim, "reached max reasoning iterations") {
-			foundLimitation = true
-			break
+		if lim == "reached max reasoning iterations" {
+			foundIter = true
+		}
+		if lim == "no supported evidence assembled" {
+			foundNoEvidence = true
 		}
 	}
-	if !foundLimitation {
-		t.Errorf("Limitations %v does not contain 'reached max reasoning iterations'", ans.Limitations)
+	if !foundIter {
+		t.Errorf("Limitations %v missing %q", ans.Limitations, "reached max reasoning iterations")
+	}
+	if !foundNoEvidence {
+		t.Errorf("Limitations %v missing %q", ans.Limitations, "no supported evidence assembled")
 	}
 
-	// Prose must equal a packet Summary (deterministic) — it must not be empty
-	// if supported packets were assembled.
-	if ans.Prose == "" && len(ans.Packets) > 0 {
-		// Packets exist but prose is empty — acceptable only if no packet is
-		// supported; the test runner returns supported packets so we expect prose.
-		hasSupportedPacket := false
-		for _, p := range ans.Packets {
-			if p.Supported && p.Summary != "" {
-				hasSupportedPacket = true
-				break
-			}
-		}
-		if hasSupportedPacket {
-			t.Error("Prose is empty but a supported packet with non-empty Summary exists")
-		}
+	// NewAnswerPacket without a Summary field always produces Summary=="", so
+	// bestPacketSummary returns "" and Prose is left empty. This is the honest
+	// deterministic fallback: evidence lives in Packets, not in fabricated prose.
+	if ans.Prose != "" {
+		t.Errorf("Prose = %q, want %q (engine packets carry no Summary)", ans.Prose, "")
 	}
+
+	// Evidence must be present: one packet and one trace entry per iteration.
+	if len(ans.Packets) == 0 {
+		t.Error("Packets is empty, want at least one assembled packet")
+	}
+	if len(ans.Trace) == 0 {
+		t.Error("Trace is empty, want at least one trace entry")
+	}
+}
+
+// TestBestPacketSummary exercises bestPacketSummary with hand-constructed
+// packets to document its contract and keep it genuinely covered.
+func TestBestPacketSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns first supported non-empty Summary", func(t *testing.T) {
+		t.Parallel()
+		packets := []query.AnswerPacket{
+			// Unsupported with a summary — must be skipped.
+			{Supported: false, Summary: "skip me"},
+			// First supported packet with a non-empty summary — must be returned.
+			{Supported: true, Summary: "first"},
+			// Second supported packet — must not be returned.
+			{Supported: true, Summary: "second"},
+		}
+		got := bestPacketSummary(packets)
+		if got != "first" {
+			t.Errorf("bestPacketSummary = %q, want %q", got, "first")
+		}
+	})
+
+	t.Run("returns empty when all supported packets have empty Summary", func(t *testing.T) {
+		t.Parallel()
+		packets := []query.AnswerPacket{
+			{Supported: true, Summary: ""},
+			{Supported: true, Summary: ""},
+		}
+		got := bestPacketSummary(packets)
+		if got != "" {
+			t.Errorf("bestPacketSummary = %q, want %q (no non-empty summary)", got, "")
+		}
+	})
+
+	t.Run("returns empty when all packets are unsupported", func(t *testing.T) {
+		t.Parallel()
+		packets := []query.AnswerPacket{
+			{Supported: false, Summary: "ignored"},
+		}
+		got := bestPacketSummary(packets)
+		if got != "" {
+			t.Errorf("bestPacketSummary = %q, want %q (all unsupported)", got, "")
+		}
+	})
+
+	t.Run("returns empty for nil slice", func(t *testing.T) {
+		t.Parallel()
+		got := bestPacketSummary(nil)
+		if got != "" {
+			t.Errorf("bestPacketSummary(nil) = %q, want %q", got, "")
+		}
+	})
 }
 
 // TestAskToolErrorRecoverable: runner returns an error on the first call;
