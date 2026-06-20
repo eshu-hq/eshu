@@ -45,9 +45,14 @@ func (a *anthropicAdapter) ModelID() string {
 func (a *anthropicAdapter) Complete(ctx context.Context, messages []Message, tools []Tool) (Completion, error) {
 	req := a.buildRequest(messages, tools)
 
+	// Omit x-api-key when the resolved credential is empty (for example a
+	// cloud_workload_identity profile) so ambient or sidecar auth can apply
+	// instead of an explicit blank key the provider would reject.
 	headers := map[string]string{
-		"x-api-key":         a.apiKey,
 		"anthropic-version": "2023-06-01",
+	}
+	if a.apiKey != "" {
+		headers["x-api-key"] = a.apiKey
 	}
 
 	var resp anthropicResponse

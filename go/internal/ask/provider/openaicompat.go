@@ -58,8 +58,13 @@ func (a *openAICompatAdapter) ModelID() string {
 func (a *openAICompatAdapter) Complete(ctx context.Context, messages []Message, tools []Tool) (Completion, error) {
 	req := a.buildRequest(messages, tools)
 
-	headers := map[string]string{
-		"Authorization": "Bearer " + a.apiKey,
+	// Omit the Authorization header when the resolved credential is empty (for
+	// example a cloud_workload_identity profile) so ambient identity or sidecar
+	// auth can apply instead of an explicit blank bearer token that gateways and
+	// Azure/Gemini-compatible endpoints may reject.
+	headers := map[string]string{}
+	if a.apiKey != "" {
+		headers["Authorization"] = "Bearer " + a.apiKey
 	}
 
 	var resp openAICompatResponse
