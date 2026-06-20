@@ -134,11 +134,28 @@ func competitiveParityExerciseResults(repoRoot string) []competitiveparity.Exerc
 		result := competitiveparity.ExerciseResult{ID: check.id, OK: true, Detail: "exercised"}
 		if err := check.fn(); err != nil {
 			result.OK = false
-			result.Detail = err.Error()
+			result.Detail = competitiveParityExerciseFailureDetail(check.id)
 		}
 		results = append(results, result)
 	}
 	return results
+}
+
+func competitiveParityExerciseFailureDetail(id string) string {
+	switch id {
+	case "first_run_report_artifact":
+		return "first-run evidence exercise failed"
+	case "operator_digest_artifact":
+		return "operator digest artifact exercise failed"
+	case "investigation_evidence_packet_artifact":
+		return "investigation evidence packet exercise failed"
+	case "evidence_packet_dogfood_fixture":
+		return "dogfood fixture unavailable"
+	case "capability_catalog_artifacts":
+		return "capability catalog artifact exercise failed"
+	default:
+		return "exercise failed"
+	}
 }
 
 func exerciseFirstRunReportArtifact() error {
@@ -171,11 +188,7 @@ func exerciseOperatorDigestArtifact() error {
 }
 
 func exerciseInvestigationEvidencePacketArtifact() error {
-	packet, err := buildInvestigationExportPacket(
-		newInvestigationExportCommand(),
-		query.InvestigationFamilySupplyChainImpact,
-		map[string]string{},
-	)
+	packet, err := buildCompetitiveParitySupportedSupplyChainPacket()
 	if err != nil {
 		return err
 	}
@@ -183,10 +196,69 @@ func exerciseInvestigationEvidencePacketArtifact() error {
 	if err != nil {
 		return err
 	}
+	if !packet.Answer.Supported || packet.Answer.Partial {
+		return fmt.Errorf("investigation packet exercise did not produce a supported complete packet")
+	}
 	if !bytes.Contains(raw, []byte(`investigation_evidence_packet.v2`)) {
 		return fmt.Errorf("investigation packet artifact missing schema marker")
 	}
 	return nil
+}
+
+func buildCompetitiveParitySupportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
+	directDependency := true
+	result := query.SupplyChainImpactExplanationResult{
+		Outcome: "finding_explained",
+		Input: query.SupplyChainImpactExplanationFilter{
+			AdvisoryID:   "GHSA-aaaa-bbbb-cccc",
+			PackageID:    "pkg:golang/example.com/vuln",
+			RepositoryID: "repo-1",
+		},
+		Finding: &query.SupplyChainImpactFindingResult{
+			FindingID:        "finding-1",
+			AdvisoryID:       "GHSA-aaaa-bbbb-cccc",
+			PackageID:        "pkg:golang/example.com/vuln",
+			PackageName:      "example.com/vuln",
+			ImpactStatus:     "affected",
+			WorkloadIDs:      []string{"workload:checkout"},
+			ServiceIDs:       []string{"service:checkout"},
+			EvidenceFactIDs:  []string{"fact-advisory", "fact-sbom"},
+			DirectDependency: &directDependency,
+		},
+		Anchors: query.SupplyChainImpactExplanationAnchors{
+			RepositoryID:  "repo-1",
+			ImageDigests:  []string{"sha256:abc"},
+			Workloads:     []string{"workload:checkout"},
+			Services:      []string{"service:checkout"},
+			SBOMDocuments: []string{"sbom:checkout"},
+		},
+		ImpactPath: []query.SupplyChainImpactPathHop{
+			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
+			{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
+			{Hop: "image", Status: "present"},
+			{Hop: "workload", Status: "present"},
+			{Hop: "service", Status: "present"},
+		},
+		Evidence: []query.SupplyChainImpactEvidenceFactSummary{
+			{FactID: "fact-advisory", FactKind: "vulnerability_advisory", SourceSystem: "osv", ObservedAt: "2026-06-18T00:00:00Z"},
+			{FactID: "fact-sbom", FactKind: "sbom_component", SourceSystem: "sbom_document", ObservedAt: "2026-06-18T00:00:00Z"},
+		},
+		Readiness: query.SupplyChainImpactReadinessEnvelope{State: query.ReadinessStateReadyWithFindings},
+		Freshness: query.SupplyChainImpactExplanationFreshness{
+			State:             "fresh",
+			LatestObservedAt:  "2026-06-18T00:00:00Z",
+			EvidenceFactCount: 2,
+		},
+	}
+	truth := &query.TruthEnvelope{
+		Level:      query.TruthLevelExact,
+		Capability: "supply_chain.impact_explain",
+		Profile:    query.ProfileLocalAuthoritative,
+		Basis:      query.TruthBasisAuthoritativeGraph,
+		Backend:    query.GraphBackendNornicDB,
+		Freshness:  query.TruthFreshness{State: query.FreshnessFresh},
+	}
+	return query.BuildSupplyChainImpactPacket(result, truth, nil)
 }
 
 func exerciseEvidencePacketDogfoodFixture(repoRoot string) error {

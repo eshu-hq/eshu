@@ -57,11 +57,12 @@ func TestCompetitiveParityValidateMarkdownNamesPeerBaselines(t *testing.T) {
 }
 
 func TestCompetitiveParityValidateReportsMissingDocs(t *testing.T) {
+	repoRoot := t.TempDir()
 	var out bytes.Buffer
 	cmd := newCompetitiveParityValidateCommand()
 	cmd.SetOut(&out)
 	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"--repo-root", t.TempDir(), "--json"})
+	cmd.SetArgs([]string{"--repo-root", repoRoot, "--json"})
 	err := cmd.Execute()
 	var exitErr commandExitError
 	if !errors.As(err, &exitErr) {
@@ -79,6 +80,26 @@ func TestCompetitiveParityValidateReportsMissingDocs(t *testing.T) {
 	}
 	if !reportHasFailedCheck(report, competitiveparity.CheckDoc, "docs/public/reference/capability-catalog.md") {
 		t.Fatalf("report missing failed capability catalog doc check: %#v", report.Surfaces)
+	}
+	if strings.Contains(out.String(), repoRoot) {
+		t.Fatalf("report leaked repo root %q:\n%s", repoRoot, out.String())
+	}
+	if !strings.Contains(out.String(), "dogfood fixture unavailable") {
+		t.Fatalf("report missing redacted dogfood failure detail:\n%s", out.String())
+	}
+}
+
+func TestCompetitiveParityInvestigationExerciseUsesSupportedPacket(t *testing.T) {
+	packet, err := buildCompetitiveParitySupportedSupplyChainPacket()
+	if err != nil {
+		t.Fatalf("build supported packet: %v", err)
+	}
+	if !packet.Answer.Supported || packet.Answer.Partial {
+		t.Fatalf("packet answer supported=%t partial=%t, want supported complete", packet.Answer.Supported, packet.Answer.Partial)
+	}
+	if len(packet.SourceFacts) == 0 || len(packet.ReducerDecisions) == 0 || len(packet.GraphAnswers) == 0 {
+		t.Fatalf("packet missing supported evidence layers: source=%d reducer=%d graph=%d",
+			len(packet.SourceFacts), len(packet.ReducerDecisions), len(packet.GraphAnswers))
 	}
 }
 
