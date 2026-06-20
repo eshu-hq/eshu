@@ -221,6 +221,7 @@ nav:
       - Capability Conformance Spec: reference/capability-conformance-spec.md
       - Local Lightweight Capability Audit: reference/local-lightweight-capability-audit.md
       - Capability Catalog: reference/capability-catalog.md
+      - Surface Inventory: reference/surface-inventory.md
       - Competitive Audit Preflight: reference/competitive-audit-preflight.md
       - Truth Label Protocol: reference/truth-label-protocol.md
       - Replatforming Source-State Taxonomy: reference/replatforming-source-state-taxonomy.md

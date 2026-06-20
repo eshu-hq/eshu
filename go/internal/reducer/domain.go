@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -67,6 +68,19 @@ var knownDomains = map[Domain]struct{}{
 	DomainSecretsIAMGraphProjection:                {},
 	DomainCloudInventoryAdmission:                  {},
 	DomainEshuSearchDocument:                       {},
+}
+
+// AllDomains returns every known reducer domain sorted lexicographically. It is
+// the single source of truth for tooling that must enumerate the full domain set
+// (the capability surface inventory and its drift gate), so adding a domain to
+// knownDomains automatically adds it to the inventory.
+func AllDomains() []Domain {
+	domains := make([]Domain, 0, len(knownDomains))
+	for domain := range knownDomains {
+		domains = append(domains, domain)
+	}
+	sort.Slice(domains, func(i, j int) bool { return domains[i] < domains[j] })
+	return domains
 }
 
 // ParseDomain converts one raw string into a known reducer domain.

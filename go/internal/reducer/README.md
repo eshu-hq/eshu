@@ -110,6 +110,11 @@ All reducer domains are declared in `domain.go` and registered via
 `OwnershipShape` enforcing cross-source, cross-scope, and either durable
 canonical-write or bounded counter-emission requirements.
 
+`AllDomains` returns every known domain (the `knownDomains` registry) sorted
+lexicographically. It is the single enumeration source for tooling that must
+list the full domain set — notably the capability surface inventory and its
+drift gate — so adding a domain to `knownDomains` automatically adds it there.
+
 | Domain constant | Summary |
 | --- | --- |
 | `DomainWorkloadIdentity` | Resolve canonical workload identity across sources |

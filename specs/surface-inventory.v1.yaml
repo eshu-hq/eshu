@@ -1,0 +1,167 @@
+# Surface inventory editorial overlay.
+#
+# The surface inventory (go/internal/capabilitycatalog/data/surface-inventory.generated.json)
+# is GENERATED from live code, specs, and the source tree by
+# `go run ./cmd/capability-inventory -mode generate`. This file carries only the
+# editorial metadata that cannot be derived from code: the readiness lane, owner,
+# promotion proof, docs, and notes for surfaces whose lane is not the category
+# default (implemented). Collectors MUST be classified here — an unclassified
+# collector fails the drift gate so a new collector cannot silently claim a lane.
+#
+# Readiness lanes: implemented | partial | gated | foundation_only | fixture_only
+#   | research_only | not_implemented | unsupported
+# Only `implemented` asserts production readiness, so an implemented collector
+# MUST link promotion proof.
+version: v1
+surfaces:
+  # --- Implemented collector lanes (deployed, charted where applicable, provable
+  #     end to end). See collector-reducer-readiness.md "Implemented Collector
+  #     Lanes" and "Promotion Proof". ---
+  - category: collector
+    name: git
+    readiness: implemented
+    owner: internal/collector
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: documentation
+    readiness: implemented
+    owner: internal/collector/confluence
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: oci_registry
+    readiness: implemented
+    owner: internal/collector/ociregistry
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: terraform_state
+    readiness: implemented
+    owner: internal/collector/terraformstate
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: aws
+    readiness: implemented
+    owner: internal/collector/awscloud
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: webhook
+    readiness: implemented
+    owner: cmd/webhook-listener
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: package_registry
+    readiness: implemented
+    owner: internal/collector/packageregistry
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: sbom_attestation
+    readiness: implemented
+    owner: internal/collector/sbomdocument
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: vulnerability_intelligence
+    readiness: implemented
+    owner: internal/collector/vulnerabilityintelligence
+    proof: reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof
+    docs: [reference/collector-reducer-readiness.md, reference/security-intelligence.md]
+  - category: collector
+    name: security_alert
+    readiness: implemented
+    owner: internal/collector/securityalerts
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: pagerduty
+    readiness: implemented
+    owner: internal/collector/pagerduty
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md, reference/pagerduty-evidence.md]
+  - category: collector
+    name: jira
+    readiness: implemented
+    owner: internal/collector/jira
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md, reference/jira-evidence.md]
+  - category: collector
+    name: scanner_worker
+    readiness: implemented
+    owner: internal/collector/scannerworker
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      The worker runtime and warning analyzer are implemented and charted;
+      concrete secret/license/source/misconfiguration analyzers stay
+      fixture-proven and off by default until live proof.
+  - category: collector
+    name: grafana
+    readiness: implemented
+    owner: internal/collector/grafana
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: loki
+    readiness: implemented
+    owner: internal/collector/loki
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: prometheus_mimir
+    readiness: implemented
+    owner: internal/collector/prometheusmimir
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  - category: collector
+    name: tempo
+    readiness: implemented
+    owner: internal/collector/tempo
+    proof: reference/collector-reducer-readiness.md#promotion-proof
+    docs: [reference/collector-reducer-readiness.md]
+  # --- Pre-promotion collector lanes (honest about being not-yet-live; no proof
+  #     required). See collector-reducer-readiness.md "Gated Source Families". ---
+  - category: collector
+    name: ci_cd_run
+    readiness: partial
+    owner: internal/collector/cicdrun
+    docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Fixture normalizer, reducer correlation, hosted binary, and chart values
+      exist; live target proof for the deployed chart shape is pending.
+  - category: collector
+    name: gcp
+    readiness: gated
+    owner: internal/collector/gcpcloud
+    docs: [reference/collector-reducer-readiness.md, reference/gcp-cloud-collector-contract.md]
+    notes: Fixture-driven with claimed-live wiring; gated for sanitized live smoke proof.
+  - category: collector
+    name: azure
+    readiness: gated
+    owner: internal/collector/azurecloud
+    docs: [reference/collector-reducer-readiness.md, reference/azure-cloud-collector-contract.md]
+    notes: Fixture-driven with claimed-live wiring; gated for live tenant smoke proof (issue #3024).
+  - category: collector
+    name: vault_live
+    readiness: gated
+    owner: internal/collector/vaultlive
+    docs: [reference/collector-reducer-readiness.md, reference/secrets-iam-posture-collector-contract.md]
+    notes: Secrets/IAM posture lane; source facts exist, graph promotion gated for issue #25.
+  - category: collector
+    name: semantic_extraction
+    readiness: gated
+    owner: internal/collector/extensionhost
+    docs: [reference/collector-reducer-readiness.md]
+    notes: Optional, policy-gated model-assisted observations emitted as provenance only.
+  - category: collector
+    name: kubernetes_live
+    readiness: foundation_only
+    owner: internal/collector/kuberneteslive
+    docs: [reference/collector-reducer-readiness.md]
+    notes: >-
+      Read-only core resource listing and source facts exist; no claim-driven
+      runtime, watch mode, reducer projection, drift read model, or chart yet.
