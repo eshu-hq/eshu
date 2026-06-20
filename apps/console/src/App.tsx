@@ -357,7 +357,7 @@ export function App(): React.JSX.Element {
           <Routes>
             <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/ask" element={<AskPage client={client} repositories={repositories} />} />
+            <Route path="/ask" element={<AskPage source={source} />} />
             <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
             <Route path="/exposure" element={<ExposurePathPage client={client} />} />
             <Route path="/changed-since" element={<ChangedSincePage client={client} />} />
