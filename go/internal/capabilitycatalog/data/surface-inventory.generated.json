@@ -1275,6 +1275,11 @@
     },
     {
       "category": "console_page",
+      "name": "CollectorReadinessPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
       "name": "DashboardPage",
       "readiness": "implemented"
     },
@@ -1301,11 +1306,6 @@
     {
       "category": "console_page",
       "name": "FindingsPage",
-      "readiness": "implemented"
-    },
-    {
-      "category": "console_page",
-      "name": "HomePage",
       "readiness": "implemented"
     },
     {

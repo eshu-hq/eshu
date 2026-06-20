@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -126,6 +127,41 @@ func TestSurfaceInventoryDriftAgainstRealCode(t *testing.T) {
 	}
 }
 
+func TestEnumerateConsolePagesIncludesOnlyRoutedPages(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	pagesDir := filepath.Join(root, "apps", "console", "src", "pages")
+	if err := os.MkdirAll(pagesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(root, "apps", "console", "src", "App.tsx"), `
+		import { Route, Routes } from "react-router-dom";
+		import { DashboardPage } from "./pages/DashboardPage";
+		import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
+
+		export function App(): React.JSX.Element {
+			return (
+				<Routes>
+					<Route path="/dashboard" element={<DashboardPage />} />
+					<Route path="/surface-inventory" element={<SurfaceInventoryPage />} />
+				</Routes>
+			);
+		}
+	`)
+	writeTestFile(t, filepath.Join(pagesDir, "DashboardPage.tsx"), "export function DashboardPage(): React.JSX.Element { return <div />; }")
+	writeTestFile(t, filepath.Join(pagesDir, "HomePage.tsx"), "export function HomePage(): React.JSX.Element { return <div />; }")
+	writeTestFile(t, filepath.Join(pagesDir, "SurfaceInventoryPage.tsx"), "export function SurfaceInventoryPage(): React.JSX.Element { return <div />; }")
+
+	pages, err := enumerateConsolePages(root)
+	if err != nil {
+		t.Fatalf("enumerateConsolePages: %v", err)
+	}
+	if got, want := strings.Join(pages, ","), "DashboardPage,SurfaceInventoryPage"; got != want {
+		t.Fatalf("pages = %q, want %q", got, want)
+	}
+}
+
 // TestSurfaceInventoryGateCatchesSilentDrift is the CI fixture required by
 // #3145: a command/collector/API/MCP surface added or removed in code without
 // regenerating the committed artifact must fail the gate. It exercises both the
@@ -188,4 +224,14 @@ func hasSurfaceFinding(findings []capabilitycatalog.Finding, kind capabilitycata
 		}
 	}
 	return false
+}
+
+func writeTestFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }

@@ -77,7 +77,7 @@ fleet — and so a new surface cannot silently bypass the catalog.
 | `reducer_domain` | reducer domains | `reducer.AllDomains` |
 | `api_route` | HTTP API routes | `query.OpenAPISpec` method+path operations |
 | `mcp_tool` | MCP tools | `mcp.ReadOnlyTools` |
-| `console_page` | console pages | `apps/console/src/pages/*.tsx` |
+| `console_page` | console pages | `apps/console/src/App.tsx` route elements imported from `./pages/*` |
 
 `BuildSurfaceInventory(live, overlay)` merges the live surfaces (injected as
 `LiveSurfaces` so the package stays dependency-light) with the editorial overlay

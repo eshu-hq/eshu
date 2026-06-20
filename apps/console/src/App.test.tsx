@@ -96,6 +96,10 @@ describe("App shell", () => {
       "href",
       "/collector-readiness"
     );
+    expect(screen.getByRole("link", { name: "Surface Inventory" })).toHaveAttribute(
+      "href",
+      "/surface-inventory"
+    );
     expect(
       screen.getByRole("link", { name: /context graph/i })
     ).toHaveAttribute("href", "/");

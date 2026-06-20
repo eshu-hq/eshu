@@ -44,6 +44,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedCapabilityCatalogRoute(r) {
 		return true
 	}
+	if scopedSurfaceInventoryRoute(r) {
+		return true
+	}
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
