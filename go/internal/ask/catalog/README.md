@@ -31,7 +31,7 @@ never queries Postgres, the graph backend, or any live runtime state.
 | `doc.go` | Package godoc contract |
 | `annotations.go` | `Annotation` type + `annotations()` merger |
 | `annotations_routes.go` | `askRouteAnnotations()` — implemented read-only HTTP API routes |
-| `annotations_tools.go` | `askToolAnnotations()` — 141 implemented MCP tools |
+| `annotations_tools.go` | `askToolAnnotations()` — 147 implemented MCP tools |
 | `mutating.go` | Curated side-effecting admin/recovery routes excluded from planner entries |
 | `coverage_test.go` | Drift gate: `TestOverlayCoversInventory` — reads the real inventory, fails if any implemented surface is unannotated |
 | `mutating_test.go` | Read-only gate: proves every implemented surface is either cataloged or explicitly excluded as mutating |
