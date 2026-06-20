@@ -99,8 +99,9 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		case facts.VulnerabilityCVEFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case facts.VulnerabilityAffectedPackageFactKind:
-			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
-			purls = append(purls, payloadStr(envelope.Payload, "purl"))
+			purl := payloadStr(envelope.Payload, "purl")
+			packageIDs = append(packageIDs, canonicalSupplyChainAffectedPackageID(envelope.Payload, purl))
+			purls = append(purls, purl)
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case facts.VulnerabilityAffectedProductFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))

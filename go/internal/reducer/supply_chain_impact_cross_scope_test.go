@@ -107,6 +107,27 @@ func TestSupplyChainImpactFilterExpandsSBOMComponentByCanonicalPackageID(t *test
 	}
 }
 
+func TestSupplyChainImpactFilterDerivesPackageIDFromPURLOnlyAffectedPackage(t *testing.T) {
+	t.Parallel()
+
+	filter := supplyChainImpactFilter([]facts.Envelope{
+		affectedPackageWithPURLFact(
+			"affected-purl-only",
+			"CVE-2026-3176",
+			"",
+			crossScopeAffectedPURL,
+			"npm",
+			"lodash",
+			"4.17.11",
+			"4.17.21",
+		),
+	})
+
+	if !stringSliceContains(filter.PackageIDs, crossScopeAffectedPackageID) {
+		t.Fatalf("filter.PackageIDs = %#v, want canonical package_id %q from affected package purl", filter.PackageIDs, crossScopeAffectedPackageID)
+	}
+}
+
 // affectedPackageWithPURLFact builds an affected_package fact that, unlike the
 // simplified helper, sets the versionless package purl the OSV collector emits.
 func affectedPackageWithPURLFact(

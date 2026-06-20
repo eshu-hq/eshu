@@ -24,20 +24,32 @@ func supplyChainCVEFromEnvelope(envelope facts.Envelope) supplyChainImpactCVE {
 }
 
 func supplyChainAffectedPackageFromEnvelope(envelope facts.Envelope) supplyChainAffectedPackage {
+	purl := payloadStr(envelope.Payload, "purl")
 	return supplyChainAffectedPackage{
 		factID:           envelope.FactID,
 		cveID:            supplyChainCVEID(envelope.Payload),
 		source:           payloadStr(envelope.Payload, "source"),
 		advisoryID:       payloadStr(envelope.Payload, "advisory_id"),
-		packageID:        payloadStr(envelope.Payload, "package_id"),
+		packageID:        canonicalSupplyChainAffectedPackageID(envelope.Payload, purl),
 		ecosystem:        strings.ToLower(payloadStr(envelope.Payload, "ecosystem")),
 		name:             payloadStr(envelope.Payload, "package_name"),
-		purl:             payloadStr(envelope.Payload, "purl"),
+		purl:             purl,
 		affectedVersions: payloadStrings(envelope.Payload, "affected_version", "affected_versions"),
 		affectedRanges:   supplyChainAffectedRangesFromPayload(envelope.Payload),
 		affectedRangeRaw: payloadStr(envelope.Payload, "affected_range"),
 		fixedVersions:    payloadStrings(envelope.Payload, "fixed_version", "fixed_versions"),
 	}
+}
+
+func canonicalSupplyChainAffectedPackageID(payload map[string]any, purl string) string {
+	if packageID := payloadStr(payload, "package_id"); packageID != "" {
+		return packageID
+	}
+	packageID, err := packageidentity.PackageIDFromPURL(purl)
+	if err != nil {
+		return ""
+	}
+	return packageID
 }
 
 func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) supplyChainAffectedProduct {
