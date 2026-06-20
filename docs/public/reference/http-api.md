@@ -77,6 +77,41 @@ active profile cannot answer correctly.
 - Repository-oriented routes accept a public repository selector and normalize
   it to the canonical `repo_id` server-side.
 
+## Ask Eshu — POST /api/v0/ask
+
+Synchronous natural-language answer endpoint. **Default-off**: returns
+`{"state":"unavailable","reason":"..."}` with HTTP 503 unless
+`ESHU_ASK_ENABLED=true` and a valid `agent_reasoning` provider profile is
+configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
+
+**Request body:**
+```json
+{"question": "string (required)", "format": "auto|markdown|mermaid|json|yaml|csv (optional)"}
+```
+
+**Response (200):**
+```json
+{
+  "answer_prose":     "string (LLM narration when available)",
+  "artifacts":        [{"format":"string","content":"string","issues":["string"]}],
+  "truth_class":      "deterministic|derived|fallback|semantic_observation|code_hint|unsupported",
+  "evidence_handles": [...],
+  "query_trace":      [{"tool":"string","args":{},"supported":bool,"truth_class":"string","err":"string"}],
+  "partial":          false,
+  "limitations":      ["string"]
+}
+```
+
+**Error responses:** 400 (empty/missing question), 401 (unauthenticated),
+503 (disabled or provider absent). The engine never echoes provider prompts,
+raw provider bodies, or credentials.
+
+**Scoped tokens:** The caller's scoped token is enforced at the query layer;
+the in-process runner only reads surfaces the token is authorised to access.
+
+**Follow-ups (out of scope for this PR):** SSE streaming; Tier-2 Cypher/SQL
+sandbox wiring.
+
 ## Related References
 
 - [Truth Label Protocol](truth-label-protocol.md)
