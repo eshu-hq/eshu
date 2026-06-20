@@ -427,3 +427,18 @@ No-Regression Evidence: this PR adds a new bounded read; it changes no existing
 query, reducer, queue, or graph-write path. `go test ./internal/query -run
 'Image' -count=1` covers bounds parsing, truncation, filter pass-through, the
 registry/repository split, and the OpenAPI fragment.
+
+## Ask SSE validated-token contract (#3322)
+
+Ask SSE token events are a validated narration surface, not a raw provider
+stream. `handleAskSSE` forwards only `AskStream` token events, and the engine
+emits those events only after the narration validator accepts the prose. The
+public HTTP docs and OpenAPI fragment keep that contract explicit.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestAskSSE|TestOpenAPIAsk'
+-count=1` covers SSE forwarding, synchronous fallback, leak-safe error
+handling, and the route documentation fragment.
+
+No-Observability-Change: this changes only response emission timing/content;
+existing HTTP status, SSE `trace`/`answer`/`error` events, Ask engine warnings,
+query trace entries, and provider adapter logs remain the diagnostic surface.

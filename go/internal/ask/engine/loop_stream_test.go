@@ -2,16 +2,17 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
+	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
-// TestAskStream_ForwardsTokenDeltas verifies that AskStream forwards token
-// deltas from the streaming adapter via KindToken events and the final Answer
-// matches the sync result.
-func TestAskStream_ForwardsTokenDeltas(t *testing.T) {
+// TestAskStream_DropsRawDeltasWhenNarrationRejected verifies that AskStream
+// never forwards provider token deltas before narration validation succeeds.
+func TestAskStream_DropsRawDeltasWhenNarrationRejected(t *testing.T) {
 	t.Parallel()
 
 	turn1 := provider.Completion{
@@ -39,10 +40,8 @@ func TestAskStream_ForwardsTokenDeltas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	// Prose token deltas are gated on the governed narration posture. Enable it
-	// so the forwarding path is exercised. (The scripted narration completion is
-	// not valid JSON, so narrate leaves Narrated=false and Prose unchanged —
-	// which is what lets this test assert on the raw streamed prose.)
+	// Narration is available, but the scripted narration completion is not valid
+	// JSON. Raw provider deltas still must not be emitted.
 	eng.SetNarrationPosture(func() status.AnswerNarrationStatus {
 		return status.AnswerNarrationStatus{State: status.AnswerNarrationAvailable}
 	})
@@ -61,12 +60,14 @@ func TestAskStream_ForwardsTokenDeltas(t *testing.T) {
 		t.Fatalf("AskStream: %v", err)
 	}
 
-	// Two token deltas from turn 2.
-	if len(tokenEvents) != 2 {
-		t.Errorf("token events = %d, want 2", len(tokenEvents))
+	if len(tokenEvents) != 0 {
+		t.Errorf("token events = %d, want 0 when narration is rejected", len(tokenEvents))
 	}
 	if ans.Prose != "here is the answer" {
 		t.Errorf("Prose = %q, want %q", ans.Prose, "here is the answer")
+	}
+	if ans.Narrated {
+		t.Error("Narrated = true, want false when narration is rejected")
 	}
 
 	// One trace entry from the tool call.
@@ -143,6 +144,75 @@ func TestAskStream_GatesProseWhenNarrationClosed(t *testing.T) {
 	}
 	if len(ans.Trace) != 1 || ans.Trace[0].Tool != "find_code" {
 		t.Errorf("ans.Trace = %+v, want one find_code entry", ans.Trace)
+	}
+}
+
+func TestAskStream_EmitsOnlyValidatedNarrationTokens(t *testing.T) {
+	t.Parallel()
+
+	const unsafeRawDelta = "AKIA1234567890ABCDEF"
+	const validatedSentence = "Checkout uses the billing service."
+
+	turn1 := provider.Completion{
+		ToolCalls: []provider.ToolCall{
+			{ID: "c1", Name: "find_code", Arguments: map[string]any{"q": "checkout"}},
+		},
+	}
+	turn2 := provider.Completion{
+		Text: "The checkout path leaked " + unsafeRawDelta,
+	}
+	narrationTurn := provider.Completion{
+		Text: `{"sentences":[{"text":"` + validatedSentence + `","kind":"factual","provenance":[{"kind":"citation","id":"citation:packet"}]}]}`,
+	}
+
+	adapter := &scriptedStreamingAdapter{
+		turns: []provider.Completion{turn1, turn2, narrationTurn},
+		tokenDeltas: [][]string{
+			nil,
+			{"The checkout path leaked ", unsafeRawDelta},
+		},
+	}
+	env := supportedEnvelope()
+	env.Data = map[string]any{
+		"answer_packet": query.AnswerPacket{
+			TruthClass:  query.AnswerTruthDeterministic,
+			Supported:   true,
+			Summary:     validatedSentence,
+			CitationRef: "citation:packet",
+			Truth:       env.Truth,
+		},
+	}
+	runner := &recordingRunner{env: env}
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	eng.SetNarrationPosture(func() status.AnswerNarrationStatus {
+		return status.AnswerNarrationStatus{State: status.AnswerNarrationAvailable}
+	})
+
+	var tokenText strings.Builder
+	ans, err := eng.AskStream(context.Background(), "what handles checkout?", func(ev StreamEvent) {
+		if ev.Kind == KindToken {
+			tokenText.WriteString(ev.TextDelta)
+		}
+	})
+	if err != nil {
+		t.Fatalf("AskStream: %v", err)
+	}
+
+	if strings.Contains(tokenText.String(), unsafeRawDelta) {
+		t.Fatalf("streamed token text leaked unsafe raw completion %q in %q", unsafeRawDelta, tokenText.String())
+	}
+	if got := tokenText.String(); got != validatedSentence {
+		t.Fatalf("streamed token text = %q, want validated narration %q", got, validatedSentence)
+	}
+	if !ans.Narrated {
+		t.Fatal("Narrated = false, want true for validated narration")
+	}
+	if ans.Prose != validatedSentence {
+		t.Fatalf("Prose = %q, want %q", ans.Prose, validatedSentence)
 	}
 }
 

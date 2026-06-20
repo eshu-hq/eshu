@@ -123,8 +123,8 @@ func OpenAPISpec() string {
 			openAPIPathsInvestigationWorkflows+
 			openAPIPathsSemanticSearch+
 			openAPIPathsSemanticEvidence+
-			openAPIPathsStatusAndCompare+
 			openAPIPathsAsk+
+			openAPIPathsStatusAndCompare+
 			openAPIComponents,
 		"__ESHU_VERSION__",
 		buildinfo.AppVersion(),

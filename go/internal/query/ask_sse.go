@@ -16,7 +16,8 @@ func acceptsSSE(r *http.Request) bool {
 }
 
 // tokenEventPayload is the JSON shape for "event: token" SSE events.
-// It carries only the incremental text delta; never raw provider frames.
+// It carries only validated narration text from AskStream; never raw provider
+// frames or pre-validation provider deltas.
 type tokenEventPayload struct {
 	Delta string `json:"delta"`
 }
@@ -28,7 +29,8 @@ type tokenEventPayload struct {
 // When the Asker supports streaming (AskStream does not return ErrNoStreaming),
 // the handler drives AskStream and emits events live as they occur:
 //
-//   - one "token" event per assistant text delta: {delta: "..."}
+//   - one "token" event with validated narration prose when narration succeeds:
+//     {delta: "..."}
 //   - one "trace" event per completed tool call (bounded traceEntry JSON)
 //   - one "answer" event carrying the final askResponse
 //   - one "done" event with an empty payload
@@ -47,9 +49,9 @@ type tokenEventPayload struct {
 //
 // # Leak safety
 //
-// Only bounded askResponse / traceEntry / askUnavailableResponse / tokenEventPayload
-// values are emitted. Provider bodies, prompts, raw engine internals, and
-// credentials are never written to the stream.
+// Only bounded askResponse / traceEntry / askUnavailableResponse /
+// tokenEventPayload values are emitted. Provider bodies, prompts, raw provider
+// deltas, raw engine internals, and credentials are never written to the stream.
 func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 	// Default-off: respond with the standard 503 JSON before opening a stream.
 	if h.Asker == nil {

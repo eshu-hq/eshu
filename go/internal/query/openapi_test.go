@@ -84,6 +84,7 @@ func TestServeOpenAPI(t *testing.T) {
 		"/api/v0/impact/change-surface/investigate",
 		"/api/v0/status/pipeline",
 		"/api/v0/compare/environments",
+		"/api/v0/ask",
 		"/api/v0/openapi.json",
 	}
 
@@ -126,6 +127,59 @@ func TestServeOpenAPI(t *testing.T) {
 	} {
 		if _, ok := repositoryContextSchema[field]; !ok {
 			t.Fatalf("repositories/{repo_id}/context response schema missing %s", field)
+		}
+	}
+}
+
+func TestOpenAPIAskSSEDescribesValidatedTokenEvents(t *testing.T) {
+	req := httptest.NewRequest("GET", "/api/v0/openapi.json", nil)
+	w := httptest.NewRecorder()
+
+	ServeOpenAPI(w, req)
+
+	var spec map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	askPath := mustMapField(t, paths, "/api/v0/ask")
+	askPost := mustMapField(t, askPath, "post")
+	responses := mustMapField(t, askPost, "responses")
+	okResponse := mustMapField(t, responses, "200")
+
+	responseDescription, ok := okResponse["description"].(string)
+	if !ok {
+		t.Fatal("ask 200 response description missing or not a string")
+	}
+	assertAskSSEValidatedTokenDescription(t, responseDescription)
+
+	content := mustMapField(t, okResponse, "content")
+	eventStream := mustMapField(t, content, "text/event-stream")
+	eventStreamSchema := mustMapField(t, eventStream, "schema")
+	eventStreamDescription, ok := eventStreamSchema["description"].(string)
+	if !ok {
+		t.Fatal("ask SSE schema description missing or not a string")
+	}
+	assertAskSSEValidatedTokenDescription(t, eventStreamDescription)
+}
+
+func assertAskSSEValidatedTokenDescription(t *testing.T, description string) {
+	t.Helper()
+	for _, forbidden := range []string{
+		"per-provider-token",
+		"provider text-token delta carrying assistant prose",
+	} {
+		if strings.Contains(description, forbidden) {
+			t.Fatalf("Ask SSE OpenAPI description still contains stale provider-token wording %q: %s", forbidden, description)
+		}
+	}
+	for _, required := range []string{
+		"validated narration prose",
+		"Raw provider text-token deltas are never emitted",
+	} {
+		if !strings.Contains(description, required) {
+			t.Fatalf("Ask SSE OpenAPI description missing %q: %s", required, description)
 		}
 	}
 }
