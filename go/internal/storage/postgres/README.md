@@ -145,6 +145,9 @@ High-signal invariants for this package:
   next-cycle commits until global maintenance commits or rolls back. If a shard
   arrives with a different shard count while an epoch is open, storage fails
   closed instead of creating competing epochs.
+- `value_flow_fixpoint_components` stores reducer-owned solved value-flow
+  component results by content-derived component key, so unchanged components
+  can be reused across reducer restarts and replicas without re-solving.
 
 No-Regression Evidence: scoped hot-path notes live in
 [`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit
@@ -230,6 +233,9 @@ Primary groups:
 - `EshuSearchVectorPendingStore` reads only active repository scopes with
   unbuilt or stale local vector sidecar rows for active search documents,
   bounded by scope limit and vector identity.
+- `FunctionSummaryStore`, `FunctionSourceStore`, `FunctionGraphIDStore`, and
+  `ValueFlowFixpointComponentStore` persist the durable value-flow inputs and
+  solved component results used by the reducer's post-summary fixpoint.
 
 ## Dependencies
 

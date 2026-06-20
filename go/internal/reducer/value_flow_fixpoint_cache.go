@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"math"
@@ -21,12 +22,23 @@ type ValueFlowFixpointCache struct {
 	entries map[string]interproc.Result
 }
 
+const valueFlowFixpointComponentKeyVersion = "value-flow-fixpoint-component:v1"
+
 // ValueFlowFixpointCacheStats reports how much of a solve reused cached
 // component results.
 type ValueFlowFixpointCacheStats struct {
 	ComponentCount       int
+	AssembledComponents  int
 	RecomputedComponents int
 	ReusedComponents     int
+	DurableReused        int
+}
+
+// ValueFlowFixpointComponentStore persists solved component results across
+// reducer process restarts and replicas.
+type ValueFlowFixpointComponentStore interface {
+	LoadValueFlowFixpointComponents(ctx context.Context, keys []string) (map[string]interproc.Result, error)
+	StoreValueFlowFixpointComponents(ctx context.Context, entries map[string]interproc.Result) error
 }
 
 // NewValueFlowFixpointCache returns an empty concurrency-safe fixpoint cache.
@@ -44,30 +56,66 @@ func SolveValueFlowProgramIncremental(
 	cache *ValueFlowFixpointCache,
 	limits interproc.Limits,
 ) (interproc.Result, ValueFlowFixpointCacheStats) {
-	if cache == nil {
+	result, stats, err := SolveValueFlowProgramIncrementalDurable(context.Background(), program, versions, cache, nil, limits)
+	if err != nil {
 		return interproc.SolvePartitioned(program, limits), ValueFlowFixpointCacheStats{}
 	}
+	return result, stats
+}
 
+// SolveValueFlowProgramIncrementalDurable solves value-flow components while
+// consulting an optional durable component-result store before recomputing.
+func SolveValueFlowProgramIncrementalDurable(
+	ctx context.Context,
+	program interproc.Program,
+	versions map[summary.FunctionID]string,
+	cache *ValueFlowFixpointCache,
+	store ValueFlowFixpointComponentStore,
+	limits interproc.Limits,
+) (interproc.Result, ValueFlowFixpointCacheStats, error) {
+	if cache == nil && store == nil {
+		return interproc.SolvePartitioned(program, limits), ValueFlowFixpointCacheStats{}, nil
+	}
+	if cache == nil {
+		cache = NewValueFlowFixpointCache()
+	}
 	components := partitionValueFlowProgram(program)
-	stats := ValueFlowFixpointCacheStats{ComponentCount: len(components)}
+	keyed := make([]valueFlowComponentProgram, 0, len(components))
+	for _, component := range components {
+		keyed = append(keyed, valueFlowComponentProgram{
+			key:     valueFlowComponentKey(component, versions),
+			program: component,
+		})
+	}
+	durableReused, err := hydrateValueFlowFixpointCache(ctx, keyed, cache, store)
+	if err != nil {
+		return interproc.Result{}, ValueFlowFixpointCacheStats{}, err
+	}
+
+	stats := ValueFlowFixpointCacheStats{
+		ComponentCount:      len(components),
+		AssembledComponents: len(components),
+	}
+	stats.DurableReused = durableReused
 	results := make([]interproc.Result, len(components))
 	recomputed := make([]bool, len(components))
 
 	sem := make(chan struct{}, maxValueFlowInt(1, runtime.GOMAXPROCS(0)))
 	var wg sync.WaitGroup
-	for idx := range components {
+	for idx := range keyed {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(i int) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			key := valueFlowComponentKey(components[i], versions)
-			if result, ok := cache.get(key); ok {
+			if result, ok := cache.get(keyed[i].key); ok {
 				results[i] = result
 				return
 			}
-			result := interproc.Solve(components[i], interproc.Limits{MaxFindings: math.MaxInt})
-			cache.put(key, result)
+			result := interproc.Solve(keyed[i].program, interproc.Limits{MaxFindings: math.MaxInt})
+			if cache != nil {
+				cache.put(keyed[i].key, result)
+			}
 			results[i] = result
 			recomputed[i] = true
 		}(idx)
@@ -83,7 +131,59 @@ func SolveValueFlowProgramIncremental(
 		}
 		findings = append(findings, result.Findings...)
 	}
-	return capValueFlowFindings(findings, limits), stats
+	if store != nil {
+		entries := make(map[string]interproc.Result)
+		for i, wasRecomputed := range recomputed {
+			if wasRecomputed {
+				entries[keyed[i].key] = results[i]
+			}
+		}
+		if len(entries) > 0 {
+			if err := store.StoreValueFlowFixpointComponents(ctx, entries); err != nil {
+				return interproc.Result{}, ValueFlowFixpointCacheStats{}, err
+			}
+		}
+	}
+	return capValueFlowFindings(findings, limits), stats, nil
+}
+
+type valueFlowComponentProgram struct {
+	key     string
+	program interproc.Program
+}
+
+func hydrateValueFlowFixpointCache(
+	ctx context.Context,
+	components []valueFlowComponentProgram,
+	cache *ValueFlowFixpointCache,
+	store ValueFlowFixpointComponentStore,
+) (int, error) {
+	if cache == nil || store == nil || len(components) == 0 {
+		return 0, nil
+	}
+	missing := make([]string, 0, len(components))
+	seenMissing := map[string]struct{}{}
+	for _, component := range components {
+		if _, ok := cache.get(component.key); ok {
+			continue
+		}
+		if _, seen := seenMissing[component.key]; seen {
+			continue
+		}
+		seenMissing[component.key] = struct{}{}
+		missing = append(missing, component.key)
+	}
+	if len(missing) == 0 {
+		return 0, nil
+	}
+	entries, err := store.LoadValueFlowFixpointComponents(ctx, missing)
+	if err != nil {
+		return 0, err
+	}
+	for key, result := range entries {
+		cache.put(key, result)
+	}
+	return len(entries), nil
 }
 
 func (c *ValueFlowFixpointCache) get(key string) (interproc.Result, bool) {
@@ -143,11 +243,20 @@ func valueFlowFindingLess(a, b interproc.Finding) bool {
 
 func valueFlowComponentKey(program interproc.Program, versions map[summary.FunctionID]string) string {
 	var b strings.Builder
+	b.WriteString(valueFlowFixpointComponentKeyVersion)
+	b.WriteByte('\n')
 	for _, id := range valueFlowComponentFunctionIDs(program) {
 		b.WriteString("fn:")
 		b.WriteString(string(id))
 		b.WriteByte('=')
 		b.WriteString(versions[id])
+		b.WriteByte('\n')
+	}
+	for _, edge := range sortedValueFlowEdges(program.Edges) {
+		b.WriteString("edge:")
+		writeValueFlowPort(&b, edge.From)
+		b.WriteString("->")
+		writeValueFlowPort(&b, edge.To)
 		b.WriteByte('\n')
 	}
 	for _, source := range sortedValueFlowSources(program.Sources) {
@@ -204,6 +313,17 @@ func valueFlowComponentFunctionIDs(program interproc.Program) []summary.Function
 		add(sanitizer.Port.Func)
 	}
 	return sortedValueFlowFunctionIDs(seen)
+}
+
+func sortedValueFlowEdges(edges []interproc.Edge) []interproc.Edge {
+	out := append([]interproc.Edge(nil), edges...)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].From != out[j].From {
+			return valueFlowPortLess(out[i].From, out[j].From)
+		}
+		return valueFlowPortLess(out[i].To, out[j].To)
+	})
+	return out
 }
 
 func partitionValueFlowProgram(program interproc.Program) []interproc.Program {

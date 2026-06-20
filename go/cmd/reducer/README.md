@@ -82,7 +82,8 @@ flowchart TB
    bounded exposed / not_exposed / unknown properties from `s3_bucket_posture`
    onto existing S3 `CloudResource` nodes only; the value-flow fixpoint projector
    writes post-persist function-summary/source/graph-id findings and graph-backed
-   cloud sink targets as a distinct `TAINT_FLOWS_TO` evidence source),
+   cloud sink targets as a distinct `TAINT_FLOWS_TO` evidence source while
+   reusing durable value-flow component results across reducer restarts),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, the
    generation retention cleanup runner, the graph orphan cleanup runner, the

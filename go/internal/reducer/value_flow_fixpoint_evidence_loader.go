@@ -9,7 +9,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
-	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 )
 
 // FunctionSummarySnapshotLoader reloads durable value-flow summaries for the
@@ -57,6 +56,7 @@ type ValueFlowFixpointEvidenceLoader struct {
 	GraphIDSnapshotLoader   FunctionGraphIDSnapshotLoader
 	CloudSinkSnapshotLoader FunctionCloudSinkTargetLoader
 	FixpointCache           *ValueFlowFixpointCache
+	FixpointComponentStore  ValueFlowFixpointComponentStore
 	Logger                  *slog.Logger
 }
 
@@ -91,8 +91,19 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 		return nil, nil
 	}
 
-	program := valueflow.BuildProgram(effects, sources, cloudSinks)
-	result, cacheStats := SolveValueFlowProgramIncremental(program, versions, l.FixpointCache, interproc.DefaultLimits())
+	result, cacheStats, err := SolveValueFlowSnapshotIncrementalDurable(
+		ctx,
+		effects,
+		versions,
+		sources,
+		cloudSinks,
+		l.FixpointCache,
+		l.FixpointComponentStore,
+		interproc.DefaultLimits(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("solve value-flow fixpoint: %w", err)
+	}
 	inputs := make([]CodeInterprocEvidenceInput, 0, len(result.Findings))
 	for _, finding := range result.Findings {
 		sourceID := summary.FunctionID(finding.SourceFunc)
@@ -121,8 +132,10 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 			"finding_count", len(inputs),
 			"overflow_count", result.Overflow,
 			"fixpoint_component_count", cacheStats.ComponentCount,
+			"fixpoint_assembled_components", cacheStats.AssembledComponents,
 			"fixpoint_recomputed_components", cacheStats.RecomputedComponents,
 			"fixpoint_reused_components", cacheStats.ReusedComponents,
+			"fixpoint_durable_reused_components", cacheStats.DurableReused,
 			"unresolved_endpoint_count", unresolvedCodeInterprocEndpointCount(inputs),
 		)
 	}

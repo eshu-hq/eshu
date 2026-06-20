@@ -40,6 +40,9 @@
 // ValueFlowProgramInputStore loads active completed CALLS edges with repo-scoped
 // function summaries and function_sources so reducer Program assembly has
 // durable param-level source ports without reading transient parser memory.
+// ValueFlowFixpointComponentStore persists solved value-flow component results
+// by content-derived component key so unchanged components can be reused across
+// reducer restarts without widening reducer transactions around the solve.
 // CollectorGenerationDeadLetterStore persists bounded commit-failure metadata
 // for generations that failed before projector work rows existed and exposes a
 // source-level replay request/completion path plus unresolved status aggregates
