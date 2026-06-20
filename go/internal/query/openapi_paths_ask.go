@@ -37,7 +37,7 @@ const openAPIPathsAsk = `
         },
         "responses": {
           "200": {
-            "description": "Ask answer (JSON) or SSE stream when Accept: text/event-stream is sent. When the provider adapter supports streaming the SSE stream emits live 'token' events (per-provider-token assistant prose, only when governed narration is available), 'trace' events (one per completed tool call), an 'answer' event with the full response, and a 'done' event. On engine error an 'error' event is emitted with a bounded unavailable payload. When the adapter does not support streaming the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events.",
+            "description": "Ask answer (JSON) or SSE stream when Accept: text/event-stream is sent. When the provider adapter supports streaming the SSE stream emits 'token' events only for validated narration prose after governed citation and publish-safety validation succeeds, plus 'trace' events (one per completed tool call), an 'answer' event with the full response, and a 'done' event. Raw provider text-token deltas are never emitted. On engine error an 'error' event is emitted with a bounded unavailable payload. When the adapter does not support streaming the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events.",
             "content": {
               "application/json": {
                 "schema": {
@@ -98,7 +98,7 @@ const openAPIPathsAsk = `
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "description": "Server-Sent Events stream. Each event has the form 'event: <name>\\ndata: <json>\\n\\n'. Event names: 'token' (per-provider-token assistant prose as {\"delta\":\"string\"}; emitted only when governed answer narration is available, which is default-closed), 'trace' (one per completed tool call; fields: tool, supported, truth_class), 'answer' (full askResponse JSON), 'error' (bounded unavailable payload on engine failure), 'done' (empty payload, end-of-stream). Events are emitted live when the provider adapter supports streaming. When the adapter does not support streaming the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events."
+                  "description": "Server-Sent Events stream. Each event has the form 'event: <name>\\ndata: <json>\\n\\n'. Event names: 'token' (validated narration prose as {\"delta\":\"string\"}; emitted only after governed citation and publish-safety validation succeeds), 'trace' (one per completed tool call; fields: tool, supported, truth_class), 'answer' (full askResponse JSON), 'error' (bounded unavailable payload on engine failure), 'done' (empty payload, end-of-stream). Raw provider text-token deltas are never emitted. When the adapter does not support streaming the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events."
                 }
               }
             }
