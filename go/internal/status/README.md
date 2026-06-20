@@ -164,6 +164,20 @@ See `doc.go` for the godoc contract. Key types and functions:
   generation history from counts when the storage reader does not populate them
   directly; caps domain backlogs to `Options.DomainLimit` (default 5)
 - `DefaultOptions()` — stall threshold 10 minutes, domain limit 5
+- `ControlPlane(report)` — pure projection of an already-built `Report` into the
+  unified operator read model (`OperatorControlPlane`): queue depth with
+  claim-latency and stuck-work signals, reducer-domain backlogs, collector-family
+  promotion verdicts with the newest proof artifact, and dead-letter state classed
+  by reducer domain and collector-generation commit. Performs no I/O, so the
+  `GET /api/v0/status/operator-control-plane` route and `get_operator_control_plane`
+  MCP tool add no database or graph cost beyond the shared snapshot read.
+
+  No-Regression Evidence: additive in-memory projection over the existing status
+  snapshot; the shared `/api/v0/status/pipeline` read path is unchanged and no new
+  DB or graph query is issued. Verified by `go test ./internal/status ./internal/query ./internal/mcp`.
+  Observability Evidence: the read model surfaces correlation IDs (`scope_id`,
+  `generation_id`, `domain`, `collector_kind`, `failure_class`) that match the
+  existing runtime metric and span labels; no new metrics introduced.
 
 ### Collector promotion proofs
 

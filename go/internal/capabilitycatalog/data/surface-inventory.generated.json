@@ -393,6 +393,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/status/operator-control-plane",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/status/pipeline",
       "readiness": "implemented"
     },
@@ -1691,6 +1696,11 @@
     {
       "category": "mcp_tool",
       "name": "get_ingester_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_operator_control_plane",
       "readiness": "implemented"
     },
     {

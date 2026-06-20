@@ -217,6 +217,43 @@ the deployment platform inventory to prove process liveness.
 `/api/v0/status/ingesters/{ingester}` is the canonical detail route. The
 `/api/v0/ingesters` routes are legacy GET aliases that return the same payload.
 
+## Operator Control-Plane Read Model
+
+- `GET /api/v0/status/operator-control-plane`
+
+This route returns one operator read model so a responder does not have to
+stitch together the pipeline, collector, and dead-letter routes during an
+incident. It loads the same status snapshot as `/api/v0/status/pipeline` and
+projects it in memory, so it adds no database or graph cost. The MCP tool
+`get_operator_control_plane` mirrors the same route and payload.
+
+The response combines:
+
+- `queue`: depth (`total`, `outstanding`, `pending`, `in_flight`, `retrying`,
+  `dead_letter`), a `claim_latency` object (`overdue_claims`,
+  `oldest_outstanding_age`, `coordinator_oldest_pending`), and a `stuck` object
+  (`oldest_outstanding_age`, `blocked_conflicts`).
+- `reducer_domains`: per-domain backlog rows, highest pressure first, each
+  retaining `retrying`, `dead_letter`, and `oldest_age` for drilldown.
+- `collector_families`: one promotion verdict per collector family with
+  `promotion_state`, `health`, `claim_state`, `reducer_readback`, the newest
+  proof-artifact `last_observed_at`, and stable `telemetry` handles.
+- `dead_letters`: `queue_dead_letter` total, a `by_domain` class breakdown,
+  the `collector_generation` commit-failure summary, and a `latest_failure`
+  object carrying the newest `failure_class` and `domain`.
+- `retry_policies`: the active per-stage retry policy summary.
+
+Correlation identifiers (`scope_id`, `generation_id`, `domain`,
+`collector_kind`, `failure_class`) match the runtime metric and span labels in
+[Telemetry](../telemetry/index.md), so an operator can pivot from a read-model
+row to the matching metric series or trace.
+
+Scoped tokens receive the same aggregate counts and ages with a `scoped: true`
+flag. Raw `work_item_id`, `scope_id`, and `generation_id` values on
+`latest_failure` and instance-level collector labels (`display_name`,
+`blockers`) are withheld; the `failure_class`, domain, and every count stay
+visible.
+
 The default ingester is `repository`. Status responses include:
 
 - ingester identity
