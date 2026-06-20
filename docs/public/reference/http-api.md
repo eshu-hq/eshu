@@ -79,7 +79,7 @@ active profile cannot answer correctly.
 
 ## Ask Eshu — POST /api/v0/ask
 
-Synchronous natural-language answer endpoint. **Default-off**: returns
+Natural-language answer endpoint. **Default-off**: returns
 `{"state":"unavailable","reason":"..."}` with HTTP 503 unless
 `ESHU_ASK_ENABLED=true` and a valid `agent_reasoning` provider profile is
 configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
@@ -89,7 +89,7 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
 {"question": "string (required)", "format": "auto|markdown|mermaid|json|yaml|csv (optional)"}
 ```
 
-**Response (200):**
+**JSON response (200)** — default, no special `Accept` header required:
 ```json
 {
   "answer_prose":     "string (LLM narration when available)",
@@ -102,6 +102,22 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
 }
 ```
 
+**SSE variant** — send `Accept: text/event-stream` to receive a
+`text/event-stream` response with `Cache-Control: no-cache`. The same
+synchronous engine run is used; events are emitted after the run completes
+(per-token streaming is a planned follow-up). Event sequence:
+
+| Event   | Data payload                                                    |
+|---------|------------------------------------------------------------------|
+| `trace` | `{"tool":"string","supported":bool,"truth_class":"string"}` — one per tool call |
+| `answer`| Full JSON response identical to the 200 JSON path               |
+| `error` | `{"state":"unavailable","reason":"string"}` — on engine failure |
+| `done`  | `{}` — end-of-stream marker                                     |
+
+Disabled endpoint (`h.Asker == nil`) or validation failures (empty question,
+bad JSON) are returned as plain JSON with the appropriate HTTP status code
+**before** the event stream is opened.
+
 **Error responses:** 400 (empty/missing question), 401 (unauthenticated),
 503 (disabled or provider absent). The engine never echoes provider prompts,
 raw provider bodies, or credentials.
@@ -110,8 +126,8 @@ raw provider bodies, or credentials.
 `ESHU_API_KEY`). Scoped tokens are not yet enabled for this route and receive
 `403 permission_denied`. Scoped-token support is a planned follow-up.
 
-**Follow-ups (out of scope for this PR):** SSE streaming; Tier-2 Cypher/SQL
-sandbox wiring; scoped-token support.
+**Follow-ups (out of scope for this PR):** per-token SSE streaming; Tier-2
+Cypher/SQL sandbox wiring; scoped-token support.
 
 ## Related References
 
@@ -119,3 +135,23 @@ sandbox wiring; scoped-token support.
 - [Capability Conformance Spec](capability-conformance-spec.md)
 - [Runtime Admin API](runtime-admin-api.md)
 - [Local Testing](local-testing.md)
+
+## Answer-narration status seam — hot-path evidence (issue #3263 follow-up)
+
+`StatusHandler.NarrationPosture` is an optional `func() status.AnswerNarrationStatus`
+field that wires `GET /api/v0/status/answer-narration` to the in-memory
+governance-resolved posture from the `POST /api/v0/ask` narration path.
+
+No-Regression Evidence: when `NarrationPosture` is nil (the default for all
+existing callers) the handler is byte-for-byte unchanged — no branch is taken
+and no extra work is performed. When set, the field calls a bounded in-memory
+`governance.ResolvePosture` value and issues NO database query, graph read,
+Cypher statement, worker claim, lease, or queue operation (strictly cheaper than
+the prior path). No Cypher, graph write, worker/lease/queue, concurrency knob,
+or batching change. Verified: `go test ./internal/query ./cmd/api -count=1`
+green.
+
+No-Observability-Change: no new metric, span, log line, audit table, schema
+column, or status field is introduced. The answer-narration status response
+shape is unchanged; the existing redacted fields now carry real governed values
+when the posture func is wired.

@@ -11,6 +11,23 @@ import (
 const answerNarrationStatusCapability = "answer_narration.status"
 
 func (h *StatusHandler) getAnswerNarrationStatus(w http.ResponseWriter, r *http.Request) {
+	// When a governed posture func is wired, use it directly. This avoids a
+	// round-trip through the status DB whose AnswerNarration field is a static
+	// placeholder, and ensures the endpoint reflects real runtime gate state.
+	if h != nil && h.NarrationPosture != nil {
+		answerNarration := h.NarrationPosture()
+		WriteSuccess(
+			w,
+			r,
+			http.StatusOK,
+			answerNarrationStatusToMap(answerNarration),
+			answerNarrationStatusTruth(h.profile(), answerNarration),
+		)
+		return
+	}
+
+	// Fallback: load from status DB (returns DefaultAnswerNarrationStatus when
+	// no reader is configured or when NarrationPosture is nil).
 	report := status.BuildReport(status.RawSnapshot{}, status.DefaultOptions())
 	if h != nil && h.StatusReader != nil {
 		loaded, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
