@@ -68,6 +68,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedFreshnessCausalityRoute(r) {
 		return true
 	}
+	if scopedFactSchemaVersionRoute(r) {
+		return true
+	}
 	if scopedSemanticExtractionStatusRoute(r) {
 		return true
 	}
@@ -242,6 +245,21 @@ func scopedInvestigationWorkflowRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+func scopedFactSchemaVersionRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	if r.URL.Path == "/api/v0/fact-schema-versions" {
+		return true
+	}
+	const prefix = "/api/v0/fact-schema-versions/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		return false
+	}
+	factKind := strings.TrimPrefix(r.URL.Path, prefix)
+	return factKind != "" && !strings.Contains(factKind, "/")
 }
 
 // scopedSemanticSearchRoute reports whether the request targets the curated
