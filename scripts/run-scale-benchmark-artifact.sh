@@ -191,6 +191,7 @@ if [[ "${optimization_claimed}" == "true" ]]; then
 	[[ "${baseline_commit}" =~ ^[0-9a-f]{40}$ ]] \
 		|| die "comparison.baseline_commit must be a 40-character lowercase commit SHA"
 	[[ -n "${baseline_artifact}" ]] || die "optimization claims require --baseline-artifact"
+	baseline_artifact="$(sanitize_explicit_handle "${baseline_artifact}")"
 	[[ "${comparison_result}" =~ ^(no_regression|improved|regressed)$ ]] \
 		|| die "optimization claims require no_regression, improved, or regressed comparison result"
 else
@@ -228,6 +229,11 @@ for metric in "${required_metrics[@]}"; do
 	else
 		threshold_result="fail"
 		artifact_status="fail"
+	fi
+	if [[ "${metric}" == "retry_count" || "${metric}" == "dead_letter_count" ]]; then
+		if ! jq -en --argjson value "${value}" '$value == 0' >/dev/null; then
+			artifact_status="fail"
+		fi
 	fi
 
 	metrics_json="$(jq \

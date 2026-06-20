@@ -119,6 +119,18 @@ jq -e '
 ' "${regressed_artifact}" >/dev/null
 "${verifier}" --artifact "${regressed_artifact}" >/tmp/eshu-scale-producer-regressed-verify.out
 
+retry_measurements="${tmp_root}/retry-measurements.json"
+jq '.metrics.retry_count = 1' "${measurements}" >"${retry_measurements}"
+loose_retry_thresholds="${tmp_root}/loose-retry-thresholds.json"
+jq '.metrics.retry_count.threshold = 5' "${thresholds}" >"${loose_retry_thresholds}"
+retry_artifact="${tmp_root}/scale-benchmark-retry.json"
+run_producer "${retry_artifact}" "${retry_measurements}" "${loose_retry_thresholds}"
+jq -e '
+  .status == "fail" and
+  .metrics.retry_count.threshold_result == "pass"
+' "${retry_artifact}" >/dev/null
+"${verifier}" --artifact "${retry_artifact}" >/tmp/eshu-scale-producer-retry-verify.out
+
 missing_metric="${tmp_root}/missing-metric.json"
 jq 'del(.metrics.mcp_p95_ms)' "${measurements}" >"${missing_metric}"
 expect_fail "missing required measurement: metrics.mcp_p95_ms" \
@@ -147,6 +159,27 @@ expect_fail "artifact handle looks like private data" \
 		--compatibility-status unsupported \
 		--compatibility-reason "not configured for this public proof" \
 		--results-handle "${private_handle}" \
+		--verify
+
+expect_fail "artifact handle looks like private data" \
+	"${producer}" \
+		--artifact "${tmp_root}/private-baseline-artifact.json" \
+		--measurements "${measurements}" \
+		--thresholds "${thresholds}" \
+		--run-kind after \
+		--gate remote-compose \
+		--commit 123456789012abcdefabcdefabcdefabcdefabcd \
+		--backend-kind nornicdb \
+		--backend-version fixture-v1 \
+		--corpus-mode representative \
+		--corpus-slot medium/representative_20_50 \
+		--repository-count 24 \
+		--compatibility-status unsupported \
+		--compatibility-reason "not configured for this public proof" \
+		--optimization-claimed true \
+		--baseline-commit 210987654321abcdefabcdefabcdefabcdefabcd \
+		--baseline-artifact "team/private-baseline" \
+		--comparison-result no_regression \
 		--verify
 
 expect_fail "run.commit must be a 40-character lowercase commit SHA" \
