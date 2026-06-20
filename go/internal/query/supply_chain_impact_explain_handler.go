@@ -43,9 +43,12 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		PackageID:     QueryParam(r, "package_id"),
 		RepositoryID:  repositoryID,
 		SubjectDigest: QueryParam(r, "subject_digest"),
+		ImageRef:      QueryParam(r, "image_ref"),
+		WorkloadID:    QueryParam(r, "workload_id"),
+		ServiceID:     QueryParam(r, "service_id"),
 	})
 	if !filter.hasBoundedScope() {
-		WriteError(w, http.StatusBadRequest, "finding_id or advisory_id/cve_id plus package_id, repository_id, or subject_digest is required")
+		WriteError(w, http.StatusBadRequest, "finding_id or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required")
 		return
 	}
 	if h.ImpactExplanations == nil {
@@ -75,7 +78,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if errors.Is(err, ErrSupplyChainImpactExplanationAmbiguous) {
-		WriteError(w, http.StatusConflict, "explain scope matched multiple impact findings; provide finding_id or a narrower advisory/package/repository/image scope")
+		WriteError(w, http.StatusConflict, "explain scope matched multiple impact findings; provide finding_id or a narrower advisory/package/repository/image/workload/service scope")
 		return
 	}
 	if err != nil {

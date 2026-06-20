@@ -73,9 +73,12 @@ func supplyChainImpactExplanationRoute(args map[string]any) *route {
 		"advisory_id":    str(args, "advisory_id"),
 		"cve_id":         str(args, "cve_id"),
 		"finding_id":     str(args, "finding_id"),
+		"image_ref":      str(args, "image_ref"),
 		"package_id":     str(args, "package_id"),
 		"repository_id":  str(args, "repository_id"),
+		"service_id":     str(args, "service_id"),
 		"subject_digest": str(args, "subject_digest"),
+		"workload_id":    str(args, "workload_id"),
 	}}
 }
 

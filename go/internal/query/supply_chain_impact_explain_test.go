@@ -130,6 +130,9 @@ func TestSupplyChainExplainImpactFindingIncludesEvidenceChain(t *testing.T) {
 	if got, want := resp.Outcome, "finding_explained"; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
+	if got, want := resp.EvidencePacketHandle, "supply-chain-impact-explanation:finding:finding-1"; got != want {
+		t.Fatalf("EvidencePacketHandle = %q, want %q", got, want)
+	}
 	if resp.Finding == nil || resp.Finding.FindingID != "finding-1" {
 		t.Fatalf("Finding = %#v, want finding-1", resp.Finding)
 	}

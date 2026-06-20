@@ -11,7 +11,10 @@ const openAPIPathsSupplyChainImpactExplain = `
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
           {"name": "repository_id", "in": "query", "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of a no-evidence explanation.", "schema": {"type": "string"}},
-          {"name": "subject_digest", "in": "query", "schema": {"type": "string"}}
+          {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
+          {"name": "image_ref", "in": "query", "description": "Exact image reference stored on reducer-owned impact findings.", "schema": {"type": "string"}},
+          {"name": "workload_id", "in": "query", "description": "Reducer-admitted workload anchor. Missing runtime mapping remains missing evidence.", "schema": {"type": "string"}},
+          {"name": "service_id", "in": "query", "description": "Reducer-admitted service anchor derived from workload/service evidence.", "schema": {"type": "string"}}
         ],
         "responses": {
           "200": {
@@ -22,6 +25,7 @@ const openAPIPathsSupplyChainImpactExplain = `
                   "type": "object",
                   "properties": {
                     "outcome": {"type": "string", "enum": ["finding_explained", "no_finding"]},
+                    "evidence_packet_handle": {"type": "string", "description": "Opaque stable handle for this bounded explanation packet. Finding packets use the returned finding id; no-finding scopes use a hashed normalized scope so private anchors are not exposed in the handle."},
                     "input": {"type": "object"},
                     "finding": {"type": "object"},
                     "advisory": {
@@ -83,6 +87,8 @@ const openAPIPathsSupplyChainImpactExplain = `
                         "deployments": {"type": "array", "items": {"type": "string"}},
                         "services": {"type": "array", "items": {"type": "string"}},
                         "environments": {"type": "array", "items": {"type": "string"}},
+                        "catalog_entities": {"type": "array", "items": {"type": "string"}},
+                        "catalog_owners": {"type": "array", "items": {"type": "string"}},
                         "provider_alerts": {"type": "array", "items": {"type": "object"}},
                         "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
                       }

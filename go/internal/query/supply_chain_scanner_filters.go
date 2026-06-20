@@ -20,7 +20,8 @@ func impactFindingsScannerFilters() scannerFilterSet {
 func impactExplanationScannerFilters() scannerFilterSet {
 	return scannerFilterSet{
 		"advisory_id": {}, "cve_id": {}, "finding_id": {}, "package_id": {},
-		"repository_id": {}, "subject_digest": {},
+		"image_ref": {}, "repository_id": {}, "service_id": {}, "subject_digest": {},
+		"workload_id": {},
 	}
 }
 

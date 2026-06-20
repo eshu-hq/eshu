@@ -246,6 +246,18 @@ func supplyChainTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Image or artifact digest from SBOM/runtime evidence.",
 					},
+					"image_ref": map[string]any{
+						"type":        "string",
+						"description": "Exact image reference stored on reducer-owned impact findings.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted workload anchor. Missing runtime mapping remains missing evidence.",
+					},
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted service anchor derived from workload/service evidence.",
+					},
 				},
 			},
 		},

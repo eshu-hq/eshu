@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"time"
 )
@@ -24,6 +26,9 @@ type SupplyChainImpactExplanationFilter struct {
 	PackageID     string `json:"package_id,omitempty"`
 	RepositoryID  string `json:"repository_id,omitempty"`
 	SubjectDigest string `json:"subject_digest,omitempty"`
+	ImageRef      string `json:"image_ref,omitempty"`
+	WorkloadID    string `json:"workload_id,omitempty"`
+	ServiceID     string `json:"service_id,omitempty"`
 }
 
 // SupplyChainImpactExplanationRow contains the durable impact finding and only
@@ -48,19 +53,20 @@ type SupplyChainImpactEvidenceFact struct {
 // SupplyChainImpactExplanationResult is the public API and MCP data payload for
 // explaining one vulnerability finding or a bounded no-evidence scope.
 type SupplyChainImpactExplanationResult struct {
-	Outcome         string                                 `json:"outcome"`
-	Input           SupplyChainImpactExplanationFilter     `json:"input"`
-	Finding         *SupplyChainImpactFindingResult        `json:"finding,omitempty"`
-	Advisory        SupplyChainImpactAdvisoryExplanation   `json:"advisory"`
-	Component       SupplyChainImpactComponentExplanation  `json:"component"`
-	Version         SupplyChainImpactVersionExplanation    `json:"version"`
-	DependencyChain *SupplyChainImpactDependencyChain      `json:"dependency_chain,omitempty"`
-	Anchors         SupplyChainImpactExplanationAnchors    `json:"anchors"`
-	ImpactPath      []SupplyChainImpactPathHop             `json:"impact_path,omitempty"`
-	Evidence        []SupplyChainImpactEvidenceFactSummary `json:"evidence"`
-	Readiness       SupplyChainImpactReadinessEnvelope     `json:"readiness"`
-	MissingEvidence []string                               `json:"missing_evidence,omitempty"`
-	Freshness       SupplyChainImpactExplanationFreshness  `json:"freshness"`
+	Outcome              string                                 `json:"outcome"`
+	EvidencePacketHandle string                                 `json:"evidence_packet_handle,omitempty"`
+	Input                SupplyChainImpactExplanationFilter     `json:"input"`
+	Finding              *SupplyChainImpactFindingResult        `json:"finding,omitempty"`
+	Advisory             SupplyChainImpactAdvisoryExplanation   `json:"advisory"`
+	Component            SupplyChainImpactComponentExplanation  `json:"component"`
+	Version              SupplyChainImpactVersionExplanation    `json:"version"`
+	DependencyChain      *SupplyChainImpactDependencyChain      `json:"dependency_chain,omitempty"`
+	Anchors              SupplyChainImpactExplanationAnchors    `json:"anchors"`
+	ImpactPath           []SupplyChainImpactPathHop             `json:"impact_path,omitempty"`
+	Evidence             []SupplyChainImpactEvidenceFactSummary `json:"evidence"`
+	Readiness            SupplyChainImpactReadinessEnvelope     `json:"readiness"`
+	MissingEvidence      []string                               `json:"missing_evidence,omitempty"`
+	Freshness            SupplyChainImpactExplanationFreshness  `json:"freshness"`
 	// Remediation is the reducer-owned advisory-only safe-upgrade
 	// recommendation enriched with vulnerable-range evidence from the
 	// referenced advisory facts (issue #595). Nil when the finding is too
@@ -185,20 +191,21 @@ func BuildSupplyChainImpactExplanation(
 	impactPath := buildSupplyChainImpactPath(row, supplyChainImpactPathMissingEvidence(normalizedSupplyChainImpactMissingEvidence(row.Finding)))
 	remediation := buildSupplyChainRemediationExplanation(row, advisory, version, component, dependencyChain)
 	return SupplyChainImpactExplanationResult{
-		Outcome:         "finding_explained",
-		Input:           filter,
-		Finding:         &finding,
-		Advisory:        advisory,
-		Component:       component,
-		Version:         version,
-		DependencyChain: dependencyChain,
-		Anchors:         anchors,
-		ImpactPath:      impactPath,
-		Evidence:        summarizeSupplyChainEvidenceFacts(row.EvidenceFacts),
-		Readiness:       readiness,
-		MissingEvidence: missing,
-		Freshness:       supplyChainExplanationFreshness(row.EvidenceFacts, readiness.Freshness),
-		Remediation:     remediation,
+		Outcome:              "finding_explained",
+		EvidencePacketHandle: supplyChainImpactEvidencePacketHandle(filter, row.Finding.FindingID),
+		Input:                filter,
+		Finding:              &finding,
+		Advisory:             advisory,
+		Component:            component,
+		Version:              version,
+		DependencyChain:      dependencyChain,
+		Anchors:              anchors,
+		ImpactPath:           impactPath,
+		Evidence:             summarizeSupplyChainEvidenceFacts(row.EvidenceFacts),
+		Readiness:            readiness,
+		MissingEvidence:      missing,
+		Freshness:            supplyChainExplanationFreshness(row.EvidenceFacts, readiness.Freshness),
+		Remediation:          remediation,
 	}
 }
 
@@ -210,17 +217,43 @@ func BuildSupplyChainImpactNoEvidenceExplanation(
 ) SupplyChainImpactExplanationResult {
 	missing := explanationUniqueStrings(append([]string{"impact_finding"}, readiness.MissingEvidence...))
 	return SupplyChainImpactExplanationResult{
-		Outcome:         "no_finding",
-		Input:           filter,
-		Advisory:        SupplyChainImpactAdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
-		Component:       SupplyChainImpactComponentExplanation{PackageID: filter.PackageID},
-		Version:         SupplyChainImpactVersionExplanation{VersionEvidence: "missing"},
-		Anchors:         SupplyChainImpactExplanationAnchors{RepositoryID: filter.RepositoryID, SubjectDigest: filter.SubjectDigest},
+		Outcome:              "no_finding",
+		EvidencePacketHandle: supplyChainImpactEvidencePacketHandle(filter, ""),
+		Input:                filter,
+		Advisory:             SupplyChainImpactAdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
+		Component:            SupplyChainImpactComponentExplanation{PackageID: filter.PackageID},
+		Version:              SupplyChainImpactVersionExplanation{VersionEvidence: "missing"},
+		Anchors: SupplyChainImpactExplanationAnchors{
+			RepositoryID:  filter.RepositoryID,
+			SubjectDigest: filter.SubjectDigest,
+			ImageRefs:     compactStrings([]string{filter.ImageRef}),
+			Workloads:     compactStrings([]string{filter.WorkloadID}),
+			Services:      compactStrings([]string{filter.ServiceID}),
+		},
 		Evidence:        []SupplyChainImpactEvidenceFactSummary{},
 		Readiness:       readiness,
 		MissingEvidence: missing,
 		Freshness:       SupplyChainImpactExplanationFreshness{State: explanationFreshnessState(readiness.Freshness)},
 	}
+}
+
+func supplyChainImpactEvidencePacketHandle(filter SupplyChainImpactExplanationFilter, findingID string) string {
+	if findingID = strings.TrimSpace(findingID); findingID != "" {
+		return "supply-chain-impact-explanation:finding:" + findingID
+	}
+	scope := strings.Join([]string{
+		"finding_id=" + strings.TrimSpace(filter.FindingID),
+		"advisory_id=" + strings.TrimSpace(filter.AdvisoryID),
+		"cve_id=" + strings.TrimSpace(filter.CVEID),
+		"package_id=" + strings.TrimSpace(filter.PackageID),
+		"repository_id=" + strings.TrimSpace(filter.RepositoryID),
+		"subject_digest=" + strings.TrimSpace(filter.SubjectDigest),
+		"image_ref=" + strings.TrimSpace(filter.ImageRef),
+		"workload_id=" + strings.TrimSpace(filter.WorkloadID),
+		"service_id=" + strings.TrimSpace(filter.ServiceID),
+	}, "\x00")
+	sum := sha256.Sum256([]byte(scope))
+	return "supply-chain-impact-explanation:scope:" + hex.EncodeToString(sum[:])
 }
 
 func (f SupplyChainImpactExplanationFilter) hasBoundedScope() bool {
@@ -230,7 +263,10 @@ func (f SupplyChainImpactExplanationFilter) hasBoundedScope() bool {
 	hasAdvisory := strings.TrimSpace(f.AdvisoryID) != "" || strings.TrimSpace(f.CVEID) != ""
 	hasTarget := strings.TrimSpace(f.PackageID) != "" ||
 		strings.TrimSpace(f.RepositoryID) != "" ||
-		strings.TrimSpace(f.SubjectDigest) != ""
+		strings.TrimSpace(f.SubjectDigest) != "" ||
+		strings.TrimSpace(f.ImageRef) != "" ||
+		strings.TrimSpace(f.WorkloadID) != "" ||
+		strings.TrimSpace(f.ServiceID) != ""
 	return hasAdvisory && hasTarget
 }
 
@@ -241,6 +277,9 @@ func (f SupplyChainImpactExplanationFilter) readinessScope() SupplyChainImpactTa
 		PackageID:     f.PackageID,
 		RepositoryID:  f.RepositoryID,
 		SubjectDigest: f.SubjectDigest,
+		ImageRef:      f.ImageRef,
+		WorkloadID:    f.WorkloadID,
+		ServiceID:     f.ServiceID,
 	}
 }
 
@@ -260,6 +299,15 @@ func findingReadinessScope(row SupplyChainImpactFindingRow, fallback SupplyChain
 	}
 	if scope.SubjectDigest == "" {
 		scope.SubjectDigest = row.SubjectDigest
+	}
+	if scope.ImageRef == "" {
+		scope.ImageRef = row.ImageRef
+	}
+	if scope.WorkloadID == "" && len(row.WorkloadIDs) == 1 {
+		scope.WorkloadID = row.WorkloadIDs[0]
+	}
+	if scope.ServiceID == "" && len(row.ServiceIDs) == 1 {
+		scope.ServiceID = row.ServiceIDs[0]
 	}
 	return scope
 }
