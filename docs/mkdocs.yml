@@ -87,6 +87,7 @@ nav:
     - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
     - Tuning Playbook: operate/tuning-playbook.md
     - Troubleshooting: operate/troubleshooting.md
+    - "3 AM Operator Runbook": operate/3am-operator-runbook.md
     - Hosted Operations Runbook: operate/hosted-operations-runbook.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md
     - Hosted Governance Posture: operate/hosted-governance.md
