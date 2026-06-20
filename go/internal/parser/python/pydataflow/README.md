@@ -52,14 +52,22 @@ See `doc.go` for the godoc contract. The surface is:
 None. The lowering is a pure function; a reducer that drives the pipeline owns
 telemetry.
 
-No-Regression Evidence: import-aware request source matching stays inside the
-pure per-file taint catalog path and does not change CFG lowering, graph writes,
-queue behavior, or parser dispatch. Verified by
-`go test ./internal/parser/python ./internal/parser/python/pydataflow ./internal/parser -count=1`
-and the Go no-regression focused gate
+No-Regression Evidence: the field-sensitive access-path, container-element,
+reference-alias, and lambda-capture lowering (#3254/#3255) is a pure
+per-function CPU change that adds binding precision; it touches no graph write,
+queue, lease, worker, or parser dispatch. It is strictly more precise (attribute
+targets now define access paths instead of dropping the def; attribute reads
+still record the base object, so whole-object flow is preserved), so it can add a
+reaching-def edge but never invents a false one, and path truncation is counted
+in `Overflow.AccessPaths` rather than dropped. The earlier import-aware request
+source matcher likewise stays inside the pure per-file taint catalog path.
+Verified by
+`go test ./internal/parser/python ./internal/parser/python/pydataflow ./internal/parser/... -count=1`
+(full parser tree green, including the `dataflowemit`, `valueflow`, `interproc`,
+and `taint` consumers) and the Go no-regression focused gate
 `go test ./internal/parser/golang ./internal/parser -run 'TestGo.*Taint|TestGo.*Dataflow|Test.*Catalog' -count=1`.
 
-No-Observability-Change: the matcher adds no metric, span, log, status field,
+No-Observability-Change: the lowering adds no metric, span, log, status field,
 runtime knob, queue, worker, or graph query. Operators still diagnose parser
 cost through existing collector parse-stage logs and
 `eshu_dp_file_parse_duration_seconds`.
@@ -96,13 +104,26 @@ or shared state of its own — the partitioned, race-free fixpoint lives in
   the handlers' inner statements without inventing a body-completed definition
   that reaches a handler (which would be a false edge); the under-modeled
   body→handler flow is a safe false negative.
-- **Attribute access `a.b`**: only `a` (the object) is a use; `b` is the
-  attribute name in the grammar (an `identifier`), so `exprUses` skips it to
-  avoid a false use of a same-named variable.
-- **Tuple/list targets** (`a, b = ...`) define each identifier; attribute and
-  subscript targets read their base, never define.
-- Nested function/lambda bodies are not descended into (a safe false negative,
-  never a false edge).
+- **Field-sensitive access paths (`accesspaths.go`)**: an attribute target
+  `obj.attr = x` defines `obj.attr`; an attribute read records `obj.attr` plus the
+  base object `obj` (the attribute name itself is never a bare use). A subscript
+  `d[k]` lowers to the explicitly labeled whole-container approximation `d[*]`. A
+  path deeper than `cfg.Limits.MaxAccessPathParts` truncates to a `*`-suffixed
+  prefix and counts `Overflow.AccessPaths`, so write and read of the same deep
+  path still match and truncation is never silent.
+- **Reference aliases**: `a = obj` aliases `a→obj` (Python has no address-of), so
+  `a.attr = x` normalizes to `obj.attr`. Only the base segment of a multi-part
+  path is alias-resolved; bare identifier reads keep their reaching-def identity.
+  The alias map is intersected across if/elif/else and loop paths, dropped when a
+  name is rebound (loop target, `as` alias, reassignment), and cleared after a
+  `try` — an alias never leaks past a path where it does not hold.
+- **Lambda capture**: a lambda passed as a call argument (`do(lambda: sink(v))`)
+  has its free variables attributed to the enclosing function, minus its own
+  parameters and inner-scope assignments. A non-invoked lambda or a nested `def`
+  is not descended into; a sink inside a closure stays unattributed
+  (`walkInFunction`).
+- **Tuple/list targets** (`a, b = ...`) define each identifier (nested attribute/
+  subscript elements as access paths).
 - **Taint catalog (`taintfacts.go`) is conservative.** Sources require typed
   framework request parameters with qualified annotations or known framework
   imports such as FastAPI, Flask, Starlette, or Django. A local type named

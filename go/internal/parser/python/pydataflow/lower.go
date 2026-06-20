@@ -11,7 +11,7 @@ import (
 // in the entry block so value flow from a parameter into the body is captured.
 func LowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) cfg.Function {
 	builder := cfg.NewBuilder(limits)
-	lowerer := &lowerer{builder: builder, source: source}
+	lowerer := &lowerer{builder: builder, source: source, limits: limits, aliases: pyBindingAliases{}}
 
 	entry := builder.AddBlock()
 	builder.SetEntry(entry)
@@ -21,12 +21,58 @@ func LowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) cfg
 	if body := node.ChildByFieldName("body"); body != nil {
 		lowerer.lowerStmt(body, entry)
 	}
-	return builder.Build()
+	fn := builder.Build()
+	fn.Overflow.AccessPaths += lowerer.accessPathOverflows
+	return fn
 }
 
 type lowerer struct {
-	builder *cfg.Builder
-	source  []byte
+	builder             *cfg.Builder
+	source              []byte
+	limits              cfg.Limits
+	aliases             pyBindingAliases
+	accessPathOverflows int
+}
+
+// accessPathOptions returns the field-sensitivity options for this lowering,
+// wired to the shared overflow counter so truncated paths are counted.
+func (l *lowerer) accessPathOptions() pyAccessPathOptions {
+	maxParts := l.limits.MaxAccessPathParts
+	if maxParts <= 0 {
+		maxParts = cfg.DefaultLimits().MaxAccessPathParts
+	}
+	return pyAccessPathOptions{maxParts: maxParts, truncated: &l.accessPathOverflows}
+}
+
+// uses returns the field-sensitive reads of a node under the current alias map.
+func (l *lowerer) uses(node *tree_sitter.Node) []string {
+	return exprUsesWithOptions(node, l.source, l.aliases, l.accessPathOptions())
+}
+
+// updateAliasesFromAssignment keeps the alias map current after an assignment.
+// A plain identifier-to-identifier assignment records an alias; any other write
+// (an attribute/subscript target, a compound, or a non-identifier value) clears
+// the affected identifier's alias.
+func (l *lowerer) updateAliasesFromAssignment(node *tree_sitter.Node) {
+	left := node.ChildByFieldName("left")
+	if left == nil || left.Kind() != "identifier" {
+		return
+	}
+	target := nodeText(left, l.source)
+	if node.Kind() == "augmented_assignment" {
+		delete(l.aliases, target)
+		return
+	}
+	l.aliases.applyAssignment(target, node.ChildByFieldName("right"), l.source)
+}
+
+// dropAliases removes the alias entries for a set of newly-defined targets, so a
+// definition through a non-assignment binder (a loop target, a with/except `as`)
+// does not leave a stale reference alias.
+func (l *lowerer) dropAliases(defs []string) {
+	for _, def := range defs {
+		delete(l.aliases, accessPathBase(def))
+	}
 }
 
 // lowerStmtList lowers each statement in a block in source order. It returns the
@@ -93,8 +139,9 @@ func (l *lowerer) lowerExpressionStatement(node *tree_sitter.Node, cur cfg.Block
 func (l *lowerer) lowerInlineExpr(expr *tree_sitter.Node, block cfg.BlockID) {
 	switch expr.Kind() {
 	case "assignment", "augmented_assignment":
-		defs, uses := assignDefsUses(expr, l.source)
+		defs, uses := assignDefsUsesWithOptions(expr, l.source, l.aliases, l.accessPathOptions())
 		l.addStmt(block, nodeLine(expr), defs, uses)
+		l.updateAliasesFromAssignment(expr)
 	default:
 		l.addUses(block, expr)
 	}
@@ -110,11 +157,17 @@ func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID,
 	if cond := node.ChildByFieldName("condition"); cond != nil {
 		l.addUses(cur, cond)
 	}
+	// Each branch starts from the same pre-if alias state; the post-if state is
+	// the intersection of every path that reaches the merge, so an alias set on
+	// only one path (or set differently across paths) is dropped — never a leak.
+	entryAliases := l.aliases.clone()
+	var reaching []pyBindingAliases
 	merge := l.builder.AddBlock()
 	mergeReachable := false
 
 	thenBlk := l.builder.AddBlock()
 	l.builder.AddEdge(cur, thenBlk)
+	l.aliases = entryAliases.clone()
 	thenReach := true
 	if cons := node.ChildByFieldName("consequence"); cons != nil {
 		thenBlk, thenReach = l.lowerStmt(cons, thenBlk)
@@ -122,14 +175,18 @@ func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID,
 	if thenReach {
 		l.builder.AddEdge(thenBlk, merge)
 		mergeReachable = true
+		reaching = append(reaching, l.aliases.clone())
 	}
 
 	cursor := node.Walk()
 	defer cursor.Close()
 	alternatives := node.ChildrenByFieldName("alternative", cursor)
 	if len(alternatives) == 0 {
-		// No else: the condition-false path falls through to the merge.
+		// No else: the condition-false path falls through to the merge carrying
+		// the pre-if aliases.
 		l.builder.AddEdge(cur, merge)
+		reaching = append(reaching, entryAliases.clone())
+		l.aliases = pyMergeAllAliases(reaching)
 		return merge, true
 	}
 
@@ -141,6 +198,9 @@ func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID,
 		alt := alt
 		switch alt.Kind() {
 		case "elif_clause":
+			// The elif's condition and consequence both run only when every prior
+			// condition was false, so both start from the pre-if alias state.
+			l.aliases = entryAliases.clone()
 			if cond := alt.ChildByFieldName("condition"); cond != nil {
 				l.addUses(chain, cond)
 			}
@@ -153,11 +213,13 @@ func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID,
 			if elifReach {
 				l.builder.AddEdge(thenElif, merge)
 				mergeReachable = true
+				reaching = append(reaching, l.aliases.clone())
 			}
 			next := l.builder.AddBlock()
 			l.builder.AddEdge(chain, next)
 			chain = next
 		case "else_clause":
+			l.aliases = entryAliases.clone()
 			end := chain
 			elseReach := true
 			if body := alt.ChildByFieldName("body"); body != nil {
@@ -166,21 +228,26 @@ func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID,
 			if elseReach {
 				l.builder.AddEdge(end, merge)
 				mergeReachable = true
+				reaching = append(reaching, l.aliases.clone())
 			}
 			chainOpen = false
 		}
 	}
 	if chainOpen {
-		// No else: the last elif's false path falls through to the merge.
+		// No else: the last elif's false path falls through to the merge carrying
+		// the pre-if aliases.
 		l.builder.AddEdge(chain, merge)
 		mergeReachable = true
+		reaching = append(reaching, entryAliases.clone())
 	}
+	l.aliases = pyMergeAllAliases(reaching)
 	return merge, mergeReachable
 }
 
 // lowerFor lowers a for-in loop: the loop target is defined each iteration from
 // the iterable, with a back-edge from the body to the header.
 func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
+	entryAliases := l.aliases.clone()
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	var defs, uses []string
@@ -188,8 +255,11 @@ func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID
 		defs = assignTargets(left, l.source)
 	}
 	if right := node.ChildByFieldName("right"); right != nil {
-		uses = exprUses(right, l.source)
+		uses = l.uses(right)
 	}
+	// The loop target is rebound each iteration, so any prior reference alias on
+	// it is stale inside the body.
+	l.dropAliases(defs)
 	l.addStmt(header, nodeLine(node), defs, uses)
 
 	body := l.builder.AddBlock()
@@ -203,12 +273,22 @@ func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID
 	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	// The loop may run zero times, so control after it is always reachable.
+	// The loop may run zero times (exit aliases = entry) or more (= body end);
+	// keep only aliases that agree on both so a body rebinding never leaks.
+	merged := pyMergeAliases(entryAliases, l.aliases)
+	// The loop target is rebound every iteration, so even if entry and body
+	// agree on its alias it does not hold after the loop — drop it so an
+	// attribute write through the target is never falsely normalized.
+	for _, def := range defs {
+		delete(merged, accessPathBase(def))
+	}
+	l.aliases = merged
 	return exit, true
 }
 
 // lowerWhile lowers a while loop with a back-edge from the body to the header.
 func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
+	entryAliases := l.aliases.clone()
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	if cond := node.ChildByFieldName("condition"); cond != nil {
@@ -225,134 +305,9 @@ func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
+	// Zero or more iterations: keep only aliases agreeing between entry and body.
+	l.aliases = pyMergeAliases(entryAliases, l.aliases)
 	return exit, true
-}
-
-// lowerWith lowers a with statement: the with-clause evaluates its context
-// managers (uses) and binds any `as` aliases (defs) on the header line, then the
-// body always runs in sequence. Lowering the body precisely (rather than
-// collapsing the whole statement onto the header via the default path) gives a
-// call inside the body its own CFG statement, so a sink there can be located by
-// its own source line.
-func (l *lowerer) lowerWith(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
-	defs, uses := l.withClauseBindings(node)
-	l.addStmt(cur, nodeLine(node), defs, uses)
-	if body := node.ChildByFieldName("body"); body != nil {
-		return l.lowerStmt(body, cur)
-	}
-	return cur, true
-}
-
-// withClauseBindings collects the defs (aliases) and uses (context managers) of
-// every with_item in a with statement's with_clause.
-func (l *lowerer) withClauseBindings(node *tree_sitter.Node) (defs, uses []string) {
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		if child.Kind() != "with_clause" {
-			continue
-		}
-		itemCursor := child.Walk()
-		for _, item := range child.NamedChildren(itemCursor) {
-			item := item
-			value := item.ChildByFieldName("value")
-			if value == nil {
-				uses = append(uses, exprUses(&item, l.source)...)
-				continue
-			}
-			d, u := asPatternDefsUses(value, l.source)
-			defs = append(defs, d...)
-			uses = append(uses, u...)
-		}
-		itemCursor.Close()
-	}
-	return defs, uses
-}
-
-// lowerTry lowers a try statement conservatively. The try body runs from the
-// current block; each except/else/finally handler branches from the pre-try
-// state, an over-approximation that records the handlers' inner statements (so
-// sinks resolve) without inventing a body-completed definition that reaches a
-// handler — that would be a false reaching definition, hence a false edge. The
-// under-modeled body-to-handler flow is a safe false negative.
-func (l *lowerer) lowerTry(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
-	merge := l.builder.AddBlock()
-	reachMerge := false
-	connect := func(end cfg.BlockID, reach bool) {
-		if reach {
-			l.builder.AddEdge(end, merge)
-			reachMerge = true
-		}
-	}
-
-	if body := node.ChildByFieldName("body"); body != nil {
-		b := l.builder.AddBlock()
-		l.builder.AddEdge(cur, b)
-		connect(l.lowerStmt(body, b))
-	} else {
-		l.builder.AddEdge(cur, merge)
-		reachMerge = true
-	}
-
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		switch child.Kind() {
-		case "except_clause", "except_group_clause":
-			b := l.builder.AddBlock()
-			l.builder.AddEdge(cur, b)
-			connect(l.lowerExcept(&child, b))
-		case "else_clause", "finally_clause":
-			if blk := firstBlock(&child); blk != nil {
-				b := l.builder.AddBlock()
-				l.builder.AddEdge(cur, b)
-				connect(l.lowerStmt(blk, b))
-			}
-		}
-	}
-	return merge, reachMerge
-}
-
-// lowerExcept lowers one except clause: the exception type is a use and an
-// `as` alias is a def, recorded on the clause header line, then the handler body
-// runs in sequence.
-func (l *lowerer) lowerExcept(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
-	cursor := node.Walk()
-	defer cursor.Close()
-	var body *tree_sitter.Node
-	var defs, uses []string
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		switch child.Kind() {
-		case "block":
-			body = &child
-		case "as_pattern":
-			d, u := asPatternDefsUses(&child, l.source)
-			defs = append(defs, d...)
-			uses = append(uses, u...)
-		default:
-			uses = append(uses, exprUses(&child, l.source)...)
-		}
-	}
-	l.addStmt(cur, nodeLine(node), defs, uses)
-	if body != nil {
-		return l.lowerStmt(body, cur)
-	}
-	return cur, true
-}
-
-// firstBlock returns the first block named child of a node, or nil.
-func firstBlock(node *tree_sitter.Node) *tree_sitter.Node {
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		if child.Kind() == "block" {
-			child := child
-			return &child
-		}
-	}
-	return nil
 }
 
 // addStmt records a statement on a block when it carries at least one binding.
@@ -363,9 +318,10 @@ func (l *lowerer) addStmt(block cfg.BlockID, line int, defs, uses []string) {
 	l.builder.AddStmt(block, line, defs, uses)
 }
 
-// addUses records the identifier uses of an expression-bearing node.
+// addUses records the field-sensitive uses of an expression-bearing node under
+// the current alias map.
 func (l *lowerer) addUses(block cfg.BlockID, node *tree_sitter.Node) {
-	l.addStmt(block, nodeLine(node), nil, exprUses(node, l.source))
+	l.addStmt(block, nodeLine(node), nil, l.uses(node))
 }
 
 func nodeText(node *tree_sitter.Node, source []byte) string { return shared.NodeText(node, source) }
