@@ -80,6 +80,14 @@ consume these types as their input or storage shape.
 - Fact-family registries — each source family exposes `<Family>FactKinds()` and
   `<Family>SchemaVersion(kind)` helpers. Use them instead of copying literals
   when constructing envelopes or validating component ownership.
+- Central schema-version registry — `SchemaVersion(kind)`,
+  `SupportedSchemaVersions()`, `ClassifySchemaVersion(kind, candidate)`, and
+  `ValidateSchemaVersion(kind, candidate)` dispatch over every per-family schema
+  version so reducers, projectors, component activation, and API/MCP/CLI
+  diagnostics classify a collector's fact version identically. `Compatibility`
+  is `supported`, `unsupported_major`, `unsupported_minor`, or `unknown_kind`;
+  unsupported majors are rejected with no silent fallback. See
+  [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md).
 
 The family-by-family catalogue lives in
 [`FACT_KIND_REGISTRIES.md`](FACT_KIND_REGISTRIES.md). Public operator-facing

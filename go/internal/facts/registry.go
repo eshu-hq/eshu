@@ -7,16 +7,7 @@ import (
 
 // CoreFactKinds returns every fact kind owned by the Eshu core data plane.
 func CoreFactKinds() []string {
-	kinds := []string{
-		DocumentationSourceFactKind,
-		DocumentationDocumentFactKind,
-		DocumentationSectionFactKind,
-		DocumentationLinkFactKind,
-		DocumentationEntityMentionFactKind,
-		DocumentationClaimCandidateFactKind,
-		DocumentationFindingFactKind,
-		DocumentationEvidencePacketFactKind,
-	}
+	kinds := DocumentationFactKinds()
 	for _, family := range [][]string{
 		AWSFactKinds(),
 		CICDRunFactKinds(),

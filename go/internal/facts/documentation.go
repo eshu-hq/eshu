@@ -27,6 +27,42 @@ const (
 	DocumentationSectionFactSchemaVersion = "1.1.0"
 )
 
+// DocumentationFactKinds returns every documentation fact kind owned by Eshu
+// core. It is the single source for the documentation family so the core
+// fact-kind registry and the schema-version registry cannot drift.
+func DocumentationFactKinds() []string {
+	return []string{
+		DocumentationSourceFactKind,
+		DocumentationDocumentFactKind,
+		DocumentationSectionFactKind,
+		DocumentationLinkFactKind,
+		DocumentationEntityMentionFactKind,
+		DocumentationClaimCandidateFactKind,
+		DocumentationFindingFactKind,
+		DocumentationEvidencePacketFactKind,
+	}
+}
+
+// DocumentationSchemaVersion returns the schema version a core consumer supports
+// for a documentation fact kind. The section kind carries its own version; the
+// remaining documentation kinds share the base documentation schema version.
+func DocumentationSchemaVersion(factKind string) (string, bool) {
+	switch factKind {
+	case DocumentationSectionFactKind:
+		return DocumentationSectionFactSchemaVersion, true
+	case DocumentationSourceFactKind,
+		DocumentationDocumentFactKind,
+		DocumentationLinkFactKind,
+		DocumentationEntityMentionFactKind,
+		DocumentationClaimCandidateFactKind,
+		DocumentationFindingFactKind,
+		DocumentationEvidencePacketFactKind:
+		return DocumentationFactSchemaVersion, true
+	default:
+		return "", false
+	}
+}
+
 const (
 	// DocumentationMentionResolutionExact means the mention resolved to one entity.
 	DocumentationMentionResolutionExact = "exact"
