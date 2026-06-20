@@ -128,18 +128,14 @@ func pythonCallResolutionGoldens() []callResolutionGolden {
 			},
 		},
 
-		// Explicit from-package import of a repo-unique symbol. Current
-		// resolution finds the correct target but labels it repo_unique_name
-		// (0.5); the explicit import makes import_binding (0.9) the precision
-		// ideal. Conservative gap (correct target, weaker provenance), tracked.
+		// Explicit from-package import of a repo-unique symbol should preserve
+		// the stronger import-binding provenance.
 		{
 			name:           "reexport_through_init_binds_callee",
 			category:       categoryReexport,
 			wantCallee:     "uid:impl-handler",
-			wantMethod:     codeprovenance.MethodRepoUniqueName,
-			wantConfidence: 0.50,
-			idealMethod:    codeprovenance.MethodImportBinding,
-			gapIssue:       "#3198",
+			wantMethod:     codeprovenance.MethodImportBinding,
+			wantConfidence: 0.90,
 			envelopes: []facts.Envelope{
 				{FactKind: "repository", Payload: map[string]any{
 					"repo_id":     "py-reexport",
@@ -193,14 +189,11 @@ func pythonCallResolutionGoldens() []callResolutionGolden {
 		},
 
 		// Import from a dependency not present in the repo must not fabricate a
-		// match against an unrelated same-named local symbol. Current behavior
-		// IS a false positive here (repo-unique fallback shadows the external
-		// import); documented and tracked by #3198 until the resolver is fixed.
+		// match against an unrelated same-named local symbol.
 		{
-			name:             "missing_dependency_import_unresolved",
-			category:         categoryMissingDependency,
-			forbidCallees:    []string{"uid:local-connect"},
-			falsePositiveGap: "#3198",
+			name:          "missing_dependency_import_unresolved",
+			category:      categoryMissingDependency,
+			forbidCallees: []string{"uid:local-connect"},
 			envelopes: []facts.Envelope{
 				{FactKind: "repository", Payload: map[string]any{"repo_id": "py-missing"}},
 				{FactKind: "file", Payload: map[string]any{
@@ -214,6 +207,36 @@ func pythonCallResolutionGoldens() []callResolutionGolden {
 				}},
 				{FactKind: "file", Payload: map[string]any{
 					"repo_id": "py-missing", "relative_path": "internal/util.py",
+					"parsed_file_data": map[string]any{
+						"path":      "/repo/internal/util.py",
+						"functions": []any{map[string]any{"name": "connect", "line_number": 1, "end_line": 2, "uid": "uid:local-connect"}},
+					},
+				}},
+			},
+		},
+
+		// A source-mismatched explicit import must not fall back to the one local
+		// imports_map path for a same-named symbol.
+		{
+			name:          "source_mismatched_import_does_not_bind_local_homonym",
+			category:      categoryMissingDependency,
+			forbidCallees: []string{"uid:local-connect"},
+			envelopes: []facts.Envelope{
+				{FactKind: "repository", Payload: map[string]any{
+					"repo_id":     "py-source-mismatch",
+					"imports_map": map[string][]string{"connect": {"/repo/internal/util.py"}},
+				}},
+				{FactKind: "file", Payload: map[string]any{
+					"repo_id": "py-source-mismatch", "relative_path": "app.py",
+					"parsed_file_data": map[string]any{
+						"path":           "/repo/app.py",
+						"functions":      []any{map[string]any{"name": "run", "line_number": 2, "end_line": 4, "uid": "uid:run"}},
+						"imports":        []any{map[string]any{"name": "connect", "source": "third_party.db", "lang": "python"}},
+						"function_calls": []any{map[string]any{"name": "connect", "full_name": "connect", "line_number": 3, "lang": "python"}},
+					},
+				}},
+				{FactKind: "file", Payload: map[string]any{
+					"repo_id": "py-source-mismatch", "relative_path": "internal/util.py",
 					"parsed_file_data": map[string]any{
 						"path":      "/repo/internal/util.py",
 						"functions": []any{map[string]any{"name": "connect", "line_number": 1, "end_line": 2, "uid": "uid:local-connect"}},

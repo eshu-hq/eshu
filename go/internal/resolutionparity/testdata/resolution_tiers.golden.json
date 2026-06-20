@@ -41,7 +41,7 @@
     "same_file": 1
   },
   "python": {
-    "repo_unique_name": 4,
+    "import_binding": 6,
     "same_file": 11,
     "type_inferred": 6
   },
