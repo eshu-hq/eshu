@@ -83,6 +83,20 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 		}
 	}
 
+	freshnessPath := mustMapField(t, paths, "/api/v0/status/freshness-causality")
+	freshnessGet := mustMapField(t, freshnessPath, "get")
+	freshnessResponses := mustMapField(t, freshnessGet, "responses")
+	freshnessOK := mustMapField(t, freshnessResponses, "200")
+	freshnessContent := mustMapField(t, freshnessOK, "content")
+	freshnessJSON := mustMapField(t, freshnessContent, "application/json")
+	freshnessSchema := mustMapField(t, freshnessJSON, "schema")
+	freshnessProperties := mustMapField(t, freshnessSchema, "properties")
+	for _, want := range []string{"state", "causes", "generations", "pending_projection", "recent_transitions", "scoped"} {
+		if _, ok := freshnessProperties[want]; !ok {
+			t.Fatalf("/api/v0/status/freshness-causality response schema missing %q", want)
+		}
+	}
+
 	semanticPath := mustMapField(t, paths, "/api/v0/status/semantic-extraction")
 	semanticGet := mustMapField(t, semanticPath, "get")
 	semanticResponses := mustMapField(t, semanticGet, "responses")

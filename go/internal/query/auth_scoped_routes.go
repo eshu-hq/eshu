@@ -65,6 +65,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedOperatorControlPlaneRoute(r) {
 		return true
 	}
+	if scopedFreshnessCausalityRoute(r) {
+		return true
+	}
 	if scopedSemanticExtractionStatusRoute(r) {
 		return true
 	}

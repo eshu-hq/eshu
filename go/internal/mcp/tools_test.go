@@ -90,6 +90,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"resolve_investigation_workflow",
 		"get_hosted_readiness",
 		"get_operator_control_plane",
+		"get_freshness_causality",
 		"get_hosted_governance_status",
 		"get_semantic_capability_status",
 		"get_answer_narration_status",

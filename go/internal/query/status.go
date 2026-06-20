@@ -25,6 +25,7 @@ type StatusHandler struct {
 func (h *StatusHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/status/pipeline", h.getPipelineStatus)
 	mux.HandleFunc("GET /api/v0/status/operator-control-plane", h.getOperatorControlPlane)
+	mux.HandleFunc("GET /api/v0/status/freshness-causality", h.getFreshnessCausality)
 	mux.HandleFunc("GET /api/v0/status/collectors", h.listCollectors)
 	mux.HandleFunc("GET /api/v0/status/ingesters", h.listIngesters)
 	mux.HandleFunc("GET /api/v0/status/ingesters/{ingester}", h.getIngesterStatus)

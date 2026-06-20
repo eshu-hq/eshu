@@ -72,6 +72,15 @@ func runtimeTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "get_freshness_causality",
+			Description: "Return the freshness causality read model: why answers are stale by closed cause (pending generation, reducer backlog, dead-lettered domain, missing collector completion, plus per-answer content-coverage, unsupported-profile, and retention-expired classes), the generation lifecycle including retired generations, and pending projection work. Scoped tokens receive the same aggregate counts with raw scope/generation identifiers withheld.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
+		{
 			Name:        "get_hosted_governance_status",
 			Description: "Return redacted hosted governance status across policy mode, shared-token posture, tenancy, egress, semantic, extension, redaction, retention, audit, and aggregate decision readbacks.",
 			InputSchema: map[string]any{
