@@ -33,7 +33,7 @@
 // relationship edge writer projects managed ARM relationships only after Azure
 // CloudResource endpoint readiness, and the value-flow fixpoint projector writes
 // post-summary TAINT_FLOWS_TO evidence, including graph-backed cloud sink
-// targets, under its own evidence source),
+// targets, under its own evidence source with durable component-result reuse),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer

@@ -99,10 +99,12 @@ func buildReducerService(
 	functionSummaryStore := postgres.NewFunctionSummaryStore(database)
 	functionSourceStore := postgres.NewFunctionSourceStore(database)
 	functionGraphIDStore := postgres.NewFunctionGraphIDStore(database)
+	valueFlowFixpointComponentStore := postgres.NewValueFlowFixpointComponentStore(database)
 	valueFlowFixpointProjector := newValueFlowFixpointProjector(
 		functionSummaryStore,
 		functionSourceStore,
 		functionGraphIDStore,
+		valueFlowFixpointComponentStore,
 		graphReader,
 		graphWriters.codeInterprocEvidence,
 		logger,
