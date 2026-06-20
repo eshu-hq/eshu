@@ -46,6 +46,11 @@ jobs:
           scripts/test-verify-scale-corpus-suite.sh
           scripts/verify-scale-corpus-suite.sh
 
+      - name: Verify scale benchmark artifact
+        run: |
+          scripts/test-verify-scale-benchmark-artifact.sh
+          scripts/verify-scale-benchmark-artifact.sh
+
       - name: Verify package docs
         run: |
           scripts/test-verify-package-docs.sh

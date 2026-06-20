@@ -25,7 +25,8 @@ across API, MCP, CLI, graph truth, and read-model truth.
 ## Required Metrics
 
 The contract requires the following metrics before runtime-affecting scale work
-can claim readiness:
+can claim readiness. Issue #3171 records the result artifact shape in
+[Scale Benchmark Artifact](scale-benchmark-artifact.md):
 
 - fact rows per second;
 - queue claim latency p95;
@@ -56,6 +57,8 @@ Run:
 ```bash
 bash scripts/verify-scale-corpus-suite.sh
 bash scripts/test-verify-scale-corpus-suite.sh
+bash scripts/verify-scale-benchmark-artifact.sh
+bash scripts/test-verify-scale-benchmark-artifact.sh
 ```
 
 The verifier checks that the published contract keeps all required slots,

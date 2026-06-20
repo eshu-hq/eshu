@@ -72,6 +72,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Recovery, replay, or repair controls | `cd go && go test ./internal/recovery ./internal/runtime ./internal/status -count=1` |
 | Hot-path Cypher, graph writes, queues, workers, leases, batching, or runtime knobs | `scripts/test-verify-performance-evidence.sh` and `scripts/verify-performance-evidence.sh` |
 | Scale-lab representative corpus, privacy, metric, or threshold contract | `bash scripts/test-verify-scale-corpus-suite.sh` and `bash scripts/verify-scale-corpus-suite.sh` |
+| Scale benchmark artifact, threshold, backend, commit, or before/after proof contract | `bash scripts/test-verify-scale-benchmark-artifact.sh` and `bash scripts/verify-scale-benchmark-artifact.sh` |
 | New collector family, provider, scanner, or hosted collector runtime | `scripts/test-verify-collector-authoring-gate.sh` and `scripts/verify-collector-authoring-gate.sh` |
 | Generated collector entrypoint manifest or generated collector command files | `scripts/test-verify-collector-entrypoints-generated.sh` and `scripts/verify-collector-entrypoints-generated.sh` |
 | New or changed Go package under `go/internal` or `go/cmd` | `scripts/test-verify-package-docs.sh` and `scripts/verify-package-docs.sh` |

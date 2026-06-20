@@ -17,6 +17,10 @@ documentation.
   privacy, metric, and threshold contract that gates reducer, graph-write,
   API/MCP, and correlation fanout scale work. See
   `docs/public/reference/local-testing/representative-corpus-suite.md`.
+- `scale-benchmark-artifact.v1.yaml` defines the public-safe benchmark result
+  artifact required for large-corpus ingestion, reducer drain, graph-write,
+  API, MCP, retry/dead-letter, memory, backend, and before/after proof. See
+  `docs/public/reference/local-testing/scale-benchmark-artifact.md`.
 
 Treat edits here as contract changes. Update matching docs and verification in
 the same PR.

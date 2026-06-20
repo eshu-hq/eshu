@@ -7,6 +7,9 @@ runs in representative corpus mode.
 Use [Representative Corpus Suite](representative-corpus-suite.md) for the
 issue #3170 corpus tiers, required domains, privacy rules, metrics, and
 thresholds that gate reducer-scale implementation.
+Use [Scale Benchmark Artifact](scale-benchmark-artifact.md) for the issue #3171
+public-safe benchmark result shape, threshold rows, backend matrix, commit SHA,
+and before/after evidence requirement.
 
 After a representative stack finishes the required corpus pass, run:
 
