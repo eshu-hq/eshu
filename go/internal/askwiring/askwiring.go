@@ -258,6 +258,43 @@ func (a *engineAsker) Ask(r *http.Request, question string) (query.AskAnswer, er
 	return convertAnswer(ans), nil
 }
 
+// AskStream implements query.Asker. It drives engine.AskStream, mapping engine
+// StreamEvents to query.AskStreamEvents and forwarding them to emit. If the
+// engine adapter does not support streaming, it returns query.ErrNoStreaming so
+// the SSE handler falls back to the synchronous Ask path.
+func (a *engineAsker) AskStream(r *http.Request, question string, emit func(query.AskStreamEvent)) (query.AskAnswer, error) {
+	ans, err := a.eng.AskStream(r.Context(), question, func(ev engine.StreamEvent) {
+		switch ev.Kind {
+		case engine.KindToken:
+			emit(query.AskStreamEvent{Kind: "token", TextDelta: ev.TextDelta})
+		case engine.KindToolCallStarted:
+			emit(query.AskStreamEvent{
+				Kind:       "tool_call_started",
+				ToolCallID: ev.ToolCallID,
+				ToolName:   ev.ToolName,
+			})
+		case engine.KindTraceEntry:
+			if ev.TraceEntry != nil {
+				te := &query.AskTraceEntry{
+					Tool:       ev.TraceEntry.Tool,
+					Args:       ev.TraceEntry.Args,
+					Supported:  ev.TraceEntry.Supported,
+					TruthClass: query.AnswerTruthClass(ev.TraceEntry.TruthClass),
+					Err:        ev.TraceEntry.Err,
+				}
+				emit(query.AskStreamEvent{Kind: "trace_entry", TraceEntry: te})
+			}
+		}
+	})
+	if err != nil {
+		if err == engine.ErrNoStreaming {
+			return query.AskAnswer{}, query.ErrNoStreaming
+		}
+		return query.AskAnswer{}, err
+	}
+	return convertAnswer(ans), nil
+}
+
 // convertAnswer maps engine.Answer to query.AskAnswer without any import of
 // query in ask/engine (the conversion is one-way, caller-side only).
 func convertAnswer(ans engine.Answer) query.AskAnswer {

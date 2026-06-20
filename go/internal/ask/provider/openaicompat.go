@@ -1,9 +1,11 @@
 package provider
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // openAICompatAdapter implements Adapter for any OpenAI-compatible
@@ -73,6 +75,185 @@ func (a *openAICompatAdapter) Complete(ctx context.Context, messages []Message, 
 	}
 
 	return mapOpenAICompatResponse(resp)
+}
+
+// CompleteStream sends messages and tools to the OpenAI-compatible
+// chat/completions endpoint with stream=true and calls emit for each token
+// delta and tool-call-started event as the provider yields them. It returns
+// the fully assembled Completion once the stream ends with [DONE].
+//
+// Leak safety: emit receives only bounded TextDelta strings and tool
+// identifiers. Raw SSE lines, provider error bodies, and credentials are never
+// passed to emit.
+func (a *openAICompatAdapter) CompleteStream(ctx context.Context, messages []Message, tools []Tool, emit func(StreamEvent)) (Completion, error) {
+	req := a.buildRequest(messages, tools)
+	req.Stream = true
+
+	headers := map[string]string{}
+	if a.apiKey != "" {
+		headers["Authorization"] = "Bearer " + a.apiKey
+	}
+
+	body, err := a.t.postJSONStream(ctx, a.baseURL+"/v1/chat/completions", headers, req)
+	if err != nil {
+		return Completion{}, err
+	}
+	defer drainAndClose(body)
+
+	return parseOpenAICompatStream(body, emit)
+}
+
+// parseOpenAICompatStream reads the OpenAI-compatible SSE stream, emitting
+// events for each token delta and tool-call start. It returns the assembled
+// Completion when the stream ends with [DONE]. Unexported so tests can inject
+// mock bodies directly.
+//
+// Wire format per line: "data: <json>" or "data: [DONE]".
+// Delta shape: {"choices":[{"delta":{"content":"...","tool_calls":[...]}}]}.
+func parseOpenAICompatStream(body interface {
+	Read([]byte) (int, error)
+}, emit func(StreamEvent)) (Completion, error) {
+	type deltaToolCallFunction struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	}
+	type deltaToolCall struct {
+		Index    int                   `json:"index"`
+		ID       string                `json:"id"`
+		Type     string                `json:"type"`
+		Function deltaToolCallFunction `json:"function"`
+	}
+	type deltaMessage struct {
+		Role      string          `json:"role"`
+		Content   *string         `json:"content"`
+		ToolCalls []deltaToolCall `json:"tool_calls"`
+	}
+	type deltaChoice struct {
+		Delta        deltaMessage `json:"delta"`
+		FinishReason string       `json:"finish_reason"`
+	}
+	type streamChunk struct {
+		Choices []deltaChoice      `json:"choices"`
+		Usage   *openAICompatUsage `json:"usage"`
+	}
+
+	var (
+		textBuf      strings.Builder
+		toolCallMap  = make(map[int]*openAICompatRequestToolCall)
+		toolCallIdx  []int
+		finishReason string
+		usage        openAICompatUsage
+		sawDone      bool
+	)
+
+	scanner := bufio.NewScanner(body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		payload := strings.TrimPrefix(line, "data: ")
+		if payload == "[DONE]" {
+			sawDone = true
+			break
+		}
+
+		var chunk streamChunk
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			// Skip malformed lines; the stream may have keep-alive comments.
+			continue
+		}
+
+		if chunk.Usage != nil {
+			usage = *chunk.Usage
+		}
+
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		choice := chunk.Choices[0]
+		if choice.FinishReason != "" {
+			finishReason = choice.FinishReason
+		}
+		delta := choice.Delta
+
+		// Text delta.
+		if delta.Content != nil && *delta.Content != "" {
+			emit(StreamEvent{Kind: StreamEventToken, TextDelta: *delta.Content})
+			textBuf.WriteString(*delta.Content)
+		}
+
+		// Tool-call deltas: accumulate by index. The first chunk with a non-empty
+		// ID and Name signals the start of a new tool call.
+		for _, tc := range delta.ToolCalls {
+			if _, seen := toolCallMap[tc.Index]; !seen {
+				toolCallMap[tc.Index] = &openAICompatRequestToolCall{
+					ID:   tc.ID,
+					Type: tc.Type,
+					Function: openAICompatToolCallFunction{
+						Name: tc.Function.Name,
+						// Preserve any argument bytes that arrive in this first
+						// chunk; later chunks append to them.
+						Arguments: tc.Function.Arguments,
+					},
+				}
+				toolCallIdx = append(toolCallIdx, tc.Index)
+				if tc.ID != "" && tc.Function.Name != "" {
+					emit(StreamEvent{
+						Kind:       StreamEventToolCallStarted,
+						ToolCallID: tc.ID,
+						ToolName:   tc.Function.Name,
+					})
+				}
+			} else {
+				// Update fields that arrive in later chunks.
+				entry := toolCallMap[tc.Index]
+				if tc.ID != "" {
+					entry.ID = tc.ID
+				}
+				if tc.Function.Name != "" {
+					entry.Function.Name = tc.Function.Name
+				}
+				// Arguments arrive as partial JSON strings; concatenate.
+				entry.Function.Arguments += tc.Function.Arguments
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return Completion{}, fmt.Errorf("ask/provider: openai-compat stream read: %w", err)
+	}
+	// A well-formed stream terminates with "data: [DONE]". Reaching EOF without
+	// it means the connection dropped mid-stream (after the HTTP 200), so the
+	// accumulated text/tool calls are incomplete. Fail rather than return a
+	// truncated completion as if it were successful.
+	if !sawDone {
+		return Completion{}, fmt.Errorf("ask/provider: openai-compat stream ended before [DONE] terminator")
+	}
+
+	// Assemble the final completion from accumulated state.
+	comp := Completion{
+		Text:       textBuf.String(),
+		StopReason: finishReason,
+		Usage: TokenUsage{
+			InputTokens:  usage.PromptTokens,
+			OutputTokens: usage.CompletionTokens,
+		},
+	}
+	for _, idx := range toolCallIdx {
+		tc := toolCallMap[idx]
+		var args map[string]any
+		if tc.Function.Arguments != "" {
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+				return Completion{}, fmt.Errorf("ask/provider: openai-compat stream: tool call %q has malformed arguments: %w", tc.ID, err)
+			}
+		}
+		comp.ToolCalls = append(comp.ToolCalls, ToolCall{
+			ID:        tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: args,
+		})
+	}
+	return comp, nil
 }
 
 // buildRequest constructs the OpenAI-compatible request body from

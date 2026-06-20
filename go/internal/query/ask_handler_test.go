@@ -9,7 +9,9 @@ import (
 	"testing"
 )
 
-// fakeAsker is an Asker stub for unit tests.
+// fakeAsker is an Asker stub for unit tests. AskStream returns ErrNoStreaming
+// so the SSE handler exercises the synchronous fallback path by default. Tests
+// that need live streaming should use fakeStreamingAsker instead.
 type fakeAsker struct {
 	answer AskAnswer
 	err    error
@@ -19,11 +21,21 @@ func (f *fakeAsker) Ask(_ *http.Request, _ string) (AskAnswer, error) {
 	return f.answer, f.err
 }
 
+// AskStream returns ErrNoStreaming so tests using fakeAsker exercise the
+// synchronous SSE fallback path.
+func (f *fakeAsker) AskStream(_ *http.Request, _ string, _ func(AskStreamEvent)) (AskAnswer, error) {
+	return AskAnswer{}, ErrNoStreaming
+}
+
 // errAsker always returns an error.
 type errAsker struct{}
 
 func (e *errAsker) Ask(_ *http.Request, _ string) (AskAnswer, error) {
 	return AskAnswer{}, &fakeAskErr{}
+}
+
+func (e *errAsker) AskStream(_ *http.Request, _ string, _ func(AskStreamEvent)) (AskAnswer, error) {
+	return AskAnswer{}, ErrNoStreaming
 }
 
 type fakeAskErr struct{}

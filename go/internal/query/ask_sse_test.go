@@ -258,9 +258,35 @@ func (e *errAskerWithSecret) Ask(_ *http.Request, _ string) (AskAnswer, error) {
 	return AskAnswer{}, &sseSecretError{secret: e.secret}
 }
 
+func (e *errAskerWithSecret) AskStream(_ *http.Request, _ string, _ func(AskStreamEvent)) (AskAnswer, error) {
+	return AskAnswer{}, &sseSecretError{secret: e.secret}
+}
+
 type sseSecretError struct{ secret string }
 
 func (e *sseSecretError) Error() string { return "engine failure: " + e.secret }
+
+// fakeStreamingAsker emits a configurable sequence of AskStreamEvents before
+// returning a final AskAnswer. Used to verify the live streaming SSE path.
+type fakeStreamingAsker struct {
+	events []AskStreamEvent
+	answer AskAnswer
+	err    error
+}
+
+func (f *fakeStreamingAsker) Ask(_ *http.Request, _ string) (AskAnswer, error) {
+	return f.answer, f.err
+}
+
+func (f *fakeStreamingAsker) AskStream(_ *http.Request, _ string, emit func(AskStreamEvent)) (AskAnswer, error) {
+	if f.err != nil {
+		return AskAnswer{}, f.err
+	}
+	for _, ev := range f.events {
+		emit(ev)
+	}
+	return f.answer, nil
+}
 
 func TestAskSSE_NonSSEPathUnchanged(t *testing.T) {
 	t.Parallel()

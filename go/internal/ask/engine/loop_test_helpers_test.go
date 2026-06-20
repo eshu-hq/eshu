@@ -68,3 +68,43 @@ func supportedEnvelope() *query.ResponseEnvelope {
 		},
 	}
 }
+
+// scriptedStreamingAdapter replays a pre-configured sequence of Completion
+// values via CompleteStream, calling emit once per token delta in the scripted
+// deltas slice for each turn, then returning the Completion. It implements
+// provider.StreamingAdapter so engine.AskStream can use it directly.
+type scriptedStreamingAdapter struct {
+	// turns is indexed by call count. The Completion at turns[i] is returned
+	// on the (i+1)-th CompleteStream call.
+	turns []provider.Completion
+	// tokenDeltas maps call index → list of token delta strings emitted.
+	tokenDeltas [][]string
+	calls       int
+}
+
+// Complete is a no-op synchronous fallback (satisfies provider.Adapter).
+func (a *scriptedStreamingAdapter) Complete(_ context.Context, _ []provider.Message, _ []provider.Tool) (provider.Completion, error) {
+	idx := a.calls
+	a.calls++
+	if idx < len(a.turns) {
+		return a.turns[idx], nil
+	}
+	return provider.Completion{Text: "default final"}, nil
+}
+
+func (a *scriptedStreamingAdapter) ModelID() string { return "scripted-streaming-model" }
+
+// CompleteStream emits tokenDeltas[i] for call i, then returns turns[i].
+func (a *scriptedStreamingAdapter) CompleteStream(_ context.Context, _ []provider.Message, _ []provider.Tool, emit func(provider.StreamEvent)) (provider.Completion, error) {
+	idx := a.calls
+	a.calls++
+	if idx < len(a.tokenDeltas) {
+		for _, delta := range a.tokenDeltas[idx] {
+			emit(provider.StreamEvent{Kind: provider.StreamEventToken, TextDelta: delta})
+		}
+	}
+	if idx < len(a.turns) {
+		return a.turns[idx], nil
+	}
+	return provider.Completion{Text: "default final"}, nil
+}

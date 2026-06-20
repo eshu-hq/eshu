@@ -1,7 +1,10 @@
 package provider
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -61,6 +64,211 @@ func (a *anthropicAdapter) Complete(ctx context.Context, messages []Message, too
 	}
 
 	return mapResponse(resp), nil
+}
+
+// CompleteStream sends messages and tools to the Anthropic Messages API with
+// stream=true and calls emit for each token delta and tool-call-started event
+// as the provider yields them. It returns the fully assembled Completion once
+// the stream ends.
+//
+// The Anthropic streaming protocol uses alternating "event:" and "data:" lines.
+// Token deltas arrive as content_block_delta events with delta.type="text_delta".
+// Tool calls arrive as content_block_start events with block.type="tool_use",
+// followed by content_block_delta events with delta.type="input_json_delta".
+//
+// Leak safety: emit receives only bounded TextDelta and tool identifier fields.
+// Raw event bodies, API keys, and error text are never passed to emit.
+func (a *anthropicAdapter) CompleteStream(ctx context.Context, messages []Message, tools []Tool, emit func(StreamEvent)) (Completion, error) {
+	req := a.buildStreamRequest(messages, tools)
+
+	headers := map[string]string{
+		"anthropic-version": "2023-06-01",
+	}
+	if a.apiKey != "" {
+		headers["x-api-key"] = a.apiKey
+	}
+
+	body, err := a.t.postJSONStream(ctx, a.baseURL+"/v1/messages", headers, req)
+	if err != nil {
+		return Completion{}, err
+	}
+	defer drainAndClose(body)
+
+	return parseAnthropicStream(body, emit)
+}
+
+// buildStreamRequest constructs an Anthropic request with stream=true.
+func (a *anthropicAdapter) buildStreamRequest(messages []Message, tools []Tool) anthropicStreamRequest {
+	base := a.buildRequest(messages, tools)
+	return anthropicStreamRequest{
+		anthropicRequest: base,
+		Stream:           true,
+	}
+}
+
+// anthropicStreamRequest extends anthropicRequest with the stream field.
+type anthropicStreamRequest struct {
+	anthropicRequest
+	Stream bool `json:"stream"`
+}
+
+// parseAnthropicStream reads the Anthropic SSE stream, emitting events for
+// each text delta and tool-call start. It returns the assembled Completion
+// when the stream ends with a message_stop event.
+//
+// The Anthropic streaming format pairs "event: <type>" with "data: <json>":
+//   - event: content_block_start → new block (text or tool_use)
+//   - event: content_block_delta → incremental delta for current block
+//   - event: message_delta       → stop_reason and usage
+//   - event: message_stop        → end of stream
+func parseAnthropicStream(body interface {
+	Read([]byte) (int, error)
+}, emit func(StreamEvent)) (Completion, error) {
+	type streamDelta struct {
+		Type        string `json:"type"`
+		Text        string `json:"text"`
+		PartialJSON string `json:"partial_json"`
+	}
+	type streamBlock struct {
+		Type  string         `json:"type"`
+		Index int            `json:"index"`
+		ID    string         `json:"id"`
+		Name  string         `json:"name"`
+		Input map[string]any `json:"input"`
+		Text  string         `json:"text"`
+	}
+	type deltaEvent struct {
+		Type         string      `json:"type"`
+		Delta        streamDelta `json:"delta"`
+		Index        int         `json:"index"`
+		ContentBlock streamBlock `json:"content_block"`
+	}
+	type messageDeltaUsage struct {
+		OutputTokens int `json:"output_tokens"`
+	}
+	type messageDeltaData struct {
+		Delta struct {
+			StopReason string `json:"stop_reason"`
+		} `json:"delta"`
+		Usage messageDeltaUsage `json:"usage"`
+	}
+	type messageStartData struct {
+		Message struct {
+			Usage anthropicUsage `json:"usage"`
+		} `json:"message"`
+	}
+
+	var (
+		textBuf      strings.Builder
+		stopReason   string
+		inputTokens  int
+		outputTokens int
+		// blockIndex → accumulated tool-call metadata.
+		toolByIndex = make(map[int]*ToolCall)
+		// blockIndex → accumulated partial input JSON string.
+		toolInputBuf = make(map[int]*strings.Builder)
+		// preserve insertion order.
+		toolOrder []int
+	)
+
+	scanner := bufio.NewScanner(body)
+	var currentEventType string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "event: ") {
+			currentEventType = strings.TrimPrefix(line, "event: ")
+			continue
+		}
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		payload := strings.TrimPrefix(line, "data: ")
+
+		switch currentEventType {
+		case "message_start":
+			var ms messageStartData
+			if err := json.Unmarshal([]byte(payload), &ms); err == nil {
+				inputTokens = ms.Message.Usage.InputTokens
+				outputTokens = ms.Message.Usage.OutputTokens
+			}
+
+		case "content_block_start":
+			var ev deltaEvent
+			if err := json.Unmarshal([]byte(payload), &ev); err != nil {
+				continue
+			}
+			if ev.ContentBlock.Type == "tool_use" {
+				tc := &ToolCall{
+					ID:   ev.ContentBlock.ID,
+					Name: ev.ContentBlock.Name,
+				}
+				toolByIndex[ev.Index] = tc
+				toolInputBuf[ev.Index] = &strings.Builder{}
+				toolOrder = append(toolOrder, ev.Index)
+				if tc.ID != "" && tc.Name != "" {
+					emit(StreamEvent{
+						Kind:       StreamEventToolCallStarted,
+						ToolCallID: tc.ID,
+						ToolName:   tc.Name,
+					})
+				}
+			}
+
+		case "content_block_delta":
+			var ev deltaEvent
+			if err := json.Unmarshal([]byte(payload), &ev); err != nil {
+				continue
+			}
+			switch ev.Delta.Type {
+			case "text_delta":
+				if ev.Delta.Text != "" {
+					emit(StreamEvent{Kind: StreamEventToken, TextDelta: ev.Delta.Text})
+					textBuf.WriteString(ev.Delta.Text)
+				}
+			case "input_json_delta":
+				// Accumulate partial tool input JSON; do not emit (internal detail).
+				if buf, ok := toolInputBuf[ev.Index]; ok {
+					buf.WriteString(ev.Delta.PartialJSON)
+				}
+			}
+
+		case "message_delta":
+			var md messageDeltaData
+			if err := json.Unmarshal([]byte(payload), &md); err == nil {
+				if md.Delta.StopReason != "" {
+					stopReason = md.Delta.StopReason
+				}
+				if md.Usage.OutputTokens > 0 {
+					outputTokens = md.Usage.OutputTokens
+				}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return Completion{}, fmt.Errorf("ask/provider: anthropic stream read: %w", err)
+	}
+
+	comp := Completion{
+		Text:       textBuf.String(),
+		StopReason: stopReason,
+		Usage: TokenUsage{
+			InputTokens:  inputTokens,
+			OutputTokens: outputTokens,
+		},
+	}
+	for _, idx := range toolOrder {
+		tc := toolByIndex[idx]
+		if buf, ok := toolInputBuf[idx]; ok && buf.Len() > 0 {
+			var args map[string]any
+			if err := json.Unmarshal([]byte(buf.String()), &args); err != nil {
+				return Completion{}, fmt.Errorf("ask/provider: anthropic stream: tool call %q has malformed input: %w", tc.ID, err)
+			}
+			tc.Arguments = args
+		}
+		comp.ToolCalls = append(comp.ToolCalls, *tc)
+	}
+	return comp, nil
 }
 
 // buildRequest constructs the Anthropic API request body from provider-neutral

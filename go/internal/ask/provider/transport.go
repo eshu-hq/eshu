@@ -94,6 +94,32 @@ func (t *transport) postJSON(ctx context.Context, url string, headers map[string
 	}
 }
 
+// postJSONStream marshals reqBody as JSON and POSTs it to url, returning the
+// response body open for incremental reading (for streaming responses). The
+// caller is responsible for draining and closing the returned body. Only 2xx
+// responses are returned; any non-2xx response causes an error, and the body
+// is drained and discarded so it never leaks into the error value. No automatic
+// retry is applied for streaming calls because the response body is consumed
+// incrementally and cannot be safely replayed.
+func (t *transport) postJSONStream(ctx context.Context, url string, headers map[string]string, reqBody any) (io.ReadCloser, error) {
+	raw, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("ask/provider: marshal stream request: %w", err)
+	}
+	resp, err := t.doOnce(ctx, url, headers, raw)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		drainAndClose(resp.Body)
+		return nil, &ProviderError{
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("provider returned HTTP %d", resp.StatusCode),
+		}
+	}
+	return resp.Body, nil
+}
+
 // doOnce builds and executes a single POST request.
 func (t *transport) doOnce(ctx context.Context, url string, headers map[string]string, body []byte) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))

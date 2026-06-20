@@ -1,6 +1,7 @@
 package query
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -36,13 +37,45 @@ type AskTraceEntry struct {
 	Err        string
 }
 
+// AskStreamEvent is the handler-layer streaming event emitted by AskStream.
+// It carries exactly one of TextDelta (for token events) or TraceEntry (for
+// completed tool-call events). Callers must inspect Kind to determine which
+// field is populated.
+//
+// Leak safety: only bounded assistant text deltas and tool identifiers are
+// ever included. Provider error bodies, credentials, and raw LLM frames are
+// never present.
+type AskStreamEvent struct {
+	// Kind is "token", "tool_call_started", or "trace_entry".
+	Kind string
+	// TextDelta is the incremental assistant text for Kind=="token".
+	TextDelta string
+	// ToolCallID is the provider call ID for Kind=="tool_call_started".
+	ToolCallID string
+	// ToolName is the tool name for Kind=="tool_call_started".
+	ToolName string
+	// TraceEntry is the completed tool-call result for Kind=="trace_entry".
+	TraceEntry *AskTraceEntry
+}
+
 // Asker is the minimal interface AskHandler requires. Implementations convert
 // an HTTP request + question into an AskAnswer using the engine. The interface
 // lives in this package so cmd/api can implement it without creating a cycle:
 // the implementation imports ask/engine; ask_handler.go does not.
 type Asker interface {
 	Ask(r *http.Request, question string) (AskAnswer, error)
+	// AskStream drives a streaming Ask session, calling emit for each
+	// AskStreamEvent as it occurs, and returns the final AskAnswer. When the
+	// underlying engine or adapter does not support streaming, implementations
+	// may return (zero, ErrNoStreaming) to cause the SSE handler to fall back
+	// to the synchronous Ask path.
+	AskStream(r *http.Request, question string, emit func(AskStreamEvent)) (AskAnswer, error)
 }
+
+// ErrNoStreaming is returned by Asker.AskStream implementations whose adapter
+// does not support streaming. The SSE handler uses this signal to fall back to
+// the synchronous Ask path rather than returning an error to the client.
+var ErrNoStreaming = fmt.Errorf("ask: adapter does not support streaming")
 
 // AskHandler handles POST /api/v0/ask.
 //
