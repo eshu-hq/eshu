@@ -253,3 +253,21 @@ func TestLoadStatusesFromEnvRejectsUnknownProfileDimensions(t *testing.T) {
 		})
 	}
 }
+
+func TestParseProfilesJSONAcceptsMiniMaxAgentReasoning(t *testing.T) {
+	t.Parallel()
+	raw := `[{"profile_id":"ask-minimax","provider_kind":"minimax",
+		"credential_source":{"kind":"environment_variable","handle":"MINIMAX_API_KEY"},
+		"model_id":"MiniMax-Text-01","source_classes":["agent_reasoning"],
+		"source_policy_configured":true}]`
+	profiles, err := semanticprofile.ParseProfilesJSON(raw)
+	if err != nil {
+		t.Fatalf("ParseProfilesJSON minimax/agent_reasoning error = %v, want nil", err)
+	}
+	if len(profiles) != 1 || profiles[0].ProviderKind != semanticprofile.ProviderMiniMax {
+		t.Fatalf("got %+v", profiles)
+	}
+	if len(profiles[0].SourceClasses) != 1 || profiles[0].SourceClasses[0] != semanticprofile.SourceAgentReasoning {
+		t.Fatalf("source classes = %v, want [agent_reasoning]", profiles[0].SourceClasses)
+	}
+}

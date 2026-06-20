@@ -23,6 +23,8 @@ const (
 	ProviderOpenAICompatible = "openai_compatible"
 	// ProviderDeepSeek identifies a DeepSeek provider profile.
 	ProviderDeepSeek = "deepseek"
+	// ProviderMiniMax identifies a MiniMax provider profile.
+	ProviderMiniMax = "minimax"
 	// ProviderGemini identifies a Gemini provider profile.
 	ProviderGemini = "gemini"
 	// ProviderBedrock identifies an AWS Bedrock provider profile.
@@ -59,6 +61,8 @@ const (
 	SourceCodeHints = "code_hints"
 	// SourceSearchDocuments allows curated search-document embedding builds.
 	SourceSearchDocuments = "search_documents"
+	// SourceAgentReasoning allows agent reasoning and planning semantic observations.
+	SourceAgentReasoning = "agent_reasoning"
 )
 
 var (
@@ -66,6 +70,7 @@ var (
 		ProviderAnthropic,
 		ProviderOpenAICompatible,
 		ProviderDeepSeek,
+		ProviderMiniMax,
 		ProviderGemini,
 		ProviderBedrock,
 		ProviderAzureOpenAI,
@@ -85,6 +90,7 @@ var (
 		SourceTicketsChat,
 		SourceCodeHints,
 		SourceSearchDocuments,
+		SourceAgentReasoning,
 	}
 	envVarNamePattern = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 )

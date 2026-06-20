@@ -210,6 +210,7 @@ func isSupportedSourceClass(sourceClass string) bool {
 		semanticprofile.SourceTicketsChat,
 		semanticprofile.SourceCodeHints,
 		semanticprofile.SourceSearchDocuments,
+		semanticprofile.SourceAgentReasoning,
 	}, sourceClass)
 }
 
