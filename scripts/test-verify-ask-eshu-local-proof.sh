@@ -42,6 +42,15 @@ fi
 deepseek_log="${tmp_dir}/deepseek.log"
 bash "${verifier}" --deepseek --list >"${deepseek_log}"
 rg --fixed-strings --quiet "operator-local real DeepSeek end-to-end rerun" "${deepseek_log}"
+rg --fixed-strings --quiet "curl --fail-with-body" "${deepseek_log}"
+rg --fixed-strings --quiet "GET /api/v0/status/answer-narration" "${deepseek_log}"
+rg --fixed-strings --quiet "POST /api/v0/ask JSON" "${deepseek_log}"
+rg --fixed-strings --quiet "Accept: text/event-stream" "${deepseek_log}"
+rg --fixed-strings --quiet "answer-quality-scorecard --from" "${deepseek_log}"
+if rg --fixed-strings --quiet "bring up the runtime stack" "${deepseek_log}"; then
+	printf '%s\n' '--deepseek --list still contains manual-only runtime instructions' >&2
+	exit 1
+fi
 
 # Unknown options must fail closed.
 if bash "${verifier}" --not-a-flag >/dev/null 2>&1; then
@@ -49,10 +58,150 @@ if bash "${verifier}" --not-a-flag >/dev/null 2>&1; then
 	exit 1
 fi
 
+fake_bin="${tmp_dir}/bin"
+mkdir -p "${fake_bin}"
+cat >"${fake_bin}/curl" <<'FAKE_CURL'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${FAKE_CURL_LOG:?}"
+if [[ "${FAKE_CURL_FAIL:-}" == "status" && "$*" == *"/api/v0/status/answer-narration"* ]]; then
+	exit 22
+fi
+if [[ "${FAKE_CURL_FAIL:-}" == "json" && "$*" == *"/api/v0/ask"* && "$*" != *"text/event-stream"* ]]; then
+	exit 22
+fi
+if [[ "${FAKE_CURL_FAIL:-}" == "sse" && "$*" == *"text/event-stream"* ]]; then
+	exit 22
+fi
+if [[ "$*" == *"/api/v0/status/answer-narration"* ]]; then
+	printf '{"provider_configured":true,"state":"available"}\n'
+elif [[ "$*" == *"text/event-stream"* ]]; then
+	if [[ "${FAKE_CURL_BAD_SSE:-}" == "true" ]]; then
+		printf 'event: token\ndata: {"delta":"missing done"}\n\n'
+	elif [[ "${FAKE_CURL_LEAK:-}" == "true" ]]; then
+		printf 'event: token\ndata: {"delta":"AKIAIOSFODNN7EXAMPLE"}\n\nevent: done\ndata: {}\n\n'
+	else
+		printf 'event: token\ndata: {"delta":"governed"}\n\nevent: answer\ndata: {"answer_prose":"governed answer","evidence_handles":["citation:redacted-demo"],"truth":{"level":"code_hint"}}\n\nevent: done\ndata: {}\n\n'
+	fi
+elif [[ "$*" == *"/api/v0/ask"* ]]; then
+	if [[ "${FAKE_CURL_LEAK:-}" == "true" ]]; then
+		printf '{"answer_prose":"AKIAIOSFODNN7EXAMPLE","evidence_handles":["citation:redacted-demo"],"truth":{"level":"code_hint"}}\n'
+	else
+		printf '{"answer_prose":"governed answer","evidence_handles":["citation:redacted-demo"],"truth":{"level":"code_hint"}}\n'
+	fi
+else
+	printf 'unexpected curl call: %s\n' "$*" >&2
+	exit 2
+fi
+FAKE_CURL
+cat >"${fake_bin}/go" <<'FAKE_GO'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${FAKE_GO_LOG:?}"
+if [[ "$*" == *"answer-quality-scorecard"* && "${FAKE_SCORECARD_FAIL:-}" == "true" ]]; then
+	exit 17
+fi
+exit 0
+FAKE_GO
+chmod +x "${fake_bin}/curl" "${fake_bin}/go"
+
+run_fake_deepseek() {
+	local out="$1"
+	shift
+	PATH="${fake_bin}:$PATH" \
+		FAKE_CURL_LOG="${tmp_dir}/curl.log" \
+		FAKE_GO_LOG="${tmp_dir}/go.log" \
+		ESHU_ASK_DEEPSEEK_API_KEY="redacted-test-key" \
+		ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[]}' \
+		ESHU_ASK_LOCAL_PROOF_BASE_URL="https://localhost.example" \
+		ESHU_ASK_LOCAL_PROOF_API_TOKEN="redacted-api-token" \
+		"$@" bash "${verifier}" --deepseek >"${out}" 2>&1
+}
+
+# Missing live-proof configuration must fail before invoking curl or go.
+missing_env_log="${tmp_dir}/missing-env.log"
+if PATH="${fake_bin}:$PATH" \
+	FAKE_CURL_LOG="${tmp_dir}/missing-curl.log" \
+	FAKE_GO_LOG="${tmp_dir}/missing-go.log" \
+	ESHU_ASK_DEEPSEEK_API_KEY="redacted-test-key" \
+	ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[]}' \
+	ESHU_ASK_LOCAL_PROOF_BASE_URL="https://localhost.example" \
+	env -u ESHU_ASK_LOCAL_PROOF_API_TOKEN bash "${verifier}" --deepseek >"${missing_env_log}" 2>&1; then
+	printf '%s\n' '--deepseek passed without ESHU_ASK_LOCAL_PROOF_API_TOKEN' >&2
+	exit 1
+fi
+if rg --fixed-strings --quiet "ask eshu local proof verification passed" "${missing_env_log}"; then
+	printf '%s\n' '--deepseek printed pass text after missing env failure' >&2
+	exit 1
+fi
+if [[ -s "${tmp_dir}/missing-curl.log" || -s "${tmp_dir}/missing-go.log" ]]; then
+	printf '%s\n' '--deepseek invoked proof commands before validating required env' >&2
+	exit 1
+fi
+
+# With fake live services, --deepseek must run status, JSON Ask, SSE Ask, and
+# scorecard commands before printing the final pass line.
+>"${tmp_dir}/curl.log"
+>"${tmp_dir}/go.log"
+success_log="${tmp_dir}/success.log"
+run_fake_deepseek "${success_log}" env
+rg --fixed-strings --quiet "/api/v0/status/answer-narration" "${tmp_dir}/curl.log"
+rg --fixed-strings --quiet "/api/v0/ask" "${tmp_dir}/curl.log"
+rg --fixed-strings --quiet "Accept: text/event-stream" "${tmp_dir}/curl.log"
+rg --fixed-strings --quiet "answer-quality-scorecard --from" "${tmp_dir}/go.log"
+rg --fixed-strings --quiet "ask eshu local proof verification passed" "${success_log}"
+
+# Live request, SSE framing, scorecard, and redaction failures must all fail
+# closed without printing the final pass marker.
+for failure in json sse; do
+	>"${tmp_dir}/curl.log"
+	>"${tmp_dir}/go.log"
+	failure_log="${tmp_dir}/curl-${failure}.log"
+	if run_fake_deepseek "${failure_log}" env FAKE_CURL_FAIL="${failure}"; then
+		printf '%s\n' "--deepseek passed despite fake ${failure} curl failure" >&2
+		exit 1
+	fi
+	if rg --fixed-strings --quiet "ask eshu local proof verification passed" "${failure_log}"; then
+		printf '%s\n' "--deepseek printed pass text after ${failure} curl failure" >&2
+		exit 1
+	fi
+done
+
+bad_sse_log="${tmp_dir}/bad-sse.log"
+if run_fake_deepseek "${bad_sse_log}" env FAKE_CURL_BAD_SSE=true; then
+	printf '%s\n' '--deepseek passed despite malformed SSE transcript' >&2
+	exit 1
+fi
+
+scorecard_failure_log="${tmp_dir}/scorecard-failure.log"
+if run_fake_deepseek "${scorecard_failure_log}" env FAKE_SCORECARD_FAIL=true; then
+	printf '%s\n' '--deepseek passed despite scorecard failure' >&2
+	exit 1
+fi
+if rg --fixed-strings --quiet "ask eshu local proof verification passed" "${scorecard_failure_log}"; then
+	printf '%s\n' '--deepseek printed pass text after scorecard failure' >&2
+	exit 1
+fi
+
+leak_log="${tmp_dir}/leak.log"
+if run_fake_deepseek "${leak_log}" env FAKE_CURL_LEAK=true; then
+	printf '%s\n' '--deepseek passed despite secret-like live response' >&2
+	exit 1
+fi
+if rg --fixed-strings --quiet "AKIAIOSFODNN7EXAMPLE" "${leak_log}"; then
+	printf '%s\n' '--deepseek printed an unredacted live secret-like value' >&2
+	exit 1
+fi
+
 # Redaction: neither the verifier script nor the committed scorecard fixture may
-# contain real-looking secrets, private hostnames, raw addresses, or Boats IP.
+# contain real-looking secrets, private organization terms, hostnames, or raw addresses.
 secret_pattern='AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|xox[baprs]-[0-9A-Za-z-]+|\bsk-(live|prod)-[0-9A-Za-z]+'
-host_pattern='boatsgroup|boattrader|\.internal\b|\.corp\b|[0-9]{1,3}(\.[0-9]{1,3}){3}'
+marine='boat'
+group_suffix='sgroup'
+marketplace_suffix='trader'
+octet='[[:digit:]]{1,3}'
+private_tld='\.(internal|corp)\b'
+host_pattern="${marine}${group_suffix}|${marine}${marketplace_suffix}|${private_tld}|${octet}(\.${octet}){3}"
 for target in "${verifier}" "${fixture}"; do
 	if rg --pcre2 --quiet "${secret_pattern}" "${target}"; then
 		printf 'redaction failure: secret-like value found in %s\n' "${target}" >&2

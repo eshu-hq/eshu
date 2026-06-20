@@ -224,8 +224,8 @@ func citedEnvelopeBody(summary string) []byte {
 // be overridden per case via the overrides map (an empty value deletes the key).
 func askProofEnv(stubURL string, overrides map[string]string) func(string) string {
 	base := map[string]string{
-		"ESHU_ASK_ENABLED":                     "true",
-		"ESHU_ASK_NARRATION_ENABLED":           "true",
+		"ESHU_ASK_ENABLED":                      "true",
+		"ESHU_ASK_NARRATION_ENABLED":            "true",
 		semanticprofile.EnvProviderProfilesJSON: stubProviderProfilesJSON(stubURL),
 		askProofCredEnv:                         askProofCredValue,
 	}
@@ -263,11 +263,26 @@ func buildAskProofHandler(t *testing.T, getenv func(string) string, innerLeaf ht
 	// scoped-auth-wrapped handler with an optional controllable leaf override.
 	inProcess := http.Handler(authedMux)
 	if innerLeaf != nil {
-		inProcess = leafOverrideHandler{leafPath: askProofCodeRoute, leaf: innerLeaf, rest: authedMux}
+		leaf := authRequiredLeafHandler{leaf: innerLeaf}
+		inProcess = leafOverrideHandler{leafPath: askProofCodeRoute, leaf: leaf, rest: authedMux}
 	}
 
 	mountAskAndNarration(getenv, apiMux, inProcess, askProofAPIKey, router.Status, slog.Default())
 	return authedMux
+}
+
+// authRequiredLeafHandler keeps the backend-dependent stub behind the same
+// propagated bearer header the real in-process runner must carry.
+type authRequiredLeafHandler struct {
+	leaf http.Handler
+}
+
+func (h authRequiredLeafHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Authorization") != "Bearer "+askProofAPIKey {
+		http.Error(w, "missing propagated authorization", http.StatusUnauthorized)
+		return
+	}
+	h.leaf.ServeHTTP(w, r)
 }
 
 // leafOverrideHandler routes leafPath to leaf and everything else to rest. It

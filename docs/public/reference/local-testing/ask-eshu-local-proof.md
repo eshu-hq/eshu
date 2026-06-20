@@ -100,18 +100,40 @@ they do in production.
 ## Operator-Local Real DeepSeek Rerun
 
 The hosted, real-DeepSeek end-to-end rerun is operator-local only. Run it from a
-private operator environment that exports real DeepSeek credentials:
+private operator environment that already has a live Eshu API stack running with
+the DeepSeek `agent_reasoning` profile configured. Export only operator-local
+values; do not commit transcripts, credentials, private endpoints, or captured
+responses:
 
 ```bash
+export ESHU_ASK_DEEPSEEK_API_KEY='<operator-local value>'
+export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='<operator-local provider profile JSON>'
+export ESHU_ASK_LOCAL_PROOF_BASE_URL='<operator-local Eshu API base URL>'
+export ESHU_ASK_LOCAL_PROOF_API_TOKEN='<operator-local API token>'
+
 scripts/verify-ask-eshu-local-proof.sh --deepseek
 ```
 
 This branch refuses to run unless the operator credential environment variables
 are present, and it never echoes their values. CI never sets these, so the branch
-never runs in CI. Bring up the runtime stack with the live `agent_reasoning`
-DeepSeek profile, POST /api/v0/ask (JSON and SSE), capture a REDACTED transcript,
-and re-run the scorecard against the redacted capture. Do not commit any captured
-output: redact every path, hostname, credential, and address before scoring.
+never runs in CI. When enabled, the script runs the offline proof first, then
+executes the live API proof:
+
+```bash
+GET  /api/v0/status/answer-narration
+POST /api/v0/ask                 # JSON
+POST /api/v0/ask                 # SSE with Accept: text/event-stream
+go run ./cmd/eshu answer-quality-scorecard \
+  --from cmd/eshu/testdata/ask-eshu-local-proof-scorecard.json
+```
+
+The live response captures stay in a temporary directory, are never printed, and
+are scanned before the final pass marker. Any credential-like value, private
+host, raw address, missing JSON evidence/truth field, missing SSE answer/done
+frame, failed curl request, or scorecard failure makes the proof exit non-zero.
+The scorecard command still consumes the committed redacted
+`answer-quality-scorecard/v1` artifact; raw Ask API transcripts are not treated
+as scorecard artifacts.
 
 ## Answer-Quality Scorecard Fixture
 
