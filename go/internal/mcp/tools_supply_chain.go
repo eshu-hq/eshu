@@ -4,7 +4,7 @@ func supplyChainTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "get_vulnerability_scanner_read_contract",
-			Description: "Return the API/MCP vulnerability scanner read contract, including supported filters, unsupported filters, route consistency rules, backing read models, and missing-evidence semantics.",
+			Description: "Return the API/MCP vulnerability scanner read contract, including supported filters, unsupported filters, route consistency rules, backing read models, remediation packet schema, and missing-evidence semantics.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

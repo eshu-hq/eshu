@@ -25,6 +25,41 @@ type vulnerabilityScannerRouteContract struct {
 	UnsupportedQuery []string `json:"unsupported_query,omitempty"`
 }
 
+type remediationPacketContract struct {
+	SchemaVersion  string                     `json:"schema_version"`
+	Summary        string                     `json:"summary"`
+	Sections       []remediationPacketSection `json:"sections"`
+	MissingStates  []remediationPacketState   `json:"missing_states"`
+	Surfaces       []remediationPacketSurface `json:"surfaces"`
+	SecurityReview remediationPacketSecurity  `json:"security_review"`
+}
+
+type remediationPacketSection struct {
+	Name                     string   `json:"name"`
+	Representation           string   `json:"representation"`
+	Evidence                 []string `json:"evidence"`
+	MissingEvidence          string   `json:"missing_evidence"`
+	DeterministicEvidence    []string `json:"deterministic_evidence,omitempty"`
+	OptionalSemanticRequired bool     `json:"optional_semantic_required"`
+}
+
+type remediationPacketState struct {
+	Name           string `json:"name"`
+	Meaning        string `json:"meaning"`
+	Representation string `json:"representation"`
+}
+
+type remediationPacketSurface struct {
+	Name           string `json:"name"`
+	Representation string `json:"representation"`
+	TruthContract  string `json:"truth_contract"`
+}
+
+type remediationPacketSecurity struct {
+	FalsePositiveControls []string `json:"false_positive_controls"`
+	LeakageControls       []string `json:"leakage_controls"`
+}
+
 func (h *SupplyChainHandler) getVulnerabilityScannerReadContract(w http.ResponseWriter, r *http.Request) {
 	route := QueryParam(r, "route")
 	contract := vulnerabilityScannerReadContract()
@@ -62,7 +97,49 @@ func vulnerabilityScannerReadContract() map[string]any {
 			{Name: "readiness", Support: "missing-evidence driven", Semantics: []string{"missing-evidence driven"}, Parameters: []string{"readiness"}, Routes: []string{"impact_findings", "impact_explain", "scanner_report"}, Backing: "readiness envelope built from source/read-model counts; it is not a row filter"},
 			{Name: "provider_state", Support: "provider-only", Semantics: []string{"provider-only"}, Parameters: []string{"provider_state", "provider"}, Routes: []string{"security_alert_reconciliations", "security_alert_count", "security_alert_inventory"}, Backing: "provider alert reconciliation read model; never changes Eshu impact_status"},
 		},
-		"routes": vulnerabilityScannerRouteContracts(),
+		"routes":             vulnerabilityScannerRouteContracts(),
+		"remediation_packet": remediationPacketReadContract(),
+	}
+}
+
+func remediationPacketReadContract() remediationPacketContract {
+	return remediationPacketContract{
+		SchemaVersion: "eshu.supply_chain_remediation_packet.v1",
+		Summary:       "Deterministic CVE/package-to-owner packet assembled from reducer-owned impact explanation evidence; optional semantic output may summarize it but is never required to populate contract fields.",
+		Sections: []remediationPacketSection{
+			{Name: "vulnerability_fact", Representation: "advisory identity, aliases, severity, source, CVSS/EPSS/KEV/CWE, withdrawn state", Evidence: []string{"vulnerability.cve", "vulnerability.reference", "supply_chain_impact.explanation.advisory"}, MissingEvidence: "missing_advisory_evidence"},
+			{Name: "package_fact", Representation: "ecosystem, normalized package id, installed version, vulnerable range, fixed versions, manifest path, dependency role", Evidence: []string{"vulnerability.affected_package", "package.consumption", "supply_chain_impact.package"}, MissingEvidence: "missing_package_evidence"},
+			{Name: "sbom_subject", Representation: "SBOM document id/digest, subject digest, attachment status, warning summaries", Evidence: []string{"sbom.attestation", "reducer_sbom_attestation_attachment"}, MissingEvidence: "missing_sbom_subject"},
+			{Name: "image_digest", Representation: "digest-first image identity, image reference, OCI repository, source repository bridge, stale-image warning", Evidence: []string{"oci.image_identity", "container_image_identity", "supply_chain_impact.image"}, MissingEvidence: "missing_image_digest"},
+			{Name: "workload", Representation: "reducer-admitted workload id, environment, runtime/image anchors, missing runtime mapping state", Evidence: []string{"service_catalog.correlation", "kubernetes/workload evidence", "supply_chain_impact.workload"}, MissingEvidence: "missing_workload"},
+			{Name: "service", Representation: "service id/name, catalog entity refs, repository/service story anchors", Evidence: []string{"service_catalog.correlation", "service_story.supply_chain"}, MissingEvidence: "missing_service"},
+			{Name: "owner", Representation: "owner/team/contact handle from service catalog or repository ownership evidence", Evidence: []string{"service_catalog.owner", "repository.owner", "workload.owner"}, MissingEvidence: "missing_owner"},
+			{Name: "exposure", Representation: "reachable/runtime/exposed-surface summary with confidence and missing-evidence reason", Evidence: []string{"reachability", "runtime evidence", "cloud/posture evidence"}, MissingEvidence: "missing_exposure_evidence"},
+			{Name: "remediation_recommendation", Representation: "advisory-only upgrade recommendation, next action, confidence, blocker reason, and evidence handles", Evidence: []string{"supply_chain_impact.remediation"}, MissingEvidence: "missing_remediation_evidence", DeterministicEvidence: []string{"installed_version", "vulnerable_range", "fixed_versions", "manifest_range", "direct_or_transitive", "parent_package", "evidence_fact_ids"}, OptionalSemanticRequired: false},
+		},
+		MissingStates: []remediationPacketState{
+			{Name: "missing_owner", Meaning: "owned impact exists, but no admitted service, workload, repository, or catalog owner evidence is available", Representation: "missing_evidence.owner"},
+			{Name: "missing_workload", Meaning: "package/image impact exists, but no reducer-admitted workload/runtime anchor connects the finding to running compute", Representation: "missing_evidence.workload"},
+			{Name: "stale_image", Meaning: "image evidence exists but freshness or source-state indicates the digest/reference may not describe the current deployed workload", Representation: "missing_evidence.image_freshness or freshness.state=stale"},
+			{Name: "permission_hidden", Meaning: "the source collector reports an origin ACL/permission-hidden state; this is source evidence state, not caller authorization", Representation: "missing_evidence.permission_hidden"},
+		},
+		Surfaces: []remediationPacketSurface{
+			{Name: "api", Representation: "/api/v0/supply-chain/impact/explain response payload", TruthContract: "application/eshu.envelope+json with supply_chain.impact.explain truth"},
+			{Name: "mcp", Representation: "explain_supply_chain_impact envelope resource", TruthContract: "MCP resource block with application/eshu.envelope+json"},
+			{Name: "console", Representation: "same packet sections rendered as CVE/package, evidence chain, owner/exposure, gaps, and next action", TruthContract: "Console must preserve API truth labels and missing-evidence state without relabeling gaps as clean"},
+		},
+		SecurityReview: remediationPacketSecurity{
+			FalsePositiveControls: []string{
+				"impact requires owned package/image/workload evidence; advisory-only facts stay source evidence",
+				"ambiguous joins return missing/ambiguous evidence instead of selecting an owner or workload",
+				"recommendations cite deterministic fixed-version and manifest evidence and do not require optional semantic output",
+			},
+			LeakageControls: []string{
+				"permission-hidden source state stays explicit and distinct from caller permission_denied",
+				"payloads use evidence handles and normalized ids; raw private provider payloads, secrets, local paths, and endpoint details stay out",
+				"console and MCP render the same envelope truth and missing-evidence states as the API",
+			},
+		},
 	}
 }
 

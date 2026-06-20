@@ -75,6 +75,97 @@ func TestVulnerabilityScannerReadContractIdentifiesFilters(t *testing.T) {
 	}
 }
 
+func TestVulnerabilityScannerReadContractDefinesRemediationPacket(t *testing.T) {
+	t.Parallel()
+
+	handler := &SupplyChainHandler{}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/vulnerability-scanner/contract",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal envelope: %v", err)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope.Data = %T, want map[string]any", envelope.Data)
+	}
+	packet, ok := data["remediation_packet"].(map[string]any)
+	if !ok {
+		t.Fatalf("remediation_packet = %T, want object", data["remediation_packet"])
+	}
+	if got := packet["schema_version"]; got != "eshu.supply_chain_remediation_packet.v1" {
+		t.Fatalf("remediation_packet.schema_version = %#v, want eshu.supply_chain_remediation_packet.v1", got)
+	}
+
+	sections := scannerContractObjectListByName(t, packet["sections"], "sections")
+	for _, name := range []string{
+		"vulnerability_fact",
+		"package_fact",
+		"sbom_subject",
+		"image_digest",
+		"workload",
+		"service",
+		"owner",
+		"exposure",
+		"remediation_recommendation",
+	} {
+		if sections[name] == nil {
+			t.Fatalf("remediation packet missing section %q; sections = %#v", name, sections)
+		}
+	}
+	recommendation := sections["remediation_recommendation"]
+	if evidence := scannerContractStringSlice(recommendation["deterministic_evidence"]); len(evidence) == 0 {
+		t.Fatalf("remediation recommendation deterministic_evidence = %#v, want at least one deterministic citation field", recommendation["deterministic_evidence"])
+	}
+	if optionalSemantic, ok := recommendation["optional_semantic_required"].(bool); !ok || optionalSemantic {
+		t.Fatalf("remediation recommendation optional_semantic_required = %#v, want false", recommendation["optional_semantic_required"])
+	}
+
+	missingStates := scannerContractObjectListByName(t, packet["missing_states"], "missing_states")
+	for _, name := range []string{"missing_owner", "missing_workload", "stale_image", "permission_hidden"} {
+		if missingStates[name] == nil {
+			t.Fatalf("remediation packet missing state %q; states = %#v", name, missingStates)
+		}
+	}
+
+	surfaces := scannerContractObjectListByName(t, packet["surfaces"], "surfaces")
+	for _, name := range []string{"api", "mcp", "console"} {
+		if surfaces[name] == nil {
+			t.Fatalf("remediation packet missing surface %q; surfaces = %#v", name, surfaces)
+		}
+	}
+	if got := surfaces["api"]["representation"]; got != "/api/v0/supply-chain/impact/explain response payload" {
+		t.Fatalf("api representation = %#v, want explain payload", got)
+	}
+	if got := surfaces["mcp"]["representation"]; got != "explain_supply_chain_impact envelope resource" {
+		t.Fatalf("mcp representation = %#v, want MCP envelope resource", got)
+	}
+
+	securityReview, ok := packet["security_review"].(map[string]any)
+	if !ok {
+		t.Fatalf("security_review = %T, want object", packet["security_review"])
+	}
+	if controls := scannerContractStringSlice(securityReview["false_positive_controls"]); len(controls) == 0 {
+		t.Fatalf("security_review.false_positive_controls = %#v, want controls", securityReview["false_positive_controls"])
+	}
+	if controls := scannerContractStringSlice(securityReview["leakage_controls"]); len(controls) == 0 {
+		t.Fatalf("security_review.leakage_controls = %#v, want controls", securityReview["leakage_controls"])
+	}
+}
+
 func TestVulnerabilityScannerReadContractRejectsUnknownRouteNames(t *testing.T) {
 	t.Parallel()
 
@@ -104,6 +195,27 @@ func scannerContractStringSlice(raw any) []string {
 		if text, ok := item.(string); ok {
 			out = append(out, text)
 		}
+	}
+	return out
+}
+
+func scannerContractObjectListByName(t *testing.T, raw any, field string) map[string]map[string]any {
+	t.Helper()
+	items, ok := raw.([]any)
+	if !ok {
+		t.Fatalf("%s = %T, want []any", field, raw)
+	}
+	out := make(map[string]map[string]any, len(items))
+	for _, item := range items {
+		row, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("%s row = %T, want map[string]any", field, item)
+		}
+		name, _ := row["name"].(string)
+		if name == "" {
+			t.Fatalf("%s row missing name: %#v", field, row)
+		}
+		out[name] = row
 	}
 	return out
 }
