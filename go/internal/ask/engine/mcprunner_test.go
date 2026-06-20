@@ -48,15 +48,18 @@ func TestMCPRunnerRunsReadOnlyTool(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	runner := NewMCPRunner(handler, "", logger)
 
-	envelope, err := runner.Run(context.Background(), "find_code", map[string]any{
+	res, err := runner.Run(context.Background(), "find_code", map[string]any{
 		"query":   "main",
 		"repo_id": "repo-1",
 	})
 	if err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
-	if envelope == nil {
-		t.Fatal("Run() envelope = nil, want non-nil")
+	if res.Envelope == nil {
+		t.Fatal("Run() res.Envelope = nil, want non-nil for canonical envelope response")
+	}
+	if res.Value != nil {
+		t.Fatalf("Run() res.Value = %v, want nil when Envelope is set", res.Value)
 	}
 }
 
@@ -67,15 +70,15 @@ func TestMCPRunnerNilLoggerUsesDiscard(t *testing.T) {
 	// A nil logger must not panic; NewMCPRunner should replace it with a discard logger.
 	runner := NewMCPRunner(handler, "", nil)
 
-	envelope, err := runner.Run(context.Background(), "find_code", map[string]any{
+	res, err := runner.Run(context.Background(), "find_code", map[string]any{
 		"query":   "main",
 		"repo_id": "repo-1",
 	})
 	if err != nil {
 		t.Fatalf("Run() with nil logger error = %v, want nil", err)
 	}
-	if envelope == nil {
-		t.Fatal("Run() with nil logger envelope = nil, want non-nil")
+	if res.Envelope == nil {
+		t.Fatal("Run() with nil logger res.Envelope = nil, want non-nil")
 	}
 }
 

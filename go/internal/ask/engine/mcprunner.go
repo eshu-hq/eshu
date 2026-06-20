@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp"
-	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 // mcpRunner is a Runner that dispatches tool calls in-process through the Eshu
@@ -42,22 +41,22 @@ func NewMCPRunner(handler http.Handler, authHeader string, logger *slog.Logger) 
 	}
 }
 
-// Run dispatches the named read-only tool call in-process and returns the
-// canonical ResponseEnvelope.
+// Run dispatches the named read-only tool call in-process and returns a
+// RunResult describing the outcome.
 //
 // Error handling:
 //   - A non-nil error is returned for transport or dispatch failures (unknown
 //     tool name, handler panic recovery, parse failure). The caller should treat
 //     these as hard failures.
-//   - When isError is true the envelope is still returned rather than converted
-//     to a Go error. This preserves the truth envelope so the engine can wrap it
-//     in a NewAnswerPacket call, which produces an unsupported AnswerPacket that
-//     faithfully reflects the query surface's error verdict rather than silently
-//     dropping it.
-func (r *mcpRunner) Run(ctx context.Context, toolName string, args map[string]any) (*query.ResponseEnvelope, error) {
-	envelope, _, err := mcp.RunReadOnlyTool(ctx, r.handler, toolName, args, r.authHeader, r.logger) // isError is intentionally discarded — the envelope is returned regardless so its error truth becomes an unsupported AnswerPacket downstream; see Run doc.
+//   - When the tool returns a canonical ResponseEnvelope (isError or not), the
+//     envelope is preserved in RunResult.Envelope so its error truth becomes an
+//     unsupported AnswerPacket downstream; see Runner interface doc.
+//   - When the tool returns plain JSON (no canonical envelope), the decoded value
+//     is preserved in RunResult.Value so the engine can feed it to the LLM.
+func (r *mcpRunner) Run(ctx context.Context, toolName string, args map[string]any) (RunResult, error) {
+	envelope, value, _, err := mcp.RunReadOnlyTool(ctx, r.handler, toolName, args, r.authHeader, r.logger) // isError is intentionally discarded — the envelope is returned regardless so its error truth becomes an unsupported AnswerPacket downstream; see Run doc.
 	if err != nil {
-		return nil, err
+		return RunResult{}, err
 	}
-	return envelope, nil
+	return RunResult{Envelope: envelope, Value: value}, nil
 }

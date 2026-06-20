@@ -23,8 +23,11 @@ import (
 //   - Scope and authentication are threaded via ctx and authHeader, exactly as they
 //     are for the normal MCP transport path.
 //
-// Returns (envelope, isError, nil) on a successful dispatch. Returns (nil, false, err)
-// when the tool name is unknown or the dispatch fails before a response is produced.
+// Returns (envelope, value, isError, nil) on a successful dispatch. When the tool
+// response is a canonical ResponseEnvelope, envelope is non-nil and value is nil.
+// When the tool response is plain JSON (e.g. list_collectors), envelope is nil and
+// value carries the decoded payload. Returns (nil, nil, false, err) when the tool
+// name is unknown or the dispatch fails before a response is produced.
 func RunReadOnlyTool(
 	ctx context.Context,
 	handler http.Handler,
@@ -32,10 +35,13 @@ func RunReadOnlyTool(
 	args map[string]any,
 	authHeader string,
 	logger *slog.Logger,
-) (*query.ResponseEnvelope, bool, error) {
+) (*query.ResponseEnvelope, any, bool, error) {
 	result, err := dispatchTool(ctx, handler, toolName, args, authHeader, logger)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	return result.Envelope, result.IsError, nil
+	if result.Envelope != nil {
+		return result.Envelope, nil, result.IsError, nil
+	}
+	return nil, result.Value, result.IsError, nil
 }

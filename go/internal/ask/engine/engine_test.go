@@ -21,8 +21,8 @@ func (s *stubAdapter) ModelID() string { return "stub-model" }
 // stubRunner is a minimal Runner for testing.
 type stubRunner struct{}
 
-func (s *stubRunner) Run(_ context.Context, _ string, _ map[string]any) (*query.ResponseEnvelope, error) {
-	return &query.ResponseEnvelope{}, nil
+func (s *stubRunner) Run(_ context.Context, _ string, _ map[string]any) (RunResult, error) {
+	return RunResult{Envelope: &query.ResponseEnvelope{}}, nil
 }
 
 func TestDefaultOptions(t *testing.T) {

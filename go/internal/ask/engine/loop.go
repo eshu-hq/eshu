@@ -9,6 +9,42 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
+// extractEmbeddedPacket checks whether env.Data is a JSON object containing an
+// "answer_packet" key and, if so, decodes that sub-value into a query.AnswerPacket.
+//
+// Route handlers like service-story and code-topic embed a pre-built AnswerPacket
+// directly in the response Data rather than leaving packet construction to the engine.
+// This helper surfaces that embedded packet so its Summary, EvidenceHandles,
+// CitationRef, RecommendedNextCalls, and truth classification are preserved rather
+// than replaced by a bare NewAnswerPacket call.
+//
+// Returns (packet, true) when the embedded packet was successfully decoded.
+// Returns (zero, false) when env is nil, Data is not an object, the key is absent,
+// or the decode fails — in all fallback cases NewAnswerPacket should be used instead.
+func extractEmbeddedPacket(env *query.ResponseEnvelope) (query.AnswerPacket, bool) {
+	if env == nil {
+		return query.AnswerPacket{}, false
+	}
+	// Marshal Data to JSON so we can inspect it as a raw map.
+	dataBytes, err := json.Marshal(env.Data)
+	if err != nil {
+		return query.AnswerPacket{}, false
+	}
+	var dataMap map[string]json.RawMessage
+	if err := json.Unmarshal(dataBytes, &dataMap); err != nil {
+		return query.AnswerPacket{}, false
+	}
+	raw, ok := dataMap["answer_packet"]
+	if !ok {
+		return query.AnswerPacket{}, false
+	}
+	var pkt query.AnswerPacket
+	if err := json.Unmarshal(raw, &pkt); err != nil {
+		return query.AnswerPacket{}, false
+	}
+	return pkt, true
+}
+
 // maxToolResultBytes is the size cap for the bounded JSON serialized into a
 // tool-result message. When the serialized packet exceeds this threshold the
 // engine falls back to a minimal skeleton containing only the fields a model
@@ -62,6 +98,11 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 			ans.Limitations = appendLimitation(ans.Limitations,
 				fmt.Sprintf("tool calls truncated to %d per turn", e.opts.MaxToolCallsPerTurn))
 			calls = calls[:e.opts.MaxToolCallsPerTurn]
+			// FINDING 3: the assistant message must carry only the dispatched
+			// (truncated) tool calls. Replaying all comp.ToolCalls while only
+			// providing RoleTool responses for the truncated subset causes the
+			// provider to reject the next request due to unmatched IDs.
+			messages[len(messages)-1].ToolCalls = calls
 		}
 
 		for _, call := range calls {
@@ -81,9 +122,21 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 	return ans, nil
 }
 
-// dispatchCall executes a single tool call, records a TraceEntry, assembles an
-// AnswerPacket, and appends a bounded tool-result message to the conversation.
-// It returns the updated messages slice.
+// dispatchCall executes a single tool call, records a TraceEntry, and appends
+// a bounded tool-result message to the conversation. It returns the updated
+// messages slice.
+//
+// There are four outcome branches based on RunResult:
+//  1. Run error: record a failed trace entry and a bounded error tool-result.
+//  2. Envelope non-nil: extract or build an AnswerPacket, append it to
+//     ans.Packets, propagate Partial, and feed the model a bounded JSON of the
+//     packet. FINDING 1: prefer an embedded answer_packet from envelope.Data
+//     over a bare NewAnswerPacket when the route handler attached one.
+//     FINDING 4: when the packet is Partial, set ans.Partial = true.
+//  3. Envelope nil, Value non-nil: the tool returned plain JSON. Feed the model
+//     a bounded JSON of the value; do NOT append an AnswerPacket (no truth
+//     envelope). Record the trace entry as Supported=true.
+//  4. Envelope nil, Value nil: empty result; record as unsupported.
 func (e *Engine) dispatchCall(
 	ctx context.Context,
 	question string,
@@ -91,7 +144,7 @@ func (e *Engine) dispatchCall(
 	messages []provider.Message,
 	ans *Answer,
 ) []provider.Message {
-	env, runErr := e.runner.Run(ctx, call.Name, call.Arguments)
+	res, runErr := e.runner.Run(ctx, call.Name, call.Arguments)
 	if runErr != nil {
 		ans.Trace = append(ans.Trace, TraceEntry{
 			Tool:       call.Name,
@@ -109,25 +162,65 @@ func (e *Engine) dispatchCall(
 		return messages
 	}
 
-	pkt := query.NewAnswerPacket(query.AnswerPacketInput{
-		Question:    question,
-		PrimaryTool: call.Name,
-		Envelope:    env,
-	})
+	if res.Envelope != nil {
+		// FINDING 1: prefer an embedded answer_packet carried by the route handler.
+		pkt, ok := extractEmbeddedPacket(res.Envelope)
+		if !ok {
+			pkt = query.NewAnswerPacket(query.AnswerPacketInput{
+				Question:    question,
+				PrimaryTool: call.Name,
+				Envelope:    res.Envelope,
+			})
+		}
+		// FINDING 4: propagate partial state upward to the aggregate answer.
+		if pkt.Partial {
+			ans.Partial = true
+		}
+		ans.Packets = append(ans.Packets, pkt)
+		ans.Trace = append(ans.Trace, TraceEntry{
+			Tool:       call.Name,
+			Args:       call.Arguments,
+			Supported:  pkt.Supported,
+			TruthClass: pkt.TruthClass,
+		})
+		messages = append(messages, provider.Message{
+			Role:       provider.RoleTool,
+			ToolCallID: call.ID,
+			ToolName:   call.Name,
+			Text:       marshalToolResult(pkt),
+		})
+		return messages
+	}
 
-	ans.Packets = append(ans.Packets, pkt)
+	if res.Value != nil {
+		// FINDING 2: plain-JSON result. Feed the model the bounded data but do
+		// not fabricate an AnswerPacket — there is no truth envelope to score.
+		ans.Trace = append(ans.Trace, TraceEntry{
+			Tool:      call.Name,
+			Args:      call.Arguments,
+			Supported: true,
+		})
+		messages = append(messages, provider.Message{
+			Role:       provider.RoleTool,
+			ToolCallID: call.ID,
+			ToolName:   call.Name,
+			Text:       marshalPlainValue(res.Value),
+		})
+		return messages
+	}
+
+	// Both Envelope and Value are nil: empty or failed result.
 	ans.Trace = append(ans.Trace, TraceEntry{
 		Tool:       call.Name,
 		Args:       call.Arguments,
-		Supported:  pkt.Supported,
-		TruthClass: pkt.TruthClass,
+		Supported:  false,
+		TruthClass: query.AnswerTruthUnsupported,
 	})
-
 	messages = append(messages, provider.Message{
 		Role:       provider.RoleTool,
 		ToolCallID: call.ID,
 		ToolName:   call.Name,
-		Text:       marshalToolResult(pkt),
+		Text:       `{"supported":false,"truth_class":"unsupported"}`,
 	})
 	return messages
 }
@@ -170,6 +263,22 @@ func marshalToolResult(pkt query.AnswerPacket) string {
 		return `{"supported":false,"truth_class":"unsupported"}`
 	}
 	return string(mb)
+}
+
+// marshalPlainValue serialises a plain-JSON tool result into a bounded string
+// for the tool-result message. This is used when the tool returned a plain JSON
+// payload rather than a canonical ResponseEnvelope. The same maxToolResultBytes
+// cap applies; oversized payloads are replaced with a bounded note so the
+// conversation thread stays within the provider's context window.
+func marshalPlainValue(value any) string {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return `{"note":"tool result could not be serialised"}`
+	}
+	if len(b) <= maxToolResultBytes {
+		return string(b)
+	}
+	return fmt.Sprintf(`{"note":"tool result truncated","bytes":%d}`, len(b))
 }
 
 // bestPacketSummary returns the Summary of the first supported packet with a
