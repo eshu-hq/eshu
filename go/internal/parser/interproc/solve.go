@@ -231,6 +231,7 @@ func appendTrailPort(base trailState, next Port) trailState {
 	}
 	out := clonePorts(base.Ports)
 	if len(out) >= maxFindingTrailPorts {
+		out[len(out)-1] = next
 		return trailState{Ports: out, Truncated: true}
 	}
 	out = append(out, next)
