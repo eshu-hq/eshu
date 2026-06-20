@@ -3,12 +3,11 @@ package answerquality
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
-)
 
-var rawAddressPattern = regexp.MustCompile(`\b[0-9]{1,3}(?:\.[0-9]{1,3}){3}\b`)
+	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
+)
 
 // ParseEvidence decodes and version-checks a scorecard evidence payload.
 func ParseEvidence(raw []byte) (Evidence, error) {
@@ -68,7 +67,7 @@ func Score(evidence Evidence) Verdict {
 }
 
 func aggregatePublishSafety(evidence Evidence, scores []PromptScore) CriterionScore {
-	if unsafe := firstUnsafeString([]string{evidence.RunID, evidence.EshuCommit}); unsafe != "" {
+	if unsafe := answerguardrail.FirstUnsafeString([]string{evidence.RunID, evidence.EshuCommit}); unsafe != "" {
 		return fail(CriterionPublishSafety, "unsafe run metadata: "+unsafe)
 	}
 	return aggregatePromptCriterion(CriterionPublishSafety, scores)
@@ -161,7 +160,12 @@ func scoreCitationCoverage(prompt PromptResult) CriterionScore {
 		return fail(CriterionCitationCoverage, "no surface results captured")
 	}
 	for _, result := range prompt.Results {
-		if len(result.CitationHandles) == 0 {
+		verdict := answerguardrail.ValidateResult(answerguardrail.Result{
+			AnswerSummary:   result.AnswerSummary,
+			Supported:       result.Supported,
+			CitationHandles: result.CitationHandles,
+		})
+		if verdict.HasFinding(answerguardrail.CriterionCitationCoverage) {
 			return fail(CriterionCitationCoverage, fmt.Sprintf("%s result has no citation handles", result.Surface))
 		}
 	}
@@ -241,7 +245,7 @@ func scoreFollowUpUsefulness(prompt PromptResult) CriterionScore {
 }
 
 func scorePublishSafety(prompt PromptResult) CriterionScore {
-	if unsafe := firstUnsafeString(promptStrings(prompt)); unsafe != "" {
+	if unsafe := answerguardrail.FirstUnsafeString(promptStrings(prompt)); unsafe != "" {
 		return fail(CriterionPublishSafety, "unsafe publishable evidence: "+unsafe)
 	}
 	return pass(CriterionPublishSafety, "evidence contains only redacted publishable strings")
@@ -329,28 +333,6 @@ func promptStrings(prompt PromptResult) []string {
 		values = append(values, narrationStrings(result.Narration)...)
 	}
 	return values
-}
-
-func firstUnsafeString(values []string) string {
-	for _, value := range values {
-		if unsafeString(value) {
-			return value
-		}
-	}
-	return ""
-}
-
-func unsafeString(value string) bool {
-	lower := strings.ToLower(value)
-	if rawAddressPattern.MatchString(value) {
-		return true
-	}
-	for _, fragment := range []string{"/users/", "/home/", "\\users\\", "bearer ", "password=", "token=", "secret=", "api_key=", "api-key=", ".internal", ".corp", ".local"} {
-		if strings.Contains(lower, fragment) {
-			return true
-		}
-	}
-	return strings.Contains(lower, "http://") || strings.Contains(lower, "https://")
 }
 
 func followUpFor(prompt PromptResult, criterion CriterionScore) FollowUpIssue {

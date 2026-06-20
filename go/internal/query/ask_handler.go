@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
 	"github.com/eshu-hq/eshu/go/internal/ask/render"
 )
 
@@ -211,6 +212,7 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 		Partial:     ans.Partial,
 		Limitations: ans.Limitations,
 	}
+	primarySupported := false
 
 	// Prose: only when the engine produced a narration.
 	if ans.Narrated {
@@ -226,17 +228,20 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 				break
 			}
 		}
+		primarySupported = primary.Supported
 		resp.TruthClass = string(primary.TruthClass)
 		if len(primary.EvidenceHandles) > 0 {
 			resp.EvidenceHandles = primary.EvidenceHandles
 		}
 	}
 
+	applyAskRuntimeGuardrails(&resp, primarySupported)
+
 	// Artifacts: when the answer has prose, validate the detected format and
 	// include one artifact entry.
 	detectedFormat := render.DetectFormat(question, format)
-	if detectedFormat != render.FormatAuto && ans.Narrated && ans.Prose != "" {
-		artifact := render.Validate(detectedFormat, ans.Prose)
+	if detectedFormat != render.FormatAuto && resp.AnswerProse != "" {
+		artifact := render.Validate(detectedFormat, resp.AnswerProse)
 		resp.Artifacts = []askArtifact{
 			{
 				Format:  string(artifact.Format),
@@ -261,4 +266,96 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 	}
 
 	return resp
+}
+
+func applyAskRuntimeGuardrails(resp *askResponse, primarySupported bool) {
+	if resp == nil {
+		return
+	}
+	verdict := answerguardrail.ValidateResult(answerguardrail.Result{
+		AnswerSummary:   resp.AnswerProse,
+		Supported:       primarySupported,
+		CitationHandles: askCitationHandleStrings(resp.EvidenceHandles),
+		Limitations:     resp.Limitations,
+	})
+	if verdict.Valid {
+		return
+	}
+	resp.AnswerProse = ""
+	resp.Artifacts = nil
+	resp.Partial = true
+	if verdict.HasFinding(answerguardrail.CriterionPublishSafety) {
+		resp.Limitations = publishSafeAskLimitations(resp.Limitations)
+		resp.EvidenceHandles = publishSafeAskEvidenceHandles(resp.EvidenceHandles)
+	}
+	for _, finding := range verdict.Findings {
+		resp.Limitations = appendAskLimitation(resp.Limitations,
+			"runtime answer guardrail blocked publishable prose: "+string(finding.Criterion))
+	}
+}
+
+func askCitationHandleStrings(handles []evidenceCitationHandle) []string {
+	if len(handles) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(handles))
+	for _, handle := range handles {
+		parts := []string{
+			handle.Kind,
+			handle.RepoID,
+			handle.RelativePath,
+			handle.EntityID,
+			handle.EvidenceFamily,
+			handle.Reason,
+		}
+		var nonEmpty []string
+		for _, part := range parts {
+			if strings.TrimSpace(part) != "" {
+				nonEmpty = append(nonEmpty, part)
+			}
+		}
+		out = append(out, strings.Join(nonEmpty, ":"))
+	}
+	return out
+}
+
+func publishSafeAskLimitations(limitations []string) []string {
+	if len(limitations) == 0 {
+		return limitations
+	}
+	out := make([]string, 0, len(limitations))
+	for _, limitation := range limitations {
+		if answerguardrail.UnsafeString(limitation) {
+			continue
+		}
+		out = append(out, limitation)
+	}
+	return out
+}
+
+func publishSafeAskEvidenceHandles(handles []evidenceCitationHandle) []evidenceCitationHandle {
+	if len(handles) == 0 {
+		return handles
+	}
+	out := make([]evidenceCitationHandle, 0, len(handles))
+	for _, handle := range handles {
+		if answerguardrail.FirstUnsafeString(askCitationHandleStrings([]evidenceCitationHandle{handle})) != "" {
+			continue
+		}
+		out = append(out, handle)
+	}
+	return out
+}
+
+func appendAskLimitation(limitations []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return limitations
+	}
+	for _, existing := range limitations {
+		if existing == value {
+			return limitations
+		}
+	}
+	return append(limitations, value)
 }

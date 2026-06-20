@@ -310,3 +310,101 @@ func TestBuildAskResponse_LeakSafety(t *testing.T) {
 		t.Errorf("leaked credential in response: %s", string(b))
 	}
 }
+
+func TestBuildAskResponse_SuppressesUnsafeNarratedOutput(t *testing.T) {
+	t.Parallel()
+
+	rawAddress := strings.Join([]string{"10", "88", "4", "7"}, ".")
+	ans := AskAnswer{
+		Prose:    "The private host is " + rawAddress,
+		Narrated: true,
+		Packets: []AnswerPacket{{
+			TruthClass:      AnswerTruthDeterministic,
+			Supported:       true,
+			EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse != "" {
+		t.Fatalf("answer_prose = %q, want suppressed unsafe prose", resp.AnswerProse)
+	}
+	if !resp.Partial {
+		t.Fatal("partial = false, want true when guardrail suppresses output")
+	}
+	if !hasLimitation(resp.Limitations, "publish_safety") {
+		t.Fatalf("limitations = %#v, want publish_safety marker", resp.Limitations)
+	}
+}
+
+func TestBuildAskResponse_DropsUnsafeGuardrailFields(t *testing.T) {
+	t.Parallel()
+
+	rawAddress := strings.Join([]string{"10", "91", "7", "12"}, ".")
+	rawToken := strings.Join([]string{"token", "do-not-echo"}, "=")
+	ans := AskAnswer{
+		Prose:       "checkout-service owns refunds",
+		Narrated:    true,
+		Limitations: []string{"upstream host " + rawAddress},
+		Packets: []AnswerPacket{{
+			TruthClass: AnswerTruthDeterministic,
+			Supported:  true,
+			EvidenceHandles: []evidenceCitationHandle{{
+				Kind:     "entity",
+				EntityID: "service:checkout",
+				Reason:   rawToken,
+			}},
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	body, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if strings.Contains(string(body), rawAddress) {
+		t.Fatalf("unsafe limitation leaked into response: %s", string(body))
+	}
+	if strings.Contains(string(body), rawToken) {
+		t.Fatalf("unsafe evidence handle leaked into response: %s", string(body))
+	}
+	if len(resp.EvidenceHandles) != 0 {
+		t.Fatalf("evidence_handles = %#v, want dropped unsafe handle", resp.EvidenceHandles)
+	}
+	if !hasLimitation(resp.Limitations, "publish_safety") {
+		t.Fatalf("limitations = %#v, want publish_safety marker", resp.Limitations)
+	}
+}
+
+func TestBuildAskResponse_FlagsSupportedAnswerWithoutCitations(t *testing.T) {
+	t.Parallel()
+
+	ans := AskAnswer{
+		Prose:    "checkout-service owns refunds",
+		Narrated: true,
+		Packets: []AnswerPacket{{
+			TruthClass: AnswerTruthDeterministic,
+			Supported:  true,
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse != "" {
+		t.Fatalf("answer_prose = %q, want suppressed uncited prose", resp.AnswerProse)
+	}
+	if !resp.Partial {
+		t.Fatal("partial = false, want true when citation guardrail suppresses output")
+	}
+	if !hasLimitation(resp.Limitations, "citation_coverage") {
+		t.Fatalf("limitations = %#v, want citation_coverage marker", resp.Limitations)
+	}
+}
+
+func hasLimitation(limitations []string, want string) bool {
+	for _, limitation := range limitations {
+		if strings.Contains(limitation, want) {
+			return true
+		}
+	}
+	return false
+}

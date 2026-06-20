@@ -10,7 +10,7 @@ const openAPIPathsAsk = `
       "post": {
         "tags": ["ask"],
         "summary": "Ask Eshu a natural-language question",
-        "description": "Runs the bounded Tier-1 Ask Eshu agent loop for the given free-form question. The engine plans the most efficient retrieval path across NornicDB and Postgres, assembles evidence-backed AnswerPackets, and optionally narrates the result. This endpoint is DEFAULT-OFF: it returns 503 with state 'unavailable' unless ESHU_ASK_ENABLED=true and a valid agent_reasoning provider profile is configured. Accepts both a shared token (admin/full-scope ESHU_API_KEY) and scoped tokens. A scoped caller's answer is bounded to its grant: the in-process runner re-dispatches every inner tool call through the scoped-route gate under the caller's token, so the model can only reach scope-safe routes; a tool mapped to a non-allowlisted whole-graph route (e.g. get_ecosystem_overview) is denied 403 to the runner and surfaces as an unsupported tool rather than cross-scope data.\n\nSSE variant: send 'Accept: text/event-stream' to receive the answer as a sequence of Server-Sent Events (the response sets 'Cache-Control: no-cache'). When the configured provider adapter supports streaming, events are emitted as the engine runs. Event types: 'token' ({\"delta\":\"string\"}; validated narration prose emitted only after governed citation and publish-safety validation succeeds), 'trace' (one per completed tool call; fields: tool, supported, truth_class), 'answer' (full askResponse JSON), 'error' (bounded unavailable payload on engine failure), 'done' (empty, signals end-of-stream). Raw provider text-token deltas are never emitted. When the provider adapter does not support streaming, the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events. Tier-2 sandbox wiring is a planned follow-up.",
+        "description": "Runs the bounded Tier-1 Ask Eshu agent loop for the given free-form question. The engine plans the most efficient retrieval path across NornicDB and Postgres, assembles evidence-backed AnswerPackets, and optionally narrates the result. Before any narrated prose or rendered artifact is returned, the runtime applies the same pure citation-coverage and publish-safety guardrails used by the answer-quality scorecard. Guardrail failures suppress answer_prose and artifacts, mark the answer partial, and add a bounded limitation instead of echoing the rejected value. This endpoint is DEFAULT-OFF: it returns 503 with state 'unavailable' unless ESHU_ASK_ENABLED=true and a valid agent_reasoning provider profile is configured. Accepts both a shared token (admin/full-scope ESHU_API_KEY) and scoped tokens. A scoped caller's answer is bounded to its grant: the in-process runner re-dispatches every inner tool call through the scoped-route gate under the caller's token, so the model can only reach scope-safe routes; a tool mapped to a non-allowlisted whole-graph route (e.g. get_ecosystem_overview) is denied 403 to the runner and surfaces as an unsupported tool rather than cross-scope data.\n\nSSE variant: send 'Accept: text/event-stream' to receive the answer as a sequence of Server-Sent Events (the response sets 'Cache-Control: no-cache'). When the configured provider adapter supports streaming, trace events are emitted as tool calls complete, while token deltas are buffered and emitted only after runtime guardrails pass for both the final answer and the buffered stream. Event types: 'token' ({\"delta\":\"string\"}; validated narration prose emitted only after governed citation and publish-safety validation succeeds), 'trace' (one per completed tool call; fields: tool, supported, truth_class), 'answer' (full askResponse JSON after runtime guardrails), 'error' (bounded unavailable payload on engine failure), 'done' (empty, signals end-of-stream). Raw provider text-token deltas are never emitted. When the provider adapter does not support streaming, the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events. Tier-2 sandbox wiring is a planned follow-up.",
         "operationId": "ask",
         "requestBody": {
           "required": true,
@@ -37,7 +37,7 @@ const openAPIPathsAsk = `
         },
         "responses": {
           "200": {
-            "description": "Ask answer (JSON) or SSE stream when Accept: text/event-stream is sent. When the provider adapter supports streaming the SSE stream emits 'token' events only for validated narration prose after governed citation and publish-safety validation succeeds, plus 'trace' events (one per completed tool call), an 'answer' event with the full response, and a 'done' event. Raw provider text-token deltas are never emitted. On engine error an 'error' event is emitted with a bounded unavailable payload. When the adapter does not support streaming the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events.",
+            "description": "Ask answer (JSON) or SSE stream when Accept: text/event-stream is sent. Narrated prose and rendered artifacts are returned only after runtime citation-coverage and publish-safety guardrails pass; failures suppress those fields, set partial=true, and add a bounded limitation. When the provider adapter supports streaming the SSE stream emits 'token' events only for validated narration prose after governed citation and publish-safety validation succeeds, plus 'trace' events (one per completed tool call), an 'answer' event with the full response after runtime guardrails, and a 'done' event. Raw provider text-token deltas are never emitted. On engine error an 'error' event is emitted with a bounded unavailable payload. When the adapter does not support streaming the handler falls back to a synchronous run and emits 'trace', 'answer', and 'done' with no 'token' events.",
             "content": {
               "application/json": {
                 "schema": {
@@ -45,11 +45,11 @@ const openAPIPathsAsk = `
                   "properties": {
                     "answer_prose": {
                       "type": "string",
-                      "description": "LLM-narrated prose answer. Empty when narration is unavailable."
+                      "description": "LLM-narrated prose answer. Empty when narration is unavailable or runtime citation/publish-safety guardrails suppress the prose."
                     },
                     "artifacts": {
                       "type": "array",
-                      "description": "Rendered format artifacts with per-format validation state.",
+                      "description": "Rendered format artifacts with per-format validation state. Omitted when runtime citation/publish-safety guardrails suppress narrated prose.",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -85,7 +85,7 @@ const openAPIPathsAsk = `
                     },
                     "partial": {
                       "type": "boolean",
-                      "description": "True when the answer is usable but incomplete."
+                      "description": "True when the answer is usable but incomplete, including when runtime answer guardrails suppress narrated prose."
                     },
                     "limitations": {
                       "type": "array",
