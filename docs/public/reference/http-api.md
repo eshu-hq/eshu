@@ -105,24 +105,27 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
 
 **SSE variant** — send `Accept: text/event-stream` to receive a
 `text/event-stream` response with `Cache-Control: no-cache`. When the
-configured provider adapter supports streaming, events are emitted live as the
-engine runs. Event sequence:
+configured provider adapter supports streaming, tool-trace events are emitted
+live as the engine runs. Narration token events are emitted only after governed
+validation succeeds. Event sequence:
 
 | Event          | Data payload                                                             |
 |----------------|-------------------------------------------------------------------------|
-| `token`        | `{"delta":"string"}` — one per provider text token delta (only when governed narration is enabled) |
+| `token`        | `{"delta":"string"}` — validated narration prose, emitted only after citation and publish-safety validation succeeds |
 | `trace`        | `{"tool":"string","supported":bool,"truth_class":"string"}` — one per completed tool call |
 | `answer`       | Full JSON response identical to the 200 JSON path                       |
 | `error`        | `{"state":"unavailable","reason":"string"}` — on engine failure         |
 | `done`         | `{}` — end-of-stream marker                                             |
 
-`token` events carry assistant prose and are therefore subject to the same
-default-closed governance as `answer_prose`: they are emitted **only when the
-governed answer-narration posture is available** for the request. When narration
-is not enabled (the default), no `token` events are sent — clients receive the
-live `trace` events plus the final governed `answer` (whose `answer_prose` is
-present only when `Narrated` is true). This keeps the SSE and JSON paths
-consistent and prevents unvalidated LLM prose from reaching the client.
+`token` events carry validated assistant prose and are therefore subject to the
+same default-closed governance as `answer_prose`: they are emitted **only when
+the governed answer-narration posture is available** for the request and the
+narration validator accepts the answer. Raw provider text-token deltas are never
+emitted. When narration is not enabled (the default), no `token` events are sent
+— clients receive the live `trace` events plus the final governed `answer`
+(whose `answer_prose` is present only when `Narrated` is true). This keeps the
+SSE and JSON paths consistent and prevents unvalidated LLM prose from reaching
+the client.
 When the adapter does not support streaming (e.g. a synchronous-only profile),
 the handler falls back to a synchronous run and emits `trace`, `answer`, and
 `done` without `token` events. Clients should handle all cases.

@@ -42,13 +42,14 @@ type AskTraceEntry struct {
 // completed tool-call events). Callers must inspect Kind to determine which
 // field is populated.
 //
-// Leak safety: only bounded assistant text deltas and tool identifiers are
-// ever included. Provider error bodies, credentials, and raw LLM frames are
+// Leak safety: token events carry only narration text that has passed the
+// governed citation and publish-safety validator. Provider error bodies,
+// credentials, prompts, raw LLM frames, and pre-validation provider deltas are
 // never present.
 type AskStreamEvent struct {
 	// Kind is "token", "tool_call_started", or "trace_entry".
 	Kind string
-	// TextDelta is the incremental assistant text for Kind=="token".
+	// TextDelta is validated narration prose for Kind=="token".
 	TextDelta string
 	// ToolCallID is the provider call ID for Kind=="tool_call_started".
 	ToolCallID string
@@ -65,10 +66,11 @@ type AskStreamEvent struct {
 type Asker interface {
 	Ask(r *http.Request, question string) (AskAnswer, error)
 	// AskStream drives a streaming Ask session, calling emit for each
-	// AskStreamEvent as it occurs, and returns the final AskAnswer. When the
-	// underlying engine or adapter does not support streaming, implementations
-	// may return (zero, ErrNoStreaming) to cause the SSE handler to fall back
-	// to the synchronous Ask path.
+	// AskStreamEvent as it occurs, and returns the final AskAnswer. Token
+	// events must carry only validated narration prose, never raw provider
+	// deltas. When the underlying engine or adapter does not support streaming,
+	// implementations may return (zero, ErrNoStreaming) to cause the SSE
+	// handler to fall back to the synchronous Ask path.
 	AskStream(r *http.Request, question string, emit func(AskStreamEvent)) (AskAnswer, error)
 }
 

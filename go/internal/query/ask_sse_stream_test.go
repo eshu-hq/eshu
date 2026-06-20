@@ -7,9 +7,11 @@ import (
 	"testing"
 )
 
-// TestAskSSE_Streaming_LiveTokenEvents verifies that a streaming-capable Asker
-// produces "event: token" events live before the final "event: answer" event.
-func TestAskSSE_Streaming_LiveTokenEvents(t *testing.T) {
+// TestAskSSE_Streaming_ForwardsValidatedTokenEvents verifies that a
+// streaming-capable Asker can produce "event: token" events before the final
+// "event: answer" event. The production engine only emits token events for
+// validated narration prose.
+func TestAskSSE_Streaming_ForwardsValidatedTokenEvents(t *testing.T) {
 	t.Parallel()
 
 	traceTE := AskTraceEntry{Tool: "list_repos", Supported: true, TruthClass: AnswerTruthDeterministic}

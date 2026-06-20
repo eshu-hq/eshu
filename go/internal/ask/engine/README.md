@@ -91,8 +91,21 @@ faithfully reflects the query surface's error verdict.
 - **Read-only**: the engine never writes to the graph, queue, or any store.
 - **Leak-safe**: provider bodies, system prompts, and credentials are never
   exposed to callers. Tool-result feedback is a bounded packet serialisation, not
-  raw provider output.
+  raw provider output. Streaming never emits raw provider token deltas; token
+  events carry validated narration prose only after `answernarration.Validate`
+  accepts it.
 - **Deterministic-canonical**: `AnswerPackets` are the authoritative answer truth
   regardless of narration. `Answer.Narrated` is true only when prose has passed
   the narration validator.
 - **Bounded**: the iteration and tool-call limits are enforced unconditionally.
+
+No-Regression Evidence: `go test ./internal/ask/engine -run '^TestAskStream'
+-count=1` covers default-closed streams, rejected narration, validated
+narration emission, tool-call events, and the no-streaming fallback. The
+regression fixture proves an unsafe raw provider delta is not emitted before the
+validated narration.
+
+No-Observability-Change: the streaming safety change adds no worker, queue,
+graph write, Postgres read, metric label, runtime knob, provider request, or
+new span. Operators still diagnose Ask failures through the existing Ask engine
+error path, query trace events, HTTP SSE events, and provider adapter logs.

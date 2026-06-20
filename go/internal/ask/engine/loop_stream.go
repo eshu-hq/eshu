@@ -6,20 +6,19 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // StreamEvent is the handler-layer streaming event emitted by AskStream.
 // It mirrors provider.StreamEvent but lives here so the query package can
 // consume engine stream events without importing the provider package.
 //
-// Leak safety: only bounded assistant text deltas and tool identifiers are
-// ever included. Provider error bodies, credentials, and raw LLM frames are
-// never present.
+// Leak safety: only validated narration text and bounded tool identifiers are
+// ever included. Provider error bodies, credentials, prompts, and raw LLM
+// frames are never present.
 type StreamEvent struct {
 	// Kind identifies the event class.
 	Kind StreamEventKind
-	// TextDelta is the incremental assistant text for KindToken events.
+	// TextDelta is validated narration prose for KindToken events.
 	TextDelta string
 	// ToolCallID is the provider-assigned ID for KindToolCallStarted events.
 	ToolCallID string
@@ -34,7 +33,7 @@ type StreamEvent struct {
 type StreamEventKind string
 
 const (
-	// KindToken carries a provider token delta (assistant text).
+	// KindToken carries validated narration prose.
 	KindToken StreamEventKind = "token"
 	// KindToolCallStarted signals that the model has requested a tool call.
 	KindToolCallStarted StreamEventKind = "tool_call_started"
@@ -50,13 +49,15 @@ var ErrNoStreaming = fmt.Errorf("ask/engine: adapter does not support streaming;
 // AskStream executes the bounded Tier 1 agent loop for the given question,
 // emitting streaming events to emit as they occur:
 //
-//   - KindToken per provider token delta (assistant prose)
+//   - KindToken once with validated narration prose when narration succeeds
 //   - KindToolCallStarted when the model requests a tool call
 //   - KindTraceEntry after each tool call completes (with bounded truth metadata)
 //
-// It returns the same Answer that Ask would return. The narration step uses the
-// synchronous Complete call (narration completions are short and not streamed to
-// avoid leaking the narration prompt structure as token events).
+// It returns the same Answer that Ask would return. Provider token deltas are
+// never emitted directly because they precede citation and publish-safety
+// validation. The narration step uses the synchronous Complete call; when that
+// validated narration succeeds, AskStream emits the validated prose as one token
+// event before returning the final Answer.
 //
 // AskStream returns ErrNoStreaming if the configured adapter does not implement
 // provider.StreamingAdapter. In that case callers should fall back to Ask.
@@ -70,14 +71,11 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 	}
 
 	// Resolve the governed narration posture once, up front, and reuse it for
-	// both the prose-token gate and the final narration decision so the two
-	// agree for this request. Narration is default-closed: streaming raw
-	// provider prose token-by-token would bypass that gate, because the JSON
-	// path suppresses answer_prose when Narrated is false. So prose token deltas
-	// are emitted only when narration is available; tool-lifecycle events stream
-	// regardless, and the governed prose is delivered once in the final answer.
+	// the final narration decision so the stream and answer agree for this
+	// request. Narration is default-closed, and raw provider prose is never
+	// emitted as token events because it has not passed citation or publish-safety
+	// validation yet. Tool-lifecycle events stream regardless.
 	posture := e.resolveNarrationPosture()
-	narrationAllowed := posture.State == status.AnswerNarrationAvailable
 
 	messages := []provider.Message{
 		{Role: provider.RoleSystem, Text: e.opts.SystemPrompt},
@@ -89,9 +87,8 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		comp, err := sa.CompleteStream(ctx, messages, e.tools, func(ev provider.StreamEvent) {
 			switch ev.Kind {
 			case provider.StreamEventToken:
-				if narrationAllowed {
-					emit(StreamEvent{Kind: KindToken, TextDelta: ev.TextDelta})
-				}
+				// Drop raw provider deltas. They are pre-validation and may
+				// contain uncited claims or publish-unsafe material.
 			case provider.StreamEventToolCallStarted:
 				emit(StreamEvent{
 					Kind:       KindToolCallStarted,
@@ -111,6 +108,7 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 			// Final turn: model produced prose with no further tool calls.
 			ans.Prose = comp.Text
 			e.narrate(ctx, &ans, posture)
+			emitValidatedNarration(ans, emit)
 			return ans, nil
 		}
 
@@ -142,7 +140,17 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
 	}
 	e.narrate(ctx, &ans, posture)
+	emitValidatedNarration(ans, emit)
 	return ans, nil
+}
+
+// emitValidatedNarration streams only prose that has passed the governed
+// narration validator. It intentionally emits a single delta rather than raw
+// provider chunks so SSE clients never see pre-validation LLM output.
+func emitValidatedNarration(ans Answer, emit func(StreamEvent)) {
+	if ans.Narrated && ans.Prose != "" {
+		emit(StreamEvent{Kind: KindToken, TextDelta: ans.Prose})
+	}
 }
 
 // dispatchCallStream is the streaming variant of dispatchCall: it executes a
