@@ -5,8 +5,8 @@ import {
   Boxes,
   Cloud,
   Code,
-  GitBranch,
   Menu,
+  MessageCircle,
   Network,
   Route,
   SearchX,
@@ -15,10 +15,12 @@ import {
   Workflow,
   X
 } from "lucide-react";
+import { SourceRuntimeGraph } from "./SourceRuntimeGraph";
 import { siteContent } from "./siteContent";
 import type { CommandDemo, CleanupMode, PersonaDemo } from "./siteContent";
 
 const capabilityIcons = [
+  MessageCircle,
   ShieldCheck,
   Route,
   Workflow,
@@ -92,6 +94,30 @@ export function App(): React.JSX.Element {
         </section>
 
         <section
+          className="whats-new-section"
+          id="whats-new"
+          aria-labelledby="whats-new-title"
+        >
+          <div className="section-heading">
+            <h2 id="whats-new-title">What's new</h2>
+            <p>
+              The graph now has an answer layer, portable proof artifacts, and
+              CI-backed claim checks. The launch story moved from "context" to
+              evidence-backed action.
+            </p>
+          </div>
+          <div className="whats-new-grid">
+            {siteContent.whatsNew.map((item) => (
+              <article className="whats-new-card" key={item.title}>
+                <strong>{item.summary}</strong>
+                <h3>{item.title}</h3>
+                <p>{item.detail}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section
           className="capabilities-section"
           id="product"
           aria-labelledby="capabilities-title"
@@ -99,8 +125,8 @@ export function App(): React.JSX.Element {
           <div className="section-heading">
             <h2 id="capabilities-title">What Eshu does</h2>
             <p>
-              Eight capability surfaces, each backed by real MCP tools, each
-              with refusal-on-insufficient-evidence. One graph holds them all.
+              Eight surfaces plus one ask layer, each backed by real MCP tools,
+              each with refusal-on-insufficient-evidence. One graph holds them all.
             </p>
           </div>
           <div className="capability-list">
@@ -242,8 +268,8 @@ export function App(): React.JSX.Element {
             <h2 id="personas-title">Built for every engineering role</h2>
             <p>
               Same MCP server, same evidence graph, same truth envelope — for
-              engineers, security, platform, leadership, and customer-facing
-              teams. Eight of the eighteen personas, full reference in the
+              engineers, security, platform, leadership, Ask Eshu users, and
+              customer-facing teams. Nine representative personas, full reference in the
               persona matrix.
             </p>
           </div>
@@ -454,42 +480,5 @@ export function App(): React.JSX.Element {
         </section>
       </main>
     </div>
-  );
-}
-
-function SourceRuntimeGraph({
-  selectedCommand
-}: {
-  readonly selectedCommand: CommandDemo;
-}): React.JSX.Element {
-  return (
-    <aside className="product-visual" aria-label="Source to runtime graph">
-      <div className="visual-header">
-        <span>{selectedCommand.summary}</span>
-        <GitBranch aria-hidden="true" />
-      </div>
-      <div className="visual-canvas">
-        <img className="truth-mark" src="/brand/eshu-icon.svg" alt="" aria-hidden="true" />
-        <svg aria-hidden="true" viewBox="0 0 760 360" className="path-svg">
-          <path d="M82 182 C160 96 250 92 340 172 S540 276 668 106" />
-          <path d="M340 172 C424 102 500 96 574 146" />
-          <path d="M340 172 C430 226 508 244 638 246" />
-        </svg>
-        {siteContent.demoTrace.nodes.map((node) => (
-          <span
-            className={
-              node.id === selectedCommand.activeNodeId
-                ? `graph-node node-${node.id} is-active`
-                : `graph-node node-${node.id}`
-            }
-            key={node.id}
-          >
-            {node.label}
-            <small>{node.detail}</small>
-          </span>
-        ))}
-        <span className="truth-label">evidence-backed</span>
-      </div>
-    </aside>
   );
 }
