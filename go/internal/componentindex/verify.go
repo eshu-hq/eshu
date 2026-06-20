@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"golang.org/x/mod/semver"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 const (
@@ -26,6 +30,7 @@ const (
 var (
 	sha256DigestPattern   = regexp.MustCompile(`^sha256:[A-Fa-f0-9]{64}$`)
 	artifactDigestPattern = regexp.MustCompile(`@sha256:[A-Fa-f0-9]{64}$`)
+	identifierPattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*[a-z0-9]$|^[a-z0-9]$`)
 )
 
 // IssueCode is a stable verifier failure class.
@@ -52,6 +57,26 @@ const (
 	// IssueRevokedInstallable reports a revoked entry that is still marked
 	// installable.
 	IssueRevokedInstallable IssueCode = "revoked_installable"
+	// IssueUnsupportedFactKind reports a core-owned, non-namespaced, or
+	// non-canonical fact-kind claim.
+	IssueUnsupportedFactKind IssueCode = "unsupported_fact_kind"
+	// IssueUnsupportedSchemaVersion reports an invalid fact schema version.
+	IssueUnsupportedSchemaVersion IssueCode = "unsupported_schema_version"
+	// IssueUnsupportedSourceConfidence reports a source-confidence value that
+	// optional components cannot emit.
+	IssueUnsupportedSourceConfidence IssueCode = "unsupported_source_confidence"
+	// IssueMissingConsumerContract reports an entry without a reducer/query
+	// consumer contract for declared facts.
+	IssueMissingConsumerContract IssueCode = "missing_consumer_contract"
+	// IssueMissingProvenanceSignature reports an entry that requires provenance
+	// but does not point at signature evidence.
+	IssueMissingProvenanceSignature IssueCode = "missing_provenance_signature"
+	// IssueMissingConformanceProof reports an entry without a conformance proof
+	// artifact.
+	IssueMissingConformanceProof IssueCode = "missing_conformance_proof"
+	// IssueFailedConformanceProof reports a conformance proof whose status is
+	// not accepted for publication metadata.
+	IssueFailedConformanceProof IssueCode = "failed_conformance_proof"
 )
 
 // Index is the top-level static community extension index document.
@@ -79,6 +104,7 @@ type Entry struct {
 	Source            SourceRef         `yaml:"source" json:"source"`
 	Review            ReviewRef         `yaml:"review" json:"review"`
 	Provenance        Provenance        `yaml:"provenance" json:"provenance"`
+	Conformance       ConformanceProof  `yaml:"conformance" json:"conformance"`
 	Revocation        Revocation        `yaml:"revocation" json:"revocation"`
 }
 
@@ -121,8 +147,16 @@ type ReviewRef struct {
 
 // Provenance declares the provenance posture required for the entry.
 type Provenance struct {
-	Required bool   `yaml:"required" json:"required"`
-	Mode     string `yaml:"mode" json:"mode"`
+	Required  bool   `yaml:"required" json:"required"`
+	Mode      string `yaml:"mode" json:"mode"`
+	Signature string `yaml:"signature" json:"signature"`
+}
+
+// ConformanceProof points at the reviewed extension conformance artifact.
+type ConformanceProof struct {
+	SchemaVersion string `yaml:"schemaVersion" json:"schemaVersion"`
+	Status        string `yaml:"status" json:"status"`
+	ProofURI      string `yaml:"proofUri" json:"proofUri"`
 }
 
 // Revocation describes whether an entry is currently revoked.
@@ -202,6 +236,8 @@ func (v *indexVerifier) validateEntry(index int, entry Entry) {
 	v.validateDigest(prefix+".manifestDigest", componentID, entry.ManifestDigest)
 	v.validateArtifacts(prefix, componentID, entry.Artifacts)
 	v.validateFacts(prefix, componentID, entry.EmittedFacts)
+	v.validateConsumerContracts(prefix, componentID, entry.ConsumerContracts)
+	v.validateConformance(prefix, componentID, entry.Conformance)
 	if strings.TrimSpace(entry.Review.PR) == "" {
 		v.add(IssueMissingReviewLink, prefix+".review.pr", componentID, "review PR link is required")
 	}
@@ -228,6 +264,9 @@ func (v *indexVerifier) validateRequiredEntryShape(prefix, componentID string, e
 	}
 	if entry.Provenance.Required && strings.TrimSpace(entry.Provenance.Mode) == "" {
 		v.add(IssueMissingMetadata, prefix+".provenance.mode", componentID, "provenance mode is required when provenance is required")
+	}
+	if entry.Provenance.Required && strings.TrimSpace(entry.Provenance.Signature) == "" {
+		v.add(IssueMissingProvenanceSignature, prefix+".provenance.signature", componentID, "signature evidence is required when provenance is required")
 	}
 }
 
@@ -273,30 +312,105 @@ func (v *indexVerifier) validateArtifacts(prefix, componentID string, artifacts 
 	}
 }
 
-func (v *indexVerifier) validateFacts(prefix, componentID string, facts []FactClaim) {
-	if len(facts) == 0 {
+func (v *indexVerifier) validateFacts(prefix, componentID string, factClaims []FactClaim) {
+	if len(factClaims) == 0 {
 		v.add(IssueMissingMetadata, prefix+".emittedFacts", componentID, "at least one emitted fact kind is required")
 		return
 	}
-	for i, fact := range facts {
+	for i, fact := range factClaims {
 		field := fmt.Sprintf("%s.emittedFacts[%d].kind", prefix, i)
 		kind := strings.TrimSpace(fact.Kind)
 		if kind == "" {
 			v.add(IssueMissingMetadata, field, componentID, "fact kind is required")
 			continue
 		}
+		if kind != fact.Kind {
+			v.add(IssueUnsupportedFactKind, field, componentID, "fact kind must be canonical without surrounding whitespace")
+			continue
+		}
+		if !identifierPattern.MatchString(kind) {
+			v.add(IssueUnsupportedFactKind, field, componentID, "fact kind must use lowercase letters, numbers, dots, underscores, or hyphens")
+			continue
+		}
+		if facts.IsCoreFactKind(kind) {
+			v.add(IssueUnsupportedFactKind, field, componentID, "core-owned fact kinds cannot be claimed by community extensions")
+			continue
+		}
+		if !strings.Contains(kind, ".") {
+			v.add(IssueUnsupportedFactKind, field, componentID, "fact kind must be namespaced with a collision-resistant prefix")
+			continue
+		}
 		if len(fact.SchemaVersions) == 0 {
 			v.add(IssueMissingMetadata, fmt.Sprintf("%s.emittedFacts[%d].schemaVersions", prefix, i), componentID, "at least one schema version is required")
 		}
+		v.validateSchemaVersions(prefix, componentID, i, fact.SchemaVersions)
 		if len(fact.SourceConfidence) == 0 {
 			v.add(IssueMissingMetadata, fmt.Sprintf("%s.emittedFacts[%d].sourceConfidence", prefix, i), componentID, "at least one source confidence value is required")
 		}
+		v.validateSourceConfidence(prefix, componentID, i, fact.SourceConfidence)
 		if owner, exists := v.factKinds[kind]; exists {
 			v.add(IssueDuplicateFactKind, field, componentID, fmt.Sprintf("fact kind is already claimed by %q", owner))
 			continue
 		}
 		v.factKinds[kind] = componentID
 	}
+}
+
+func (v *indexVerifier) validateSchemaVersions(prefix, componentID string, factIndex int, versions []string) {
+	for i, version := range versions {
+		field := fmt.Sprintf("%s.emittedFacts[%d].schemaVersions[%d]", prefix, factIndex, i)
+		normalized := normalizeSchemaVersion(version)
+		if version != strings.TrimSpace(version) || !semver.IsValid(normalized) {
+			v.add(IssueUnsupportedSchemaVersion, field, componentID, "schema version must be semantic versioning")
+		}
+	}
+}
+
+func (v *indexVerifier) validateSourceConfidence(prefix, componentID string, factIndex int, values []string) {
+	for i, value := range values {
+		field := fmt.Sprintf("%s.emittedFacts[%d].sourceConfidence[%d]", prefix, factIndex, i)
+		if value != strings.TrimSpace(value) {
+			v.add(IssueUnsupportedSourceConfidence, field, componentID, "source confidence must be canonical without surrounding whitespace")
+			continue
+		}
+		if err := facts.ValidateSourceConfidence(value); err != nil || value == facts.SourceConfidenceUnknown {
+			v.add(IssueUnsupportedSourceConfidence, field, componentID, "source confidence must be one of observed, reported, inferred, or derived")
+		}
+	}
+}
+
+func (v *indexVerifier) validateConsumerContracts(prefix, componentID string, contracts ConsumerContracts) {
+	if len(contracts.Reducer.Phases) == 0 {
+		v.add(IssueMissingConsumerContract, prefix+".consumerContracts.reducer.phases", componentID, "at least one reducer consumer phase is required")
+		return
+	}
+	for i, phase := range contracts.Reducer.Phases {
+		if strings.TrimSpace(phase) == "" {
+			v.add(IssueMissingConsumerContract, fmt.Sprintf("%s.consumerContracts.reducer.phases[%d]", prefix, i), componentID, "reducer phase must not be empty")
+		}
+	}
+}
+
+func (v *indexVerifier) validateConformance(prefix, componentID string, proof ConformanceProof) {
+	if strings.TrimSpace(proof.SchemaVersion) == "" {
+		v.add(IssueMissingConformanceProof, prefix+".conformance.schemaVersion", componentID, "conformance proof schema version is required")
+	}
+	if strings.TrimSpace(proof.Status) == "" {
+		v.add(IssueMissingConformanceProof, prefix+".conformance.status", componentID, "conformance proof status is required")
+	} else if strings.TrimSpace(proof.Status) != "passed" {
+		v.add(IssueFailedConformanceProof, prefix+".conformance.status", componentID, "conformance proof status must be passed")
+	}
+	if strings.TrimSpace(proof.ProofURI) == "" {
+		v.add(IssueMissingConformanceProof, prefix+".conformance.proofUri", componentID, "conformance proof URI is required")
+	}
+}
+
+func normalizeSchemaVersion(version string) string {
+	trimmed := strings.TrimSpace(version)
+	if strings.HasPrefix(trimmed, "v") {
+		return trimmed
+	}
+	return "v" + trimmed
 }
 
 func (v *indexVerifier) add(code IssueCode, field, componentID, message string) {

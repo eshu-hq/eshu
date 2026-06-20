@@ -75,6 +75,76 @@ func TestValidateRejectsRequiredIssueFixtures(t *testing.T) {
 			},
 			code: IssueRevokedInstallable,
 		},
+		{
+			name: "core-owned fact kind",
+			mut: func(index *Index) {
+				index.Entries[0].EmittedFacts[0].Kind = "gcp_cloud_resource"
+			},
+			code: IssueUnsupportedFactKind,
+		},
+		{
+			name: "non-namespaced fact kind",
+			mut: func(index *Index) {
+				index.Entries[0].EmittedFacts[0].Kind = "custom_observation"
+			},
+			code: IssueUnsupportedFactKind,
+		},
+		{
+			name: "malformed namespaced fact kind",
+			mut: func(index *Index) {
+				index.Entries[0].EmittedFacts[0].Kind = "Dev.Example/Resource"
+			},
+			code: IssueUnsupportedFactKind,
+		},
+		{
+			name: "invalid schema version",
+			mut: func(index *Index) {
+				index.Entries[0].EmittedFacts[0].SchemaVersions = []string{"one"}
+			},
+			code: IssueUnsupportedSchemaVersion,
+		},
+		{
+			name: "unsupported source confidence",
+			mut: func(index *Index) {
+				index.Entries[0].EmittedFacts[0].SourceConfidence = []string{"guessed"}
+			},
+			code: IssueUnsupportedSourceConfidence,
+		},
+		{
+			name: "unknown source confidence",
+			mut: func(index *Index) {
+				index.Entries[0].EmittedFacts[0].SourceConfidence = []string{"unknown"}
+			},
+			code: IssueUnsupportedSourceConfidence,
+		},
+		{
+			name: "missing reducer consumer contract",
+			mut: func(index *Index) {
+				index.Entries[0].ConsumerContracts.Reducer.Phases = nil
+			},
+			code: IssueMissingConsumerContract,
+		},
+		{
+			name: "missing provenance signature",
+			mut: func(index *Index) {
+				index.Entries[0].Provenance.Signature = ""
+			},
+			code: IssueMissingProvenanceSignature,
+		},
+		{
+			name: "missing conformance proof",
+			mut: func(index *Index) {
+				index.Entries[0].Conformance.ProofURI = ""
+			},
+			code: IssueMissingConformanceProof,
+		},
+		{
+			name: "failed conformance proof",
+			mut: func(index *Index) {
+				index.Entries[0].Conformance.Status = "failed"
+			},
+			code: IssueFailedConformanceProof,
+		},
 	}
 
 	for _, tt := range tests {
@@ -204,8 +274,14 @@ func validEntry() Entry {
 			PR: "https://github.com/eshu-hq/eshu/pull/1904",
 		},
 		Provenance: Provenance{
-			Required: true,
-			Mode:     "sigstore",
+			Required:  true,
+			Mode:      "sigstore",
+			Signature: "sigstore:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		},
+		Conformance: ConformanceProof{
+			SchemaVersion: "eshu.extension.conformance.v1",
+			Status:        "passed",
+			ProofURI:      "https://github.com/eshu-hq/eshu/actions/runs/1234567890",
 		},
 	}
 }

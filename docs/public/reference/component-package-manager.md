@@ -58,6 +58,8 @@ eshu component conform ./aws-component.yaml \
   --fixture ./testdata/fixtures/complete-result.json \
   --mode fixture \
   --json
+eshu component index verify ./community-extension-index.yaml \
+  --json
 eshu component enable dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --instance prod-aws \
@@ -204,6 +206,15 @@ unreadable fixture JSON, undeclared fact kinds, unsafe payload keys, unsupported
 schema versions, unsupported source confidence values, unsupported tombstones,
 conflicting duplicate stable keys, and reducer phases without a current
 optional-component consumer block both publication and hosted activation.
+
+`component index verify <index>` runs the offline community extension index gate
+that is suitable for CI and maintainer-local review. It accepts YAML or JSON,
+then rejects entries with mutable artifact refs, malformed digests, unsupported
+lifecycle channels, missing review links, revoked installable entries,
+core-owned or non-namespaced fact-kind claims, invalid fact schema versions,
+unsupported source confidence values, missing reducer consumer contracts,
+missing provenance signature refs, or missing/failed conformance proof refs.
+The command does not call registries, APIs, graph backends, or Postgres.
 
 The stable readback states are:
 
@@ -379,9 +390,12 @@ membership never changes the trust verdict.
 
 The first verifier is offline and deterministic. It rejects malformed index
 metadata, duplicate component IDs, duplicate fact-kind claims, mutable artifact
-tags, malformed digests, unsupported lifecycle channels, missing review links,
-and revoked entries marked installable. It does not pull OCI registries, treat
-GitHub topics as authoritative trust, or perform provenance verification.
+tags, malformed digests, unsupported lifecycle channels, core-owned or
+non-namespaced fact-kind claims, invalid schema versions, unsupported source
+confidence values, missing reducer consumer contracts, missing signature
+references, missing or failed conformance proof references, missing review
+links, and revoked entries marked installable. It does not pull OCI registries,
+treat GitHub topics as authoritative trust, or perform provenance verification.
 
 ## Manifest
 
