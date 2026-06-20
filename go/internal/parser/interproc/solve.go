@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+const maxFindingTrailPorts = 64
+
 // Solve propagates taint over the whole program and returns the bounded,
 // deterministic findings.
 func Solve(program Program, limits Limits) Result {
@@ -51,6 +53,11 @@ type stateKey struct {
 	Source Port
 }
 
+type trailState struct {
+	Ports     []Port
+	Truncated bool
+}
+
 // solveAll runs the taint fixpoint and returns every source-to-sink finding,
 // unsorted and uncapped. It is a pure function of program, so it is safe to run
 // concurrently on disjoint programs.
@@ -58,6 +65,11 @@ func solveAll(program Program) []Finding {
 	adjacency := map[Port][]Port{}
 	for _, edge := range program.Edges {
 		adjacency[edge.From] = append(adjacency[edge.From], edge.To)
+	}
+	for from := range adjacency {
+		sort.Slice(adjacency[from], func(i, j int) bool {
+			return portLess(adjacency[from][i], adjacency[from][j])
+		})
 	}
 	sanitizers := map[Port]map[string]struct{}{}
 	for _, san := range program.Sanitizers {
@@ -70,8 +82,13 @@ func solveAll(program Program) []Finding {
 			kinds[k] = struct{}{}
 		}
 	}
+	sinkKinds := map[string]struct{}{}
+	for _, sink := range program.Sinks {
+		sinkKinds[sink.Kind] = struct{}{}
+	}
 
 	states := map[stateKey]map[string]struct{}{}
+	witnesses := map[stateKey]map[string]trailState{}
 	sourceByPort := map[Port]Source{}
 	var work []stateKey
 
@@ -86,6 +103,7 @@ func solveAll(program Program) []Finding {
 		key := stateKey{Port: src.Port, Source: src.Port}
 		incoming := withSanitizer(map[string]struct{}{}, sanitizers[src.Port])
 		if mergeState(states, key, incoming) {
+			seedWitnesses(witnesses, key, src.Port, incoming, sinkKinds)
 			work = append(work, key)
 		}
 	}
@@ -97,7 +115,9 @@ func solveAll(program Program) []Finding {
 		for _, to := range adjacency[from.Port] {
 			next := stateKey{Port: to, Source: from.Source}
 			incoming := withSanitizer(outgoing, sanitizers[to])
-			if mergeState(states, next, incoming) {
+			stateChanged := mergeState(states, next, incoming)
+			witnessChanged := mergeWitnesses(witnesses, from, next, to, incoming, sinkKinds)
+			if stateChanged || witnessChanged {
 				work = append(work, next)
 			}
 		}
@@ -113,17 +133,20 @@ func solveAll(program Program) []Finding {
 			if _, suppressed := neutralized[sink.Kind]; suppressed {
 				continue
 			}
+			key := stateKey{Port: sink.Port, Source: srcPort}
 			findings = append(findings, Finding{
-				SourceFunc:  source.Port.Func,
-				SourceKind:  source.Kind,
-				SourceLabel: source.Label,
-				SinkFunc:    sink.Port.Func,
-				SinkKind:    sink.Kind,
-				SinkLabel:   sink.Label,
-				SinkPort:    sink.Port,
-				Cloud:       sink.Cloud,
-				Neutralized: sortedStrings(neutralized),
-				Confidence:  interprocConfidence,
+				SourceFunc:     source.Port.Func,
+				SourceKind:     source.Kind,
+				SourceLabel:    source.Label,
+				SinkFunc:       sink.Port.Func,
+				SinkKind:       sink.Kind,
+				SinkLabel:      sink.Label,
+				SinkPort:       sink.Port,
+				Cloud:          sink.Cloud,
+				Neutralized:    sortedStrings(neutralized),
+				Confidence:     interprocConfidence,
+				Trail:          clonePorts(witnesses[key][sink.Kind].Ports),
+				TrailTruncated: witnesses[key][sink.Kind].Truncated,
 			})
 		}
 	}
@@ -148,6 +171,79 @@ func mergeState(states map[stateKey]map[string]struct{}, key stateKey, incoming 
 		}
 	}
 	return changed
+}
+
+func seedWitnesses(
+	witnesses map[stateKey]map[string]trailState,
+	key stateKey,
+	port Port,
+	neutralized map[string]struct{},
+	sinkKinds map[string]struct{},
+) {
+	for kind := range sinkKinds {
+		if _, suppressed := neutralized[kind]; suppressed {
+			continue
+		}
+		addWitness(witnesses, key, kind, trailState{Ports: []Port{port}})
+	}
+}
+
+func mergeWitnesses(
+	witnesses map[stateKey]map[string]trailState,
+	from stateKey,
+	next stateKey,
+	port Port,
+	neutralized map[string]struct{},
+	sinkKinds map[string]struct{},
+) bool {
+	changed := false
+	for kind := range sinkKinds {
+		if _, suppressed := neutralized[kind]; suppressed {
+			continue
+		}
+		base, ok := witnesses[from][kind]
+		if !ok {
+			continue
+		}
+		if addWitness(witnesses, next, kind, appendTrailPort(base, port)) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+func addWitness(witnesses map[stateKey]map[string]trailState, key stateKey, kind string, trail trailState) bool {
+	byKind := witnesses[key]
+	if byKind == nil {
+		byKind = map[string]trailState{}
+		witnesses[key] = byKind
+	}
+	if _, exists := byKind[kind]; exists {
+		return false
+	}
+	byKind[kind] = trailState{Ports: clonePorts(trail.Ports), Truncated: trail.Truncated}
+	return true
+}
+
+func appendTrailPort(base trailState, next Port) trailState {
+	if len(base.Ports) == 0 {
+		return trailState{Ports: []Port{next}, Truncated: base.Truncated}
+	}
+	out := clonePorts(base.Ports)
+	if len(out) >= maxFindingTrailPorts {
+		return trailState{Ports: out, Truncated: true}
+	}
+	out = append(out, next)
+	return trailState{Ports: out, Truncated: base.Truncated}
+}
+
+func clonePorts(in []Port) []Port {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]Port, len(in))
+	copy(out, in)
+	return out
 }
 
 // withSanitizer returns base unioned with a port's neutralized kinds.

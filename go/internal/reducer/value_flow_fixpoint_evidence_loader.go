@@ -106,6 +106,8 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 			SinkKind:           finding.SinkKind,
 			Confidence:         finding.Confidence,
 			Cloud:              finding.Cloud,
+			WhyTrail:           valueFlowFindingWhyTrail(finding.Trail, graphIDs),
+			WhyTrailTruncated:  finding.TrailTruncated,
 		})
 	}
 	if l.Logger != nil {
@@ -288,6 +290,58 @@ func functionName(id summary.FunctionID) string {
 		return parts[3]
 	}
 	return string(id)
+}
+
+func valueFlowFindingWhyTrail(trail []interproc.Port, graphIDs map[summary.FunctionID]string) []map[string]any {
+	if len(trail) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(trail))
+	for index, port := range trail {
+		id := summary.FunctionID(port.Func)
+		step := map[string]any{
+			"role":          valueFlowTrailRole(index, len(trail)),
+			"function_id":   string(id),
+			"function_name": functionName(id),
+			"slot_kind":     valueFlowTrailSlotKind(port.Slot.Kind),
+		}
+		if uid := graphIDs[id]; uid != "" {
+			step["function_uid"] = uid
+		}
+		if port.Slot.Kind == interproc.SlotParam {
+			step["slot_index"] = port.Slot.Index
+		}
+		if port.Slot.Name != "" {
+			step["slot_name"] = port.Slot.Name
+		}
+		out = append(out, step)
+	}
+	return out
+}
+
+func valueFlowTrailRole(index, length int) string {
+	switch index {
+	case 0:
+		return "source"
+	default:
+		if index == length-1 {
+			return "sink"
+		}
+		return "intermediate"
+	}
+}
+
+func valueFlowTrailSlotKind(kind interproc.SlotKind) string {
+	switch kind {
+	case interproc.SlotParam:
+		return "param"
+	case interproc.SlotReturn:
+		return "return"
+	case interproc.SlotNamed:
+		return "named"
+	default:
+		return "unknown"
+	}
 }
 
 // ValueFlowFixpointProjectionResult records the visible outcome of a post-summary

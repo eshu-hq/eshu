@@ -10,7 +10,7 @@ import (
 // bounded relationship-story query path can follow.
 func relationshipStorySupportedType(t string) bool {
 	switch t {
-	case "CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES":
+	case "CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO":
 		return true
 	default:
 		return false

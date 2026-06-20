@@ -54,6 +54,39 @@ func TestInterprocFindingRowCloudOmitted(t *testing.T) {
 	}
 }
 
+// TestInterprocFindingRowCarriesWhyTrail proves the parser payload preserves the
+// ordered finding trail without adding optional fields when it is absent.
+func TestInterprocFindingRowCarriesWhyTrail(t *testing.T) {
+	src := interproc.Port{Func: "repo\x1fview", Slot: interproc.Slot{Kind: interproc.SlotParam, Index: 0}}
+	mid := interproc.Port{Func: "repo\x1fservice", Slot: interproc.Slot{Kind: interproc.SlotNamed, Name: "payload"}}
+	sink := interproc.Port{Func: "repo\x1frun_query", Slot: interproc.Slot{Kind: interproc.SlotReturn}}
+	row := InterprocFindingRow("go", interproc.Finding{
+		SourceFunc: "repo\x1fview",
+		SinkFunc:   "repo\x1frun_query",
+		SinkKind:   "sql",
+		Trail:      []interproc.Port{src, mid, sink},
+	})
+
+	trail, ok := row["why_trail"].([]map[string]any)
+	if !ok {
+		t.Fatalf("why_trail type = %T, want []map[string]any", row["why_trail"])
+	}
+	if len(trail) != 3 {
+		t.Fatalf("len(why_trail) = %d, want 3: %+v", len(trail), trail)
+	}
+	if trail[0]["function_id"] != "repo\x1fview" || trail[0]["slot_kind"] != "param" || trail[0]["slot_index"] != 0 {
+		t.Fatalf("source trail step not rendered: %+v", trail[0])
+	}
+	if trail[1]["slot_name"] != "payload" || trail[2]["slot_kind"] != "return" {
+		t.Fatalf("intermediate/sink trail steps not rendered: %+v", trail)
+	}
+
+	truncated := InterprocFindingRow("go", interproc.Finding{Trail: []interproc.Port{src}, TrailTruncated: true})
+	if truncated["why_trail_truncated"] != true {
+		t.Fatalf("why_trail_truncated not carried: %+v", truncated)
+	}
+}
+
 // TestSortFindingRowsDeterministic proves findings sort by sink line, then source
 // line, then binding, then kind.
 func TestSortFindingRowsDeterministic(t *testing.T) {

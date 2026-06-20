@@ -48,5 +48,7 @@ func codeInterprocEvidenceFromEnvelope(envelope facts.Envelope) reducer.CodeInte
 		SourceKind:         payloadString(payload, "source_kind"),
 		Confidence:         codeTaintPayloadFloat(payload, "confidence"),
 		Cloud:              payloadBool(payload, "cloud"),
+		WhyTrail:           payloadMapSlice(payload, "why_trail"),
+		WhyTrailTruncated:  payloadBool(payload, "why_trail_truncated"),
 	}
 }

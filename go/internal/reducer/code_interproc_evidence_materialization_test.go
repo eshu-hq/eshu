@@ -161,3 +161,33 @@ func TestExtractCodeInterprocEvidenceRowsDropsUnresolvedAndIsIdempotent(t *testi
 		t.Fatalf("edge uid not stable across runs: %v vs %v", rows[0]["uid"], again[0]["uid"])
 	}
 }
+
+// TestExtractCodeInterprocEvidenceRowsCarriesWhyTrailOutsideUID proves the
+// ordered why trail is projected as evidence payload without changing edge
+// identity.
+func TestExtractCodeInterprocEvidenceRowsCarriesWhyTrailOutsideUID(t *testing.T) {
+	t.Parallel()
+
+	input := sampleCodeInterprocInput()
+	input.WhyTrail = []map[string]any{
+		{"role": "source", "function_uid": "func-source", "slot_kind": "param", "slot_index": 0},
+		{"role": "sink", "function_uid": "func-sink", "slot_kind": "return"},
+	}
+	input.WhyTrailTruncated = true
+
+	row := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{input})[0]
+	if row["why_trail_truncated"] != true {
+		t.Fatalf("why_trail_truncated not carried: %+v", row)
+	}
+	if row["why_trail_json"] == "" {
+		t.Fatalf("why_trail_json missing: %+v", row)
+	}
+	if _, ok := row["why_trail"]; ok {
+		t.Fatalf("raw why_trail should not be sent to graph writer rows: %+v", row)
+	}
+
+	withoutTrail := sampleCodeInterprocInput()
+	if got := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{withoutTrail})[0]["uid"]; got != row["uid"] {
+		t.Fatalf("trail changed edge uid: with=%v without=%v", row["uid"], got)
+	}
+}
