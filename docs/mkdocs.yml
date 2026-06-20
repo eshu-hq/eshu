@@ -225,6 +225,7 @@ nav:
       - Replatforming Source-State Taxonomy: reference/replatforming-source-state-taxonomy.md
       - Replatforming Plan Contract: reference/replatforming-plan-contract.md
       - Answer Packet Contract: reference/answer-packets.md
+      - Investigation Evidence Packet Contract: reference/investigation-evidence-packet.md
       - Evidence Citation Handle Contract: reference/evidence-citation-handles.md
       - Reading Answers: reference/reading-answers.md
       - Query Playbooks: reference/query-playbooks.md

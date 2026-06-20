@@ -285,6 +285,23 @@
 // derive_visualization_packet tool routes to the same handler. The contract is
 // documented in docs/public/reference/visualization-packets.md.
 //
+// InvestigationEvidencePacket is the portable, source-backed v2 artifact
+// (investigation_evidence_packet.v2). Unlike AnswerPacket, which is a view over
+// one ResponseEnvelope, it is a self-contained artifact that separates raw
+// source facts, reducer decisions, graph/query truth, missing-evidence reasons,
+// freshness, and optional semantic observations into independent layers.
+// NewInvestigationEvidencePacket composes and validates a packet from
+// already-resolved evidence — it reads no store and calls no provider — deriving
+// a deterministic packet_id from the identity plus a content digest so a
+// no-provider build is reproducible byte-for-byte. Semantic observations are
+// permitted only under an explicit AllowSemantic policy gate and the
+// semantic_augmented basis; an unrecognized family or unanswerable scope yields a
+// valid refusal packet rather than a fabricated answer. Layers are bounded with
+// explicit truncation and the artifact declares the share_safe_v2 redaction
+// profile. The contract is documented in
+// docs/public/reference/investigation-evidence-packet.md; the supply-chain
+// (#3141) and deployable-unit/drift (#3142) emitters wire real data into it.
+//
 // FreshnessHandler serves two bounded freshness drilldowns. The generation
 // lifecycle drilldown at GET /api/v0/freshness/generations under the
 // freshness.generation_lifecycle capability reads through the
