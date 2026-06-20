@@ -152,13 +152,12 @@ func wireAPI(
 		SupplyChain: newSupplyChainEvidenceSource(db, logger),
 	}).Mount(mux)
 
-	// Mount POST /api/v0/ask so the MCP "ask" tool dispatch does not 404.
-	// The handler is default-off (nil Asker → 503 state:"unavailable") when
-	// ESHU_ASK_ENABLED is unset or no agent_reasoning provider profile is
-	// configured. This matches the cmd/api wiring: the MCP server does not
-	// provide an in-process engine, so the AskHandler always runs in
-	// default-off mode here; the MCP ask tool proxies through HTTP.
-	(&query.AskHandler{}).Mount(mux)
+	// Mount POST /api/v0/ask and wire the governed narration posture. The engine
+	// uses the MCP server's own in-process mux as the MCPRunner handler so the
+	// engine's tool calls dispatch through this server's routes — the same
+	// pattern as cmd/api. Default-off when ESHU_ASK_ENABLED is unset or no
+	// agent_reasoning provider profile is configured.
+	mountAskAndNarration(getenv, mux, apiKey, router.Status, logger)
 
 	// Record per-endpoint duration/error metrics for every read route, then wrap
 	// with auth middleware (shared token + optional scoped-token registry;
