@@ -83,6 +83,39 @@ func TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testi
 	}
 }
 
+func TestGraphValueFlowCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T) {
+	t.Parallel()
+
+	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
+	graph := &recordingCloudSinkGraph{rows: []map[string]any{
+		{
+			"function_uid": "uid-handler",
+			"sink_rel":     "WRITES_CONFIG",
+			"sink_labels":  []string{"ConfigKey"},
+		},
+		{
+			"function_uid": "uid-handler",
+			"sink_rel":     "DECLARES_IAC_MISCONFIG",
+			"sink_labels":  []string{"TerraformResource"},
+		},
+	}}
+	loader := GraphValueFlowCloudSinkTargetLoader{Graph: graph}
+
+	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
+	if err != nil {
+		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("catalog-only config/IaC sinks produced fixpoint targets: %+v", targets)
+	}
+	if _, ok := exposure.MatchSink("WRITES_CONFIG", "ConfigKey", map[string]string{"key": "tls.insecure_skip_verify"}); ok {
+		t.Fatalf("%q must stay non-GraphBacked until #3191 adds a Function-anchored loader path", exposure.SinkConfigSecurityKey)
+	}
+	if _, ok := exposure.MatchSink("DECLARES_IAC_MISCONFIG", "TerraformResource", map[string]string{"acl": "public-read"}); ok {
+		t.Fatalf("%q must stay non-GraphBacked until #3191 adds a Function-anchored loader path", exposure.SinkIaCMisconfiguration)
+	}
+}
+
 func TestGraphValueFlowCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T) {
 	t.Parallel()
 

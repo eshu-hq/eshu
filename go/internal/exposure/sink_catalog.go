@@ -47,6 +47,12 @@ const (
 	// SinkInternetEndpoint is reaching an endpoint exposed to the public internet
 	// (egress/exfiltration terminal), modeled by the security-group graph.
 	SinkInternetEndpoint SinkKind = "internet_exposed_endpoint"
+	// SinkConfigSecurityKey is untrusted data reaching a security-relevant
+	// configuration key such as TLS verification or filesystem permissions.
+	SinkConfigSecurityKey SinkKind = "config_security_key"
+	// SinkIaCMisconfiguration is untrusted or templated data reaching an IaC
+	// configuration that can create a security misconfiguration.
+	SinkIaCMisconfiguration SinkKind = "iac_misconfiguration"
 )
 
 // SinkPredicate is a target-node property constraint that must hold for an edge
@@ -97,7 +103,7 @@ type SinkSpec struct {
 // this Level 1 capability uses. Every entry's relationship, target, and
 // provenance are verified against the reducer/graph materializers cited inline.
 // The catalog is intentionally conservative and closed: a sink is only one of
-// these five categories, recognized only by a declared edge. It is a
+// these categories, recognized only by a declared edge. It is a
 // package-level value built once; callers MUST NOT mutate it.
 var sinkCatalog = []SinkSpec{
 	// IAM-privileged action sinks. The three IAM edges all terminate on a
@@ -176,6 +182,24 @@ var sinkCatalog = []SinkSpec{
 		BaselineSeverity: SeverityCritical,
 		GraphBacked:      true,
 		Provenance:       "reducer/shell_exec_materialization.go and storage/cypher/edge_writer_shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
+	},
+	// Config/IaC sinks are closed-vocabulary #3191 fixtures but intentionally
+	// non-GraphBacked for now. The current value-flow fixpoint graph loader only
+	// reaches Function-anchored cloud-action permission sinks; it has no
+	// Function-anchored config or IaC materializer path yet.
+	{
+		Kind:             SinkConfigSecurityKey,
+		DisplayName:      "security-relevant config key",
+		BaselineSeverity: SeverityHigh,
+		GraphBacked:      false,
+		Provenance:       "#3191 non-GraphBacked fixture: keep unresolved until a Function-anchored config sink materializer and ValueFlowFixpointEvidenceLoader path exist",
+	},
+	{
+		Kind:             SinkIaCMisconfiguration,
+		DisplayName:      "IaC misconfiguration",
+		BaselineSeverity: SeverityHigh,
+		GraphBacked:      false,
+		Provenance:       "#3191 non-GraphBacked fixture: keep unresolved until Terraform/Helm misconfiguration evidence has a Function-anchored materializer and ValueFlowFixpointEvidenceLoader path",
 	},
 }
 
@@ -261,7 +285,7 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 // catalog. The well-formedness test fails when the catalog changes without a
 // deliberate update to this constant, implementing the taintModelVersion
 // discipline: a curated edit trips downstream re-evaluation.
-const sinkCatalogVersionGolden = "c12d5bf8f698ec7227344f93b24cac72e67b868f28632f2f76523c1d227b99a6"
+const sinkCatalogVersionGolden = "1e6fb5ee59b81b38610afe33d1680fdbaf2b5d1540b4a4a97534575f922d14f9"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
 // cloud-sink catalog. Any change to the catalog (added, removed, or edited spec)

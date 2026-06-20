@@ -7,7 +7,10 @@
 // whose sink is always an AST node, an Eshu sink can be a correlated cloud
 // fact — an IAM action, a reachable secret, an internet-exposed endpoint, a
 // resolved SQL table queried by a function, or a structural shell-command node
-// reached through EXECUTES_SHELL.
+// reached through EXECUTES_SHELL. Config-security-key and IaC-misconfiguration
+// sink kinds are cataloged as #3191 fixtures but intentionally non-graph-backed
+// until a Function-anchored materializer and fixpoint loader path can prove
+// them.
 //
 // This package is the declarative half of that capability. It does not read the
 // graph, run Cypher, or write nodes. It declares:

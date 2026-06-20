@@ -37,6 +37,8 @@ optional target-property predicates), modeled on
 | `internet_exposed_endpoint` | `TO` → CidrBlock `{is_internet: true}`                       | high     | yes          |
 | `sql_table`                 | `QUERIES_TABLE` → SqlTable                                    | medium   | yes          |
 | `shell_exec`                | `EXECUTES_SHELL` → ShellCommand                              | critical | yes          |
+| `config_security_key`       | catalog-only #3191 fixture until a Function-anchored materializer exists | high | no |
+| `iac_misconfiguration`      | catalog-only #3191 fixture until Terraform/Helm misconfig evidence has a Function-anchored materializer | high | no |
 
 Every graph-backed spec cites the reducer/graph file that authors its edge, so
 the catalog stays auditable against the real materializers.
@@ -50,6 +52,11 @@ the materializer stores structural call-site metadata and omits command text,
 arguments, and environment values. The bounded tracer still reports
 `unresolved` when no declared sink edge is reachable rather than inventing a
 match. This is the package's core invariant: never fabricate a path.
+Config and IaC misconfiguration sinks are in the closed vocabulary as #3191
+fixtures, but they are deliberately non-graph-backed today. The value-flow
+fixpoint loader only reaches Function-anchored cloud-action permission sinks, so
+these entries must remain unmatched until a real materializer and loader path
+can prove a finding rather than silently returning zero findings.
 
 ### Content-hash discipline
 
@@ -156,3 +163,16 @@ flowchart LR
 cd go && go test ./internal/exposure -count=1
 cd go && golangci-lint run ./internal/exposure/...
 ```
+
+No-Regression Evidence: #3191 adds `config_security_key` and
+`iac_misconfiguration` as non-GraphBacked catalog fixtures only. `MatchSink`
+rejects plausible config and Terraform misconfiguration edge shapes until a
+Function-anchored materializer and `ValueFlowFixpointEvidenceLoader` path exist,
+and the reducer cloud-sink loader test proves those catalog-only rows do not
+produce fixpoint targets.
+
+No-Observability-Change: the change adds no graph query, graph write, queue
+domain, worker, runtime knob, metric, span, log field, or status field. Operators
+continue to diagnose value-flow sink reachability through the existing fixpoint
+load log, reducer execution counters, graph query instrumentation, and
+`TAINT_FLOWS_TO` writer summaries when a real graph-backed sink path exists.
