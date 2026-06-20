@@ -49,7 +49,7 @@ field and is always present (empty arrays are kept so the schema is stable):
 | Answer | `answer` | The short user-facing answer plan (truth class, summary, supported/partial, reasons). |
 | Raw evidence | `source_facts` | Observed facts *before* any reducer decision: identity, evidence family, collector, generation, a bounded summary, and an optional citation handle. |
 | Reducer decisions | `reducer_decisions` | Reducer-owned admission/correlation/drift decisions with an admission-audit state (`admitted`, `rejected`, `ambiguous`, `stale`, `missing_evidence`). |
-| Graph/query truth | `graph_answers` | The materialized edges/path hops the query surface returns, each with a present flag and truth class. |
+| Graph/query truth | `graph_answers` | The materialized edges/path hops the query surface returns, each with a present flag, truth class, and the `source_fact_ids` that back a present hop. |
 | Citations | `citations` | Addressable [evidence citation handles](evidence-citation-handles.md) — never raw payloads. |
 | Missing evidence | `missing_evidence` | Each unresolved hop with a reason and an optional bounded drilldown. |
 | Semantic (optional) | `semantic_observations` | Labeled, policy-gated provider observations. Absent in a deterministic build. |
@@ -110,12 +110,29 @@ eshu investigation export \
 
 ### Supported families
 
-| Family | Investigation | Emitter |
+| Family | Investigation | Status |
 | --- | --- | --- |
-| `supply_chain_impact` | Vulnerable package → advisory → SBOM/image → workload → service. | #3141 |
-| `deployable_unit` | Source repo → deployment config → image/workload → reducer admission. | #3142 |
-| `drift` | IaC vs runtime drift for a deployable unit or cloud resource. | #3142 |
-| `service_context` | Service dossier (code, deployment, incidents). | #3143 dogfood scenario |
+| `supply_chain_impact` | Vulnerable package → advisory → SBOM/image → workload → service. | Implemented (#3141) |
+| `deployable_unit` | Source repo → deployment config → image/workload → reducer admission. | Planned (#3142) |
+| `drift` | IaC vs runtime drift for a deployable unit or cloud resource. | Planned (#3142) |
+| `service_context` | Service dossier (code, deployment, incidents). | Planned (#3143 dogfood) |
+
+### Supply-chain impact example
+
+```bash
+eshu investigation export \
+  --family supply_chain_impact \
+  --subject advisory_id=GHSA-xxxx-yyyy-zzzz \
+  --subject package_id=pkg:golang/example.com/vuln \
+  --format md --out impact.md
+```
+
+The command reads the bounded `GET /api/v0/supply-chain/impact/explain` route,
+maps the reducer-owned explanation into the v2 packet through the shared
+`BuildSupplyChainImpactPacket` composer, and writes a deterministic artifact
+(owner-only `0600`). A 404 / not-found explanation yields a `scope_not_found`
+refusal packet; an incomplete advisory-plus-target scope yields the same refusal
+without calling the API.
 
 ### Refusal states
 
