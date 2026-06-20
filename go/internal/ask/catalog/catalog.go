@@ -125,3 +125,30 @@ func (c *Catalog) Entries() []Entry {
 	copy(out, c.entries)
 	return out
 }
+
+// Annotate applies the curated overlay onto the catalog entries in place. An
+// entry with no overlay match keeps the conservative BackendUnknown/CostHigh
+// defaults and is reported by Unannotated.
+func (c *Catalog) Annotate() {
+	overlay := annotations()
+	for i := range c.entries {
+		if a, ok := overlay[c.entries[i].Name]; ok {
+			c.entries[i].Backend = a.Backend
+			c.entries[i].Cost = a.Cost
+		}
+	}
+}
+
+// Unannotated returns the sorted names of implemented surfaces that still have
+// no overlay annotation after Annotate. A non-empty result means the overlay has
+// fallen behind the surface inventory.
+func (c *Catalog) Unannotated() []string {
+	var missing []string
+	for _, e := range c.entries {
+		if e.Backend == BackendUnknown {
+			missing = append(missing, e.Name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
