@@ -25,7 +25,12 @@
 // filters returned rows without changing canonical graph truth.
 // Relationship-story rows also include a uniform provenance object so API and
 // MCP clients can compare code-edge and correlation-edge confidence at the row
-// without changing admission policy or the answer-level TruthEnvelope.
+// without changing admission policy or the answer-level TruthEnvelope. The
+// provenance object carries a named confidence_tier derived from confidence
+// (high/medium/low/unsupported) and the answer coverage carries a
+// missing_edge_reason, truncation_state, and evidence_explanation so callers
+// see why a result is empty or short; both are descriptive and never upgrade a
+// heuristic or unsupported edge into canonical truth.
 // Admission-decision reads expose reducer-owned admitted, rejected, ambiguous,
 // stale, missing-evidence, permission-hidden, unsupported, and unsafe candidate
 // rows under a domain/scope/generation boundary; they explain graph writes but

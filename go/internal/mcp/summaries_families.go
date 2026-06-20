@@ -224,3 +224,50 @@ func summarizeCollectorList(data map[string]any) string {
 	}
 	return fmt.Sprintf("%d collector(s) registered", mcpSliceLen(data, "collectors"))
 }
+
+// summarizeCodeRelationships renders a bounded relationship-story summary that
+// makes code-relationship uncertainty explicit (issue #3158): how many edges are
+// derived (canonical code truth) versus heuristic/ambiguous or unsupported, and
+// why the result is empty or short. It reads the structured content only and
+// never reinterprets confidence or truth — it surfaces what the answer already
+// labels per edge so a reader sees the ambiguity instead of trusting raw counts.
+func summarizeCodeRelationships(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	relationships, ok := data["relationships"].([]any)
+	if !ok {
+		return ""
+	}
+	var derived, heuristic, unsupported int
+	for _, raw := range relationships {
+		row, _ := raw.(map[string]any)
+		provenance := mcpMapField(row, "provenance")
+		switch query.StringVal(provenance, "truth_state") {
+		case "derived":
+			derived++
+		case "heuristic":
+			heuristic++
+		default:
+			unsupported++
+		}
+	}
+
+	parts := []string{fmt.Sprintf("%d relationship(s): %d derived, %d heuristic/ambiguous, %d unsupported",
+		len(relationships), derived, heuristic, unsupported)}
+	if heuristic > 0 {
+		parts = append(parts, "heuristic edges are correlation evidence, not canonical code truth")
+	}
+	if unsupported > 0 {
+		parts = append(parts, "unsupported edges carry no recorded confidence")
+	}
+
+	coverage := mcpMapField(data, "coverage")
+	if explanation := query.StringVal(coverage, "evidence_explanation"); explanation != "" {
+		reason := query.StringVal(coverage, "missing_edge_reason")
+		if reason != "" && reason != "complete" {
+			parts = append(parts, fmt.Sprintf("%s: %s", reason, explanation))
+		}
+	}
+	return strings.Join(parts, "; ")
+}

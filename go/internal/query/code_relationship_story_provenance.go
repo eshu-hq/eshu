@@ -10,6 +10,11 @@ const (
 	relationshipStoryTruthDerived     = "derived"
 	relationshipStoryTruthHeuristic   = "heuristic"
 	relationshipStoryTruthUnsupported = "unsupported"
+
+	relationshipStoryTierHigh        = "high"
+	relationshipStoryTierMedium      = "medium"
+	relationshipStoryTierLow         = "low"
+	relationshipStoryTierUnsupported = "unsupported"
 )
 
 func relationshipStoryProvenance(row map[string]any) map[string]any {
@@ -18,6 +23,7 @@ func relationshipStoryProvenance(row map[string]any) map[string]any {
 	truthState := relationshipStoryProvenanceTruthState(row, sourceFamily, hasConfidence)
 	provenance := map[string]any{
 		"confidence_state": relationshipStoryConfidenceState(hasConfidence),
+		"confidence_tier":  relationshipStoryConfidenceTier(confidence, hasConfidence),
 		"method":           relationshipStoryProvenanceMethod(row),
 		"source_family":    sourceFamily,
 		"reason":           relationshipStoryProvenanceReason(row),
@@ -30,6 +36,24 @@ func relationshipStoryProvenance(row map[string]any) map[string]any {
 		provenance["confidence"] = confidence
 	}
 	return provenance
+}
+
+// relationshipStoryConfidenceTier maps a numeric confidence to a named tier so
+// agents can weight an edge without hard-coding the ADR #2222 tier numbers. It
+// is a presentation derivation of confidence; it never changes truth_state and
+// never upgrades a heuristic or unsupported edge into canonical truth. A row
+// with no recorded confidence is "unsupported", not silently promoted.
+func relationshipStoryConfidenceTier(confidence float64, hasConfidence bool) string {
+	switch {
+	case !hasConfidence:
+		return relationshipStoryTierUnsupported
+	case confidence >= 0.90:
+		return relationshipStoryTierHigh
+	case confidence >= 0.70:
+		return relationshipStoryTierMedium
+	default:
+		return relationshipStoryTierLow
+	}
 }
 
 func relationshipStoryConfidenceState(hasConfidence bool) string {

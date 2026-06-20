@@ -230,6 +230,7 @@ const openAPIComponents = `  "components": {
           "provenance": {"type": "object", "description": "Uniform per-relationship provenance block for API and MCP relationship-story rows.", "properties": {
             "confidence": {"type": "number"},
             "confidence_state": {"type": "string", "enum": ["reported", "unsupported"]},
+            "confidence_tier": {"type": "string", "enum": ["high", "medium", "low", "unsupported"], "description": "Named tier derived from confidence (high >= 0.9, medium >= 0.7, else low; unsupported when the edge carries no confidence). Presentation derivation only; never upgrades truth_state."},
             "method": {"type": "string", "description": "Code resolution_method, correlation confidence_basis/resolution_source, or unsupported when unavailable."},
             "source_family": {"type": "string", "enum": ["code_edge", "correlation_edge", "unsupported"]},
             "reason": {"type": "string"},
