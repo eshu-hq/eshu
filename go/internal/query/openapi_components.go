@@ -32,6 +32,29 @@ const openAPIComponents = `  "components": {
       }
     },
     "schemas": {
+      "InvestigationEvidencePacket": {
+        "type": "object",
+        "description": "Portable investigation_evidence_packet.v2 artifact. The packet separates source facts, reducer decisions, graph/query answers, missing evidence, reproduce handles, bounds, redaction, and validation state.",
+        "properties": {
+          "schema": {"type": "string", "enum": ["investigation_evidence_packet.v2"]},
+          "packet_id": {"type": "string"},
+          "identity": {"type": "object"},
+          "truth": {"type": "object", "nullable": true},
+          "freshness": {"type": "object"},
+          "answer": {"type": "object"},
+          "source_facts": {"type": "array", "items": {"type": "object"}},
+          "reducer_decisions": {"type": "array", "items": {"type": "object"}},
+          "graph_answers": {"type": "array", "items": {"type": "object"}},
+          "citations": {"type": "array", "items": {"type": "object"}},
+          "missing_evidence": {"type": "array", "items": {"type": "object"}},
+          "semantic_observations": {"type": "array", "items": {"type": "object"}},
+          "reproduce": {"type": "array", "items": {"type": "object"}},
+          "bounds": {"type": "object"},
+          "redaction": {"type": "object"},
+          "validation": {"type": "object"},
+          "refusal": {"type": "string"}
+        }
+      },
       "ReplatformingReadinessCounts": {
         "type": "object",
         "description": "Bounded import-readiness view for one replatforming rollup bucket. import_ready, needs_review, and refused stay separate so a refused or unproven item is never presented as ready.",

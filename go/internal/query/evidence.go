@@ -31,6 +31,7 @@ type relationshipEvidenceReadModelStore interface {
 func (h *EvidenceHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/evidence/relationships/{resolved_id}", h.getRelationshipEvidence)
 	mux.HandleFunc("GET /api/v0/evidence/admission-decisions", h.listAdmissionDecisions)
+	mux.HandleFunc("GET /api/v0/investigations/deployable-unit/packet", h.getDeployableUnitPacket)
 	mux.HandleFunc("POST /api/v0/evidence/citations", h.buildEvidenceCitations)
 }
 

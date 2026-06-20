@@ -53,6 +53,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSupplyChainImpactRoute(r) {
 		return true
 	}
+	if scopedInvestigationPacketRoute(r) {
+		return true
+	}
 	if scopedSupplyChainAdvisoryEvidenceRoute(r) {
 		return true
 	}
@@ -396,6 +399,25 @@ func scopedSupplyChainImpactRoute(r *http.Request) bool {
 	case "/api/v0/supply-chain/impact/findings",
 		"/api/v0/supply-chain/impact/findings/count",
 		"/api/v0/supply-chain/impact/inventory":
+		return true
+	default:
+		return false
+	}
+}
+
+// scopedInvestigationPacketRoute reports whether the request targets a portable
+// investigation packet route whose handler intersects scoped-token grants before
+// data reads. Supply-chain packets require a granted repository selector before
+// the impact explanation store is read; deployable-unit packets reuse the
+// admission-decision scope/repository grant filter. Drift packets stay
+// fail-closed for scoped tokens until drift rows carry repository-grant proof.
+func scopedInvestigationPacketRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/investigations/supply-chain/impact/packet",
+		"/api/v0/investigations/deployable-unit/packet":
 		return true
 	default:
 		return false

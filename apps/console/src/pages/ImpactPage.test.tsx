@@ -93,6 +93,53 @@ describe("ImpactPage", () => {
     });
     expect(screen.getAllByText("consumer-api").length).toBeGreaterThan(0);
   });
+
+  it("loads a deployable-unit investigation packet from explicit scope inputs", async () => {
+    const calls: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        calls.push(path);
+        if (path.startsWith("/api/v0/investigations/deployable-unit/packet")) {
+          return {
+            data: {
+              answer: { summary: "Deployable-unit packet is supported.", supported: true, truth_class: "exact" },
+              bounds: { max_source_facts: 200, truncated: false },
+              graph_answers: [{ id: "graph:deploy:1", present: true, relation: "DEPLOYS" }],
+              identity: { family: "deployable_unit", scope: { scope_id: "scope-1", generation_id: "generation-1" } },
+              missing_evidence: [{ hop: "runtime_workload", reason: "workload edge missing" }],
+              packet_id: "investigation-evidence-packet:deploy-demo",
+              reducer_decisions: [{ id: "decision:deploy:1", state: "admitted" }],
+              redaction: { profile: "share_safe_v2" },
+              reproduce: [{ kind: "http", route: "/api/v0/investigations/deployable-unit/packet" }],
+              schema: "investigation_evidence_packet.v2",
+              source_facts: [{ evidence_family: "admission_decision", fact_id: "fact:deploy:1" }],
+              validation: { valid: true }
+            },
+            error: null,
+            truth: truthEnvelope("deployable_unit.packet")
+          };
+        }
+        throw new Error(`unexpected path ${path}`);
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/impact?scope_id=scope-1&generation_id=generation-1&repo_id=repo%3A%2F%2Fteam%2Fapi"]}>
+        <ImpactPage client={client} model={modelFromSnapshot(emptySnapshot("live"))} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByLabelText<HTMLInputElement>("Packet repository ID").value).toBe("repo://team/api");
+    fireEvent.click(screen.getByRole("button", { name: "Load deployable-unit packet" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("investigation-evidence-packet:deploy-demo")).toBeInTheDocument();
+    });
+    expect(screen.getByText("runtime_workload")).toBeInTheDocument();
+    expect(calls).toContain(
+      "/api/v0/investigations/deployable-unit/packet?scope_id=scope-1&generation_id=generation-1&repository_id=repo%3A%2F%2Fteam%2Fapi&max_source_facts=50"
+    );
+  });
 });
 
 function truthEnvelope(capability: string) {

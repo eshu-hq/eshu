@@ -89,7 +89,7 @@ logging.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 142 tools from the tool definition files.
+`ReadOnlyTools` assembles 146 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -122,6 +122,7 @@ logging.
 | `documentationTools` | 4 | `tools_documentation.go` |
 | `queryPlaybookTools` | 2 | `tools_query_playbooks.go` |
 | `investigationWorkflowTools` | 2 | `tools_investigation_workflows.go` |
+| `investigationPacketTools` | 3 | `tools_investigation_packets.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `semanticSearchTools` | 1 | `tools_semantic_search.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
@@ -154,6 +155,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `calculate_cyclomatic_complexity` | POST | `/api/v0/code/complexity` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `list_admission_decisions` | GET | `/api/v0/evidence/admission-decisions` |
+| `export_deployable_unit_packet` | GET | `/api/v0/investigations/deployable-unit/packet` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
@@ -178,6 +180,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` (use `subject_digest`/`digest`, `document_id`, `document_digest`, repository `repository_id` or selector, `workload_id`, or `service_id` for SBOM proof; scoped repository/workload/service reads return explicit missing image or image-to-SBOM evidence instead of silently flattening empty pages) |
 | `list_advisory_evidence` | GET | `/api/v0/supply-chain/advisories/evidence` |
 | `explain_supply_chain_impact` | GET | `/api/v0/supply-chain/impact/explain` |
+| `export_supply_chain_impact_packet` | GET | `/api/v0/investigations/supply-chain/impact/packet` |
+| `export_cloud_runtime_drift_packet` | GET | `/api/v0/investigations/drift/packet` |
 | `list_security_alert_reconciliations` | GET | `/api/v0/supply-chain/security-alerts/reconciliations` (accepts repository ids or human repository selectors; rows include Eshu-owned `eshu_package.observed_version` when installed-version evidence exists) |
 | `count_repositories_by_language` | GET | `/api/v0/repositories/by-language?limit=0` |
 | `list_repositories_by_language` | GET | `/api/v0/repositories/by-language` |
@@ -351,7 +355,7 @@ membership as trust.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 142 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 146 tool definitions |
 
 ## SSE session model
 
