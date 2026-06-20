@@ -88,6 +88,9 @@
 // through MetricsHandler. The handler accepts a MetricsTimeSeriesSource, with
 // PrometheusMetricsTimeSeriesSource providing the Prometheus/Mimir query_range
 // implementation when the API runtime is configured with a live metrics source.
+// Component extension reads expose redacted trust decisions, policy gates,
+// missing conformance proof state, scheduler state, and read-model
+// availability from local registry readback without consulting graph truth.
 // Governance status reads expose only redacted policy mode, state, source kind,
 // revision hash, readiness booleans, aggregate counts, and reason codes. When a
 // private governance audit sink is wired, the route reads only its aggregate

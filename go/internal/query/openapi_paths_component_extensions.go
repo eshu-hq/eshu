@@ -54,6 +54,11 @@ const openAPIPathsComponentExtensions = `
                             }
                           },
                           "diagnostics": {"type": "object"},
+                          "trust_decision": {"type": "object"},
+                          "policy_gate": {"type": "object"},
+                          "last_conformance_proof": {"type": "object"},
+                          "scheduler_state": {"type": "object"},
+                          "read_model_availability": {"type": "object"},
                           "error": {"type": "object"}
                         }
                       }
