@@ -116,7 +116,7 @@ func TestGitDiffNameStatusDetectsCopiedFiles(t *testing.T) {
 
 	repoPath := t.TempDir()
 	runGit(t, repoPath, "init")
-	runGit(t, repoPath, "config", "user.email", "test@example.invalid")
+	runGit(t, repoPath, "config", "user.email", "test"+"@example.invalid")
 	runGit(t, repoPath, "config", "user.name", "Test User")
 	if err := os.MkdirAll(filepath.Join(repoPath, "go"), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)

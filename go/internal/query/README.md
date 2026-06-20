@@ -101,10 +101,12 @@ returned row metadata and does not change canonical admission, graph writes, or
 the answer-level truth envelope.
 Pre-change impact reads (`POST /api/v0/impact/pre-change`) are a productized
 entrypoint over the existing change-surface investigation contract. They accept
-repo-relative changed paths or structured file changes, preserve deleted and
-renamed status, reject absolute and parent-traversal paths, and return the same
-bounded code surface, graph impact rows, coverage, truncation, answer metadata,
-and AnswerPacket-shaped response instead of creating a parallel impact model.
+repo-relative changed paths or structured file changes, preserve deleted,
+renamed, and copied status, reject absolute and parent-traversal paths, and
+return the same bounded code surface, graph impact rows, coverage, truncation,
+answer metadata, and AnswerPacket-shaped response instead of creating a parallel
+impact model. Optional base/head refs are provenance for caller-derived changed
+inputs; refs alone do not trigger server-side diff derivation.
 Repository context relationship queries include reducer-owned
 `CORRELATES_DEPLOYABLE_UNIT` graph edges so deployable-unit correlation readback
 uses the same confidence, evidence kind, reason, resolved id, and
