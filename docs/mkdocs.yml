@@ -138,6 +138,7 @@ nav:
     - Vault Secrets/IAM Collector Read-Only Permissions: reference/vault-secrets-iam-permissions.md
     - Health And Readiness Probes: reference/health-readiness.md
     - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
+    - All-Collector Readiness Proof Matrix: reference/collector-readiness-proof-matrix.md
     - PagerDuty Evidence Contract: reference/pagerduty-evidence.md
     - Jira Evidence Contract: reference/jira-evidence.md
     - Observability Evidence Contract: reference/observability-evidence.md
