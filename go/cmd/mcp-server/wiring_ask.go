@@ -24,6 +24,13 @@ import (
 // (statusHandler.NarrationPosture). This ensures GET
 // /api/v0/status/answer-narration and POST /api/v0/ask report consistent
 // availability on the MCP server — matching cmd/api semantics exactly.
+//
+// SHARED-TOKEN-ONLY: POST /api/v0/ask is not in the scoped-HTTP-route allow-
+// list (scopedHTTPRouteSupportsTenantFilter), so the MCP "ask" tool only works
+// for callers authenticated with a shared API key or in auth-disabled local
+// mode. Scoped-bearer-token callers receive 403. Scoped-token support for Ask
+// (including inner-call route gating to prevent cross-tenant data leakage) is
+// tracked in issue #3300 / PR #3310 and must not be added here.
 func mountAskAndNarration(
 	getenv func(string) string,
 	mux *http.ServeMux,

@@ -97,7 +97,7 @@ func BuildAskHandler(
 		return HandlerResult{Handler: h, SetPosture: noop}
 	}
 
-	tools := engine.Toolset(cat, mcp.ReadOnlyTools())
+	tools := toolsetExcludingAsk(cat)
 
 	// The bearer token used by the in-process runner to authorize MCP tool
 	// calls on behalf of the system (shared-token path).
@@ -218,6 +218,28 @@ func buildAskCatalog() (*catalog.Catalog, error) {
 	}
 	cat.Annotate()
 	return cat, nil
+}
+
+// toolsetExcludingAsk builds the engine tool slice from all read-only MCP
+// tools, excluding the "ask" tool itself.
+//
+// Excluding "ask" prevents a recursive engine invocation: the MCP server
+// advertises "ask" as a client-facing tool, and that same tool dispatches POST
+// /api/v0/ask back to the in-process handler. If the engine's toolset includes
+// "ask", a model that selects the tool during an Ask session recursively calls
+// the engine — burning provider calls until the context deadline or a depth
+// limit stops it. Removing "ask" from the engine toolset makes the recursion
+// structurally impossible.
+func toolsetExcludingAsk(cat *catalog.Catalog) []provider.Tool {
+	defs := mcp.ReadOnlyTools()
+	filtered := make([]mcp.ToolDefinition, 0, len(defs))
+	for _, d := range defs {
+		if d.Name == "ask" {
+			continue
+		}
+		filtered = append(filtered, d)
+	}
+	return engine.Toolset(cat, filtered)
 }
 
 // engineAsker adapts *engine.Engine to query.Asker. It lives in askwiring to
