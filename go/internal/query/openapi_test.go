@@ -164,6 +164,32 @@ func TestOpenAPIAskSSEDescribesValidatedTokenEvents(t *testing.T) {
 	assertAskSSEValidatedTokenDescription(t, eventStreamDescription)
 }
 
+func TestOpenAPIAskDescribesRuntimeAnswerGuardrails(t *testing.T) {
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	askPath := mustMapField(t, paths, "/api/v0/ask")
+	askPost := mustMapField(t, askPath, "post")
+	responses := mustMapField(t, askPost, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	responseDescription, ok := okResponse["description"].(string)
+	if !ok {
+		t.Fatal("ask 200 response description missing or not a string")
+	}
+	for _, required := range []string{
+		"runtime citation-coverage and publish-safety guardrails",
+		"suppress those fields",
+		"partial=true",
+	} {
+		if !strings.Contains(responseDescription, required) {
+			t.Fatalf("ask 200 response description missing %q: %s", required, responseDescription)
+		}
+	}
+}
+
 func assertAskSSEValidatedTokenDescription(t *testing.T, description string) {
 	t.Helper()
 	for _, forbidden := range []string{

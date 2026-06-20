@@ -103,6 +103,15 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
 }
 ```
 
+Narrated prose and rendered artifacts pass through runtime answer guardrails
+before they are returned. A guardrail failure for citation coverage or
+publish-safety suppresses `answer_prose` and `artifacts`, sets `partial: true`,
+and adds a bounded limitation such as
+`runtime answer guardrail blocked publishable prose: publish_safety` without
+echoing the rejected value. The same pure guardrail logic is used by the
+answer-quality scorecard, so runtime Ask and CI scoring share the citation and
+publish-safety rules.
+
 **SSE variant** — send `Accept: text/event-stream` to receive a
 `text/event-stream` response with `Cache-Control: no-cache`. When the
 configured provider adapter supports streaming, tool-trace events are emitted

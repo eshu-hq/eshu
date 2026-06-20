@@ -176,3 +176,48 @@ func TestAskSSE_Streaming_LeakSafe(t *testing.T) {
 		t.Fatal("expected an 'error' SSE event, got none")
 	}
 }
+
+func TestAskSSE_StreamingFinalAnswerSuppressesUnsafeNarration(t *testing.T) {
+	t.Parallel()
+
+	rawAddress := strings.Join([]string{"10", "66", "8", "4"}, ".")
+	h := &AskHandler{
+		Asker: &fakeStreamingAsker{
+			answer: AskAnswer{
+				Prose:    "The private host is " + rawAddress,
+				Narrated: true,
+				Packets: []AnswerPacket{{
+					TruthClass:      AnswerTruthDeterministic,
+					Supported:       true,
+					EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+				}},
+			},
+		},
+	}
+
+	w := postAskSSE(h, `{"question":"list services"}`)
+	body := w.Body.String()
+	if strings.Contains(body, rawAddress) {
+		t.Fatalf("unsafe address leaked into SSE stream: %s", body)
+	}
+
+	events := parseSSEEvents(body)
+	var answer askResponse
+	for _, ev := range events {
+		if ev.event != "answer" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(ev.data), &answer); err != nil {
+			t.Fatalf("decode answer event: %v", err)
+		}
+	}
+	if answer.AnswerProse != "" {
+		t.Fatalf("answer_prose = %q, want suppressed unsafe prose", answer.AnswerProse)
+	}
+	if !answer.Partial {
+		t.Fatal("partial = false, want true when runtime guardrail suppresses output")
+	}
+	if !hasLimitation(answer.Limitations, "publish_safety") {
+		t.Fatalf("limitations = %#v, want publish_safety marker", answer.Limitations)
+	}
+}
