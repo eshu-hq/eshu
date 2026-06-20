@@ -50,7 +50,7 @@ func validateYAML(content string) []string {
 	if strings.TrimSpace(content) == "" {
 		return []string{"empty content"}
 	}
-	var v interface{}
+	var v any
 	if err := yaml.Unmarshal([]byte(content), &v); err != nil {
 		return []string{fmt.Sprintf("invalid YAML: %s", err.Error())}
 	}
@@ -114,8 +114,10 @@ var mermaidKeywords = []string{
 //
 //  1. Content is non-empty and within the size cap.
 //  2. The first token on the first non-empty line is a recognized diagram keyword.
-//  3. Parentheses, square brackets, and curly braces are balanced across the
-//     entire content.
+//
+// Bracket balance is intentionally NOT checked: valid Mermaid relationship
+// tokens (e.g. ER cardinality like "||--o{") contain unmatched delimiters by
+// design, so a balance check produces false positives on correct diagrams.
 //
 // It returns a slice of human-readable issues; nil or empty means the content
 // passed the lint.
@@ -132,14 +134,9 @@ func validateMermaid(content string) []string {
 
 	// Check that the first non-empty line starts with a recognized keyword.
 	firstLine := firstNonEmptyLine(trimmed)
-	firstToken := firstToken(firstLine)
-	if !isMermaidKeyword(firstToken) {
+	kw := firstToken(firstLine)
+	if !isMermaidKeyword(kw) {
 		issues = append(issues, "unrecognized mermaid diagram type")
-	}
-
-	// Check delimiter balance: '(' vs ')', '[' vs ']', '{' vs '}'.
-	if !bracketsBalanced(content) {
-		issues = append(issues, "unbalanced brackets")
 	}
 
 	return issues
@@ -174,27 +171,4 @@ func isMermaidKeyword(token string) bool {
 		}
 	}
 	return false
-}
-
-// bracketsBalanced reports whether parentheses, square brackets, and curly
-// braces are balanced in s. Each pair is checked independently.
-func bracketsBalanced(s string) bool {
-	parens, squares, curlies := 0, 0, 0
-	for _, ch := range s {
-		switch ch {
-		case '(':
-			parens++
-		case ')':
-			parens--
-		case '[':
-			squares++
-		case ']':
-			squares--
-		case '{':
-			curlies++
-		case '}':
-			curlies--
-		}
-	}
-	return parens == 0 && squares == 0 && curlies == 0
 }

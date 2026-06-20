@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -303,8 +304,10 @@ func TestValidateMermaid(t *testing.T) {
 			wantIssues: false,
 		},
 		{
-			name:       "valid erDiagram",
-			content:    "erDiagram\n  CUSTOMER }|--|{ ORDER : places",
+			// Regression: ER cardinality tokens like ||--o{ contain an unmatched
+			// '{' by design; bracket balance must NOT be checked.
+			name:       "valid erDiagram with natural cardinality",
+			content:    "erDiagram\n  CUSTOMER ||--o{ ORDER : places",
 			wantIssues: false,
 		},
 		{
@@ -347,24 +350,6 @@ func TestValidateMermaid(t *testing.T) {
 			content:     "not a diagram\n  A-->B",
 			wantIssues:  true,
 			issueSubstr: "unrecognized mermaid diagram type",
-		},
-		{
-			name:        "unbalanced parentheses",
-			content:     "graph TD\n  A(Unbalanced --> B",
-			wantIssues:  true,
-			issueSubstr: "unbalanced brackets",
-		},
-		{
-			name:        "unbalanced square brackets",
-			content:     "graph TD\n  A[Unbalanced --> B",
-			wantIssues:  true,
-			issueSubstr: "unbalanced brackets",
-		},
-		{
-			name:        "unbalanced curly braces",
-			content:     "graph TD\n  A{Unbalanced --> B",
-			wantIssues:  true,
-			issueSubstr: "unbalanced brackets",
 		},
 		{
 			name:        "empty content",
@@ -427,9 +412,9 @@ func TestValidateMermaidNoPanic(t *testing.T) {
 		strings.Repeat("{[", 5000),
 		"graph TD\n" + strings.Repeat("A-->B\n", 1000),
 	}
-	for _, s := range inputs {
-		s := s
-		t.Run("nopanic", func(t *testing.T) {
+	for i, s := range inputs {
+		i, s := i, s
+		t.Run(fmt.Sprintf("nopanic_%d", i), func(t *testing.T) {
 			t.Parallel()
 			// Must not panic.
 			_ = validateMermaid(s)
