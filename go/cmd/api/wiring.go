@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
+	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
@@ -30,7 +31,7 @@ var (
 	_ query.ContentStore = (*query.ContentReader)(nil)
 )
 
-const envSemanticSearchLocalEmbedder = "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER"
+const envSemanticSearchLocalEmbedder = searchembedruntime.EnvLocalEmbedder
 
 func wireAPI(
 	ctx context.Context,
@@ -54,9 +55,9 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, fmt.Errorf("load semantic extraction policy: %w", err)
 	}
-	semanticSearchLocalEmbedder, err := loadSemanticSearchLocalEmbedder(getenv)
+	semanticSearchEmbedding, err := searchembedruntime.ConfigFromEnv(getenv, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load semantic search local embedder: %w", err)
+		return nil, nil, fmt.Errorf("load semantic search embedder: %w", err)
 	}
 	semanticProviderProfiles = semanticpolicy.ApplyToProviderStatuses(
 		semanticProviderProfiles,
@@ -141,7 +142,7 @@ func wireAPI(
 	governanceAudit := pgstatus.NewGovernanceAuditStore(governanceAuditDB)
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
-	router, err := newRouter(
+	router, err := newRouterWithSemanticEmbedding(
 		db,
 		neo4jReader,
 		contentReader,
@@ -151,7 +152,7 @@ func wireAPI(
 		graphBackend,
 		logger,
 		instruments,
-		semanticSearchLocalEmbedder,
+		semanticSearchEmbedding,
 		componentHome,
 		componentPolicy,
 		governanceStatus,
@@ -237,16 +238,6 @@ func envOrDefault(getenv func(string) string, key, fallback string) string {
 	return v
 }
 
-func loadSemanticSearchLocalEmbedder(getenv func(string) string) (string, error) {
-	raw := strings.TrimSpace(getenv(envSemanticSearchLocalEmbedder))
-	switch raw {
-	case "", "hash", "local_hash":
-		return raw, nil
-	default:
-		return "", fmt.Errorf("invalid %s %q", envSemanticSearchLocalEmbedder, raw)
-	}
-}
-
 func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {
 	raw := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE"))
 	if raw == "" {
@@ -274,6 +265,49 @@ func newRouter(
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
 	semanticSearchLocalEmbedder string,
+	componentHome string,
+	componentPolicy component.Policy,
+	governanceStatus query.GovernanceStatusConfig,
+	governanceAudit query.GovernanceAuditSummaryReader,
+) (*query.APIRouter, error) {
+	semanticSearchEmbedding, err := searchembedruntime.ConfigFromEnv(func(key string) string {
+		if key == envSemanticSearchLocalEmbedder {
+			return semanticSearchLocalEmbedder
+		}
+		return ""
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return newRouterWithSemanticEmbedding(
+		db,
+		neo4jReader,
+		contentReader,
+		statusReader,
+		metricsSource,
+		queryProfile,
+		graphBackend,
+		logger,
+		instruments,
+		semanticSearchEmbedding,
+		componentHome,
+		componentPolicy,
+		governanceStatus,
+		governanceAudit,
+	)
+}
+
+func newRouterWithSemanticEmbedding(
+	db *sql.DB,
+	neo4jReader query.GraphQuery,
+	contentReader query.ContentStore,
+	statusReader status.Reader,
+	metricsSource query.MetricsTimeSeriesSource,
+	queryProfile query.QueryProfile,
+	graphBackend query.GraphBackend,
+	logger *slog.Logger,
+	instruments *telemetry.Instruments,
+	semanticSearchEmbedding searchembedruntime.Config,
 	componentHome string,
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
@@ -369,7 +403,7 @@ func newRouter(
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
 			Index:       query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid: newLocalSemanticSearchHybrid(db, semanticSearchLocalEmbedder, instruments),
+			LocalHybrid: newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
 			Profile:     queryProfile,
 		},
 		PackageRegistry: newPackageRegistryHandler(db, neo4jReader, contentReader, queryProfile),

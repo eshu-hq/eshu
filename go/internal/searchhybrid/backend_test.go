@@ -23,7 +23,7 @@ type bagOfWordsEmbedder struct {
 
 func (e *bagOfWordsEmbedder) Dimensions() int { return e.dims }
 
-func (e *bagOfWordsEmbedder) Embed(text string) ([]float64, error) {
+func (e *bagOfWordsEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	e.calls++
 	vec := make([]float64, e.dims)
 	for _, token := range strings.Fields(strings.ToLower(text)) {

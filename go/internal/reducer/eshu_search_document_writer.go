@@ -421,6 +421,7 @@ func eshuSearchDocumentPayload(write EshuSearchDocumentWrite, doc searchdocs.Doc
 		"scope_id":       strings.TrimSpace(write.ScopeID),
 		"generation_id":  strings.TrimSpace(write.GenerationID),
 		"fact_id":        factID,
+		"content_hash":   searchhybrid.DocumentContentHash(doc),
 		"document_id":    strings.TrimSpace(doc.ID),
 		"repo_id":        strings.TrimSpace(doc.RepoID),
 		"source_kind":    string(doc.SourceKind),

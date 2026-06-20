@@ -524,10 +524,11 @@ content read model. `GET /api/v0/status/semantic-extraction` reports no-provider
 mode as `unavailable` with code hints and documentation observations disabled.
 When semantic provider profiles are configured, the route includes redacted
 `provider_profiles[]` rows with profile id, provider kind, model metadata,
-credential source kind, source classes, source-policy state, and profile
-health/configuration state. It does not expose credential handles or raw keys,
-while deterministic indexing, reducer projection, API reads, MCP tools, and
-documentation fact routes remain unaffected.
+embedding dimensions, credential source kind, source classes, source-policy
+state, and profile health/configuration state. It does not expose credential
+handles or raw keys. Governed `search_documents` profiles may feed the semantic
+search vector read/build lane, while canonical graph truth and documentation
+fact routes remain unaffected.
 
 Answer narration status is a runtime status projection, not a narration
 generator. `GET /api/v0/status/answer-narration` reports the optional governed

@@ -1,27 +1,30 @@
 # Hosted Search Embedder Gate
 
-This gate defines the security and schema review required before Eshu may send
-curated search-document text to a hosted embedding provider or internal
-gateway. It documents the approval boundary for #3047 and blocks #3042 until a
-separate approval record names the accepted implementation details.
-
-This page does not add provider traffic, runtime flags, credential loading,
-provider SDKs, API fields, MCP fields, reducer behavior, queue behavior, graph
-writes, or vector storage changes.
+This gate defines the security and schema boundary for sending curated
+search-document text to a hosted embedding provider or internal gateway. The
+approved implementation is limited to the governed `search_documents` provider
+profile path, the `searchembedprovider` OpenAI-compatible `/v1/embeddings`
+adapter, Postgres sidecar vector rows, and API/MCP/reducer identity matching.
+It does not approve canonical graph writes, raw provider response retention, or
+external vector-store readiness claims.
 
 ## Current State
 
-The default semantic and hybrid search path remains deterministic and
-no-network:
+The semantic and hybrid search path has two admitted embedding sources:
 
 - `go/internal/searchhybrid` owns bounded BM25/vector fusion and keeps hosted
   adapters out of that package.
 - `go/internal/searchembed` owns the local feature-hash embedder.
-- API and MCP can opt into `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or
-  `local_hash` only when compatible persisted local vectors are ready.
-- Provider profiles and semantic egress policy are parsed for governed semantic
-  extraction status, but they do not yet approve a concrete search-embedding
-  provider client.
+- API/MCP/reducer can force `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or
+  `local_hash` when compatible persisted local vectors are ready.
+- With that override unset, exactly one governed `search_documents` provider
+  profile can become the default semantic-search embedder. The profile must
+  declare source policy, credential source, endpoint profile id, model id, and
+  positive `embedding_dimensions`.
+- Provider kinds are intentionally narrow for the first adapter:
+  `openai_compatible` and `internal_gateway`. Other provider kinds require a
+  separate adapter/schema review before they can dispatch search-embedding
+  traffic.
 
 ## Review Questions
 
@@ -124,10 +127,10 @@ credentials must not be metric labels.
 
 ## Approval Gate
 
-#3042 may implement hosted search embeddings only after the owning reviewers add
-a concrete approval record to #3047 or an explicitly linked security/schema
-review. Closing #3047 by adding this gate is not sufficient. The approval record
-must name:
+#3047 approved the first bounded implementation for issue #3248. Follow-up
+changes that add provider kinds, raw SDKs, new retention fields, external vector
+stores, graph-write participation, or broader source classes still require an
+explicit approval record naming:
 
 - the accepted source class;
 - the adapter package boundary outside `go/internal/searchhybrid`;
@@ -138,9 +141,9 @@ must name:
 - the vector metadata required for active-generation compatibility;
 - the operator-facing telemetry and status contract.
 
-Until that approval record exists, safe repo-local work is limited to
-documentation, fail-closed tests, and status contracts that perform no outbound
-provider traffic.
+Absent such an approval, safe repo-local work is limited to documentation,
+fail-closed tests, and status contracts that perform no new outbound provider
+traffic.
 
 ## Verification
 

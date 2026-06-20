@@ -140,6 +140,9 @@ func semanticProviderProfilesToMaps(profiles []status.SemanticProviderProfileSta
 		if profile.ModelID != "" {
 			row["model_id"] = profile.ModelID
 		}
+		if profile.EmbeddingDimensions > 0 {
+			row["embedding_dimensions"] = profile.EmbeddingDimensions
+		}
 		if profile.EndpointProfileID != "" {
 			row["endpoint_profile_id"] = profile.EndpointProfileID
 		}

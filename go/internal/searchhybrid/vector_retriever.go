@@ -50,6 +50,9 @@ func newVectorRetriever(index *Index, mode VectorRetrievalMode) (vectorRetriever
 	exact := exactVectorRetriever{index: index}
 	switch mode {
 	case VectorRetrievalAuto:
+		if index.count >= approximateVectorAutoMinDocuments {
+			return newApproximateVectorRetriever(index, exact), nil
+		}
 		return exact, nil
 	case VectorRetrievalExact:
 		return exact, nil

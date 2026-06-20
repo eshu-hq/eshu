@@ -49,7 +49,7 @@ and the graph driver on normal shutdown.
 
 `wireAPI` resolves `ESHU_QUERY_PROFILE`, `ESHU_GRAPH_BACKEND`, optional semantic
 provider profile metadata, optional semantic extraction policy, and the
-explicit local semantic-search embedder setting, opens the
+semantic-search embedder selector, opens the
 graph driver via `openQueryGraph` (skipped when
 `ESHU_QUERY_PROFILE=local_lightweight`), opens and pings Postgres, then calls
 `newRouter` to build the `query.APIRouter` with all handler structs wired to the
@@ -120,18 +120,21 @@ See `doc.go` for the full godoc contract.
 - `ESHU_DISABLE_NEO4J` — with the local-lightweight profile, skips the
   graph driver
 - `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` — optional provider profile registry
-  for semantic extraction status. It accepts profile metadata and credential
-  handles only; the API never loads provider keys or calls providers from this
-  config path, and status output omits credential handles.
+  for semantic extraction status and semantic-search query embeddings. It
+  accepts profile metadata, `embedding_dimensions`, endpoint profile ids, and
+  credential handles only; status output omits credential handles.
 - `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` — optional hosted semantic extraction
   allowlist. It names provider profile ids, source classes, scopes, source
   selectors, limits, redaction mode, and retention posture. Without it, provider
   profiles remain visible in status but source policy stays disabled.
 - `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` — optional deterministic no-network
-  local semantic-search embedder. Accepted values are `hash` and `local_hash`;
-  when set, semantic/hybrid search serves ready persisted local vector rows and
+  semantic-search override. Accepted values are `hash` and `local_hash`; when
+  set, semantic/hybrid search serves ready persisted local vector rows and
   reports explicit degraded state when those rows are missing or incompatible.
-  Unset keeps semantic unavailable and hybrid keyword-degraded.
+  Unset allows one governed `search_documents` provider profile to supply query
+  embeddings.
+- `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` — optional selector when more than
+  one governed `search_documents` provider profile is configured.
 - `ESHU_GOVERNANCE_MODE`, `ESHU_GOVERNANCE_STATE`,
   `ESHU_GOVERNANCE_SOURCE_KIND`, `ESHU_GOVERNANCE_POLICY_REVISION_HASH`,
   `ESHU_GOVERNANCE_AUTH_MODE`, `ESHU_GOVERNANCE_TENANT_MODE`,
@@ -229,9 +232,11 @@ See `doc.go` for the full godoc contract.
   `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`,
   `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`, or
   `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` values fail at startup before datastore
-  connections; there is no silent default for unrecognized provider kinds,
-  credential source kinds, source classes, source selectors, scopes, retention
-  postures, or pasted environment-variable keys.
+  connections; multiple governed search profiles without
+  `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` also fail closed. There is no
+  silent default for unrecognized provider kinds, credential source kinds,
+  source classes, source selectors, scopes, retention postures, or pasted
+  environment-variable keys.
 
 - `wireAPI` returns a cleanup closure. `PrometheusHandler` and all acquired
   connections are freed when the closure runs; partial wiring failures still

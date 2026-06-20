@@ -32,19 +32,19 @@ handling does not rebuild a full corpus index. The response reports
 `indexed_document_count`, `corpus_limit`, and `corpus_may_be_truncated`;
 `corpus_limit=0` means there is no request-time corpus cap, while `limit` still
 bounds returned results.
-When `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` is set on the
-reducer, it builds ready active-generation local vector metadata and payload
-rows for repository scopes with active search documents. When the same setting
-is set on API or MCP, `semantic` and `hybrid` requests load those rows for the
-repository scope. The stored vector identity must match the deterministic
-no-network hash embedder, active search document content hash, and vector index
-version before the route reports vector participation. Missing, stale, partial,
-rebuilding, failed, incompatible, or malformed vector state falls back to
-keyword candidates with an explicit
-`retrieval_state` / `vector_retrieval_state` instead of claiming semantic or
-hybrid participation. That local path is bounded by `corpus_limit=500` and is
-not a hosted-provider, graph-write, or external vector-store integration. Unset
-runtime configuration keeps the persisted BM25 behavior.
+API, MCP, and reducer share the semantic-search embedder selector. Setting
+`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` forces the
+deterministic no-network profile. When unset, exactly one governed
+`search_documents` provider profile may supply embeddings if the profile
+declares source policy, model id, endpoint profile id, credential source, and
+positive `embedding_dimensions`; multiple eligible profiles require
+`ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`. The reducer builds
+active-generation vector sidecar rows and the API uses those persisted rows for
+`semantic` and `hybrid` modes only when the stored vector identity matches the
+selected provider profile id, source class, model id, dimensions, content hash,
+and vector index version. Missing, stale, partial, rebuilding, failed,
+incompatible, or malformed vector state returns explicit degraded state instead
+of claiming semantic readiness.
 
 Results carry:
 
@@ -142,9 +142,9 @@ Observability Evidence: `telemetry.SpanQuerySemanticSearch`
 `search_method` plus top-level `retrieval_state` show whether the request was
 scoped tightly enough and which retrieval path answered.
 
-Observability Evidence: when deterministic local vector retrieval is enabled,
-API and MCP wire the vector metadata and vector value sidecar reads through
-Postgres `InstrumentedDB` store labels `semantic_search_vector_metadata` and
+Observability Evidence: when persisted vector retrieval is enabled, API and MCP
+wire the vector metadata and vector value sidecar reads through Postgres
+`InstrumentedDB` store labels `semantic_search_vector_metadata` and
 `semantic_search_vector_values`. The existing
 `eshu_dp_postgres_query_duration_seconds{operation="read",store=...}` metric
 and `postgres.query` child spans separate slow vector-sidecar reads from the

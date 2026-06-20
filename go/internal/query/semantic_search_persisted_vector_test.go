@@ -176,12 +176,12 @@ func TestPersistedLocalSemanticSearchHybridUsesConfiguredVectorRetrieval(t *test
 	}
 }
 
-func TestDefaultPersistedLocalSemanticSearchHybridConfigUsesExactVectorRetrieval(t *testing.T) {
+func TestDefaultPersistedLocalSemanticSearchHybridConfigUsesAutoVectorRetrieval(t *testing.T) {
 	t.Parallel()
 
 	config := DefaultPersistedLocalSemanticSearchHybridConfig()
 
-	if got, want := config.VectorRetrieval, searchhybrid.VectorRetrievalExact; got != want {
+	if got, want := config.VectorRetrieval, searchhybrid.VectorRetrievalAuto; got != want {
 		t.Fatalf("VectorRetrieval = %q, want %q", got, want)
 	}
 	if got, want := config.ProviderProfileID, "local"; got != want {
@@ -400,7 +400,7 @@ type fakeSemanticSearchEmbedder struct {
 
 func (e *fakeSemanticSearchEmbedder) Dimensions() int { return e.dims }
 
-func (e *fakeSemanticSearchEmbedder) Embed(text string) ([]float64, error) {
+func (e *fakeSemanticSearchEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	e.calls = append(e.calls, text)
 	vector, ok := e.vectors[text]
 	if !ok {

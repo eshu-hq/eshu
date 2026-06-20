@@ -16,7 +16,7 @@ type fixedVectorEmbedder struct {
 
 func (e fixedVectorEmbedder) Dimensions() int { return e.dims }
 
-func (e fixedVectorEmbedder) Embed(text string) ([]float64, error) {
+func (e fixedVectorEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	switch {
 	case strings.Contains(text, "tilted-query"):
 		return []float64{0.51, 0.50}, nil
@@ -101,6 +101,23 @@ func TestVectorRetrievalDefaultUsesExactBaseline(t *testing.T) {
 	}
 	if got, want := strings.Join(candidateIDs(defaultCandidates), ","), strings.Join(candidateIDs(exactCandidates), ","); got != want {
 		t.Fatalf("default ids = %s, want exact ids %s", got, want)
+	}
+}
+
+func TestVectorRetrievalAutoUsesApproximateAboveThreshold(t *testing.T) {
+	t.Parallel()
+
+	docs := make([]searchdocs.Document, 0, approximateVectorAutoMinDocuments+1)
+	for i := 0; i < approximateVectorAutoMinDocuments+1; i++ {
+		docs = append(docs, doc("doc-"+strings.Repeat("a", i+1), "repo-1", "aligned", "aligned body"))
+	}
+
+	index := mustIndex(t, docs, Options{
+		Embedder: fixedVectorEmbedder{dims: 2},
+	})
+
+	if _, ok := index.vector.(approximateVectorRetriever); !ok {
+		t.Fatalf("auto vector retriever = %T, want approximateVectorRetriever above threshold", index.vector)
 	}
 }
 

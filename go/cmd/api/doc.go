@@ -1,9 +1,9 @@
 // Package main runs the eshu-api binary, which serves the Eshu HTTP query and
 // admin surface backed by the configured graph backend and Postgres content
 // store. `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` explicitly
-// enables deterministic no-network local semantic/hybrid retrieval from ready
-// persisted vector rows over active curated search documents; unset preserves
-// keyword/no-provider behavior.
+// forces deterministic no-network local semantic/hybrid retrieval from ready
+// persisted vector rows over active curated search documents; when unset, one
+// governed search_documents provider profile may supply query embeddings.
 //
 // When invoked with --version or -v, it prints the embedded application
 // version through the test-covered printAPIVersionFlag helper and exits before
@@ -19,7 +19,7 @@
 // (default :8080) wrapped in otelhttp instrumentation. On SIGINT or SIGTERM it
 // gives the HTTP server up to five seconds for graceful shutdown before exiting.
 // The runtime serves reads only; it does not own repo sync, parsing, fact
-// emission, provider calls, credential loading, or queued projection work.
+// emission, vector builds, or queued projection work.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
 // net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1

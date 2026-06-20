@@ -16,7 +16,7 @@ type benchmarkBucketEmbedder struct {
 
 func (e benchmarkBucketEmbedder) Dimensions() int { return e.dims }
 
-func (e benchmarkBucketEmbedder) Embed(text string) ([]float64, error) {
+func (e benchmarkBucketEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	vector := make([]float64, e.dims)
 	for _, token := range strings.Fields(text) {
 		raw, ok := strings.CutPrefix(token, "bucket-")

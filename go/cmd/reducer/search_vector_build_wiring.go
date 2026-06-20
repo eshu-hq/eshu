@@ -2,54 +2,45 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/searchembed"
+	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-const envSemanticSearchLocalEmbedder = "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER"
-
-func loadSemanticSearchLocalEmbedder(getenv func(string) string) (string, error) {
-	raw := strings.TrimSpace(getenv(envSemanticSearchLocalEmbedder))
-	switch raw {
-	case "", "hash", "local_hash":
-		return raw, nil
-	default:
-		return "", fmt.Errorf("invalid %s %q", envSemanticSearchLocalEmbedder, raw)
-	}
-}
+const envSemanticSearchLocalEmbedder = searchembedruntime.EnvLocalEmbedder
 
 func searchVectorBuildRunnerFor(
 	database postgres.ExecQueryer,
 	getenv func(string) string,
 	logger *slog.Logger,
 ) (*reducer.SearchVectorBuildRunner, error) {
-	localEmbedder, err := loadSemanticSearchLocalEmbedder(getenv)
+	embeddingConfig, err := searchembedruntime.ConfigFromEnv(getenv, nil)
 	if err != nil {
 		return nil, err
 	}
-	if localEmbedder == "" {
+	if !embeddingConfig.Enabled {
 		return nil, nil
 	}
-	embedder, err := searchembed.NewHashEmbedder(searchembed.DefaultDimensions)
-	if err != nil {
-		return nil, err
-	}
 	vectorConfig := query.DefaultPersistedLocalSemanticSearchHybridConfig()
+	vectorConfig.ProviderProfileID = embeddingConfig.ProviderProfileID
+	vectorConfig.SourceClass = embeddingConfig.SourceClass
+	vectorConfig.EmbeddingModelID = embeddingConfig.EmbeddingModelID
+	vectorConfig.VectorIndexVersion = embeddingConfig.VectorIndexVersion
 	return &reducer.SearchVectorBuildRunner{
 		Pending: searchVectorPendingAdapter{store: postgres.NewEshuSearchVectorPendingStore(database)},
 		Builder: searchVectorBuilderAdapter{builder: searchvector.Builder{
 			Documents: postgres.NewEshuSearchDocumentStore(database),
 			Metadata:  postgres.NewEshuSearchVectorMetadataStore(database),
 			Values:    postgres.NewEshuSearchVectorValueStore(database),
-			Embedder:  embedder,
+			Embedder:  embeddingConfig.Embedder,
+			DocumentAllowed: func(row postgres.EshuSearchDocumentRow) bool {
+				return embeddingConfig.AllowsSearchDocument(row.Document.RepoID, row.Document.ID, row.Document.Path)
+			},
 		}},
 		Config: reducer.SearchVectorBuildRunnerConfig{
 			PollInterval:       30 * time.Second,
@@ -84,6 +75,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 	return reducer.SearchVectorBuildResult{
 		DocumentCount: result.DocumentCount,
 		VectorCount:   result.VectorCount,
+		DisabledCount: result.DisabledCount,
 		FailedCount:   result.FailedCount,
 	}, err
 }

@@ -4,10 +4,10 @@
 // It indexes searchdocs.Document records and serves bounded keyword (BM25),
 // semantic (vector), and hybrid (Reciprocal Rank Fusion of BM25 and vector)
 // retrieval through the searchretrieval.Backend port, with no hosted API
-// dependency. Local embeddings are optional and supplied through the Embedder
-// port; when no embedder is configured the index serves BM25 only and hybrid
-// fusion degenerates to the BM25 ranking. Embeddings are cached by content hash
-// so an unchanged document is not re-embedded.
+// dependency in this package. Embeddings are optional and supplied through the
+// Embedder port by callers; when no embedder is configured the index serves BM25
+// only and hybrid fusion degenerates to the BM25 ranking. Embeddings are cached
+// by content hash so an unchanged document is not re-embedded.
 //
 // Semantic retrieval is served through an index-owned vector retriever. Exact
 // cosine remains the deterministic zero-value correctness baseline. The

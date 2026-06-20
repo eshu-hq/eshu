@@ -17,7 +17,7 @@ WITH active_docs AS (
         fact.generation_id,
         COALESCE(scope.payload->>'repo_id', '') AS repo_id,
         fact.payload->'document'->>'id' AS document_id,
-        fact.payload->'document'->>'content_hash' AS content_hash
+        fact.payload->>'content_hash' AS content_hash
     FROM fact_records fact
     JOIN ingestion_scopes scope
       ON scope.scope_id = fact.scope_id
@@ -35,8 +35,8 @@ ready_docs AS (
         meta.source_class,
         meta.embedding_content_hash
     FROM eshu_search_vector_metadata meta
-    JOIN eshu_search_vector_values value
-     ON value.scope_id = meta.scope_id
+    LEFT JOIN eshu_search_vector_values value
+      ON value.scope_id = meta.scope_id
      AND value.generation_id = meta.generation_id
      AND value.document_id = meta.document_id
      AND value.provider_profile_id = meta.provider_profile_id
@@ -48,7 +48,10 @@ ready_docs AS (
       AND meta.source_class = $3
       AND meta.embedding_model_id = $4
       AND meta.vector_index_version = $5
-      AND meta.build_state = 'ready'
+      AND (
+        meta.build_state = 'disabled'
+        OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL)
+      )
 )
 SELECT docs.scope_id, docs.generation_id, docs.repo_id
 FROM active_docs docs
@@ -65,7 +68,7 @@ ORDER BY docs.scope_id
 LIMIT $6
 `
 
-// EshuSearchVectorPendingRequest bounds pending local vector build discovery.
+// EshuSearchVectorPendingRequest bounds pending vector build discovery.
 type EshuSearchVectorPendingRequest struct {
 	ProviderProfileID  string
 	SourceClass        string
@@ -74,7 +77,7 @@ type EshuSearchVectorPendingRequest struct {
 	Limit              int
 }
 
-// EshuSearchVectorPendingScope identifies one active scope that needs local
+// EshuSearchVectorPendingScope identifies one active scope that needs
 // vector rows for its curated search documents.
 type EshuSearchVectorPendingScope struct {
 	ScopeID      string
@@ -83,12 +86,12 @@ type EshuSearchVectorPendingScope struct {
 }
 
 // EshuSearchVectorPendingStore lists active repository scopes whose curated
-// search documents do not yet have complete ready local vector rows.
+// search documents do not yet have complete ready vector rows.
 type EshuSearchVectorPendingStore struct {
 	db ExecQueryer
 }
 
-// NewEshuSearchVectorPendingStore builds a pending local-vector lister.
+// NewEshuSearchVectorPendingStore builds a pending-vector lister.
 func NewEshuSearchVectorPendingStore(db ExecQueryer) EshuSearchVectorPendingStore {
 	return EshuSearchVectorPendingStore{db: db}
 }

@@ -123,6 +123,9 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 	providerProfiles := mustMapField(t, semanticProperties, "provider_profiles")
 	providerProfileItems := mustMapField(t, providerProfiles, "items")
 	providerProfileProperties := mustMapField(t, providerProfileItems, "properties")
+	if _, ok := providerProfileProperties["embedding_dimensions"]; !ok {
+		t.Fatal("semantic-extraction provider profile schema missing embedding_dimensions")
+	}
 	sourceClasses := mustMapField(t, providerProfileProperties, "source_classes")
 	sourceClassItems := mustMapField(t, sourceClasses, "items")
 	sourceClassEnums := mustStringSliceField(t, sourceClassItems, "enum")

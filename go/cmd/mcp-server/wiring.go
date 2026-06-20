@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
+	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
@@ -50,9 +51,9 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load semantic extraction policy: %w", err)
 	}
-	semanticSearchLocalEmbedder, err := loadSemanticSearchLocalEmbedder(getenv)
+	semanticSearchEmbedding, err := searchembedruntime.ConfigFromEnv(getenv, nil)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load semantic search local embedder: %w", err)
+		return nil, nil, nil, fmt.Errorf("load semantic search embedder: %w", err)
 	}
 	semanticProviderProfiles = semanticpolicy.ApplyToProviderStatuses(
 		semanticProviderProfiles,
@@ -121,7 +122,7 @@ func wireAPI(
 
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
-	router := newMCPQueryRouter(
+	router := newMCPQueryRouterWithSemanticEmbedding(
 		db,
 		neo4jReader,
 		contentReader,
@@ -130,7 +131,7 @@ func wireAPI(
 		graphBackend,
 		logger,
 		instruments,
-		semanticSearchLocalEmbedder,
+		semanticSearchEmbedding,
 		componentHome,
 		componentPolicy,
 		governanceStatus,
@@ -194,6 +195,44 @@ func newMCPQueryRouter(
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
 	semanticSearchLocalEmbedder string,
+	componentHome string,
+	componentPolicy component.Policy,
+	governanceStatus query.GovernanceStatusConfig,
+	governanceAudit query.GovernanceAuditSummaryReader,
+) *query.APIRouter {
+	semanticSearchEmbedding, _ := searchembedruntime.ConfigFromEnv(func(key string) string {
+		if key == envSemanticSearchLocalEmbedder {
+			return semanticSearchLocalEmbedder
+		}
+		return ""
+	}, nil)
+	return newMCPQueryRouterWithSemanticEmbedding(
+		db,
+		neo4jReader,
+		contentReader,
+		statusReader,
+		queryProfile,
+		graphBackend,
+		logger,
+		instruments,
+		semanticSearchEmbedding,
+		componentHome,
+		componentPolicy,
+		governanceStatus,
+		governanceAudit,
+	)
+}
+
+func newMCPQueryRouterWithSemanticEmbedding(
+	db *sql.DB,
+	neo4jReader query.GraphQuery,
+	contentReader query.ContentStore,
+	statusReader status.Reader,
+	queryProfile query.QueryProfile,
+	graphBackend query.GraphBackend,
+	logger *slog.Logger,
+	instruments *telemetry.Instruments,
+	semanticSearchEmbedding searchembedruntime.Config,
 	componentHome string,
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
@@ -271,7 +310,7 @@ func newMCPQueryRouter(
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
 			Index:       query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid: newLocalSemanticSearchHybrid(db, semanticSearchLocalEmbedder, instruments),
+			LocalHybrid: newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
 			Profile:     queryProfile,
 		},
 		PackageRegistry: &query.PackageRegistryHandler{

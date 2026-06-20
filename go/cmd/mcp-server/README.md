@@ -61,7 +61,7 @@ flowchart TB
    providers. On failure it logs with `telemetry.EventAttr` and exits 1.
 2. `wireAPI` validates query profile, graph backend, API key, optional semantic
    provider profile metadata, optional semantic extraction policy, and the
-   explicit local semantic-search embedder setting before datastore connections.
+   semantic-search embedder selector before datastore connections.
    It then opens Postgres via `sql.Open("pgx", pgDSN)`
    and calls `PingContext`. If `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
    `ESHU_DISABLE_NEO4J` is not `true`, it also dials Neo4j via
@@ -112,9 +112,10 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_GRAPH_BACKEND` | — | parsed by `query.ParseGraphBackend`; defaults to NornicDB |
 | `ESHU_QUERY_PROFILE` | `production` | `loadQueryProfile` defaults to `query.ProfileProduction` |
 | `ESHU_DISABLE_NEO4J` | — | `true` skips Neo4j dial |
-| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional semantic provider profile registry. It carries profile metadata and credential handles only; the MCP server never loads provider keys or calls providers from this config path. |
-| `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | unset | Optional hosted semantic extraction allowlist by provider profile id, source class, source scope, source selector, limit, redaction mode, and retention posture. Without it, semantic extraction remains policy-disabled. |
-| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | Optional deterministic no-network local semantic-search embedder for `search_semantic_context`. Accepted values are `hash` and `local_hash`; when set, semantic/hybrid search serves ready persisted local vector rows and reports explicit degraded state when those rows are missing or incompatible. Unset keeps semantic unavailable and hybrid keyword-degraded. |
+| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional semantic provider profile registry. It carries profile metadata, `embedding_dimensions`, endpoint profile ids, and credential handles only. A governed `search_documents` profile can supply query embeddings when the local override is unset. |
+| `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | unset | Optional hosted semantic extraction and search-embedding allowlist by provider profile id, source class, source scope, source selector, limit, redaction mode, and retention posture. Without it, source policy remains disabled. |
+| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | Optional deterministic no-network semantic-search override for `search_semantic_context`. Accepted values are `hash` and `local_hash`; when set, semantic/hybrid search serves ready persisted local vector rows and reports explicit degraded state when those rows are missing or incompatible. Unset allows one governed `search_documents` provider profile to supply query embeddings. |
+| `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | unset | Optional selector when more than one governed `search_documents` provider profile is configured. |
 | `ESHU_GOVERNANCE_*` | unset | Optional safe metadata for `get_hosted_governance_status`, including governance mode, state, source kind, revision hash, auth mode, tenancy/workspace mode, egress, redaction, retention, audit, extension posture, aggregate counts, and reason codes. Do not put raw policy, tenant, workspace, source, credential, endpoint, prompt, response, path, or token values in these keys. |
 | `ESHU_COMPONENT_HOME` | unset | Optional local component registry readback for `list_component_extensions` and `get_component_extension_diagnostics`; unset returns unavailable. |
 | `ESHU_COMPONENT_TRUST_MODE`, `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`, `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`, `ESHU_COMPONENT_CORE_VERSION`, `ESHU_COMPONENT_PROVENANCE_CERTIFICATE_IDENTITY`, `ESHU_COMPONENT_PROVENANCE_OIDC_ISSUER`, `ESHU_COMPONENT_PROVENANCE_PREDICATE_TYPE`, `ESHU_COMPONENT_COSIGN_BINARY` | unset | Optional read-only policy diagnostics for component-extension MCP tools. Strict mode uses the provenance and Cosign settings to verify signed digest-pinned artifacts. |

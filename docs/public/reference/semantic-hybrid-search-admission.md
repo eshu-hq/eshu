@@ -105,13 +105,19 @@ Large-corpus semantic or hybrid readiness requires an ANN or equivalent bounded
 vector retrieval index. Brute-force scans are acceptable only for fixture tests,
 small local proofs, or benchmark baselines that state the corpus size.
 
-The API/MCP `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` path is one of those
-bounded local proofs: by default it exact-scores at most 500 active curated
-documents for the requested repository scope, performs no network call, reads no
-credentials, and reports the exact retrieval state. Explicit staged ANN
-configuration may use the in-process angular-LSH candidate index with exact
-cosine reranking, but that does not satisfy large-corpus ANN readiness by
-itself.
+The API/MCP/reducer semantic-search selector has two admitted paths. An
+explicit `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` setting forces the
+deterministic no-network local profile. When that override is unset, exactly one
+governed `search_documents` provider profile may supply embeddings if source
+policy, credential source, endpoint profile id, model id, and
+`embedding_dimensions` are configured. Multiple eligible profiles require
+`ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` and fail closed without it.
+
+Ready persisted vectors use `VectorRetrievalAuto`: exact cosine below the
+staged ANN threshold and the in-process angular-LSH candidate index with exact
+cosine reranking above it. This satisfies the bounded in-process ANN admission
+path for curated search documents, but it is still not canonical graph truth or
+an external vector-store readiness claim.
 
 Implementation proof must record:
 

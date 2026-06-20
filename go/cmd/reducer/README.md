@@ -249,20 +249,22 @@ never deferred, so the backlog cannot stall.
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | `100` | Active repository scopes scanned per cleanup cycle |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | `500` | Maximum stale evidence nodes or edges deleted per scope and evidence family in one Cypher statement |
 
-### Local semantic search vectors
+### Semantic search vectors
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | When set to `hash` or `local_hash`, run the reducer side runner that builds deterministic no-network vector sidecar rows for active curated search documents. Unset leaves vector build disabled and keeps API/MCP semantic reads degraded until ready rows exist. |
+| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional governed provider profiles. A single eligible `search_documents` profile with `embedding_dimensions` can enable provider-backed vector builds when the local override is unset. |
+| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | When set to `hash` or `local_hash`, force the reducer side runner to build deterministic no-network vector sidecar rows for active curated search documents. |
+| `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | unset | Required when more than one governed `search_documents` profile is eligible. |
 
 `SearchVectorBuildRunner` scans active repository scopes whose
 `reducer_eshu_search_document` facts do not have complete ready sidecar vector
-rows, then calls the shared search-vector builder with the deterministic local
-hash embedder. It writes only Postgres metadata/value rows keyed by model id,
-content hash, vector index version, scope, generation, and document id. It does
-not call hosted providers, configure credentials, write graph truth, or mark an
-external vector store ready. API and MCP still require their own
-`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` setting before they read those vectors.
+rows, then calls the shared search-vector builder with the selected embedder.
+It writes only Postgres metadata/value rows keyed by provider profile id, source
+class, model id, content hash, vector index version, scope, generation, and
+document id. It does not write graph truth or mark an external vector store
+ready. API, MCP, and reducer must share the same selected provider profile or
+local override before reads can claim vector participation.
 
 Default wiring guard: `go test ./cmd/reducer -run
 TestProductionWiringConsumesCapabilityDefaults -count=1` asserts that

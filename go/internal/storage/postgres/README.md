@@ -231,8 +231,8 @@ Primary groups:
   (`reducer_eshu_search_document`) for a scope's active generation, bounded by
   repository, source kind, and a capped page.
 - `EshuSearchVectorPendingStore` reads only active repository scopes with
-  unbuilt or stale local vector sidecar rows for active search documents,
-  bounded by scope limit and vector identity.
+  unbuilt or stale vector sidecar rows for active search documents, bounded by
+  scope limit and vector identity.
 - `FunctionSummaryStore`, `FunctionSourceStore`, `FunctionGraphIDStore`, and
   `ValueFlowFixpointComponentStore` persist the durable value-flow inputs and
   solved component results used by the reducer's post-summary fixpoint.

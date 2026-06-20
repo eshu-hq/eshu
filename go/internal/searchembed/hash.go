@@ -1,6 +1,7 @@
 package searchembed
 
 import (
+	"context"
 	"errors"
 	"hash/fnv"
 	"sort"
@@ -38,9 +39,12 @@ func (embedder *HashEmbedder) Dimensions() int {
 }
 
 // Embed returns a deterministic feature-hash embedding for text.
-func (embedder *HashEmbedder) Embed(text string) ([]float64, error) {
+func (embedder *HashEmbedder) Embed(ctx context.Context, text string) ([]float64, error) {
 	if embedder == nil || embedder.dimensions <= 0 {
 		return nil, errors.New("hash embedder is not initialized")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	vector := make([]float64, embedder.dimensions)
 	terms := searchhybrid.QueryTerms(text)

@@ -97,8 +97,8 @@ type Service struct {
 	// from older source generations in bounded batches. Nil disables cleanup.
 	CodeValueFlowStaleCleanupRunner *CodeValueFlowStaleCleanupRunner
 
-	// SearchVectorBuildRunner builds derived local search-vector rows for
-	// active curated search documents. Nil disables local vector build work.
+	// SearchVectorBuildRunner builds derived search-vector rows for active
+	// curated search documents. Nil disables vector build work.
 	SearchVectorBuildRunner *SearchVectorBuildRunner
 
 	// Telemetry fields (optional)

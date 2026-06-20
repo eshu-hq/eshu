@@ -40,6 +40,7 @@ type SemanticProviderProfileStatus struct {
 	CredentialSourceKind   string
 	CredentialConfigured   bool
 	ModelID                string
+	EmbeddingDimensions    int
 	EndpointProfileID      string
 	SourceClasses          []string
 	SourcePolicyConfigured bool
@@ -122,6 +123,7 @@ func normalizeSemanticProviderProfile(row SemanticProviderProfileStatus) Semanti
 		CredentialSourceKind:   strings.TrimSpace(row.CredentialSourceKind),
 		CredentialConfigured:   row.CredentialConfigured,
 		ModelID:                strings.TrimSpace(row.ModelID),
+		EmbeddingDimensions:    row.EmbeddingDimensions,
 		EndpointProfileID:      strings.TrimSpace(row.EndpointProfileID),
 		SourceClasses:          sourceClasses,
 		SourcePolicyConfigured: row.SourcePolicyConfigured,

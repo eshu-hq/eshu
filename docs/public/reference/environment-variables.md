@@ -40,9 +40,10 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_QUERY_PROFILE` | Select runtime/query profile. Do not use it as a performance knob. |
 | `ESHU_FACT_STORE_DSN`, `ESHU_CONTENT_STORE_DSN`, `ESHU_POSTGRES_DSN` | Configure Postgres-backed fact, queue, content, and query stores. |
 | `ESHU_NEO4J_URI`, `NEO4J_URI` | Configure the Bolt endpoint for NornicDB or Neo4j. |
-| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | Declare redacted semantic provider profiles using credential handles only; no provider keys. |
-| `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | Allowlist hosted semantic extraction by provider profile, source class, source scope, limits, redaction posture, and retention posture. |
-| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | Enable deterministic no-network local vector builds on the reducer and semantic/hybrid retrieval for API/MCP search with `hash` or `local_hash` when ready persisted vector rows exist; unset keeps no-provider keyword behavior. |
+| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | Declare redacted semantic provider profiles using credential handles only; no provider keys. Search profiles include `source_classes:["search_documents"]`, model id, endpoint profile id, and `embedding_dimensions`. |
+| `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | Allowlist hosted semantic extraction and search embedding by provider profile, source class, source scope, limits, redaction posture, and retention posture. |
+| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | Force deterministic no-network local vector builds on the reducer and semantic/hybrid retrieval for API/MCP search with `hash` or `local_hash`; unset allows one governed `search_documents` provider profile to be selected. |
+| `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | Select one governed `search_documents` provider profile when more than one eligible semantic-search profile is configured. |
 | `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` | Gate hosted active-mode collector scheduling before claimable work is planned. |
 | `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` | Gate hosted component-extension scheduling before claimable work is planned. |
 | `ESHU_GOVERNANCE_AUDIT_EVENT_COUNT` | Report the aggregate hosted governance audit event count without event bodies. |

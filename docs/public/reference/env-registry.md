@@ -327,7 +327,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | --- | --- | --- | --- |
 | `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | string | — | JSON semantic extraction policy controlling source/provider ACL decisions. |
 | `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` | bool | `false` | Default-off flag permitting real provider traffic (requires security review). |
-| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | string | — | JSON array of semantic provider profile configurations. |
+| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | string | — | JSON array of semantic provider profile configurations, including optional search embedding dimensions. |
 | `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED` | bool | `false` | Enable the semantic-provider worker claim loop. |
-| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | enum | — | Deterministic no-network local semantic/hybrid retrieval for API and MCP semantic search. Allowed: `hash`, `local_hash`. |
+| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | enum | — | Explicit deterministic no-network override for API, MCP, and reducer semantic search. Allowed: `hash`, `local_hash`. |
+| `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | string | — | Selects one governed search_documents provider profile when multiple semantic search providers are configured. |
 

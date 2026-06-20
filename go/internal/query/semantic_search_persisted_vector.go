@@ -20,7 +20,7 @@ const (
 	defaultPersistedLocalVectorIndexVersion = "vector-v1"
 )
 
-// PersistedLocalSemanticSearchHybridConfig identifies the local vector index
+// PersistedLocalSemanticSearchHybridConfig identifies the persisted vector index
 // state that API and MCP semantic search may serve.
 type PersistedLocalSemanticSearchHybridConfig struct {
 	ProviderProfileID  string
@@ -32,7 +32,7 @@ type PersistedLocalSemanticSearchHybridConfig struct {
 }
 
 // DefaultPersistedLocalSemanticSearchHybridConfig returns the deterministic
-// local vector identity produced by the current search-vector builder.
+// local-hash vector identity produced by the current search-vector builder.
 func DefaultPersistedLocalSemanticSearchHybridConfig() PersistedLocalSemanticSearchHybridConfig {
 	return PersistedLocalSemanticSearchHybridConfig{
 		ProviderProfileID:  defaultPersistedLocalProviderProfileID,
@@ -40,7 +40,7 @@ func DefaultPersistedLocalSemanticSearchHybridConfig() PersistedLocalSemanticSea
 		EmbeddingModelID:   defaultPersistedLocalVectorModelID,
 		VectorIndexVersion: defaultPersistedLocalVectorIndexVersion,
 		CorpusLimit:        semanticSearchLocalHybridCorpusLimit,
-		VectorRetrieval:    searchhybrid.VectorRetrievalExact,
+		VectorRetrieval:    searchhybrid.VectorRetrievalAuto,
 	}
 }
 
@@ -57,7 +57,7 @@ type SemanticSearchVectorValueStore interface {
 }
 
 // PersistedLocalSemanticSearchHybrid serves semantic and hybrid search from the
-// persisted local vector sidecar when the active generation is complete.
+// persisted vector sidecar when the active generation is complete.
 type PersistedLocalSemanticSearchHybrid struct {
 	Documents SemanticSearchDocumentStore
 	Metadata  SemanticSearchVectorMetadataStore
@@ -66,7 +66,7 @@ type PersistedLocalSemanticSearchHybrid struct {
 	Config    PersistedLocalSemanticSearchHybridConfig
 }
 
-// NewPersistedLocalSemanticSearchHybrid creates a local semantic/hybrid adapter
+// NewPersistedLocalSemanticSearchHybrid creates a semantic/hybrid adapter
 // backed by ready persisted vector metadata and payload rows.
 func NewPersistedLocalSemanticSearchHybrid(
 	documents SemanticSearchDocumentStore,
@@ -102,7 +102,7 @@ func NewDefaultPersistedLocalSemanticSearchHybrid(
 	)
 }
 
-// Search loads active documents and uses persisted local vectors only when the
+// Search loads active documents and uses persisted vectors only when the
 // active generation is complete, ready, and compatible with the configured
 // embedder.
 func (h *PersistedLocalSemanticSearchHybrid) Search(
@@ -341,7 +341,7 @@ func normalizePersistedLocalSemanticSearchHybridConfig(
 		config.CorpusLimit = semanticSearchLocalHybridCorpusLimit
 	}
 	if config.VectorRetrieval == "" {
-		config.VectorRetrieval = searchhybrid.VectorRetrievalExact
+		config.VectorRetrieval = searchhybrid.VectorRetrievalAuto
 	}
 	return config
 }
