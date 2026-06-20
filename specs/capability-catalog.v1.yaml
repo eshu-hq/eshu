@@ -159,6 +159,9 @@ tool_exemptions:
   - tool: get_operator_control_plane
     reason: operator control-plane read model surface
     issue: 3185
+  - tool: get_freshness_causality
+    reason: operator freshness causality surface
+    issue: 3187
 
 # Matrix-declared tools that are served through an HTTP API operation rather
 # than the MCP registry. Each name maps 1:1 to an OpenAPI operationId.
