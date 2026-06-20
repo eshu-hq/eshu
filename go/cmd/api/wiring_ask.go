@@ -59,38 +59,54 @@ func convertAnswer(ans engine.Answer) query.AskAnswer {
 	}
 }
 
+// askHandlerResult bundles the HTTP handler with a setter for the governed
+// narration posture. The setter is a no-op when the engine was not built
+// (adapter or engine construction failed).
+type askHandlerResult struct {
+	handler    *query.AskHandler
+	setPosture func(func() status.AnswerNarrationStatus)
+}
+
+// adapterReady reports whether the engine was successfully constructed. It is
+// used by callers to derive the ProviderConfigured gate in the narration
+// posture, ensuring the status endpoint reflects real runtime capability rather
+// than mere profile presence.
+func (r askHandlerResult) adapterReady() bool { return r.handler.Asker != nil }
+
 // buildAskHandler constructs an AskHandler for POST /api/v0/ask.
 //
-// Returns an AskHandler with a nil Asker (default-off → 503 unavailable) in
-// any of the following cases:
+// Returns an askHandlerResult with a nil-Asker handler (default-off → 503
+// unavailable) and a no-op setPosture in any of the following cases:
 //   - ESHU_ASK_ENABLED is not "true"
 //   - No agent_reasoning provider profile is configured
 //   - The provider adapter cannot be constructed (logged at WARN)
 //   - The engine cannot be constructed (logged at WARN)
 //
 // When all conditions are met and the engine is built, returns a fully-wired
-// AskHandler. apiHandler must be the fully-mounted API mux; the engine's
-// MCPRunner dispatches tool calls in-process through it.
+// handler whose setPosture injects the governed posture into the engine.
+// apiHandler must be the fully-mounted API mux; the engine's MCPRunner
+// dispatches tool calls in-process through it.
 //
-// narrationPosture is the governed posture func built by buildNarrationPosture.
-// It is injected into the engine via SetNarrationPosture so the engine narrates
-// only when ResolvePosture returns Available (default-closed).
+// Callers MUST call setPosture after buildNarrationPosture so the engine
+// narrates only when ResolvePosture returns Available (default-closed). The
+// narration posture must be built using adapterReady() from this result so that
+// ProviderConfigured reflects whether the adapter was actually constructed.
 func buildAskHandler(
 	getenv func(string) string,
 	apiHandler http.Handler,
 	apiKey string,
-	narrationPosture func() status.AnswerNarrationStatus,
 	logger *slog.Logger,
-) *query.AskHandler {
+) askHandlerResult {
+	noop := func(func() status.AnswerNarrationStatus) {}
 	h := &query.AskHandler{Logger: logger}
 
 	if !isAskEnabled(getenv) {
-		return h // nil Asker → default-off
+		return askHandlerResult{handler: h, setPosture: noop}
 	}
 
 	profile, ok := resolveAgentReasoningProfile(getenv, logger)
 	if !ok {
-		return h
+		return askHandlerResult{handler: h, setPosture: noop}
 	}
 
 	adapt, err := provider.NewAdapter(profile, getenv)
@@ -99,7 +115,7 @@ func buildAskHandler(
 			logger.Warn("ask: provider adapter construction failed; ask unavailable",
 				"err_type", "provider_adapter")
 		}
-		return h
+		return askHandlerResult{handler: h, setPosture: noop}
 	}
 
 	cat, err := buildAskCatalog()
@@ -108,7 +124,7 @@ func buildAskHandler(
 			logger.Warn("ask: catalog build failed; ask unavailable",
 				"err_type", "catalog_build")
 		}
-		return h
+		return askHandlerResult{handler: h, setPosture: noop}
 	}
 
 	tools := engine.Toolset(cat, mcp.ReadOnlyTools())
@@ -128,18 +144,17 @@ func buildAskHandler(
 			logger.Warn("ask: engine construction failed; ask unavailable",
 				"err_type", "engine_construction")
 		}
-		return h
-	}
-
-	// Wire the governed narration posture so the engine narrates only when
-	// ResolvePosture returns Available. A nil narrationPosture leaves the
-	// engine in the safe Unavailable default.
-	if narrationPosture != nil {
-		eng.SetNarrationPosture(narrationPosture)
+		return askHandlerResult{handler: h, setPosture: noop}
 	}
 
 	h.Asker = &engineAsker{eng: eng}
-	return h
+	// Expose a setter so the caller can inject the posture after it is built
+	// from adapterReady(). The engine is captured by closure; the setter is
+	// safe to call exactly once before serving requests.
+	return askHandlerResult{
+		handler:    h,
+		setPosture: eng.SetNarrationPosture,
+	}
 }
 
 // isAskEnabled reports whether ESHU_ASK_ENABLED is set to "true".

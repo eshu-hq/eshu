@@ -1,13 +1,10 @@
 package main
 
 import (
-	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/governance"
-	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -26,11 +23,17 @@ const envAskNarrationEnabled = "ESHU_ASK_NARRATION_ENABLED"
 
 // buildNarrationPosture constructs a func that resolves the current governed
 // answer-narration posture from runtime configuration. The returned func is
-// safe to call concurrently and reads only from the closed-over getenv, so it
+// safe to call concurrently and reads only from the closed-over values, so it
 // can be shared between the engine and the status endpoint.
 //
+// adapterReady must reflect whether the ask provider adapter was ACTUALLY
+// successfully constructed (i.e. provider.NewAdapter succeeded). A profile
+// that is present in JSON but whose credential env var is unset will fail
+// adapter construction; in that case adapterReady must be false so the status
+// endpoint reports ProviderUnavailable rather than Available.
+//
 // Gate derivation (v1):
-//   - ProviderConfigured     = an agent_reasoning provider profile is registered.
+//   - ProviderConfigured     = adapterReady (adapter was actually built).
 //   - ProviderTrafficEnabled = ESHU_ASK_ENABLED=true AND ESHU_ASK_NARRATION_ENABLED=true.
 //   - PolicyAllowed          = same as ProviderTrafficEnabled (v1 conservative default).
 //   - BudgetAvailable        = same as ProviderTrafficEnabled (v1 conservative default).
@@ -40,14 +43,13 @@ const envAskNarrationEnabled = "ESHU_ASK_NARRATION_ENABLED"
 // a non-Available state and the engine will not narrate.
 func buildNarrationPosture(
 	getenv func(string) string,
-	logger *slog.Logger,
+	adapterReady bool,
 ) func() status.AnswerNarrationStatus {
-	providerConfigured := hasAgentReasoningProfile(getenv, logger)
 	trafficEnabled := isAskEnabled(getenv) && isNarrationEnabled(getenv)
 
 	return func() status.AnswerNarrationStatus {
 		in := governance.PostureInputs{
-			ProviderConfigured:     providerConfigured,
+			ProviderConfigured:     adapterReady,
 			ProviderTrafficEnabled: trafficEnabled,
 			// v1 conservative wiring: policy, budget, and publish safety are
 			// gated to the same bool as traffic. They are documented as
@@ -66,29 +68,4 @@ func buildNarrationPosture(
 // isNarrationEnabled reports whether ESHU_ASK_NARRATION_ENABLED is "true".
 func isNarrationEnabled(getenv func(string) string) bool {
 	return strings.EqualFold(strings.TrimSpace(getenv(envAskNarrationEnabled)), "true")
-}
-
-// hasAgentReasoningProfile reports whether getenv contains a valid
-// ESHU_SEMANTIC_PROVIDER_PROFILES_JSON entry with source class agent_reasoning.
-// Parsing errors are treated as absent (false), not fatal, so a misconfigured
-// profile JSON does not break the status endpoint.
-func hasAgentReasoningProfile(getenv func(string) string, logger *slog.Logger) bool {
-	raw := strings.TrimSpace(getenv(semanticprofile.EnvProviderProfilesJSON))
-	if raw == "" {
-		return false
-	}
-	profiles, err := semanticprofile.ParseProfilesJSON(raw)
-	if err != nil {
-		if logger != nil {
-			logger.Warn("narration posture: cannot parse provider profiles; treating provider as absent",
-				"err_type", "profile_parse")
-		}
-		return false
-	}
-	for _, p := range profiles {
-		if slices.Contains(p.SourceClasses, semanticprofile.SourceAgentReasoning) {
-			return true
-		}
-	}
-	return false
 }
