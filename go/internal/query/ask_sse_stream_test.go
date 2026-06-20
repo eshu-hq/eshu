@@ -8,9 +8,9 @@ import (
 )
 
 // TestAskSSE_Streaming_ForwardsValidatedTokenEvents verifies that a
-// streaming-capable Asker can produce "event: token" events before the final
-// "event: answer" event. The production engine only emits token events for
-// validated narration prose.
+// streaming-capable Asker can produce "event: token" events after runtime
+// guardrails pass and before the final "event: answer" event. The handler
+// buffers token deltas so unsafe content split across chunks cannot leak.
 func TestAskSSE_Streaming_ForwardsValidatedTokenEvents(t *testing.T) {
 	t.Parallel()
 
@@ -219,5 +219,52 @@ func TestAskSSE_StreamingFinalAnswerSuppressesUnsafeNarration(t *testing.T) {
 	}
 	if !hasLimitation(answer.Limitations, "publish_safety") {
 		t.Fatalf("limitations = %#v, want publish_safety marker", answer.Limitations)
+	}
+}
+
+func TestAskSSE_StreamingDropsUnsafeTokenEvents(t *testing.T) {
+	t.Parallel()
+
+	rawAddress := strings.Join([]string{"10", "77", "3", "9"}, ".")
+	h := &AskHandler{
+		Asker: &fakeStreamingAsker{
+			events: []AskStreamEvent{
+				{Kind: "token", TextDelta: "safe prefix"},
+				{Kind: "token", TextDelta: " unsafe " + rawAddress},
+			},
+			answer: AskAnswer{
+				Prose:    "unsafe " + rawAddress,
+				Narrated: true,
+				Packets: []AnswerPacket{{
+					TruthClass:      AnswerTruthDeterministic,
+					Supported:       true,
+					EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+				}},
+			},
+		},
+	}
+
+	w := postAskSSE(h, `{"question":"list services"}`)
+	body := w.Body.String()
+	if strings.Contains(body, rawAddress) {
+		t.Fatalf("unsafe token leaked into SSE stream: %s", body)
+	}
+
+	events := parseSSEEvents(body)
+	var tokenDeltas []string
+	for _, ev := range events {
+		if ev.event != "token" {
+			continue
+		}
+		var p struct {
+			Delta string `json:"delta"`
+		}
+		if err := json.Unmarshal([]byte(ev.data), &p); err != nil {
+			t.Fatalf("parse token event data: %v", err)
+		}
+		tokenDeltas = append(tokenDeltas, p.Delta)
+	}
+	if len(tokenDeltas) != 0 {
+		t.Fatalf("token deltas = %#v, want no token events for unsafe stream", tokenDeltas)
 	}
 }

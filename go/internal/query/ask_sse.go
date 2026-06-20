@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
 )
 
 // acceptsSSE reports whether the request's Accept header indicates the caller
@@ -27,9 +29,10 @@ type tokenEventPayload struct {
 // # Contract
 //
 // When the Asker supports streaming (AskStream does not return ErrNoStreaming),
-// the handler drives AskStream and emits events live as they occur:
+// the handler drives AskStream, buffers token deltas until runtime guardrails
+// pass for the final answer and buffered stream, and emits:
 //
-//   - one "token" event with validated narration prose when narration succeeds:
+//   - one "token" event per validated narration delta when narration succeeds:
 //     {delta: "..."}
 //   - one "trace" event per completed tool call (bounded traceEntry JSON)
 //   - one "answer" event carrying the final askResponse
@@ -50,8 +53,10 @@ type tokenEventPayload struct {
 // # Leak safety
 //
 // Only bounded askResponse / traceEntry / askUnavailableResponse /
-// tokenEventPayload values are emitted. Provider bodies, prompts, raw provider
-// deltas, raw engine internals, and credentials are never written to the stream.
+// tokenEventPayload values are emitted. Token deltas are checked both
+// individually and as a concatenated string before emission. Provider bodies,
+// prompts, raw provider deltas, raw engine internals, and credentials are never
+// written to the stream.
 func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 	// Default-off: respond with the standard 503 JSON before opening a stream.
 	if h.Asker == nil {
@@ -104,11 +109,11 @@ func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Try streaming path first. If the adapter does not support streaming,
 	// fall back to the synchronous path (no token events).
+	var tokenDeltas []string
 	ans, err := h.Asker.AskStream(r, req.Question, func(ev AskStreamEvent) {
 		switch ev.Kind {
 		case "token":
-			writeSSEEvent(w, "token", tokenEventPayload{Delta: ev.TextDelta})
-			flusher.Flush()
+			tokenDeltas = append(tokenDeltas, ev.TextDelta)
 		case "trace_entry":
 			if ev.TraceEntry != nil {
 				writeSSEEvent(w, "trace", traceEntry{
@@ -142,12 +147,32 @@ func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Emit the full answer using the same mapping as the JSON path.
 	resp := buildAskResponse(ans, req.Question, req.Format)
+	tokensSafe := askStreamTokenDeltasAreSafe(tokenDeltas)
+	if tokensSafe && resp.AnswerProse != "" {
+		for _, delta := range tokenDeltas {
+			writeSSEEvent(w, "token", tokenEventPayload{Delta: delta})
+			flusher.Flush()
+		}
+	} else if len(tokenDeltas) > 0 && !tokensSafe {
+		resp.Partial = true
+		resp.Limitations = appendAskLimitation(resp.Limitations,
+			"runtime answer guardrail blocked streamed prose: "+string(answerguardrail.CriterionPublishSafety))
+	}
 	writeSSEEvent(w, "answer", resp)
 	flusher.Flush()
 
 	// Signal end-of-stream.
 	writeSSEEvent(w, "done", struct{}{})
 	flusher.Flush()
+}
+
+func askStreamTokenDeltasAreSafe(deltas []string) bool {
+	if len(deltas) == 0 {
+		return true
+	}
+	values := append([]string(nil), deltas...)
+	values = append(values, strings.Join(deltas, ""))
+	return answerguardrail.FirstUnsafeString(values) == ""
 }
 
 // handleAskSSESync is the synchronous fallback for handleAskSSE when the

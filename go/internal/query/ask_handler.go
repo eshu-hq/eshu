@@ -284,6 +284,10 @@ func applyAskRuntimeGuardrails(resp *askResponse, primarySupported bool) {
 	resp.AnswerProse = ""
 	resp.Artifacts = nil
 	resp.Partial = true
+	if verdict.HasFinding(answerguardrail.CriterionPublishSafety) {
+		resp.Limitations = publishSafeAskLimitations(resp.Limitations)
+		resp.EvidenceHandles = publishSafeAskEvidenceHandles(resp.EvidenceHandles)
+	}
 	for _, finding := range verdict.Findings {
 		resp.Limitations = appendAskLimitation(resp.Limitations,
 			"runtime answer guardrail blocked publishable prose: "+string(finding.Criterion))
@@ -311,6 +315,34 @@ func askCitationHandleStrings(handles []evidenceCitationHandle) []string {
 			}
 		}
 		out = append(out, strings.Join(nonEmpty, ":"))
+	}
+	return out
+}
+
+func publishSafeAskLimitations(limitations []string) []string {
+	if len(limitations) == 0 {
+		return limitations
+	}
+	out := make([]string, 0, len(limitations))
+	for _, limitation := range limitations {
+		if answerguardrail.UnsafeString(limitation) {
+			continue
+		}
+		out = append(out, limitation)
+	}
+	return out
+}
+
+func publishSafeAskEvidenceHandles(handles []evidenceCitationHandle) []evidenceCitationHandle {
+	if len(handles) == 0 {
+		return handles
+	}
+	out := make([]evidenceCitationHandle, 0, len(handles))
+	for _, handle := range handles {
+		if answerguardrail.FirstUnsafeString(askCitationHandleStrings([]evidenceCitationHandle{handle})) != "" {
+			continue
+		}
+		out = append(out, handle)
 	}
 	return out
 }
