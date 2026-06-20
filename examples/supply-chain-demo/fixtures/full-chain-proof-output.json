@@ -1,0 +1,136 @@
+{
+  "schema_version": "eshu.supply_chain_demo.full_chain_proof.v1",
+  "artifact_status": "public_sanitized_split_proof_fixture",
+  "issue_refs": [3129, 3061, 3174],
+  "scripts": [
+    {
+      "path": "scripts/run-full-chain-proof.sh",
+      "proof_scope": [
+        "compose_stack",
+        "owned_package_to_advisory",
+        "impact_finding",
+        "workload_anchor",
+        "sbom_attachment"
+      ],
+      "boundary": "Uses a real public package and advisory path for the live stack proof; image_ref is checked by the image-identity proof."
+    },
+    {
+      "path": "scripts/run-image-identity-proof.sh",
+      "proof_scope": [
+        "image_ref_reducer_join",
+        "sbom_subject_digest_match",
+        "impact_finding_image_identity"
+      ],
+      "boundary": "Seeds raw collector facts, then lets the live reducers derive image identity, SBOM attachment, and impact finding image_ref."
+    },
+    {
+      "path": "scripts/run-oci-localtls-identity-proof.sh",
+      "proof_scope": [
+        "live_https_oci_collector_transport",
+        "sandbox_registry_equivalent",
+        "registry_observed_image_digest"
+      ],
+      "boundary": "Uses an ephemeral localhost TLS registry and synthetic image so no cloud account or private registry is required."
+    }
+  ],
+  "chain": {
+    "evidence_nodes": [
+      {
+        "kind": "advisory",
+        "id": "CVE-2026-SYNTHETIC-NPM",
+        "source": "owned_demo_advisory"
+      },
+      {
+        "kind": "package_manifest",
+        "id": "examples/supply-chain-demo/app/package.json",
+        "source": "repository_scan"
+      },
+      {
+        "kind": "lockfile",
+        "id": "examples/supply-chain-demo/app/package-lock.json",
+        "source": "repository_scan"
+      },
+      {
+        "kind": "package_registry",
+        "id": "pkg:npm/synthetic-vulnerable-npm@1.0.0",
+        "source": "demo_package_registry_fact"
+      },
+      {
+        "kind": "sbom_attachment",
+        "id": "reducer_sbom_attestation_attachment:demo-vuln-app",
+        "source": "reducer_derived"
+      },
+      {
+        "kind": "image_identity",
+        "id": "demo.invalid/vuln-demo-app@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "source": "sandbox_registry_or_seeded_raw_fact"
+      },
+      {
+        "kind": "workload",
+        "id": "k8s://demo/synthetic-supply-chain-demo-app/deployment/vuln-demo-app",
+        "source": "repository_kubernetes_manifest"
+      },
+      {
+        "kind": "impact_finding",
+        "id": "impact:CVE-2026-SYNTHETIC-NPM:synthetic-vulnerable-npm",
+        "source": "reducer_supply_chain_impact_finding"
+      }
+    ],
+    "assertions": {
+      "minimum_evidence_nodes": 7,
+      "api_mcp_cli_truth_labels_agree": true,
+      "missing_evidence_labels_agree": true,
+      "impact_status": "affected_derived",
+      "readiness_state": "ready_with_findings"
+    }
+  },
+  "latency_matrix": {
+    "unit": "milliseconds",
+    "rows": [
+      {
+        "surface": "cli",
+        "operation": "eshu vuln-scan repo app",
+        "p95_ms": 0,
+        "sample_count": 0,
+        "state": "not_measured_in_fixture",
+        "boundary": "This fixture records the required matrix shape; live p95 values must come from the Compose proof run."
+      },
+      {
+        "surface": "api",
+        "operation": "list_supply_chain_impact_findings",
+        "p95_ms": 0,
+        "sample_count": 0,
+        "state": "not_measured_in_fixture",
+        "boundary": "This fixture records the required matrix shape; live p95 values must come from the Compose proof run."
+      },
+      {
+        "surface": "mcp",
+        "operation": "explain_supply_chain_impact",
+        "p95_ms": 0,
+        "sample_count": 0,
+        "state": "not_measured_in_fixture",
+        "boundary": "This fixture records the required matrix shape; live p95 values must come from the Compose proof run."
+      }
+    ]
+  },
+  "refusal_variant": {
+    "path": "examples/supply-chain-demo/missing-evidence",
+    "readiness_state": "evidence_incomplete",
+    "missing_evidence": ["advisory_sources"],
+    "exit_code": 4,
+    "truth_label": "insufficient_evidence",
+    "explanation": "The dependency is present, but Eshu owns no advisory evidence for it, so the scanner refuses to promote a finding."
+  },
+  "truth_boundaries": [
+    "The committed fixture is public and deterministic; it is not a substitute for rerunning the Compose proof.",
+    "run-full-chain-proof.sh covers the live stack repo-to-workload path and deliberately leaves image_ref to the image-identity proof.",
+    "run-image-identity-proof.sh uses seeded raw facts, but the image identity, SBOM attachment, and impact finding are reducer-derived.",
+    "run-oci-localtls-identity-proof.sh proves real OCI collector transport against a sandbox localhost TLS registry.",
+    "The 10-15 minute walkthrough recording remains a manual deliverable tracked by issue 3061."
+  ],
+  "privacy": {
+    "public_safe": true,
+    "private_registry_identifiers": "absent",
+    "credentials": "absent"
+  }
+}

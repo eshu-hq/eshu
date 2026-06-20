@@ -140,6 +140,24 @@ It asserts `app/` reaches `ready_with_findings` with `CVE-2026-SYNTHETIC-NPM`
 directly from `examples/supply-chain-demo/`, so the runbook and the test cannot
 drift.
 
+## Full-chain proof fixture
+
+`examples/supply-chain-demo/fixtures/full-chain-proof-output.json` is the public
+sanitized proof fixture for the #3129 acceptance shape. It records the required
+evidence-node chain, missing-evidence refusal variant, p95 timing matrix fields,
+and the boundary between the live Compose proof, the seeded image-identity
+reducer proof, and the localhost TLS OCI collector proof.
+
+Verify it with:
+
+```bash
+examples/supply-chain-demo/test/verify-full-chain-proof-output.sh
+```
+
+The fixture is deterministic and safe to commit. It does not replace rerunning
+`examples/supply-chain-demo/scripts/run-full-chain-proof.sh` against a live stack
+when closing #3129; live p95 values must come from that run.
+
 ## Image-identity proof (the `image_ref` sub-hop)
 
 The full-chain proof anchors findings to a workload via the K8s manifest but
