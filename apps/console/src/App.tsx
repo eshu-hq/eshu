@@ -2,7 +2,7 @@
 // Private mode renders only the Eshu API. Demo mode is an explicit prospect
 // fixture source, not a failed-live fallback. main.tsx wraps this in
 // <BrowserRouter>.
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -73,11 +73,19 @@ import { ImpactPage } from "./pages/ImpactPage";
 import { ExposurePathPage } from "./pages/ExposurePathPage";
 import { CICDRunCorrelationsPage } from "./pages/CICDRunCorrelationsPage";
 import { ChangedSincePage } from "./pages/ChangedSincePage";
-import { WorkspacePage } from "./pages/WorkspacePage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import { ConnectionState, SourcePopover, type SourceState } from "./components/SourceControls";
 import "./styles.css";
 import "./appShell.css";
+
+// WorkspacePage pulls the d3 force-simulation relationship/deployment views,
+// the heaviest non-diagram dependency in the console. It is a deep-link leaf
+// route (/workspace/:entityKind/:entityId), not part of the dashboard-first
+// path, so it is code-split via React.lazy to keep d3 out of the main entry
+// chunk. Suspense shows a lightweight loading state while the chunk downloads.
+const WorkspacePage = lazy(() =>
+  import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage }))
+);
 
 type NavItem = {
   readonly to: string;
@@ -392,7 +400,21 @@ export function App(): React.JSX.Element {
             <Route path="/collector-readiness" element={<CollectorReadinessPage rows={visibleModel.collectorReadiness} provenance={visibleModel.provenance.collectorReadiness ?? "empty"} />} />
             <Route path="/operations" element={<OperationsPage model={visibleModel} />} />
             <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
-            <Route path="/workspace/:entityKind/:entityId" element={<WorkspacePage />} />
+            <Route
+              path="/workspace/:entityKind/:entityId"
+              element={
+                <Suspense
+                  fallback={
+                    <section className="page-shell">
+                      <h1>Loading workspace</h1>
+                      <p>Loading workspace view.</p>
+                    </section>
+                  }
+                >
+                  <WorkspacePage />
+                </Suspense>
+              }
+            />
           </Routes>
         ) : (
           <ConnectionState status={source.status} onConnect={() => setOpen(true)} />

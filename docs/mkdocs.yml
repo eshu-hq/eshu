@@ -263,6 +263,7 @@ nav:
     - ".eshuignore": reference/eshuignore.md
     - Troubleshooting: reference/troubleshooting.md
     - Logging Standard: reference/logging.md
+    - Console Bundle Budget: reference/console-bundle-budget.md
     - Telemetry:
       - Overview: reference/telemetry/index.md
       - Runtime Signals: reference/telemetry/runtime-signals.md

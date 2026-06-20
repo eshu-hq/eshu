@@ -11,6 +11,7 @@
     "console:test": "vitest run --config apps/console/vite.config.ts",
     "console:typecheck": "tsc -p apps/console/tsconfig.json",
     "console:build": "vite build --config apps/console/vite.config.ts",
+    "console:bundle-budget": "node scripts/console-bundle-budget.mjs",
     "typecheck": "tsc -b"
   },
   "dependencies": {
