@@ -1,0 +1,12 @@
+capabilities:
+  - capability: query.investigation_workflows
+    tools: [list_investigation_workflows, resolve_investigation_workflow]
+    profiles:
+      local_lightweight:
+        max_truth_level: exact
+      local_authoritative:
+        max_truth_level: exact
+      local_full_stack:
+        max_truth_level: exact
+      production:
+        max_truth_level: exact

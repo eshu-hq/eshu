@@ -3597,6 +3597,46 @@
       "console": false
     },
     {
+      "capability": "query.investigation_workflows",
+      "display_name": "Investigation Workflows",
+      "owner_package": "internal/query",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_investigation_workflows",
+          "kind": "mcp"
+        },
+        {
+          "tool": "resolve_investigation_workflow",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact"
+        }
+      },
+      "proof_signals": [],
+      "docs": [
+        "reference/investigation-workflows.md"
+      ],
+      "console": false
+    },
+    {
       "capability": "query.playbooks",
       "display_name": "Query Playbooks",
       "owner_package": "internal/query",

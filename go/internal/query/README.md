@@ -464,8 +464,9 @@ The package exports four groups of contracts:
   documentation, semantic-evidence, supply-chain, incident, work-item,
   freshness, status, metrics, compare, and admin handlers.
 - Response contracts: `ResponseEnvelope`, `TruthEnvelope`, `ErrorEnvelope`,
-  `AnswerPacket`, query playbooks, visualization packets, and the typed
-  constants that describe truth level, freshness, profile, backend, and errors.
+  `AnswerPacket`, query playbooks, investigation workflows, visualization
+  packets, and the typed constants that describe truth level, freshness,
+  profile, backend, and errors.
 - Helpers: uniform response writers, JSON/path/query parsers, bearer-token
   middleware, truth-envelope builders, OpenAPI assembly, and graph row
   extraction helpers.

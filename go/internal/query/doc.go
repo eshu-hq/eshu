@@ -265,6 +265,15 @@
 // calls, read graph or Postgres state, or expose raw Cypher.
 // The contract and catalog are documented in
 // docs/public/reference/query-playbooks.md.
+// InvestigationWorkflow is the sibling guided-investigation catalog for
+// missing-evidence-driven next calls. It declares the input shape, required and
+// optional evidence families, expected output packet, grouped atomic tools,
+// starter prompts, and routes from observed missing-evidence keys to bounded
+// recommended next calls. InvestigationWorkflowHandler exposes the catalog and
+// resolver at /api/v0/investigation-workflows; the resolver reads only caller
+// inputs and reported missing-evidence state, never graph, Postgres, providers,
+// collectors, or tenant data. The public contract is documented in
+// docs/public/reference/investigation-workflows.md.
 //
 // VisualizationPacket is a sibling derived-view contract: a compact, bounded
 // subgraph of an existing service-story, evidence-citation, or incident-context

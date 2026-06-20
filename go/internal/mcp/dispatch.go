@@ -138,6 +138,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := queryPlaybookRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := investigationWorkflowRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok := visualizationRoute(toolName, args); ok {
 		return route, nil
 	}

@@ -59,6 +59,10 @@
 // forward inventory and diagnostics requests to HTTP registry readback routes,
 // preserve the canonical envelope, and do not expose server-local manifest
 // paths or activation config paths.
+// Query playbook and investigation workflow tools are catalog-only dispatch
+// surfaces: they forward to HTTP static resolvers that describe bounded call
+// plans and missing-evidence-driven next calls without executing those calls or
+// reading tenant data.
 // Relationship-story tools forward min_confidence unchanged to the query layer
 // so the HTTP handler owns confidence-floor validation and filtering.
 // Relationship-story responses preserve the HTTP per-row provenance block in

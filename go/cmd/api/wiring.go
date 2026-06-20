@@ -403,8 +403,9 @@ func newRouter(
 			Policy:        componentPolicy,
 			Profile:       queryProfile,
 		},
-		ExtractionReadiness: &query.CollectorExtractionReadinessHandler{Profile: queryProfile},
-		Playbooks:           &query.QueryPlaybookHandler{Profile: queryProfile},
+		ExtractionReadiness:    &query.CollectorExtractionReadinessHandler{Profile: queryProfile},
+		Playbooks:              &query.QueryPlaybookHandler{Profile: queryProfile},
+		InvestigationWorkflows: &query.InvestigationWorkflowHandler{Profile: queryProfile},
 		Metrics: &query.MetricsHandler{
 			Source:  metricsSource,
 			Profile: queryProfile,

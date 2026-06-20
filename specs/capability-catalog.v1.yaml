@@ -24,6 +24,12 @@ capabilities:
   - capability: query.playbooks
     owner_package: internal/query
     console: true
+  - capability: query.investigation_workflows
+    display_name: Investigation Workflows
+    owner_package: internal/query
+    docs:
+      - reference/investigation-workflows.md
+    console: false
   - capability: semantic_search.curated_retrieval
     owner_package: internal/searchretrieval
     console: true
