@@ -55,6 +55,54 @@ default-selection change only, not a change to either profile's runtime path.
   timed against the `local_authoritative` row. Stop and profile if cold start
   exceeds the `15s` envelope by more than `10%`.
 
+### Compose local hash semantic-search default (#3324)
+
+Docker Compose now defaults API, MCP, and reducer to
+`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash`. This is a first-run selector change
+only: it enables deterministic no-network query embeddings and vector sidecar
+builds for curated search documents, while real provider-backed
+`search_documents` embeddings remain opt-in through provider profile and source
+policy configuration. Bootstrap and ingester stay on deterministic no-provider
+defaults, so source discovery, parsing, fact emission, and initial indexing do
+not make provider calls.
+
+- Affected stage: local Compose API/MCP semantic-search reads and reducer
+  search-vector sidecar builds for active curated search documents.
+- Baseline: previous Compose passed
+  `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-}`
+  to API, MCP, and reducer, so no-provider first-run mode left the vector
+  builder disabled and `mode=semantic` could not use local vector rows.
+- After measurement: the default env shape is
+  `${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-hash}` for API, MCP, and reducer.
+  Focused regression coverage proves the reducer wires a search-vector build
+  runner with provider profile `local`, model `local-hash-v1`, and
+  `VectorRetrievalAuto` when the local hash selector is set.
+- Backend/version and input shape: Compose local stack, deterministic local hash
+  embedder `local-hash-v1`, curated `search_documents` rows, active-generation
+  vector metadata/value sidecar rows, NornicDB graph backend unchanged.
+- Terminal state: no queue or row-count migration is introduced. Existing
+  reducer projection continues to own row creation; first-run diagnostics use
+  `/api/v0/search/semantic` and `retrieval_state` (`semantic_active`,
+  `index_unready`, or `semantic_unavailable`) to show whether local vectors are
+  ready.
+- No-Regression Evidence: `go test ./internal/runtime -run
+  'TestDefaultComposePassesSemanticSearchConfigToReadersAndVectorBuilder|TestDockerComposeDocsDescribeSemanticProviderModes'
+  -count=1` pins the Compose env defaults and first-run diagnostic docs.
+  `go test ./cmd/reducer -run
+  'TestBuildReducerServiceWiresSearchVectorBuildRunnerWhen(LocalHash|ProviderProfile)Configured'
+  -count=1` pins local hash and governed-provider runner wiring. The broader
+  package gate `go test ./internal/runtime ./cmd/reducer ./cmd/api
+  ./cmd/mcp-server ./internal/searchembedruntime ./internal/searchembed
+  ./internal/searchvector ./internal/query -count=1` passed for the changed
+  runtime surfaces.
+- Observability Evidence: local hash and provider-backed vector builds remain
+  visible through existing bounded search-vector build results, Postgres
+  query/exec spans, semantic-search route spans, retrieval state fields, and
+  vector metadata failure classes. Provider-backed profiles additionally report
+  redacted provider profile status. The Compose change adds no raw prompt,
+  credential, endpoint, provider body, path, document id, metric label, span
+  attribute, or log field.
+
 ## Dogfood Tiers
 
 | Tier | Shape | Use |
