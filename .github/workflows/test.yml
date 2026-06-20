@@ -41,6 +41,11 @@ jobs:
           scripts/test-verify-performance-evidence.sh
           scripts/verify-performance-evidence.sh
 
+      - name: Verify query-plan regression gate
+        run: |
+          scripts/test-verify-query-plan-regression.sh
+          scripts/verify-query-plan-regression.sh
+
       - name: Verify scale corpus suite
         run: |
           scripts/test-verify-scale-corpus-suite.sh
