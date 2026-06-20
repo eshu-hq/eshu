@@ -36,17 +36,17 @@ func TestInvestigationExportDeployableUnit(t *testing.T) {
 			gotParams = params
 			env := admissionDecisionsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph, Freshness: query.TruthFreshness{State: query.FreshnessFresh}}}
 			env.Data.Decisions = []query.AdmissionDecisionResult{
-				{DecisionID: "d1", Domain: "deployable_unit", State: "admitted", ScopeID: "s1", GenerationID: "g1", AnchorKind: "workload", AnchorID: "w1", CandidateKind: "workload", CandidateID: "w1", CanonicalWrite: query.AdmissionDecisionCanonicalWrite{Written: true, TargetKind: "CORRELATES_DEPLOYABLE_UNIT", TargetID: "w1"}},
+				{DecisionID: "d1", Domain: "deployable_unit_correlation", State: "admitted", ScopeID: "s1", GenerationID: "g1", AnchorKind: "repository", AnchorID: "repo-1", CandidateKind: "deployable_unit", CandidateID: "w1", CanonicalWrite: query.AdmissionDecisionCanonicalWrite{Written: true, TargetKind: "CORRELATES_DEPLOYABLE_UNIT", TargetID: "w1"}},
 			}
 			return env, nil
 		},
 	}
-	out, err := runExportWithDeps(t, []string{"--family", "deployable_unit", "--subject", "scope_id=s1", "--subject", "workload_id=w1", "--format", "json"}, deps)
+	out, err := runExportWithDeps(t, []string{"--family", "deployable_unit", "--subject", "scope_id=s1", "--subject", "generation_id=g1", "--subject", "repository_id=repo-1", "--subject", "workload_id=w1", "--format", "json"}, deps)
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	if gotParams.Get("domain") != "deployable_unit" || gotParams.Get("scope_id") != "s1" || gotParams.Get("anchor_id") != "w1" {
-		t.Errorf("params = %v, want domain/scope/anchor set", gotParams)
+	if gotParams.Get("domain") != "deployable_unit_correlation" || gotParams.Get("scope_id") != "s1" || gotParams.Get("generation_id") != "g1" || gotParams.Get("anchor_kind") != "repository" || gotParams.Get("anchor_id") != "repo-1" {
+		t.Errorf("params = %v, want persisted domain, scope, generation, and repository anchor set", gotParams)
 	}
 	var packet query.InvestigationEvidencePacket
 	if err := json.Unmarshal([]byte(out), &packet); err != nil {
@@ -57,23 +57,44 @@ func TestInvestigationExportDeployableUnit(t *testing.T) {
 	}
 }
 
-func TestInvestigationExportDeployableUnitMissingScopeRefuses(t *testing.T) {
+func TestInvestigationExportDeployableUnitRequiresScopeAndGeneration(t *testing.T) {
 	deps := investigationExportDeps{
 		FetchAdmissionDecisions: func(*APIClient, url.Values) (admissionDecisionsEnvelope, error) {
-			t.Fatal("fetch should not run without scope_id")
+			t.Fatal("fetch should not run without scope_id and generation_id")
 			return admissionDecisionsEnvelope{}, nil
 		},
 	}
-	out, err := runExportWithDeps(t, []string{"--family", "deployable_unit", "--subject", "workload_id=w1", "--format", "json"}, deps)
-	if err != nil {
+	for _, args := range [][]string{
+		{"--family", "deployable_unit", "--subject", "workload_id=w1", "--subject", "generation_id=g1", "--format", "json"},
+		{"--family", "deployable_unit", "--subject", "scope_id=s1", "--subject", "workload_id=w1", "--format", "json"},
+	} {
+		out, err := runExportWithDeps(t, args, deps)
+		if err != nil {
+			t.Fatalf("export: %v", err)
+		}
+		var packet query.InvestigationEvidencePacket
+		if err := json.Unmarshal([]byte(out), &packet); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if packet.Refusal != query.PacketRefusalScopeNotFound {
+			t.Errorf("refusal = %q, want scope_not_found", packet.Refusal)
+		}
+	}
+}
+
+func TestInvestigationExportDeployableUnitDoesNotUseUnsupportedWorkloadAnchor(t *testing.T) {
+	var gotParams url.Values
+	deps := investigationExportDeps{
+		FetchAdmissionDecisions: func(_ *APIClient, params url.Values) (admissionDecisionsEnvelope, error) {
+			gotParams = params
+			return admissionDecisionsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph}}, nil
+		},
+	}
+	if _, err := runExportWithDeps(t, []string{"--family", "deployable_unit", "--subject", "scope_id=s1", "--subject", "generation_id=g1", "--subject", "workload_id=w1", "--format", "json"}, deps); err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	var packet query.InvestigationEvidencePacket
-	if err := json.Unmarshal([]byte(out), &packet); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if packet.Refusal != query.PacketRefusalScopeNotFound {
-		t.Errorf("refusal = %q, want scope_not_found", packet.Refusal)
+	if gotParams.Get("anchor_kind") != "" || gotParams.Get("anchor_id") != "" {
+		t.Fatalf("params = %v, want no unsupported workload anchor filter", gotParams)
 	}
 }
 

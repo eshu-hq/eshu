@@ -77,27 +77,24 @@ func buildDriftExportPacket(cmd *cobra.Command, subject map[string]string) (quer
 }
 
 // deployableUnitParams builds the admission-decisions query from the subject. It
-// requires a scope_id and pins the domain to deployable_unit. A workload_id,
-// service_id, or repository_id subject becomes the anchor narrowing.
+// requires scope_id and generation_id because the admission-decision store keys
+// deployable-unit correlation rows by both values. Reducer decisions for this
+// domain are persisted under deployable_unit_correlation and use repository
+// anchors, so workload/service subjects stay packet context instead of becoming
+// unsupported exact anchor filters.
 func deployableUnitParams(subject map[string]string) (url.Values, bool) {
 	scopeID := strings.TrimSpace(subject["scope_id"])
-	if scopeID == "" {
+	generationID := strings.TrimSpace(subject["generation_id"])
+	if scopeID == "" || generationID == "" {
 		return nil, false
 	}
 	params := url.Values{}
-	params.Set("domain", "deployable_unit")
+	params.Set("domain", "deployable_unit_correlation")
 	params.Set("scope_id", scopeID)
-	addQueryValue(params, "generation_id", subject["generation_id"])
-	switch {
-	case strings.TrimSpace(subject["workload_id"]) != "":
-		params.Set("anchor_kind", "workload")
-		params.Set("anchor_id", strings.TrimSpace(subject["workload_id"]))
-	case strings.TrimSpace(subject["service_id"]) != "":
-		params.Set("anchor_kind", "service")
-		params.Set("anchor_id", strings.TrimSpace(subject["service_id"]))
-	case strings.TrimSpace(subject["repository_id"]) != "":
+	params.Set("generation_id", generationID)
+	if repositoryID := firstSubjectValue(subject, "repository_id", "repo_id"); repositoryID != "" {
 		params.Set("anchor_kind", "repository")
-		params.Set("anchor_id", strings.TrimSpace(subject["repository_id"]))
+		params.Set("anchor_id", repositoryID)
 	}
 	return params, true
 }
