@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +22,15 @@ func stubChangeImpactFetch(t *testing.T, envelope changeImpactEnvelope, err erro
 	return func() { changeImpactFetch = original }
 }
 
+func stubChangePlanFetch(t *testing.T, envelope changeImpactEnvelope, err error) func() {
+	t.Helper()
+	original := changePlanFetch
+	changePlanFetch = func(_ *APIClient, _ changeImpactOptions) (changeImpactEnvelope, error) {
+		return envelope, err
+	}
+	return func() { changePlanFetch = original }
+}
+
 func TestChangeImpactCommandIsRegistered(t *testing.T) {
 	cmd, _, err := rootCmd.Find([]string{"change", "impact"})
 	if err != nil {
@@ -32,6 +42,21 @@ func TestChangeImpactCommandIsRegistered(t *testing.T) {
 	for _, name := range []string{"json", "repo-id", "base", "head", "file", "repo-path", "topic", "service-name", "limit", "max-depth", "service-url"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("change impact flag %q missing", name)
+		}
+	}
+}
+
+func TestChangePlanCommandIsRegistered(t *testing.T) {
+	cmd, _, err := rootCmd.Find([]string{"change", "plan"})
+	if err != nil {
+		t.Fatalf("rootCmd.Find(change plan) error = %v", err)
+	}
+	if cmd == nil || cmd.Name() != "plan" {
+		t.Fatalf("resolved command = %#v, want plan", cmd)
+	}
+	for _, name := range []string{"json", "repo-id", "file", "intent", "limit", "max-depth", "service-url"} {
+		if cmd.Flags().Lookup(name) == nil {
+			t.Fatalf("change plan flag %q missing", name)
 		}
 	}
 }
@@ -90,6 +115,46 @@ func TestFetchChangeImpactRequestsCanonicalEnvelope(t *testing.T) {
 	first := changes[0].(map[string]any)
 	if got, want := first["status"], "renamed"; got != want {
 		t.Fatalf("changes[0].status = %#v, want %#v", got, want)
+	}
+}
+
+func TestFetchChangePlanRequestsDeveloperPlanRoute(t *testing.T) {
+	var gotPath string
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"schema_version":"developer_change_plan.v1"},"truth":{"freshness":{"state":"fresh"}},"error":null}`))
+	}))
+	defer server.Close()
+
+	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
+	if _, err := fetchChangePlan(client, changeImpactOptions{
+		RepoID:          "repo-1",
+		DeveloperIntent: "rename helper safely",
+		Changes: []changeImpactFileChange{{
+			Path:    "go/internal/query/developer_change_plan.go",
+			OldPath: "go/internal/query/prechange_impact.go",
+			Status:  "renamed",
+		}},
+		Limit: 10,
+	}); err != nil {
+		t.Fatalf("fetchChangePlan() error = %v", err)
+	}
+	if gotPath != "/api/v0/impact/developer-change-plan" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	for key, want := range map[string]any{
+		"repo_id":          "repo-1",
+		"developer_intent": "rename helper safely",
+		"limit":            float64(10),
+	} {
+		if got := gotBody[key]; got != want {
+			t.Fatalf("body[%s] = %#v, want %#v", key, got, want)
+		}
 	}
 }
 
@@ -194,6 +259,43 @@ func TestRunChangeImpactRendersSummary(t *testing.T) {
 	}
 	output := out.String()
 	for _, want := range []string{"Truth freshness: fresh", "Pre-change impact: 2 changed files", "symbols=3 direct=1 transitive=2"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("summary missing %q: %q", want, output)
+		}
+	}
+}
+
+func TestRunChangePlanRendersSummary(t *testing.T) {
+	reset := stubChangePlanFetch(t, changeImpactEnvelope{
+		Data: map[string]any{
+			"changed_file_count": float64(1),
+			"blocked":            true,
+			"truncated":          false,
+			"actions": []any{map[string]any{
+				"kind":  "rename_safety_check",
+				"risk":  "high",
+				"title": "Verify old and new path evidence before refactor guidance",
+			}},
+			"bounded_next_calls": []any{map[string]any{
+				"kind":   "api",
+				"target": "POST /api/v0/impact/pre-change",
+			}},
+		},
+		Truth: map[string]any{"freshness": map[string]any{"state": "fresh"}},
+	}, nil)
+	defer reset()
+
+	out := &bytes.Buffer{}
+	cmd := newChangePlanCommand()
+	cmd.SetOut(out)
+	cmd.SetArgs([]string{"--repo-id", "repo-1", "--file", "go/a.go", "--intent", "rename helper safely"})
+
+	var exitErr commandExitError
+	if err := cmd.Execute(); !errors.As(err, &exitErr) || exitErr.code != 5 {
+		t.Fatalf("change plan command error = %#v, want commandExitError code 5", err)
+	}
+	output := out.String()
+	for _, want := range []string{"Developer change plan: 1 actions", "blocked=true", "action=rename_safety_check", "next=api"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("summary missing %q: %q", want, output)
 		}

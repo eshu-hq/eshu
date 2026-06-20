@@ -89,6 +89,101 @@ const openAPIPathsImpactRest = `
         }
       }
     },
+    "/api/v0/impact/developer-change-plan": {
+      "post": {
+        "tags": ["impact"],
+        "summary": "Plan a developer change",
+        "description": "Builds a read-only developer_change_plan.v1 action plan over the pre-change impact evidence graph, returning changed-file coverage, affected entities, recommended tests, bounded next calls, missing evidence, and patch guidance without generating or applying code.",
+        "operationId": "planDeveloperChange",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Provide changed_paths or changes with repo_id, optionally including base/head refs as provenance for that caller-derived diff, or provide an explicit graph target/topic. developer_intent adds caller-supplied context but never overrides graph evidence.",
+                "anyOf": [
+                  {"required": ["changed_paths", "repo_id"]},
+                  {"required": ["changes", "repo_id"]},
+                  {"required": ["target"]},
+                  {"required": ["service_name"]},
+                  {"required": ["topic"]}
+                ],
+                "properties": {
+                  "repo_id": {"type": "string", "description": "Repository selector for changed-path lookup"},
+                  "base_ref": {"type": "string", "description": "Git base ref used by the caller to derive the supplied changed_paths or changes"},
+                  "head_ref": {"type": "string", "description": "Git head ref used by the caller to derive the supplied changed_paths or changes"},
+                  "developer_intent": {"type": "string", "description": "Optional developer-stated intent for the change plan"},
+                  "changed_paths": {"type": "array", "description": "Repo-relative changed paths treated as modified files", "items": {"type": "string"}},
+                  "changes": {
+                    "type": "array",
+                    "description": "Changed files with status and optional rename source.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {"type": "string", "description": "Current repo-relative path"},
+                        "old_path": {"type": "string", "description": "Previous repo-relative path for renamed or copied files"},
+                        "status": {"type": "string", "enum": ["added", "modified", "deleted", "renamed", "copied"]}
+                      }
+                    }
+                  },
+                  "target": {"type": "string"},
+                  "target_type": {"type": "string", "enum": ["service", "workload", "workload_instance", "repository", "resource", "cloud_resource", "terraform_module", "module"]},
+                  "service_name": {"type": "string"},
+                  "workload_id": {"type": "string"},
+                  "resource_id": {"type": "string"},
+                  "module_id": {"type": "string"},
+                  "topic": {"type": "string"},
+                  "query": {"type": "string"},
+                  "environment": {"type": "string"},
+                  "max_depth": {"type": "integer", "default": 4, "minimum": 1, "maximum": 8},
+                  "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100},
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Read-only developer change plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {"type": "string", "enum": ["developer_change_plan.v1"]},
+                    "workflow": {"type": "string", "enum": ["developer_change_plan"]},
+                    "read_only": {"type": "boolean", "enum": [true]},
+                    "developer_intent": {"type": "string"},
+                    "change_set": {"type": "object"},
+                    "changed_files": {"type": "array", "items": {"type": "object"}},
+                    "changed_file_count": {"type": "integer"},
+                    "coverage": {"type": "object"},
+                    "affected_entities": {"type": "array", "items": {"type": "object"}},
+                    "missing_evidence": {"type": "array", "items": {"type": "object"}},
+                    "recommended_tests": {"type": "array", "items": {"type": "object"}},
+                    "bounded_next_calls": {"type": "array", "items": {"type": "object"}},
+                    "actions": {"type": "array", "items": {"type": "object"}},
+                    "patch_guidance": {"type": "array", "items": {"type": "object"}},
+                    "blocked": {"type": "boolean"},
+                    "truncated": {"type": "boolean"},
+                    "pre_change_summary": {"type": "object"},
+                    "pre_change_impact_ref": {"type": "string"},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with evidence handles, missing evidence, limitations, truncation, coverage, partial reasons, and next calls."},
+                    "answer_packet": {"type": "object", "description": "AnswerPacket-shaped developer change plan response for agent workflows."}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/impact/entity-map": {
       "post": {
         "tags": ["impact"],

@@ -11,25 +11,27 @@ import (
 )
 
 const preChangeImpactCapability = "platform_impact.pre_change"
+const developerChangePlanCapability = "platform_impact.developer_change_plan"
 
 type preChangeImpactRequest struct {
-	RepoID       string                `json:"repo_id"`
-	BaseRef      string                `json:"base_ref"`
-	HeadRef      string                `json:"head_ref"`
-	ChangedPaths []string              `json:"changed_paths"`
-	Changes      []preChangeFileChange `json:"changes"`
-	Target       string                `json:"target"`
-	TargetType   string                `json:"target_type"`
-	ServiceName  string                `json:"service_name"`
-	WorkloadID   string                `json:"workload_id"`
-	ResourceID   string                `json:"resource_id"`
-	ModuleID     string                `json:"module_id"`
-	Topic        string                `json:"topic"`
-	Query        string                `json:"query"`
-	Environment  string                `json:"environment"`
-	MaxDepth     int                   `json:"max_depth"`
-	Limit        int                   `json:"limit"`
-	Offset       int                   `json:"offset"`
+	RepoID          string                `json:"repo_id"`
+	DeveloperIntent string                `json:"developer_intent"`
+	BaseRef         string                `json:"base_ref"`
+	HeadRef         string                `json:"head_ref"`
+	ChangedPaths    []string              `json:"changed_paths"`
+	Changes         []preChangeFileChange `json:"changes"`
+	Target          string                `json:"target"`
+	TargetType      string                `json:"target_type"`
+	ServiceName     string                `json:"service_name"`
+	WorkloadID      string                `json:"workload_id"`
+	ResourceID      string                `json:"resource_id"`
+	ModuleID        string                `json:"module_id"`
+	Topic           string                `json:"topic"`
+	Query           string                `json:"query"`
+	Environment     string                `json:"environment"`
+	MaxDepth        int                   `json:"max_depth"`
+	Limit           int                   `json:"limit"`
+	Offset          int                   `json:"offset"`
 
 	changedPathsProvided bool
 	changesProvided      bool
@@ -90,6 +92,7 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 
 func normalizePreChangeImpactRequest(req preChangeImpactRequest) (preChangeImpactRequest, error) {
 	req.RepoID = strings.TrimSpace(req.RepoID)
+	req.DeveloperIntent = strings.TrimSpace(req.DeveloperIntent)
 	req.BaseRef = strings.TrimSpace(req.BaseRef)
 	req.HeadRef = strings.TrimSpace(req.HeadRef)
 	req.Target = strings.TrimSpace(req.Target)

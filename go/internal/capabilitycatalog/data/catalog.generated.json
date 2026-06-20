@@ -3381,6 +3381,59 @@
       "console": false
     },
     {
+      "capability": "platform_impact.developer_change_plan",
+      "display_name": "Platform Impact Developer Change Plan",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "plan_developer_change",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "compose_e2e",
+          "ref": "developer-change-plan"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-developer-change-plan"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-developer-change-plan"
+        }
+      ],
+      "console": false
+    },
+    {
       "capability": "platform_impact.entity_map",
       "display_name": "Platform Impact Entity Map",
       "maturity": "general_availability",

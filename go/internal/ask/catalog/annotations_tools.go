@@ -139,6 +139,7 @@ func askToolAnnotations() map[string]Annotation {
 		"list_service_catalog_correlations":               {Backend: BackendPostgres, Cost: CostModerate},
 		"list_supply_chain_impact_findings":               {Backend: BackendPostgres, Cost: CostModerate},
 		"list_work_item_evidence":                         {Backend: BackendPostgres, Cost: CostModerate},
+		"plan_developer_change":                           {Backend: BackendBoth, Cost: CostHigh},
 		"propose_terraform_import_plan":                   {Backend: BackendPostgres, Cost: CostModerate},
 		"resolve_entity":                                  {Backend: BackendNornicDB, Cost: CostLow},
 		"resolve_investigation_workflow":                  {Backend: BackendEmbedded, Cost: CostLow},

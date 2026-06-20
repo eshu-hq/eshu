@@ -204,6 +204,22 @@ relationships or compare environments.
 }
 ```
 
+**Tool:** `plan_developer_change`
+
+```json
+{
+  "repo_id": "git-repository:payments",
+  "developer_intent": "update the request validation path",
+  "changes": [
+    {
+      "path": "go/internal/payments/handler.go",
+      "status": "modified"
+    }
+  ],
+  "limit": 25
+}
+```
+
 ## Safety Checks
 
 Secret and import-plan tools are read-only. Secret findings are redacted; do

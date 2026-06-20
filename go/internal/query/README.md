@@ -107,6 +107,12 @@ return the same bounded code surface, graph impact rows, coverage, truncation,
 answer metadata, and AnswerPacket-shaped response instead of creating a parallel
 impact model. Optional base/head refs are provenance for caller-derived changed
 inputs; refs alone do not trigger server-side diff derivation.
+Developer change plan reads (`POST /api/v0/impact/developer-change-plan`) reuse
+that normalized evidence path and return a read-only `developer_change_plan.v1`
+artifact. The handler maps missing evidence, affected entities, recommended
+tests, bounded next calls, action steps, and patch guidance from the pre-change
+impact response; it never generates or applies source patches, and it marks the
+plan blocked when required evidence is absent or partial.
 Repository context relationship queries include reducer-owned
 `CORRELATES_DEPLOYABLE_UNIT` graph edges so deployable-unit correlation readback
 uses the same confidence, evidence kind, reason, resolved id, and
@@ -135,11 +141,15 @@ No-Regression Evidence: pre-change impact route, normalization, partial
 evidence, truncation, AnswerPacket metadata, and OpenAPI visibility are covered
 by `go test ./internal/query -run 'TestPreChangeImpact|TestOpenAPIPreChange' -count=1`.
 
-No-Observability-Change: pre-change impact reuses the existing query handler
-span name, change-surface content lookup, optional graph impact traversal,
-Postgres/graph spans, truth envelope, limits, offsets, truncation, and answer
-metadata. It adds no worker, queue claim, graph write, metric label, or
-datastore connection.
+No-Regression Evidence: developer change plan route, read-only actions, patch
+guidance, AnswerPacket metadata, and OpenAPI visibility are covered by
+`go test ./internal/query -run 'TestDeveloperChangePlan|TestOpenAPIDeveloperChangePlan' -count=1`.
+
+No-Observability-Change: pre-change impact and developer change plan reuse the
+existing query handler span name, change-surface content lookup, optional graph
+impact traversal, Postgres/graph spans, truth envelope, limits, offsets,
+truncation, and answer metadata. They add no worker, queue claim, graph write,
+metric label, or datastore connection.
 Semantic search reads (`POST /api/v0/search/semantic`, MCP
 `search_semantic_context`) are repository-bounded over active curated search
 documents. They use the repository id as the current durable search-document
