@@ -25,6 +25,11 @@ func TestCodeInterprocEvidenceFromEnvelope(t *testing.T) {
 			"source_kind":          "http_request",
 			"confidence":           0.7,
 			"cloud":                true,
+			"why_trail": []map[string]any{
+				{"role": "source", "function_uid": "func-source"},
+				{"role": "sink", "function_uid": "func-sink"},
+			},
+			"why_trail_truncated": true,
 		},
 	}
 
@@ -40,6 +45,12 @@ func TestCodeInterprocEvidenceFromEnvelope(t *testing.T) {
 	}
 	if got.Confidence != 0.7 || got.Cloud != true {
 		t.Fatalf("confidence/cloud not mapped: %+v", got)
+	}
+	if len(got.WhyTrail) != 2 || got.WhyTrail[0]["function_uid"] != "func-source" {
+		t.Fatalf("why trail not mapped: %+v", got.WhyTrail)
+	}
+	if !got.WhyTrailTruncated {
+		t.Fatalf("WhyTrailTruncated = false, want true")
 	}
 }
 

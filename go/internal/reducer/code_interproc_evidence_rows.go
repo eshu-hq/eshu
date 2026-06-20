@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"encoding/json"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -20,6 +21,8 @@ type CodeInterprocEvidenceInput struct {
 	SourceKind         string
 	Confidence         float64
 	Cloud              bool
+	WhyTrail           []map[string]any
+	WhyTrailTruncated  bool
 }
 
 // ExtractCodeInterprocEvidenceRows projects cross-function findings into
@@ -43,7 +46,7 @@ func extractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput, uidFo
 		if in.SourceFunctionUID == "" || in.SinkFunctionUID == "" {
 			continue
 		}
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"uid":                  uidForInput(in),
 			"source_function_uid":  in.SourceFunctionUID,
 			"sink_function_uid":    in.SinkFunctionUID,
@@ -55,12 +58,30 @@ func extractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput, uidFo
 			"source_kind":          in.SourceKind,
 			"confidence":           in.Confidence,
 			"cloud":                in.Cloud,
-		})
+		}
+		if len(in.WhyTrail) > 0 {
+			row["why_trail_json"] = codeInterprocWhyTrailJSON(in.WhyTrail)
+		}
+		if in.WhyTrailTruncated {
+			row["why_trail_truncated"] = true
+		}
+		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(a, b int) bool {
 		return anyToString(rows[a]["uid"]) < anyToString(rows[b]["uid"])
 	})
 	return rows
+}
+
+func codeInterprocWhyTrailJSON(trail []map[string]any) string {
+	if len(trail) == 0 {
+		return ""
+	}
+	encoded, err := json.Marshal(trail)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 // codeInterprocEvidenceUID derives the generation-independent identity of one

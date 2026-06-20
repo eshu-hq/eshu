@@ -215,6 +215,15 @@ func TestValueFlowFixpointEvidenceLoaderProjectsDurableInputs(t *testing.T) {
 	if input.SourceKind != "http_request" || input.SinkKind != "sql" || input.Confidence <= 0 {
 		t.Fatalf("finding metadata not preserved: %+v", input)
 	}
+	if len(input.WhyTrail) != 2 {
+		t.Fatalf("why trail len = %d, want source and sink steps: %+v", len(input.WhyTrail), input.WhyTrail)
+	}
+	if input.WhyTrail[0]["role"] != "source" || input.WhyTrail[0]["function_uid"] != "uid-source" {
+		t.Fatalf("source trail step not resolved: %+v", input.WhyTrail[0])
+	}
+	if input.WhyTrail[1]["role"] != "sink" || input.WhyTrail[1]["function_uid"] != "uid-sink" {
+		t.Fatalf("sink trail step not resolved: %+v", input.WhyTrail[1])
+	}
 }
 
 // TestValueFlowFixpointEvidenceLoaderSurfacesMissingGraphUIDs proves unresolved

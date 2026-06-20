@@ -19,6 +19,8 @@ func codeInterprocEvidenceRow() map[string]any {
 		"source_kind":          "http_request",
 		"confidence":           0.7,
 		"cloud":                true,
+		"why_trail_json":       `[{"role":"source","function_uid":"func-source"},{"role":"sink","function_uid":"func-sink"}]`,
+		"why_trail_truncated":  true,
 	}
 }
 
@@ -63,6 +65,8 @@ func TestCodeInterprocEvidenceWriterMatchesFunctionsAndMergesEdge(t *testing.T) 
 		"rel.source_kind = row.source_kind",
 		"rel.confidence = row.confidence",
 		"rel.cloud = row.cloud",
+		"rel.why_trail_json = row.why_trail_json",
+		"rel.why_trail_truncated = row.why_trail_truncated",
 		"rel.evidence_source = row.evidence_source",
 	} {
 		if !strings.Contains(cypher, want) {

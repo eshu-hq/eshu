@@ -2,7 +2,7 @@ package mcp
 
 // relationshipTypeEnum lists the relationship types the bounded relationship
 // story query path can follow.
-var relationshipTypeEnum = []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"}
+var relationshipTypeEnum = []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO"}
 
 // codeRelationshipStoryTool defines the get_code_relationship_story MCP tool: a
 // bounded, budget-aware relationship story for one resolved code symbol.

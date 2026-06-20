@@ -212,6 +212,112 @@ func TestOriginAttributionUnsanitizedPath(t *testing.T) {
 	}
 }
 
+// TestFindingTrailOrdersSourceIntermediateSink proves each finding carries the
+// bounded source-to-sink port trail that explains why the value reached the sink.
+func TestFindingTrailOrdersSourceIntermediateSink(t *testing.T) {
+	t.Parallel()
+
+	src := param("repo\x1fsrc", 0)
+	mid := named("repo\x1fmid", "value")
+	sink := param("repo\x1fsink", 0)
+	program := Program{
+		Edges:   []Edge{{From: src, To: mid}, {From: mid, To: sink}},
+		Sources: []Source{{Port: src, Kind: "http"}},
+		Sinks:   []Sink{{Port: sink, Kind: "sql"}},
+	}
+
+	serial := Solve(program, DefaultLimits())
+	partitioned := SolvePartitioned(program, DefaultLimits())
+	if !reflect.DeepEqual(serial, partitioned) {
+		t.Fatalf("partitioned != serial\n serial=%+v\n part=%+v", serial, partitioned)
+	}
+	if len(serial.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1: %+v", len(serial.Findings), serial.Findings)
+	}
+	if got, want := serial.Findings[0].Trail, []Port{src, mid, sink}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("trail = %+v, want %+v", got, want)
+	}
+	if serial.Findings[0].TrailTruncated {
+		t.Fatalf("short trail unexpectedly marked truncated: %+v", serial.Findings[0])
+	}
+}
+
+// TestFindingTrailUpdatesWhenNeutralizationShrinks proves the reported trail
+// follows the path that actually keeps the sink unsuppressed.
+func TestFindingTrailUpdatesWhenNeutralizationShrinks(t *testing.T) {
+	t.Parallel()
+
+	src := param("repo\x1fsrc", 0)
+	mid := named("repo\x1fmid", "sanitized")
+	sink := param("repo\x1fsink", 0)
+	program := Program{
+		Edges: []Edge{
+			{From: src, To: mid},
+			{From: mid, To: sink},
+			{From: src, To: sink},
+		},
+		Sources:    []Source{{Port: src, Kind: "http"}},
+		Sanitizers: []Sanitizer{{Port: mid, Neutralizes: []string{"sql"}}},
+		Sinks:      []Sink{{Port: sink, Kind: "sql"}},
+	}
+
+	res := Solve(program, DefaultLimits())
+	if len(res.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1: %+v", len(res.Findings), res.Findings)
+	}
+	if got, want := res.Findings[0].Trail, []Port{src, sink}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("trail = %+v, want unsanitized direct path %+v", got, want)
+	}
+}
+
+// TestFindingTrailMatchesSinkKindWitness proves each sink kind receives a trail
+// that actually avoids the sanitizer for that kind, even when another path only
+// explains a different unsuppressed sink kind.
+func TestFindingTrailMatchesSinkKindWitness(t *testing.T) {
+	t.Parallel()
+
+	src := param("repo\x1fsrc", 0)
+	sqlOnly := named("repo\x1fmid", "sql-safe")
+	xssOnly := named("repo\x1fmid", "xss-safe")
+	sink := param("repo\x1fsink", 0)
+	program := Program{
+		Edges: []Edge{
+			{From: src, To: sqlOnly},
+			{From: sqlOnly, To: sink},
+			{From: src, To: xssOnly},
+			{From: xssOnly, To: sink},
+		},
+		Sources: []Source{{Port: src, Kind: "http"}},
+		Sanitizers: []Sanitizer{
+			{Port: sqlOnly, Neutralizes: []string{"sql"}},
+			{Port: xssOnly, Neutralizes: []string{"xss"}},
+		},
+		Sinks: []Sink{
+			{Port: sink, Kind: "sql"},
+			{Port: sink, Kind: "xss"},
+		},
+	}
+
+	res := Solve(program, DefaultLimits())
+	if len(res.Findings) != 2 {
+		t.Fatalf("findings = %d, want sql and xss findings: %+v", len(res.Findings), res.Findings)
+	}
+	for _, finding := range res.Findings {
+		switch finding.SinkKind {
+		case "sql":
+			if reflect.DeepEqual(finding.Trail, []Port{src, sqlOnly, sink}) {
+				t.Fatalf("sql finding received sql-sanitized trail: %+v", finding.Trail)
+			}
+		case "xss":
+			if reflect.DeepEqual(finding.Trail, []Port{src, xssOnly, sink}) {
+				t.Fatalf("xss finding received xss-sanitized trail: %+v", finding.Trail)
+			}
+		default:
+			t.Fatalf("unexpected sink kind %q: %+v", finding.SinkKind, finding)
+		}
+	}
+}
+
 // TestPartitionedEqualsSerialAtCap proves the identity contract holds at the cap
 // boundary, including mixed sink slot kinds (a comparator-tie regression guard).
 func TestPartitionedEqualsSerialAtCap(t *testing.T) {

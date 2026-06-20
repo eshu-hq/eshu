@@ -98,10 +98,76 @@ func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, 
 				SourceKind:         snapshotPayloadString(finding, "source_kind"),
 				Confidence:         snapshotPayloadFloat(finding, "confidence"),
 				Cloud:              cloud,
+				WhyTrail:           interprocWhyTrailFromFinding(relativePath, finding, resolve),
+				WhyTrailTruncated:  snapshotPayloadBool(finding, "why_trail_truncated"),
 			})
 		}
 	}
 	return evidence
+}
+
+func interprocWhyTrailFromFinding(
+	relativePath string,
+	finding map[string]any,
+	resolve func(relativePath, receiver, name string) (string, bool),
+) []map[string]any {
+	rawTrail := snapshotPayloadMapSlice(finding, "why_trail")
+	if len(rawTrail) == 0 {
+		return nil
+	}
+	trail := make([]map[string]any, 0, len(rawTrail))
+	for index, step := range rawTrail {
+		functionID := snapshotPayloadString(step, "function_id")
+		receiver, name := functionIDReceiverName(functionID)
+		role := "intermediate"
+		if index == 0 {
+			role = "source"
+		}
+		if index == len(rawTrail)-1 {
+			role = "sink"
+		}
+		out := map[string]any{
+			"role":        role,
+			"function_id": functionID,
+			"slot_kind":   snapshotPayloadString(step, "slot_kind"),
+		}
+		if name != "" {
+			out["function_name"] = name
+		}
+		if uid, ok := resolve(relativePath, receiver, name); ok {
+			out["function_uid"] = uid
+		}
+		if slotIndex := snapshotPayloadInt(step, "slot_index"); slotIndex != 0 || snapshotPayloadString(step, "slot_kind") == "param" {
+			out["slot_index"] = slotIndex
+		}
+		if slotName := snapshotPayloadString(step, "slot_name"); slotName != "" {
+			out["slot_name"] = slotName
+		}
+		trail = append(trail, out)
+	}
+	return trail
+}
+
+func snapshotPayloadMapSlice(payload map[string]any, key string) []map[string]any {
+	switch typed := payload[key].(type) {
+	case []map[string]any:
+		return typed
+	case []any:
+		out := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			if row, ok := item.(map[string]any); ok {
+				out = append(out, row)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func snapshotPayloadBool(payload map[string]any, key string) bool {
+	value, _ := payload[key].(bool)
+	return value
 }
 
 // functionIDReceiverName splits a value-flow FunctionID
@@ -159,6 +225,12 @@ func interprocEvidenceFactEnvelope(
 	}
 	if evidence.Cloud {
 		payload["cloud"] = true
+	}
+	if len(evidence.WhyTrail) > 0 {
+		payload["why_trail"] = evidence.WhyTrail
+	}
+	if evidence.WhyTrailTruncated {
+		payload["why_trail_truncated"] = true
 	}
 
 	factKey := interprocEvidenceFactKind + ":" + evidence.SourceFunctionUID +

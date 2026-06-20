@@ -93,6 +93,52 @@ func TestBuildInterprocTaintEvidenceResolvesBothEndpoints(t *testing.T) {
 	}
 }
 
+// TestBuildInterprocTaintEvidencePreservesWhyTrail proves ordered parser trail
+// steps are resolved to Function uids where possible and kept as derived
+// evidence payload, not graph truth.
+func TestBuildInterprocTaintEvidencePreservesWhyTrail(t *testing.T) {
+	t.Parallel()
+
+	parsed := []map[string]any{{"path": "/repo/src/handler.go", "interproc_findings": []map[string]any{{
+		"source_func": "\x1fpkg\x1f\x1fview",
+		"sink_func":   "\x1fpkg\x1f\x1frunQuery",
+		"source_kind": "http_request",
+		"sink_kind":   "sql",
+		"confidence":  0.6,
+		"lang":        "go",
+		"why_trail": []map[string]any{
+			{"function_id": "\x1fpkg\x1f\x1fview", "slot_kind": "param", "slot_index": 0},
+			{"function_id": "\x1fpkg\x1f\x1fservice", "slot_kind": "named", "slot_name": "payload"},
+			{"function_id": "\x1fpkg\x1f\x1frunQuery", "slot_kind": "return"},
+		},
+		"why_trail_truncated": true,
+	}}}}
+	entities := append(viewAndRunQueryEntities(), content.EntityRecord{
+		EntityID: "func-service", Path: "src/handler.go", EntityType: "Function", EntityName: "service", StartLine: 6,
+	})
+
+	evidence := buildInterprocTaintEvidence("/repo", parsed, entities)
+	if len(evidence) != 1 {
+		t.Fatalf("want 1 evidence row, got %d: %+v", len(evidence), evidence)
+	}
+	trail := evidence[0].WhyTrail
+	if len(trail) != 3 {
+		t.Fatalf("len(WhyTrail) = %d, want 3: %+v", len(trail), trail)
+	}
+	if trail[0]["role"] != "source" || trail[0]["function_uid"] != "func-view" {
+		t.Fatalf("source step not resolved/role-stamped: %+v", trail[0])
+	}
+	if trail[1]["role"] != "intermediate" || trail[1]["function_uid"] != "func-service" || trail[1]["slot_name"] != "payload" {
+		t.Fatalf("intermediate step not resolved/role-stamped: %+v", trail[1])
+	}
+	if trail[2]["role"] != "sink" || trail[2]["function_uid"] != "func-runquery" {
+		t.Fatalf("sink step not resolved/role-stamped: %+v", trail[2])
+	}
+	if !evidence[0].WhyTrailTruncated {
+		t.Fatalf("WhyTrailTruncated = false, want true")
+	}
+}
+
 // TestBuildInterprocTaintEvidenceDropsAmbiguousName proves a finding is dropped
 // when an endpoint name is not unique within the file (cannot attribute safely).
 func TestBuildInterprocTaintEvidenceDropsAmbiguousName(t *testing.T) {
@@ -149,9 +195,32 @@ func TestInterprocEvidenceFactEnvelope(t *testing.T) {
 	if env.Payload["source_function_uid"] != "func-view" || env.Payload["sink_function_uid"] != "func-runquery" || env.Payload["cloud"] != true {
 		t.Fatalf("payload not mapped: %+v", env.Payload)
 	}
+	if env.Payload["why_trail"] != nil {
+		t.Fatalf("empty why_trail should be omitted: %+v", env.Payload)
+	}
 	again := interprocEvidenceFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", at, evidence)
 	if env.StableFactKey != again.StableFactKey {
 		t.Fatalf("fact key not stable across re-emission")
+	}
+}
+
+func TestInterprocEvidenceFactEnvelopeCarriesWhyTrail(t *testing.T) {
+	t.Parallel()
+
+	evidence := InterprocTaintEvidenceSnapshot{
+		SourceFunctionUID: "func-view", SinkFunctionUID: "func-runquery",
+		RelativePath: "src/handler.go", SourceFunctionName: "view", SinkFunctionName: "runQuery",
+		Language: "go", SinkKind: "sql", SourceKind: "http_request", Confidence: 0.6,
+		WhyTrail:          []map[string]any{{"role": "source", "function_uid": "func-view"}},
+		WhyTrailTruncated: true,
+	}
+	env := interprocEvidenceFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", time.Now(), evidence)
+	trail, ok := env.Payload["why_trail"].([]map[string]any)
+	if !ok || len(trail) != 1 || trail[0]["function_uid"] != "func-view" {
+		t.Fatalf("why_trail not carried: %+v", env.Payload)
+	}
+	if env.Payload["why_trail_truncated"] != true {
+		t.Fatalf("why_trail_truncated not carried: %+v", env.Payload)
 	}
 }
 

@@ -93,16 +93,18 @@ const interprocConfidence = 0.6
 
 // Finding is one interprocedural source-to-sink taint path.
 type Finding struct {
-	SourceFunc  FunctionID
-	SourceKind  string
-	SourceLabel string
-	SinkFunc    FunctionID
-	SinkKind    string
-	SinkLabel   string
-	SinkPort    Port
-	Cloud       bool
-	Neutralized []string
-	Confidence  float64
+	SourceFunc     FunctionID
+	SourceKind     string
+	SourceLabel    string
+	SinkFunc       FunctionID
+	SinkKind       string
+	SinkLabel      string
+	SinkPort       Port
+	Cloud          bool
+	Neutralized    []string
+	Confidence     float64
+	Trail          []Port
+	TrailTruncated bool
 }
 
 // Result is the bounded, deterministic output of a solve.

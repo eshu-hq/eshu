@@ -159,16 +159,18 @@ type TaintEvidenceSnapshot struct {
 // FunctionID carries the name but not the graph uid), so the reducer can project
 // a source->sink evidence edge without re-resolving.
 type InterprocTaintEvidenceSnapshot struct {
-	SourceFunctionUID  string  `json:"source_function_uid"`
-	SinkFunctionUID    string  `json:"sink_function_uid"`
-	RelativePath       string  `json:"relative_path"`
-	SourceFunctionName string  `json:"source_function_name"`
-	SinkFunctionName   string  `json:"sink_function_name"`
-	Language           string  `json:"language"`
-	SinkKind           string  `json:"sink_kind"`
-	SourceKind         string  `json:"source_kind"`
-	Confidence         float64 `json:"confidence"`
-	Cloud              bool    `json:"cloud,omitempty"`
+	SourceFunctionUID  string           `json:"source_function_uid"`
+	SinkFunctionUID    string           `json:"sink_function_uid"`
+	RelativePath       string           `json:"relative_path"`
+	SourceFunctionName string           `json:"source_function_name"`
+	SinkFunctionName   string           `json:"sink_function_name"`
+	Language           string           `json:"language"`
+	SinkKind           string           `json:"sink_kind"`
+	SourceKind         string           `json:"source_kind"`
+	Confidence         float64          `json:"confidence"`
+	Cloud              bool             `json:"cloud,omitempty"`
+	WhyTrail           []map[string]any `json:"why_trail,omitempty"`
+	WhyTrailTruncated  bool             `json:"why_trail_truncated,omitempty"`
 }
 
 // ContentFileSnapshot captures one portable file-content record.

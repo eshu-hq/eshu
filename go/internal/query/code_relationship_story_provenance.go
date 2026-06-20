@@ -1,10 +1,14 @@
 package query
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const (
 	relationshipStoryProvenanceCodeEdge        = "code_edge"
 	relationshipStoryProvenanceCorrelationEdge = "correlation_edge"
+	relationshipStoryProvenanceValueFlowEdge   = "value_flow_edge"
 	relationshipStoryProvenanceUnsupported     = "unsupported"
 
 	relationshipStoryTruthDerived     = "derived"
@@ -35,6 +39,12 @@ func relationshipStoryProvenance(row map[string]any) map[string]any {
 	if hasConfidence {
 		provenance["confidence"] = confidence
 	}
+	if trail := relationshipStoryWhyTrail(row); len(trail) > 0 {
+		provenance["why_trail"] = trail
+	}
+	if BoolVal(row, "why_trail_truncated") {
+		provenance["why_trail_truncated"] = true
+	}
 	return provenance
 }
 
@@ -64,7 +74,7 @@ func relationshipStoryConfidenceState(hasConfidence bool) string {
 }
 
 func relationshipStoryProvenanceMethod(row map[string]any) string {
-	for _, key := range []string{"resolution_method", "confidence_basis", "resolution_source", "evidence_type", "call_kind"} {
+	for _, key := range []string{"resolution_method", "confidence_basis", "resolution_source", "evidence_type", "evidence_source", "call_kind"} {
 		if value := strings.TrimSpace(StringVal(row, key)); value != "" {
 			return value
 		}
@@ -80,6 +90,9 @@ func relationshipStoryProvenanceReason(row map[string]any) string {
 }
 
 func relationshipStoryProvenanceSourceFamily(row map[string]any) string {
+	if StringVal(row, "type") == "TAINT_FLOWS_TO" || strings.TrimSpace(StringVal(row, "why_trail_json")) != "" {
+		return relationshipStoryProvenanceValueFlowEdge
+	}
 	if strings.TrimSpace(StringVal(row, "resolution_method")) != "" {
 		return relationshipStoryProvenanceCodeEdge
 	}
@@ -97,6 +110,9 @@ func relationshipStoryProvenanceTruthState(row map[string]any, sourceFamily stri
 	if sourceFamily == relationshipStoryProvenanceUnsupported || !hasConfidence {
 		return relationshipStoryTruthUnsupported
 	}
+	if sourceFamily == relationshipStoryProvenanceValueFlowEdge {
+		return relationshipStoryTruthDerived
+	}
 	if sourceFamily == relationshipStoryProvenanceCorrelationEdge {
 		return relationshipStoryTruthHeuristic
 	}
@@ -105,4 +121,16 @@ func relationshipStoryProvenanceTruthState(row map[string]any, sourceFamily stri
 		return relationshipStoryTruthHeuristic
 	}
 	return relationshipStoryTruthDerived
+}
+
+func relationshipStoryWhyTrail(row map[string]any) []any {
+	raw := strings.TrimSpace(StringVal(row, "why_trail_json"))
+	if raw == "" {
+		return nil
+	}
+	var decoded []any
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return nil
+	}
+	return decoded
 }

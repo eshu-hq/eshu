@@ -92,6 +92,12 @@ func InterprocFindingRow(lang string, finding interproc.Finding) map[string]any 
 	if finding.Cloud {
 		row["cloud"] = true
 	}
+	if len(finding.Trail) > 0 {
+		row["why_trail"] = interprocTrailPayload(finding.Trail)
+	}
+	if finding.TrailTruncated {
+		row["why_trail_truncated"] = true
+	}
 	return row
 }
 
@@ -141,6 +147,37 @@ func DataflowSourceRow(lang string, src interproc.Source) map[string]any {
 		"param_index": src.Port.Slot.Index,
 		"kind":        src.Kind,
 		"lang":        lang,
+	}
+}
+
+func interprocTrailPayload(trail []interproc.Port) []map[string]any {
+	out := make([]map[string]any, 0, len(trail))
+	for _, port := range trail {
+		step := map[string]any{
+			"function_id": string(port.Func),
+			"slot_kind":   interprocSlotKindString(port.Slot.Kind),
+		}
+		if port.Slot.Kind == interproc.SlotParam {
+			step["slot_index"] = port.Slot.Index
+		}
+		if port.Slot.Name != "" {
+			step["slot_name"] = port.Slot.Name
+		}
+		out = append(out, step)
+	}
+	return out
+}
+
+func interprocSlotKindString(kind interproc.SlotKind) string {
+	switch kind {
+	case interproc.SlotParam:
+		return "param"
+	case interproc.SlotReturn:
+		return "return"
+	case interproc.SlotNamed:
+		return "named"
+	default:
+		return "unknown"
 	}
 }
 

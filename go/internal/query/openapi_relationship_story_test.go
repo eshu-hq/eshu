@@ -78,6 +78,8 @@ func TestOpenAPIRelationshipSchemaDocumentsProvenanceBlock(t *testing.T) {
 		"source_family",
 		"reason",
 		"truth_state",
+		"why_trail",
+		"why_trail_truncated",
 		"derived",
 		"heuristic",
 		"unsupported",

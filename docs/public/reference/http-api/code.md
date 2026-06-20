@@ -150,6 +150,14 @@ contract can still miss scalar provenance; its `provenance` block reports
 is independent of the answer-level truth envelope; a low-confidence edge does
 not lower the answer's truth level.
 
+`TAINT_FLOWS_TO` rows are reducer-owned value-flow evidence edges. When the
+solver emitted a finding trail, `provenance.why_trail` contains a bounded,
+ordered list of source, intermediate, and sink port steps; if the cap was hit,
+`provenance.why_trail_truncated=true`. These rows report
+`source_family=value_flow_edge` and `truth_state=derived`. The trail is
+provenance for explaining an existing finding and does not promote value-flow
+evidence to canonical graph truth.
+
 Repository and cross-system correlation edges use `confidence_basis` instead of
 code `resolution_method`. Treat `evidence_constant`, `evidence_aggregate`, and
 `assertion_override` as the correlation-side explanation for the same numeric
