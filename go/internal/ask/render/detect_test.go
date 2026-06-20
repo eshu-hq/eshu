@@ -61,6 +61,50 @@ func TestDetectFormat(t *testing.T) {
 			requested: "garbage-unknown",
 			want:      FormatYAML,
 		},
+		// False-positive guards: bare format mentions must NOT trigger export format.
+		{
+			name:      "yaml mention in context is not export intent",
+			question:  "Which services load YAML manifests?",
+			requested: "auto",
+			want:      FormatMarkdown,
+		},
+		{
+			name:      "json mention in context is not export intent",
+			question:  "which repos have a json config field?",
+			requested: "auto",
+			want:      FormatMarkdown,
+		},
+		{
+			name:      "csv file mention is not export intent",
+			question:  "show me the csv file location",
+			requested: "auto",
+			want:      FormatMarkdown,
+		},
+		{
+			name:      "yaml configuration mention is not export intent",
+			question:  "what services use yaml configuration?",
+			requested: "auto",
+			want:      FormatMarkdown,
+		},
+		// Intent true-positives: export-construction phrases must trigger the format.
+		{
+			name:      "output as json is export intent",
+			question:  "output as json",
+			requested: "auto",
+			want:      FormatJSON,
+		},
+		{
+			name:      "convert to yaml is export intent",
+			question:  "convert to yaml",
+			requested: "auto",
+			want:      FormatYAML,
+		},
+		{
+			name:      "in csv format is export intent",
+			question:  "list all repos in csv format",
+			requested: "auto",
+			want:      FormatCSV,
+		},
 	}
 
 	for _, tt := range tests {

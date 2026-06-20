@@ -346,6 +346,18 @@ func TestValidateMermaid(t *testing.T) {
 			wantIssues: false,
 		},
 		{
+			// Regression: directive preamble must be skipped before keyword check.
+			name:       "valid mermaid with directive preamble",
+			content:    "%%{init: {'theme':'dark'}}%%\ngraph TD\n  A-->B",
+			wantIssues: false,
+		},
+		{
+			// Regression: YAML frontmatter must be skipped before keyword check.
+			name:       "valid mermaid with yaml frontmatter",
+			content:    "---\ntitle: My Diagram\n---\nsequenceDiagram\n  A->>B: hi",
+			wantIssues: false,
+		},
+		{
 			name:        "unrecognized diagram type",
 			content:     "not a diagram\n  A-->B",
 			wantIssues:  true,

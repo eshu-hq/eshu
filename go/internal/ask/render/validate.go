@@ -113,7 +113,13 @@ var mermaidKeywords = []string{
 // still be rejected by a Mermaid renderer. The lint checks:
 //
 //  1. Content is non-empty and within the size cap.
-//  2. The first token on the first non-empty line is a recognized diagram keyword.
+//  2. The first token on the first non-empty content line — after skipping any
+//     leading preamble — is a recognized diagram keyword.
+//
+// Preamble lines that are skipped before the keyword check:
+//   - Any line whose trimmed form starts with "%%" (Mermaid directive/comment).
+//   - A leading YAML frontmatter block: if the first non-empty trimmed line is
+//     exactly "---", lines are consumed until a matching closing "---" line.
 //
 // Bracket balance is intentionally NOT checked: valid Mermaid relationship
 // tokens (e.g. ER cardinality like "||--o{") contain unmatched delimiters by
@@ -130,26 +136,54 @@ func validateMermaid(content string) []string {
 		return []string{"empty content"}
 	}
 
-	var issues []string
-
-	// Check that the first non-empty line starts with a recognized keyword.
-	firstLine := firstNonEmptyLine(trimmed)
+	// Find the first non-empty content line after skipping preamble.
+	firstLine := firstMermaidContentLine(trimmed)
 	kw := firstToken(firstLine)
 	if !isMermaidKeyword(kw) {
-		issues = append(issues, "unrecognized mermaid diagram type")
+		return []string{"unrecognized mermaid diagram type"}
 	}
 
-	return issues
+	return nil
 }
 
-// firstNonEmptyLine returns the first line in s that is non-empty after
-// trimming whitespace, or an empty string if no such line exists.
-func firstNonEmptyLine(s string) string {
-	for _, line := range strings.Split(s, "\n") {
-		if t := strings.TrimSpace(line); t != "" {
-			return t
+// firstMermaidContentLine returns the first non-empty line of s that is not
+// part of a leading preamble. It skips:
+//   - Lines whose trimmed form starts with "%%" (Mermaid directives/comments).
+//   - A YAML frontmatter block: if the first non-empty line is exactly "---",
+//     all lines up to and including the closing "---" are consumed.
+//
+// The scan is bounded by the line set already in s (no unbounded allocation).
+func firstMermaidContentLine(s string) string {
+	lines := strings.Split(s, "\n")
+	i := 0
+
+	// Skip purely empty lines.
+	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+		i++
+	}
+
+	// Check for YAML frontmatter: first non-empty line is exactly "---".
+	if i < len(lines) && strings.TrimSpace(lines[i]) == "---" {
+		i++ // skip opening "---"
+		for i < len(lines) {
+			if strings.TrimSpace(lines[i]) == "---" {
+				i++ // skip closing "---"
+				break
+			}
+			i++
 		}
 	}
+
+	// Skip directive/comment lines (%%...).
+	for i < len(lines) {
+		t := strings.TrimSpace(lines[i])
+		if t == "" || strings.HasPrefix(t, "%%") {
+			i++
+			continue
+		}
+		return t
+	}
+
 	return ""
 }
 
