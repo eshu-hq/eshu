@@ -112,7 +112,7 @@ local Compose stack (see [#3326](https://github.com/eshu-hq/eshu/issues/3326)):
 docker compose up -d
 
 # Verify API health
-curl -s http://localhost:8080/api/v0/status | jq .
+curl -s http://localhost:8080/api/v0/status/pipeline | jq .
 
 # Run the console in dev mode pointed at the local stack
 cd apps/console
