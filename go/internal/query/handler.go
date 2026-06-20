@@ -143,40 +143,41 @@ func requireContextOverview(w http.ResponseWriter, r *http.Request, profile Quer
 
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.
 type APIRouter struct {
-	Repositories          *RepositoryHandler
-	Entities              *EntityHandler
-	Code                  *CodeHandler
-	Content               *ContentHandler
-	Infra                 *InfraHandler
-	CloudInventory        *CloudInventoryHandler
-	CloudRuntimeDrift     *CloudRuntimeDriftHandler
-	IaC                   *IaCHandler
-	Impact                *ImpactHandler
-	Evidence              *EvidenceHandler
-	Documentation         *DocumentationHandler
-	SemanticEvidence      *SemanticEvidenceHandler
-	SemanticSearch        *SemanticSearchHandler
-	PackageRegistry       *PackageRegistryHandler
-	Dependencies          *DependenciesHandler
-	CICD                  *CICDHandler
-	ServiceCatalog        *ServiceCatalogHandler
-	Kubernetes            *KubernetesHandler
-	SecretsIAM            *SecretsIAMHandler
-	ObservabilityCoverage *ObservabilityCoverageHandler
-	Images                *ImageHandler
-	SupplyChain           *SupplyChainHandler
-	Incident              *IncidentHandler
-	WorkItems             *WorkItemHandler
-	Visualization         *VisualizationHandler
-	Freshness             *FreshnessHandler
-	Status                *StatusHandler
-	ComponentExtensions   *ComponentExtensionsHandler
-	ExtractionReadiness   *CollectorExtractionReadinessHandler
-	Playbooks             *QueryPlaybookHandler
-	Metrics               *MetricsHandler
-	Capabilities          *CapabilitiesHandler
-	Compare               *CompareHandler
-	Admin                 *AdminHandler
+	Repositories           *RepositoryHandler
+	Entities               *EntityHandler
+	Code                   *CodeHandler
+	Content                *ContentHandler
+	Infra                  *InfraHandler
+	CloudInventory         *CloudInventoryHandler
+	CloudRuntimeDrift      *CloudRuntimeDriftHandler
+	IaC                    *IaCHandler
+	Impact                 *ImpactHandler
+	Evidence               *EvidenceHandler
+	Documentation          *DocumentationHandler
+	SemanticEvidence       *SemanticEvidenceHandler
+	SemanticSearch         *SemanticSearchHandler
+	PackageRegistry        *PackageRegistryHandler
+	Dependencies           *DependenciesHandler
+	CICD                   *CICDHandler
+	ServiceCatalog         *ServiceCatalogHandler
+	Kubernetes             *KubernetesHandler
+	SecretsIAM             *SecretsIAMHandler
+	ObservabilityCoverage  *ObservabilityCoverageHandler
+	Images                 *ImageHandler
+	SupplyChain            *SupplyChainHandler
+	Incident               *IncidentHandler
+	WorkItems              *WorkItemHandler
+	Visualization          *VisualizationHandler
+	Freshness              *FreshnessHandler
+	Status                 *StatusHandler
+	ComponentExtensions    *ComponentExtensionsHandler
+	ExtractionReadiness    *CollectorExtractionReadinessHandler
+	Playbooks              *QueryPlaybookHandler
+	InvestigationWorkflows *InvestigationWorkflowHandler
+	Metrics                *MetricsHandler
+	Capabilities           *CapabilitiesHandler
+	Compare                *CompareHandler
+	Admin                  *AdminHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -335,6 +336,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Query playbooks
 	if a.Playbooks != nil {
 		a.Playbooks.Mount(mux)
+	}
+	if a.InvestigationWorkflows != nil {
+		a.InvestigationWorkflows.Mount(mux)
 	}
 
 	// Metrics

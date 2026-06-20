@@ -89,7 +89,7 @@ logging.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 132 tools from the tool definition files.
+`ReadOnlyTools` assembles 136 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -121,6 +121,7 @@ logging.
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |
 | `queryPlaybookTools` | 2 | `tools_query_playbooks.go` |
+| `investigationWorkflowTools` | 2 | `tools_investigation_workflows.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `semanticSearchTools` | 1 | `tools_semantic_search.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
@@ -197,6 +198,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
 | `list_query_playbooks` | GET | `/api/v0/query-playbooks` |
 | `resolve_query_playbook` | POST | `/api/v0/query-playbooks/resolve` |
+| `list_investigation_workflows` | GET | `/api/v0/investigation-workflows` |
+| `resolve_investigation_workflow` | POST | `/api/v0/investigation-workflows/resolve` |
 | `list_component_extensions` | GET | `/api/v0/component-extensions` with defaulted `limit` |
 | `get_component_extension_diagnostics` | GET | `/api/v0/component-extensions/{component_id}/diagnostics` |
 | `list_collector_extraction_readiness` | GET | `/api/v0/collector-extraction-readiness` with defaulted `limit` |

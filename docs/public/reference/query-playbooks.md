@@ -7,6 +7,11 @@ expected at each step, and the failure modes a caller must handle. A playbook
 describes **how to reach an [answer packet](answer-packets.md)** for a prompt
 family; it does not execute anything itself.
 
+For missing-evidence-driven workflow discovery, use
+[Investigation Workflows](investigation-workflows.md). Query playbooks describe
+a fixed ordered call sequence; investigation workflows choose bounded next calls
+from caller-provided missing-evidence state.
+
 The implementation lives in `go/internal/query/query_playbook.go` (contract and
 resolution), `go/internal/query/query_playbook_validate.go` (structural
 validation), and `go/internal/query/query_playbook_catalog.go` (the versioned

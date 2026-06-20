@@ -38,6 +38,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedQueryPlaybookRoute(r) {
 		return true
 	}
+	if scopedInvestigationWorkflowRoute(r) {
+		return true
+	}
 	if scopedCapabilityCatalogRoute(r) {
 		return true
 	}
@@ -215,6 +218,17 @@ func scopedQueryPlaybookRoute(r *http.Request) bool {
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/query-playbooks":
 		return true
 	case r.Method == http.MethodPost && r.URL.Path == "/api/v0/query-playbooks/resolve":
+		return true
+	default:
+		return false
+	}
+}
+
+func scopedInvestigationWorkflowRoute(r *http.Request) bool {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/investigation-workflows":
+		return true
+	case r.Method == http.MethodPost && r.URL.Path == "/api/v0/investigation-workflows/resolve":
 		return true
 	default:
 		return false

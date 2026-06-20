@@ -43,6 +43,7 @@ families are:
 | CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_advisory_evidence`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `get_vulnerability_scanner_read_contract`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
 | Secrets and IAM posture | `list_secrets_iam_secret_access_paths`, `list_secrets_iam_identity_trust_chains`, `list_secrets_iam_posture_gaps`, `list_secrets_iam_privilege_posture_observations`, `count_secrets_iam_posture` |
 | Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |
+| Guided investigation workflows | `list_investigation_workflows`, `resolve_investigation_workflow` |
 | Semantic evidence and retrieval | `list_semantic_documentation_observations`, `list_semantic_code_hints`, `search_semantic_context` |
 | Runtime status | `list_collectors`, `list_ingesters`, `get_ingester_status`, `get_index_status`, `get_semantic_capability_status`, `get_answer_narration_status`, `get_capability_catalog`, `list_component_extensions`, `get_component_extension_diagnostics` |
 | Diagnostics | `execute_cypher_query`, `visualize_graph_query` |

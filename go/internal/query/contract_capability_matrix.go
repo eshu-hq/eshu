@@ -17,6 +17,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalLightweight,
 	},
+	CapabilityInvestigationWorkflows: {
+		LocalLightweightMax:   &truthExact,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalLightweight,
+	},
 	semanticSearchCapability: {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthDerived,
