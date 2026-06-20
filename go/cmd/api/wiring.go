@@ -410,7 +410,8 @@ func newRouter(
 			Source:  metricsSource,
 			Profile: queryProfile,
 		},
-		Capabilities: &query.CapabilitiesHandler{Profile: queryProfile},
+		Capabilities:     &query.CapabilitiesHandler{Profile: queryProfile},
+		SurfaceInventory: &query.SurfaceInventoryHandler{Profile: queryProfile},
 		Compare: &query.CompareHandler{
 			Neo4j:   neo4jReader,
 			Content: contentReader,

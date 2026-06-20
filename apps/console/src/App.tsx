@@ -16,6 +16,7 @@ import {
   History,
   Images,
   KeyRound,
+  Layers,
   LayoutDashboard,
   ListChecks,
   Network,
@@ -59,6 +60,7 @@ import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { CapabilityMatrixPage } from "./pages/CapabilityMatrixPage";
+import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
 import { CloudPage } from "./pages/CloudPage";
 import { CloudDriftPage } from "./pages/CloudDriftPage";
 import { SecretsIamPage } from "./pages/SecretsIamPage";
@@ -135,6 +137,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     items: [
       { to: "/capabilities", label: "Capabilities", icon: ListChecks },
       { to: "/collector-readiness", label: "Collector Readiness", icon: ShieldCheck, count: (m) => nonZero(m.collectorReadiness?.length ?? 0) },
+      { to: "/surface-inventory", label: "Surface Inventory", icon: Layers },
       { to: "/operations", label: "Operations", icon: ServerCog }
     ]
   }
@@ -373,6 +376,7 @@ export function App(): React.JSX.Element {
             <Route path="/catalog" element={<CatalogPage model={visibleModel} onOpenService={openService} />} />
             <Route path="/images" element={<ImagesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/capabilities" element={<CapabilityMatrixPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
+            <Route path="/surface-inventory" element={<SurfaceInventoryPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/iac" element={<IacPage model={visibleModel} client={source.mode === "demo" ? undefined : client} />} />
             <Route path="/replatforming" element={<ReplatformingPage model={visibleModel} client={client} />} />
             <Route path="/findings" element={<FindingsPage model={visibleModel} />} />

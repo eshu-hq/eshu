@@ -79,6 +79,23 @@ go run ./cmd/capability-inventory -mode verify
 
 The committed artifact is `go/internal/capabilitycatalog/data/surface-inventory.generated.json`.
 
+## Product surfaces
+
+The same embedded artifact is served, read-only and bounded, across three
+surfaces that stay in parity because they all read it:
+
+- **API**: `GET /api/v0/surface-inventory?category=&readiness=&limit=&offset=`
+  returns the readiness rows with owner, proof, docs, and notes, with a fresh,
+  exact truth envelope in every profile.
+- **MCP**: the `get_surface_inventory` tool summarizes the inventory for
+  assistants with the same `category`/`readiness` filters and bounded paging.
+- **Console**: the Surface Inventory page groups surfaces by category and shows
+  each readiness lane honestly — only `implemented` is styled as production-ready.
+
+Because the inventory is a compiled-in artifact, the read is static and exact in
+every profile and carries no tenant- or source-scoped data, so the three
+surfaces never disagree.
+
 ## Related
 
 - [Capability Catalog](capability-catalog.md)

@@ -5468,6 +5468,47 @@
       "console": false
     },
     {
+      "capability": "surface_inventory.list",
+      "display_name": "Surface Inventory List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "get_surface_inventory",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false
+    },
+    {
       "capability": "symbol_graph.argument_names",
       "display_name": "Symbol Graph Argument Names",
       "maturity": "general_availability",

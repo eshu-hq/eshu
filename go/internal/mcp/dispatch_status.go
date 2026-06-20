@@ -42,6 +42,18 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 			query["owner"] = owner
 		}
 		return &route{method: "GET", path: "/api/v0/capabilities", query: query}, true, nil
+	case "get_surface_inventory":
+		query := map[string]string{
+			"limit":  intString(args, "limit", 200),
+			"offset": intString(args, "offset", 0),
+		}
+		if category := str(args, "category"); category != "" {
+			query["category"] = category
+		}
+		if readiness := str(args, "readiness"); readiness != "" {
+			query["readiness"] = readiness
+		}
+		return &route{method: "GET", path: "/api/v0/surface-inventory", query: query}, true, nil
 	case "list_component_extensions":
 		return &route{method: "GET", path: "/api/v0/component-extensions", query: map[string]string{
 			"limit": intString(args, "limit", 100),

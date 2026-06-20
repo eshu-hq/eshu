@@ -70,6 +70,7 @@ func OpenAPISpec() string {
 			openAPIPathsContent+
 			openAPIPathsMetrics+
 			openAPIPathsCapabilities+
+			openAPIPathsSurfaceInventory+
 			openAPIPathsAdmin+
 			openAPIPathsInfrastructure+
 			openAPIPathsInfraResourceAggregate+
