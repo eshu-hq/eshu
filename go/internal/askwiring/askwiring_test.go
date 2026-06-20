@@ -223,8 +223,9 @@ func TestBuildAskHandlerProviderBackedJSONAndSSE(t *testing.T) {
 	if strings.Contains(sseBody, "raw provider final") {
 		t.Fatalf("SSE leaked raw provider final text: %s", sseBody)
 	}
-	if !strings.Contains(sseBody, `"delta":"demo repo is indexed."`) {
-		t.Fatalf("SSE body missing validated narration token: %s", sseBody)
+	tokens := askProofSSETokens(t, sseBody)
+	if len(tokens) != 1 || tokens[0] != "demo repo is indexed." {
+		t.Fatalf("SSE token deltas = %#v, want only governed narration; body=%s", tokens, sseBody)
 	}
 	answerJSON, ok := askProofSSEAnswer(sseBody)
 	if !ok {
@@ -442,6 +443,27 @@ func askProofSSEAnswer(body string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func askProofSSETokens(t *testing.T, body string) []string {
+	t.Helper()
+	var event string
+	var tokens []string
+	for _, line := range strings.Split(body, "\n") {
+		switch {
+		case strings.HasPrefix(line, "event: "):
+			event = strings.TrimPrefix(line, "event: ")
+		case event == "token" && strings.HasPrefix(line, "data: "):
+			var payload struct {
+				Delta string `json:"delta"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &payload); err != nil {
+				t.Fatalf("decode SSE token payload: %v; line=%s", err, line)
+			}
+			tokens = append(tokens, payload.Delta)
+		}
+	}
+	return tokens
 }
 
 func askProofOpenAIStream(tokens []string, toolID, toolName, toolArgsJSON string) string {
