@@ -59,8 +59,7 @@ orchestration. It does not own service runtime internals:
     (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`);
     `answer-quality-scorecard` scores a captured, redacted answer-quality
     evidence artifact across API, MCP, CLI, and hosted surfaces
-    (`answer_quality_scorecard_cmd.go`); `report` renders the deterministic
-    offline `operator_digest.v1` model for an explicit share-safe scope and can
+    (`answer_quality_scorecard_cmd.go`); `competitive-parity validate` runs the #3265 gate (`competitive_parity_cmd.go`); `report` renders the deterministic offline `operator_digest.v1` model for an explicit share-safe scope and can
     write a shareable `operator_digest_artifact.v1` JSON wrapper, with
     unsupported sections and fixed-template follow-up questions until live
     bounded read surfaces are connected (`operator_digest_cmd.go`,
