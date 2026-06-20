@@ -269,7 +269,12 @@ func (a *engineAsker) Ask(r *http.Request, question string) (query.AskAnswer, er
 // engine adapter does not support streaming, it returns query.ErrNoStreaming so
 // the SSE handler falls back to the synchronous Ask path.
 func (a *engineAsker) AskStream(r *http.Request, question string, emit func(query.AskStreamEvent)) (query.AskAnswer, error) {
-	ans, err := a.eng.AskStream(r.Context(), question, func(ev engine.StreamEvent) {
+	// Thread the caller's Authorization header into the engine context so the
+	// streaming path enforces the caller's scope on every inner tool call,
+	// exactly as Ask does. Without this, a scoped streaming request would fall
+	// back to the baked-in shared token and leak cross-scope data.
+	ctx := engine.ContextWithCallerAuthHeader(r.Context(), r.Header.Get("Authorization"))
+	ans, err := a.eng.AskStream(ctx, question, func(ev engine.StreamEvent) {
 		switch ev.Kind {
 		case engine.KindToken:
 			emit(query.AskStreamEvent{Kind: "token", TextDelta: ev.TextDelta})
