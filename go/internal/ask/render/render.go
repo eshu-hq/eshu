@@ -54,3 +54,32 @@ type Artifact struct {
 func (a Artifact) Valid() bool {
 	return len(a.Issues) == 0
 }
+
+// Validate dispatches content to the per-format validator and returns an Artifact
+// summarizing the result. It never returns an error: validation issues are reported
+// as data in Artifact.Issues. It never mutates content: the original string is
+// returned unchanged in Artifact.Content regardless of validation outcome.
+//
+// FormatAuto and any unknown or unhandled Format values are not valid dispatch
+// targets. Callers must resolve FormatAuto to a concrete format via DetectFormat
+// before calling Validate. Passing an unresolved or unknown format returns an
+// Artifact with a single issue "unresolved format".
+func Validate(format Format, content string) Artifact {
+	var issues []string
+	switch format {
+	case FormatJSON:
+		issues = validateJSON(content)
+	case FormatYAML:
+		issues = validateYAML(content)
+	case FormatCSV:
+		issues = validateCSV(content)
+	case FormatMarkdown:
+		issues = validateMarkdown(content)
+	case FormatMermaid:
+		issues = validateMermaid(content)
+	default:
+		// FormatAuto and unknown formats are not valid dispatch targets.
+		issues = []string{"unresolved format"}
+	}
+	return Artifact{Format: format, Content: content, Issues: issues}
+}
