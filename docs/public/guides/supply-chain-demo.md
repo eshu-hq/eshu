@@ -248,9 +248,73 @@ test `TestSourceRejectsLocalTLSRegistryWithoutCustomCA` proves. Everything is
 synthetic and local: the registry is `127.0.0.1`, the image is the demo's own
 synthetic app, and all key material lives in a temp dir.
 
+## Screen recording walkthrough checklist
+
+The remaining 10-15 minute recording is a human deliverable. Use this checklist
+to keep the walkthrough reproducible, public-safe, and honest about which proof
+is live, seeded, or fixture-only.
+
+### Preflight
+
+- Start from a clean checkout and show the current branch:
+
+  ```bash
+  git status --short
+  git branch --show-current
+  ```
+
+- Build the CLI from the same checkout used for the recording:
+
+  ```bash
+  cd go && go build -o ../bin/eshu ./cmd/eshu
+  cd ..
+  export PATH="$PWD/bin:$PATH"
+  ```
+
+- Confirm Docker or OrbStack is running before recording any script that starts
+  containers. Do not show private registry hosts, account IDs, credentials,
+  customer repositories, or environment-specific IP addresses.
+
+### Talk track
+
+1. Open with the scope: the corpus is synthetic, the vulnerable package and
+   advisory data are demo fixtures, and the evidence chain is meant to prove the
+   Eshu join behavior rather than expose a private environment.
+2. Run the offline scanner against the owned demo app, then show the missing
+   owned-evidence refusal:
+
+   ```bash
+   eshu vuln-scan repo examples/supply-chain-demo/app --json
+   eshu vuln-scan repo examples/supply-chain-demo/missing-evidence --json
+   ```
+
+3. Run the scripted proof appropriate for the recording:
+
+   ```bash
+   ESHU_SRC="$PWD" examples/supply-chain-demo/scripts/full-chain-proof.sh
+   ```
+
+   For a quick rehearsal that avoids a live stack, make that clear on screen and
+   use:
+
+   ```bash
+   ESHU_SRC="$PWD" \
+     examples/supply-chain-demo/scripts/full-chain-proof.sh \
+     --verify-fixture-only
+   ```
+
+4. Show the produced proof artifact, the evidence chain, the refusal variant,
+   and the timing boundary. State explicitly whether the segment shown is a live
+   stack run, a seeded reducer proof, or fixture-only rehearsal.
+5. Close with what is proven: owned package evidence, OSV advisory evidence,
+   published impact findings, workload/SBOM anchoring, and the localhost TLS OCI
+   transport proof. Leave out anything that depends on private registries,
+   credentials, or customer infrastructure.
+
 ## Not covered
 
-- The 10–15 minute screen recording is a manual deliverable.
+- Publishing or editing the 10-15 minute screen recording remains a manual
+  deliverable.
 - A **real** OCI-registry collector run for the image-identity hop's transport is
   now covered for a localhost TLS registry by the proof script directly above;
   the **seeded** proof remains the path that exercises the full reducer join to
