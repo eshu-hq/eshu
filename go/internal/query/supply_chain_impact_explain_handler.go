@@ -48,7 +48,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		ServiceID:     QueryParam(r, "service_id"),
 	})
 	if !filter.hasBoundedScope() {
-		WriteError(w, http.StatusBadRequest, "finding_id or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required")
+		WriteError(w, http.StatusBadRequest, "finding_id or cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required; advisory_id scopes require package_id, repository_id, subject_digest, or image_ref")
 		return
 	}
 	if h.ImpactExplanations == nil {

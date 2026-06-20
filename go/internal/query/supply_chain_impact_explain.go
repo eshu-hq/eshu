@@ -260,14 +260,25 @@ func (f SupplyChainImpactExplanationFilter) hasBoundedScope() bool {
 	if strings.TrimSpace(f.FindingID) != "" {
 		return true
 	}
-	hasAdvisory := strings.TrimSpace(f.AdvisoryID) != "" || strings.TrimSpace(f.CVEID) != ""
-	hasTarget := strings.TrimSpace(f.PackageID) != "" ||
+	if strings.TrimSpace(f.CVEID) != "" {
+		return f.hasTargetScope()
+	}
+	if strings.TrimSpace(f.AdvisoryID) == "" {
+		return false
+	}
+	return strings.TrimSpace(f.PackageID) != "" ||
+		strings.TrimSpace(f.RepositoryID) != "" ||
+		strings.TrimSpace(f.SubjectDigest) != "" ||
+		strings.TrimSpace(f.ImageRef) != ""
+}
+
+func (f SupplyChainImpactExplanationFilter) hasTargetScope() bool {
+	return strings.TrimSpace(f.PackageID) != "" ||
 		strings.TrimSpace(f.RepositoryID) != "" ||
 		strings.TrimSpace(f.SubjectDigest) != "" ||
 		strings.TrimSpace(f.ImageRef) != "" ||
 		strings.TrimSpace(f.WorkloadID) != "" ||
 		strings.TrimSpace(f.ServiceID) != ""
-	return hasAdvisory && hasTarget
 }
 
 func (f SupplyChainImpactExplanationFilter) readinessScope() SupplyChainImpactTargetScope {
