@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"go.opentelemetry.io/otel/metric"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -56,6 +54,7 @@ type ServiceCatalogCorrelationDecision struct {
 	DriftStatus            string
 	CandidateRepositoryIDs []string
 	EvidenceFactIDs        []string
+	RequiredAnchorKeys     []string
 }
 
 // ServiceCatalogCorrelationWrite carries decisions for durable publication.
@@ -164,6 +163,7 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 
 	decisions := BuildServiceCatalogCorrelationDecisions(envelopes)
 	counts := serviceCatalogCorrelationCounts(decisions)
+	guardrails := serviceCatalogCorrelationGuardrailStats(decisions)
 	writeResult, err := h.Writer.WriteServiceCatalogCorrelations(ctx, ServiceCatalogCorrelationWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -175,7 +175,7 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 	if err != nil {
 		return Result{}, fmt.Errorf("write service catalog correlations: %w", err)
 	}
-	h.emitCounters(ctx, counts)
+	h.emitCounters(ctx, counts, guardrails)
 
 	if err := h.commitServiceGenerations(ctx, intent, decisions); err != nil {
 		return Result{}, fmt.Errorf("commit service materialization generations: %w", err)
@@ -185,7 +185,7 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 		IntentID:        intent.IntentID,
 		Domain:          DomainServiceCatalogCorrelation,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: serviceCatalogCorrelationSummary(len(decisions), counts, writeResult.FactsWritten),
+		EvidenceSummary: serviceCatalogCorrelationSummary(len(decisions), counts, writeResult.FactsWritten, guardrails),
 		CanonicalWrites: writeResult.FactsWritten,
 	}, nil
 }
@@ -390,31 +390,15 @@ func (h ServiceCatalogCorrelationHandler) loadActiveRepositoryFacts(ctx context.
 	return envelopes, nil
 }
 
-func (h ServiceCatalogCorrelationHandler) emitCounters(
-	ctx context.Context,
-	counts map[ServiceCatalogCorrelationOutcome]int,
-) {
-	if h.Instruments == nil {
-		return
-	}
-	for _, outcome := range serviceCatalogCorrelationOutcomes() {
-		if counts[outcome] == 0 {
-			continue
-		}
-		h.Instruments.ServiceCatalogCorrelations.Add(ctx, int64(counts[outcome]), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainServiceCatalogCorrelation)),
-			telemetry.AttrOutcome(string(outcome)),
-		))
-	}
-}
-
 // BuildServiceCatalogCorrelationDecisions classifies catalog entities without
 // turning name-only catalog metadata into repository, service, or workload truth.
 func BuildServiceCatalogCorrelationDecisions(envelopes []facts.Envelope) []ServiceCatalogCorrelationDecision {
 	index := buildServiceCatalogCorrelationIndex(envelopes)
 	decisions := make([]ServiceCatalogCorrelationDecision, 0, len(index.entities))
 	for _, entity := range index.entities {
-		decisions = append(decisions, classifyServiceCatalogEntity(entity, index))
+		decisions = append(decisions, serviceCatalogCorrelationDecisionWithGuardrails(
+			classifyServiceCatalogEntity(entity, index),
+		))
 	}
 	sort.SliceStable(decisions, func(i, j int) bool {
 		return decisions[i].EntityRef < decisions[j].EntityRef
@@ -445,34 +429,6 @@ func serviceCatalogCorrelationOutcomes() []ServiceCatalogCorrelationOutcome {
 		ServiceCatalogCorrelationStale,
 		ServiceCatalogCorrelationRejected,
 	}
-}
-
-func serviceCatalogCorrelationCounts(
-	decisions []ServiceCatalogCorrelationDecision,
-) map[ServiceCatalogCorrelationOutcome]int {
-	counts := make(map[ServiceCatalogCorrelationOutcome]int, len(serviceCatalogCorrelationOutcomes()))
-	for _, decision := range decisions {
-		counts[decision.Outcome]++
-	}
-	return counts
-}
-
-func serviceCatalogCorrelationSummary(
-	evaluated int,
-	counts map[ServiceCatalogCorrelationOutcome]int,
-	factsWritten int,
-) string {
-	return fmt.Sprintf(
-		"service catalog correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d facts_written=%d",
-		evaluated,
-		counts[ServiceCatalogCorrelationExact],
-		counts[ServiceCatalogCorrelationDerived],
-		counts[ServiceCatalogCorrelationAmbiguous],
-		counts[ServiceCatalogCorrelationUnresolved],
-		counts[ServiceCatalogCorrelationStale],
-		counts[ServiceCatalogCorrelationRejected],
-		factsWritten,
-	)
 }
 
 type serviceCatalogCorrelationIndex struct {
