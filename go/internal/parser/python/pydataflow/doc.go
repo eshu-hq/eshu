@@ -22,9 +22,10 @@
 // read keeps its reaching-def identity. A lambda passed as a call argument is
 // descended into to attribute its captured (free) variables to the enclosing
 // function, excluding its own parameters and inner-scope assignments; a
-// non-invoked lambda or a nested def is not. Tuple and list assignment targets
-// define each of their identifiers. The result is bounded and deterministic via
-// the cfg engine.
+// non-invoked lambda or a nested def is not. Tuple and list assignment targets,
+// including starred unpacking, define each of their identifiers and read the
+// source container element approximation. The result is bounded and
+// deterministic via the cfg engine.
 //
 // TaintFacts derives intraprocedural taint annotations (sources, sinks,
 // sanitizers) for a function from a small, conservative Python catalog mapped

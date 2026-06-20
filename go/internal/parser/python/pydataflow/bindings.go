@@ -4,8 +4,8 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// paramNames returns the identifier parameter names of a function definition, in
-// declaration order. *args/**kwargs splats and complex patterns are skipped (v1).
+// paramNames returns the local parameter binding names of a function definition,
+// in declaration order, including *args and **kwargs splats.
 func paramNames(node *tree_sitter.Node, source []byte) []string {
 	params := node.ChildByFieldName("parameters")
 	if params == nil {
@@ -29,6 +29,8 @@ func paramNames(node *tree_sitter.Node, source []byte) []string {
 			if id := firstIdentifier(&param, source); id != "" {
 				names = append(names, id)
 			}
+		case "list_splat_pattern", "dictionary_splat_pattern":
+			names = append(names, pyBindingTargetNames(&param, source)...)
 		}
 	}
 	return names
@@ -62,6 +64,7 @@ func assignDefsUsesWithOptions(node *tree_sitter.Node, source []byte, aliases py
 	}
 	if right != nil {
 		uses = append(uses, exprUsesWithOptions(right, source, aliases, options)...)
+		uses = append(uses, pyUnpackSourceUses(left, right, source, aliases, options)...)
 	}
 	return defs, uses
 }
@@ -91,6 +94,15 @@ func pyTargetDefUses(left *tree_sitter.Node, source []byte, aliases pyBindingAli
 			defs = append(defs, d...)
 			uses = append(uses, u...)
 		}
+	case "list_splat_pattern", "dictionary_splat_pattern":
+		cursor := left.Walk()
+		defer cursor.Close()
+		for _, child := range left.NamedChildren(cursor) {
+			child := child
+			d, u := pyTargetDefUses(&child, source, aliases, options, readsTarget)
+			defs = append(defs, d...)
+			uses = append(uses, u...)
+		}
 	case "attribute", "subscript":
 		if name, ok := pyAssignTargetPathWithOptions(left, source, aliases, options); ok && name != "" {
 			defs = append(defs, name)
@@ -106,10 +118,14 @@ func pyTargetDefUses(left *tree_sitter.Node, source []byte, aliases pyBindingAli
 	return defs, uses
 }
 
-// assignTargets returns the identifier definition targets of an assignment left
-// side: a bare identifier, or the identifiers of a tuple/list pattern. Attribute
-// and subscript targets define nothing (their base is read, see targetBaseUses).
+// assignTargets returns the bare identifier definition targets of an assignment
+// left side: a bare identifier, or identifiers inside tuple/list/star patterns.
+// Attribute and subscript targets define no bare aliases here.
 func assignTargets(left *tree_sitter.Node, source []byte) []string {
+	return pyBindingTargetNames(left, source)
+}
+
+func pyBindingTargetNames(left *tree_sitter.Node, source []byte) []string {
 	if left == nil {
 		return nil
 	}
@@ -121,13 +137,50 @@ func assignTargets(left *tree_sitter.Node, source []byte) []string {
 		cursor := left.Walk()
 		defer cursor.Close()
 		for _, child := range left.NamedChildren(cursor) {
-			if child.Kind() == "identifier" {
-				targets = append(targets, nodeText(&child, source))
-			}
+			child := child
+			targets = append(targets, pyBindingTargetNames(&child, source)...)
+		}
+		return targets
+	case "list_splat_pattern", "dictionary_splat_pattern":
+		var targets []string
+		cursor := left.Walk()
+		defer cursor.Close()
+		for _, child := range left.NamedChildren(cursor) {
+			child := child
+			targets = append(targets, pyBindingTargetNames(&child, source)...)
 		}
 		return targets
 	default:
 		return nil
+	}
+}
+
+func pyUnpackSourceUses(left, right *tree_sitter.Node, source []byte, aliases pyBindingAliases, options pyAccessPathOptions) []string {
+	if !pyIsUnpackTarget(left) {
+		return nil
+	}
+	parts, ok := pyAccessPathParts(right, source)
+	if !ok || len(parts) == 0 {
+		return nil
+	}
+	parts = append([]string{}, parts...)
+	parts[len(parts)-1] += "[*]"
+	use := pyRenderAccessPathPartsWithOptions(parts, aliases, options)
+	if use == "" {
+		return nil
+	}
+	return []string{use}
+}
+
+func pyIsUnpackTarget(left *tree_sitter.Node) bool {
+	if left == nil {
+		return false
+	}
+	switch left.Kind() {
+	case "pattern_list", "tuple_pattern", "list_pattern", "list_splat_pattern":
+		return true
+	default:
+		return false
 	}
 }
 
