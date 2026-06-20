@@ -6,6 +6,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // Sentinel errors returned by New.
@@ -141,11 +142,17 @@ func applyDefaults(opts Options) Options {
 // Engine is safe for concurrent use: a single Engine may serve multiple Ask
 // calls simultaneously. It holds no mutable session state; each Ask call owns
 // its own conversation thread.
+//
+// narrationPosture is an optional function that returns the current governed
+// narration status. A nil value is treated as DefaultAnswerNarrationStatus
+// (Unavailable), which skips the narration step and preserves deterministic
+// packet-summary prose. Set it via SetNarrationPosture before serving Ask calls.
 type Engine struct {
-	adapter provider.Adapter
-	runner  Runner
-	tools   []provider.Tool
-	opts    Options
+	adapter          provider.Adapter
+	runner           Runner
+	tools            []provider.Tool
+	opts             Options
+	narrationPosture func() status.AnswerNarrationStatus
 }
 
 // New constructs an Engine with the given adapter, runner, tool list, and

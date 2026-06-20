@@ -44,6 +44,8 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 		if len(comp.ToolCalls) == 0 {
 			// Final turn: model produced prose with no further tool calls.
 			ans.Prose = comp.Text
+			posture := e.resolveNarrationPosture()
+			e.narrate(ctx, &ans, posture)
 			return ans, nil
 		}
 
@@ -74,6 +76,8 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 	if ans.Prose == "" {
 		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
 	}
+	posture := e.resolveNarrationPosture()
+	e.narrate(ctx, &ans, posture)
 	return ans, nil
 }
 
