@@ -72,9 +72,9 @@ const viewports = [
   { viewport: "mobile", width: 390, height: 844 }
 ];
 
-/** Run a repo npm script and resolve when it exits 0. */
-function runNpm(scriptArgs, { detached = false } = {}) {
-  return spawn("npm", scriptArgs, {
+/** Spawn a process in the repo root, optionally detached. */
+function spawnProcess(command, commandArgs, { detached = false } = {}) {
+  return spawn(command, commandArgs, {
     cwd: repoRoot,
     stdio: detached ? ["ignore", "pipe", "pipe"] : "inherit",
     detached
@@ -161,10 +161,13 @@ async function observeViewport(browser, spec) {
 
   const h1Count = await page.locator("h1").count();
 
+  // A missing navigation timing entry is a broken measurement, not a fast
+  // load. Return Infinity so it deterministically FAILS the perf budget rather
+  // than silently passing as 0ms.
   const domContentLoadedMs = await page.evaluate(() => {
     const [nav] = performance.getEntriesByType("navigation");
     if (!nav) {
-      return 0;
+      return Number.POSITIVE_INFINITY;
     }
     return Math.round(nav.domContentLoadedEventEnd);
   });
@@ -182,7 +185,13 @@ async function observeViewport(browser, spec) {
   const unreachableExternalLinks = [];
   for (const href of externalHrefs) {
     try {
-      const response = await fetch(href, { method: "HEAD", redirect: "follow" });
+      const response = await fetch(href, {
+        method: "HEAD",
+        redirect: "follow",
+        // A hung connection must not block the gate forever; a timeout aborts
+        // the fetch and lands deterministically in the unreachable branch.
+        signal: AbortSignal.timeout(10_000)
+      });
       if (response.ok || response.status === 405) {
         reachableExternalLinks.push(href);
       } else {
@@ -238,12 +247,16 @@ async function main() {
 
     if (!skipBuild) {
       console.log("> building root marketing site (vite -> site-dist)");
-      await awaitExit(runNpm(["run", "build"]), "npm run build");
+      await awaitExit(spawnProcess("npm", ["run", "build"]), "npm run build");
     }
 
     console.log(`> serving site-dist via vite preview on ${baseUrl}`);
-    preview = runNpm(
-      ["run", "preview", "--", "--port", String(previewPort), "--host", previewHost],
+    // Invoke `vite preview` directly with a single --host. Going through the
+    // `preview` npm script would layer this on top of its built-in
+    // `--host 0.0.0.0`, passing vite two conflicting --host flags.
+    preview = spawnProcess(
+      "npx",
+      ["vite", "preview", "--port", String(previewPort), "--host", previewHost],
       { detached: true }
     );
     preview.stdout?.on("data", () => {});
