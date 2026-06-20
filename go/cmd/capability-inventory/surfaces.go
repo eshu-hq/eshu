@@ -69,8 +69,10 @@ func enumerateCommandBinaries(dir string) ([]string, error) {
 }
 
 var (
-	consolePageImportPattern = regexp.MustCompile(`import\s+\{\s*([A-Za-z0-9_]+Page)\s*\}\s+from\s+"\.\/pages\/([A-Za-z0-9_]+Page)"`)
-	consoleRoutePagePattern  = regexp.MustCompile(`<Route\s+[^>]*element=\{\s*<([A-Za-z0-9_]+Page)(?:\s|/|>)`)
+	consolePageImportPattern     = regexp.MustCompile(`import\s+\{\s*([A-Za-z0-9_]+Page)\s*\}\s+from\s+"\.\/pages\/([A-Za-z0-9_]+Page)"`)
+	consoleLazyPageImportPattern = regexp.MustCompile(`const\s+([A-Za-z0-9_]+Page)\s*=\s*(?:React\.)?lazy\s*\(\s*\(\)\s*=>\s*import\s*\(\s*"\.\/pages\/([A-Za-z0-9_]+Page)"\s*\)`)
+	consoleRoutePattern          = regexp.MustCompile(`(?s)<Route\b.*?/>`)
+	consoleRoutePagePattern      = regexp.MustCompile(`<([A-Za-z0-9_]+Page)(?:\s|/|>)`)
 )
 
 // enumerateConsolePages returns the routed console page component names from the
@@ -92,25 +94,32 @@ func enumerateConsolePages(root string) ([]string, error) {
 			imports[match[1]] = match[2]
 		}
 	}
+	for _, match := range consoleLazyPageImportPattern.FindAllStringSubmatch(string(body), -1) {
+		if match[1] == match[2] {
+			imports[match[1]] = match[2]
+		}
+	}
 	seen := map[string]struct{}{}
 	var names []string
-	for _, match := range consoleRoutePagePattern.FindAllStringSubmatch(string(body), -1) {
-		name, ok := imports[match[1]]
-		if !ok {
-			continue
-		}
-		pagePath := filepath.Join(root, "apps", "console", "src", "pages", name+".tsx")
-		if _, err := os.Stat(pagePath); err != nil {
-			if os.IsNotExist(err) {
+	for _, route := range consoleRoutePattern.FindAllString(string(body), -1) {
+		for _, match := range consoleRoutePagePattern.FindAllStringSubmatch(route, -1) {
+			name, ok := imports[match[1]]
+			if !ok {
 				continue
 			}
-			return nil, fmt.Errorf("stat console page %s: %w", pagePath, err)
+			pagePath := filepath.Join(root, "apps", "console", "src", "pages", name+".tsx")
+			if _, err := os.Stat(pagePath); err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return nil, fmt.Errorf("stat console page %s: %w", pagePath, err)
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			names = append(names, name)
 		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		names = append(names, name)
 	}
 	sort.Strings(names)
 	return names, nil

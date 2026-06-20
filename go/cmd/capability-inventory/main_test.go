@@ -136,15 +136,28 @@ func TestEnumerateConsolePagesIncludesOnlyRoutedPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(root, "apps", "console", "src", "App.tsx"), `
+		import { lazy, Suspense } from "react";
 		import { Route, Routes } from "react-router-dom";
 		import { DashboardPage } from "./pages/DashboardPage";
 		import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
+
+		const WorkspacePage = lazy(() =>
+			import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage }))
+		);
 
 		export function App(): React.JSX.Element {
 			return (
 				<Routes>
 					<Route path="/dashboard" element={<DashboardPage />} />
 					<Route path="/surface-inventory" element={<SurfaceInventoryPage />} />
+					<Route
+						path="/workspace/:entityKind/:entityId"
+						element={
+							<Suspense fallback={<h1>Loading workspace</h1>}>
+								<WorkspacePage />
+							</Suspense>
+						}
+					/>
 				</Routes>
 			);
 		}
@@ -152,12 +165,13 @@ func TestEnumerateConsolePagesIncludesOnlyRoutedPages(t *testing.T) {
 	writeTestFile(t, filepath.Join(pagesDir, "DashboardPage.tsx"), "export function DashboardPage(): React.JSX.Element { return <div />; }")
 	writeTestFile(t, filepath.Join(pagesDir, "HomePage.tsx"), "export function HomePage(): React.JSX.Element { return <div />; }")
 	writeTestFile(t, filepath.Join(pagesDir, "SurfaceInventoryPage.tsx"), "export function SurfaceInventoryPage(): React.JSX.Element { return <div />; }")
+	writeTestFile(t, filepath.Join(pagesDir, "WorkspacePage.tsx"), "export function WorkspacePage(): React.JSX.Element { return <div />; }")
 
 	pages, err := enumerateConsolePages(root)
 	if err != nil {
 		t.Fatalf("enumerateConsolePages: %v", err)
 	}
-	if got, want := strings.Join(pages, ","), "DashboardPage,SurfaceInventoryPage"; got != want {
+	if got, want := strings.Join(pages, ","), "DashboardPage,SurfaceInventoryPage,WorkspacePage"; got != want {
 		t.Fatalf("pages = %q, want %q", got, want)
 	}
 }
