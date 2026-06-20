@@ -61,6 +61,9 @@ func componentExtensionSchedulerState(entry component.RegistryReadbackComponent)
 		return ComponentExtensionSchedulerState{State: "blocked_by_policy", Reason: string(entry.Verification.Code)}
 	}
 	if hasComponentExtensionState(entry.States, component.RegistryStateClaimCapable) {
+		if entry.Verification == nil || !entry.Verification.Allowed {
+			return ComponentExtensionSchedulerState{State: "blocked_by_policy", Reason: "policy_not_evaluated"}
+		}
 		return ComponentExtensionSchedulerState{State: "claim_capable", Reason: "activation_allows_claims"}
 	}
 	if hasComponentExtensionState(entry.States, component.RegistryStateEnabled) {

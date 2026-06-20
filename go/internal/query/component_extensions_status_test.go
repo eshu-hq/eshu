@@ -115,6 +115,56 @@ func TestComponentExtensionsHandlerClassifiesHostedStatusFields(t *testing.T) {
 	}
 }
 
+func TestComponentExtensionsHandlerDoesNotReportClaimCapableWithoutPolicyVerification(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	installComponentForQueryStatusTest(t, home, componentStatusInstall{
+		ID:             "dev.eshu.collector.scorecard",
+		Name:           "Scorecard collector",
+		CompatibleCore: ">=0.0.1",
+		ConfigPath:     filepath.Join(t.TempDir(), "private", "scorecard.yaml"),
+		ClaimsEnabled:  true,
+	})
+	handler := &ComponentExtensionsHandler{
+		ComponentHome: home,
+		Policy:        component.Policy{},
+		Profile:       ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/component-extensions", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	var envelope struct {
+		Data  ComponentExtensionInventoryResponse `json:"data"`
+		Error *ErrorEnvelope                      `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if envelope.Error != nil {
+		t.Fatalf("envelope.Error = %#v, want nil", envelope.Error)
+	}
+	if len(envelope.Data.Components) != 1 {
+		t.Fatalf("components length = %d, want 1", len(envelope.Data.Components))
+	}
+	assertComponentHostedStatus(t, envelope.Data.Components[0], componentHostedStatusWant{
+		TrustDecision:        "not_evaluated",
+		PolicyGate:           "not_evaluated",
+		ConformanceProof:     "missing",
+		SchedulerState:       "blocked_by_policy",
+		ReadModelState:       "unavailable",
+		ReadModelUnavailable: "policy_blocked",
+	})
+}
+
 type componentHostedStatusWant struct {
 	TrustDecision        string
 	PolicyGate           string
