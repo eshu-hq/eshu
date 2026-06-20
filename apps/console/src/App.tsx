@@ -24,6 +24,7 @@ import {
   Route as RouteIcon,
   Search,
   ServerCog,
+  Activity,
   ShieldCheck,
   TriangleAlert,
   Workflow,
@@ -61,6 +62,7 @@ import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { CapabilityMatrixPage } from "./pages/CapabilityMatrixPage";
 import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
+import { FreshnessCausalityPage } from "./pages/FreshnessCausalityPage";
 import { CloudPage } from "./pages/CloudPage";
 import { CloudDriftPage } from "./pages/CloudDriftPage";
 import { SecretsIamPage } from "./pages/SecretsIamPage";
@@ -138,7 +140,8 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/capabilities", label: "Capabilities", icon: ListChecks },
       { to: "/collector-readiness", label: "Collector Readiness", icon: ShieldCheck, count: (m) => nonZero(m.collectorReadiness?.length ?? 0) },
       { to: "/surface-inventory", label: "Surface Inventory", icon: Layers },
-      { to: "/operations", label: "Operations", icon: ServerCog }
+      { to: "/operations", label: "Operations", icon: ServerCog },
+      { to: "/freshness-causality", label: "Freshness", icon: Activity }
     ]
   }
 ];
@@ -388,6 +391,7 @@ export function App(): React.JSX.Element {
             <Route path="/observability" element={<ObservabilityPage client={client} />} />
             <Route path="/collector-readiness" element={<CollectorReadinessPage rows={visibleModel.collectorReadiness} provenance={visibleModel.provenance.collectorReadiness ?? "empty"} />} />
             <Route path="/operations" element={<OperationsPage model={visibleModel} />} />
+            <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
             <Route path="/workspace/:entityKind/:entityId" element={<WorkspacePage />} />
           </Routes>
         ) : (
