@@ -33,6 +33,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | --- | --- |
 | Onboarding first-answer dogfood proof | [First five minutes benchmark](local-testing/first-five-minutes-benchmark.md) |
 | Cross-surface answer-quality dogfood proof | [Answer Quality Scorecard](local-testing/answer-quality-scorecard.md) |
+| Ask Eshu provider-backed JSON/SSE proof | [Ask Eshu Provider Proof](local-testing/ask-provider-proof.md) |
 | Remote all-collector Compose proof | [Remote collector E2E](local-testing/remote-collector-e2e.md) |
 | Confluence, Jira, vulnerability source, and live registry smokes | [Collector live smokes](local-testing/collector-live-smokes.md) |
 | Normal package, Compose, graph, Terraform-state, webhook, and docs gates | [Verification gates](local-testing/verification-gates.md) |
@@ -43,6 +44,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 
 | If you touched | Minimum verification |
 | --- | --- |
+| Ask Eshu provider wiring, JSON/SSE presentation, narration posture, or provider-proof docs | `cd go && go test ./internal/askwiring -run TestBuildAskHandlerProviderBackedJSONAndSSE -count=1`, the focused negative/status gates in [Ask Eshu Provider Proof](local-testing/ask-provider-proof.md), and the docs build |
 | Answer-quality scorecard criteria, CLI, or docs | `cd go && go test ./internal/answerquality -count=1`, `cd go && go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`, and the docs build |
 | Competitive parity gate criteria, CLI, or docs | `cd go && go test ./internal/competitiveparity -count=1`, `cd go && go test ./cmd/eshu -run 'TestCompetitiveParity|TestRootCommandIncludesCompetitiveParity' -count=1`, `cd go && go run ./cmd/eshu competitive-parity validate --repo-root .. --json`, and the docs build |
 | Portable evidence bundle schema, CLI, or docs | `cd go && go test ./internal/evidencebundle -count=1`, `cd go && go test ./cmd/eshu -run 'TestEvidenceBundle|TestRootCommandIncludesEvidenceBundle' -count=1`, and the docs build |
