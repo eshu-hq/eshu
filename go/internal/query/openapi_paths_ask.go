@@ -10,7 +10,7 @@ const openAPIPathsAsk = `
       "post": {
         "tags": ["ask"],
         "summary": "Ask Eshu a natural-language question",
-        "description": "Runs the bounded Tier-1 Ask Eshu agent loop for the given free-form question. The engine plans the most efficient retrieval path across NornicDB and Postgres, assembles evidence-backed AnswerPackets, and optionally narrates the result. This endpoint is DEFAULT-OFF: it returns 503 with state 'unavailable' unless ESHU_ASK_ENABLED=true and a valid agent_reasoning provider profile is configured. Requires a shared token (admin/full-scope ESHU_API_KEY); scoped tokens receive 403 permission_denied because this route is not yet in the scoped-token allowlist. Scoped-token support, SSE streaming, and Tier-2 sandbox wiring are planned follow-ups.",
+        "description": "Runs the bounded Tier-1 Ask Eshu agent loop for the given free-form question. The engine plans the most efficient retrieval path across NornicDB and Postgres, assembles evidence-backed AnswerPackets, and optionally narrates the result. This endpoint is DEFAULT-OFF: it returns 503 with state 'unavailable' unless ESHU_ASK_ENABLED=true and a valid agent_reasoning provider profile is configured. Requires a shared token (admin/full-scope ESHU_API_KEY); scoped tokens receive 403 permission_denied because this route is not yet in the scoped-token allowlist.\n\nSSE variant: send 'Accept: text/event-stream' to receive the answer as a sequence of Server-Sent Events. The engine runs synchronously; SSE events are emitted after the run completes (per-token streaming is a follow-up). Event types: 'trace' (one per tool call, bounded fields), 'answer' (full askResponse JSON), 'error' (bounded unavailable payload on engine failure), 'done' (empty, signals end-of-stream). Scoped-token support and Tier-2 sandbox wiring are planned follow-ups.",
         "operationId": "ask",
         "requestBody": {
           "required": true,
@@ -37,7 +37,7 @@ const openAPIPathsAsk = `
         },
         "responses": {
           "200": {
-            "description": "Ask answer",
+            "description": "Ask answer (JSON) or SSE stream when Accept: text/event-stream is sent. SSE stream emits 'trace' events (one per tool call), an 'answer' event with the full response, and a 'done' event. On engine error an 'error' event is emitted with a bounded unavailable payload.",
             "content": {
               "application/json": {
                 "schema": {
@@ -93,6 +93,12 @@ const openAPIPathsAsk = `
                       "description": "Human-readable caveats about the answer."
                     }
                   }
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Each event has the form 'event: <name>\\ndata: <json>\\n\\n'. Event names: 'trace' (one per tool call; fields: tool, supported, truth_class), 'answer' (full askResponse JSON), 'error' (bounded unavailable payload on engine failure), 'done' (empty payload, end-of-stream). The engine runs synchronously; trace and answer events are emitted after the run completes. Per-token streaming is a planned follow-up."
                 }
               }
             }
