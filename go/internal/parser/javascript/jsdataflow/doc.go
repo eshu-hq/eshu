@@ -7,9 +7,18 @@
 // Control flow is lowered precisely for blocks, if/else, for, for-in/of, and
 // while; constructs not modeled precisely yet contribute their identifier uses
 // but no definitions, which can miss a reaching definition but never invents a
-// false edge. Nested function and arrow-function bodies are not descended into;
-// closures are modeled by a later pass. Parameters are modeled as definitions in
-// the entry block so value flow from a parameter into the body is captured.
+// false edge. Parameters are modeled as definitions in the entry block so value
+// flow from a parameter into the body is captured.
+//
+// Bindings are field-sensitive (accesspaths.go), mirroring the Go template: a
+// member target obj.field defines the access path obj.field, a subscript m[k]
+// lowers to the explicitly labeled whole-container approximation m[*], and a
+// field write through a reference alias (let a = obj; a.field = x) normalizes to
+// the aliased object. Paths deeper than cfg.Limits.MaxAccessPathParts truncate to
+// a "*"-suffixed prefix and count Overflow.AccessPaths, never a silent drop. A
+// function literal passed as a call argument is descended into to attribute its
+// captured (free) variables to the enclosing function, excluding the closure's
+// own parameters and inner-scope definitions; a non-invoked literal is not.
 //
 // The result is bounded and deterministic: the cfg engine sorts its output and
 // records counted overflow rather than dropping data silently.

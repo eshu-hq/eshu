@@ -53,17 +53,54 @@ See `doc.go` for the godoc contract. The surface is:
 None. The lowering is a pure function; a reducer that drives the pipeline owns
 telemetry.
 
-No-Regression Evidence: import-aware request source matching stays inside the
-pure per-file taint catalog path and does not change CFG lowering, graph writes,
-queue behavior, or parser dispatch. Verified by
-`go test ./internal/parser/javascript ./internal/parser/javascript/jsdataflow ./internal/parser -count=1`
-and the Go no-regression focused gate
+No-Regression Evidence: the field-sensitive access-path, container-element,
+reference-alias, and closure-capture lowering (#3252/#3253) is a pure
+per-function CPU change that adds binding precision; it touches no graph write,
+queue, lease, worker, or parser dispatch. It is strictly more precise (member
+targets now define access paths instead of dropping the def; member reads still
+record the base object, so whole-object flow is preserved), so it can add a
+reaching-def edge but never invents a false edge, and path truncation is counted
+in `Overflow.AccessPaths` rather than dropped. The earlier import-aware request
+source matcher likewise stays inside the pure per-file taint catalog path.
+Verified by
+`go test ./internal/parser/javascript ./internal/parser/javascript/jsdataflow ./internal/parser/... -count=1`
+(full parser tree green, including the `dataflowemit`, `valueflow`, `interproc`,
+and `taint` consumers) and the Go no-regression focused gate
 `go test ./internal/parser/golang ./internal/parser -run 'TestGo.*Taint|TestGo.*Dataflow|Test.*Catalog' -count=1`.
 
-No-Observability-Change: the matcher adds no metric, span, log, status field,
+No-Observability-Change: the lowering adds no metric, span, log, status field,
 runtime knob, queue, worker, or graph query. Operators still diagnose parser
 cost through existing collector parse-stage logs and
 `eshu_dp_file_parse_duration_seconds`.
+
+## Field-sensitive precision (`accesspaths.go`)
+
+Mirrors the Go template (`internal/parser/golang/cfg_access_paths.go`, issues
+#2999/#3000) so taint that flows through a field, container element, or reference
+alias is no longer a whole-binding false negative (#3252):
+
+- **Field-sensitive access paths**: a member target `obj.field = x` defines the
+  binding `obj.field`; a member read `obj.field` uses `obj.field` plus the base
+  object `obj`. A path deeper than `cfg.Limits.MaxAccessPathParts` truncates to
+  its prefix plus a `*` segment and counts `Overflow.AccessPaths`, so the write
+  and read of the same deep path still match and truncation is never silent.
+- **Container-element flow**: a subscript `m[k]` / `arr[i]` lowers to the
+  explicitly labeled whole-container approximation `m[*]` / `arr[*]` (over the
+  whole container, never a fabricated per-key precision).
+- **Reference aliases**: a plain `let a = obj` makes `a` an alias of `obj` (JS
+  has no address-of operator), so a field write `a.field = x` normalizes to
+  `obj.field`. Only the base segment of a multi-part access path is alias-resolved;
+  bare identifier reads keep their own reaching-def identity, so simple value flow
+  is unchanged. The alias map is cloned per if/else branch, merged by
+  intersection, and reset after loops — an alias on one path never leaks.
+
+## Closure/captured-variable flow (`jsFuncLiteralCaptureUses` in `bindings.go`)
+
+A function literal/arrow passed as a call argument (`doThing(() => sink(v))`,
+`arr.forEach(x => use(v))`) is descended into for the enclosing function's uses,
+attributing the closure's free variables (its body uses minus its own parameters
+and inner-scope `let`/`const`/`var` definitions, so inner-scope shadowing holds).
+A function literal that is **not** invoked is still not descended into.
 
 ## Gotchas / invariants
 
@@ -73,9 +110,10 @@ cost through existing collector parse-stage logs and
   one CFG statement is emitted per declarator.
 - **`augmented_assignment_expression` (`+=`) and `update_expression` (`x++`)**
   both read and write their target; a plain `assignment_expression` only writes.
-- **Nested function/arrow bodies are not descended into** for the enclosing
-  function's uses, so a closure's captures are not attributed here (closures are
-  a later pass) — a safe false negative, never a false edge.
+  A member/subscript target is a field-sensitive access-path definition.
+- **Nested function/arrow bodies are descended into only when the literal is a
+  call argument** (closure capture); a non-invoked literal is not descended into,
+  a safe false negative, never a false edge.
 - **Request source evidence is import-aware**: unqualified request type aliases
   must come from known framework modules such as Express, Fastify, Next.js, or
   Koa. A local type named `Request` is not enough.
