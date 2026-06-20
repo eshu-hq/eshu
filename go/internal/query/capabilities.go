@@ -1,6 +1,7 @@
 package query
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -128,7 +129,7 @@ func parseBoundedLimit(w http.ResponseWriter, r *http.Request, def, max int) (in
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil || limit < 1 || limit > max {
-		WriteError(w, http.StatusBadRequest, "limit must be an integer in [1, 500]")
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be an integer in [1, %d]", max))
 		return 0, false
 	}
 	return limit, true

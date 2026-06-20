@@ -53,7 +53,7 @@ export function SurfaceInventoryPage({
   useEffect(() => {
     let cancelled = false;
     if (!client) { setRows([]); return; }
-    void loadSurfaceInventory(client, { limit: 500 }).then((page) => {
+    void loadSurfaceInventory(client, { limit: 1000 }).then((page) => {
       if (cancelled) return;
       setRows(page.rows);
       setProvenance(page.provenance);

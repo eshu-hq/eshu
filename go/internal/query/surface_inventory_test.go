@@ -88,13 +88,13 @@ func TestSurfaceInventoryHandlerRejectsBadLimit(t *testing.T) {
 	}
 }
 
-// TestSurfaceInventoryReadinessParity is the API/MCP/console parity proof
-// required by #3148: the embedded inventory the API serves contains at least one
-// implemented, one gated, and one foundation-only collector, and the API returns
-// each with the readiness lane the embedded artifact (the single source the MCP
-// tool and console also read) declares. Because the MCP get_surface_inventory
-// tool proxies to this same route and the console client reads the same route,
-// agreement here is agreement across all three surfaces.
+// TestSurfaceInventoryReadinessParity is the API side of the #3148 parity proof:
+// the embedded inventory the API serves contains at least one implemented, one
+// gated, and one foundation-only collector, and the API returns each with the
+// readiness lane the embedded artifact declares. The MCP side (that
+// get_surface_inventory resolves to this same route) is proven in
+// internal/mcp by TestSurfaceInventoryToolResolvesToAPIRoute, and the console
+// loader reads the same route, so the three surfaces share one source of truth.
 func TestSurfaceInventoryReadinessParity(t *testing.T) {
 	t.Parallel()
 
