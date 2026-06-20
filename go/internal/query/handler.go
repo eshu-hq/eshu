@@ -176,6 +176,7 @@ type APIRouter struct {
 	InvestigationWorkflows *InvestigationWorkflowHandler
 	Metrics                *MetricsHandler
 	Capabilities           *CapabilitiesHandler
+	SurfaceInventory       *SurfaceInventoryHandler
 	Compare                *CompareHandler
 	Admin                  *AdminHandler
 }
@@ -349,6 +350,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Capabilities
 	if a.Capabilities != nil {
 		a.Capabilities.Mount(mux)
+	}
+
+	// Surface inventory
+	if a.SurfaceInventory != nil {
+		a.SurfaceInventory.Mount(mux)
 	}
 
 	// Compare

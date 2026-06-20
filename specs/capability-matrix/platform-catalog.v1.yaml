@@ -1,4 +1,11 @@
 capabilities:
+  - capability: surface_inventory.list
+    tools: [get_surface_inventory]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 200, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}], notes: bounded read over the embedded, generated surface inventory artifact; no live backend read}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 200, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}], notes: bounded read over the embedded surface inventory artifact; graph sidecar unused}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 200, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}], notes: bounded read over the embedded surface inventory artifact}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 400, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}], notes: bounded read over the embedded surface inventory artifact; optional category and readiness filters with deterministic ordering and limit+offset paging}
   - capability: capability_catalog.list
     tools: [get_capability_catalog]
     profiles:

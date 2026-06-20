@@ -488,6 +488,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/surface-inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/work-items/evidence",
       "readiness": "implemented"
     },
@@ -1305,11 +1310,6 @@
     },
     {
       "category": "console_page",
-      "name": "HomePage",
-      "readiness": "implemented"
-    },
-    {
-      "category": "console_page",
       "name": "IacPage",
       "readiness": "implemented"
     },
@@ -1371,6 +1371,11 @@
     {
       "category": "console_page",
       "name": "ServiceReportPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "SurfaceInventoryPage",
       "readiness": "implemented"
     },
     {
@@ -1771,6 +1776,11 @@
     {
       "category": "mcp_tool",
       "name": "get_supply_chain_impact_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_surface_inventory",
       "readiness": "implemented"
     },
     {

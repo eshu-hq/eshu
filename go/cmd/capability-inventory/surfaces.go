@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -29,7 +30,7 @@ func liveSurfaces(root string) (capabilitycatalog.LiveSurfaces, error) {
 	if err != nil {
 		return capabilitycatalog.LiveSurfaces{}, err
 	}
-	pages, err := enumerateConsolePages(filepath.Join(root, "apps", "console", "src", "pages"))
+	pages, err := enumerateConsolePages(root)
 	if err != nil {
 		return capabilitycatalog.LiveSurfaces{}, err
 	}
@@ -67,30 +68,49 @@ func enumerateCommandBinaries(dir string) ([]string, error) {
 	return names, nil
 }
 
-// enumerateConsolePages returns the routed console page component names under
-// the console pages directory. The tracking unit is a routed page, not any
-// component, so it matches files ending in Page.tsx (the project convention: the
-// console router elements are all *Page components) and excludes co-located
-// panels and sub-components. Test files are skipped, and a missing directory
-// yields no pages so the generator still runs in a Go-only checkout.
-func enumerateConsolePages(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
+var (
+	consolePageImportPattern = regexp.MustCompile(`import\s+\{\s*([A-Za-z0-9_]+Page)\s*\}\s+from\s+"\.\/pages\/([A-Za-z0-9_]+Page)"`)
+	consoleRoutePagePattern  = regexp.MustCompile(`<Route\s+[^>]*element=\{\s*<([A-Za-z0-9_]+Page)(?:\s|/|>)`)
+)
+
+// enumerateConsolePages returns the routed console page component names from the
+// console router. The tracking unit is a routed page, not any Page.tsx file in
+// the pages directory; orphan, prototype, and test-only page components must not
+// be reported as production console surfaces.
+func enumerateConsolePages(root string) ([]string, error) {
+	appPath := filepath.Join(root, "apps", "console", "src", "App.tsx")
+	body, err := os.ReadFile(appPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("read console pages dir %s: %w", dir, err)
+		return nil, fmt.Errorf("read console router %s: %w", appPath, err)
 	}
+	imports := map[string]string{}
+	for _, match := range consolePageImportPattern.FindAllStringSubmatch(string(body), -1) {
+		if match[1] == match[2] {
+			imports[match[1]] = match[2]
+		}
+	}
+	seen := map[string]struct{}{}
 	var names []string
-	for _, entry := range entries {
-		if entry.IsDir() {
+	for _, match := range consoleRoutePagePattern.FindAllStringSubmatch(string(body), -1) {
+		name, ok := imports[match[1]]
+		if !ok {
 			continue
 		}
-		name := entry.Name()
-		if strings.HasSuffix(name, ".test.tsx") || !strings.HasSuffix(name, "Page.tsx") {
+		pagePath := filepath.Join(root, "apps", "console", "src", "pages", name+".tsx")
+		if _, err := os.Stat(pagePath); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("stat console page %s: %w", pagePath, err)
+		}
+		if _, ok := seen[name]; ok {
 			continue
 		}
-		names = append(names, strings.TrimSuffix(name, ".tsx"))
+		seen[name] = struct{}{}
+		names = append(names, name)
 	}
 	sort.Strings(names)
 	return names, nil

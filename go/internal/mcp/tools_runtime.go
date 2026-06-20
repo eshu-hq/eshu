@@ -117,5 +117,33 @@ func runtimeTools() []ToolDefinition {
 				"required": []string{},
 			},
 		},
+		{
+			Name:        "get_surface_inventory",
+			Description: "Return the generated Eshu surface inventory: every platform surface across six categories (command, collector, reducer_domain, api_route, mcp_tool, console_page) with its readiness lane (implemented, partial, gated, foundation_only, fixture_only, research_only, not_implemented, unsupported), owner, promotion proof, docs, and notes. Use it to summarize what surfaces exist and how production-ready each is. Supports optional category and readiness filters with bounded paging.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"category": map[string]any{
+						"type":        "string",
+						"description": "Optional surface category filter (command, collector, reducer_domain, api_route, mcp_tool, console_page).",
+					},
+					"readiness": map[string]any{
+						"type":        "string",
+						"description": "Optional readiness lane filter (implemented, partial, gated, foundation_only, fixture_only, research_only, not_implemented, unsupported).",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum number of surfaces to return (1-1000).",
+						"default":     200,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Number of surfaces to skip for paging.",
+						"default":     0,
+					},
+				},
+				"required": []string{},
+			},
+		},
 	}
 }
