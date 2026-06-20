@@ -13,6 +13,10 @@ documentation.
   `docs/public/reference/capability-catalog.md`.
 - `backend-conformance.v1.yaml` defines graph-backend capability classes for
   official adapters.
+- `scale-lab-corpus.v1.yaml` defines the representative scale-lab corpus,
+  privacy, metric, and threshold contract that gates reducer, graph-write,
+  API/MCP, and correlation fanout scale work. See
+  `docs/public/reference/local-testing/representative-corpus-suite.md`.
 
 Treat edits here as contract changes. Update matching docs and verification in
 the same PR.

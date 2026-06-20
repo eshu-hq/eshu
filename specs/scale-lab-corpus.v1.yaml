@@ -1,0 +1,221 @@
+version: scale-lab-corpus/v1
+updated_at: 2026-06-19
+parent_issue: 3169
+issue: 3170
+owners:
+  - runtime
+  - reducer
+  - graph-backend
+  - api-mcp
+  - collector
+gate_status: proposed
+purpose: >
+  Define the public-safe corpus and measurement contract that must be accepted
+  before reducer-scale, graph-write, API/MCP p95, and correlation-fanout
+  performance implementation begins.
+
+corpus_slots:
+  - id: smoke/synthetic_contracts
+    scale: smoke
+    repository_count: 0
+    description: >
+      Synthetic fixtures and package-local tests for individual handlers,
+      reducer domains, graph writers, query handlers, and evidence validators.
+    must_include:
+      - focused positive, negative, empty, duplicate, retry, and truncation cases
+      - generated or fixture-only data
+    accepted_use: preflight and regression proof only
+
+  - id: small/single_repo_multidomain
+    scale: small
+    repository_count: 1
+    description: >
+      One public or sanitized fixture repository with code, dependency,
+      container, IaC, runtime, documentation, incident, and observability
+      evidence represented by fixture envelopes.
+    must_include:
+      - at least one API, MCP, and CLI readback scope
+      - queue-zero proof and no dead-letter rows
+      - graph and read-model truth agreement
+    accepted_use: first runtime proof after focused tests
+
+  - id: medium/representative_20_50
+    scale: medium
+    repository_count: 20-50
+    description: >
+      Default representative corpus for scale-lab acceptance. It exercises
+      mixed languages, collector families, reducer domains, graph writes,
+      API/MCP reads, and cross-domain correlation without full-corpus cost.
+    must_include:
+      - code relationships across at least five language ecosystems
+      - supply-chain package, SBOM, image, vulnerability, and advisory evidence
+      - cloud, IaC, runtime, deployment, service, and environment correlation
+      - documentation, incident, work-item, and observability evidence
+    accepted_use: required gate before #3171, #3172, and #3173 implementation
+
+  - id: large/full_corpus_release
+    scale: large
+    repository_count: full configured corpus
+    description: >
+      Release-confidence corpus for runtime-affecting changes, major graph
+      backend upgrades, and suspected scale-only defects.
+    must_include:
+      - schema-first backend bootstrap
+      - collector stream complete, projection complete, and queue-zero timings
+      - clean-volume and preserved-volume metadata when the storage profile changes
+    accepted_use: release or high-risk runtime proof
+
+  - id: pathological/fanout_correlation
+    scale: pathological
+    repository_count: fixture-defined
+    description: >
+      Synthetic high-cardinality fixture with many possible code-to-cloud,
+      supply-chain, and service joins. The expected result is bounded
+      admission, explicit ambiguity, or bounded refusal, not fabricated links.
+    must_include:
+      - duplicate delivery and stale replay cases
+      - missing anchor cases
+      - ambiguous multi-target cases
+      - partial failure and retry cases
+    accepted_use: required before correlation fanout guardrails can promote
+
+domains:
+  - id: code_relationships
+    required_evidence:
+      - call, reference, inheritance, import, and route-handler relationships
+      - graph write and readback counts
+
+  - id: supply_chain_evidence
+    required_evidence:
+      - package registry, lockfile, SBOM, image, advisory, and vulnerability facts
+      - package-to-source and image-to-source readback handles
+
+  - id: cloud_iac_runtime_correlation
+    required_evidence:
+      - Terraform, Kubernetes, container image, cloud resource, deployment, workload, service, and environment evidence
+      - positive, negative, ambiguous, and provenance-only correlation outcomes
+
+  - id: docs
+    required_evidence:
+      - documentation sections, links, content references, and permission-gap states
+      - search and citation readback without private content
+
+  - id: incidents
+    required_evidence:
+      - incident and work-item facts
+      - bounded service, repository, and deployment readback agreement
+
+  - id: observability
+    required_evidence:
+      - metric, log, trace, dashboard, and alert evidence or explicit unsupported rows
+      - operator-visible freshness and missing-evidence states
+
+privacy_rules:
+  - id: no_private_identifiers
+    rule: >
+      Public spec, docs, issues, PRs, and evidence must not contain private
+      repository names, hostnames, IP addresses, provider URLs, account ids,
+      tokens, local paths, package names from private systems, raw transcripts,
+      raw alerts, or copied provider payloads.
+
+  - id: aggregate_public_outputs
+    rule: >
+      Public outputs may include aggregate counts, fixture ids, public issue
+      numbers, status enums, version ids, and sanitized run ids only.
+
+  - id: fixture_sanitization
+    rule: >
+      Any fixture derived from real data must be reduced to synthetic names,
+      deterministic hashes, or aggregate counts before entering the repository.
+
+  - id: local_private_manifest_only
+    rule: >
+      Operator-local manifests may contain private source locators only outside
+      the repository. Verifiers must emit public-safe summaries rather than
+      copying local manifest values.
+
+metrics:
+  - id: fact_rows_per_second
+    stage: ingestion
+    threshold: nonzero and within 10 percent of accepted same-shape baseline
+
+  - id: queue_claim_latency_p95_ms
+    stage: queue
+    threshold: p95 within 10 percent of accepted same-shape baseline
+
+  - id: reducer_drain_seconds
+    stage: reducer
+    threshold: wall-clock drain within 10 percent or 60 seconds of accepted baseline, whichever is larger
+
+  - id: graph_write_p95_ms
+    stage: graph
+    threshold: p95 within 10 percent of accepted same-backend baseline
+
+  - id: api_p95_ms
+    stage: api
+    threshold: p95 within route-specific budget and no unbounded response
+
+  - id: mcp_p95_ms
+    stage: mcp
+    threshold: p95 within tool-specific budget and no unbounded response
+
+  - id: retry_count
+    stage: queue
+    threshold: terminal representative proof has zero unexpected retry rows
+
+  - id: dead_letter_count
+    stage: queue
+    threshold: terminal representative proof has zero dead-letter rows
+
+  - id: memory_high_water_mb
+    stage: runtime
+    threshold: within profile budget and captured for each measured runtime
+
+  - id: correlation_fanout_candidates_p95
+    stage: correlation
+    threshold: p95 within accepted fixture budget and no fabricated links
+
+  - id: graph_query_plan_regression_count
+    stage: graph
+    threshold: zero accepted regressions; every known-bad plan signature fails the gate
+
+thresholds:
+  - id: queue_terminal_state
+    rule: pending, in-flight, retrying, failed, and dead-letter counts are zero for accepted terminal proof
+
+  - id: runtime_no_regression
+    rule: >
+      Same-shape performance must not regress by more than 10 percent or 60
+      seconds without a tracked owner-approved exception and follow-up issue.
+
+  - id: query_plan_regression
+    rule: >
+      Hot graph reads and writes must reject unbounded traversal, missing index
+      anchors, cartesian expansion, and known NornicDB or Neo4j bad-plan
+      signatures before implementation PRs claim scale readiness.
+
+  - id: privacy_public_evidence
+    rule: >
+      Public summaries must pass the scale-corpus verifier and the relevant
+      evidence manifest privacy gate before issue comments or PR text quote
+      them.
+
+  - id: truth_surface_agreement
+    rule: >
+      API, MCP, CLI, graph truth, and read-model truth must agree on labels,
+      missing evidence, truncation, unsupported capability, and bounded refusal.
+
+acceptance:
+  required_before:
+    - issue: 3171
+      reason: benchmark implementation must measure the accepted corpus slots and metrics
+    - issue: 3172
+      reason: query-plan regression gates need the accepted hot-path and backend matrix
+    - issue: 3173
+      reason: correlation fanout guardrails need the accepted pathological fixture shape
+  proof_gate:
+    command: bash scripts/verify-scale-corpus-suite.sh
+    expected_result: pass
+  review_requirement: >
+    Maintainer acceptance of this contract is the gate outcome for #3170.
+    Downstream performance work must cite the accepted version and commit.

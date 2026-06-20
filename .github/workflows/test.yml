@@ -41,6 +41,11 @@ jobs:
           scripts/test-verify-performance-evidence.sh
           scripts/verify-performance-evidence.sh
 
+      - name: Verify scale corpus suite
+        run: |
+          scripts/test-verify-scale-corpus-suite.sh
+          scripts/verify-scale-corpus-suite.sh
+
       - name: Verify package docs
         run: |
           scripts/test-verify-package-docs.sh
