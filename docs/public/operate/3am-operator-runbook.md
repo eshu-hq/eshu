@@ -59,16 +59,21 @@ is not draining.
   (`overdue_claims`, `oldest_outstanding_age`, `coordinator_oldest_pending`) and
   `queue.stuck` (`oldest_outstanding_age`, `blocked_conflicts`); drill into
   `reducer_domains` for the hottest domain.
-- **Metric:** `eshu_dp_worker_pool_active` (are workers running at all?),
-  `eshu_runtime_queue_outstanding` vs `eshu_runtime_queue_in_flight` (claimed but
-  not progressing), and `eshu_dp_reducer_run_duration_seconds` (slow handler).
+- **Metric:** `eshu_runtime_health_state` and `/healthz` confirm process
+  liveness, `eshu_runtime_queue_outstanding` vs
+  `eshu_runtime_queue_in_flight` separates backlog from claimed work, and
+  `eshu_dp_reducer_run_duration_seconds` shows slow handlers. Treat
+  `eshu_dp_worker_pool_active` as in-flight worker intent, not process liveness.
 - **Trace / log field:** the `reducer.run` span carries `domain`,
   `partition_key`, and `conflict_key`; a hot `conflict_key` with many
   `blocked_conflicts` points at conflict-domain contention rather than a crash.
-- **Safe remediation:** if `overdue_claims > 0` with idle workers, the lease
-  holder died — claims expire and re-deliver on their own; confirm
-  `eshu_dp_worker_pool_active > 0` and let the lease lapse. Do not lower worker
-  counts to "unstick" a non-idempotent write; that hides the defect.
+- **Safe remediation:** if `overdue_claims > 0` and the reducer process is
+  healthy, the lease holder may have died after claiming work — claims expire
+  and re-deliver on their own. Confirm `/healthz` or runtime status plus
+  `eshu_runtime_queue_in_flight` / `overdue_claims`, then let the lease lapse.
+  Do not require `eshu_dp_worker_pool_active > 0` during the wait; it can be `0`
+  after the handler has exited. Do not lower worker counts to "unstick" a
+  non-idempotent write; that hides the defect.
 
 ## Symptom: collector failure
 
@@ -131,10 +136,11 @@ Queries are slow or erroring while the queue looks healthy.
 
 - **Status endpoint:** `GET /readyz` for dependency readiness, then
   `GET /api/v0/status/pipeline` for the projection view.
-- **Metric:** `eshu_dp_api_request_errors_total`,
-  `eshu_dp_canonical_write_duration_seconds`, and
-  `eshu_dp_canonical_retract_duration_seconds`; a spike here with a healthy queue
-  points at the graph backend, not the pipeline.
+- **Metric:** `eshu_dp_api_request_duration_seconds`,
+  `eshu_dp_api_request_errors_total`, `eshu_dp_neo4j_query_duration_seconds`,
+  and `eshu_dp_postgres_query_duration_seconds`; elevated read latency with a
+  healthy queue points at the API handler or graph/storage backend, not the
+  projection pipeline.
 - **Trace / log field:** the `query.*` spans with their `postgres.query` /
   `neo4j.query` children isolate whether time is spent in the API handler or the
   backend; `eshu.store` names the backend.
