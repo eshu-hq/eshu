@@ -119,7 +119,7 @@ func TestNew_BothNil_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	_, err := New(nil, nil, nil, DefaultOptions())
-	if !errors.Is(err, ErrNilAdapter) && err == nil {
+	if !errors.Is(err, ErrNilAdapter) {
 		t.Error("New with both nil adapter and runner must return an error")
 	}
 }

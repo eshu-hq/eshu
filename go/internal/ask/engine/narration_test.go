@@ -122,22 +122,7 @@ func TestNarrateValidNarrationAttached(t *testing.T) {
 		return status.AnswerNarrationStatus{State: status.AnswerNarrationAvailable}
 	})
 
-	// Pre-seed one supported packet so narrate can pick it as primary.
-	// We inject via a packet-seeding runner: the runner returns a supported
-	// envelope and the tool call produces a packet with CitationRef.
-	// To ensure the packet.CitationRef matches what the narration JSON cites,
-	// we build a runner that returns a specially crafted envelope. The
-	// AnswerPacket is assembled by dispatchCall from the envelope; CitationRef
-	// comes from AnswerPacketInput.CitationRef which is not set there. So we
-	// must pre-populate the packets directly by driving through a tool call.
-	//
-	// The loop drives a single tool call through the scriptedAdapter to build
-	// a packet, but that packet won't have CitationRef set (dispatchCall uses
-	// only the envelope). We therefore use the narrationPacketInjector pattern:
-	// we subclass the engine's narrate step to test it directly, building the
-	// Answer with a hand-crafted packet.
-	//
-	// Actually the clean way is to call narrate directly on a hand-crafted ans.
+	// Drive narrate directly with a hand-crafted Answer so the packet CitationRef matches the narration JSON without a full Ask round-trip.
 	posture := status.AnswerNarrationStatus{State: status.AnswerNarrationAvailable}
 	pkt := supportedPacketWithCitation(citationRef)
 	ans := Answer{

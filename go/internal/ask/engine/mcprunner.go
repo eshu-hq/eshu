@@ -55,7 +55,7 @@ func NewMCPRunner(handler http.Handler, authHeader string, logger *slog.Logger) 
 //     faithfully reflects the query surface's error verdict rather than silently
 //     dropping it.
 func (r *mcpRunner) Run(ctx context.Context, toolName string, args map[string]any) (*query.ResponseEnvelope, error) {
-	envelope, _, err := mcp.RunReadOnlyTool(ctx, r.handler, toolName, args, r.authHeader, r.logger)
+	envelope, _, err := mcp.RunReadOnlyTool(ctx, r.handler, toolName, args, r.authHeader, r.logger) // isError is intentionally discarded — the envelope is returned regardless so its error truth becomes an unsupported AnswerPacket downstream; see Run doc.
 	if err != nil {
 		return nil, err
 	}

@@ -151,6 +151,26 @@ func TestToolset_UnknownCostSortsLast(t *testing.T) {
 	}
 }
 
+// TestCostRank verifies the full ordering: CostLow < CostModerate < CostHigh < unknown/zero CostClass.
+func TestCostRank(t *testing.T) {
+	t.Parallel()
+
+	lowRank := costRank(catalog.CostLow)
+	modRank := costRank(catalog.CostModerate)
+	highRank := costRank(catalog.CostHigh)
+	unknownRank := costRank(catalog.CostClass(""))
+
+	if lowRank >= modRank {
+		t.Errorf("CostLow rank (%d) must be less than CostModerate rank (%d)", lowRank, modRank)
+	}
+	if modRank >= highRank {
+		t.Errorf("CostModerate rank (%d) must be less than CostHigh rank (%d)", modRank, highRank)
+	}
+	if highRank >= unknownRank {
+		t.Errorf("CostHigh rank (%d) must be less than unknown CostClass rank (%d)", highRank, unknownRank)
+	}
+}
+
 // TestToolset_EmptyDefs verifies that an empty defs slice returns an empty
 // (non-nil) slice without panicking.
 func TestToolset_EmptyDefs(t *testing.T) {
