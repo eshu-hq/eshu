@@ -58,6 +58,14 @@ func ResolvePosture(in PostureInputs, now time.Time) status.AnswerNarrationStatu
 		CanonicalTruthAffected:         false,
 		RetentionPosture:               status.AnswerNarrationRetentionMetadataOnly,
 		UpdatedAt:                      now,
+		// Mirror input gate booleans unconditionally so that every return path
+		// (Available or any denied branch) reports the actual operator-visible
+		// diagnostic state rather than defaulting to false on denied paths.
+		ProviderConfigured:     in.ProviderConfigured,
+		ProviderTrafficEnabled: in.ProviderTrafficEnabled,
+		PolicyAllowed:          in.PolicyAllowed,
+		BudgetAvailable:        in.BudgetAvailable,
+		PublishSafetyEnabled:   in.PublishSafetyEnabled,
 	}
 
 	if !in.ProviderConfigured || !in.ProviderTrafficEnabled {
@@ -91,10 +99,5 @@ func ResolvePosture(in PostureInputs, now time.Time) status.AnswerNarrationStatu
 	base.State = status.AnswerNarrationAvailable
 	base.Reason = status.AnswerNarrationReasonAvailable
 	base.Detail = "all governance gates are open; narration is permitted"
-	base.ProviderConfigured = true
-	base.ProviderTrafficEnabled = true
-	base.PolicyAllowed = true
-	base.BudgetAvailable = true
-	base.PublishSafetyEnabled = true
 	return base
 }

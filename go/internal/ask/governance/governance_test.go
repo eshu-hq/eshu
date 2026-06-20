@@ -146,6 +146,105 @@ func TestResolvePosture_PublishSafetyDisabled(t *testing.T) {
 	}
 }
 
+// TestResolvePosture_DeniedBooleansDiagnosticAccuracy verifies that when a
+// later gate fails the returned status still reflects the actual input booleans
+// for all gates — not false-by-default. Operators must see the real gate state
+// to avoid chasing the wrong denial root cause.
+func TestResolvePosture_DeniedBooleansDiagnosticAccuracy(t *testing.T) {
+	t.Parallel()
+
+	// Provider gates are open; only PolicyAllowed is false.
+	in := governance.PostureInputs{
+		ProviderConfigured:     true,
+		ProviderTrafficEnabled: true,
+		PolicyAllowed:          false,
+		BudgetAvailable:        true,
+		PublishSafetyEnabled:   true,
+	}
+
+	got := resolveAt(in)
+
+	// State must not be Available — default-closed is preserved.
+	if got.State == status.AnswerNarrationAvailable {
+		t.Errorf("mixed-denied: State must not be Available when PolicyAllowed=false")
+	}
+	// Denial reason must be PolicyDenied — not some earlier gate.
+	if got.Reason != status.AnswerNarrationReasonPolicyDenied {
+		t.Errorf("mixed-denied: want Reason=%q got %q",
+			status.AnswerNarrationReasonPolicyDenied, got.Reason)
+	}
+	// Diagnostic booleans must mirror the actual inputs, not default to false.
+	if !got.ProviderConfigured {
+		t.Errorf("mixed-denied: ProviderConfigured should be true (input was true)")
+	}
+	if !got.ProviderTrafficEnabled {
+		t.Errorf("mixed-denied: ProviderTrafficEnabled should be true (input was true)")
+	}
+	if got.PolicyAllowed {
+		t.Errorf("mixed-denied: PolicyAllowed should be false (input was false)")
+	}
+	if !got.BudgetAvailable {
+		t.Errorf("mixed-denied: BudgetAvailable should be true (input was true)")
+	}
+	if !got.PublishSafetyEnabled {
+		t.Errorf("mixed-denied: PublishSafetyEnabled should be true (input was true)")
+	}
+}
+
+// TestResolvePosture_AllFalseBooleansDiagnostic verifies that when all inputs
+// are false the returned booleans are all false (not accidentally true).
+func TestResolvePosture_AllFalseBooleansDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	got := resolveAt(governance.PostureInputs{})
+
+	if got.State == status.AnswerNarrationAvailable {
+		t.Errorf("all-false: State must not be Available")
+	}
+	if got.ProviderConfigured {
+		t.Errorf("all-false: ProviderConfigured should be false")
+	}
+	if got.ProviderTrafficEnabled {
+		t.Errorf("all-false: ProviderTrafficEnabled should be false")
+	}
+	if got.PolicyAllowed {
+		t.Errorf("all-false: PolicyAllowed should be false")
+	}
+	if got.BudgetAvailable {
+		t.Errorf("all-false: BudgetAvailable should be false")
+	}
+	if got.PublishSafetyEnabled {
+		t.Errorf("all-false: PublishSafetyEnabled should be false")
+	}
+}
+
+// TestResolvePosture_AllTrueBooleansDiagnostic re-confirms all-true posture
+// reports every boolean as true and state as Available.
+func TestResolvePosture_AllTrueBooleansDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	got := resolveAt(allTrue())
+
+	if got.State != status.AnswerNarrationAvailable {
+		t.Errorf("all-true: want State=%q got %q", status.AnswerNarrationAvailable, got.State)
+	}
+	if !got.ProviderConfigured {
+		t.Errorf("all-true: ProviderConfigured should be true")
+	}
+	if !got.ProviderTrafficEnabled {
+		t.Errorf("all-true: ProviderTrafficEnabled should be true")
+	}
+	if !got.PolicyAllowed {
+		t.Errorf("all-true: PolicyAllowed should be true")
+	}
+	if !got.BudgetAvailable {
+		t.Errorf("all-true: BudgetAvailable should be true")
+	}
+	if !got.PublishSafetyEnabled {
+		t.Errorf("all-true: PublishSafetyEnabled should be true")
+	}
+}
+
 // TestResolvePosture_DeterministicFallbackAlwaysTrue verifies that
 // DeterministicFallbackAvailable is always true regardless of posture.
 func TestResolvePosture_DeterministicFallbackAlwaysTrue(t *testing.T) {
