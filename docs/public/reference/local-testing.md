@@ -33,6 +33,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | --- | --- |
 | Onboarding first-answer dogfood proof | [First five minutes benchmark](local-testing/first-five-minutes-benchmark.md) |
 | Cross-surface answer-quality dogfood proof | [Answer Quality Scorecard](local-testing/answer-quality-scorecard.md) |
+| Ask Eshu API + SSE + guardrail local proof | [Ask Eshu Local Proof](local-testing/ask-eshu-local-proof.md) |
 | Remote all-collector Compose proof | [Remote collector E2E](local-testing/remote-collector-e2e.md) |
 | Confluence, Jira, vulnerability source, and live registry smokes | [Collector live smokes](local-testing/collector-live-smokes.md) |
 | Normal package, Compose, graph, Terraform-state, webhook, and docs gates | [Verification gates](local-testing/verification-gates.md) |
@@ -44,6 +45,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | If you touched | Minimum verification |
 | --- | --- |
 | Answer-quality scorecard criteria, CLI, or docs | `cd go && go test ./internal/answerquality -count=1`, `cd go && go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`, and the docs build |
+| Ask Eshu answer path, guardrail, or local proof | `scripts/test-verify-ask-eshu-local-proof.sh`, `scripts/verify-ask-eshu-local-proof.sh`, and the docs build (see [Ask Eshu Local Proof](local-testing/ask-eshu-local-proof.md)) |
 | Competitive parity gate criteria, CLI, or docs | `cd go && go test ./internal/competitiveparity -count=1`, `cd go && go test ./cmd/eshu -run 'TestCompetitiveParity|TestRootCommandIncludesCompetitiveParity' -count=1`, `cd go && go run ./cmd/eshu competitive-parity validate --repo-root .. --json`, and the docs build |
 | Portable evidence bundle schema, CLI, or docs | `cd go && go test ./internal/evidencebundle -count=1`, `cd go && go test ./cmd/eshu -run 'TestEvidenceBundle|TestRootCommandIncludesEvidenceBundle' -count=1`, and the docs build |
 | Remote remediation benchmark wrapper | `bash scripts/test-verify-remote-e2e-remediation-benchmark.sh` |
