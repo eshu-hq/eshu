@@ -32,16 +32,19 @@ func TestUnsafeReplayRefusalGivesActionableGuidance(t *testing.T) {
 }
 
 func TestReplayRequestFingerprintStableAndSelectorSensitive(t *testing.T) {
-	a := replayRequestFingerprint([]string{"b", "a"}, "scope-1", "reducer", "", false)
-	b := replayRequestFingerprint([]string{"a", "b"}, "scope-1", "reducer", "", false)
+	a := replayRequestFingerprint([]string{"b", "a"}, "scope-1", "reducer", "", 100, false)
+	b := replayRequestFingerprint([]string{"a", "b"}, "scope-1", "reducer", "", 100, false)
 	if a != b {
 		t.Fatalf("fingerprint must be order-independent: %q != %q", a, b)
 	}
-	if a == replayRequestFingerprint([]string{"a", "b"}, "scope-2", "reducer", "", false) {
+	if a == replayRequestFingerprint([]string{"a", "b"}, "scope-2", "reducer", "", 100, false) {
 		t.Fatalf("fingerprint must change when scope changes")
 	}
-	if a == replayRequestFingerprint([]string{"a", "b"}, "scope-1", "reducer", "", true) {
+	if a == replayRequestFingerprint([]string{"a", "b"}, "scope-1", "reducer", "", 100, true) {
 		t.Fatalf("fingerprint must change when force changes")
+	}
+	if a == replayRequestFingerprint([]string{"a", "b"}, "scope-1", "reducer", "", 1, false) {
+		t.Fatalf("fingerprint must change when limit changes")
 	}
 }
 

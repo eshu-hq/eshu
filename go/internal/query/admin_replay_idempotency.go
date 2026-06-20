@@ -97,17 +97,6 @@ WHERE idempotency_key = $1
 	}, nil
 }
 
-// AbandonReplayIdempotency releases a claimed-but-unfinished replay so the same
-// idempotency key can be retried after a transient failure. It only removes a
-// row still in progress, so it never erases a recorded outcome.
-func (s *postgresAdminStore) AbandonReplayIdempotency(ctx context.Context, key string) error {
-	const del = `DELETE FROM admin_replay_requests WHERE idempotency_key = $1 AND status = $2`
-	if _, err := s.db.ExecContext(ctx, del, key, replayRequestStatusInProgress); err != nil {
-		return fmt.Errorf("abandon replay idempotency: %w", err)
-	}
-	return nil
-}
-
 // CompleteReplayIdempotency records the outcome of a claimed replay so a later
 // duplicate request with the same key returns the same result without
 // re-running the replay. It only advances a row still in progress.

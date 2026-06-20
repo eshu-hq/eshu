@@ -3,6 +3,7 @@ package query
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -49,7 +50,8 @@ func unsafeReplayRefusal(failureClass string) (string, bool) {
 // replay request's selectors so a reused idempotency key with different
 // parameters is detected and refused rather than silently returning the prior
 // outcome. Work-item IDs are sorted so ordering does not change the fingerprint.
-func replayRequestFingerprint(workItemIDs []string, scopeID, stage, failureClass string, force bool) string {
+// The limit is included because it changes which work items the replay selects.
+func replayRequestFingerprint(workItemIDs []string, scopeID, stage, failureClass string, limit int, force bool) string {
 	sorted := append([]string(nil), workItemIDs...)
 	for i, id := range sorted {
 		sorted[i] = strings.TrimSpace(id)
@@ -65,6 +67,7 @@ func replayRequestFingerprint(workItemIDs []string, scopeID, stage, failureClass
 	builder.WriteString(strings.TrimSpace(stage))
 	builder.WriteString("\nfailure_class=")
 	builder.WriteString(strings.TrimSpace(failureClass))
+	fmt.Fprintf(&builder, "\nlimit=%d", limit)
 	if force {
 		builder.WriteString("\nforce=true")
 	} else {

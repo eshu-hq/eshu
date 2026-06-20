@@ -173,7 +173,8 @@ func TestReplayForceKeepsUnsafeClasses(t *testing.T) {
 
 func TestReplayDuplicateReturnsPriorOutcomeWithoutReplaying(t *testing.T) {
 	audit := &fakeGovernanceAuditAppender{}
-	fingerprint := replayRequestFingerprint(nil, "scope-1", "", "", false)
+	// Must match the handler's fingerprint, which uses the default limit (100).
+	fingerprint := replayRequestFingerprint(nil, "scope-1", "", "", 100, false)
 	store := &stubAdminStore{
 		claim: ReplayIdempotencyClaim{
 			Claimed:       false,
@@ -201,7 +202,9 @@ func TestReplayDuplicateReturnsPriorOutcomeWithoutReplaying(t *testing.T) {
 	}
 }
 
-func TestReplayAbandonsClaimWhenReplayErrors(t *testing.T) {
+func TestReplayErrorLeavesClaimInProgress(t *testing.T) {
+	// On a replay error the ledger row must stay in_progress (not be erased), so
+	// a retry with the same key cannot lose the prior outcome or double-replay.
 	store := &stubAdminStore{
 		claim:     ReplayIdempotencyClaim{Claimed: true},
 		replayErr: errReplayFailed,
@@ -215,9 +218,8 @@ func TestReplayAbandonsClaimWhenReplayErrors(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", rec.Code, rec.Body.String())
 	}
-	// The key must be released so it stays retryable, not wedged in_progress.
-	if !store.abandoned || store.abandonedKey != "k1" {
-		t.Fatalf("expected idempotency claim abandoned for k1, got abandoned=%v key=%q", store.abandoned, store.abandonedKey)
+	if store.completed {
+		t.Fatalf("a failed replay must not record a completed outcome")
 	}
 }
 

@@ -53,7 +53,6 @@ type AdminStore interface {
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]AdminWorkItem, error)
 	ClaimReplayIdempotency(ctx context.Context, key, fingerprint string, now time.Time) (ReplayIdempotencyClaim, error)
 	CompleteReplayIdempotency(ctx context.Context, key string, count int, workItemIDs []string, now time.Time) error
-	AbandonReplayIdempotency(ctx context.Context, key string) error
 	RequestBackfill(ctx context.Context, input BackfillInput) (*AdminBackfillRequest, error)
 	ListReplayEvents(ctx context.Context, f ReplayEventFilter) ([]AdminReplayEvent, error)
 	ListDecisions(ctx context.Context, f DecisionQueryFilter) ([]AdminDecisionRow, error)

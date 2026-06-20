@@ -91,7 +91,7 @@ func (h *AdminHandler) replay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fingerprint := replayRequestFingerprint(req.WorkItemIDs, req.ScopeID, req.Stage, req.FailureClass, req.Force)
+	fingerprint := replayRequestFingerprint(req.WorkItemIDs, req.ScopeID, req.Stage, req.FailureClass, req.limit(), req.Force)
 	claim, err := h.Store.ClaimReplayIdempotency(r.Context(), req.IdempotencyKey, fingerprint, h.now())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay idempotency: %v", err))
@@ -116,16 +116,21 @@ func (h *AdminHandler) replay(w http.ResponseWriter, r *http.Request) {
 		ExcludeFailureClasses: exclude,
 	})
 	if err != nil {
-		// Release the claim so the same idempotency key stays retryable rather
-		// than wedging permanently in_progress after a transient failure.
-		_ = h.Store.AbandonReplayIdempotency(r.Context(), req.IdempotencyKey)
+		// The replay UPDATE and its replay-event insert are not a single atomic
+		// unit, so an error here may have already moved work items to pending.
+		// Leave the ledger row in_progress rather than abandoning it: deleting it
+		// would let a retry with the same key claim a fresh row, observe zero
+		// terminal items, and lose the prior outcome. A retry instead gets a
+		// 409 so an operator inspects what was replayed.
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay: %v", err))
 		return
 	}
 
 	ids := workItemIDList(items)
 	if err := h.Store.CompleteReplayIdempotency(r.Context(), req.IdempotencyKey, len(items), ids, h.now()); err != nil {
-		_ = h.Store.AbandonReplayIdempotency(r.Context(), req.IdempotencyKey)
+		// The replay already committed; only the ledger finalize failed. Leave the
+		// row in_progress (retry returns 409) so the durable outcome is never
+		// erased by a reclaim.
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("replay record: %v", err))
 		return
 	}

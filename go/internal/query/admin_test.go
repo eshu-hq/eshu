@@ -57,8 +57,6 @@ type stubAdminStore struct {
 	completeErr   error
 	completedKey  string
 	completed     bool
-	abandoned     bool
-	abandonedKey  string
 	backfillRow   *AdminBackfillRequest
 	backfillErr   error
 	replayEvents  []AdminReplayEvent
@@ -96,12 +94,6 @@ func (s *stubAdminStore) CompleteReplayIdempotency(_ context.Context, key string
 	s.completed = true
 	s.completedKey = key
 	return s.completeErr
-}
-
-func (s *stubAdminStore) AbandonReplayIdempotency(_ context.Context, key string) error {
-	s.abandoned = true
-	s.abandonedKey = key
-	return nil
 }
 
 func (s *stubAdminStore) RequestBackfill(_ context.Context, _ BackfillInput) (*AdminBackfillRequest, error) {
