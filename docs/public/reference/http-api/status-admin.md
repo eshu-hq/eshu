@@ -523,3 +523,30 @@ console or API defect.
 The recovery handler owns replay, dead-letter, skip, backfill, and decision
 inspection. Mount those controls only on runtimes that are allowed to operate
 the durable queue.
+
+### Safe Replay Workflow
+
+`POST /api/v0/admin/replay` is a guarded, auditable recovery action:
+
+- **Explicit reason and idempotency key are required.** The request must carry a
+  `reason` (why the replay is safe) and an `idempotency_key`. Missing either is
+  a `400`.
+- **Authorization gate.** Replay requires an admin (all-scopes) token. A
+  scoped/limited token is refused with `403`.
+- **Unsafe classes are refused.** Terminal items whose `failure_class` is
+  non-retryable (`input_invalid`) or quarantined (`unsafe_payload`) are excluded
+  from broad replays, and an explicit unsafe-class request returns `422` with
+  actionable guidance unless `force=true` is set after addressing the cause.
+- **Concurrent and duplicate delivery are handled.** The `idempotency_key` is
+  recorded in the durable `admin_replay_requests` ledger whose primary key
+  serializes concurrent requests: exactly one request runs the replay, and a
+  duplicate with the same key returns the prior outcome (`duplicate=true`)
+  instead of replaying again. A key reused with different selectors, or one whose
+  replay is still in progress, returns `409`.
+- **Audit without secrets.** Each accepted or refused replay records a governance
+  `admin_recovery_action` audit event (actor class, admin scope class, decision,
+  reason code) carrying no work-item, scope, generation, or payload identifiers.
+
+The CLI mirrors this: `eshu admin facts replay --reason "<why>" [--idempotency-key
+<key>] [--scope-id <id>] [--stage <stage>] [--failure-class <class>] [--force]`.
+A random idempotency key is generated when one is not supplied.

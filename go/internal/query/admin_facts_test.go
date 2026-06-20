@@ -174,12 +174,15 @@ func TestAdminHandler_Replay(t *testing.T) {
 		replayed: []AdminWorkItem{
 			{WorkItemID: "wi-1", Status: "pending"},
 		},
+		claim: ReplayIdempotencyClaim{Claimed: true},
 	}
 	h := &AdminHandler{Store: store}
 	mux := newAdminMux(h)
 
 	w := postJSON(mux, "/api/v0/admin/replay", map[string]any{
-		"failure_class": "transient_error",
+		"failure_class":   "transient_error",
+		"reason":          "reducer flake cleared after backend restart",
+		"idempotency_key": "replay-key-1",
 	})
 
 	if w.Code != http.StatusOK {
@@ -189,6 +192,12 @@ func TestAdminHandler_Replay(t *testing.T) {
 	got := decodeBody(t, w)
 	if got["status"] != "replayed" {
 		t.Errorf("status = %q, want %q", got["status"], "replayed")
+	}
+	if got["duplicate"] != false {
+		t.Errorf("duplicate = %v, want false", got["duplicate"])
+	}
+	if !store.completed || store.completedKey != "replay-key-1" {
+		t.Errorf("expected idempotency completion recorded for replay-key-1, got completed=%v key=%q", store.completed, store.completedKey)
 	}
 }
 

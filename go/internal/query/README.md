@@ -766,6 +766,32 @@ Do not add `if graphBackend == "nornicdb"` branches in handler code. Backend
 dialect differences belong in `internal/storage/cypher` adapters behind the
 `GraphQuery` port.
 
+## Safe replay (admin recovery)
+
+`POST /api/v0/admin/replay` (`admin_replay.go`) is a guarded recovery action.
+It requires an explicit `reason` and `idempotency_key`, gates on an admin
+(all-scopes) token, refuses unsafe failure classes (`input_invalid`,
+`unsafe_payload`) unless forced, records an `admin_recovery_action` governance
+audit event for every accepted or refused attempt, and dedupes concurrent or
+duplicate delivery through the durable `admin_replay_requests` ledger.
+
+- Conflict domain: `admin_replay_requests.idempotency_key` (primary key) is the
+  serialization point; exactly one concurrent request wins the
+  `INSERT ... ON CONFLICT DO NOTHING` claim and runs the replay, while losers
+  return the recorded outcome (`duplicate=true`) or a `409`. The underlying
+  `fact_work_items` replay UPDATE is row-level idempotent
+  (`WHERE status IN ('dead_letter','failed')`), so it never overwrites in-flight
+  or pending work.
+- No-Regression Evidence: additive guarded path over the existing replay store;
+  the dead-letter/skip/backfill SQL is unchanged and the new idempotency claim is
+  one bounded INSERT plus an optional SELECT per request. Verified by
+  `go test ./internal/query ./internal/storage/postgres ./cmd/eshu ./cmd/api`
+  covering the replay/retry matrix (duplicate, in-progress, key-reuse, unsafe
+  class, unauthorized, force) and the store claim/complete logic.
+- Observability Evidence: every decision emits an `admin_recovery_action`
+  governance audit event with actor class, admin scope class, decision, and
+  reason code, carrying no work-item, scope, generation, or payload identifiers.
+
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
