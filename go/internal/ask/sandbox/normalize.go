@@ -75,9 +75,27 @@ const (
 
 // normalize scans query left-to-right and returns a normalized result with all
 // comment and string-literal content replaced by spaces. It never panics.
+//
+// Control-character precondition: normalize rejects any query that contains a
+// byte < 0x20 other than TAB (0x09), LF (0x0A), or CR (0x0D), and also rejects
+// DEL (0x7F). Such bytes can split identifier tokens (e.g. `D\x00ELETE`
+// becomes the tokens `D` and `ELETE`, evading the whole-word denylist) without
+// being part of any valid SQL or Cypher literal. Both the Cypher and SQL
+// validators inherit this rejection because they both call normalize first.
 func normalize(dialect Dialect, query string) normalized {
 	if query == "" {
 		return normalized{}
+	}
+
+	// Reject hostile control bytes before any scanning. A byte below 0x20 that
+	// is not TAB/LF/CR, or the DEL byte (0x7F), can split keyword tokens
+	// (e.g. D\x00ELETE → tokens "D" and "ELETE") and evade the whole-word
+	// denylist. There is no valid SQL or Cypher literal that requires these bytes.
+	for i := 0; i < len(query); i++ {
+		b := query[i]
+		if b == 0x7F || (b < 0x20 && b != 0x09 && b != 0x0A && b != 0x0D) {
+			return normalized{err: "control character not permitted"}
+		}
 	}
 
 	buf := []byte(query)

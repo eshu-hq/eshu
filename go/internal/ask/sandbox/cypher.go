@@ -8,6 +8,12 @@ import "strings"
 // identifier that CONTAINS one of these strings as a substring — e.g.
 // `:CALLS`, `:CREATES`, a property named `deleted` — must NOT be denied.
 //
+// Denylist tokens match identifier tokens in ANY syntactic position (clause
+// keyword, relationship type, label, or property key). Under the v1
+// default-deny policy a read query that uses a denylist word as a relationship
+// type or label (e.g. `[:CALL]`, `[:SET]`) is denied; this is an intentional
+// safe-side false positive, not a bug.
+//
 // v1 policy: CALL is denied unconditionally because Cypher procedures can
 // perform mutations and there is no pure-read procedure allowlist yet.
 var cypherDenylist = map[string]struct{}{
@@ -34,6 +40,11 @@ const (
 
 // validateCypher returns a Decision for a Cypher query under the read-only
 // sandbox policy. It is the single entry point for Cypher query authorization.
+//
+// Precondition: callers must enforce Caps.MaxQueryLen before calling;
+// validateCypher does not length-check. Control-character rejection (bytes
+// < 0x20 other than TAB/LF/CR, and DEL 0x7F) is handled inside normalize and
+// propagated as a deny reason — callers do not need to pre-screen for those.
 //
 // Policy (evaluated in order):
 //  1. normalize is called; a normalize error → deny with a bounded reason.

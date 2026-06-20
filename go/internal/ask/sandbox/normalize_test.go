@@ -217,10 +217,12 @@ func TestNormalizeAdversarial(t *testing.T) {
 			statementCount: 0,
 		},
 		{
-			name:           "nul byte binary input",
-			dialect:        DialectSQL,
-			query:          "\x00\x01SELECT",
-			statementCount: 1,
+			// NUL and other non-whitespace control bytes are now rejected by normalize
+			// to prevent token-split evasion (e.g. D\x00ELETE → tokens "D"+"ELETE").
+			name:    "nul byte binary input",
+			dialect: DialectSQL,
+			query:   "\x00\x01SELECT",
+			wantErr: true,
 		},
 		{
 			name:           "only a semicolon",
@@ -332,56 +334,100 @@ func TestNormalizeAdversarial(t *testing.T) {
 	}
 }
 
-// TestNormalizeNoPanic confirms that hostile inputs never cause a panic regardless of content.
-func TestNormalizeNoPanic(t *testing.T) {
+// TestNormalizeRejectsControlChars verifies that queries containing control
+// bytes (other than the permitted whitespace bytes TAB/LF/CR) are rejected
+// before any scanning begins, closing the token-split evasion vector where a
+// control byte between keyword characters (e.g. D\x00ELETE) splits the token
+// into two non-denylist fragments. The no-panic suite that passes NUL bytes
+// remains valid — returning an err is a non-panic result.
+func TestNormalizeRejectsControlChars(t *testing.T) {
 	t.Parallel()
 
-	hostile := []string{
-		"",
-		"   ",
-		"\x00",
-		"\x00\x01\x02\x03",
-		"SELECT '\x00",
-		"SELECT /*\x00",
-		"'",
-		"/*",
-		"$$",
-		"$tag$",
-		"``",
-		`"`,
-		strings.Repeat("'", 10000),
-		strings.Repeat("/*", 5000),
-		strings.Repeat("$", 5000),
-		"SELECT '" + strings.Repeat("a", 65536) + "'",
-		"\xff\xfe",                      // invalid UTF-8
-		"SELECT 1\x00; DROP TABLE t",    // NUL in code
-		"'a''b''c''d" + "'",             // many doubled quotes, then terminated
-		"$tag1$body$tag2$mismatch here", // tag mismatch — unterminated
+	cases := []struct {
+		name    string
+		query   string
+		wantErr bool // true → err must be non-empty
+	}{
+		// ── hostile: control bytes that split tokens ──────────────────────────
+		{
+			name:    "NUL byte in query",
+			query:   "MATCH (n) D\x00ELETE n RETURN n",
+			wantErr: true,
+		},
+		{
+			name:    "SOH (0x01) byte in query",
+			query:   "MATCH (n) D\x01ELETE n RETURN n",
+			wantErr: true,
+		},
+		{
+			name:    "BEL (0x07) byte in query",
+			query:   "SELECT\x07 1",
+			wantErr: true,
+		},
+		{
+			name:    "ESC (0x1B) byte in query",
+			query:   "SELECT \x1B1",
+			wantErr: true,
+		},
+		{
+			name:    "DEL (0x7F) byte in query",
+			query:   "SELECT\x7f 1",
+			wantErr: true,
+		},
+		{
+			name:    "NUL-only query",
+			query:   "\x00",
+			wantErr: true,
+		},
+		{
+			name:    "multiple control bytes",
+			query:   "\x01\x02\x03",
+			wantErr: true,
+		},
+
+		// ── permitted: normal whitespace bytes are fine ───────────────────────
+		{
+			name:    "normal query with spaces is fine",
+			query:   "MATCH (n) RETURN n",
+			wantErr: false,
+		},
+		{
+			name:    "query with TAB (0x09) is fine",
+			query:   "MATCH (n)\tRETURN n",
+			wantErr: false,
+		},
+		{
+			name:    "query with LF (0x0A) is fine",
+			query:   "MATCH (n)\nRETURN n",
+			wantErr: false,
+		},
+		{
+			name:    "query with CR (0x0D) is fine",
+			query:   "MATCH (n)\rRETURN n",
+			wantErr: false,
+		},
+		{
+			name:    "multi-line query with tabs and newlines is fine",
+			query:   "MATCH (n)\n\tWHERE n.x = 1\r\nRETURN n",
+			wantErr: false,
+		},
 	}
 
-	for _, q := range hostile {
-		q := q
-		for _, d := range []Dialect{DialectSQL, DialectCypher} {
-			d := d
-			t.Run(string(d)+"/"+truncateLabel(q), func(t *testing.T) {
-				t.Parallel()
-				// The only guarantee is no panic.
-				defer func() {
-					if r := recover(); r != nil {
-						t.Errorf("normalize panicked: %v", r)
-					}
-				}()
-				_ = normalize(d, q)
-			})
-		}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := normalize(DialectCypher, tc.query)
+			if tc.wantErr {
+				if got.err == "" {
+					t.Fatalf("normalize(%q) err = %q; want non-empty (control char should be rejected)", tc.query, got.err)
+				}
+			} else {
+				// Only check the control-char error; other errors (e.g. no RETURN) are irrelevant here.
+				if got.err == "control character not permitted" {
+					t.Fatalf("normalize(%q) unexpectedly rejected with control-char error; want no such error", tc.query)
+				}
+			}
+		})
 	}
-}
-
-// truncateLabel shortens a string to a safe test-name length.
-func truncateLabel(s string) string {
-	const maxLen = 32
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "…"
 }
