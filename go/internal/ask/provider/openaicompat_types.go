@@ -10,12 +10,25 @@ type openAICompatRequest struct {
 	ToolChoice string                `json:"tool_choice,omitempty"`
 }
 
+// openAICompatRequestToolCall represents a tool call in an outgoing assistant
+// request message, mirroring the response tool_call wire shape.
+// Arguments is a JSON string (not an object) as required by the OpenAI wire format.
+type openAICompatRequestToolCall struct {
+	ID       string                       `json:"id"`
+	Type     string                       `json:"type"`
+	Function openAICompatToolCallFunction `json:"function"`
+}
+
 // openAICompatMessage is a single turn in an OpenAI-compatible conversation.
 // ToolCallID is only set for role "tool" messages.
+// ToolCalls is set on role "assistant" messages when the assistant previously
+// issued tool calls; it must be present before the corresponding role "tool"
+// result messages or the API returns HTTP 400.
 type openAICompatMessage struct {
-	Role       string `json:"role"`
-	Content    any    `json:"content"`
-	ToolCallID string `json:"tool_call_id,omitempty"`
+	Role       string                        `json:"role"`
+	Content    any                           `json:"content"`
+	ToolCallID string                        `json:"tool_call_id,omitempty"`
+	ToolCalls  []openAICompatRequestToolCall `json:"tool_calls,omitempty"`
 }
 
 // openAICompatToolDef describes a callable function tool in the request.

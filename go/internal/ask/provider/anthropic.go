@@ -96,9 +96,29 @@ func (a *anthropicAdapter) buildRequest(messages []Message, tools []Tool) anthro
 				Content: []anthropicContentBlock{{Type: "text", Text: m.Text}},
 			})
 		case RoleAssistant:
+			var blocks []anthropicContentBlock
+			// Include a text block first when the assistant produced text.
+			if m.Text != "" {
+				blocks = append(blocks, anthropicContentBlock{Type: "text", Text: m.Text})
+			}
+			// Encode each prior tool call as a tool_use block so the Anthropic API
+			// can match the subsequent tool_result blocks by id.
+			for _, tc := range m.ToolCalls {
+				blocks = append(blocks, anthropicContentBlock{
+					Type:  "tool_use",
+					ID:    tc.ID,
+					Name:  tc.Name,
+					Input: tc.Arguments,
+				})
+			}
+			// Anthropic requires at least one content block; fall back to an empty
+			// text block when the assistant turn carries neither text nor tool calls.
+			if len(blocks) == 0 {
+				blocks = append(blocks, anthropicContentBlock{Type: "text", Text: ""})
+			}
 			req.Messages = append(req.Messages, anthropicMessage{
 				Role:    "assistant",
-				Content: []anthropicContentBlock{{Type: "text", Text: m.Text}},
+				Content: blocks,
 			})
 		}
 	}

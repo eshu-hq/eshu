@@ -145,6 +145,103 @@ func TestAnthropicCompletePropagatesProviderError(t *testing.T) {
 	}
 }
 
+// TestAnthropicMultiTurnToolCallRoundTrip verifies that a multi-turn conversation
+// containing an assistant turn with ToolCalls is correctly encoded: the assistant
+// message must contain a tool_use block, and the subsequent RoleTool message must
+// contain a tool_result block referencing the same tool_use id.
+func TestAnthropicMultiTurnToolCallRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	type contentBlock struct {
+		Type      string         `json:"type"`
+		Text      string         `json:"text,omitempty"`
+		ID        string         `json:"id,omitempty"`
+		Name      string         `json:"name,omitempty"`
+		Input     map[string]any `json:"input,omitempty"`
+		ToolUseID string         `json:"tool_use_id,omitempty"`
+		Content   string         `json:"content,omitempty"`
+	}
+	type message struct {
+		Role    string         `json:"role"`
+		Content []contentBlock `json:"content"`
+	}
+	type requestBody struct {
+		Messages []message `json:"messages"`
+	}
+
+	var captured requestBody
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"content": [{"type": "text", "text": "done"}],
+			"stop_reason": "end_turn",
+			"usage": {"input_tokens": 1, "output_tokens": 1}
+		}`))
+	}))
+	defer srv.Close()
+
+	adapter := newAnthropicAdapter(srv.URL, "key", "model", srv.Client())
+	messages := []Message{
+		{Role: RoleUser, Text: "q"},
+		{Role: RoleAssistant, Text: "", ToolCalls: []ToolCall{{ID: "call_1", Name: "find_symbol", Arguments: map[string]any{"q": "x"}}}},
+		{Role: RoleTool, ToolCallID: "call_1", Text: `{"result":"ok"}`},
+	}
+
+	_, err := adapter.Complete(t.Context(), messages, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Expect 3 messages: user, assistant, user(tool_result).
+	if len(captured.Messages) != 3 {
+		t.Fatalf("expected 3 messages, got %d: %+v", len(captured.Messages), captured.Messages)
+	}
+
+	// Assistant message (index 1) must contain a tool_use block.
+	assistantMsg := captured.Messages[1]
+	if assistantMsg.Role != "assistant" {
+		t.Errorf("messages[1].role: got %q, want %q", assistantMsg.Role, "assistant")
+	}
+	var toolUseBlock *contentBlock
+	for i := range assistantMsg.Content {
+		if assistantMsg.Content[i].Type == "tool_use" {
+			b := assistantMsg.Content[i]
+			toolUseBlock = &b
+		}
+	}
+	if toolUseBlock == nil {
+		t.Fatalf("assistant message has no tool_use block; content: %+v", assistantMsg.Content)
+	}
+	if toolUseBlock.ID != "call_1" {
+		t.Errorf("tool_use.id: got %q, want %q", toolUseBlock.ID, "call_1")
+	}
+	if toolUseBlock.Name != "find_symbol" {
+		t.Errorf("tool_use.name: got %q, want %q", toolUseBlock.Name, "find_symbol")
+	}
+
+	// Tool result message (index 2) must be a user message with a tool_result block
+	// whose tool_use_id matches.
+	toolResultMsg := captured.Messages[2]
+	if toolResultMsg.Role != "user" {
+		t.Errorf("messages[2].role: got %q, want %q", toolResultMsg.Role, "user")
+	}
+	if len(toolResultMsg.Content) != 1 {
+		t.Fatalf("messages[2]: expected 1 content block, got %d", len(toolResultMsg.Content))
+	}
+	trBlock := toolResultMsg.Content[0]
+	if trBlock.Type != "tool_result" {
+		t.Errorf("tool_result block type: got %q, want %q", trBlock.Type, "tool_result")
+	}
+	if trBlock.ToolUseID != "call_1" {
+		t.Errorf("tool_result.tool_use_id: got %q, want %q", trBlock.ToolUseID, "call_1")
+	}
+}
+
 // TestAnthropicMapsToolResultMessage verifies that a Message with Role RoleTool
 // is encoded as an Anthropic user message containing a tool_result block keyed
 // by ToolCallID.

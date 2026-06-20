@@ -52,7 +52,7 @@ appends the provider-specific path suffix (`/v1/messages` or
 |---------------------|--------------------------------------------------------|
 | `anthropic`         | Defaults to `https://api.anthropic.com`               |
 | `bedrock`           | Requires an explicit endpoint; error if absent         |
-| `minimax`           | Defaults to `https://api.minimax.chat`                 |
+| `minimax`           | Defaults to `https://api.minimax.io`                   |
 | `deepseek`          | Defaults to `https://api.deepseek.com`                 |
 | `openai_compatible` | Error: `endpoint_profile_id` is required               |
 | `gemini`            | Error: `endpoint_profile_id` is required               |
@@ -62,9 +62,9 @@ appends the provider-specific path suffix (`/v1/messages` or
 
 ## Leak-free invariant
 
-The transport (`transport.go`) wraps every non-2xx response body into a
-`ProviderError` value that contains only the HTTP status code and a
-scrubbed body segment. Prompt content, tool arguments, and credential material
+The transport (`transport.go`) wraps every non-2xx response into a
+`ProviderError` value that contains only the HTTP status code (never the
+response body). Prompt content, tool arguments, and credential material
 are never included in returned errors.
 
 ## How to add a new provider kind

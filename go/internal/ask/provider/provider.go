@@ -16,11 +16,17 @@ const (
 // Message is a flat, provider-neutral conversation message.
 // Text holds the message content. For tool-result messages, ToolCallID and
 // ToolName identify the prior tool call being responded to.
+// ToolCalls is set on a RoleAssistant message to carry the tool calls the model
+// previously returned, so the agent loop can replay the assistant turn before
+// sending tool results. Providers that require an assistant turn with tool_use
+// blocks (Anthropic) or tool_calls (OpenAI-compatible) read this field to build
+// the correct wire shape.
 type Message struct {
 	Role       Role
 	Text       string
 	ToolCallID string
 	ToolName   string
+	ToolCalls  []ToolCall
 }
 
 // Tool describes a callable tool with name, description, and input schema.

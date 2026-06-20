@@ -149,6 +149,93 @@ func TestOpenAICompatRejectsMalformedToolArguments(t *testing.T) {
 	}
 }
 
+// TestOpenAICompatMultiTurnToolCallRoundTrip verifies that a multi-turn
+// conversation with an assistant turn carrying ToolCalls is encoded correctly:
+// the assistant message must include a tool_calls array, and the subsequent
+// RoleTool message must be encoded with role "tool" and a matching tool_call_id.
+func TestOpenAICompatMultiTurnToolCallRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	type toolCallFunction struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	}
+	type toolCall struct {
+		ID       string           `json:"id"`
+		Type     string           `json:"type"`
+		Function toolCallFunction `json:"function"`
+	}
+	type reqMessage struct {
+		Role       string     `json:"role"`
+		Content    any        `json:"content"`
+		ToolCallID string     `json:"tool_call_id,omitempty"`
+		ToolCalls  []toolCall `json:"tool_calls,omitempty"`
+	}
+	type requestBody struct {
+		Messages []reqMessage `json:"messages"`
+	}
+
+	var captured requestBody
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"choices": [{
+				"message": {"content": "done", "tool_calls": null},
+				"finish_reason": "stop"
+			}],
+			"usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+		}`))
+	}))
+	defer srv.Close()
+
+	adapter := newOpenAICompatAdapter(srv.URL, "key", "model", srv.Client())
+	messages := []Message{
+		{Role: RoleUser, Text: "q"},
+		{Role: RoleAssistant, Text: "", ToolCalls: []ToolCall{{ID: "call_1", Name: "find_symbol", Arguments: map[string]any{"q": "x"}}}},
+		{Role: RoleTool, ToolCallID: "call_1", Text: `{"result":"ok"}`},
+	}
+
+	_, err := adapter.Complete(t.Context(), messages, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Expect 3 messages: user, assistant (with tool_calls), tool.
+	if len(captured.Messages) != 3 {
+		t.Fatalf("expected 3 messages, got %d: %+v", len(captured.Messages), captured.Messages)
+	}
+
+	// Assistant message (index 1) must carry tool_calls.
+	assistantMsg := captured.Messages[1]
+	if assistantMsg.Role != "assistant" {
+		t.Errorf("messages[1].role: got %q, want %q", assistantMsg.Role, "assistant")
+	}
+	if len(assistantMsg.ToolCalls) != 1 {
+		t.Fatalf("messages[1].tool_calls: got %d, want 1", len(assistantMsg.ToolCalls))
+	}
+	tc := assistantMsg.ToolCalls[0]
+	if tc.ID != "call_1" {
+		t.Errorf("tool_calls[0].id: got %q, want %q", tc.ID, "call_1")
+	}
+	if tc.Function.Name != "find_symbol" {
+		t.Errorf("tool_calls[0].function.name: got %q, want %q", tc.Function.Name, "find_symbol")
+	}
+
+	// Tool message (index 2) must have role "tool" with matching tool_call_id.
+	toolMsg := captured.Messages[2]
+	if toolMsg.Role != "tool" {
+		t.Errorf("messages[2].role: got %q, want %q", toolMsg.Role, "tool")
+	}
+	if toolMsg.ToolCallID != "call_1" {
+		t.Errorf("messages[2].tool_call_id: got %q, want %q", toolMsg.ToolCallID, "call_1")
+	}
+}
+
 // TestOpenAICompatBaseURLForMiniMaxAndDeepSeek proves that the same adapter
 // implementation posts to {baseURL}/v1/chat/completions for two different
 // provider-style base URLs (MiniMax and DeepSeek style), demonstrating that

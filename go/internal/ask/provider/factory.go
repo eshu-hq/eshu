@@ -7,9 +7,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 )
 
-// defaultMiniMaxBaseURL is the public MiniMax chat completion endpoint used when
-// the profile's EndpointProfileID is empty.
-const defaultMiniMaxBaseURL = "https://api.minimax.chat"
+// defaultMiniMaxBaseURL is the public MiniMax international OpenAI-compatible
+// chat completion endpoint used when the profile's EndpointProfileID is empty.
+const defaultMiniMaxBaseURL = "https://api.minimax.io"
 
 // defaultDeepSeekBaseURL is the public DeepSeek chat completion endpoint used when
 // the profile's EndpointProfileID is empty.

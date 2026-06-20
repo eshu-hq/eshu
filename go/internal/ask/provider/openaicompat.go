@@ -96,10 +96,29 @@ func (a *openAICompatAdapter) buildRequest(messages []Message, tools []Tool) ope
 				Content: m.Text,
 			})
 		case RoleAssistant:
-			req.Messages = append(req.Messages, openAICompatMessage{
+			msg := openAICompatMessage{
 				Role:    "assistant",
 				Content: m.Text,
-			})
+			}
+			// Encode prior tool calls into the assistant message so the API can
+			// match the subsequent role "tool" result messages by tool_call_id.
+			for _, tc := range m.ToolCalls {
+				argsJSON, err := json.Marshal(tc.Arguments)
+				if err != nil {
+					// Arguments came from a prior parsed response; marshalling back to
+					// JSON should not fail. If it does, fall back to an empty object.
+					argsJSON = []byte("{}")
+				}
+				msg.ToolCalls = append(msg.ToolCalls, openAICompatRequestToolCall{
+					ID:   tc.ID,
+					Type: "function",
+					Function: openAICompatToolCallFunction{
+						Name:      tc.Name,
+						Arguments: string(argsJSON),
+					},
+				})
+			}
+			req.Messages = append(req.Messages, msg)
 		}
 	}
 
