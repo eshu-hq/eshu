@@ -152,3 +152,49 @@ func (c *Catalog) Unannotated() []string {
 	sort.Strings(missing)
 	return missing
 }
+
+// Lookup returns the entry for an exact surface name.
+func (c *Catalog) Lookup(name string) (Entry, bool) {
+	for _, e := range c.entries {
+		if e.Name == name {
+			return e, true
+		}
+	}
+	return Entry{}, false
+}
+
+// ByBackend returns the sorted entries served by a backend.
+func (c *Catalog) ByBackend(b Backend) []Entry {
+	var out []Entry
+	for _, e := range c.entries {
+		if e.Backend == b {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// costRank orders cost classes from cheapest to most expensive. Unknown costs
+// sort last so unclassified surfaces are never preferred.
+func costRank(c CostClass) int {
+	switch c {
+	case CostLow:
+		return 0
+	case CostModerate:
+		return 1
+	case CostHigh:
+		return 2
+	default:
+		return 3
+	}
+}
+
+// CheapestFirst returns the entries ordered cheapest cost first, ties broken by
+// (Kind, Name). This is the planner's default preference order.
+func (c *Catalog) CheapestFirst() []Entry {
+	out := c.Entries() // already (Kind, Name) sorted
+	sort.SliceStable(out, func(i, j int) bool {
+		return costRank(out[i].Cost) < costRank(out[j].Cost)
+	})
+	return out
+}
