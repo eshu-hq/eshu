@@ -26,7 +26,9 @@ go run ./cmd/capability-inventory -mode generate
 # Drift gate: fail when findings exist or the embedded artifact is stale.
 go run ./cmd/capability-inventory -mode verify
 
-# Docs freshness guard: fail when a capability-state marker contradicts the catalog.
+# Docs guards: fail when a capability-state marker contradicts the catalog, or a
+# collector-state marker contradicts the surface inventory / claims implemented
+# without linked promotion proof.
 go run ./cmd/capability-inventory -mode docs
 ```
 

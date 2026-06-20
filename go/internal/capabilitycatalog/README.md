@@ -49,6 +49,16 @@ The marker is an HTML comment, so it is invisible in rendered docs. Run it with
 `go run ./cmd/capability-inventory -mode docs`. See
 [Capability Catalog](../../../docs/public/reference/capability-catalog.md).
 
+## Collector readiness guard
+
+`ParseCollectorClaims` scans markdown for `<!-- collector-state: name=<collector>
+lane=<readiness_lane> -->` markers and `CheckCollectorReadiness` flags any marker
+that names an unknown collector, uses an invalid lane, contradicts the surface
+inventory lane, or claims `implemented` without a linked promotion proof. It runs
+in the same `-mode docs` pass against the embedded surface inventory, so a docs
+page cannot claim a collector is production-ready unless the inventory agrees and
+proof exists.
+
 ## Generated artifact
 
 `data/catalog.generated.json` is the committed, deterministic artifact embedded

@@ -164,6 +164,36 @@ instances.
 | Live observability | `eshu-collector-grafana`, `eshu-collector-prometheus-mimir`, `eshu-collector-loki`, and `eshu-collector-tempo` are claim-driven and charted. They require explicit live targets in `ESHU_COLLECTOR_INSTANCES_JSON`; Grafana requires `token_env`, while Prometheus/Mimir, Loki, and Tempo can use unauthenticated endpoints or optional `token_env` plus optional tenant envs. | Live collectors emit metadata-only `observability.*` source facts for source instances, dashboards, rules, targets, log signals, trace signals, and coverage warnings. Declared IaC/GitOps evidence remains preferred when current. Live facts are fallback and validation evidence for no-IaC, drift, freshness, and effective target/rule/signal state; reducers and read surfaces own graph truth and comparison outcomes. | Prove each configured target, credential resolution, permission-hidden/rate-limit/stale/partial/failure classification, status visibility, fact counts, reducer drain, API/MCP reads, private-data handling, and no log-line/span/query-body leakage in the target environment. |
 | Scanner worker | `eshu-scanner-worker` is claim-driven and isolated from reducer lanes. The built-in warning analyzer emits `scanner_worker.warning` source facts until a concrete analyzer is configured. The bounded `image_unpacking` analyzer (`internal/collector/scannerworker/imageanalyzer`) reads configured local image rootfs metadata or ordered OCI layer tar streams and emits installed OS package facts only when apk/dpkg package database proof exists. The bounded `sbom_generation` analyzer (`internal/collector/scannerworker/sbomgenerator`) emits CycloneDX-compatible `sbom.document`, `sbom.component`, and `sbom.warning` source facts for repository, image, or artifact targets when the runtime source has enough subject evidence, and falls back to `scanner_worker.warning` with `reason="sbom_generator_source_not_configured"` until a runtime-owned source is wired. The `os_package_extraction` analyzer parses configured Alpine or Debian rootfs targets into OS package source facts. | Scanner workers emit source facts only. Reducers own vulnerability finding admission, priority, readiness, and graph truth. Scanner-generated SBOM documents flow through `sbom_attestation_attachment` exactly like collector-fetched SBOM documents; they cannot bypass attachment truth. OS package extraction and image unpacking do not match advisories or publish findings. | Prove concrete analyzers with target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth before enabling them by default. Bounded SBOM generation must additionally prove reducer attachment admission and the safe `unknown_subject` fallback when no subject digest is derivable. |
 
+The collector readiness lanes stated on this page are machine-checked against the
+generated surface inventory by `capability-inventory -mode docs`: a doc cannot
+claim a collector lane the inventory disagrees with, nor claim `implemented`
+without linked promotion proof. The lane markers below are invisible in the
+rendered page and bind each collector to its inventory lane.
+
+<!-- collector-state: name=git lane=implemented -->
+<!-- collector-state: name=documentation lane=implemented -->
+<!-- collector-state: name=oci_registry lane=implemented -->
+<!-- collector-state: name=terraform_state lane=implemented -->
+<!-- collector-state: name=aws lane=implemented -->
+<!-- collector-state: name=webhook lane=implemented -->
+<!-- collector-state: name=package_registry lane=implemented -->
+<!-- collector-state: name=sbom_attestation lane=implemented -->
+<!-- collector-state: name=vulnerability_intelligence lane=implemented -->
+<!-- collector-state: name=security_alert lane=implemented -->
+<!-- collector-state: name=pagerduty lane=implemented -->
+<!-- collector-state: name=jira lane=implemented -->
+<!-- collector-state: name=scanner_worker lane=implemented -->
+<!-- collector-state: name=grafana lane=implemented -->
+<!-- collector-state: name=loki lane=implemented -->
+<!-- collector-state: name=prometheus_mimir lane=implemented -->
+<!-- collector-state: name=tempo lane=implemented -->
+<!-- collector-state: name=ci_cd_run lane=partial -->
+<!-- collector-state: name=gcp lane=gated -->
+<!-- collector-state: name=azure lane=gated -->
+<!-- collector-state: name=vault_live lane=gated -->
+<!-- collector-state: name=semantic_extraction lane=gated -->
+<!-- collector-state: name=kubernetes_live lane=foundation_only -->
+
 The broader vulnerability architecture, including target/capability separation,
 readiness states, provider-alert parity, local one-shot scanning, and
 scanner-worker boundaries, is documented in

@@ -100,8 +100,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-// checkDocs scans the docs directory for capability-state markers and fails when
-// any marker contradicts the catalog. It is the docs freshness guard.
+// checkDocs runs both docs guards: the capability-state freshness guard against
+// the catalog, and the collector-state readiness guard against the generated
+// surface inventory. A collector readiness claim cannot contradict the inventory
+// lane or claim implemented without linked promotion proof. Both guards run so
+// the failure report is complete, and the command fails if either finds drift.
 func checkDocs(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir string) error {
 	claims, err := capabilitycatalog.ParseDocClaims(docsDir)
 	if err != nil {
@@ -109,15 +112,52 @@ func checkDocs(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir stri
 	}
 	docFindings := capabilitycatalog.CheckDocFreshness(catalog, claims)
 	if len(docFindings) == 0 {
-		_, err = fmt.Fprintf(stdout, "checked %d capability-state claims; no freshness findings\n", len(claims))
+		_, _ = fmt.Fprintf(stdout, "checked %d capability-state claims; no freshness findings\n", len(claims))
+	} else {
+		_, _ = fmt.Fprintf(stdout, "%d docs freshness findings:\n", len(docFindings))
+		for _, finding := range docFindings {
+			_, _ = fmt.Fprintf(stdout, "  %s:%d [%s] claimed=%s expected=%s: %s\n",
+				finding.Path, finding.Line, finding.Capability, finding.Claimed, finding.Expected, finding.Reason)
+		}
+	}
+
+	collectorFindings, err := checkCollectorDocs(stdout, docsDir)
+	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "%d docs freshness findings:\n", len(docFindings))
-	for _, finding := range docFindings {
-		_, _ = fmt.Fprintf(stdout, "  %s:%d [%s] claimed=%s expected=%s: %s\n",
-			finding.Path, finding.Line, finding.Capability, finding.Claimed, finding.Expected, finding.Reason)
+
+	total := len(docFindings) + len(collectorFindings)
+	if total > 0 {
+		return fmt.Errorf("docs freshness check failed: %d capability findings, %d collector findings",
+			len(docFindings), len(collectorFindings))
 	}
-	return fmt.Errorf("docs freshness check failed: %d findings", len(docFindings))
+	return nil
+}
+
+// checkCollectorDocs runs the collector readiness guard against the embedded
+// surface inventory and prints any findings. It returns the findings so the
+// caller can fail the command, and an error only for an unreadable inventory or
+// docs tree.
+func checkCollectorDocs(stdout io.Writer, docsDir string) ([]capabilitycatalog.CollectorFinding, error) {
+	inv, err := capabilitycatalog.LoadSurfaceInventory()
+	if err != nil {
+		return nil, err
+	}
+	collectorClaims, err := capabilitycatalog.ParseCollectorClaims(docsDir)
+	if err != nil {
+		return nil, err
+	}
+	findings := capabilitycatalog.CheckCollectorReadiness(inv, collectorClaims)
+	if len(findings) == 0 {
+		_, _ = fmt.Fprintf(stdout, "checked %d collector-state claims; no readiness findings\n", len(collectorClaims))
+		return nil, nil
+	}
+	_, _ = fmt.Fprintf(stdout, "%d collector readiness findings:\n", len(findings))
+	for _, finding := range findings {
+		_, _ = fmt.Fprintf(stdout, "  %s:%d [%s] claimed=%s expected=%s: %s\n",
+			finding.Path, finding.Line, finding.Collector, finding.Claimed, finding.Expected, finding.Reason)
+	}
+	return findings, nil
 }
 
 // verify fails when reconciliation findings exist or when either embedded
