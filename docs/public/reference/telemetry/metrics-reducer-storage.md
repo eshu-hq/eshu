@@ -164,6 +164,8 @@ remain available for exact scope/generation diagnosis.
 | `eshu_dp_package_source_correlations_total` | counter | Package source-correlation decisions by reducer domain and outcome. |
 | `eshu_dp_container_image_identity_decisions_total` | counter | Container image identity decisions by reducer domain and outcome. |
 | `eshu_dp_ci_cd_run_correlations_total` | counter | CI/CD run correlation decisions by reducer domain and outcome. |
+| `eshu_dp_service_catalog_correlations_total` | counter | Service catalog correlation decisions by reducer domain and outcome. |
+| `eshu_dp_service_catalog_correlation_guardrails_total` | counter | Service catalog correlation guardrail events by reducer domain and bounded guardrail. |
 | `eshu_dp_search_decay_policy_applications_total` | counter | Search decay scoring decisions by policy id, evidence class, and outcome. |
 | `eshu_dp_sbom_attestation_attachments_total` | counter | SBOM and attestation attachment decisions by reducer domain and outcome. |
 | `eshu_dp_supply_chain_impact_findings_total` | counter | Supply-chain impact findings by reducer domain and outcome. |

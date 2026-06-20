@@ -40,6 +40,7 @@ type ServiceCatalogCorrelationResult struct {
 	DriftStatus            string   `json:"drift_status,omitempty"`
 	CandidateRepositoryIDs []string `json:"candidate_repository_ids,omitempty"`
 	EvidenceFactIDs        []string `json:"evidence_fact_ids,omitempty"`
+	RequiredAnchorKeys     []string `json:"required_anchor_keys,omitempty"`
 }
 
 // ServiceCatalogMissingEvidence explains why an anchored service-catalog read

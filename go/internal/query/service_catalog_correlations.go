@@ -55,6 +55,7 @@ type ServiceCatalogCorrelationRow struct {
 	DriftStatus            string
 	CandidateRepositoryIDs []string
 	EvidenceFactIDs        []string
+	RequiredAnchorKeys     []string
 }
 
 type serviceCatalogCorrelationQueryer interface {
@@ -268,6 +269,7 @@ func decodeServiceCatalogCorrelationRow(
 		DriftStatus:            StringVal(payload, "drift_status"),
 		CandidateRepositoryIDs: StringSliceVal(payload, "candidate_repository_ids"),
 		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
+		RequiredAnchorKeys:     StringSliceVal(payload, "required_anchor_keys"),
 	}, nil
 }
 

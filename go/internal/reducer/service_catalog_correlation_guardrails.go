@@ -144,14 +144,14 @@ func (h ServiceCatalogCorrelationHandler) emitCounters(
 func serviceCatalogCorrelationAddGuardrailCounter(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	outcome string,
+	guardrail string,
 	value int,
 ) {
 	if value == 0 {
 		return
 	}
-	instruments.ServiceCatalogCorrelations.Add(ctx, int64(value), metric.WithAttributes(
+	instruments.ServiceCatalogCorrelationGuardrails.Add(ctx, int64(value), metric.WithAttributes(
 		telemetry.AttrDomain(string(DomainServiceCatalogCorrelation)),
-		telemetry.AttrOutcome(outcome),
+		telemetry.AttrGuardrail(guardrail),
 	))
 }

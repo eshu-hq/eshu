@@ -165,6 +165,11 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	ServiceCatalogCorrelations                metric.Int64Counter
+	// ServiceCatalogCorrelationGuardrails counts reducer service-catalog
+	// admission guardrail events by reducer domain and bounded guardrail name.
+	// It stays separate from ServiceCatalogCorrelations so decision outcomes
+	// remain limited to the admission decision enum.
+	ServiceCatalogCorrelationGuardrails metric.Int64Counter
 	// IncidentRepositoryCorrelations counts reducer-owned durable
 	// incident-routing-to-repository correlation decisions by reducer domain and
 	// outcome (exact, derived, ambiguous, unresolved, rejected). Only exact and
@@ -1656,6 +1661,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
+	}
+
+	inst.ServiceCatalogCorrelationGuardrails, err = meter.Int64Counter(
+		"eshu_dp_service_catalog_correlation_guardrails_total",
+		metric.WithDescription("Total service catalog correlation guardrail events by reducer domain and guardrail"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ServiceCatalogCorrelationGuardrails counter: %w", err)
 	}
 
 	inst.IncidentRepositoryCorrelations, err = meter.Int64Counter(
@@ -3668,6 +3681,11 @@ func AttrWritePhase(v string) attribute.KeyValue {
 // AttrOutcome returns an outcome attribute for metric recording.
 func AttrOutcome(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOutcome, v)
+}
+
+// AttrGuardrail returns a guardrail attribute for metric recording.
+func AttrGuardrail(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionGuardrail, v)
 }
 
 // AttrPolicyID returns a policy_id attribute for bounded policy counters.

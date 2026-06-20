@@ -58,9 +58,12 @@ repository claims and ambiguous repository matches; the new field explains the
 missing proof without adding raw repository URLs, repository ids, or provider
 values to metric labels.
 
-Observability Evidence: the handler summary and existing
-`eshu_dp_service_catalog_correlations_total` counter now expose closed-set
-guardrail counts for max candidate fanout, dropped ambiguous candidates, and
-missing-anchor entities. Focused verification:
+Observability Evidence: the handler summary exposes max candidate fanout,
+dropped ambiguous candidates, missing-anchor entities, and required anchor
+keys. `eshu_dp_service_catalog_correlations_total` remains a decision counter
+with only the closed correlation outcomes. Guardrail counts use
+`eshu_dp_service_catalog_correlation_guardrails_total` labeled by bounded
+`guardrail` values (`candidate_fanout`, `dropped_ambiguous_candidate`, and
+`missing_anchor_entity`). Focused verification:
 `go test ./internal/reducer -run 'TestBuildServiceCatalogCorrelation|TestServiceCatalogCorrelation|TestPostgresServiceCatalogCorrelation' -count=1`
 and `go test ./internal/reducer -count=1`.

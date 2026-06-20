@@ -44,6 +44,9 @@ const (
 	MetricDimensionEdgeType   = "edge_type"
 	MetricDimensionWritePhase = "write_phase"
 	MetricDimensionOutcome    = "outcome"
+	// MetricDimensionGuardrail labels counters for bounded guardrail classes
+	// that are not admission or correlation outcomes.
+	MetricDimensionGuardrail = "guardrail"
 	// MetricDimensionPolicyID labels bounded policy counters, such as search
 	// decay scoring decisions, with a configured low-cardinality policy token.
 	MetricDimensionPolicyID = "policy_id"
