@@ -85,6 +85,58 @@ func TestNewInvestigationEvidencePacketSemanticAugmentedReproducible(t *testing.
 	}
 }
 
+func TestNewInvestigationEvidencePacketMissingEvidenceBounded(t *testing.T) {
+	in := baseSupplyChainInput()
+	in.MissingEvidence = make([]PacketMissingHop, 0, 5)
+	for i := 0; i < 5; i++ {
+		in.MissingEvidence = append(in.MissingEvidence, PacketMissingHop{Hop: factID(i), Reason: "gap"})
+	}
+	in.Bounds = &PacketBounds{MaxMissingEvidence: 2}
+	packet, err := NewInvestigationEvidencePacket(in)
+	if err != nil {
+		t.Fatalf("build packet: %v", err)
+	}
+	if len(packet.MissingEvidence) != 2 {
+		t.Errorf("missing evidence = %d, want capped at 2", len(packet.MissingEvidence))
+	}
+	if !packetLayerTruncated(packet.Bounds.TruncatedLayers, "missing_evidence") {
+		t.Errorf("truncated_layers = %v, want missing_evidence", packet.Bounds.TruncatedLayers)
+	}
+}
+
+func TestNewInvestigationEvidencePacketBoundsOverrideCannotRaiseCap(t *testing.T) {
+	in := baseSupplyChainInput()
+	// An override above the default must be ignored: the cap stays at the default.
+	in.Bounds = &PacketBounds{MaxSourceFacts: 99999}
+	packet, err := NewInvestigationEvidencePacket(in)
+	if err != nil {
+		t.Fatalf("build packet: %v", err)
+	}
+	if packet.Bounds.MaxSourceFacts != defaultPacketMaxSourceFacts {
+		t.Errorf("MaxSourceFacts = %d, want clamped to default %d", packet.Bounds.MaxSourceFacts, defaultPacketMaxSourceFacts)
+	}
+}
+
+func TestNewInvestigationEvidencePacketRejectsUnknownDecisionState(t *testing.T) {
+	in := baseSupplyChainInput()
+	in.ReducerDecisions = []PacketReducerDecision{
+		{Domain: "supply_chain_impact", State: "totally_made_up", Reason: "x", SourceFactIDs: []string{"fact-advisory-1"}},
+	}
+	if _, err := NewInvestigationEvidencePacket(in); err == nil {
+		t.Fatal("expected error for an unsupported reducer decision state")
+	}
+}
+
+func TestNewInvestigationEvidencePacketRequiresReasonForNonAdmitted(t *testing.T) {
+	in := baseSupplyChainInput()
+	in.ReducerDecisions = []PacketReducerDecision{
+		{Domain: "supply_chain_impact", State: "rejected", SourceFactIDs: []string{"fact-advisory-1"}}, // no reason
+	}
+	if _, err := NewInvestigationEvidencePacket(in); err == nil {
+		t.Fatal("expected error for a non-admitted decision with no reason")
+	}
+}
+
 func TestNewInvestigationEvidencePacketSemanticBoundsTruncation(t *testing.T) {
 	in := baseSupplyChainInput()
 	in.AllowSemantic = true

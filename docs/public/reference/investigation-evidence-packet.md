@@ -151,14 +151,16 @@ by the emitters (#3141, #3142):
 
 ## Bounds and payload size
 
-Each evidence layer is capped (defaults: 200 source facts, 200 reducer
-decisions, 200 graph answers, 50 citations — the citation cap matches the
-evidence-citation route). When a layer exceeds its cap it is truncated,
-`bounds.truncated` is set, the layer name is recorded in
-`bounds.truncated_layers`, and the answer is marked partial. A large
-investigation therefore produces a bounded, clearly-signalled artifact instead
-of an unbounded dump. Emitters may lower a cap but must not raise it without
-performance evidence.
+Every evidence layer is capped (defaults: 200 source facts, 200 reducer
+decisions, 200 graph answers, 200 missing-evidence hops, 50 semantic
+observations, 50 citations — the citation cap matches the evidence-citation
+route). When a layer exceeds its cap it is truncated, `bounds.truncated` is set,
+the layer name is recorded in `bounds.truncated_layers`, and the answer is marked
+partial. A large investigation therefore produces a bounded, clearly-signalled
+artifact instead of an unbounded dump. An emitter may **lower** a cap through the
+bounds override, but an override that tries to **raise** a cap above the default
+is clamped back to the default — raising a cap requires a code change with
+performance evidence, not a per-call override.
 
 ## Redaction
 

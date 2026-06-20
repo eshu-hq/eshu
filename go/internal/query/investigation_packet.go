@@ -275,6 +275,8 @@ type PacketBounds struct {
 	MaxCitations int `json:"max_citations"`
 	// MaxSemanticObservations caps the optional semantic layer.
 	MaxSemanticObservations int `json:"max_semantic_observations"`
+	// MaxMissingEvidence caps the missing-evidence layer.
+	MaxMissingEvidence int `json:"max_missing_evidence"`
 	// Truncated is true when any layer was capped.
 	Truncated bool `json:"truncated"`
 	// TruncatedLayers names the layers that were capped, in apply order.

@@ -16,6 +16,7 @@ const (
 	defaultPacketMaxGraphAnswers         = 200
 	defaultPacketMaxCitations            = evidenceCitationMaxLimit
 	defaultPacketMaxSemanticObservations = 50
+	defaultPacketMaxMissingEvidence      = 200
 )
 
 // InvestigationPacketInput carries the composition inputs for an
@@ -252,13 +253,18 @@ func applyPacketBounds(packet *InvestigationEvidencePacket, override *PacketBoun
 		MaxGraphAnswers:         defaultPacketMaxGraphAnswers,
 		MaxCitations:            defaultPacketMaxCitations,
 		MaxSemanticObservations: defaultPacketMaxSemanticObservations,
+		MaxMissingEvidence:      defaultPacketMaxMissingEvidence,
 	}
 	if override != nil {
-		bounds.MaxSourceFacts = positiveOr(override.MaxSourceFacts, bounds.MaxSourceFacts)
-		bounds.MaxReducerDecisions = positiveOr(override.MaxReducerDecisions, bounds.MaxReducerDecisions)
-		bounds.MaxGraphAnswers = positiveOr(override.MaxGraphAnswers, bounds.MaxGraphAnswers)
-		bounds.MaxCitations = positiveOr(override.MaxCitations, bounds.MaxCitations)
-		bounds.MaxSemanticObservations = positiveOr(override.MaxSemanticObservations, bounds.MaxSemanticObservations)
+		// Overrides may only lower a cap. A caller cannot raise a cap above the
+		// contract default and thereby avoid truncation; raising requires a code
+		// change with performance evidence, not a per-call override.
+		bounds.MaxSourceFacts = clampBound(override.MaxSourceFacts, bounds.MaxSourceFacts)
+		bounds.MaxReducerDecisions = clampBound(override.MaxReducerDecisions, bounds.MaxReducerDecisions)
+		bounds.MaxGraphAnswers = clampBound(override.MaxGraphAnswers, bounds.MaxGraphAnswers)
+		bounds.MaxCitations = clampBound(override.MaxCitations, bounds.MaxCitations)
+		bounds.MaxSemanticObservations = clampBound(override.MaxSemanticObservations, bounds.MaxSemanticObservations)
+		bounds.MaxMissingEvidence = clampBound(override.MaxMissingEvidence, bounds.MaxMissingEvidence)
 	}
 	if len(packet.SourceFacts) > bounds.MaxSourceFacts {
 		packet.SourceFacts = packet.SourceFacts[:bounds.MaxSourceFacts]
@@ -284,6 +290,11 @@ func applyPacketBounds(packet *InvestigationEvidencePacket, override *PacketBoun
 		packet.SemanticObservations = packet.SemanticObservations[:bounds.MaxSemanticObservations]
 		bounds.Truncated = true
 		bounds.TruncatedLayers = append(bounds.TruncatedLayers, "semantic_observations")
+	}
+	if len(packet.MissingEvidence) > bounds.MaxMissingEvidence {
+		packet.MissingEvidence = packet.MissingEvidence[:bounds.MaxMissingEvidence]
+		bounds.Truncated = true
+		bounds.TruncatedLayers = append(bounds.TruncatedLayers, "missing_evidence")
 	}
 	return bounds
 }
@@ -345,11 +356,14 @@ func normalizeSubject(subject map[string]string) map[string]string {
 	return out
 }
 
-func positiveOr(value, fallback int) int {
-	if value > 0 {
-		return value
+// clampBound resolves a per-layer cap override. A non-positive override keeps the
+// default; a positive override is honored only when it lowers the cap, so an
+// override can never raise a cap above the contract default and avoid truncation.
+func clampBound(override, def int) int {
+	if override <= 0 || override > def {
+		return def
 	}
-	return fallback
+	return override
 }
 
 func dedupeStrings(in []string) []string {

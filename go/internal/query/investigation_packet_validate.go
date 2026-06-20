@@ -48,6 +48,9 @@ func validateInvestigationPacket(packet *InvestigationEvidencePacket) (PacketVal
 	missingOK, missingFail := missingHopsExplained(packet)
 	record("missing_hops_explained", missingOK, missingFail)
 
+	decisionsOK, decisionsFail := reducerDecisionsValid(packet)
+	record("reducer_decisions_valid", decisionsOK, decisionsFail)
+
 	validation := PacketValidation{Checks: checks}
 	if len(failures) > 0 {
 		validation.Status = "failed"
@@ -69,6 +72,12 @@ func boundsConsistent(packet *InvestigationEvidencePacket) (bool, string) {
 	}
 	if len(packet.Citations) > packet.Bounds.MaxCitations {
 		return false, "citations exceed bound"
+	}
+	if len(packet.MissingEvidence) > packet.Bounds.MaxMissingEvidence {
+		return false, "missing_evidence exceed bound"
+	}
+	if len(packet.SemanticObservations) > packet.Bounds.MaxSemanticObservations {
+		return false, "semantic_observations exceed bound"
 	}
 	return true, ""
 }
@@ -123,6 +132,19 @@ func sourceFactsTruncated(bounds PacketBounds) bool {
 		}
 	}
 	return false
+}
+
+// reducerDecisionsValid records that every reducer decision carries a recognized
+// admission-audit state and, when non-admitted, an explanatory reason. This is
+// the post-bounds recorded gate; referencesResolve enforces the same rule on the
+// full pre-truncation input.
+func reducerDecisionsValid(packet *InvestigationEvidencePacket) (bool, string) {
+	for i, decision := range packet.ReducerDecisions {
+		if ok, msg := validReducerDecision(decision); !ok {
+			return false, fmt.Sprintf("%s (index %d)", msg, i)
+		}
+	}
+	return true, ""
 }
 
 func missingHopsExplained(packet *InvestigationEvidencePacket) (bool, string) {

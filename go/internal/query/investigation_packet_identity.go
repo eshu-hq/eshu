@@ -91,14 +91,47 @@ func knownFactKeys(facts []PacketSourceFact) map[string]struct{} {
 	return known
 }
 
+// admissionAuditStates is the closed set of reducer-decision states a packet may
+// carry, matching the admission-audit vocabulary. Any other value is a contract
+// violation, so a typoed or unsupported state cannot pass validation.
+var admissionAuditStates = map[string]struct{}{
+	"admitted":          {},
+	"rejected":          {},
+	"ambiguous":         {},
+	"stale":             {},
+	"missing_evidence":  {},
+	"permission_hidden": {},
+	"unsupported":       {},
+	"unsafe":            {},
+}
+
+// validReducerDecision reports whether a reducer decision carries a recognized
+// admission-audit state and, for any non-admitted state, an explanatory reason.
+// A non-admitted decision without a reason is rejected so downstream auditors can
+// always interpret why a candidate was not admitted.
+func validReducerDecision(decision PacketReducerDecision) (bool, string) {
+	state := strings.TrimSpace(decision.State)
+	if state == "" {
+		return false, "reducer decision has no state"
+	}
+	if _, ok := admissionAuditStates[state]; !ok {
+		return false, fmt.Sprintf("reducer decision has unsupported state %q", state)
+	}
+	if state != "admitted" && strings.TrimSpace(decision.Reason) == "" {
+		return false, fmt.Sprintf("reducer decision with state %q has no reason", state)
+	}
+	return true, ""
+}
+
 // referencesResolve reports whether every source-fact reference from a reducer
 // decision or semantic observation resolves to a fact in known, and that every
-// decision carries a state. It is used pre-truncation against the full input so
-// a dangling reference is rejected before bounds can mask it.
+// decision carries a valid state and (when non-admitted) a reason. It is used
+// pre-truncation against the full input so a dangling reference or malformed
+// decision is rejected before bounds can mask it.
 func referencesResolve(known map[string]struct{}, decisions []PacketReducerDecision, semantic []PacketSemanticObservation) (bool, string) {
 	for i, decision := range decisions {
-		if strings.TrimSpace(decision.State) == "" {
-			return false, fmt.Sprintf("reducer decision %d has no state", i)
+		if ok, msg := validReducerDecision(decision); !ok {
+			return false, fmt.Sprintf("%s (index %d)", msg, i)
 		}
 		for _, ref := range decision.SourceFactIDs {
 			if _, ok := known[strings.TrimSpace(ref)]; !ok {
