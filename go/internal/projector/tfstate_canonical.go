@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -112,27 +111,6 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 		}
 	}
 	mat.TerraformStateModules = append(mat.TerraformStateModules, aggregateTerraformStateModuleRows(moduleRows)...)
-}
-
-func validateTerraformStateSchemaVersion(envelope facts.Envelope) error {
-	want, ok := facts.TerraformStateSchemaVersion(envelope.FactKind)
-	if !ok {
-		return nil
-	}
-	got := strings.TrimSpace(envelope.SchemaVersion)
-	if got == "" {
-		return fmt.Errorf("terraform state fact %q schema_version must not be blank", envelope.FactID)
-	}
-	if got != want {
-		return fmt.Errorf(
-			"terraform state fact %q schema_version %q is unsupported for %s; want %q",
-			envelope.FactID,
-			got,
-			envelope.FactKind,
-			want,
-		)
-	}
-	return nil
 }
 
 func terraformStateSnapshot(envelopes []facts.Envelope) terraformStateSnapshotContext {

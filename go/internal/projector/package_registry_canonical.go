@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -118,27 +117,6 @@ func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts
 			}
 		}
 	}
-}
-
-func validatePackageRegistrySchemaVersion(envelope facts.Envelope) error {
-	want, ok := facts.PackageRegistrySchemaVersion(envelope.FactKind)
-	if !ok {
-		return nil
-	}
-	got := strings.TrimSpace(envelope.SchemaVersion)
-	if got == "" {
-		return fmt.Errorf("package registry fact %q schema_version must not be blank", envelope.FactID)
-	}
-	if got != want {
-		return fmt.Errorf(
-			"package registry fact %q schema_version %q is unsupported for %s; want %q",
-			envelope.FactID,
-			got,
-			envelope.FactKind,
-			want,
-		)
-	}
-	return nil
 }
 
 func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageRow, bool) {

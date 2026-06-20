@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -46,18 +45,6 @@ func securityAlertReconciliationReason(envelope facts.Envelope) string {
 		return "package registry identity observed"
 	}
 	return "provider security alert evidence observed"
-}
-
-func validateSecurityAlertSchemaVersion(envelope facts.Envelope) error {
-	want, ok := facts.SecurityAlertSchemaVersion(envelope.FactKind)
-	if !ok {
-		return nil
-	}
-	got := strings.TrimSpace(envelope.SchemaVersion)
-	if got != want {
-		return fmt.Errorf("unsupported security alert schema_version %q for %s, want %s", got, envelope.FactKind, want)
-	}
-	return nil
 }
 
 func securityAlertSourceSystem(envelope facts.Envelope) string {

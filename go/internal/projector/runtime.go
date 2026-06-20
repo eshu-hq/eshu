@@ -205,25 +205,7 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		if err := validateFactBoundary(scopeValue, generation, fact); err != nil {
 			return projection{}, err
 		}
-		if err := validateTerraformStateSchemaVersion(fact); err != nil {
-			return projection{}, err
-		}
-		if err := validateOCIRegistrySchemaVersion(fact); err != nil {
-			return projection{}, err
-		}
-		if err := validatePackageRegistrySchemaVersion(fact); err != nil {
-			return projection{}, err
-		}
-		if err := validateServiceCatalogSchemaVersion(fact); err != nil {
-			return projection{}, err
-		}
-		if err := validateSecurityAlertSchemaVersion(fact); err != nil {
-			return projection{}, err
-		}
-		if err := validateObservabilitySchemaVersion(fact); err != nil {
-			return projection{}, err
-		}
-		if err := validateSecretsIAMSchemaVersion(fact); err != nil {
+		if err := validateFactSchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
 

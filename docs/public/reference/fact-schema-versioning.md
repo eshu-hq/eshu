@@ -80,6 +80,13 @@ The runtime must fail clearly when a collector or component emits a fact schema
 it does not support. It must not silently drop unknown meaning, invent missing
 values, or downgrade facts to an older semantic shape.
 
+The source-local projector enforces this for every core fact kind: before a fact
+is projected it calls `facts.ValidateSchemaVersion`, so a core-owned fact with an
+unsupported schema version is rejected uniformly through the central registry
+rather than only the few families that previously had hand-written validators.
+Fact kinds core does not own (out-of-tree component facts) pass through
+unchanged.
+
 For optional component packages, local manifest validation checks declared fact
 kinds, schema versions, collector kinds, source-confidence values, compatible
 core range, and digest-pinned artifacts. Current local component trust policy is

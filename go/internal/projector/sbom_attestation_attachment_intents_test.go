@@ -20,10 +20,11 @@ func TestBuildProjectionQueuesSBOMAttestationAttachmentForSBOMDocument(t *testin
 		GenerationID: "generation-sbom",
 	}
 	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
-		FactID:       "fact-sbom-doc",
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
-		FactKind:     facts.SBOMDocumentFactKind,
+		FactID:        "fact-sbom-doc",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.SBOMDocumentFactKind,
+		SchemaVersion: facts.SBOMAttestationSchemaVersionV1,
 		SourceRef: facts.Ref{
 			SourceSystem: "sbom_attestation",
 		},
@@ -68,6 +69,7 @@ func TestBuildProjectionQueuesSBOMAttestationAttachmentForAttestationStatement(t
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
 		FactKind:      facts.AttestationStatementFactKind,
+		SchemaVersion: facts.SBOMAttestationSchemaVersionV1,
 		CollectorKind: "sbom_attestation",
 		Payload: map[string]any{
 			"statement_id":     "statement-team-api",

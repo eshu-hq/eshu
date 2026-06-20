@@ -1,8 +1,6 @@
 package projector
 
 import (
-	"fmt"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -47,22 +45,6 @@ func observabilityCoverageCorrelationReason(envelope facts.Envelope) string {
 		return "aws observability resource facts observed"
 	}
 	return "observability source facts observed"
-}
-
-func validateObservabilitySchemaVersion(envelope facts.Envelope) error {
-	want, ok := facts.ObservabilitySchemaVersion(envelope.FactKind)
-	if !ok {
-		return nil
-	}
-	if envelope.SchemaVersion != want {
-		return fmt.Errorf(
-			"unsupported observability schema version for %s: got %q want %q",
-			envelope.FactKind,
-			envelope.SchemaVersion,
-			want,
-		)
-	}
-	return nil
 }
 
 func observabilitySourceSystem(envelope facts.Envelope) string {

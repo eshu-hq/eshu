@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -32,18 +31,6 @@ func buildSecretsIAMTrustChainReducerIntent(
 		}, true
 	}
 	return ReducerIntent{}, false
-}
-
-func validateSecretsIAMSchemaVersion(envelope facts.Envelope) error {
-	want, ok := facts.SecretsIAMSchemaVersion(envelope.FactKind)
-	if !ok {
-		return nil
-	}
-	got := strings.TrimSpace(envelope.SchemaVersion)
-	if got != want {
-		return fmt.Errorf("unsupported secrets/IAM schema_version %q for %s, want %s", got, envelope.FactKind, want)
-	}
-	return nil
 }
 
 func secretsIAMSourceSystem(envelope facts.Envelope) string {

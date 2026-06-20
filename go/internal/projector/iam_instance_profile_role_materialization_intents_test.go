@@ -98,10 +98,11 @@ func TestBuildProjectionDoesNotQueueIAMInstanceProfileRoleWithoutProfile(t *test
 
 	scopeValue, generation := iamInstanceProfileRoleScopeAndGeneration()
 	envelopes := []facts.Envelope{{
-		FactID:       "fact-role",
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
-		FactKind:     facts.AWSResourceFactKind,
+		FactID:        "fact-role",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.AWSResourceFactKind,
+		SchemaVersion: facts.AWSResourceSchemaVersion,
 		Payload: map[string]any{
 			"resource_type": "aws_iam_role",
 			"arn":           "arn:aws:iam::123456789012:role/app",

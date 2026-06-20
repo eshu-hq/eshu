@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -29,27 +28,6 @@ func buildServiceCatalogCorrelationReducerIntent(
 		}, true
 	}
 	return ReducerIntent{}, false
-}
-
-func validateServiceCatalogSchemaVersion(envelope facts.Envelope) error {
-	want, ok := facts.ServiceCatalogSchemaVersion(envelope.FactKind)
-	if !ok {
-		return nil
-	}
-	got := strings.TrimSpace(envelope.SchemaVersion)
-	if got == "" {
-		return fmt.Errorf("service catalog fact %q schema_version must not be blank", envelope.FactID)
-	}
-	if got != want {
-		return fmt.Errorf(
-			"service catalog fact %q schema_version %q is unsupported for %s; want %q",
-			envelope.FactID,
-			got,
-			envelope.FactKind,
-			want,
-		)
-	}
-	return nil
 }
 
 func serviceCatalogCorrelationSourceSystem(
