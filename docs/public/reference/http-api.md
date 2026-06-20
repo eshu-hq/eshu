@@ -123,12 +123,14 @@ bad JSON) are returned as plain JSON with the appropriate HTTP status code
 503 (disabled or provider absent). The engine never echoes provider prompts,
 raw provider bodies, or credentials.
 
-**Authentication:** This endpoint requires a **shared token** (admin/full-scope
-`ESHU_API_KEY`). Scoped tokens are not yet enabled for this route and receive
-`403 permission_denied`. Scoped-token support is a planned follow-up.
+**Authentication:** Accepts both **shared tokens** (admin/full-scope
+`ESHU_API_KEY`) and **scoped tokens**. When a scoped token is used, the
+engine's in-process MCP runner dispatches every inner tool call under the
+caller's own Authorization header, so answers are bounded to the caller's
+repository grant and inner reads cannot exceed the caller's scope.
 
 **Follow-ups (out of scope for this PR):** per-token SSE streaming; Tier-2
-Cypher/SQL sandbox wiring; scoped-token support.
+Cypher/SQL sandbox wiring.
 
 ## Related References
 
