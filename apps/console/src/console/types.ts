@@ -19,6 +19,8 @@ export type { CollectorReadinessRow };
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type UiTruth = "exact" | "derived" | "inferred";
 export type UiFresh = "fresh" | "lagging" | "stale";
+export type RelationshipConfidenceTier = "high" | "medium" | "low" | "unsupported";
+export type RelationshipTruthState = "derived" | "heuristic" | "unsupported";
 
 export type GraphLayer = "code" | "deploy" | "infra" | "runtime" | "security" | "ops";
 
@@ -51,6 +53,10 @@ export interface GraphEdge {
   readonly verb: string;
   readonly layer: GraphLayer;
   readonly evidence?: readonly string[];
+  readonly confidenceTier?: RelationshipConfidenceTier;
+  readonly truthState?: RelationshipTruthState;
+  readonly sourceFamily?: string;
+  readonly method?: string;
 }
 
 export interface GraphModel {

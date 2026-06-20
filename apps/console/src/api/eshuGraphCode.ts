@@ -1,4 +1,7 @@
-import type { GraphEdge, GraphLayer, GraphModel, GraphNode, GraphSourceLocation } from "../console/types";
+import type {
+  GraphEdge, GraphLayer, GraphModel, GraphNode, GraphSourceLocation,
+  RelationshipConfidenceTier, RelationshipTruthState
+} from "../console/types";
 
 const VERB_LAYER: Record<string, GraphLayer> = {
   CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
@@ -9,7 +12,7 @@ const VERB_LAYER: Record<string, GraphLayer> = {
 };
 
 interface CodeRelEdge {
-  readonly type?: string;
+  readonly type?: string; readonly direction?: string;
   readonly source_id?: string; readonly source_name?: string;
   readonly target_id?: string; readonly target_name?: string;
   readonly repo_id?: string; readonly repo_name?: string; readonly file_path?: string;
@@ -18,6 +21,16 @@ interface CodeRelEdge {
   readonly source_start_line?: number; readonly source_end_line?: number; readonly source_type?: string;
   readonly target_repo_id?: string; readonly target_repo_name?: string; readonly target_file_path?: string;
   readonly target_start_line?: number; readonly target_end_line?: number; readonly target_type?: string;
+  readonly provenance?: CodeRelationshipProvenance;
+}
+
+export interface CodeRelationshipProvenance {
+  readonly confidence?: number;
+  readonly confidence_tier?: RelationshipConfidenceTier;
+  readonly truth_state?: RelationshipTruthState;
+  readonly source_family?: string;
+  readonly method?: string;
+  readonly reason?: string;
 }
 
 /**
@@ -29,6 +42,18 @@ export interface CodeRelationshipsResponse {
   readonly repo_id?: string; readonly repo_name?: string; readonly file_path?: string;
   readonly start_line?: number; readonly end_line?: number;
   readonly incoming?: readonly CodeRelEdge[]; readonly outgoing?: readonly CodeRelEdge[];
+}
+
+export interface CodeRelationshipStoryCoverage {
+  readonly missing_edge_reason?: string;
+  readonly truncation_state?: string;
+  readonly evidence_explanation?: string;
+}
+
+export interface CodeRelationshipStoryResponse {
+  readonly entity_id?: string; readonly name?: string; readonly labels?: readonly string[];
+  readonly relationships?: readonly CodeRelEdge[];
+  readonly coverage?: CodeRelationshipStoryCoverage;
 }
 
 /**
@@ -86,6 +111,86 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
     edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
   });
   return { nodes: [...nodes.values()], edges };
+}
+
+export function codeRelationshipStoryToGraph(
+  data: CodeRelationshipStoryResponse,
+  fallback: { readonly id: string; readonly name: string }
+): { readonly graph: GraphModel; readonly coverage?: CodeRelationshipStoryCoverage } {
+  const centerId = data.entity_id ?? fallback.id;
+  const centerType = data.labels?.[0];
+  const nodes = new Map<string, GraphNode>();
+  nodes.set(centerId, {
+    id: centerId,
+    kind: kindFor(centerType),
+    label: data.name ?? fallback.name,
+    sub: centerType,
+    col: 1,
+    hero: true,
+    truth: "exact"
+  });
+  const edges: GraphEdge[] = [];
+  (data.relationships ?? []).forEach((edge) => {
+    const direction = (edge.direction ?? "outgoing").toLowerCase() === "incoming" ? "incoming" : "outgoing";
+    const otherId = direction === "incoming" ? edge.source_id ?? edge.source_name : edge.target_id ?? edge.target_name;
+    if (!otherId) return;
+    const verb = (edge.type ?? "RELATED").toUpperCase();
+    if (otherId !== centerId && !nodes.has(otherId)) {
+      nodes.set(otherId, {
+        id: otherId,
+        kind: storyRelationshipNodeKind(edge, direction, verb),
+        label: direction === "incoming" ? edge.source_name ?? otherId : edge.target_name ?? otherId,
+        sub: storyRelationshipNodeSub(edge, direction, verb),
+        col: direction === "incoming" ? 0 : 2,
+        truth: "exact",
+        source: sourceLocationFromEdge(edge, direction === "incoming" ? "source" : "target")
+      });
+    }
+    edges.push(withRelationshipProvenance(direction === "incoming"
+      ? { s: otherId, t: centerId, verb, layer: layerFor(verb) }
+      : { s: centerId, t: otherId, verb, layer: layerFor(verb) }, edge.provenance));
+  });
+  return { graph: { nodes: [...nodes.values()], edges }, coverage: data.coverage };
+}
+
+export function mergeGraphSourceMetadata(primary: GraphModel, sourceGraph: GraphModel): GraphModel {
+  const sourcesById = new Map(sourceGraph.nodes.map((node) => [node.id, node.source]));
+  return {
+    nodes: primary.nodes.map((node) => node.source ? node : { ...node, source: sourcesById.get(node.id) }),
+    edges: primary.edges
+  };
+}
+
+function storyRelationshipNodeKind(edge: CodeRelEdge, direction: "incoming" | "outgoing", verb: string): string {
+  const type = direction === "incoming" ? edge.source_type : edge.target_type;
+  return type ? kindFor(type) : relationshipNodeKind(verb);
+}
+
+function storyRelationshipNodeSub(edge: CodeRelEdge, direction: "incoming" | "outgoing", verb: string): string {
+  const type = direction === "incoming" ? edge.source_type : edge.target_type;
+  return type ?? relationshipNodeSub(verb, direction);
+}
+
+function withRelationshipProvenance(edge: GraphEdge, provenance: CodeRelationshipProvenance | undefined): GraphEdge {
+  if (!provenance) return edge;
+  return {
+    ...edge,
+    confidenceTier: provenance.confidence_tier,
+    truthState: provenance.truth_state,
+    sourceFamily: provenance.source_family,
+    method: provenance.method,
+    evidence: relationshipEvidence(provenance)
+  };
+}
+
+function relationshipEvidence(provenance: CodeRelationshipProvenance): readonly string[] {
+  return [
+    provenance.confidence_tier ? `confidence: ${provenance.confidence_tier}` : "",
+    provenance.truth_state ? `truth: ${provenance.truth_state}` : "",
+    provenance.source_family ? `source: ${provenance.source_family}` : "",
+    provenance.method ? `method: ${provenance.method}` : "",
+    provenance.reason ? `reason: ${provenance.reason}` : ""
+  ].filter((value): value is string => value !== "");
 }
 
 function layerFor(verb: string): GraphLayer {

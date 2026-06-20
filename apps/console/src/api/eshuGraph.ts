@@ -13,7 +13,14 @@ import { resolveEntity } from "./entityResolution";
 import { codeRelationshipsToGraph, type CodeRelationshipsResponse } from "./eshuGraphCode";
 
 export { loadBlastGraph, blastFromModel } from "./eshuGraphImpact";
-export { codeRelationshipsToGraph, type CodeRelationshipsResponse } from "./eshuGraphCode";
+export {
+  codeRelationshipStoryToGraph,
+  codeRelationshipsToGraph,
+  mergeGraphSourceMetadata,
+  type CodeRelationshipStoryCoverage,
+  type CodeRelationshipStoryResponse,
+  type CodeRelationshipsResponse
+} from "./eshuGraphCode";
 
 const VERB_LAYER: Record<string, GraphLayer> = {
   CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
