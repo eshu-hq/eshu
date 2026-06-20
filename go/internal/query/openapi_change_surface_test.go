@@ -61,6 +61,13 @@ func TestOpenAPIPreChangeImpactDocumentsWorkflow(t *testing.T) {
 	content := mustMapField(t, requestBody, "content")
 	mediaType := mustMapField(t, content, "application/json")
 	schema := mustMapField(t, mediaType, "schema")
+	anyOf, ok := schema["anyOf"].([]any)
+	if !ok {
+		t.Fatalf("pre-change request anyOf type = %T, want []any", schema["anyOf"])
+	}
+	if openAPIAnyOfRequires(anyOf, "base_ref") || openAPIAnyOfRequires(anyOf, "head_ref") {
+		t.Fatal("pre-change request anyOf must not accept refs without changed input")
+	}
 	properties := mustMapField(t, schema, "properties")
 	for _, key := range []string{"repo_id", "base_ref", "head_ref", "changed_paths", "changes"} {
 		if _, ok := properties[key]; !ok {
@@ -88,6 +95,9 @@ func TestOpenAPIPreChangeImpactDocumentsWorkflow(t *testing.T) {
 	}
 	if _, ok := responses["501"]; !ok {
 		t.Fatal("pre-change route must document unsupported capability response")
+	}
+	if _, ok := responses["503"]; !ok {
+		t.Fatal("pre-change route must document backend-unavailable response")
 	}
 }
 

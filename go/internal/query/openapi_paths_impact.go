@@ -333,20 +333,18 @@ const openAPIPathsImpact = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "Provide changed_paths or changes with repo_id, base/head refs for provenance, or an explicit graph target/topic.",
+                "description": "Provide changed_paths or changes with repo_id, optionally including base/head refs as provenance for that caller-derived diff, or provide an explicit graph target/topic.",
                 "anyOf": [
                   {"required": ["changed_paths", "repo_id"]},
                   {"required": ["changes", "repo_id"]},
-                  {"required": ["base_ref"]},
-                  {"required": ["head_ref"]},
                   {"required": ["target"]},
                   {"required": ["service_name"]},
                   {"required": ["topic"]}
                 ],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Repository selector for changed-path lookup"},
-                  "base_ref": {"type": "string", "description": "Git base ref used by the caller to derive the diff"},
-                  "head_ref": {"type": "string", "description": "Git head ref used by the caller to derive the diff"},
+                  "base_ref": {"type": "string", "description": "Git base ref used by the caller to derive the supplied changed_paths or changes"},
+                  "head_ref": {"type": "string", "description": "Git head ref used by the caller to derive the supplied changed_paths or changes"},
                   "changed_paths": {"type": "array", "description": "Repo-relative changed paths treated as modified files", "items": {"type": "string"}},
                   "changes": {
                     "type": "array",

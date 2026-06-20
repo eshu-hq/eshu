@@ -531,13 +531,16 @@ extra row, and return `truncated`.
 
 `/impact/pre-change` is the pre-change workflow entrypoint over the same
 change-surface evidence. It accepts `changed_paths` or structured `changes`
-with `repo_id`, optional `base_ref`/`head_ref` provenance, and the same optional
-target/topic fields as change-surface investigation. Paths must be
+with `repo_id`, optional `base_ref`/`head_ref` provenance for that
+caller-derived diff, and the same optional target/topic fields as change-surface
+investigation. Refs alone do not trigger server-side diff derivation; callers
+must send `changed_paths`/`changes` or a target/topic. Paths must be
 repo-relative; absolute paths and parent traversal fail with `400`. The response
 preserves added, modified, deleted, renamed, and copied file statuses, reports
 deleted or unmatched paths under `missing_evidence`, carries coverage and
 truncation fields, and includes `answer_metadata` plus an AnswerPacket-shaped
-`answer_packet`. Unsupported profiles fail closed with `501`.
+`answer_packet`. Unsupported profiles fail closed with `501`, and unavailable
+content-backed code-surface evidence returns `503`.
 
 `/impact/entity-map` requires `from` and accepts `from_type`, `repo_id`,
 `environment`, `relationship`, `depth`, and `limit`. `depth` defaults to 1 and
