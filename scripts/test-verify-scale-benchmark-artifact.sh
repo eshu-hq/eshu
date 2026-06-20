@@ -109,6 +109,16 @@ valid="${tmp_root}/valid.json"
 write_valid_artifact "${valid}"
 expect_pass "${valid}"
 
+numeric_commit="${tmp_root}/numeric-commit.json"
+jq '
+	.run.commit = "123456789012abcdefabcdefabcdefabcdefabcd" |
+	.comparison.optimization_claimed = true |
+	.comparison.baseline_commit = "210987654321abcdefabcdefabcdefabcdefabcd" |
+	.comparison.baseline_artifact = "scale-benchmark-baseline" |
+	.comparison.result = "no_regression"
+' "${valid}" >"${numeric_commit}"
+expect_pass "${numeric_commit}"
+
 missing_commit="${tmp_root}/missing-commit.json"
 jq 'del(.run.commit)' "${valid}" >"${missing_commit}"
 expect_fail "${missing_commit}" "missing required benchmark evidence: run.commit"

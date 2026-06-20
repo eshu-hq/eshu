@@ -88,7 +88,12 @@ validate_privacy_json() {
 	' "${file}" >/dev/null \
 		|| die "artifact looks like private data; forbidden private-looking keys are not accepted"
 
-	if jq -r '.. | strings' "${file}" | rg --quiet "${private_value_pattern}"; then
+	if jq -r '
+		paths(strings) as $path
+		| select($path != ["run", "commit"])
+		| select($path != ["comparison", "baseline_commit"])
+		| getpath($path)
+	' "${file}" | rg --quiet "${private_value_pattern}"; then
 		die "artifact looks like private data; only aggregate counts, status enums, and public issue refs are accepted"
 	fi
 }
