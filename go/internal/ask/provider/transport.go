@@ -76,9 +76,10 @@ func (t *transport) postJSON(ctx context.Context, url string, headers map[string
 		}
 
 		if statusCode >= 200 && statusCode < 300 {
-			defer resp.Body.Close()
-			if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-				return fmt.Errorf("ask/provider: decode response: %w", err)
+			decErr := json.NewDecoder(resp.Body).Decode(out)
+			drainAndClose(resp.Body)
+			if decErr != nil {
+				return fmt.Errorf("ask/provider: decode response: %w", decErr)
 			}
 			return nil
 		}

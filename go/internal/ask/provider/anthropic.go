@@ -105,11 +105,7 @@ func (a *anthropicAdapter) buildRequest(messages []Message, tools []Tool) anthro
 
 	// Map tools to the Anthropic tool definition shape.
 	for _, tool := range tools {
-		req.Tools = append(req.Tools, anthropicTool{
-			Name:        tool.Name,
-			Description: tool.Description,
-			InputSchema: tool.InputSchema,
-		})
+		req.Tools = append(req.Tools, anthropicTool(tool))
 	}
 
 	return req

@@ -42,6 +42,7 @@ func workloadCred() semanticprofile.CredentialSource {
 }
 
 func TestNewAdapter_MissingAgentReasoningSourceClass(t *testing.T) {
+	t.Parallel()
 	profile := semanticprofile.ProviderProfile{
 		ProfileID:    "test-anthropic",
 		ProviderKind: semanticprofile.ProviderAnthropic,
@@ -63,6 +64,7 @@ func TestNewAdapter_MissingAgentReasoningSourceClass(t *testing.T) {
 }
 
 func TestNewAdapter_AnthropicProfile(t *testing.T) {
+	t.Parallel()
 	const model = "claude-3-5-sonnet-20241022"
 	profile := agentReasoningProfile(
 		semanticprofile.ProviderAnthropic,
@@ -84,6 +86,7 @@ func TestNewAdapter_AnthropicProfile(t *testing.T) {
 }
 
 func TestNewAdapter_BedrockProfile(t *testing.T) {
+	t.Parallel()
 	const model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 	profile := agentReasoningProfile(
 		semanticprofile.ProviderBedrock,
@@ -104,7 +107,27 @@ func TestNewAdapter_BedrockProfile(t *testing.T) {
 	}
 }
 
+func TestNewAdapter_BedrockProfile_NoEndpoint_Error(t *testing.T) {
+	t.Parallel()
+	const model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+	profile := agentReasoningProfile(
+		semanticprofile.ProviderBedrock,
+		model,
+		"", // no EndpointProfileID — must error for bedrock
+		workloadCred(),
+	)
+
+	_, err := NewAdapter(profile, staticEnv(map[string]string{}))
+	if err == nil {
+		t.Fatal("NewAdapter: expected error for bedrock profile without endpoint, got nil")
+	}
+	if !strings.Contains(err.Error(), "endpoint_profile_id") {
+		t.Errorf("NewAdapter: error %q does not mention endpoint_profile_id", err.Error())
+	}
+}
+
 func TestNewAdapter_MiniMaxProfile_DefaultEndpoint(t *testing.T) {
+	t.Parallel()
 	const model = "MiniMax-Text-01"
 	profile := agentReasoningProfile(
 		semanticprofile.ProviderMiniMax,
@@ -126,6 +149,7 @@ func TestNewAdapter_MiniMaxProfile_DefaultEndpoint(t *testing.T) {
 }
 
 func TestNewAdapter_DeepSeekProfile_DefaultEndpoint(t *testing.T) {
+	t.Parallel()
 	const model = "deepseek-chat"
 	profile := agentReasoningProfile(
 		semanticprofile.ProviderDeepSeek,
@@ -147,6 +171,7 @@ func TestNewAdapter_DeepSeekProfile_DefaultEndpoint(t *testing.T) {
 }
 
 func TestNewAdapter_OpenAICompatible_NoEndpoint_Error(t *testing.T) {
+	t.Parallel()
 	profile := agentReasoningProfile(
 		semanticprofile.ProviderOpenAICompatible,
 		"gpt-4o",
@@ -164,6 +189,7 @@ func TestNewAdapter_OpenAICompatible_NoEndpoint_Error(t *testing.T) {
 }
 
 func TestNewAdapter_Gemini_NoEndpoint_Error(t *testing.T) {
+	t.Parallel()
 	profile := agentReasoningProfile(
 		semanticprofile.ProviderGemini,
 		"gemini-1.5-pro",
@@ -181,6 +207,7 @@ func TestNewAdapter_Gemini_NoEndpoint_Error(t *testing.T) {
 }
 
 func TestNewAdapter_OpenAICompatible_WithEndpoint(t *testing.T) {
+	t.Parallel()
 	const model = "gpt-4o"
 	profile := agentReasoningProfile(
 		semanticprofile.ProviderOpenAICompatible,
@@ -202,6 +229,7 @@ func TestNewAdapter_OpenAICompatible_WithEndpoint(t *testing.T) {
 }
 
 func TestNewAdapter_UnknownProviderKind_Error(t *testing.T) {
+	t.Parallel()
 	profile := agentReasoningProfile(
 		"hypothetical_future_provider",
 		"some-model",

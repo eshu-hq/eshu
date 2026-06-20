@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -135,7 +136,7 @@ func TestAnthropicCompletePropagatesProviderError(t *testing.T) {
 	if provErr.StatusCode != http.StatusInternalServerError {
 		t.Errorf("StatusCode: got %d, want 500", provErr.StatusCode)
 	}
-	if contains(err.Error(), secretBody) {
+	if strings.Contains(err.Error(), secretBody) {
 		t.Errorf("error must not contain response body text; got: %q", err.Error())
 	}
 	// Completion should be zero-valued.

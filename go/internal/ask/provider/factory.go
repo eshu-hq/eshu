@@ -32,9 +32,11 @@ const defaultDeepSeekBaseURL = "https://api.deepseek.com"
 //     an explicit endpoint (all other OpenAI-compatible kinds).
 //
 // Adapter routing:
-//   - anthropic, bedrock      → Anthropic Messages API adapter (newAnthropicAdapter).
-//     Bedrock exposes the same Anthropic tool-use wire shape. The adapter
-//     defaults to the Anthropic production endpoint when EndpointProfileID is empty.
+//   - anthropic               → Anthropic Messages API adapter (newAnthropicAdapter).
+//     Defaults to https://api.anthropic.com when EndpointProfileID is empty.
+//   - bedrock                 → Anthropic Messages API adapter (newAnthropicAdapter).
+//     Bedrock exposes the same wire shape but has no single public endpoint.
+//     EndpointProfileID is required; an empty value returns an error.
 //   - openai_compatible,
 //     gemini, azure_openai,
 //     ollama, internal_gateway → OpenAI-compatible adapter (newOpenAICompatAdapter).
@@ -64,9 +66,17 @@ func NewAdapter(profile semanticprofile.ProviderProfile, getenv func(string) str
 	endpoint := profile.EndpointProfileID
 
 	switch profile.ProviderKind {
-	case semanticprofile.ProviderAnthropic, semanticprofile.ProviderBedrock:
+	case semanticprofile.ProviderAnthropic:
 		// newAnthropicAdapter defaults to the Anthropic production endpoint
 		// when baseURL is empty, so we pass endpoint as-is.
+		return newAnthropicAdapter(endpoint, cred, profile.ModelID, nil), nil
+
+	case semanticprofile.ProviderBedrock:
+		// Bedrock does not have a single public endpoint; the caller must
+		// supply an explicit regional base URL via endpoint_profile_id.
+		if endpoint == "" {
+			return nil, fmt.Errorf("ask/provider: bedrock provider requires an explicit endpoint_profile_id base URL")
+		}
 		return newAnthropicAdapter(endpoint, cred, profile.ModelID, nil), nil
 
 	case semanticprofile.ProviderMiniMax:

@@ -2,12 +2,14 @@ package provider
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 )
 
 func TestResolveCredential(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		src     semanticprofile.CredentialSource
@@ -104,6 +106,7 @@ func TestResolveCredential(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			getenv := func(k string) string {
 				return tt.env[k]
 			}
@@ -122,15 +125,12 @@ func TestResolveCredential(t *testing.T) {
 				t.Errorf("resolveCredential() = %q, want %q", got, tt.want)
 			}
 
-			// For env var errors, verify the error message does not contain secret values
+			// For env var errors, verify the error message does not contain secret values.
 			if tt.wantErr && tt.src.Kind == semanticprofile.CredentialSourceEnvironmentVariable {
 				if err != nil {
-					errMsg := err.Error()
-					// Error should mention the var name but not a secret value from env
-					if tt.src.Handle != "" && tt.env[tt.src.Handle] != "" {
-						if errMsg == tt.env[tt.src.Handle] {
-							t.Errorf("resolveCredential() error message contains secret value: %q", errMsg)
-						}
+					secret := tt.env[tt.src.Handle]
+					if secret != "" && strings.Contains(err.Error(), secret) {
+						t.Errorf("resolveCredential() error message contains secret value: %q", err.Error())
 					}
 				}
 			}

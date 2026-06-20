@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -107,21 +108,7 @@ func TestPostJSONReturnsProviderErrorOn400WithoutBody(t *testing.T) {
 	if provErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected StatusCode 400, got %d", provErr.StatusCode)
 	}
-	if msg := provErr.Error(); contains(msg, secretBody) {
+	if msg := provErr.Error(); strings.Contains(msg, secretBody) {
 		t.Fatalf("error message must not contain secret body; got: %q", msg)
 	}
-}
-
-// contains is a simple substring check used to keep the test readable.
-func contains(s, sub string) bool {
-	return len(sub) > 0 && len(s) >= len(sub) && findSubstr(s, sub)
-}
-
-func findSubstr(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
