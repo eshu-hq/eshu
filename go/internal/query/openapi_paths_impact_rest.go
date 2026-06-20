@@ -169,7 +169,7 @@ const openAPIPathsImpactRest = `
                     "blocked": {"type": "boolean"},
                     "truncated": {"type": "boolean"},
                     "pre_change_summary": {"type": "object"},
-                    "pre_change_impact_ref": {"type": "object"},
+                    "pre_change_impact_ref": {"type": "string"},
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with evidence handles, missing evidence, limitations, truncation, coverage, partial reasons, and next calls."},
                     "answer_packet": {"type": "object", "description": "AnswerPacket-shaped developer change plan response for agent workflows."}
                   }

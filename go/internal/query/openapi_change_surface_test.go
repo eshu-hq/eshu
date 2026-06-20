@@ -143,6 +143,10 @@ func TestOpenAPIDeveloperChangePlanDocumentsWorkflow(t *testing.T) {
 			t.Fatalf("developer change plan response schema missing %q", key)
 		}
 	}
+	ref := mustMapField(t, okProperties, "pre_change_impact_ref")
+	if got, want := ref["type"], "string"; got != want {
+		t.Fatalf("pre_change_impact_ref type = %#v, want %#v", got, want)
+	}
 	if _, ok := responses["501"]; !ok {
 		t.Fatal("developer change plan route must document unsupported capability response")
 	}
