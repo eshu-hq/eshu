@@ -73,6 +73,9 @@ func (v *indexVerifier) validateCompatibilityBadge(prefix, componentID string, e
 	if strings.TrimSpace(badge.ManifestDigest) != "" && badge.ManifestDigest != entry.ManifestDigest {
 		v.add(IssueMissingCompatibilityBadge, fieldPrefix+".manifestDigest", componentID, "badge manifest digest must match entry manifest digest")
 	}
+	if strings.TrimSpace(badge.ArtifactDigest) != "" && !artifactDigestMatches(entry.Artifacts, badge.ArtifactDigest) {
+		v.add(IssueMissingCompatibilityBadge, fieldPrefix+".artifactDigest", componentID, "badge artifact digest must match a pinned entry artifact digest")
+	}
 	if strings.TrimSpace(badge.CompatibleCore) != "" && badge.CompatibleCore != entry.CompatibleCore {
 		v.add(IssueMissingCompatibilityBadge, fieldPrefix+".compatibleCore", componentID, "badge compatible core must match entry compatible core")
 	}
@@ -127,6 +130,28 @@ func hasPlaceholderArtifactDigest(image string) bool {
 		return false
 	}
 	return hasPlaceholderDigest("sha256:" + image[index+len(marker):])
+}
+
+func artifactDigestMatches(artifacts []ArtifactRef, digest string) bool {
+	trimmed := strings.TrimSpace(digest)
+	if trimmed == "" {
+		return false
+	}
+	for _, artifact := range artifacts {
+		if artifactDigest(artifact.Image) == trimmed {
+			return true
+		}
+	}
+	return false
+}
+
+func artifactDigest(image string) string {
+	marker := "@sha256:"
+	index := strings.LastIndex(image, marker)
+	if index < 0 {
+		return ""
+	}
+	return "sha256:" + image[index+len(marker):]
 }
 
 func hasPlaceholderDigest(digest string) bool {

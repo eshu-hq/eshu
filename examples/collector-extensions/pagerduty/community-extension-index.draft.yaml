@@ -23,7 +23,7 @@ entries:
         schemaVersions:
           - 1.0.0
         sourceConfidence:
-          - observed
+          - reported
       - kind: dev.eshu.examples.pagerduty.change
         schemaVersions:
           - 1.0.0
@@ -33,17 +33,17 @@ entries:
         schemaVersions:
           - 1.0.0
         sourceConfidence:
-          - observed
+          - reported
       - kind: dev.eshu.examples.pagerduty.observed_integration
         schemaVersions:
           - 1.0.0
         sourceConfidence:
-          - observed
+          - reported
       - kind: dev.eshu.examples.pagerduty.coverage_warning
         schemaVersions:
           - 1.0.0
         sourceConfidence:
-          - inferred
+          - reported
     consumerContracts:
       reducer:
         phases:

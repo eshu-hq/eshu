@@ -295,6 +295,14 @@ func TestValidateRejectsPublishedDraftReadinessClaims(t *testing.T) {
 			},
 			code: IssueMissingConformanceProof,
 		},
+		{
+			name: "badge artifact digest mismatch",
+			mut: func(entry *Entry) {
+				*entry = publishableReadinessEntry()
+				entry.CompatibilityBadge.ArtifactDigest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+			},
+			code: IssueMissingCompatibilityBadge,
+		},
 	}
 
 	for _, tt := range tests {
