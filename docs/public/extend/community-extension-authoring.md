@@ -210,10 +210,10 @@ internal envelopes, and then lets `collector.ClaimedService` commit or mutate
 the workflow claim under the existing fence. Extensions never receive direct
 Postgres, graph, reducer, API, MCP, or workflow-control handles.
 
-The first host adapter path proves local process execution and validation. It
-does not make hosted OCI activation, provenance verification, Helm defaults, or
-remote Compose rollout complete; those remain gated by the follow-up extension
-conformance, reference package, and remote proof issues.
+The host adapter path proves process and digest-pinned OCI execution contracts
+under the extension host. It does not make hosted provenance verification, Helm
+defaults, or remote Compose rollout complete; those remain gated by the
+publication policy, reference package, and remote proof issues.
 
 ## Local Experimentation Versus Hosted Activation
 
@@ -247,6 +247,31 @@ performance, and observability evidence in addition to local manifest success.
 
 Use this checklist when triaging an extension PR.
 
+### Publication Review Responsibilities
+
+- Confirm the package boundary is eligible for community index publication and
+  does not rely on index membership as runtime trust.
+- Verify the compatibility badge is generated from manifest, signature,
+  provenance, conformance, and policy metadata rather than hand-written copy.
+- Review malicious-package behavior: unallowlisted IDs and publishers, mutable
+  artifact tags, undeclared egress, credential-looking payload keys, and direct
+  store or graph handles fail closed before activation.
+- Review stale-signature behavior: digest mismatches, missing SLSA provenance,
+  unsupported attestation predicates, wrong certificate identity, and wrong OIDC
+  issuer produce blocked diagnostics instead of installable badges.
+- Review compromised-publisher behavior: publisher and component revocation
+  override allowlists, installed state, enabled instances, index membership,
+  and prior successful verification.
+- Review schema-collision behavior: core-owned fact kinds, non-namespaced fact
+  kinds, incompatible schema-version majors, undeclared emitted facts, and
+  duplicate fact-kind ownership by another component fail before publication or
+  hosted activation.
+- Confirm hosted enablement is reviewed separately from local experimental
+  install, including egress, resource limits, credential references, isolation
+  profile, tenant scope, and revocation response.
+- Record which reviewer accepted each blocking class and which proof artifact
+  supports publication, hosted activation, or both.
+
 ### Scope And Ownership
 
 - The PR names exactly one primary boundary: collector, parser, relationship,
@@ -272,8 +297,8 @@ Use this checklist when triaging an extension PR.
   `strict` requires the expected Sigstore certificate identity and OIDC issuer,
   and fails closed when signatures or supported attestations are absent.
 - Revocation behavior is documented for component ID and publisher.
-- Hosted activation is opt-in and does not imply OCI pull or Cosign
-  verification unless the deployment path explicitly configures strict trust.
+- Hosted activation is opt-in. Process execution, OCI execution, and Cosign
+  verification must each be enabled by explicit deployment policy and proof.
 - Any hosted collector has read-only credentials, bounded targets, retry and
   dead-letter behavior, resource limits, and operator status surfaces.
 
@@ -335,9 +360,10 @@ Use this checklist when triaging an extension PR.
   telemetry, privacy posture, and verification gates.
 - Contract changes link to the relevant reference pages rather than duplicating
   stale copies.
-- Docs avoid promising capabilities that are not implemented, including public
-  scaffolding commands, OCI pull, Sigstore/Cosign verification, hosted default
-  enablement, or tenant-scoped hosted tokens.
+- Docs avoid promising capabilities that are not implemented or not enabled by
+  default, including unreviewed OCI execution, Sigstore/Cosign verification
+  without strict trust configuration, hosted default enablement, or
+  tenant-scoped hosted tokens.
 
 ## Troubleshooting
 
@@ -345,7 +371,7 @@ Use this checklist when triaging an extension PR.
 | --- | --- | --- |
 | `component inspect` rejects the manifest | Wrong `apiVersion`, `kind`, missing metadata, unsupported component type, malformed semantic version, or mutable artifact tag. | Compare the manifest with [Component Package Manager](../reference/component-package-manager.md). |
 | `component verify` rejects in allowlist mode | Component ID or publisher does not exactly match the allowlist, or revocation blocks it. | Re-run with the exact `--allow-id` and `--allow-publisher` under review. |
-| Strict trust mode fails | Provenance verification is not wired in the first component-manager slice. | Treat this as expected fail-closed behavior, not proof that provenance passed. |
+| Strict trust mode fails | The Cosign verifier, expected certificate identity, expected OIDC issuer, digest claims, or supported SLSA provenance are missing or do not match. | Treat this as expected fail-closed behavior, not proof that provenance passed. |
 | Facts ingest but graph answers do not change | The fact is provenance-only, unsupported by the reducer/query consumer, stale by generation, or below relationship confidence. | Check the consumer contract, reducer/materializer proof, and query/story proof. |
 | A new relationship is missing | Evidence did not resolve, confidence stayed below threshold, aliases were missing, or reducer materialization has not completed. | Follow [Relationship Mapping Observability](../reference/relationship-mapping-observability.md). |
 | Semantic observations are absent | No provider profile, no matching source policy, disabled source class, exhausted budget, or redaction/policy denial. | Use [Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md) status checks. |

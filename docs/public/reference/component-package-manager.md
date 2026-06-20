@@ -413,9 +413,10 @@ protocols or adapters are rejected before install or activation. Declaring a
 supported runtime protocol does not make an installed package claim-capable:
 operators must still enable an instance, hosted policy must approve it, and the
 workflow coordinator or extension host must implement the matching adapter. The
-first hosted worker supports `process` activations; `oci` manifests remain
-installable metadata but cannot run until the OCI adapter and runnable digest
-artifact path are implemented.
+component-extension worker supports `process` activations and digest-pinned
+`oci` activations through the extension host adapter. Hosted `oci` use still
+requires an approved policy, a runnable digest artifact, and runtime proof for
+the target deployment.
 
 `compatibleCore` is checked during verification. Release builds compare the
 manifest range against the running Eshu core version. Local source builds that

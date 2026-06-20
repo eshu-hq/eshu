@@ -43,6 +43,58 @@ collector instance. Claim-capable execution is a separate operator decision.
 Preferred signing model: Sigstore/Cosign-compatible OCI artifact signatures
 with keyless certificate identity and OIDC issuer verification.
 
+## Publication Policy
+
+Community index publication is a maintainer-reviewed discovery signal, not a
+runtime trust grant. A package is eligible for the index only when the review
+record can be checked from package metadata and artifact evidence:
+
+- every runnable artifact is digest-pinned and has a matching signature;
+- provenance binds the artifact digest, component ID, publisher, version,
+  compatible core range, runtime protocol, adapter, collector kind, emitted fact
+  kinds, schema versions, reducer phases, and telemetry prefix;
+- declared capabilities name egress, credential-reference classes, resource
+  limits, runtime adapter, source-scope class, and claim capability;
+- component configuration uses credential handles only and does not include
+  secret values, private endpoints, source payloads, or provider responses;
+- emitted fact kinds are namespaced, do not collide with core-owned fact kinds
+  or another package, and declare supported schema-version majors;
+- the package declares whether each fact family is provenance-only or has a
+  core-owned reducer, projector, API, or MCP consumer contract;
+- revocation state is explicit for component ID, publisher, artifact digest,
+  version range, and policy review record.
+
+The current community index verifier enforces offline publication metadata:
+digest shape, mutable artifact tags, lifecycle channel, duplicate component and
+fact-kind ownership, review links, conformance status fields, and revoked
+installable entries. It does not perform signature verification, SLSA
+provenance verification, egress execution, runtime protocol negotiation, or
+hosted policy evaluation by itself. Publication review must therefore fail
+closed for missing signatures, stale or unsupported provenance, unreviewed
+egress, credential value exposure, incompatible core ranges, unsupported runtime
+protocols, absent conformance proof, and revoked identities before entries are
+promoted beyond the metadata-only check. Local and hosted runtime policy still
+re-verifies the package before install, enablement, or claim-capable work.
+
+## Compatibility Badge
+
+A compatibility badge is machine-checkable only when it is derived from the
+same structured metadata that the verifier consumes. Badge inputs are:
+
+- component ID, publisher, version, and manifest digest;
+- compatible Eshu core range and manifest API version;
+- artifact digest plus signature and SLSA provenance status;
+- supported runtime protocol and adapter;
+- emitted fact kinds, schema-version majors, source-confidence values, and
+  reducer consumer phases;
+- conformance artifact URI or review record, with its status and timestamp;
+- local or hosted policy result: `installable`, `blocked`, `revoked`,
+  `incompatible`, `missing_proof`, or `unsupported_runtime`.
+
+Badges must not be hand-authored from README text, repository topics, or
+marketplace copy. If any input is missing, expired, revoked, or incompatible,
+the badge state is blocked and the diagnostics must name the exact rule.
+
 ## Strict Provenance Contract
 
 Strict mode keeps publisher allowlists and Sigstore identities separate. The
