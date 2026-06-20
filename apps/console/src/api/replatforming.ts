@@ -3,6 +3,7 @@ import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import type {
   ReplatformingBlastRadiusSummaryWire,
   ReplatformingImportCandidateWire,
+  ReplatformingOwnerCandidateWire,
   ReplatformingOwnershipPacketWire,
   ReplatformingOwnershipWire,
   ReplatformingPlanItemWire,
@@ -246,7 +247,7 @@ function normalizeInput(input: ReplatformingInput): Required<ReplatformingInput>
     accountId: str(input.accountId),
     arn: str(input.arn),
     environment: str(input.environment),
-    findingKinds: (input.findingKinds ?? []).map(str).filter((value) => value.length > 0),
+    findingKinds: (input.findingKinds ?? []).map((value) => str(value)).filter((value) => value.length > 0),
     limit: clampInt(input.limit, 100, 1, 500),
     offset: clampInt(input.offset, 0, 0, 100000),
     region: str(input.region),

@@ -81,9 +81,12 @@ describe("RepositoriesPage", () => {
     expect(within(groupWorkbench).getByText("missing_evidence · missing_evidence")).toBeInTheDocument();
     expect(screen.getByText("payments-api")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Find a group or repository"), { target: { value: "Dependencies" } });
+    fireEvent.change(screen.getByLabelText("Find a group or repository"), { target: { value: "shared-lib" } });
     expect(within(groupWorkbench).getByText("shared-lib")).toBeInTheDocument();
     expect(within(groupWorkbench).queryByText("Platform")).not.toBeInTheDocument();
+    // A repository-name match filters the group's repositories; the surviving group
+    // must keep its source-backed evidence metadata (truth · source), not drop it.
+    expect(within(groupWorkbench).getByText("derived · repository_dependency_flag")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Find a group or repository"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Grid" }));

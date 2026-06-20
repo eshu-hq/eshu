@@ -212,7 +212,7 @@ function filterRepositoryGroups(groups: readonly RepoGroup[], query: string): re
       continue;
     }
     const repositories = group.repositories.filter((repository) => repositoryMatchesQuery(repository, query));
-    if (repositories.length > 0) filtered.push({ key: group.key, repositories });
+    if (repositories.length > 0) filtered.push({ ...group, repositories });
   }
   return filtered;
 }

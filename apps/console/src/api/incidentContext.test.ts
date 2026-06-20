@@ -44,6 +44,10 @@ describe("incident context adapter", () => {
     expect(result.context.evidencePath.map((edge) => edge.slot)).toContain("intended_routing");
     expect(result.context.missingEvidence.map((missing) => missing.slot)).toContain("work_item");
     expect(result.context.truncated).toBe(true);
+    expect(result.truth).not.toBeNull();
+    if (result.truth === null) {
+      throw new Error("expected incident context truth metadata");
+    }
     expect(result.truth.capability).toBe("incident.context.read");
     expect(result.context.answerMetadata.recommendedNextCalls).toEqual([{
       args: { incident_id: "PABC123" },
