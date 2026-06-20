@@ -147,6 +147,17 @@ func assertComponentExtensionDispatchResult(
 		t.Fatalf("json.Marshal(envelope) error = %v, want nil", err)
 	}
 	raw := string(rawBytes)
+	for _, want := range []string{
+		`"trust_decision"`,
+		`"policy_gate"`,
+		`"last_conformance_proof"`,
+		`"scheduler_state"`,
+		`"read_model_availability"`,
+	} {
+		if !strings.Contains(raw, want) {
+			t.Fatalf("component extension dispatch missing %s: %s", want, raw)
+		}
+	}
 	forbidden := append([]string{
 		"manifest.yaml",
 		"manifest_path",

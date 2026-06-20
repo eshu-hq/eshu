@@ -242,9 +242,10 @@ configured API or MCP runtime's `ESHU_COMPONENT_HOME` through
 is a canonical unavailable envelope with
 `component_registry_unavailable`. Hosted responses include component ID,
 version, publisher, manifest digest, installed/enabled/claim-capable states,
-revocation or policy failure reasons, and stable activation `config_handle`
-values. They do not include local manifest paths, activation config paths,
-provider credentials, or private host paths.
+revocation or policy failure reasons, stable activation `config_handle` values,
+`trust_decision`, `policy_gate`, `last_conformance_proof`, `scheduler_state`,
+and `read_model_availability`. They do not include local manifest paths,
+activation config paths, provider credentials, or private host paths.
 
 `component extraction-readiness [collector-family]` prints the advisory collector
 extraction readiness checklist. For each collector family the extraction policy
@@ -297,6 +298,19 @@ process command, credentials, and provider-specific config stay local. When the
 Component extension workflow rows are source evidence only until a core reducer
 contract consumes the emitted facts. The coordinator does not create graph
 nodes or edges for extension facts.
+
+Hosted operators can check the same redacted posture through API or MCP:
+
+```bash
+curl -H 'Accept: application/eshu.envelope+json' \
+  "$ESHU_SERVICE_URL/api/v0/component-extensions?limit=100"
+```
+
+One component row reports whether trust is allowed or blocked, which policy gate
+won, whether the last conformance proof is still missing, whether scheduler
+work can be claimed, and whether a component read model is available. Example
+blocked states include `disabled_by_policy`, `incompatible`,
+`missing_conformance_proof`, and `runtime_failure`.
 
 JSON errors use stable codes:
 

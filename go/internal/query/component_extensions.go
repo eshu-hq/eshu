@@ -52,18 +52,23 @@ type ComponentExtensionDiagnosticsResponse struct {
 
 // ComponentExtensionComponent is a sanitized component package readback row.
 type ComponentExtensionComponent struct {
-	ID             string                               `json:"id"`
-	Name           string                               `json:"name,omitempty"`
-	Publisher      string                               `json:"publisher,omitempty"`
-	Version        string                               `json:"version,omitempty"`
-	ManifestDigest string                               `json:"manifest_digest,omitempty"`
-	Verified       bool                                 `json:"verified,omitempty"`
-	TrustMode      string                               `json:"trust_mode,omitempty"`
-	InstalledAt    string                               `json:"installed_at,omitempty"`
-	States         []string                             `json:"states,omitempty"`
-	Activations    []ComponentExtensionActivation       `json:"activations,omitempty"`
-	Diagnostics    *ComponentExtensionPolicyDiagnostics `json:"diagnostics,omitempty"`
-	Error          *ComponentExtensionError             `json:"error,omitempty"`
+	ID                    string                                  `json:"id"`
+	Name                  string                                  `json:"name,omitempty"`
+	Publisher             string                                  `json:"publisher,omitempty"`
+	Version               string                                  `json:"version,omitempty"`
+	ManifestDigest        string                                  `json:"manifest_digest,omitempty"`
+	Verified              bool                                    `json:"verified,omitempty"`
+	TrustMode             string                                  `json:"trust_mode,omitempty"`
+	InstalledAt           string                                  `json:"installed_at,omitempty"`
+	States                []string                                `json:"states,omitempty"`
+	Activations           []ComponentExtensionActivation          `json:"activations,omitempty"`
+	Diagnostics           *ComponentExtensionPolicyDiagnostics    `json:"diagnostics,omitempty"`
+	TrustDecision         ComponentExtensionTrustDecision         `json:"trust_decision"`
+	PolicyGate            ComponentExtensionPolicyGate            `json:"policy_gate"`
+	LastConformanceProof  ComponentExtensionConformanceProof      `json:"last_conformance_proof"`
+	SchedulerState        ComponentExtensionSchedulerState        `json:"scheduler_state"`
+	ReadModelAvailability ComponentExtensionReadModelAvailability `json:"read_model_availability"`
+	Error                 *ComponentExtensionError                `json:"error,omitempty"`
 }
 
 // ComponentExtensionActivation is a sanitized activation readback row.
@@ -83,6 +88,43 @@ type ComponentExtensionPolicyDiagnostics struct {
 	PolicyMode       string              `json:"policy_mode,omitempty"`
 	PolicyCode       component.ErrorCode `json:"policy_code,omitempty"`
 	PolicyReason     string              `json:"policy_reason,omitempty"`
+}
+
+// ComponentExtensionTrustDecision classifies whether the installed package is
+// currently trusted by the configured hosted policy.
+type ComponentExtensionTrustDecision struct {
+	Decision string              `json:"decision"`
+	Code     component.ErrorCode `json:"code,omitempty"`
+	Reason   string              `json:"reason,omitempty"`
+}
+
+// ComponentExtensionPolicyGate gives clients a stable blocker class without
+// exposing local manifest paths or provider credentials.
+type ComponentExtensionPolicyGate struct {
+	State string              `json:"state"`
+	Mode  string              `json:"mode,omitempty"`
+	Code  component.ErrorCode `json:"code,omitempty"`
+}
+
+// ComponentExtensionConformanceProof reports the last known proof state for a
+// component extension.
+type ComponentExtensionConformanceProof struct {
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// ComponentExtensionSchedulerState reports whether hosted scheduling can claim
+// work for the component activation.
+type ComponentExtensionSchedulerState struct {
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// ComponentExtensionReadModelAvailability reports whether API/MCP readback can
+// expect component-emitted facts to have materialized.
+type ComponentExtensionReadModelAvailability struct {
+	State             string `json:"state"`
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
 
 // ComponentExtensionPolicyStatus summarizes which trust policy knobs were
@@ -282,7 +324,17 @@ func sanitizedComponentExtensions(readback []component.RegistryReadbackComponent
 			States:         append([]string(nil), entry.States...),
 			Activations:    sanitizedComponentExtensionActivations(entry),
 			Diagnostics:    componentExtensionDiagnostics(entry),
-			Error:          componentExtensionError(entry.Error),
+			TrustDecision:  componentExtensionTrustDecision(entry),
+			PolicyGate:     componentExtensionPolicyGate(entry),
+			LastConformanceProof: ComponentExtensionConformanceProof{
+				Status: "missing",
+				Reason: "missing_conformance_proof",
+			},
+			SchedulerState: componentExtensionSchedulerState(entry),
+			ReadModelAvailability: componentExtensionReadModelAvailability(
+				entry,
+			),
+			Error: componentExtensionError(entry.Error),
 		}
 		out = append(out, row)
 	}

@@ -308,6 +308,28 @@ func TestOpenAPISpecIncludesComponentExtensionRoutes(t *testing.T) {
 			t.Fatalf("OpenAPI paths missing %s", path)
 		}
 	}
+	inventory := mustMapField(t, paths, "/api/v0/component-extensions")
+	get := mustMapField(t, inventory, "get")
+	responses := mustMapField(t, get, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	content := mustMapField(t, okResponse, "content")
+	jsonContent := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, jsonContent, "schema")
+	properties := mustMapField(t, schema, "properties")
+	components := mustMapField(t, properties, "components")
+	items := mustMapField(t, components, "items")
+	componentProperties := mustMapField(t, items, "properties")
+	for _, field := range []string{
+		"trust_decision",
+		"policy_gate",
+		"last_conformance_proof",
+		"scheduler_state",
+		"read_model_availability",
+	} {
+		if _, ok := componentProperties[field]; !ok {
+			t.Fatalf("OpenAPI component extension schema missing %q", field)
+		}
+	}
 }
 
 func installComponentForQueryTest(t *testing.T, home string, componentID string, name string, configPath string) {
