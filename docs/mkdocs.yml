@@ -106,6 +106,7 @@ nav:
       - Remote Compose Suite Harness: reference/local-testing/remote-compose-suite-harness.md
       - Remote Representative Acceptance: reference/local-testing/remote-representative-acceptance.md
       - Representative Corpus Suite: reference/local-testing/representative-corpus-suite.md
+      - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
       - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
       - Verification Gates: reference/local-testing/verification-gates.md
       - Discovery Advisory: reference/local-testing/discovery-advisory.md

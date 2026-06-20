@@ -1,0 +1,147 @@
+version: scale-benchmark-artifact/v1
+updated_at: 2026-06-20
+parent_issue: 3169
+issue: 3171
+gate_status: proposed
+purpose: >
+  Define the public-safe benchmark artifact contract for large-corpus fact
+  ingestion, reducer drain, graph-write, API, and MCP performance proof.
+
+artifact_contract:
+  schema_version: scale-benchmark-artifact/v1
+  commit_sha: required
+  backend_matrix: required
+  before_after_evidence: required_for_optimization
+  privacy_status: public_safe
+  raw_evidence_location: operator_local_only
+
+required_run_metadata:
+  - id: run.id
+    rule: sanitized run id
+  - id: run.kind
+    rule: baseline, after, or regression_check
+  - id: run.commit
+    rule: 40 character lowercase commit SHA
+  - id: run.issue
+    rule: 3171
+  - id: run.gate
+    rule: ci, remote-compose, or remote-proof
+  - id: run.metadata_recorded
+    rule: true
+  - id: run.backend.kind
+    rule: nornicdb or neo4j
+  - id: run.backend.version
+    rule: sanitized backend version label
+
+required_corpus_metadata:
+  - id: corpus.contract_version
+    rule: scale-lab-corpus/v1
+  - id: corpus.slot
+    rule: one accepted representative corpus suite slot
+  - id: corpus.mode
+    rule: smoke, representative, or full
+  - id: corpus.repository_count
+    rule: non-negative aggregate count
+  - id: corpus.privacy_status
+    rule: public_safe
+
+backend_matrix:
+  - id: nornicdb
+    required: true
+    rule: pass or fail requires an artifact handle; skipped or unsupported requires a reason
+  - id: compatibility
+    required: true
+    rule: pass or fail requires an artifact handle; skipped or unsupported requires a reason
+
+metrics:
+  - id: fact_rows_per_second
+    stage: ingestion
+    unit: rows_per_second
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: queue_claim_latency_p95_ms
+    stage: queue
+    unit: milliseconds
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: reducer_drain_seconds
+    stage: reducer
+    unit: seconds
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: graph_write_p95_ms
+    stage: graph
+    unit: milliseconds
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: api_p95_ms
+    stage: api
+    unit: milliseconds
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: mcp_p95_ms
+    stage: mcp
+    unit: milliseconds
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: retry_count
+    stage: queue
+    unit: count
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: dead_letter_count
+    stage: queue
+    unit: count
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+  - id: memory_high_water_mb
+    stage: runtime
+    unit: mebibytes
+    rule: numeric value, numeric threshold, pass/fail threshold result
+
+artifact_handles:
+  - id: artifacts.results
+    rule: sanitized aggregate results handle
+  - id: artifacts.thresholds
+    rule: sanitized threshold summary handle
+  - id: artifacts.pprof
+    rule: sanitized pprof capture handle
+  - id: artifacts.logs
+    rule: sanitized log capture handle
+
+comparison:
+  optimization_claimed: required
+  baseline_commit: required_when_optimization_claimed
+  baseline_artifact: required_when_optimization_claimed
+  result: not_applicable, no_regression, improved, or regressed
+
+observability:
+  - id: pprof_status
+    rule: pass, fail, or skipped
+  - id: logs_status
+    rule: pass, fail, or skipped
+  - id: resource_snapshot_status
+    rule: pass, fail, or skipped
+
+privacy_rules:
+  - id: aggregate_only
+    rule: >
+      Public benchmark artifacts may contain aggregate counts, status enums,
+      commit SHAs, sanitized run ids, sanitized artifact handles, backend
+      labels, public issue numbers, and threshold summaries only.
+  - id: no_private_values
+    rule: >
+      Public artifacts must not contain private repository names, provider
+      locators, alert locators, account ids, tokens, email addresses,
+      hostnames, IP addresses, local machine paths, raw logs, raw request or
+      response bodies, package names from private systems, or transcripts.
+  - id: raw_local_only
+    rule: >
+      Raw pprof, logs, resource snapshots, and operator-local manifests stay
+      outside the repository. Public artifacts reference only sanitized
+      aggregate handles.
+
+proof_gate:
+  command: bash scripts/verify-scale-benchmark-artifact.sh
+  artifact_command: bash scripts/verify-scale-benchmark-artifact.sh --artifact scale-benchmark-artifact.json
+  expected_result: pass
