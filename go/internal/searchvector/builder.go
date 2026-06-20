@@ -20,6 +20,8 @@ const (
 	FailureClassEmbedder = "embedder_error"
 	// FailureClassInvalidVector records a malformed vector returned by an embedder.
 	FailureClassInvalidVector = "invalid_vector"
+	// FailureClassPolicyDenied records a source-policy-denied document.
+	FailureClassPolicyDenied = "policy_denied"
 )
 
 // DocumentStore reads active curated search documents for a bounded scope.
@@ -43,7 +45,10 @@ type Builder struct {
 	Metadata  MetadataStore
 	Values    ValueStore
 	Embedder  searchhybrid.Embedder
-	Clock     func() time.Time
+	// DocumentAllowed gates hosted/provider builds per source document. Nil
+	// means every document in the already-bounded scope is allowed.
+	DocumentAllowed func(postgres.EshuSearchDocumentRow) bool
+	Clock           func() time.Time
 }
 
 // BuildRequest identifies the active search-document slice and vector identity
@@ -63,6 +68,7 @@ type BuildRequest struct {
 type BuildResult struct {
 	DocumentCount int
 	VectorCount   int
+	DisabledCount int
 	FailedCount   int
 }
 
@@ -100,9 +106,16 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 				return result, fmt.Errorf("active search document generation changed from %q to %q", generationID, row.GenerationID)
 			}
 			result.DocumentCount++
-			vector, failureClass, err := b.embed(row.Document)
+			if b.DocumentAllowed != nil && !b.DocumentAllowed(row) {
+				if err := b.upsertMetadata(ctx, req, row, now, postgres.EshuSearchVectorBuildStateDisabled, FailureClassPolicyDenied, nil); err != nil {
+					return result, err
+				}
+				result.DisabledCount++
+				continue
+			}
+			vector, failureClass, err := b.embed(ctx, row.Document)
 			if err != nil {
-				if upsertErr := b.upsertMetadata(ctx, req, row, now, failureClass, nil); upsertErr != nil {
+				if upsertErr := b.upsertMetadata(ctx, req, row, now, postgres.EshuSearchVectorBuildStateFailed, failureClass, nil); upsertErr != nil {
 					return result, upsertErr
 				}
 				result.FailedCount++
@@ -126,7 +139,7 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 			}); err != nil {
 				return result, fmt.Errorf("upsert vector value for document %q: %w", row.Document.ID, err)
 			}
-			if err := b.upsertMetadata(ctx, req, row, now, "", &now); err != nil {
+			if err := b.upsertMetadata(ctx, req, row, now, postgres.EshuSearchVectorBuildStateReady, "", &now); err != nil {
 				return result, err
 			}
 			result.VectorCount++
@@ -139,8 +152,8 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 	return result, errors.Join(failures...)
 }
 
-func (b Builder) embed(doc searchdocs.Document) ([]float64, string, error) {
-	vector, err := b.Embedder.Embed(searchhybrid.DocumentText(doc))
+func (b Builder) embed(ctx context.Context, doc searchdocs.Document) ([]float64, string, error) {
+	vector, err := b.Embedder.Embed(ctx, searchhybrid.DocumentText(doc))
 	if err != nil {
 		return nil, FailureClassEmbedder, err
 	}
@@ -155,13 +168,10 @@ func (b Builder) upsertMetadata(
 	req BuildRequest,
 	row postgres.EshuSearchDocumentRow,
 	now time.Time,
+	state postgres.EshuSearchVectorBuildState,
 	failureClass string,
 	lastSuccessAt *time.Time,
 ) error {
-	state := postgres.EshuSearchVectorBuildStateReady
-	if failureClass != "" {
-		state = postgres.EshuSearchVectorBuildStateFailed
-	}
 	if err := b.Metadata.Upsert(ctx, postgres.EshuSearchVectorMetadata{
 		ScopeID:              row.ScopeID,
 		GenerationID:         row.GenerationID,

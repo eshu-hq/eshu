@@ -618,8 +618,13 @@ SearchVectorBuildRunner Evidence: `go test ./internal/reducer -run
 -count=1` proves bounded pending-scope consumption, per-scope build calls,
 failure continuation with joined errors, dependency validation, and side-runner
 startup through `Service.Run`. Cycle logs include scanned scope count,
-attempted scope count, built/skipped/failed document counts, duration, and
+attempted scope count, document count, built vector count, policy-disabled
+document count, failed document count, duration, and
 `failure_class=search_vector_build_error` when a pending scan or build fails.
+No-Regression Evidence: `go test ./internal/searchembedruntime
+./internal/searchvector ./internal/storage/postgres ./internal/reducer
+./cmd/reducer -count=1` covers per-document provider policy admission and
+disabled metadata convergence without reducing runner concurrency.
 
 ## Intent lifecycle
 

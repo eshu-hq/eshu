@@ -1,6 +1,7 @@
 package searchhybrid
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -172,7 +173,7 @@ func (index *Index) embedDocument(doc searchdocs.Document) ([]float64, error) {
 	if cached, ok := index.embedCache[hash]; ok {
 		return cached, nil
 	}
-	vector, err := index.embedder.Embed(text)
+	vector, err := index.embedder.Embed(context.Background(), text)
 	if err != nil {
 		return nil, err
 	}

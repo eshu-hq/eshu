@@ -1,5 +1,7 @@
 package searchhybrid
 
+import "context"
+
 // Embedder produces a fixed-dimension embedding for a piece of text.
 //
 // Implementations MUST be deterministic for a given input. This package never
@@ -9,7 +11,7 @@ package searchhybrid
 type Embedder interface {
 	// Embed returns the embedding vector for text. The returned slice length
 	// must equal Dimensions for every call.
-	Embed(text string) ([]float64, error)
+	Embed(ctx context.Context, text string) ([]float64, error)
 	// Dimensions is the fixed vector length produced by Embed.
 	Dimensions() int
 }

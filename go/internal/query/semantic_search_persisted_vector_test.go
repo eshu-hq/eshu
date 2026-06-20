@@ -400,7 +400,7 @@ type fakeSemanticSearchEmbedder struct {
 
 func (e *fakeSemanticSearchEmbedder) Dimensions() int { return e.dims }
 
-func (e *fakeSemanticSearchEmbedder) Embed(text string) ([]float64, error) {
+func (e *fakeSemanticSearchEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	e.calls = append(e.calls, text)
 	vector, ok := e.vectors[text]
 	if !ok {

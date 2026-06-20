@@ -108,6 +108,45 @@ func TestConfigFromEnvRequiresSearchDocumentPolicy(t *testing.T) {
 	}
 }
 
+func TestConfigAllowsOnlyPolicyAdmittedSearchDocuments(t *testing.T) {
+	t.Parallel()
+
+	raw := `{
+		"profiles": [{
+			"profile_id": "semantic-search-default",
+			"provider_kind": "openai_compatible",
+			"credential_source": {"kind": "cloud_workload_identity"},
+			"model_id": "search-embed-v1",
+			"embedding_dimensions": 3,
+			"endpoint_profile_id": "https://provider.example",
+			"source_classes": ["search_documents"],
+			"source_policy_configured": true
+		}]
+	}`
+
+	config, err := ConfigFromEnv(func(key string) string {
+		if key == EnvProviderProfilesJSON {
+			return raw
+		}
+		if key == semanticpolicy.EnvPolicyJSON {
+			return searchPolicyJSON("semantic-search-default")
+		}
+		return ""
+	}, nil)
+	if err != nil {
+		t.Fatalf("ConfigFromEnv() error = %v, want nil", err)
+	}
+	if !config.AllowsSearchDocument("local", "doc-1", "cmd/api/main.go") {
+		t.Fatal("AllowsSearchDocument(local) = false, want true")
+	}
+	if config.AllowsSearchDocument("other-repo", "doc-1", "cmd/api/main.go") {
+		t.Fatal("AllowsSearchDocument(other-repo) = true, want false")
+	}
+	if config.AllowsSearchDocument("local", "doc-1", "private/model.go") {
+		t.Fatal("AllowsSearchDocument(private path) = true, want false")
+	}
+}
+
 func TestConfigFromEnvRequiresSelectorForMultipleProviders(t *testing.T) {
 	t.Parallel()
 
@@ -175,7 +214,7 @@ func searchPolicyJSON(profileIDs ...string) string {
 			rules += ","
 			egressRules += ","
 		}
-		rules += `{"rule_id":"search-` + profileID + `","provider_profile_id":"` + profileID + `","source_classes":["search_documents"],"scopes":[{"kind":"repository","id":"local"}],"source_allowlist":[{"kind":"all","value":"*"}],"settings":{"limits":{"max_chunk_bytes":8192,"max_tokens_per_chunk":2048,"max_daily_tokens":100000},"redaction":{"mode":"strict","policy_ref":"search-redaction-v1"},"retention":{"posture":"metadata_only","prompt":"none","response":"hash_only"}}}`
+		rules += `{"rule_id":"search-` + profileID + `","provider_profile_id":"` + profileID + `","source_classes":["search_documents"],"scopes":[{"kind":"repository","id":"local"}],"source_allowlist":[{"kind":"path_prefix","value":"cmd/"}],"settings":{"limits":{"max_chunk_bytes":8192,"max_tokens_per_chunk":2048,"max_daily_tokens":100000},"redaction":{"mode":"strict","policy_ref":"search-redaction-v1"},"retention":{"posture":"metadata_only","prompt":"none","response":"hash_only"}}}`
 		egressRules += `{"provider_profile_id":"` + profileID + `","source_classes":["search_documents"],"decision":"allow"}`
 	}
 	return `{"policy_id":"semantic-search","enabled":true,"egress":{"mode":"restricted","semantic_providers":[` + egressRules + `]},"rules":[` + rules + `]}`

@@ -23,7 +23,7 @@ type Backend struct {
 // is configured). It returns up to limit+1 candidates so the retrieval runner
 // can detect and report truncation.
 func (backend Backend) Search(
-	_ context.Context,
+	ctx context.Context,
 	req searchretrieval.Request,
 ) ([]searchretrieval.Candidate, error) {
 	if err := searchretrieval.ValidateRequest(req); err != nil {
@@ -48,7 +48,7 @@ func (backend Backend) Search(
 	useVector := false
 	if req.Mode == searchbench.ModeSemantic || req.Mode == searchbench.ModeHybrid {
 		if index.embedder != nil {
-			queryVector, err := index.embedder.Embed(req.Query)
+			queryVector, err := index.embedder.Embed(ctx, req.Query)
 			if err != nil {
 				return nil, fmt.Errorf("embed query: %w", err)
 			}

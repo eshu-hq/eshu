@@ -47,6 +47,9 @@ emit the runtime signals for search-vector build and retrieval behavior.
   `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` to avoid silent profile drift.
 - The selected identity must be used for both vector builds and query-time
   vector reads.
+- Provider-backed reducer builds must call `AllowsSearchDocument` for each
+  curated document before embedding so repository scope and source allowlist
+  rules are enforced at dispatch time, not only at startup.
 
 ## Related docs
 

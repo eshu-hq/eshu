@@ -2,6 +2,7 @@ package searchembedprovider
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -91,9 +92,12 @@ func (e *Embedder) Dimensions() int {
 }
 
 // Embed calls the configured provider and returns one embedding vector.
-func (e *Embedder) Embed(text string) ([]float64, error) {
+func (e *Embedder) Embed(ctx context.Context, text string) ([]float64, error) {
 	if e == nil {
 		return nil, errors.New("search embedder is required")
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	body, err := json.Marshal(embeddingRequest{
 		Model: e.modelID,
@@ -102,7 +106,7 @@ func (e *Embedder) Embed(text string) ([]float64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal embedding request: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, e.endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.New("build embedding request failed")
 	}
@@ -112,6 +116,9 @@ func (e *Embedder) Embed(text string) ([]float64, error) {
 	}
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, errors.New("execute embedding request failed")
 	}
 	defer drainAndClose(resp.Body)

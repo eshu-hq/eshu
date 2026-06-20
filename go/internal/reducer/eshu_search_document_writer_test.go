@@ -3,6 +3,7 @@ package reducer
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
+	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -164,6 +166,48 @@ func TestWriteEshuSearchDocumentsMaintainsPersistedSearchIndex(t *testing.T) {
 	}
 	if !sawStatsUpsert {
 		t.Fatal("missing persisted search-index stats upsert")
+	}
+}
+
+func TestWriteEshuSearchDocumentsPayloadIncludesContentHash(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+	doc := sampleSearchDoc("searchdoc:content_entity:e-1")
+
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		SourceSystem: "content_entities",
+		Documents:    []searchdocs.Document{doc},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+
+	var factUpsert fakeSearchDocExecCall
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "INSERT INTO fact_records") {
+			factUpsert = exec
+			break
+		}
+	}
+	if factUpsert.query == "" {
+		t.Fatal("missing fact upsert")
+	}
+	payload, ok := factUpsert.args[14].([]byte)
+	if !ok {
+		t.Fatalf("payload arg = %T, want []byte", factUpsert.args[14])
+	}
+	var decoded struct {
+		ContentHash string `json:"content_hash"`
+	}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if got, want := decoded.ContentHash, searchhybrid.DocumentContentHash(doc); got != want {
+		t.Fatalf("content_hash = %q, want %q", got, want)
 	}
 }
 

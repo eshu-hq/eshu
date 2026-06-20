@@ -38,6 +38,9 @@ func searchVectorBuildRunnerFor(
 			Metadata:  postgres.NewEshuSearchVectorMetadataStore(database),
 			Values:    postgres.NewEshuSearchVectorValueStore(database),
 			Embedder:  embeddingConfig.Embedder,
+			DocumentAllowed: func(row postgres.EshuSearchDocumentRow) bool {
+				return embeddingConfig.AllowsSearchDocument(row.Document.RepoID, row.Document.ID, row.Document.Path)
+			},
 		}},
 		Config: reducer.SearchVectorBuildRunnerConfig{
 			PollInterval:       30 * time.Second,
@@ -72,6 +75,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 	return reducer.SearchVectorBuildResult{
 		DocumentCount: result.DocumentCount,
 		VectorCount:   result.VectorCount,
+		DisabledCount: result.DisabledCount,
 		FailedCount:   result.FailedCount,
 	}, err
 }

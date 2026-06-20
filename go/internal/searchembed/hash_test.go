@@ -22,11 +22,11 @@ func TestHashEmbedderDeterministicAndNormalized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHashEmbedder error = %v", err)
 	}
-	first, err := embedder.Embed("Payment, REFUND!")
+	first, err := embedder.Embed(context.Background(), "Payment, REFUND!")
 	if err != nil {
 		t.Fatalf("Embed first error = %v", err)
 	}
-	second, err := embedder.Embed("payment refund")
+	second, err := embedder.Embed(context.Background(), "payment refund")
 	if err != nil {
 		t.Fatalf("Embed second error = %v", err)
 	}
@@ -50,7 +50,7 @@ func TestHashEmbedderEmptyInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHashEmbedder error = %v", err)
 	}
-	vector, err := embedder.Embed(" , \n\t ")
+	vector, err := embedder.Embed(context.Background(), " , \n\t ")
 	if err != nil {
 		t.Fatalf("Embed error = %v", err)
 	}
@@ -90,7 +90,7 @@ func TestHashEmbedderBoundsUniqueTerms(t *testing.T) {
 		builder.WriteString("term")
 		builder.WriteString(strconv.Itoa(i))
 	}
-	vector, err := embedder.Embed(builder.String())
+	vector, err := embedder.Embed(context.Background(), builder.String())
 	if err != nil {
 		t.Fatalf("Embed error = %v", err)
 	}

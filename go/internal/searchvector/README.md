@@ -17,7 +17,8 @@ read-model state and are not graph truth.
 ## Exported surface
 
 - `Builder` reads active documents, embeds their shared searchable text, and
-  upserts ready or failed vector state across every active-document page.
+  upserts ready, failed, or source-policy-disabled vector state across every
+  active-document page.
 - `BuildRequest` identifies the scope, provider profile, source class, model,
   vector-index version, and optional document filter.
 - `BuildResult` summarizes document, vector, and failed-document counts.
@@ -44,6 +45,9 @@ operator-facing signals described in the telemetry docs.
   build must not silently cover only the first 500-document slice.
 - Paged builds anchor to the first observed generation so active-generation
   changes cannot mix rows from different generations in one build.
+- Provider-backed builds may supply a per-document admission function. Denied
+  documents write `disabled` metadata with no vector value so the side runner
+  converges without treating that document as vector-retrievable.
 - Provider profile, source class, model, dimensions, and vector index version
   are part of the persisted vector identity; local hash builds use the `local`
   profile and `search_documents` source class.
@@ -61,10 +65,19 @@ No-Regression Evidence: `go test ./internal/searchvector ./internal/storage/post
 before paged builds anchored to the first observed generation, and before vector
 value reads were gated by matching ready metadata, then passed.
 
-No-Observability-Change: this review fix adds no route, worker, queue domain,
-graph write, metric, label, runtime default, API field, or MCP field. Existing
-builder result counts and instrumented Postgres query/exec spans remain the
-operator-facing signals for vector build progress and read state.
+No-Regression Evidence: `go test ./internal/searchembedprovider
+./internal/searchembedruntime ./internal/searchvector ./internal/storage/postgres
+./internal/reducer ./cmd/reducer -count=1` covers provider request cancellation,
+per-repository/source policy admission before embedding, policy-denied
+documents converging as disabled metadata without vector values, top-level
+search-document content hashes for pending detection, and reducer wiring of the
+shared runtime selector.
+
+Observability Evidence: the builder result now reports `DisabledCount` for
+policy-denied documents. `SearchVectorBuildRunner` logs the aggregate
+`disabled_count` beside existing document, vector, failure, provider profile,
+source class, model, vector-index version, duration, and failure-class fields.
+No metric label, graph write, queue domain, API field, or MCP field changed.
 
 ## Related docs
 

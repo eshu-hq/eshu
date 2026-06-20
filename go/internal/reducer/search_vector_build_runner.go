@@ -54,6 +54,7 @@ type SearchVectorBuildRequest struct {
 type SearchVectorBuildResult struct {
 	DocumentCount int
 	VectorCount   int
+	DisabledCount int
 	FailedCount   int
 }
 
@@ -112,6 +113,7 @@ type SearchVectorBuildRunnerResult struct {
 	BuiltScopes   int
 	DocumentCount int
 	VectorCount   int
+	DisabledCount int
 	FailedCount   int
 }
 
@@ -178,6 +180,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		result.BuiltScopes++
 		result.DocumentCount += build.DocumentCount
 		result.VectorCount += build.VectorCount
+		result.DisabledCount += build.DisabledCount
 		result.FailedCount += build.FailedCount
 		if err != nil {
 			failures = append(failures, fmt.Errorf("build search vectors for scope %q generation %q: %w", pending.ScopeID, pending.GenerationID, err))
@@ -226,6 +229,7 @@ func (r *SearchVectorBuildRunner) logResult(ctx context.Context, result SearchVe
 		slog.Int("built_scopes", result.BuiltScopes),
 		slog.Int("document_count", result.DocumentCount),
 		slog.Int("vector_count", result.VectorCount),
+		slog.Int("disabled_count", result.DisabledCount),
 		slog.Int("failed_count", result.FailedCount),
 		slog.String("provider_profile_id", r.Config.ProviderProfileID),
 		slog.String("source_class", r.Config.SourceClass),

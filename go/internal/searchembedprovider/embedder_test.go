@@ -1,6 +1,7 @@
 package searchembedprovider
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -55,7 +56,7 @@ func TestNewEmbedderUsesSearchDocumentProfile(t *testing.T) {
 		t.Fatalf("Dimensions() = %d, want %d", got, want)
 	}
 
-	vector, err := embedder.Embed("refund checkout")
+	vector, err := embedder.Embed(context.Background(), "refund checkout")
 	if err != nil {
 		t.Fatalf("Embed() error = %v, want nil", err)
 	}
@@ -181,7 +182,7 @@ func TestEmbedRedactsProviderErrorBody(t *testing.T) {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
 
-	_, err = embedder.Embed("sensitive source")
+	_, err = embedder.Embed(context.Background(), "sensitive source")
 	if err == nil {
 		t.Fatal("Embed() error = nil, want provider error")
 	}
@@ -215,7 +216,7 @@ func TestEmbedRedactsTransportEndpoint(t *testing.T) {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
 
-	_, err = embedder.Embed("sensitive source")
+	_, err = embedder.Embed(context.Background(), "sensitive source")
 	if err == nil {
 		t.Fatal("Embed() error = nil, want transport error")
 	}
@@ -224,6 +225,38 @@ func TestEmbedRedactsTransportEndpoint(t *testing.T) {
 	}
 	if got, want := err.Error(), "execute embedding request failed"; got != want {
 		t.Fatalf("Embed() error = %q, want %q", got, want)
+	}
+}
+
+func TestEmbedUsesCallerContext(t *testing.T) {
+	t.Parallel()
+
+	embedder, err := New(semanticprofile.ProviderProfile{
+		ProfileID:              "semantic-search-default",
+		ProviderKind:           semanticprofile.ProviderOpenAICompatible,
+		CredentialSource:       semanticprofile.CredentialSource{Kind: semanticprofile.CredentialSourceCloudWorkloadIdentity},
+		ModelID:                "search-embed-v1",
+		EndpointProfileID:      "https://provider.example",
+		SourceClasses:          []string{semanticprofile.SourceSearchDocuments},
+		SourcePolicyConfigured: true,
+		EmbeddingDimensions:    3,
+	}, func(string) string { return "" }, &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if err := req.Context().Err(); err != nil {
+				return nil, err
+			}
+			return nil, errors.New("request was not canceled")
+		}),
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v, want nil", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = embedder.Embed(ctx, "sensitive source")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Embed() error = %v, want context.Canceled", err)
 	}
 }
 

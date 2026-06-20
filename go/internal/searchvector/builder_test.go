@@ -272,6 +272,68 @@ func TestBuilderRecordsEmbeddingFailureAsBoundedMetadata(t *testing.T) {
 	}
 }
 
+func TestBuilderMarksPolicyDeniedDocumentsDisabledWithoutEmbedding(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 15, 12, 20, 0, 0, time.UTC)
+	allowed := searchDocument("doc-allowed", "repo-1", "API handler", "handlers/api.go")
+	denied := searchDocument("doc-denied", "repo-1", "Private model", "private/model.go")
+	docs := &recordingDocumentStore{rows: []postgres.EshuSearchDocumentRow{
+		{ScopeID: "repo-1", GenerationID: "gen-active", Document: allowed},
+		{ScopeID: "repo-1", GenerationID: "gen-active", Document: denied},
+	}}
+	values := &recordingVectorValueStore{}
+	metadata := &recordingVectorMetadataStore{}
+	embedder := &recordingEmbedder{dims: 3, vectors: map[string][]float64{
+		searchhybrid.DocumentText(allowed): {0.25, -0.5, 1},
+	}}
+
+	result, err := Builder{
+		Documents: docs,
+		Metadata:  metadata,
+		Values:    values,
+		Embedder:  embedder,
+		Clock:     func() time.Time { return now },
+		DocumentAllowed: func(row postgres.EshuSearchDocumentRow) bool {
+			return row.Document.ID == allowed.ID
+		},
+	}.Build(context.Background(), BuildRequest{
+		ScopeID:            "repo-1",
+		ProviderProfileID:  "semantic-search-default",
+		SourceClass:        "search_documents",
+		EmbeddingModelID:   "search-embed-v1",
+		VectorIndexVersion: "vector-v1",
+	})
+	if err != nil {
+		t.Fatalf("Build error = %v, want nil", err)
+	}
+	if result.DocumentCount != 2 || result.VectorCount != 1 || result.DisabledCount != 1 || result.FailedCount != 0 {
+		t.Fatalf("result = %#v, want one ready vector and one policy-disabled document", result)
+	}
+	if got, want := len(embedder.calls), 1; got != want {
+		t.Fatalf("embedder calls = %d, want %d", got, want)
+	}
+	if got, want := len(values.rows), 1; got != want {
+		t.Fatalf("value rows = %d, want %d", got, want)
+	}
+	if got, want := len(metadata.rows), 2; got != want {
+		t.Fatalf("metadata rows = %d, want %d", got, want)
+	}
+	disabled := metadata.rows[1]
+	if disabled.DocumentID != denied.ID {
+		t.Fatalf("disabled document = %q, want %q", disabled.DocumentID, denied.ID)
+	}
+	if disabled.BuildState != postgres.EshuSearchVectorBuildStateDisabled {
+		t.Fatalf("disabled state = %q, want disabled", disabled.BuildState)
+	}
+	if disabled.FailureClass != FailureClassPolicyDenied {
+		t.Fatalf("failure class = %q, want %q", disabled.FailureClass, FailureClassPolicyDenied)
+	}
+	if disabled.LastSuccessAt != nil {
+		t.Fatalf("disabled last success = %v, want nil", disabled.LastSuccessAt)
+	}
+}
+
 func TestBuilderRecordsInvalidVectorAsBoundedMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -429,7 +491,7 @@ type recordingEmbedder struct {
 	calls   []string
 }
 
-func (e *recordingEmbedder) Embed(text string) ([]float64, error) {
+func (e *recordingEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	e.calls = append(e.calls, text)
 	if e.err != nil {
 		return nil, e.err

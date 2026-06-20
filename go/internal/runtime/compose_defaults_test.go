@@ -95,12 +95,14 @@ func TestDefaultComposePassesSemanticSearchConfigToReadersAndVectorBuilder(t *te
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON", "${ESHU_SEMANTIC_PROVIDER_PROFILES_JSON:-}")
 		assertComposeEnv(t, service, "ESHU_SEMANTIC_EXTRACTION_POLICY_JSON", "${ESHU_SEMANTIC_EXTRACTION_POLICY_JSON:-}")
+		assertComposeEnv(t, service, "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER", "${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-}")
 		assertComposeEnv(t, service, "ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID", "${ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID:-}")
 	}
 	for _, serviceName := range []string{"bootstrap-index", "ingester"} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON")
 		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_EXTRACTION_POLICY_JSON")
+		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER")
 		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID")
 	}
 }

@@ -16,7 +16,7 @@ type fixedVectorEmbedder struct {
 
 func (e fixedVectorEmbedder) Dimensions() int { return e.dims }
 
-func (e fixedVectorEmbedder) Embed(text string) ([]float64, error) {
+func (e fixedVectorEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	switch {
 	case strings.Contains(text, "tilted-query"):
 		return []float64{0.51, 0.50}, nil

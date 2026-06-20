@@ -43,6 +43,9 @@ type Config struct {
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	VectorRetrieval    searchhybrid.VectorRetrievalMode
+	policy             semanticpolicy.Policy
+	profile            semanticprofile.ProviderProfile
+	policyRequired     bool
 }
 
 // ConfigFromEnv selects an embedder from environment configuration without
@@ -85,7 +88,38 @@ func ConfigFromEnv(getenv func(string) string, client *http.Client) (Config, err
 		EmbeddingModelID:   profile.ModelID,
 		VectorIndexVersion: VectorIndexVersion,
 		VectorRetrieval:    searchhybrid.VectorRetrievalAuto,
+		policy:             policy,
+		profile:            profile,
+		policyRequired:     true,
 	}, nil
+}
+
+// AllowsSearchDocument reports whether the selected embedder may process one
+// curated search document under the configured source policy.
+func (c Config) AllowsSearchDocument(repoID string, documentID string, sourcePath string) bool {
+	if !c.Enabled {
+		return false
+	}
+	if !c.policyRequired {
+		return true
+	}
+	decision := semanticpolicy.Evaluate(
+		c.policy,
+		semanticpolicy.Request{
+			ProviderProfileID: c.ProviderProfileID,
+			SourceClass:       SourceClass,
+			Scope: semanticpolicy.Scope{
+				Kind: semanticpolicy.ScopeRepository,
+				ID:   strings.TrimSpace(repoID),
+			},
+			SourceID:   strings.TrimSpace(documentID),
+			DocumentID: strings.TrimSpace(documentID),
+			SourcePath: strings.TrimSpace(sourcePath),
+			ACLState:   semanticpolicy.ACLAllowed,
+		},
+		semanticprofile.ProviderStatuses([]semanticprofile.ProviderProfile{c.profile}),
+	)
+	return decision.Allowed
 }
 
 func localConfig(local string) (Config, error) {
