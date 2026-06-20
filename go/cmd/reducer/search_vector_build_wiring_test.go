@@ -3,8 +3,45 @@ package main
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
+
+func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalHashConfigured(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeReducerDB{}
+	service, err := buildReducerService(
+		db,
+		stubGraphExecutor{},
+		stubCypherExecutor{},
+		postgres.NewSharedIntentStore(db),
+		stubCypherReader{},
+		stubCypherReader{},
+		func(key string) string {
+			if key == searchembedruntime.EnvLocalEmbedder {
+				return "hash"
+			}
+			return ""
+		},
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildReducerService() error = %v, want nil", err)
+	}
+	runner := service.SearchVectorBuildRunner
+	if runner == nil {
+		t.Fatal("buildReducerService() search vector build runner = nil, want local hash vector builder")
+	}
+	if got, want := runner.Config.ProviderProfileID, searchembedruntime.LocalProviderProfileID; got != want {
+		t.Fatalf("ProviderProfileID = %q, want %q", got, want)
+	}
+	if got, want := runner.Config.EmbeddingModelID, searchembedruntime.LocalEmbeddingModelID; got != want {
+		t.Fatalf("EmbeddingModelID = %q, want %q", got, want)
+	}
+}
 
 func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenProviderProfileConfigured(t *testing.T) {
 	t.Parallel()
