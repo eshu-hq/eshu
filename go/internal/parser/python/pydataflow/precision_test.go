@@ -94,6 +94,39 @@ func TestLowerAliasChainNormalizesAttributeWrite(t *testing.T) {
 	}
 }
 
+// TestLowerNestedAttributeReadPreservesRootObjectUse proves a nested attribute
+// read also records the root object. Whole-object definitions must still reach
+// deep attribute reads when no intermediate object definition exists.
+func TestLowerNestedAttributeReadPreservesRootObjectUse(t *testing.T) {
+	t.Parallel()
+
+	src := "def f(p):\n" +
+		"    obj = build()\n" +
+		"    use(obj.profile.name)\n"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "obj:2->3") {
+		t.Fatalf("nested attribute read did not preserve root object use; got %v", got)
+	}
+}
+
+// TestLowerDestructuringAssignmentDropsAlias proves tuple/list assignment
+// targets clear stale aliases for every identifier they rebind.
+func TestLowerDestructuringAssignmentDropsAlias(t *testing.T) {
+	t.Parallel()
+
+	src := "def f(p, row):\n" +
+		"    a = obj\n" +
+		"    a, _ = row\n" +
+		"    a.x = p\n" +
+		"    use(obj.x)\n"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if contains(got, "obj.x:4->5") {
+		t.Fatalf("destructuring rebind left stale alias a -> obj; got %v", got)
+	}
+}
+
 // TestLowerAliasConflictingAcrossBranchesIsDropped proves an alias that differs
 // between the then and fall-through paths is dropped at the merge.
 func TestLowerAliasConflictingAcrossBranchesIsDropped(t *testing.T) {

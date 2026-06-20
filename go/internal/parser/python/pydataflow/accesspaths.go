@@ -116,7 +116,12 @@ func appendBaseAccessPath(uses []string, node *tree_sitter.Node, source []byte, 
 	if !ok || base == "" {
 		return uses
 	}
-	return appendUnique(uses, base)
+	uses = appendUnique(uses, base)
+	parts := strings.Split(base, ".")
+	for i := len(parts) - 1; i > 0; i-- {
+		uses = appendUnique(uses, strings.Join(parts[:i], "."))
+	}
+	return uses
 }
 
 // pyBindingAliases maps a binding name to the object it references. Reference

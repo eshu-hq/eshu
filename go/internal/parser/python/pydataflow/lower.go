@@ -55,15 +55,20 @@ func (l *lowerer) uses(node *tree_sitter.Node) []string {
 // the affected identifier's alias.
 func (l *lowerer) updateAliasesFromAssignment(node *tree_sitter.Node) {
 	left := node.ChildByFieldName("left")
-	if left == nil || left.Kind() != "identifier" {
+	if left == nil {
 		return
 	}
-	target := nodeText(left, l.source)
-	if node.Kind() == "augmented_assignment" {
+	targets := assignTargets(left, l.source)
+	if len(targets) == 0 {
+		return
+	}
+	if node.Kind() == "assignment" && left.Kind() == "identifier" {
+		l.aliases.applyAssignment(targets[0], node.ChildByFieldName("right"), l.source)
+		return
+	}
+	for _, target := range targets {
 		delete(l.aliases, target)
-		return
 	}
-	l.aliases.applyAssignment(target, node.ChildByFieldName("right"), l.source)
 }
 
 // dropAliases removes the alias entries for a set of newly-defined targets, so a
