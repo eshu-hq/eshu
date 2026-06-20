@@ -5,6 +5,7 @@ package catalog
 // which backend it queries and its expected retrieval cost class.
 func askToolAnnotations() map[string]Annotation {
 	return map[string]Annotation{
+		"ask":                                             {Backend: BackendBoth, Cost: CostHigh},
 		"analyze_code_relationships":                      {Backend: BackendNornicDB, Cost: CostHigh},
 		"analyze_infra_relationships":                     {Backend: BackendNornicDB, Cost: CostModerate},
 		"analyze_pre_change_impact":                       {Backend: BackendBoth, Cost: CostHigh},
@@ -29,6 +30,9 @@ func askToolAnnotations() map[string]Annotation {
 		"explain_dependency_path":                         {Backend: BackendNornicDB, Cost: CostHigh},
 		"explain_iac_management_status":                   {Backend: BackendPostgres, Cost: CostModerate},
 		"explain_supply_chain_impact":                     {Backend: BackendPostgres, Cost: CostLow},
+		"export_cloud_runtime_drift_packet":               {Backend: BackendPostgres, Cost: CostModerate},
+		"export_deployable_unit_packet":                   {Backend: BackendPostgres, Cost: CostModerate},
+		"export_supply_chain_impact_packet":               {Backend: BackendPostgres, Cost: CostModerate},
 		"find_blast_radius":                               {Backend: BackendNornicDB, Cost: CostHigh},
 		"find_change_surface":                             {Backend: BackendNornicDB, Cost: CostHigh},
 		"find_code":                                       {Backend: BackendBoth, Cost: CostModerate},
