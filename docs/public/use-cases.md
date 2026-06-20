@@ -48,10 +48,13 @@ Ask:
 - "What is the direct and transitive impact?"
 - "Which repos, files, workloads, and resources are involved?"
 
-Through MCP, start with `investigate_change_surface`. Through the CLI, use a
-bounded graph neighborhood:
+Through MCP, start with `analyze_pre_change_impact` when you have a diff or
+changed-file list; use `investigate_change_surface` when you already know the
+entity, service, or topic. Through the CLI, use pre-change impact for a local
+diff or bounded graph neighborhood for an entity:
 
 ```bash
+eshu change impact --repo-id git-repository:payments --base origin/main --head HEAD
 eshu map --from payments-api --type service --env prod
 ```
 

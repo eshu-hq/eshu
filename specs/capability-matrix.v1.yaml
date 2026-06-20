@@ -578,6 +578,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: hybrid graph plus infra truth from the local authoritative graph}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: change-surface}], notes: hybrid graph plus infra truth}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-change-surface}], notes: hybrid graph plus infra truth}
+  - capability: platform_impact.pre_change
+    tools: [analyze_pre_change_impact]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-pre-change-impact}], notes: requires indexed content and hybrid platform truth}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: normalizes local diff or file-list inputs into bounded changed-path, content, and graph impact evidence}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{compose_e2e: pre-change-impact}], notes: normalizes local diff or file-list inputs into bounded changed-path, content, and graph impact evidence}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-pre-change-impact}], notes: API and MCP accept normalized changed-file records; local git ref resolution happens in the CLI or caller}
   - capability: platform_impact.entity_map
     tools: [entity_map]
     profiles:

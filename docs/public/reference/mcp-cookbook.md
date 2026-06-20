@@ -192,6 +192,18 @@ relationships or compare environments.
 { "service_name": "payments-api", "environment": "prod", "max_depth": 4, "limit": 25 }
 ```
 
+**Tool:** `analyze_pre_change_impact`
+
+```json
+{
+  "repo_id": "git-repository:payments",
+  "base_ref": "origin/main",
+  "head_ref": "HEAD",
+  "changed_paths": ["go/internal/payments/handler.go"],
+  "limit": 25
+}
+```
+
 ## Safety Checks
 
 Secret and import-plan tools are read-only. Secret findings are redacted; do

@@ -76,6 +76,92 @@ func TestResolveRouteMapsChangeSurfaceInvestigationToBoundedBody(t *testing.T) {
 	}
 }
 
+func TestPreChangeImpactToolContract(t *testing.T) {
+	t.Parallel()
+
+	var tool *ToolDefinition
+	for _, candidate := range ecosystemTools() {
+		if candidate.Name == "analyze_pre_change_impact" {
+			tool = &candidate
+			break
+		}
+	}
+	if tool == nil {
+		t.Fatal("analyze_pre_change_impact tool is not registered")
+	}
+	schema := tool.InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	for _, key := range []string{"repo_id", "base_ref", "head_ref", "changed_paths", "changes", "target", "topic", "limit", "max_depth"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("tool schema missing %q", key)
+		}
+	}
+	changes := properties["changes"].(map[string]any)
+	items := changes["items"].(map[string]any)
+	changeProperties := items["properties"].(map[string]any)
+	for _, key := range []string{"path", "old_path", "status"} {
+		if _, ok := changeProperties[key]; !ok {
+			t.Fatalf("changes item schema missing %q", key)
+		}
+	}
+	if !strings.Contains(tool.Description, "base/head") || !strings.Contains(tool.Description, "changed files") {
+		t.Fatalf("tool description = %q, want pre-change diff guidance", tool.Description)
+	}
+}
+
+func TestResolveRouteMapsPreChangeImpactToBoundedBody(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("analyze_pre_change_impact", map[string]any{
+		"repo_id":       "repo-1",
+		"base_ref":      "main",
+		"head_ref":      "feature/pre-change",
+		"changed_paths": []any{"go/internal/query/prechange_impact.go"},
+		"changes": []any{map[string]any{
+			"path":     "go/internal/query/prechange_impact.go",
+			"old_path": "go/internal/query/change_impact.go",
+			"status":   "renamed",
+		}},
+		"topic":       "pre-change workflow",
+		"environment": "prod",
+		"max_depth":   float64(3),
+		"limit":       float64(25),
+		"offset":      float64(50),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "POST"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/impact/pre-change"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	for key, want := range map[string]any{
+		"repo_id":     "repo-1",
+		"base_ref":    "main",
+		"head_ref":    "feature/pre-change",
+		"topic":       "pre-change workflow",
+		"environment": "prod",
+		"max_depth":   3,
+		"limit":       25,
+		"offset":      50,
+	} {
+		if got := body[key]; got != want {
+			t.Fatalf("body[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+	changes := body["changes"].([]any)
+	first := changes[0].(map[string]any)
+	if got, want := first["old_path"], "go/internal/query/change_impact.go"; got != want {
+		t.Fatalf("changes[0].old_path = %#v, want %#v", got, want)
+	}
+}
+
 func TestDeploymentConfigInfluenceToolContract(t *testing.T) {
 	t.Parallel()
 

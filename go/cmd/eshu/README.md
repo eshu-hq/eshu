@@ -82,6 +82,7 @@ orchestration. It does not own service runtime internals:
     through the API envelope; `vuln-scan provider-parity` compares
     operator-local provider alert summaries to Eshu findings with
     aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
+  - pre-change impact: `change impact` derives local rename/copy-aware Git diffs or accepts repeated `--file` paths, preserves changed-file status, and posts the canonical envelope request to `/api/v0/impact/pre-change` (`change_impact.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`
