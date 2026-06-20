@@ -8,11 +8,14 @@ function connectedSource(overrides: Partial<SourceState> = {}): SourceState {
   return { base: "https://eshu.example/api/", key: "shared", mode: "private", status: "connected", msg: "", ...overrides };
 }
 
-function probeResponse(state: string, reason = ""): Response {
-  return new Response(JSON.stringify({ data: { state, reason }, error: null, truth: null }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" }
-  });
+function probeResponse(state: string, reason = "", providerConfigured = true): Response {
+  return new Response(
+    JSON.stringify({ data: { state, reason, provider_configured: providerConfigured }, error: null, truth: null }),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    }
+  );
 }
 
 function sseResponse(chunks: readonly string[]): Response {
@@ -88,6 +91,24 @@ describe("AskPage", () => {
 
     expect(await screen.findByText("Ask Eshu is turned off")).toBeInTheDocument();
     expect(screen.getByText("ESHU_ASK_ENABLED is unset")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Ask Eshu a question")).not.toBeInTheDocument();
+  });
+
+  it("shows the disabled state when the ask provider is not configured", async () => {
+    stubFetch((url) => {
+      if (url.includes("/status/answer-narration")) {
+        return probeResponse("unavailable", "no provider", false);
+      }
+      throw new Error("ask should not be called when the provider is missing");
+    });
+
+    render(
+      <MemoryRouter>
+        <AskPage source={connectedSource()} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Ask Eshu is turned off")).toBeInTheDocument();
     expect(screen.queryByLabelText("Ask Eshu a question")).not.toBeInTheDocument();
   });
 

@@ -263,6 +263,27 @@ describe("askNarrationStatus", () => {
     expect(probe.reason).toBe("no provider");
   });
 
+  it("reports providerConfigured=false when the ask adapter is not built", async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({
+        data: { state: "unavailable", reason: "no provider", provider_configured: false },
+        error: null,
+        truth: null
+      })
+    );
+    const probe = await askNarrationStatus({ ...connection, fetcher });
+    expect(probe.state).toBe("unavailable");
+    expect(probe.providerConfigured).toBe(false);
+  });
+
+  it("defaults providerConfigured to true when the field is absent", async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({ data: { state: "available" }, error: null, truth: null })
+    );
+    const probe = await askNarrationStatus({ ...connection, fetcher });
+    expect(probe.providerConfigured).toBe(true);
+  });
+
   it("falls back to unavailable when the probe request throws", async () => {
     const fetcher = vi.fn(async () => {
       throw new Error("network down");

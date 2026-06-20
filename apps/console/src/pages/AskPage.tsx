@@ -58,7 +58,11 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
   const [answer, setAnswer] = useState<AskAnswer | null>(null);
   const [error, setError] = useState<AskError | null>(null);
   const [invalid, setInvalid] = useState(false);
-  const [probe, setProbe] = useState<AskNarrationProbe>({ state: "available", reason: "" });
+  const [probe, setProbe] = useState<AskNarrationProbe>({
+    state: "available",
+    reason: "",
+    providerConfigured: true
+  });
   const abortRef = useRef<AbortController | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -165,11 +169,14 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
     setPhase("idle");
   }
 
-  if (probe.state === "disabled") {
+  // Show the disabled state when governance disabled narration, or when the ask
+  // provider adapter was never built (provider_configured=false) — in the latter
+  // case POST /api/v0/ask always 503s, so an askable input would always fail.
+  if (probe.state === "disabled" || !probe.providerConfigured) {
     return (
       <div className="page ask-page">
         <AskIntro />
-        <DisabledState reason={probe.reason} />
+        <DisabledState reason={probe.state === "disabled" ? probe.reason : ""} />
       </div>
     );
   }

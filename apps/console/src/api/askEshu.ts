@@ -16,6 +16,7 @@ import type { EshuFetcher } from "./client";
 import { eshuEnvelopeAccept } from "./client";
 import {
   narrationData,
+  narrationProviderConfigured,
   narrationState,
   normalizeAnswer,
   normalizeStreamError,
@@ -89,6 +90,10 @@ export type AskNarrationState = "available" | "unavailable" | "disabled";
 export interface AskNarrationProbe {
   readonly state: AskNarrationState;
   readonly reason: string;
+  // providerConfigured mirrors the backend `provider_configured` gate (the ask
+  // adapter was actually built). When false, POST /api/v0/ask always returns
+  // 503, so the page shows the disabled state instead of an askable input.
+  readonly providerConfigured: boolean;
 }
 
 /** Connection coordinates for the live Eshu API. */
@@ -159,14 +164,19 @@ export async function askNarrationStatus(
       signal
     });
     if (!response.ok) {
-      return { state: "unavailable", reason: `probe failed: HTTP ${response.status}` };
+      return { state: "unavailable", reason: `probe failed: HTTP ${response.status}`, providerConfigured: true };
     }
     const parsed = (await response.json()) as unknown;
     const data = narrationData(parsed);
-    const state = narrationState(data.state);
-    return { state, reason: typeof data.reason === "string" ? data.reason : "" };
+    return {
+      state: narrationState(data.state),
+      reason: typeof data.reason === "string" ? data.reason : "",
+      providerConfigured: narrationProviderConfigured(data.provider_configured)
+    };
   } catch (error) {
-    return { state: "unavailable", reason: errorMessage(error) || "probe failed" };
+    // On a failed probe, assume the provider is configured so the input still
+    // renders; a real outage surfaces at submit time as a bounded error.
+    return { state: "unavailable", reason: errorMessage(error) || "probe failed", providerConfigured: true };
   }
 }
 

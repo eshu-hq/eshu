@@ -104,10 +104,10 @@ export function normalizeTruthClass(value: unknown): AskTruthClass {
 }
 
 /** Unwrap the status envelope `data` object (or the bare body) for the probe. */
-export function narrationData(parsed: unknown): { readonly state?: unknown; readonly reason?: unknown } {
+export function narrationData(parsed: unknown): Record<string, unknown> {
   const record = asRecord(parsed);
   if (record.data && typeof record.data === "object") {
-    return record.data as { state?: unknown; reason?: unknown };
+    return record.data as Record<string, unknown>;
   }
   return record;
 }
@@ -118,6 +118,16 @@ export function narrationState(value: unknown): AskNarrationState {
     return value;
   }
   return "unavailable";
+}
+
+// narrationProviderConfigured reads the `provider_configured` gate, which the
+// backend sets to `adapterReady` — whether the ask provider adapter was
+// actually constructed. When it is false, POST /api/v0/ask has a nil Asker and
+// every submit returns 503, so the page must show the disabled state rather
+// than an askable evidence-only input. Defaults to true when the field is
+// absent (older backends) so the submit-time 503 still handles it gracefully.
+export function narrationProviderConfigured(value: unknown): boolean {
+  return value === false ? false : true;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
