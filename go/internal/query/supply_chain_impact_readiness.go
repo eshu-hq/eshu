@@ -374,6 +374,9 @@ func classifyMissingEvidence(
 		evidenceFactCount(sources, EvidenceFamilySBOMAttestation) == 0 {
 		missing = append(missing, MissingEvidenceSBOMOrImage)
 	}
+	if scopeRequiresServiceOrWorkloadEvidence(scope) {
+		missing = append(missing, serviceCatalogAnchorMissingReason)
+	}
 	if len(snapshot.UnsupportedTargets) > 0 {
 		missing = append(missing, MissingEvidenceUnsupportedTargets)
 	}
@@ -402,6 +405,10 @@ func scopeRequiresPackageRegistryMetadata(scope SupplyChainImpactTargetScope, so
 
 func scopeRequiresImageEvidence(scope SupplyChainImpactTargetScope) bool {
 	return scope.SubjectDigest != "" || scope.ImageRef != ""
+}
+
+func scopeRequiresServiceOrWorkloadEvidence(scope SupplyChainImpactTargetScope) bool {
+	return scope.WorkloadID != "" || scope.ServiceID != ""
 }
 
 func countFindingsByStatus(findings []SupplyChainImpactFindingResult) map[string]int {

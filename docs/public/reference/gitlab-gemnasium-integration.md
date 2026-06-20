@@ -139,7 +139,7 @@ identifier where an advisory id is allowed. See the
 | --- | --- |
 | `list_advisory_evidence` | List source-only advisory evidence by CVE, advisory, package, repository, service, or workload. Accepts a `source` filter such as `glad`. |
 | `list_supply_chain_impact_findings` | List reducer-owned impact findings by CVE, package, repository, image digest, or status. Accepts a `glad` value in `advisory_id`. |
-| `explain_supply_chain_impact` | Explain one reducer-owned finding or bounded advisory/package/repository path with evidence, anchors, remediation, and missing-evidence reasons. Accepts a `glad` `advisory_id`. |
+| `explain_supply_chain_impact` | Explain one reducer-owned finding or bounded advisory/package/repository/image/workload/service path with an evidence packet handle, evidence, anchors, remediation, and missing-evidence reasons. Accepts a `glad` `advisory_id`. |
 
 ## Example
 

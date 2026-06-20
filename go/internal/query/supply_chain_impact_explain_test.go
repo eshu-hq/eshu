@@ -41,6 +41,7 @@ func TestSupplyChainExplainImpactRequiresBoundedInput(t *testing.T) {
 		"/api/v0/supply-chain/impact/explain",
 		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test",
 		"/api/v0/supply-chain/impact/explain?package_id=pkg:npm/example",
+		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test&workload_id=workload:api",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {
@@ -129,6 +130,9 @@ func TestSupplyChainExplainImpactFindingIncludesEvidenceChain(t *testing.T) {
 	}
 	if got, want := resp.Outcome, "finding_explained"; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidencePacketHandle, "supply-chain-impact-explanation:finding:finding-1"; got != want {
+		t.Fatalf("EvidencePacketHandle = %q, want %q", got, want)
 	}
 	if resp.Finding == nil || resp.Finding.FindingID != "finding-1" {
 		t.Fatalf("Finding = %#v, want finding-1", resp.Finding)
