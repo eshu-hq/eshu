@@ -33,6 +33,25 @@ type relationshipStoryEvidenceInputs struct {
 	floorApplied     bool
 	countTruncated   bool
 	budgetTruncated  bool
+	// rawPaged is true when the underlying fetch returned a bounded page that did
+	// not exhaust the edge set (the graph reader caps at normalizedLimit()+1).
+	// When the page was floor-emptied this prevents claiming an exhaustive
+	// all_below_confidence_floor result over a partial page.
+	rawPaged bool
+}
+
+// relationshipStoryTargetResolved reports whether a resolution status means the
+// target was found well enough to read relationships. The repo-scoped override
+// story sets "repo_scoped" and returns real rows, so it is resolved-equivalent;
+// only genuinely unresolved statuses (ambiguous, not_found, content-fallback)
+// are treated as unresolved.
+func relationshipStoryTargetResolved(status string) bool {
+	switch status {
+	case "", "resolved", "repo_scoped":
+		return true
+	default:
+		return false
+	}
 }
 
 // relationshipStoryEvidenceState is the classified missing-edge reason,
@@ -46,10 +65,18 @@ type relationshipStoryEvidenceState struct {
 // classifyRelationshipStoryEvidence classifies the result. Reason priority is
 // fixed: an unresolved target and an empty graph are reported before truncation,
 // because truncation of an already-empty result would be misleading.
+//
+// A floor that empties the page is reported as all_below_confidence_floor only
+// when the page was the complete edge set (!rawPaged). When the fetch was paged,
+// a later page may hold a qualifying edge, so the honest reason is truncation,
+// not an exhaustive floor verdict.
 func classifyRelationshipStoryEvidence(in relationshipStoryEvidenceInputs) relationshipStoryEvidenceState {
-	truncation := relationshipStoryTruncationState(in.countTruncated, in.budgetTruncated)
+	// A paged raw fetch means more edges existed than were returned, which is a
+	// count truncation even when the post-floor row count fits under the limit.
+	countTruncated := in.countTruncated || in.rawPaged
+	truncation := relationshipStoryTruncationState(countTruncated, in.budgetTruncated)
 	switch {
-	case in.resolutionStatus != "" && in.resolutionStatus != "resolved":
+	case !relationshipStoryTargetResolved(in.resolutionStatus) && in.rawCount == 0:
 		return relationshipStoryEvidenceState{
 			reason:      relationshipStoryReasonTargetUnresolved,
 			truncation:  truncation,
@@ -61,17 +88,17 @@ func classifyRelationshipStoryEvidence(in relationshipStoryEvidenceInputs) relat
 			truncation:  truncation,
 			explanation: "the target resolved but has no relationships of the requested type and direction",
 		}
-	case in.floorApplied && in.afterFloorCount == 0:
+	case in.floorApplied && in.afterFloorCount == 0 && !in.rawPaged:
 		return relationshipStoryEvidenceState{
 			reason:      relationshipStoryReasonFloorFiltered,
 			truncation:  truncation,
 			explanation: "relationships exist but all fell below the requested min_confidence floor",
 		}
-	case in.countTruncated:
+	case countTruncated:
 		return relationshipStoryEvidenceState{
 			reason:      relationshipStoryReasonTruncatedLimit,
 			truncation:  truncation,
-			explanation: "more relationships exist than the limit; raise limit or page with offset",
+			explanation: "more relationships exist than the limit; raise limit or page with offset to evaluate them, including against any min_confidence floor",
 		}
 	case in.budgetTruncated:
 		return relationshipStoryEvidenceState{

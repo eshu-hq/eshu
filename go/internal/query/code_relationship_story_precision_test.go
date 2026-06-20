@@ -194,8 +194,8 @@ func TestRelationshipStoryFloorPrecedesTruncation(t *testing.T) {
 }
 
 // TestRelationshipStoryMissingEdgeReasonFloorFiltered proves a confidence floor
-// that removes every row is reported as all_below_confidence_floor, not as an
-// empty graph.
+// that removes every row of the COMPLETE (unpaged) edge set is reported as
+// all_below_confidence_floor, not as an empty graph.
 func TestRelationshipStoryMissingEdgeReasonFloorFiltered(t *testing.T) {
 	t.Parallel()
 	rows := []map[string]any{
@@ -206,5 +206,28 @@ func TestRelationshipStoryMissingEdgeReasonFloorFiltered(t *testing.T) {
 	coverage := relationshipStoryCoverage(t, data)
 	if got := StringVal(coverage, "missing_edge_reason"); got != "all_below_confidence_floor" {
 		t.Errorf("missing_edge_reason = %q, want all_below_confidence_floor", got)
+	}
+}
+
+// TestRelationshipStoryFloorEmptiedPagedResultNotExhaustive proves a floor that
+// empties a PAGED fetch (more edges existed than the limit) is reported as
+// truncated, not as an exhaustive all_below_confidence_floor verdict — a later
+// page may hold a qualifying edge.
+func TestRelationshipStoryFloorEmptiedPagedResultNotExhaustive(t *testing.T) {
+	t.Parallel()
+	// limit=1 but two below-floor rows come back, so rawCount(2) > limit(1):
+	// the fetch was paged and the floor saw only a partial page.
+	rows := []map[string]any{
+		{"direction": "incoming", "type": "CALLS", "source_id": "a", "target_id": "t", "confidence": 0.50, "resolution_method": "repo_unique_name"},
+		{"direction": "incoming", "type": "CALLS", "source_id": "b", "target_id": "t", "confidence": 0.50, "resolution_method": "repo_unique_name"},
+	}
+	data := decodeRelationshipStory(t,
+		`{"entity_id":"t","relationship_type":"CALLS","direction":"incoming","limit":1,"min_confidence":0.9}`, rows)
+	coverage := relationshipStoryCoverage(t, data)
+	if got := StringVal(coverage, "missing_edge_reason"); got != "truncated_by_limit" {
+		t.Errorf("missing_edge_reason = %q, want truncated_by_limit (paged floor result is not exhaustive)", got)
+	}
+	if got := StringVal(coverage, "truncation_state"); got != "count" {
+		t.Errorf("truncation_state = %q, want count", got)
 	}
 }

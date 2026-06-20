@@ -345,6 +345,9 @@ func relationshipStoryData(
 		floorApplied:     floorApplied,
 		countTruncated:   truncated,
 		budgetTruncated:  budgetTruncated,
+		// The graph/content fetch caps at normalizedLimit()+1, so rawCount > limit
+		// means the edge set was paged and not exhausted.
+		rawPaged: rawCount > limit,
 	})
 	coverage["missing_edge_reason"] = evidence.reason
 	coverage["truncation_state"] = evidence.truncation
