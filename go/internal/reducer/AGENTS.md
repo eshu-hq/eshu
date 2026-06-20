@@ -64,6 +64,15 @@ before touching any file in this directory.
   work back into the per-call loop; generated JS bundles make that
   multiplicative. Cache negative scans too; a source with no static aliases
   must not be sent through the regex pass once per call.
+- **Receiver-constrained call-resolution precision corpus** —
+  `code_call_resolution_goldens_*_test.go` (issue #3156) locks in per-language
+  cross-file resolution truth (`resolution_method` + derived confidence) and
+  guards against false positives (ambiguous/dynamic/missing-dependency calls
+  must not silently bind to a wrong target). When you improve a resolver,
+  flip the matching documented gap (`idealMethod`/`gapIssue` or
+  `falsePositiveGap`, tracked by #3198) into a strict assertion in the same
+  change — the corpus FAILS if a tracked gap is fixed but its marker is left
+  behind, so markers cannot go stale.
 - **Security-alert reconciliation identity is provider-alert stable** —
   `security_alert_reconciliation_writer.go` must key reducer facts by provider,
   provider alert id or number, provider evidence scope, package id, and advisory
