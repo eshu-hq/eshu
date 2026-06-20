@@ -281,7 +281,7 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 	}
 	if right := node.ChildByFieldName("right"); right != nil {
 		uses = exprUsesWithOptions(right, l.source, l.aliases, l.accessPathOptions())
-		if left := node.ChildByFieldName("left"); left != nil {
+		if left := node.ChildByFieldName("left"); left != nil && jsForLoopUsesIterableElements(node) {
 			uses = append(uses, jsForInPatternSourceUses(left, right, l.source, l.aliases, l.accessPathOptions())...)
 		}
 	}
@@ -309,6 +309,19 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 		}
 	}
 	return exit, true
+}
+
+func jsForLoopUsesIterableElements(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.Kind() == "of" {
+			return true
+		}
+	}
+	return false
 }
 
 func jsForInPatternSourceUses(pattern, iterable *tree_sitter.Node, source []byte, aliases jsBindingAliases, options jsAccessPathOptions) []string {

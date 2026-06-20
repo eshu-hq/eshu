@@ -1445,6 +1445,11 @@
     },
     {
       "category": "mcp_tool",
+      "name": "ask",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
       "name": "build_evidence_citation_packet",
       "readiness": "implemented"
     },

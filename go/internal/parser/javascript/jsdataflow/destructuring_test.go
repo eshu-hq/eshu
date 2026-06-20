@@ -138,6 +138,28 @@ func TestLowerForOfDestructuringReadsIterableField(t *testing.T) {
 	}
 }
 
+// TestLowerForInDestructuringDoesNotReadIterableField proves a for-in object
+// pattern binds keys, not iterable elements, so it must not invent field flow
+// from the iterated object values.
+func TestLowerForInDestructuringDoesNotReadIterableField(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(p, k, rows) {\n" +
+		"\trows[k].id = p;\n" +
+		"\tfor (const { id } in rows) {\n" +
+		"\t\tuse(id);\n" +
+		"\t}\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if contains(got, "rows[*].id:2->3") {
+		t.Fatalf("for-in destructuring read iterable element field; got %v", got)
+	}
+	if !contains(got, "id:3->4") {
+		t.Fatalf("for-in destructuring did not define id for the body; got %v", got)
+	}
+}
+
 // TestLowerClosureDestructuredParamShadowsOuter proves a destructured callback
 // parameter is local to the invoked closure and does not capture an outer
 // same-named binding.
