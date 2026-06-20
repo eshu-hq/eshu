@@ -82,11 +82,7 @@ orchestration. It does not own service runtime internals:
     through the API envelope; `vuln-scan provider-parity` compares
     operator-local provider alert summaries to Eshu findings with
     aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
-  - pre-change impact: `change impact` derives a local
-    `git diff --name-status --find-renames --find-copies --find-copies-harder`
-    from `--base`/`--head` or accepts repeated `--file` paths, preserves
-    deleted, renamed, and copied file status, and posts the canonical envelope
-    request to `/api/v0/impact/pre-change` (`change_impact.go`)
+  - pre-change impact: `change impact` derives local rename/copy-aware Git diffs or accepts repeated `--file` paths, preserves changed-file status, and posts the canonical envelope request to `/api/v0/impact/pre-change` (`change_impact.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`
@@ -135,15 +131,6 @@ JSON/error output.
 
 No-Regression Evidence: provider-parity lifecycle behavior is covered by
 `go test ./cmd/eshu -count=1`.
-
-No-Observability-Change: `change impact` is an API-backed CLI reader. It may
-run local `git diff --name-status --find-renames --find-copies
---find-copies-harder` to derive changed files, then uses the existing HTTP API
-client and canonical envelope. It does not start runtimes, open graph/Postgres
-drivers, claim reducer work, or emit OTEL from the CLI process.
-
-No-Regression Evidence: pre-change impact CLI behavior is covered by
-`go test ./cmd/eshu -run 'Test(ChangeImpact|FetchChangeImpact|ParseGitNameStatusDiff|GitDiffNameStatus)' -count=1`.
 
 No-Observability-Change: component package-manager output and dry-run planning
 remain local filesystem CLI behavior. They do not start runtimes, call the API,
