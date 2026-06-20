@@ -27,6 +27,15 @@ type WorkflowOutputPacket struct {
 	Sections    []string `json:"sections"`
 }
 
+// WorkflowFailureMode documents an expected missing, stale, hidden, or refused
+// state and the bounded caller action that preserves truth instead of guessing.
+type WorkflowFailureMode struct {
+	Condition         string   `json:"condition"`
+	Meaning           string   `json:"meaning"`
+	RecommendedAction string   `json:"recommended_action"`
+	RelatedEvidence   []string `json:"related_evidence,omitempty"`
+}
+
 // WorkflowToolGroup groups existing atomic tools behind a high-level workflow
 // so assistants start from the workflow without losing expert tool discovery.
 type WorkflowToolGroup struct {
@@ -36,12 +45,13 @@ type WorkflowToolGroup struct {
 
 // WorkflowNextCall is one bounded follow-up call selected by missing evidence.
 type WorkflowNextCall struct {
-	ID               string          `json:"id"`
-	Tool             string          `json:"tool"`
-	Reason           string          `json:"reason"`
-	MissingEvidence  string          `json:"missing_evidence"`
-	Params           []PlaybookParam `json:"params,omitempty"`
-	ExpectedEvidence string          `json:"expected_evidence"`
+	ID                string          `json:"id"`
+	Tool              string          `json:"tool"`
+	Reason            string          `json:"reason"`
+	MissingEvidence   string          `json:"missing_evidence"`
+	Params            []PlaybookParam `json:"params,omitempty"`
+	RequiredInputsAny []string        `json:"required_inputs_any,omitempty"`
+	ExpectedEvidence  string          `json:"expected_evidence"`
 }
 
 // WorkflowMissingEvidenceRoute maps an observed missing-evidence key to the
@@ -68,6 +78,7 @@ type InvestigationWorkflow struct {
 	OutputPacket          WorkflowOutputPacket           `json:"output_packet"`
 	ToolGroups            []WorkflowToolGroup            `json:"tool_groups"`
 	StarterPrompts        []string                       `json:"starter_prompts"`
+	FailureModes          []WorkflowFailureMode          `json:"failure_modes,omitempty"`
 	MissingEvidenceRoutes []WorkflowMissingEvidenceRoute `json:"missing_evidence_routes"`
 }
 
@@ -95,6 +106,16 @@ type ResolvedWorkflowCall struct {
 	ExpectedEvidence string         `json:"expected_evidence"`
 }
 
+// BlockedWorkflowCall names a bounded next call that was not recommended
+// because none of its required anchor inputs were supplied by the caller.
+type BlockedWorkflowCall struct {
+	ID                string   `json:"id"`
+	Tool              string   `json:"tool"`
+	Reason            string   `json:"reason"`
+	MissingEvidence   string   `json:"missing_evidence"`
+	RequiredInputsAny []string `json:"required_inputs_any"`
+}
+
 // ResolvedInvestigationWorkflow is the deterministic resolver output for one
 // workflow and caller-provided missing-evidence state.
 type ResolvedInvestigationWorkflow struct {
@@ -103,6 +124,7 @@ type ResolvedInvestigationWorkflow struct {
 	Domain                   string                 `json:"domain"`
 	OutputPacket             WorkflowOutputPacket   `json:"output_packet"`
 	RecommendedNextCalls     []ResolvedWorkflowCall `json:"recommended_next_calls"`
+	BlockedNextCalls         []BlockedWorkflowCall  `json:"blocked_next_calls,omitempty"`
 	UnmatchedMissingEvidence []string               `json:"unmatched_missing_evidence,omitempty"`
 }
 
@@ -175,6 +197,7 @@ func (w InvestigationWorkflow) Resolve(input InvestigationWorkflowResolveInput) 
 
 	missing := normalizeWorkflowEvidence(input.MissingEvidence)
 	calls := make([]ResolvedWorkflowCall, 0)
+	blocked := make([]BlockedWorkflowCall, 0)
 	matched := make(map[string]struct{}, len(missing))
 	for _, route := range w.MissingEvidenceRoutes {
 		key := normalizeWorkflowKey(route.EvidenceKey)
@@ -183,6 +206,16 @@ func (w InvestigationWorkflow) Resolve(input InvestigationWorkflowResolveInput) 
 		}
 		matched[key] = struct{}{}
 		for _, call := range route.Calls {
+			if len(call.RequiredInputsAny) > 0 && !hasAnyWorkflowInput(input.Inputs, call.RequiredInputsAny) {
+				blocked = append(blocked, BlockedWorkflowCall{
+					ID:                call.ID,
+					Tool:              call.Tool,
+					Reason:            call.Reason,
+					MissingEvidence:   route.EvidenceKey,
+					RequiredInputsAny: append([]string(nil), call.RequiredInputsAny...),
+				})
+				continue
+			}
 			args, err := resolveWorkflowCallArgs(w.ID, call, input.Inputs)
 			if err != nil {
 				return ResolvedInvestigationWorkflow{}, err
@@ -212,6 +245,7 @@ func (w InvestigationWorkflow) Resolve(input InvestigationWorkflowResolveInput) 
 		Domain:                   w.Domain,
 		OutputPacket:             w.OutputPacket,
 		RecommendedNextCalls:     calls,
+		BlockedNextCalls:         blocked,
 		UnmatchedMissingEvidence: unmatched,
 	}, nil
 }
@@ -247,6 +281,17 @@ func (w InvestigationWorkflow) Validate() error {
 			if isRawCypherTool(tool) {
 				return fmt.Errorf("workflow %q: tool group %q references raw query tool %q", w.ID, group.Name, tool)
 			}
+		}
+	}
+	for _, mode := range w.FailureModes {
+		if strings.TrimSpace(mode.Condition) == "" {
+			return fmt.Errorf("workflow %q: failure mode condition is required", w.ID)
+		}
+		if strings.TrimSpace(mode.Meaning) == "" {
+			return fmt.Errorf("workflow %q: failure mode %q meaning is required", w.ID, mode.Condition)
+		}
+		if strings.TrimSpace(mode.RecommendedAction) == "" {
+			return fmt.Errorf("workflow %q: failure mode %q recommended action is required", w.ID, mode.Condition)
 		}
 	}
 	for _, route := range w.MissingEvidenceRoutes {
@@ -320,6 +365,11 @@ func validateWorkflowCall(workflowID string, call WorkflowNextCall, declared map
 			}
 		}
 	}
+	for _, inputName := range call.RequiredInputsAny {
+		if _, ok := declared[inputName]; !ok {
+			return fmt.Errorf("workflow %q: next call %q required input %q is not declared", workflowID, call.ID, inputName)
+		}
+	}
 	return nil
 }
 
@@ -340,4 +390,13 @@ func normalizeWorkflowEvidence(values []string) map[string]struct{} {
 
 func normalizeWorkflowKey(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func hasAnyWorkflowInput(inputs map[string]string, names []string) bool {
+	for _, name := range names {
+		if strings.TrimSpace(inputs[name]) != "" {
+			return true
+		}
+	}
+	return false
 }

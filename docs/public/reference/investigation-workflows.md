@@ -17,7 +17,7 @@ The first catalog has three workflow families:
 
 | ID | Output packet | Required evidence | Optional evidence |
 | --- | --- | --- | --- |
-| `guided_vulnerable_dependency` | `guided-vulnerable-dependency.v1` | advisory, package, impact | SBOM, workload, freshness |
+| `guided_vulnerable_dependency` | `guided-vulnerable-dependency.v1` | advisory, package, impact | scanner, SBOM, image, workload, service, owner, freshness |
 | `guided_deployable_drift` | `guided-deployable-drift.v1` | admission, deployment config, runtime | service, freshness |
 | `guided_incident_context` | `guided-incident-context.v1` | incident, service, changes | observability, runtime |
 
@@ -25,6 +25,13 @@ Each workflow groups existing atomic tools behind the workflow. Expert callers
 can still call the atomic tools directly; assistants should list or resolve the
 workflow first so they do not skip bounds, truth labels, or missing-evidence
 handling.
+
+`guided_vulnerable_dependency` keeps `subject` as the human-facing prompt
+subject, but next-call arguments use typed optional anchors such as `cve_id`,
+`advisory_id`, `package_id`, `subject_digest`, `image_ref`, `repo_id`,
+`service_id`, `workload_id`, and `owner_ref`. If a missing-evidence route needs
+one of those anchors and none was supplied, the resolver returns the call under
+`blocked_next_calls` instead of emitting an unscoped tool call.
 
 `guided_deployable_drift` requires `deployable_unit_id`, `scope_id`, and
 `generation_id` because admission decisions are reducer-scoped by domain, scope,
@@ -46,8 +53,8 @@ Examples:
 
 | Surface | Operation | Result |
 | --- | --- | --- |
-| HTTP | `GET /api/v0/investigation-workflows` | Lists workflow IDs, versions, input shapes, evidence families, output packets, grouped tools, starter prompts, and missing-evidence routes. |
-| HTTP | `POST /api/v0/investigation-workflows/resolve` | Resolves `workflow_id`, declared string inputs, and `missing_evidence[]` into bounded `recommended_next_calls`. |
+| HTTP | `GET /api/v0/investigation-workflows` | Lists workflow IDs, versions, input shapes, evidence families, output packets, grouped tools, starter prompts, failure modes, and missing-evidence routes. |
+| HTTP | `POST /api/v0/investigation-workflows/resolve` | Resolves `workflow_id`, declared string inputs, and `missing_evidence[]` into bounded `recommended_next_calls` plus `blocked_next_calls` when required anchors are missing. |
 | MCP | `list_investigation_workflows` | Dispatches to the HTTP catalog route and returns the canonical envelope as structured content. |
 | MCP | `resolve_investigation_workflow` | Dispatches to the HTTP resolver with `workflow_id`, `inputs`, and `missing_evidence`. |
 
@@ -64,10 +71,15 @@ being guessed. Common keys include:
 
 | Missing evidence | Typical next call |
 | --- | --- |
+| `scanner` | `get_vulnerability_scanner_read_contract` |
 | `advisory` | `list_advisory_evidence` |
 | `package` | `list_package_registry_correlations` |
+| `impact` | `explain_supply_chain_impact` |
 | `sbom` | `list_sbom_attestation_attachments` |
+| `image` | `list_container_image_identities` |
 | `workload` | `list_supply_chain_impact_findings` |
+| `service` | `get_service_story` |
+| `owner` | `list_service_catalog_correlations` |
 | `admission` | `list_admission_decisions` |
 | `deployment_config` | `investigate_deployment_config` |
 | `runtime` | `list_aws_runtime_drift_findings` |
@@ -77,10 +89,17 @@ being guessed. Common keys include:
 | `freshness` | `get_generation_lifecycle` |
 | `permission_hidden` | `get_hosted_governance_status` |
 
+The vulnerable-dependency workflow also declares refusal and missing-evidence
+failure modes for absent scanner support, absent SBOM/attestation evidence,
+stale generation state, and permission-hidden scoped-token reads. These modes
+tell callers when to return unsupported, stale, or permission-hidden truth
+instead of treating missing evidence as absence.
+
 No-Regression Evidence: focused tests cover catalog shape, deterministic
 resolution, unknown missing-evidence reporting, required-input validation,
-HTTP handler envelopes, scoped-token allowlist, MCP registry, and MCP route
-mapping. The aggregate static-route gate is
+blocked next calls for missing anchors, HTTP handler envelopes, scoped-token
+allowlist, MCP registry, MCP route mapping, and workflow next-call parameter
+alignment with MCP tool schemas. The aggregate static-route gate is
 `cd go && go test ./internal/query ./internal/mcp ./cmd/api ./cmd/mcp-server -run 'InvestigationWorkflow|AuthMiddlewareWithScopedTokensAllowsInvestigationWorkflow|EveryRegisteredToolHasDispatchRoute|ReadOnlyTools|MCPToolContractMatrix|RuntimeSurface|Wiring' -count=1`.
 
 Dogfood Evidence: `TestInvestigationWorkflowDogfoodRoutesFewerCallsThanAtomicOnly`
