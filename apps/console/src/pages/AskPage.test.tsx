@@ -1,329 +1,162 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
 import { AskPage } from "./AskPage";
+import type { SourceState } from "../components/SourceControls";
 
-describe("AskPage", () => {
-  it("resets a stale repository scope when the live repository list changes", async () => {
-    const calls: Array<{ readonly body: unknown; readonly path: string }> = [];
-    const client = askClient((path, body) => calls.push({ body, path }));
-    const { rerender } = render(
-      <MemoryRouter>
-        <AskPage
-          client={client}
-          repositories={[{ id: "repository:r1", name: "checkout-api" }]}
-        />
-      </MemoryRouter>
-    );
+function connectedSource(overrides: Partial<SourceState> = {}): SourceState {
+  return { base: "https://eshu.example/api/", key: "shared", mode: "private", status: "connected", msg: "", ...overrides };
+}
 
-    expect(screen.getByLabelText("Repository")).toHaveValue("repository:r1");
-
-    rerender(
-      <MemoryRouter>
-        <AskPage
-          client={client}
-          repositories={[{ id: "repository:r2", name: "billing-api" }]}
-        />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByLabelText("Repository")).toHaveValue("repository:r2");
-    fireEvent.change(screen.getByLabelText("Question"), {
-      target: { value: "How does billing auth work?" }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
-
-    await waitFor(() => expect(calls).toHaveLength(2));
-    expect(calls.map((call) => (call.body as Record<string, unknown>).repo_id)).toEqual([
-      "repository:r2",
-      "repository:r2"
-    ]);
+function probeResponse(state: string, reason = ""): Response {
+  return new Response(JSON.stringify({ data: { state, reason }, error: null, truth: null }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
   });
+}
 
-  it("renders a scoped answer from code-topic and semantic-search endpoints", async () => {
-    const client = askClient();
-
-    render(
-      <MemoryRouter>
-        <AskPage
-          client={client}
-          repositories={[{ id: "repository:r1", name: "checkout-api" }]}
-        />
-      </MemoryRouter>
-    );
-
-    fireEvent.change(screen.getByLabelText("Question"), {
-      target: { value: "How does checkout auth work?" }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
-
-    expect(await screen.findByText("Found 2 ranked code-topic evidence group(s).")).toBeInTheDocument();
-    expect(screen.getByText("code.topic")).toBeInTheDocument();
-    expect(screen.getByText("semantic_search.curated_retrieval")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "src/auth.ts:42" })[0]).toHaveAttribute(
-      "href",
-      "/repositories/repository%3Ar1/source?path=src%2Fauth.ts&lineStart=42"
-    );
-    expect(screen.getByText("Checkout auth flow")).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.queryByText("Choose a repository before asking.")).not.toBeInTheDocument();
-    });
+function sseResponse(chunks: readonly string[]): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    }
   });
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
 
-  it("renders answer citations and a derived evidence subgraph", async () => {
-    render(
-      <MemoryRouter>
-        <AskPage
-          client={askClientWithAnswerEvidence()}
-          repositories={[{ id: "repository:r1", name: "checkout-api" }]}
-        />
-      </MemoryRouter>
-    );
+function stubFetch(handler: (url: string, init?: RequestInit) => Response): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(String(input), init))
+  );
+}
 
-    fireEvent.change(screen.getByLabelText("Question"), {
-      target: { value: "How does checkout auth work?" }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
-
-    expect(
-      await screen.findByText("Checkout auth is backed by authorizeCheckout.")
-    ).toBeInTheDocument();
-    expect(screen.getAllByTitle("Truth: derived").length).toBeGreaterThan(0);
-    expect(screen.getAllByTitle("Freshness: fresh").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "src/auth.ts:42" })[0]).toHaveAttribute(
-      "href",
-      "/repositories/repository%3Ar1/source?path=src%2Fauth.ts&lineStart=42"
-    );
-    expect(screen.getByText("1 nodes · 0 edges")).toBeInTheDocument();
-    expect(screen.getAllByText("authorizeCheckout").length).toBeGreaterThan(0);
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
-function askClient(
-  onPost?: (path: string, body: unknown) => void
-): EshuApiClient {
-  return {
-    post: async (path: string, body: unknown) => {
-      onPost?.(path, body);
-      if (path === "/api/v0/search/semantic") {
-        return {
-          data: {
-            indexed_document_count: 12,
-            limit: 5,
-            query: "How does checkout auth work?",
-            repo_id: "repository:r1",
-            results: [{
-              document: {
-                context_text: "checkout authentication validates session claims before payment.",
-                id: "doc:checkout-auth",
-                path: "src/auth.ts",
-                source_kind: "code_entity",
-                title: "Checkout auth flow"
-              },
-              freshness: { state: "fresh" },
-              rank: 1,
-              score: 12.4,
-              search_method: "bm25",
-              truth_scope: { basis: "content_index", level: "derived" }
-            }],
-            search_mode: "hybrid",
-            truncated: false
-          },
-          error: null,
-          truth: {
-            basis: "hybrid",
-            capability: "semantic_search.curated_retrieval",
-            freshness: { state: "fresh" },
-            level: "derived",
-            profile: "production"
-          }
-        };
+describe("AskPage", () => {
+  it("streams reasoning steps and renders the evidence-backed answer", async () => {
+    stubFetch((url) => {
+      if (url.includes("/status/answer-narration")) {
+        return probeResponse("available");
       }
-      if (path === "/api/v0/code/topics/investigate") {
-        return {
-          data: {
-            answer_packet: {
-              partial: false,
-              primary_route: "/api/v0/code/topics/investigate",
-              primary_tool: "investigate_code_topic",
-              prompt_family: "code.topic",
-              question: "How does checkout auth work?",
-              summary: "Found 2 ranked code-topic evidence group(s).",
-              supported: true,
-              truth_class: "code_hint"
-            },
-            count: 2,
-            evidence_groups: [{
-              entity_id: "entity:auth",
-              entity_name: "authorizeCheckout",
-              entity_type: "function",
-              language: "typescript",
-              rank: 1,
-              relative_path: "src/auth.ts",
-              score: 8,
-              source_handle: {
-                end_line: 50,
-                relative_path: "src/auth.ts",
-                repo_id: "repository:r1",
-                start_line: 42
-              },
-              source_kind: "content_entity"
-            }],
-            recommended_next_calls: [],
-            searched_terms: ["checkout", "auth"],
-            truncated: false
-          },
-          error: null,
-          truth: {
-            basis: "content_index",
-            capability: "code_search.topic_investigation",
-            freshness: { state: "fresh" },
-            level: "derived",
-            profile: "production"
-          }
-        };
-      }
-      throw new Error(`unexpected ${path}`);
-    }
-  } as unknown as EshuApiClient;
-}
+      return sseResponse([
+        'event: trace\ndata: {"tool":"resolve_entity","supported":true,"truth_class":"deterministic"}\n\n',
+        'event: answer\ndata: {"answer_prose":"Checkout auth validates the session.","truth_class":"derived","limitations":["telemetry is 5h stale"],"partial":true}\n\n',
+        "event: done\ndata: {}\n\n"
+      ]);
+    });
 
-function askClientWithAnswerEvidence(): EshuApiClient {
-  return {
-    post: async (path: string) => {
-      if (path === "/api/v0/search/semantic") {
-        return {
-          data: {
-            indexed_document_count: 0,
-            results: [],
-            truncated: false
-          },
-          error: null,
-          truth: {
-            basis: "hybrid",
-            capability: "semantic_search.curated_retrieval",
-            freshness: { state: "fresh" },
-            level: "derived",
-            profile: "production"
-          }
-        };
+    render(
+      <MemoryRouter>
+        <AskPage source={connectedSource()} />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("Ask Eshu a question"), {
+      target: { value: "How does checkout auth work?" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask Eshu" }));
+
+    expect(await screen.findByText("Checkout auth validates the session.")).toBeInTheDocument();
+    expect(screen.getByText("resolve_entity")).toBeInTheDocument();
+    expect(screen.getByText("This answer is partial.")).toBeInTheDocument();
+    expect(screen.getByText("telemetry is 5h stale")).toBeInTheDocument();
+    // The truth badge leads the answer.
+    expect(screen.getByText("Derived")).toBeInTheDocument();
+  });
+
+  it("renders the disabled state when narration is disabled and hides the input", async () => {
+    stubFetch((url) => {
+      if (url.includes("/status/answer-narration")) {
+        return probeResponse("disabled", "ESHU_ASK_ENABLED is unset");
       }
-      if (path === "/api/v0/code/topics/investigate") {
-        return {
-          data: {
-            answer_packet: {
-              evidence_handles: [{
-                evidence_family: "source",
-                kind: "file",
-                reason: "route handler source",
-                relative_path: "src/auth.ts",
-                repo_id: "repository:r1",
-                start_line: 42
-              }],
-              partial: false,
-              primary_route: "/api/v0/code/topics/investigate",
-              primary_tool: "investigate_code_topic",
-              prompt_family: "code.topic",
-              question: "How does checkout auth work?",
-              summary: "Checkout auth is backed by authorizeCheckout.",
-              supported: true,
-              truth_class: "code_hint"
-            },
-            evidence_groups: [],
-            recommended_next_calls: [],
-            searched_terms: ["checkout", "auth"],
-            truncated: false
-          },
-          error: null,
-          truth: {
-            basis: "content_index",
-            capability: "code_search.topic_investigation",
-            freshness: { state: "fresh" },
-            level: "derived",
-            profile: "production"
-          }
-        };
+      throw new Error("ask should not be called when disabled");
+    });
+
+    render(
+      <MemoryRouter>
+        <AskPage source={connectedSource()} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Ask Eshu is turned off")).toBeInTheDocument();
+    expect(screen.getByText("ESHU_ASK_ENABLED is unset")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Ask Eshu a question")).not.toBeInTheDocument();
+  });
+
+  it("shows the evidence-only banner when narration is unavailable", async () => {
+    stubFetch((url) => {
+      if (url.includes("/status/answer-narration")) {
+        return probeResponse("unavailable", "no provider profile");
       }
-      if (path === "/api/v0/evidence/citations") {
-        return {
-          data: {
-            citations: [{
-              citation_id: "citation:auth",
-              end_line: 50,
-              entity_id: "entity:auth",
-              entity_name: "authorizeCheckout",
-              entity_type: "function",
-              evidence_family: "source",
-              excerpt: "export function authorizeCheckout() { return session.valid; }",
-              kind: "file",
-              language: "typescript",
-              rank: 1,
-              reason: "route handler source",
-              relative_path: "src/auth.ts",
-              repo_id: "repository:r1",
-              start_line: 42
-            }],
-            coverage: {
-              input_handle_count: 1,
-              limit: 10,
-              missing_count: 0,
-              query_shape: "bounded_evidence_citation_packet",
-              resolved_count: 1,
-              source_backend: "postgres_content_store",
-              truncated: false
-            },
-            missing_handles: [],
-            recommended_next_calls: []
-          },
-          error: null,
-          truth: {
-            basis: "content_index",
-            capability: "evidence_citation.packet",
-            freshness: { state: "fresh" },
-            level: "derived",
-            profile: "production"
-          }
-        };
+      return sseResponse(["event: done\ndata: {}\n\n"]);
+    });
+
+    render(
+      <MemoryRouter>
+        <AskPage source={connectedSource()} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/evidence-only/i)).toBeInTheDocument();
+    // Asking is still possible in this mode.
+    expect(screen.getByLabelText("Ask Eshu a question")).toBeInTheDocument();
+  });
+
+  it("surfaces a scoped-token (403) error cleanly", async () => {
+    stubFetch((url) => {
+      if (url.includes("/status/answer-narration")) {
+        return probeResponse("available");
       }
-      if (path === "/api/v0/visualizations/derive") {
-        return {
-          data: {
-            visualization_packet: {
-              edges: [],
-              limits: {
-                edge_count: 0,
-                max_edges: 120,
-                max_nodes: 60,
-                node_count: 1,
-                ordering: "stable_id"
-              },
-              nodes: [{
-                category: "source",
-                id: "viznode:auth",
-                label: "authorizeCheckout",
-                type: "citation"
-              }],
-              supported: true,
-              title: "Checkout auth evidence",
-              truncation: {
-                dropped_edge_count: 0,
-                dropped_node_count: 0,
-                truncated: false
-              },
-              view: "evidence_citation"
-            }
-          },
-          error: null,
-          truth: {
-            basis: "content_index",
-            capability: "evidence_citation.packet",
-            freshness: { state: "fresh" },
-            level: "derived",
-            profile: "production"
-          }
-        };
+      return new Response("forbidden", { status: 403 });
+    });
+
+    render(
+      <MemoryRouter>
+        <AskPage source={connectedSource()} />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("Ask Eshu a question"), { target: { value: "anything" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask Eshu" }));
+
+    expect(await screen.findByText("This token can't ask")).toBeInTheDocument();
+  });
+
+  it("explains that demo mode has no live engine", () => {
+    render(
+      <MemoryRouter>
+        <AskPage source={connectedSource({ mode: "demo", key: "" })} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Ask Eshu needs a live connection")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Ask Eshu a question")).not.toBeInTheDocument();
+  });
+
+  it("validates that a question is required before asking", async () => {
+    stubFetch((url) => {
+      if (url.includes("/status/answer-narration")) {
+        return probeResponse("available");
       }
-      throw new Error(`unexpected ${path}`);
-    }
-  } as unknown as EshuApiClient;
-}
+      throw new Error("ask should not be called for an empty question");
+    });
+
+    render(
+      <MemoryRouter>
+        <AskPage source={connectedSource()} />
+      </MemoryRouter>
+    );
+
+    await screen.findByLabelText("Ask Eshu a question");
+    fireEvent.click(screen.getByRole("button", { name: "Ask Eshu" }));
+    expect(await screen.findByText("Type a question first.")).toBeInTheDocument();
+  });
+});

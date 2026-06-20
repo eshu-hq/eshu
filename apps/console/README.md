@@ -175,6 +175,34 @@ and suggested investigations.
   text so the operator still sees the recommendation without a dead link.
 - The page links into the evidence graph view for the same service.
 
+## Ask Eshu
+
+The Ask Eshu page (`/ask`) is the natural-language Q&A surface over the
+code-to-cloud graph. It fronts `POST /api/v0/ask`: the user asks in plain
+language, the backend runs the bounded agent loop, and the page renders an
+evidence-backed answer — prose, a Mermaid diagram, or an exported artifact
+(JSON/YAML/CSV/Markdown).
+
+- The client (`src/api/askEshu.ts`) defaults to the SSE variant
+  (`Accept: text/event-stream`) so `trace` steps stream into a live reasoning
+  timeline; it falls back to the synchronous JSON path and supports cancel via an
+  `AbortController`. Normalization lives in `src/api/askEshuNormalize.ts`.
+- Components live in `src/components/ask/`: `AskInput`, `ReasoningTrace`,
+  `AnswerView`, `ArtifactCard`, `TruthBadge`, `EvidenceList`, and the
+  empty/error states. Mermaid is **lazy-loaded** (dynamic `import`) and rendered
+  with `securityLevel: "strict"`, falling back to the diagram source on failure.
+- Every answer **leads with the truth-class label and evidence**, not just
+  prose. When narration is off the answer is evidence-only (`answer_prose` is
+  empty); the page presents the trace, artifacts, and limitations and never shows
+  partial results as complete.
+- States are first-class: streaming, success, partial, evidence-only, disabled
+  (503 / narration disabled), scoped-token (403), bad request (400), network
+  abort, and demo mode (no live engine). The capability probe is
+  `GET /api/v0/status/answer-narration`.
+- Ask requires a **shared/admin** token; scoped tokens receive 403 and a clean
+  explanation. No customer or workspace identity is baked into the example
+  prompts.
+
 ## Related Docs
 
 - `docs/public/reference/http-api.md`

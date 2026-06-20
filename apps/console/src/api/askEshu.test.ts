@@ -1,377 +1,274 @@
-import type { EshuApiClient } from "./client";
-import { askEshuQuestion } from "./askEshu";
+import { describe, expect, it, vi } from "vitest";
+import { askEshu, askNarrationStatus, type AskAnswer, type AskError, type AskTraceStep } from "./askEshu";
 
-describe("askEshuQuestion", () => {
-  it("requires a repository scope before calling query endpoints", async () => {
-    const calls: string[] = [];
-    const client = clientFor((method, path) => {
-      calls.push(`${method} ${path}`);
-      throw new Error(`unexpected ${method} ${path}`);
-    });
-
-    const answer = await askEshuQuestion(client, {
-      question: "How does checkout auth work?",
-      repoId: ""
-    });
-
-    expect(answer.status).toBe("needs_scope");
-    expect(answer.errors.map((error) => error.source)).toEqual(["scope"]);
-    expect(calls).toEqual([]);
+function sseResponse(chunks: readonly string[], status = 200): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    }
   });
+  return new Response(body, { status, headers: { "Content-Type": "text/event-stream" } });
+}
 
-  it("runs bounded semantic search and code topic investigation for a scoped question", async () => {
-    const calls: Array<{ readonly body: unknown; readonly path: string }> = [];
-    const client = clientFor((_method, path, body) => {
-      calls.push({ body, path });
-      if (path === "/api/v0/search/semantic") {
-        return {
-          data: semanticPayload(),
-          error: null,
-          truth: truthEnvelope("semantic_search.curated_retrieval", "hybrid")
-        };
-      }
-      if (path === "/api/v0/code/topics/investigate") {
-        return {
-          data: topicPayload(),
-          error: null,
-          truth: truthEnvelope("code_search.topic_investigation", "content_index")
-        };
-      }
-      throw new Error(`unexpected ${path}`);
-    });
+function jsonResponse(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
+}
 
-    const answer = await askEshuQuestion(client, {
-      question: "How does checkout auth work?",
-      repoId: "repository:r1"
-    });
+const connection = { baseUrl: "https://eshu.example/api/", apiKey: "shared-token" } as const;
 
-    expect(calls).toEqual([
-      {
-        path: "/api/v0/search/semantic",
-        body: {
-          limit: 5,
-          mode: "hybrid",
-          query: "How does checkout auth work?",
-          repo_id: "repository:r1",
-          timeout_ms: 5000
+describe("askEshu (streaming)", () => {
+  it("emits trace steps, then the normalized answer, then done", async () => {
+    const traces: AskTraceStep[] = [];
+    let answer: AskAnswer | null = null;
+    const done = vi.fn();
+    const fetcher = vi.fn(async () =>
+      sseResponse([
+        'event: trace\ndata: {"tool":"resolve_entity","supported":true,"truth_class":"deterministic"}\n\n',
+        'event: trace\ndata: {"tool":"graph_query","supported":false,"truth_class":"fallback","err":"timeout"}\n\n',
+        'event: answer\ndata: {"answer_prose":"Hello","truth_class":"derived","partial":true,"limitations":["stale"]}\n\n',
+        "event: done\ndata: {}\n\n"
+      ])
+    );
+
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "How does auth work?",
+        format: "auto",
+        stream: true,
+        onTrace: (step) => traces.push(step),
+        onAnswer: (value) => {
+          answer = value;
+        },
+        onDone: () => {
+          done();
+          resolve();
         }
-      },
-      {
-        path: "/api/v0/code/topics/investigate",
-        body: {
-          limit: 5,
-          query: "How does checkout auth work?",
-          repo_id: "repository:r1"
+      });
+    });
+
+    expect(traces).toHaveLength(2);
+    expect(traces[0].tool).toBe("resolve_entity");
+    expect(traces[1].supported).toBe(false);
+    expect(done).toHaveBeenCalledTimes(1);
+    const settled = answer as AskAnswer | null;
+    expect(settled).not.toBeNull();
+    expect(settled?.answer_prose).toBe("Hello");
+    expect(settled?.partial).toBe(true);
+    expect(settled?.limitations).toEqual(["stale"]);
+    // Missing arrays are normalized to empty, never undefined.
+    expect(settled?.artifacts).toEqual([]);
+    expect(settled?.evidence_handles).toEqual([]);
+    expect(settled?.query_trace).toEqual([]);
+
+    const request = fetcher.mock.calls[0];
+    const init = request[1] as RequestInit;
+    expect((init.headers as Record<string, string>).Accept).toBe("text/event-stream");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer shared-token");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      question: "How does auth work?",
+      format: "auto"
+    });
+  });
+
+  it("joins multi-line SSE data fields before parsing", async () => {
+    let answer: AskAnswer | null = null;
+    const fetcher = vi.fn(async () =>
+      sseResponse([
+        'event: answer\ndata: {"answer_prose":\ndata: "Split across lines"}\n\n',
+        "event: done\ndata: {}\n\n"
+      ])
+    );
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "q",
+        format: "auto",
+        onAnswer: (value) => {
+          answer = value;
+        },
+        onDone: () => resolve()
+      });
+    });
+    expect((answer as AskAnswer | null)?.answer_prose).toBe("Split across lines");
+  });
+
+  it("preserves the wire state from an SSE error event", async () => {
+    let error: AskError | null = null;
+    const fetcher = vi.fn(async () =>
+      sseResponse([
+        'event: error\ndata: {"state":"forbidden","reason":"scoped token"}\n\n',
+        "event: done\ndata: {}\n\n"
+      ])
+    );
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "q",
+        format: "auto",
+        onError: (value) => {
+          error = value;
+        },
+        onDone: () => resolve()
+      });
+    });
+    expect((error as AskError | null)?.state).toBe("forbidden");
+    expect((error as AskError | null)?.reason).toBe("scoped token");
+  });
+
+  it("maps a 403 to a forbidden error and still signals done", async () => {
+    let error: AskError | null = null;
+    const done = vi.fn();
+    const fetcher = vi.fn(async () => new Response("forbidden", { status: 403 }));
+
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "q",
+        format: "auto",
+        onError: (value) => {
+          error = value;
+        },
+        onDone: () => {
+          done();
+          resolve();
         }
-      }
-    ]);
-    expect(answer.status).toBe("answered");
-    expect(answer.answerPacket?.summary).toBe("Found 2 ranked code-topic evidence group(s).");
-    expect(answer.semantic.results[0]?.title).toBe("Checkout auth flow");
-    expect(answer.codeTopic.evidenceGroups[0]?.sourceHandle?.relativePath).toBe("src/auth.ts");
-    expect(answer.errors).toEqual([]);
+      });
+    });
+
+    expect((error as AskError | null)?.state).toBe("forbidden");
+    expect(done).toHaveBeenCalledTimes(1);
   });
 
-  it("hydrates answer citations and derives an evidence subgraph from returned handles", async () => {
-    const calls: Array<{ readonly body: unknown; readonly path: string }> = [];
-    const client = clientFor((_method, path, body) => {
-      calls.push({ body, path });
-      if (path === "/api/v0/search/semantic") {
-        return {
-          data: semanticPayload(),
-          error: null,
-          truth: truthEnvelope("semantic_search.curated_retrieval", "hybrid")
-        };
-      }
-      if (path === "/api/v0/code/topics/investigate") {
-        return {
-          data: topicPayloadWithAnswerHandles(),
-          error: null,
-          truth: truthEnvelope("code_search.topic_investigation", "content_index")
-        };
-      }
-      if (path === "/api/v0/evidence/citations") {
-        return {
-          data: citationPayload(),
-          error: null,
-          truth: truthEnvelope("evidence_citation.packet", "content_index")
-        };
-      }
-      if (path === "/api/v0/visualizations/derive") {
-        return {
-          data: visualizationPayload(),
-          error: null,
-          truth: truthEnvelope("evidence_citation.packet", "content_index")
-        };
-      }
-      throw new Error(`unexpected ${path}`);
+  it("maps a 503 to an unavailable error carrying the server reason", async () => {
+    let error: AskError | null = null;
+    const fetcher = vi.fn(async () =>
+      jsonResponse({ state: "unavailable", reason: "Ask is off" }, 503)
+    );
+
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "q",
+        format: "auto",
+        onError: (value) => {
+          error = value;
+        },
+        onDone: () => resolve()
+      });
     });
 
-    const answer = await askEshuQuestion(client, {
-      question: "How does checkout auth work?",
-      repoId: "repository:r1"
-    });
-
-    expect(calls.map((call) => call.path)).toEqual([
-      "/api/v0/search/semantic",
-      "/api/v0/code/topics/investigate",
-      "/api/v0/evidence/citations",
-      "/api/v0/visualizations/derive"
-    ]);
-    expect(calls[2]?.body).toMatchObject({
-      limit: 10,
-      question: "How does checkout auth work?"
-    });
-    expect((calls[2]?.body as { readonly handles: readonly unknown[] }).handles).toEqual([
-      expect.objectContaining({
-        kind: "file",
-        relative_path: "src/auth.ts",
-        repo_id: "repository:r1",
-        start_line: 42
-      }),
-      expect.objectContaining({
-        entity_id: "entity:auth",
-        kind: "entity",
-        repo_id: "repository:r1"
-      })
-    ]);
-    expect(calls[3]?.body).toMatchObject({
-      source_response: {
-        citations: [{ citation_id: "citation:auth" }]
-      },
-      view: "evidence_citation"
-    });
-    expect(answer.answerPacket.summary).toBe("Checkout auth is backed by authorizeCheckout.");
-    expect(answer.citationPacket?.citations[0]?.relativePath).toBe("src/auth.ts");
-    expect(answer.visualizationPacket?.supported).toBe(true);
-    expect(answer.answerGraph.nodes.map((node) => node.label)).toEqual(["authorizeCheckout"]);
+    expect((error as AskError | null)?.state).toBe("unavailable");
+    expect((error as AskError | null)?.reason).toContain("Ask is off");
   });
 
-  it("surfaces partial endpoint failures instead of hiding them", async () => {
-    const client = clientFor((_method, path) => {
-      if (path === "/api/v0/search/semantic") {
-        return {
-          data: null,
-          error: {
-            code: "backend_unavailable",
-            message: "semantic search requires the persisted search index"
-          },
-          truth: null
-        };
-      }
-      if (path === "/api/v0/code/topics/investigate") {
-        return {
-          data: topicPayload(),
-          error: null,
-          truth: truthEnvelope("code_search.topic_investigation", "content_index")
-        };
-      }
-      throw new Error(`unexpected ${path}`);
+  it("fires onAbort without onDone when the request is cancelled", async () => {
+    const onAbort = vi.fn();
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    const fetcher = vi.fn(async () => {
+      throw new DOMException("aborted", "AbortError");
     });
 
-    const answer = await askEshuQuestion(client, {
-      question: "How does checkout auth work?",
-      repoId: "repository:r1"
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "q",
+        format: "auto",
+        onAbort: () => {
+          onAbort();
+          resolve();
+        },
+        onError,
+        onDone
+      });
     });
 
-    expect(answer.status).toBe("partial");
-    expect(answer.errors).toEqual([{
-      message: "backend_unavailable: semantic search requires the persisted search index",
-      source: "semantic"
-    }]);
-    expect(answer.answerPacket?.supported).toBe(true);
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    expect(onDone).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("maps a 400 to a bad_request error", async () => {
+    let error: AskError | null = null;
+    const fetcher = vi.fn(async () => new Response("bad", { status: 400 }));
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "",
+        format: "auto",
+        onError: (value) => {
+          error = value;
+        },
+        onDone: () => resolve()
+      });
+    });
+    expect((error as AskError | null)?.state).toBe("bad_request");
   });
 });
 
-function clientFor(
-  respond: (method: "POST", path: string, body: unknown) => unknown
-): EshuApiClient {
-  return {
-    post: async (path: string, body: unknown) => respond("POST", path, body)
-  } as unknown as EshuApiClient;
-}
+describe("askEshu (sync fallback)", () => {
+  it("replays query_trace as trace steps and emits the answer", async () => {
+    const traces: AskTraceStep[] = [];
+    let answer: AskAnswer | null = null;
+    const fetcher = vi.fn(async () =>
+      jsonResponse({
+        answer_prose: "",
+        truth_class: "unsupported",
+        artifacts: [{ format: "json", content: "{}", issues: [] }],
+        query_trace: [{ tool: "resolve_entity", supported: true, truth_class: "deterministic" }],
+        partial: false,
+        limitations: [],
+        evidence_handles: [{ kind: "service", label: "checkout-api" }]
+      })
+    );
 
-function truthEnvelope(capability: string, basis: string): Record<string, unknown> {
-  return {
-    basis,
-    capability,
-    freshness: { state: "fresh" },
-    level: "derived",
-    profile: "production"
-  };
-}
-
-function semanticPayload(): Record<string, unknown> {
-  return {
-    indexed_document_count: 12,
-    limit: 5,
-    query: "How does checkout auth work?",
-    repo_id: "repository:r1",
-    results: [{
-      document: {
-        context_text: "checkout authentication validates session claims before payment.",
-        id: "doc:checkout-auth",
-        path: "src/auth.ts",
-        source_kind: "code_entity",
-        title: "Checkout auth flow"
-      },
-      freshness: { state: "fresh" },
-      rank: 1,
-      score: 12.4,
-      search_method: "bm25",
-      truth_scope: { basis: "content_index", level: "derived" }
-    }],
-    search_mode: "hybrid",
-    truncated: false
-  };
-}
-
-function topicPayload(): Record<string, unknown> {
-  return {
-    answer_packet: {
-      partial: false,
-      primary_route: "/api/v0/code/topics/investigate",
-      primary_tool: "investigate_code_topic",
-      prompt_family: "code.topic",
-      question: "How does checkout auth work?",
-      summary: "Found 2 ranked code-topic evidence group(s).",
-      supported: true,
-      truth_class: "code_hint"
-    },
-    count: 2,
-    evidence_groups: [{
-      entity_id: "entity:auth",
-      entity_name: "authorizeCheckout",
-      entity_type: "function",
-      language: "typescript",
-      rank: 1,
-      relative_path: "src/auth.ts",
-      score: 8,
-      source_handle: {
-        end_line: 50,
-        relative_path: "src/auth.ts",
-        repo_id: "repository:r1",
-        start_line: 42
-      },
-      source_kind: "content_entity"
-    }],
-    recommended_next_calls: [{
-      args: { entity_id: "entity:auth", limit: 25, repo_id: "repository:r1" },
-      tool: "get_code_relationship_story"
-    }],
-    searched_terms: ["checkout", "auth"],
-    truncated: false
-  };
-}
-
-function topicPayloadWithAnswerHandles(): Record<string, unknown> {
-  return {
-    ...topicPayload(),
-    answer_metadata: {
-      evidence_handles: [
-        {
-          entity_id: "entity:auth",
-          evidence_family: "source",
-          kind: "entity",
-          repo_id: "repository:r1",
-          reason: "route handler entity"
-        }
-      ]
-    },
-    answer_packet: {
-      citation_ref: "eshu://evidence/citations/checkout-auth",
-      evidence_handles: [
-        {
-          evidence_family: "source",
-          kind: "file",
-          reason: "route handler source",
-          relative_path: "src/auth.ts",
-          repo_id: "repository:r1",
-          start_line: 42
-        }
-      ],
-      limitations: ["bounded to top five topic matches"],
-      partial: false,
-      primary_route: "/api/v0/code/topics/investigate",
-      primary_tool: "investigate_code_topic",
-      prompt_family: "code.topic",
-      question: "How does checkout auth work?",
-      recommended_next_calls: [{
-        reason: "hydrate source citations",
-        tool: "build_evidence_citation_packet"
-      }],
-      summary: "Checkout auth is backed by authorizeCheckout.",
-      supported: true,
-      truth_class: "code_hint"
-    }
-  };
-}
-
-function citationPayload(): Record<string, unknown> {
-  return {
-    citations: [{
-      citation_id: "citation:auth",
-      end_line: 50,
-      entity_id: "entity:auth",
-      entity_name: "authorizeCheckout",
-      entity_type: "function",
-      evidence_family: "source",
-      excerpt: "export function authorizeCheckout() { return session.valid; }",
-      kind: "file",
-      language: "typescript",
-      rank: 1,
-      reason: "route handler source",
-      relative_path: "src/auth.ts",
-      repo_id: "repository:r1",
-      start_line: 42
-    }],
-    coverage: {
-      input_handle_count: 1,
-      limit: 10,
-      missing_count: 0,
-      query_shape: "bounded_evidence_citation_packet",
-      resolved_count: 1,
-      source_backend: "postgres_content_store",
-      truncated: false
-    },
-    missing_handles: [],
-    recommended_next_calls: []
-  };
-}
-
-function visualizationPayload(): Record<string, unknown> {
-  return {
-    visualization_packet: {
-      edges: [],
-      limits: {
-        edge_count: 0,
-        max_edges: 120,
-        max_nodes: 60,
-        node_count: 1,
-        ordering: "stable_id"
-      },
-      limitations: [],
-      nodes: [{
-        category: "source",
-        evidence_handle: {
-          kind: "file",
-          relative_path: "src/auth.ts",
-          repo_id: "repository:r1",
-          start_line: 42
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "q",
+        format: "json",
+        stream: false,
+        onTrace: (step) => traces.push(step),
+        onAnswer: (value) => {
+          answer = value;
         },
-        id: "viznode:auth",
-        label: "authorizeCheckout",
-        type: "citation"
-      }],
-      recommended_next_calls: [],
-      supported: true,
-      title: "Checkout auth evidence",
-      truncation: {
-        dropped_edge_count: 0,
-        dropped_node_count: 0,
-        truncated: false
-      },
-      view: "evidence_citation"
-    }
-  };
-}
+        onDone: () => resolve()
+      });
+    });
+
+    expect(traces).toHaveLength(1);
+    expect((answer as AskAnswer | null)?.artifacts).toHaveLength(1);
+    expect((answer as AskAnswer | null)?.evidence_handles[0].label).toBe("checkout-api");
+    const init = fetcher.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>).Accept).toBe("application/json");
+  });
+});
+
+describe("askNarrationStatus", () => {
+  it("reads state and reason from the status envelope", async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({ data: { state: "disabled", reason: "no provider" }, error: null, truth: null })
+    );
+    const probe = await askNarrationStatus({ ...connection, fetcher });
+    expect(probe.state).toBe("disabled");
+    expect(probe.reason).toBe("no provider");
+  });
+
+  it("falls back to unavailable when the probe request throws", async () => {
+    const fetcher = vi.fn(async () => {
+      throw new Error("network down");
+    });
+    const probe = await askNarrationStatus({ ...connection, fetcher });
+    expect(probe.state).toBe("unavailable");
+    expect(probe.reason).toContain("network down");
+  });
+});
