@@ -81,6 +81,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Generated collector entrypoint manifest or generated collector command files | `scripts/test-verify-collector-entrypoints-generated.sh` and `scripts/verify-collector-entrypoints-generated.sh` |
 | New or changed Go package under `go/internal` or `go/cmd` | `scripts/test-verify-package-docs.sh` and `scripts/verify-package-docs.sh` |
 | Go source, comments, package contracts, or generated docs | `cd go && golangci-lint run ./...` |
+| Root marketing site (Cloudflare Pages) | `npm test` (unit) plus `npm run site:review` (desktop + mobile browser gate documented in the repo-root `CLOUDFLARE_PAGES.md`) |
 | Repo hygiene gates | `git diff --check` |
 
 ## Remote Collector E2E Compose Proof

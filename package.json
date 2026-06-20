@@ -7,6 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
+    "site:review": "node scripts/marketing-review.mjs",
     "test": "vitest run",
     "console:test": "vitest run --config apps/console/vite.config.ts",
     "console:typecheck": "tsc -p apps/console/tsconfig.json",

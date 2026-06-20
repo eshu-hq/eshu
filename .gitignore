@@ -74,6 +74,9 @@ docs/site/
 node_modules/
 dist/
 site-dist/
+# Marketing-site browser review artifacts (screenshots + JSON summary) from
+# `npm run site:review`. Durable locally, never committed (binary screenshots).
+site-review-artifacts/
 *.tsbuildinfo
 .mcp.json
 .vercel/
