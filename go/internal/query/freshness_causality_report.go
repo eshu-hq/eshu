@@ -82,7 +82,17 @@ type FreshnessTransition struct {
 // freshnessCausalityFromReport projects a status Report into the freshness
 // causality read model without any I/O.
 func freshnessCausalityFromReport(report status.Report) FreshnessCausality {
-	signals := deriveFreshnessSignals(report)
+	return freshnessCausalityFromRawAndReport(status.RawSnapshot{
+		DomainBacklogs: report.DomainBacklogs,
+	}, report)
+}
+
+// freshnessCausalityFromRawAndReport projects freshness causality from the
+// uncapped raw snapshot plus the normalized status report. Pending projection
+// totals must use raw domain backlog rows because Report.DomainBacklogs is a
+// top-domain preview capped for status rendering.
+func freshnessCausalityFromRawAndReport(raw status.RawSnapshot, report status.Report) FreshnessCausality {
+	signals := deriveFreshnessSignals(raw, report)
 
 	fc := FreshnessCausality{
 		Causes:      buildFreshnessCauseStatuses(signals),
@@ -110,10 +120,14 @@ type freshnessSignals struct {
 	backlogDomains     int
 }
 
-func deriveFreshnessSignals(report status.Report) freshnessSignals {
+func deriveFreshnessSignals(raw status.RawSnapshot, report status.Report) freshnessSignals {
 	var s freshnessSignals
 	s.pendingGenerations = report.GenerationHistory.Pending > 0
-	for _, d := range report.DomainBacklogs {
+	domainBacklogs := raw.DomainBacklogs
+	if len(domainBacklogs) == 0 {
+		domainBacklogs = report.DomainBacklogs
+	}
+	for _, d := range domainBacklogs {
 		s.outstanding += d.Outstanding
 		s.deadLetter += d.DeadLetter
 		if d.Outstanding > 0 || d.DeadLetter > 0 {

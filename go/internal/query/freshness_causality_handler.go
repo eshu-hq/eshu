@@ -29,14 +29,20 @@ func (h *StatusHandler) getFreshnessCausality(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	report, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+	raw, report, err := loadStatusReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return
 	}
 
-	fc := freshnessCausalityFromReport(report)
-	WriteJSON(w, http.StatusOK, freshnessCausalityToMap(fc, report.AsOf, scopedAuthContext(r.Context())))
+	fc := freshnessCausalityFromRawAndReport(raw, report)
+	WriteSuccess(
+		w,
+		r,
+		http.StatusOK,
+		freshnessCausalityToMap(fc, report.AsOf, scopedAuthContext(r.Context())),
+		freshnessCausalityTruth(h.profile(), fc, report.AsOf),
+	)
 }
 
 func freshnessCausalityToMap(fc FreshnessCausality, asOf time.Time, scoped bool) map[string]any {
@@ -103,4 +109,18 @@ func freshnessTransitionsToSlice(transitions []FreshnessTransition, scoped bool)
 		result = append(result, row)
 	}
 	return result
+}
+
+func freshnessCausalityTruth(profile QueryProfile, fc FreshnessCausality, asOf time.Time) *TruthEnvelope {
+	return &TruthEnvelope{
+		Level:      TruthLevelExact,
+		Capability: "freshness_causality.status",
+		Profile:    profile,
+		Basis:      TruthBasisRuntimeState,
+		Freshness: TruthFreshness{
+			State:      FreshnessFresh,
+			ObservedAt: asOf.UTC().Format(time.RFC3339),
+		},
+		Reason: "resolved from runtime status snapshot freshness causality state " + fc.State,
+	}
 }

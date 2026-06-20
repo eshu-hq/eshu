@@ -45,6 +45,37 @@ func TestFreshnessCausalityHandlerFresh(t *testing.T) {
 	}
 }
 
+func TestFreshnessCausalityHandlerNegotiatesEnvelope(t *testing.T) {
+	t.Parallel()
+	handler := &StatusHandler{StatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{
+		AsOf:              time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
+		GenerationCounts:  []statuspkg.NamedCount{{Name: "active", Count: 4}},
+		GenerationHistory: statuspkg.GenerationHistorySnapshot{Active: 4},
+	}}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/freshness-causality", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v; body=%s", err, rec.Body.String())
+	}
+	if envelope.Data == nil {
+		t.Fatalf("envelope data is nil; body=%s", rec.Body.String())
+	}
+	if envelope.Truth == nil {
+		t.Fatalf("envelope truth is nil; body=%s", rec.Body.String())
+	}
+	if envelope.Error != nil {
+		t.Fatalf("envelope error = %#v, want nil", envelope.Error)
+	}
+}
+
 func TestFreshnessCausalityHandlerStaleAndRetracted(t *testing.T) {
 	t.Parallel()
 	payload := freshnessCausalityRequest(t, statuspkg.RawSnapshot{

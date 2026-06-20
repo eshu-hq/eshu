@@ -62,6 +62,35 @@ func TestFreshnessCausalityBuildingOnPendingGenerationAndBacklog(t *testing.T) {
 	}
 }
 
+func TestFreshnessCausalityAggregatesPendingProjectionBeforeDomainCap(t *testing.T) {
+	raw := statuspkg.RawSnapshot{
+		AsOf: time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
+		DomainBacklogs: []statuspkg.DomainBacklog{
+			{Domain: "domain-1", Outstanding: 1, DeadLetter: 1},
+			{Domain: "domain-2", Outstanding: 2, DeadLetter: 1},
+			{Domain: "domain-3", Outstanding: 3, DeadLetter: 1},
+			{Domain: "domain-4", Outstanding: 4, DeadLetter: 1},
+			{Domain: "domain-5", Outstanding: 5, DeadLetter: 1},
+			{Domain: "domain-6", Outstanding: 6, DeadLetter: 1},
+		},
+	}
+	report := statuspkg.BuildReport(raw, statuspkg.DefaultOptions())
+	if len(report.DomainBacklogs) != statuspkg.DefaultOptions().DomainLimit {
+		t.Fatalf("test setup expected capped report domains = %d, got %d", statuspkg.DefaultOptions().DomainLimit, len(report.DomainBacklogs))
+	}
+
+	fc := freshnessCausalityFromRawAndReport(raw, report)
+	if fc.PendingProjection.Outstanding != 21 {
+		t.Fatalf("pending projection outstanding = %d, want all raw domains sum 21", fc.PendingProjection.Outstanding)
+	}
+	if fc.PendingProjection.DeadLetter != 6 {
+		t.Fatalf("pending projection dead_letter = %d, want all raw domains sum 6", fc.PendingProjection.DeadLetter)
+	}
+	if fc.PendingProjection.Domains != 6 {
+		t.Fatalf("pending projection domains = %d, want all raw domains count 6", fc.PendingProjection.Domains)
+	}
+}
+
 func TestFreshnessCausalityStaleOnDeadLetter(t *testing.T) {
 	fc := freshnessCausalityFromReport(statuspkg.Report{
 		AsOf: time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC),
