@@ -14,13 +14,23 @@
 # Treat edits here as a contract change. See
 # docs/public/reference/capability-catalog.md.
 version: v1
-updated_at: 2026-06-18
+updated_at: 2026-06-20
 owners:
   - platform-engineering
 
 # Per-capability editorial overlay. Capabilities without an entry inherit
 # derived display names and matrix-derived maturity.
 capabilities:
+  - capability: ask.natural_language_answer
+    display_name: Ask Eshu Natural-Language Answer
+    owner_package: internal/ask
+    maturity: gated
+    maturity_reason: "Ask is default-off and requires ESHU_ASK_ENABLED plus an agent_reasoning provider profile; without both, the HTTP and MCP surfaces return unavailable instead of running the engine."
+    docs:
+      - reference/mcp-tool-contract-matrix.md
+    known_gaps:
+      - "Scoped-token support, SSE streaming, and Tier-2 sandbox wiring are planned follow-ups."
+    console: false
   - capability: query.playbooks
     owner_package: internal/query
     console: true
@@ -123,9 +133,6 @@ tool_exemptions:
 
   # Genuine retrieval, diagnostic, and operator utilities that are not distinct
   # product capabilities.
-  - tool: ask
-    reason: default-off natural-language answer orchestration surface pending dedicated capability-catalog modeling
-    issue: 3296
   - tool: get_file_content
     reason: file content retrieval utility
   - tool: get_file_lines

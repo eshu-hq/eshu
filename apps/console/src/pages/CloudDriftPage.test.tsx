@@ -19,6 +19,26 @@ function envelope(data: unknown, capability = "cloud_runtime_drift.readback.list
 
 function fakeDriftClient(calls: Array<{ path: string; body: unknown }>): EshuApiClient {
   return {
+    get: vi.fn(async (path: string) => {
+      calls.push({ path, body: null });
+      if (path.startsWith("/api/v0/investigations/drift/packet")) {
+        return envelope({
+          answer: { summary: "Runtime drift packet is supported.", supported: true, truth_class: "exact" },
+          bounds: { max_source_facts: 200, truncated: false },
+          graph_answers: [{ id: "graph:drift:1", present: true, relation: "MANAGED_BY_TERRAFORM" }],
+          identity: { family: "drift", scope: { account_id: "123456789012", provider: "aws" } },
+          missing_evidence: [{ hop: "terraform_state_resource", reason: "state evidence missing" }],
+          packet_id: "investigation-evidence-packet:drift-demo",
+          reducer_decisions: [{ id: "decision:drift:1", state: "rejected" }],
+          redaction: { profile: "share_safe_v2" },
+          reproduce: [{ kind: "http", route: "/api/v0/investigations/drift/packet" }],
+          schema: "investigation_evidence_packet.v2",
+          source_facts: [{ evidence_family: "cloud_runtime_drift", fact_id: "fact:drift:1" }],
+          validation: { valid: true }
+        }, "cloud_runtime_drift.packet");
+      }
+      throw new Error(`unexpected request ${path}`);
+    }),
     post: vi.fn(async (path: string, body: unknown) => {
       calls.push({ path, body });
       if (path === "/api/v0/cloud/runtime-drift/findings") {
@@ -179,6 +199,13 @@ describe("CloudDriftPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Explain status for arn:aws:s3:::payments-prod" }));
     await waitFor(() => expect(screen.getByText(/classified as cloud_only/)).toBeInTheDocument());
     expect(screen.getByText("aws_cloud_resource")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load drift evidence packet" }));
+    await waitFor(() => expect(screen.getByText("investigation-evidence-packet:drift-demo")).toBeInTheDocument());
+    expect(screen.getAllByText("terraform_state_resource").length).toBeGreaterThan(0);
+    expect(calls.some((call) =>
+      call.path === "/api/v0/investigations/drift/packet?account_id=123456789012&provider=aws&max_source_facts=50"
+    )).toBe(true);
 
     expect(calls.some((call) => call.path === "/api/v0/iac/management-status/explain")).toBe(true);
   });

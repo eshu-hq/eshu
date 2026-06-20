@@ -15,6 +15,7 @@ import type { ConsoleModel, GraphNode } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
+import { DeployableUnitPacketPanel, packetFormFromSearch } from "./DeployableUnitPacketPanel";
 import "./impactPage.css";
 
 interface ImpactFormState {
@@ -50,6 +51,7 @@ export function ImpactPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const canLoad = (model.source === "live" || demoMode) && client !== undefined;
+  const deployablePacketInitial = useMemo(() => packetFormFromSearch(searchParams), [searchParams]);
 
   const runReview = useCallback(
     async (next: ImpactFormState) => {
@@ -276,6 +278,8 @@ export function ImpactPage({
           ) : null}
         </ImpactSectionPanel>
       </div>
+
+      <DeployableUnitPacketPanel canLoad={canLoad} client={client} initial={deployablePacketInitial} />
     </div>
   );
 }

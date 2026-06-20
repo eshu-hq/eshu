@@ -3,15 +3,21 @@
 // (#1435) with a centered affected-services graph. Affected services come from
 // the live impact-findings rows in the console model. No fabricated fields:
 // anything the advisory omits renders as "—".
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
+import {
+  loadSupplyChainImpactPacket,
+  type InvestigationPacketResult,
+  type SupplyChainImpactPacketQuery
+} from "../api/investigationPacket";
 import { affectedFromModel, affectedServicesGraph, detailFromModelRow, loadVulnerabilityDetail } from "../api/vulnerability";
 import type { VulnDetail } from "../api/vulnerability";
 import type { ConsoleModel, Severity } from "../console/types";
 import { SEVERITY_COLOR } from "../console/types";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
+import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
 
 const sevColor = (s: string): string => SEVERITY_COLOR[(s as Severity) in SEVERITY_COLOR ? (s as Severity) : "medium"];
 
@@ -21,12 +27,16 @@ export function VulnDetailPage({ model, client }: {
 }): React.JSX.Element {
   const { id = "" } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<VulnDetail | null>(null);
+  const [packet, setPacket] = useState<InvestigationPacketResult | null>(null);
+  const [packetError, setPacketError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setDetail(null);
+    setPacket(null);
+    setPacketError("");
     if (!client) { setLoading(false); return; }
     void loadVulnerabilityDetail(client, id).then((d) => {
       if (!cancelled) { setDetail(d); setLoading(false); }
@@ -34,15 +44,35 @@ export function VulnDetailPage({ model, client }: {
     return () => { cancelled = true; };
   }, [client, id]);
 
-  const services = affectedFromModel(id, model.vulnerabilities);
-  const graph = affectedServicesGraph(id, services);
-
   // Fall back to the list row when extended advisory evidence is unavailable.
   // The list row is source-backed by impact findings, not a fabricated advisory.
-  const fallback = detail?.provenance === "unavailable" || detail?.provenance === "empty"
-    ? detailFromModelRow(id, model.vulnerabilities)
-    : null;
-  const effective = detail?.provenance === "live" ? detail : (fallback ?? detail);
+  const fallback = useMemo(
+    () => detail?.provenance === "unavailable" || detail?.provenance === "empty"
+      ? detailFromModelRow(id, model.vulnerabilities)
+      : null,
+    [detail, id, model.vulnerabilities]
+  );
+  const effective = useMemo(
+    () => detail?.provenance === "live" ? detail : (fallback ?? detail),
+    [detail, fallback]
+  );
+  const packetQuery = useMemo(() => supplyChainPacketQueryFromDetail(id, effective), [effective, id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPacket(null);
+    setPacketError("");
+    if (!client || !packetQuery) return () => { cancelled = true; };
+    void loadSupplyChainImpactPacket(client, packetQuery).then((result) => {
+      if (!cancelled) setPacket(result);
+    }).catch((err: unknown) => {
+      if (!cancelled) setPacketError(err instanceof Error ? err.message : "failed to load impact packet");
+    });
+    return () => { cancelled = true; };
+  }, [client, packetQuery]);
+
+  const services = affectedFromModel(id, model.vulnerabilities);
+  const graph = affectedServicesGraph(id, services);
 
   return (
     <div className="page">
@@ -114,8 +144,23 @@ export function VulnDetailPage({ model, client }: {
               )}
             </Panel>
           </div>
+          <div className="mt">
+            {packet ? <InvestigationEvidencePacketReader packet={packet.packet} /> : null}
+            {!packet && packetError ? <p className="src-err">{packetError}</p> : null}
+          </div>
         </>
       )}
     </div>
   );
+}
+
+function supplyChainPacketQueryFromDetail(
+  id: string,
+  detail: VulnDetail | null,
+): SupplyChainImpactPacketQuery | null {
+  if (!detail || detail.provenance === "unavailable" || detail.provenance === "empty") return null;
+  const packageId = detail.packages.find((pkg) => pkg.name.trim().length > 0)?.name.trim();
+  if (!packageId) return null;
+  const base = /^CVE-/i.test(id) ? { cveId: id } : { advisoryId: id };
+  return { ...base, maxSourceFacts: 50, packageId };
 }

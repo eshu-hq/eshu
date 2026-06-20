@@ -1,10 +1,7 @@
-// pages/CloudDriftPage.tsx
-// Read-only cloud runtime drift workbench. It composes the bounded drift,
-// unmanaged-resource, management explanation, and import-plan candidate
-// readbacks without generating Terraform or mutating cloud state.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
+import { loadCloudRuntimeDriftPacket, type InvestigationPacketResult } from "../api/investigationPacket";
 import {
   loadAwsRuntimeDriftFindings,
   loadCloudRuntimeDriftFindings,
@@ -23,6 +20,7 @@ import {
   type UnmanagedCloudResourcesPage
 } from "../api/cloudDrift";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
+import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
 import { uiFresh, uiTruth } from "../console/types";
 import "./liveInventory.css";
 
@@ -73,6 +71,9 @@ export function CloudDriftPage({
   const [explanation, setExplanation] = useState<IaCManagementExplanation | null>(null);
   const [explainBusyArn, setExplainBusyArn] = useState("");
   const [explainError, setExplainError] = useState("");
+  const [packet, setPacket] = useState<InvestigationPacketResult | null>(null);
+  const [packetBusy, setPacketBusy] = useState(false);
+  const [packetError, setPacketError] = useState("");
   const hasScope = hasBoundedScope(applied);
 
   const loadAll = useCallback((filters: DriftFilters, offset: number) => {
@@ -81,6 +82,8 @@ export function CloudDriftPage({
     setBusy(true);
     setError("");
     setExplanation(null);
+    setPacket(null);
+    setPacketError("");
     const query = queryFor(filters, offset);
     const awsEnabled = shouldLoadAwsSurfaces(filters);
     const awsPromise = awsEnabled
@@ -124,6 +127,8 @@ export function CloudDriftPage({
     setState(EMPTY_STATE);
     setError("");
     setExplanation(null);
+    setPacket(null);
+    setPacketError("");
   }
 
   function nextMultiPage(): void {
@@ -160,6 +165,25 @@ export function CloudDriftPage({
         setExplainError(err instanceof Error ? err.message : "failed to explain management status");
         setExplainBusyArn("");
       });
+  }
+
+  function loadPacket(): void {
+    if (!client || !hasBoundedScope(applied)) return;
+    setPacketBusy(true);
+    setPacketError("");
+    void loadCloudRuntimeDriftPacket(client, {
+      accountId: cleanFilter(applied.accountId),
+      maxSourceFacts: 50,
+      provider: cleanFilter(applied.provider),
+      scopeId: cleanFilter(applied.scopeId)
+    }).then((result) => {
+      setPacket(result);
+      setPacketBusy(false);
+    }).catch((err: unknown) => {
+      setPacket(null);
+      setPacketBusy(false);
+      setPacketError(err instanceof Error ? err.message : "failed to load drift evidence packet");
+    });
   }
 
   const importByFindingId = useMemo(
@@ -232,7 +256,14 @@ export function CloudDriftPage({
           className="flush"
           title="Provider-neutral runtime drift"
           sub={state.multi?.story || "Bounded by canonical scope or provider alias"}
-          action={state.multi ? <TruthPair truth={state.multi.truth} /> : null}
+          action={state.multi ? (
+            <span className="row compact">
+              <TruthPair truth={state.multi.truth} />
+              <button className="btn-ghost active" disabled={packetBusy || !hasScope} type="button" onClick={loadPacket}>
+                {packetBusy ? "Loading packet..." : "Load drift evidence packet"}
+              </button>
+            </span>
+          ) : null}
         >
           <div className="table-scroll">
             <table className="tbl wide">
@@ -262,6 +293,12 @@ export function CloudDriftPage({
             <div className="pager-row">
               <span className="t-mut">More multi-cloud drift available at offset {state.multi.nextOffset}</span>
               <button className="btn-ghost active" disabled={busy} type="button" onClick={nextMultiPage}>Next multi-cloud drift page</button>
+            </div>
+          ) : null}
+          {packetError ? <p className="src-err">{packetError}</p> : null}
+          {packet ? (
+            <div className="mt">
+              <InvestigationEvidencePacketReader packet={packet.packet} />
             </div>
           ) : null}
         </Panel>
@@ -428,6 +465,11 @@ function queryFor(filters: DriftFilters, offset: number): CloudDriftQuery {
     region: filters.region.trim() || undefined,
     scopeId: filters.scopeId.trim() || undefined
   };
+}
+
+function cleanFilter(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
 }
 
 function hasBoundedScope(filters: DriftFilters): boolean {
