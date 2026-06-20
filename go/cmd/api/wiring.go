@@ -168,13 +168,27 @@ func wireAPI(
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
 
+	// Build the governed narration posture func. It is shared between the Ask
+	// engine (SetNarrationPosture) and the status endpoint (NarrationPosture)
+	// so both reflect the same runtime gate state. The func is default-closed:
+	// it returns Unavailable unless ESHU_ASK_ENABLED=true,
+	// ESHU_ASK_NARRATION_ENABLED=true, and an agent_reasoning provider profile
+	// is configured.
+	narrationPosture := buildNarrationPosture(getenv, logger)
+
+	// Inject the governed posture into the status handler so that
+	// GET /api/v0/status/answer-narration returns real gate state.
+	if router.Status != nil {
+		router.Status.NarrationPosture = narrationPosture
+	}
+
 	// Mount the Ask Eshu endpoint. The handler is default-off (nil Asker →
 	// 503 unavailable) unless ESHU_ASK_ENABLED=true and a valid
 	// agent_reasoning provider profile is configured. The apiMux is passed
 	// as the in-process MCP runner handler so the engine dispatches tool
 	// calls through the already-mounted API surface. We call Mount after
 	// router.Mount so the mux is fully assembled before the runner is wired.
-	askHandler := buildAskHandler(getenv, apiMux, apiKey, logger)
+	askHandler := buildAskHandler(getenv, apiMux, apiKey, narrationPosture, logger)
 	askHandler.Mount(apiMux)
 
 	// Mount the service intelligence report route. It lives in its own package

@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
+	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // envAskEnabled is the environment variable that enables the Ask Eshu endpoint.
@@ -70,10 +71,15 @@ func convertAnswer(ans engine.Answer) query.AskAnswer {
 // When all conditions are met and the engine is built, returns a fully-wired
 // AskHandler. apiHandler must be the fully-mounted API mux; the engine's
 // MCPRunner dispatches tool calls in-process through it.
+//
+// narrationPosture is the governed posture func built by buildNarrationPosture.
+// It is injected into the engine via SetNarrationPosture so the engine narrates
+// only when ResolvePosture returns Available (default-closed).
 func buildAskHandler(
 	getenv func(string) string,
 	apiHandler http.Handler,
 	apiKey string,
+	narrationPosture func() status.AnswerNarrationStatus,
 	logger *slog.Logger,
 ) *query.AskHandler {
 	h := &query.AskHandler{Logger: logger}
@@ -123,6 +129,13 @@ func buildAskHandler(
 				"err_type", "engine_construction")
 		}
 		return h
+	}
+
+	// Wire the governed narration posture so the engine narrates only when
+	// ResolvePosture returns Available. A nil narrationPosture leaves the
+	// engine in the safe Unavailable default.
+	if narrationPosture != nil {
+		eng.SetNarrationPosture(narrationPosture)
 	}
 
 	h.Asker = &engineAsker{eng: eng}
