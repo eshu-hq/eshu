@@ -1,5 +1,5 @@
 version: v1
-updated_at: 2026-06-09
+updated_at: 2026-06-20
 owners:
   - platform-engineering
 # Provider-neutral multi-cloud runtime drift readback (issues #1997, #1998). This
@@ -19,7 +19,7 @@ owners:
 # source-state vocabulary surfaced alongside management_status.
 capabilities:
   - capability: cloud_runtime_drift.readback.list
-    tools: [list_cloud_runtime_drift_findings]
+    tools: [list_cloud_runtime_drift_findings, export_cloud_runtime_drift_packet]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_project_or_subscription, verification: [{integration_test: local-lightweight-unsupported-cloud-runtime-drift-readback}], notes: requires reducer-materialized reducer_multi_cloud_runtime_drift_finding rows; lightweight local cannot serve a provider-neutral runtime drift readback and must return unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: bounded paginated readback of reducer-owned reducer_multi_cloud_runtime_drift_finding rows with provider, normalized identity, finding_kind, management_status, provider-neutral source state, and refusal-safety posture}

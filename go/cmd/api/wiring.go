@@ -169,14 +169,7 @@ func wireAPI(
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
 
-	// Mount the Ask Eshu endpoint. The handler is default-off (nil Asker →
-	// 503 unavailable) unless ESHU_ASK_ENABLED=true and a valid
-	// agent_reasoning provider profile is configured. The apiMux is passed
-	// as the in-process MCP runner handler so the engine dispatches tool
-	// calls through the already-mounted API surface. We call Mount after
-	// router.Mount so the mux is fully assembled before the runner is wired.
-	askHandler := buildAskHandler(getenv, apiMux, apiKey, logger)
-	askHandler.Mount(apiMux)
+	mountAskAndNarration(getenv, apiMux, apiKey, router.Status, logger)
 
 	// Mount the service intelligence report route. It lives in its own package
 	// (which imports both query and serviceintel) and is mounted here rather than

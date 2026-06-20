@@ -198,7 +198,22 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/investigations/deployable-unit/packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/investigations/drift/packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/investigations/services/{service_name}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/investigations/supply-chain/impact/packet",
       "readiness": "implemented"
     },
     {
@@ -1445,6 +1460,11 @@
     },
     {
       "category": "mcp_tool",
+      "name": "ask",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
       "name": "build_evidence_citation_packet",
       "readiness": "implemented"
     },
@@ -1546,6 +1566,21 @@
     {
       "category": "mcp_tool",
       "name": "explain_supply_chain_impact",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "export_cloud_runtime_drift_packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "export_deployable_unit_packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "export_supply_chain_impact_packet",
       "readiness": "implemented"
     },
     {

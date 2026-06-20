@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	ts "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
@@ -20,6 +21,33 @@ func parseRoot(t *testing.T, src string) (*tree_sitter.Node, []byte) {
 	t.Cleanup(tree.Close)
 	root := tree.RootNode()
 	return root, source
+}
+
+func firstFunctionDeclaration(t *testing.T, root *tree_sitter.Node, source []byte, name string) *tree_sitter.Node {
+	t.Helper()
+	var found *tree_sitter.Node
+	var walk func(*tree_sitter.Node)
+	walk = func(node *tree_sitter.Node) {
+		if found != nil || node == nil {
+			return
+		}
+		if node.Kind() == "function_declaration" && nodeText(node.ChildByFieldName("name"), source) == name {
+			copied := *node
+			found = &copied
+			return
+		}
+		cursor := node.Walk()
+		defer cursor.Close()
+		for _, child := range node.NamedChildren(cursor) {
+			child := child
+			walk(&child)
+		}
+	}
+	walk(root)
+	if found == nil {
+		t.Fatalf("no function declaration %q in fixture", name)
+	}
+	return found
 }
 
 // TestTSInterprocFindingAcrossFunctions proves the value-flow engine detects an
@@ -97,6 +125,30 @@ func TestTSInterprocMultiArgSameBinding(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("flow into the first argument position must survive; got %+v", findings)
+	}
+}
+
+// TestTSEffectsSpecPreservesDestructuredParameterSlots proves multiple locals
+// bound from one destructured formal parameter keep that formal slot instead of
+// shifting later parameters.
+func TestTSEffectsSpecPreservesDestructuredParameterSlots(t *testing.T) {
+	t.Parallel()
+
+	root, source := parseRoot(t, "function f({ a, b }, second) {\n"+
+		"\treturn second;\n"+
+		"}\n")
+	fnNode := firstFunctionDeclaration(t, root, source, "f")
+	fn := LowerFunction(fnNode, source, cfg.DefaultLimits())
+	spec := EffectsSpec(fnNode, source, fn, nil)
+
+	got := map[string]int{}
+	for _, param := range spec.Params {
+		got[param.Binding] = param.Index
+	}
+	for binding, want := range map[string]int{"a": 0, "b": 0, "second": 1} {
+		if got[binding] != want {
+			t.Fatalf("param slot for %s = %d, want %d (all params: %+v)", binding, got[binding], want, spec.Params)
+		}
 	}
 }
 

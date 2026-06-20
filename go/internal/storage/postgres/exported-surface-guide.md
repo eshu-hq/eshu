@@ -59,6 +59,15 @@ reducer/query adapter.
   generation-independent `FunctionID`. Upserts are idempotent on `function_id`
   and reject blank repo components so future cross-repo recomposition cannot
   silently collide.
+- `FunctionSourceStore` / `NewFunctionSourceStore` — durable value-flow source
+  ports keyed by FunctionID and parameter index; repository replacements delete
+  stale rows before idempotent upsert.
+- `FunctionGraphIDStore` / `NewFunctionGraphIDStore` — durable FunctionID to
+  graph UID mapping for post-summary `TAINT_FLOWS_TO` projection.
+- `ValueFlowFixpointComponentStore` / `NewValueFlowFixpointComponentStore` —
+  durable solved weak-component results keyed by the reducer's content-derived
+  component key. Loads are bounded to requested keys and writes converge through
+  `ON CONFLICT (component_key) DO UPDATE`.
 
 **Queue stores**
 

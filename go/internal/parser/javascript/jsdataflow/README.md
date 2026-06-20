@@ -73,6 +73,20 @@ runtime knob, queue, worker, or graph query. Operators still diagnose parser
 cost through existing collector parse-stage logs and
 `eshu_dp_file_parse_duration_seconds`.
 
+No-Regression Evidence: destructuring precision for issue #3267 is a pure
+per-function parser-lowering change. It adds object/array destructuring
+definitions and field-sensitive pattern source reads for declarations,
+parameters, and for-in/of targets without changing parser dispatch, graph
+writes, queues, workers, or runtime knobs. Verified by focused package coverage
+for JS declarations, renamed object patterns, array patterns, destructured
+parameters, for-of element fields, closure shadowing, and value-flow parameter
+slot preservation.
+
+No-Observability-Change: the destructuring change adds no metric, span, log,
+status field, runtime knob, queue, worker, graph query, or graph write.
+Operators still diagnose parser cost through existing collector parse-stage logs
+and `eshu_dp_file_parse_duration_seconds`.
+
 ## Field-sensitive precision (`accesspaths.go`)
 
 Mirrors the Go template (`internal/parser/golang/cfg_access_paths.go`, issues
@@ -108,13 +122,21 @@ A function literal that is **not** invoked is still not descended into.
 - **`statement_block` holds statements directly** in the TS/JS grammar (unlike
   Go, where a block wraps a `statement_list`).
 - **`lexical_declaration` → `variable_declarator`** with `name`/`value` fields;
-  one CFG statement is emitted per declarator.
+  one CFG statement is emitted per declarator. Object and array destructuring
+  patterns define only bound identifiers (not property keys) and read
+  field-sensitive source paths: `const { id } = req.body` reads `req.body.id`,
+  while `const [first] = rows` reads `rows[*]`.
+- **`for-in`/`for-of` destructuring** binds only target identifiers and reads
+  from the iterable element path, so `for (const { id } of rows)` reads
+  `rows[*].id` before the loop body uses `id`.
 - **`augmented_assignment_expression` (`+=`) and `update_expression` (`x++`)**
   both read and write their target; a plain `assignment_expression` only writes.
   A member/subscript target is a field-sensitive access-path definition.
 - **Nested function/arrow bodies are descended into only when the literal is a
   call argument** (closure capture); a non-invoked literal is not descended into,
-  a safe false negative, never a false edge.
+  a safe false negative, never a false edge. Destructured callback parameters and
+  destructured locals inside the callback are treated as closure-local bindings
+  so they shadow outer names.
 - **Request source evidence is import-aware**: unqualified request type aliases
   must come from known framework modules such as Express, Fastify, Next.js, or
   Koa. A local type named `Request` is not enough.

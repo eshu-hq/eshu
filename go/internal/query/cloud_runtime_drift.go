@@ -161,6 +161,7 @@ type CloudRuntimeDriftFindingView struct {
 // Mount registers the provider-neutral runtime drift readback route.
 func (h *CloudRuntimeDriftHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/cloud/runtime-drift/findings", h.listFindings)
+	mux.HandleFunc("GET /api/v0/investigations/drift/packet", h.getDriftPacket)
 }
 
 func (h *CloudRuntimeDriftHandler) profile() QueryProfile {

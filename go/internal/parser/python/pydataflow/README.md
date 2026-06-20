@@ -72,6 +72,19 @@ runtime knob, queue, worker, or graph query. Operators still diagnose parser
 cost through existing collector parse-stage logs and
 `eshu_dp_file_parse_duration_seconds`.
 
+No-Regression Evidence: unpacking precision for issue #3267 is a pure
+per-function parser-lowering change. It adds starred assignment, for-loop
+unpacking, source container-element reads, recursive alias invalidation, and
+star-parameter definitions without changing parser dispatch, graph writes,
+queues, workers, or runtime knobs. Verified by focused package coverage for
+starred assignment, for-loop starred targets, and `*args` / `**kwargs`
+definitions.
+
+No-Observability-Change: the unpacking change adds no metric, span, log, status
+field, runtime knob, queue, worker, graph query, or graph write. Operators still
+diagnose parser cost through existing collector parse-stage logs and
+`eshu_dp_file_parse_duration_seconds`.
+
 ## Performance and concurrency
 
 `InterprocFindings` composes per-function summaries and calls
@@ -123,7 +136,12 @@ or shared state of its own — the partitioned, race-free fixpoint lives in
   is not descended into; a sink inside a closure stays unattributed
   (`walkInFunction`).
 - **Tuple/list targets** (`a, b = ...`) define each identifier (nested attribute/
-  subscript elements as access paths).
+  subscript elements as access paths). Starred assignment and loop targets
+  (`first, *rest = row`, `for first, *rest in rows`) also define every bound
+  identifier and read the source container element approximation (`row[*]` /
+  `rows[*]`) rather than only the whole container.
+- **Star parameters** (`*args`, `**kwargs`) are modeled as entry definitions, so
+  value flow from variadic parameters is captured like ordinary parameters.
 - **Taint catalog (`taintfacts.go`) is conservative.** Sources require typed
   framework request parameters with qualified annotations or known framework
   imports such as FastAPI, Flask, Starlette, or Django. A local type named

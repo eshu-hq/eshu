@@ -220,6 +220,25 @@ by the emitters (#3141, #3142):
 - **Same redaction.** Every surface emits the `share_safe_v2` redaction profile;
   no surface widens scope or embeds raw payloads.
 
+### HTTP and MCP surfaces
+
+The implemented packet families are exposed directly on HTTP and through MCP
+tools. Each HTTP response returns the packet as the `data` payload of the
+canonical envelope when clients send
+`Accept: application/eshu.envelope+json`; plain JSON clients receive the same
+packet body without the envelope.
+
+| Family | HTTP route | MCP tool | Required scope |
+| --- | --- | --- | --- |
+| `supply_chain_impact` | `GET /api/v0/investigations/supply-chain/impact/packet` | `export_supply_chain_impact_packet` | One finding id or a bounded advisory/package/repository/image/workload/service selector. Scoped tokens must include a repository selector that resolves inside the caller grant before store reads. |
+| `deployable_unit` | `GET /api/v0/investigations/deployable-unit/packet` | `export_deployable_unit_packet` | `scope_id` and `generation_id`; optional `repository_id` / `repo_id` narrows to one repository anchor. |
+| `drift` | `GET /api/v0/investigations/drift/packet` | `export_cloud_runtime_drift_packet` | `scope_id` or a cloud scope alias (`account_id`, `project_id`, `subscription_id`); optional `provider` and `cloud_resource_uid`. |
+
+All three surfaces accept `max_source_facts` as a lowering-only cap for the
+`source_facts` layer. MCP dispatch is transport-only: it forwards the bounded
+inputs to the HTTP routes and preserves the returned canonical envelope instead
+of rebuilding packet layers.
+
 ## Bounds and payload size
 
 Every evidence layer is capped (defaults: 200 source facts, 200 reducer

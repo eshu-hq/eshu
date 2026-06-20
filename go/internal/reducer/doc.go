@@ -116,6 +116,41 @@
 // the existing summary/source/sink/finding/overflow/unresolved counts. The
 // change adds no metric label or high-cardinality metric.
 //
+// No-Regression Evidence: issue #3249 partitions durable summary/source/sink
+// snapshots before Program assembly and persists solved weak-component fixpoint
+// results behind the same component-content cache key, so a reducer restart or
+// second replica can reuse unchanged components without reassembling or solving
+// them. `go test ./internal/reducer -run
+// 'TestValueFlowFixpoint(Snapshot|Durable|Cache|EvidenceLoader)' -count=1`
+// proves restart reuse, changed-summary-version invalidation, directed
+// edge-shape invalidation, assembly limited to the changed component, full-solve
+// parity, cloud sink behavior, unresolved endpoint behavior, and unchanged
+// fixpoint projection semantics. `go test
+// ./internal/storage/postgres -run
+// 'TestValueFlowFixpointComponent|TestBootstrapDefinitionsIncludeValueFlowFixpointComponents'
+// -count=1` proves the Postgres cache table, idempotent upsert, bounded
+// key-list load, JSON result round trip, and bootstrap registration. `go test
+// ./cmd/reducer -run TestNewValueFlowFixpointProjectorWiresCloudSinkGraphLoader
+// -count=1` proves production reducer wiring passes the durable component store
+// into the fixpoint loader.
+// Performance Evidence: `go test ./internal/reducer -run '^$' -bench
+// 'BenchmarkValueFlow(Snapshot|Fixpoint)' -benchmem -count=3` on a synthetic
+// 100-component x 100-hop corpus reported full snapshot assembly+solve at
+// 20.2-24.1 ms/op with about 92.5 MB/op and 91.8k-92.0k allocs/op, while the
+// durable-restart cached snapshot path reported 12.6-13.9 ms/op with about
+// 18.2 MB/op and 7.9k-8.0k allocs/op. The benchmark asserts exactly one
+// assembled and recomputed component plus 99 durable reused components after a
+// single function summary version change.
+// Observability Evidence: #3249 extends the existing `value-flow fixpoint
+// evidence loaded` structured log with `fixpoint_assembled_components` and
+// `fixpoint_durable_reused_components` beside the existing component,
+// recompute, reuse, summary, source, sink, finding, overflow, and
+// unresolved-endpoint counts. It adds no route, graph query shape, graph write
+// route, queue domain, worker, lease, runtime knob, metric instrument, or metric
+// label. Operators diagnose durable cache behavior through that log plus
+// existing reducer execution spans/counters and instrumented Postgres query/exec
+// spans for the component store.
+//
 // No-Regression Evidence: issue #2967 adds one bounded graph read anchored on
 // Function.uid values loaded from the durable FunctionID map and filtered by the
 // graph-backed exposure sink relationship allowlist. Issue #2969 adds one

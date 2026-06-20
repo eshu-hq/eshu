@@ -19,6 +19,13 @@ type StatusHandler struct {
 	GovernanceAudit GovernanceAuditSummaryReader
 	Profile         QueryProfile
 	Governance      GovernanceStatusConfig
+	// NarrationPosture is an optional func that returns the current governed
+	// answer-narration posture. When non-nil it overrides the DB-derived
+	// AnswerNarration field from the status report, so that GET
+	// /api/v0/status/answer-narration reflects the real governed posture
+	// rather than a static default. When nil, the handler falls back to
+	// status.DefaultAnswerNarrationStatus (Unavailable/disabled).
+	NarrationPosture func() status.AnswerNarrationStatus
 }
 
 // Mount registers status query routes on the given mux.

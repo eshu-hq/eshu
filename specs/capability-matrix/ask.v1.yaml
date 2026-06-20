@@ -1,0 +1,17 @@
+version: v1
+updated_at: 2026-06-20
+owners:
+  - platform-engineering
+# Default-off natural-language Ask surface. The MCP tool and HTTP route are
+# read-only and return unavailable unless ESHU_ASK_ENABLED=true and an
+# agent_reasoning provider profile is configured. When enabled, the Tier-1 engine
+# plans bounded retrieval and returns evidence-backed answer packets without
+# exposing provider prompts, raw provider bodies, credentials, or private paths.
+capabilities:
+  - capability: ask.natural_language_answer
+    tools: [ask]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_agent_reasoning_provider, p95_latency_ms: 10000, max_scope_size: active_repo, verification: [{go_test: ./internal/query ./internal/mcp ./cmd/mcp-server}], notes: default-off; returns unavailable until ESHU_ASK_ENABLED and an agent_reasoning provider profile are configured; engine uses bounded Tier-1 retrieval and evidence-backed answer packets}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph_plus_agent_reasoning_provider, p95_latency_ms: 10000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query ./internal/mcp ./cmd/mcp-server}], notes: default-off; graph and Postgres reads remain bounded by the engine tool catalog; no raw provider prompts or responses are returned}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack_plus_agent_reasoning_provider, p95_latency_ms: 15000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query ./internal/mcp ./cmd/mcp-server}], notes: default-off; returns answer_prose, artifacts, truth_class, evidence_handles, query_trace, partial, and limitations when enabled}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services_plus_agent_reasoning_provider, p95_latency_ms: 15000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-ask-default-off}], notes: default-off; requires ESHU_ASK_ENABLED and an agent_reasoning provider profile; scoped-token support, SSE streaming, and Tier-2 sandbox wiring remain follow-ups}

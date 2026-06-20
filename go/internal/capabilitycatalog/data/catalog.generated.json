@@ -8,6 +8,10 @@
       "derived_maturity": "general_availability",
       "surfaces": [
         {
+          "tool": "export_deployable_unit_packet",
+          "kind": "mcp"
+        },
+        {
           "tool": "list_admission_decisions",
           "kind": "mcp"
         }
@@ -96,6 +100,59 @@
           "kind": "remote_validation",
           "ref": "prod-answer-narration-status"
         }
+      ],
+      "console": false
+    },
+    {
+      "capability": "ask.natural_language_answer",
+      "display_name": "Ask Eshu Natural-Language Answer",
+      "owner_package": "internal/ask",
+      "maturity": "gated",
+      "derived_maturity": "general_availability",
+      "maturity_reason": "Ask is default-off and requires ESHU_ASK_ENABLED plus an agent_reasoning provider profile; without both, the HTTP and MCP surfaces return unavailable instead of running the engine.",
+      "surfaces": [
+        {
+          "tool": "ask",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph_plus_agent_reasoning_provider"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack_plus_agent_reasoning_provider"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_agent_reasoning_provider"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services_plus_agent_reasoning_provider"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query ./internal/mcp ./cmd/mcp-server"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-ask-default-off"
+        }
+      ],
+      "known_gaps": [
+        "Scoped-token support, SSE streaming, and Tier-2 sandbox wiring are planned follow-ups."
+      ],
+      "docs": [
+        "reference/mcp-tool-contract-matrix.md"
       ],
       "console": false
     },
@@ -705,6 +762,10 @@
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
       "surfaces": [
+        {
+          "tool": "export_cloud_runtime_drift_packet",
+          "kind": "mcp"
+        },
         {
           "tool": "list_cloud_runtime_drift_findings",
           "kind": "mcp"
@@ -5210,6 +5271,10 @@
       "surfaces": [
         {
           "tool": "explain_supply_chain_impact",
+          "kind": "mcp"
+        },
+        {
+          "tool": "export_supply_chain_impact_packet",
           "kind": "mcp"
         }
       ],

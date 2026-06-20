@@ -523,7 +523,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: optional_cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer impact aggregate (count and grouped inventory) over reducer impact facts; replaces page-and-iterate caller workflow for ecosystem totals questions}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_cve_package_repository_or_digest_scope, verification: [{remote_validation: prod-supply-chain-impact-aggregate}], notes: bounded reducer impact aggregate (count and grouped inventory) over reducer impact facts; replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: supply_chain.impact_explanation.read
-    tools: [explain_supply_chain_impact]
+    tools: [explain_supply_chain_impact, export_supply_chain_impact_packet]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-supply-chain-impact-explain}], notes: requires reducer supply-chain impact facts and bounded evidence fact ids}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: one_finding_or_advisory_package_repository_path, verification: [{go_test: ./internal/query}], notes: one reducer-owned finding explanation anchored by finding_id or advisory/CVE plus package, repository, or image digest; no whole-graph explain}
