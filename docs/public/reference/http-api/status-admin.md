@@ -319,6 +319,37 @@ The MCP equivalents are `list_collector_extraction_readiness` with optional
 `limit` and `get_collector_extraction_readiness`. The CLI equivalent is
 `eshu component extraction-readiness [family] --json --verbose`.
 
+## Fact Schema Versions
+
+- `GET /api/v0/fact-schema-versions?limit=200`
+- `GET /api/v0/fact-schema-versions/{fact_kind}?candidate=2.0.0`
+
+These routes expose the core fact-schema-version compatibility registry. The list
+returns the schema version a core reducer or query consumer currently supports
+for each core fact kind. The drilldown returns the supported version for one
+fact kind, and when the `candidate` query parameter is supplied it classifies
+that collector version as `supported`, `unsupported_major`, `unsupported_minor`,
+or `unknown_kind` — so a client can detect an incompatible collector fact version
+safely before its facts are admitted. The drilldown returns HTTP 404 with the
+canonical `not_found` error when the fact kind is not a core-owned fact kind with
+a registered schema version.
+
+The data is the static in-binary registry from `go/internal/facts`; the routes
+read no runtime, graph, or registry state, and the result is advisory only. List
+responses are bounded by `limit` (default 200, max 500) and return `count`,
+`total_count`, and `truncated`. See
+[Fact Schema Versioning](../fact-schema-versioning.md) for the compatibility
+contract.
+
+The MCP equivalents are `list_fact_schema_versions` with optional `limit` and
+`get_fact_schema_version` with `fact_kind` and optional `candidate`. The CLI
+equivalent is `eshu component schema-versions [--check fact_kind=version] --json`.
+
+No-Regression Evidence: `cd go && go test ./internal/query ./internal/mcp -run 'Test(FactSchemaVersion|ReadOnlyToolsIncludesFactSchemaVersion)' -count=1` proves the registry list, drilldown, candidate classification, 404 behavior, and MCP route resolution. The routes read the static `facts.SupportedSchemaVersions()` registry in process and issue no graph, queue, or content reads.
+No-Observability-Change: the fact-schema-version routes reuse the existing query
+API envelope, truth metadata, and error contract; they add no metrics, spans,
+logs, status fields, queue domains, or graph writes.
+
 No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|CollectorRuntimeStatuses(MergesPersistedFactEvidence|MapsUnattributedFactsToSingleCoordinatorInstance)|StatusHandlerCollectorsRouteExposes(DirectRuntimeEvidence|PersistedFactEvidence)|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`; `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres -run 'Test(CollectorRuntimeStatusesMergesPersistedFactEvidence|StatusHandlerCollectorsRouteExposesPersistedFactEvidence|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata)' -count=1` proves source systems survive persisted fact evidence, status projection, and public collector status rendering.
 No-Observability-Change: collector status classification reuses existing
 `/admin/status`, `/api/v0/status/collectors`, `aws_cloud_scans`,

@@ -84,6 +84,23 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 			method: "GET",
 			path:   "/api/v0/collector-extraction-readiness/" + url.PathEscape(family),
 		}, true, nil
+	case "list_fact_schema_versions":
+		return &route{method: "GET", path: "/api/v0/fact-schema-versions", query: map[string]string{
+			"limit": intString(args, "limit", 200),
+		}}, true, nil
+	case "get_fact_schema_version":
+		factKind := strings.TrimSpace(str(args, "fact_kind"))
+		if factKind == "" {
+			return nil, true, fmt.Errorf("fact_kind is required")
+		}
+		factRoute := &route{
+			method: "GET",
+			path:   "/api/v0/fact-schema-versions/" + url.PathEscape(factKind),
+		}
+		if candidate := strings.TrimSpace(str(args, "candidate")); candidate != "" {
+			factRoute.query = map[string]string{"candidate": candidate}
+		}
+		return factRoute, true, nil
 	default:
 		return nil, false, nil
 	}

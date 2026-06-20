@@ -172,6 +172,7 @@ type APIRouter struct {
 	Status                 *StatusHandler
 	ComponentExtensions    *ComponentExtensionsHandler
 	ExtractionReadiness    *CollectorExtractionReadinessHandler
+	FactSchemaVersions     *FactSchemaVersionHandler
 	Playbooks              *QueryPlaybookHandler
 	InvestigationWorkflows *InvestigationWorkflowHandler
 	Metrics                *MetricsHandler
@@ -332,6 +333,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.ExtractionReadiness != nil {
 		a.ExtractionReadiness.Mount(mux)
+	}
+	if a.FactSchemaVersions != nil {
+		a.FactSchemaVersions.Mount(mux)
 	}
 
 	// Query playbooks
