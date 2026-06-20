@@ -90,6 +90,8 @@ func TestSinkCatalogCoversClosedVocabulary(t *testing.T) {
 		SinkSQLTable,
 		SinkShellExec,
 		SinkInternetEndpoint,
+		SinkConfigSecurityKey,
+		SinkIaCMisconfiguration,
 	}
 	covered := make(map[SinkKind]bool)
 	for _, spec := range SinkCatalog() {
@@ -100,6 +102,80 @@ func TestSinkCatalogCoversClosedVocabulary(t *testing.T) {
 			t.Fatalf("closed vocabulary kind %q has no catalog spec", kind)
 		}
 	}
+}
+
+// TestConfigAndIaCSinksStayNonGraphBackedUntilFixpointPathExists records the
+// #3191 positive catalog fixtures and the negative honesty contract: config and
+// IaC sink kinds are allowed in the closed vocabulary, but they must not match a
+// graph edge until a Function-anchored value-flow loader/materializer path
+// exists for them.
+func TestConfigAndIaCSinksStayNonGraphBackedUntilFixpointPathExists(t *testing.T) {
+	t.Parallel()
+
+	fixtures := map[SinkKind]struct {
+		severity Severity
+		text     string
+	}{
+		SinkConfigSecurityKey:   {severity: SeverityHigh, text: "security-relevant config key"},
+		SinkIaCMisconfiguration: {severity: SeverityHigh, text: "IaC misconfiguration"},
+	}
+
+	catalog := SinkCatalog()
+	for kind, fixture := range fixtures {
+		spec, ok := sinkSpecByKind(catalog, kind)
+		if !ok {
+			t.Fatalf("catalog missing #3191 sink kind %q", kind)
+		}
+		if spec.GraphBacked {
+			t.Fatalf("%q must stay non-graph-backed until the fixpoint loader has a Function-anchored path", kind)
+		}
+		if spec.Relationship != "" || spec.TargetLabel != "" {
+			t.Fatalf("%q declared rel/target without graph backing: %+v", kind, spec)
+		}
+		if spec.BaselineSeverity != fixture.severity {
+			t.Fatalf("%q severity = %q, want %q", kind, spec.BaselineSeverity, fixture.severity)
+		}
+		if !strings.Contains(spec.DisplayName, fixture.text) {
+			t.Fatalf("%q display name %q does not record the fixture intent %q", kind, spec.DisplayName, fixture.text)
+		}
+		if !strings.Contains(spec.Provenance, "#3191") || !strings.Contains(spec.Provenance, "non-GraphBacked") {
+			t.Fatalf("%q provenance must cite #3191 and non-GraphBacked status: %q", kind, spec.Provenance)
+		}
+	}
+
+	negativeEdges := []struct {
+		name   string
+		rel    string
+		target string
+		props  map[string]string
+	}{
+		{
+			name:   "config unsafe tls verify stays unmatched",
+			rel:    "WRITES_CONFIG",
+			target: "ConfigKey",
+			props:  map[string]string{"key": "tls.insecure_skip_verify", "unsafe_value": "true"},
+		},
+		{
+			name:   "iac public bucket stays unmatched",
+			rel:    "DECLARES_IAC_MISCONFIG",
+			target: "TerraformResource",
+			props:  map[string]string{"resource_type": "aws_s3_bucket_acl", "acl": "public-read"},
+		},
+	}
+	for _, edge := range negativeEdges {
+		if spec, ok := MatchSink(edge.rel, edge.target, edge.props); ok {
+			t.Fatalf("%s matched catalog-only sink %+v; non-GraphBacked specs must not fabricate matches", edge.name, spec)
+		}
+	}
+}
+
+func sinkSpecByKind(specs []SinkSpec, kind SinkKind) (SinkSpec, bool) {
+	for _, spec := range specs {
+		if spec.Kind == kind {
+			return spec, true
+		}
+	}
+	return SinkSpec{}, false
 }
 
 // TestMatchSinkRecognizesFixtures exercises the recognizer against representative
