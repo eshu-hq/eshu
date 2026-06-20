@@ -76,40 +76,48 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{WorkItemFactKinds, WorkItemSchemaVersion},
 }
 
-// SchemaVersion returns the schema version a core consumer currently supports
-// for factKind. It is the single dispatch point over the per-family schema
-// version functions. The boolean is false for any fact kind core does not own a
-// versioned schema for, including out-of-tree component fact kinds.
-func SchemaVersion(factKind string) (string, bool) {
-	kind := strings.TrimSpace(factKind)
-	if kind == "" {
-		return "", false
-	}
+// supportedSchemaVersionRegistry is the precomputed core fact-kind to supported
+// schema-version map. It is built once at init from schemaVersionFamilies so the
+// per-fact lookups SchemaVersion and ValidateSchemaVersion use on the projection
+// hot path are O(1) rather than a per-call scan over every family.
+var supportedSchemaVersionRegistry = buildSupportedSchemaVersionRegistry()
+
+// buildSupportedSchemaVersionRegistry flattens every versioned family into one
+// map. Two families must never claim the same fact kind; that is a programming
+// error in schemaVersionFamilies, so it panics at init and surfaces in any test.
+func buildSupportedSchemaVersionRegistry() map[string]string {
+	registry := make(map[string]string)
 	for _, family := range schemaVersionFamilies {
-		if version, ok := family.version(kind); ok {
-			return version, true
+		for _, kind := range family.kinds() {
+			version, ok := family.version(kind)
+			if !ok {
+				continue
+			}
+			if existing, dup := registry[kind]; dup {
+				panic(fmt.Sprintf("facts: duplicate schema version registration for kind %q: %q and %q", kind, existing, version))
+			}
+			registry[kind] = version
 		}
 	}
-	return "", false
+	return registry
+}
+
+// SchemaVersion returns the schema version a core consumer currently supports
+// for factKind via an O(1) lookup against the precomputed registry. The boolean
+// is false for any fact kind core does not own a versioned schema for, including
+// out-of-tree component fact kinds.
+func SchemaVersion(factKind string) (string, bool) {
+	version, ok := supportedSchemaVersionRegistry[strings.TrimSpace(factKind)]
+	return version, ok
 }
 
 // SupportedSchemaVersions returns a copy of the core fact-kind to supported
 // schema-version registry. Diagnostics and compatibility surfaces read this to
 // report the versions a reducer or query consumer accepts.
 func SupportedSchemaVersions() map[string]string {
-	registry := make(map[string]string)
-	for _, family := range schemaVersionFamilies {
-		for _, kind := range family.kinds() {
-			if version, ok := family.version(kind); ok {
-				// Two families must never claim the same fact kind. This is a
-				// programming error in schemaVersionFamilies, so fail loudly; it
-				// surfaces in any test that reads the registry.
-				if existing, dup := registry[kind]; dup {
-					panic(fmt.Sprintf("facts: duplicate schema version registration for kind %q: %q and %q", kind, existing, version))
-				}
-				registry[kind] = version
-			}
-		}
+	registry := make(map[string]string, len(supportedSchemaVersionRegistry))
+	for kind, version := range supportedSchemaVersionRegistry {
+		registry[kind] = version
 	}
 	return registry
 }
@@ -122,6 +130,12 @@ func ClassifySchemaVersion(factKind, candidate string) Compatibility {
 	supported, ok := SchemaVersion(factKind)
 	if !ok {
 		return CompatibilityUnknownKind
+	}
+	// Fast path for the overwhelmingly common case: a collector emits exactly the
+	// supported version. This keeps per-fact admission allocation-free and avoids
+	// the semver parse on the projection hot path.
+	if strings.TrimSpace(candidate) == supported {
+		return CompatibilitySupported
 	}
 	if !schemaSemverPattern.MatchString(strings.TrimSpace(candidate)) {
 		// A blank or non-canonical version (not MAJOR.MINOR.PATCH) cannot be

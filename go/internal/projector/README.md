@@ -421,6 +421,23 @@ backend-specific adapters.
 - `ReducerIntent` values are sorted by `Domain`, `EntityKey`, and `FactID`
   before enqueue to produce a stable queue order.
 
+- Schema-version admission is centralized in `schema_version_admission.go`:
+  `validateFactSchemaVersion` calls `facts.ValidateSchemaVersion` once per fact,
+  replacing the seven per-family validators and covering every core fact family
+  uniformly. Core-owned facts with an unsupported (or blank) schema version are
+  rejected; fact kinds core does not own pass through.
+
+No-Regression Evidence: the central gate is one O(1) registry lookup plus, for
+an owned kind on the common exact-version path, a string compare —
+`go test ./internal/facts -run '^$' -bench BenchmarkValidateSchemaVersion -benchmem`
+reports ~10 ns/op and 0 allocs, replacing the previous seven sequential
+per-family lookups, so the per-fact projection cost does not regress. Behavior is
+covered by `go test ./internal/projector -run 'SchemaVersion|TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily' -count=1`.
+
+No-Observability-Change: admission rejection continues to surface through the
+existing projector `build_projection` stage error and the projection failure
+path; no new metric, span, log field, or status row is added.
+
 No-Regression Evidence: Terraform-state snapshot-only and warning-only phase
 publication is covered by
 `go test ./internal/projector -run 'TestRuntimeProjectPublishesTerraformStateCanonicalCheckpointsForSnapshotOnly|TestRuntimeProjectPublishesTerraformStateWarningOnlyCanonicalPhases' -count=1`.

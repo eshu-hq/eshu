@@ -163,27 +163,6 @@ func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Env
 	}
 }
 
-func validateOCIRegistrySchemaVersion(envelope facts.Envelope) error {
-	want, ok := facts.OCIRegistrySchemaVersion(envelope.FactKind)
-	if !ok {
-		return nil
-	}
-	got := strings.TrimSpace(envelope.SchemaVersion)
-	if got == "" {
-		return fmt.Errorf("oci registry fact %q schema_version must not be blank", envelope.FactID)
-	}
-	if got != want {
-		return fmt.Errorf(
-			"oci registry fact %q schema_version %q is unsupported for %s; want %q",
-			envelope.FactID,
-			got,
-			envelope.FactKind,
-			want,
-		)
-	}
-	return nil
-}
-
 func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow, bool) {
 	repositoryID, _ := payloadString(envelope.Payload, "repository_id")
 	if repositoryID == "" {

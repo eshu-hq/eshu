@@ -26,11 +26,13 @@ func cloudInventoryAdmissionScopeAndGeneration(provider string) (scope.Ingestion
 }
 
 func cloudInventorySourceEnvelope(factID, scopeID, generationID, factKind, sourceSystem string) facts.Envelope {
+	schemaVersion, _ := facts.SchemaVersion(factKind)
 	return facts.Envelope{
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
 		FactKind:      factKind,
+		SchemaVersion: schemaVersion,
 		CollectorKind: sourceSystem,
 		SourceRef:     facts.Ref{SourceSystem: sourceSystem},
 		ObservedAt:    time.Date(2026, 6, 9, 10, 0, 0, 0, time.UTC),
@@ -96,6 +98,37 @@ func TestBuildProjectionDoesNotQueueCloudInventoryAdmissionWithoutSourceFacts(t 
 	for _, intent := range projection.reducerIntents {
 		if intent.Domain == reducer.DomainCloudInventoryAdmission {
 			t.Fatal("unexpected cloud_inventory_admission intent without cloud-inventory source facts")
+		}
+	}
+}
+
+// TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily proves the
+// central admission gate validates schema versions for a fact family that had no
+// per-family projector validator before #3211. azure_cloud_resource is admitted
+// at its supported version and rejected for an older major, a future major, and
+// a blank version.
+func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := cloudInventoryAdmissionScopeAndGeneration("azure")
+	kind := facts.AzureCloudResourceFactKind
+
+	// The helper sets the supported version, so the current version is admitted.
+	if _, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		cloudInventorySourceEnvelope("fact-current", scopeValue.ScopeID, generation.GenerationID, kind, "azure"),
+	}); err != nil {
+		t.Fatalf("current schema version rejected: %v", err)
+	}
+
+	for _, tc := range []struct{ name, version string }{
+		{"older major", "0.9.0"},
+		{"future major", "2.0.0"},
+		{"blank", ""},
+	} {
+		env := cloudInventorySourceEnvelope("fact-bad", scopeValue.ScopeID, generation.GenerationID, kind, "azure")
+		env.SchemaVersion = tc.version
+		if _, err := buildProjection(scopeValue, generation, []facts.Envelope{env}); err == nil {
+			t.Fatalf("%s schema version %q admitted for previously-ungated family, want rejected", tc.name, tc.version)
 		}
 	}
 }

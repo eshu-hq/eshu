@@ -20,10 +20,11 @@ func TestBuildProjectionQueuesSupplyChainImpactForVulnerabilityEvidence(t *testi
 		GenerationID: "generation-1",
 	}
 	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
-		FactID:       "fact-cve",
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
-		FactKind:     facts.VulnerabilityCVEFactKind,
+		FactID:        "fact-cve",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.VulnerabilityCVEFactKind,
+		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
 		SourceRef: facts.Ref{
 			SourceSystem: "vulnerability_intelligence",
 		},
@@ -89,10 +90,11 @@ func TestBuildProjectionQueuesSupplyChainImpactForSBOMComponentEvidence(t *testi
 		GenerationID: "generation-sbom",
 	}
 	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
-		FactID:       "fact-sbom-component",
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
-		FactKind:     facts.SBOMComponentFactKind,
+		FactID:        "fact-sbom-component",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.SBOMComponentFactKind,
+		SchemaVersion: facts.SBOMAttestationSchemaVersionV1,
 		Payload: map[string]any{
 			"document_id": "doc-1",
 			"purl":        "pkg:npm/example@1.2.3",

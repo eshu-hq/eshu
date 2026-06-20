@@ -39,11 +39,12 @@ func TestRuntimeProjectSkipsContentMaterializationForNonRepositoryScopes(t *test
 
 	result, err := runtime.Project(context.Background(), scopeValue, generationValue, []facts.Envelope{
 		{
-			FactID:       "aws-resource-1",
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generationValue.GenerationID,
-			FactKind:     facts.AWSResourceFactKind,
-			ObservedAt:   generationValue.ObservedAt,
+			FactID:        "aws-resource-1",
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generationValue.GenerationID,
+			FactKind:      facts.AWSResourceFactKind,
+			SchemaVersion: facts.AWSResourceSchemaVersion,
+			ObservedAt:    generationValue.ObservedAt,
 			Payload: map[string]any{
 				"account_id":    "123456789012",
 				"region":        "aws-global",
