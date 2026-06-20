@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/componentindex"
 	"github.com/eshu-hq/eshu/go/internal/extensionconformance"
 )
 
@@ -23,6 +24,7 @@ type componentCLIOutput struct {
 	Activation    *componentCLIActivation       `json:"activation,omitempty"`
 	Verification  *component.VerificationResult `json:"verification,omitempty"`
 	Conformance   *extensionconformance.Report  `json:"conformance,omitempty"`
+	IndexReport   *componentindex.Report        `json:"index_verification,omitempty"`
 	Error         *componentCLIError            `json:"error,omitempty"`
 }
 

@@ -90,14 +90,15 @@ orchestration. It does not own service runtime internals:
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)
-  - component package manager: `component init collector|inspect|verify|install|conform|list|enable|disable|uninstall|inventory|diagnostics`
+  - component package manager: `component init collector|inspect|verify|install|conform|index verify|list|enable|disable|uninstall|inventory|diagnostics`
     scaffolds optional collector component packages and manages local optional
-    component manifests, fixture conformance, and activation state with stable
-    `--json` output, classified errors, and dry-run planning for install and
-    enable. The `inventory` and `diagnostics` subcommands are API-backed
-    readbacks for hosted component-extension inventory and policy diagnostics
-    (`component.go`, `component_api.go`, `component_conform.go`,
-    `component_init.go`, `component_output.go`)
+    component manifests, fixture conformance, index publication metadata, and
+    activation state with stable `--json` output, classified errors, and dry-run
+    planning for install and enable. The `inventory` and `diagnostics`
+    subcommands are API-backed readbacks for hosted component-extension
+    inventory and policy diagnostics (`component.go`, `component_api.go`,
+    `component_conform.go`, `component_index.go`, `component_init.go`,
+    `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -172,37 +173,32 @@ work, or emit OTEL from this dispatcher.
 No-Regression Evidence: component conformance CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestComponentConform|TestComponentCommandTreeIncludesConform' -count=1`.
 
-No-Observability-Change: answer-quality scorecard evaluation is offline CLI
-artifact scoring over already captured and redacted evidence. It starts no Eshu
-runtime, calls no API/MCP endpoint, opens no graph/Postgres driver, and emits no
-OTEL from this dispatcher.
+No-Observability-Change: component index verification runs the offline
+`componentindex` verifier over a local YAML or JSON index only.
+
+No-Regression Evidence: component index verification CLI behavior is covered by `go test ./cmd/eshu -run 'TestComponentCommandTreeIncludesIndexVerify|TestComponentIndexVerify' -count=1`.
+
+No-Observability-Change: answer-quality scorecard evaluation scores already
+captured and redacted evidence offline. It starts no runtime or datastore.
 
 No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`.
 
-No-Observability-Change: operator digest rendering and artifact writing are
-offline CLI model projection. They validate explicit share-safe inputs, start no
-runtimes, call no API/MCP endpoint or provider, open no graph/Postgres driver,
-write no graph state, claim no reducer work, and emit no OTEL from this
-dispatcher.
+No-Observability-Change: operator digest rendering validates explicit
+share-safe inputs and projects offline artifacts without runtime, provider,
+datastore, graph-write, or reducer-claim side effects.
 
 No-Regression Evidence: operator digest CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestOperatorDigest' -count=1`.
 
-No-Observability-Change: hosted-onboard starter playbook guidance is local
-artifact projection from the in-process query playbook catalog. It does not
-start runtimes, call providers, open graph/Postgres drivers, or emit OTEL from
-this dispatcher.
+No-Observability-Change: hosted-onboard starter playbook guidance projects the
+in-process query playbook catalog locally without runtime or datastore access.
 
 No-Regression Evidence: hosted-onboard starter playbook guidance is covered by
 `go test ./cmd/eshu -run 'TestHostedOnboardArtifactOutputFields|TestHostedOnboardIncompleteConnectionStillSafeArtifact|TestHostedOnboardMarkdownNamesPlaybookIDs' -count=1`.
 
-No-Observability-Change: assistant ritual verification runs entirely inside the
-local CLI process after `assistant install --verify` or
-`assistant status --verify` and reuses the existing MCP setup verification seam
-for snippet generation and read-only tool-surface enumeration. It starts no
-runtime, calls no provider, opens no graph/Postgres driver, and emits no OTEL
-from this dispatcher.
+No-Observability-Change: assistant ritual verification stays in the local CLI
+process and reuses the MCP setup seam for snippets and read-only tool checks.
 
 No-Regression Evidence: assistant ritual verification is covered by
 `go test ./cmd/eshu -run 'TestAssistantInstall|TestAssistantStatus' -count=1`.
@@ -217,14 +213,10 @@ No-Regression Evidence: assistant hook preflight is covered by
 `go test ./cmd/eshu -run 'TestAssistantHookPreflight' -count=1`.
 
 Benchmark Evidence: assistant hook preflight is measured by
-`go test ./cmd/eshu -run 'TestAssistantHookPreflight' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`.
-On Darwin arm64 / Apple M4 Pro, sampled local latency measured evaluator
-advisory at p50 333 ns, p95 542 ns, max 143.167 us; command advisory JSON at
-p50 9.042 us, p95 16.792 us, max 323.667 us; and malformed-payload fail-open
-at p50 4.333 us, p95 10.542 us, max 117 us. Steady-state benchmarks measured
-evaluator advisory below 279 ns/op, evaluator fail-open below 102 ns/op,
-command advisory JSON at 10.789 us/op, and malformed-payload fail-open at
-6.065 us/op.
+`go test ./cmd/eshu -run 'TestAssistantHookPreflight' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`;
+local Darwin arm64 samples kept evaluator advisory below 279 ns/op, evaluator
+fail-open below 102 ns/op, command advisory JSON at 10.789 us/op, and
+malformed-payload fail-open at 6.065 us/op.
 
 ## Gotchas / invariants
 

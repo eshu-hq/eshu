@@ -11,7 +11,9 @@ trust grant and does not install, enable, or run extensions.
 
 This package owns index document validation only. It checks entry metadata,
 digest pins, lifecycle channels, duplicate component IDs, duplicate fact-kind
-claims, review links, and revoked installable entries. It does not pull OCI
+claims, schema-version shape, source-confidence vocabulary, reducer consumer
+contracts, signature/provenance references, conformance proof references and
+status, review links, and revoked installable entries. It does not pull OCI
 artifacts, inspect GitHub topics, verify Sigstore provenance, mutate the local
 component registry, or bypass `component.Policy`.
 
@@ -37,9 +39,16 @@ spans, logs, or status fields.
 
 - Index membership never bypasses disabled, allowlist, strict, revocation, or
   compatible-core checks in the component package manager.
-- Artifact references must be digest pinned; mutable tags are advisory metadata
-  failures, not warnings.
+- Artifact references must be digest pinned; mutable tags are metadata failures,
+  not warnings.
 - Two entries cannot claim the same fact kind in the v1 index.
+- Emitted fact kinds must be namespaced and must not claim core-owned Eshu fact
+  kinds.
+- Schema versions must be semantic versions, and source confidence must be one
+  of `observed`, `reported`, `inferred`, or `derived`.
+- Index entries must point at reducer consumer metadata, signature evidence, and
+  passed conformance proof artifacts before they can be treated as
+  publication-ready metadata.
 - Revocation wins over installable state.
 
 ## Related docs
