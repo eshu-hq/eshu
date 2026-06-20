@@ -4,11 +4,26 @@
 // a list of built asset files with sizes plus a budget table and decides which
 // chunks exceeded their documented threshold. Keeping the decision logic pure
 // lets us assert behavior without running a real Vite build.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   classifyAsset,
   evaluateBundleBudget
 } from "../../../scripts/console-bundle-budget.mjs";
+
+type PackageJson = {
+  scripts?: Record<string, string>;
+};
+
+function readRootPackageJson(): PackageJson {
+  const packageJsonPath = resolve(process.cwd(), "package.json");
+  const parsed: unknown = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("root package.json must contain an object");
+  }
+  return parsed as PackageJson;
+}
 
 describe("classifyAsset", () => {
   it("maps the hashed main entry chunk to the 'main' budget key", () => {
@@ -30,6 +45,16 @@ describe("classifyAsset", () => {
   it("ignores non-javascript assets", () => {
     expect(classifyAsset("index-CQPdM6O3.css")).toBeNull();
     expect(classifyAsset("index.html")).toBeNull();
+  });
+});
+
+describe("console build script", () => {
+  it("runs the bundle budget gate after the Vite console build", () => {
+    const scripts = readRootPackageJson().scripts;
+
+    expect(scripts?.["console:build"]).toBe(
+      "vite build --config apps/console/vite.config.ts && npm run console:bundle-budget"
+    );
   });
 });
 

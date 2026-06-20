@@ -7,16 +7,16 @@ documented per-chunk **bundle budget** that is checked after every build.
 ## How it works
 
 1. `npm run console:build` builds the console into `apps/console/dist`.
-2. `npm run console:bundle-budget` runs `scripts/console-bundle-budget.mjs`,
-   which reads the emitted JavaScript chunks under `apps/console/dist/assets`,
-   classifies each chunk to a stable budget key, and fails (exit code `1`) if
-   any chunk exceeds its documented threshold.
+2. The same `console:build` script then runs `npm run console:bundle-budget`,
+   which executes `scripts/console-bundle-budget.mjs`, reads the emitted
+   JavaScript chunks under `apps/console/dist/assets`, classifies each chunk to
+   a stable budget key, and fails (exit code `1`) if any chunk exceeds its
+   documented threshold.
 
-Run them together, for example in CI:
+Run the required build path locally or in CI:
 
 ```bash
 npm run console:build
-npm run console:bundle-budget
 ```
 
 Sizes are **raw, un-gzipped minified bytes** — the same number Vite prints in
