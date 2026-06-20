@@ -49,6 +49,7 @@ type schemaVersionFamily struct {
 // declare a schema version. A new versioned family must be added here so the
 // central registry, classifier, and drift guard see it.
 var schemaVersionFamilies = []schemaVersionFamily{
+	{DocumentationFactKinds, DocumentationSchemaVersion},
 	{AWSFactKinds, AWSSchemaVersion},
 	{AzureFactKinds, AzureSchemaVersion},
 	{CICDRunFactKinds, CICDRunSchemaVersion},

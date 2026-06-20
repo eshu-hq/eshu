@@ -2,6 +2,39 @@ package facts
 
 import "testing"
 
+func TestEveryCoreFactKindHasRegisteredSchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range CoreFactKinds() {
+		version, ok := SchemaVersion(kind)
+		if !ok {
+			t.Fatalf("core fact kind %q has no registered schema version; add its family to schemaVersionFamilies", kind)
+		}
+		if !schemaSemverPattern.MatchString(version) {
+			t.Fatalf("core fact kind %q registered version %q is not semantic version", kind, version)
+		}
+	}
+}
+
+func TestDocumentationFamilySchemaVersions(t *testing.T) {
+	t.Parallel()
+
+	if got, _ := SchemaVersion(DocumentationSectionFactKind); got != DocumentationSectionFactSchemaVersion {
+		t.Fatalf("SchemaVersion(documentation_section) = %q, want %q", got, DocumentationSectionFactSchemaVersion)
+	}
+	if got, _ := SchemaVersion(DocumentationSourceFactKind); got != DocumentationFactSchemaVersion {
+		t.Fatalf("SchemaVersion(documentation_source) = %q, want %q", got, DocumentationFactSchemaVersion)
+	}
+	// A core documentation kind on an unsupported major must be rejected, not
+	// treated as unknown_kind.
+	if got := ClassifySchemaVersion(DocumentationSectionFactKind, "9.0.0"); got != CompatibilityUnsupportedMajor {
+		t.Fatalf("ClassifySchemaVersion(documentation_section, 9.0.0) = %q, want %q", got, CompatibilityUnsupportedMajor)
+	}
+	if err := ValidateSchemaVersion(DocumentationSectionFactKind, "9.0.0"); err == nil {
+		t.Fatal("ValidateSchemaVersion(documentation_section, 9.0.0) error = nil, want unsupported")
+	}
+}
+
 func TestSchemaVersionDispatchesToFamilies(t *testing.T) {
 	t.Parallel()
 
