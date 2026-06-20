@@ -158,5 +158,7 @@ if !decision.Allowed {
 
 - **#3250** — Ask Eshu Tier 2 epic
 - **#3261** — This package (sandbox)
-- **#3263** — API layer: scope-predicate injection + cost gate
+- **#3263** — API layer: scope-predicate injection (still open)
+- **#3302** — Tier-2 enablement gate; cost gating now lives in this package
+  (EXPLAIN in the same read-only tx as execution), per its design doc
 - **#1755**, **#1900**, **#1902** — Security review gate (required before enabling)

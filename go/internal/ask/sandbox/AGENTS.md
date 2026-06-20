@@ -62,8 +62,17 @@ go test ./internal/ask/sandbox -count=1 # must pass
 
 ## Non-Goals (v1)
 
-Tenant scope-predicate injection and query cost gating are wired by the API
-layer (issue #3263). Do not add that logic to this package.
+**Tenant scope-predicate injection** is NOT solved in this package — it is the
+open design question tracked by the Tier-2 enablement gate (issue #3302). Do not
+add scope-injection logic here without that design.
+
+**Query cost gating** now lives in this package as a sandbox-execution-layer
+defense-in-depth control (the cost gate runs `EXPLAIN (FORMAT JSON)` in the SAME
+read-only transaction as execution, so the validated plan matches what runs).
+This supersedes the earlier note that cost gating was wired by the API layer
+(#3263); see the design decision in `docs/internal/design/3302-ask-eshu-tier2-enablement.md`.
+Co-locating it with the read-only-tx executor is required for plan/exec
+consistency (RLS `SET LOCAL`, `search_path`, statement timeouts).
 
 ## Denylist Modification Policy
 
