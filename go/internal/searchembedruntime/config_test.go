@@ -36,21 +36,78 @@ func TestConfigFromEnvUsesExplicitLocalHash(t *testing.T) {
 	}
 }
 
+func TestConfigFromEnvExplicitLocalHashOverridesProvider(t *testing.T) {
+	t.Parallel()
+
+	raw := singleSearchProfileJSON("semantic-search-default")
+	config, err := ConfigFromEnv(func(key string) string {
+		switch key {
+		case EnvLocalEmbedder:
+			return "hash"
+		case EnvProviderProfilesJSON:
+			return raw
+		case semanticpolicy.EnvPolicyJSON:
+			return searchPolicyJSON("semantic-search-default")
+		default:
+			return ""
+		}
+	}, nil)
+	if err != nil {
+		t.Fatalf("ConfigFromEnv() error = %v, want nil", err)
+	}
+	if got, want := config.ProviderProfileID, LocalProviderProfileID; got != want {
+		t.Fatalf("ProviderProfileID = %q, want explicit local override %q", got, want)
+	}
+}
+
+func TestConfigFromEnvAutoHashUsesSingleConfiguredProvider(t *testing.T) {
+	t.Parallel()
+
+	raw := singleSearchProfileJSON("semantic-search-default")
+	config, err := ConfigFromEnv(func(key string) string {
+		switch key {
+		case EnvLocalEmbedder:
+			return "auto_hash"
+		case EnvProviderProfilesJSON:
+			return raw
+		case semanticpolicy.EnvPolicyJSON:
+			return searchPolicyJSON("semantic-search-default")
+		default:
+			return ""
+		}
+	}, nil)
+	if err != nil {
+		t.Fatalf("ConfigFromEnv() error = %v, want nil", err)
+	}
+	if got, want := config.ProviderProfileID, "semantic-search-default"; got != want {
+		t.Fatalf("ProviderProfileID = %q, want governed provider %q", got, want)
+	}
+	if got, want := config.EmbeddingModelID, "search-embed-v1"; got != want {
+		t.Fatalf("EmbeddingModelID = %q, want %q", got, want)
+	}
+}
+
+func TestConfigFromEnvAutoHashFallsBackToLocalWithoutProvider(t *testing.T) {
+	t.Parallel()
+
+	config, err := ConfigFromEnv(func(key string) string {
+		if key == EnvLocalEmbedder {
+			return "auto_hash"
+		}
+		return ""
+	}, nil)
+	if err != nil {
+		t.Fatalf("ConfigFromEnv() error = %v, want nil", err)
+	}
+	if got, want := config.ProviderProfileID, LocalProviderProfileID; got != want {
+		t.Fatalf("ProviderProfileID = %q, want local fallback %q", got, want)
+	}
+}
+
 func TestConfigFromEnvUsesSingleConfiguredSearchDocumentProvider(t *testing.T) {
 	t.Parallel()
 
-	raw := `{
-		"profiles": [{
-			"profile_id": "semantic-search-default",
-			"provider_kind": "openai_compatible",
-			"credential_source": {"kind": "cloud_workload_identity"},
-			"model_id": "search-embed-v1",
-			"embedding_dimensions": 3,
-			"endpoint_profile_id": "https://provider.example",
-			"source_classes": ["search_documents"],
-			"source_policy_configured": true
-		}]
-	}`
+	raw := singleSearchProfileJSON("semantic-search-default")
 
 	config, err := ConfigFromEnv(func(key string) string {
 		if key == EnvProviderProfilesJSON {
@@ -81,18 +138,7 @@ func TestConfigFromEnvUsesSingleConfiguredSearchDocumentProvider(t *testing.T) {
 func TestConfigFromEnvRequiresSearchDocumentPolicy(t *testing.T) {
 	t.Parallel()
 
-	raw := `{
-		"profiles": [{
-			"profile_id": "semantic-search-default",
-			"provider_kind": "openai_compatible",
-			"credential_source": {"kind": "cloud_workload_identity"},
-			"model_id": "search-embed-v1",
-			"embedding_dimensions": 3,
-			"endpoint_profile_id": "https://provider.example",
-			"source_classes": ["search_documents"],
-			"source_policy_configured": true
-		}]
-	}`
+	raw := singleSearchProfileJSON("semantic-search-default")
 
 	config, err := ConfigFromEnv(func(key string) string {
 		if key == EnvProviderProfilesJSON {
@@ -111,18 +157,7 @@ func TestConfigFromEnvRequiresSearchDocumentPolicy(t *testing.T) {
 func TestConfigAllowsOnlyPolicyAdmittedSearchDocuments(t *testing.T) {
 	t.Parallel()
 
-	raw := `{
-		"profiles": [{
-			"profile_id": "semantic-search-default",
-			"provider_kind": "openai_compatible",
-			"credential_source": {"kind": "cloud_workload_identity"},
-			"model_id": "search-embed-v1",
-			"embedding_dimensions": 3,
-			"endpoint_profile_id": "https://provider.example",
-			"source_classes": ["search_documents"],
-			"source_policy_configured": true
-		}]
-	}`
+	raw := singleSearchProfileJSON("semantic-search-default")
 
 	config, err := ConfigFromEnv(func(key string) string {
 		if key == EnvProviderProfilesJSON {
@@ -204,6 +239,64 @@ func TestConfigFromEnvRequiresSelectorForMultipleProviders(t *testing.T) {
 	if got, want := config.ProviderProfileID, "search-b"; got != want {
 		t.Fatalf("ProviderProfileID = %q, want %q", got, want)
 	}
+}
+
+func TestConfigFromEnvAutoHashRequiresSelectorForMultipleProviders(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"profiles": [
+		{
+			"profile_id": "search-a",
+			"provider_kind": "openai_compatible",
+			"credential_source": {"kind": "cloud_workload_identity"},
+			"model_id": "embed-a",
+			"embedding_dimensions": 3,
+			"endpoint_profile_id": "https://a.example",
+			"source_classes": ["search_documents"],
+			"source_policy_configured": true
+		},
+		{
+			"profile_id": "search-b",
+			"provider_kind": "openai_compatible",
+			"credential_source": {"kind": "cloud_workload_identity"},
+			"model_id": "embed-b",
+			"embedding_dimensions": 3,
+			"endpoint_profile_id": "https://b.example",
+			"source_classes": ["search_documents"],
+			"source_policy_configured": true
+		}
+	]}`
+
+	_, err := ConfigFromEnv(func(key string) string {
+		switch key {
+		case EnvLocalEmbedder:
+			return "auto_hash"
+		case EnvProviderProfilesJSON:
+			return raw
+		case semanticpolicy.EnvPolicyJSON:
+			return searchPolicyJSON("search-a", "search-b")
+		default:
+			return ""
+		}
+	}, nil)
+	if err == nil {
+		t.Fatal("ConfigFromEnv() error = nil, want selector requirement")
+	}
+}
+
+func singleSearchProfileJSON(profileID string) string {
+	return `{
+		"profiles": [{
+			"profile_id": "` + profileID + `",
+			"provider_kind": "openai_compatible",
+			"credential_source": {"kind": "cloud_workload_identity"},
+			"model_id": "search-embed-v1",
+			"embedding_dimensions": 3,
+			"endpoint_profile_id": "https://provider.example",
+			"source_classes": ["search_documents"],
+			"source_policy_configured": true
+		}]
+	}`
 }
 
 func searchPolicyJSON(profileIDs ...string) string {

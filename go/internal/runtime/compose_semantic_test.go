@@ -16,7 +16,7 @@ func TestDockerComposeDocsDescribeSemanticProviderModes(t *testing.T) {
 		"`ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`",
 		"no-provider",
 		"local hash",
-		"${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-hash}",
+		"${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-auto_hash}",
 		"`/api/v0/search/semantic`",
 		"`retrieval_state`",
 		"`semantic_active`",

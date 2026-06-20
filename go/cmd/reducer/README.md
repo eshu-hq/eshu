@@ -254,7 +254,7 @@ never deferred, so the backlog cannot stall.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional governed provider profiles. A single eligible `search_documents` profile with `embedding_dimensions` can enable provider-backed vector builds when the local override is unset. |
-| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | When set to `hash` or `local_hash`, force the reducer side runner to build deterministic no-network vector sidecar rows for active curated search documents. |
+| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | unset | `hash` or `local_hash` force the reducer side runner to build deterministic no-network vector sidecar rows for active curated search documents; `auto_hash` does the same only when no governed `search_documents` provider profile is configured. |
 | `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | unset | Required when more than one governed `search_documents` profile is eligible. |
 
 `SearchVectorBuildRunner` scans active repository scopes whose

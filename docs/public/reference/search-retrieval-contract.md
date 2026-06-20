@@ -181,11 +181,13 @@ index stats are missing, allowing retry to converge after partial failures.
 
 API, MCP, and reducer use the same semantic-search embedder selector. When
 `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` (or `local_hash`) is set, all three
-runtimes use the deterministic no-network local profile. When it is unset, they
-may auto-select exactly one governed provider profile whose source classes
-include `search_documents`, whose source policy is configured, and whose
-profile declares model id, endpoint profile id, credential source, and positive
-`embedding_dimensions`. If multiple eligible profiles exist,
+runtimes use the deterministic no-network local profile. `auto_hash` uses that
+local profile only when no governed `search_documents` provider profile is
+configured. When the selector is unset, they may auto-select exactly one
+governed provider profile whose source classes include `search_documents`,
+whose source policy is configured, and whose profile declares model id, endpoint
+profile id, credential source, and positive `embedding_dimensions`. If multiple
+eligible profiles exist,
 `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` must choose one or startup fails
 closed.
 

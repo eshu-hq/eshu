@@ -51,19 +51,22 @@ local hash search vectors enabled. Leave
 documentation fact reads, API reads, MCP tools, and reducer projection free of
 external provider calls. Compose sets
 `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` to
-`${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-hash}`, so API, MCP, and reducer share
-the local hash embedder unless you override it. In this mode
+`${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-auto_hash}`, so API, MCP, and reducer
+share the same selector. `auto_hash` yields to one governed `search_documents`
+provider profile when provider profile and source policy variables are set, and
+otherwise uses the local hash embedder. In the no-provider mode
 `/api/v0/status/semantic-extraction` still reports semantic extraction as
 unavailable or policy-disabled instead of failing ingestion, while semantic
 search can use local vector rows built from curated search documents.
 
 The `eshu`, `mcp-server`, and `resolution-engine` services pass optional
 semantic provider variables through when they are set in the Compose
-environment. API, MCP, and reducer use the same selector: the local hash
-override forces deterministic local vectors, while an unset local override
-allows exactly one governed `search_documents` provider profile to supply
-embeddings. If more than one eligible search provider profile is configured,
-set `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`.
+environment. API, MCP, and reducer use the same selector: `hash` and
+`local_hash` force deterministic local vectors, `auto_hash` prefers one
+governed `search_documents` provider profile and falls back to local hash, and
+an unset local override allows provider-only auto-selection. If more than one
+eligible search provider profile is configured, set
+`ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`.
 
 First-run diagnostic: after bootstrap and reducer projection finish, call
 `/api/v0/search/semantic` with a bounded semantic search request and inspect
@@ -75,11 +78,11 @@ curl -sS http://localhost:8080/api/v0/search/semantic \
   -d '{"repo_id":"local","query":"deployment entrypoints","mode":"semantic","limit":5,"timeout_ms":1000}'
 ```
 
-`semantic_active` means the local hash vector rows are ready and serving
-`mode=semantic` requests. `index_unready` means the local hash embedder is
+`semantic_active` means compatible vector rows are ready and serving
+`mode=semantic` requests. `index_unready` means the selected embedder is
 configured but vector rows are not ready yet; check reducer progress and retry
 after projection catches up. `semantic_unavailable` means the service was
-started without either the local hash override or a governed
+started without either an auto/local hash selector or a governed
 `search_documents` provider profile. Use
 `/api/v0/status/semantic-extraction` to inspect real-provider governance state;
 the no-external-provider default keeps semantic extraction unavailable while

@@ -2,8 +2,9 @@
 // admin surface backed by the configured graph backend and Postgres content
 // store. `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` explicitly
 // forces deterministic no-network local semantic/hybrid retrieval from ready
-// persisted vector rows over active curated search documents; when unset, one
-// governed search_documents provider profile may supply query embeddings.
+// persisted vector rows over active curated search documents. `auto_hash`
+// selects one governed search_documents provider profile when configured and
+// otherwise falls back to local hash query embeddings.
 //
 // When invoked with --version or -v, it prints the embedded application
 // version through the test-covered printAPIVersionFlag helper and exits before

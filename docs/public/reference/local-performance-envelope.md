@@ -58,13 +58,15 @@ default-selection change only, not a change to either profile's runtime path.
 ### Compose local hash semantic-search default (#3324)
 
 Docker Compose now defaults API, MCP, and reducer to
-`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash`. This is a first-run selector change
-only: it enables deterministic no-network query embeddings and vector sidecar
-builds for curated search documents, while real provider-backed
-`search_documents` embeddings remain opt-in through provider profile and source
-policy configuration. Bootstrap and ingester stay on deterministic no-provider
-defaults, so source discovery, parsing, fact emission, and initial indexing do
-not make provider calls.
+`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=auto_hash`. This is a first-run selector
+change only: when no governed search provider is configured it enables
+deterministic no-network query embeddings and vector sidecar builds for curated
+search documents. Real provider-backed `search_documents` embeddings remain
+opt-in through provider profile and source policy configuration, and `auto_hash`
+yields to exactly one governed provider profile when that configuration is
+present. Bootstrap and ingester stay on deterministic no-provider defaults, so
+source discovery, parsing, fact emission, and initial indexing do not make
+provider calls.
 
 - Affected stage: local Compose API/MCP semantic-search reads and reducer
   search-vector sidecar builds for active curated search documents.
@@ -73,10 +75,10 @@ not make provider calls.
   to API, MCP, and reducer, so no-provider first-run mode left the vector
   builder disabled and `mode=semantic` could not use local vector rows.
 - After measurement: the default env shape is
-  `${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-hash}` for API, MCP, and reducer.
-  Focused regression coverage proves the reducer wires a search-vector build
-  runner with provider profile `local`, model `local-hash-v1`, and
-  `VectorRetrievalAuto` when the local hash selector is set.
+  `${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-auto_hash}` for API, MCP, and
+  reducer. Focused regression coverage proves the reducer wires a search-vector
+  build runner with provider profile `local`, model `local-hash-v1`, and
+  `VectorRetrievalAuto` when no governed search provider is configured.
 - Backend/version and input shape: Compose local stack, deterministic local hash
   embedder `local-hash-v1`, curated `search_documents` rows, active-generation
   vector metadata/value sidecar rows, NornicDB graph backend unchanged.

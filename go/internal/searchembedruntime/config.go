@@ -26,6 +26,9 @@ const (
 const (
 	// LocalProviderProfileID is the persisted-vector profile id for zero-key local mode.
 	LocalProviderProfileID = "local"
+	// AutoLocalEmbedder selects a governed provider when configured, otherwise
+	// falling back to the deterministic local hash embedder.
+	AutoLocalEmbedder = "auto_hash"
 	// LocalEmbeddingModelID is the persisted-vector model id for the hash embedder.
 	LocalEmbeddingModelID = "local-hash-v1"
 	// SourceClass is the curated search-document source class used for vectors.
@@ -55,13 +58,16 @@ func ConfigFromEnv(getenv func(string) string, client *http.Client) (Config, err
 		return Config{}, nil
 	}
 	local := strings.TrimSpace(getenv(EnvLocalEmbedder))
-	if local != "" {
+	switch {
+	case isExplicitLocalEmbedder(local):
 		return localConfig(local)
+	case local != "" && local != AutoLocalEmbedder:
+		return Config{}, fmt.Errorf("invalid %s %q", EnvLocalEmbedder, local)
 	}
 
 	rawProfiles := strings.TrimSpace(getenv(EnvProviderProfilesJSON))
 	if rawProfiles == "" {
-		return Config{}, nil
+		return autoLocalConfig(local)
 	}
 	profiles, err := semanticprofile.ParseProfilesJSON(rawProfiles)
 	if err != nil {
@@ -74,7 +80,10 @@ func ConfigFromEnv(getenv func(string) string, client *http.Client) (Config, err
 	profiles = applySourcePolicy(profiles, policy)
 	profile, ok, err := selectProviderProfile(profiles, strings.TrimSpace(getenv(EnvProviderProfileID)))
 	if err != nil || !ok {
-		return Config{}, err
+		if err != nil {
+			return Config{}, err
+		}
+		return autoLocalConfig(local)
 	}
 	embedder, err := searchembedprovider.New(profile, getenv, client)
 	if err != nil {
@@ -122,10 +131,19 @@ func (c Config) AllowsSearchDocument(repoID string, documentID string, sourcePat
 	return decision.Allowed
 }
 
+func isExplicitLocalEmbedder(local string) bool {
+	return local == "hash" || local == "local_hash"
+}
+
+func autoLocalConfig(local string) (Config, error) {
+	if local != AutoLocalEmbedder {
+		return Config{}, nil
+	}
+	return localConfig("hash")
+}
+
 func localConfig(local string) (Config, error) {
-	switch local {
-	case "hash", "local_hash":
-	default:
+	if !isExplicitLocalEmbedder(local) {
 		return Config{}, fmt.Errorf("invalid %s %q", EnvLocalEmbedder, local)
 	}
 	embedder, err := searchembed.NewHashEmbedder(searchembed.DefaultDimensions)

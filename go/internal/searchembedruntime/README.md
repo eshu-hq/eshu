@@ -16,8 +16,8 @@ Postgres vector storage, query handlers, MCP tools, or graph truth.
 ## Exported surface
 
 - `Config` - selected embedder, persisted-vector identity, and retrieval mode.
-- `ConfigFromEnv` - loads explicit local hash mode or a governed provider
-  profile from runtime environment variables.
+- `ConfigFromEnv` - loads explicit local hash mode, Compose auto-local mode, or
+  a governed provider profile from runtime environment variables.
 
 See `doc.go` for the full godoc contract.
 
@@ -40,6 +40,9 @@ emit the runtime signals for search-vector build and retrieval behavior.
 
 - `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` always selects the
   deterministic no-network embedder.
+- `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=auto_hash` selects one governed
+  `search_documents` provider profile when configured, otherwise falls back to
+  the deterministic no-network embedder.
 - With no local override, exactly one governed `search_documents` provider
   profile may become default-on only after the semantic policy and egress
   allowlist admit that profile/source-class pair.
