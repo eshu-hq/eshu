@@ -104,16 +104,22 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
 ```
 
 **SSE variant** — send `Accept: text/event-stream` to receive a
-`text/event-stream` response with `Cache-Control: no-cache`. The same
-synchronous engine run is used; events are emitted after the run completes
-(per-token streaming is a planned follow-up). Event sequence:
+`text/event-stream` response with `Cache-Control: no-cache`. When the
+configured provider adapter supports streaming, events are emitted live as the
+engine runs. Event sequence:
 
-| Event   | Data payload                                                    |
-|---------|------------------------------------------------------------------|
-| `trace` | `{"tool":"string","supported":bool,"truth_class":"string"}` — one per tool call |
-| `answer`| Full JSON response identical to the 200 JSON path               |
-| `error` | `{"state":"unavailable","reason":"string"}` — on engine failure |
-| `done`  | `{}` — end-of-stream marker                                     |
+| Event          | Data payload                                                             |
+|----------------|-------------------------------------------------------------------------|
+| `token`        | `{"delta":"string"}` — one per provider text token delta (streaming only) |
+| `trace`        | `{"tool":"string","supported":bool,"truth_class":"string"}` — one per completed tool call |
+| `answer`       | Full JSON response identical to the 200 JSON path                       |
+| `error`        | `{"state":"unavailable","reason":"string"}` — on engine failure         |
+| `done`         | `{}` — end-of-stream marker                                             |
+
+`token` events are emitted live as the provider streams assistant text.
+When the adapter does not support streaming (e.g. a synchronous-only profile),
+the handler falls back to a synchronous run and emits `trace`, `answer`, and
+`done` without `token` events. Clients should handle both cases.
 
 Disabled endpoint (`h.Asker == nil`) or validation failures (empty question,
 bad JSON) are returned as plain JSON with the appropriate HTTP status code
@@ -127,8 +133,8 @@ raw provider bodies, or credentials.
 `ESHU_API_KEY`). Scoped tokens are not yet enabled for this route and receive
 `403 permission_denied`. Scoped-token support is a planned follow-up.
 
-**Follow-ups (out of scope for this PR):** per-token SSE streaming; Tier-2
-Cypher/SQL sandbox wiring; scoped-token support.
+**Follow-ups (out of scope for this PR):** Tier-2 Cypher/SQL sandbox wiring;
+scoped-token support.
 
 ## Related References
 

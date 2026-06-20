@@ -8,6 +8,9 @@ type openAICompatRequest struct {
 	Messages   []openAICompatMessage `json:"messages"`
 	Tools      []openAICompatToolDef `json:"tools,omitempty"`
 	ToolChoice string                `json:"tool_choice,omitempty"`
+	// Stream, when true, causes the provider to emit SSE data: chunks
+	// rather than a single JSON response. CompleteStream sets this to true.
+	Stream bool `json:"stream,omitempty"`
 }
 
 // openAICompatRequestToolCall represents a tool call in an outgoing assistant

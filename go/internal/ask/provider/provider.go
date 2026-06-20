@@ -2,6 +2,55 @@ package provider
 
 import "context"
 
+// StreamEventKind classifies a streaming event emitted during CompleteStream.
+type StreamEventKind string
+
+const (
+	// StreamEventToken carries a partial text delta from the assistant's output.
+	StreamEventToken StreamEventKind = "token"
+	// StreamEventToolCallStarted signals that the model has begun a tool call.
+	// The ToolCallID and ToolName fields identify the call; Arguments accumulate
+	// as subsequent events arrive and the final map is populated in the Completion
+	// returned by CompleteStream.
+	StreamEventToolCallStarted StreamEventKind = "tool_call_started"
+)
+
+// StreamEvent is one event emitted by a streaming completion. Only the fields
+// relevant to the Kind are populated; all others are zero values.
+//
+// Leak safety: StreamEvent carries only assistant text deltas and bounded tool
+// metadata. Provider error bodies, API keys, and raw HTTP frames are never
+// included.
+type StreamEvent struct {
+	// Kind identifies the event type.
+	Kind StreamEventKind
+	// TextDelta is the incremental text content for StreamEventToken events.
+	TextDelta string
+	// ToolCallID is the provider-assigned ID for StreamEventToolCallStarted events.
+	ToolCallID string
+	// ToolName is the tool name for StreamEventToolCallStarted events.
+	ToolName string
+}
+
+// StreamingAdapter extends Adapter with a streaming completion seam.
+// Implementations must remain safe for concurrent use: a single StreamingAdapter
+// may serve multiple concurrent CompleteStream calls.
+type StreamingAdapter interface {
+	Adapter
+
+	// CompleteStream drives a streaming completion, calling emit for each
+	// StreamEvent as the provider yields tokens. It returns the fully assembled
+	// Completion (identical to what Complete would return) so callers can feed
+	// the conversation without re-parsing the stream. emit is called
+	// synchronously on the calling goroutine; implementations must not retain
+	// references to the StreamEvent after emit returns.
+	//
+	// emit must not block for more than a brief moment; a slow consumer will
+	// slow the stream read. Implementations that need backpressure should buffer
+	// at the caller level.
+	CompleteStream(ctx context.Context, messages []Message, tools []Tool, emit func(StreamEvent)) (Completion, error)
+}
+
 // Role identifies the participant in a conversation.
 type Role string
 
