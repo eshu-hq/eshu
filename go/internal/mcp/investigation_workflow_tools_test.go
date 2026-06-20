@@ -87,9 +87,20 @@ func TestInvestigationWorkflowNextCallParamsExistInToolSchemas(t *testing.T) {
 					t.Fatalf("tool %q schema type = %T, want map[string]any", tool.Name, tool.InputSchema)
 				}
 				properties, _ := schema["properties"].(map[string]any)
+				params := map[string]struct{}{}
 				for _, param := range call.Params {
+					params[param.Name] = struct{}{}
 					if _, ok := properties[param.Name]; !ok {
 						t.Fatalf("workflow %q call %q param %q missing from tool %q schema %#v", workflow.ID, call.ID, param.Name, call.Tool, properties)
+					}
+				}
+				required, _ := schema["required"].([]string)
+				for _, name := range required {
+					if _, ok := params[name]; ok {
+						continue
+					}
+					if len(call.RequiredInputsAny) == 0 {
+						t.Fatalf("workflow %q call %q omits required tool param %q without required input guard", workflow.ID, call.ID, name)
 					}
 				}
 			}

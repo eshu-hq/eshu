@@ -40,6 +40,13 @@ admission missing-evidence route is blocked until `repo_id` is supplied. Runtime
 drift drilldowns use the provider-neutral runtime drift surface with `scope_id`
 and may include `provider`, `account_id`, `project_id`, or `subscription_id`.
 
+`guided_incident_context` can start from `incident_id`, `service_id`, `repo_id`,
+`scope_id`, or environment context. The incident-context route is blocked until
+`incident_id` is supplied; service, runtime, observability, changes, and
+freshness missing-evidence routes are blocked until a service, repository, or
+scope anchor is supplied. Optional `provider`, `since`, and `until` inputs keep
+incident reads bounded when an incident ID is available.
+
 ## Starter Prompts
 
 Examples:
@@ -80,12 +87,11 @@ being guessed. Common keys include:
 | `sbom` | `list_sbom_attestation_attachments` |
 | `image` | `list_container_image_identities` |
 | `workload` | `list_supply_chain_impact_findings` |
-| `service` | `get_service_story` |
+| `service` | `get_service_story` or `get_workload_story` |
 | `owner` | `list_service_catalog_correlations` |
 | `admission` | `list_admission_decisions` |
 | `deployment_config` | `investigate_deployment_config` |
-| `runtime` | `list_cloud_runtime_drift_findings` |
-| `service` | `get_workload_story` |
+| `runtime` | `list_cloud_runtime_drift_findings` or `trace_deployment_chain` |
 | `incident` | `get_incident_context` |
 | `observability` | `list_observability_coverage_correlations` |
 | `changes` | `list_ci_cd_run_correlations` |
