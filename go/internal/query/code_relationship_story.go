@@ -289,7 +289,14 @@ func relationshipStoryData(
 	rows []map[string]any,
 ) map[string]any {
 	limit := req.normalizedLimit()
+	rawCount := len(rows)
+	// The confidence floor is applied before count truncation, so a floor that
+	// empties the set leaves nothing to truncate: afterFloorCount == 0 implies
+	// the later countTruncated is false. The evidence classifier relies on this
+	// ordering — the floor-filtered and count-truncated reasons never collide.
 	rows = relationshipStoryRowsAboveConfidenceFloor(rows, req)
+	floorApplied := req.MinConfidence != nil && *req.MinConfidence > 0
+	afterFloorCount := len(rows)
 	availableByDirection := relationshipStoryDirectionCounts(rows)
 	truncatedByDirection := relationshipStoryDirectionTruncation(availableByDirection, req, limit)
 	// Rank by bounded centrality before the count limit so the most-connected
@@ -325,11 +332,26 @@ func relationshipStoryData(
 		"truncated":              truncated,
 		"ranked_by":              relationshipStoryRankBasis,
 	}
+	budgetTruncated := budget != nil && availableBeforeBudget > len(rows)
 	if budget != nil {
 		budget["available_before_budget"] = availableBeforeBudget
 		summary["token_budget"] = budget
 		coverage["token_budget"] = budget
 	}
+	evidence := classifyRelationshipStoryEvidence(relationshipStoryEvidenceInputs{
+		resolutionStatus: resolution.Status,
+		rawCount:         rawCount,
+		afterFloorCount:  afterFloorCount,
+		floorApplied:     floorApplied,
+		countTruncated:   truncated,
+		budgetTruncated:  budgetTruncated,
+		// The graph/content fetch caps at normalizedLimit()+1, so rawCount > limit
+		// means the edge set was paged and not exhausted.
+		rawPaged: rawCount > limit,
+	})
+	coverage["missing_edge_reason"] = evidence.reason
+	coverage["truncation_state"] = evidence.truncation
+	coverage["evidence_explanation"] = evidence.explanation
 	if req.MinConfidence != nil {
 		coverage["min_confidence"] = *req.MinConfidence
 	}
@@ -353,40 +375,6 @@ func relationshipStoryData(
 		"relationships":     rows,
 		"summary":           summary,
 		"coverage":          coverage,
-	}
-}
-
-func relationshipStoryRowsAboveConfidenceFloor(rows []map[string]any, req relationshipStoryRequest) []map[string]any {
-	if req.MinConfidence == nil || *req.MinConfidence <= 0 {
-		return rows
-	}
-	floor := *req.MinConfidence
-	filtered := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		confidence, ok := relationshipStoryNumericConfidence(row)
-		if ok && confidence >= floor {
-			filtered = append(filtered, row)
-		}
-	}
-	return filtered
-}
-
-func relationshipStoryNumericConfidence(row map[string]any) (float64, bool) {
-	value, ok := row["confidence"]
-	if !ok || value == nil {
-		return 0, false
-	}
-	switch confidence := value.(type) {
-	case float64:
-		return confidence, true
-	case float32:
-		return float64(confidence), true
-	case int:
-		return float64(confidence), true
-	case int64:
-		return float64(confidence), true
-	default:
-		return 0, false
 	}
 }
 

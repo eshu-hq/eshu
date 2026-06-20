@@ -48,6 +48,8 @@ func summarizeToolText(toolName string, envelope *query.ResponseEnvelope) string
 		body = summarizeCitationPacket(data)
 	case "derive_visualization_packet":
 		body = summarizeVisualizationPacket(data)
+	case "analyze_code_relationships":
+		body = summarizeCodeRelationships(data)
 	default:
 		body = ""
 	}

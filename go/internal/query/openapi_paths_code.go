@@ -233,7 +233,11 @@ const openAPIPathsCode = `
                     "class_hierarchy": {"type": "object", "additionalProperties": true},
                     "override_story": {"type": "object", "additionalProperties": true},
                     "summary": {"type": "object", "additionalProperties": true},
-                    "coverage": {"type": "object", "additionalProperties": true},
+                    "coverage": {"type": "object", "additionalProperties": true, "properties": {
+                      "missing_edge_reason": {"type": "string", "enum": ["complete", "target_unresolved", "no_relationships_found", "all_below_confidence_floor", "truncated_by_limit", "truncated_by_token_budget"], "description": "Why the result is empty or short, so an agent need not guess. Descriptive only; never changes the answer's truth label."},
+                      "truncation_state": {"type": "string", "enum": ["none", "count", "token_budget", "count_and_token_budget"], "description": "Whether and how the result was capped."},
+                      "evidence_explanation": {"type": "string", "description": "Bounded human-readable explanation of the missing-edge reason."}
+                    }},
                     "source_backend": {"type": "string"}
                   }
                 }

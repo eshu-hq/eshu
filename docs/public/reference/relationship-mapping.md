@@ -181,6 +181,51 @@ Guardrails:
 - Keep unsupported or partial source states visible in evidence details,
   limitations, status rows, logs, or query responses.
 
+## Interpreting Code Relationship Truth In API And MCP Responses
+
+Code relationship reads (`POST /api/v0/code/relationships/story` and the
+`analyze_code_relationships` MCP tool) expose uncertainty per edge and per
+answer so an agent never has to guess how much to trust a relationship. The
+labels are descriptive: they never change the answer-level `TruthEnvelope` and
+never upgrade a heuristic or unsupported edge into canonical truth.
+
+### Per-edge provenance
+
+Every relationship row carries a `provenance` block:
+
+| Field | Meaning |
+| --- | --- |
+| `source_family` | `code_edge` (resolved by the parser/reducer call resolver), `correlation_edge` (correlation evidence), or `unsupported` (no recorded basis). |
+| `method` | The resolution mechanism: a code `resolution_method` (ADR #2222: `scip`, `import_binding`, `type_inferred`, `repo_unique_name`, …), a correlation `confidence_basis`, or `unsupported`. |
+| `confidence` | Numeric confidence (omitted for a legacy edge with no recorded provenance). |
+| `confidence_tier` | Named band derived from `confidence`: `high` (>= 0.9), `medium` (>= 0.7), `low` (otherwise), or `unsupported` (no confidence). A presentation derivation only. |
+| `truth_state` | `derived` (canonical code edge with confidence), `heuristic` (correlation or semantic edge — evidence, not canonical), or `unsupported` (no confidence or no basis). |
+
+A `heuristic` or `unsupported` edge is **never** promoted to `derived`. The
+`confidence_tier` is a convenience over `confidence`; it does not raise or lower
+`truth_state`.
+
+### Per-answer missing-edge reason and truncation
+
+The response `coverage` block explains why a result is empty or short instead of
+leaving the caller to guess:
+
+| `missing_edge_reason` | Meaning |
+| --- | --- |
+| `complete` | All matching relationships were returned. |
+| `target_unresolved` | The target did not resolve to a known entity. |
+| `no_relationships_found` | The target resolved but has no edges of the requested type and direction. |
+| `all_below_confidence_floor` | Edges exist but all fell below the requested `min_confidence`. |
+| `truncated_by_limit` | More edges exist than `limit`; raise `limit` or page with `offset`. |
+| `truncated_by_token_budget` | Rows were trimmed to fit `token_budget`. |
+
+`truncation_state` reports the capping cause (`none`, `count`, `token_budget`,
+or `count_and_token_budget`), and `evidence_explanation` is a bounded
+human-readable form of the reason. The MCP `analyze_code_relationships` text
+summary surfaces the same derived/heuristic/unsupported counts and the
+missing-edge reason; its `structuredContent` is the unchanged HTTP answer, so
+API and MCP agree on every label.
+
 ## What To Read Next
 
 - Need to change extractors or relationship types:
