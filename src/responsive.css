@@ -70,18 +70,19 @@
   }
 
   .capabilities-section,
-    .pipeline-section,
-    .developer-section,
-    .coverage-section,
-    .proof-section,
-    .surfaces-section,
-    .personas-section,
-    .cleanup-section,
-    .prompts-section,
-    .use-cases-section,
-    .difference-section,
-    .tryit-section,
-    .references-section,
+  .whats-new-section,
+  .pipeline-section,
+  .developer-section,
+  .coverage-section,
+  .proof-section,
+  .surfaces-section,
+  .personas-section,
+  .cleanup-section,
+  .prompts-section,
+  .use-cases-section,
+  .difference-section,
+  .tryit-section,
+  .references-section,
   .closing-section {
     padding: 62px 22px;
   }
@@ -96,6 +97,7 @@
 
   .pipeline-flow,
   .demo-workbench,
+  .whats-new-grid,
   .proof-grid,
   .surface-grid,
   .prompt-grid,

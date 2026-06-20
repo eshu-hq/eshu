@@ -121,6 +121,25 @@
   }
 }
 
+.whats-new-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1180px) {
+  .whats-new-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .whats-new-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.whats-new-card,
 .proof-card {
   background: rgba(243, 235, 221, 0.045);
   border: 1px solid var(--line);
@@ -128,6 +147,7 @@
   padding: 22px;
 }
 
+.whats-new-card strong,
 .proof-card strong {
   color: var(--ember);
   display: block;
@@ -136,11 +156,13 @@
   margin-bottom: 20px;
 }
 
+.whats-new-card h3,
 .proof-card h3 {
   color: var(--bone);
   margin-bottom: 14px;
 }
 
+.whats-new-card p,
 .proof-card p {
   color: var(--muted);
   line-height: 1.62;

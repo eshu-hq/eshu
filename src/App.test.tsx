@@ -9,9 +9,12 @@ describe("App", () => {
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "The institutional knowledge layer for engineering organizations."
+        name: "The institutional knowledge layer now has an agentic answer surface."
       })
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What's new" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ask Eshu" })).toBeInTheDocument();
+    expect(screen.getByText(/Evidence packets v2/)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Try it locally" })[0]).toHaveAttribute(
       "href",
       "#try-it"
@@ -30,6 +33,7 @@ describe("App", () => {
     );
     expect(screen.getByLabelText("Source to runtime graph")).toBeInTheDocument();
     expect(screen.getByText(/eshu trace service checkout/)).toBeInTheDocument();
+    expect(screen.getByText(/mcp: ask/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Where the graph shows up" })).toBeInTheDocument();
     expect(screen.getAllByText(/22. source languages/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Built for the whole organization" })).toBeInTheDocument();
@@ -48,11 +52,22 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Run the graph" })).toBeInTheDocument();
     expect(screen.getAllByText(/Graph ready for organization-wide questions/)).toHaveLength(2);
 
+    fireEvent.click(screen.getByRole("button", { name: "eshu ask" }));
+    expect(
+      screen.getByText(/Question: which services are affected by CVE-2024-3094/)
+    ).toBeInTheDocument();
+
     fireEvent.click(
       screen.getByRole("button", { name: "eshu trace service checkout" })
     );
     expect(screen.getByText(/Service: checkout-service/)).toBeInTheDocument();
     expect(screen.getByText(/Trace status: partial/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask Eshu user" }));
+    expect(screen.getByText("ask")).toBeInTheDocument();
+    expect(
+      screen.getByText(/returns evidence handles, truth class, missing evidence/)
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Security analyst" }));
     expect(
