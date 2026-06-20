@@ -22,6 +22,11 @@ receiving direct database, graph, API, or MCP handles.
 The package does not call PagerDuty, store credentials, publish an OCI image,
 or change PagerDuty graph/query semantics.
 
+Its draft community index fixture records local marketplace readiness only. The
+fixture intentionally keeps external publication blocked with draft status,
+pending signature/provenance badge fields, a placeholder artifact digest, and a
+local conformance proof URI.
+
 ## Local Verification
 
 From the package directory:
@@ -29,6 +34,14 @@ From the package directory:
 ```bash
 go test ./...
 scripts/test-local-component-lifecycle.sh
+```
+
+From the repository root, the marketplace-readiness gate copies the package to
+a temporary out-of-tree path, runs the package tests, verifies the manifest,
+runs fixture conformance, and validates the draft community index:
+
+```bash
+scripts/verify-pagerduty-marketplace-readiness.sh
 ```
 
 From the repository root, the in-tree parity test compares the reference

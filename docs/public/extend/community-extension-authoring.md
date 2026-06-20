@@ -284,6 +284,9 @@ Use this checklist when triaging an extension PR.
   does not rely on index membership as runtime trust.
 - Verify the compatibility badge is generated from manifest, signature,
   provenance, conformance, and policy metadata rather than hand-written copy.
+- Keep external marketplace publication blocked while the badge still records
+  draft status, placeholder artifact digests, pending signature/provenance
+  state, local-only conformance proof, or `missing_proof` policy results.
 - Review malicious-package behavior: unallowlisted IDs and publishers, mutable
   artifact tags, undeclared egress, credential-looking payload keys, and direct
   store or graph handles fail closed before activation.

@@ -145,6 +145,13 @@ func TestValidateRejectsRequiredIssueFixtures(t *testing.T) {
 			},
 			code: IssueFailedConformanceProof,
 		},
+		{
+			name: "missing compatibility badge",
+			mut: func(index *Index) {
+				index.Entries[0].CompatibilityBadge = CompatibilityBadge{}
+			},
+			code: IssueMissingCompatibilityBadge,
+		},
 	}
 
 	for _, tt := range tests {
@@ -236,6 +243,80 @@ func TestValidateRejectsMissingRequiredEntryShape(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsDraftReadinessEntry(t *testing.T) {
+	report := Validate(Index{
+		APIVersion: "eshu.dev/community-extension-index/v1alpha1",
+		Kind:       "CommunityExtensionIndex",
+		Entries:    []Entry{draftReadinessEntry()},
+	})
+
+	if !report.Valid {
+		t.Fatalf("Validate() valid = false, issues = %+v", report.Issues)
+	}
+}
+
+func TestValidateRejectsPublishedDraftReadinessClaims(t *testing.T) {
+	tests := []struct {
+		name string
+		mut  func(*Entry)
+		code IssueCode
+	}{
+		{
+			name: "placeholder digest",
+			mut: func(entry *Entry) {
+				entry.Publication.Status = PublicationStatusPublished
+			},
+			code: IssuePlaceholderPublicationMetadata,
+		},
+		{
+			name: "missing signed provenance",
+			mut: func(entry *Entry) {
+				*entry = publishableReadinessEntry()
+				entry.Provenance.Signature = "sigstore:pending"
+				entry.CompatibilityBadge.SignatureStatus = SignatureStatusPending
+				entry.CompatibilityBadge.ProvenanceStatus = ProvenanceStatusPending
+			},
+			code: IssueMissingProvenanceSignature,
+		},
+		{
+			name: "missing compatibility badge",
+			mut: func(entry *Entry) {
+				*entry = publishableReadinessEntry()
+				entry.CompatibilityBadge = CompatibilityBadge{}
+			},
+			code: IssueMissingCompatibilityBadge,
+		},
+		{
+			name: "missing proof artifact",
+			mut: func(entry *Entry) {
+				*entry = publishableReadinessEntry()
+				entry.Conformance.ProofURI = ""
+				entry.CompatibilityBadge.ConformanceProofURI = ""
+			},
+			code: IssueMissingConformanceProof,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := draftReadinessEntry()
+			tt.mut(&entry)
+			report := Validate(Index{
+				APIVersion: "eshu.dev/community-extension-index/v1alpha1",
+				Kind:       "CommunityExtensionIndex",
+				Entries:    []Entry{entry},
+			})
+
+			if report.Valid {
+				t.Fatalf("Validate() valid = true, want issue code %q", tt.code)
+			}
+			if !hasIssue(report.Issues, tt.code) {
+				t.Fatalf("Validate() issues = %+v, want code %q", report.Issues, tt.code)
+			}
+		})
+	}
+}
+
 func validIndex() Index {
 	return Index{
 		APIVersion: "eshu.dev/community-extension-index/v1alpha1",
@@ -283,7 +364,98 @@ func validEntry() Entry {
 			Status:        "passed",
 			ProofURI:      "https://github.com/eshu-hq/eshu/actions/runs/1234567890",
 		},
+		Publication: Publication{
+			Status: PublicationStatusPublished,
+		},
+		CompatibilityBadge: CompatibilityBadge{
+			ManifestAPIVersion:  "eshu.dev/v1alpha1",
+			ManifestDigest:      "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			CompatibleCore:      ">=0.1.0",
+			ArtifactDigest:      "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+			SignatureStatus:     SignatureStatusSigned,
+			ProvenanceStatus:    ProvenanceStatusVerified,
+			RuntimeProtocol:     "collector-sdk/v1alpha1",
+			Adapter:             "process",
+			ConformanceProofURI: "https://github.com/eshu-hq/eshu/actions/runs/1234567890",
+			ConformanceStatus:   "passed",
+			PolicyResult:        PolicyResultInstallable,
+		},
 	}
+}
+
+func draftReadinessEntry() Entry {
+	return Entry{
+		ComponentID:      "dev.eshu.examples.pagerduty",
+		Publisher:        "eshu-hq",
+		Version:          "0.1.0",
+		LifecycleChannel: ChannelExperimental,
+		Installable:      false,
+		ManifestDigest:   "sha256:931054e589cd0426749be92cd988bb53ebce4832593eb4c19049275987025621",
+		Artifacts: []ArtifactRef{{
+			Image: "ghcr.io/eshu-hq/examples/pagerduty-reference-collector@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		}},
+		CompatibleCore: ">=0.0.5 <0.2.0",
+		ComponentType:  "collector",
+		CollectorKinds: []string{"pagerduty"},
+		EmittedFacts: []FactClaim{
+			{
+				Kind:             "dev.eshu.examples.pagerduty.incident",
+				SchemaVersions:   []string{"1.0.0"},
+				SourceConfidence: []string{"reported"},
+			},
+		},
+		ConsumerContracts: ConsumerContracts{
+			Reducer: ReducerContract{Phases: []string{"source_evidence_only:no_graph_truth"}},
+		},
+		Telemetry: Telemetry{MetricsPrefix: "eshu_dp_example_pagerduty_"},
+		Source: SourceRef{
+			Repository: "https://github.com/eshu-hq/eshu/tree/main/examples/collector-extensions/pagerduty",
+		},
+		Review: ReviewRef{
+			PR: "https://github.com/eshu-hq/eshu/issues/3233",
+		},
+		Provenance: Provenance{
+			Required:  true,
+			Mode:      "sigstore",
+			Signature: "sigstore:pending",
+		},
+		Conformance: ConformanceProof{
+			SchemaVersion: "eshu.extension.conformance.v1",
+			Status:        "passed",
+			ProofURI:      "local://examples/collector-extensions/pagerduty/testdata/fixtures/complete-result.json",
+		},
+		Publication: Publication{
+			Status: PublicationStatusDraft,
+		},
+		CompatibilityBadge: CompatibilityBadge{
+			ManifestAPIVersion:  "eshu.dev/v1alpha1",
+			ManifestDigest:      "sha256:931054e589cd0426749be92cd988bb53ebce4832593eb4c19049275987025621",
+			CompatibleCore:      ">=0.0.5 <0.2.0",
+			ArtifactDigest:      "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			SignatureStatus:     SignatureStatusPending,
+			ProvenanceStatus:    ProvenanceStatusPending,
+			RuntimeProtocol:     "collector-sdk/v1alpha1",
+			Adapter:             "process",
+			ConformanceProofURI: "local://examples/collector-extensions/pagerduty/testdata/fixtures/complete-result.json",
+			ConformanceStatus:   "passed",
+			PolicyResult:        PolicyResultMissingProof,
+		},
+	}
+}
+
+func publishableReadinessEntry() Entry {
+	entry := draftReadinessEntry()
+	entry.Publication.Status = PublicationStatusPublished
+	entry.ManifestDigest = "sha256:931054e589cd0426749be92cd988bb53ebce4832593eb4c19049275987025621"
+	entry.Artifacts[0].Image = "ghcr.io/eshu-hq/examples/pagerduty-reference-collector@sha256:5dc5d23fe8399f3593fbaccd2782764321b80e49aee2001619943c3a5f7c2877"
+	entry.Provenance.Signature = "sigstore:sha256:5dc5d23fe8399f3593fbaccd2782764321b80e49aee2001619943c3a5f7c2877"
+	entry.Conformance.ProofURI = "https://github.com/eshu-hq/eshu/actions/runs/3233"
+	entry.CompatibilityBadge.ArtifactDigest = "sha256:5dc5d23fe8399f3593fbaccd2782764321b80e49aee2001619943c3a5f7c2877"
+	entry.CompatibilityBadge.SignatureStatus = SignatureStatusSigned
+	entry.CompatibilityBadge.ProvenanceStatus = ProvenanceStatusVerified
+	entry.CompatibilityBadge.ConformanceProofURI = "https://github.com/eshu-hq/eshu/actions/runs/3233"
+	entry.CompatibilityBadge.PolicyResult = PolicyResultInstallable
+	return entry
 }
 
 func hasIssue(issues []Issue, code IssueCode) bool {

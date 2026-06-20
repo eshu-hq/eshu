@@ -77,6 +77,15 @@ const (
 	// IssueFailedConformanceProof reports a conformance proof whose status is
 	// not accepted for publication metadata.
 	IssueFailedConformanceProof IssueCode = "failed_conformance_proof"
+	// IssueMissingCompatibilityBadge reports an entry without complete badge
+	// metadata for marketplace readiness.
+	IssueMissingCompatibilityBadge IssueCode = "missing_compatibility_badge"
+	// IssueUnsupportedPublicationStatus reports a publication status outside
+	// the v1 index vocabulary.
+	IssueUnsupportedPublicationStatus IssueCode = "unsupported_publication_status"
+	// IssuePlaceholderPublicationMetadata reports placeholder-only metadata on
+	// an entry claiming published marketplace readiness.
+	IssuePlaceholderPublicationMetadata IssueCode = "placeholder_publication_metadata"
 )
 
 // Index is the top-level static community extension index document.
@@ -88,24 +97,26 @@ type Index struct {
 
 // Entry describes one reviewed component package candidate.
 type Entry struct {
-	ComponentID       string            `yaml:"componentId" json:"componentId"`
-	Publisher         string            `yaml:"publisher" json:"publisher"`
-	Version           string            `yaml:"version" json:"version"`
-	LifecycleChannel  string            `yaml:"lifecycleChannel" json:"lifecycleChannel"`
-	Installable       bool              `yaml:"installable" json:"installable"`
-	ManifestDigest    string            `yaml:"manifestDigest" json:"manifestDigest"`
-	Artifacts         []ArtifactRef     `yaml:"artifacts" json:"artifacts"`
-	CompatibleCore    string            `yaml:"compatibleCore" json:"compatibleCore"`
-	ComponentType     string            `yaml:"componentType" json:"componentType"`
-	CollectorKinds    []string          `yaml:"collectorKinds" json:"collectorKinds"`
-	EmittedFacts      []FactClaim       `yaml:"emittedFacts" json:"emittedFacts"`
-	ConsumerContracts ConsumerContracts `yaml:"consumerContracts" json:"consumerContracts"`
-	Telemetry         Telemetry         `yaml:"telemetry" json:"telemetry"`
-	Source            SourceRef         `yaml:"source" json:"source"`
-	Review            ReviewRef         `yaml:"review" json:"review"`
-	Provenance        Provenance        `yaml:"provenance" json:"provenance"`
-	Conformance       ConformanceProof  `yaml:"conformance" json:"conformance"`
-	Revocation        Revocation        `yaml:"revocation" json:"revocation"`
+	ComponentID        string             `yaml:"componentId" json:"componentId"`
+	Publisher          string             `yaml:"publisher" json:"publisher"`
+	Version            string             `yaml:"version" json:"version"`
+	LifecycleChannel   string             `yaml:"lifecycleChannel" json:"lifecycleChannel"`
+	Installable        bool               `yaml:"installable" json:"installable"`
+	ManifestDigest     string             `yaml:"manifestDigest" json:"manifestDigest"`
+	Artifacts          []ArtifactRef      `yaml:"artifacts" json:"artifacts"`
+	CompatibleCore     string             `yaml:"compatibleCore" json:"compatibleCore"`
+	ComponentType      string             `yaml:"componentType" json:"componentType"`
+	CollectorKinds     []string           `yaml:"collectorKinds" json:"collectorKinds"`
+	EmittedFacts       []FactClaim        `yaml:"emittedFacts" json:"emittedFacts"`
+	ConsumerContracts  ConsumerContracts  `yaml:"consumerContracts" json:"consumerContracts"`
+	Telemetry          Telemetry          `yaml:"telemetry" json:"telemetry"`
+	Source             SourceRef          `yaml:"source" json:"source"`
+	Review             ReviewRef          `yaml:"review" json:"review"`
+	Provenance         Provenance         `yaml:"provenance" json:"provenance"`
+	Conformance        ConformanceProof   `yaml:"conformance" json:"conformance"`
+	Publication        Publication        `yaml:"publication" json:"publication"`
+	CompatibilityBadge CompatibilityBadge `yaml:"compatibilityBadge" json:"compatibilityBadge"`
+	Revocation         Revocation         `yaml:"revocation" json:"revocation"`
 }
 
 // ArtifactRef points at a digest-pinned artifact.
@@ -157,6 +168,26 @@ type ConformanceProof struct {
 	SchemaVersion string `yaml:"schemaVersion" json:"schemaVersion"`
 	Status        string `yaml:"status" json:"status"`
 	ProofURI      string `yaml:"proofUri" json:"proofUri"`
+}
+
+// Publication declares the marketplace publication state for an entry.
+type Publication struct {
+	Status string `yaml:"status" json:"status"`
+}
+
+// CompatibilityBadge records the deterministic badge inputs shown for an entry.
+type CompatibilityBadge struct {
+	ManifestAPIVersion  string `yaml:"manifestApiVersion" json:"manifestApiVersion"`
+	ManifestDigest      string `yaml:"manifestDigest" json:"manifestDigest"`
+	CompatibleCore      string `yaml:"compatibleCore" json:"compatibleCore"`
+	ArtifactDigest      string `yaml:"artifactDigest" json:"artifactDigest"`
+	SignatureStatus     string `yaml:"signatureStatus" json:"signatureStatus"`
+	ProvenanceStatus    string `yaml:"provenanceStatus" json:"provenanceStatus"`
+	RuntimeProtocol     string `yaml:"runtimeProtocol" json:"runtimeProtocol"`
+	Adapter             string `yaml:"adapter" json:"adapter"`
+	ConformanceProofURI string `yaml:"conformanceProofUri" json:"conformanceProofUri"`
+	ConformanceStatus   string `yaml:"conformanceStatus" json:"conformanceStatus"`
+	PolicyResult        string `yaml:"policyResult" json:"policyResult"`
 }
 
 // Revocation describes whether an entry is currently revoked.
@@ -238,6 +269,7 @@ func (v *indexVerifier) validateEntry(index int, entry Entry) {
 	v.validateFacts(prefix, componentID, entry.EmittedFacts)
 	v.validateConsumerContracts(prefix, componentID, entry.ConsumerContracts)
 	v.validateConformance(prefix, componentID, entry.Conformance)
+	v.validatePublication(prefix, componentID, entry)
 	if strings.TrimSpace(entry.Review.PR) == "" {
 		v.add(IssueMissingReviewLink, prefix+".review.pr", componentID, "review PR link is required")
 	}

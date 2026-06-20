@@ -1,0 +1,78 @@
+apiVersion: eshu.dev/community-extension-index/v1alpha1
+kind: CommunityExtensionIndex
+entries:
+  - componentId: dev.eshu.examples.pagerduty
+    publisher: eshu-hq
+    version: 0.1.0
+    lifecycleChannel: experimental
+    installable: false
+    manifestDigest: sha256:931054e589cd0426749be92cd988bb53ebce4832593eb4c19049275987025621
+    artifacts:
+      - image: ghcr.io/eshu-hq/examples/pagerduty-reference-collector@sha256:1111111111111111111111111111111111111111111111111111111111111111
+    compatibleCore: ">=0.0.5 <0.2.0"
+    componentType: collector
+    collectorKinds:
+      - pagerduty
+    emittedFacts:
+      - kind: dev.eshu.examples.pagerduty.incident
+        schemaVersions:
+          - 1.0.0
+        sourceConfidence:
+          - reported
+      - kind: dev.eshu.examples.pagerduty.lifecycle_event
+        schemaVersions:
+          - 1.0.0
+        sourceConfidence:
+          - observed
+      - kind: dev.eshu.examples.pagerduty.change
+        schemaVersions:
+          - 1.0.0
+        sourceConfidence:
+          - reported
+      - kind: dev.eshu.examples.pagerduty.observed_service
+        schemaVersions:
+          - 1.0.0
+        sourceConfidence:
+          - observed
+      - kind: dev.eshu.examples.pagerduty.observed_integration
+        schemaVersions:
+          - 1.0.0
+        sourceConfidence:
+          - observed
+      - kind: dev.eshu.examples.pagerduty.coverage_warning
+        schemaVersions:
+          - 1.0.0
+        sourceConfidence:
+          - inferred
+    consumerContracts:
+      reducer:
+        phases:
+          - source_evidence_only:no_graph_truth
+    telemetry:
+      metricsPrefix: eshu_dp_example_pagerduty_
+    source:
+      repository: https://github.com/eshu-hq/eshu/tree/main/examples/collector-extensions/pagerduty
+    review:
+      pr: https://github.com/eshu-hq/eshu/issues/3233
+    provenance:
+      required: true
+      mode: sigstore
+      signature: sigstore:pending
+    conformance:
+      schemaVersion: eshu.extension.conformance.v1
+      status: passed
+      proofUri: local://examples/collector-extensions/pagerduty/testdata/fixtures/complete-result.json
+    publication:
+      status: draft
+    compatibilityBadge:
+      manifestApiVersion: eshu.dev/v1alpha1
+      manifestDigest: sha256:931054e589cd0426749be92cd988bb53ebce4832593eb4c19049275987025621
+      compatibleCore: ">=0.0.5 <0.2.0"
+      artifactDigest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      signatureStatus: pending
+      provenanceStatus: pending
+      runtimeProtocol: collector-sdk/v1alpha1
+      adapter: process
+      conformanceProofUri: local://examples/collector-extensions/pagerduty/testdata/fixtures/complete-result.json
+      conformanceStatus: passed
+      policyResult: missing_proof
