@@ -132,6 +132,44 @@ func TestControlPlaneProjectsCollectorFamilies(t *testing.T) {
 	}
 }
 
+// TestControlPlaneCollectorFamilyWorstVerdictCarriesItsRuntimeFields guards the
+// rollup: when a worse-verdict instance is selected, its claim and readback
+// state must travel with the verdict so the row never mixes a failed verdict
+// with a healthy sibling's runtime state.
+func TestControlPlaneCollectorFamilyWorstVerdictCarriesItsRuntimeFields(t *testing.T) {
+	healthy := CollectorPromotionProof{
+		CollectorKind:   "aws",
+		PromotionState:  CollectorPromotionImplemented,
+		Health:          "healthy",
+		ClaimState:      "claim_driven",
+		ReducerReadback: "available",
+		LastObservedAt:  time.Date(2026, 6, 19, 2, 0, 0, 0, time.UTC),
+	}
+	failed := CollectorPromotionProof{
+		CollectorKind:   "aws",
+		PromotionState:  CollectorPromotionFailed,
+		Health:          "degraded",
+		ClaimState:      "direct",
+		ReducerReadback: "unavailable",
+		LastObservedAt:  time.Date(2026, 6, 19, 1, 0, 0, 0, time.UTC),
+	}
+
+	families := rollupOperatorCollectorFamilies([]CollectorPromotionProof{healthy, failed})
+	if len(families) != 1 {
+		t.Fatalf("families len = %d, want 1", len(families))
+	}
+	fam := families[0]
+	if fam.PromotionState != CollectorPromotionFailed {
+		t.Fatalf("PromotionState = %q, want failed (worst verdict)", fam.PromotionState)
+	}
+	if fam.ClaimState != "direct" || fam.ReducerReadback != "unavailable" {
+		t.Fatalf("worst-verdict runtime fields not carried: claim=%q readback=%q", fam.ClaimState, fam.ReducerReadback)
+	}
+	if !fam.LastObservedAt.Equal(time.Date(2026, 6, 19, 2, 0, 0, 0, time.UTC)) {
+		t.Fatalf("LastObservedAt = %v, want newest across instances", fam.LastObservedAt)
+	}
+}
+
 // TestControlPlaneReducerDomainsSortedAndCarryRetryState confirms reducer
 // domains preserve retry/dead-letter/oldest-age signals for diagnosis.
 func TestControlPlaneReducerDomainsSortedAndCarryRetryState(t *testing.T) {

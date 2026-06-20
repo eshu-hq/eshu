@@ -182,10 +182,14 @@ func controlPlaneCollectorFamilies(report Report) []OperatorCollectorFamily {
 		AsOf:       report.AsOf,
 		StaleAfter: DefaultCollectorPromotionStaleAfter,
 	})
+	return rollupOperatorCollectorFamilies(proofs)
+}
 
-	// Collapse instance-level proofs to one verdict per family, keeping the
-	// newest observation and the worst (least-promoted) verdict so an operator
-	// sees the family as unhealthy when any instance is.
+// rollupOperatorCollectorFamilies collapses instance-level promotion proofs to
+// one verdict per collector family, keeping the newest observation and the worst
+// (least-promoted) verdict so an operator sees the family as unhealthy when any
+// instance is. The worst-verdict instance's runtime fields travel with it.
+func rollupOperatorCollectorFamilies(proofs []CollectorPromotionProof) []OperatorCollectorFamily {
 	byKind := map[string]*OperatorCollectorFamily{}
 	order := make([]string, 0, len(proofs))
 	for _, proof := range proofs {
@@ -210,9 +214,14 @@ func controlPlaneCollectorFamilies(report Report) []OperatorCollectorFamily {
 			family.LastObservedAt = proof.LastObservedAt
 		}
 		if collectorPromotionSeverity(proof.PromotionState) > collectorPromotionSeverity(family.PromotionState) {
+			// Adopt every runtime field from the worse-verdict instance so the
+			// rolled-up row never reports a failed/gated family while showing the
+			// claim or readback state of a healthier sibling.
 			family.PromotionState = proof.PromotionState
 			family.Health = proof.Health
 			family.Blockers = proof.Blockers
+			family.ClaimState = proof.ClaimState
+			family.ReducerReadback = proof.ReducerReadback
 		}
 	}
 

@@ -156,6 +156,9 @@ tool_exemptions:
   - tool: get_collector_readiness
     reason: operator collector family readiness surface
     issue: 2687
+  - tool: get_operator_control_plane
+    reason: operator control-plane read model surface
+    issue: 3185
 
 # Matrix-declared tools that are served through an HTTP API operation rather
 # than the MCP registry. Each name maps 1:1 to an OpenAPI operationId.
