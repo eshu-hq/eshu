@@ -432,8 +432,9 @@ func serviceCatalogCorrelationOutcomes() []ServiceCatalogCorrelationOutcome {
 }
 
 type serviceCatalogCorrelationIndex struct {
-	entities     map[serviceCatalogEntityKey]serviceCatalogEntityEvidence
-	ownership    map[serviceCatalogEntityKey]serviceCatalogOwnershipEvidence
-	repoLinks    map[serviceCatalogEntityKey][]serviceCatalogRepositoryLinkEvidence
-	repositories []serviceCatalogRepositoryEvidence
+	entities         map[serviceCatalogEntityKey]serviceCatalogEntityEvidence
+	ownership        map[serviceCatalogEntityKey]serviceCatalogOwnershipEvidence
+	repoLinks        map[serviceCatalogEntityKey][]serviceCatalogRepositoryLinkEvidence
+	repositories     []serviceCatalogRepositoryEvidence
+	repositoryLookup serviceCatalogRepositoryLookup
 }

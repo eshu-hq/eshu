@@ -67,3 +67,14 @@ with only the closed correlation outcomes. Guardrail counts use
 `missing_anchor_entity`). Focused verification:
 `go test ./internal/reducer -run 'TestBuildServiceCatalogCorrelation|TestServiceCatalogCorrelation|TestPostgresServiceCatalogCorrelation' -count=1`
 and `go test ./internal/reducer -count=1`.
+
+Performance Evidence: `go test ./internal/reducer -run '^$' -bench
+BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout -benchmem
+-count=3` on darwin/arm64 (Apple M4 Pro) evaluates one catalog entity against
+4,096 same-canonical-URL active repositories at `6.36ms/op`, `6.71ms/op`, and
+`6.52ms/op` with `13.2MB/op`. The reducer builds one repository lookup per
+intent and reads matching repository ids from the indexed canonical URL bucket,
+so the high-cardinality fanout path is bounded by the matching candidate set
+instead of scanning every active repository for every catalog link. The focused
+unit gate `TestBuildServiceCatalogCorrelationDecisionsHandlesHighCardinalityFanout`
+keeps the ambiguous decision and 4,096 candidate readback exact.
