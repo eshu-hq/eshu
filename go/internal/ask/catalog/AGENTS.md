@@ -11,7 +11,7 @@
    implemented read-only HTTP API routes; read owning handlers in
    `internal/query/` before adding or changing entries.
 4. `go/internal/ask/catalog/annotations_tools.go` — curated annotations for the
-   141 implemented MCP tools; read owning handlers in `internal/mcp/` before
+   147 implemented MCP tools; read owning handlers in `internal/mcp/` before
    adding or changing entries.
 5. `go/internal/ask/catalog/mutating.go` — side-effecting admin/recovery
    surfaces that must never enter the Ask Eshu planner catalog.
