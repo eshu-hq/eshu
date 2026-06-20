@@ -316,6 +316,26 @@ func TestLowerForOfTargetAliasDoesNotLeak(t *testing.T) {
 	}
 }
 
+// TestLowerForOfTerminatingBodyKeepsZeroIterationAlias proves a for-of loop
+// whose body cannot fall through does not invalidate the zero-iteration alias
+// state. The only reachable post-loop path is the header exit, where the target
+// was never rebound.
+func TestLowerForOfTerminatingBodyKeepsZeroIterationAlias(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(p) {\n" +
+		"\tlet a = obj;\n" +
+		"\tfor (a of items) { return; }\n" +
+		"\ta.x = p;\n" +
+		"\tuse(obj.x);\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "obj.x:4->5") {
+		t.Fatalf("zero-iteration alias should normalize a.x to obj.x; got %v", got)
+	}
+}
+
 // TestLowerForBodyReassignAliasDoesNotLeak proves an alias reassigned inside a
 // C-style loop body does not get restored to its pre-loop target after the loop.
 func TestLowerForBodyReassignAliasDoesNotLeak(t *testing.T) {
