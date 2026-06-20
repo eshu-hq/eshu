@@ -25,6 +25,7 @@ feed; they mirror the convention in
 | `Dockerfile` | Builds the synthetic demo image so the chain has a real image identity (digest). |
 | `fixtures/full-chain-proof-output.json` | Public sanitized proof fixture that records the required full-chain evidence nodes, refusal variant, and p95 matrix shape. |
 | `test/verify-full-chain-proof-output.sh` | Example-level verifier for the proof fixture; it asserts 7+ evidence nodes, refusal semantics, executable proof scripts, timing fields, and public-safe output. |
+| `scripts/full-chain-proof.sh` | Unified live proof entrypoint that runs the split proof scripts and writes the timing artifact. |
 
 ## Honesty: what runs offline vs what needs the stack
 
@@ -189,11 +190,24 @@ Verify it with:
 
 ```bash
 examples/supply-chain-demo/test/verify-full-chain-proof-output.sh
+examples/supply-chain-demo/scripts/full-chain-proof.sh --verify-fixture-only
 ```
 
 The fixture is intentionally public and deterministic. It is not a replacement
-for rerunning `scripts/run-full-chain-proof.sh` against a live Compose stack when
+for rerunning `scripts/full-chain-proof.sh` against a live Compose stack when
 closing #3129; live p95 values must come from that run.
+
+## Unified full-chain proof entrypoint
+
+`scripts/full-chain-proof.sh` is the real-stack proof entrypoint for #3129. By
+default it runs the live Compose repo-to-workload proof, the seeded image
+identity reducer proof, and the localhost TLS OCI collector proof, then writes a
+single JSON artifact with one timing row per proof step. Use
+`--verify-fixture-only` for a cheap shape check that does not start Compose.
+
+```bash
+ESHU_SRC=/path/to/eshu examples/supply-chain-demo/scripts/full-chain-proof.sh
+```
 
 ## Scripted full-chain proof (live stack)
 

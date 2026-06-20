@@ -4,6 +4,17 @@
   "issue_refs": [3129, 3061, 3174],
   "scripts": [
     {
+      "path": "scripts/full-chain-proof.sh",
+      "proof_scope": [
+        "compose_stack",
+        "seeded_image_identity",
+        "sandbox_registry_equivalent",
+        "refusal_fixture",
+        "timing_artifact"
+      ],
+      "boundary": "Unified entrypoint that runs the split proof scripts, records one timing row per proof step, and validates the public fixture shape."
+    },
+    {
       "path": "scripts/run-full-chain-proof.sh",
       "proof_scope": [
         "compose_stack",

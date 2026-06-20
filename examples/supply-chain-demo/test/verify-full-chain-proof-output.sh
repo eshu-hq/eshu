@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-FIXTURE="${DEMO_DIR}/fixtures/full-chain-proof-output.json"
+FIXTURE="${1:-${DEMO_DIR}/fixtures/full-chain-proof-output.json}"
 
 die() {
 	printf '%s\n' "$*" >&2
@@ -49,13 +49,15 @@ jq -e 'all(.latency_matrix.rows[]?; (.p95_ms | type == "number") and .p95_ms >= 
 	|| die "all latency matrix rows must include non-negative numeric p95_ms"
 jq -e '(.truth_boundaries // []) | length >= 3' "${FIXTURE}" >/dev/null \
 	|| die "fixture must document proof boundaries"
+jq -e 'any(.scripts[]?; .path == "scripts/full-chain-proof.sh")' "${FIXTURE}" >/dev/null \
+	|| die "fixture must point to scripts/full-chain-proof.sh as the unified proof entrypoint"
 
 while IFS= read -r script_path; do
 	[[ -x "${DEMO_DIR}/${script_path}" ]] || die "missing executable proof script: ${script_path}"
 done < <(jq -r '.scripts[]?.path' "${FIXTURE}")
 
-if jq -r '.. | strings' "${FIXTURE}" | rg --quiet \
-	'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'; then
+if jq -r '.. | strings' "${FIXTURE}" | rg \
+	'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' >/dev/null; then
 	die "full-chain proof fixture contains private-shaped or credential-shaped values"
 fi
 

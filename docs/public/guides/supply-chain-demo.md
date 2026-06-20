@@ -152,11 +152,24 @@ Verify it with:
 
 ```bash
 examples/supply-chain-demo/test/verify-full-chain-proof-output.sh
+examples/supply-chain-demo/scripts/full-chain-proof.sh --verify-fixture-only
 ```
 
 The fixture is deterministic and safe to commit. It does not replace rerunning
-`examples/supply-chain-demo/scripts/run-full-chain-proof.sh` against a live stack
+`examples/supply-chain-demo/scripts/full-chain-proof.sh` against a live stack
 when closing #3129; live p95 values must come from that run.
+
+## Unified full-chain proof entrypoint
+
+`examples/supply-chain-demo/scripts/full-chain-proof.sh` is the real-stack proof
+entrypoint for #3129. By default it runs the live Compose repo-to-workload proof,
+the seeded image identity reducer proof, and the localhost TLS OCI collector
+proof, then writes one JSON artifact with timing rows for every proof step. Use
+`--verify-fixture-only` for a cheap shape check that does not start Compose.
+
+```bash
+ESHU_SRC=/path/to/eshu examples/supply-chain-demo/scripts/full-chain-proof.sh
+```
 
 ## Image-identity proof (the `image_ref` sub-hop)
 
