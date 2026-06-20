@@ -68,6 +68,98 @@ func TestResolveRouteMapsInvestigationWorkflowTools(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsInvestigationWorkflowChildPayloads(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		workflowID      string
+		inputs          map[string]any
+		missingEvidence []any
+	}{
+		{
+			name:       "vulnerable dependency",
+			workflowID: "guided_vulnerable_dependency",
+			inputs: map[string]any{
+				"advisory_id": "CVE-2026-0001",
+				"repo_id":     "repo-checkout",
+				"subject":     "CVE-2026-0001",
+			},
+			missingEvidence: []any{"advisory", "package", "impact"},
+		},
+		{
+			name:       "deployable drift",
+			workflowID: "guided_deployable_drift",
+			inputs: map[string]any{
+				"deployable_unit_id": "workload:checkout",
+				"generation_id":      "gen-1",
+				"repo_id":            "repo-checkout",
+				"scope_id":           "scope-1",
+			},
+			missingEvidence: []any{"admission", "runtime"},
+		},
+		{
+			name:       "incident context",
+			workflowID: "guided_incident_context",
+			inputs: map[string]any{
+				"incident_id": "INC-1",
+				"repo_id":     "repo-checkout",
+				"scope_id":    "scope-1",
+				"service_id":  "checkout",
+			},
+			missingEvidence: []any{"incident", "service", "changes"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			route, err := resolveRoute("resolve_investigation_workflow", map[string]any{
+				"workflow_id":      tt.workflowID,
+				"inputs":           tt.inputs,
+				"missing_evidence": tt.missingEvidence,
+			})
+			if err != nil {
+				t.Fatalf("resolve workflow route: %v", err)
+			}
+			if got, want := route.method, "POST"; got != want {
+				t.Fatalf("method = %q, want %q", got, want)
+			}
+			if got, want := route.path, "/api/v0/investigation-workflows/resolve"; got != want {
+				t.Fatalf("path = %q, want %q", got, want)
+			}
+			body, ok := route.body.(map[string]any)
+			if !ok {
+				t.Fatalf("body type = %T, want map", route.body)
+			}
+			if got := body["workflow_id"]; got != tt.workflowID {
+				t.Fatalf("workflow_id = %#v, want %#v", got, tt.workflowID)
+			}
+			inputs, ok := body["inputs"].(map[string]any)
+			if !ok {
+				t.Fatalf("inputs type = %T, want map[string]any", body["inputs"])
+			}
+			for key, want := range tt.inputs {
+				if got := inputs[key]; got != want {
+					t.Fatalf("input %q = %#v, want %#v", key, got, want)
+				}
+			}
+			missing, ok := body["missing_evidence"].([]string)
+			if !ok {
+				t.Fatalf("missing_evidence type = %T, want []string", body["missing_evidence"])
+			}
+			if len(missing) != len(tt.missingEvidence) {
+				t.Fatalf("missing_evidence = %#v, want %#v", missing, tt.missingEvidence)
+			}
+			for i, want := range tt.missingEvidence {
+				if missing[i] != want {
+					t.Fatalf("missing_evidence[%d] = %#v, want %#v", i, missing[i], want)
+				}
+			}
+		})
+	}
+}
+
 func TestInvestigationWorkflowNextCallParamsExistInToolSchemas(t *testing.T) {
 	t.Parallel()
 
