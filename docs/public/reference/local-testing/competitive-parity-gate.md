@@ -14,7 +14,10 @@ go run ./cmd/eshu competitive-parity validate --repo-root .. --json
 ```
 
 The command emits a `competitive_parity_gate.v1` artifact. Omit `--json` for the
-Markdown artifact, or pass `--out <path>` to write either format to disk.
+Markdown artifact, or pass `--out <path>` to write either format to disk. The
+artifact separates presence parity from usefulness parity: a surface can be
+reachable and still fail when the artifact is not actionable, clear, reproducible,
+or useful enough for a reader.
 
 ## What It Checks
 
@@ -37,6 +40,26 @@ operator digest artifact validation, investigation evidence packet rendering,
 the evidence-packet dogfood fixture, and capability catalog/surface inventory
 decoding.
 
+## Usefulness Scoring
+
+Each surface also carries deterministic quality dimensions in JSON and Markdown:
+
+- `actionability` checks for ranked next commands, suggested questions, or
+  bounded follow-up calls.
+- `evidence_clarity` checks that missing evidence, stale state, truncation,
+  unsupported state, or partial state are visible.
+- `reproducibility` checks for schema versions, scopes, source references,
+  route/tool names, commands, citation handles, or artifact IDs that let a user
+  reproduce the bounded evidence.
+- `reader_usefulness` checks that the artifact explains what matters, what is
+  missing, and how to read the result.
+- `peer_baseline_coverage` checks that the public contract still preserves the
+  peer-inspired UX goal for that surface family.
+
+Quality scoring is offline and provider-free. It uses only the repo-owned public
+contract text already read by the gate, so it is safe for CI and does not inspect
+private graph, Postgres, source, or runtime state.
+
 ## Failure Meaning
 
 A failure means a shipped surface is no longer reachable from one of the
@@ -49,6 +72,8 @@ expected contracts:
 - public contract doc missing or no longer naming required truth/missing
   evidence terms;
 - local artifact builder, renderer, scorer, or catalog decoder failure.
+- quality dimension missing the deterministic signals that make the artifact
+  actionable, explicit about gaps, reproducible, or useful to a reader.
 
 Residual work is linked to existing issues instead of creating duplicate tickets.
 The investigation evidence packet row currently points to #3238 when packet

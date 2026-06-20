@@ -37,6 +37,14 @@ func RenderMarkdown(report Report) string {
 		}
 		fmt.Fprintf(&b, "## %s (%s)\n\n", surface.DisplayName, marker)
 		fmt.Fprintf(&b, "- Peer baseline: %s\n", surface.PeerBaseline)
+		fmt.Fprintf(&b, "- Presence: %s\n", passLabel(surface.PresencePass))
+		fmt.Fprintf(&b, "- Quality: %s\n", passLabel(surface.QualityPass))
+		fmt.Fprintf(&b, "- Quality score: %d/%d dimensions passed (%d/%d signals)\n",
+			surface.QualityScore.Passed,
+			len(surface.Quality),
+			surface.QualityScore.Score,
+			surface.QualityScore.Max,
+		)
 		if len(surface.RelatedIssues) > 0 {
 			fmt.Fprintf(&b, "- Related issues:")
 			for _, issue := range surface.RelatedIssues {
@@ -55,7 +63,41 @@ func RenderMarkdown(report Report) string {
 		for _, check := range surface.Checks {
 			fmt.Fprintf(&b, "| `%s` | `%s` | %s |\n", check.Kind, check.Target, check.Status)
 		}
+		if len(surface.Quality) > 0 {
+			fmt.Fprintf(&b, "\n| Quality dimension | Score | Status | Missing signals |\n| --- | --- | --- | --- |\n")
+			for _, quality := range surface.Quality {
+				fmt.Fprintf(&b, "| `%s` | %d/%d | %s | %s |\n",
+					quality.Dimension,
+					quality.Score,
+					quality.MaxScore,
+					passLabel(quality.Pass),
+					renderMissingSignals(quality.Missing),
+				)
+			}
+		}
 		fmt.Fprintf(&b, "\n")
 	}
 	return b.String()
+}
+
+func passLabel(pass bool) string {
+	if pass {
+		return "pass"
+	}
+	return "fail"
+}
+
+func renderMissingSignals(signals []QualitySignal) string {
+	if len(signals) == 0 {
+		return "none"
+	}
+	parts := make([]string, 0, len(signals))
+	for _, signal := range signals {
+		if strings.TrimSpace(signal.SourcePath) == "" {
+			parts = append(parts, fmt.Sprintf("`%s`", signal.Term))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("`%s` in `%s`", signal.Term, signal.SourcePath))
+	}
+	return strings.Join(parts, "<br>")
 }

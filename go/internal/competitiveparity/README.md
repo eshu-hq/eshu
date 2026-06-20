@@ -2,17 +2,20 @@
 
 ## Purpose
 
-`competitiveparity` owns the offline #3265 gate for shipped Eshu capability
-surfaces. It validates whether first-run evidence, operator digest artifacts,
-investigation evidence packets, and capability catalog surfaces remain reachable,
-documented, locally exercised, and tied back to their proof issues.
+`competitiveparity` owns the offline #3265/#3306 gate for shipped Eshu
+capability surfaces. It validates whether first-run evidence, operator digest
+artifacts, investigation evidence packets, and capability catalog surfaces remain
+reachable, documented, locally exercised, useful to a reader, and tied back to
+their proof issues.
 
 ## Ownership boundary
 
 This package scores caller-supplied inventories and renders the resulting
-`competitive_parity_gate.v1` artifact. It does not read files, call GitHub,
-start runtimes, open network connections, inspect graph or Postgres state, or
-decide whether a residual gap needs a new issue.
+`competitive_parity_gate.v1` artifact. It separates presence parity from
+usefulness parity across actionability, evidence clarity, reproducibility,
+reader usefulness, and peer-baseline coverage. It does not read files, call
+GitHub, start runtimes, open network connections, inspect graph or Postgres
+state, or decide whether a residual gap needs a new issue.
 
 ## Exported surface
 
@@ -33,10 +36,11 @@ does not create spans, metrics, logs, status rows, or graph facts.
 
 ## Gotchas / invariants
 
-Missing surfaces and failed exercises are hard failures. Residual gaps must link
-to existing issues, while related closed issues record the proof lineage for each
-surface family. Keep rendered output deterministic by sorting checks and
-surfaces before returning a report.
+Missing surfaces, failed exercises, and failed quality dimensions are hard
+failures. Residual gaps must link to existing issues, while related closed
+issues record the proof lineage for each surface family. Keep rendered output
+deterministic by sorting checks, quality results, and surfaces before returning a
+report.
 
 ## Related docs
 
