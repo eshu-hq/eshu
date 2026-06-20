@@ -1,0 +1,43 @@
+{
+  "schema": "evidence_packet_dogfood.v1",
+  "run_kind": "fixture",
+  "run_id": "fixture-3143",
+  "tasks": [
+    {
+      "name": "supply_chain_impact_blast_radius",
+      "family": "supply_chain_impact",
+      "approaches": [
+        {"approach": "raw_files", "answer_time_ms": 72000, "found_answer": false, "missing_evidence_named": false, "token_budget": 8200},
+        {"approach": "eshu_tools", "answer_time_ms": 3800, "found_answer": true, "missing_evidence_named": false, "token_budget": 2400},
+        {"approach": "evidence_packet", "answer_time_ms": 1200, "found_answer": true, "missing_evidence_named": true, "token_budget": 700}
+      ]
+    },
+    {
+      "name": "deployable_unit_truth",
+      "family": "deployable_unit",
+      "approaches": [
+        {"approach": "raw_files", "answer_time_ms": 51000, "found_answer": false, "missing_evidence_named": false, "token_budget": 6100},
+        {"approach": "eshu_tools", "answer_time_ms": 3200, "found_answer": true, "missing_evidence_named": false, "token_budget": 2100},
+        {"approach": "evidence_packet", "answer_time_ms": 1100, "found_answer": true, "missing_evidence_named": true, "token_budget": 800}
+      ]
+    },
+    {
+      "name": "runtime_drift_reconciliation",
+      "family": "drift",
+      "approaches": [
+        {"approach": "raw_files", "answer_time_ms": 64000, "found_answer": false, "missing_evidence_named": false, "token_budget": 7400},
+        {"approach": "eshu_tools", "answer_time_ms": 4100, "found_answer": true, "missing_evidence_named": false, "token_budget": 2600},
+        {"approach": "evidence_packet", "answer_time_ms": 1300, "found_answer": true, "missing_evidence_named": true, "token_budget": 850}
+      ]
+    },
+    {
+      "name": "service_context_dossier",
+      "family": "service_context",
+      "approaches": [
+        {"approach": "raw_files", "answer_time_ms": 58000, "found_answer": false, "missing_evidence_named": false, "token_budget": 6800},
+        {"approach": "eshu_tools", "answer_time_ms": 4500, "found_answer": true, "missing_evidence_named": false, "token_budget": 2500},
+        {"approach": "evidence_packet", "answer_time_ms": 1400, "found_answer": true, "missing_evidence_named": true, "token_budget": 900}
+      ]
+    }
+  ]
+}
