@@ -77,6 +77,8 @@ func (b *Builder) Build() Function {
 	in := b.solveReaching(blocks, defs, defsByBinding, stmtDefIDs)
 	fn.DefUses, fn.Overflow.DefUseEdges = emitDefUses(
 		blocks, defs, defsByBinding, stmtDefIDs, in, b.limits.MaxDefUseEdges)
+	fn.ControlDependencies, fn.Overflow.ControlDependencies = computeControlDependencies(
+		blocks, b.limits.MaxControlDependencies)
 	return fn
 }
 
@@ -238,9 +240,10 @@ func (b *Builder) emitBlocks() []Block {
 	out := make([]Block, 0, len(b.blocks))
 	for id, bb := range b.blocks {
 		out = append(out, Block{
-			ID:    id,
-			Stmts: bb.stmts,
-			Succs: bb.sortedSuccs(),
+			ID:         id,
+			Stmts:      bb.stmts,
+			Succs:      bb.sortedSuccs(),
+			SuccGuards: bb.sortedSuccGuards(),
 		})
 	}
 	return out

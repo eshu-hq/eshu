@@ -28,6 +28,7 @@ func TestCodeTaintEvidenceFromEnvelope(t *testing.T) {
 			"confidence":    0.8,
 			"class_context": "Repo",
 			"sink_label":    "Query",
+			"guard_reason":  "allowed",
 		},
 	}
 
@@ -41,7 +42,7 @@ func TestCodeTaintEvidenceFromEnvelope(t *testing.T) {
 	if got.SourceLine != 4 || got.SinkLine != 5 {
 		t.Fatalf("line numbers not coerced from float64: %+v", got)
 	}
-	if got.Confidence != 0.8 || got.ClassContext != "Repo" || got.SinkLabel != "Query" {
+	if got.Confidence != 0.8 || got.ClassContext != "Repo" || got.SinkLabel != "Query" || got.GuardReason != "allowed" {
 		t.Fatalf("provenance fields not mapped: %+v", got)
 	}
 }

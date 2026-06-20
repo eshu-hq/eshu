@@ -99,6 +99,72 @@ func TestWrongKindSanitizerDoesNotSuppress(t *testing.T) {
 	}
 }
 
+// TestGuardedSinkReportsGuardReason proves a tainted sink inside a
+// control-dependent branch carries the gating predicate as finding provenance.
+func TestGuardedSinkReportsGuardReason(t *testing.T) {
+	t.Parallel()
+
+	b := cfg.NewBuilder(cfg.DefaultLimits())
+	entry := b.AddBlock()
+	thenBlock := b.AddBlock()
+	merge := b.AddBlock()
+	s0 := int(b.AddStmt(entry, 1, []string{"q"}, nil))
+	b.AddGuardStmt(entry, 2, []string{"allowed"}, "allowed")
+	sSink := int(b.AddStmt(thenBlock, 3, nil, []string{"q"}))
+	b.AddEdge(entry, thenBlock)
+	b.AddEdge(entry, merge)
+	b.AddEdge(thenBlock, merge)
+	fn := b.Build()
+
+	facts := Facts{
+		Sources: map[StmtBinding]SourceMark{{Stmt: s0, Binding: "q"}: {Kind: "http"}},
+		Sinks:   map[int]SinkMark{sSink: {Kind: "sql"}},
+	}
+	res := Analyze(fn, facts, DefaultLimits())
+	if len(res.Findings) != 1 {
+		t.Fatalf("findings = %d, want one guarded taint finding: %+v", len(res.Findings), res.Findings)
+	}
+	if got, want := res.Findings[0].GuardReason, "allowed"; got != want {
+		t.Fatalf("GuardReason = %q, want %q; finding=%+v", got, want, res.Findings[0])
+	}
+}
+
+// TestNestedGuardedSinkReportsStableGuardReason proves multiple controlling
+// predicates are reported in deterministic outer-to-inner order.
+func TestNestedGuardedSinkReportsStableGuardReason(t *testing.T) {
+	t.Parallel()
+
+	b := cfg.NewBuilder(cfg.DefaultLimits())
+	entry := b.AddBlock()
+	outerThen := b.AddBlock()
+	innerThen := b.AddBlock()
+	innerMerge := b.AddBlock()
+	outerMerge := b.AddBlock()
+	s0 := int(b.AddStmt(entry, 1, []string{"q"}, nil))
+	b.AddGuardStmt(entry, 2, []string{"allowed"}, "allowed")
+	b.AddGuardStmt(outerThen, 3, []string{"ready"}, "ready")
+	sSink := int(b.AddStmt(innerThen, 4, nil, []string{"q"}))
+	b.AddEdge(entry, outerThen)
+	b.AddEdge(entry, outerMerge)
+	b.AddEdge(outerThen, innerThen)
+	b.AddEdge(outerThen, innerMerge)
+	b.AddEdge(innerThen, innerMerge)
+	b.AddEdge(innerMerge, outerMerge)
+	fn := b.Build()
+
+	facts := Facts{
+		Sources: map[StmtBinding]SourceMark{{Stmt: s0, Binding: "q"}: {Kind: "http"}},
+		Sinks:   map[int]SinkMark{sSink: {Kind: "sql"}},
+	}
+	res := Analyze(fn, facts, DefaultLimits())
+	if len(res.Findings) != 1 {
+		t.Fatalf("findings = %d, want one guarded taint finding: %+v", len(res.Findings), res.Findings)
+	}
+	if got, want := res.Findings[0].GuardReason, "allowed && ready"; got != want {
+		t.Fatalf("GuardReason = %q, want %q; finding=%+v", got, want, res.Findings[0])
+	}
+}
+
 // TestNeutralizedIntersectionAtMerge proves the neutralized set is intersected
 // when two tainted values merge into one definition: a value sanitized for sql
 // on one path and not on the other is NOT considered sql-safe at the merge.

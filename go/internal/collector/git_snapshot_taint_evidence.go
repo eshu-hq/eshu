@@ -70,6 +70,7 @@ func buildTaintEvidence(repoPath string, parsedFiles []map[string]any, entities 
 				ClassContext: snapshotPayloadString(finding, "class_context"),
 				SinkLabel:    snapshotPayloadString(finding, "sink_label"),
 				SourceLabel:  snapshotPayloadString(finding, "source_label"),
+				GuardReason:  snapshotPayloadString(finding, "guard_reason"),
 			})
 		}
 	}
@@ -110,6 +111,9 @@ func taintEvidenceFactEnvelope(
 	}
 	if evidence.SourceLabel != "" {
 		payload["source_label"] = evidence.SourceLabel
+	}
+	if evidence.GuardReason != "" {
+		payload["guard_reason"] = evidence.GuardReason
 	}
 
 	factKey := taintEvidenceFactKind + ":" + evidence.FunctionUID +

@@ -24,6 +24,7 @@ type CodeTaintEvidenceInput struct {
 	ClassContext string
 	SinkLabel    string
 	SourceLabel  string
+	GuardReason  string
 }
 
 // ExtractCodeTaintEvidenceRows projects taint findings into deterministic graph
@@ -52,6 +53,7 @@ func ExtractCodeTaintEvidenceRows(inputs []CodeTaintEvidenceInput) []map[string]
 			"class_context": in.ClassContext,
 			"sink_label":    in.SinkLabel,
 			"source_label":  in.SourceLabel,
+			"guard_reason":  in.GuardReason,
 		})
 	}
 	sort.Slice(rows, func(a, b int) bool {

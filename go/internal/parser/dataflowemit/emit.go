@@ -35,10 +35,11 @@ func DataflowFunctionRow(lang, name string, line int, classContext string, fn cf
 	}
 	if fn.Overflow.Any() {
 		row["overflow"] = map[string]any{
-			"blocks":        fn.Overflow.Blocks,
-			"stmts":         fn.Overflow.Stmts,
-			"def_use_edges": fn.Overflow.DefUseEdges,
-			"access_paths":  fn.Overflow.AccessPaths,
+			"blocks":               fn.Overflow.Blocks,
+			"stmts":                fn.Overflow.Stmts,
+			"def_use_edges":        fn.Overflow.DefUseEdges,
+			"control_dependencies": fn.Overflow.ControlDependencies,
+			"access_paths":         fn.Overflow.AccessPaths,
 		}
 	}
 	return row
@@ -67,6 +68,9 @@ func TaintFindingRow(lang, name string, line int, classContext string, finding t
 	}
 	if finding.SourceLabel != "" {
 		row["source_label"] = finding.SourceLabel
+	}
+	if finding.GuardReason != "" {
+		row["guard_reason"] = finding.GuardReason
 	}
 	if len(finding.Neutralized) > 0 {
 		neutralized := make([]string, 0, len(finding.Neutralized))

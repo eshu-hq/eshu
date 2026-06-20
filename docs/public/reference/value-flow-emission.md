@@ -27,8 +27,8 @@ exact set varies by language; see [Per-language coverage](#per-language-coverage
 
 | Bucket | Contents |
 | --- | --- |
-| `dataflow_functions` | Per-function control-flow graphs plus reaching-definition def-to-use edges. |
-| `taint_findings` | Intraprocedural source-to-sink taint findings, each carrying a confidence value and provenance. |
+| `dataflow_functions` | Per-function control-flow graphs plus reaching-definition def-to-use edges. Control-dependence is computed in memory for finding provenance and is not emitted as graph edges. |
+| `taint_findings` | Intraprocedural source-to-sink taint findings, each carrying a confidence value and provenance. Guarded findings may include `guard_reason` with literal values redacted. |
 | `interproc_findings` | Cross-function taint findings resolved **within a single file**; cross-file and cross-package composition is the reducer's job. |
 | `dataflow_summaries` | Durable `summary.Effects` rows for reducer cross-file and cross-package persistence. Emitted only when both repository identity and package import-path metadata are present. |
 | `dataflow_sources` | Durable interprocedural source/sink port rows (Go only today), emitted under the same repository-identity and package import-path gate as `dataflow_summaries`. |
