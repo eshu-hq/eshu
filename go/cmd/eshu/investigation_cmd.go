@@ -20,13 +20,19 @@ type supplyChainExplainEnvelope struct {
 	Error *query.ErrorEnvelope                     `json:"error"`
 }
 
-// investigationExportDeps lets tests inject the explain fetch without a live API.
+// investigationExportDeps lets tests inject the read fetches without a live API.
 type investigationExportDeps struct {
 	FetchSupplyChainExplain func(client *APIClient, filter query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error)
+	FetchAdmissionDecisions func(client *APIClient, params url.Values) (admissionDecisionsEnvelope, error)
+	FetchDriftFindings      func(client *APIClient, body map[string]any) (driftFindingsEnvelope, error)
 }
 
 func defaultInvestigationExportDeps() investigationExportDeps {
-	return investigationExportDeps{FetchSupplyChainExplain: fetchSupplyChainExplain}
+	return investigationExportDeps{
+		FetchSupplyChainExplain: fetchSupplyChainExplain,
+		FetchAdmissionDecisions: fetchAdmissionDecisions,
+		FetchDriftFindings:      fetchDriftFindings,
+	}
 }
 
 func init() {
@@ -62,7 +68,7 @@ rather than a fabricated answer.`,
 		SilenceErrors: true,
 		RunE:          runInvestigationExport,
 	}
-	cmd.Flags().String("family", "", "Investigation family: supply_chain_impact")
+	cmd.Flags().String("family", "", "Investigation family: supply_chain_impact, deployable_unit, or drift")
 	cmd.Flags().StringArray("subject", nil, "Scope key=value (repeatable), e.g. --subject advisory_id=GHSA-...")
 	cmd.Flags().String("format", "json", "Artifact format: json, md, or html")
 	cmd.Flags().String("out", "", "Write the artifact to this path instead of stdout")
@@ -113,6 +119,10 @@ func buildInvestigationExportPacket(cmd *cobra.Command, family query.Investigati
 	switch family {
 	case query.InvestigationFamilySupplyChainImpact:
 		return buildSupplyChainExportPacket(cmd, subject)
+	case query.InvestigationFamilyDeployableUnit:
+		return buildDeployableUnitExportPacket(cmd, subject)
+	case query.InvestigationFamilyDrift:
+		return buildDriftExportPacket(cmd, subject)
 	default:
 		return query.InvestigationEvidencePacket{}, fmt.Errorf(
 			"investigation family %q is recognized but not yet available in this CLI build", family)
@@ -140,17 +150,33 @@ func buildSupplyChainExportPacket(cmd *cobra.Command, subject map[string]string)
 		}
 		return query.InvestigationEvidencePacket{}, err
 	}
-	if envelope.Error != nil {
-		if refusal, ok := refusalFromErrorCode(envelope.Error.Code); ok {
-			return query.NewInvestigationEvidencePacket(query.InvestigationPacketInput{
-				Family:  query.InvestigationFamilySupplyChainImpact,
-				Subject: subjectOrPlaceholder(subject),
-				Refusal: refusal,
-			})
-		}
-		return query.InvestigationEvidencePacket{}, fmt.Errorf("explain failed: %s: %s", envelope.Error.Code, envelope.Error.Message)
+	if refusal, refused, err := refusalFromEnvelopeError(envelope.Error); err != nil {
+		return query.InvestigationEvidencePacket{}, err
+	} else if refused {
+		return refusalPacket(query.InvestigationFamilySupplyChainImpact, subject, refusal)
 	}
 	return query.BuildSupplyChainImpactPacket(envelope.Data, envelope.Truth, packetBoundsFromCmd(cmd))
+}
+
+// refusalPacket builds a valid refusal artifact for a family and scope.
+func refusalPacket(family query.InvestigationFamily, subject map[string]string, refusal query.PacketRefusalState) (query.InvestigationEvidencePacket, error) {
+	return query.NewInvestigationEvidencePacket(query.InvestigationPacketInput{
+		Family:  family,
+		Subject: subjectOrPlaceholder(subject),
+		Refusal: refusal,
+	})
+}
+
+// refusalFromEnvelopeError maps an in-envelope error to a refusal state, or to a
+// CLI error when no refusal mapping applies. A nil error means no refusal.
+func refusalFromEnvelopeError(errEnv *query.ErrorEnvelope) (query.PacketRefusalState, bool, error) {
+	if errEnv == nil {
+		return query.PacketRefusalNone, false, nil
+	}
+	if refusal, ok := refusalFromErrorCode(errEnv.Code); ok {
+		return refusal, true, nil
+	}
+	return query.PacketRefusalNone, false, fmt.Errorf("read failed: %s: %s", errEnv.Code, errEnv.Message)
 }
 
 // packetBoundsFromCmd reads the --max-source-facts override into a bounds value,

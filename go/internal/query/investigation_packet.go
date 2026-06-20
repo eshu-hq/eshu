@@ -244,6 +244,19 @@ type PacketSemanticObservation struct {
 	SourceFactIDs []string `json:"source_fact_ids,omitempty"`
 }
 
+// PacketReproduceStep names a bounded command, route, or tool a reader can run to
+// reproduce the evidence in a packet. It carries handles, never raw payloads.
+type PacketReproduceStep struct {
+	// Description explains what the step reproduces.
+	Description string `json:"description,omitempty"`
+	// Route is the HTTP route that produced the evidence.
+	Route string `json:"route,omitempty"`
+	// Tool is the MCP tool that produced the evidence.
+	Tool string `json:"tool,omitempty"`
+	// Command is the CLI command that produced the evidence.
+	Command string `json:"command,omitempty"`
+}
+
 // PacketAnswer is the short, user-facing answer plan, mirroring the AnswerPacket
 // invariant: no confident summary survives when the answer is unsupported.
 type PacketAnswer struct {
@@ -350,6 +363,9 @@ type InvestigationEvidencePacket struct {
 	MissingEvidence []PacketMissingHop `json:"missing_evidence"`
 	// SemanticObservations is the optional, policy-gated semantic layer.
 	SemanticObservations []PacketSemanticObservation `json:"semantic_observations,omitempty"`
+	// Reproduce lists the bounded commands, routes, or tools that reproduce the
+	// packet's evidence.
+	Reproduce []PacketReproduceStep `json:"reproduce,omitempty"`
 	// Bounds records the per-layer caps and truncation state.
 	Bounds PacketBounds `json:"bounds"`
 	// Redaction records the share-safe redaction posture.

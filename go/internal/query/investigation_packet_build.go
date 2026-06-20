@@ -59,6 +59,8 @@ type InvestigationPacketInput struct {
 	AllowSemantic bool
 	// Limitations carries packet-level caveats.
 	Limitations []string
+	// Reproduce lists bounded commands/routes/tools that reproduce the evidence.
+	Reproduce []PacketReproduceStep
 	// Refusal, when non-empty, builds a structured refusal packet for the given
 	// terminal state instead of a supported answer.
 	Refusal PacketRefusalState
@@ -110,6 +112,7 @@ func NewInvestigationEvidencePacket(in InvestigationPacketInput) (InvestigationE
 		Citations:            nonNilSlice(in.Citations),
 		MissingEvidence:      nonNilSlice(in.MissingEvidence),
 		SemanticObservations: in.SemanticObservations,
+		Reproduce:            in.Reproduce,
 		Redaction:            defaultPacketRedaction(),
 		Limitations:          dedupeStrings(in.Limitations),
 	}

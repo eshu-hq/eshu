@@ -94,6 +94,7 @@ func renderInvestigationPacketMarkdown(packet InvestigationEvidencePacket) strin
 	writeMarkdownGraphAnswers(&b, packet.GraphAnswers)
 	writeMarkdownMissing(&b, packet.MissingEvidence)
 	writeMarkdownSemantic(&b, packet.SemanticObservations)
+	writeMarkdownReproduce(&b, packet.Reproduce)
 
 	b.WriteString("\n## Provenance\n\n")
 	fmt.Fprintf(&b, "- redaction: `%s` v%s\n", packet.Redaction.Profile, packet.Redaction.Version)
@@ -165,6 +166,17 @@ func writeMarkdownSemantic(b *strings.Builder, observations []PacketSemanticObse
 	fmt.Fprintf(b, "\n## Semantic observations (%d, optional)\n\n", len(observations))
 	for _, o := range observations {
 		fmt.Fprintf(b, "- _[%s]_ %s\n", strings.TrimSpace(o.Provider), strings.TrimSpace(o.Observation))
+	}
+}
+
+func writeMarkdownReproduce(b *strings.Builder, steps []PacketReproduceStep) {
+	if len(steps) == 0 {
+		return
+	}
+	b.WriteString("\n## Reproduce\n\n")
+	for _, s := range steps {
+		handle := packetFirstNonEmpty(s.Command, s.Route, s.Tool)
+		fmt.Fprintf(b, "- %s: `%s`\n", strings.TrimSpace(s.Description), strings.TrimSpace(handle))
 	}
 }
 
