@@ -10,8 +10,13 @@ func TestValidatePassesCompleteInventory(t *testing.T) {
 	if got, want := len(report.Surfaces), 4; got != want {
 		t.Fatalf("len(report.Surfaces) = %d, want %d", got, want)
 	}
-	if !surfaceHasResidual(report, "investigation_evidence_packet", 3238) {
-		t.Fatalf("investigation_evidence_packet residuals = %#v, want #3238", report.Surfaces)
+	// #3238 shipped the packet API, MCP, and console surfaces, so it is now a
+	// delivered related issue rather than an open residual gap.
+	if surfaceHasResidual(report, "investigation_evidence_packet", 3238) {
+		t.Fatalf("investigation_evidence_packet still lists #3238 as residual after delivery: %#v", report.Surfaces)
+	}
+	if !surfaceHasRelatedIssue(report, "investigation_evidence_packet", 3238) {
+		t.Fatalf("investigation_evidence_packet related issues = %#v, want delivered #3238", report.Surfaces)
 	}
 	if !surfaceHasRelatedIssue(report, "capability_catalog", 2715) {
 		t.Fatalf("capability_catalog related issues = %#v, want #2715", report.Surfaces)
@@ -64,6 +69,15 @@ func TestValidateFailsMissingSurfaceEvidence(t *testing.T) {
 			want:    CheckConsolePage,
 			target:  "CapabilityMatrixPage",
 			surface: "capability_catalog",
+		},
+		{
+			name: "missing deployable-unit packet console surface",
+			mutate: func(inv *Inventory) {
+				inv.ConsolePages = without(inv.ConsolePages, "ImpactPage")
+			},
+			want:    CheckConsolePage,
+			target:  "ImpactPage",
+			surface: "investigation_evidence_packet",
 		},
 		{
 			name: "stale docs claim",
@@ -153,16 +167,25 @@ func completeInventory() Inventory {
 			"GET /api/v0/surface-inventory",
 			"GET /api/v0/investigation-workflows",
 			"POST /api/v0/investigation-workflows/resolve",
+			"GET /api/v0/investigations/supply-chain/impact/packet",
+			"GET /api/v0/investigations/deployable-unit/packet",
+			"GET /api/v0/investigations/drift/packet",
 		},
 		MCPTools: []string{
 			"get_capability_catalog",
 			"list_investigation_workflows",
 			"resolve_investigation_workflow",
+			"export_supply_chain_impact_packet",
+			"export_deployable_unit_packet",
+			"export_cloud_runtime_drift_packet",
 		},
 		ConsolePages: []string{
 			"CapabilityMatrixPage",
 			"SurfaceInventoryPage",
 			"ServiceReportPage",
+			"VulnDetailPage",
+			"ImpactPage",
+			"CloudDriftPage",
 		},
 		Docs: map[string]string{
 			"docs/public/reference/first-run-evidence.md":            "first-run-evidence redacted truth Next commands Recommended follow-ups Missing evidence complete partial stale failed first-run report --from --format json Outcome Runtime shape First query Diagnosis human-readable onboarding artifact support/debug packet",

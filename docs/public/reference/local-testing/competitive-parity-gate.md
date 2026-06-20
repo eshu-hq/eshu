@@ -76,5 +76,9 @@ expected contracts:
   actionable, explicit about gaps, reproducible, or useful to a reader.
 
 Residual work is linked to existing issues instead of creating duplicate tickets.
-The investigation evidence packet row currently points to #3238 when packet
-surfaces exist but are not yet exposed through every target surface.
+The investigation evidence packet row now validates the packet API routes
+(`/api/v0/investigations/{supply-chain/impact,deployable-unit,drift}/packet`),
+the `export_*_packet` MCP tools, and the console pages that render the packet
+layers, so #3238 is recorded as delivered related work rather than an open
+residual gap. The default checklist has no open residuals; a residual reappears
+only when a future surface ships behind the contract.
