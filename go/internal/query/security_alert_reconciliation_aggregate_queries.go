@@ -44,7 +44,7 @@ WITH security_alert_current AS (
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
     AND (
-      cardinality($1::text[]) = 0
+      COALESCE(cardinality($1::text[]), 0) = 0
       OR fact.payload->>'repository_id' = ANY($1::text[])
       OR fact.payload->>'provider_repository_id' = ANY($1::text[])
       OR fact.payload->>'scope_id' = ANY($1::text[])
@@ -54,7 +54,7 @@ WITH security_alert_current AS (
     AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
     AND ($5 = '' OR fact.payload->'ghsa_ids' ? $5)
     AND (
-      cardinality($8::text[]) = 0
+      COALESCE(cardinality($8::text[]), 0) = 0
       OR fact.payload->>'repository_id' = ANY($8::text[])
       OR fact.payload->>'provider_repository_id' = ANY($8::text[])
       OR fact.payload->>'scope_id' = ANY($8::text[])

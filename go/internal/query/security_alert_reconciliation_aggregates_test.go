@@ -352,9 +352,11 @@ func TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows(
 				"COALESCE(NULLIF(fact.payload->>'provider_repository_id', ''),",
 				"COALESCE(NULLIF(fact.payload->'cve_ids', 'null'::jsonb), '[]'::jsonb)",
 				"COALESCE(NULLIF(fact.payload->'ghsa_ids', 'null'::jsonb), '[]'::jsonb)",
+				"COALESCE(cardinality($1::text[]), 0) = 0",
 				"fact.payload->>'repository_id' = ANY($1::text[])",
 				"fact.payload->>'provider_repository_id' = ANY($1::text[])",
 				"fact.payload->>'scope_id' = ANY($1::text[])",
+				"COALESCE(cardinality($8::text[]), 0) = 0",
 			} {
 				if !strings.Contains(query, want) {
 					t.Fatalf("%s aggregate query missing %q:\n%s", name, want, query)
