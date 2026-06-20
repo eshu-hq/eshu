@@ -126,7 +126,7 @@ func vulnerableDependencyWorkflow() InvestigationWorkflow {
 					Tool:              "explain_supply_chain_impact",
 					Reason:            "explain one reducer-owned impact path before presenting impact as exact, derived, unsupported, stale, or hidden",
 					Params:            []PlaybookParam{inputParam("advisory_id", "advisory_id"), inputParam("cve_id", "cve_id"), inputParam("finding_id", "finding_id"), inputParam("package_id", "package_id"), inputParam("repository_id", "repo_id"), inputParam("subject_digest", "subject_digest")},
-					RequiredInputsAny: []string{"advisory_id", "cve_id", "finding_id", "package_id", "repo_id", "subject_digest"},
+					RequiredInputsAny: []string{"advisory_id", "cve_id", "finding_id"},
 					ExpectedEvidence:  "bounded impact explanation with source path, readiness, missing evidence, and recommended next calls",
 				}},
 			},

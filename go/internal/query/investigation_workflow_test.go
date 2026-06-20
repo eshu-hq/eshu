@@ -215,6 +215,40 @@ func TestVulnerableDependencyWorkflowBlocksUnanchoredEvidenceCalls(t *testing.T)
 	}
 }
 
+func TestVulnerableDependencyWorkflowRequiresAdvisoryAnchorForImpact(t *testing.T) {
+	t.Parallel()
+
+	workflow, ok := LookupInvestigationWorkflow("guided_vulnerable_dependency")
+	if !ok {
+		t.Fatal("guided_vulnerable_dependency missing")
+	}
+	resolved, err := workflow.Resolve(InvestigationWorkflowResolveInput{
+		Inputs: map[string]string{
+			"package_id": "pkg-1",
+			"repo_id":    "repo-checkout",
+			"subject":    "CVE-2026-0001",
+		},
+		MissingEvidence: []string{"impact"},
+	})
+	if err != nil {
+		t.Fatalf("Resolve error = %v", err)
+	}
+	if len(resolved.RecommendedNextCalls) != 0 {
+		t.Fatalf("recommended calls = %#v, want none without advisory, CVE, or finding anchor", resolved.RecommendedNextCalls)
+	}
+	if len(resolved.BlockedNextCalls) != 1 {
+		t.Fatalf("blocked calls = %#v, want impact explanation blocked", resolved.BlockedNextCalls)
+	}
+	call := resolved.BlockedNextCalls[0]
+	if call.ID != "impact_explanation" {
+		t.Fatalf("blocked call ID = %q, want impact_explanation", call.ID)
+	}
+	want := []string{"advisory_id", "cve_id", "finding_id"}
+	if !reflect.DeepEqual(call.RequiredInputsAny, want) {
+		t.Fatalf("required inputs = %#v, want %#v", call.RequiredInputsAny, want)
+	}
+}
+
 func TestInvestigationWorkflowResolveIsDeterministicAndReportsUnmatchedEvidence(t *testing.T) {
 	t.Parallel()
 
