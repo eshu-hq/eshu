@@ -127,12 +127,11 @@ See `doc.go` for the full godoc contract.
   allowlist. It names provider profile ids, source classes, scopes, source
   selectors, limits, redaction mode, and retention posture. Without it, provider
   profiles remain visible in status but source policy stays disabled.
-- `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` — optional deterministic no-network
-  semantic-search override. Accepted values are `hash` and `local_hash`; when
-  set, semantic/hybrid search serves ready persisted local vector rows and
-  reports explicit degraded state when those rows are missing or incompatible.
-  Unset allows one governed `search_documents` provider profile to supply query
-  embeddings.
+- `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` — optional deterministic no-network or
+  auto-local semantic-search selector. `hash` and `local_hash` force ready
+  persisted local vector rows. `auto_hash` selects one governed
+  `search_documents` provider profile when configured and otherwise falls back
+  to local hash query embeddings. Unset allows provider-only auto-selection.
 - `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` — optional selector when more than
   one governed `search_documents` provider profile is configured.
 - `ESHU_GOVERNANCE_MODE`, `ESHU_GOVERNANCE_STATE`,

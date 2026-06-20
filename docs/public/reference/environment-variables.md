@@ -42,7 +42,7 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_NEO4J_URI`, `NEO4J_URI` | Configure the Bolt endpoint for NornicDB or Neo4j. |
 | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | Declare redacted semantic provider profiles using credential handles only; no provider keys. Search profiles include `source_classes:["search_documents"]`, model id, endpoint profile id, and `embedding_dimensions`. |
 | `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | Allowlist hosted semantic extraction and search embedding by provider profile, source class, source scope, limits, redaction posture, and retention posture. |
-| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | Force deterministic no-network local vector builds on the reducer and semantic/hybrid retrieval for API/MCP search with `hash` or `local_hash`; unset allows one governed `search_documents` provider profile to be selected. |
+| `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | Force deterministic no-network local vector builds on the reducer and semantic/hybrid retrieval for API/MCP search with `hash` or `local_hash`; `auto_hash` selects one governed `search_documents` provider profile when configured and otherwise falls back to local hash; unset allows provider-only auto-selection. |
 | `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | Select one governed `search_documents` provider profile when more than one eligible semantic-search profile is configured. |
 | `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` | Gate hosted active-mode collector scheduling before claimable work is planned. |
 | `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` | Gate hosted component-extension scheduling before claimable work is planned. |

@@ -107,10 +107,12 @@ small local proofs, or benchmark baselines that state the corpus size.
 
 The API/MCP/reducer semantic-search selector has two admitted paths. An
 explicit `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` setting forces the
-deterministic no-network local profile. When that override is unset, exactly one
-governed `search_documents` provider profile may supply embeddings if source
-policy, credential source, endpoint profile id, model id, and
-`embedding_dimensions` are configured. Multiple eligible profiles require
+deterministic no-network local profile. Compose's `auto_hash` fallback uses that
+local profile only when no governed `search_documents` provider profile is
+configured. When that override is unset, exactly one governed
+`search_documents` provider profile may supply embeddings if source policy,
+credential source, endpoint profile id, model id, and `embedding_dimensions` are
+configured. Multiple eligible profiles require
 `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` and fail closed without it.
 
 Ready persisted vectors use `VectorRetrievalAuto`: exact cosine below the

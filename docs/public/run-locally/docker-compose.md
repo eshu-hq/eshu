@@ -43,23 +43,50 @@ state, facts, queues, status, content, and recovery data.
 
 ## Semantic Provider Modes
 
-The default stack is a no-provider semantic mode. Leave
+The default stack is a no-external-provider semantic mode with deterministic
+local hash search vectors enabled. Leave
 `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`,
 `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`, and
 `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` unset to keep source-only indexing,
-documentation fact reads, API reads, MCP tools, and reducer projection fully
-deterministic. In this mode `/api/v0/status/semantic-extraction` reports
-semantic extraction as unavailable or policy-disabled instead of failing
-ingestion.
+documentation fact reads, API reads, MCP tools, and reducer projection free of
+external provider calls. Compose sets
+`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` to
+`${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-auto_hash}`, so API, MCP, and reducer
+share the same selector. `auto_hash` yields to one governed `search_documents`
+provider profile when provider profile and source policy variables are set, and
+otherwise uses the local hash embedder. In the no-provider mode
+`/api/v0/status/semantic-extraction` still reports semantic extraction as
+unavailable or policy-disabled instead of failing ingestion, while semantic
+search can use local vector rows built from curated search documents.
 
-The `eshu`, `mcp-server`, and `resolution-engine` services pass those optional
-semantic variables through when they are set in the Compose environment. API,
-MCP, and reducer use the same selector: an explicit
-`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` value forces deterministic local
-vectors, while an unset local override allows exactly one governed
-`search_documents` provider profile to supply embeddings. If more than one
+The `eshu`, `mcp-server`, and `resolution-engine` services pass optional
+semantic provider variables through when they are set in the Compose
+environment. API, MCP, and reducer use the same selector: `hash` and
+`local_hash` force deterministic local vectors, `auto_hash` prefers one
+governed `search_documents` provider profile and falls back to local hash, and
+an unset local override allows provider-only auto-selection. If more than one
 eligible search provider profile is configured, set
 `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`.
+
+First-run diagnostic: after bootstrap and reducer projection finish, call
+`/api/v0/search/semantic` with a bounded semantic search request and inspect
+`retrieval_state`:
+
+```bash
+curl -sS http://localhost:8080/api/v0/search/semantic \
+  -H 'Content-Type: application/json' \
+  -d '{"repo_id":"local","query":"deployment entrypoints","mode":"semantic","limit":5,"timeout_ms":1000}'
+```
+
+`semantic_active` means compatible vector rows are ready and serving
+`mode=semantic` requests. `index_unready` means the selected embedder is
+configured but vector rows are not ready yet; check reducer progress and retry
+after projection catches up. `semantic_unavailable` means the service was
+started without either an auto/local hash selector or a governed
+`search_documents` provider profile. Use
+`/api/v0/status/semantic-extraction` to inspect real-provider governance state;
+the no-external-provider default keeps semantic extraction unavailable while
+local semantic search remains no-network.
 
 For a local gateway or Ollama-style development profile, use the
 `local_dev_profile` credential-source kind and store only a profile handle in
@@ -93,15 +120,17 @@ than shell history or Compose command lines.
 
 No-Regression Evidence: `go test ./internal/runtime -run
 'TestDefaultComposePassesSemanticSearchConfigToReadersAndVectorBuilder|TestDockerComposeDocsDescribeSemanticProviderModes'
--count=1` proves the default Compose stack passes optional semantic profile,
-policy, and search-provider selector config to API, MCP, and reducer, while
-bootstrap and ingester stay on deterministic no-provider defaults.
+-count=1` proves the default Compose stack enables deterministic local hash
+search vectors for API, MCP, and reducer, passes optional semantic profile,
+policy, and search-provider selector config only when set, and keeps bootstrap
+and ingester on deterministic no-provider defaults.
 
-Observability Evidence: provider-backed vector builds are still surfaced through
-bounded search-vector build results, Postgres query/exec spans, semantic-search
-route spans, redacted provider profile status, retrieval state fields, and
-vector metadata failure classes. Compose adds no raw prompt, credential,
-endpoint, provider body, path, or document id to logs or metric labels.
+Observability Evidence: local hash and provider-backed vector builds are still
+surfaced through bounded search-vector build results, Postgres query/exec spans,
+semantic-search route spans, retrieval state fields, and vector metadata failure
+classes. Provider-backed profiles additionally report redacted provider profile
+status. Compose adds no raw prompt, credential, endpoint, provider body, path,
+or document id to logs or metric labels.
 
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
 `timothyswt/nornicdb-cpu-bge:v1.1.6@sha256:e448ccf5cd1c1ff994c6316a1a2c5b06b19b4a3c6545660fa04f43c457625692`.

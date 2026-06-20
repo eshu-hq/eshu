@@ -105,7 +105,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED", Type: VarBool, Default: "false", Subsystem: "semantic", Description: "Default-off flag permitting real provider traffic (requires security review)."},
 	{Name: "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON", Type: VarString, Subsystem: "semantic", Description: "JSON array of semantic provider profile configurations, including optional search embedding dimensions."},
 	{Name: "ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED", Type: VarBool, Default: "false", Subsystem: "semantic", Description: "Enable the semantic-provider worker claim loop."},
-	{Name: "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER", Type: VarEnum, Subsystem: "semantic", Allowed: []string{"hash", "local_hash"}, Description: "Explicit deterministic no-network override for API, MCP, and reducer semantic search."},
+	{Name: "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER", Type: VarEnum, Subsystem: "semantic", Allowed: []string{"hash", "local_hash", "auto_hash"}, Description: "Deterministic no-network or auto-local semantic search selector for API, MCP, and reducer."},
 	{Name: "ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID", Type: VarString, Subsystem: "semantic", Description: "Selects one governed search_documents provider profile when multiple semantic search providers are configured."},
 
 	// component

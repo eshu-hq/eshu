@@ -34,10 +34,11 @@ handling does not rebuild a full corpus index. The response reports
 bounds returned results.
 API, MCP, and reducer share the semantic-search embedder selector. Setting
 `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` forces the
-deterministic no-network profile. When unset, exactly one governed
-`search_documents` provider profile may supply embeddings if the profile
-declares source policy, model id, endpoint profile id, credential source, and
-positive `embedding_dimensions`; multiple eligible profiles require
+deterministic no-network profile. `auto_hash` uses that local profile only when
+no governed `search_documents` provider profile is configured. When unset,
+exactly one governed `search_documents` provider profile may supply embeddings
+if the profile declares source policy, model id, endpoint profile id, credential
+source, and positive `embedding_dimensions`; multiple eligible profiles require
 `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`. The reducer builds
 active-generation vector sidecar rows and the API uses those persisted rows for
 `semantic` and `hybrid` modes only when the stored vector identity matches the

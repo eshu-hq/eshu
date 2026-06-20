@@ -10,7 +10,9 @@
 ## Invariants this package enforces
 
 - API, MCP, and reducer must share the same selected vector identity.
-- Explicit local hash mode wins over provider auto-selection.
+- Explicit local hash mode wins over provider auto-selection. `auto_hash` is
+  the Compose fallback mode: it yields to one governed `search_documents`
+  profile and otherwise falls back to local hash mode.
 - Provider auto-selection is allowed only for a single governed
   `search_documents` profile that is admitted by semantic policy and egress,
   unless a selector is configured.

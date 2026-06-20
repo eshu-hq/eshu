@@ -17,6 +17,8 @@ The semantic and hybrid search path has two admitted embedding sources:
 - `go/internal/searchembed` owns the local feature-hash embedder.
 - API/MCP/reducer can force `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or
   `local_hash` when compatible persisted local vectors are ready.
+- Compose can use `auto_hash` to fall back to local hash only when no governed
+  `search_documents` provider profile is configured.
 - With that override unset, exactly one governed `search_documents` provider
   profile can become the default semantic-search embedder. The profile must
   declare source policy, credential source, endpoint profile id, model id, and
