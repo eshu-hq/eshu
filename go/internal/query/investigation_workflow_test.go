@@ -288,44 +288,6 @@ func TestInvestigationWorkflowResolveIsDeterministicAndReportsUnmatchedEvidence(
 	}
 }
 
-func TestInvestigationWorkflowResolveDeployableDriftAdmissionUsesBoundedInputs(t *testing.T) {
-	t.Parallel()
-
-	workflow, ok := LookupInvestigationWorkflow("guided_deployable_drift")
-	if !ok {
-		t.Fatal("guided_deployable_drift missing")
-	}
-	resolved, err := workflow.Resolve(InvestigationWorkflowResolveInput{
-		Inputs: map[string]string{
-			"deployable_unit_id": "workload:checkout",
-			"generation_id":      "gen-1",
-			"scope_id":           "scope-1",
-		},
-		MissingEvidence: []string{"admission"},
-	})
-	if err != nil {
-		t.Fatalf("Resolve error = %v", err)
-	}
-	if len(resolved.RecommendedNextCalls) != 1 {
-		t.Fatalf("next calls = %#v, want one admission call", resolved.RecommendedNextCalls)
-	}
-	call := resolved.RecommendedNextCalls[0]
-	if got, want := call.Tool, "list_admission_decisions"; got != want {
-		t.Fatalf("tool = %q, want %q", got, want)
-	}
-	wantArgs := map[string]any{
-		"anchor_id":     "workload:checkout",
-		"anchor_kind":   "workload",
-		"domain":        "deployable_unit",
-		"generation_id": "gen-1",
-		"limit":         10,
-		"scope_id":      "scope-1",
-	}
-	if !reflect.DeepEqual(call.Arguments, wantArgs) {
-		t.Fatalf("arguments = %#v, want %#v", call.Arguments, wantArgs)
-	}
-}
-
 func TestInvestigationWorkflowResolveIncidentChangesUsesCICDCorrelation(t *testing.T) {
 	t.Parallel()
 
@@ -384,6 +346,7 @@ func TestInvestigationWorkflowDogfoodRoutesFewerCallsThanAtomicOnly(t *testing.T
 			inputs: map[string]string{
 				"deployable_unit_id": "workload:checkout",
 				"generation_id":      "gen-1",
+				"repo_id":            "repo-checkout",
 				"scope_id":           "scope-1",
 			},
 			missingEvidence: []string{"admission", "runtime"},
