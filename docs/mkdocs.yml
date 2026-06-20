@@ -102,6 +102,7 @@ nav:
       - Overview: reference/local-testing.md
       - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
       - Answer Quality Scorecard: reference/local-testing/answer-quality-scorecard.md
+      - Ask Eshu Local Proof: reference/local-testing/ask-eshu-local-proof.md
       - Evidence Packet Dogfood Benchmark: reference/local-testing/evidence-packet-dogfood.md
       - Competitive Parity Gate: reference/local-testing/competitive-parity-gate.md
       - Remote Collector E2E: reference/local-testing/remote-collector-e2e.md
