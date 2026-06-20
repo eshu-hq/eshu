@@ -4,6 +4,10 @@ Use this page with
 [Remote Collector E2E](remote-collector-e2e.md) when a remote Compose proof
 runs in representative corpus mode.
 
+Use [Representative Corpus Suite](representative-corpus-suite.md) for the
+issue #3170 corpus tiers, required domains, privacy rules, metrics, and
+thresholds that gate reducer-scale implementation.
+
 After a representative stack finishes the required corpus pass, run:
 
 ```bash
