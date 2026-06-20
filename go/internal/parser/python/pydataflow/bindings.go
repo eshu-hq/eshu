@@ -47,26 +47,61 @@ func firstIdentifier(node *tree_sitter.Node, source []byte) string {
 	return ""
 }
 
-// assignDefsUses splits a Python assignment or augmented assignment into defined
-// and used bindings. A plain identifier (or a tuple/list of identifiers) target
-// is a definition; an attribute or subscript target reads its base (attribute and
-// element flow are modeled later). An augmented assignment (+=) also reads the
-// target.
-func assignDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string) {
+// assignDefsUsesWithOptions splits a Python assignment or augmented assignment
+// into defined and used bindings. A plain identifier (or a tuple/list of them)
+// target is a definition; an attribute/subscript target is a field-sensitive
+// access-path definition. An augmented assignment (+=) also reads the target.
+func assignDefsUsesWithOptions(node *tree_sitter.Node, source []byte, aliases pyBindingAliases, options pyAccessPathOptions) (defs, uses []string) {
 	left := node.ChildByFieldName("left")
 	right := node.ChildByFieldName("right")
 	switch node.Kind() {
 	case "assignment":
-		defs = append(defs, assignTargets(left, source)...)
-		uses = append(uses, targetBaseUses(left, source)...)
+		defs, uses = pyTargetDefUses(left, source, aliases, options, false)
 	case "augmented_assignment":
-		targets := assignTargets(left, source)
-		defs = append(defs, targets...)
-		uses = append(uses, targets...) // augmented assignment reads its target
-		uses = append(uses, targetBaseUses(left, source)...)
+		defs, uses = pyTargetDefUses(left, source, aliases, options, true)
 	}
 	if right != nil {
-		uses = append(uses, exprUses(right, source)...)
+		uses = append(uses, exprUsesWithOptions(right, source, aliases, options)...)
+	}
+	return defs, uses
+}
+
+// pyTargetDefUses renders an assignment target. A bare identifier or a
+// tuple/list element is a definition; an attribute/subscript target is a
+// field-sensitive access-path definition (and, when compound, also a read of
+// itself). A target that is not a precise path reads its components but defines
+// nothing.
+func pyTargetDefUses(left *tree_sitter.Node, source []byte, aliases pyBindingAliases, options pyAccessPathOptions, readsTarget bool) (defs, uses []string) {
+	if left == nil {
+		return nil, nil
+	}
+	switch left.Kind() {
+	case "identifier":
+		name := nodeText(left, source)
+		defs = append(defs, name)
+		if readsTarget {
+			uses = append(uses, name)
+		}
+	case "pattern_list", "tuple_pattern", "list_pattern":
+		cursor := left.Walk()
+		defer cursor.Close()
+		for _, child := range left.NamedChildren(cursor) {
+			child := child
+			d, u := pyTargetDefUses(&child, source, aliases, options, readsTarget)
+			defs = append(defs, d...)
+			uses = append(uses, u...)
+		}
+	case "attribute", "subscript":
+		if name, ok := pyAssignTargetPathWithOptions(left, source, aliases, options); ok && name != "" {
+			defs = append(defs, name)
+			if readsTarget {
+				uses = append(uses, name)
+			}
+		} else {
+			uses = append(uses, exprUsesWithOptions(left, source, aliases, options)...)
+		}
+	default:
+		uses = append(uses, exprUsesWithOptions(left, source, aliases, options)...)
 	}
 	return defs, uses
 }
@@ -96,38 +131,33 @@ func assignTargets(left *tree_sitter.Node, source []byte) []string {
 	}
 }
 
-// targetBaseUses returns the bindings read by a non-identifier assignment target
-// (the base of an attribute or subscript target), which is a use, not a def.
-func targetBaseUses(left *tree_sitter.Node, source []byte) []string {
-	if left == nil {
-		return nil
-	}
-	switch left.Kind() {
-	case "identifier", "pattern_list", "tuple_pattern", "list_pattern":
-		return nil
-	default:
-		return exprUses(left, source)
-	}
+// exprUses returns the field-sensitive binding names read within an expression
+// subtree with no alias context, for callers (with/except value reads) that do
+// not thread the lowerer's alias map.
+func exprUses(node *tree_sitter.Node, source []byte) []string {
+	return exprUsesWithOptions(node, source, pyBindingAliases{}, pyAccessPathOptions{})
 }
 
-// exprUses returns the identifier names read within an expression subtree. It
-// does not descend into nested function definitions or lambdas, so a closure's
-// captured variables are not attributed to the enclosing function. For an
-// attribute access (a.b) only the object (a) is a use; the attribute name (b) is
-// not a variable.
-func exprUses(node *tree_sitter.Node, source []byte) []string {
+// exprUsesWithOptions returns the field-sensitive binding names read within an
+// expression subtree. An attribute read records its access path plus the base
+// object; a subscript read records the whole-container approximation and its
+// components. By default it does not descend into nested function definitions or
+// lambdas; a lambda passed as a call argument is an exception (see
+// pyFuncLiteralCaptureUses) so a captured variable is attributed to the
+// enclosing function.
+func exprUsesWithOptions(node *tree_sitter.Node, source []byte, aliases pyBindingAliases, options pyAccessPathOptions) []string {
 	if node == nil {
 		return nil
 	}
 	var uses []string
-	var visit func(*tree_sitter.Node)
-	visit = func(current *tree_sitter.Node) {
-		if current == nil || isNestedFunction(current.Kind()) {
+	var visit func(*tree_sitter.Node, bool)
+	visit = func(current *tree_sitter.Node, includeFuncLiteralCaptures bool) {
+		if current == nil {
 			return
 		}
-		if current.Kind() == "attribute" {
-			if obj := current.ChildByFieldName("object"); obj != nil {
-				visit(obj)
+		if isNestedFunction(current.Kind()) {
+			if includeFuncLiteralCaptures {
+				uses = append(uses, pyFuncLiteralCaptureUses(current, source, aliases, options)...)
 			}
 			return
 		}
@@ -135,24 +165,107 @@ func exprUses(node *tree_sitter.Node, source []byte) []string {
 			// Only the value of name=value is a use; the keyword name is not a
 			// variable, so visiting it would invent a use of a same-named binding.
 			if value := current.ChildByFieldName("value"); value != nil {
-				visit(value)
+				visit(value, includeFuncLiteralCaptures)
 			}
 			return
 		}
-		if current.Kind() == "identifier" {
-			if name := nodeText(current, source); name != "" {
+		if name, ok := pyAccessPathWithOptions(current, source, aliases, options); ok {
+			if name != "" {
 				uses = append(uses, name)
+				if current.Kind() == "attribute" {
+					uses = appendBaseAccessPath(uses, current, source, aliases, options)
+				}
+			}
+			// An attribute read records its path plus base object and stops: the
+			// attribute name is not a use. A subscript read records its whole-
+			// container path but does NOT stop, so the child walk still collects
+			// the index expression's uses (and the base object identifier).
+			if current.Kind() == "attribute" {
+				return
 			}
 		}
 		cursor := current.Walk()
 		defer cursor.Close()
 		for _, child := range current.NamedChildren(cursor) {
 			child := child
-			visit(&child)
+			visit(&child, includeFuncLiteralCaptures || pyInvokesFuncLiteral(current.Kind(), child.Kind()))
 		}
 	}
-	visit(node)
+	visit(node, false)
 	return uses
+}
+
+// pyInvokesFuncLiteral reports whether a child of a call is in argument position
+// (or is the callee of an immediately-invoked lambda), so a lambda there is
+// invoked and its captured variables should be attributed to the enclosing
+// function. In Python only a lambda can be a function literal in expression
+// position; a nested def is a statement and never an argument.
+func pyInvokesFuncLiteral(parentKind, childKind string) bool {
+	if parentKind != "call" {
+		return false
+	}
+	return childKind == "argument_list" || isNestedFunction(childKind)
+}
+
+// pyFuncLiteralCaptureUses returns the free variables an invoked closure reads:
+// the uses in its body minus its own parameters and inner-scope assignment
+// targets, so inner-scope shadowing (and lambda-parameter shadowing) is
+// respected.
+func pyFuncLiteralCaptureUses(node *tree_sitter.Node, source []byte, aliases pyBindingAliases, options pyAccessPathOptions) []string {
+	local := map[string]struct{}{}
+	for _, name := range paramNames(node, source) {
+		local[name] = struct{}{}
+	}
+	body := node.ChildByFieldName("body")
+	if body == nil {
+		return nil
+	}
+	walkScopeBindings(body, func(child *tree_sitter.Node) {
+		switch child.Kind() {
+		case "assignment", "augmented_assignment":
+			if left := child.ChildByFieldName("left"); left != nil {
+				for _, def := range assignTargets(left, source) {
+					local[def] = struct{}{}
+				}
+			}
+		case "named_expression":
+			if name := child.ChildByFieldName("name"); name != nil && name.Kind() == "identifier" {
+				local[nodeText(name, source)] = struct{}{}
+			}
+		}
+	})
+	uses := exprUsesWithOptions(body, source, aliases, options)
+	out := make([]string, 0, len(uses))
+	for _, use := range uses {
+		if _, shadowed := local[accessPathBase(use)]; shadowed {
+			continue
+		}
+		out = appendUnique(out, use)
+	}
+	return out
+}
+
+// walkScopeBindings visits a closure body without descending into further nested
+// function scopes, so only the closure's own inner-scope definitions are
+// collected (a doubly-nested closure has its own scope).
+func walkScopeBindings(scope *tree_sitter.Node, visit func(*tree_sitter.Node)) {
+	var walk func(*tree_sitter.Node)
+	walk = func(current *tree_sitter.Node) {
+		if current == nil {
+			return
+		}
+		visit(current)
+		cursor := current.Walk()
+		defer cursor.Close()
+		for _, child := range current.NamedChildren(cursor) {
+			child := child
+			if isNestedFunction(child.Kind()) {
+				continue
+			}
+			walk(&child)
+		}
+	}
+	walk(scope)
 }
 
 // asPatternDefsUses splits an `expr as target` pattern (used by with-items and

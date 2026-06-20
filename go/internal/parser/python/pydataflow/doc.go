@@ -8,13 +8,23 @@
 // conservative over-approximation); constructs not modeled precisely yet
 // contribute their identifier uses but no
 // definitions, which can miss a reaching definition but never invents a false
-// edge. Nested function definitions and lambdas are not descended into; closures
-// are modeled by a later pass. Parameters are modeled as definitions in the entry
-// block so value flow from a parameter into the body is captured.
+// edge. Parameters are modeled as definitions in the entry block so value flow
+// from a parameter into the body is captured.
 //
-// For an attribute access (a.b) only the object (a) is a use; the attribute name
-// is not a variable. Tuple and list assignment targets define each of their
-// identifiers. The result is bounded and deterministic via the cfg engine.
+// Bindings are field-sensitive (accesspaths.go), mirroring the Go template: an
+// attribute target obj.attr defines the access path obj.attr (and an attribute
+// read records obj.attr plus the base object obj); a subscript d[k] lowers to the
+// explicitly labeled whole-container approximation d[*]; and an attribute write
+// through a reference alias (a = obj; a.attr = x) normalizes to the aliased
+// object. Paths deeper than cfg.Limits.MaxAccessPathParts truncate to a
+// "*"-suffixed prefix and count Overflow.AccessPaths, never a silent drop. Only
+// the base segment of a multi-part path is alias-resolved, so a bare identifier
+// read keeps its reaching-def identity. A lambda passed as a call argument is
+// descended into to attribute its captured (free) variables to the enclosing
+// function, excluding its own parameters and inner-scope assignments; a
+// non-invoked lambda or a nested def is not. Tuple and list assignment targets
+// define each of their identifiers. The result is bounded and deterministic via
+// the cfg engine.
 //
 // TaintFacts derives intraprocedural taint annotations (sources, sinks,
 // sanitizers) for a function from a small, conservative Python catalog mapped
