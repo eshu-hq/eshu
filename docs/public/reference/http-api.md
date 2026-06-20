@@ -135,3 +135,23 @@ Cypher/SQL sandbox wiring; scoped-token support.
 - [Capability Conformance Spec](capability-conformance-spec.md)
 - [Runtime Admin API](runtime-admin-api.md)
 - [Local Testing](local-testing.md)
+
+## Answer-narration status seam — hot-path evidence (issue #3263 follow-up)
+
+`StatusHandler.NarrationPosture` is an optional `func() status.AnswerNarrationStatus`
+field that wires `GET /api/v0/status/answer-narration` to the in-memory
+governance-resolved posture from the `POST /api/v0/ask` narration path.
+
+No-Regression Evidence: when `NarrationPosture` is nil (the default for all
+existing callers) the handler is byte-for-byte unchanged — no branch is taken
+and no extra work is performed. When set, the field calls a bounded in-memory
+`governance.ResolvePosture` value and issues NO database query, graph read,
+Cypher statement, worker claim, lease, or queue operation (strictly cheaper than
+the prior path). No Cypher, graph write, worker/lease/queue, concurrency knob,
+or batching change. Verified: `go test ./internal/query ./cmd/api -count=1`
+green.
+
+No-Observability-Change: no new metric, span, log line, audit table, schema
+column, or status field is introduced. The answer-narration status response
+shape is unchanged; the existing redacted fields now carry real governed values
+when the posture func is wired.
