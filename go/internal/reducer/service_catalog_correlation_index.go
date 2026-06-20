@@ -86,6 +86,7 @@ func buildServiceCatalogCorrelationIndex(envelopes []facts.Envelope) serviceCata
 	sort.SliceStable(index.repositories, func(i, j int) bool {
 		return index.repositories[i].repositoryID < index.repositories[j].repositoryID
 	})
+	index.repositoryLookup = buildServiceCatalogRepositoryLookup(index.repositories)
 	return index
 }
 
@@ -166,7 +167,7 @@ func classifyServiceCatalogEntity(
 	links := index.repoLinks[key]
 	if len(links) == 0 {
 		if entity.sourceRepositoryID != "" {
-			return classifyRepoLocalServiceCatalogEntity(entity, decision, index.repositories)
+			return classifyRepoLocalServiceCatalogEntity(entity, decision, index.repositoryLookup)
 		}
 		decision.Outcome = ServiceCatalogCorrelationUnresolved
 		decision.Reason = "catalog entity has no repository link evidence"
@@ -174,7 +175,7 @@ func classifyServiceCatalogEntity(
 		return decision
 	}
 
-	activeMatches, staleMatches, rejectedLinks := matchServiceCatalogRepositories(links, index.repositories)
+	activeMatches, staleMatches, rejectedLinks := matchServiceCatalogRepositories(links, index.repositoryLookup)
 	decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, serviceCatalogRepositoryLinkFactIDs(links)...)
 	switch len(activeMatches) {
 	case 0:
@@ -225,9 +226,9 @@ func classifyServiceCatalogEntity(
 func classifyRepoLocalServiceCatalogEntity(
 	entity serviceCatalogEntityEvidence,
 	decision ServiceCatalogCorrelationDecision,
-	repositories []serviceCatalogRepositoryEvidence,
+	lookup serviceCatalogRepositoryLookup,
 ) ServiceCatalogCorrelationDecision {
-	activeMatches, staleMatches := matchRepoLocalServiceCatalogRepository(entity.sourceRepositoryID, repositories)
+	activeMatches, staleMatches := matchRepoLocalServiceCatalogRepository(entity.sourceRepositoryID, lookup)
 	switch len(activeMatches) {
 	case 0:
 		if len(staleMatches) > 0 {
@@ -313,14 +314,14 @@ type serviceCatalogRepositoryMatch struct {
 
 func matchServiceCatalogRepositories(
 	links []serviceCatalogRepositoryLinkEvidence,
-	repositories []serviceCatalogRepositoryEvidence,
+	lookup serviceCatalogRepositoryLookup,
 ) ([]serviceCatalogRepositoryMatch, []serviceCatalogRepositoryEvidence, int) {
 	var active []serviceCatalogRepositoryMatch
 	var stale []serviceCatalogRepositoryEvidence
 	rejected := 0
 	for _, link := range links {
 		if link.repositoryID != "" {
-			linkActive, linkStale := matchServiceCatalogRepositoryID(link, repositories)
+			linkActive, linkStale := matchServiceCatalogRepositoryID(link, lookup)
 			active = append(active, linkActive...)
 			stale = append(stale, linkStale...)
 			continue
@@ -329,7 +330,7 @@ func matchServiceCatalogRepositories(
 			rejected++
 			continue
 		}
-		linkActive, linkStale := matchServiceCatalogRepositoryURL(link, repositories)
+		linkActive, linkStale := matchServiceCatalogRepositoryURL(link, lookup)
 		active = append(active, linkActive...)
 		stale = append(stale, linkStale...)
 	}
@@ -338,18 +339,13 @@ func matchServiceCatalogRepositories(
 
 func matchServiceCatalogRepositoryID(
 	link serviceCatalogRepositoryLinkEvidence,
-	repositories []serviceCatalogRepositoryEvidence,
+	lookup serviceCatalogRepositoryLookup,
 ) ([]serviceCatalogRepositoryMatch, []serviceCatalogRepositoryEvidence) {
 	var active []serviceCatalogRepositoryMatch
 	var stale []serviceCatalogRepositoryEvidence
-	for _, repository := range repositories {
-		if repository.repositoryID != link.repositoryID {
-			continue
-		}
-		if repository.tombstone {
-			stale = append(stale, repository)
-			continue
-		}
+	activeRepositories, staleRepositories := lookup.byRepositoryID(link.repositoryID)
+	stale = append(stale, staleRepositories...)
+	for _, repository := range activeRepositories {
 		active = append(active, serviceCatalogRepositoryMatch{
 			link:       link,
 			repository: repository,
@@ -363,26 +359,15 @@ func matchServiceCatalogRepositoryID(
 
 func matchRepoLocalServiceCatalogRepository(
 	repositoryID string,
-	repositories []serviceCatalogRepositoryEvidence,
+	lookup serviceCatalogRepositoryLookup,
 ) ([]serviceCatalogRepositoryEvidence, []serviceCatalogRepositoryEvidence) {
-	var active []serviceCatalogRepositoryEvidence
-	var stale []serviceCatalogRepositoryEvidence
-	for _, repository := range repositories {
-		if repository.repositoryID != repositoryID {
-			continue
-		}
-		if repository.tombstone {
-			stale = append(stale, repository)
-			continue
-		}
-		active = append(active, repository)
-	}
+	active, stale := lookup.byRepositoryID(repositoryID)
 	return uniqueServiceCatalogRepositories(active), uniqueServiceCatalogRepositories(stale)
 }
 
 func matchServiceCatalogRepositoryURL(
 	link serviceCatalogRepositoryLinkEvidence,
-	repositories []serviceCatalogRepositoryEvidence,
+	lookup serviceCatalogRepositoryLookup,
 ) ([]serviceCatalogRepositoryMatch, []serviceCatalogRepositoryEvidence) {
 	linkKey := canonicalPackageSourceURLKey(link.repositoryURL)
 	if linkKey == "" {
@@ -390,14 +375,9 @@ func matchServiceCatalogRepositoryURL(
 	}
 	var active []serviceCatalogRepositoryMatch
 	var stale []serviceCatalogRepositoryEvidence
-	for _, repository := range repositories {
-		if canonicalPackageSourceURLKey(repository.remoteURL) != linkKey {
-			continue
-		}
-		if repository.tombstone {
-			stale = append(stale, repository)
-			continue
-		}
+	activeRepositories, staleRepositories := lookup.byCanonicalURL(linkKey)
+	stale = append(stale, staleRepositories...)
+	for _, repository := range activeRepositories {
 		outcome := ServiceCatalogCorrelationDerived
 		reason := "catalog repository link matches repository remote after git URL canonicalization"
 		strength := 1
