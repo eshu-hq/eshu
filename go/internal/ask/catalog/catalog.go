@@ -81,9 +81,11 @@ type surfaceRecord struct {
 }
 
 // Parse reads the canonical surface-inventory JSON and returns a Catalog of the
-// implemented api_route and mcp_tool surfaces. Entries are unannotated
-// (BackendUnknown, CostHigh) until Annotate runs. A nil or malformed document is
-// an error; an empty surface list is valid and yields an empty catalog.
+// implemented api_route and mcp_tool surfaces. Side-effecting surfaces listed in
+// mutatingSurfaces are excluded so the planner catalog is read-only by
+// construction. Entries are unannotated (BackendUnknown, CostHigh) until
+// Annotate runs. A nil or malformed document is an error; an empty surface list
+// is valid and yields an empty catalog.
 func Parse(inventoryJSON []byte) (*Catalog, error) {
 	var env inventoryEnvelope
 	if err := json.Unmarshal(inventoryJSON, &env); err != nil {
@@ -96,6 +98,11 @@ func Parse(inventoryJSON []byte) (*Catalog, error) {
 		}
 		kind := SurfaceKind(rec.Category)
 		if kind != KindAPIRoute && kind != KindMCPTool {
+			continue
+		}
+		if isMutatingSurface(rec.Name) {
+			// Ask Eshu is read-only; side-effecting surfaces never enter the
+			// planner catalog.
 			continue
 		}
 		entries = append(entries, Entry{
