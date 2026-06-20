@@ -236,24 +236,39 @@ Mapping rules (normative for adopters):
 ## 6. Unsupported-Language Fallback Semantics
 
 Eshu parses 34+ languages; only a subset has the AST depth for typed
-receiver/scope artifacts. Fallback is explicit and tiered:
+receiver/scope artifacts. Fallback is explicit and tiered. The load-bearing
+rule is the **hint-preservation invariant** below: a tier describes how *much* a
+language can populate, never permission to drop a hint it emits today.
 
-- **Tier A — typed-capable** (Go, TypeScript/JavaScript, Python, Java; the
-  receiver-constrained set): MAY adopt `codeartifact` types. Their adapters
-  produce both the typed value and the identical bucket row.
-- **Tier B — symbol-only** (Rust, C/C++, C#, Kotlin, etc.): emit symbols and
-  calls with name/span but `Receiver == nil` and `ResolutionEvidence == nil`.
-  The reducer's existing name-and-scope resolution is unchanged. The contract
-  explicitly permits nil receiver/resolution — it is **not** a gap to be
-  fabricated.
+- **Tier A — receiver-capable**: languages whose adapters already emit
+  receiver/type or resolution hints that a reducer resolver consumes today —
+  Go (`full_name`, method-return chains), TypeScript/JavaScript
+  (`inferred_obj_type`, import aliases), Python (`class_context`, qualified
+  `full_name`), Java (`inferred_obj_type`, `enclosing_class_contexts`), Rust
+  (`inferred_obj_type` via `go/internal/parser/rust/helpers.go`, consumed by
+  `resolveRustTraitBoundReceiverCallee`), Groovy (`inferred_obj_type`), and
+  Kotlin/C# (constructor/return-chain and explicit-type receiver inference).
+  These MAY adopt the typed `ReceiverHint` and MUST populate it from the same
+  evidence they emit today.
+- **Tier B — symbol-only**: languages that emit no receiver/type hint today
+  (e.g. C/C++ and plain-scripting adapters). Their typed rows carry
+  `Receiver == nil` and `ResolutionEvidence == nil` **because the parser has no
+  such evidence**, not as a downgrade. The reducer's name-and-scope resolution
+  is unchanged.
 - **Tier C — non-AST / declarative** (YAML, HCL, Dockerfile, SQL, raw text):
   out of scope for the call/scope contract. They keep their current buckets.
   `codeartifact` types are never required for them.
 
-A language never "downgrades silently": Tier B/C adapters that cannot supply a
-receiver hint emit nil, and the reducer continues with name-based resolution at
-the existing (lower) confidence tier. No tier is invented to make an edge look
-more certain than the evidence supports (honesty contract, ADR #2222 §3).
+**Hint-preservation invariant (normative):** adopting the typed layer for any
+language MUST preserve every receiver/type/resolution hint key that language
+emits today — `ToBucketRow()` is byte-identical to the current payload, proven
+per language by the adoption golden (§5). `Receiver`/`ResolutionEvidence` may be
+nil **only** where the language emits no such hint today. A receiver-capable
+language is never reclassified as symbol-only; doing so would regress the
+reducer's `MethodTypeInferred` resolution (e.g. Rust trait-bound receivers via
+`resolveRustTraitBoundReceiverCallee`, or Groovy/Java `inferred_obj_type`). No
+tier is invented to make an edge look more certain than the evidence supports
+(honesty contract, ADR #2222 §3).
 
 ## 7. Performance And Storage Cost Estimate
 
