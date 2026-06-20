@@ -23,6 +23,7 @@ import (
 func mountAskAndNarration(
 	getenv func(string) string,
 	mux *http.ServeMux,
+	inProcessHandler http.Handler,
 	apiKey string,
 	statusHandler *query.StatusHandler,
 	logger *slog.Logger,
@@ -30,7 +31,14 @@ func mountAskAndNarration(
 	// Build the handler first. AdapterReady() is true only when every
 	// construction step succeeded: profile found, provider.NewAdapter built,
 	// engine built. A nil Asker (any failure) makes AdapterReady() false.
-	ask := buildAskHandler(getenv, mux, apiKey, logger)
+	//
+	// inProcessHandler — NOT the bare mux — backs the engine's in-process MCP
+	// runner. It is the scoped-auth-middleware-wrapped handler, so every inner
+	// tool dispatch re-runs the scoped-route gate under the caller's token; a
+	// scoped caller can therefore only reach routes that are themselves scope-
+	// safe (see scopedHTTPRouteSupportsTenantFilter). The ask handler itself is
+	// still mounted on mux below.
+	ask := buildAskHandler(getenv, inProcessHandler, apiKey, logger)
 
 	// Build the governed narration posture from real adapter readiness, not
 	// merely profile presence. This is the invariant that fixes the consistency

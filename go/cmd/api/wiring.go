@@ -169,7 +169,13 @@ func wireAPI(
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
 
-	mountAskAndNarration(getenv, apiMux, apiKey, router.Status, logger)
+	// The Ask engine's in-process runner must dispatch inner tool calls through
+	// the scoped-auth-wrapped handler (authedMux below) so each inner read
+	// re-runs the scoped-route gate under the caller's token. That handler does
+	// not exist yet (it wraps this mux), so wire the runner to a deferred handler
+	// now and install authedMux into it once built.
+	askInnerHandler := &deferredHandler{}
+	mountAskAndNarration(getenv, apiMux, askInnerHandler, apiKey, router.Status, logger)
 
 	// Mount the service intelligence report route. It lives in its own package
 	// (which imports both query and serviceintel) and is mounted here rather than
@@ -198,6 +204,11 @@ func wireAPI(
 
 	// Wrap with auth middleware (shared token + optional scoped-token registry)
 	authedMux := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, mux, governanceAudit)
+
+	// Install the fully-wrapped handler into the Ask runner's deferred handler so
+	// inner tool dispatches re-run auth + the scoped-route gate under the caller's
+	// token. Done before returning, hence before any request is served.
+	askInnerHandler.Set(authedMux)
 
 	cleanup := func() {
 		_ = db.Close()
