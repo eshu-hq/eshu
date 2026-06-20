@@ -223,6 +223,58 @@ func TestInvestigationExportMaxSourceFactsWired(t *testing.T) {
 	}
 }
 
+func TestInvestigationExportUnsupportedProfileRefuses(t *testing.T) {
+	out, err := runInvestigationExportCmd(t,
+		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--format", "json"},
+		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+			return supplyChainExplainEnvelope{}, &apiHTTPError{StatusCode: 501, Body: "unsupported_capability"}
+		})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	var packet query.InvestigationEvidencePacket
+	if err := json.Unmarshal([]byte(out), &packet); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if packet.Refusal != query.PacketRefusalProfileUnsupported {
+		t.Errorf("refusal = %q, want profile_unsupported", packet.Refusal)
+	}
+}
+
+func TestInvestigationExportChmodsExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "packet.json")
+	if err := os.WriteFile(path, []byte("stale"), 0o644); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	_, err := runInvestigationExportCmd(t,
+		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--format", "json", "--out", path},
+		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+			return explainEnvelopeFromComplete(), nil
+		})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("perms = %o, want 600 after regenerating a 0644 file", perm)
+	}
+}
+
+func TestInvestigationExportAcceptsRemoteFlags(t *testing.T) {
+	_, err := runInvestigationExportCmd(t,
+		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--service-url", "http://example:8080", "--api-key", "k", "--format", "json"},
+		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+			return explainEnvelopeFromComplete(), nil
+		})
+	if err != nil {
+		t.Fatalf("export with remote flags: %v", err)
+	}
+}
+
 func TestInvestigationExportRejectsBadSubject(t *testing.T) {
 	_, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "noequals", "--format", "json"},

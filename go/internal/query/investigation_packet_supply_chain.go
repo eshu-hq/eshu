@@ -166,18 +166,27 @@ func supplyChainPacketDecisions(finding *SupplyChainImpactFindingResult, knownFa
 	}}
 }
 
-// impactStatusToDecisionState maps a finding's impact_status verdict onto the
-// admission-audit decision vocabulary. An affected verdict is an admitted
-// finding, a not-affected verdict is a rejection, and anything else is recorded
-// as ambiguous rather than silently presented as clean.
+// impactStatusToDecisionState maps a finding's persisted impact_status verdict
+// onto the admission-audit decision vocabulary. The reducer emits qualified
+// statuses (affected_exact, affected_derived, possibly_affected,
+// not_affected_known_fixed, unknown_impact), so this matches on the family rather
+// than bare strings: any affected_* verdict is admitted, a not_affected_* verdict
+// is rejected, possibly_affected is ambiguous, and unknown_impact lacks the
+// evidence to decide. A not-affected check precedes the affected check because
+// "not_affected" contains "affected".
 func impactStatusToDecisionState(impactStatus string) string {
-	switch strings.ToLower(strings.TrimSpace(impactStatus)) {
-	case "affected", "impacted", "vulnerable":
-		return "admitted"
-	case "not_affected", "unaffected", "not affected":
-		return "rejected"
-	case "":
+	s := strings.ToLower(strings.TrimSpace(impactStatus))
+	switch {
+	case s == "":
 		return "ambiguous"
+	case strings.HasPrefix(s, "not_affected"), s == "unaffected", s == "not affected":
+		return "rejected"
+	case strings.HasPrefix(s, "possibly_affected"):
+		return "ambiguous"
+	case strings.HasPrefix(s, "affected"), s == "impacted", s == "vulnerable":
+		return "admitted"
+	case strings.HasPrefix(s, "unknown"):
+		return "missing_evidence"
 	default:
 		return "ambiguous"
 	}

@@ -197,6 +197,34 @@ func TestBuildSupplyChainImpactPacketNoFinding(t *testing.T) {
 	}
 }
 
+func TestImpactStatusToDecisionStateRealValues(t *testing.T) {
+	cases := map[string]string{
+		"affected_exact":           "admitted",
+		"affected_derived":         "admitted",
+		"possibly_affected":        "ambiguous",
+		"not_affected_known_fixed": "rejected",
+		"unknown_impact":           "missing_evidence",
+		"":                         "ambiguous",
+	}
+	for status, want := range cases {
+		if got := impactStatusToDecisionState(status); got != want {
+			t.Errorf("impactStatusToDecisionState(%q) = %q, want %q", status, got, want)
+		}
+	}
+}
+
+func TestBuildSupplyChainImpactPacketNotAffectedRejected(t *testing.T) {
+	result := completeSupplyChainResult()
+	result.Finding.ImpactStatus = "not_affected_known_fixed"
+	packet, err := BuildSupplyChainImpactPacket(result, scPacketFreshTruth(), nil)
+	if err != nil {
+		t.Fatalf("build packet: %v", err)
+	}
+	if len(packet.ReducerDecisions) != 1 || packet.ReducerDecisions[0].State != "rejected" {
+		t.Errorf("decision = %+v, want one rejected", packet.ReducerDecisions)
+	}
+}
+
 func TestBuildSupplyChainImpactPacketReproducible(t *testing.T) {
 	first, err := BuildSupplyChainImpactPacket(completeSupplyChainResult(), scPacketFreshTruth(), nil)
 	if err != nil {

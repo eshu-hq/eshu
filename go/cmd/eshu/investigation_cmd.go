@@ -67,6 +67,7 @@ rather than a fabricated answer.`,
 	cmd.Flags().String("format", "json", "Artifact format: json, md, or html")
 	cmd.Flags().String("out", "", "Write the artifact to this path instead of stdout")
 	cmd.Flags().Int("max-source-facts", 0, "Override the source-facts cap (0 = contract default)")
+	addRemoteFlags(cmd)
 	return cmd
 }
 
@@ -227,6 +228,11 @@ func refusalFromFetchError(err error) (query.PacketRefusalState, bool) {
 	switch httpErr.StatusCode {
 	case 404:
 		return query.PacketRefusalScopeNotFound, true
+	case 501:
+		// The explain handler returns 501 for a profile that cannot serve the
+		// capability; GetEnvelope surfaces it as a transport error before the
+		// in-envelope unsupported_capability code can be read.
+		return query.PacketRefusalProfileUnsupported, true
 	case 503:
 		return query.PacketRefusalBackendUnavailable, true
 	default:
@@ -264,6 +270,12 @@ func writeInvestigationArtifact(cmd *cobra.Command, out string, data []byte) err
 	}
 	if err := os.WriteFile(out, data, 0o600); err != nil {
 		return fmt.Errorf("write investigation packet: %w", err)
+	}
+	// os.WriteFile only applies the mode on creation; an existing file keeps its
+	// prior (possibly broader) permissions. Chmod explicitly so a regenerated
+	// artifact is always owner-only.
+	if err := os.Chmod(out, 0o600); err != nil {
+		return fmt.Errorf("set investigation packet permissions: %w", err)
 	}
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wrote investigation packet to %s\n", out)
 	return nil
