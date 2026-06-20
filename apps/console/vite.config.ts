@@ -4,6 +4,12 @@ import { defineConfig } from "vitest/config";
 
 const consoleRoot = fileURLToPath(new URL(".", import.meta.url));
 
+// The dev-server proxy forwards /eshu-api to a local Eshu API. The target
+// defaults to the documented local Compose API port and is overridable via
+// ESHU_DEV_PROXY_TARGET so a gate (or an operator) can point the console at a
+// stack bound to a non-default host port without editing this file.
+const proxyTarget = process.env.ESHU_DEV_PROXY_TARGET?.trim() || "http://127.0.0.1:8080";
+
 export default defineConfig({
   build: {
     outDir: "dist",
@@ -38,7 +44,7 @@ export default defineConfig({
     proxy: {
       "/eshu-api": {
         rewrite: (path) => path.replace(/^\/eshu-api/, ""),
-        target: "http://127.0.0.1:8080"
+        target: proxyTarget
       }
     }
   },

@@ -102,6 +102,11 @@ todo.md
 .planning/
 .playwright-cli/
 
+# Console live E2E gate artifacts (issue #3326): screenshots, Playwright trace,
+# JSON report, logs, and the local-only env file with the throwaway API key.
+# Durable LOCAL proof only; never commit binaries or the local key.
+e2e-artifacts/
+
 # Claude Code per-user overrides; .claude/settings.json is committed so the
 # project hook works for everyone who clones.
 .claude/settings.local.json

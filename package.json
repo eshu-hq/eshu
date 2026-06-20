@@ -13,6 +13,8 @@
     "console:typecheck": "tsc -p apps/console/tsconfig.json",
     "console:build": "vite build --config apps/console/vite.config.ts && npm run console:bundle-budget",
     "console:bundle-budget": "node scripts/console-bundle-budget.mjs",
+    "console:e2e": "bash scripts/run-console-live-e2e.sh",
+    "console:e2e:typecheck": "tsc -p apps/console/e2e/tsconfig.json",
     "typecheck": "tsc -b"
   },
   "dependencies": {
