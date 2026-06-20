@@ -66,6 +66,17 @@ If a benchmark is not load-bearing, say why in the tracked evidence note.
 graph writes, collectors, workers, leases, batching, concurrency primitives,
 Compose, Helm, pprof, and NornicDB knobs.
 
+`scripts/verify-query-plan-regression.sh` validates the static hot-path
+query-plan fixture at `go/internal/queryplan/testdata/hot-cypher.yaml` against
+the NornicDB schema statement contract. The fixture names supply-chain,
+deployable, service, code-relationship, and readiness paths; fails deliberately
+bad query shapes such as unbounded variable-length traversals, unlabeled
+anchors, pagination without deterministic ordering, missing schema evidence,
+and forbidden plan signatures; and records explicit caveats for SQL/read-model
+paths that do not have a Cypher plan. This gate prevents silent fixture drift
+and bad static shapes. It does not replace live backend `EXPLAIN`, `PROFILE`,
+or before/after runtime measurements for production Cypher changes.
+
 Hot-path changes must update a versioned repo file with one benchmark marker:
 
 - `Performance Evidence:`
@@ -133,6 +144,18 @@ collectors.
 ## Evidence Notes
 
 ### Catalog Deployment-Environment Resolution Cold Plan
+
+No-Regression Evidence: issue #3172 adds
+`go/internal/queryplan/testdata/hot-cypher.yaml` and
+`scripts/verify-query-plan-regression.sh` so this connected catalog path stays
+registered in the graph backend query-plan fixture. The gate validates the
+fixture against `graph.SchemaStatementsForBackend(graph.SchemaBackendNornicDB)`,
+requires the workload/environment schema evidence names, and rejects known bad
+static shapes such as unbounded traversal or cartesian-plan signatures.
+
+No-Observability-Change: the query-plan gate is static validation only. It does
+not execute graph reads or writes, open backend sessions, add metrics or spans,
+change runtime knobs, or alter queue behavior.
 
 Performance Evidence: issue #1731. The `GET /api/v0/catalog` handler resolves
 per-workload deployment environments through `catalogWorkloadEvidenceEnvironmentCypher`

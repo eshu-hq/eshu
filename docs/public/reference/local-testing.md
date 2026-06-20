@@ -70,7 +70,8 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Hosted ops dashboard or alert pack | `scripts/test-verify-hosted-ops-alert-pack.sh`, `scripts/verify-hosted-ops-alert-pack.sh`, and `helm lint deploy/helm/eshu` |
 | Facts-first indexing, queue, or resolution flow | `cd go && go test ./internal/projector ./internal/reducer ./internal/storage/postgres -count=1` |
 | Recovery, replay, or repair controls | `cd go && go test ./internal/recovery ./internal/runtime ./internal/status -count=1` |
-| Hot-path Cypher, graph writes, queues, workers, leases, batching, or runtime knobs | `scripts/test-verify-performance-evidence.sh` and `scripts/verify-performance-evidence.sh` |
+| Hot-path Cypher, graph writes, queues, workers, leases, batching, or runtime knobs | `scripts/test-verify-performance-evidence.sh`, `scripts/verify-performance-evidence.sh`, `scripts/test-verify-query-plan-regression.sh`, and `scripts/verify-query-plan-regression.sh` |
+| Graph backend query-plan fixture contract | `scripts/test-verify-query-plan-regression.sh` and `scripts/verify-query-plan-regression.sh` |
 | Scale-lab representative corpus, privacy, metric, or threshold contract | `bash scripts/test-verify-scale-corpus-suite.sh` and `bash scripts/verify-scale-corpus-suite.sh` |
 | Scale benchmark artifact, threshold, backend, commit, or before/after proof contract | `bash scripts/test-verify-scale-benchmark-artifact.sh` and `bash scripts/verify-scale-benchmark-artifact.sh` |
 | New collector family, provider, scanner, or hosted collector runtime | `scripts/test-verify-collector-authoring-gate.sh` and `scripts/verify-collector-authoring-gate.sh` |
@@ -175,13 +176,13 @@ documented `/api/v0/repositories` and MCP responses; no telemetry, metric label,
 span, or status field is added or altered by the chart hooks.
 
 No-Regression Evidence: bundled NornicDB Helm render proof on Kubernetes 1.32
-showed the Deployment preserves the pinned image entrypoint, sets
-`NORNICDB_ADDRESS=0.0.0.0`, and exposes the charted HTTP and Bolt ports through
-the Service. A Linux amd64 Docker proof with the same pinned backend image and
-entrypoint-preserving environment reached HTTP health and accepted a Bolt TCP
-connection through published ports. This changes only the Kubernetes startup
-contract for the bundled graph backend; it does not change Eshu queue workers,
-graph query text, reducer batching, or API/MCP read paths.
+showed the Deployment preserves the pinned image entrypoint, sets the
+`NORNICDB_ADDRESS` wildcard bind address, and exposes the charted HTTP and Bolt
+ports through the Service. A Linux amd64 Docker proof with the same pinned
+backend image and entrypoint-preserving environment reached HTTP health and
+accepted a Bolt TCP connection through published ports. This changes only the
+Kubernetes startup contract for the bundled graph backend; it does not change
+Eshu queue workers, graph query text, reducer batching, or API/MCP read paths.
 
 No-Observability-Change: the bundled NornicDB chart fix keeps the existing HTTP
 health probes, named `http` and `bolt` container ports, and Service targetPorts.
