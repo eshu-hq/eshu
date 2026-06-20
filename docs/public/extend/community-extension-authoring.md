@@ -198,9 +198,40 @@ when a result uses undeclared fact kinds, unsupported schema versions,
 credential-looking payload keys, unsupported tombstones, or conflicting
 duplicates. Exact duplicate facts are reported as idempotent duplicates.
 
-This SDK module does not launch extensions, validate component manifest protocol
-fields, claim workflow rows, or commit facts by itself. Those host-side
-contracts are separate implementation issues.
+This SDK module does not launch extensions, claim workflow rows, or commit facts
+by itself. Those host-side contracts are separate implementation issues.
+
+### Run conformance outside the monorepo
+
+The conformance harness used by `eshu component conform` is also published as a
+public library at `github.com/eshu-hq/eshu/sdk/go/collector/conformance`. An
+out-of-tree collector repository can import it — alongside the
+`sdk/go/collector` types — and run conformance in its own CI without the `eshu`
+binary or any `github.com/eshu-hq/eshu/go/internal/...` package:
+
+```go
+var manifest conformance.Manifest
+_ = yaml.Unmarshal(manifestBytes, &manifest) // your package's own YAML codec
+
+report := conformance.Run(conformance.Request{
+    Manifest: manifest,
+    Fixtures: []collector.Result{result},
+    Mode:     conformance.ModeFixture,
+})
+if !report.OK() {
+    // report.Findings explains each blocker; report marshals to stable JSON.
+}
+```
+
+`conformance.Run` is a pure function over a decoded manifest and decoded SDK
+results. It fails closed on unversioned fact kinds, missing proof metadata
+(identity, compatible-core range, digest-pinned artifact), undeclared or unsafe
+fixtures, an unsupported mode, or no fixtures, and emits the same
+`eshu.extension.conformance.v1` report the in-tree host produces. A worked
+example lives in
+`examples/collector-extensions/scorecard/conformance_harness_test.go`. The
+in-tree `eshu component conform` command remains the convenience wrapper that
+loads the manifest and fixture files from disk for you.
 
 The core host adapter lives in `go/internal/collector/extensionhost`. It is a
 claim-aware intake adapter, not a plugin API: core builds a bounded JSON
