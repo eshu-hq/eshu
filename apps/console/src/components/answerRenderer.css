@@ -103,14 +103,104 @@
   min-width: 0;
 }
 
+.evidence-packet-reader {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in oklab, var(--teal) 26%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--surface) 82%, black 18%);
+}
+
+.evidence-packet-reader-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.evidence-packet-reader-head h3 {
+  margin: 3px 0 0;
+}
+
+.evidence-packet-reader-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.evidence-packet-reader-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.evidence-packet-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.evidence-packet-panel h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.evidence-packet-truth,
+.evidence-packet-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.evidence-packet-truth small,
+.evidence-packet-tags span:not(.badge) {
+  color: var(--muted);
+}
+
+.evidence-packet-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.evidence-packet-list article {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--panel) 88%, black 12%);
+}
+
+.evidence-packet-list a,
+.evidence-packet-list strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.evidence-packet-list small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .answer-renderer-header,
-  .answer-renderer-truth {
+  .answer-renderer-truth,
+  .evidence-packet-reader-head {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .answer-renderer-grid {
+  .answer-renderer-grid,
+  .evidence-packet-reader-grid {
     grid-template-columns: 1fr;
   }
 }
