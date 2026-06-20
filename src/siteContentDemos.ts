@@ -3,7 +3,7 @@ import type { CleanupMode, CommandDemo, DemoNode } from "./siteContentTypes";
 /** Short command labels used by the hero and launch contract tests. */
 export const terminalCommands = [
   "eshu scan",
-  "eshu ask",
+  "POST /api/v0/ask",
   "eshu trace service checkout",
   "mcp: ask",
   "mcp: list_supply_chain_impact_findings",
@@ -37,10 +37,11 @@ export const commandDemos = [
     ]
   },
   {
-    command: "eshu ask",
-    summary: "Ask Eshu answers in natural language with evidence handles.",
+    command: "POST /api/v0/ask",
+    summary: "Ask Eshu answers over HTTP with evidence handles.",
     activeNodeId: "supply-chain",
     output: [
+      "POST /api/v0/ask",
       "Question: which services are affected by CVE-2024-3094?",
       "Answer: partial",
       "Affected workload: checkout-service",

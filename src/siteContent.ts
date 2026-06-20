@@ -77,10 +77,10 @@ export const siteContent = {
       "docker compose up --build",
       "eshu mcp setup    # prints the client snippet for Claude Code, Codex, Cursor, or VS Code",
       "eshu mcp start   # boots the local MCP server",
-      "eshu ask \"which services are affected by CVE-2024-3094?\""
+      "POST /api/v0/ask # HTTP Ask Eshu endpoint for app integrations"
     ],
     firstQuestion:
-      "Then in your AI assistant of choice: \"Use Eshu to ask which services are affected by CVE-2024-3094, and show the evidence.\"",
+      "Then in your MCP client or POST /api/v0/ask: \"which services are affected by CVE-2024-3094?\"",
     ctaLabel: "View on GitHub",
     ctaHref: githubHref
   },

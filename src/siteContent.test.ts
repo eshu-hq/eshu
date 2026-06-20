@@ -17,7 +17,7 @@ describe("siteContent", () => {
     );
     expect(siteContent.terminalCommands).toEqual([
       "eshu scan",
-      "eshu ask",
+      "POST /api/v0/ask",
       "eshu trace service checkout",
       "mcp: ask",
       "mcp: list_supply_chain_impact_findings",
@@ -149,7 +149,7 @@ describe("siteContent", () => {
     ]);
     expect(siteContent.commandDemos.map((command) => command.command)).toEqual([
       "eshu scan --json",
-      "eshu ask",
+      "POST /api/v0/ask",
       "eshu trace service checkout",
       "mcp: ask",
       "mcp: list_supply_chain_impact_findings",
@@ -176,8 +176,9 @@ describe("siteContent", () => {
     expect(demosByCommand["eshu scan --json"]).not.toContain("repos: 896 indexed");
     expect(demosByCommand["eshu scan --json"]).not.toContain("elapsed: 14m13.6s");
 
-    expect(demosByCommand["eshu ask"]).toEqual(
+    expect(demosByCommand["POST /api/v0/ask"]).toEqual(
       expect.arrayContaining([
+        "POST /api/v0/ask",
         "Question: which services are affected by CVE-2024-3094?",
         "Answer: partial",
         "Evidence packet: investigation_evidence_packet.v2",
@@ -260,7 +261,8 @@ describe("siteContent", () => {
     expect(siteContent.tryIt.steps.length).toBeGreaterThanOrEqual(4);
     expect(siteContent.tryIt.steps.join(" ")).toContain("docker compose up");
     expect(siteContent.tryIt.steps.join(" ")).toContain("eshu mcp");
-    expect(siteContent.tryIt.steps.join(" ")).toContain("eshu ask");
+    expect(siteContent.tryIt.steps.join(" ")).toContain("POST /api/v0/ask");
+    expect(siteContent.tryIt.steps.join(" ")).not.toContain("eshu ask");
     expect(siteContent.tryIt.firstQuestion).toContain(
       "which services are affected by CVE-2024-3094"
     );

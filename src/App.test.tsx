@@ -52,7 +52,9 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Run the graph" })).toBeInTheDocument();
     expect(screen.getAllByText(/Graph ready for organization-wide questions/)).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "eshu ask" }));
+    expect(screen.queryByRole("button", { name: "eshu ask" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "POST /api/v0/ask" }));
     expect(
       screen.getByText(/Question: which services are affected by CVE-2024-3094/)
     ).toBeInTheDocument();
