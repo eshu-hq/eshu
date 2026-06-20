@@ -14,10 +14,13 @@ shape and SDK output without the `eshu` binary, the Eshu monorepo, or any
 `Run` evaluates one already-decoded manifest and the package's decoded
 collector-sdk/v1alpha1 result fixtures:
 
-- **Config / manifest proof metadata** — identity, compatible-core range,
-  digest-pinned artifact, SDK protocol, and host adapter.
+- **Config / manifest proof metadata** — identity, compatible-core range
+  (comparator syntax is validated, not just presence), digest-pinned artifact,
+  SDK protocol, and host adapter.
 - **Fact schema** — every emitted fact kind is namespaced and declares at least
-  one semantic schema version; fixtures only emit declared kinds/versions.
+  one semantic schema version; fixtures only emit declared kinds/versions. When
+  `Request.ReservedFactKinds` is supplied (the in-tree host passes the core
+  fact-kind registry), a manifest that claims a host-owned kind fails closed.
 - **Redaction** — fixtures are rejected for credential-bearing payload keys or
   source URIs (delegated to the SDK validator).
 - **Claim lifecycle** — fixtures carry a complete claim, generation, and source

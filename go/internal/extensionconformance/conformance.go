@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 )
@@ -114,9 +115,10 @@ func Run(ctx context.Context, req Request) (Report, error) {
 	}
 
 	report := conformance.Run(conformance.Request{
-		Manifest: manifestToPublic(manifest),
-		Fixtures: fixtures,
-		Mode:     req.Mode,
+		Manifest:          manifestToPublic(manifest),
+		Fixtures:          fixtures,
+		Mode:              req.Mode,
+		ReservedFactKinds: facts.CoreFactKinds(),
 	})
 	if len(readFindings) > 0 {
 		report.Findings = append(readFindings, report.Findings...)

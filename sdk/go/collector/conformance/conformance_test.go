@@ -165,6 +165,66 @@ func TestRunFailsOnUndigestedArtifact(t *testing.T) {
 	assertFinding(t, report, conformance.FindingManifestInvalid)
 }
 
+func TestRunFailsOnMalformedCompatibleCore(t *testing.T) {
+	t.Parallel()
+
+	manifest := validManifest()
+	manifest.Spec.CompatibleCore = ">=0.0.5 nope"
+
+	report := conformance.Run(conformance.Request{
+		Manifest: manifest,
+		Fixtures: []collector.Result{validResult()},
+		Mode:     conformance.ModeFixture,
+	})
+	assertFinding(t, report, conformance.FindingManifestInvalid)
+}
+
+func TestRunAcceptsValidCompatibleCoreRanges(t *testing.T) {
+	t.Parallel()
+
+	for _, rangeExpr := range []string{">=0.0.5 <0.2.0", "1.0.0", "=1.2.3", ">=0.1"} {
+		manifest := validManifest()
+		manifest.Spec.CompatibleCore = rangeExpr
+		report := conformance.Run(conformance.Request{
+			Manifest: manifest,
+			Fixtures: []collector.Result{validResult()},
+			Mode:     conformance.ModeFixture,
+		})
+		if !report.OK() {
+			t.Fatalf("compatibleCore %q: findings = %#v, want passed", rangeExpr, report.Findings)
+		}
+	}
+}
+
+func TestRunBlocksReservedFactKind(t *testing.T) {
+	t.Parallel()
+
+	report := conformance.Run(conformance.Request{
+		Manifest:          validManifest(),
+		Fixtures:          []collector.Result{validResult()},
+		Mode:              conformance.ModeFixture,
+		ReservedFactKinds: []string{"dev.example.scorecard.snapshot"},
+	})
+	if report.OK() {
+		t.Fatal("report OK = true, want failed for reserved fact kind")
+	}
+	assertFinding(t, report, conformance.FindingManifestInvalid)
+}
+
+func TestRunAllowsUnreservedFactKind(t *testing.T) {
+	t.Parallel()
+
+	report := conformance.Run(conformance.Request{
+		Manifest:          validManifest(),
+		Fixtures:          []collector.Result{validResult()},
+		Mode:              conformance.ModeFixture,
+		ReservedFactKinds: []string{"some_core_kind", "another_core_kind"},
+	})
+	if !report.OK() {
+		t.Fatalf("findings = %#v, want passed when no declared kind is reserved", report.Findings)
+	}
+}
+
 func TestManifestContractDerivesDeclaredFacts(t *testing.T) {
 	t.Parallel()
 

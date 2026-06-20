@@ -70,6 +70,11 @@ type Request struct {
 	Fixtures []collector.Result
 	// Mode selects the proof mode; empty defaults to ModeFixture.
 	Mode Mode
+	// ReservedFactKinds are fact kinds the host owns and a component may not
+	// claim. The in-tree host passes the core fact-kind registry; out-of-tree
+	// callers may leave it nil and rely on namespacing alone. A manifest that
+	// declares a reserved kind fails closed.
+	ReservedFactKinds []string
 }
 
 // Report is the stable conformance result returned to CLIs and automation.
@@ -134,6 +139,11 @@ func Run(req Request) Report {
 		return report
 	}
 
+	if kind, ok := reservedFactKindClaim(req.Manifest, req.ReservedFactKinds); ok {
+		addBlockingFinding(&report, FindingManifestInvalid, fmt.Sprintf("fact kind %q is host-owned and cannot be claimed by a component", kind), -1)
+		return report
+	}
+
 	addReducerConsumerFindings(&report, req.Manifest)
 
 	if len(req.Fixtures) == 0 {
@@ -158,6 +168,26 @@ func normalizeMode(mode Mode) Mode {
 		return ModeFixture
 	}
 	return Mode(strings.TrimSpace(string(mode)))
+}
+
+// reservedFactKindClaim reports the first emitted fact kind that collides with a
+// host-reserved (core-owned) fact kind, if any. It lets the in-tree host enforce
+// the same core-ownership boundary the component manifest path enforces, without
+// the dependency-free SDK module importing a core fact-kind registry.
+func reservedFactKindClaim(manifest Manifest, reserved []string) (string, bool) {
+	if len(reserved) == 0 {
+		return "", false
+	}
+	reservedSet := make(map[string]struct{}, len(reserved))
+	for _, kind := range reserved {
+		reservedSet[strings.TrimSpace(kind)] = struct{}{}
+	}
+	for _, fact := range manifest.Spec.EmittedFacts {
+		if _, ok := reservedSet[strings.TrimSpace(fact.Kind)]; ok {
+			return fact.Kind, true
+		}
+	}
+	return "", false
 }
 
 func addReducerConsumerFindings(report *Report, manifest Manifest) {

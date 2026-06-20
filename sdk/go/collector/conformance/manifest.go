@@ -33,6 +33,11 @@ var (
 	// version string the in-tree component validator admits.
 	semverPattern         = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
 	artifactDigestPattern = regexp.MustCompile(`@sha256:[A-Fa-f0-9]{64}$`)
+	// coreRangeComparatorPattern matches one space-separated compatibleCore
+	// comparator: an optional operator plus a 1-3 segment version with optional
+	// pre-release/build, mirroring the shapes the in-tree component range parser
+	// accepts, so this dependency-free check does not diverge from it.
+	coreRangeComparatorPattern = regexp.MustCompile(`^(>=|<=|>|<|=)?[0-9]+(\.[0-9]+){0,2}([-+][0-9A-Za-z.-]+)?$`)
 )
 
 // Manifest is the portable subset of an Eshu component package document that
@@ -153,8 +158,8 @@ func (m Manifest) validateProofMetadata() error {
 	if !semverPattern.MatchString(strings.TrimSpace(m.Metadata.Version)) {
 		return fmt.Errorf("metadata.version %q must be semantic version", m.Metadata.Version)
 	}
-	if strings.TrimSpace(m.Spec.CompatibleCore) == "" {
-		return fmt.Errorf("spec.compatibleCore is required")
+	if err := validateCompatibleCoreRange(m.Spec.CompatibleCore); err != nil {
+		return err
 	}
 	if strings.TrimSpace(m.Spec.ComponentType) != ComponentTypeCollector {
 		return fmt.Errorf("spec.componentType must be %q", ComponentTypeCollector)
@@ -241,6 +246,23 @@ func (f FactFamily) validate() error {
 	for _, confidence := range f.SourceConfidence {
 		if err := validateSourceConfidence(confidence); err != nil {
 			return fmt.Errorf("fact kind %q sourceConfidence: %w", f.Kind, err)
+		}
+	}
+	return nil
+}
+
+// validateCompatibleCoreRange rejects a missing or malformed compatibleCore
+// range so the harness does not green-light a package the in-tree component
+// verifier would reject at install/verify. It validates comparator syntax only,
+// not whether the current core satisfies the range.
+func validateCompatibleCoreRange(rangeExpression string) error {
+	fields := strings.Fields(rangeExpression)
+	if len(fields) == 0 {
+		return fmt.Errorf("spec.compatibleCore is required")
+	}
+	for _, field := range fields {
+		if !coreRangeComparatorPattern.MatchString(field) {
+			return fmt.Errorf("spec.compatibleCore comparator %q is invalid", field)
 		}
 	}
 	return nil
