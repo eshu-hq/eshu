@@ -291,6 +291,13 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
 	l.aliases = loopExitAliases(entryAliases, bodyAliases, bodyReach)
+	// The for-in/of target is rebound by the loop header each iteration (not via
+	// a tracked assignment), so even if entry and body agree on a prior alias for
+	// it, it does not hold after the loop. Drop it so an attribute write through
+	// the target is never falsely normalized.
+	for _, def := range defs {
+		delete(l.aliases, accessPathBase(def))
+	}
 	return exit, true
 }
 
