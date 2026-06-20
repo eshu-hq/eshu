@@ -30,6 +30,7 @@ const (
 var (
 	sha256DigestPattern   = regexp.MustCompile(`^sha256:[A-Fa-f0-9]{64}$`)
 	artifactDigestPattern = regexp.MustCompile(`@sha256:[A-Fa-f0-9]{64}$`)
+	identifierPattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*[a-z0-9]$|^[a-z0-9]$`)
 )
 
 // IssueCode is a stable verifier failure class.
@@ -325,6 +326,10 @@ func (v *indexVerifier) validateFacts(prefix, componentID string, factClaims []F
 		}
 		if kind != fact.Kind {
 			v.add(IssueUnsupportedFactKind, field, componentID, "fact kind must be canonical without surrounding whitespace")
+			continue
+		}
+		if !identifierPattern.MatchString(kind) {
+			v.add(IssueUnsupportedFactKind, field, componentID, "fact kind must use lowercase letters, numbers, dots, underscores, or hyphens")
 			continue
 		}
 		if facts.IsCoreFactKind(kind) {

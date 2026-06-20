@@ -90,6 +90,13 @@ func TestValidateRejectsRequiredIssueFixtures(t *testing.T) {
 			code: IssueUnsupportedFactKind,
 		},
 		{
+			name: "malformed namespaced fact kind",
+			mut: func(index *Index) {
+				index.Entries[0].EmittedFacts[0].Kind = "Dev.Example/Resource"
+			},
+			code: IssueUnsupportedFactKind,
+		},
+		{
 			name: "invalid schema version",
 			mut: func(index *Index) {
 				index.Entries[0].EmittedFacts[0].SchemaVersions = []string{"one"}
