@@ -231,15 +231,14 @@ func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID,
 }
 
 // lowerFor lowers a C-style for loop with a back-edge from the body to the head.
-// Aliases established inside the loop are reset after it: the loop may run zero
-// times and the back-edge is not alias-modeled, so post-loop code sees the
-// pre-loop alias state (a conservative choice that never invents a false edge).
+// Post-loop aliases are the intersection of the pre-loop and body-exit states:
+// a loop may run zero or more times, so aliases changed by a possible iteration
+// are dropped rather than normalized into a false post-loop access path.
 func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
-	entryAliases := l.aliases.clone()
-	defer func() { l.aliases = entryAliases }()
 	if init := node.ChildByFieldName("initializer"); init != nil {
 		cur, _ = l.lowerStmt(init, cur)
 	}
+	entryAliases := l.aliases.clone()
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	if cond := node.ChildByFieldName("condition"); cond != nil {
@@ -251,14 +250,17 @@ func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID
 	if b := node.ChildByFieldName("body"); b != nil {
 		body, bodyReach = l.lowerStmt(b, body)
 	}
+	bodyAliases := l.aliases.clone()
 	if bodyReach {
 		if inc := node.ChildByFieldName("increment"); inc != nil {
 			l.lowerInlineExpr(inc, body)
+			bodyAliases = l.aliases.clone()
 		}
 		l.builder.AddEdge(body, header) // back-edge only when the body falls through
 	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
+	l.aliases = loopExitAliases(entryAliases, bodyAliases, bodyReach)
 	return exit, true
 }
 
@@ -266,7 +268,6 @@ func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID
 // iteration from the right expression.
 func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	entryAliases := l.aliases.clone()
-	defer func() { l.aliases = entryAliases }()
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	var defs, uses []string
@@ -283,18 +284,19 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 	if b := node.ChildByFieldName("body"); b != nil {
 		body, bodyReach = l.lowerStmt(b, body)
 	}
+	bodyAliases := l.aliases.clone()
 	if bodyReach {
 		l.builder.AddEdge(body, header) // back-edge only when the body falls through
 	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
+	l.aliases = loopExitAliases(entryAliases, bodyAliases, bodyReach)
 	return exit, true
 }
 
 // lowerWhile lowers a while loop with a back-edge.
 func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	entryAliases := l.aliases.clone()
-	defer func() { l.aliases = entryAliases }()
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	if cond := node.ChildByFieldName("condition"); cond != nil {
@@ -306,12 +308,21 @@ func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) (cfg.Block
 	if b := node.ChildByFieldName("body"); b != nil {
 		body, bodyReach = l.lowerStmt(b, body)
 	}
+	bodyAliases := l.aliases.clone()
 	if bodyReach {
 		l.builder.AddEdge(body, header) // back-edge only when the body falls through
 	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
+	l.aliases = loopExitAliases(entryAliases, bodyAliases, bodyReach)
 	return exit, true
+}
+
+func loopExitAliases(entryAliases, bodyAliases jsBindingAliases, bodyReach bool) jsBindingAliases {
+	if !bodyReach {
+		return entryAliases.clone()
+	}
+	return jsMergeAliases(entryAliases, bodyAliases)
 }
 
 // addStmt records a statement on a block when it carries at least one binding.

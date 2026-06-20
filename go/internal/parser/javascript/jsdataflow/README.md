@@ -92,7 +92,8 @@ alias is no longer a whole-binding false negative (#3252):
   `obj.field`. Only the base segment of a multi-part access path is alias-resolved;
   bare identifier reads keep their own reaching-def identity, so simple value flow
   is unchanged. The alias map is cloned per if/else branch, merged by
-  intersection, and reset after loops — an alias on one path never leaks.
+  intersection, and intersected with the body-exit alias state after loops — an
+  alias on one path or changed by a possible loop iteration never leaks.
 
 ## Closure/captured-variable flow (`jsFuncLiteralCaptureUses` in `bindings.go`)
 

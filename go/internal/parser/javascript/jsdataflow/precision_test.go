@@ -66,6 +66,24 @@ func TestLowerContainerElementWholeContainerApproximation(t *testing.T) {
 	}
 }
 
+// TestLowerAliasContainerElementNormalizesWrite proves a container write through
+// a reference alias normalizes to the original container before the [*] marker is
+// applied, so it reaches a read through the original binding.
+func TestLowerAliasContainerElementNormalizesWrite(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(p, k) {\n" +
+		"\tlet a = m;\n" +
+		"\ta[k] = p;\n" +
+		"\tuse(m[k]);\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "m[*]:3->4") {
+		t.Fatalf("alias container write did not normalize to m[*]; got %v", got)
+	}
+}
+
 // TestLowerReferenceAliasNormalizesFieldWrite proves a field write through a
 // reference alias (let a = obj; a.data = p) normalizes to the aliased object, so
 // a later read of obj.data is reached by it.
@@ -122,6 +140,30 @@ func TestLowerAliasConflictingAcrossBranchesIsDropped(t *testing.T) {
 	}
 	if contains(got, "obj.data:4->5") {
 		t.Fatalf("then-branch-only alias obj leaked past the merge; got %v", got)
+	}
+}
+
+// TestLowerLoopBodyAliasInvalidationDropsPostLoopAlias proves a loop body that
+// may reassign an alias prevents post-loop field writes from being normalized to
+// the pre-loop object. The loop may run, so carrying only the zero-iteration
+// alias would invent a false edge.
+func TestLowerLoopBodyAliasInvalidationDropsPostLoopAlias(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(p, cond) {\n" +
+		"\tlet a = obj;\n" +
+		"\twhile (cond) { a = other; }\n" +
+		"\ta.data = p;\n" +
+		"\tuse(a.data);\n" +
+		"\tuse(obj.data);\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "a.data:4->5") {
+		t.Fatalf("post-loop write should stay on a.data after alias invalidation; got %v", got)
+	}
+	if contains(got, "obj.data:4->6") {
+		t.Fatalf("loop-mutated alias wrongly normalized post-loop write to obj.data; got %v", got)
 	}
 }
 
@@ -212,6 +254,26 @@ func TestTSContainerElementTaintReachesSink(t *testing.T) {
 	res := taint.Analyze(fn, facts, taint.DefaultLimits())
 	if taintedCount(res, "sql") != 1 {
 		t.Fatalf("want 1 TAINTED sql finding through m[*], got %+v", res.Findings)
+	}
+}
+
+// TestTSAliasContainerElementTaintReachesSink proves taint written through a
+// reference alias into a container element is read through the original
+// container's [*] path.
+func TestTSAliasContainerElementTaintReachesSink(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "import type { Request } from 'express';\n"+
+		"function handler(req: Request, key) {\n"+
+		"\tlet m = {};\n"+
+		"\tlet a = m;\n"+
+		"\ta[key] = req.body;\n"+
+		"\tdb.query(m[key]);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if taintedCount(res, "sql") != 1 {
+		t.Fatalf("want 1 TAINTED sql finding through alias m[*], got %+v", res.Findings)
 	}
 }
 

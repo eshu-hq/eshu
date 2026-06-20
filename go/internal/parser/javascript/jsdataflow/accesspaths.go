@@ -10,6 +10,7 @@ import (
 // jsDefaultAccessPathParts matches cfg.DefaultLimits().MaxAccessPathParts for
 // helper callers that do not thread a CFG limit object.
 const jsDefaultAccessPathParts = 4
+const jsSubscriptMarker = "[*]"
 
 // jsAccessPathOptions carries the field-sensitivity depth cap and the shared
 // truncation counter. truncated, when non-nil, is incremented once per access
@@ -84,7 +85,7 @@ func jsAccessPathParts(node *tree_sitter.Node, source []byte) ([]string, bool) {
 			return nil, false
 		}
 		indexed := append([]string{}, base...)
-		indexed[len(indexed)-1] += "[*]"
+		indexed[len(indexed)-1] += jsSubscriptMarker
 		return indexed, true
 	case "parenthesized_expression":
 		return jsAccessPathParts(firstNamedChild(node), source)
@@ -147,19 +148,32 @@ func (a jsBindingAliases) resolve(name string) string {
 	}
 }
 
-// resolveBase rewrites the leading segment of a multi-part access path through
-// the alias map. A single-segment path (a bare identifier) is returned
-// unchanged so plain copies keep their reaching-def identity.
+// resolveBase rewrites the leading segment of an access path through the alias
+// map. A single-segment bare identifier is returned unchanged so plain copies
+// keep their reaching-def identity; a single-segment subscript path still
+// resolves its base before keeping the [*] approximation.
 func (a jsBindingAliases) resolveBase(parts []string) []string {
-	if len(a) == 0 || len(parts) <= 1 {
+	if len(a) == 0 || len(parts) == 0 {
 		return parts
 	}
-	resolved := a.resolve(parts[0])
-	if resolved == "" || resolved == parts[0] {
+	base, suffix := splitSubscriptMarker(parts[0])
+	if len(parts) == 1 && suffix == "" {
+		return parts
+	}
+	resolved := a.resolve(base)
+	if resolved == "" || resolved == base {
 		return parts
 	}
 	rebased := strings.Split(resolved, ".")
+	rebased[len(rebased)-1] += suffix
 	return append(rebased, parts[1:]...)
+}
+
+func splitSubscriptMarker(part string) (base, suffix string) {
+	if strings.HasSuffix(part, jsSubscriptMarker) {
+		return strings.TrimSuffix(part, jsSubscriptMarker), jsSubscriptMarker
+	}
+	return part, ""
 }
 
 func (a jsBindingAliases) clone() jsBindingAliases {

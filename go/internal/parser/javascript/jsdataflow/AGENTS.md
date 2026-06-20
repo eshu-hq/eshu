@@ -28,7 +28,8 @@
 - Reference aliases (`let a = obj`) normalize only the base segment of a
   multi-part access path; bare identifier reads are never alias-resolved, so
   reaching-def truth for simple value flow is unchanged. Clone the alias map per
-  branch, merge by intersection, reset after loops.
+  branch, merge by intersection, and after loops keep only aliases that agree
+  before the loop and at the body exit.
 - Descend into a nested function/arrow body for the enclosing function's uses
   ONLY when the literal is a call argument (closure capture), excluding the
   closure's own params and inner-scope defs. A non-invoked literal is not
