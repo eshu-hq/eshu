@@ -16,7 +16,7 @@ import (
 const defaultBuildLimit = 500
 
 const (
-	// FailureClassEmbedder records a deterministic local embedder failure.
+	// FailureClassEmbedder records a bounded embedder failure.
 	FailureClassEmbedder = "embedder_error"
 	// FailureClassInvalidVector records a malformed vector returned by an embedder.
 	FailureClassInvalidVector = "invalid_vector"
@@ -37,7 +37,7 @@ type ValueStore interface {
 	Upsert(context.Context, postgres.EshuSearchVectorValue) error
 }
 
-// Builder builds local vector rows from active curated search documents.
+// Builder builds vector rows from active curated search documents.
 type Builder struct {
 	Documents DocumentStore
 	Metadata  MetadataStore
@@ -59,7 +59,7 @@ type BuildRequest struct {
 	Limit              int
 }
 
-// BuildResult summarizes a local vector build attempt.
+// BuildResult summarizes a vector build attempt.
 type BuildResult struct {
 	DocumentCount int
 	VectorCount   int

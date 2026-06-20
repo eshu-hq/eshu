@@ -65,7 +65,7 @@ ORDER BY docs.scope_id
 LIMIT $6
 `
 
-// EshuSearchVectorPendingRequest bounds pending local vector build discovery.
+// EshuSearchVectorPendingRequest bounds pending vector build discovery.
 type EshuSearchVectorPendingRequest struct {
 	ProviderProfileID  string
 	SourceClass        string
@@ -74,7 +74,7 @@ type EshuSearchVectorPendingRequest struct {
 	Limit              int
 }
 
-// EshuSearchVectorPendingScope identifies one active scope that needs local
+// EshuSearchVectorPendingScope identifies one active scope that needs
 // vector rows for its curated search documents.
 type EshuSearchVectorPendingScope struct {
 	ScopeID      string
@@ -83,12 +83,12 @@ type EshuSearchVectorPendingScope struct {
 }
 
 // EshuSearchVectorPendingStore lists active repository scopes whose curated
-// search documents do not yet have complete ready local vector rows.
+// search documents do not yet have complete ready vector rows.
 type EshuSearchVectorPendingStore struct {
 	db ExecQueryer
 }
 
-// NewEshuSearchVectorPendingStore builds a pending local-vector lister.
+// NewEshuSearchVectorPendingStore builds a pending-vector lister.
 func NewEshuSearchVectorPendingStore(db ExecQueryer) EshuSearchVectorPendingStore {
 	return EshuSearchVectorPendingStore{db: db}
 }

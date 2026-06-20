@@ -603,14 +603,15 @@ shape. Observability Evidence: `go test ./internal/reducer -run
 -count=1` and `go test ./internal/telemetry -run
 'TestSearchIndexInstrumentsRecordBoundedLabels|TestSpanNames' -count=1`.
 
-`SearchVectorBuildRunner` is a side runner that can build deterministic local
-vector rows after search documents are active. The command layer wires it only
-when `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` is `hash` or `local_hash`; this
-package owns the runner loop and depends on narrow pending-list and builder
-ports. A sweep reads pending active scopes, builds vectors in bounded document
-batches, and continues through independent scope failures while returning a
-joined error for operator visibility. The runner writes no graph truth and has
-no hosted-provider, credential, egress, or external vector-store surface.
+`SearchVectorBuildRunner` is a side runner that can build derived vector rows
+after search documents are active. The command layer wires it when the
+semantic-search selector chooses either the deterministic local override or one
+governed `search_documents` provider profile. This package owns the runner loop
+and depends on narrow pending-list and builder ports. A sweep reads pending
+active scopes, builds vectors in bounded document batches, and continues
+through independent scope failures while returning a joined error for operator
+visibility. The runner writes no graph truth and has no external vector-store
+surface.
 
 SearchVectorBuildRunner Evidence: `go test ./internal/reducer -run
 'TestSearchVectorBuildRunner|TestServiceStartsSearchVectorBuildRunner'

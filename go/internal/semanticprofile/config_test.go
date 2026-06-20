@@ -96,6 +96,7 @@ func TestLoadStatusesFromEnvAcceptsSearchDocumentSourceClass(t *testing.T) {
 				"kind": "cloud_workload_identity"
 			},
 			"model_id": "search-embed-v1",
+			"embedding_dimensions": 3,
 			"endpoint_profile_id": "semantic-search-gateway",
 			"source_classes": ["search_documents"],
 			"source_policy_configured": true
@@ -116,6 +117,9 @@ func TestLoadStatusesFromEnvAcceptsSearchDocumentSourceClass(t *testing.T) {
 	}
 	if got, want := statuses[0].SourceClasses, []string{semanticprofile.SourceSearchDocuments}; !slices.Equal(got, want) {
 		t.Fatalf("SourceClasses = %#v, want %#v", got, want)
+	}
+	if got, want := statuses[0].EmbeddingDimensions, 3; got != want {
+		t.Fatalf("EmbeddingDimensions = %d, want %d", got, want)
 	}
 }
 

@@ -103,9 +103,10 @@ var coreEntries = []Entry{
 	// semantic
 	{Name: "ESHU_SEMANTIC_EXTRACTION_POLICY_JSON", Type: VarString, Subsystem: "semantic", Description: "JSON semantic extraction policy controlling source/provider ACL decisions."},
 	{Name: "ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED", Type: VarBool, Default: "false", Subsystem: "semantic", Description: "Default-off flag permitting real provider traffic (requires security review)."},
-	{Name: "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON", Type: VarString, Subsystem: "semantic", Description: "JSON array of semantic provider profile configurations."},
+	{Name: "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON", Type: VarString, Subsystem: "semantic", Description: "JSON array of semantic provider profile configurations, including optional search embedding dimensions."},
 	{Name: "ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED", Type: VarBool, Default: "false", Subsystem: "semantic", Description: "Enable the semantic-provider worker claim loop."},
-	{Name: "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER", Type: VarEnum, Subsystem: "semantic", Allowed: []string{"hash", "local_hash"}, Description: "Deterministic no-network local semantic/hybrid retrieval for API and MCP semantic search."},
+	{Name: "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER", Type: VarEnum, Subsystem: "semantic", Allowed: []string{"hash", "local_hash"}, Description: "Explicit deterministic no-network override for API, MCP, and reducer semantic search."},
+	{Name: "ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID", Type: VarString, Subsystem: "semantic", Description: "Selects one governed search_documents provider profile when multiple semantic search providers are configured."},
 
 	// component
 	{Name: "ESHU_COMPONENT_HOME", Type: VarString, Subsystem: "component", Description: "Root directory for the component/extension registry."},

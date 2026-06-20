@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -13,13 +12,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // envSemanticSearchLocalEmbedder is the environment variable that selects the
 // local embedder strategy for semantic search (empty/"hash"/"local_hash").
-const envSemanticSearchLocalEmbedder = "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER"
+const envSemanticSearchLocalEmbedder = searchembedruntime.EnvLocalEmbedder
 
 // componentPolicyFromEnv builds a component trust policy from environment
 // variables. It reads the trust mode, allowed/revoked IDs and publishers,
@@ -79,18 +79,6 @@ func envOrDefault(getenv func(string) string, key, fallback string) string {
 		return fallback
 	}
 	return v
-}
-
-// loadSemanticSearchLocalEmbedder parses ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER.
-// Valid values are "", "hash", and "local_hash".
-func loadSemanticSearchLocalEmbedder(getenv func(string) string) (string, error) {
-	raw := strings.TrimSpace(getenv(envSemanticSearchLocalEmbedder))
-	switch raw {
-	case "", "hash", "local_hash":
-		return raw, nil
-	default:
-		return "", fmt.Errorf("invalid %s %q", envSemanticSearchLocalEmbedder, raw)
-	}
 }
 
 // loadQueryProfile parses ESHU_QUERY_PROFILE. An empty value defaults to

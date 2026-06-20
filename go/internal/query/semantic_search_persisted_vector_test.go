@@ -176,12 +176,12 @@ func TestPersistedLocalSemanticSearchHybridUsesConfiguredVectorRetrieval(t *test
 	}
 }
 
-func TestDefaultPersistedLocalSemanticSearchHybridConfigUsesExactVectorRetrieval(t *testing.T) {
+func TestDefaultPersistedLocalSemanticSearchHybridConfigUsesAutoVectorRetrieval(t *testing.T) {
 	t.Parallel()
 
 	config := DefaultPersistedLocalSemanticSearchHybridConfig()
 
-	if got, want := config.VectorRetrieval, searchhybrid.VectorRetrievalExact; got != want {
+	if got, want := config.VectorRetrieval, searchhybrid.VectorRetrievalAuto; got != want {
 		t.Fatalf("VectorRetrieval = %q, want %q", got, want)
 	}
 	if got, want := config.ProviderProfileID, "local"; got != want {

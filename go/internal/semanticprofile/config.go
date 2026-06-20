@@ -114,6 +114,7 @@ type ProviderProfile struct {
 	ProviderKind           string           `json:"provider_kind"`
 	CredentialSource       CredentialSource `json:"credential_source"`
 	ModelID                string           `json:"model_id"`
+	EmbeddingDimensions    int              `json:"embedding_dimensions,omitempty"`
 	EndpointProfileID      string           `json:"endpoint_profile_id,omitempty"`
 	SourceClasses          []string         `json:"source_classes"`
 	SourcePolicyConfigured bool             `json:"source_policy_configured"`
@@ -205,6 +206,7 @@ func ProviderStatuses(profiles []ProviderProfile) []status.SemanticProviderProfi
 			CredentialSourceKind:   profile.CredentialSource.Kind,
 			CredentialConfigured:   credentialConfigured(profile.CredentialSource),
 			ModelID:                profile.ModelID,
+			EmbeddingDimensions:    profile.EmbeddingDimensions,
 			EndpointProfileID:      profile.EndpointProfileID,
 			SourceClasses:          slices.Clone(profile.SourceClasses),
 			SourcePolicyConfigured: profile.SourcePolicyConfigured,
@@ -223,6 +225,7 @@ func normalizeProfile(profile ProviderProfile) (ProviderProfile, error) {
 		ProviderKind:           strings.TrimSpace(profile.ProviderKind),
 		CredentialSource:       normalizeCredentialSource(profile.CredentialSource),
 		ModelID:                strings.TrimSpace(profile.ModelID),
+		EmbeddingDimensions:    profile.EmbeddingDimensions,
 		EndpointProfileID:      strings.TrimSpace(profile.EndpointProfileID),
 		SourcePolicyConfigured: profile.SourcePolicyConfigured,
 		Health: ProviderHealth{

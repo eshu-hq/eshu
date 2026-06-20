@@ -13,10 +13,12 @@ func TestDockerComposeDocsDescribeSemanticProviderModes(t *testing.T) {
 		"Semantic Provider Modes",
 		"`ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`",
 		"`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`",
+		"`ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`",
 		"no-provider",
 		"Ollama",
 		"`local_dev_profile`",
 		"secret-backed",
+		"`search_documents`",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("Docker Compose docs missing %q", want)

@@ -44,18 +44,22 @@ state, facts, queues, status, content, and recovery data.
 ## Semantic Provider Modes
 
 The default stack is a no-provider semantic mode. Leave
-`ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` and
-`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` unset to keep source-only indexing,
+`ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`,
+`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`, and
+`ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` unset to keep source-only indexing,
 documentation fact reads, API reads, MCP tools, and reducer projection fully
 deterministic. In this mode `/api/v0/status/semantic-extraction` reports
 semantic extraction as unavailable or policy-disabled instead of failing
 ingestion.
 
-The `eshu` and `mcp-server` services pass those two optional variables through
-when they are set in the Compose environment. Bootstrap, ingester, and reducer
-services do not read provider profiles from the default Compose file; provider
-configuration only affects the read-surface status projection until a dedicated
-semantic worker path is enabled.
+The `eshu`, `mcp-server`, and `resolution-engine` services pass those optional
+semantic variables through when they are set in the Compose environment. API,
+MCP, and reducer use the same selector: an explicit
+`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` value forces deterministic local
+vectors, while an unset local override allows exactly one governed
+`search_documents` provider profile to supply embeddings. If more than one
+eligible search provider profile is configured, set
+`ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`.
 
 For a local gateway or Ollama-style development profile, use the
 `local_dev_profile` credential-source kind and store only a profile handle in
@@ -79,21 +83,25 @@ export ESHU_SEMANTIC_EXTRACTION_POLICY_JSON='{"policy_id":"semantic-local-docs",
 docker compose up --build eshu mcp-server
 ```
 
-These local modes are development conveniences. Hosted deployments should use
-the governed provider-profile and source-policy path, with credentials supplied
-by Kubernetes Secrets, Vault-style handles, or workload identity rather than
-shell history or Compose command lines.
+The examples above configure semantic extraction for documentation source
+classes. Search embeddings use the same provider-profile registry but require
+`source_classes:["search_documents"]`, `embedding_dimensions`, an endpoint
+profile id, and source policy for search documents. Hosted deployments should
+use the governed provider-profile and source-policy path, with credentials
+supplied by Kubernetes Secrets, Vault-style handles, or workload identity rather
+than shell history or Compose command lines.
 
 No-Regression Evidence: `go test ./internal/runtime -run
-'TestDefaultComposePassesSemanticConfigOnlyToReadSurfaces|TestDockerComposeDocsDescribeSemanticProviderModes'
--count=1` proves the default Compose stack passes optional semantic profile and
-policy JSON only to API and MCP read surfaces, while bootstrap, ingester, and
-reducer stay on deterministic no-provider defaults.
+'TestDefaultComposePassesSemanticSearchConfigToReadersAndVectorBuilder|TestDockerComposeDocsDescribeSemanticProviderModes'
+-count=1` proves the default Compose stack passes optional semantic profile,
+policy, and search-provider selector config to API, MCP, and reducer, while
+bootstrap and ingester stay on deterministic no-provider defaults.
 
-No-Observability-Change: this Compose slice adds no provider worker, queue
-consumer, graph write, prompt construction, credential load, metric instrument,
-span, or log payload. Existing semantic status readbacks and queue/budget
-signals remain the operator-facing diagnostics.
+Observability Evidence: provider-backed vector builds are still surfaced through
+bounded search-vector build results, Postgres query/exec spans, semantic-search
+route spans, redacted provider profile status, retrieval state fields, and
+vector metadata failure classes. Compose adds no raw prompt, credential,
+endpoint, provider body, path, or document id to logs or metric labels.
 
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
 `timothyswt/nornicdb-cpu-bge:v1.1.6@sha256:e448ccf5cd1c1ff994c6316a1a2c5b06b19b4a3c6545660fa04f43c457625692`.

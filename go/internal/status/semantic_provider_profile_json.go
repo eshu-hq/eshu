@@ -9,6 +9,7 @@ type semanticProviderProfileJSON struct {
 	CredentialSourceKind   string   `json:"credential_source_kind"`
 	CredentialConfigured   bool     `json:"credential_configured"`
 	ModelID                string   `json:"model_id,omitempty"`
+	EmbeddingDimensions    int      `json:"embedding_dimensions,omitempty"`
 	EndpointProfileID      string   `json:"endpoint_profile_id,omitempty"`
 	SourceClasses          []string `json:"source_classes"`
 	SourcePolicyConfigured bool     `json:"source_policy_configured"`
@@ -33,6 +34,7 @@ func semanticProviderProfilesJSON(
 			CredentialSourceKind:   profile.CredentialSourceKind,
 			CredentialConfigured:   profile.CredentialConfigured,
 			ModelID:                profile.ModelID,
+			EmbeddingDimensions:    profile.EmbeddingDimensions,
 			EndpointProfileID:      profile.EndpointProfileID,
 			SourceClasses:          profile.SourceClasses,
 			SourcePolicyConfigured: profile.SourcePolicyConfigured,

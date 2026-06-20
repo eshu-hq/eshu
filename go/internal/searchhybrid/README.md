@@ -6,8 +6,9 @@
 search-document lane. It indexes `searchdocs.Document` records and serves bounded
 keyword (BM25), semantic (vector), and hybrid (Reciprocal Rank Fusion of BM25 and
 vector) retrieval through the `searchretrieval.Backend` port, with no hosted API
-dependency. It is the issue #2237 retrieval implementation that the design-430
-benchmark (#2235) evaluates against the Postgres baseline and NornicDB.
+dependency inside this package. It is the issue #2237 retrieval implementation
+that the design-430 benchmark (#2235) evaluates against the Postgres baseline
+and NornicDB.
 
 ## Ownership boundary
 
@@ -16,14 +17,15 @@ This package owns only the in-process index and ranking. It does not own:
 - the curated document projection (`internal/searchdocs`),
 - the bounded retrieval contract or runner (`internal/searchretrieval`),
 - the evidence/scoring contract (`internal/searchbench`),
-- the concrete local embedding model. The model is supplied through the
-  `Embedder` port; the package works with no embedder at all.
+- the concrete embedding model or provider adapter. The model is supplied
+  through the `Embedder` port; the package works with no embedder at all.
 
 ## Exported surface
 
 See `doc.go` for the godoc-rendered package contract.
 
-- `Embedder` — the optional local-embedding port (deterministic, no hosted call).
+- `Embedder` — the optional embedding port. This package never performs hosted
+  calls; governed adapters live outside this package.
 - `Options` — index configuration (document cap, embedder, BM25 `K1`/`B`, RRF `k`).
 - `VectorRetrievalMode` — semantic retrieval selection (`Auto`, `Exact`, or
   `Approximate`) while keeping exact cosine as the correctness baseline.
@@ -102,7 +104,8 @@ design-430 operator metrics without high-cardinality labels.
 
 - Search rank and score are derived retrieval evidence; this package never writes
   the canonical graph or promotes a score to canonical truth.
-- The `Embedder` must be deterministic and must not call a hosted service.
+- `Embedder` implementations must be deterministic for fixed input; this package
+  never calls hosted services directly.
 - Semantic mode requires an embedder; hybrid without one is BM25-only.
 - Approximate vector retrieval is a local ANN candidate-pruning optimization,
   not canonical truth and not a hosted provider or external vector-store lane.

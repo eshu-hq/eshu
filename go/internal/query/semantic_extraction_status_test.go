@@ -84,6 +84,7 @@ func TestStatusHandlerSemanticExtractionReturnsRedactedProviderProfiles(t *testi
 							CredentialSourceKind:   "environment_variable",
 							CredentialConfigured:   true,
 							ModelID:                "deepseek-chat",
+							EmbeddingDimensions:    3,
 							EndpointProfileID:      "deepseek-public-api",
 							SourceClasses:          []string{"documentation"},
 							SourcePolicyConfigured: true,
@@ -133,6 +134,9 @@ func TestStatusHandlerSemanticExtractionReturnsRedactedProviderProfiles(t *testi
 	}
 	if got, want := profile["credential_source_kind"], "environment_variable"; got != want {
 		t.Fatalf("profile.credential_source_kind = %#v, want %#v", got, want)
+	}
+	if got, want := profile["embedding_dimensions"], float64(3); got != want {
+		t.Fatalf("profile.embedding_dimensions = %#v, want %#v", got, want)
 	}
 	if _, ok := profile["credential_handle"]; ok {
 		t.Fatalf("profile exposed credential_handle: %#v", profile)

@@ -108,6 +108,7 @@ func TestSemanticExtractionProviderProfilesEnableScopedCapabilities(t *testing.T
 					CredentialSourceKind:   "environment_variable",
 					CredentialConfigured:   true,
 					ModelID:                "deepseek-chat",
+					EmbeddingDimensions:    3,
 					EndpointProfileID:      "deepseek-public-api",
 					SourceClasses:          []string{"code_hints"},
 					SourcePolicyConfigured: true,
@@ -120,6 +121,7 @@ func TestSemanticExtractionProviderProfilesEnableScopedCapabilities(t *testing.T
 					CredentialSourceKind:   "environment_variable",
 					CredentialConfigured:   true,
 					ModelID:                "deepseek-chat",
+					EmbeddingDimensions:    3,
 					EndpointProfileID:      "deepseek-public-api",
 					SourceClasses:          []string{"documentation"},
 					SourcePolicyConfigured: true,
@@ -240,6 +242,7 @@ func TestRenderStatusIncludesRedactedSemanticProviderProfiles(t *testing.T) {
 					CredentialSourceKind:   "environment_variable",
 					CredentialConfigured:   true,
 					ModelID:                "deepseek-chat",
+					EmbeddingDimensions:    3,
 					EndpointProfileID:      "deepseek-public-api",
 					SourceClasses:          []string{"documentation"},
 					SourcePolicyConfigured: true,
@@ -293,6 +296,9 @@ func TestRenderStatusIncludesRedactedSemanticProviderProfiles(t *testing.T) {
 	}
 	if got, want := profile["credential_source_kind"], "environment_variable"; got != want {
 		t.Fatalf("credential_source_kind = %#v, want %#v", got, want)
+	}
+	if got, want := profile["embedding_dimensions"], float64(3); got != want {
+		t.Fatalf("embedding_dimensions = %#v, want %#v", got, want)
 	}
 }
 

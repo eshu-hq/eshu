@@ -19,13 +19,16 @@ const (
 	defaultRRFK         = 60
 )
 
+const approximateVectorAutoMinDocuments = 256
+
 // VectorRetrievalMode selects how semantic vectors are retrieved from the
 // in-memory index.
 type VectorRetrievalMode string
 
 const (
-	// VectorRetrievalAuto keeps exact cosine as the zero-value correctness
-	// baseline. Approximate retrieval must be selected explicitly.
+	// VectorRetrievalAuto keeps exact cosine for small corpora and switches to
+	// deterministic approximate retrieval once the index reaches the staged ANN
+	// threshold.
 	VectorRetrievalAuto VectorRetrievalMode = ""
 	// VectorRetrievalExact scans every valid in-scope vector and is the
 	// deterministic correctness baseline for semantic retrieval.

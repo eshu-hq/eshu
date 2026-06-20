@@ -78,6 +78,7 @@ const openAPIPathsSemanticStatus = `
                           "credential_source_kind": {"type": "string", "enum": ["kubernetes_secret", "vault_secret_handle", "environment_variable", "cloud_workload_identity", "local_dev_profile"]},
                           "credential_configured": {"type": "boolean"},
                           "model_id": {"type": "string"},
+                          "embedding_dimensions": {"type": "integer", "minimum": 1},
                           "endpoint_profile_id": {"type": "string"},
                           "source_classes": {"type": "array", "items": {"type": "string", "enum": ["documentation", "diagrams_images", "tickets_chat", "code_hints", "search_documents", "agent_reasoning"]}},
                           "source_policy_configured": {"type": "boolean"},

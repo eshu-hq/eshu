@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
-	"strings"
 
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -55,12 +55,12 @@ func newInstrumentedPostgresStore(
 	}
 }
 
-func newLocalSemanticSearchHybrid(
+func newSemanticSearchHybrid(
 	db *sql.DB,
-	embedder string,
+	config searchembedruntime.Config,
 	instruments *telemetry.Instruments,
 ) query.SemanticSearchHybridStore {
-	if strings.TrimSpace(embedder) == "" {
+	if !config.Enabled {
 		return nil
 	}
 	sqlDB := pgstatus.SQLDB{DB: db}
@@ -76,7 +76,13 @@ func newLocalSemanticSearchHybrid(
 		semanticSearchVectorValueStoreName,
 		instruments,
 	)
-	return query.NewDefaultPersistedLocalSemanticSearchHybrid(
+	vectorConfig := query.DefaultPersistedLocalSemanticSearchHybridConfig()
+	vectorConfig.ProviderProfileID = config.ProviderProfileID
+	vectorConfig.SourceClass = config.SourceClass
+	vectorConfig.EmbeddingModelID = config.EmbeddingModelID
+	vectorConfig.VectorIndexVersion = config.VectorIndexVersion
+	vectorConfig.VectorRetrieval = config.VectorRetrieval
+	return query.NewPersistedLocalSemanticSearchHybrid(
 		query.NewPostgresSemanticSearchIndexStore(db),
 		instrumentedSemanticSearchVectorMetadataStore{
 			store: pgstatus.NewEshuSearchVectorMetadataStore(metadataDB),
@@ -86,5 +92,7 @@ func newLocalSemanticSearchHybrid(
 			store: pgstatus.NewEshuSearchVectorValueStore(valueDB),
 			db:    valueDB,
 		},
+		config.Embedder,
+		vectorConfig,
 	)
 }

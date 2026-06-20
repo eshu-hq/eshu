@@ -1,9 +1,10 @@
 // Package main runs the eshu-mcp-server binary, which serves the Eshu MCP
 // tool transport over stdio or HTTP backed by the same query and content
 // stores as the HTTP API. `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or
-// `local_hash` explicitly enables deterministic no-network local
+// `local_hash` explicitly forces deterministic no-network local
 // semantic/hybrid retrieval from ready persisted vector rows over active
-// curated search documents; unset preserves keyword/no-provider behavior.
+// curated search documents; when unset, one governed search_documents provider
+// profile may supply query embeddings.
 //
 // When invoked with --version or -v, it prints the embedded application
 // version through the test-covered printMCPServerVersionFlag helper and exits

@@ -87,19 +87,21 @@ func TestDefaultComposeFilesDoNotStartTelemetry(t *testing.T) {
 	}
 }
 
-func TestDefaultComposePassesSemanticConfigOnlyToReadSurfaces(t *testing.T) {
+func TestDefaultComposePassesSemanticSearchConfigToReadersAndVectorBuilder(t *testing.T) {
 	t.Parallel()
 
 	doc := readComposeDocument(t, "docker-compose.yaml")
-	for _, serviceName := range []string{"eshu", "mcp-server"} {
+	for _, serviceName := range []string{"eshu", "mcp-server", "resolution-engine"} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON", "${ESHU_SEMANTIC_PROVIDER_PROFILES_JSON:-}")
 		assertComposeEnv(t, service, "ESHU_SEMANTIC_EXTRACTION_POLICY_JSON", "${ESHU_SEMANTIC_EXTRACTION_POLICY_JSON:-}")
+		assertComposeEnv(t, service, "ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID", "${ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID:-}")
 	}
-	for _, serviceName := range []string{"bootstrap-index", "ingester", "resolution-engine"} {
+	for _, serviceName := range []string{"bootstrap-index", "ingester"} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON")
 		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_EXTRACTION_POLICY_JSON")
+		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID")
 	}
 }
 

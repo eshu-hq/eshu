@@ -14,7 +14,7 @@ const (
 	defaultSearchVectorBuildDocumentLimit = 500
 )
 
-// SearchVectorBuildPendingScope identifies one active scope that needs local
+// SearchVectorBuildPendingScope identifies one active scope that needs
 // vector rows for its curated search documents.
 type SearchVectorBuildPendingScope struct {
 	ScopeID      string
@@ -22,7 +22,7 @@ type SearchVectorBuildPendingScope struct {
 	RepoID       string
 }
 
-// SearchVectorBuildPendingRequest bounds pending local vector build discovery.
+// SearchVectorBuildPendingRequest bounds pending vector build discovery.
 type SearchVectorBuildPendingRequest struct {
 	ProviderProfileID  string
 	SourceClass        string
@@ -37,7 +37,7 @@ type SearchVectorBuildPendingLister interface {
 	ListPendingSearchVectorScopes(context.Context, SearchVectorBuildPendingRequest) ([]SearchVectorBuildPendingScope, error)
 }
 
-// SearchVectorBuildRequest identifies one bounded local vector build for a
+// SearchVectorBuildRequest identifies one bounded vector build for a
 // scope. The cmd/runtime layer adapts this port to the concrete searchvector
 // builder to keep reducer free of storage package dependencies.
 type SearchVectorBuildRequest struct {
@@ -50,20 +50,20 @@ type SearchVectorBuildRequest struct {
 	Limit              int
 }
 
-// SearchVectorBuildResult summarizes a local vector build attempt.
+// SearchVectorBuildResult summarizes a vector build attempt.
 type SearchVectorBuildResult struct {
 	DocumentCount int
 	VectorCount   int
 	FailedCount   int
 }
 
-// SearchVectorBuilder runs one bounded local vector build for a scope.
+// SearchVectorBuilder runs one bounded vector build for a scope.
 type SearchVectorBuilder interface {
 	BuildSearchVectors(context.Context, SearchVectorBuildRequest) (SearchVectorBuildResult, error)
 }
 
 // SearchVectorBuildRunnerConfig configures the reducer sidecar that builds
-// deterministic local vector rows for the semantic/hybrid search read path.
+// derived vector rows for the semantic/hybrid search read path.
 type SearchVectorBuildRunnerConfig struct {
 	PollInterval       time.Duration
 	ScopeLimit         int
@@ -95,7 +95,7 @@ func (c SearchVectorBuildRunnerConfig) documentLimit() int {
 	return c.DocumentLimit
 }
 
-// SearchVectorBuildRunner builds derived local vector rows beside normal
+// SearchVectorBuildRunner builds derived vector rows beside normal
 // reducer work. It writes no graph truth and relies on the vector stores'
 // deterministic upsert identity for duplicate/replayed work convergence.
 type SearchVectorBuildRunner struct {
