@@ -272,19 +272,19 @@ func TestSecurityAlertReconciliationSQLAppliesScopedGrant(t *testing.T) {
 			name:       "total",
 			query:      securityAlertReconciliationAggregateTotalQuery,
 			beforeText: ";",
-			predicate:  "cardinality($8::text[]) = 0",
+			predicate:  "COALESCE(cardinality($8::text[]), 0) = 0",
 		},
 		{
 			name:       "group",
 			query:      securityAlertReconciliationAggregateGroupQueryTemplate,
 			beforeText: "GROUP BY",
-			predicate:  "cardinality($8::text[]) = 0",
+			predicate:  "COALESCE(cardinality($8::text[]), 0) = 0",
 		},
 		{
 			name:       "inventory",
 			query:      securityAlertReconciliationInventoryQueryTemplate,
 			beforeText: "GROUP BY",
-			predicate:  "cardinality($8::text[]) = 0",
+			predicate:  "COALESCE(cardinality($8::text[]), 0) = 0",
 		},
 	} {
 		tc := tc
