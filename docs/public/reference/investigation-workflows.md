@@ -35,8 +35,10 @@ one of those anchors and none was supplied, the resolver returns the call under
 
 `guided_deployable_drift` requires `deployable_unit_id`, `scope_id`, and
 `generation_id` because admission decisions are reducer-scoped by domain, scope,
-and generation. Runtime drift drilldowns reuse `scope_id` and can optionally
-include `account_id` and `region`.
+and generation. Admission decisions are anchored to repository evidence, so the
+admission missing-evidence route is blocked until `repo_id` is supplied. Runtime
+drift drilldowns use the provider-neutral runtime drift surface with `scope_id`
+and may include `provider`, `account_id`, `project_id`, or `subscription_id`.
 
 ## Starter Prompts
 
@@ -82,7 +84,8 @@ being guessed. Common keys include:
 | `owner` | `list_service_catalog_correlations` |
 | `admission` | `list_admission_decisions` |
 | `deployment_config` | `investigate_deployment_config` |
-| `runtime` | `list_aws_runtime_drift_findings` |
+| `runtime` | `list_cloud_runtime_drift_findings` |
+| `service` | `get_workload_story` |
 | `incident` | `get_incident_context` |
 | `observability` | `list_observability_coverage_correlations` |
 | `changes` | `list_ci_cd_run_correlations` |

@@ -191,10 +191,12 @@ func deployableDriftWorkflow() InvestigationWorkflow {
 			{Name: "deployable_unit_id", Type: PlaybookInputIdentifier, Required: true, Description: "Deployable unit, workload, or resource identity to investigate."},
 			{Name: "generation_id", Type: PlaybookInputIdentifier, Required: true, Description: "Scope generation ID that bounds reducer admission evidence."},
 			{Name: "scope_id", Type: PlaybookInputIdentifier, Required: true, Description: "Collector or ingestion scope ID that bounds admission and runtime drift evidence."},
-			{Name: "account_id", Type: PlaybookInputIdentifier, Description: "Optional AWS account ID to further bound runtime drift reads."},
-			{Name: "repo_id", Type: PlaybookInputIdentifier, Description: "Optional repository scope for deployment config evidence."},
-			{Name: "region", Type: PlaybookInputString, Description: "Optional AWS region when account_id is supplied."},
+			{Name: "account_id", Type: PlaybookInputIdentifier, Description: "Optional AWS account ID alias to further bound provider-neutral runtime drift reads."},
 			{Name: "environment", Type: PlaybookInputString, Description: "Optional runtime environment selector."},
+			{Name: "project_id", Type: PlaybookInputIdentifier, Description: "Optional GCP project ID alias to further bound provider-neutral runtime drift reads."},
+			{Name: "provider", Type: PlaybookInputString, Description: "Optional runtime provider filter such as aws, gcp, or azure."},
+			{Name: "repo_id", Type: PlaybookInputIdentifier, Description: "Optional repository anchor for reducer admission and deployment config evidence."},
+			{Name: "subscription_id", Type: PlaybookInputIdentifier, Description: "Optional Azure subscription ID alias to further bound provider-neutral runtime drift reads."},
 		},
 		RequiredEvidence: []WorkflowEvidence{
 			{Key: "admission", Name: "Reducer admission decision", Description: "Accepted, rejected, ambiguous, stale, or permission-hidden reducer decision.", SourceFamilies: []string{"admission_decisions"}},
@@ -208,12 +210,13 @@ func deployableDriftWorkflow() InvestigationWorkflow {
 		OutputPacket: WorkflowOutputPacket{
 			Schema:      "guided-deployable-drift.v1",
 			TruthLabels: []string{"exact", "derived", "ambiguous", "rejected", "stale", "permission_hidden"},
-			Sections:    []string{"deployable_unit", "admission", "deployment_config", "runtime_state", "drift", "missing_evidence", "recommended_next_calls"},
+			Sections:    []string{"deployable_unit", "admission", "deployment_config", "runtime_state", "drift", "service", "freshness", "missing_evidence", "recommended_next_calls"},
 		},
 		ToolGroups: []WorkflowToolGroup{
 			{Name: "admission", Tools: []string{"list_admission_decisions", "get_relationship_evidence"}},
 			{Name: "deployment_config", Tools: []string{"investigate_deployment_config", "explain_iac_management_status"}},
-			{Name: "runtime_drift", Tools: []string{"find_unmanaged_resources", "list_aws_runtime_drift_findings"}},
+			{Name: "runtime_drift", Tools: []string{"find_unmanaged_resources", "list_cloud_runtime_drift_findings"}},
+			{Name: "service_context", Tools: []string{"get_workload_story", "get_generation_lifecycle"}},
 		},
 		StarterPrompts: []string{
 			"Explain why deployable_unit_id is accepted, drifted, unmanaged, rejected, or ambiguous, and name the next evidence calls.",
@@ -223,11 +226,12 @@ func deployableDriftWorkflow() InvestigationWorkflow {
 			{
 				EvidenceKey: "admission",
 				Calls: []WorkflowNextCall{{
-					ID:               "admission_decision",
-					Tool:             "list_admission_decisions",
-					Reason:           "read reducer-owned admission state before treating a deployable candidate as canonical truth",
-					Params:           []PlaybookParam{constStringParam("domain", "deployable_unit"), inputParam("scope_id", "scope_id"), inputParam("generation_id", "generation_id"), constStringParam("anchor_kind", "workload"), inputParam("anchor_id", "deployable_unit_id"), limitParam("limit", 10)},
-					ExpectedEvidence: "bounded admission rows with admitted, rejected, ambiguous, stale, or missing-evidence reasons",
+					ID:                "admission_decision",
+					Tool:              "list_admission_decisions",
+					Reason:            "read reducer-owned admission state before treating a deployable candidate as canonical truth",
+					Params:            []PlaybookParam{constStringParam("domain", "deployable_unit_correlation"), inputParam("scope_id", "scope_id"), inputParam("generation_id", "generation_id"), constStringParam("anchor_kind", "repository"), inputParam("anchor_id", "repo_id"), boolParam("include_evidence", true), limitParam("limit", 10)},
+					RequiredInputsAny: []string{"repo_id"},
+					ExpectedEvidence:  "bounded admission rows with admitted, rejected, ambiguous, stale, or missing-evidence reasons plus source handles",
 				}},
 			},
 			{
@@ -244,13 +248,33 @@ func deployableDriftWorkflow() InvestigationWorkflow {
 				EvidenceKey: "runtime",
 				Calls: []WorkflowNextCall{{
 					ID:               "runtime_drift",
-					Tool:             "list_aws_runtime_drift_findings",
-					Reason:           "check observed runtime drift or unmanaged-resource evidence for the deployable unit",
-					Params:           []PlaybookParam{inputParam("scope_id", "scope_id"), inputParam("account_id", "account_id"), inputParam("region", "region"), limitParam("limit", 10)},
+					Tool:             "list_cloud_runtime_drift_findings",
+					Reason:           "check observed provider-neutral runtime drift or unmanaged-resource evidence for the deployable unit scope",
+					Params:           []PlaybookParam{inputParam("scope_id", "scope_id"), inputParam("account_id", "account_id"), inputParam("project_id", "project_id"), inputParam("subscription_id", "subscription_id"), inputParam("provider", "provider"), limitParam("limit", 10)},
 					ExpectedEvidence: "bounded runtime drift rows with freshness and missing-source state",
 				}},
 			},
-			commonFreshnessRoute(),
+			{
+				EvidenceKey: "service",
+				Calls: []WorkflowNextCall{{
+					ID:               "workload_story",
+					Tool:             "get_workload_story",
+					Reason:           "read service or workload story evidence before claiming the deployable unit has no service context",
+					Params:           []PlaybookParam{inputParam("workload_id", "deployable_unit_id"), inputParam("environment", "environment")},
+					ExpectedEvidence: "bounded workload story with service, deployment, ownership, dependency, and evidence handles",
+				}},
+			},
+			{
+				EvidenceKey: "freshness",
+				States:      []string{"stale", "building"},
+				Calls: []WorkflowNextCall{{
+					ID:               "generation_lifecycle",
+					Tool:             "get_generation_lifecycle",
+					Reason:           "classify the scoped generation as stale, building, failed, or current before treating missing drift evidence as absence",
+					Params:           []PlaybookParam{inputParam("scope_id", "scope_id"), inputParam("generation_id", "generation_id"), limitParam("limit", 10)},
+					ExpectedEvidence: "bounded generation lifecycle rows for the requested scope and generation",
+				}},
+			},
 			commonPermissionRoute(),
 		},
 	}
