@@ -60,7 +60,7 @@ describe("AskPage", () => {
     expect(await screen.findByText("Found 2 ranked code-topic evidence group(s).")).toBeInTheDocument();
     expect(screen.getByText("code.topic")).toBeInTheDocument();
     expect(screen.getByText("semantic_search.curated_retrieval")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "src/auth.ts:42" })).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "src/auth.ts:42" })[0]).toHaveAttribute(
       "href",
       "/repositories/repository%3Ar1/source?path=src%2Fauth.ts&lineStart=42"
     );
@@ -90,7 +90,7 @@ describe("AskPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByTitle("Truth: derived").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("Freshness: fresh").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "src/auth.ts:42" })).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "src/auth.ts:42" })[0]).toHaveAttribute(
       "href",
       "/repositories/repository%3Ar1/source?path=src%2Fauth.ts&lineStart=42"
     );

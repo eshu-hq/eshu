@@ -12,6 +12,7 @@ import {
 } from "../api/answerPacket";
 import { emptyAnswerGraph, type VisualizationPacket } from "../api/answerVisualization";
 import { Badge, FreshDot, TruthChip } from "./atoms";
+import { EvidencePacketReader } from "./EvidencePacketReader";
 import { GraphCanvas } from "./GraphCanvas";
 import "./answerRenderer.css";
 
@@ -104,6 +105,11 @@ export function AnswerRenderer({
           <p>{visualizationPacket.limitations.join("; ") || "Visualization packet was unsupported."}</p>
         </div>
       ) : null}
+      <EvidencePacketReader
+        answer={answer}
+        citationPacket={citationPacket}
+        visualizationPacket={visualizationPacket}
+      />
       <GraphCanvas graph={displayGraph} height={260} />
     </section>
   );
