@@ -1,6 +1,7 @@
 package interproc
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -239,6 +240,47 @@ func TestFindingTrailOrdersSourceIntermediateSink(t *testing.T) {
 	}
 	if serial.Findings[0].TrailTruncated {
 		t.Fatalf("short trail unexpectedly marked truncated: %+v", serial.Findings[0])
+	}
+}
+
+// TestFindingTrailKeepsSinkWhenTruncated proves long evidence trails keep the
+// real terminal sink instead of presenting the last retained intermediate as
+// the sink.
+func TestFindingTrailKeepsSinkWhenTruncated(t *testing.T) {
+	t.Parallel()
+
+	src := param("repo\x1fsrc", 0)
+	sink := param("repo\x1fsink", 0)
+	edges := make([]Edge, 0, maxFindingTrailPorts+8)
+	previous := src
+	for i := 0; i < maxFindingTrailPorts+8; i++ {
+		next := named(FunctionID(fmt.Sprintf("repo\x1fmid%d", i)), "value")
+		edges = append(edges, Edge{From: previous, To: next})
+		previous = next
+	}
+	edges = append(edges, Edge{From: previous, To: sink})
+	program := Program{
+		Edges:   edges,
+		Sources: []Source{{Port: src, Kind: "http"}},
+		Sinks:   []Sink{{Port: sink, Kind: "sql"}},
+	}
+
+	res := Solve(program, DefaultLimits())
+	if len(res.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1: %+v", len(res.Findings), res.Findings)
+	}
+	finding := res.Findings[0]
+	if !finding.TrailTruncated {
+		t.Fatalf("long trail was not marked truncated: %+v", finding.Trail)
+	}
+	if got, want := len(finding.Trail), maxFindingTrailPorts; got != want {
+		t.Fatalf("trail length = %d, want %d", got, want)
+	}
+	if got := finding.Trail[0]; got != src {
+		t.Fatalf("trail source = %+v, want %+v", got, src)
+	}
+	if got := finding.Trail[len(finding.Trail)-1]; got != sink {
+		t.Fatalf("trail terminal = %+v, want sink %+v", got, sink)
 	}
 }
 
