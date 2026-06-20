@@ -19,8 +19,8 @@ Before shipping a marketing-site change, run the local browser review gate. It
 is a repeatable Playwright check of the ROOT marketing site (the site that
 builds to `site-dist`), kept separate from any console private-data proof.
 
-Requires Node.js >= 22.6 — `scripts/marketing-review.mjs` imports a TypeScript
-module directly, which relies on Node's native type stripping.
+The gate does not require Node's native TypeScript loader; it transforms the
+unit-tested evaluator through Vite before running the browser checks.
 
 ```bash
 npx playwright install chromium   # one-time, if Chromium is missing

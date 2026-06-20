@@ -16,7 +16,8 @@
 //      (DOMContentLoaded budget) checks.
 //   6. Captures desktop + mobile screenshots into a gitignored artifacts dir.
 //   7. Evaluates everything through the unit-tested pure evaluator in
-//      `src/marketingReview.ts` and exits non-zero on any failed check.
+//      `src/marketingReview.ts` via Vite's transformer and exits non-zero on
+//      any failed check.
 //
 // Usage:
 //   npm run site:review                 # build, serve, review
@@ -30,14 +31,16 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { evaluateMarketingReview } from "../src/marketingReview.ts";
+import {
+  closeMarketingPreview,
+  loadMarketingReviewEvaluator,
+  startMarketingPreview
+} from "./marketing-review-runtime.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..");
 const artifactsDir = join(repoRoot, "site-review-artifacts");
-const previewPort = 4317;
 const previewHost = "127.0.0.1";
-const baseUrl = `http://${previewHost}:${previewPort}/`;
 
 const args = new Set(process.argv.slice(2));
 const skipBuild = args.has("--no-build");
@@ -112,7 +115,7 @@ async function waitForServer(url, timeoutMs) {
 }
 
 /** Collect the observed facts for one viewport. */
-async function observeViewport(browser, spec) {
+async function observeViewport(browser, spec, baseUrl) {
   const context = await browser.newContext({
     viewport: { width: spec.width, height: spec.height },
     deviceScaleFactor: spec.viewport === "mobile" ? 2 : 1,
@@ -239,28 +242,22 @@ function printReport(result) {
 }
 
 async function main() {
-  let preview;
+  let previewRuntime;
   let browser;
   try {
     await rm(artifactsDir, { recursive: true, force: true });
     await mkdir(artifactsDir, { recursive: true });
+    const evaluateMarketingReview = await loadMarketingReviewEvaluator(repoRoot);
 
     if (!skipBuild) {
       console.log("> building root marketing site (vite -> site-dist)");
       await awaitExit(spawnProcess("npm", ["run", "build"]), "npm run build");
     }
 
-    console.log(`> serving site-dist via vite preview on ${baseUrl}`);
-    // Invoke `vite preview` directly with a single --host. Going through the
-    // `preview` npm script would layer this on top of its built-in
-    // `--host 0.0.0.0`, passing vite two conflicting --host flags.
-    preview = spawnProcess(
-      "npx",
-      ["vite", "preview", "--port", String(previewPort), "--host", previewHost],
-      { detached: true }
-    );
-    preview.stdout?.on("data", () => {});
-    preview.stderr?.on("data", (chunk) => process.stderr.write(chunk));
+    console.log("> serving site-dist via vite preview on an ephemeral local port");
+    previewRuntime = await startMarketingPreview(repoRoot, previewHost);
+    const { baseUrl } = previewRuntime;
+    console.log(`> vite preview ready at ${baseUrl}`);
     await waitForServer(baseUrl, 30_000);
 
     console.log("> launching Chromium for desktop + mobile review");
@@ -268,7 +265,7 @@ async function main() {
 
     const observations = [];
     for (const spec of viewports) {
-      observations.push(await observeViewport(browser, spec));
+      observations.push(await observeViewport(browser, spec, baseUrl));
     }
 
     const result = evaluateMarketingReview(contract, observations);
@@ -300,13 +297,8 @@ async function main() {
     if (browser) {
       await browser.close();
     }
-    if (preview && preview.pid) {
-      // vite preview is detached; kill the whole process group.
-      try {
-        process.kill(-preview.pid, "SIGTERM");
-      } catch {
-        preview.kill("SIGTERM");
-      }
+    if (previewRuntime) {
+      await closeMarketingPreview(previewRuntime);
     }
     if (!keepBuild && !skipBuild) {
       await rm(join(repoRoot, "site-dist"), { recursive: true, force: true });
