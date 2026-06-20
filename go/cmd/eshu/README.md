@@ -137,13 +137,13 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
 `go test ./cmd/eshu -count=1`.
 
 No-Observability-Change: `change impact` is an API-backed CLI reader. It may
-run local `git diff --name-status --find-renames` to derive changed files, then
-uses the existing HTTP API client and canonical envelope. It does not start
-runtimes, open graph/Postgres drivers, claim reducer work, or emit OTEL from
-the CLI process.
+run local `git diff --name-status --find-renames --find-copies
+--find-copies-harder` to derive changed files, then uses the existing HTTP API
+client and canonical envelope. It does not start runtimes, open graph/Postgres
+drivers, claim reducer work, or emit OTEL from the CLI process.
 
 No-Regression Evidence: pre-change impact CLI behavior is covered by
-`go test ./cmd/eshu -run 'TestChangeImpact|TestParseGitNameStatusDiff' -count=1`.
+`go test ./cmd/eshu -run 'Test(ChangeImpact|FetchChangeImpact|ParseGitNameStatusDiff|GitDiffNameStatus)' -count=1`.
 
 No-Observability-Change: component package-manager output and dry-run planning
 remain local filesystem CLI behavior. They do not start runtimes, call the API,
