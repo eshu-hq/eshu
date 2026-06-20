@@ -46,13 +46,44 @@ cat >"${tmp_dir}/provenance.json" <<'JSON'
 {"eshu_commit":"abc1234","component_digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","backend":"nornicdb","queue_terminal_state":"completed","metrics_handle":":9464/metrics"}
 JSON
 
+missing_readback="${tmp_dir}/missing-readback"
+mkdir -p "${missing_readback}"
+cp "${tmp_dir}/inventory.json" "${tmp_dir}/workflow-items.json" "${tmp_dir}/facts.json" "${tmp_dir}/parity.json" "${tmp_dir}/provenance.json" "${missing_readback}/"
+if "${verifier}" --artifacts "${missing_readback}" >/tmp/pagerduty-component-proof-missing-readback.out 2>/tmp/pagerduty-component-proof-missing-readback.err; then
+	die "expected verifier to fail when API/MCP lifecycle artifacts are missing"
+fi
+rg --quiet 'missing required artifact' /tmp/pagerduty-component-proof-missing-readback.err \
+	|| die "missing readback failure was not reported"
+
+cat >"${tmp_dir}/api-inventory.json" <<'JSON'
+{"data":{"component_home_configured":true,"components":[{"id":"dev.eshu.examples.pagerduty","verified":true,"states":["installed","enabled","claim_capable"]}]},"error":null}
+JSON
+cat >"${tmp_dir}/mcp-inventory.json" <<'JSON'
+{"data":{"component_home_configured":true,"components":[{"id":"dev.eshu.examples.pagerduty","verified":true,"states":["installed","enabled","claim_capable"]}]},"error":null}
+JSON
+cat >"${tmp_dir}/disable.json" <<'JSON'
+{"schema_version":"eshu.component.cli.v1","command":"disable","status":"disabled","component":{"id":"dev.eshu.examples.pagerduty"},"activation":{"instance_id":"pagerduty-reference"}}
+JSON
+cat >"${tmp_dir}/post-disable-inventory.json" <<'JSON'
+{"data":{"component_home_configured":true,"components":[{"id":"dev.eshu.examples.pagerduty","verified":true,"states":["installed"]}]},"error":null}
+JSON
+cat >"${tmp_dir}/uninstall.json" <<'JSON'
+{"schema_version":"eshu.component.cli.v1","command":"uninstall","status":"uninstalled","component":{"id":"dev.eshu.examples.pagerduty","version":"0.1.0"}}
+JSON
+cat >"${tmp_dir}/post-uninstall-inventory.json" <<'JSON'
+{"data":{"component_home_configured":true,"components":[]},"error":null}
+JSON
+
 "${verifier}" --artifacts "${tmp_dir}" >/tmp/pagerduty-component-proof-pass.out
 rg --quiet 'PagerDuty component-extension proof artifacts verified' /tmp/pagerduty-component-proof-pass.out \
 	|| die "expected verifier pass output"
 
 missing_family="${tmp_dir}/missing-family"
 mkdir -p "${missing_family}"
-cp "${tmp_dir}/inventory.json" "${tmp_dir}/workflow-items.json" "${tmp_dir}/parity.json" "${tmp_dir}/provenance.json" "${missing_family}/"
+cp "${tmp_dir}/inventory.json" "${tmp_dir}/api-inventory.json" "${tmp_dir}/mcp-inventory.json" \
+	"${tmp_dir}/workflow-items.json" "${tmp_dir}/parity.json" "${tmp_dir}/provenance.json" \
+	"${tmp_dir}/disable.json" "${tmp_dir}/post-disable-inventory.json" "${tmp_dir}/uninstall.json" \
+	"${tmp_dir}/post-uninstall-inventory.json" "${missing_family}/"
 cat >"${missing_family}/facts.json" <<'JSON'
 {"dev.eshu.examples.pagerduty.incident": 1}
 JSON
@@ -64,7 +95,10 @@ rg --quiet 'missing committed fact family' /tmp/pagerduty-component-proof-fail.e
 
 signature_mismatch="${tmp_dir}/signature-mismatch"
 mkdir -p "${signature_mismatch}"
-cp "${tmp_dir}/inventory.json" "${tmp_dir}/workflow-items.json" "${tmp_dir}/facts.json" "${tmp_dir}/provenance.json" "${signature_mismatch}/"
+cp "${tmp_dir}/inventory.json" "${tmp_dir}/api-inventory.json" "${tmp_dir}/mcp-inventory.json" \
+	"${tmp_dir}/workflow-items.json" "${tmp_dir}/facts.json" "${tmp_dir}/provenance.json" \
+	"${tmp_dir}/disable.json" "${tmp_dir}/post-disable-inventory.json" "${tmp_dir}/uninstall.json" \
+	"${tmp_dir}/post-uninstall-inventory.json" "${signature_mismatch}/"
 cat >"${signature_mismatch}/parity.json" <<'JSON'
 {
   "fixture_parity": "passed",
@@ -86,7 +120,10 @@ rg --quiet 'fixture parity signature mismatch' /tmp/pagerduty-component-proof-si
 
 leaky="${tmp_dir}/leaky"
 mkdir -p "${leaky}"
-cp "${tmp_dir}/inventory.json" "${tmp_dir}/workflow-items.json" "${tmp_dir}/facts.json" "${tmp_dir}/parity.json" "${tmp_dir}/provenance.json" "${leaky}/"
+cp "${tmp_dir}/inventory.json" "${tmp_dir}/api-inventory.json" "${tmp_dir}/mcp-inventory.json" \
+	"${tmp_dir}/workflow-items.json" "${tmp_dir}/facts.json" "${tmp_dir}/parity.json" \
+	"${tmp_dir}/provenance.json" "${tmp_dir}/disable.json" "${tmp_dir}/post-disable-inventory.json" \
+	"${tmp_dir}/uninstall.json" "${tmp_dir}/post-uninstall-inventory.json" "${leaky}/"
 cat >"${leaky}/parity.json" <<'JSON'
 {
   "fixture_parity": "passed",

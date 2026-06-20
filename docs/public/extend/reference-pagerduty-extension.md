@@ -72,14 +72,16 @@ scripts/run-remote-e2e-pagerduty-component-extension.sh --artifacts <run-dir>
 
 The overlay builds the `examples/collector-extensions/pagerduty/Dockerfile`
 proof image, installs and enables the fixture component into the shared
-component home, starts the workflow coordinator in active claims mode, and runs
-the component-extension collector under an allowlist plus restricted egress
-policy.
+component home, exposes that registry to the API and MCP runtimes, starts the
+workflow coordinator in active claims mode, and runs the component-extension
+collector under an allowlist plus restricted egress policy.
 
 The capture driver records only bounded operational evidence:
 
 - `inventory.json` - component id plus installed, enabled, trusted, and manifest
   digest readback.
+- `api-inventory.json` and `mcp-inventory.json` - hosted API and MCP inventory
+  readback proving the same component is installed, enabled, and claim-capable.
 - `workflow-items.json` - PagerDuty component workflow item ids and terminal
   states.
 - `facts.json` - committed `dev.eshu.examples.pagerduty.*` fact-family counts.
@@ -88,16 +90,21 @@ The capture driver records only bounded operational evidence:
   paths.
 - `provenance.json` - commit, component digest, backend, queue terminal state,
   and a port-only metrics handle.
+- `disable.json`, `post-disable-inventory.json`, `uninstall.json`, and
+  `post-uninstall-inventory.json` - local lifecycle rollback proof after the
+  claim/fact evidence has been captured.
 
 The verifier requires the component to be installed, enabled, and trusted; no
 workflow item may be retrying, failed, or dead-lettered; all six fact families
 must have non-zero committed counts for the captured generation; parity must be
 recorded as passed; the expected and extension fact signatures must match; and
-the provenance fields must be present. The signatures cover fact kind, schema
-version, stable key, source confidence, source ref, and payload for the same
-claim identity used by the running worker. A redaction canary fails closed if
-artifacts contain host-local paths, private-key markers, bearer tokens, or raw
-IP addresses.
+the provenance fields must be present. API and MCP inventory must read the
+shared component home, and rollback proof must show disable removing active
+claim state before uninstall removes the package readback. The signatures cover
+fact kind, schema version, stable key, source confidence, source ref, and
+payload for the same claim identity used by the running worker. A redaction
+canary fails closed if artifacts contain host-local paths, private-key markers,
+bearer tokens, or raw IP addresses.
 
 ## Helm Enablement
 
