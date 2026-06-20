@@ -62,6 +62,27 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 		}
 	}
 
+	operatorPath := mustMapField(t, paths, "/api/v0/status/operator-control-plane")
+	operatorGet := mustMapField(t, operatorPath, "get")
+	operatorResponses := mustMapField(t, operatorGet, "responses")
+	operatorOK := mustMapField(t, operatorResponses, "200")
+	operatorContent := mustMapField(t, operatorOK, "content")
+	operatorJSON := mustMapField(t, operatorContent, "application/json")
+	operatorSchema := mustMapField(t, operatorJSON, "schema")
+	operatorProperties := mustMapField(t, operatorSchema, "properties")
+	for _, want := range []string{
+		"queue",
+		"reducer_domains",
+		"collector_families",
+		"dead_letters",
+		"retry_policies",
+		"scoped",
+	} {
+		if _, ok := operatorProperties[want]; !ok {
+			t.Fatalf("/api/v0/status/operator-control-plane response schema missing %q", want)
+		}
+	}
+
 	semanticPath := mustMapField(t, paths, "/api/v0/status/semantic-extraction")
 	semanticGet := mustMapField(t, semanticPath, "get")
 	semanticResponses := mustMapField(t, semanticGet, "responses")

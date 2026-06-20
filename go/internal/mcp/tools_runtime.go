@@ -63,6 +63,15 @@ func runtimeTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "get_operator_control_plane",
+			Description: "Return the unified operator read model in one call: queue depth with claim-latency and stuck-work signals, reducer-domain backlogs, collector-family promotion verdicts with the newest proof artifact, and dead-letter state classed by reducer domain and collector-generation commit. Scoped tokens receive the same aggregate counts with raw correlation IDs and instance labels redacted.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
+		{
 			Name:        "get_hosted_governance_status",
 			Description: "Return redacted hosted governance status across policy mode, shared-token posture, tenancy, egress, semantic, extension, redaction, retention, audit, and aggregate decision readbacks.",
 			InputSchema: map[string]any{

@@ -88,4 +88,12 @@
 // (ChangedSinceCategoryDocs, #1988), and incidents
 // (ChangedSinceCategoryIncidents, #1989) evidence families; the remaining family
 // appends to ServiceChangedSinceCategories as it lands.
+//
+// ControlPlane projects an already-built Report into OperatorControlPlane, the
+// unified operator read model for the control-plane epic: queue depth with
+// claim-latency and stuck-work signals, reducer-domain backlogs, collector-family
+// promotion verdicts with the newest proof artifact, and dead-letter state classed
+// by reducer domain (DomainDeadLetter) and the collector-generation commit path.
+// It performs no I/O, so the operator-control-plane API route and MCP tool add no
+// database or graph cost beyond the snapshot the caller already loaded.
 package status
