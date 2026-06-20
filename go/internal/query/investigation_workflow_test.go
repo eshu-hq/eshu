@@ -110,6 +110,12 @@ func TestInvestigationWorkflowResolveIsDeterministicAndReportsUnmatchedEvidence(
 	if len(first.RecommendedNextCalls) == 0 || first.RecommendedNextCalls[0].Tool != "list_observability_coverage_correlations" {
 		t.Fatalf("first next call = %#v, want observability correlation call", first.RecommendedNextCalls)
 	}
+	if got, want := first.RecommendedNextCalls[0].Arguments["target_service_ref"], "checkout"; got != want {
+		t.Fatalf("observability target_service_ref = %#v, want %#v", got, want)
+	}
+	if _, ok := first.RecommendedNextCalls[0].Arguments["service_id"]; ok {
+		t.Fatalf("observability arguments contain unsupported service_id: %#v", first.RecommendedNextCalls[0].Arguments)
+	}
 }
 
 func TestInvestigationWorkflowResolveDeployableDriftAdmissionUsesBoundedInputs(t *testing.T) {

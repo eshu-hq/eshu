@@ -212,7 +212,7 @@ func incidentContextWorkflow() InvestigationWorkflow {
 					ID:               "observability_coverage",
 					Tool:             "list_observability_coverage_correlations",
 					Reason:           "check whether observability and alert coverage exists before declaring observability absent",
-					Params:           []PlaybookParam{inputParam("service_id", "service_id"), inputParam("environment", "environment"), limitParam("limit", 10)},
+					Params:           []PlaybookParam{inputParam("target_service_ref", "service_id"), limitParam("limit", 10)},
 					ExpectedEvidence: "bounded observability correlation rows or explicit missing observability coverage",
 				}},
 			},
