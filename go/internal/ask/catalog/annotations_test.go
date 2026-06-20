@@ -4,23 +4,33 @@ import "testing"
 
 func TestAnnotateAppliesOverlay(t *testing.T) {
 	t.Parallel()
+	// Pick a real overlay entry dynamically so the test is robust to curated
+	// annotation changes. find_symbol is present in sampleInventory and must
+	// appear in the overlay; read its expected values directly from annotations()
+	// rather than hard-coding them.
+	const probe = "find_symbol"
+	overlay := annotations()
+	want, ok := overlay[probe]
+	if !ok {
+		t.Fatalf("annotations() is missing %q; update annotations_tools.go", probe)
+	}
 	cat, err := Parse([]byte(sampleInventory))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
 	cat.Annotate()
 	for _, e := range cat.Entries() {
-		if e.Name == "find_symbol" {
-			if e.Backend != BackendNornicDB {
-				t.Fatalf("find_symbol backend = %q, want nornicdb", e.Backend)
+		if e.Name == probe {
+			if e.Backend != want.Backend {
+				t.Fatalf("%s backend = %q, want %q (from overlay)", probe, e.Backend, want.Backend)
 			}
-			if e.Cost != CostLow {
-				t.Fatalf("find_symbol cost = %q, want low", e.Cost)
+			if e.Cost != want.Cost {
+				t.Fatalf("%s cost = %q, want %q (from overlay)", probe, e.Cost, want.Cost)
 			}
 			return
 		}
 	}
-	t.Fatal("find_symbol entry not found")
+	t.Fatalf("%q entry not found in parsed catalog", probe)
 }
 
 func TestUnannotatedReportsMissingOverlay(t *testing.T) {

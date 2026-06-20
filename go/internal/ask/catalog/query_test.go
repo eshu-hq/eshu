@@ -4,14 +4,16 @@ import "testing"
 
 func TestLookup(t *testing.T) {
 	t.Parallel()
+	const probe = "find_symbol"
+	want := annotations()[probe]
 	cat, _ := Parse([]byte(sampleInventory))
 	cat.Annotate()
-	e, ok := cat.Lookup("find_symbol")
+	e, ok := cat.Lookup(probe)
 	if !ok {
-		t.Fatal("expected find_symbol present")
+		t.Fatalf("expected %q present", probe)
 	}
-	if e.Backend != BackendNornicDB {
-		t.Fatalf("find_symbol backend = %q", e.Backend)
+	if e.Backend != want.Backend {
+		t.Fatalf("%s backend = %q, want %q (from overlay)", probe, e.Backend, want.Backend)
 	}
 	if _, ok := cat.Lookup("does_not_exist"); ok {
 		t.Fatal("expected absent tool to return ok=false")
