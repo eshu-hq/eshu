@@ -129,6 +129,19 @@ participate in supply-chain correlation but do not **produce** the image or
 package join keys, so the scanner-pack family can move on vendor cadence while
 the join-key producers stay in tree.
 
+This table groups collectors by policy intent; it is not the per-collector
+readiness drilldown. The advisory `eshu component extraction-readiness` command
+and its catalog (`go/internal/extraction`) track only the individual collector
+families enumerated under [Keep In Tree](#keep-in-tree) and
+[Extraction Candidates](#extraction-candidates) — the families with a verifiable
+per-criterion verdict today. Broader groupings here (for example "supply-chain
+producers" or "scanner packs") describe the boundary policy and are not all
+individually queryable yet; querying a collector the catalog does not track
+returns not-found rather than a verdict. When a grouped family graduates to its
+own tracked readiness verdict, add it to both the catalog and the
+[Extraction Candidates](#extraction-candidates) list so the policy and the
+diagnostic stay in lockstep.
+
 ## Extraction Candidates
 
 Vendor-API and support-source collectors are the first candidates when they
