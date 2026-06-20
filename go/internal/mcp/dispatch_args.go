@@ -22,6 +22,24 @@ func stringSlice(args map[string]any, key string) []any {
 	return result
 }
 
+func objectSlice(args map[string]any, key string) []any {
+	raw, ok := args[key]
+	if !ok {
+		return nil
+	}
+	values, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	result := make([]any, 0, len(values))
+	for _, value := range values {
+		if _, ok := value.(map[string]any); ok {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
 func firstString(values []any) string {
 	if len(values) == 0 {
 		return ""

@@ -1,0 +1,48 @@
+{
+  "fixture": {
+    "schema_version": "prechange_dogfood.v1",
+    "task": {
+      "question": "Before changing repo sync authentication, identify affected code and the next bounded checks.",
+      "repo_id": "git-repository:example/app",
+      "base_ref": "origin/main",
+      "head_ref": "HEAD",
+      "changes": [
+        {
+          "path": "go/internal/collector/reposync/auth.go",
+          "status": "modified"
+        },
+        {
+          "path": "go/internal/collector/reposync/deleted.go",
+          "status": "deleted"
+        }
+      ],
+      "expected_affected_entity_ids": [
+        "function:resolveGitProviderAuth",
+        "service:repo-sync"
+      ]
+    },
+    "baselines": {
+      "raw_relationship_queries": {
+        "steps": 5,
+        "tokens": 1800,
+        "affected_entity_ids": [
+          "function:resolveGitProviderAuth"
+        ],
+        "missing_evidence_reasons": [],
+        "recommended_next_call_count": 0
+      },
+      "pre_change_impact": {
+        "steps": 1,
+        "tokens": 620,
+        "affected_entity_ids": [
+          "function:resolveGitProviderAuth",
+          "service:repo-sync"
+        ],
+        "missing_evidence_reasons": [
+          "deleted_path_requires_prior_generation"
+        ],
+        "recommended_next_call_count": 2
+      }
+    }
+  }
+}

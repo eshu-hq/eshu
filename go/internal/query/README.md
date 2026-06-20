@@ -99,6 +99,12 @@ Relationship-story rows expose the same distinction through a uniform
 state, and derived/heuristic/unsupported flags. The block is built from already
 returned row metadata and does not change canonical admission, graph writes, or
 the answer-level truth envelope.
+Pre-change impact reads (`POST /api/v0/impact/pre-change`) are a productized
+entrypoint over the existing change-surface investigation contract. They accept
+repo-relative changed paths or structured file changes, preserve deleted and
+renamed status, reject absolute and parent-traversal paths, and return the same
+bounded code surface, graph impact rows, coverage, truncation, answer metadata,
+and AnswerPacket-shaped response instead of creating a parallel impact model.
 Repository context relationship queries include reducer-owned
 `CORRELATES_DEPLOYABLE_UNIT` graph edges so deployable-unit correlation readback
 uses the same confidence, evidence kind, reason, resolved id, and
@@ -122,6 +128,16 @@ loaded by the repository context and relationship evidence queries. It adds no
 route, graph traversal, Postgres query, metric label, runtime knob, queue work,
 or span; existing repository stage logs, Postgres query spans, graph query
 spans, and truth envelopes still diagnose the read.
+
+No-Regression Evidence: pre-change impact route, normalization, partial
+evidence, truncation, AnswerPacket metadata, and OpenAPI visibility are covered
+by `go test ./internal/query -run 'TestPreChangeImpact|TestOpenAPIPreChange' -count=1`.
+
+No-Observability-Change: pre-change impact reuses the existing query handler
+span name, change-surface content lookup, optional graph impact traversal,
+Postgres/graph spans, truth envelope, limits, offsets, truncation, and answer
+metadata. It adds no worker, queue claim, graph write, metric label, or
+datastore connection.
 Semantic search reads (`POST /api/v0/search/semantic`, MCP
 `search_semantic_context`) are repository-bounded over active curated search
 documents. They use the repository id as the current durable search-document

@@ -43,6 +43,54 @@ func TestOpenAPIChangeSurfaceInvestigationDocumentsInputFamilies(t *testing.T) {
 	}
 }
 
+func TestOpenAPIPreChangeImpactDocumentsWorkflow(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	preChangePath := mustMapField(t, paths, "/api/v0/impact/pre-change")
+	post := mustMapField(t, preChangePath, "post")
+	if got, want := post["operationId"], "analyzePreChangeImpact"; got != want {
+		t.Fatalf("operationId = %#v, want %#v", got, want)
+	}
+	requestBody := mustMapField(t, post, "requestBody")
+	content := mustMapField(t, requestBody, "content")
+	mediaType := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, mediaType, "schema")
+	properties := mustMapField(t, schema, "properties")
+	for _, key := range []string{"repo_id", "base_ref", "head_ref", "changed_paths", "changes"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("pre-change request schema missing %q", key)
+		}
+	}
+	changes := mustMapField(t, properties, "changes")
+	items := mustMapField(t, changes, "items")
+	changeProperties := mustMapField(t, items, "properties")
+	for _, key := range []string{"path", "old_path", "status"} {
+		if _, ok := changeProperties[key]; !ok {
+			t.Fatalf("pre-change changes item schema missing %q", key)
+		}
+	}
+	responses := mustMapField(t, post, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	okContent := mustMapField(t, okResponse, "content")
+	okMediaType := mustMapField(t, okContent, "application/json")
+	okSchema := mustMapField(t, okMediaType, "schema")
+	okProperties := mustMapField(t, okSchema, "properties")
+	for _, key := range []string{"answer_packet", "answer_metadata", "missing_evidence", "recommended_next_calls"} {
+		if _, ok := okProperties[key]; !ok {
+			t.Fatalf("pre-change response schema missing %q", key)
+		}
+	}
+	if _, ok := responses["501"]; !ok {
+		t.Fatal("pre-change route must document unsupported capability response")
+	}
+}
+
 func openAPIAnyOfRequires(anyOf []any, requiredFields ...string) bool {
 	want := map[string]struct{}{}
 	for _, field := range requiredFields {

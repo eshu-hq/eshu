@@ -16,7 +16,7 @@ comparison. The route list is verified against `go/internal/query`.
 | Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
 | Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `POST /api/v0/ecosystem/graph-summary`, `GET /api/v0/cloud/resources`, `GET /api/v0/cloud/inventory` |
-| Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
+| Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/pre-change`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
 
 OpenAPI remains canonical for full request and response schemas.
 
@@ -528,6 +528,16 @@ extra row, and return `truncated`.
 `module_id`) and/or a code scope (`topic`, `repo_id`, `changed_paths`).
 `changed_paths` requires `repo_id`. `max_depth` defaults to 4 and caps at 8;
 `limit` defaults to 25 and caps at 100; `offset` caps at 10000.
+
+`/impact/pre-change` is the pre-change workflow entrypoint over the same
+change-surface evidence. It accepts `changed_paths` or structured `changes`
+with `repo_id`, optional `base_ref`/`head_ref` provenance, and the same optional
+target/topic fields as change-surface investigation. Paths must be
+repo-relative; absolute paths and parent traversal fail with `400`. The response
+preserves added, modified, deleted, renamed, and copied file statuses, reports
+deleted or unmatched paths under `missing_evidence`, carries coverage and
+truncation fields, and includes `answer_metadata` plus an AnswerPacket-shaped
+`answer_packet`. Unsupported profiles fail closed with `501`.
 
 `/impact/entity-map` requires `from` and accepts `from_type`, `repo_id`,
 `environment`, `relationship`, `depth`, and `limit`. `depth` defaults to 1 and

@@ -321,6 +321,96 @@ const openAPIPathsImpact = `
         }
       }
     },
+    "/api/v0/impact/pre-change": {
+      "post": {
+        "tags": ["impact"],
+        "summary": "Analyze pre-change impact",
+        "description": "Maps a changed-file list or base/head diff descriptor onto the bounded change-surface evidence graph, returning affected symbols, graph impacts, truth labels, missing evidence, truncation, and recommended next calls without requiring provider credentials.",
+        "operationId": "analyzePreChangeImpact",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Provide changed_paths or changes with repo_id, base/head refs for provenance, or an explicit graph target/topic.",
+                "anyOf": [
+                  {"required": ["changed_paths", "repo_id"]},
+                  {"required": ["changes", "repo_id"]},
+                  {"required": ["base_ref"]},
+                  {"required": ["head_ref"]},
+                  {"required": ["target"]},
+                  {"required": ["service_name"]},
+                  {"required": ["topic"]}
+                ],
+                "properties": {
+                  "repo_id": {"type": "string", "description": "Repository selector for changed-path lookup"},
+                  "base_ref": {"type": "string", "description": "Git base ref used by the caller to derive the diff"},
+                  "head_ref": {"type": "string", "description": "Git head ref used by the caller to derive the diff"},
+                  "changed_paths": {"type": "array", "description": "Repo-relative changed paths treated as modified files", "items": {"type": "string"}},
+                  "changes": {
+                    "type": "array",
+                    "description": "Changed files with status and optional rename source.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {"type": "string", "description": "Current repo-relative path"},
+                        "old_path": {"type": "string", "description": "Previous repo-relative path for renamed or copied files"},
+                        "status": {"type": "string", "enum": ["added", "modified", "deleted", "renamed", "copied"]}
+                      }
+                    }
+                  },
+                  "target": {"type": "string"},
+                  "target_type": {"type": "string", "enum": ["service", "workload", "workload_instance", "repository", "resource", "cloud_resource", "terraform_module", "module"]},
+                  "service_name": {"type": "string"},
+                  "workload_id": {"type": "string"},
+                  "resource_id": {"type": "string"},
+                  "module_id": {"type": "string"},
+                  "topic": {"type": "string"},
+                  "query": {"type": "string"},
+                  "environment": {"type": "string"},
+                  "max_depth": {"type": "integer", "default": 4, "minimum": 1, "maximum": 8},
+                  "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100},
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pre-change impact packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workflow": {"type": "string", "enum": ["pre_change_impact"]},
+                    "change_set": {"type": "object"},
+                    "changed_files": {"type": "array", "items": {"type": "object"}},
+                    "changed_file_count": {"type": "integer"},
+                    "code_surface": {"type": "object"},
+                    "direct_impact": {"type": "array", "items": {"type": "object"}},
+                    "transitive_impact": {"type": "array", "items": {"type": "object"}},
+                    "impact_summary": {"type": "object"},
+                    "missing_evidence": {"type": "array", "items": {"type": "object"}},
+                    "coverage": {"type": "object"},
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object"}},
+                    "truncated": {"type": "boolean"},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with evidence handles, missing evidence, limitations, truncation, coverage, partial reasons, and next calls."},
+                    "answer_packet": {"type": "object", "description": "AnswerPacket-shaped pre-change response for agent workflows."}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/impact/entity-map": {
       "post": {
         "tags": ["impact"],

@@ -200,6 +200,7 @@ func ecosystemTools() []ToolDefinition {
 				"required": []string{"resolved_id"},
 			},
 		},
+		preChangeImpactTool(),
 		{
 			Name:        "list_package_registry_packages",
 			Description: "List package registry package identities by package_id or ecosystem/name without inferring repository ownership; malformed rows are returned under identity_issues.",
