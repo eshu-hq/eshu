@@ -18,6 +18,9 @@ require_tool() {
 require_tool jq
 require_tool rg
 
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
 [[ -s "${FIXTURE}" ]] || die "missing full-chain proof fixture: ${FIXTURE}"
 jq -e . "${FIXTURE}" >/dev/null || die "full-chain proof fixture is not valid JSON"
 
@@ -56,8 +59,9 @@ while IFS= read -r script_path; do
 	[[ -x "${DEMO_DIR}/${script_path}" ]] || die "missing executable proof script: ${script_path}"
 done < <(jq -r '.scripts[]?.path' "${FIXTURE}")
 
-if jq -r '.. | strings' "${FIXTURE}" | rg \
-	'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' >/dev/null; then
+fixture_strings="${TMP_DIR}/fixture-strings.txt"
+jq -r '.. | strings' "${FIXTURE}" >"${fixture_strings}"
+if rg --quiet '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "${fixture_strings}"; then
 	die "full-chain proof fixture contains private-shaped or credential-shaped values"
 fi
 

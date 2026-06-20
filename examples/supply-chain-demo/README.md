@@ -25,6 +25,7 @@ feed; they mirror the convention in
 | `Dockerfile` | Builds the synthetic demo image so the chain has a real image identity (digest). |
 | `fixtures/full-chain-proof-output.json` | Public sanitized proof fixture that records the required full-chain evidence nodes, refusal variant, and p95 matrix shape. |
 | `test/verify-full-chain-proof-output.sh` | Example-level verifier for the proof fixture; it asserts 7+ evidence nodes, refusal semantics, executable proof scripts, timing fields, and public-safe output. |
+| `test/test-verify-full-chain-proof-output.sh` | Regression harness for the fixture verifier, including the pipefail path for public-safety scans. |
 | `scripts/full-chain-proof.sh` | Unified live proof entrypoint that runs the split proof scripts and writes the timing artifact. |
 
 ## Honesty: what runs offline vs what needs the stack
