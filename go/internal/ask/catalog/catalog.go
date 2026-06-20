@@ -1,5 +1,11 @@
 package catalog
 
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+)
+
 // Backend names the data store a surface reads from. It drives Ask Eshu's
 // fastest-path planning between the graph backend and Postgres.
 type Backend string
@@ -59,4 +65,63 @@ type Entry struct {
 // Catalog holds the parsed, annotated set of callable surfaces.
 type Catalog struct {
 	entries []Entry
+}
+
+// inventoryEnvelope mirrors the generated surface-inventory artifact. Only the
+// fields the catalog needs are decoded; the artifact may carry more.
+type inventoryEnvelope struct {
+	Version  string          `json:"version"`
+	Surfaces []surfaceRecord `json:"surfaces"`
+}
+
+type surfaceRecord struct {
+	Category  string `json:"category"`
+	Name      string `json:"name"`
+	Readiness string `json:"readiness"`
+}
+
+// Parse reads the canonical surface-inventory JSON and returns a Catalog of the
+// implemented api_route and mcp_tool surfaces. Entries are unannotated
+// (BackendUnknown, CostHigh) until Annotate runs. A nil or malformed document is
+// an error; an empty surface list is valid and yields an empty catalog.
+func Parse(inventoryJSON []byte) (*Catalog, error) {
+	var env inventoryEnvelope
+	if err := json.Unmarshal(inventoryJSON, &env); err != nil {
+		return nil, fmt.Errorf("parse surface inventory: %w", err)
+	}
+	entries := make([]Entry, 0, len(env.Surfaces))
+	for _, rec := range env.Surfaces {
+		if rec.Readiness != "implemented" {
+			continue
+		}
+		kind := SurfaceKind(rec.Category)
+		if kind != KindAPIRoute && kind != KindMCPTool {
+			continue
+		}
+		entries = append(entries, Entry{
+			Kind:    kind,
+			Name:    rec.Name,
+			Backend: BackendUnknown,
+			Cost:    CostHigh,
+		})
+	}
+	c := &Catalog{entries: entries}
+	c.sort()
+	return c, nil
+}
+
+func (c *Catalog) sort() {
+	sort.Slice(c.entries, func(i, j int) bool {
+		if c.entries[i].Kind != c.entries[j].Kind {
+			return c.entries[i].Kind < c.entries[j].Kind
+		}
+		return c.entries[i].Name < c.entries[j].Name
+	})
+}
+
+// Entries returns a sorted copy of the catalog entries.
+func (c *Catalog) Entries() []Entry {
+	out := make([]Entry, len(c.entries))
+	copy(out, c.entries)
+	return out
 }
