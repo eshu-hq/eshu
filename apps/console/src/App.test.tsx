@@ -228,7 +228,13 @@ describe("App shell", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole("heading", { name: "Service Atlas" })).toBeInTheDocument();
+    // WorkspacePage is code-split via React.lazy (issue #3331), so this route
+    // has an extra dynamic-import hop before its content renders. Under
+    // parallel test load that hop can exceed the default 1000ms findBy timeout,
+    // so allow more headroom for the first assertion that awaits the chunk.
+    expect(
+      await screen.findByRole("heading", { name: "Service Atlas" }, { timeout: 4000 })
+    ).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Service Atlas" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Impact review" }));
     expect(screen.getByRole("region", { name: "Incidents and issues" })).toBeInTheDocument();

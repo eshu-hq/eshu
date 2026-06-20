@@ -13,6 +13,13 @@ documented per-chunk **bundle budget** that is checked after every build.
    a stable budget key, and fails (exit code `1`) if any chunk exceeds its
    documented threshold.
 
+The gate also guards against a broken or restructured build that ships no usable
+JavaScript: if no main entry chunk is present (empty `assets` dir, CSS-only
+output, or a Rollup naming change so no `index-*.js` is emitted), it fails with
+exit code `2` and an actionable message rather than silently reporting "0 chunks
+within budget". Exit codes: `0` pass, `1` a chunk exceeded its budget, `2` the
+build is broken or `dist/assets` is unreadable.
+
 Run the required build path locally or in CI:
 
 ```bash

@@ -78,7 +78,19 @@ export function classifyAsset(name) {
 // { name, bytes } files, a budget table keyed by classifyAsset() output, and a
 // default budget for unlisted async chunks, it returns the checked chunks and
 // any budget violations. CSS/HTML assets are ignored.
-export function evaluateBundleBudget({ files, budgets, defaultBudgetBytes }) {
+//
+// requireAnchor names a budget key (e.g. "main") that MUST be present among the
+// classified chunks. A broken or restructured build that emits no JS chunks, or
+// CSS-only assets, or no entry chunk at all, would otherwise classify zero
+// chunks and report "0 chunks within budget" — silently green-lighting a build
+// that shipped nothing. Per Eshu's no-silent-fallback rule, a missing anchor is
+// a hard failure (reported via missingAnchor), not a pass.
+export function evaluateBundleBudget({
+  files,
+  budgets,
+  defaultBudgetBytes,
+  requireAnchor = null
+}) {
   const checked = [];
   const violations = [];
   for (const file of files) {
@@ -89,7 +101,16 @@ export function evaluateBundleBudget({ files, budgets, defaultBudgetBytes }) {
     checked.push(entry);
     if (file.bytes > budgetBytes) violations.push(entry);
   }
-  return { ok: violations.length === 0, checked, violations };
+  const missingAnchor =
+    requireAnchor !== null && !checked.some((entry) => entry.key === requireAnchor)
+      ? requireAnchor
+      : null;
+  return {
+    ok: violations.length === 0 && missingAnchor === null,
+    checked,
+    violations,
+    missingAnchor
+  };
 }
 
 function readAssetFiles(assetsDir) {
@@ -124,10 +145,11 @@ function main(argv) {
     return;
   }
 
-  const { ok, checked, violations } = evaluateBundleBudget({
+  const { ok, checked, violations, missingAnchor } = evaluateBundleBudget({
     files,
     budgets: BUDGETS,
-    defaultBudgetBytes: DEFAULT_ASYNC_BUDGET_BYTES
+    defaultBudgetBytes: DEFAULT_ASYNC_BUDGET_BYTES,
+    requireAnchor: "main"
   });
 
   const sorted = [...checked].sort((a, b) => b.bytes - a.bytes);
@@ -137,6 +159,26 @@ function main(argv) {
     console.log(
       `  [${status}] ${chunk.name} — ${formatKib(chunk.bytes)} / ${formatKib(chunk.budgetBytes)} (${chunk.key})`
     );
+  }
+
+  // A build that emits no main entry chunk produced nothing usable. Fail loudly
+  // (exit 2, "broken build") instead of reporting "0 chunks within budget".
+  if (missingAnchor !== null) {
+    console.error(
+      `\nconsole-bundle-budget: no '${missingAnchor}' entry chunk found in ${assetsDir}.`
+    );
+    console.error(
+      `Found ${checked.length} JavaScript chunk(s) but none classified as '${missingAnchor}'.`
+    );
+    console.error(
+      "The console build is broken or the Rollup output layout changed. Re-run"
+    );
+    console.error(
+      "`npm run console:build`; if chunk naming changed, update classifyAsset() in"
+    );
+    console.error("scripts/console-bundle-budget.mjs.");
+    process.exit(2);
+    return;
   }
 
   if (!ok) {

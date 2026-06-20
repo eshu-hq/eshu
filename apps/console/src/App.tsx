@@ -407,7 +407,7 @@ export function App(): React.JSX.Element {
                   fallback={
                     <section className="page-shell">
                       <h1>Loading workspace</h1>
-                      <p>Loading workspace view.</p>
+                      <p>Loading live data.</p>
                     </section>
                   }
                 >

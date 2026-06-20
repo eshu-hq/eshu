@@ -133,4 +133,53 @@ describe("evaluateBundleBudget", () => {
     expect(result.ok).toBe(true);
     expect(result.checked).toEqual([]);
   });
+
+  it("fails when a required anchor chunk is absent from an empty assets dir", () => {
+    const result = evaluateBundleBudget({
+      files: [],
+      budgets,
+      defaultBudgetBytes,
+      requireAnchor: "main"
+    });
+    expect(result.ok).toBe(false);
+    expect(result.missingAnchor).toBe("main");
+  });
+
+  it("fails on a css-only build that emits no main entry chunk", () => {
+    const result = evaluateBundleBudget({
+      files: [
+        { name: "index-aaaa.css", bytes: 90_000 },
+        { name: "index.html", bytes: 400 }
+      ],
+      budgets,
+      defaultBudgetBytes,
+      requireAnchor: "main"
+    });
+    // A build that ships only CSS/HTML must not green-light: the anchor is
+    // missing even though there are zero budget violations.
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(false);
+    expect(result.missingAnchor).toBe("main");
+  });
+
+  it("fails when only async chunks are emitted but the main anchor is missing", () => {
+    const result = evaluateBundleBudget({
+      files: [{ name: "SomeChunk-eeee.js", bytes: 10_000 }],
+      budgets,
+      defaultBudgetBytes,
+      requireAnchor: "main"
+    });
+    expect(result.ok).toBe(false);
+    expect(result.missingAnchor).toBe("main");
+  });
+
+  it("passes (no anchor requirement) when requireAnchor is omitted", () => {
+    const result = evaluateBundleBudget({
+      files: [{ name: "SomeChunk-eeee.js", bytes: 10_000 }],
+      budgets,
+      defaultBudgetBytes
+    });
+    expect(result.ok).toBe(true);
+    expect(result.missingAnchor).toBeNull();
+  });
 });
