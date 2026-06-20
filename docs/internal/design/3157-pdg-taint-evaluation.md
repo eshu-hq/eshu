@@ -99,8 +99,17 @@ Admit only what strengthens evidence-backed code-to-cloud truth at bounded cost:
 - **MVP-2: Config + IaC sink corpora and catalog entries.** Extend the closed
   `exposure` sink vocabulary with config-secret and IaC-misconfig sinks under the
   same `GraphBacked` discipline (no fabricated matches), with proof corpora (§7).
-  This is the highest-value, lowest-risk addition because it directly widens the
-  evidence base the existing solver already knows how to traverse.
+  **Caveat (load-bearing):** the value-flow fixpoint does *not* automatically
+  traverse every `exposure` catalog entry. `GraphValueFlowCloudSinkTargetLoader`
+  only resolves sinks via the hard-coded
+  `Function-[:INVOKES_CLOUD_ACTION]->CloudAction` … `CAN_PERFORM` path
+  (`go/internal/reducer/value_flow_cloud_sink_loader.go:169-184`). Adding new
+  `SinkKind`s + corpora alone passes catalog tests while producing **zero**
+  value-flow findings. MVP-2 therefore MUST either extend the
+  loader/materializer graph path so the new sink edges are reachable by the
+  fixpoint, **or** keep the new specs non-`GraphBacked` until that wiring exists
+  (the honesty contract already refuses to match non-`GraphBacked` specs). The
+  loader/materializer work — not just catalog + corpora — is the real gate.
 - **MVP-3: Finding-level slice explanation (read-only).** Where a taint finding
   exists, expose a bounded, ordered "why" trail (source port → intermediate
   ports → sink) already present in `interproc.Finding`/`exposure.ExposureFinding`,
@@ -164,9 +173,12 @@ the pinned `SinkCatalogVersion` golden guard against catalog drift.
 
 Gate issues spun off from this ADR:
 
-- **#3191 (MVP-2, highest value):** config + IaC sink catalog + proof corpora.
-  Failing fixtures first (positive + negative), `SinkCatalogVersion` golden
-  updated deliberately, exposure honesty tests extended. Gated by
+- **#3191 (MVP-2, highest value):** config + IaC sink catalog + proof corpora
+  **plus the value-flow loader/materializer extension** so the fixpoint actually
+  reaches the new sinks (or the specs stay non-`GraphBacked` until it does — see
+  §5 caveat). Failing fixtures first (positive + negative), `SinkCatalogVersion`
+  golden updated deliberately, exposure honesty tests extended, and a fixpoint
+  test proving a new-sink finding is produced end-to-end. Gated by
   `ESHU_EMIT_DATAFLOW`.
 - **#3193 (MVP-1):** intraprocedural control-dependence in `cfg`/`taint` for
   guard-reason provenance and sanitizer-all-paths precision. Failing fixture
