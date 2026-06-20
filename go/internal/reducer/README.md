@@ -110,6 +110,16 @@ All reducer domains are declared in `domain.go` and registered via
 `OwnershipShape` enforcing cross-source, cross-scope, and either durable
 canonical-write or bounded counter-emission requirements.
 
+`AllDomains` returns every reducer-owned domain sorted lexicographically: the
+claim/materialization domains in `knownDomains` plus the shared/edge projection
+domains in `allProjectionDomains` (`shared_projection.go`), deduplicated. It is
+the single enumeration source for tooling that must list the full domain set —
+notably the capability surface inventory and its drift gate — so adding a domain
+to either registry automatically adds it there. `allProjectionDomains` is a
+superset of the partition worker's `sharedProjectionDomains`: it also covers the
+domains driven by dedicated projection runners (`code_calls`, `repo_dependency`,
+`deployable_unit_edges`).
+
 | Domain constant | Summary |
 | --- | --- |
 | `DomainWorkloadIdentity` | Resolve canonical workload identity across sources |

@@ -6,16 +6,24 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 )
 
-// repoSpecsDir resolves the repository specs directory from this test file.
-func repoSpecsDir(t *testing.T) string {
+// repoRootDir resolves the repository root from this test file.
+func repoRootDir(t *testing.T) string {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "specs"))
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", ".."))
+}
+
+// repoSpecsDir resolves the repository specs directory from this test file.
+func repoSpecsDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(repoRootDir(t), "specs")
 }
 
 // TestVerifyAgainstRealSpecs is the drift gate: the committed, embedded catalog
@@ -24,11 +32,11 @@ func repoSpecsDir(t *testing.T) string {
 func TestVerifyAgainstRealSpecs(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	err := run([]string{"-mode", "verify", "-specs", repoSpecsDir(t)}, &stdout, &stderr)
+	err := run([]string{"-mode", "verify", "-specs", repoSpecsDir(t), "-root", repoRootDir(t)}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("verify failed: %v\nstdout:\n%s", err, stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "capability catalog verified") {
+	if !strings.Contains(stdout.String(), "capability catalog and surface inventory verified") {
 		t.Fatalf("verify output missing confirmation:\n%s", stdout.String())
 	}
 }
@@ -37,14 +45,20 @@ func TestVerifyAgainstRealSpecs(t *testing.T) {
 func TestReportListsEntries(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"-mode", "report", "-specs", repoSpecsDir(t)}, &stdout, &stderr); err != nil {
+	if err := run([]string{"-mode", "report", "-specs", repoSpecsDir(t), "-root", repoRootDir(t)}, &stdout, &stderr); err != nil {
 		t.Fatalf("report failed: %v", err)
 	}
 	if !strings.Contains(stdout.String(), "no reconciliation findings") {
 		t.Fatalf("report findings not clean:\n%s", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "no surface reconciliation findings") {
+		t.Fatalf("report surface findings not clean:\n%s", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "catalog entries:") {
 		t.Fatalf("report missing entry count:\n%s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "surface records:") {
+		t.Fatalf("report missing surface count:\n%s", stdout.String())
 	}
 }
 
@@ -52,7 +66,7 @@ func TestReportListsEntries(t *testing.T) {
 func TestUnsupportedMode(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"-mode", "bogus", "-specs", repoSpecsDir(t)}, &stdout, &stderr); err == nil {
+	if err := run([]string{"-mode", "bogus", "-specs", repoSpecsDir(t), "-root", repoRootDir(t)}, &stdout, &stderr); err == nil {
 		t.Fatal("run() error = nil, want unsupported mode error")
 	}
 }
@@ -79,4 +93,99 @@ func TestDocsFreshnessAgainstRealDocs(t *testing.T) {
 	if !strings.Contains(stdout.String(), "no freshness findings") {
 		t.Fatalf("docs freshness output unexpected:\n%s", stdout.String())
 	}
+}
+
+// cloneLiveSurfaces returns a deep copy of a live-surface set so a test can
+// mutate one category without affecting the original.
+func cloneLiveSurfaces(live capabilitycatalog.LiveSurfaces) capabilitycatalog.LiveSurfaces {
+	out := capabilitycatalog.LiveSurfaces{Surfaces: map[capabilitycatalog.SurfaceCategory][]string{}}
+	for cat, names := range live.Surfaces {
+		out.Surfaces[cat] = append([]string(nil), names...)
+	}
+	return out
+}
+
+// TestSurfaceInventoryDriftAgainstRealCode is the surface drift gate: the
+// committed surface inventory artifact must match a fresh build from live code
+// and the real overlay, with zero reconciliation findings.
+func TestSurfaceInventoryDriftAgainstRealCode(t *testing.T) {
+	t.Parallel()
+	inv, findings, err := buildSurfaceInventory(repoSpecsDir(t), repoRootDir(t))
+	if err != nil {
+		t.Fatalf("buildSurfaceInventory: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("surface findings present: %+v", findings)
+	}
+	payload, err := capabilitycatalog.MarshalSurfaceInventory(inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(payload, capabilitycatalog.RawSurfaceArtifact()) {
+		t.Fatal("committed surface inventory artifact is stale; run: go run ./cmd/capability-inventory -mode generate")
+	}
+}
+
+// TestSurfaceInventoryGateCatchesSilentDrift is the CI fixture required by
+// #3145: a command/collector/API/MCP surface added or removed in code without
+// regenerating the committed artifact must fail the gate. It exercises both the
+// byte-freshness arm (a silently ADDED surface changes the artifact) and the
+// reconciliation arm (a silently REMOVED surface leaves a stale overlay row).
+func TestSurfaceInventoryGateCatchesSilentDrift(t *testing.T) {
+	t.Parallel()
+	root, specs := repoRootDir(t), repoSpecsDir(t)
+	live, err := liveSurfaces(root)
+	if err != nil {
+		t.Fatalf("liveSurfaces: %v", err)
+	}
+	overlay, err := capabilitycatalog.LoadSurfaceOverlay(filepath.Join(specs, capabilitycatalog.SurfaceOverlayFileName))
+	if err != nil {
+		t.Fatalf("LoadSurfaceOverlay: %v", err)
+	}
+
+	// A silently added MCP tool must change the artifact away from committed.
+	added := cloneLiveSurfaces(live)
+	added.Surfaces[capabilitycatalog.SurfaceMCPTool] = append(added.Surfaces[capabilitycatalog.SurfaceMCPTool], "ghost_silently_added_tool")
+	addedInv, _ := capabilitycatalog.BuildSurfaceInventory(added, overlay)
+	addedPayload, err := capabilitycatalog.MarshalSurfaceInventory(addedInv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(addedPayload, capabilitycatalog.RawSurfaceArtifact()) {
+		t.Fatal("a silently added surface did not change the artifact: drift gate would miss it")
+	}
+
+	// A silently removed collector must leave a stale overlay finding. Drop a
+	// collector that is known to have an overlay row so the assertion targets the
+	// stale-overlay arm specifically (an unclassified-collector drop would be a
+	// different, also-failing finding).
+	const overlaidCollector = "aws"
+	removed := cloneLiveSurfaces(live)
+	collectors := removed.Surfaces[capabilitycatalog.SurfaceCollector]
+	kept := make([]string, 0, len(collectors))
+	found := false
+	for _, name := range collectors {
+		if name == overlaidCollector {
+			found = true
+			continue
+		}
+		kept = append(kept, name)
+	}
+	if !found {
+		t.Fatalf("collector %q not in live set; update this test constant", overlaidCollector)
+	}
+	removed.Surfaces[capabilitycatalog.SurfaceCollector] = kept
+	_, removedFindings := capabilitycatalog.BuildSurfaceInventory(removed, overlay)
+	if !hasSurfaceFinding(removedFindings, capabilitycatalog.FindingStaleSurfaceOverlay, overlaidCollector) {
+		t.Fatalf("removing collector %q produced no stale_surface_overlay finding: %+v", overlaidCollector, removedFindings)
+	}
+}
+
+func hasSurfaceFinding(findings []capabilitycatalog.Finding, kind capabilitycatalog.FindingKind, subject string) bool {
+	for _, f := range findings {
+		if f.Kind == kind && f.Subject == subject {
+			return true
+		}
+	}
+	return false
 }

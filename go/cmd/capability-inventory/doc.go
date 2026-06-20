@@ -6,12 +6,28 @@
 // deterministic catalog artifact embedded by
 // github.com/eshu-hq/eshu/go/internal/capabilitycatalog.
 //
+// It also generates and verifies the surface inventory: every platform surface
+// across six categories (command binaries, collector families, reducer domains,
+// API routes, MCP tools, console pages) enumerated from live code, specs, and
+// the source tree, reconciled against the editorial overlay
+// (specs/surface-inventory.v1.yaml). The committed surface artifact is
+// data/surface-inventory.generated.json; a drift test keeps it in lockstep with
+// live code so no surface can appear or disappear silently.
+//
 // Modes:
 //
-//	report    print reconciliation findings and the entry count (default)
-//	generate  write the catalog artifact to -out
-//	verify    fail when findings exist or the embedded artifact is stale
+//	report    print catalog and surface findings plus counts (default)
+//	generate  write the catalog artifact to -out and the surface artifact to -surface-out
+//	verify    fail when findings exist or either embedded artifact is stale
 //	docs      fail when a docs capability-state marker contradicts the catalog
+//
+// Flags:
+//
+//	-specs        path to the specs directory (matrix, overlay, surface overlay)
+//	-docs         path to the docs directory (docs mode)
+//	-root         path to the repository root (surface enumeration)
+//	-out          catalog artifact output path (generate mode)
+//	-surface-out  surface inventory artifact output path (generate mode)
 //
 // Run from the go module directory:
 //

@@ -42,6 +42,29 @@ const (
 	DomainInvokesCloudAction = "invokes_cloud_action"
 )
 
+// allProjectionDomains is the complete set of reducer-owned shared/edge
+// projection domains. It is the authoritative registry for enumerating these
+// domains (AllDomains uses it for the capability surface inventory). It is a
+// superset of sharedProjectionDomains, which is only the subset the shared
+// partition worker drains: code_calls, repo_dependency, and deployable_unit_edges
+// are driven by dedicated projection runners but are still reducer-owned domains
+// that must appear in the inventory.
+var allProjectionDomains = []Domain{
+	DomainPlatformInfra,
+	DomainRepoDependency,
+	DomainWorkloadDependency,
+	DomainCodeCalls,
+	DomainSQLRelationships,
+	DomainShellExec,
+	DomainInheritanceEdges,
+	DomainDocumentationEdges,
+	DomainRationaleEdges,
+	DomainDeployableUnitEdges,
+	DomainHandlesRoute,
+	DomainRunsIn,
+	DomainInvokesCloudAction,
+}
+
 // SharedProjectionIntentRow is one durable shared-domain projection intent.
 type SharedProjectionIntentRow struct {
 	IntentID         string

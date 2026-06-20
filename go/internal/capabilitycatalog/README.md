@@ -64,6 +64,44 @@ go run ./cmd/capability-inventory -mode verify
 the embedded artifact must reconcile with zero findings and match a fresh
 regeneration from the specs and live registry.
 
+## Surface inventory
+
+The package also reconciles the **surface inventory**: a generated record of
+every platform surface across six categories, so a contributor can see the full
+fleet — and so a new surface cannot silently bypass the catalog.
+
+| Category | Live source | Enumerated by the generator from |
+| --- | --- | --- |
+| `command` | command binaries | `go/cmd/*` directories |
+| `collector` | collector families | `scope.AllCollectorKinds` |
+| `reducer_domain` | reducer domains | `reducer.AllDomains` |
+| `api_route` | HTTP API routes | `query.OpenAPISpec` method+path operations |
+| `mcp_tool` | MCP tools | `mcp.ReadOnlyTools` |
+| `console_page` | console pages | `apps/console/src/pages/*.tsx` |
+
+`BuildSurfaceInventory(live, overlay)` merges the live surfaces (injected as
+`LiveSurfaces` so the package stays dependency-light) with the editorial overlay
+(`specs/surface-inventory.v1.yaml`) into a `SurfaceInventory` plus `Finding`s.
+Each `SurfaceRecord` carries a `ReadinessLane` — `implemented`, `partial`,
+`gated`, `foundation_only`, `fixture_only`, `research_only`, `not_implemented`,
+or `unsupported`. Only `implemented` asserts production readiness, so
+`ReadinessLane.RequiresPromotionProof` is true only for it. Non-collector
+categories default to `implemented` (they exist because they are built and
+served); collectors have no default and must be classified in the overlay.
+
+Surface findings:
+
+- `unclassified_collector` — a live collector with no overlay readiness lane.
+- `implemented_without_proof` — a collector declared `implemented` with no proof.
+- `stale_surface_overlay` — an overlay row whose surface is absent from code.
+- `invalid_readiness_lane` — an overlay readiness value outside the closed set.
+
+`data/surface-inventory.generated.json` is the committed artifact embedded by
+`LoadSurfaceInventory`. `TestSurfaceInventoryDriftAgainstRealCode` and
+`TestSurfaceInventoryGateCatchesSilentDrift` (in `cmd/capability-inventory`) are
+the drift gate: a surface added or removed in code without regenerating the
+artifact fails CI.
+
 ## Related
 
 - [Capability Conformance Spec](../../../docs/public/reference/capability-conformance-spec.md)

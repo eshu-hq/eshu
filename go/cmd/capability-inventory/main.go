@@ -14,6 +14,7 @@ import (
 const (
 	defaultSpecsDir    = "../specs"
 	defaultDocsDir     = "../docs/public"
+	defaultRoot        = ".."
 	defaultArtifactOut = "internal/capabilitycatalog/data/catalog.generated.json"
 )
 
@@ -32,8 +33,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 	flags.SetOutput(stderr)
 	mode := flags.String("mode", "report", "report | generate | verify | docs")
 	specsDir := flags.String("specs", defaultSpecsDir, "path to the specs directory")
-	out := flags.String("out", defaultArtifactOut, "artifact output path (generate mode)")
+	out := flags.String("out", defaultArtifactOut, "catalog artifact output path (generate mode)")
+	surfaceOut := flags.String("surface-out", defaultSurfaceArtifactOut, "surface inventory artifact output path (generate mode)")
 	docsDir := flags.String("docs", defaultDocsDir, "path to the docs directory (docs mode)")
+	root := flags.String("root", defaultRoot, "path to the repository root (surface enumeration)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -44,10 +47,23 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
+	// Docs freshness checks only the capability catalog and never enumerates the
+	// source tree, so it does not need (and must not require) a repo root.
+	if *mode == "docs" {
+		return checkDocs(stdout, catalog, *docsDir)
+	}
+
+	surfaceInventory, surfaceFindings, err := buildSurfaceInventory(*specsDir, *root)
+	if err != nil {
+		return err
+	}
+
 	switch *mode {
 	case "report":
 		writeFindings(stdout, findings)
-		_, err = fmt.Fprintf(stdout, "catalog entries: %d\n", len(catalog.Entries))
+		writeSurfaceFindings(stdout, surfaceFindings)
+		_, err = fmt.Fprintf(stdout, "catalog entries: %d\nsurface records: %d\n",
+			len(catalog.Entries), len(surfaceInventory.Surfaces))
 		return err
 	case "generate":
 		payload, err := capabilitycatalog.MarshalCatalog(catalog)
@@ -57,17 +73,28 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err := os.WriteFile(*out, payload, 0o644); err != nil {
 			return fmt.Errorf("write artifact %s: %w", *out, err)
 		}
+		surfacePayload, err := capabilitycatalog.MarshalSurfaceInventory(surfaceInventory)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(*surfaceOut, surfacePayload, 0o644); err != nil {
+			return fmt.Errorf("write surface artifact %s: %w", *surfaceOut, err)
+		}
 		writeFindings(stdout, findings)
-		_, err = fmt.Fprintf(stdout, "wrote %s (%d entries)\n", *out, len(catalog.Entries))
+		writeSurfaceFindings(stdout, surfaceFindings)
+		_, err = fmt.Fprintf(stdout, "wrote %s (%d entries)\nwrote %s (%d surfaces)\n",
+			*out, len(catalog.Entries), *surfaceOut, len(surfaceInventory.Surfaces))
 		return err
 	case "verify":
 		payload, err := capabilitycatalog.MarshalCatalog(catalog)
 		if err != nil {
 			return err
 		}
-		return verify(stdout, payload, findings)
-	case "docs":
-		return checkDocs(stdout, catalog, *docsDir)
+		surfacePayload, err := capabilitycatalog.MarshalSurfaceInventory(surfaceInventory)
+		if err != nil {
+			return err
+		}
+		return verify(stdout, payload, findings, surfacePayload, surfaceFindings)
 	default:
 		return fmt.Errorf("unsupported mode %q", *mode)
 	}
@@ -93,20 +120,50 @@ func checkDocs(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir stri
 	return fmt.Errorf("docs freshness check failed: %d findings", len(docFindings))
 }
 
-// verify fails when reconciliation findings exist or when the embedded artifact
-// differs from the freshly generated payload. The comparison uses the raw
-// embedded bytes so any deviation in the committed artifact is caught.
-func verify(stdout io.Writer, payload []byte, findings []capabilitycatalog.Finding) error {
+// verify fails when reconciliation findings exist or when either embedded
+// artifact differs from its freshly generated payload. The comparison uses the
+// raw embedded bytes so any deviation in a committed artifact is caught,
+// including a surface added or removed in code without regenerating.
+func verify(
+	stdout io.Writer,
+	payload []byte,
+	findings []capabilitycatalog.Finding,
+	surfacePayload []byte,
+	surfaceFindings []capabilitycatalog.Finding,
+) error {
 	writeFindings(stdout, findings)
-	stale := !bytes.Equal(payload, capabilitycatalog.RawArtifact())
-	if stale {
+	writeSurfaceFindings(stdout, surfaceFindings)
+
+	catalogStale := !bytes.Equal(payload, capabilitycatalog.RawArtifact())
+	if catalogStale {
 		_, _ = fmt.Fprintln(stdout, "embedded catalog artifact is stale; run: go run ./cmd/capability-inventory -mode generate")
 	}
-	if len(findings) > 0 || stale {
-		return fmt.Errorf("capability catalog verification failed: %d findings, stale=%v", len(findings), stale)
+	surfaceStale := !bytes.Equal(surfacePayload, capabilitycatalog.RawSurfaceArtifact())
+	if surfaceStale {
+		_, _ = fmt.Fprintln(stdout, "embedded surface inventory artifact is stale; run: go run ./cmd/capability-inventory -mode generate")
 	}
-	_, err := fmt.Fprintln(stdout, "capability catalog verified")
+
+	failed := len(findings) > 0 || len(surfaceFindings) > 0 || catalogStale || surfaceStale
+	if failed {
+		return fmt.Errorf(
+			"capability inventory verification failed: %d catalog findings, %d surface findings, catalog_stale=%v, surface_stale=%v",
+			len(findings), len(surfaceFindings), catalogStale, surfaceStale)
+	}
+	_, err := fmt.Fprintln(stdout, "capability catalog and surface inventory verified")
 	return err
+}
+
+// writeSurfaceFindings prints surface reconciliation findings for report and
+// verify modes.
+func writeSurfaceFindings(stdout io.Writer, findings []capabilitycatalog.Finding) {
+	if len(findings) == 0 {
+		_, _ = fmt.Fprintln(stdout, "no surface reconciliation findings")
+		return
+	}
+	_, _ = fmt.Fprintf(stdout, "%d surface reconciliation findings:\n", len(findings))
+	for _, finding := range findings {
+		_, _ = fmt.Fprintf(stdout, "  [%s] %s: %s\n", finding.Kind, finding.Subject, finding.Detail)
+	}
 }
 
 func writeFindings(stdout io.Writer, findings []capabilitycatalog.Finding) {

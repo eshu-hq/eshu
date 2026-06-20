@@ -27,4 +27,20 @@
 // data/catalog.generated.json. It is the runtime entry point for the API, MCP,
 // and console surfaces. The artifact is produced by cmd/capability-inventory and
 // kept in lockstep with the specs by a drift test.
+//
+// The package also reconciles the surface inventory: a generated record of every
+// platform surface across six categories (command binaries, collector families,
+// reducer domains, API routes, MCP tools, and console pages). BuildSurfaceInventory
+// merges the live surfaces enumerated from code, specs, and the source tree
+// (LiveSurfaces, injected by the generator) with the editorial overlay
+// (specs/surface-inventory.v1.yaml) into a deterministic SurfaceInventory plus
+// Findings. Each surface carries a ReadinessLane (implemented, partial, gated,
+// foundation_only, fixture_only, research_only, not_implemented, unsupported);
+// only the implemented lane asserts production readiness and therefore requires
+// linked promotion proof. A non-empty Findings slice means a collector is
+// unclassified, an implemented collector links no proof, an overlay row is
+// stale, or a lane is invalid. LoadSurfaceInventory returns the committed
+// artifact embedded from data/surface-inventory.generated.json, and a drift test
+// keeps it in lockstep with live code so no surface can appear or disappear
+// silently.
 package capabilitycatalog

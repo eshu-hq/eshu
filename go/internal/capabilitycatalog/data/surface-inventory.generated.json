@@ -1,0 +1,2442 @@
+{
+  "version": "v1",
+  "surfaces": [
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/admin/shared-projection/tuning-report",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/capabilities",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/catalog",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/ci-cd/run-correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/ci-cd/run-correlations/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/ci-cd/run-correlations/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/cloud/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/cloud/resources",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/collector-extraction-readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/collector-extraction-readiness/{family}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/collector-readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/collectors",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/component-extensions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/component-extensions/{component_id}/diagnostics",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/dependencies",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/documentation/evidence-packets/{packet_id}/freshness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/documentation/facts",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/documentation/findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/documentation/findings/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/documentation/findings/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/documentation/findings/{finding_id}/evidence-packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/ecosystem/overview",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/entities/{entity_id}/context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/evidence/admission-decisions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/evidence/relationships/{resolved_id}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/freshness/changed-since",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/freshness/generations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/freshness/services/changed-since",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/iac/resources",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/images",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/incidents/{incident_id}/context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/index-status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/infra/resources/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/infra/resources/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/ingesters",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/ingesters/{ingester}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/investigation-workflows",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/investigations/services/{service_name}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/kubernetes/correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/metrics/timeseries",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/observability/coverage/correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/openapi.json",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/package-registry/correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/package-registry/dependencies",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/package-registry/packages",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/package-registry/packages/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/package-registry/packages/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/package-registry/versions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/query-playbooks",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/by-language",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/language-inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/branches",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/content",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/coverage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/stats",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/tree",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/secrets-iam/identity-trust-chains",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/secrets-iam/posture-gaps",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/secrets-iam/posture-summary",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/secrets-iam/privilege-posture-observations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/secrets-iam/secret-access-paths",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/semantic/code-hints",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/semantic/documentation-observations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/service-catalog/correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/services/{service_name}/context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/services/{service_name}/intelligence-report",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/services/{service_name}/story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/answer-narration",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/collector-readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/collectors",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/governance",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/hosted-readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/index",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/ingesters",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/ingesters/{ingester}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/pipeline",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/status/semantic-extraction",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/advisories",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/advisories/evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/container-images/identities",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/container-images/identities/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/container-images/identities/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/impact/explain",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/impact/findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/impact/findings/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/impact/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/sbom-attestations/attachments",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/sbom-attestations/attachments/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/sbom-attestations/attachments/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/security-alerts/reconciliations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/security-alerts/reconciliations/count",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/security-alerts/reconciliations/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/vulnerabilities/{advisory_id}",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/supply-chain/vulnerability-scanner/contract",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/work-items/evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/workloads/{workload_id}/context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/workloads/{workload_id}/story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /health",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/backfill",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/dead-letter",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/decisions/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/refinalize",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/reindex",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/replay",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/replay-events/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/skip",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/admin/work-items/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/aws/runtime-drift/findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/cloud/runtime-drift/findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/bundles",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/call-chain",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/call-graph/metrics",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/complexity",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/cypher",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/dead-code",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/dead-code/investigate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/imports/investigate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/language-query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/quality/inspect",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/relationships",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/relationships/story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/search",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/security/secrets/investigate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/structure/inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/symbols/search",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/code/topics/investigate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/compare/environments",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/content/entities/read",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/content/entities/search",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/content/files/lines",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/content/files/read",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/content/files/search",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/ecosystem/graph-summary",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/entities/resolve",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/evidence/citations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/iac/dead",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/iac/management-status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/iac/management-status/explain",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/iac/terraform-import-plan/candidates",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/iac/unmanaged-resources",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/blast-radius",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/change-surface",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/change-surface/investigate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/deployment-config-influence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/entity-map",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/explain-dependency-path",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/resource-investigation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/trace-deployment-chain",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/trace-exposure-path",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/impact/trace-resource-to-code",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/infra/relationships",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/infra/resources/search",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/investigation-workflows/resolve",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/query-playbooks/resolve",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/replatforming/ownership-packets",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/replatforming/plans",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/replatforming/rollups",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/search/semantic",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/visualizations/derive",
+      "readiness": "implemented"
+    },
+    {
+      "category": "collector",
+      "name": "aws",
+      "readiness": "implemented",
+      "owner": "internal/collector/awscloud",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "azure",
+      "readiness": "gated",
+      "owner": "internal/collector/azurecloud",
+      "docs": [
+        "reference/collector-reducer-readiness.md",
+        "reference/azure-cloud-collector-contract.md"
+      ],
+      "notes": "Fixture-driven with claimed-live wiring; gated for live tenant smoke proof (issue"
+    },
+    {
+      "category": "collector",
+      "name": "ci_cd_run",
+      "readiness": "partial",
+      "owner": "internal/collector/cicdrun",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ],
+      "notes": "Fixture normalizer, reducer correlation, hosted binary, and chart values exist; live target proof for the deployed chart shape is pending."
+    },
+    {
+      "category": "collector",
+      "name": "documentation",
+      "readiness": "implemented",
+      "owner": "internal/collector/confluence",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "gcp",
+      "readiness": "gated",
+      "owner": "internal/collector/gcpcloud",
+      "docs": [
+        "reference/collector-reducer-readiness.md",
+        "reference/gcp-cloud-collector-contract.md"
+      ],
+      "notes": "Fixture-driven with claimed-live wiring; gated for sanitized live smoke proof."
+    },
+    {
+      "category": "collector",
+      "name": "git",
+      "readiness": "implemented",
+      "owner": "internal/collector",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "grafana",
+      "readiness": "implemented",
+      "owner": "internal/collector/grafana",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "jira",
+      "readiness": "implemented",
+      "owner": "internal/collector/jira",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md",
+        "reference/jira-evidence.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "kubernetes_live",
+      "readiness": "foundation_only",
+      "owner": "internal/collector/kuberneteslive",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ],
+      "notes": "Read-only core resource listing and source facts exist; no claim-driven runtime, watch mode, reducer projection, drift read model, or chart yet."
+    },
+    {
+      "category": "collector",
+      "name": "loki",
+      "readiness": "implemented",
+      "owner": "internal/collector/loki",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "oci_registry",
+      "readiness": "implemented",
+      "owner": "internal/collector/ociregistry",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "package_registry",
+      "readiness": "implemented",
+      "owner": "internal/collector/packageregistry",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "pagerduty",
+      "readiness": "implemented",
+      "owner": "internal/collector/pagerduty",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md",
+        "reference/pagerduty-evidence.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "prometheus_mimir",
+      "readiness": "implemented",
+      "owner": "internal/collector/prometheusmimir",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "sbom_attestation",
+      "readiness": "implemented",
+      "owner": "internal/collector/sbomdocument",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "scanner_worker",
+      "readiness": "implemented",
+      "owner": "internal/collector/scannerworker",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ],
+      "notes": "The worker runtime and warning analyzer are implemented and charted; concrete secret/license/source/misconfiguration analyzers stay fixture-proven and off by default until live proof."
+    },
+    {
+      "category": "collector",
+      "name": "security_alert",
+      "readiness": "implemented",
+      "owner": "internal/collector/securityalerts",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "semantic_extraction",
+      "readiness": "gated",
+      "owner": "internal/collector/extensionhost",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ],
+      "notes": "Optional, policy-gated model-assisted observations emitted as provenance only."
+    },
+    {
+      "category": "collector",
+      "name": "tempo",
+      "readiness": "implemented",
+      "owner": "internal/collector/tempo",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "terraform_state",
+      "readiness": "implemented",
+      "owner": "internal/collector/terraformstate",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "vault_live",
+      "readiness": "gated",
+      "owner": "internal/collector/vaultlive",
+      "docs": [
+        "reference/collector-reducer-readiness.md",
+        "reference/secrets-iam-posture-collector-contract.md"
+      ],
+      "notes": "Secrets/IAM posture lane; source facts exist, graph promotion gated for issue"
+    },
+    {
+      "category": "collector",
+      "name": "vulnerability_intelligence",
+      "readiness": "implemented",
+      "owner": "internal/collector/vulnerabilityintelligence",
+      "proof": "reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md",
+        "reference/security-intelligence.md"
+      ]
+    },
+    {
+      "category": "collector",
+      "name": "webhook",
+      "readiness": "implemented",
+      "owner": "cmd/webhook-listener",
+      "proof": "reference/collector-reducer-readiness.md#promotion-proof",
+      "docs": [
+        "reference/collector-reducer-readiness.md"
+      ]
+    },
+    {
+      "category": "command",
+      "name": "admin-status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "api",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "audit-preflight",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "bootstrap-data-plane",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "bootstrap-index",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "capability-inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-aws-cloud",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-azure-cloud",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-cicd-run",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-component-extension",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-confluence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-gcp-cloud",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-git",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-grafana",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-jira",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-kubernetes-live",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-loki",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-oci-registry",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-package-registry",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-pagerduty",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-prometheus-mimir",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-sbom-attestation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-security-alerts",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-tempo",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-terraform-state",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-vault-live",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "collector-vulnerability-intelligence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "eshu",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "ingester",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "mcp-server",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "projector",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "reducer",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "scanner-worker",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "search-bench",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "webhook-listener",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "workflow-coordinator",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "AskPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "CICDRunCorrelationsPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "CapabilityMatrixPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "CatalogPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ChangedSincePage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "CloudDriftPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "CloudPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "CodeGraphPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "DashboardPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "DeadCodePage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "DependenciesPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ExplorerPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ExposurePathPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "FindingsPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "HomePage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "IacPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ImagesPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ImpactPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "IncidentContextPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ObservabilityPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "OperationsPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ReplatformingPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "RepoSourcePage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "RepositoriesPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "SbomPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "SecretsIamPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ServiceEvidenceGraphPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ServiceReportPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "TopologyPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "VulnDetailPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "VulnerabilitiesPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "WorkspacePage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "analyze_code_relationships",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "analyze_infra_relationships",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "build_evidence_citation_packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "calculate_cyclomatic_complexity",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "check_documentation_evidence_packet_freshness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "compare_environments",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "compose_replatforming_plan",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_ci_cd_run_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_container_image_identities",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_documentation_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_infra_resources",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_package_registry_packages",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_repositories_by_language",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_sbom_attestation_attachments",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_secrets_iam_posture",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_security_alert_reconciliations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "count_supply_chain_impact_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "derive_visualization_packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "execute_cypher_query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "execute_language_query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "explain_dependency_path",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "explain_iac_management_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "explain_supply_chain_impact",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_blast_radius",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_change_surface",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_code",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_dead_code",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_dead_iac",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_function_call_chain",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_infra_resources",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_most_complex_functions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_symbol",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_unmanaged_resource_owners",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "find_unmanaged_resources",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_answer_narration_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_capability_catalog",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_changed_since",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_ci_cd_run_correlation_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_code_relationship_story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_collector_extraction_readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_collector_readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_component_extension_diagnostics",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_container_image_identity_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_documentation_evidence_packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_documentation_finding_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_ecosystem_overview",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_entity_content",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_entity_context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_file_content",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_file_lines",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_generation_lifecycle",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_graph_summary_packet",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_hosted_governance_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_hosted_readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_iac_management_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_incident_context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_index_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_infra_resource_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_ingester_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_package_registry_package_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_relationship_evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_replatforming_rollups",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_repo_context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_repo_story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_repo_summary",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_repository_coverage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_repository_language_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_repository_stats",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_sbom_attestation_attachment_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_security_alert_reconciliation_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_semantic_capability_status",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_service_changed_since",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_service_context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_service_intelligence_report",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_service_story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_supply_chain_impact_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_vulnerability_scanner_read_contract",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_workload_context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_workload_story",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "inspect_call_graph_metrics",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "inspect_code_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "inspect_code_quality",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_change_surface",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_code_topic",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_dead_code",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_deployment_config",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_hardcoded_secrets",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_import_dependencies",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_resource",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "investigate_service",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_admission_decisions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_advisory_evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_aws_runtime_drift_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_ci_cd_run_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_cloud_resource_inventory",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_cloud_runtime_drift_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_collector_extraction_readiness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_collectors",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_component_extensions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_container_image_identities",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_documentation_facts",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_documentation_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_indexed_repositories",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_ingesters",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_investigation_workflows",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_kubernetes_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_observability_coverage_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_package_registry_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_package_registry_dependencies",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_package_registry_packages",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_package_registry_versions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_query_playbooks",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_repositories_by_language",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_sbom_attestation_attachments",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_secrets_iam_identity_trust_chains",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_secrets_iam_posture_gaps",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_secrets_iam_privilege_posture_observations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_secrets_iam_secret_access_paths",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_security_alert_reconciliations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_semantic_code_hints",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_semantic_documentation_observations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_service_catalog_correlations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_supply_chain_impact_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_work_item_evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "propose_terraform_import_plan",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "resolve_entity",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "resolve_investigation_workflow",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "resolve_query_playbook",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "search_entity_content",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "search_file_content",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "search_registry_bundles",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "search_semantic_context",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "trace_deployment_chain",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "trace_exposure_path",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "trace_resource_to_code",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "visualize_graph_query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "aws_cloud_runtime_drift",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "aws_relationship_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "aws_resource_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "azure_relationship_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "azure_resource_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "ci_cd_run_correlation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "cloud_asset_resolution",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "cloud_inventory_admission",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "code_call_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "code_calls",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "code_function_summary",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "code_interproc_evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "code_taint_evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "config_state_drift",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "container_image_identity",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "data_lineage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "deployable_unit_correlation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "deployable_unit_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "deployment_mapping",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "documentation_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "documentation_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "ec2_block_device_kms_posture_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "ec2_instance_node_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "ec2_internet_exposure_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "ec2_uses_profile_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "eshu_search_document",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "gcp_relationship_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "gcp_resource_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "governance",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "handles_route",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "iam_can_assume_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "iam_can_perform_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "iam_escalation_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "iam_instance_profile_role_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "incident_repository_correlation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "incident_routing_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "inheritance_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "inheritance_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "invokes_cloud_action",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "kubernetes_correlation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "kubernetes_correlation_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "kubernetes_workload_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "multi_cloud_runtime_drift",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "observability_coverage_correlation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "observability_coverage_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "ownership",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "package_source_correlation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "platform_infra",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "rationale_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "rationale_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "rds_posture_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "repo_dependency",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "runs_in",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "s3_external_principal_grant_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "s3_internet_exposure_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "s3_logs_to_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "sbom_attestation_attachment",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "secrets_iam_graph_projection",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "secrets_iam_trust_chain",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "security_alert_reconciliation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "security_group_cidr_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "security_group_reachability_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "security_group_rule_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "semantic_entity_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "service_catalog_correlation",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "shell_exec",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "shell_exec_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "sql_relationship_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "sql_relationships",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "supply_chain_impact",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "workload_cloud_relationship_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "workload_dependency",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "workload_identity",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "workload_materialization",
+      "readiness": "implemented"
+    }
+  ]
+}
