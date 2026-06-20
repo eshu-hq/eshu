@@ -5,27 +5,51 @@ import (
 	"testing"
 )
 
-// TestAllDomainsMatchesKnownDomains locks AllDomains to the knownDomains
-// registry so a domain added to one without the other is caught. The surface
+// TestAllDomainsUnionsKnownAndProjectionDomains locks AllDomains to the union of
+// the claim/materialization registry (knownDomains) and the shared/edge
+// projection registry (allProjectionDomains), deduplicated. The surface
 // inventory drift gate (#3145) enumerates reducer domains through AllDomains, so
-// a new domain that skips the registry would silently leave the inventory.
-func TestAllDomainsMatchesKnownDomains(t *testing.T) {
+// a reducer-owned domain in either registry must appear; a projection domain
+// (code_calls, handles_route, runs_in, ...) missing here would silently leave
+// the inventory and bypass the gate.
+func TestAllDomainsUnionsKnownAndProjectionDomains(t *testing.T) {
 	t.Parallel()
 	got := AllDomains()
-	if len(got) != len(knownDomains) {
-		t.Fatalf("AllDomains() returned %d domains, knownDomains has %d", len(got), len(knownDomains))
+
+	want := map[Domain]struct{}{}
+	for d := range knownDomains {
+		want[d] = struct{}{}
+	}
+	for _, d := range allProjectionDomains {
+		want[d] = struct{}{}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("AllDomains() returned %d domains, want %d (knownDomains ∪ allProjectionDomains)", len(got), len(want))
 	}
 	seen := map[Domain]bool{}
 	for _, d := range got {
-		if _, ok := knownDomains[d]; !ok {
-			t.Errorf("AllDomains() returned %q which is not a known domain", d)
+		if _, ok := want[d]; !ok {
+			t.Errorf("AllDomains() returned %q which is in neither registry", d)
 		}
 		if seen[d] {
 			t.Errorf("AllDomains() returned duplicate domain %q", d)
 		}
 		seen[d] = true
-		if err := d.Validate(); err != nil {
-			t.Errorf("AllDomains() returned invalid domain %q: %v", d, err)
+	}
+}
+
+// TestAllDomainsIncludesSharedProjectionDomains is the regression for the Codex
+// review on #3145: shared-projection domains drained outside knownDomains must
+// still be enumerated so the surface inventory tracks them.
+func TestAllDomainsIncludesSharedProjectionDomains(t *testing.T) {
+	t.Parallel()
+	got := map[Domain]bool{}
+	for _, d := range AllDomains() {
+		got[d] = true
+	}
+	for _, d := range []Domain{DomainCodeCalls, DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainRepoDependency} {
+		if !got[d] {
+			t.Errorf("AllDomains() is missing shared-projection domain %q", d)
 		}
 	}
 }

@@ -96,20 +96,35 @@ func enumerateConsolePages(dir string) ([]string, error) {
 	return names, nil
 }
 
-// enumerateAPIRoutes parses the served OpenAPI spec and returns its path keys.
-// The spec is the single declaration of the HTTP surface, so a route added to a
-// handler without an OpenAPI path is already caught by the existing OpenAPI
-// tests; here it keeps the surface inventory in lockstep with the documented API.
+// httpOperationMethods is the set of OpenAPI path-item keys that are HTTP
+// operations. Other keys (parameters, summary, description, servers, $ref) are
+// path-item metadata, not operations, and are skipped.
+var httpOperationMethods = map[string]struct{}{
+	"get": {}, "put": {}, "post": {}, "delete": {},
+	"options": {}, "head": {}, "patch": {}, "trace": {},
+}
+
+// enumerateAPIRoutes parses the served OpenAPI spec and returns one surface per
+// method+path operation (for example "GET /api/v0/capabilities"). Recording the
+// method, not just the path key, means adding a second operation such as
+// "POST /api/v0/foo" beside an existing "GET /api/v0/foo" changes the inventory,
+// so method-level API surface changes cannot bypass the drift gate. The spec is
+// the single declaration of the HTTP surface.
 func enumerateAPIRoutes() ([]string, error) {
 	var doc struct {
-		Paths map[string]json.RawMessage `json:"paths"`
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
 	}
 	if err := json.Unmarshal([]byte(query.OpenAPISpec()), &doc); err != nil {
 		return nil, fmt.Errorf("parse openapi spec: %w", err)
 	}
-	names := make([]string, 0, len(doc.Paths))
-	for path := range doc.Paths {
-		names = append(names, path)
+	var names []string
+	for path, item := range doc.Paths {
+		for method := range item {
+			if _, ok := httpOperationMethods[strings.ToLower(method)]; !ok {
+				continue
+			}
+			names = append(names, strings.ToUpper(method)+" "+path)
+		}
 	}
 	sort.Strings(names)
 	return names, nil

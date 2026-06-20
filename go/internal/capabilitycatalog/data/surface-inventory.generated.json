@@ -3,802 +3,802 @@
   "surfaces": [
     {
       "category": "api_route",
-      "name": "/api/v0/admin/backfill",
+      "name": "GET /api/v0/admin/shared-projection/tuning-report",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/dead-letter",
+      "name": "GET /api/v0/capabilities",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/decisions/query",
+      "name": "GET /api/v0/catalog",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/refinalize",
+      "name": "GET /api/v0/ci-cd/run-correlations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/reindex",
+      "name": "GET /api/v0/ci-cd/run-correlations/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/replay",
+      "name": "GET /api/v0/ci-cd/run-correlations/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/replay-events/query",
+      "name": "GET /api/v0/cloud/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/shared-projection/tuning-report",
+      "name": "GET /api/v0/cloud/resources",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/skip",
+      "name": "GET /api/v0/collector-extraction-readiness",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/admin/work-items/query",
+      "name": "GET /api/v0/collector-extraction-readiness/{family}",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/aws/runtime-drift/findings",
+      "name": "GET /api/v0/collector-readiness",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/capabilities",
+      "name": "GET /api/v0/collectors",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/catalog",
+      "name": "GET /api/v0/component-extensions",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/ci-cd/run-correlations",
+      "name": "GET /api/v0/component-extensions/{component_id}/diagnostics",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/ci-cd/run-correlations/count",
+      "name": "GET /api/v0/dependencies",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/ci-cd/run-correlations/inventory",
+      "name": "GET /api/v0/documentation/evidence-packets/{packet_id}/freshness",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/cloud/inventory",
+      "name": "GET /api/v0/documentation/facts",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/cloud/resources",
+      "name": "GET /api/v0/documentation/findings",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/cloud/runtime-drift/findings",
+      "name": "GET /api/v0/documentation/findings/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/bundles",
+      "name": "GET /api/v0/documentation/findings/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/call-chain",
+      "name": "GET /api/v0/documentation/findings/{finding_id}/evidence-packet",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/call-graph/metrics",
+      "name": "GET /api/v0/ecosystem/overview",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/complexity",
+      "name": "GET /api/v0/entities/{entity_id}/context",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/cypher",
+      "name": "GET /api/v0/evidence/admission-decisions",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/dead-code",
+      "name": "GET /api/v0/evidence/relationships/{resolved_id}",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/dead-code/investigate",
+      "name": "GET /api/v0/freshness/changed-since",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/imports/investigate",
+      "name": "GET /api/v0/freshness/generations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/language-query",
+      "name": "GET /api/v0/freshness/services/changed-since",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/quality/inspect",
+      "name": "GET /api/v0/iac/resources",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/relationships",
+      "name": "GET /api/v0/images",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/relationships/story",
+      "name": "GET /api/v0/incidents/{incident_id}/context",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/search",
+      "name": "GET /api/v0/index-status",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/security/secrets/investigate",
+      "name": "GET /api/v0/infra/resources/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/structure/inventory",
+      "name": "GET /api/v0/infra/resources/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/symbols/search",
+      "name": "GET /api/v0/ingesters",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/code/topics/investigate",
+      "name": "GET /api/v0/ingesters/{ingester}",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/collector-extraction-readiness",
+      "name": "GET /api/v0/investigations/services/{service_name}",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/collector-extraction-readiness/{family}",
+      "name": "GET /api/v0/kubernetes/correlations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/collector-readiness",
+      "name": "GET /api/v0/metrics/timeseries",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/collectors",
+      "name": "GET /api/v0/observability/coverage/correlations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/compare/environments",
+      "name": "GET /api/v0/openapi.json",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/component-extensions",
+      "name": "GET /api/v0/package-registry/correlations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/component-extensions/{component_id}/diagnostics",
+      "name": "GET /api/v0/package-registry/dependencies",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/content/entities/read",
+      "name": "GET /api/v0/package-registry/packages",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/content/entities/search",
+      "name": "GET /api/v0/package-registry/packages/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/content/files/lines",
+      "name": "GET /api/v0/package-registry/packages/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/content/files/read",
+      "name": "GET /api/v0/package-registry/versions",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/content/files/search",
+      "name": "GET /api/v0/query-playbooks",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/dependencies",
+      "name": "GET /api/v0/repositories",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/documentation/evidence-packets/{packet_id}/freshness",
+      "name": "GET /api/v0/repositories/by-language",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/documentation/facts",
+      "name": "GET /api/v0/repositories/language-inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/documentation/findings",
+      "name": "GET /api/v0/repositories/{repo_id}/branches",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/documentation/findings/count",
+      "name": "GET /api/v0/repositories/{repo_id}/content",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/documentation/findings/inventory",
+      "name": "GET /api/v0/repositories/{repo_id}/context",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/documentation/findings/{finding_id}/evidence-packet",
+      "name": "GET /api/v0/repositories/{repo_id}/coverage",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/ecosystem/graph-summary",
+      "name": "GET /api/v0/repositories/{repo_id}/stats",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/ecosystem/overview",
+      "name": "GET /api/v0/repositories/{repo_id}/story",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/entities/resolve",
+      "name": "GET /api/v0/repositories/{repo_id}/tree",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/entities/{entity_id}/context",
+      "name": "GET /api/v0/secrets-iam/identity-trust-chains",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/evidence/admission-decisions",
+      "name": "GET /api/v0/secrets-iam/posture-gaps",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/evidence/citations",
+      "name": "GET /api/v0/secrets-iam/posture-summary",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/evidence/relationships/{resolved_id}",
+      "name": "GET /api/v0/secrets-iam/privilege-posture-observations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/freshness/changed-since",
+      "name": "GET /api/v0/secrets-iam/secret-access-paths",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/freshness/generations",
+      "name": "GET /api/v0/semantic/code-hints",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/freshness/services/changed-since",
+      "name": "GET /api/v0/semantic/documentation-observations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/iac/dead",
+      "name": "GET /api/v0/service-catalog/correlations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/iac/management-status",
+      "name": "GET /api/v0/services/{service_name}/context",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/iac/management-status/explain",
+      "name": "GET /api/v0/services/{service_name}/intelligence-report",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/iac/resources",
+      "name": "GET /api/v0/services/{service_name}/story",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/iac/terraform-import-plan/candidates",
+      "name": "GET /api/v0/status/answer-narration",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/iac/unmanaged-resources",
+      "name": "GET /api/v0/status/collector-readiness",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/images",
+      "name": "GET /api/v0/status/collectors",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/blast-radius",
+      "name": "GET /api/v0/status/governance",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/change-surface",
+      "name": "GET /api/v0/status/hosted-readiness",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/change-surface/investigate",
+      "name": "GET /api/v0/status/index",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/deployment-config-influence",
+      "name": "GET /api/v0/status/ingesters",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/entity-map",
+      "name": "GET /api/v0/status/ingesters/{ingester}",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/explain-dependency-path",
+      "name": "GET /api/v0/status/pipeline",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/resource-investigation",
+      "name": "GET /api/v0/status/semantic-extraction",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/trace-deployment-chain",
+      "name": "GET /api/v0/supply-chain/advisories",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/trace-exposure-path",
+      "name": "GET /api/v0/supply-chain/advisories/evidence",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/impact/trace-resource-to-code",
+      "name": "GET /api/v0/supply-chain/container-images/identities",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/incidents/{incident_id}/context",
+      "name": "GET /api/v0/supply-chain/container-images/identities/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/index-status",
+      "name": "GET /api/v0/supply-chain/container-images/identities/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/infra/relationships",
+      "name": "GET /api/v0/supply-chain/impact/explain",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/infra/resources/count",
+      "name": "GET /api/v0/supply-chain/impact/findings",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/infra/resources/inventory",
+      "name": "GET /api/v0/supply-chain/impact/findings/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/infra/resources/search",
+      "name": "GET /api/v0/supply-chain/impact/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/ingesters",
+      "name": "GET /api/v0/supply-chain/sbom-attestations/attachments",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/ingesters/{ingester}",
+      "name": "GET /api/v0/supply-chain/sbom-attestations/attachments/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/investigations/services/{service_name}",
+      "name": "GET /api/v0/supply-chain/sbom-attestations/attachments/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/kubernetes/correlations",
+      "name": "GET /api/v0/supply-chain/security-alerts/reconciliations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/metrics/timeseries",
+      "name": "GET /api/v0/supply-chain/security-alerts/reconciliations/count",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/observability/coverage/correlations",
+      "name": "GET /api/v0/supply-chain/security-alerts/reconciliations/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/openapi.json",
+      "name": "GET /api/v0/supply-chain/vulnerabilities/{advisory_id}",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/package-registry/correlations",
+      "name": "GET /api/v0/supply-chain/vulnerability-scanner/contract",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/package-registry/dependencies",
+      "name": "GET /api/v0/work-items/evidence",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/package-registry/packages",
+      "name": "GET /api/v0/workloads/{workload_id}/context",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/package-registry/packages/count",
+      "name": "GET /api/v0/workloads/{workload_id}/story",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/package-registry/packages/inventory",
+      "name": "GET /health",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/package-registry/versions",
+      "name": "POST /api/v0/admin/backfill",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/query-playbooks",
+      "name": "POST /api/v0/admin/dead-letter",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/query-playbooks/resolve",
+      "name": "POST /api/v0/admin/decisions/query",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/replatforming/ownership-packets",
+      "name": "POST /api/v0/admin/refinalize",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/replatforming/plans",
+      "name": "POST /api/v0/admin/reindex",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/replatforming/rollups",
+      "name": "POST /api/v0/admin/replay",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories",
+      "name": "POST /api/v0/admin/replay-events/query",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/by-language",
+      "name": "POST /api/v0/admin/skip",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/language-inventory",
+      "name": "POST /api/v0/admin/work-items/query",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/{repo_id}/branches",
+      "name": "POST /api/v0/aws/runtime-drift/findings",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/{repo_id}/content",
+      "name": "POST /api/v0/cloud/runtime-drift/findings",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/{repo_id}/context",
+      "name": "POST /api/v0/code/bundles",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/{repo_id}/coverage",
+      "name": "POST /api/v0/code/call-chain",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/{repo_id}/stats",
+      "name": "POST /api/v0/code/call-graph/metrics",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/{repo_id}/story",
+      "name": "POST /api/v0/code/complexity",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/repositories/{repo_id}/tree",
+      "name": "POST /api/v0/code/cypher",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/search/semantic",
+      "name": "POST /api/v0/code/dead-code",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/secrets-iam/identity-trust-chains",
+      "name": "POST /api/v0/code/dead-code/investigate",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/secrets-iam/posture-gaps",
+      "name": "POST /api/v0/code/imports/investigate",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/secrets-iam/posture-summary",
+      "name": "POST /api/v0/code/language-query",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/secrets-iam/privilege-posture-observations",
+      "name": "POST /api/v0/code/quality/inspect",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/secrets-iam/secret-access-paths",
+      "name": "POST /api/v0/code/relationships",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/semantic/code-hints",
+      "name": "POST /api/v0/code/relationships/story",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/semantic/documentation-observations",
+      "name": "POST /api/v0/code/search",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/service-catalog/correlations",
+      "name": "POST /api/v0/code/security/secrets/investigate",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/services/{service_name}/context",
+      "name": "POST /api/v0/code/structure/inventory",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/services/{service_name}/intelligence-report",
+      "name": "POST /api/v0/code/symbols/search",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/services/{service_name}/story",
+      "name": "POST /api/v0/code/topics/investigate",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/answer-narration",
+      "name": "POST /api/v0/compare/environments",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/collector-readiness",
+      "name": "POST /api/v0/content/entities/read",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/collectors",
+      "name": "POST /api/v0/content/entities/search",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/governance",
+      "name": "POST /api/v0/content/files/lines",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/hosted-readiness",
+      "name": "POST /api/v0/content/files/read",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/index",
+      "name": "POST /api/v0/content/files/search",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/ingesters",
+      "name": "POST /api/v0/ecosystem/graph-summary",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/ingesters/{ingester}",
+      "name": "POST /api/v0/entities/resolve",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/pipeline",
+      "name": "POST /api/v0/evidence/citations",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/status/semantic-extraction",
+      "name": "POST /api/v0/iac/dead",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/advisories",
+      "name": "POST /api/v0/iac/management-status",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/advisories/evidence",
+      "name": "POST /api/v0/iac/management-status/explain",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/container-images/identities",
+      "name": "POST /api/v0/iac/terraform-import-plan/candidates",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/container-images/identities/count",
+      "name": "POST /api/v0/iac/unmanaged-resources",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/container-images/identities/inventory",
+      "name": "POST /api/v0/impact/blast-radius",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/impact/explain",
+      "name": "POST /api/v0/impact/change-surface",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/impact/findings",
+      "name": "POST /api/v0/impact/change-surface/investigate",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/impact/findings/count",
+      "name": "POST /api/v0/impact/deployment-config-influence",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/impact/inventory",
+      "name": "POST /api/v0/impact/entity-map",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/sbom-attestations/attachments",
+      "name": "POST /api/v0/impact/explain-dependency-path",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/sbom-attestations/attachments/count",
+      "name": "POST /api/v0/impact/resource-investigation",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/sbom-attestations/attachments/inventory",
+      "name": "POST /api/v0/impact/trace-deployment-chain",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/security-alerts/reconciliations",
+      "name": "POST /api/v0/impact/trace-exposure-path",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/security-alerts/reconciliations/count",
+      "name": "POST /api/v0/impact/trace-resource-to-code",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/security-alerts/reconciliations/inventory",
+      "name": "POST /api/v0/infra/relationships",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/vulnerabilities/{advisory_id}",
+      "name": "POST /api/v0/infra/resources/search",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/supply-chain/vulnerability-scanner/contract",
+      "name": "POST /api/v0/query-playbooks/resolve",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/visualizations/derive",
+      "name": "POST /api/v0/replatforming/ownership-packets",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/work-items/evidence",
+      "name": "POST /api/v0/replatforming/plans",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/workloads/{workload_id}/context",
+      "name": "POST /api/v0/replatforming/rollups",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/api/v0/workloads/{workload_id}/story",
+      "name": "POST /api/v0/search/semantic",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
-      "name": "/health",
+      "name": "POST /api/v0/visualizations/derive",
       "readiness": "implemented"
     },
     {
@@ -2095,6 +2095,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "code_calls",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "code_function_summary",
       "readiness": "implemented"
     },
@@ -2130,7 +2135,17 @@
     },
     {
       "category": "reducer_domain",
+      "name": "deployable_unit_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "deployment_mapping",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "documentation_edges",
       "readiness": "implemented"
     },
     {
@@ -2180,6 +2195,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "handles_route",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "iam_can_assume_materialization",
       "readiness": "implemented"
     },
@@ -2210,7 +2230,17 @@
     },
     {
       "category": "reducer_domain",
+      "name": "inheritance_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "inheritance_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "invokes_cloud_action",
       "readiness": "implemented"
     },
     {
@@ -2255,12 +2285,32 @@
     },
     {
       "category": "reducer_domain",
+      "name": "platform_infra",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "rationale_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "rationale_materialization",
       "readiness": "implemented"
     },
     {
       "category": "reducer_domain",
       "name": "rds_posture_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "repo_dependency",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "runs_in",
       "readiness": "implemented"
     },
     {
@@ -2325,6 +2375,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "shell_exec",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "shell_exec_materialization",
       "readiness": "implemented"
     },
@@ -2335,12 +2390,22 @@
     },
     {
       "category": "reducer_domain",
+      "name": "sql_relationships",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "supply_chain_impact",
       "readiness": "implemented"
     },
     {
       "category": "reducer_domain",
       "name": "workload_cloud_relationship_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "workload_dependency",
       "readiness": "implemented"
     },
     {

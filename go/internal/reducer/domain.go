@@ -70,13 +70,23 @@ var knownDomains = map[Domain]struct{}{
 	DomainEshuSearchDocument:                       {},
 }
 
-// AllDomains returns every known reducer domain sorted lexicographically. It is
-// the single source of truth for tooling that must enumerate the full domain set
-// (the capability surface inventory and its drift gate), so adding a domain to
-// knownDomains automatically adds it to the inventory.
+// AllDomains returns every reducer-owned domain sorted lexicographically: the
+// claim/materialization domains in knownDomains plus the shared/edge projection
+// domains in allProjectionDomains. It is the single source of truth for tooling
+// that must enumerate the full domain set (the capability surface inventory and
+// its drift gate), so a domain added to either registry automatically appears in
+// the inventory and cannot drain truth without being tracked. Duplicates across
+// the two registries collapse to one entry.
 func AllDomains() []Domain {
-	domains := make([]Domain, 0, len(knownDomains))
+	set := make(map[Domain]struct{}, len(knownDomains)+len(allProjectionDomains))
 	for domain := range knownDomains {
+		set[domain] = struct{}{}
+	}
+	for _, domain := range allProjectionDomains {
+		set[domain] = struct{}{}
+	}
+	domains := make([]Domain, 0, len(set))
+	for domain := range set {
 		domains = append(domains, domain)
 	}
 	sort.Slice(domains, func(i, j int) bool { return domains[i] < domains[j] })

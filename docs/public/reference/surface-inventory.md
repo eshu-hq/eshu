@@ -19,7 +19,7 @@ authoritative live source so the inventory stays in lockstep with code:
 | `command` | command binaries under `go/cmd` |
 | `collector` | collector families (`scope.AllCollectorKinds`) |
 | `reducer_domain` | reducer domains (`reducer.AllDomains`) |
-| `api_route` | HTTP API routes (OpenAPI spec path keys) |
+| `api_route` | HTTP API routes (one per method+path operation in the OpenAPI spec) |
 | `mcp_tool` | read-only MCP tools (`mcp.ReadOnlyTools`) |
 | `console_page` | console page components under `apps/console/src/pages` |
 

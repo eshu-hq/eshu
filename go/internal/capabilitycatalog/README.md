@@ -75,7 +75,7 @@ fleet — and so a new surface cannot silently bypass the catalog.
 | `command` | command binaries | `go/cmd/*` directories |
 | `collector` | collector families | `scope.AllCollectorKinds` |
 | `reducer_domain` | reducer domains | `reducer.AllDomains` |
-| `api_route` | HTTP API routes | `query.OpenAPISpec` path keys |
+| `api_route` | HTTP API routes | `query.OpenAPISpec` method+path operations |
 | `mcp_tool` | MCP tools | `mcp.ReadOnlyTools` |
 | `console_page` | console pages | `apps/console/src/pages/*.tsx` |
 
