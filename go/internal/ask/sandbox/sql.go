@@ -145,5 +145,62 @@ func validateSQL(query string) Decision {
 		}
 	}
 
+	// Step 5: scan double-quoted identifiers in the RAW query.
+	// The normalizer masks double-quoted identifier content, so a query like
+	//   SELECT "pg_sleep"(10)
+	// passes the token scan above (pg_sleep is hidden). We extract every
+	// double-quoted segment from the raw query and deny any whose content
+	// (case-insensitive, trimmed) exactly matches a sqlDenylist keyword.
+	// This is a safe-side check: a quoted identifier whose name happens to
+	// be a denylist word is denied rather than allowed.
+	for _, seg := range doubleQuotedIdentifiers(query) {
+		upper := strings.ToUpper(strings.TrimSpace(seg))
+		if _, denied := sqlDenylist[upper]; denied {
+			return Decision{Allowed: false, Reason: reasonSQLWrite + upper}
+		}
+	}
+
 	return Decision{Allowed: true}
+}
+
+// doubleQuotedIdentifiers returns the content of every double-quoted
+// identifier segment in raw. It handles the SQL "" escape (two consecutive
+// double-quote characters inside a quoted identifier represent a single
+// literal double-quote) and stops at the end of the string without panicking
+// on unterminated identifiers.
+//
+// Only SQL double-quoted identifiers are handled; single-quoted string
+// literals and dollar-quoted strings are intentionally not extracted here
+// because they are string VALUES, not callable identifiers.
+func doubleQuotedIdentifiers(raw string) []string {
+	var result []string
+	i := 0
+	n := len(raw)
+	for i < n {
+		if raw[i] != '"' {
+			i++
+			continue
+		}
+		// Found opening double-quote; accumulate content until closing quote.
+		i++ // skip opening "
+		var seg []byte
+		for i < n {
+			if raw[i] == '"' {
+				if i+1 < n && raw[i+1] == '"' {
+					// "" escape: represents a literal " inside the identifier.
+					seg = append(seg, '"')
+					i += 2
+				} else {
+					// Closing quote.
+					i++
+					break
+				}
+			} else {
+				seg = append(seg, raw[i])
+				i++
+			}
+		}
+		result = append(result, string(seg))
+	}
+	return result
 }

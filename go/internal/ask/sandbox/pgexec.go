@@ -54,16 +54,19 @@ func (e *postgresReadOnlyExecutor) Exec(ctx context.Context, dialect Dialect, qu
 		return 0, errors.New("cypher execution is not wired in v1")
 	}
 
-	tx, err := e.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	// Apply the caps timeout before BeginTx so that a slow or hung server-side
+	// connection attempt is also bounded by the configured timeout, not just the
+	// query execution itself.
+	tctx, cancel := context.WithTimeout(ctx, caps.Timeout)
+	defer cancel()
+
+	tx, err := e.db.BeginTx(tctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return 0, err
 	}
 	// Always roll back: the transaction is read-only so this is a no-op on the
 	// database side, but it is required to release the connection back to the pool.
 	defer func() { _ = tx.Rollback() }()
-
-	tctx, cancel := context.WithTimeout(ctx, caps.Timeout)
-	defer cancel()
 
 	rows, err := tx.QueryContext(tctx, query)
 	if err != nil {

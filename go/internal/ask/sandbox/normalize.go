@@ -231,8 +231,11 @@ func normalize(dialect Dialect, query string) normalized {
 
 		// ── LINE COMMENT state ────────────────────────────────────────────────
 		case stateLineComment:
-			if ch == '\n' {
-				// End of line comment; the newline itself stays (it's whitespace).
+			if ch == '\n' || ch == '\r' {
+				// End of line comment: LF or CR terminates the comment.
+				// PostgreSQL treats CR as a newline, so "--\r FROM pg_sleep(10)"
+				// would expose "FROM pg_sleep(10)" as code unless CR also ends
+				// the comment state. The newline byte itself stays (it's whitespace).
 				state = stateCode
 				i++
 			} else {
