@@ -28,6 +28,72 @@ gated/roadmap surfaces, lives in the
 [roadmap promotion-readiness tables](../roadmap.md#promotion-readiness) and the
 [Supply-Chain Traceability](../supply-chain-traceability.md) entry point.
 
+## Readiness Vocabulary
+
+Eshu uses one canonical set of readiness lanes everywhere a surface's maturity is
+stated — this page, the [roadmap](../roadmap.md#promotion-readiness),
+[Supply-Chain Traceability](../supply-chain-traceability.md), and the generated
+surface inventory. A lane describes what a source family or surface does
+**today**, so a buyer or operator never has to reconcile two different
+vocabularies.
+
+| Lane | Meaning | Refusal posture |
+| --- | --- | --- |
+| `implemented` | Built, charted where a chart applies, and provable end to end. The only lane that asserts production readiness, so it must link promotion proof. | Answers truthfully; never fabricates. |
+| `partial` | Evidence exists but the implemented contract is unmet (readback pending, claims inactive, or a coverage/runtime-proof gap). | Returns bounded evidence and labels the gap; does not imply full coverage. |
+| `gated` | Built but intentionally withheld from a public lane pending a missing gate (a sanitized live smoke, a public chart, or an operator opt-in). | Refuses with an explicit gated reason until the operator opts in. |
+| `foundation_only` | Code structure exists but no hosted runtime, claim-driven path, reducer projection, or chart yet. | Refuses; surfaces no live answer. |
+| `fixture_only` | Proven only against fixtures; never reaches `implemented` without live provider proof. | Refuses for live targets; fixture proof is not a production claim. |
+| `research_only` | Design or research only; no production code lane. | Refuses; documented as a non-goal until promoted. |
+| `not_implemented` | Declared or referenced but not implemented. | Refuses. |
+| `unsupported` | Known family with no configured or shipped instance. | Refuses with an unsupported/no-instance reason. |
+
+These static lanes are deliberately distinct from the per-instance runtime
+`promotion_state` reported by `/admin/status` (see
+[Machine-Readable Promotion Proof Report](#machine-readable-promotion-proof-report)):
+a lane describes a surface's development maturity in source, while a promotion
+state describes one configured instance's observed health right now. They share
+the common tokens (`implemented`, `partial`, `gated`, `unsupported`) so the two
+never contradict each other. Refusal posture follows the
+[Truth Label Protocol](truth-label-protocol.md): a not-yet-live surface refuses
+with an explicit reason; it never degrades into a fabricated or unlabeled answer.
+
+### Five Dimensions Of A Lane
+
+A source family is not one number. Judge each lane across five independent
+dimensions, and state them separately when they disagree:
+
+1. **Hosted runtime** — a deployed collector binary plus chart/Compose path and
+   operator-visible status, not just a Go package.
+2. **Reducer drain** — claimed work drains to zero with no dead letters and the
+   owning reducer domain admits the facts.
+3. **Graph truth** — the reducer materializes the intended graph/read-model
+   shape, not provenance-only facts.
+4. **API/MCP truth** — the read surfaces return the materialized truth with the
+   correct truth envelope and missing-evidence behavior.
+5. **Console visibility** — the surface is represented in the console without
+   implying readiness it does not have.
+
+A surface can be `implemented` on hosted runtime and reducer drain while a
+specific graph or console dimension is still `partial`; say so explicitly rather
+than rounding up.
+
+### Proof To Promote Between Lanes
+
+Promotion only moves up when the named proof exists:
+
+- `research_only` → `foundation_only`: a real Go collector package and fact
+  contract land (no facade-only packages).
+- `foundation_only` → `fixture_only`: the collector emits its fact families
+  against fixtures with the fixture-to-runtime parity harness green.
+- `fixture_only` → `gated`/`partial`: hosted runtime, claim handoff, chart/Compose
+  wiring, and telemetry exist, but the public live gate (a sanitized live smoke,
+  or full coverage) is still pending.
+- `gated`/`partial` → `implemented`: the [Promotion Proof](#promotion-proof)
+  procedure passes for the deployed shape — health/readiness/status/metrics,
+  claim leases, fact counts, reducer drain to zero, and graph/read-model/API/MCP
+  truth agreement — recorded with backend, image digest, and commit SHA.
+
 ## Current Contract
 
 The implemented deployed collector lanes are:
