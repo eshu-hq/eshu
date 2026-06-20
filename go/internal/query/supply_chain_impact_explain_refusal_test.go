@@ -75,10 +75,32 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	if !containsString(resp.MissingEvidence, "ambiguous_scope") {
 		t.Fatalf("MissingEvidence = %#v, want ambiguous_scope", resp.MissingEvidence)
 	}
-	if resp.Readiness.State == "" {
-		t.Fatal("Readiness.State is empty, want bounded readiness envelope")
+	if got, want := resp.Readiness.State, ReadinessStateAmbiguousScope; got != want {
+		t.Fatalf("Readiness.State = %q, want %q", got, want)
+	}
+	if got, want := resp.Readiness.Counts.FindingsReturned, 2; got != want {
+		t.Fatalf("Readiness.Counts.FindingsReturned = %d, want %d so ambiguous scopes are not reported as zero findings", got, want)
 	}
 	if got, want := resp.Readiness.TargetScope.RepositoryID, "repo://example/api"; got != want {
 		t.Fatalf("Readiness.TargetScope.RepositoryID = %q, want %q", got, want)
+	}
+	if !containsString(resp.Readiness.MissingEvidence, "ambiguous_scope") {
+		t.Fatalf("Readiness.MissingEvidence = %#v, want ambiguous_scope", resp.Readiness.MissingEvidence)
+	}
+}
+
+func TestSupplyChainImpactAmbiguousExplanationUsesCandidateCount(t *testing.T) {
+	t.Parallel()
+
+	body := BuildSupplyChainImpactAmbiguousExplanation(
+		SupplyChainImpactExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
+		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyZeroFindings},
+		4,
+	)
+	if got, want := body.Readiness.State, ReadinessStateAmbiguousScope; got != want {
+		t.Fatalf("Readiness.State = %q, want %q", got, want)
+	}
+	if got, want := body.Readiness.Counts.FindingsReturned, 4; got != want {
+		t.Fatalf("Readiness.Counts.FindingsReturned = %d, want %d", got, want)
 	}
 }

@@ -48,7 +48,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		ServiceID:     QueryParam(r, "service_id"),
 	})
 	if !filter.hasBoundedScope() {
-		WriteError(w, http.StatusBadRequest, "finding_id or cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required; advisory_id scopes require package_id, repository_id, subject_digest, or image_ref")
+		WriteError(w, http.StatusBadRequest, "finding_id, or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required")
 		return
 	}
 	if h.ImpactExplanations == nil {
@@ -79,7 +79,11 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	}
 	if errors.Is(err, ErrSupplyChainImpactExplanationAmbiguous) {
 		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.readinessScope(), nil, false)
-		body := BuildSupplyChainImpactAmbiguousExplanation(filter, readiness)
+		body := BuildSupplyChainImpactAmbiguousExplanation(
+			filter,
+			readiness,
+			supplyChainImpactExplanationAmbiguousCandidateCount(err),
+		)
 		WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 			h.profile(),
 			supplyChainImpactExplanationCapability,

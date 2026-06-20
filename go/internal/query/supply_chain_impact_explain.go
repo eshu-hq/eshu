@@ -242,11 +242,30 @@ func BuildSupplyChainImpactNoEvidenceExplanation(
 func BuildSupplyChainImpactAmbiguousExplanation(
 	filter SupplyChainImpactExplanationFilter,
 	readiness SupplyChainImpactReadinessEnvelope,
+	candidateCount int,
 ) SupplyChainImpactExplanationResult {
+	readiness = supplyChainImpactAmbiguousReadiness(readiness, candidateCount)
 	body := buildSupplyChainImpactRefusalExplanation(filter, readiness)
 	body.Outcome = "ambiguous_scope"
 	body.MissingEvidence = explanationUniqueStrings(append([]string{"ambiguous_scope"}, readiness.MissingEvidence...))
 	return body
+}
+
+func supplyChainImpactAmbiguousReadiness(
+	readiness SupplyChainImpactReadinessEnvelope,
+	candidateCount int,
+) SupplyChainImpactReadinessEnvelope {
+	if readiness.State != ReadinessStateReadinessUnavailable {
+		readiness.State = ReadinessStateAmbiguousScope
+	}
+	if candidateCount < 2 {
+		candidateCount = 2
+	}
+	if readiness.Counts.FindingsReturned < candidateCount {
+		readiness.Counts.FindingsReturned = candidateCount
+	}
+	readiness.MissingEvidence = explanationUniqueStrings(append(readiness.MissingEvidence, "ambiguous_scope"))
+	return readiness
 }
 
 func buildSupplyChainImpactRefusalExplanation(
@@ -301,10 +320,7 @@ func (f SupplyChainImpactExplanationFilter) hasBoundedScope() bool {
 	if strings.TrimSpace(f.AdvisoryID) == "" {
 		return false
 	}
-	return strings.TrimSpace(f.PackageID) != "" ||
-		strings.TrimSpace(f.RepositoryID) != "" ||
-		strings.TrimSpace(f.SubjectDigest) != "" ||
-		strings.TrimSpace(f.ImageRef) != ""
+	return f.hasTargetScope()
 }
 
 func (f SupplyChainImpactExplanationFilter) hasTargetScope() bool {

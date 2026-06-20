@@ -240,8 +240,10 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	}
 	readinessState := mustMapField(t, readinessProps, "readiness_state")
 	stateEnum := mustStringSliceField(t, readinessState, "enum")
-	if !containsOpenAPIEnumString(stateEnum, "unsupported") {
-		t.Fatalf("readiness_state enum = %#v, want %q so unsupported observed-target evidence is surfaced", stateEnum, "unsupported")
+	for _, want := range []string{"ambiguous_scope", "unsupported"} {
+		if !containsOpenAPIEnumString(stateEnum, want) {
+			t.Fatalf("readiness_state enum = %#v, want %q surfaced", stateEnum, want)
+		}
 	}
 	unsupportedTargets := mustMapField(t, readinessProps, "unsupported_targets")
 	unsupportedTargetsItems := mustMapField(t, unsupportedTargets, "items")
@@ -267,8 +269,10 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	missingEvidence := mustMapField(t, readinessProps, "missing_evidence")
 	missingEvidenceItems := mustMapField(t, missingEvidence, "items")
 	missingEvidenceEnum := mustStringSliceField(t, missingEvidenceItems, "enum")
-	if !containsOpenAPIEnumString(missingEvidenceEnum, "unsupported_targets") {
-		t.Fatalf("missing_evidence enum = %#v, want %q so the unsupported state can carry one stable identifier", missingEvidenceEnum, "unsupported_targets")
+	for _, want := range []string{"ambiguous_scope", "unsupported_targets"} {
+		if !containsOpenAPIEnumString(missingEvidenceEnum, want) {
+			t.Fatalf("missing_evidence enum = %#v, want %q stable identifier", missingEvidenceEnum, want)
+		}
 	}
 	freshness := mustMapField(t, readinessProps, "freshness")
 	enum := mustStringSliceField(t, freshness, "enum")

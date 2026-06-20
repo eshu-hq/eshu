@@ -20,6 +20,36 @@ var (
 	ErrSupplyChainImpactExplanationAmbiguous = errors.New("supply chain impact explanation scope is ambiguous")
 )
 
+type supplyChainImpactExplanationAmbiguousError struct {
+	candidateCount int
+}
+
+func (e *supplyChainImpactExplanationAmbiguousError) Error() string {
+	return ErrSupplyChainImpactExplanationAmbiguous.Error()
+}
+
+func (e *supplyChainImpactExplanationAmbiguousError) Is(target error) bool {
+	return target == ErrSupplyChainImpactExplanationAmbiguous
+}
+
+func newSupplyChainImpactExplanationAmbiguousError(candidateCount int) error {
+	if candidateCount < 2 {
+		candidateCount = 2
+	}
+	return &supplyChainImpactExplanationAmbiguousError{candidateCount: candidateCount}
+}
+
+func supplyChainImpactExplanationAmbiguousCandidateCount(err error) int {
+	var ambiguous *supplyChainImpactExplanationAmbiguousError
+	if errors.As(err, &ambiguous) && ambiguous.candidateCount > 0 {
+		return ambiguous.candidateCount
+	}
+	if errors.Is(err, ErrSupplyChainImpactExplanationAmbiguous) {
+		return 2
+	}
+	return 0
+}
+
 // ExplainSupplyChainImpact returns exactly one active impact finding plus the
 // evidence fact previews referenced by the finding.
 func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
@@ -74,7 +104,7 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 		return SupplyChainImpactExplanationRow{}, ErrSupplyChainImpactExplanationNotFound
 	case 1:
 	default:
-		return SupplyChainImpactExplanationRow{}, ErrSupplyChainImpactExplanationAmbiguous
+		return SupplyChainImpactExplanationRow{}, newSupplyChainImpactExplanationAmbiguousError(len(findings))
 	}
 	evidence, err := s.loadSupplyChainImpactEvidenceFacts(ctx, findings[0].EvidenceFactIDs)
 	if err != nil {

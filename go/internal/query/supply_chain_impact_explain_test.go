@@ -41,7 +41,6 @@ func TestSupplyChainExplainImpactRequiresBoundedInput(t *testing.T) {
 		"/api/v0/supply-chain/impact/explain",
 		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test",
 		"/api/v0/supply-chain/impact/explain?package_id=pkg:npm/example",
-		"/api/v0/supply-chain/impact/explain?advisory_id=GHSA-test&workload_id=workload:api",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {

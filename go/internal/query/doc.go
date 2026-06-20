@@ -47,8 +47,9 @@
 // reads pair the bounded reducer-owned findings page with a readiness envelope
 // so a zero-finding answer can be classified as
 // not_configured, target_incomplete, evidence_incomplete, ready_zero_findings,
-// ready_with_findings, or unsupported. Unsupported matcher ecosystems, scanner
-// worker image warnings, and other unsupported targets are coverage-gap
+// ready_with_findings, ambiguous_scope, or unsupported. Unsupported matcher
+// ecosystems, scanner worker image warnings, and other unsupported targets are
+// coverage-gap
 // evidence, not impact findings. The readiness layer also exposes bounded
 // source-snapshot and durable source-state freshness for advisory sources
 // scoped by requested CVE, package, repository-owned ecosystem, or image

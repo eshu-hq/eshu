@@ -385,6 +385,7 @@ caller to tell "clean" from "not checked."
 | `evidence_incomplete` | Some target evidence exists, but a required join source is missing or stale. |
 | `ready_zero_findings` | Required target evidence exists and the reducer found no matching impact. |
 | `ready_with_findings` | Required target evidence exists and reducer-owned findings are available. |
+| `ambiguous_scope` | A single explain scope matched multiple reducer-owned findings and must be narrowed before callers interpret it as clean or affected. |
 | `readiness_unavailable` | Out-of-band signal returned when the readiness lookup itself fails; the findings page is still returned but coverage cannot be classified. |
 | `unsupported` | Eshu observed real target evidence the matcher cannot resolve — an owned dependency in an unsupported ecosystem, a package-manager file with an unsupported lockfile feature, a malformed/unsupported SBOM document, or an image target without a supported analyzer. Callers MUST NOT interpret this as clean or affected. |
 
@@ -403,8 +404,9 @@ every response. The envelope is derived from existing source-fact and
 reducer-fact counts so the answer never invents findings:
 
 - `readiness_state` is one of the core states above, plus
-  `readiness_unavailable` when the lookup itself fails and `unsupported` when
-  bounded unsupported-target evidence exists.
+  `readiness_unavailable` when the lookup itself fails, `unsupported` when
+  bounded unsupported-target evidence exists, and `ambiguous_scope` on
+  explain-route refusal envelopes.
 - `target_scope` echoes the bounded scanner scope: `cve_id`, `advisory_id`,
   `package_id`, `repository_id`, `subject_digest`, `ecosystem`, `workload_id`,
   `service_id`, `environment`, `severity`, and `impact_status`.
@@ -474,6 +476,9 @@ The current implementation proves the following:
 - `ready_with_findings`: at least one reducer finding was returned. Ready
   states clear `missing_evidence` so the envelope cannot report both ready and
   missing advisory sources.
+- `ambiguous_scope`: one explain request matched multiple reducer findings. The
+  response returns a refusal envelope and the caller must provide `finding_id`
+  or a narrower advisory/package/repository/image/workload/service anchor.
 - `target_incomplete`: a `vulnerability.source_snapshot` fact carries
   `"complete": false` and the requested scope has no advisory evidence yet.
   An in-flight snapshot for an unrelated source does not flip a scope whose
