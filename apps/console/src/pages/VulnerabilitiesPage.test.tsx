@@ -23,7 +23,7 @@ describe("VulnerabilitiesPage", () => {
     // Reachable tab is default: the impact-finding advisory renders.
     expect(screen.getByRole("link", { name: "CVE-2024-0001" })).toBeInTheDocument();
     // Services column shows the human service name from the model.
-    expect(screen.getByText("checkout-service")).toBeInTheDocument();
+    expect(screen.getAllByText("checkout-service").length).toBeGreaterThan(0);
   });
 
   it("shows the human service name carried by the model, not a raw repo id", () => {
@@ -48,8 +48,66 @@ describe("VulnerabilitiesPage", () => {
 
     renderPage(model);
 
-    expect(screen.getByText("catalog-api")).toBeInTheDocument();
+    expect(screen.getAllByText("catalog-api").length).toBeGreaterThan(0);
     expect(screen.queryByText(/^repository[:_]/)).not.toBeInTheDocument();
+  });
+
+  it("renders a supply-chain impact path with evidence state for each hop", () => {
+    renderPage(demoModel);
+
+    const path = screen.getByRole("region", { name: "Supply-chain impact path" });
+    expect(path).toHaveTextContent("CVE-2024-0001");
+    expect(path).toHaveTextContent("sample-lib");
+    expect(path).toHaveTextContent("SBOM");
+    expect(path).toHaveTextContent("sha256:abc123");
+    expect(path).toHaveTextContent("workload:checkout");
+    expect(path).toHaveTextContent("checkout-service");
+    expect(path).toHaveTextContent("Owner evidence missing");
+    expect(path).toHaveTextContent("admitted impact");
+    expect(path).toHaveTextContent("digest match");
+    expect(screen.getByRole("link", { name: "Raw advisory evidence" })).toHaveAttribute("href", "/vulnerabilities/CVE-2024-0001");
+    expect(screen.getByRole("link", { name: "SBOM evidence" })).toHaveAttribute("href", "/sbom");
+    expect(screen.getByRole("link", { name: "Image inventory" })).toHaveAttribute("href", "/images");
+  });
+
+  it("keeps partial supply-chain paths explicit when SBOM and image hops are missing", () => {
+    const partial: ConsoleModel = {
+      ...demoModel,
+      images: [],
+      sbom: null,
+      vulnerabilities: [
+        {
+          id: "CVE-2026-PARTIAL",
+          package: "partial-lib",
+          severity: "high",
+          cvss: 7.8,
+          kev: false,
+          fixedVersion: "1.2.3",
+          services: ["checkout-service"]
+        }
+      ]
+    };
+
+    renderPage(partial);
+
+    const path = screen.getByRole("region", { name: "Supply-chain impact path" });
+    expect(path).toHaveTextContent("partial-lib");
+    expect(path).toHaveTextContent("SBOM evidence missing");
+    expect(path).toHaveTextContent("Image evidence missing");
+    expect(path).toHaveTextContent("not proven");
+  });
+
+  it("renders a no-impact state instead of fabricating a supply-chain path", () => {
+    const empty: ConsoleModel = {
+      ...demoModel,
+      vulnerabilities: []
+    };
+
+    renderPage(empty);
+
+    const path = screen.getByRole("region", { name: "Supply-chain impact path" });
+    expect(path).toHaveTextContent("No admitted supply-chain impact path");
+    expect(path).toHaveTextContent("No reachable advisory from this source.");
   });
 
   it("shows catalog rows linking to the existing CVE detail page", () => {

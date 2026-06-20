@@ -1,0 +1,135 @@
+.supply-chain-path {
+  min-width: 0;
+}
+
+.supply-chain-path .gcanvas {
+  min-width: 0;
+}
+
+.supply-chain-path .gcanvas-toolbar {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.supply-chain-path .gcanvas-legend {
+  max-width: calc(100% - 28px);
+}
+
+.supply-chain-path-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+.supply-chain-hop {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  min-height: 128px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--panel) 88%, black 12%);
+}
+
+.supply-chain-hop.is-exact {
+  border-color: color-mix(in oklab, var(--teal) 34%, var(--line));
+}
+
+.supply-chain-hop.is-derived {
+  border-color: color-mix(in oklab, var(--ember) 34%, var(--line));
+}
+
+.supply-chain-hop.is-missing,
+.supply-chain-hop.is-stale {
+  border-color: color-mix(in oklab, var(--ember) 42%, var(--line));
+}
+
+.supply-chain-hop-index {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.supply-chain-hop strong,
+.supply-chain-hop small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.supply-chain-hop small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.supply-chain-path-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 14px 14px;
+}
+
+.supply-chain-path-links > * {
+  min-width: 0;
+}
+
+.supply-chain-path-links .mono {
+  color: var(--muted);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.supply-chain-path-empty {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+}
+
+.supply-chain-path-empty p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.supply-chain-register-grid {
+  gap: var(--gap);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.supply-chain-register-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.supply-chain-register-scroll .tbl {
+  min-width: 540px;
+}
+
+@media (max-width: 1100px) {
+  .supply-chain-path-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .supply-chain-register-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .supply-chain-path-grid {
+    grid-template-columns: 1fr;
+  }
+}
