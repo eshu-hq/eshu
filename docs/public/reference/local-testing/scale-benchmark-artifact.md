@@ -59,6 +59,32 @@ bash scripts/verify-scale-benchmark-artifact.sh \
   --artifact scale-benchmark-artifact.json
 ```
 
+## Producing An Artifact
+
+Use `scripts/run-scale-benchmark-artifact.sh` to convert sanitized aggregate
+measurements and thresholds into the public artifact shape:
+
+```bash
+bash scripts/run-scale-benchmark-artifact.sh \
+  --artifact scale-benchmark-artifact.json \
+  --measurements scale-benchmark-measurements.json \
+  --thresholds scale-benchmark-thresholds.json \
+  --run-kind baseline \
+  --gate remote-compose \
+  --commit 123456789012abcdefabcdefabcdefabcdefabcd \
+  --backend-kind nornicdb \
+  --backend-version nornicdb-v1 \
+  --corpus-mode representative \
+  --corpus-slot medium/representative_20_50 \
+  --repository-count 24 \
+  --compatibility-status unsupported \
+  --compatibility-reason "not configured for this public proof" \
+  --verify
+```
+
+The producer rejects raw private-looking strings in measurement and threshold
+inputs. Keep raw logs, pprof captures, and source manifests operator-local.
+
 This gate complements `scripts/verify-performance-evidence.sh`: hot-path code
 changes still need tracked benchmark or no-regression evidence in the repo,
 while this artifact gate defines the shape of the benchmark proof itself.
