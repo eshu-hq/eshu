@@ -16,6 +16,7 @@ func TestNormalizeAdversarial(t *testing.T) {
 		dialect        Dialect
 		query          string
 		noKeywords     []string // keywords that must NOT appear in masked
+		mustContain    []string // keywords that MUST appear in masked (code, not hidden)
 		statementCount int
 		wantErr        bool // err must be non-empty
 	}{
@@ -261,6 +262,42 @@ func TestNormalizeAdversarial(t *testing.T) {
 			query:          "MATCH (n {id: $id}) RETURN n",
 			statementCount: 1,
 		},
+
+		// ── digit-leading dollar-tag bypass (CVE-class: stacked-statement) ────
+		//
+		// $1$ is a positional parameter in Postgres, NOT a dollar-quote opener.
+		// The normalizer must keep the scanner in CODE state so that real `;`
+		// separators and dangerous keywords inside the "body" are visible.
+		{
+			name:    "digit-tag $1$ is not a dollar-quote — DROP and stacked stmt visible",
+			dialect: DialectSQL,
+			// $1$ is NOT a dollar-quote delimiter; the $ chars are ordinary code
+			// (positional params / stray punctuation), the `;` separates statements,
+			// and DROP is visible as a real code keyword.
+			query:          "SELECT a=$1; DROP TABLE t",
+			statementCount: 2,
+			mustContain:    []string{"DROP"}, // DROP must appear in masked (it is code)
+		},
+		{
+			name:    "digit-tag bypass: stacked DROP must not be swallowed",
+			dialect: DialectSQL,
+			// Regression for the reported bypass:
+			//   SELECT * FROM t WHERE a=$1 OR (1=1)$1$;DROP TABLE users;--$1$
+			// With the bug, $1$ was treated as a quote opener swallowing ";DROP TABLE users;".
+			// After the fix, $1 is a parameter (code), the `;` separates statements,
+			// and DROP appears in masked output.
+			query:          "SELECT * FROM t WHERE a=$1 OR (1=1)$1$;DROP TABLE users;--$1$",
+			statementCount: 2,                // first stmt + DROP stmt; trailing --$1$ is a line comment
+			mustContain:    []string{"DROP"}, // DROP must be visible, not swallowed
+		},
+		{
+			// Real positional params with no closing $ sequence: treated as code,
+			// no error, statementCount stays 1.
+			name:           "real positional params $1 $2 are ordinary code",
+			dialect:        DialectSQL,
+			query:          "SELECT id FROM t WHERE a = $1 AND b = $2",
+			statementCount: 1,
+		},
 	}
 
 	for _, tc := range cases {
@@ -281,6 +318,11 @@ func TestNormalizeAdversarial(t *testing.T) {
 			for _, kw := range tc.noKeywords {
 				if strings.Contains(strings.ToUpper(got.masked), strings.ToUpper(kw)) {
 					t.Errorf("normalize masked still contains %q; masked=%q", kw, got.masked)
+				}
+			}
+			for _, kw := range tc.mustContain {
+				if !strings.Contains(strings.ToUpper(got.masked), strings.ToUpper(kw)) {
+					t.Errorf("normalize masked missing %q (expected as visible code); masked=%q", kw, got.masked)
 				}
 			}
 			if got.statementCount != tc.statementCount {

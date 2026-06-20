@@ -151,6 +151,16 @@ func normalize(dialect Dialect, query string) normalized {
 
 			// SQL dollar-quoted string  $tag$ … $tag$
 			// Only in SQL; in Cypher $ is a parameter prefix.
+			//
+			// Postgres dollar-quote tag rules (§4.1.2.4):
+			//   - empty tag:      $$  (char immediately after first $ is another $)
+			//   - identifier tag: first tag char is letter or '_'; subsequent chars
+			//     are letters, digits, or '_'.
+			//
+			// A '$' followed by a digit is a positional PARAMETER ($1, $2, …), not
+			// a dollar-quote opener.  Treating it as a quote delimiter would mask
+			// everything up to the next $N$ sequence, hiding real stacked statements
+			// and dangerous keywords.  Such a '$' must be treated as ordinary code.
 			case ch == '$' && dialect == DialectSQL:
 				// Scan forward to find the closing $. The tag is [A-Za-z0-9_]*.
 				j := i + 1
@@ -158,12 +168,20 @@ func normalize(dialect Dialect, query string) normalized {
 					j++
 				}
 				if j < n && buf[j] == '$' {
-					// Valid dollar-quote opener.
 					tag := string(buf[i+1 : j]) // may be empty for $$
-					dollarTag = tag
-					maskRange(i, j+1)
-					i = j + 1
-					state = stateDollarQuote
+					// Reject digit-leading tags: they are positional parameters ($1,
+					// $2, …), not dollar-quote delimiters.
+					if len(tag) > 0 && !isDollarTagIdentStart(tag[0]) {
+						// Treat as ordinary code.
+						segmentHasCode = true
+						i++
+					} else {
+						// Valid dollar-quote opener (empty tag or identifier-led tag).
+						dollarTag = tag
+						maskRange(i, j+1)
+						i = j + 1
+						state = stateDollarQuote
+					}
 				} else {
 					// Not a dollar-quote: keep as code (parameter like $1 or $name).
 					segmentHasCode = true
@@ -320,6 +338,16 @@ func isDollarTagChar(b byte) bool {
 	return (b >= 'a' && b <= 'z') ||
 		(b >= 'A' && b <= 'Z') ||
 		(b >= '0' && b <= '9') ||
+		b == '_'
+}
+
+// isDollarTagIdentStart reports whether b is a valid first character for a
+// dollar-quote tag. Postgres requires the tag to be a SQL identifier: it must
+// begin with a letter (a–z, A–Z) or underscore, not a digit. A digit-leading
+// sequence such as $1$ is a positional parameter, not a dollar-quote.
+func isDollarTagIdentStart(b byte) bool {
+	return (b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
 		b == '_'
 }
 
