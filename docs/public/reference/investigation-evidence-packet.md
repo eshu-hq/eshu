@@ -53,6 +53,7 @@ field and is always present (empty arrays are kept so the schema is stable):
 | Citations | `citations` | Addressable [evidence citation handles](evidence-citation-handles.md) — never raw payloads. |
 | Missing evidence | `missing_evidence` | Each unresolved hop with a reason and an optional bounded drilldown. |
 | Semantic (optional) | `semantic_observations` | Labeled, policy-gated provider observations. Absent in a deterministic build. |
+| Reproduce | `reproduce` | Bounded commands, routes, or tools that regenerate the packet's evidence. |
 | Bounds | `bounds` | Per-layer caps and truncation state. |
 | Redaction | `redaction` | The share-safe redaction posture. |
 | Validation | `validation` | The contract-gate results. |
@@ -113,8 +114,8 @@ eshu investigation export \
 | Family | Investigation | Status |
 | --- | --- | --- |
 | `supply_chain_impact` | Vulnerable package → advisory → SBOM/image → workload → service. | Implemented (#3141) |
-| `deployable_unit` | Source repo → deployment config → image/workload → reducer admission. | Planned (#3142) |
-| `drift` | IaC vs runtime drift for a deployable unit or cloud resource. | Planned (#3142) |
+| `deployable_unit` | Source repo → deployment config → image/workload → reducer admission. | Implemented (#3142) |
+| `drift` | IaC vs runtime drift for a deployable unit or cloud resource. | Implemented (#3142) |
 | `service_context` | Service dossier (code, deployment, incidents). | Planned (#3143 dogfood) |
 
 ### Supply-chain impact example
@@ -133,6 +134,53 @@ maps the reducer-owned explanation into the v2 packet through the shared
 (owner-only `0600`). A 404 / not-found explanation yields a `scope_not_found`
 refusal packet; an incomplete advisory-plus-target scope yields the same refusal
 without calling the API.
+
+### Deployable-unit and drift examples
+
+```bash
+# Deployable-unit truth: accepted, ambiguous, and rejected candidates explicitly.
+eshu investigation export \
+  --family deployable_unit \
+  --subject scope_id=<ingestion-scope> --subject workload_id=<workload-id> \
+  --format md --out deployable-unit.md
+
+# Runtime drift: IaC-vs-runtime reconciliation state per cloud resource.
+eshu investigation export \
+  --family drift \
+  --subject scope_id=<account-or-project> --subject provider=aws \
+  --format md --out drift.md
+```
+
+The `deployable_unit` family reads `GET /api/v0/evidence/admission-decisions`
+(domain `deployable_unit`) and maps each correlation decision into the
+reducer-decision layer: `admitted`, `ambiguous`, `rejected`, and `stale`
+candidates are all represented explicitly, never hidden. A decision whose
+canonical write was performed becomes a present graph edge. The `drift` family
+reads `POST /api/v0/cloud/runtime-drift/findings` and maps each finding into a
+reducer decision whose state reflects the drift kind (orphaned/unmanaged →
+`rejected` reconciliation, ambiguous → `ambiguous`, unknown → `missing_evidence`),
+with a matched Terraform address surfaced as a present `MANAGED_BY_TERRAFORM`
+edge and safety-gate warnings carried as limitations.
+
+## Reading the packet (operators)
+
+Read the layers top-down:
+
+1. **`answer`** — the one-line verdict, `truth_class`, and whether it is
+   `supported`/`partial`. A partial answer always lists why in
+   `unsupported_reasons`.
+2. **`reducer_decisions`** — what the reducer concluded. The `state` is the
+   admission-audit verdict; `ambiguous`/`rejected`/`stale` rows are the ones to
+   investigate. Each row's `source_fact_ids` point back into `source_facts`.
+3. **`graph_answers`** — what was actually materialized into the graph
+   (`present: true`), with the backing `source_fact_ids`.
+4. **`missing_evidence`** — the named gaps and why they are unresolved.
+5. **`reproduce`** — the exact route/tool/command to regenerate the evidence.
+6. **`bounds` / `validation` / `redaction`** — truncation state, the contract
+   gates that passed, and the share-safe posture.
+
+A `refusal` packet (no `supported` answer) means the scope was unanswerable;
+read `answer.unsupported_reasons` for the reason.
 
 ### Refusal states
 
