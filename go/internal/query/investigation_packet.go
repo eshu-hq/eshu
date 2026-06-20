@@ -208,6 +208,9 @@ type PacketGraphAnswer struct {
 	Present bool `json:"present"`
 	// TruthClass is the prompt-facing classification of the answer truth.
 	TruthClass AnswerTruthClass `json:"truth_class,omitempty"`
+	// SourceFactIDs references the source-fact ids (by FactID or StableKey) that
+	// back a present hop, so a reader can trace the graph answer to raw evidence.
+	SourceFactIDs []string `json:"source_fact_ids,omitempty"`
 }
 
 // PacketMissingHop names an unresolved hop, why it is missing, and a bounded
