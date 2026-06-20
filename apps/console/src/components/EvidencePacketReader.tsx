@@ -156,12 +156,16 @@ function PacketBounds({
   readonly visualizationPacket: VisualizationPacket | null;
 }): React.JSX.Element {
   const bounded = partial || truncated || citationPacket?.coverage.truncated ||
-    visualizationPacket?.truncation.truncated;
+    citationPacketHasMissingHandles(citationPacket) || visualizationPacket?.truncation.truncated;
   return (
     <div className="evidence-packet-reader-action">
       {bounded ? <Badge tone="warn">bounded</Badge> : <Badge tone="teal">complete</Badge>}
     </div>
   );
+}
+
+function citationPacketHasMissingHandles(citationPacket: EvidenceCitationPacket | null): boolean {
+  return (citationPacket?.coverage.missingCount ?? 0) > 0 || (citationPacket?.missingHandles.length ?? 0) > 0;
 }
 
 function countLabel(count: number, singular: string): string {

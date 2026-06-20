@@ -64,7 +64,7 @@ describe("VulnerabilitiesPage", () => {
     expect(path).toHaveTextContent("checkout-service");
     expect(path).toHaveTextContent("Owner evidence missing");
     expect(path).toHaveTextContent("admitted impact");
-    expect(path).toHaveTextContent("digest match");
+    expect(path).toHaveTextContent("SBOM correlation missing");
     expect(screen.getByRole("link", { name: "Raw advisory evidence" })).toHaveAttribute("href", "/vulnerabilities/CVE-2024-0001");
     expect(screen.getByRole("link", { name: "SBOM evidence" })).toHaveAttribute("href", "/sbom");
     expect(screen.getByRole("link", { name: "Image inventory" })).toHaveAttribute("href", "/images");
@@ -95,6 +95,65 @@ describe("VulnerabilitiesPage", () => {
     expect(path).toHaveTextContent("SBOM evidence missing");
     expect(path).toHaveTextContent("Image evidence missing");
     expect(path).toHaveTextContent("not proven");
+  });
+
+  it("does not use unscoped SBOM and image inventory as exact impact path evidence", () => {
+    const unscopedInventory: ConsoleModel = {
+      ...demoModel,
+      images: [
+        {
+          artifactType: "",
+          configDigest: "sha256:cfg-unrelated",
+          digest: "sha256:unrelated",
+          id: "oci-image://registry.example/sample/unrelated@sha256:unrelated",
+          mediaType: "application/vnd.oci.image.manifest.v1+json",
+          name: "unrelated",
+          registry: "registry.example",
+          repository: "sample/unrelated",
+          repositoryId: "oci-registry://registry.example/sample/unrelated",
+          sizeBytes: 1024,
+          sourceSystem: "oci_registry",
+          tag: "9.9.9"
+        }
+      ],
+      sbom: { total: 9, verified: 9, sbomCount: 9, attestationCount: 0 }
+    };
+
+    renderPage(unscopedInventory);
+
+    const path = screen.getByRole("region", { name: "Supply-chain impact path" });
+    expect(path).toHaveTextContent("SBOM correlation missing");
+    expect(path).toHaveTextContent("Image evidence missing");
+    expect(path).not.toHaveTextContent("sha256:unrelated");
+    expect(path).not.toHaveTextContent("digest match");
+  });
+
+  it("requires full image tag or digest identity before marking image evidence exact", () => {
+    const ambiguousImageName: ConsoleModel = {
+      ...demoModel,
+      images: [
+        {
+          artifactType: "",
+          configDigest: "sha256:cfg-wrong-tag",
+          digest: "sha256:wrong-tag",
+          id: "oci-image://registry.example/sample/checkout@sha256:wrong-tag",
+          mediaType: "application/vnd.oci.image.manifest.v1+json",
+          name: "checkout",
+          registry: "registry.example",
+          repository: "sample/checkout",
+          repositoryId: "oci-registry://registry.example/sample/checkout",
+          sizeBytes: 1024,
+          sourceSystem: "oci_registry",
+          tag: "9.9.9"
+        }
+      ]
+    };
+
+    renderPage(ambiguousImageName);
+
+    const path = screen.getByRole("region", { name: "Supply-chain impact path" });
+    expect(path).toHaveTextContent("Image evidence missing");
+    expect(path).not.toHaveTextContent("sha256:wrong-tag");
   });
 
   it("renders a no-impact state instead of fabricating a supply-chain path", () => {
