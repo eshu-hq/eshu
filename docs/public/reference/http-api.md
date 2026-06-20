@@ -135,12 +135,18 @@ bad JSON) are returned as plain JSON with the appropriate HTTP status code
 503 (disabled or provider absent). The engine never echoes provider prompts,
 raw provider bodies, or credentials.
 
-**Authentication:** This endpoint requires a **shared token** (admin/full-scope
-`ESHU_API_KEY`). Scoped tokens are not yet enabled for this route and receive
-`403 permission_denied`. Scoped-token support is a planned follow-up.
+**Authentication:** This endpoint accepts both the **shared token**
+(admin/full-scope `ESHU_API_KEY`) and **scoped tokens**. A scoped caller's
+answer is bounded to its grant: the engine's in-process runner re-dispatches
+every inner tool call through the same scoped-route gate under the caller's
+token, so the model can only reach routes that are themselves scope-safe (the
+allowlist in `scopedHTTPRouteSupportsTenantFilter`). A tool that maps to a
+non-allowlisted whole-graph route (e.g. `get_ecosystem_overview`) is denied with
+`403` to the runner and surfaces as an unsupported tool in the answer — never as
+cross-scope data. The Ask endpoint itself holds no graph query; its scoping is
+enforced entirely through those inner dispatches.
 
-**Follow-ups (out of scope for this PR):** Tier-2 Cypher/SQL sandbox wiring;
-scoped-token support.
+**Follow-ups (out of scope for this PR):** Tier-2 Cypher/SQL sandbox wiring.
 
 ## Related References
 

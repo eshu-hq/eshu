@@ -251,7 +251,13 @@ type engineAsker struct {
 // Ask implements query.Asker. It forwards the question to the engine using
 // the request context (carries deadline + cancellation).
 func (a *engineAsker) Ask(r *http.Request, question string) (query.AskAnswer, error) {
-	ans, err := a.eng.Ask(r.Context(), question)
+	// Thread the caller's Authorization header into the engine context so the
+	// in-process runner authorizes every inner tool call as the caller (scoped
+	// or shared) rather than always as the shared admin token. Combined with
+	// routing the runner through the scoped-auth-wrapped handler, this confines
+	// a scoped caller's Ask to scoped-safe routes.
+	ctx := engine.ContextWithCallerAuthHeader(r.Context(), r.Header.Get("Authorization"))
+	ans, err := a.eng.Ask(ctx, question)
 	if err != nil {
 		return query.AskAnswer{}, err
 	}
