@@ -141,7 +141,9 @@ without calling the API.
 # Deployable-unit truth: accepted, ambiguous, and rejected candidates explicitly.
 eshu investigation export \
   --family deployable_unit \
-  --subject scope_id=<ingestion-scope> --subject workload_id=<workload-id> \
+  --subject scope_id=<ingestion-scope> \
+  --subject generation_id=<generation-id> \
+  --subject repository_id=<repository-id> \
   --format md --out deployable-unit.md
 
 # Runtime drift: IaC-vs-runtime reconciliation state per cloud resource.
@@ -152,15 +154,19 @@ eshu investigation export \
 ```
 
 The `deployable_unit` family reads `GET /api/v0/evidence/admission-decisions`
-(domain `deployable_unit`) and maps each correlation decision into the
-reducer-decision layer: `admitted`, `ambiguous`, `rejected`, and `stale`
-candidates are all represented explicitly, never hidden. A decision whose
-canonical write was performed becomes a present graph edge. The `drift` family
-reads `POST /api/v0/cloud/runtime-drift/findings` and maps each finding into a
-reducer decision whose state reflects the drift kind (orphaned/unmanaged →
-`rejected` reconciliation, ambiguous → `ambiguous`, unknown → `missing_evidence`),
-with a matched Terraform address surfaced as a present `MANAGED_BY_TERRAFORM`
-edge and safety-gate warnings carried as limitations.
+(domain `deployable_unit_correlation`) and maps each correlation decision into
+the reducer-decision layer: `admitted`, `ambiguous`, `rejected`, and `stale`
+candidates are all represented explicitly, never hidden. Reads require
+`scope_id` and `generation_id`; a `repository_id` or `repo_id` narrows to the
+repository anchor persisted by the reducer. Workload and service subjects remain
+packet context until reducer decisions are persisted with those anchor kinds. A
+decision whose canonical write was performed becomes a present graph edge. The
+`drift` family reads `POST /api/v0/cloud/runtime-drift/findings` and maps each
+finding into a reducer decision whose state reflects the drift kind
+(orphaned/unmanaged → `rejected` reconciliation, ambiguous → `ambiguous`,
+unknown → `missing_evidence`), with a matched Terraform address surfaced as a
+present `MANAGED_BY_TERRAFORM` edge and safety-gate warnings carried as
+limitations.
 
 ## Reading the packet (operators)
 
