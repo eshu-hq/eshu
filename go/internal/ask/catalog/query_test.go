@@ -15,6 +15,9 @@ func TestLookup(t *testing.T) {
 	if e.Backend != want.Backend {
 		t.Fatalf("%s backend = %q, want %q (from overlay)", probe, e.Backend, want.Backend)
 	}
+	if e.Cost != want.Cost {
+		t.Fatalf("%s cost = %q, want %q (from overlay)", probe, e.Cost, want.Cost)
+	}
 	if _, ok := cat.Lookup("does_not_exist"); ok {
 		t.Fatal("expected absent tool to return ok=false")
 	}
