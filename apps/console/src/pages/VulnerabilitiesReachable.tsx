@@ -10,6 +10,8 @@ import { Donut } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
 import "./supplyChainImpactPath.css";
 
+type ImpactImage = ConsoleModel["images"][number];
+
 interface PathHop {
   readonly id: string;
   readonly label: string;
@@ -131,10 +133,12 @@ function buildImpactPath(model: ConsoleModel, row: VulnRow | null): { readonly g
   const dependency = model.dependencies.find((dep) =>
     samePackage(dep.anchorPackage, row.package) || samePackage(dep.relatedPackage, row.package)
   );
-  const image = model.images[0] ?? null;
   const serviceName = row.services[0] ?? "";
+  const image = imageForImpactPath(model, serviceName);
   const workload = workloadForService(model, serviceName);
-  const sbomMissing = model.sbom === null || model.sbom.total === 0;
+  const sbomDetail = model.sbom === null || model.sbom.total === 0
+    ? "SBOM evidence missing"
+    : "SBOM correlation missing";
   const imageMissing = image === null;
   const hops: readonly PathHop[] = [
     {
@@ -152,10 +156,10 @@ function buildImpactPath(model: ConsoleModel, row: VulnRow | null): { readonly g
       type: "package"
     },
     {
-      detail: sbomMissing ? "SBOM evidence missing" : "digest match",
+      detail: sbomDetail,
       id: "sbom",
       label: "SBOM",
-      state: sbomMissing ? "missing" : "exact",
+      state: "missing",
       type: "sbom"
     },
     {
@@ -249,6 +253,39 @@ function workloadForService(model: ConsoleModel, serviceName: string): string {
     return `workload:${workload.id.slice("wl:".length)}`;
   }
   return workload.label || workload.id;
+}
+
+function imageForImpactPath(model: ConsoleModel, serviceName: string): ImpactImage | null {
+  const service = model.graph.nodes.find((node) => node.kind === "service" && node.label === serviceName);
+  if (service === undefined) return null;
+  const imageNode = model.graph.nodes.find((node) =>
+    node.kind === "image" && model.graph.edges.some((edge) => edge.verb === "DEPLOYS_FROM" && connects(edge, service.id, node.id))
+  );
+  if (imageNode === undefined) return null;
+  return model.images.find((image) => imageMatchesGraphNode(image, imageNode)) ?? null;
+}
+
+function connects(edge: GraphModel["edges"][number], a: string, b: string): boolean {
+  return (edge.s === a && edge.t === b) || (edge.s === b && edge.t === a);
+}
+
+function imageMatchesGraphNode(image: ImpactImage, imageNode: GraphModel["nodes"][number]): boolean {
+  const targets = [imageNode.id, imageNode.label].map(matchKey).filter((value) => value.length > 0);
+  const exactCandidates = [image.id, image.digest, image.repositoryId].map(matchKey).filter((value) => value.length > 0);
+  const tagCandidates = [
+    image.tag === "" ? "" : `${image.name}:${image.tag}`,
+    image.tag === "" ? "" : `${image.repository}:${image.tag}`
+  ].map(matchKey).filter((value) => value.length > 0);
+  const repositoryCandidates = [image.repository, image.name].map(matchKey).filter((value) => value.length > 0);
+  return targets.some((target) =>
+    exactCandidates.some((candidate) => target.includes(candidate) || candidate.includes(target)) ||
+    tagCandidates.some((candidate) => target === candidate || target.endsWith(candidate)) ||
+    (!target.includes(":") && repositoryCandidates.some((candidate) => target === candidate || target.endsWith(candidate)))
+  );
+}
+
+function matchKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9:]/g, "");
 }
 
 function shortDigest(value: string): string {

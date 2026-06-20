@@ -106,6 +106,22 @@ describe("AnswerRenderer", () => {
     expect(within(missingEvidence).getByText("runtime traces")).toBeInTheDocument();
     expect(within(missingEvidence).getByText("image provenance")).toBeInTheDocument();
   });
+
+  it("marks missing-only citation packets as bounded instead of complete", () => {
+    render(
+      <AnswerRenderer
+        answer={supportedAnswerFixture()}
+        citationPacket={missingOnlyCitationFixture()}
+        title="Answer evidence"
+      />
+    );
+
+    const reader = screen.getByRole("region", { name: "Evidence packet reader" });
+    expect(within(reader).getByText("bounded")).toBeInTheDocument();
+    expect(within(reader).queryByText("complete")).not.toBeInTheDocument();
+    expect(within(reader).getByText("1 missing handle")).toBeInTheDocument();
+    expect(within(reader).getByText("unresolved deployment evidence")).toBeInTheDocument();
+  });
 });
 
 const answerGraph: GraphModel = {
@@ -273,6 +289,42 @@ function packetReaderCitationFixture(): EvidenceCitationPacket {
           evidence_family: "source_fact",
           kind: "entity",
           reason: "image provenance"
+        }
+      ]
+    },
+    routeTruth
+  );
+}
+
+function missingOnlyCitationFixture(): EvidenceCitationPacket {
+  return normalizeCitationPacket(
+    {
+      citations: [
+        {
+          citation_id: "citation-source-1",
+          evidence_family: "source_fact",
+          kind: "file",
+          reason: "route handler source fact",
+          relative_path: "server/routes/leads.ts",
+          repo_id: "catalog-api",
+          start_line: 42
+        }
+      ],
+      coverage: {
+        input_handle_count: 2,
+        limit: 5,
+        missing_count: 1,
+        query_shape: "evidence_citation_packet",
+        resolved_count: 1,
+        source_backend: "content_store",
+        truncated: false
+      },
+      missing_handles: [
+        {
+          entity_id: "unresolved deployment evidence",
+          evidence_family: "source_fact",
+          kind: "entity",
+          reason: "unresolved deployment evidence"
         }
       ]
     },
