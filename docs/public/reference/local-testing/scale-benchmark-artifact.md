@@ -45,11 +45,14 @@ only sanitized aggregate handles.
 
 ## Verification
 
-Validate the repository contract and verifier tests:
+Validate the repository contract, verifier tests, measurement collector, and
+artifact producer:
 
 ```bash
 bash scripts/test-verify-scale-benchmark-artifact.sh
 bash scripts/verify-scale-benchmark-artifact.sh
+bash scripts/test-run-scale-benchmark-measurements.sh
+bash scripts/test-run-scale-benchmark-artifact.sh
 ```
 
 Validate an operator-produced public artifact:
@@ -61,8 +64,27 @@ bash scripts/verify-scale-benchmark-artifact.sh \
 
 ## Producing An Artifact
 
-Use `scripts/run-scale-benchmark-artifact.sh` to convert sanitized aggregate
-measurements and thresholds into the public artifact shape:
+First convert an aggregate runtime summary into the measurement input:
+
+```bash
+bash scripts/run-scale-benchmark-measurements.sh \
+  --summary scale-benchmark-runtime-summary.json \
+  --measurements scale-benchmark-measurements.json
+```
+
+The summary must already come from a representative or remote-proof run. It is
+aggregate-only and contains numeric counts, durations, p95 sample arrays,
+backend evidence status, and observability capture status. The collector
+normalizes:
+
+- fact rows/sec from aggregate fact rows and elapsed seconds;
+- queue claim, graph write, API, and MCP p95 from numeric latency samples;
+- reducer drain wall time, retry count, dead-letter count, and memory
+  high-water mark;
+- NornicDB backend status and pprof/log/resource snapshot status.
+
+Then use `scripts/run-scale-benchmark-artifact.sh` to convert the measurements
+and thresholds into the public artifact shape:
 
 ```bash
 bash scripts/run-scale-benchmark-artifact.sh \
