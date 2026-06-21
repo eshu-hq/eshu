@@ -6,7 +6,8 @@ export type RuntimeProfile =
   | "local_lightweight"
   | "local_authoritative"
   | "local_full_stack"
-  | "production";
+  | "production"
+  | "demo_fixture";
 
 export interface EshuFreshness {
   readonly state: FreshnessState;

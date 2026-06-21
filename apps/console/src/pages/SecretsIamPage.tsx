@@ -320,7 +320,7 @@ function EmptyState({
 }: {
   readonly review: SecretsIamReview | null;
   readonly section: keyof Omit<SecretsIamReview, "input">;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const current = review?.[section];
   if (current?.status === "unavailable") return null;
   if (current?.status === "skipped") return <p className="empty">No secrets/IAM posture data loaded.</p>;

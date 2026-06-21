@@ -280,10 +280,10 @@ function normalizeCounts(counts: WireChangedSinceCategory["counts"]): ChangeCoun
 }
 
 function normalizeSamples(samples: WireChangedSinceCategory["samples"]): ChangeSamples {
-  return Object.fromEntries(classifications.map((classification) => [
-    classification,
-    (samples?.[classification] ?? []).map(normalizeSample)
-  ])) as ChangeSamples;
+  return classifications.reduce((acc, classification) => {
+    acc[classification] = (samples?.[classification] ?? []).map(normalizeSample);
+    return acc;
+  }, {} as Record<ChangeClassification, readonly ChangeSample[]>);
 }
 
 function normalizeSample(sample: WireChangeSample): ChangeSample {

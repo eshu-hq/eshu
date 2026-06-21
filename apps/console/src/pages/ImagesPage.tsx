@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadImages } from "../api/imageInventory";
 import type { ImageRow } from "../api/imageInventory";
+import type { SectionProvenance } from "../api/eshuConsoleLive";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import { uiTruth, uiFresh } from "../console/types";
 import "./liveInventory.css";
@@ -42,7 +43,7 @@ export function ImagesPage({
   const [offset, setOffset] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [provenance, setProvenance] = useState<"live" | "empty" | "unavailable">("live");
+  const [provenance, setProvenance] = useState<SectionProvenance>("live");
   const [truthLevel, setTruthLevel] = useState<string | undefined>(undefined);
   const [freshState, setFreshState] = useState<string | undefined>(undefined);
   const [q, setQ] = useState("");

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { askEshu, askNarrationStatus, type AskAnswer, type AskError, type AskTraceStep } from "./askEshu";
+import type { EshuFetcher } from "./client";
 
 function sseResponse(chunks: readonly string[], status = 200): Response {
   const encoder = new TextEncoder();
@@ -28,7 +29,7 @@ describe("askEshu (streaming)", () => {
     const traces: AskTraceStep[] = [];
     let answer: AskAnswer | null = null;
     const done = vi.fn();
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn<EshuFetcher>(async () =>
       sseResponse([
         'event: trace\ndata: {"tool":"resolve_entity","supported":true,"truth_class":"deterministic"}\n\n',
         'event: trace\ndata: {"tool":"graph_query","supported":false,"truth_class":"fallback","err":"timeout"}\n\n',
@@ -219,7 +220,7 @@ describe("askEshu (sync fallback)", () => {
   it("replays query_trace as trace steps and emits the answer", async () => {
     const traces: AskTraceStep[] = [];
     let answer: AskAnswer | null = null;
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn<EshuFetcher>(async () =>
       jsonResponse({
         answer_prose: "",
         truth_class: "unsupported",
