@@ -28,12 +28,13 @@ func TestClaimedSourceFansOutOrganizationAlertsIntoPerRepositoryFacts(t *testing
 	source, err := NewClaimedSource(SourceConfig{
 		CollectorInstanceID: "security-alert-primary",
 		Targets: []TargetConfig{{
-			Provider:     ProviderGitHubDependabot,
-			Scope:        TargetScopeOrganization,
-			ScopeID:      "security-alert:github-org:example-org",
-			Organization: "example-org",
-			Token:        "github-token",
-			MaxPages:     3,
+			Provider:            ProviderGitHubDependabot,
+			Scope:               TargetScopeOrganization,
+			ScopeID:             "security-alert:github-org:example-org",
+			Organization:        "example-org",
+			Token:               "github-token",
+			MaxPages:            3,
+			AllowedRepositories: []string{"example-org/alpha-repo", "example-org/beta-repo"},
 		}},
 		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) { return client, nil },
 		Now:           func() time.Time { return now },
@@ -68,28 +69,32 @@ func TestClaimedSourceFansOutOrganizationAlertsIntoPerRepositoryFacts(t *testing
 	if got, want := len(envs), 2; got != want {
 		t.Fatalf("len(facts) = %d, want one per repository (%d)", got, want)
 	}
-	sort.Slice(envs, func(i, j int) bool { return envs[i].ScopeID < envs[j].ScopeID })
+	sort.Slice(envs, func(i, j int) bool {
+		return payloadString(envs[i].Payload, "repository_id") < payloadString(envs[j].Payload, "repository_id")
+	})
 
-	want := []struct {
-		scopeID        string
+	wantRepos := []struct {
 		repositoryID   string
 		repositoryName string
 	}{
-		{"security-alert:github:example-org/alpha-repo", "security-alert:github:example-org/alpha-repo", "alpha-repo"},
-		{"security-alert:github:example-org/beta-repo", "security-alert:github:example-org/beta-repo", "beta-repo"},
+		{"security-alert:github:example-org/alpha-repo", "alpha-repo"},
+		{"security-alert:github:example-org/beta-repo", "beta-repo"},
 	}
 	for i, env := range envs {
 		if got := env.FactKind; got != facts.SecurityAlertRepositoryAlertFactKind {
 			t.Fatalf("env[%d].FactKind = %q, want %q", i, got, facts.SecurityAlertRepositoryAlertFactKind)
 		}
-		if got := env.ScopeID; got != want[i].scopeID {
-			t.Fatalf("env[%d].ScopeID = %q, want per-repository scope %q", i, got, want[i].scopeID)
+		// All envelopes carry the org generation scope so Postgres streaming
+		// writer accepts them (envelope.ScopeID == committed generation scope).
+		if got, want := env.ScopeID, "security-alert:github-org:example-org"; got != want {
+			t.Fatalf("env[%d].ScopeID = %q, want org scope %q", i, got, want)
 		}
-		if got := payloadString(env.Payload, "repository_id"); got != want[i].repositoryID {
-			t.Fatalf("env[%d].repository_id = %q, want %q", i, got, want[i].repositoryID)
+		// payload.repository_id carries the per-repo scope for reducer keying.
+		if got := payloadString(env.Payload, "repository_id"); got != wantRepos[i].repositoryID {
+			t.Fatalf("env[%d].repository_id = %q, want %q", i, got, wantRepos[i].repositoryID)
 		}
-		if got := payloadString(env.Payload, "repository_name"); got != want[i].repositoryName {
-			t.Fatalf("env[%d].repository_name = %q, want %q", i, got, want[i].repositoryName)
+		if got := payloadString(env.Payload, "repository_name"); got != wantRepos[i].repositoryName {
+			t.Fatalf("env[%d].repository_name = %q, want %q", i, got, wantRepos[i].repositoryName)
 		}
 		// Fan-out facts must carry the same provider + reported confidence as the
 		// per-repository path so reducer reconciliation is unchanged.
@@ -101,7 +106,7 @@ func TestClaimedSourceFansOutOrganizationAlertsIntoPerRepositoryFacts(t *testing
 		}
 	}
 
-	// The generation scope is the org target scope; facts carry per-repo scopes.
+	// The generation scope is the org target scope.
 	if got, want := collected.Scope.ScopeKind, scope.KindSecurityAlert; got != want {
 		t.Fatalf("ScopeKind = %q, want %q", got, want)
 	}
@@ -122,11 +127,12 @@ func TestClaimedSourceSkipsOrganizationAlertsWithUnusableRepository(t *testing.T
 	source, err := NewClaimedSource(SourceConfig{
 		CollectorInstanceID: "security-alert-primary",
 		Targets: []TargetConfig{{
-			Provider:     ProviderGitHubDependabot,
-			Scope:        TargetScopeOrganization,
-			ScopeID:      "security-alert:github-org:example-org",
-			Organization: "example-org",
-			Token:        "github-token",
+			Provider:            ProviderGitHubDependabot,
+			Scope:               TargetScopeOrganization,
+			ScopeID:             "security-alert:github-org:example-org",
+			Organization:        "example-org",
+			Token:               "github-token",
+			AllowedRepositories: []string{"example-org/alpha-repo"},
 		}},
 		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) { return client, nil },
 		Now:           func() time.Time { return now },
@@ -149,8 +155,14 @@ func TestClaimedSourceSkipsOrganizationAlertsWithUnusableRepository(t *testing.T
 	if got, want := len(envs), 1; got != want {
 		t.Fatalf("len(facts) = %d, want %d (alert without repository skipped)", got, want)
 	}
-	if got, want := envs[0].ScopeID, "security-alert:github:example-org/alpha-repo"; got != want {
-		t.Fatalf("env.ScopeID = %q, want %q", got, want)
+	// Envelope carries the org generation scope (not per-repo scope) so the
+	// Postgres streaming writer accepts it.
+	if got, want := envs[0].ScopeID, "security-alert:github-org:example-org"; got != want {
+		t.Fatalf("env.ScopeID = %q, want org scope %q", got, want)
+	}
+	// payload.repository_id carries the per-repo scope for reducer keying.
+	if got, want := payloadString(envs[0].Payload, "repository_id"), "security-alert:github:example-org/alpha-repo"; got != want {
+		t.Fatalf("env.repository_id = %q, want %q", got, want)
 	}
 }
 
@@ -196,6 +208,149 @@ func TestValidateOrganizationTargetRejectsRepositoryFields(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("NewClaimedSource() error = nil, want repository-field rejection for org target")
+	}
+}
+
+// TestValidateOrganizationTargetRequiresAllowedRepositories is the P1 #2
+// regression test: org targets without an explicit allowlist must be rejected
+// at construction time so no token with org visibility can fan out facts for
+// all visible repositories without operator-declared boundaries.
+func TestValidateOrganizationTargetRequiresAllowedRepositories(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:     ProviderGitHubDependabot,
+			Scope:        TargetScopeOrganization,
+			ScopeID:      "security-alert:github-org:example-org",
+			Organization: "example-org",
+			Token:        "github-token",
+			// AllowedRepositories intentionally absent.
+		}},
+		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) {
+			return staticAlertClient{}, nil
+		},
+	})
+	if err == nil {
+		t.Fatal("NewClaimedSource() error = nil, want allowed_repositories-required rejection for org target")
+	}
+	if !strings.Contains(err.Error(), "allowed_repositories") {
+		t.Fatalf("error = %q, want allowed_repositories requirement message", err)
+	}
+}
+
+// TestClaimedSourceOrgAlertEnvelopeScopeIDMatchesCommittedGenerationScope is
+// the P1 #1 regression test: every envelope emitted by an org target must
+// carry the org generation scope (not the per-repo scope) so the Postgres
+// streaming writer's per-envelope scope check does not fail.
+func TestClaimedSourceOrgAlertEnvelopeScopeIDMatchesCommittedGenerationScope(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 25, 16, 0, 0, 0, time.UTC)
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:            ProviderGitHubDependabot,
+			Scope:               TargetScopeOrganization,
+			ScopeID:             "security-alert:github-org:example-org",
+			Organization:        "example-org",
+			Token:               "github-token",
+			AllowedRepositories: []string{"example-org/alpha-repo", "example-org/beta-repo"},
+		}},
+		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) {
+			return staticAlertClient{result: securityalerts.GitHubDependabotAlertResult{
+				Alerts: []securityalerts.GitHubDependabotAlert{
+					orgAlert(1, "example-org/alpha-repo"),
+					orgAlert(2, "example-org/beta-repo"),
+				},
+				ObservedAt: now,
+			}}, nil
+		},
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	item := testSecurityAlertWorkItem(now)
+	item.ScopeID = "security-alert:github-org:example-org"
+	item.AcceptanceUnitID = item.ScopeID
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	envs := drainFacts(collected.Facts)
+	if len(envs) == 0 {
+		t.Fatal("no facts emitted, want 2")
+	}
+	// Every envelope must carry the org generation scope, not the per-repo
+	// scope. The Postgres streaming writer rejects any envelope whose ScopeID
+	// differs from the committed generation scope.
+	for i, env := range envs {
+		if got, want := env.ScopeID, "security-alert:github-org:example-org"; got != want {
+			t.Fatalf("env[%d].ScopeID = %q, want org scope %q (P1 regression: scope mismatch fails commit)", i, got, want)
+		}
+		// payload.repository_id must still carry the per-repo scope for reducer.
+		repoID := payloadString(env.Payload, "repository_id")
+		if repoID == "" || repoID == "security-alert:github-org:example-org" {
+			t.Fatalf("env[%d].repository_id = %q, want per-repo scope", i, repoID)
+		}
+	}
+}
+
+// TestClaimedSourceFiltersOrgAlertsByAllowlist is the P1 #2 filtering
+// regression test: org fan-out must skip alerts for repositories not in
+// allowed_repositories even when the provider returns them.
+func TestClaimedSourceFiltersOrgAlertsByAllowlist(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 25, 16, 0, 0, 0, time.UTC)
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:     ProviderGitHubDependabot,
+			Scope:        TargetScopeOrganization,
+			ScopeID:      "security-alert:github-org:example-org",
+			Organization: "example-org",
+			Token:        "github-token",
+			// Only alpha-repo is allowed; beta-repo must be filtered.
+			AllowedRepositories: []string{"example-org/alpha-repo"},
+		}},
+		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) {
+			return staticAlertClient{result: securityalerts.GitHubDependabotAlertResult{
+				Alerts: []securityalerts.GitHubDependabotAlert{
+					orgAlert(1, "example-org/alpha-repo"),
+					orgAlert(2, "example-org/beta-repo"), // not allowlisted
+				},
+				ObservedAt: now,
+			}}, nil
+		},
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	item := testSecurityAlertWorkItem(now)
+	item.ScopeID = "security-alert:github-org:example-org"
+	item.AcceptanceUnitID = item.ScopeID
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	envs := drainFacts(collected.Facts)
+	if got, want := len(envs), 1; got != want {
+		t.Fatalf("len(facts) = %d, want %d (beta-repo must be filtered by allowlist)", got, want)
+	}
+	if got := payloadString(envs[0].Payload, "repository_id"); got != "security-alert:github:example-org/alpha-repo" {
+		t.Fatalf("repository_id = %q, want alpha-repo (beta-repo filtered)", got)
 	}
 }
 

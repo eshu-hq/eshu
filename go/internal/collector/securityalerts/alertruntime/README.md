@@ -4,8 +4,9 @@ This package runs hosted provider security-alert collection behind workflow
 claims. The runtime accepts explicit targets, resolves credentials before
 construction, and calls the provider client only for the claimed `scope_id`.
 Each target is `repository`-scoped (validated against its `allowed_repositories`
-allowlist) or `org`-scoped (validated to carry an `organization` and no
-repository allowlist).
+allowlist) or `org`-scoped (validated to carry an `organization` and an
+explicit `allowed_repositories` allowlist that bounds which repositories receive
+fan-out facts).
 
 The first provider is GitHub Dependabot alerts. Repository targets poll one
 repository; org targets poll `GET /orgs/{org}/dependabot/alerts` and fan the
@@ -37,7 +38,10 @@ wrapper.
 
 Security Review Evidence: target configuration must name a credential
 environment variable and an explicit repository allowlist before the runtime can
-construct a provider client. Provider errors are mapped to bounded failure
+construct a provider client. Org-scoped targets require a non-empty
+`allowed_repositories` allowlist at construction time; fan-out only emits facts
+for repositories in that list, preserving the same private-data boundary that
+per-repository targets enforce. Provider errors are mapped to bounded failure
 classes, token-bearing source URLs are redacted by the envelope builder, metric
 labels avoid repositories and package names, and provider alerts are emitted
 only as `security_alert.repository_alert` source facts.

@@ -40,7 +40,8 @@ func TestValidateSecurityAlertCollectorConfigurationAcceptsOrganizationTarget(t 
 				"scope_id": "security-alert:github-org:example-org",
 				"organization": "example-org",
 				"token_env": "GITHUB_TOKEN",
-				"max_pages": 5
+				"max_pages": 5,
+				"allowed_repositories": ["example-org/alpha-repo", "example-org/beta-repo"]
 			}
 		]
 	}`
@@ -83,6 +84,19 @@ func TestValidateSecurityAlertCollectorConfigurationRejectsInvalidOrganizationTa
 				}]
 			}`,
 			wantErr: "repository must be empty",
+		},
+		{
+			name: "missing allowed_repositories for org scope",
+			raw: `{
+				"targets": [{
+					"provider": "github_dependabot",
+					"scope": "org",
+					"scope_id": "security-alert:github-org:example-org",
+					"organization": "example-org",
+					"token_env": "GITHUB_TOKEN"
+				}]
+			}`,
+			wantErr: "allowed_repositories is required for org scope",
 		},
 		{
 			name: "unsupported scope",

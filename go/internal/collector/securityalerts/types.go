@@ -8,8 +8,19 @@ const CollectorKind = "security_alert"
 
 // EnvelopeContext carries Eshu fact boundary fields for one provider security
 // alert observation.
+//
+// ScopeID is the committed generation scope that the envelope belongs to. For
+// per-repository targets it is the repository's canonical security-alert scope
+// (security-alert:github:<owner>/<repo>). For organization-wide targets it is
+// the org target scope (security-alert:github-org:<org>); RepositoryID carries
+// the per-repository scope used for reducer keying and dedup.
+//
+// RepositoryID, when non-empty, overrides the repository_id payload field and
+// the stableFactKey repository_id used for dedup. Leave it empty for
+// per-repository targets — the envelope builder falls back to ScopeID.
 type EnvelopeContext struct {
 	ScopeID             string
+	RepositoryID        string
 	GenerationID        string
 	CollectorInstanceID string
 	FencingToken        int64

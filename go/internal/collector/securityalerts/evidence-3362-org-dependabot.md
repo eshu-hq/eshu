@@ -38,26 +38,40 @@ owns an alert).
 Fan-out fact shape is unchanged: org alerts are converted with the same
 `NewGitHubDependabotAlertEnvelope` constructor, the same
 `facts.SecurityAlertRepositoryAlertFactKind`, the same
-`source_confidence=reported`, and a `repository_id` derived to the same
-canonical `security-alert:github:<owner>/<repo>` scope the per-repository path
-and the `security_alert_reconciliation` reducer already key on. Reducer
+`source_confidence=reported`, and a `repository_id` in `payload` derived to the
+same canonical `security-alert:github:<owner>/<repo>` scope the per-repository
+path and the `security_alert_reconciliation` reducer already key on. Reducer
 reconciliation is therefore unchanged.
+
+**P1 scope fix (PR review #3447903339):** org fan-out envelopes now carry the
+org generation scope in `envelope.ScopeID` (e.g.
+`security-alert:github-org:example-org`) so the Postgres streaming writer's
+per-envelope scope check (`envelope.ScopeID == committed_scope_id`) passes. The
+per-repository scope is threaded via the new `EnvelopeContext.RepositoryID`
+field into `payload["repository_id"]` and the `stableFactKey` for idempotent
+dedup and reducer keying. The per-repository code path is unaffected:
+`ctx.RepositoryID` is empty for repo targets, so `repositoryID` falls back to
+`ctx.ScopeID` (identical to the previous behaviour).
+
+**P1 allowlist fix (PR review #3447903341):** org targets now require a
+non-empty `allowed_repositories` at construction time (validated in both
+`alertruntime.validateTarget` and `workflow.validateSecurityAlertTargetConfiguration`).
+Fan-out skips alerts for repositories absent from the allowlist, enforcing the
+same private-data boundary that per-repository targets enforce. Operator-declared
+allowlist bounds the blast radius of a token with org visibility.
 
 Verified by:
 
-- `go test ./internal/collector/securityalerts/... -count=1` — 29 passed,
-  including new `TestGitHubDependabotClientListsOrganizationAlertsAcrossCursorPages`,
-  `TestGitHubDependabotClientMarksOrganizationAlertsTruncatedAtMaxPages`,
-  `TestGitHubDependabotClientDoesNotForwardTokenToCrossHostOrganizationNextLink`,
-  `TestGitHubDependabotClientReturnsRateLimitFailureForOrganizationAlerts`,
-  `TestClaimedSourceFansOutOrganizationAlertsIntoPerRepositoryFacts`,
-  `TestClaimedSourceSkipsOrganizationAlertsWithUnusableRepository`, and the
-  org-scope validation tests.
-- `go test ./internal/workflow ./cmd/collector-security-alerts ./internal/reducer
-  ./internal/coordinator ./internal/telemetry -count=1` — all passed (the one
-  unrelated `TestSCIPLanguageSubtreesRunWithBoundedWorkers` flake passes 3/3 in
-  isolation and touches no security-alert code).
-- `go vet` and `golangci-lint run` on the changed packages — no issues.
+- `go test ./internal/collector/securityalerts/... -count=1` — 32 passed,
+  including new regression tests
+  `TestClaimedSourceOrgAlertEnvelopeScopeIDMatchesCommittedGenerationScope`
+  (P1 #1), `TestValidateOrganizationTargetRequiresAllowedRepositories` (P1 #2),
+  and `TestClaimedSourceFiltersOrgAlertsByAllowlist` (P1 #2 filtering).
+- `go test ./internal/workflow/... ./cmd/collector-security-alerts/... -count=1`
+  — 185 passed, including new
+  `TestValidateSecurityAlertCollectorConfigurationRejectsInvalidOrganizationTargets/missing_allowed_repositories_for_org_scope`.
+- `go test ./internal/reducer/... -run SecurityAlert -count=1` — 24 passed.
+- `go vet` on all changed packages — no issues.
 
 ## No-Observability-Change
 

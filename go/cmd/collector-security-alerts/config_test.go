@@ -301,7 +301,8 @@ func TestLoadClaimedRuntimeConfigMapsOrganizationScopeTarget(t *testing.T) {
 						"scope_id": "security-alert:github-org:example-org",
 						"organization": "example-org",
 						"token_env": "GITHUB_TOKEN",
-						"max_pages": 5
+						"max_pages": 5,
+						"allowed_repositories": ["example-org/alpha-repo", "example-org/beta-repo"]
 					}]
 				}
 			}]`
@@ -328,6 +329,9 @@ func TestLoadClaimedRuntimeConfigMapsOrganizationScopeTarget(t *testing.T) {
 	}
 	if target.Repository != "" {
 		t.Fatalf("Repository = %q, want empty for org scope", target.Repository)
+	}
+	if got, want := len(target.AllowedRepositories), 2; got != want {
+		t.Fatalf("len(AllowedRepositories) = %d, want %d", got, want)
 	}
 }
 

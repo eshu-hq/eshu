@@ -53,8 +53,8 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 		if target.Repository != "" {
 			return TargetConfig{}, fmt.Errorf("repository must be empty for org scope")
 		}
-		if len(target.AllowedRepositories) > 0 {
-			return TargetConfig{}, fmt.Errorf("allowed_repositories must be empty for org scope")
+		if len(target.AllowedRepositories) == 0 {
+			return TargetConfig{}, fmt.Errorf("allowed_repositories is required for org scope")
 		}
 	default:
 		return TargetConfig{}, fmt.Errorf("unsupported security alert scope %q", target.Scope)
@@ -104,6 +104,14 @@ func repositoryAllowed(repository string, allowed []string) bool {
 		}
 	}
 	return false
+}
+
+// RepositoryAllowed reports whether the given full repository name
+// (owner/repo, already normalized) is in the target's allowed_repositories
+// list. For org targets this is the allowlist guardrail that bounds which
+// repositories receive fan-out facts.
+func (t TargetConfig) RepositoryAllowed(fullName string) bool {
+	return repositoryAllowed(fullName, t.AllowedRepositories)
 }
 
 func normalizeRepository(repository string) string {

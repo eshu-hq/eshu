@@ -324,29 +324,39 @@ func (s *ClaimedSource) envelopes(
 ) ([]facts.Envelope, error) {
 	envs := make([]facts.Envelope, 0, len(alerts))
 	for _, alert := range alerts {
-		scopeID := target.ScopeID
+		// ctx.ScopeID is always the target's committed generation scope so that
+		// every envelope's ScopeID matches the scope committed to Postgres.
+		// For per-repository targets that is the per-repo scope; for org
+		// targets it is the org scope (the committed generation scope).
+		//
+		// For org targets ctx.RepositoryID carries the per-repo scope so that
+		// payload["repository_id"] and the stableFactKey still key on the same
+		// canonical per-repository value the reducer expects.
+		ctx := securityalerts.EnvelopeContext{
+			ScopeID:             target.ScopeID,
+			GenerationID:        item.GenerationID,
+			CollectorInstanceID: s.collectorInstanceID,
+			FencingToken:        item.CurrentFencingToken,
+			ObservedAt:          observedAt,
+			SourceURI:           safeSourceURI(firstNonBlank(target.SourceURI, alert.HTMLURL)),
+		}
 		if target.IsOrganizationScope() {
-			// One org request fans out into per-repository facts. Each fact is
-			// scoped to the repository that owns the alert so reducer
-			// reconciliation keys on the same repository_id as the
-			// per-repository path. Alerts whose repository cannot be resolved
-			// are skipped rather than misattributed to the org scope.
-			scopeID = organizationAlertScopeID(alert)
-			if scopeID == "" {
+			// Derive the per-repository scope from the alert's repository
+			// object. Alerts whose repository cannot be resolved are skipped
+			// rather than misattributed to the org scope.
+			repoScopeID := organizationAlertScopeID(alert)
+			if repoScopeID == "" {
 				continue
 			}
+			// Honor the operator-declared allowlist: only fan out alerts for
+			// explicitly allowed repositories. This preserves the private-data
+			// boundary that the per-repository path enforces via its allowlist.
+			if !target.RepositoryAllowed(organizationAlertFullName(alert)) {
+				continue
+			}
+			ctx.RepositoryID = repoScopeID
 		}
-		env, err := securityalerts.NewGitHubDependabotAlertEnvelope(
-			securityalerts.EnvelopeContext{
-				ScopeID:             scopeID,
-				GenerationID:        item.GenerationID,
-				CollectorInstanceID: s.collectorInstanceID,
-				FencingToken:        item.CurrentFencingToken,
-				ObservedAt:          observedAt,
-				SourceURI:           safeSourceURI(firstNonBlank(target.SourceURI, alert.HTMLURL)),
-			},
-			alert,
-		)
+		env, err := securityalerts.NewGitHubDependabotAlertEnvelope(ctx, alert)
 		if err != nil {
 			return nil, err
 		}
@@ -373,6 +383,12 @@ func organizationAlertScopeID(alert securityalerts.GitHubDependabotAlert) string
 		return ""
 	}
 	return "security-alert:github:" + fullName
+}
+
+// organizationAlertFullName returns the normalized "owner/repo" full name for
+// an organization alert. Used for allowlist filtering.
+func organizationAlertFullName(alert securityalerts.GitHubDependabotAlert) string {
+	return normalizeOrganizationAlertRepositoryFullName(alert)
 }
 
 // organizationAlertRepositoryName returns the short repository name for an

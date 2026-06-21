@@ -97,8 +97,8 @@ func validateSecurityAlertTargetConfiguration(target securityAlertTargetConfigur
 		if strings.TrimSpace(target.Repository) != "" {
 			return fmt.Errorf("repository must be empty for org scope")
 		}
-		if len(cleanSecurityAlertRepositories(target.AllowedRepositories)) > 0 {
-			return fmt.Errorf("allowed_repositories must be empty for org scope")
+		if len(cleanSecurityAlertRepositories(target.AllowedRepositories)) == 0 {
+			return fmt.Errorf("allowed_repositories is required for org scope")
 		}
 	default:
 		return fmt.Errorf("unsupported security alert scope %q", scope)
