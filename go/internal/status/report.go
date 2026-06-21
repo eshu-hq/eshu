@@ -46,9 +46,38 @@ type RawSnapshot struct {
 	TerraformStateRecentWarnings []TerraformStateLocatorWarning
 }
 
+// SnapshotSelection controls which optional, expensive sections a status reader
+// gathers. The index status surface excludes the fact_records-derived sections
+// it never renders so it avoids full-table aggregates that dominate read time at
+// repository scale.
+type SnapshotSelection struct {
+	// IncludeCollectorFactEvidence requests RawSnapshot.CollectorFactEvidence,
+	// which aggregates the active fact_records table.
+	IncludeCollectorFactEvidence bool
+	// IncludeRegistryCollectors requests RawSnapshot.RegistryCollectors, which
+	// reads registry collector status from fact_records.
+	IncludeRegistryCollectors bool
+}
+
+// FullSnapshotSelection returns the selection that includes every optional
+// section. It is the back-compatible default used by full status-report
+// surfaces (CLI status, admin status, collector readiness).
+func FullSnapshotSelection() SnapshotSelection {
+	return SnapshotSelection{
+		IncludeCollectorFactEvidence: true,
+		IncludeRegistryCollectors:    true,
+	}
+}
+
 // Reader loads the raw status snapshot from an underlying storage backend.
 type Reader interface {
+	// ReadStatusSnapshot returns the full snapshot. It behaves as
+	// ReadStatusSnapshotFiltered called with FullSnapshotSelection().
 	ReadStatusSnapshot(context.Context, time.Time) (RawSnapshot, error)
+	// ReadStatusSnapshotFiltered returns a snapshot whose optional sections are
+	// gathered according to the selection. Excluded sections are left at their
+	// zero value so callers that never render them avoid the underlying cost.
+	ReadStatusSnapshotFiltered(context.Context, time.Time, SnapshotSelection) (RawSnapshot, error)
 }
 
 // Options controls operator-health projection behavior.

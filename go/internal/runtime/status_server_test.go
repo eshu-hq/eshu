@@ -445,3 +445,11 @@ func (r *fakeStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statu
 	}
 	return r.snapshot, nil
 }
+
+func (r *fakeStatusReader) ReadStatusSnapshotFiltered(
+	ctx context.Context,
+	asOf time.Time,
+	_ statuspkg.SnapshotSelection,
+) (statuspkg.RawSnapshot, error) {
+	return r.ReadStatusSnapshot(ctx, asOf)
+}

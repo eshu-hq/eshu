@@ -23,6 +23,14 @@ func (f fakeStatusReader) ReadStatusSnapshot(_ context.Context, _ time.Time) (st
 	return f.snapshot, nil
 }
 
+func (f fakeStatusReader) ReadStatusSnapshotFiltered(
+	ctx context.Context,
+	asOf time.Time,
+	_ statuspkg.SnapshotSelection,
+) (statuspkg.RawSnapshot, error) {
+	return f.ReadStatusSnapshot(ctx, asOf)
+}
+
 func TestMountRuntimeSurfaceServesSharedAdminRoutes(t *testing.T) {
 	t.Parallel()
 

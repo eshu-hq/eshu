@@ -174,7 +174,20 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	raw, report, err := loadStatusReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+	// The index surface never renders registry collectors or collector fact
+	// evidence, so it loads a filtered snapshot that skips the fact_records
+	// aggregates those sections require. See GitHub issue #3368.
+	selection := status.SnapshotSelection{
+		IncludeCollectorFactEvidence: false,
+		IncludeRegistryCollectors:    false,
+	}
+	raw, report, err := loadStatusReportFiltered(
+		r.Context(),
+		h.StatusReader,
+		time.Now(),
+		status.DefaultOptions(),
+		selection,
+	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return
@@ -211,10 +224,20 @@ func loadStatusReport(
 	asOf time.Time,
 	opts status.Options,
 ) (status.RawSnapshot, status.Report, error) {
+	return loadStatusReportFiltered(ctx, reader, asOf, opts, status.FullSnapshotSelection())
+}
+
+func loadStatusReportFiltered(
+	ctx context.Context,
+	reader status.Reader,
+	asOf time.Time,
+	opts status.Options,
+	selection status.SnapshotSelection,
+) (status.RawSnapshot, status.Report, error) {
 	if reader == nil {
 		return status.RawSnapshot{}, status.Report{}, fmt.Errorf("status reader is required")
 	}
-	raw, err := reader.ReadStatusSnapshot(ctx, asOf.UTC())
+	raw, err := reader.ReadStatusSnapshotFiltered(ctx, asOf.UTC(), selection)
 	if err != nil {
 		return status.RawSnapshot{}, status.Report{}, fmt.Errorf("read status snapshot: %w", err)
 	}

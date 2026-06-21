@@ -20,6 +20,14 @@ func (f fakeMCPStatusReader) ReadStatusSnapshot(context.Context, time.Time) (sta
 	return f.snapshot, nil
 }
 
+func (f fakeMCPStatusReader) ReadStatusSnapshotFiltered(
+	context.Context,
+	time.Time,
+	statuspkg.SnapshotSelection,
+) (statuspkg.RawSnapshot, error) {
+	return f.snapshot, nil
+}
+
 func TestDispatchToolGovernanceStatusAllowsScopedRoute(t *testing.T) {
 	t.Parallel()
 

@@ -239,6 +239,14 @@ func (staticStatusReader) ReadStatusSnapshot(context.Context, time.Time) (status
 	return statuspkg.RawSnapshot{}, nil
 }
 
+func (staticStatusReader) ReadStatusSnapshotFiltered(
+	context.Context,
+	time.Time,
+	statuspkg.SnapshotSelection,
+) (statuspkg.RawSnapshot, error) {
+	return statuspkg.RawSnapshot{}, nil
+}
+
 func TestOpenQueryGraphDefaultsLocalLightweightDatabaseToNornic(t *testing.T) {
 	t.Parallel()
 

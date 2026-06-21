@@ -48,8 +48,15 @@ See `doc.go` for the godoc contract. Key types and functions:
   latest failure metadata, and the optional `CoordinatorSnapshot`
 - `Report` — operator-facing projection of `RawSnapshot`; the fields below are
   the stable output surface
-- `Reader` — one-method interface (`ReadStatusSnapshot`) that storage
-  implementations satisfy
+- `Reader` — two-method interface that storage implementations satisfy:
+  `ReadStatusSnapshot` returns the full snapshot, and
+  `ReadStatusSnapshotFiltered(ctx, asOf, SnapshotSelection)` returns a snapshot
+  whose optional, expensive sections (collector fact evidence, registry
+  collectors — both `fact_records`-derived) are gathered only when the
+  `SnapshotSelection` requests them; excluded sections stay at their zero value.
+  `ReadStatusSnapshot` is equivalent to `ReadStatusSnapshotFiltered` with
+  `FullSnapshotSelection()`, so surfaces that never render those sections (e.g.
+  the index status endpoint) skip the full-table aggregates at repository scale
 
 ### Snapshot sub-types
 
