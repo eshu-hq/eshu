@@ -42,8 +42,13 @@ the provider alert.
   observed time, and source URI copied into emitted envelopes.
 - `NewGitHubDependabotAlertEnvelope` — converts one Dependabot alert payload
   into a `security_alert.repository_alert` fact.
-- `GitHubDependabotClient` — bounded GitHub Dependabot alert HTTP client shape
-  for explicitly allowlisted repositories.
+- `GitHubDependabotClient` — bounded GitHub Dependabot alert HTTP client.
+  `ListRepositoryAlertsPages` reads one allowlisted repository
+  (`/repos/{owner}/{repo}/dependabot/alerts`); `ListOrganizationAlertsPages`
+  reads one organization (`/orgs/{org}/dependabot/alerts`) with each returned
+  alert carrying its source repository for per-repository fan-out.
+- `GitHubDependabotRepository` — the per-alert repository object populated only
+  by the organization endpoint, used to derive per-repository fact scopes.
 
 ## Invariants
 
@@ -62,10 +67,16 @@ the provider alert.
   clients, base URL validation, safe `HTTPError` wrapping, shared failure class
   constants, and `Retry-After` parsing. GitHub-specific cursor traversal and
   rate-limit metadata stay local.
-- The GitHub Dependabot repository-alert client follows provider `rel=next`
-  cursor links and never sends a legacy `page` query parameter; cross-host next
-  links are ignored so bearer tokens are not forwarded outside the configured
-  provider host.
+- The GitHub Dependabot repository-alert and organization-alert clients follow
+  provider `rel=next` cursor links and never send a legacy `page` query
+  parameter; cross-host next links are ignored so bearer tokens are not
+  forwarded outside the configured provider host. Both endpoints share one
+  bounded pagination loop, so truncation, per-page clamping, and rate-limit
+  handling stay identical.
+- Organization alerts (`/orgs/{org}/dependabot/alerts`) preserve each alert's
+  source `repository`. The hosted runtime derives a per-repository scope from
+  it so org fan-out facts carry the same `repository_id` shape as the
+  per-repository path and reducer reconciliation is unchanged.
 - The GitHub Dependabot repository-alert client requests the provider's
   `state=open` view so newer fixed alerts in default provider ordering cannot
   hide older open alerts inside the bounded `max_pages` contract.

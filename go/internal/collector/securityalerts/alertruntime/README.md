@@ -1,12 +1,18 @@
 # securityalerts/alertruntime
 
 This package runs hosted provider security-alert collection behind workflow
-claims. The runtime accepts explicit targets, validates each repository against
-its allowlist, resolves credentials before construction, and calls the provider
-client only for the claimed `scope_id`.
+claims. The runtime accepts explicit targets, resolves credentials before
+construction, and calls the provider client only for the claimed `scope_id`.
+Each target is `repository`-scoped (validated against its `allowed_repositories`
+allowlist) or `org`-scoped (validated to carry an `organization` and no
+repository allowlist).
 
-The first provider is GitHub Dependabot repository alerts. `ClaimedSource`
-returns only `security_alert.repository_alert` facts from
+The first provider is GitHub Dependabot alerts. Repository targets poll one
+repository; org targets poll `GET /orgs/{org}/dependabot/alerts` and fan the
+response out into per-repository facts whose `scope_id` is derived from each
+alert's source repository (`security-alert:github:<owner>/<repo>`), so a single
+org target produces the same per-repository fact shape as N repository targets.
+`ClaimedSource` returns only `security_alert.repository_alert` facts from
 `go/internal/collector/securityalerts`; reducer-owned impact/readiness truth
 stays outside this package.
 `ClaimedSource.PreflightProviderAccess` uses the same target map and provider

@@ -30,6 +30,24 @@ type GitHubDependabotAlert struct {
 	UpdatedAt             string                                `json:"updated_at"`
 	FixedAt               string                                `json:"fixed_at"`
 	DismissedAt           string                                `json:"dismissed_at"`
+	Repository            GitHubDependabotRepository            `json:"repository"`
+}
+
+// GitHubDependabotRepository identifies the repository an alert belongs to. It
+// is populated by the organization-wide alerts endpoint
+// (GET /orgs/{org}/dependabot/alerts) so a single org request can fan out into
+// per-repository facts. The per-repository endpoint omits it because the
+// repository is encoded in the request path.
+type GitHubDependabotRepository struct {
+	FullName string                          `json:"full_name"`
+	Name     string                          `json:"name"`
+	Owner    GitHubDependabotRepositoryOwner `json:"owner"`
+}
+
+// GitHubDependabotRepositoryOwner is the owner login embedded in an
+// organization alert's repository object.
+type GitHubDependabotRepositoryOwner struct {
+	Login string `json:"login"`
 }
 
 // GitHubDependabotDependency identifies the repository-local dependency that

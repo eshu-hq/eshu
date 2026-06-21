@@ -346,6 +346,14 @@ func (c staticAlertClient) ListRepositoryAlertsPages(
 	return c.result, c.err
 }
 
+func (c staticAlertClient) ListOrganizationAlertsPages(
+	context.Context,
+	string,
+	int,
+) (securityalerts.GitHubDependabotAlertResult, error) {
+	return c.result, c.err
+}
+
 type recordingAlertClient struct {
 	result     securityalerts.GitHubDependabotAlertResult
 	err        error
@@ -359,6 +367,16 @@ func (c *recordingAlertClient) ListRepositoryAlertsPages(
 	maxPages int,
 ) (securityalerts.GitHubDependabotAlertResult, error) {
 	c.repository = repository
+	c.maxPages = maxPages
+	return c.result, c.err
+}
+
+func (c *recordingAlertClient) ListOrganizationAlertsPages(
+	_ context.Context,
+	organization string,
+	maxPages int,
+) (securityalerts.GitHubDependabotAlertResult, error) {
+	c.repository = organization
 	c.maxPages = maxPages
 	return c.result, c.err
 }

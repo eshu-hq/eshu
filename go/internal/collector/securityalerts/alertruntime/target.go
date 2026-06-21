@@ -9,8 +9,13 @@ import (
 
 func validateTarget(target TargetConfig) (TargetConfig, error) {
 	target.Provider = strings.TrimSpace(target.Provider)
+	target.Scope = strings.TrimSpace(target.Scope)
+	if target.Scope == "" {
+		target.Scope = TargetScopeRepository
+	}
 	target.ScopeID = strings.TrimSpace(target.ScopeID)
 	target.Repository = normalizeRepository(target.Repository)
+	target.Organization = normalizeOrganization(target.Organization)
 	target.Token = strings.TrimSpace(target.Token)
 	target.APIBaseURL = strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/")
 	target.SourceURI = strings.TrimSpace(target.SourceURI)
@@ -24,17 +29,35 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if target.ScopeID == "" {
 		return TargetConfig{}, fmt.Errorf("scope_id is required")
 	}
-	if target.Repository == "" {
-		return TargetConfig{}, fmt.Errorf("repository must be owner/name")
-	}
 	if target.Token == "" {
 		return TargetConfig{}, fmt.Errorf("token is required")
 	}
-	if len(target.AllowedRepositories) == 0 {
-		return TargetConfig{}, fmt.Errorf("allowed_repositories is required")
-	}
-	if !repositoryAllowed(target.Repository, target.AllowedRepositories) {
-		return TargetConfig{}, fmt.Errorf("repository must be listed in allowed_repositories")
+	switch target.Scope {
+	case TargetScopeRepository:
+		if target.Organization != "" {
+			return TargetConfig{}, fmt.Errorf("organization must be empty for repository scope")
+		}
+		if target.Repository == "" {
+			return TargetConfig{}, fmt.Errorf("repository must be owner/name")
+		}
+		if len(target.AllowedRepositories) == 0 {
+			return TargetConfig{}, fmt.Errorf("allowed_repositories is required")
+		}
+		if !repositoryAllowed(target.Repository, target.AllowedRepositories) {
+			return TargetConfig{}, fmt.Errorf("repository must be listed in allowed_repositories")
+		}
+	case TargetScopeOrganization:
+		if target.Organization == "" {
+			return TargetConfig{}, fmt.Errorf("organization is required for org scope")
+		}
+		if target.Repository != "" {
+			return TargetConfig{}, fmt.Errorf("repository must be empty for org scope")
+		}
+		if len(target.AllowedRepositories) > 0 {
+			return TargetConfig{}, fmt.Errorf("allowed_repositories must be empty for org scope")
+		}
+	default:
+		return TargetConfig{}, fmt.Errorf("unsupported security alert scope %q", target.Scope)
 	}
 	if target.RepositoryAlertLimit < 0 || target.RepositoryAlertLimit > 100 {
 		return TargetConfig{}, fmt.Errorf("repository_alert_limit must be between 0 and 100")
@@ -51,6 +74,10 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 		}
 	}
 	return target, nil
+}
+
+func normalizeOrganization(organization string) string {
+	return strings.ToLower(strings.Trim(strings.TrimSpace(organization), "/"))
 }
 
 func cleanRepositories(values []string) []string {

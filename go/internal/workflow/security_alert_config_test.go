@@ -29,6 +29,91 @@ func TestValidateSecurityAlertCollectorConfigurationAcceptsGitHubDependabotTarge
 	}
 }
 
+func TestValidateSecurityAlertCollectorConfigurationAcceptsOrganizationTarget(t *testing.T) {
+	t.Parallel()
+
+	raw := `{
+		"targets": [
+			{
+				"provider": "github_dependabot",
+				"scope": "org",
+				"scope_id": "security-alert:github-org:example-org",
+				"organization": "example-org",
+				"token_env": "GITHUB_TOKEN",
+				"max_pages": 5
+			}
+		]
+	}`
+
+	if err := ValidateSecurityAlertCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidateSecurityAlertCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+func TestValidateSecurityAlertCollectorConfigurationRejectsInvalidOrganizationTargets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		wantErr string
+	}{
+		{
+			name: "missing organization",
+			raw: `{
+				"targets": [{
+					"provider": "github_dependabot",
+					"scope": "org",
+					"scope_id": "security-alert:github-org:example-org",
+					"token_env": "GITHUB_TOKEN"
+				}]
+			}`,
+			wantErr: "organization is required",
+		},
+		{
+			name: "repository set for org scope",
+			raw: `{
+				"targets": [{
+					"provider": "github_dependabot",
+					"scope": "org",
+					"scope_id": "security-alert:github-org:example-org",
+					"organization": "example-org",
+					"repository": "example-org/example-repo",
+					"token_env": "GITHUB_TOKEN"
+				}]
+			}`,
+			wantErr: "repository must be empty",
+		},
+		{
+			name: "unsupported scope",
+			raw: `{
+				"targets": [{
+					"provider": "github_dependabot",
+					"scope": "enterprise",
+					"scope_id": "security-alert:github-ent:example-ent",
+					"token_env": "GITHUB_TOKEN"
+				}]
+			}`,
+			wantErr: "unsupported security alert scope",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateSecurityAlertCollectorConfiguration(tt.raw)
+			if err == nil {
+				t.Fatal("ValidateSecurityAlertCollectorConfiguration() error = nil, want non-nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %q, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidateSecurityAlertCollectorConfigurationRequiresCredentialEnvAndAllowlist(t *testing.T) {
 	t.Parallel()
 

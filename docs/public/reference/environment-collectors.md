@@ -221,11 +221,23 @@ attachment status.
 
 The security-alert collector is claim-only. It selects an enabled
 `security_alert` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Provider
-targets currently support GitHub Dependabot repository alerts and must include
-`token_env`, `repository`, and `allowed_repositories`. The runtime resolves the
-credential from the named environment variable and emits only
-`security_alert.repository_alert` facts. Optional `api_base_url` overrides must
-use HTTPS because the runtime sends the bearer token to that endpoint.
+targets support GitHub Dependabot alerts in one of two scopes, selected by the
+optional `scope` field (default `repository`):
+
+- `scope: "repository"` polls one repository via
+  `GET /repos/{owner}/{repo}/dependabot/alerts` and must include `token_env`,
+  `repository`, and `allowed_repositories`.
+- `scope: "org"` polls one organization via
+  `GET /orgs/{org}/dependabot/alerts` and must include `token_env` and
+  `organization`. It must not set `repository` or `allowed_repositories`. A
+  single org target fans the response out into per-repository
+  `security_alert.repository_alert` facts (one fact per repository that owns an
+  alert), so reducer reconciliation is identical to the per-repository path.
+
+The runtime resolves the credential from the named environment variable and
+emits only `security_alert.repository_alert` facts. Optional `api_base_url`
+overrides must use HTTPS because the runtime sends the bearer token to that
+endpoint.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
@@ -242,8 +254,9 @@ or copied provider payloads to public values files or docs.
 `eshu-collector-security-alerts --preflight-provider-access` can be run as a
 one-shot access check before starting workflow fanout. It uses the same
 collector instance JSON, token env resolution, repository allowlist, and
-provider client as the hosted runtime, makes one bounded request per target,
-and reports only sanitized failure classes.
+provider client as the hosted runtime, makes one bounded request per target
+(the per-repository endpoint for repository targets and the org-wide endpoint
+for org targets), and reports only sanitized failure classes.
 
 ## CI/CD Run Collector
 
