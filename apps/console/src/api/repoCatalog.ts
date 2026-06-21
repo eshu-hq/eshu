@@ -41,7 +41,22 @@ interface RepoRecord {
   readonly group_key?: string; readonly group_source?: string; readonly group_truth?: string;
   readonly group_kind?: string; readonly group_reason?: string;
 }
-interface RepoListResponse { readonly repositories?: readonly RepoRecord[]; }
+interface RepoListResponse {
+  readonly repositories?: readonly RepoRecord[];
+  readonly truncated?: boolean;
+  readonly offset?: number;
+}
+
+// API max page size for GET /api/v0/repositories (repositoryListMaxLimit in the
+// query handler). Larger values are clamped server-side, so request exactly the
+// cap to page through a large stack in the fewest round trips.
+const REPOSITORY_PAGE_LIMIT = 500;
+
+// Hard ceiling on pages. The server clamps offset at repositoryListMaxOffset
+// (10000), so at most 10000/500 = 20 advancing pages exist before the offset
+// stalls. 24 gives 4 pages of headroom over that real bound; anything beyond
+// is a misbehaving API and will be caught by the offset-stall break first.
+const REPOSITORY_MAX_PAGES = 24;
 
 function str(v: unknown): string { return typeof v === "string" ? v : ""; }
 
@@ -60,10 +75,8 @@ function repoDisplayName(repo: RepoRecord): string {
   return repoSlugLeaf(str(repo.repo_slug)) || name || str(repo.id);
 }
 
-export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
-  const env = await client.get<RepoListResponse>("/api/v0/repositories?limit=500&offset=0");
-  if (env.error) throw new EshuEnvelopeError(env.error);
-  return (env.data?.repositories ?? []).map((r) => ({
+function repoListItem(r: RepoRecord): RepoListItem {
+  return {
     id: str(r.id) || str(r.name),
     name: repoDisplayName(r),
     repoSlug: str(r.repo_slug),
@@ -74,7 +87,79 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
     groupTruth: str(r.group_truth),
     groupKind: str(r.group_kind),
     groupReason: str(r.group_reason)
-  })).filter((r) => r.id !== "");
+  };
+}
+
+// warnIncomplete surfaces a truncated repository list so operators see it rather
+// than silently trusting an incomplete count. Both truncation paths (page-cap and
+// offset-stall) call this with a distinct reason so alerts can be distinguished.
+function warnIncomplete(reason: string): void {
+  console.warn(
+    `loadRepositories: repository list may be incomplete — ${reason}. ` +
+    `Repositories beyond the reachable offset are not shown.`
+  );
+}
+
+// loadRepositories pages through GET /api/v0/repositories until the API stops
+// reporting more repositories. The route caps a page at 500 rows and signals
+// more pages with `truncated=true`, so a single fetch silently dropped every
+// repository beyond the first page on large stacks (issue #3376). Paging makes
+// the returned list the true total, which the Repositories page then counts
+// honestly instead of showing a single-page slice. A short page (fewer rows than
+// the page limit) is also treated as terminal so callers that omit `truncated`
+// still stop. Three safety rails prevent silent wrong counts:
+//   1. REPOSITORY_MAX_PAGES caps total iterations; warns when hit.
+//   2. An offset-stall break stops the loop when the server-echoed offset does
+//      not advance (the server clamps offset at 10000, so without this guard
+//      subsequent pages would duplicate rows); warns when hit with truncated:true
+//      because more data exists that the server will not serve.
+//   3. Both warn paths use warnIncomplete with a distinct reason so operators
+//      can tell which cap was hit.
+export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
+  const items: RepoListItem[] = [];
+  let offset = 0;
+  let page = 0;
+  for (; page < REPOSITORY_MAX_PAGES; page += 1) {
+    const env = await client.get<RepoListResponse>(`/api/v0/repositories?limit=${REPOSITORY_PAGE_LIMIT}&offset=${offset}`);
+    if (env.error) throw new EshuEnvelopeError(env.error);
+    // Offset-stall guard: check BEFORE appending rows. The server echoes the
+    // offset it actually applied after server-side clamping
+    // (repositoryListMaxOffset = 10000). If the echoed offset does not match
+    // what we requested, the server clamped us — appending this page would
+    // duplicate rows already collected from the last un-clamped page. Only warn
+    // when truncated:true confirms more data exists that we cannot reach.
+    const echoedOffset = env.data?.offset;
+    if (typeof echoedOffset === "number" && echoedOffset !== offset) {
+      if (env.data?.truncated === true) {
+        warnIncomplete(
+          `server offset clamped at ${echoedOffset} (requested ${offset}); ` +
+          `catalog has more repositories beyond the server offset limit`
+        );
+      }
+      break;
+    }
+    const wire = env.data?.repositories ?? [];
+    for (const record of wire) {
+      const item = repoListItem(record);
+      if (item.id !== "") items.push(item);
+    }
+    // An empty page is always terminal — truncated:true with zero rows is
+    // contradictory and must not cause another fetch.
+    if (wire.length === 0) break;
+    // truncated is the authoritative paging signal. When the API omits it
+    // (older/fixture shape), a full page is the only hint that more may exist;
+    // a short page is terminal.
+    const truncated = env.data?.truncated;
+    const morePages = truncated === undefined ? wire.length === REPOSITORY_PAGE_LIMIT : truncated;
+    if (!morePages) break;
+    offset += REPOSITORY_PAGE_LIMIT;
+  }
+  if (page === REPOSITORY_MAX_PAGES) {
+    warnIncomplete(
+      `reached page limit (${REPOSITORY_MAX_PAGES} pages × ${REPOSITORY_PAGE_LIMIT} rows)`
+    );
+  }
+  return items;
 }
 
 export async function loadRepositoryNameMap(client: EshuApiClient): Promise<ReadonlyMap<string, string>> {

@@ -94,6 +94,50 @@ describe("RepositoriesPage", () => {
     expect(screen.getAllByText("Platform").length).toBeGreaterThan(0);
   });
 
+  it("counts every repository in the StatTile after paging past the API page limit", async () => {
+    // Regression for #3376: a 906-repo stack must not stop at the first 500-row
+    // page. The Repositories StatTile reflects all paged rows, matching the
+    // sidebar's index-status total instead of the single-page slice.
+    const total = 906;
+    const wireRepos = Array.from({ length: total }, (_, index) => ({
+      id: `repository:r_${index}`,
+      name: `repo-${index}`,
+      repo_slug: `org/repo-${index}`,
+      is_dependency: false,
+      group_key: "Platform",
+      group_source: "repo_slug_namespace",
+      group_truth: "derived",
+      group_kind: "source",
+      group_reason: "derived from repository slug namespace"
+    }));
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/repositories?")) {
+          const url = new URL(path, "http://console.test");
+          const limit = Number(url.searchParams.get("limit") ?? "0");
+          const offset = Number(url.searchParams.get("offset") ?? "0");
+          const page = wireRepos.slice(offset, offset + limit);
+          return {
+            data: { repositories: page, count: page.length, limit, offset, truncated: offset + limit < total },
+            error: null,
+            truth: null
+          };
+        }
+        return { data: {}, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+
+    render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
+
+    const repositoriesTile = await waitFor(() => {
+      const labels = screen.getAllByText("Repositories");
+      const tile = labels.map((label) => label.closest(".stat-tile")).find((node): node is HTMLElement => node !== null);
+      if (!tile) throw new Error("Repositories stat tile not rendered yet");
+      return tile;
+    });
+    await waitFor(() => expect(within(repositoriesTile).getByText(String(total))).toBeInTheDocument());
+  });
+
   it("links repository group chips directly to the source browser", async () => {
     const client = {
       get: async (path: string) => {
