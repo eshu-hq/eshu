@@ -420,6 +420,7 @@ const openAPIComponents = `  "components": {
           "entrypoint_candidates": {"type": "array", "description": "Hostname-shaped candidates kept as non-entrypoint supporting evidence with classification and reason.", "items": {"type": "object"}},
           "entrypoints": {"type": "array", "items": {"type": "object"}},
           "network_paths": {"type": "array", "items": {"type": "object"}},
+          "ingress_posture": {"type": "object", "description": "WAF coverage and TLS termination posture for the service's internet-facing edge resources, derived strictly from the materialized AWS_wafv2_web_acl_protects_resource and AWS_acm_certificate_used_by_resource edges. waf_coverage and tls_termination are three-valued (protected/unprotected/unproven and terminated/not_terminated/unproven). unproven covers both no edge resource materialized and collector-absent, so absence of collector is never misreported as absence of protection."},
           "observed_config_environments": {"type": "array", "items": {"type": "string"}},
           "api_surface": {"type": "object"},
           "deployment_overview": {"type": "object"},

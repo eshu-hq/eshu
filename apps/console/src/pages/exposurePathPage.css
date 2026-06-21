@@ -2,6 +2,196 @@
   grid-template-columns: minmax(220px, 1fr) minmax(160px, 240px) minmax(160px, 240px) 120px auto;
 }
 
+/* Entrypoint-first ingress view */
+.exposure-entry-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 360px) auto;
+  margin: 16px 0 4px;
+}
+
+.exposure-entry-field {
+  display: grid;
+  gap: 6px;
+}
+
+.exposure-entry-field span {
+  color: var(--subtle);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.exposure-posture-tiles {
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.exposure-posture-tile {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.exposure-posture-head {
+  color: var(--subtle);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.exposure-posture-body {
+  align-items: center;
+  display: flex;
+}
+
+.exposure-posture-sub {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.exposure-chain-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.exposure-chain-option {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+}
+
+.exposure-chain-option[aria-pressed="true"] {
+  border-color: color-mix(in oklab, var(--teal) 55%, transparent);
+  color: var(--teal);
+}
+
+.exposure-ingress-layout {
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+}
+
+.exposure-hops {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.exposure-hop-item {
+  align-items: center;
+  display: flex;
+}
+
+.exposure-hop-item:not(:last-child)::after {
+  color: var(--subtle);
+  content: "\2192";
+  margin: 0 8px;
+}
+
+.exposure-hop {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  margin: 4px 0;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.exposure-hop[aria-pressed="true"] {
+  border-color: color-mix(in oklab, var(--teal) 55%, transparent);
+}
+
+.exposure-hop-internet {
+  border-color: color-mix(in oklab, var(--ember) 45%, transparent);
+}
+
+.exposure-hop-network {
+  border-color: color-mix(in oklab, var(--med) 42%, transparent);
+}
+
+.exposure-hop-kind {
+  color: var(--subtle);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.exposure-hop-detail {
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.exposure-evidence-panel {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.exposure-evidence h4,
+.exposure-evidence-empty h4 {
+  margin: 0 0 10px;
+}
+
+.exposure-evidence dl {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.exposure-evidence dt {
+  color: var(--subtle);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.exposure-evidence dd {
+  margin: 2px 0 0;
+}
+
+.exposure-advanced-disclosure {
+  border-top: 1px solid var(--line);
+  margin-top: var(--gap);
+  padding-top: 12px;
+}
+
+.exposure-advanced-disclosure summary {
+  color: var(--subtle);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.exposure-advanced-lead {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+
 .exposure-result {
   display: grid;
   gap: var(--gap);
@@ -152,10 +342,26 @@
   .exposure-query {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .exposure-posture-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .exposure-ingress-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
   .exposure-query {
+    grid-template-columns: 1fr;
+  }
+
+  .exposure-entry-form {
+    grid-template-columns: 1fr;
+  }
+
+  .exposure-posture-tiles {
     grid-template-columns: 1fr;
   }
 }
