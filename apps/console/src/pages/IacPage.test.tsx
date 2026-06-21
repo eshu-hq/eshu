@@ -81,6 +81,44 @@ describe("IacPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows demo fixture rows and does not call the API when sourceLabel is demo fixtures", async () => {
+    const get = vi.fn();
+    const client = { get } as unknown as EshuApiClient;
+
+    render(<IacPage client={client} sourceLabel="demo fixtures" model={demoModel} />);
+
+    expect(await screen.findByText("module.\"checkout\".aws_iam_role.this")).toBeInTheDocument();
+    expect(screen.getByText("aws_s3_bucket.assets")).toBeInTheDocument();
+    expect(screen.getByText("bounded page from the graph")).toBeInTheDocument();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("clears stale live rows and shows fixture model when switching live->demo", async () => {
+    const get = vi.fn().mockResolvedValue(envelope([row("live-1", "aws_s3_bucket.private-live")]));
+    const client = { get } as unknown as EshuApiClient;
+    const { rerender } = render(
+      <IacPage client={client} sourceLabel="live" model={{ ...demoModel, iacResources: [] }} />
+    );
+
+    // Live rows appear after fetch resolves.
+    await waitFor(() => expect(screen.getByText("aws_s3_bucket.private-live")).toBeInTheDocument());
+
+    // Simulate switching to demo mode: sourceLabel flips to "demo fixtures".
+    rerender(
+      <IacPage client={client} sourceLabel="demo fixtures" model={demoModel} />
+    );
+
+    // Private live row must be gone; demo fixture rows must appear instead.
+    expect(screen.queryByText("aws_s3_bucket.private-live")).not.toBeInTheDocument();
+    expect(screen.getByText("module.\"checkout\".aws_iam_role.this")).toBeInTheDocument();
+    expect(screen.getByText("aws_s3_bucket.assets")).toBeInTheDocument();
+    // No further API calls should have been made after the switch.
+    const callCountAtSwitch = get.mock.calls.length;
+    expect(callCountAtSwitch).toBeGreaterThanOrEqual(1);
+    // No new calls after rerender.
+    expect(get.mock.calls.length).toBe(callCountAtSwitch);
+  });
+
   it("loads and pages IaC resources directly from the live API", async () => {
     const get = vi
       .fn()
