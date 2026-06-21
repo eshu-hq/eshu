@@ -271,7 +271,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: optional_repo_scope, verification: [{go_test: ./internal/query}], notes: bounded summary packet reusing the repo-anchored hub-function degree shape (LIMIT on hot entities), per-type repo-anchored relationship counts, and per-label/repo-anchored ecosystem counts; without repo_id only the bounded per-label ecosystem counts are returned with a needs-repo note}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: optional_repo_scope, verification: [{remote_validation: prod-graph-summary-packet}], notes: bounded summary packet reusing the repo-anchored hub-function degree shape (LIMIT on hot entities), per-type repo-anchored relationship counts, and per-label/repo-anchored ecosystem counts; without repo_id only the bounded per-label ecosystem counts are returned with a needs-repo note}
   - capability: platform_impact.relationships_catalog
-    tools: []
+    tools: [get_relationships_catalog, get_relationship_edges]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-relationships-catalog}], notes: requires an authoritative graph for typed-edge verb counts and concrete edge slices}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: whole_graph, verification: [{go_test: ./internal/query}], notes: fixed typed-edge verb catalog, each verb counted with one bounded source-label-anchored whole-graph count, plus a bounded source-label-anchored per-verb concrete edge slice with LIMIT}
@@ -383,7 +383,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: package_or_repository_id, verification: [{go_test: ./internal/query}], notes: bounded reducer package ownership, publication, and consumption correlation lookup anchored by Package.uid or Repository.id}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_or_repository_id, verification: [{remote_validation: prod-package-registry-correlations}], notes: bounded reducer package ownership, publication, and consumption correlation lookup anchored by Package.uid or Repository.id}
   - capability: package_registry.dependency_chains.list
-    tools: []
+    tools: [list_package_registry_dependency_chains]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-dependency-chains}], notes: requires reducer package correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_id, verification: [{go_test: ./internal/query}], notes: two-read repo-scoped join of canonical consumption correlations with provenance-only publication/ownership correlations; publisher legs are inferred provenance-only links, never asserted Repository edges}
