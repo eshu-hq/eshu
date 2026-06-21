@@ -45,6 +45,32 @@ Conclusion: the dedup sort is intrinsic to doing FILTER + cross-scope DEDUP in
 one read. The only way to remove it is to **stop deduplicating at read time** —
 precompute the canonical winner so the read filters instead of windows.
 
+### Validated proof-of-concept (measured, same seed)
+
+A throwaway winners table was built and the read rewritten, iterating until O(page)
+was actually achieved. Two refinements were forced by measurement and are now
+load-bearing in the design below:
+
+- A **minimal** winners table (canonical_key → winner_fact_id only) is NOT enough:
+  the filter (`impact_status`) lives on `fact_records.payload`, so the read still
+  joins all 125k winners → facts then top-N sorts (2.2–5.2s, *worse* than 1.9s).
+  The winners table must be a **denormalized read model** carrying the filterable
+  columns so filter + keyset run on it alone.
+- Re-joining `ingestion_scopes`/`scope_generations` at read time to re-verify the
+  winner is still active **defeats O(page)** (planner materializes 125k–1.5M rows,
+  4–5s) — the same active-generation-join problem that killed the index attempts.
+  The read must **trust the winners table's active-ness** (the materialization
+  stores only currently-active winners) and report staleness via freshness, not
+  re-verify per row.
+
+With both refinements (denormalized winners + composite `(impact_status,
+finding_id)` / `(impact_status, priority_score DESC, finding_id)` indexes + read
+that trusts the table and joins `fact_records` by PK only for the ≤51 page
+payloads): broad filter first page **0.18–0.65 ms**, no-filter first page
+**1.0 ms** — vs **1873 ms** legacy. Plan: `Index Scan` on winners → 51 rows →
+51 `fact_records_pkey` lookups. **~2000× and truly O(page).** Backfill of 500k
+winners ran in 4.6 s.
+
 ## 2. Goal and invariants
 
 Goal: a maintained, cross-scope materialization that records, per
@@ -59,11 +85,18 @@ Invariants (must hold after every materialization cycle and every read):
   pick — `ORDER BY priority_score DESC, has_payload_finding_id DESC,
   fact_id ASC` — byte-identical tiebreak.
 - **I3 (no ghosts):** when the current winner stops being active (superseded
-  generation or tombstone), the winner is re-picked from remaining active facts,
-  or removed if none remain. No tombstoned/superseded fact is ever served.
+  generation or tombstone), the materialization re-picks the winner from
+  remaining active facts, or removes the row if none remain. The read does **not**
+  re-verify active-ness (that join defeats O(page) — measured); winner currency is
+  **materialization-enforced**, so the dirty-key signal MUST include
+  generation-activation/supersession flips, not just fact writes (this is now
+  load-bearing for correctness, not just freshness — see §10). A bounded lag
+  window between a winner going inactive and the recompute is acceptable only
+  because I4 reports it.
 - **I4 (truthful freshness):** a read served from a stale/building winner set
   reports `truth.freshness.state != fresh` with a cause, never silently returns
-  stale truth as fresh.
+  stale truth as fresh. Because the read trusts the table (I3), freshness is the
+  only signal that the winner set may lag — it is mandatory, not optional.
 - **I5 (output parity):** the materialized read returns byte-identical rows
   (finding_id, source_confidence, payload) and ordering to the current read for
   every filter/sort/cursor combination, for the same DB snapshot.
@@ -87,18 +120,33 @@ New pieces:
 
 - **New shared-projection domain** `supply_chain_impact_canonical` added to the
   runner's domain set.
-- **New materialized table** `supply_chain_impact_canonical_winners`:
-  `canonical_key TEXT PRIMARY KEY, winner_fact_id TEXT NOT NULL,
-  finding_id TEXT NOT NULL, priority_score INT NOT NULL,
-  winner_scope_id TEXT, winner_generation_id TEXT,
-  source_count INT NOT NULL, materialized_at TIMESTAMPTZ NOT NULL`.
-  (Winner identity + the tiebreak inputs + provenance count. Payload is NOT
-  copied — the read joins `winner_fact_id` → `fact_records` by PK, so payload
-  truth has one home and cannot drift.)
+- **New materialized table** `supply_chain_impact_canonical_winners` — a
+  **denormalized read model** holding exactly one row per *currently-active*
+  `canonical_key` (inactive winners are removed by the materialization, so the
+  read never re-verifies active-ness — see the measured PoC). Columns:
+  - identity/winner: `canonical_key TEXT PRIMARY KEY, winner_fact_id TEXT NOT
+    NULL, finding_id TEXT NOT NULL, priority_score INT NOT NULL,
+    source_count INT NOT NULL, materialized_at TIMESTAMPTZ NOT NULL`;
+  - **filterable columns** copied from the winner payload so filter + keyset run
+    on this table alone (proven necessary): `impact_status, ecosystem,
+    severity_bucket, repository_id, cve_id, advisory_id, package_id,
+    subject_digest, image_ref, priority_bucket, detection_profile,
+    suppression_state`, plus the array filters `service_ids, workload_ids,
+    environments` (jsonb/`text[]` for the `?`/`?|` membership tests).
+  - The full `payload` is **not** copied — the read joins `winner_fact_id` →
+    `fact_records` by PK for the ≤page payloads only, so payload truth has one
+    home and cannot drift.
+  - Indexes for the common (filter, sort) shapes: `(priority_score DESC,
+    finding_id)` and `(finding_id)` for the unfiltered keysets; composite
+    `(impact_status, …)`, `(severity_bucket, …)`, `(repository_id, …)` for the
+    hot single-filter browses; GIN on the array columns. Rare multi-filter combos
+    still scan the (deduped, smaller) winners set but never touch `fact_records`
+    until the page.
 - **Read rewrite:** `listSupplyChainImpactFindingsQuery` selects from
-  `supply_chain_impact_canonical_winners` joined to `fact_records` by
-  `winner_fact_id` (PK), applies the existing filters + keyset cursor + LIMIT,
-  no `ROW_NUMBER`.
+  `supply_chain_impact_canonical_winners` (filters + keyset cursor + LIMIT on
+  the winners columns, no `ROW_NUMBER`, **no active-generation re-join**), then
+  joins `fact_records` by `winner_fact_id` (PK) only for the page rows to return
+  `source_confidence` + `payload`. Measured O(page), sub-ms (see PoC).
 
 ### Conflict domain and recompute model
 
@@ -167,24 +215,20 @@ SELECT w.finding_id, refetch.source_confidence, refetch.payload
 FROM supply_chain_impact_canonical_winners AS w
 JOIN fact_records AS refetch
   ON refetch.fact_id = w.winner_fact_id
- AND refetch.is_tombstone = FALSE
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = refetch.scope_id
- AND scope.active_generation_id = refetch.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = refetch.scope_id
- AND generation.generation_id = refetch.generation_id
- AND generation.status = 'active'
-WHERE <existing payload filters on refetch.payload>
-  AND <existing keyset cursor on (priority_score, finding_id)>
+WHERE <existing filters, evaluated on w.* denormalized columns>
+  AND <existing keyset cursor on (w.priority_score, w.finding_id)>
 ORDER BY <existing sort> LIMIT $N
 ```
 
-- Filters still run on `refetch.payload` (same predicates, same results).
-- Keyset cursor uses `w.priority_score` / `w.finding_id` (indexed on the winners
-  table) → bounded `O(page)`; no window, no sort spill.
-- The active-generation re-guard on the join enforces I3 even if the winner row
-  briefly lags a tombstone.
+- Filters run on the winners table's **denormalized columns** (not
+  `refetch.payload`), so an `(filter, sort)` index serves filter + order + LIMIT
+  on `w` alone — bounded `O(page)`, no window, no sort spill (measured 0.18–1.0
+  ms).
+- `fact_records` is touched only for the ≤page rows (PK lookups) to return
+  `source_confidence` + `payload`.
+- **No active-generation re-join** — winner currency is materialization-enforced
+  (I3); adding it back reintroduces the 4–5s materialize-everything plan proven
+  in the PoC.
 
 ## 6. Schema, indexes, backfill
 
@@ -231,8 +275,9 @@ table is proven correct, so accuracy is never at risk during rollout.
 
 ## 9. Expected outcome
 
-- Read: `O(filtered set)` + 98MB-growing spill → `O(page)` keyset, low-ms,
-  bounded regardless of corpus/filter breadth.
+- Read: `O(filtered set)` + 98MB-growing spill → `O(page)` keyset. **Measured on
+  the PoC: 1873 ms → 0.18–1.0 ms (~2000×)**, bounded regardless of corpus/filter
+  breadth.
 - Dedup becomes first-class, testable materialized truth with provenance
   (`source_count`), reusable by any surface that needs "the canonical finding."
 - Read-side `work_mem`/temp-I/O pressure under concurrent dashboard load is
@@ -240,9 +285,16 @@ table is proven correct, so accuracy is never at risk during rollout.
 
 ## 10. Risks / open questions (stated plainly)
 
-- Dirty-key signal precision: must capture generation-activation flips, not just
-  fact writes, or winners go stale silently (mitigated by the read's
-  active-generation re-guard + freshness cause, but backlog must drain).
+- **Dirty-key signal precision is load-bearing for correctness** (not just
+  freshness): since the read no longer re-verifies active-ness (that join defeats
+  O(page) — measured), the materialization is the *only* thing keeping a
+  superseded/tombstoned fact from being served. The dirty set MUST capture
+  generation-activation/supersession flips, tombstones, and new-source writes —
+  not just fact inserts. If the signal misses a flip, a stale winner is served
+  until something else dirties the key. Mitigations: drive the dirty set from the
+  same generation-activation event that flips `scope_generations.status`; a
+  bounded periodic full-resweep as a backstop; and I4 freshness so operators see
+  lag. This risk replaces the read-time safety net and must be proven.
 - Backfill cost at 4.5M+ facts: bounded/partitioned, but must be measured.
 - Added maintained state + write amplification on the materialization path
   (acceptable: moved off the per-read hot path; must show net win with load
