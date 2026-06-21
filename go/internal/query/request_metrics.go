@@ -1,6 +1,8 @@
 package query
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"strconv"
 	"sync"
@@ -138,4 +140,27 @@ func (w *statusCapturingResponseWriter) Write(b []byte) (int, error) {
 
 func (w *statusCapturingResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
+}
+
+// Flush forwards to the underlying writer when it implements http.Flusher.
+// Overriding Write/WriteHeader hides the embedded interface's promoted methods,
+// and http.ResponseWriter does not declare Flush, so without this method the
+// wrapper is not an http.Flusher. Streaming handlers (handleAskSSE) type-assert
+// the writer to http.Flusher; issue #3381 traced the Ask SSE 500 to this gap.
+// The assertion is a no-op when the underlying writer cannot flush.
+func (w *statusCapturingResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// Hijack forwards to the underlying writer when it implements http.Hijacker so
+// connection-upgrade handlers keep working behind the metrics middleware. It
+// returns http.ErrNotSupported when the underlying writer is not hijackable,
+// matching the standard library contract callers expect.
+func (w *statusCapturingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
 }

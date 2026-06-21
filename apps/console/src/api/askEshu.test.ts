@@ -214,6 +214,91 @@ describe("askEshu (streaming)", () => {
     });
     expect((error as AskError | null)?.state).toBe("bad_request");
   });
+
+  it("falls back to the synchronous JSON path when the SSE variant returns 500", async () => {
+    // Issue #3381: a middleware that strips http.Flusher makes the SSE variant
+    // 500 with "streaming not supported by this server configuration". The
+    // synchronous JSON variant of the same route does not need flushing, so the
+    // client must retry it instead of surfacing the 500.
+    const traces: AskTraceStep[] = [];
+    let answer: AskAnswer | null = null;
+    const onError = vi.fn();
+    const done = vi.fn();
+    const fetcher = vi
+      .fn<EshuFetcher>()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { error: "internal_error", detail: "streaming not supported by this server configuration" },
+          500
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          answer_prose: "synchronous answer",
+          truth_class: "derived",
+          query_trace: [{ tool: "resolve_entity", supported: true, truth_class: "deterministic" }],
+          partial: false,
+          limitations: []
+        })
+      );
+
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "How does auth work?",
+        format: "auto",
+        stream: true,
+        onTrace: (step) => traces.push(step),
+        onAnswer: (value) => {
+          answer = value;
+        },
+        onError,
+        onDone: () => {
+          done();
+          resolve();
+        }
+      });
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect((answer as AskAnswer | null)?.answer_prose).toBe("synchronous answer");
+    expect(traces).toHaveLength(1);
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect((fetcher.mock.calls[0][1] as RequestInit).headers as Record<string, string>).toMatchObject({
+      Accept: "text/event-stream"
+    });
+    expect((fetcher.mock.calls[1][1] as RequestInit).headers as Record<string, string>).toMatchObject({
+      Accept: "application/json"
+    });
+  });
+
+  it("surfaces an error when both the SSE and the sync fallback fail", async () => {
+    // A genuine server error recurs on the sync path; the client must not loop
+    // and must surface a single bounded error with exactly one onDone.
+    const onError = vi.fn();
+    const done = vi.fn();
+    const fetcher = vi.fn<EshuFetcher>(async () => new Response("boom", { status: 500 }));
+
+    await new Promise<void>((resolve) => {
+      askEshu({
+        connection: { ...connection, fetcher },
+        question: "q",
+        format: "auto",
+        stream: true,
+        onError,
+        onDone: () => {
+          done();
+          resolve();
+        }
+      });
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect((onError.mock.calls[0][0] as AskError).state).toBe("error");
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("askEshu (sync fallback)", () => {

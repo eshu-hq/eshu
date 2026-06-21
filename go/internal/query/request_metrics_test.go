@@ -1,6 +1,8 @@
 package query
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,6 +102,114 @@ func TestStatusCapturingResponseWriterDefaultsTo200(t *testing.T) {
 	}
 	if w.Unwrap() != rec {
 		t.Fatal("Unwrap() should return the underlying ResponseWriter")
+	}
+}
+
+// flushHijackRecorder is a minimal http.ResponseWriter that also implements
+// http.Flusher and http.Hijacker so a test can assert the metrics wrapper
+// forwards those optional streaming interfaces to the underlying writer.
+type flushHijackRecorder struct {
+	header   http.Header
+	status   int
+	flushed  bool
+	hijacked bool
+	buf      strings.Builder
+}
+
+func (w *flushHijackRecorder) Header() http.Header         { return w.header }
+func (w *flushHijackRecorder) WriteHeader(code int)        { w.status = code }
+func (w *flushHijackRecorder) Write(b []byte) (int, error) { return w.buf.Write(b) }
+func (w *flushHijackRecorder) Flush()                      { w.flushed = true }
+func (w *flushHijackRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	w.hijacked = true
+	return nil, nil, nil
+}
+
+// TestStatusCapturingResponseWriterForwardsFlush proves the metrics wrapper
+// preserves http.Flusher so SSE handlers (handleAskSSE) can stream. Issue #3381:
+// the wrapper previously embedded http.ResponseWriter without a Flush method, so
+// w.(http.Flusher) failed and the Ask SSE endpoint returned 500.
+func TestStatusCapturingResponseWriterForwardsFlush(t *testing.T) {
+	t.Parallel()
+
+	underlying := &flushHijackRecorder{header: make(http.Header)}
+	w := &statusCapturingResponseWriter{ResponseWriter: underlying, status: http.StatusOK}
+
+	flusher, ok := any(w).(http.Flusher)
+	if !ok {
+		t.Fatal("statusCapturingResponseWriter must implement http.Flusher")
+	}
+	flusher.Flush()
+	if !underlying.flushed {
+		t.Fatal("Flush() must forward to the underlying ResponseWriter")
+	}
+}
+
+// TestStatusCapturingResponseWriterForwardsHijack proves the wrapper preserves
+// http.Hijacker when the underlying writer supports it, so connection-upgrade
+// handlers keep working behind the metrics middleware.
+func TestStatusCapturingResponseWriterForwardsHijack(t *testing.T) {
+	t.Parallel()
+
+	underlying := &flushHijackRecorder{header: make(http.Header)}
+	w := &statusCapturingResponseWriter{ResponseWriter: underlying, status: http.StatusOK}
+
+	hijacker, ok := any(w).(http.Hijacker)
+	if !ok {
+		t.Fatal("statusCapturingResponseWriter must implement http.Hijacker")
+	}
+	if _, _, err := hijacker.Hijack(); err != nil {
+		t.Fatalf("Hijack() error = %v", err)
+	}
+	if !underlying.hijacked {
+		t.Fatal("Hijack() must forward to the underlying ResponseWriter")
+	}
+}
+
+// TestStatusCapturingResponseWriterFlushWithoutUnderlyingFlusher proves Flush is
+// a safe no-op when the underlying writer is not an http.Flusher, so wrapping a
+// non-streaming writer never panics.
+func TestStatusCapturingResponseWriterFlushWithoutUnderlyingFlusher(t *testing.T) {
+	t.Parallel()
+
+	underlying := &noFlushWriter{header: make(http.Header)}
+	w := &statusCapturingResponseWriter{ResponseWriter: underlying, status: http.StatusOK}
+
+	flusher, ok := any(w).(http.Flusher)
+	if !ok {
+		t.Fatal("statusCapturingResponseWriter must implement http.Flusher")
+	}
+	flusher.Flush() // must not panic when underlying lacks Flush
+}
+
+// TestAskSSE_StreamsThroughMetricsMiddleware is the end-to-end regression for
+// issue #3381: POST /api/v0/ask with Accept: text/event-stream served behind
+// RequestMetricsMiddleware must stream a 200 event stream, not a 500 "streaming
+// not supported by this server configuration" error.
+func TestAskSSE_StreamsThroughMetricsMiddleware(t *testing.T) {
+	t.Parallel()
+
+	h := &AskHandler{Asker: &fakeAsker{
+		answer: AskAnswer{Prose: "streamed answer", Narrated: true},
+	}}
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v0/ask", h.handleAsk)
+	handler := RequestMetricsMiddleware(mux)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", strings.NewReader(`{"question":"stream check"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/event-stream") {
+		t.Fatalf("Content-Type = %q, want text/event-stream; body=%s", ct, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "event: answer") {
+		t.Fatalf("stream missing answer event; body=%s", rec.Body.String())
 	}
 }
 
