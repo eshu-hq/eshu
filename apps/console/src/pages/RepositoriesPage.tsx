@@ -82,7 +82,9 @@ export function RepositoriesPage({ client, model }: {
       <div className="grid g-4">
         <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="source-backed grouping" />
         <StatTile label="Repositories" value={rows.length} color="var(--blue)" sub={sourceLabel} />
-        <StatTile label="Dependency repos" value={dependencyCount} color="var(--ember)" sub="marked by the API" />
+        <Link to="/dependencies" className="repo-dependency-tile" aria-label="View dependency chains in the Dependencies view">
+          <StatTile label="Dependency repos" value={dependencyCount} color="var(--ember)" sub="depended on by other repos →" />
+        </Link>
         <StatTile label="Most populated" value={mostPopulated} color="var(--violet)" sub="largest live group" />
       </div>
 

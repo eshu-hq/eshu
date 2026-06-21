@@ -224,3 +224,31 @@ func RepoProjection(alias string) string {
 		alias, alias, alias, alias, alias, alias, alias, alias,
 	)
 }
+
+// repositoryDependencyMarkerProjection returns a Cypher projection that marks a
+// repository as a dependency repo when at least one other repository that the
+// caller is authorized to see depends on it, i.e. it is the target of an
+// admitted (:Repository)-[:DEPENDS_ON]->(:Repository) edge where the depending
+// repository is also within the caller's access grant.
+//
+// For scoped callers the inner Repository node is filtered by the same tenant
+// predicate as the outer MATCH, using the $allowed_repository_ids and
+// $allowed_scope_ids params already bound by access.graphParams. This prevents
+// a scoped caller from learning dependency-marker truth about repositories
+// outside their grant via an in-scope depending node.
+//
+// For shared/admin/local callers (allScopes) no predicate is added and all
+// depending-repository nodes are eligible, which is the unscoped-safe path.
+//
+// This replaces the earlier coalesce(r.is_dependency, false) read, which probed
+// a Repository node property that no writer populates (is_dependency is a
+// file/entity parser flag, never set on Repository nodes), so the marker was
+// always false.
+func repositoryDependencyMarkerProjection(alias string, access repositoryAccessFilter) string {
+	const depAlias = "dep"
+	predicate := access.graphPredicate(depAlias)
+	return fmt.Sprintf(
+		"EXISTS { MATCH (%s)<-[:DEPENDS_ON]-(%s:Repository)%s } as is_dependency",
+		alias, depAlias, predicate,
+	)
+}

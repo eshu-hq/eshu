@@ -116,11 +116,11 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
 		%s
-		RETURN %s, coalesce(r.is_dependency, false) as is_dependency
+		RETURN %s, %s
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
-	`, access.graphWhereClause("r"), RepoProjection("r"))
+	`, access.graphWhereClause("r"), RepoProjection("r"), repositoryDependencyMarkerProjection("r", access))
 
 	rows, err := h.Neo4j.Run(r.Context(), cypher, access.graphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
