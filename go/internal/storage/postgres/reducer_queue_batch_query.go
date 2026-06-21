@@ -8,7 +8,55 @@ candidate AS (
         work_item_id,
         -- Derived search-document catch-up can be expensive; graph truth and
         -- materialization reducers must not wait behind it when both are ready.
-        CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority
+        CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority,
+        -- Per-domain fairness rank (#3385). A lane that claims several domains
+        -- must not let one high-volume domain with an older, continuously
+        -- regenerated backlog monopolize every batch and indefinitely starve a
+        -- newer, lower-volume domain (the AWS cloud producers sat pending behind
+        -- supply_chain_impact / package_source_correlation). The rank is the
+        -- count of same-domain conflict-group representatives that sort strictly
+        -- before this row by (updated_at, work_item_id); ordering by that rank
+        -- before the global updated_at round-robins the batch across ready
+        -- domains so each ready domain contributes its oldest representative
+        -- before any domain contributes a second. A correlated count is used
+        -- instead of row_number() because Postgres forbids window functions in a
+        -- FOR UPDATE SKIP LOCKED select. Conflict fencing and the same-group
+        -- representative below still pick exactly one safe row per conflict key,
+        -- so this only changes which ready rows are taken, never how many run
+        -- concurrently per conflict key.
+        (
+            SELECT count(*)
+            FROM fact_work_items AS fair_peer
+            WHERE fair_peer.stage = 'reducer'
+              AND fair_peer.domain = fact_work_items.domain
+              AND fair_peer.status IN ('pending', 'retrying', 'claimed', 'running')
+              AND (fair_peer.visible_at IS NULL OR fair_peer.visible_at <= $1)
+              AND (fair_peer.claim_until IS NULL OR fair_peer.claim_until <= $1)
+              AND ($2::text[] IS NULL OR fair_peer.domain = ANY($2::text[]))
+              AND fair_peer.work_item_id = (
+                  SELECT fair_same.work_item_id
+                  FROM fact_work_items AS fair_same
+                  WHERE fair_same.stage = 'reducer'
+                    AND fair_same.conflict_domain = fair_peer.conflict_domain
+                    AND COALESCE(fair_same.conflict_key, fair_same.scope_id) = COALESCE(fair_peer.conflict_key, fair_peer.scope_id)
+                    AND fair_same.status IN ('pending', 'retrying', 'claimed', 'running')
+                    AND (fair_same.visible_at IS NULL OR fair_same.visible_at <= $1)
+                    AND (fair_same.claim_until IS NULL OR fair_same.claim_until <= $1)
+                    AND ($2::text[] IS NULL OR fair_same.domain = ANY($2::text[]))
+                  ORDER BY
+                    CASE WHEN fair_same.domain = 'eshu_search_document' THEN 1 ELSE 0 END ASC,
+                    fair_same.updated_at ASC,
+                    fair_same.work_item_id ASC
+                  LIMIT 1
+              )
+              AND (
+                  fair_peer.updated_at < fact_work_items.updated_at
+                  OR (
+                      fair_peer.updated_at = fact_work_items.updated_at
+                      AND fair_peer.work_item_id < fact_work_items.work_item_id
+                  )
+              )
+        ) AS reducer_domain_fair_rank
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
@@ -130,7 +178,7 @@ candidate AS (
             same.work_item_id ASC
           LIMIT 1
       )
-    ORDER BY reducer_domain_priority ASC, updated_at ASC, work_item_id ASC
+    ORDER BY reducer_domain_priority ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC
     LIMIT $8
     FOR UPDATE SKIP LOCKED
 ),
