@@ -75,10 +75,10 @@ export const demoModel: ConsoleModel = {
     queueOutstanding: 12, inFlight: 2, deadLetters: 0, succeeded: 41280, profile: "demo_fixture"
   },
   services: [
-    { id: "checkout-service", name: "checkout-service", kind: "service", repo: "sample/checkout-service", environments: ["prod-us-east-1"], truth: "exact", freshness: "fresh" },
-    { id: "payments-api", name: "payments-api", kind: "service", repo: "sample/payments-api", environments: ["prod-us-east-1"], truth: "exact", freshness: "fresh" },
-    { id: "ledger-service", name: "ledger-service", kind: "service", repo: "sample/ledger-service", environments: ["prod-us-east-1"], truth: "exact", freshness: "fresh" },
-    { id: "lib-common", name: "lib-common", kind: "library", repo: "sample/lib-common", environments: [], truth: "exact", freshness: "fresh" }
+    { id: "checkout-service", name: "checkout-service", kind: "service", repo: "sample/checkout-service", environments: ["prod-us-east-1"], truth: "exact", freshness: "fresh", tier: "tier-1", category: "service", domain: "payments", language: "TypeScript" },
+    { id: "payments-api", name: "payments-api", kind: "service", repo: "sample/payments-api", environments: ["prod-us-east-1"], truth: "exact", freshness: "fresh", tier: "tier-1", category: "service", domain: "payments", language: "TypeScript" },
+    { id: "ledger-service", name: "ledger-service", kind: "service", repo: "sample/ledger-service", environments: ["prod-us-east-1"], truth: "exact", freshness: "fresh", tier: "tier-2", category: "service", domain: "finance", language: "Go" },
+    { id: "lib-common", name: "lib-common", kind: "library", repo: "sample/lib-common", environments: [], truth: "exact", freshness: "fresh", tier: "library", category: "library", domain: "core-engineering", language: "TypeScript" }
   ],
   languages: [
     { language: "TypeScript", count: 3 }, { language: "Go", count: 2 }, { language: "Python", count: 1 }

@@ -45,6 +45,14 @@ type catalogWorkload struct {
 	Environments          []string `json:"environments,omitempty"`
 	InstanceCount         int      `json:"instance_count"`
 	MaterializationStatus string   `json:"materialization_status,omitempty"`
+	// Tier, Category, Domain, and Language are declared in service-catalog
+	// manifests (Backstage, Cortex, OpsLevel) and joined from reducer-owned
+	// correlation facts when ServiceCatalogCorrelations is wired. Empty when
+	// no correlated manifest is found for this workload or repository.
+	Tier     string `json:"tier,omitempty"`
+	Category string `json:"category,omitempty"`
+	Domain   string `json:"domain,omitempty"`
+	Language string `json:"language,omitempty"`
 }
 
 type catalogWorkloadIdentityStore interface {
@@ -100,6 +108,11 @@ func (h *RepositoryHandler) listCatalog(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	response.Truncated = response.Truncated || workloadsTruncated
+	// Enrich workloads with tier, category, domain, and language from
+	// service-catalog correlation facts. The lookup is bounded to the repo IDs
+	// assembled above; a nil store or empty id set is a no-op so the response
+	// degrades gracefully when Postgres is unavailable.
+	response.Workloads = h.enrichCatalogWorkloadsFromCorrelations(r.Context(), response.Workloads)
 	response.Services = serviceCatalogRows(response.Workloads)
 	response.finish()
 
@@ -197,6 +210,76 @@ func (h *RepositoryHandler) listCatalogWorkloadIdentitiesFromContent(
 		})
 	}
 	return workloads, truncated, nil
+}
+
+// enrichCatalogWorkloadsFromCorrelations joins service-catalog correlation facts
+// onto the assembled workload set. It collects the non-empty repo IDs from
+// workloads, issues a single bounded Postgres query filtered to those IDs via
+// AllowedRepositoryIDs, then stamps Tier/Category/Domain/Language on each
+// workload whose repo has a correlated manifest. The lookup is capped at
+// serviceCatalogCorrelationMaxLimit to stay within the few-seconds SLA; extra
+// workloads beyond that cap keep their zero values. Failures are swallowed so
+// the catalog endpoint never errors on a missing or unavailable store.
+func (h *RepositoryHandler) enrichCatalogWorkloadsFromCorrelations(
+	ctx context.Context,
+	workloads []catalogWorkload,
+) []catalogWorkload {
+	if h.ServiceCatalogCorrelations == nil || len(workloads) == 0 {
+		return workloads
+	}
+
+	// Collect unique non-empty repo IDs for the bounded Postgres predicate.
+	repoIDs := make([]string, 0, len(workloads))
+	seen := make(map[string]struct{}, len(workloads))
+	for _, w := range workloads {
+		if w.RepoID != "" {
+			if _, ok := seen[w.RepoID]; !ok {
+				seen[w.RepoID] = struct{}{}
+				repoIDs = append(repoIDs, w.RepoID)
+			}
+		}
+	}
+	if len(repoIDs) == 0 {
+		return workloads
+	}
+
+	rows, err := h.ServiceCatalogCorrelations.ListServiceCatalogCorrelations(ctx, ServiceCatalogCorrelationFilter{
+		AllowedRepositoryIDs: repoIDs,
+		Limit:                serviceCatalogCorrelationMaxLimit,
+	})
+	if err != nil {
+		// Non-fatal: catalog still returns graph data; enrichment is best-effort.
+		return workloads
+	}
+
+	// Index correlations by repository_id for O(1) join. When multiple
+	// correlations exist for the same repo, first-wins preserves the
+	// highest-confidence declaration (facts are ordered by fact_id ASC which
+	// corresponds to insertion time).
+	byRepo := make(map[string]ServiceCatalogCorrelationRow, len(rows))
+	for _, row := range rows {
+		if row.RepositoryID != "" {
+			if _, exists := byRepo[row.RepositoryID]; !exists {
+				byRepo[row.RepositoryID] = row
+			}
+		}
+	}
+
+	// Stamp matching enrichment fields onto each workload.
+	for i, w := range workloads {
+		corr, ok := byRepo[w.RepoID]
+		if !ok {
+			continue
+		}
+		workloads[i].Tier = corr.Tier
+		// EntityType carries the service-catalog category (e.g. "service",
+		// "library", "website") as declared in the manifest.
+		workloads[i].Category = corr.EntityType
+		// OwnerRef carries the team/domain owner slug from the manifest; it
+		// doubles as a domain label for the catalog view.
+		workloads[i].Domain = corr.OwnerRef
+	}
+	return workloads
 }
 
 func (r *catalogResponse) finish() {

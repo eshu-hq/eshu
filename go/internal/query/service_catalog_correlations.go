@@ -239,7 +239,8 @@ func (f ServiceCatalogCorrelationFilter) hasScope() bool {
 		f.RepositoryID != "" ||
 		f.ServiceID != "" ||
 		f.WorkloadID != "" ||
-		f.OwnerRef != ""
+		f.OwnerRef != "" ||
+		len(f.AllowedRepositoryIDs) > 0
 }
 
 func decodeServiceCatalogCorrelationRow(

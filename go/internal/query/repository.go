@@ -14,11 +14,16 @@ var repositoryBaseCypher = fmt.Sprintf(`
 
 // RepositoryHandler exposes HTTP routes for repository queries.
 type RepositoryHandler struct {
-	Neo4j               GraphQuery
-	Content             ContentStore
-	CICDRunCorrelations CICDRunCorrelationStore
-	Profile             QueryProfile
-	Logger              *slog.Logger
+	Neo4j                    GraphQuery
+	Content                  ContentStore
+	CICDRunCorrelations      CICDRunCorrelationStore
+	// ServiceCatalogCorrelations is the optional Postgres-backed store used to
+	// enrich catalog workload rows with tier, category, domain, and language
+	// declared in service-catalog manifests (Backstage, Cortex, OpsLevel).
+	// When nil the catalog endpoint still works but those fields are omitted.
+	ServiceCatalogCorrelations ServiceCatalogCorrelationStore
+	Profile                  QueryProfile
+	Logger                   *slog.Logger
 }
 
 // Mount registers all repository routes on the given mux.
