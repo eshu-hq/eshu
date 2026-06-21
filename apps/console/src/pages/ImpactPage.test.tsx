@@ -94,6 +94,36 @@ describe("ImpactPage", () => {
     expect(screen.getAllByText("consumer-api").length).toBeGreaterThan(0);
   });
 
+  it("auto-loads an impact review for a default catalog service on open", async () => {
+    const calls: string[] = [];
+    const client = {
+      post: async (path: string) => {
+        calls.push(path);
+        if (path === "/api/v0/impact/change-surface/investigate") {
+          return { data: changeSurfacePayload(), error: null, truth: truthEnvelope("platform_impact.change_surface") };
+        }
+        if (path === "/api/v0/impact/trace-deployment-chain") {
+          return { data: deploymentTracePayload(), error: null, truth: truthEnvelope("platform_impact.deployment_chain") };
+        }
+        throw new Error(`unexpected path ${path}`);
+      }
+    } as unknown as EshuApiClient;
+
+    const model = modelFromSnapshot({
+      ...emptySnapshot("live"),
+      services: [{ id: "svc:api-node-platform", name: "api-node-platform", kind: "service", repo: "api-node-platform", environments: [], truth: "exact", freshness: "fresh" }]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/impact"]}>
+        <ImpactPage client={client} model={model} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(calls).toContain("/api/v0/impact/change-surface/investigate"));
+    expect(screen.getByLabelText<HTMLInputElement>("Entity target").value).toBe("api-node-platform");
+  });
+
   it("loads a deployable-unit investigation packet from explicit scope inputs", async () => {
     const calls: string[] = [];
     const client = {

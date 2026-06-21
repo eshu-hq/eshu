@@ -2,7 +2,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { EshuApiClient } from "../api/client";
+import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
 import { ChangedSincePage } from "./ChangedSincePage";
+
+function modelWithRepo(repo: string) {
+  return modelFromSnapshot({
+    ...emptySnapshot("live"),
+    services: [{ id: `svc:${repo}`, name: repo, kind: "service", repo, environments: [], truth: "exact", freshness: "fresh" }]
+  });
+}
 
 function envelope(data: unknown, capability = "freshness.changed_since", freshness = "fresh") {
   return {
@@ -163,6 +171,22 @@ describe("ChangedSincePage", () => {
       "/impact?kind=service&target=svc-checkout"
     );
     expect(calls.some((path) => path.startsWith("/api/v0/freshness/services/changed-since"))).toBe(true);
+  });
+
+  it("auto-loads a default repository scope with an observed-at window on open", async () => {
+    const calls: string[] = [];
+    render(
+      <MemoryRouter initialEntries={["/changed-since"]}>
+        <ChangedSincePage client={fakeClient(calls)} model={modelWithRepo("acme/app")} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getAllByText("src/main.go").length).toBeGreaterThan(0));
+    const changedSinceCall = calls.find((path) => path.startsWith("/api/v0/freshness/changed-since"));
+    expect(changedSinceCall).toBeDefined();
+    expect(changedSinceCall).toContain("repository=acme%2Fapp");
+    expect(changedSinceCall).toContain("since_observed_at=");
+    expect(screen.getByLabelText<HTMLInputElement>("Repository").value).toBe("acme/app");
   });
 
   it("shows retention-expired unavailable state without pretending no changes exist", async () => {

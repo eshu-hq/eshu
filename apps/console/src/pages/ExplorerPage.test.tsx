@@ -301,3 +301,35 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
     await waitFor(() => expect(screen.getByText(/HTTP 500/)).toBeInTheDocument());
   });
 });
+
+describe("ExplorerPage default auto-load (issue #3405)", () => {
+  it("auto-loads the first catalog service when opened with no query", async () => {
+    const calls: string[] = [];
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "workload:checkout-service", name: "checkout-service", labels: ["Workload"], type: "Workload" }]
+      }),
+      post: async (path: string) => {
+        calls.push(path);
+        return {
+          data: {
+            from: "checkout-service",
+            resolution: { candidates: [{ id: "workload:checkout-service", name: "checkout-service", labels: ["Workload"] }] },
+            evidence: { relationships: [{ entity_id: "repository:r1", entity_name: "orders", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" }] }
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/explorer"]}>
+        <ExplorerPage model={liveModel} client={client} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(calls).toContain("/api/v0/impact/entity-map"));
+    expect(screen.getByPlaceholderText("Entity / symbol / service name…")).toHaveValue("checkout-service");
+  });
+});
