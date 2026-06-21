@@ -168,14 +168,16 @@ func buildIngressPosture(
 		p := protection[edge.id]
 		wafState := edgeWAFState(p)
 		tlsState := edgeTLSState(p)
-		if wafState == ingressPostureProtected {
+		switch wafState {
+		case ingressPostureProtected:
 			wafProtected++
-		} else if wafState == ingressPostureUnproven {
+		case ingressPostureUnproven:
 			wafUnproven++
 		}
-		if tlsState == ingressPostureTerminated {
+		switch tlsState {
+		case ingressPostureTerminated:
 			tlsTerminated++
-		} else if tlsState == ingressPostureUnproven {
+		case ingressPostureUnproven:
 			tlsUnproven++
 		}
 		edgeRows = append(edgeRows, map[string]any{
