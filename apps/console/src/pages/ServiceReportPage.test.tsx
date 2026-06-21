@@ -79,12 +79,12 @@ describe("ServiceReportPage", () => {
     render(
       <MemoryRouter initialEntries={["/service-report"]}>
         <Routes>
-          <Route path="/service-report" element={<ServiceReportPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
-          <Route path="/service-report/:serviceName" element={<ServiceReportPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
+          <Route path="/service-report" element={<ServiceReportPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
+          <Route path="/service-report/:serviceName" element={<ServiceReportPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
         </Routes>
       </MemoryRouter>
     );
-    await waitFor(() => expect(paths).toEqual(["/api/v0/investigations/services/api-node-platform"]));
+    await waitFor(() => expect(paths).toEqual(["/api/v0/investigations/services/acme-app"]));
     expect(await screen.findByText("payments-repo")).toBeInTheDocument();
   });
 
