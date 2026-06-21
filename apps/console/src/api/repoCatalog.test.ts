@@ -127,6 +127,9 @@ describe("repoCatalog", () => {
     // indefinitely and accumulate duplicates. Break on offset stall.
     let calls = 0;
     const stalledOffset = 10000;
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warnMessages.push(String(args[0])); };
     const client = {
       get: async (path: string) => {
         calls += 1;
@@ -140,14 +143,57 @@ describe("repoCatalog", () => {
       }
     } as unknown as EshuApiClient;
 
-    const repos = await loadRepositories(client);
+    try {
+      const repos = await loadRepositories(client);
 
-    // Loader must stop when it detects offset did not advance, not spin
-    // until MAX_PAGES appending duplicates.
-    const uniqueIds = new Set(repos.map((r) => r.id));
-    expect(uniqueIds.size).toBe(repos.length); // no duplicates
-    // stall is detected on the second call at the clamped offset
-    expect(calls).toBeLessThanOrEqual(22); // 10000/500 = 20 advancing pages + stall detection
+      // Loader must stop when it detects offset did not advance, not spin
+      // until MAX_PAGES appending duplicates.
+      const uniqueIds = new Set(repos.map((r) => r.id));
+      expect(uniqueIds.size).toBe(repos.length); // no duplicates
+      // stall is detected on the second call at the clamped offset
+      expect(calls).toBeLessThanOrEqual(22); // 10000/500 = 20 advancing pages + stall detection
+      // The stall happened while truncated:true — repos beyond the server offset cap
+      // are unreachable. The loader MUST warn so operators see the undercount rather
+      // than silently trusting it as the full list.
+      expect(warnMessages.some((m) => m.includes("incomplete"))).toBe(true);
+      expect(warnMessages.some((m) => m.includes("offset"))).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it("does not warn on a normal clean completion (truncated:false final page)", async () => {
+    // The warn is reserved for genuine truncation — when the server still has
+    // more data but the loader cannot reach it. A clean finish (truncated:false
+    // or short terminal page) must be silent.
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warnMessages.push(String(args[0])); };
+    const wireRepos = Array.from({ length: 906 }, (_, index) => ({
+      id: `repository:r_${index}`,
+      name: `repo-${index}`
+    }));
+    const client = {
+      get: async (path: string) => {
+        const url = new URL(path, "http://console.test");
+        const limit = Number(url.searchParams.get("limit") ?? "0");
+        const offset = Number(url.searchParams.get("offset") ?? "0");
+        const page = wireRepos.slice(offset, offset + limit);
+        return {
+          data: { repositories: page, truncated: offset + limit < 906, offset },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    try {
+      const repos = await loadRepositories(client);
+      expect(repos).toHaveLength(906);
+      expect(warnMessages).toHaveLength(0);
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 
   it("stops paging when a short final page returns fewer rows than the page limit", async () => {

@@ -90,6 +90,16 @@ function repoListItem(r: RepoRecord): RepoListItem {
   };
 }
 
+// warnIncomplete surfaces a truncated repository list so operators see it rather
+// than silently trusting an incomplete count. Both truncation paths (page-cap and
+// offset-stall) call this with a distinct reason so alerts can be distinguished.
+function warnIncomplete(reason: string): void {
+  console.warn(
+    `loadRepositories: repository list may be incomplete — ${reason}. ` +
+    `Repositories beyond the reachable offset are not shown.`
+  );
+}
+
 // loadRepositories pages through GET /api/v0/repositories until the API stops
 // reporting more repositories. The route caps a page at 500 rows and signals
 // more pages with `truncated=true`, so a single fetch silently dropped every
@@ -97,13 +107,14 @@ function repoListItem(r: RepoRecord): RepoListItem {
 // the returned list the true total, which the Repositories page then counts
 // honestly instead of showing a single-page slice. A short page (fewer rows than
 // the page limit) is also treated as terminal so callers that omit `truncated`
-// still stop. Three safety rails prevent silent corruption on a misbehaving API:
-//   1. REPOSITORY_MAX_PAGES caps total iterations.
+// still stop. Three safety rails prevent silent wrong counts:
+//   1. REPOSITORY_MAX_PAGES caps total iterations; warns when hit.
 //   2. An offset-stall break stops the loop when the server-echoed offset does
 //      not advance (the server clamps offset at 10000, so without this guard
-//      subsequent pages would overwrite the same window and accumulate duplicates).
-//   3. A console.warn fires when the page cap is reached so operators can tell
-//      the list is incomplete rather than discovering a silent wrong count.
+//      subsequent pages would duplicate rows); warns when hit with truncated:true
+//      because more data exists that the server will not serve.
+//   3. Both warn paths use warnIncomplete with a distinct reason so operators
+//      can tell which cap was hit.
 export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
   const items: RepoListItem[] = [];
   let offset = 0;
@@ -115,9 +126,18 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
     // offset it actually applied after server-side clamping
     // (repositoryListMaxOffset = 10000). If the echoed offset does not match
     // what we requested, the server clamped us — appending this page would
-    // duplicate rows already collected from the last un-clamped page.
+    // duplicate rows already collected from the last un-clamped page. Only warn
+    // when truncated:true confirms more data exists that we cannot reach.
     const echoedOffset = env.data?.offset;
-    if (typeof echoedOffset === "number" && echoedOffset !== offset) break;
+    if (typeof echoedOffset === "number" && echoedOffset !== offset) {
+      if (env.data?.truncated === true) {
+        warnIncomplete(
+          `server offset clamped at ${echoedOffset} (requested ${offset}); ` +
+          `catalog has more repositories beyond the server offset limit`
+        );
+      }
+      break;
+    }
     const wire = env.data?.repositories ?? [];
     for (const record of wire) {
       const item = repoListItem(record);
@@ -135,11 +155,8 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
     offset += REPOSITORY_PAGE_LIMIT;
   }
   if (page === REPOSITORY_MAX_PAGES) {
-    // Surface the incomplete list so operators see it rather than silently
-    // trusting a wrong count. This mirrors how the console surfaces load issues.
-    console.warn(
-      `loadRepositories: reached page limit (${REPOSITORY_MAX_PAGES} pages × ${REPOSITORY_PAGE_LIMIT} rows). ` +
-      `Repository list may be incomplete.`
+    warnIncomplete(
+      `reached page limit (${REPOSITORY_MAX_PAGES} pages × ${REPOSITORY_PAGE_LIMIT} rows)`
     );
   }
   return items;
