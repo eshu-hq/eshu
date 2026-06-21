@@ -684,6 +684,7 @@ HTTP API reference change is required.
 
 ### Endpoint 3 — sbom attachment count single-pass rollup (this PR)
 
+
 `GET /api/v0/supply-chain/sbom-attestations/attachments/count`
 (`sbom_attestation_attachment_aggregates.go`).
 
@@ -808,4 +809,38 @@ truth, then emit the joined edge, then add a repo-scoped filter to
 `GET /api/v0/dependencies` (currently package-native) so the console can deep-link
 a repo into its package dependency chain.
 
+## Service ingress posture (WAF/TLS) (#3403)
 
+`enrichServiceQueryContext` adds an `ingress_posture` block to the service
+context (`GET /api/v0/services/{name}/context`) so the entrypoint-first Exposure
+Path console view can render WAF coverage and TLS termination tiles. The block is
+derived strictly from the two materialized AWS protection edges
+(`AWS_wafv2_web_acl_protects_resource`, `AWS_acm_certificate_used_by_resource`)
+terminating on the service's own internet-facing edge resources, so the surface
+never over-claims protection. `waf_coverage` and `tls_termination` are
+three-valued (`protected`/`unprotected`/`unproven` and
+`terminated`/`not_terminated`/`unproven`) so an observed-negative is never
+confused with missing evidence.
+
+Performance Evidence: No-Regression. The new `ingress_posture` stage
+(`loadServiceIngressPosture`, `service_ingress_posture.go`) runs at most one
+graph query, and only when the already-loaded `cloud_resources` contain at least
+one internet-facing edge resource (CloudFront/ALB/ELB/API Gateway). The query is
+anchored on the bounded `$edge_ids` list (the service's own edge resources, a
+small set bounded by `serviceStoryItemLimit`), uses `OPTIONAL MATCH` so absence
+of a protection edge is an explicit observed-negative row rather than a wider
+scan, and does no work at all (no graph round-trip) when the service has no edge
+resource. Before: the context returned no WAF/TLS posture. After: one bounded,
+edge-id-anchored read derives the posture inside the existing few-seconds context
+SLA. Baseline/after: derivation reuses the `WorkloadInstance-[:USES]->`
+`CloudResource` set the context already resolves; no new whole-graph scan is
+introduced. Pure-assembler and loader behavior are pinned by
+`TestBuildIngressPosture*`, `TestEdgeResourcesFromCloudResources*`, and
+`TestLoadServiceIngressPosture*` in `service_ingress_posture_test.go`
+(`go test ./internal/query -run 'IngressPosture|EdgeResourcesFromCloudResources' -count=1`).
+
+Observability Evidence: the stage emits a `startServiceQueryStage`
+`ingress_posture` span with `waf_coverage`, `tls_termination`, and `edge_count`
+attributes via the existing service-query stage timer, so an operator can see the
+stage outcome and latency on the same span family that already diagnoses the
+service context assembly.

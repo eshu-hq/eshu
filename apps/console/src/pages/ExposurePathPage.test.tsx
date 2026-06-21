@@ -1,25 +1,25 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import type { EshuApiClient } from "../api/client";
 import { ExposurePathPage } from "./ExposurePathPage";
 
-// ExposurePathPage renders a code-to-cloud exposure finding. It must:
-// - render a reachable-sink finding with the node chain, sink, severity, the
-//   derived label, and the exposure rank
-// - render an unresolved finding with the coverage reason and WITHOUT implying a
-//   path exists
-// - never fabricate a path
+// ExposurePathPage is the entrypoint-first exposure view (#3403). It must:
+// - auto-load the proven ingress chain for a service deep-linked via ?service=
+// - render posture tiles (public entrypoints, hops, WAF coverage, TLS termination)
+// - render clickable hops, each opening an evidence panel with a truth level
+// - never draw an "Internet" origin for an internal entrypoint
+// - keep the handler-trace form available as advanced mode
 describe("ExposurePathPage", () => {
-  it("renders a reachable-sink finding with chain, severity, rank, and derived label", async () => {
+  it("auto-loads the ingress chain and posture tiles for a deep-linked service", async () => {
     const client = {
-      post: async (path: string) => {
-        expect(path).toBe("/api/v0/impact/trace-exposure-path");
+      get: async (path: string) => {
+        expect(path).toBe("/api/v0/services/checkout/context");
         return {
-          data: reachableWire(),
+          data: publicContext(),
           error: null,
           truth: {
-            capability: "platform_impact.exposure_path",
+            capability: "platform_impact.context_overview",
             level: "derived",
             profile: "production",
             freshness: { state: "fresh" }
@@ -29,233 +29,142 @@ describe("ExposurePathPage", () => {
     } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/exposure?source=createWidgetHandler&repoId=repository%3Ar_example"]}>
+      <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
         <ExposurePathPage client={client} />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
-
-    expect(await screen.findByText("Reaches IAM privileged action")).toBeInTheDocument();
-    // Conservative truth-state badge text (not just color).
-    expect(screen.getAllByText("exact").length).toBeGreaterThan(0);
-    // Exposure rank surfaced with text.
-    expect(screen.getByText("internet exposed")).toBeInTheDocument();
-    // Severity surfaced with text.
-    expect(screen.getByText("critical")).toBeInTheDocument();
-    // Derived label.
-    expect(screen.getAllByText("derived").length).toBeGreaterThan(0);
-    // The node chain: internet -> handler -> ... -> sink.
-    expect(screen.getByText("internet")).toBeInTheDocument();
-    // The source name appears in the finding summary and in the chain node.
-    expect(screen.getAllByText("createWidgetHandler").length).toBeGreaterThan(0);
-    expect(screen.getByText("persistWidget")).toBeInTheDocument();
-    expect(screen.getByText("admin-policy")).toBeInTheDocument();
-    // Honest reason.
-    expect(screen.getByText(/internet-exposed handler/)).toBeInTheDocument();
+    expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
+    // Posture tiles.
+    expect(screen.getByText("Public entrypoints")).toBeInTheDocument();
+    expect(screen.getByText("WAF coverage")).toBeInTheDocument();
+    expect(screen.getByText("TLS termination")).toBeInTheDocument();
+    // Proven Internet origin hop for an observed-public entrypoint.
+    expect(screen.getByText("Internet")).toBeInTheDocument();
+    expect(screen.getByText("checkout.example.test")).toBeInTheDocument();
   });
 
-  it("renders an unresolved finding with the coverage reason and no fabricated path", async () => {
+  it("opens hop evidence with a truth level when a hop is clicked", async () => {
     const client = {
-      post: async () => ({
-        data: unresolvedWire(),
-        error: null,
-        truth: {
-          capability: "platform_impact.exposure_path",
-          level: "derived",
-          profile: "production",
-          freshness: { state: "fresh" }
-        }
-      })
+      get: async () => ({ data: publicContext(), error: null, truth: null })
     } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/exposure?source=drainQueueHandler"]}>
+      <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
         <ExposurePathPage client={client} />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
+    await screen.findByText("Ingress chain");
+    fireEvent.click(screen.getByRole("button", { pressed: false, name: /checkout.example.test/ }));
 
-    expect(await screen.findByText("No proven exposure path")).toBeInTheDocument();
-    expect(
-      screen.getByText("code-to-cloud bridge edge is not materialized; cloud-sink segment is unresolved")
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("unresolved").length).toBeGreaterThan(0);
-    // No path was fabricated: the "internet" chain entry and a sink card title
-    // must NOT be present.
-    expect(screen.queryByText("internet")).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Reaches /)).not.toBeInTheDocument();
+    expect(await screen.findByText("Node")).toBeInTheDocument();
+    expect(screen.getByText("Truth level")).toBeInTheDocument();
   });
 
-  it("does not render an internet origin for a resolved network_reachable path", async () => {
+  it("does not draw an Internet origin for an internal entrypoint", async () => {
     const client = {
-      post: async () => ({
-        data: resolvedWireWithRank("network_reachable", "high"),
+      get: async () => ({ data: internalContext(), error: null, truth: null })
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?service=internal-api"]}>
+        <ExposurePathPage client={client} />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Ingress chain");
+    expect(screen.getByText("Network boundary")).toBeInTheDocument();
+    expect(screen.queryByText("Internet")).not.toBeInTheDocument();
+  });
+
+  it("shows an honest empty state when no ingress path is proven", async () => {
+    const client = {
+      get: async () => ({
+        data: { name: "ghost", entrypoints: [], network_paths: [] },
         error: null,
         truth: null
       })
     } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/exposure?source=drainQueueHandler"]}>
+      <MemoryRouter initialEntries={["/exposure?service=ghost"]}>
         <ExposurePathPage client={client} />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
-
-    // The path resolves, so a chain renders...
-    expect(await screen.findByText("Reaches IAM privileged action")).toBeInTheDocument();
-    // ...but it must NOT claim internet reachability the backend did not prove.
-    expect(screen.queryByText("internet")).not.toBeInTheDocument();
-    // It surfaces the proven origin instead.
-    expect(screen.getByText("network boundary")).toBeInTheDocument();
+    expect(await screen.findByText("No proven ingress chain")).toBeInTheDocument();
   });
 
-  it("renders no synthetic origin for a resolved internal path", async () => {
-    const client = {
-      post: async () => ({
-        data: resolvedWireWithRank("internal", "medium"),
-        error: null,
-        truth: null
-      })
-    } as unknown as EshuApiClient;
-
-    render(
-      <MemoryRouter initialEntries={["/exposure?source=drainQueueHandler"]}>
-        <ExposurePathPage client={client} />
-      </MemoryRouter>
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
-
-    expect(await screen.findByText("Reaches IAM privileged action")).toBeInTheDocument();
-    // An internal source proves no external reachability: no internet and no
-    // network-boundary origin is drawn.
-    expect(screen.queryByText("internet")).not.toBeInTheDocument();
-    expect(screen.queryByText("network boundary")).not.toBeInTheDocument();
-  });
-
-  it("shows an explicit error when the trace request fails, with no path", async () => {
-    const client = {
-      post: async () => {
-        throw new Error("HTTP 503");
-      }
-    } as unknown as EshuApiClient;
-
-    render(
-      <MemoryRouter initialEntries={["/exposure?source=createWidgetHandler"]}>
-        <ExposurePathPage client={client} />
-      </MemoryRouter>
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
-
-    await waitFor(() => expect(screen.getByText(/503/)).toBeInTheDocument());
-    expect(screen.queryByText("internet")).not.toBeInTheDocument();
-  });
-
-  it("requires a source before tracing", () => {
-    const client = { post: async () => ({ data: null, error: null, truth: null }) } as unknown as EshuApiClient;
+  it("requires a service before tracing", () => {
+    const client = { get: async () => ({ data: null, error: null, truth: null }) } as unknown as EshuApiClient;
     render(
       <MemoryRouter initialEntries={["/exposure"]}>
         <ExposurePathPage client={client} />
       </MemoryRouter>
     );
-    fireEvent.click(screen.getByRole("button", { name: "Trace exposure" }));
-    expect(screen.getByText("A source handler name or entity id is required.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+    expect(screen.getByText("A service name is required to trace its ingress chain.")).toBeInTheDocument();
+  });
+
+  it("keeps the handler-trace form available as advanced mode", async () => {
+    const client = {
+      get: async () => ({ data: { name: "x", entrypoints: [], network_paths: [] }, error: null, truth: null }),
+      post: async () => ({ data: null, error: null, truth: null })
+    } as unknown as EshuApiClient;
+    render(
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage client={client} />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByText("Advanced: handler trace"));
+    expect(await screen.findByRole("button", { name: "Trace exposure" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Source handler name")).toBeInTheDocument();
   });
 });
 
-function reachableWire(): Record<string, unknown> {
+function publicContext(): Record<string, unknown> {
   return {
-    source: {
-      entity_id: "entity:e_handler",
-      name: "createWidgetHandler",
-      labels: ["Function", "HttpHandler"]
-    },
-    source_kind: "http_handler",
-    exposure_rank: "internet_exposed",
-    truth_label: "derived",
-    state: "exact",
-    paths: [
+    name: "checkout",
+    entrypoints: [{ type: "hostname", target: "checkout.example.test", visibility: "public" }],
+    network_paths: [
       {
-        nodes: [
-          { entity_id: "entity:e_handler", name: "createWidgetHandler", labels: ["Function", "HttpHandler"] },
-          { entity_id: "entity:e_persist", name: "persistWidget", labels: ["Function"] }
-        ],
-        sink: {
-          kind: "iam_privileged_action",
-          display_name: "IAM privileged action",
-          node: { entity_id: "cloud:c_iam", name: "admin-policy", labels: ["IamPolicy"] }
-        },
-        depth: 2,
-        state: "exact",
-        severity: "critical",
-        reason:
-          "internet-exposed handler transitively reaches a privileged IAM action; no authentication gate is modeled in Level 1, so this is a derived upper-bound severity"
+        path_type: "hostname_to_runtime",
+        from_type: "hostname",
+        from: "checkout.example.test",
+        to_type: "runtime_platform",
+        to: "checkout-eks",
+        platform_kind: "eks",
+        environment: "production",
+        visibility: "public",
+        reason: "ingress host maps to the eks runtime"
       }
     ],
-    coverage: { max_depth: 5, paths_found: 1, truncated: false, unresolved_reason: "" }
-  };
-}
-
-// resolvedWireWithRank builds a finding that resolves a path (so a chain renders)
-// under a chosen exposure rank, used to prove the leading chain node is not a
-// hard-coded "internet" entry for non-internet ranks.
-function resolvedWireWithRank(
-  rank: "network_reachable" | "internal",
-  severity: "high" | "medium"
-): Record<string, unknown> {
-  return {
-    source: {
-      entity_id: "entity:e_drain",
-      name: "drainQueueHandler",
-      labels: ["Function", "MessageConsumer"]
-    },
-    source_kind: "message_consumer",
-    exposure_rank: rank,
-    truth_label: "derived",
-    state: "exact",
-    paths: [
-      {
-        nodes: [
-          { entity_id: "entity:e_drain", name: "drainQueueHandler", labels: ["Function"] }
-        ],
-        sink: {
-          kind: "iam_privileged_action",
-          display_name: "IAM privileged action",
-          node: { entity_id: "cloud:c_iam", name: "admin-policy", labels: ["IamPolicy"] }
-        },
-        depth: 1,
-        state: "exact",
-        severity,
-        reason: `${rank.replace(/_/g, " ")} handler reaches an IAM privileged action sink`
-      }
-    ],
-    coverage: { max_depth: 5, paths_found: 1, truncated: false, unresolved_reason: "" }
-  };
-}
-
-function unresolvedWire(): Record<string, unknown> {
-  return {
-    source: {
-      entity_id: "entity:e_drain",
-      name: "drainQueueHandler",
-      labels: ["Function", "MessageConsumer"]
-    },
-    source_kind: "message_consumer",
-    exposure_rank: "network_reachable",
-    truth_label: "derived",
-    state: "unresolved",
-    paths: [],
-    coverage: {
-      max_depth: 5,
-      paths_found: 0,
-      truncated: false,
-      unresolved_reason:
-        "code-to-cloud bridge edge is not materialized; cloud-sink segment is unresolved"
+    ingress_posture: {
+      waf_coverage: "protected",
+      tls_termination: "terminated",
+      edge_count: 1,
+      waf_protected: 1,
+      tls_terminated: 1,
+      reason: "observed across 1 internet-facing edge resource"
     }
+  };
+}
+
+function internalContext(): Record<string, unknown> {
+  return {
+    name: "internal-api",
+    entrypoints: [{ type: "docs_route", target: "/internal/health", visibility: "internal" }],
+    network_paths: [
+      {
+        path_type: "docs_route_to_runtime",
+        from_type: "docs_route",
+        from: "/internal/health",
+        to_type: "runtime_platform",
+        to: "internal-eks",
+        platform_kind: "eks",
+        visibility: "internal"
+      }
+    ]
   };
 }

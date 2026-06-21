@@ -184,6 +184,26 @@ func enrichServiceQueryContextWithOptions(
 				}
 			}
 		}
+
+		// Ingress posture (WAF coverage + TLS termination) is derived strictly
+		// from the two materialized AWS protection edges on the service's own
+		// internet-facing edge resources. It runs at most one bounded graph query,
+		// and only when such an edge resource is present, so the few-seconds
+		// context SLA is preserved. With no edge resource it reports an honest
+		// unproven posture rather than implying protection.
+		timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "ingress_posture")
+		ingressPosture, err := loadServiceIngressPosture(ctx, graph, mapSliceValue(workloadContext, "cloud_resources"))
+		timer.Done(ctx,
+			slog.String("waf_coverage", StringVal(ingressPosture, "waf_coverage")),
+			slog.String("tls_termination", StringVal(ingressPosture, "tls_termination")),
+			slog.Int("edge_count", IntVal(ingressPosture, "edge_count")),
+		)
+		if err != nil {
+			return fmt.Errorf("load service ingress posture: %w", err)
+		}
+		if len(ingressPosture) > 0 {
+			workloadContext["ingress_posture"] = ingressPosture
+		}
 	}
 
 	timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "documentation_overview")
