@@ -301,6 +301,28 @@ func TestStatusQueriesUseAggregateFilterSyntax(t *testing.T) {
 	}
 }
 
+// TestDomainBacklogQueryBoundsWorkItemsToNonTerminalStatuses guards issue
+// #3389. The fact_domain_backlogs aggregate reports only outstanding,
+// in-flight, retrying, dead-letter, and failed depth; it has no succeeded
+// field and its HAVING clause discards any domain with zero non-terminal work.
+// Once the cloud/SaaS collectors inflated fact_work_items, grouping the entire
+// (mostly succeeded) active_fact_work_items population by domain regressed
+// status/index past the client timeout. The query MUST filter the
+// active_fact_work_items source to the non-terminal status set before the
+// GROUP BY so the aggregate uses the (stage, domain, status, ...) index instead
+// of scanning every succeeded row. Succeeded and superseded rows contribute 0
+// to every FILTER and to the HAVING, so the bound is output-identical.
+func TestDomainBacklogQueryBoundsWorkItemsToNonTerminalStatuses(t *testing.T) {
+	t.Parallel()
+
+	const boundedSource = `  FROM active_fact_work_items
+  WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed')
+  GROUP BY domain`
+	if !strings.Contains(domainBacklogQuery, boundedSource) {
+		t.Fatalf("domainBacklogQuery must bound fact_domain_backlogs to non-terminal statuses before GROUP BY domain so it does not group every succeeded work item:\n%s", domainBacklogQuery)
+	}
+}
+
 func TestLatestQueueFailureQueryIgnoresInFlightRows(t *testing.T) {
 	t.Parallel()
 

@@ -31,8 +31,17 @@ const catalogWorkloadBaseCypher = `
 	LIMIT $limit
 `
 
+// catalogWorkloadRepoCypher and the instance/evidence enrichments below are
+// bounded to the workload ids returned by catalogWorkloadBaseCypher via the
+// $ids parameter. The base query already applies $limit, but the enrichments
+// must not aggregate over the entire Workload, WorkloadInstance, or Environment
+// populations: at ~500k-node scale that whole-graph aggregation timed the
+// catalog endpoint out regardless of the requested limit (issue #3389). Each
+// enrichment anchors on `(w:Workload) WHERE w.id IN $ids`, the bounded-id lookup
+// shape the query-plan gate enforces (see repository_name_lookup.go).
 const catalogWorkloadRepoCypher = `
-	MATCH (repo:Repository)-[:DEFINES]->(w:Workload)
+	MATCH (w:Workload) WHERE w.id IN $ids
+	MATCH (repo:Repository)-[:DEFINES]->(w)
 	RETURN w.id AS id,
 	       repo.id AS repo_id,
 	       repo.name AS repo_name
@@ -40,7 +49,8 @@ const catalogWorkloadRepoCypher = `
 `
 
 const catalogWorkloadInstanceEnvironmentCypher = `
-	MATCH (inst:WorkloadInstance)-[:INSTANCE_OF]->(w:Workload)
+	MATCH (w:Workload) WHERE w.id IN $ids
+	MATCH (inst:WorkloadInstance)-[:INSTANCE_OF]->(w)
 	RETURN w.id AS id,
 	       count(inst) AS instance_count,
 	       collect(DISTINCT inst.environment) AS environments
@@ -57,6 +67,7 @@ const catalogWorkloadInstanceEnvironmentCypher = `
 // milliseconds.
 const catalogWorkloadEvidenceEnvironmentCypher = `
 	MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(env:Environment)
+	WHERE w.id IN $ids
 	RETURN w.id AS id,
 	       env.name AS environment
 	ORDER BY id, environment
@@ -85,7 +96,14 @@ func (h *RepositoryHandler) assembleCatalogWorkloadsFromGraph(
 	}
 	baseRows, truncated := trimCatalogRows(baseRows, limit)
 
-	enrichments, err := h.catalogWorkloadEnrichments(ctx)
+	ids := make([]string, 0, len(baseRows))
+	for _, row := range baseRows {
+		if id := StringVal(row, "id"); id != "" {
+			ids = append(ids, id)
+		}
+	}
+
+	enrichments, err := h.catalogWorkloadEnrichments(ctx, ids)
 	if err != nil {
 		return nil, false, err
 	}
@@ -119,13 +137,22 @@ func (h *RepositoryHandler) assembleCatalogWorkloadsFromGraph(
 
 // catalogWorkloadEnrichments reads repository, instance, and evidence
 // environment facts through bound-anchor queries and indexes them by workload
-// id for Go-side joining.
+// id for Go-side joining. Every enrichment is bounded to ids, the workload set
+// the bounded base query returned, so the endpoint never aggregates over the
+// whole graph (issue #3389). An empty id set short-circuits all graph round
+// trips because no workload can be enriched.
 func (h *RepositoryHandler) catalogWorkloadEnrichments(
 	ctx context.Context,
+	ids []string,
 ) (map[string]*catalogWorkloadEnrichment, error) {
 	enrichments := make(map[string]*catalogWorkloadEnrichment)
+	boundedIDs := sortedUniqueStrings(ids)
+	if len(boundedIDs) == 0 {
+		return enrichments, nil
+	}
+	params := map[string]any{"ids": boundedIDs}
 
-	repoRows, err := h.Neo4j.Run(ctx, catalogWorkloadRepoCypher, map[string]any{})
+	repoRows, err := h.Neo4j.Run(ctx, catalogWorkloadRepoCypher, params)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +168,7 @@ func (h *RepositoryHandler) catalogWorkloadEnrichments(
 		}
 	}
 
-	instanceRows, err := h.Neo4j.Run(ctx, catalogWorkloadInstanceEnvironmentCypher, map[string]any{})
+	instanceRows, err := h.Neo4j.Run(ctx, catalogWorkloadInstanceEnvironmentCypher, params)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +182,7 @@ func (h *RepositoryHandler) catalogWorkloadEnrichments(
 		entry.instanceEnvs = StringSliceVal(row, "environments")
 	}
 
-	evidenceRows, err := h.Neo4j.Run(ctx, catalogWorkloadEvidenceEnvironmentCypher, map[string]any{})
+	evidenceRows, err := h.Neo4j.Run(ctx, catalogWorkloadEvidenceEnvironmentCypher, params)
 	if err != nil {
 		return nil, err
 	}

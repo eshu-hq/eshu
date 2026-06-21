@@ -3,6 +3,8 @@ required_ids:
   - QP-SC-DEPS
   - QP-SC-PKGREG-DEPS
   - QP-DEPLOY-CATALOG-ENV
+  - QP-DEPLOY-CATALOG-WORKLOAD-REPO
+  - QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE
   - QP-SVC-RESOLVE
   - QP-SVC-CONTEXT
   - QP-SVC-RUNS-ON
@@ -107,6 +109,7 @@ entries:
       line_hint: 59
     cypher: |
       MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(env:Environment)
+      WHERE w.id IN $ids
       RETURN w.id AS id,
              env.name AS environment
       ORDER BY id, environment
@@ -119,13 +122,83 @@ entries:
       - environment_name
     requires_order: true
     caveats:
-      - This catalog enrichment intentionally scans the bounded workload catalog and uses a connected path to avoid a NornicDB double-MATCH re-anchor fanout.
+      - This catalog enrichment is bounded to the limited workload id set ($ids) from the catalog base query (issue #3389) and uses a connected path to avoid a NornicDB double-MATCH re-anchor fanout.
     plan:
       operators:
-        - LabelScan
+        - NodeIndexSeek
         - Expand
         - Sort
       forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-DEPLOY-CATALOG-WORKLOAD-REPO
+    domain: deployable
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/catalog_workload_environments.go
+      symbol: catalogWorkloadRepoCypher
+      line_hint: 41
+    cypher: |
+      MATCH (w:Workload) WHERE w.id IN $ids
+      MATCH (repo:Repository)-[:DEFINES]->(w)
+      RETURN w.id AS id,
+             repo.id AS repo_id,
+             repo.name AS repo_name
+      ORDER BY id
+    required_anchors:
+      - label: Workload
+        property: id
+    required_schema:
+      - workload_id
+      - nornicdb_workload_id_lookup
+    requires_order: true
+    caveats:
+      - Bounded to the limited workload id set ($ids) from the catalog base query so the enrichment never scans every Workload/Repository edge (issue #3389).
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE
+    domain: deployable
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/catalog_workload_environments.go
+      symbol: catalogWorkloadInstanceEnvironmentCypher
+      line_hint: 51
+    cypher: |
+      MATCH (w:Workload) WHERE w.id IN $ids
+      MATCH (inst:WorkloadInstance)-[:INSTANCE_OF]->(w)
+      RETURN w.id AS id,
+             count(inst) AS instance_count,
+             collect(DISTINCT inst.environment) AS environments
+      ORDER BY id
+    required_anchors:
+      - label: Workload
+        property: id
+    required_schema:
+      - workload_id
+      - nornicdb_workload_id_lookup
+      - workload_instance_id
+    requires_order: true
+    caveats:
+      - Bounded to the limited workload id set ($ids) from the catalog base query so the per-workload instance aggregate never groups over every WorkloadInstance (issue #3389).
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
 

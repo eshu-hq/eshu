@@ -32,7 +32,7 @@ func (rows catalogGraphRows) reader(t *testing.T, wantLimit int) fakeRepoGraphRe
 				return rows.evidence, nil
 			case strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"):
 				return rows.instance, nil
-			case strings.Contains(cypher, "MATCH (repo:Repository)-[:DEFINES]->(w:Workload)"):
+			case strings.Contains(cypher, "[:DEFINES]->(w)"):
 				return rows.repo, nil
 			case strings.Contains(cypher, "MATCH (w:Workload)"):
 				if wantLimit > 0 {
@@ -260,6 +260,128 @@ func TestCatalogEvidenceEnvironmentCypherIsSingleChain(t *testing.T) {
 	if !strings.Contains(catalogWorkloadEvidenceEnvironmentCypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-") {
 		t.Fatalf("evidence environment query must traverse workload->repo->artifact->environment as one chain, got:\n%s", catalogWorkloadEvidenceEnvironmentCypher)
 	}
+}
+
+// TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs guards issue #3389. The
+// three workload enrichment queries (repository, instance environments, and
+// deployment-evidence environments) previously scanned the entire Workload,
+// WorkloadInstance, and Environment populations regardless of the catalog
+// limit. At ~500k-node scale that whole-graph aggregation timed the catalog
+// endpoint out even at limit=5. Each enrichment MUST be bounded to the limited
+// workload id set returned by the base query and MUST anchor on the Workload
+// label with `WHERE w.id IN $ids`, mirroring the bounded-id lookups used
+// elsewhere (repository_name_lookup.go, entity_workload_context.go).
+func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
+	t.Parallel()
+
+	type capture struct {
+		anchored bool
+		ids      []string
+	}
+	captured := map[string]*capture{}
+	recordIDs := func(key, cypher string, params map[string]any) {
+		entry := &capture{anchored: strings.Contains(cypher, "WHERE w.id IN $ids")}
+		if raw, ok := params["ids"].([]string); ok {
+			entry.ids = raw
+		}
+		captured[key] = entry
+	}
+
+	reader := fakeRepoGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"):
+				recordIDs("evidence", cypher, params)
+				return nil, nil
+			case strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"):
+				recordIDs("instance", cypher, params)
+				return nil, nil
+			case strings.Contains(cypher, "[:DEFINES]->(w)"):
+				recordIDs("repo", cypher, params)
+				return nil, nil
+			case strings.Contains(cypher, "MATCH (w:Workload)"):
+				return []map[string]any{
+					{"id": "workload:keep_a", "name": "keep-a", "kind": "service"},
+					{"id": "workload:keep_b", "name": "keep-b", "kind": "service"},
+				}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	handler := &RepositoryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
+	rec := httptest.NewRecorder()
+	handler.listCatalog(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+
+	wantIDs := []string{"workload:keep_a", "workload:keep_b"}
+	for _, key := range []string{"repo", "instance", "evidence"} {
+		entry, ok := captured[key]
+		if !ok {
+			t.Fatalf("enrichment query %q was not executed", key)
+		}
+		if !entry.anchored {
+			t.Fatalf("enrichment query %q must anchor on (w:Workload) WHERE w.id IN $ids", key)
+		}
+		if !equalStringSets(entry.ids, wantIDs) {
+			t.Fatalf("enrichment query %q ids = %#v, want bounded set %#v", key, entry.ids, wantIDs)
+		}
+	}
+}
+
+// TestListCatalogSkipsEnrichmentWhenNoWorkloads guards that the bounded
+// enrichment queries are not issued at all when the base query returns no
+// workloads, so an empty catalog never pays for a graph round trip.
+func TestListCatalogSkipsEnrichmentWhenNoWorkloads(t *testing.T) {
+	t.Parallel()
+
+	enrichmentRan := false
+	reader := fakeRepoGraphReader{
+		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"),
+				strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"),
+				strings.Contains(cypher, "[:DEFINES]->(w)"):
+				enrichmentRan = true
+				return nil, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	handler := &RepositoryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
+	rec := httptest.NewRecorder()
+	handler.listCatalog(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if enrichmentRan {
+		t.Fatalf("enrichment queries must not run when there are no workloads")
+	}
+}
+
+func equalStringSets(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	set := map[string]struct{}{}
+	for _, v := range got {
+		set[v] = struct{}{}
+	}
+	for _, v := range want {
+		if _, ok := set[v]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func catalogEnvironments(service map[string]any) []string {
