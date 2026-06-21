@@ -104,6 +104,16 @@ func TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				// Resolver probe resolves the start node by a label-anchored
+				// Workload id lookup.
+				if strings.Contains(cypher, "MATCH (n:Workload {id:") {
+					return []map[string]any{
+						{"id": "service:start", "name": "start", "labels": []any{"Workload"}},
+					}, nil
+				}
+				if !strings.Contains(cypher, "relationships(path)") {
+					return nil, nil
+				}
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want server-side LIMIT parameter", cypher)
 				}
@@ -121,15 +131,12 @@ func TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 					{"id": "service:b", "name": "b", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(2)},
 				}, nil
 			},
-			runSingle: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
-				return map[string]any{"id": "service:start", "name": "start"}, nil
-			},
 		},
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/impact/change-surface",
-		bytes.NewBufferString(`{"target":"service:start","environment":"prod","limit":1}`),
+		bytes.NewBufferString(`{"kind":"service","target":"service:start","environment":"prod","limit":1}`),
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()

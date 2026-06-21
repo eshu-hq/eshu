@@ -316,22 +316,38 @@ func changeSurfaceResolverQueries(req changeSurfaceInvestigationRequest, limit i
 	}
 }
 
+// changeSurfaceGenericResolverQueries builds the no-hint resolver probe order.
+// Resolution breaks on the first probe that returns candidates, so probe order
+// is resolution priority. Exact identity (id/uid) probes across every supported
+// label run BEFORE any name fallback so a value that is one label's identity is
+// never shadowed by another label's name match — this preserves the old
+// `MATCH (start) WHERE start.id = $target_id` exact-id-first semantics that the
+// label-anchored rewrite would otherwise drop (Codex P2 on #3384/#3388: a
+// Repository id colliding with a Workload name resolved to the wrong node).
+// Alternate identity keys (workload_id, resource_id) follow the primary keys;
+// name probes run last.
 func changeSurfaceGenericResolverQueries(target string, limit int) []changeSurfaceResolverQuery {
+	rank := 0
+	next := func() int { r := rank; rank++; return r }
+	// Phase 1: primary identity (id/uid) across all supported labels.
 	queries := []changeSurfaceResolverQuery{
-		changeSurfaceWorkloadResolverQuery("id", target, 0, limit),
+		changeSurfaceWorkloadResolverQuery("id", target, next(), limit),
 	}
 	if canonicalID := canonicalWorkloadIDCandidate(target); canonicalID != target {
-		queries = append(queries, changeSurfaceWorkloadResolverQuery("id", canonicalID, 1, limit))
+		queries = append(queries, changeSurfaceWorkloadResolverQuery("id", canonicalID, next(), limit))
 	}
 	queries = append(queries,
-		changeSurfaceWorkloadResolverQuery("name", target, 2, limit),
-		changeSurfaceRepositoryResolverQuery("id", target, 3, limit),
-		changeSurfaceRepositoryResolverQuery("name", target, 4, limit),
-		changeSurfaceWorkloadInstanceResolverQuery("id", target, 5, limit),
-		changeSurfaceWorkloadInstanceResolverQuery("workload_id", target, 6, limit),
-		changeSurfaceCloudResourceResolverQuery("id", target, 7, limit),
-		changeSurfaceCloudResourceResolverQuery("resource_id", target, 8, limit),
-		changeSurfaceTerraformModuleResolverQuery("uid", target, 9, limit),
+		changeSurfaceRepositoryResolverQuery("id", target, next(), limit),
+		changeSurfaceWorkloadInstanceResolverQuery("id", target, next(), limit),
+		changeSurfaceCloudResourceResolverQuery("id", target, next(), limit),
+		changeSurfaceTerraformModuleResolverQuery("uid", target, next(), limit),
+		changeSurfaceDataAssetResolverQuery("uid", target, next(), limit),
+		// Phase 2: alternate identity keys.
+		changeSurfaceWorkloadInstanceResolverQuery("workload_id", target, next(), limit),
+		changeSurfaceCloudResourceResolverQuery("resource_id", target, next(), limit),
+		// Phase 3: name fallbacks (lowest priority).
+		changeSurfaceWorkloadResolverQuery("name", target, next(), limit),
+		changeSurfaceRepositoryResolverQuery("name", target, next(), limit),
 	)
 	return queries
 }
@@ -403,6 +419,16 @@ LIMIT %d`, property, rank, limit),
 func changeSurfaceTerraformModuleResolverQuery(property string, target string, rank int, limit int) changeSurfaceResolverQuery {
 	return changeSurfaceResolverQuery{
 		cypher: fmt.Sprintf(`MATCH (n:TerraformModule {%s: $target})
+RETURN n.uid as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank
+ORDER BY rank, name, id
+LIMIT %d`, property, rank, limit),
+		params: map[string]any{"target": target},
+	}
+}
+
+func changeSurfaceDataAssetResolverQuery(property string, target string, rank int, limit int) changeSurfaceResolverQuery {
+	return changeSurfaceResolverQuery{
+		cypher: fmt.Sprintf(`MATCH (n:DataAsset {%s: $target})
 RETURN n.uid as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank
 ORDER BY rank, name, id
 LIMIT %d`, property, rank, limit),
