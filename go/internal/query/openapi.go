@@ -73,6 +73,7 @@ func OpenAPISpec() string {
 			openAPIPathsSurfaceInventory+
 			openAPIPathsAdmin+
 			openAPIPathsInfrastructure+
+			openAPIPathsGraphEntities+
 			openAPIPathsInfraResourceAggregate+
 			openAPIPathsCloud+
 			openAPIPathsCloudInventory+

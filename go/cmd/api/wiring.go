@@ -377,6 +377,10 @@ func newRouterWithSemanticEmbedding(
 			Aggregates: query.NewGraphInfraResourceAggregateStore(neo4jReader),
 			Profile:    queryProfile,
 		},
+		GraphEntityInventory: &query.GraphEntityInventoryHandler{
+			Neo4j:   neo4jReader,
+			Profile: queryProfile,
+		},
 		CloudInventory: &query.CloudInventoryHandler{
 			Content: contentReader,
 			Profile: queryProfile,

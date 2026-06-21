@@ -15,7 +15,7 @@ comparison. The route list is verified against `go/internal/query`.
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
 | Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
-| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `POST /api/v0/ecosystem/graph-summary`, `GET /api/v0/cloud/resources`, `GET /api/v0/cloud/inventory` |
+| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/graph/entities`, `POST /api/v0/ecosystem/graph-summary`, `GET /api/v0/cloud/resources`, `GET /api/v0/cloud/inventory` |
 | Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/pre-change`, `POST /api/v0/impact/developer-change-plan`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
 
 OpenAPI remains canonical for full request and response schemas.

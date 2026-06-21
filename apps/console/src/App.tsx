@@ -13,6 +13,7 @@ import {
   FileText,
   FolderGit2,
   GitBranch,
+  Hexagon,
   History,
   Images,
   KeyRound,
@@ -55,6 +56,7 @@ import { DependenciesPage } from "./pages/DependenciesPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
 import { ServiceEvidenceGraphPage } from "./pages/ServiceEvidenceGraphPage";
 import { ServiceReportPage } from "./pages/ServiceReportPage";
+import { NodesPage } from "./pages/NodesPage";
 import { IacPage } from "./pages/IacPage";
 import { ReplatformingPage } from "./pages/ReplatformingPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
@@ -106,7 +108,8 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/changed-since", label: "Changed Since", icon: History },
       { to: "/explorer", label: "Graph Explorer", icon: GitBranch },
       { to: "/service-story", label: "Service Story", icon: Waypoints },
-      { to: "/service-report", label: "Service Report", icon: FileText }
+      { to: "/service-report", label: "Service Report", icon: FileText },
+      { to: "/nodes", label: "Nodes", icon: Hexagon }
     ]
   },
   {
@@ -375,6 +378,7 @@ export function App(): React.JSX.Element {
             <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/service-report" element={<ServiceReportPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/service-report/:serviceName" element={<ServiceReportPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/nodes" element={<NodesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/code-graph" element={<CodeGraphPage model={visibleModel} client={client} />} />
             <Route path="/repositories" element={<RepositoriesPage client={client} model={visibleModel} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
