@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"log/slog"
+	"os"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
@@ -49,7 +50,9 @@ func newSupplyChainHandler(
 		SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),
 		AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
 		AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
-		ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),
+		ImpactFindings: query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(
+			db, query.SupplyChainImpactWinnersReadEnabled(os.Getenv(query.SupplyChainImpactWinnersReadEnv)),
+		),
 		ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
 		ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),
 		ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),

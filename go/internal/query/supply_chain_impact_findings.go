@@ -4,9 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/lib/pq"
 )
+
+// SupplyChainImpactWinnersReadEnv is the operator gate (#3389 Phase 2) that
+// switches the impact-findings list read onto the maintained
+// supply_chain_impact_canonical_winners read model. Default (unset/anything but
+// "true") keeps the legacy read-time dedup. Enable only after confirming the
+// reducer maintainer has populated the winners table.
+const SupplyChainImpactWinnersReadEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ"
+
+// SupplyChainImpactWinnersReadEnabled parses the Phase 2 read gate value.
+func SupplyChainImpactWinnersReadEnabled(value string) bool {
+	return strings.EqualFold(strings.TrimSpace(value), "true")
+}
 
 // SupplyChainImpactFindingStore reads reducer-owned vulnerability impact
 // findings.
@@ -189,6 +202,14 @@ type supplyChainImpactFindingQueryer interface {
 // Postgres using scoped payload predicates.
 type PostgresSupplyChainImpactFindingStore struct {
 	DB supplyChainImpactFindingQueryer
+	// ReadFromWinners switches the list read to the maintained
+	// supply_chain_impact_canonical_winners read model (#3389 Phase 2). When
+	// false (the default) the read deduplicates at query time with the legacy
+	// ROW_NUMBER query. The wiring sets this from an operator env gate so the
+	// cutover is reversible and is only enabled once the reducer maintainer has
+	// populated the winners table. Output is byte-identical either way; the
+	// winners read is bounded O(page) instead of an O(filtered set) dedup sort.
+	ReadFromWinners bool
 }
 
 // NewPostgresSupplyChainImpactFindingStore creates the Postgres-backed impact
@@ -197,6 +218,18 @@ func NewPostgresSupplyChainImpactFindingStore(
 	db supplyChainImpactFindingQueryer,
 ) PostgresSupplyChainImpactFindingStore {
 	return PostgresSupplyChainImpactFindingStore{DB: db}
+}
+
+// NewPostgresSupplyChainImpactFindingStoreWithReadModel creates the store with
+// the #3389 Phase 2 read gate set. readFromWinners=true serves the list from the
+// maintained supply_chain_impact_canonical_winners read model; false keeps the
+// legacy read-time dedup. The wiring resolves readFromWinners from an operator
+// env gate.
+func NewPostgresSupplyChainImpactFindingStoreWithReadModel(
+	db supplyChainImpactFindingQueryer,
+	readFromWinners bool,
+) PostgresSupplyChainImpactFindingStore {
+	return PostgresSupplyChainImpactFindingStore{DB: db, ReadFromWinners: readFromWinners}
 }
 
 // ListSupplyChainImpactFindings returns one bounded page of active reducer
@@ -215,9 +248,13 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
 	}
 
+	query := listSupplyChainImpactFindingsQuery
+	if s.ReadFromWinners {
+		query = listSupplyChainImpactFindingsFromWinnersQuery
+	}
 	rows, err := s.DB.QueryContext(
 		ctx,
-		listSupplyChainImpactFindingsQuery,
+		query,
 		supplyChainImpactFindingFactKind,
 		filter.CVEID,
 		filter.PackageID,

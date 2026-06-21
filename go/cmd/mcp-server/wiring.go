@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -355,7 +356,9 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),
 			AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
 			AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
-			ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),
+			ImpactFindings: query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(
+				db, query.SupplyChainImpactWinnersReadEnabled(os.Getenv(query.SupplyChainImpactWinnersReadEnv)),
+			),
 			ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
 			ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),
 			ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),
