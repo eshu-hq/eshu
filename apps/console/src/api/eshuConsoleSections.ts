@@ -15,6 +15,7 @@ import { iacResourceRowsFromResponse } from "./iacResources";
 import { imageRowsFromResponse } from "./imageInventory";
 import type {
   AdvisoryRow,
+  ArgoCDAppRow,
   ConsoleSnapshot,
   DependencyRow,
   FindingRow,
@@ -80,6 +81,14 @@ interface LanguageInventory { readonly languages?: readonly { language: string; 
 interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>[]; }
 interface ImpactFindings { readonly findings?: readonly Record<string, unknown>[]; readonly results?: readonly Record<string, unknown>[]; }
 interface MetricsTimeSeriesResponse { readonly points?: readonly { readonly t?: string; readonly v?: number }[]; }
+interface InfraSearchResponse {
+  readonly results?: readonly {
+    readonly id?: string;
+    readonly name?: string;
+    readonly kind?: string;
+    readonly source?: string;
+  }[];
+}
 interface SBOMAttachmentCount {
   readonly total_attachments?: number;
   readonly by_attachment_status?: Readonly<Record<string, number>>;
@@ -334,12 +343,24 @@ export async function loadAdvisories(client: EshuApiClient, ctx: SectionContext)
 export const emptySeries: SeriesBundle = {
   ingestRate: [], queueDepth: [], deadLetters: [],
   graphNodes: [], graphEdges: [], queryP50: [], queryP95: [], queryP99: [],
-  newVulns: []
+  newVulns: [], metricsConfigured: true
 };
+
+// MetricSeriesResult carries the point values and whether the metrics source
+// is configured. The configured flag is derived from the truth envelope: a
+// freshness state of "unavailable" means no Prometheus/Mimir collector is
+// wired up, while "building" means the source exists but has no history yet.
+interface MetricSeriesResult {
+  readonly points: readonly number[];
+  readonly configured: boolean;
+}
 
 // loadSeriesBundle fetches every dashboard trend metric concurrently and folds
 // them into the series bundle. section() (passed in) records per-metric
-// provenance; failures degrade to an empty series.
+// provenance; failures degrade to an empty series. metricsConfigured is
+// derived from the queue_depth probe: if its truth freshness is "unavailable"
+// then no Prometheus/Mimir source is wired up and all chart placeholders
+// switch to an explicit "not configured" message.
 export async function loadSeriesBundle(
   client: EshuApiClient,
   section: <T>(key: string, load: () => Promise<T | null>) => Promise<T | null>
@@ -354,24 +375,82 @@ export async function loadSeriesBundle(
     loadMetricSeries(client, section, "queryP95", "query_p95"),
     loadMetricSeries(client, section, "queryP99", "query_p99")
   ]);
-  return { ...emptySeries, ingestRate, queueDepth, deadLetters, graphNodes, graphEdges, queryP50, queryP95, queryP99 };
+  // Use the queue_depth probe to derive metricsConfigured. Any metric that
+  // returns configured=false means the source is missing; all charts should
+  // show "not configured" rather than "no history yet".
+  const metricsConfigured = [ingestRate, queueDepth, deadLetters, graphNodes, graphEdges, queryP50, queryP95, queryP99]
+    .every((r) => r.configured);
+  return {
+    ...emptySeries,
+    ingestRate: ingestRate.points,
+    queueDepth: queueDepth.points,
+    deadLetters: deadLetters.points,
+    graphNodes: graphNodes.points,
+    graphEdges: graphEdges.points,
+    queryP50: queryP50.points,
+    queryP95: queryP95.points,
+    queryP99: queryP99.points,
+    metricsConfigured
+  };
 }
 
 async function loadMetricSeries(
   client: EshuApiClient,
   section: <T>(key: string, load: () => Promise<T | null>) => Promise<T | null>,
-  key: keyof Omit<SeriesBundle, "newVulns">,
+  key: keyof Omit<SeriesBundle, "newVulns" | "metricsConfigured">,
   metric: string
-): Promise<readonly number[]> {
+): Promise<MetricSeriesResult> {
+  let configured = true;
   const values = await section(`series.${key}`, async () => {
     const env = await client.get<MetricsTimeSeriesResponse>(
       `/api/v0/metrics/timeseries?metric=${metric}&window=24h&step=30m`
     );
     if (env.error) throw new EshuEnvelopeError(env.error);
+    // A freshness state of "unavailable" means the Prometheus/Mimir source is
+    // not configured; "building" means the source exists but has no samples yet.
+    if (env.truth?.freshness.state === "unavailable") {
+      configured = false;
+    }
     const points = (env.data?.points ?? []).map((point) => point.v).filter(isFiniteNumber);
     return points.length > 0 ? points : null;
   });
-  return values ?? [];
+  return { points: values ?? [], configured };
+}
+
+// loadArgoCDApps fetches ArgoCD Application and ApplicationSet nodes from the
+// infra search. It uses ctx.repoNames (populated by loadServices) to mark each
+// app as source-indexed when its source repository is already ingested by Eshu.
+// The section degrades to empty rather than failing the snapshot when the
+// authoritative graph is unavailable (non-production profile or no graph store).
+export async function loadArgoCDApps(
+  client: EshuApiClient,
+  ctx: SectionContext
+): Promise<readonly ArgoCDAppRow[] | null> {
+  const env = await client.post<InfraSearchResponse>("/api/v0/infra/resources/search", {
+    category: "argocd",
+    limit: 200,
+  });
+  if (env.error) throw new EshuEnvelopeError(env.error);
+  const results = env.data?.results ?? [];
+  if (results.length === 0) return null;
+  // Build a fast lookup: the catalog repoNames map is keyed by repo_id; the
+  // ArgoCD app's source field typically contains a repo URL or short name.
+  // We match when any known repo name appears in the source string.
+  const knownNames = new Set(ctx.repoNames.values());
+  return results.map((r): ArgoCDAppRow => {
+    const source = r.source ?? "";
+    const sourceIndexed = source !== "" && (
+      knownNames.has(source) ||
+      [...knownNames].some((name) => source.includes(name))
+    );
+    return {
+      id: r.id ?? "",
+      name: r.name ?? "",
+      kind: r.kind ?? "",
+      source,
+      sourceIndexed,
+    };
+  });
 }
 
 function isFiniteNumber(value: number | undefined): value is number {

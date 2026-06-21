@@ -31,7 +31,8 @@ const demoSeries: SeriesBundle = {
   queryP50: ramp(77, 48, 4, 2, 0),
   queryP95: ramp(88, 48, 12, 5, 0),
   queryP99: ramp(99, 48, 28, 12, 0),
-  newVulns: ramp(123, 14, 3, 5, -0.1)
+  newVulns: ramp(123, 14, 3, 5, -0.1),
+  metricsConfigured: true
 };
 
 const demoGraph: GraphModel = {
@@ -191,6 +192,12 @@ export const demoModel: ConsoleModel = {
       stateLabel: "unsupported"
     }
   ],
+  argoCDApps: [
+    { id: "argo:checkout-app", name: "checkout-app", kind: "ArgoCDApplication", source: "sample/checkout-service", sourceIndexed: true },
+    { id: "argo:payments-app", name: "payments-app", kind: "ArgoCDApplication", source: "sample/payments-api", sourceIndexed: true },
+    { id: "argo:ledger-app", name: "ledger-app", kind: "ArgoCDApplication", source: "sample/ledger-service", sourceIndexed: true },
+    { id: "argo:external-app", name: "external-app", kind: "ArgoCDApplication", source: "https://github.com/sample/external-configs", sourceIndexed: false }
+  ],
   truth: {},
   provenance: {
     runtime: "demo",
@@ -202,7 +209,8 @@ export const demoModel: ConsoleModel = {
     images: "demo",
     iacResources: "demo",
     advisories: "demo",
-    collectorReadiness: "demo"
+    collectorReadiness: "demo",
+    argoCDApps: "demo"
   },
   graph: demoGraph,
   relationships: demoRelationships,

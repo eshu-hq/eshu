@@ -14,12 +14,13 @@ import type {
 export const emptySeries: SeriesBundle = {
   ingestRate: [], queueDepth: [], deadLetters: [],
   graphNodes: [], graphEdges: [], queryP50: [], queryP95: [], queryP99: [],
-  newVulns: []
+  newVulns: [], metricsConfigured: true
 };
 
 const SNAPSHOT_SECTIONS = [
   "runtime", "services", "languages", "ingesters", "findings", "vulnerabilities",
-  "sbom", "dependencies", "images", "iacResources", "advisories", "collectorReadiness"
+  "sbom", "dependencies", "images", "iacResources", "advisories", "collectorReadiness",
+  "argoCDApps"
 ] as const;
 
 function emptyRuntime(): RuntimeSummary {
@@ -44,6 +45,7 @@ export function emptySnapshot(provenance: SectionProvenance | null = null): Cons
     iacResources: [],
     advisories: [],
     collectorReadiness: [],
+    argoCDApps: [],
     series: emptySeries,
     truth: {}, provenance: prov
   };
