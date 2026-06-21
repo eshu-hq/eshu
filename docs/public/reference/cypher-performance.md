@@ -143,6 +143,38 @@ collectors.
 
 ## Evidence Notes
 
+### Relationships Verb Catalog And Per-Verb Edge Slice
+
+No-Regression Evidence: issue #3397 adds two new bounded read shapes in
+`go/internal/query/relationships_catalog_cypher.go`
+(`relationshipCountCypher`, `relationshipEdgesCypher`) backing
+`POST /api/v0/relationships/catalog` and `POST /api/v0/relationships/edges`.
+These are new endpoints, not a change to an existing path, so there is no prior
+shape to regress against. Both shapes are source-label-anchored, never the
+unanchored `()-[r:VERB]->()` pattern that risks an all-node scan: each verb is
+counted with `MATCH (s:<SourceLabel>)-[r:<VERB>]->() RETURN count(r)`, the same
+bounded-aggregate class as the sanctioned whole-graph label count
+`MATCH (r:Repository) RETURN count(r)` in `infra_ecosystem_overview.go` and the
+`QP-READINESS-HOSTED` fixture. The per-verb edge slice anchors on the same
+source label, orders deterministically, and is bounded by `LIMIT $limit`
+(default 50, max 200) with a `limit+1` over-fetch for the truncation flag. The
+verb and source label are taken only from the fixed `relationshipVerbCatalog`,
+never from request input. New gate entries `QP-RELATIONSHIPS-CATALOG-COUNT` and
+`QP-RELATIONSHIPS-EDGES` in `go/internal/queryplan/testdata/hot-cypher.yaml`
+keep both shapes registered; the static gate validates them against
+`graph.SchemaStatementsForBackend(graph.SchemaBackendNornicDB)`, requires the
+`Function` source-label index evidence, and forbids `AllNodesScan`,
+`CartesianProduct`, and `UnboundedExpand`. Catalog cost is one bounded count per
+fixed verb at page load; the capability matrix records a 2000 ms local p95 and
+3000 ms production p95 budget for `platform_impact.relationships_catalog`.
+
+No-Observability-Change: the two handlers reuse the existing query-handler
+envelope (`WriteSuccess` + `BuildTruthEnvelope` with
+`TruthBasisAuthoritativeGraph`) and the shared `GraphQuery.Run`/`RunSingle`
+adapters. They add no new metrics, spans, runtime knobs, queue behavior, or
+graph writes; the query-plan gate that guards them is static validation only and
+opens no backend session.
+
 ### Catalog Deployment-Environment Resolution Cold Plan
 
 No-Regression Evidence: issue #3172 adds

@@ -24,6 +24,7 @@ import {
   Route as RouteIcon,
   Search,
   ServerCog,
+  Share2,
   Activity,
   ShieldCheck,
   TriangleAlert,
@@ -53,6 +54,7 @@ import { SbomPage } from "./pages/SbomPage";
 import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
+import { RelationshipsPage } from "./pages/RelationshipsPage";
 import { ServiceEvidenceGraphPage } from "./pages/ServiceEvidenceGraphPage";
 import { ServiceReportPage } from "./pages/ServiceReportPage";
 import { IacPage } from "./pages/IacPage";
@@ -105,6 +107,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/exposure", label: "Exposure Path", icon: RouteIcon },
       { to: "/changed-since", label: "Changed Since", icon: History },
       { to: "/explorer", label: "Graph Explorer", icon: GitBranch },
+      { to: "/relationships", label: "Relationships", icon: Share2 },
       { to: "/service-story", label: "Service Story", icon: Waypoints },
       { to: "/service-report", label: "Service Report", icon: FileText }
     ]
@@ -370,6 +373,7 @@ export function App(): React.JSX.Element {
             <Route path="/exposure" element={<ExposurePathPage client={client} />} />
             <Route path="/changed-since" element={<ChangedSincePage client={client} />} />
             <Route path="/explorer" element={<ExplorerPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/relationships" element={<RelationshipsPage model={visibleModel} client={client} />} />
             <Route path="/service-story" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/service-report" element={<ServiceReportPage model={visibleModel} client={client} onOpenService={openService} />} />

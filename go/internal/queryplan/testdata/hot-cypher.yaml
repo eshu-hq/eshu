@@ -14,6 +14,8 @@ required_ids:
   - QP-READINESS-HOSTED
   - QP-READINESS-SC-IMPACT
   - QP-IMPACT-CHANGE-SURFACE
+  - QP-RELATIONSHIPS-CATALOG-COUNT
+  - QP-RELATIONSHIPS-EDGES
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -467,6 +469,66 @@ entries:
       operators:
         - NodeIndexSeek
         - VarLengthExpand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-RELATIONSHIPS-CATALOG-COUNT
+    domain: relationships
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/relationships_catalog_cypher.go
+      symbol: relationshipCountCypher
+      line_hint: 84
+    cypher: |
+      MATCH (s:Function)-[r:CALLS]->()
+      RETURN count(r) AS count
+    required_schema:
+      - function_name
+      - function_lang
+    caveats:
+      - One bounded count per fixed catalog verb, each anchored on the verb's source-node label (this entry is the CALLS/Function representative of the 16-verb family in relationshipVerbCatalog). The scan is bounded to the source-label population plus its outgoing edges of the type, never an unanchored ()-[r:VERB]->() all-node scan. Whole-graph aggregate without a selective user anchor, mirroring QP-READINESS-HOSTED.
+    plan:
+      operators:
+        - LabelScan
+        - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-RELATIONSHIPS-EDGES
+    domain: relationships
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/relationships_catalog_cypher.go
+      symbol: relationshipEdgesCypher
+      line_hint: 96
+    cypher: |
+      MATCH (s:Function)-[r:CALLS]->(t)
+      RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,
+             coalesce(s.name, s.path, s.id, s.uid) AS source_name,
+             coalesce(t.id, t.uid, t.name, t.path) AS target_id,
+             coalesce(t.name, t.path, t.id, t.uid) AS target_name,
+             r.rationale AS evidence
+      ORDER BY source_name, source_id, target_id
+      LIMIT $limit
+    required_schema:
+      - function_name
+      - function_lang
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 16-verb family). The LIMIT bounds work after the source-label scan, not after an all-node scan; callers over-fetch $limit+1 to flag truncation.
+    plan:
+      operators:
+        - LabelScan
+        - Expand
         - Sort
       forbidden_operators:
         - AllNodesScan

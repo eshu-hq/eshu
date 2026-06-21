@@ -191,4 +191,113 @@ const openAPIPathsInfrastructure = `
         }
       }
     },
+    "/api/v0/relationships/catalog": {
+      "post": {
+        "tags": ["infrastructure"],
+        "summary": "List the typed-edge relationship verb catalog",
+        "description": "Returns the fixed catalog of typed-edge relationship verbs across the code-to-cloud graph, each with its layer, a bounded whole-graph edge count, and an evidence/source label. Each verb is counted with its own single bounded query anchored on the verb's source-node label; no unanchored whole-graph relationship scan is run.",
+        "operationId": "getRelationshipsCatalog",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {"type": "object", "description": "Send an empty object {}.", "additionalProperties": false}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relationship verb catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verbs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "verb": {"type": "string"},
+                          "layer": {"type": "string"},
+                          "count": {"type": "integer"},
+                          "evidence": {"type": "string"},
+                          "detail": {"type": "string"}
+                        }
+                      }
+                    },
+                    "verb_count": {"type": "integer"},
+                    "total_edges": {"type": "integer"},
+                    "layer_count": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          },
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/relationships/edges": {
+      "post": {
+        "tags": ["infrastructure"],
+        "summary": "List concrete edges for one relationship verb",
+        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label and always carries a LIMIT, so the slice is bounded.",
+        "operationId": "getRelationshipEdges",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["verb"],
+                "properties": {
+                  "verb": {"type": "string", "description": "A relationship verb from the catalog, e.g. CALLS, IMPORTS, RUNS_ON."},
+                  "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bounded typed-edge slice for the verb",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verb": {"type": "string"},
+                    "layer": {"type": "string"},
+                    "evidence": {"type": "string"},
+                    "detail": {"type": "string"},
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source_id": {"type": "string"},
+                          "source_name": {"type": "string"},
+                          "target_id": {"type": "string"},
+                          "target_name": {"type": "string"},
+                          "evidence": {"type": "string"}
+                        }
+                      }
+                    },
+                    "truncated": {"type": "boolean"},
+                    "limit": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
 `
