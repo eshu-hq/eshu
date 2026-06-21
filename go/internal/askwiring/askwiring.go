@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,30 @@ const EnvAskEnabled = "ESHU_ASK_ENABLED"
 //
 // Default: false (narration is default-closed).
 const EnvAskNarrationEnabled = "ESHU_ASK_NARRATION_ENABLED"
+
+// EnvAskMaxIterations is the environment variable that overrides the agent
+// loop's maximum reasoning iterations (LLM completion / tool-call rounds).
+// Weaker providers may need more rounds to converge; operators raise this knob
+// instead of the feature returning empty partial answers. An unset, empty,
+// non-numeric, zero, or negative value keeps the engine default. Values above
+// MaxAskIterationsCeiling are clamped so a misconfiguration cannot create an
+// unbounded provider-spend loop.
+const EnvAskMaxIterations = "ESHU_ASK_MAX_ITERATIONS"
+
+// EnvAskMaxToolCallsPerTurn is the environment variable that overrides the
+// agent loop's maximum dispatched tool calls per completion turn. The same
+// parse, default, and clamp rules as EnvAskMaxIterations apply.
+const EnvAskMaxToolCallsPerTurn = "ESHU_ASK_MAX_TOOL_CALLS_PER_TURN"
+
+// MaxAskIterationsCeiling bounds ESHU_ASK_MAX_ITERATIONS so an operator
+// override cannot turn Ask into an unbounded provider-spend loop. The ceiling
+// is generous enough for weak providers that need many tool-call rounds while
+// keeping a hard safety cap.
+const MaxAskIterationsCeiling = 32
+
+// MaxAskToolCallsPerTurnCeiling bounds ESHU_ASK_MAX_TOOL_CALLS_PER_TURN for the
+// same reason as MaxAskIterationsCeiling.
+const MaxAskToolCallsPerTurnCeiling = 16
 
 // HandlerResult bundles the HTTP handler with a setter for the governed
 // narration posture. The setter is a no-op when the engine was not built
@@ -108,13 +133,20 @@ func BuildAskHandler(
 
 	runner := engine.NewMCPRunner(inProcessHandler, authHeader, logger)
 
-	eng, err := engine.New(adapt, runner, tools, engine.DefaultOptions())
+	opts := ResolveEngineOptions(getenv, logger)
+	eng, err := engine.New(adapt, runner, tools, opts)
 	if err != nil {
 		if logger != nil {
 			logger.Warn("ask: engine construction failed; ask unavailable",
 				"err_type", "engine_construction")
 		}
 		return HandlerResult{Handler: h, SetPosture: noop}
+	}
+	eng.SetLogger(logger)
+	if logger != nil {
+		logger.Info("ask: engine budget resolved",
+			"max_iterations", opts.MaxIterations,
+			"max_tool_calls_per_turn", opts.MaxToolCallsPerTurn)
 	}
 
 	h.Asker = &engineAsker{eng: eng}
@@ -179,6 +211,54 @@ func IsAskEnabled(getenv func(string) string) bool {
 // IsNarrationEnabled reports whether ESHU_ASK_NARRATION_ENABLED is "true".
 func IsNarrationEnabled(getenv func(string) string) bool {
 	return strings.EqualFold(strings.TrimSpace(getenv(EnvAskNarrationEnabled)), "true")
+}
+
+// ResolveEngineOptions builds the engine [engine.Options] from the budget
+// environment variables, starting from the safe engine defaults. It never
+// loosens the safety bounds silently: an unset, empty, non-numeric, zero, or
+// negative override keeps the default, and an override above the documented
+// ceiling is clamped (and logged at WARN). This lets operators widen the budget
+// for weaker providers (issue #3356) without removing the hard cap.
+func ResolveEngineOptions(getenv func(string) string, logger *slog.Logger) engine.Options {
+	opts := engine.DefaultOptions()
+	opts.MaxIterations = resolveBudget(
+		getenv, EnvAskMaxIterations, opts.MaxIterations, MaxAskIterationsCeiling, logger)
+	opts.MaxToolCallsPerTurn = resolveBudget(
+		getenv, EnvAskMaxToolCallsPerTurn, opts.MaxToolCallsPerTurn, MaxAskToolCallsPerTurnCeiling, logger)
+	return opts
+}
+
+// resolveBudget parses one budget env var. It returns def when the value is
+// unset, empty, non-numeric, zero, or negative, and clamps any value above
+// ceiling to ceiling. Clamping is logged at WARN so an operator can see that
+// their override was bounded.
+func resolveBudget(
+	getenv func(string) string,
+	key string,
+	def int,
+	ceiling int,
+	logger *slog.Logger,
+) int {
+	raw := strings.TrimSpace(getenv(key))
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		if logger != nil {
+			logger.Warn("ask: ignoring invalid budget override; using default",
+				"env", key, "default", def)
+		}
+		return def
+	}
+	if n > ceiling {
+		if logger != nil {
+			logger.Warn("ask: budget override above ceiling; clamping",
+				"env", key, "requested", n, "ceiling", ceiling)
+		}
+		return ceiling
+	}
+	return n
 }
 
 // ResolveAgentReasoningProfile finds the first agent_reasoning provider

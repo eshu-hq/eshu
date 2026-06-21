@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -172,6 +174,7 @@ type Engine struct {
 	tools            []provider.Tool
 	opts             Options
 	narrationPosture func() status.AnswerNarrationStatus
+	logger           *slog.Logger
 }
 
 // New constructs an Engine with the given adapter, runner, tool list, and
@@ -190,5 +193,29 @@ func New(adapter provider.Adapter, runner Runner, tools []provider.Tool, opts Op
 		runner:  runner,
 		tools:   tools,
 		opts:    applyDefaults(opts),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}, nil
+}
+
+// SetLogger injects an operator-facing structured logger into the Engine. When
+// fn is non-nil it replaces the default discard logger so narration-gate
+// outcomes and budget-exhaustion events become visible to operators. A nil
+// logger leaves the discard logger in place.
+//
+// SetLogger is safe to call before the Engine receives any Ask calls. Changing
+// the logger while Ask calls are in flight is not safe.
+func (e *Engine) SetLogger(logger *slog.Logger) {
+	if logger == nil {
+		return
+	}
+	e.logger = logger
+}
+
+// log returns the engine logger, never nil. It guards against a zero-value
+// Engine constructed outside New (e.g. in older tests).
+func (e *Engine) log() *slog.Logger {
+	if e.logger == nil {
+		return slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	return e.logger
 }

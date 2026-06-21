@@ -97,6 +97,10 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 		if len(calls) > e.opts.MaxToolCallsPerTurn {
 			ans.Limitations = appendLimitation(ans.Limitations,
 				fmt.Sprintf("tool calls truncated to %d per turn", e.opts.MaxToolCallsPerTurn))
+			e.log().Warn("ask: tool calls truncated",
+				"requested", len(calls),
+				"max_tool_calls_per_turn", e.opts.MaxToolCallsPerTurn,
+				"iteration", i)
 			calls = calls[:e.opts.MaxToolCallsPerTurn]
 			// FINDING 3: the assistant message must carry only the dispatched
 			// (truncated) tool calls. Replaying all comp.ToolCalls while only
@@ -117,6 +121,11 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 	if ans.Prose == "" {
 		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
 	}
+	e.log().Warn("ask: reached max reasoning iterations",
+		"max_iterations", e.opts.MaxIterations,
+		"max_tool_calls_per_turn", e.opts.MaxToolCallsPerTurn,
+		"packets", len(ans.Packets),
+		"has_supported_evidence", ans.Prose != "")
 	posture := e.resolveNarrationPosture()
 	e.narrate(ctx, &ans, posture)
 	return ans, nil

@@ -141,6 +141,45 @@ When the adapter does not support streaming (e.g. a synchronous-only profile),
 the handler falls back to a synchronous run and emits `trace`, `answer`, and
 `done` without `token` events. Clients should handle all cases.
 
+### Agent loop budget (tunable)
+
+The agent loop bounds both how many reasoning rounds it runs and how many tool
+calls it dispatches per round. Weaker or slower providers (for example
+`deepseek-chat`) sometimes need more rounds to converge than the default
+budget allows; without a knob they return a partial answer with limitations
+such as `tool calls truncated to 4 per turn` and `reached max reasoning
+iterations`. Two environment variables make the budget tunable. They are read
+once at startup by `BuildAskHandler`.
+
+| Variable | Default | Ceiling | Meaning |
+|----------|---------|---------|---------|
+| `ESHU_ASK_MAX_ITERATIONS` | 6 | 32 | Maximum LLM completion / tool-call rounds before the loop stops and marks the answer partial. |
+| `ESHU_ASK_MAX_TOOL_CALLS_PER_TURN` | 4 | 16 | Maximum tool calls dispatched in a single completion turn. Extra calls in a turn are truncated. |
+
+Safety rules (the knobs never silently loosen the bound):
+
+- Unset, empty, non-numeric, zero, or negative values keep the default.
+- Values above the ceiling are clamped to the ceiling and a clamp is logged at
+  `WARN`.
+- The resolved budget is logged at startup
+  (`ask: engine budget resolved max_iterations=… max_tool_calls_per_turn=…`).
+
+Operators raising these knobs should weigh provider cost: each iteration is at
+least one provider completion, and each turn may issue up to
+`ESHU_ASK_MAX_TOOL_CALLS_PER_TURN` in-process tool calls.
+
+### Partial-answer narration
+
+When the answer is partial (the loop hit its iteration budget, a result was
+truncated, or a packet carries limitations), governed narration must surface
+that partial signal — narration that presents a partial answer as complete is
+rejected by the narration validator. The narration prompt is partial-aware: for
+a partial packet it instructs the model to add one sentence with a
+`limitation` / `unsupported_reason` / `freshness` provenance reference drawn
+from the packet, so legitimate evidence-backed narration of a partial answer is
+accepted instead of being dropped with a `narration rejected by validator`
+limitation.
+
 Disabled endpoint (`h.Asker == nil`) or validation failures (empty question,
 bad JSON) are returned as plain JSON with the appropriate HTTP status code
 **before** the event stream is opened.
