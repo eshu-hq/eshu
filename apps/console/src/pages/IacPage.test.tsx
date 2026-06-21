@@ -81,6 +81,18 @@ describe("IacPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows demo fixture rows and does not call the API when sourceLabel is demo fixtures", async () => {
+    const get = vi.fn();
+    const client = { get } as unknown as EshuApiClient;
+
+    render(<IacPage client={client} sourceLabel="demo fixtures" model={demoModel} />);
+
+    expect(await screen.findByText("module.\"checkout\".aws_iam_role.this")).toBeInTheDocument();
+    expect(screen.getByText("aws_s3_bucket.assets")).toBeInTheDocument();
+    expect(screen.getByText("bounded page from the graph")).toBeInTheDocument();
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("loads and pages IaC resources directly from the live API", async () => {
     const get = vi
       .fn()

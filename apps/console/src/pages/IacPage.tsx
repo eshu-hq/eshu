@@ -28,10 +28,10 @@ function distinct(values: readonly string[]): readonly string[] {
   return [...new Set(values.filter((v) => v !== ""))].sort();
 }
 
-function matches(row: IacResourceRow, q: string, filters: IacFilters, client: EshuApiClient | undefined): boolean {
-  // With a live client, typed/provider/module/kind filters are server-side. Keep
+function matches(row: IacResourceRow, q: string, filters: IacFilters, serverSideFilters: boolean): boolean {
+  // With a live client (non-demo), typed/provider/module/kind filters are server-side. Keep
   // the browser filter limited to free-text within the current bounded page.
-  if (!client) {
+  if (!serverSideFilters) {
     if (row.kind !== filters.kind) return false;
     if (filters.type !== "" && row.type !== filters.type) return false;
     if (filters.provider !== "" && row.provider !== filters.provider) return false;
@@ -45,7 +45,7 @@ function matches(row: IacResourceRow, q: string, filters: IacFilters, client: Es
   return true;
 }
 
-export function IacPage({ model, client }: { readonly model: ConsoleModel; readonly client?: EshuApiClient }): React.JSX.Element {
+export function IacPage({ model, client, sourceLabel = "live" }: { readonly model: ConsoleModel; readonly client?: EshuApiClient; readonly sourceLabel?: string }): React.JSX.Element {
   const [livePage, setLivePage] = useState<IacResourcePage | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -59,9 +59,10 @@ export function IacPage({ model, client }: { readonly model: ConsoleModel; reado
 
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  const isDemo = sourceLabel === "demo fixtures";
 
   const fetchPage = useCallback((filters: IacFilters, cursor: IacResourceCursor | null) => {
-    if (!client) return () => undefined;
+    if (!client || isDemo) return () => undefined;
     let cancelled = false;
     setBusy(true); setErr("");
     void loadIacResourcesPage(client, {
@@ -85,7 +86,7 @@ export function IacPage({ model, client }: { readonly model: ConsoleModel; reado
       }
     });
     return () => { cancelled = true; };
-  }, [client]);
+  }, [client, isDemo]);
 
   useEffect(() => fetchPage(applied, null), [fetchPage, applied]);
 
@@ -94,8 +95,8 @@ export function IacPage({ model, client }: { readonly model: ConsoleModel; reado
   const modules = useMemo(() => distinct(all.map((r) => r.module)), [all]);
 
   const filtered = useMemo(
-    () => all.filter((r) => matches(r, q, applied, client)),
-    [all, q, applied, client]
+    () => all.filter((r) => matches(r, q, applied, !!client && !isDemo)),
+    [all, q, applied, client, isDemo]
   );
 
   // Clamp the page when filters shrink the result below the current offset.
@@ -134,7 +135,7 @@ export function IacPage({ model, client }: { readonly model: ConsoleModel; reado
 
   const unavailable = provenance === "unavailable";
   const empty = !unavailable && all.length === 0;
-  const sourceSub = client
+  const sourceSub = client && !isDemo
     ? `live page ${stack.length}${livePage?.truncated ? " · more available" : ""}`
     : "bounded page from the graph";
 
@@ -224,7 +225,7 @@ export function IacPage({ model, client }: { readonly model: ConsoleModel; reado
             </table>
           </div>
 
-          {client ? (
+          {client && !isDemo ? (
             <div className="pager-row">
               <button className="btn-ghost" disabled={busy || stack.length <= 1} onClick={onPrev}>Previous</button>
               <span className="t-mut" style={{ fontSize: ".78rem" }}>

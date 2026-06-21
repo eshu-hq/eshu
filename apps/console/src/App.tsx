@@ -388,7 +388,7 @@ export function App(): React.JSX.Element {
             <Route path="/images" element={<ImagesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/capabilities" element={<CapabilityMatrixPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/surface-inventory" element={<SurfaceInventoryPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/iac" element={<IacPage model={visibleModel} client={source.mode === "demo" ? undefined : client} />} />
+            <Route path="/iac" element={<IacPage model={visibleModel} client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/replatforming" element={<ReplatformingPage model={visibleModel} client={client} />} />
             <Route path="/findings" element={<FindingsPage model={visibleModel} />} />
             <Route path="/dead-code" element={<DeadCodePage client={client} model={visibleModel} />} />
