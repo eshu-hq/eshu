@@ -324,3 +324,43 @@ ownership, prior snapshot metadata, and readiness still agree.
 No-Observability-Change: #2400 adds no table, queue, graph write, metric, span,
 or log shape. Exact candidate counts continue through the existing
 Terraform-state discovery metrics.
+
+## Reducer Batch Per-Domain Claim Fairness (#3385)
+
+The batch reducer claim ordered candidates by a single global `updated_at ASC`.
+When one lane claims several domains (the `collector-reducer` lane claims 14,
+including the AWS cloud producers `cloud_inventory_admission`,
+`aws_resource_materialization`, `aws_cloud_runtime_drift`), a high-volume domain
+with an older, continuously regenerated backlog (`supply_chain_impact`,
+`package_source_correlation`) kept every batch slot. The AWS producer rows were
+always newer, so they sat `status='pending', attempt_count=0` indefinitely,
+`CloudResource` nodes never materialized, and `GET /api/v0/cloud/resources`
+returned 0. The fix adds a per-domain fairness rank to
+`claimReducerWorkBatchQuery`: each eligible conflict-group representative is
+ranked by its age WITHIN its own domain (correlated count of strictly-older
+same-domain representatives; a window function cannot be combined with
+`FOR UPDATE SKIP LOCKED`), and the final `ORDER BY` places that rank before the
+global `updated_at`. This round-robins ready domains so each contributes its
+oldest representative before any contributes a second. Conflict fencing and the
+single same-group representative are unchanged, so per-conflict-key concurrency
+is identical; only which ready rows a batch takes changes.
+
+Performance Evidence:
+`ESHU_REDUCER_FAIRNESS_PROOF_DSN=<dsn> go test ./internal/storage/postgres -run
+'TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog' -count=1` fails on
+the pre-fix query (a 16-item batch over a 40-row older backlog plus 8 newer
+starved-domain rows claims 0 starved-domain items) and passes after the fairness
+rank lands. Against the live local stack (`collector-reducer` lane allowlist, 14
+domains, batch size 16, NornicDB backend, `aws:%` scopes), one batch returned
+only `package_source_correlation`/`supply_chain_impact` before the change and
+returned `aws_cloud_runtime_drift`, `aws_resource_materialization`, and
+`workload_cloud_relationship_materialization` rows alongside the others after the
+change. Added cost is one bounded correlated count per candidate over the same
+already-indexed reducer conflict columns
+(`fact_work_items_reducer_conflict_claim_idx`); no new scan over an unindexed
+column and no change to the locked-row footprint (still `LIMIT $8`).
+
+No-Observability-Change: #3385 adds no table, queue, graph write, metric, span,
+or log shape. The existing `eshu_dp_queue_depth` / `eshu_dp_queue_oldest_age_seconds`
+gauges already expose per-stage backlog and oldest age, which now drains across
+all lane domains instead of one.

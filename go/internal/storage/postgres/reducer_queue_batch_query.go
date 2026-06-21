@@ -8,7 +8,133 @@ candidate AS (
         work_item_id,
         -- Derived search-document catch-up can be expensive; graph truth and
         -- materialization reducers must not wait behind it when both are ready.
-        CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority
+        CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority,
+        -- Per-domain fairness rank (#3385, P1 fix #3386). A lane that claims
+        -- several domains must not let one high-volume domain with an older,
+        -- continuously regenerated backlog monopolize every batch and
+        -- indefinitely starve a newer, lower-volume domain (the AWS cloud
+        -- producers sat pending behind supply_chain_impact /
+        -- package_source_correlation). The rank is the count of same-domain
+        -- conflict-group representatives that (a) sort strictly before this
+        -- row by (updated_at, work_item_id) AND (b) pass every gate the outer
+        -- candidate WHERE applies — superseded-stale exclusion, projector
+        -- drain, semantic caps, and readiness. Counting only actually-claimable
+        -- representatives prevents inactive-generation rows or readiness-gated
+        -- rows from inflating the rank of the first truly-claimable row in a
+        -- domain and recreating the starvation. A correlated count is used
+        -- instead of row_number() because Postgres forbids window functions in
+        -- a FOR UPDATE SKIP LOCKED select. Conflict fencing and the same-group
+        -- representative below still pick exactly one safe row per conflict
+        -- key, so this only changes which ready rows are taken, never how many
+        -- run concurrently per conflict key.
+        (
+            SELECT count(*)
+            FROM fact_work_items AS fair_peer
+            WHERE fair_peer.stage = 'reducer'
+              AND fair_peer.domain = fact_work_items.domain
+              AND fair_peer.status IN ('pending', 'retrying', 'claimed', 'running')
+              -- Supersede gate: inactive-generation rows are skipped by the
+              -- supersede CTE in the outer query; exclude them here too so
+              -- they do not inflate the rank of the first claimable row.
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM superseded_stale_reducer_generations AS fair_superseded
+                  WHERE fair_superseded.work_item_id = fair_peer.work_item_id
+              )
+              AND (fair_peer.visible_at IS NULL OR fair_peer.visible_at <= $1)
+              AND (fair_peer.claim_until IS NULL OR fair_peer.claim_until <= $1)
+              AND ($2::text[] IS NULL OR fair_peer.domain = ANY($2::text[]))
+              -- Projector drain gate: mirror the outer candidate predicate so
+              -- projector-gated peers do not inflate the rank.
+              AND ($5 = false OR NOT EXISTS (
+                  SELECT 1
+                  FROM fact_work_items AS fair_projector_work
+                  WHERE fair_projector_work.stage = 'projector'
+                    AND fair_projector_work.scope_id = fair_peer.scope_id
+                    AND fair_projector_work.status IN ('pending', 'retrying', 'claimed', 'running')
+              ))
+              AND ($5 = false OR fair_peer.domain <> 'semantic_entity_materialization' OR NOT EXISTS (
+                  SELECT 1
+                  FROM fact_work_items AS fair_projector_any
+                  WHERE fair_projector_any.stage = 'projector'
+                    AND fair_projector_any.domain = 'source_local'
+                    AND fair_projector_any.status IN ('pending', 'retrying', 'claimed', 'running')
+              ))
+              AND ($5 = false OR fair_peer.domain <> 'semantic_entity_materialization' OR $6 <= 0 OR (
+                  SELECT count(*)
+                  FROM fact_work_items AS fair_projector_done
+                  WHERE fair_projector_done.stage = 'projector'
+                    AND fair_projector_done.domain = 'source_local'
+                    AND fair_projector_done.status = 'succeeded'
+              ) >= $6)
+              AND ($5 = false OR fair_peer.domain <> 'semantic_entity_materialization' OR $7 <= 0 OR (
+                  SELECT count(*)
+                  FROM fact_work_items AS fair_semantic_inflight
+                  WHERE fair_semantic_inflight.stage = 'reducer'
+                    AND fair_semantic_inflight.domain = 'semantic_entity_materialization'
+                    AND fair_semantic_inflight.work_item_id <> fair_peer.work_item_id
+                    AND fair_semantic_inflight.status IN ('claimed', 'running')
+                    AND fair_semantic_inflight.claim_until > $1
+              ) < $7)
+              AND ($5 = false OR fair_peer.domain <> 'semantic_entity_materialization' OR $7 <= 0 OR (
+                  SELECT count(*)
+                  FROM fact_work_items AS fair_semantic_next
+                  WHERE fair_semantic_next.stage = 'reducer'
+                    AND fair_semantic_next.domain = 'semantic_entity_materialization'
+                    AND fair_semantic_next.status IN ('pending', 'retrying', 'claimed', 'running')
+                    AND (fair_semantic_next.visible_at IS NULL OR fair_semantic_next.visible_at <= $1)
+                    AND (fair_semantic_next.claim_until IS NULL OR fair_semantic_next.claim_until <= $1)
+                    AND (
+                        fair_semantic_next.updated_at < fair_peer.updated_at
+                        OR (
+                            fair_semantic_next.updated_at = fair_peer.updated_at
+                            AND fair_semantic_next.work_item_id <= fair_peer.work_item_id
+                        )
+                    )
+              ) <= $7 - (
+                  SELECT count(*)
+                  FROM fact_work_items AS fair_semantic_inflight2
+                  WHERE fair_semantic_inflight2.stage = 'reducer'
+                    AND fair_semantic_inflight2.domain = 'semantic_entity_materialization'
+                    AND fair_semantic_inflight2.status IN ('claimed', 'running')
+                    AND fair_semantic_inflight2.claim_until > $1
+              ))
+              -- Readiness gate: mirror the outer candidate predicate so
+              -- readiness-gated peers do not inflate the rank.
+              AND ` + reducerClaimReadinessGateSQL("fair_peer", "fair_readiness_req", "fair_readiness_phase") + `
+              -- The fair_peer must be the conflict-group representative for its
+              -- own conflict key (same logic as the outer same subquery), and
+              -- that representative must also pass supersede + readiness gates.
+              AND fair_peer.work_item_id = (
+                  SELECT fair_same.work_item_id
+                  FROM fact_work_items AS fair_same
+                  WHERE fair_same.stage = 'reducer'
+                    AND fair_same.conflict_domain = fair_peer.conflict_domain
+                    AND COALESCE(fair_same.conflict_key, fair_same.scope_id) = COALESCE(fair_peer.conflict_key, fair_peer.scope_id)
+                    AND fair_same.status IN ('pending', 'retrying', 'claimed', 'running')
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM superseded_stale_reducer_generations AS fair_same_superseded
+                        WHERE fair_same_superseded.work_item_id = fair_same.work_item_id
+                    )
+                    AND (fair_same.visible_at IS NULL OR fair_same.visible_at <= $1)
+                    AND (fair_same.claim_until IS NULL OR fair_same.claim_until <= $1)
+                    AND ($2::text[] IS NULL OR fair_same.domain = ANY($2::text[]))
+                    AND ` + reducerClaimReadinessGateSQL("fair_same", "fair_same_readiness_req", "fair_same_readiness_phase") + `
+                  ORDER BY
+                    CASE WHEN fair_same.domain = 'eshu_search_document' THEN 1 ELSE 0 END ASC,
+                    fair_same.updated_at ASC,
+                    fair_same.work_item_id ASC
+                  LIMIT 1
+              )
+              AND (
+                  fair_peer.updated_at < fact_work_items.updated_at
+                  OR (
+                      fair_peer.updated_at = fact_work_items.updated_at
+                      AND fair_peer.work_item_id < fact_work_items.work_item_id
+                  )
+              )
+        ) AS reducer_domain_fair_rank
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
@@ -130,7 +256,7 @@ candidate AS (
             same.work_item_id ASC
           LIMIT 1
       )
-    ORDER BY reducer_domain_priority ASC, updated_at ASC, work_item_id ASC
+    ORDER BY reducer_domain_priority ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC
     LIMIT $8
     FOR UPDATE SKIP LOCKED
 ),

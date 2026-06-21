@@ -158,8 +158,13 @@ func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
 	if !strings.Contains(query, sameSearchRank) {
 		t.Fatalf("same-conflict representative query missing search-document deprioritization rank:\n%s", query)
 	}
-	if !strings.Contains(query, "ORDER BY reducer_domain_priority ASC, updated_at ASC, work_item_id ASC") {
-		t.Fatalf("batch claim query missing domain-priority ordering:\n%s", query)
+	if !strings.Contains(query, "ORDER BY reducer_domain_priority ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC") {
+		t.Fatalf("batch claim query missing domain-priority and fairness ordering:\n%s", query)
+	}
+	// The per-domain fairness rank (#3385) must round-robin ready domains so a
+	// high-volume older backlog cannot starve a newer, lower-volume domain.
+	if !strings.Contains(query, "AS reducer_domain_fair_rank") {
+		t.Fatalf("batch claim query missing per-domain fairness rank:\n%s", query)
 	}
 }
 
