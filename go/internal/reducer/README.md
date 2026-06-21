@@ -582,14 +582,26 @@ curated search projection, kept separate from canonical graph writes:
   bounded per-generation source set (content entities, files, runtime summaries)
   through `searchdocs`, dropping sensitive or excluded candidates and returning
   documents ordered by id with a low-cardinality curation summary.
-- `EshuSearchDocumentHandler` (`eshu_search_document.go`) drives one intent:
-  load sources, curate, write, and emit the canonical-write counter/duration plus
-  a structured cycle log (`considered`/`included`/`skipped`/`written`/`retired`).
-- `PostgresEshuSearchDocumentWriter` (`eshu_search_document_writer.go`) upserts
-  each document as a derived fact (`reducer_eshu_search_document`,
-  `truth_scope.level = derived`) keyed deterministically by scope, generation,
-  and document id, maintains persisted BM25 documents/terms/stats, and retires
-  generation-local records absent from the written set. It records bounded
+- `EshuSearchDocumentHandler` (`eshu_search_document.go`) drives one intent by
+  streaming: it opens a write session, then `StreamSearchDocumentSources` feeds
+  bounded keyset pages that are each projected, curated, and inserted
+  incrementally; a single `Finalize` runs the authoritative retire. It aggregates
+  the curation summary across pages and emits the canonical-write
+  counter/duration plus a structured cycle log
+  (`considered`/`included`/`skipped`/`written`/`retired`). Streaming bounds peak
+  memory to one page regardless of repository size (issue #3440).
+- `SearchDocumentSourceLoader.StreamSearchDocumentSources`
+  (`postgres.EshuSearchDocumentSourceLoader`) keyset-paginates the scope's
+  repository content (entities by `entity_id`, files by `relative_path`) so each
+  read is bounded by a `LIMIT` rather than loading the whole repository at once.
+- `PostgresEshuSearchDocumentWriter` (`eshu_search_document_writer.go`) exposes a
+  streaming write: `BeginEshuSearchDocumentWrite` returns a session whose
+  `InsertPage` upserts one page (derived facts `reducer_eshu_search_document`,
+  `truth_scope.level = derived`, keyed deterministically by scope, generation,
+  and document id, plus persisted BM25 documents/terms) without retiring, and
+  whose `Finalize` runs the single generation-authoritative retire over the union
+  written-id keep-set and upserts stats. `WriteEshuSearchDocuments` is retained
+  as a single-shot façade implemented over those primitives. It records bounded
   mutation/error/duration metrics plus `reducer.eshu_search_index_write`.
   `postgres.EshuSearchDocumentStore` reads back only the active generation, so
   superseded generations retire automatically.

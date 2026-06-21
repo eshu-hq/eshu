@@ -222,3 +222,91 @@ batched writers preserve that exact return contract and add no new metric
 instrument, metric label, span name, log key, queue domain, worker, lease, or
 runtime knob. `ESHU_REDUCER_WORKERS` is unchanged — concurrency was not reduced
 as a mitigation.
+
+## Search-Document Streaming Load + Bounded Write (#3440)
+
+Classification (per eshu-diagnostic-rigor): Wall-clock + Correctness win. The
+streamed path unblocks generation completion (active->completed flips) by
+removing the multi-minute single-work-item stalls that held all reducer workers.
+
+Stage: reducer `eshu_search_document` source load + projection + write.
+
+Input shape: whale repository scope, ~159K content entities and ~94MB file
+content across ~11K files (the largest live claimed item at diagnosis; a single
+file can be ~52MB).
+
+No-Regression Evidence: before this change the `EshuSearchDocumentSourceLoader`
+issued two unbounded `SELECT`s per work item —
+`loadEshuSearchDocumentEntitiesQuery` (all `content_entities` for the repo,
+`ORDER BY entity_id` with no `LIMIT`, producing a ~50MB external-merge sort spill
+and a 159K-row Go slice) and `loadEshuSearchDocumentFilesQuery` (all
+`content_files` including the full `content` column, ~94MB into a Go slice). Both
+were accumulated into one `reducer.SearchDocumentProjectionInput`, projected as a
+whole, and written in one shot. Live reducer logs showed single search-doc work
+cycles of 145s and 1075s (18 min); the reduce queue drained at ~tens/10min,
+generations never flipped active->completed (live: active=982, completed=3), and
+the projector sat idle behind a large `pending_projection` backlog.
+
+The change re-architects the path to keyset-paginated streaming load ->
+per-page project -> per-page insert -> single finalize-retire:
+
+1. Loader: `StreamSearchDocumentSources` resolves the scope's `repo_id` once,
+   then keyset-paginates entities by `entity_id` (the PRIMARY KEY:
+   `WHERE repo_id=$1 AND entity_id > $cursor ORDER BY entity_id LIMIT $pageSize`)
+   and files by `relative_path` (part of `PRIMARY KEY (repo_id, relative_path)`).
+   Walking the indexed key in order with a per-page `LIMIT` removes the unbounded
+   `SELECT` and the ~50MB external-merge sort, and bounds each read to one page.
+   No new index was added; both keyset predicates ride existing PKs. Entity page
+   size is 2000 rows; file page size is 256 rows with a 16 MiB content
+   byte-budget early flush so a page of large files cannot itself exhaust memory.
+2. Writer: split into `BeginEshuSearchDocumentWrite` -> session `InsertPage`
+   (insert-only: bulk fact upsert + index-doc upsert + per-doc term refresh +
+   bulk term upsert; NO retire) -> `Finalize` (single authoritative
+   retire-by-absence over the union written-id keep-set for facts, index terms,
+   and index documents, then stats). Accumulating only the keep-sets (~tens of
+   bytes per id, ~13MB for 159K ids vs. 94MB content) keeps peak content memory
+   bounded to one page while preserving the existing generation-authoritative
+   retire semantics. `WriteEshuSearchDocuments` is retained and re-implemented as
+   `Begin -> InsertPage(all) -> Finalize`, so all prior writer tests pass
+   unchanged and the single-shot path stays byte-identical (proved by
+   `TestWriteEshuSearchDocumentsEqualsStreamingOnePage`).
+
+Idempotency/retry: per-page inserts remain idempotent (`ON CONFLICT … DO
+UPDATE` by `fact_id` and `(scope_id, generation_id, document_id)` and the term
+key). A retry re-streams and re-upserts, and the deferred retire keeps the
+generation authoritative. The empty-write edge still clears stale rows: an empty
+union keep-set retires every fact/index row for the generation
+(`TestStreamingSearchDocumentWriteEmptyFinalizeRetiresAll`).
+
+Failing-first tests (red before the change, green after):
+- `TestEshuSearchDocumentHandlerStreamsBoundedPages` — handler projects+inserts
+  once per loader page and runs Finalize (retire) exactly once with aggregated
+  evidence counts equal to the sum across pages.
+- `TestStreamingSearchDocumentWriteRetiresOnceWithUnionKeepSet` — no
+  retire-by-absence runs during `InsertPage`; exactly one fact retire runs at
+  `Finalize` with the union keep-set.
+- `TestStreamSearchDocumentSourcesPaginatesEntitiesWithLimit` /
+  `…PaginatesFilesWithLimit` — bounded keyset queries carry `LIMIT`, the cursor
+  strictly advances, and all rows are yielded with no gaps/duplicates.
+
+Verification: `go test ./internal/reducer ./internal/storage/postgres
+./cmd/reducer -count=1` (3311 tests) passes; `go vet` on the same packages is
+clean; `golangci-lint run ./...` reports 0 issues.
+
+Observability Evidence: the per-cycle operator signal is unchanged in name and
+shape. The handler still emits the `eshu search document projection cycle
+completed` structured log with `scope_id`, `generation_id`, `considered`,
+`included`, `skipped`, `written`, `retired`, `duration_seconds`, and `domain`,
+and still records `CanonicalWrites` / `CanonicalWriteDuration`. The
+`considered`/`included`/`skipped` counts are now aggregated across streamed pages
+(`SearchDocumentCurationSummary.merge`) so the summary stays accurate. The writer
+still emits the `eshu_dp_search_index_mutations_total`,
+`eshu_dp_search_index_errors_total`, and
+`eshu_dp_search_index_write_duration_seconds` instruments and the
+`SpanReducerEshuSearchIndexWrite` span; `InsertPage` and `Finalize` each open one
+such span, so an operator now sees per-page write spans plus one finalize span
+rather than a single combined span. Operators read per-cycle `duration_seconds`
+and `written`/`considered` to confirm bounded work; note that `duration_seconds`
+now reflects the full streamed cycle while peak memory and per-page latency are
+bounded. No new metric name, label, queue domain, worker, lease, or runtime knob
+was added.

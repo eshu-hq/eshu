@@ -36,6 +36,28 @@ type SearchDocumentProjection struct {
 	Summary   SearchDocumentCurationSummary
 }
 
+// newSearchDocumentCurationSummary returns an empty summary ready to aggregate
+// per-page projection summaries across a streamed scope.
+func newSearchDocumentCurationSummary() SearchDocumentCurationSummary {
+	return SearchDocumentCurationSummary{
+		IncludedBySourceKind: make(map[searchdocs.SourceKind]int),
+		SkippedByReason:      make(map[searchdocs.ExclusionReason]int),
+	}
+}
+
+// merge folds one page's curation summary into the running total so the handler
+// emits accurate aggregate counts across all streamed pages.
+func (s *SearchDocumentCurationSummary) merge(page SearchDocumentCurationSummary) {
+	s.Considered += page.Considered
+	s.Included += page.Included
+	for kind, count := range page.IncludedBySourceKind {
+		s.IncludedBySourceKind[kind] += count
+	}
+	for reason, count := range page.SkippedByReason {
+		s.SkippedByReason[reason] += count
+	}
+}
+
 // ProjectSearchDocuments curates the bounded input into derived search documents.
 // Excluded or sensitive candidates are dropped and counted by reason, and the
 // returned documents are ordered by ID so generation-scoped writes are
