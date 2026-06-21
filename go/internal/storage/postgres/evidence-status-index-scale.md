@@ -1,23 +1,30 @@
-# Status index snapshot scale evidence
+# Status index and ingester snapshot scale evidence
 
-Tracks the read-path performance fix for `GET /api/v0/status/index` (issue
-[#3368](https://github.com/eshu-hq/eshu/issues/3368)).
+Tracks the read-path performance fix for `GET /api/v0/status/index` (#3373,
+closes #3368) and the ingester status surface (`GET /api/v0/status/ingesters`,
+`GET /api/v0/status/ingesters/{ingester}`) (#3377, follow-up to #3368).
 
 ## Problem
 
 `StatusStore.ReadStatusSnapshot` unconditionally ran every optional section,
 including two aggregates over the active `fact_records` table:
 `readCollectorFactEvidence` (full GROUP BY over all active facts) and
-`readRegistryCollectorSnapshots`. The `getIndexStatus` handler renders neither
-section, so the index surface paid ~20s of work it discarded.
+`readRegistryCollectorSnapshots`. The `getIndexStatus`, `listIngesters`, and
+`getIngesterStatus` handlers render neither section, so those surfaces paid
+~20s of work they discarded. At ~900-repo scale the index and ingester
+endpoints aggregated ~4.5M `fact_records` (~9.4 GB), taking 24-70s or timing
+out.
 
 ## Change
 
 `ReadStatusSnapshotFiltered(ctx, asOf, SnapshotSelection)` gathers only the
-requested optional sections. `getIndexStatus` excludes collector fact evidence
-and registry collectors; every full-report surface (CLI/admin status, collector
-readiness, pipeline, freshness, hosted readiness) keeps the back-compatible full
-selection via `ReadStatusSnapshot`.
+requested optional sections. `getIndexStatus`, `listIngesters`, and
+`getIngesterStatus` exclude collector fact evidence and registry collectors;
+they render only health, queue, coordinator-instance, stage, and backlog
+fields, none of which derive from the excluded `fact_records` sections. Every
+full-report surface (CLI/admin status, collector readiness, pipeline,
+freshness, hosted readiness) keeps the back-compatible full selection via
+`ReadStatusSnapshot`.
 
 ## Performance Evidence
 
@@ -38,12 +45,17 @@ nodes, reducer drained to ~210 pending.
 The full status-report path is unchanged: `ReadStatusSnapshot` delegates to
 `ReadStatusSnapshotFiltered(FullSnapshotSelection())`, so CLI status, admin
 status, and collector readiness still include registry collectors and collector
-fact evidence. Covered by
+fact evidence. The ingester handlers request the filtered selection and still
+render correct health/queue/coordinator output, proven by
+`TestListIngestersRequestsFilteredSelection` and
+`TestGetIngesterStatusRequestsFilteredSelection`. Covered by
 `go test ./internal/storage/postgres -run Status`,
-`go test ./internal/status`, and `go test ./internal/query -run 'Status|Index'`.
+`go test ./internal/status`, and
+`go test ./internal/query -run 'Status|Index|Ingester'`.
 
 ## No-Observability-Change
 
 No metric, span, log, status row, graph write, or queue consumer is added or
 altered. The change only gates which existing read queries run for the index
-surface; the omitted sections were already absent from the index payload.
+and ingester surfaces; the omitted sections were already absent from those
+payloads.
