@@ -22,7 +22,17 @@ Use these settings when creating or checking the Pages project:
 | Framework preset | Vite React |
 | Build command | `npm run build` |
 | Build output directory | `site-dist` |
+| Node version | `22.12.0` (pinned via `.nvmrc`) |
 | Production branch | Do not use `main` unless explicitly approved |
+
+### Node version
+
+The build requires Node `>=20.19` or `>=22.12` because Vite 7 declares that
+engine range. The repo pins `22.12.0` in `.nvmrc`, which Cloudflare Pages reads
+to select the build Node version. Without this pin, a Pages project still on an
+older default build image (e.g. Node 18.17.1) would run `npm run build` under an
+unsupported Node and fail. If a project sets `NODE_VERSION` explicitly in the
+Pages dashboard, keep it `>= 22.12`.
 
 The Pages output directory is also declared in `wrangler.jsonc`:
 
