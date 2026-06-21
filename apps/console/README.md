@@ -85,6 +85,9 @@ npm run console:typecheck
 npm run console:build
 ```
 
+`console:build` runs the Vite build and then enforces the documented bundle
+budget against the emitted chunks.
+
 Run the console dev server:
 
 ```bash
