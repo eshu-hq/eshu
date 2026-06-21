@@ -406,3 +406,11 @@ type staticStatusReader struct{}
 func (staticStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {
 	return statuspkg.RawSnapshot{}, nil
 }
+
+func (staticStatusReader) ReadStatusSnapshotFiltered(
+	context.Context,
+	time.Time,
+	statuspkg.SnapshotSelection,
+) (statuspkg.RawSnapshot, error) {
+	return statuspkg.RawSnapshot{}, nil
+}

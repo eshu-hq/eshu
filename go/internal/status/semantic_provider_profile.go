@@ -79,7 +79,15 @@ func (r semanticProviderProfileReader) ReadStatusSnapshot(
 	ctx context.Context,
 	asOf time.Time,
 ) (RawSnapshot, error) {
-	raw, err := r.reader.ReadStatusSnapshot(ctx, asOf)
+	return r.ReadStatusSnapshotFiltered(ctx, asOf, FullSnapshotSelection())
+}
+
+func (r semanticProviderProfileReader) ReadStatusSnapshotFiltered(
+	ctx context.Context,
+	asOf time.Time,
+	selection SnapshotSelection,
+) (RawSnapshot, error) {
+	raw, err := r.reader.ReadStatusSnapshotFiltered(ctx, asOf, selection)
 	if err != nil {
 		return RawSnapshot{}, err
 	}

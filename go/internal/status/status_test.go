@@ -98,6 +98,14 @@ func (r *fakeReader) ReadStatusSnapshot(_ context.Context, asOf time.Time) (stat
 	return r.snapshot, nil
 }
 
+func (r *fakeReader) ReadStatusSnapshotFiltered(
+	ctx context.Context,
+	asOf time.Time,
+	_ status.SnapshotSelection,
+) (status.RawSnapshot, error) {
+	return r.ReadStatusSnapshot(ctx, asOf)
+}
+
 func TestBuildReportIncludesGenerationHistorySummary(t *testing.T) {
 	t.Parallel()
 

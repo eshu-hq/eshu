@@ -49,9 +49,22 @@ func (s StatusStore) ReadRawSnapshot(ctx context.Context, asOf time.Time) (statu
 	return s.ReadStatusSnapshot(ctx, asOf)
 }
 
-// ReadStatusSnapshot returns the raw aggregate snapshot needed by the shared
-// operator status surface.
+// ReadStatusSnapshot returns the full raw aggregate snapshot needed by the
+// shared operator status surface. It delegates to ReadStatusSnapshotFiltered
+// with FullSnapshotSelection() to preserve back-compatible behavior.
 func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
+	return s.ReadStatusSnapshotFiltered(ctx, asOf, statuspkg.FullSnapshotSelection())
+}
+
+// ReadStatusSnapshotFiltered returns the raw aggregate snapshot, gathering only
+// the optional sections requested by the selection. When the selection excludes
+// collector fact evidence or registry collectors, it skips the corresponding
+// fact_records aggregate queries and leaves those snapshot fields empty.
+func (s StatusStore) ReadStatusSnapshotFiltered(
+	ctx context.Context,
+	asOf time.Time,
+	selection statuspkg.SnapshotSelection,
+) (statuspkg.RawSnapshot, error) {
 	if s.queryer == nil {
 		return statuspkg.RawSnapshot{}, fmt.Errorf("queryer is required")
 	}
@@ -102,9 +115,12 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	registryCollectors, err := readRegistryCollectorSnapshots(ctx, s.queryer, asOf.UTC())
-	if err != nil {
-		return statuspkg.RawSnapshot{}, err
+	var registryCollectors []statuspkg.RegistryCollectorSnapshot
+	if selection.IncludeRegistryCollectors {
+		registryCollectors, err = readRegistryCollectorSnapshots(ctx, s.queryer, asOf.UTC())
+		if err != nil {
+			return statuspkg.RawSnapshot{}, err
+		}
 	}
 	awsCloudScans, awsCloudScansTruncated, err := readAWSCloudScanStatuses(ctx, s.queryer)
 	if err != nil {
@@ -118,9 +134,12 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	collectorFactEvidence, err := readCollectorFactEvidence(ctx, s.queryer)
-	if err != nil {
-		return statuspkg.RawSnapshot{}, err
+	var collectorFactEvidence []statuspkg.CollectorFactEvidence
+	if selection.IncludeCollectorFactEvidence {
+		collectorFactEvidence, err = readCollectorFactEvidence(ctx, s.queryer)
+		if err != nil {
+			return statuspkg.RawSnapshot{}, err
+		}
 	}
 	terraformStateEvidence, err := readTerraformStateAdminEvidence(
 		ctx,
