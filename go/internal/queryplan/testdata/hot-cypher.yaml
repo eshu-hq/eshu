@@ -443,7 +443,7 @@ entries:
       line_hint: 107
     cypher: |
       MATCH (start:Workload {id: $target_id})
-      OPTIONAL MATCH path = (start)-[rels*1..8]->(impacted)
+      OPTIONAL MATCH path = (start)-[rels*1..4]->(impacted)
       WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
         AND ($environment = '' OR coalesce(impacted.environment, '') = '' OR impacted.environment = $environment)
       UNWIND relationships(path) as rel
@@ -462,7 +462,7 @@ entries:
       - $limit
     requires_order: true
     caveats:
-      - The traversal start label is resolved per target kind via changeSurfaceTraversalStartMatch; the Workload anchor is the dense service-kind shape that issue #3384 bounded, and the depth bound is clamped at the call site (default 4, max 8) rather than the hardcoded *1..8 it replaced.
+      - The traversal start label is resolved per target kind via changeSurfaceTraversalStartMatch; the Workload anchor is the dense service-kind shape that issue #3384 bounded. The recorded depth *1..4 is the production default (normalizeChangeSurfaceLegacyDepth defaults to 4); the call site clamps the requested max_depth to [1, 8]. The canonical shape pins the bounded default rather than the maximum so the hot-path gate cannot bless the hardcoded *1..8 the fix removed (see TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth, which rejects *1..8).
     plan:
       operators:
         - NodeIndexSeek
