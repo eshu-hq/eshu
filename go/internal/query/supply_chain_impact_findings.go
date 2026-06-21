@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -235,6 +236,63 @@ func NewPostgresSupplyChainImpactFindingStoreWithReadModel(
 	readFromWinners bool,
 ) PostgresSupplyChainImpactFindingStore {
 	return PostgresSupplyChainImpactFindingStore{DB: db, ReadFromWinners: readFromWinners}
+}
+
+// selectSupplyChainImpactWinnersWatermarkQuery reads the maintained winners
+// read-model watermark. The reducer maintainer resweeps the whole table in one
+// atomic statement, stamping every row with the same materialized_at, so any
+// single row's value is the read-model watermark and LIMIT 1 avoids an aggregate
+// scan. No row means the maintainer has not populated the table yet.
+const selectSupplyChainImpactWinnersWatermarkQuery = `
+SELECT materialized_at
+FROM supply_chain_impact_canonical_winners
+LIMIT 1`
+
+// SupplyChainImpactWinnersFreshness reports the freshness of the maintained
+// winners read model for the impact-findings list. ServingFromWinners is false
+// when the store reads live impact facts (legacy path), where the answer is
+// always current and the caller MUST leave the truth envelope fresh. When
+// ServingFromWinners is true, Present reports whether the winners table holds any
+// rows and MaterializedAt carries the last resweep watermark (valid only when
+// Present is true).
+type SupplyChainImpactWinnersFreshness struct {
+	ServingFromWinners bool
+	Present            bool
+	MaterializedAt     time.Time
+}
+
+// SupplyChainImpactWinnersWatermark probes the winners read-model watermark for
+// freshness reporting. It is a no-op (ServingFromWinners=false, no query) on the
+// legacy live read, so the freshness probe costs nothing until the read gate is
+// enabled. On the winners path it issues the bounded LIMIT 1 watermark query;
+// ServingFromWinners is reported true even when the probe errors so the handler
+// reports the freshness unavailable rather than falsely fresh.
+func (s PostgresSupplyChainImpactFindingStore) SupplyChainImpactWinnersWatermark(
+	ctx context.Context,
+) (SupplyChainImpactWinnersFreshness, error) {
+	if !s.ReadFromWinners {
+		return SupplyChainImpactWinnersFreshness{}, nil
+	}
+	if s.DB == nil {
+		return SupplyChainImpactWinnersFreshness{ServingFromWinners: true}, fmt.Errorf("supply chain impact finding database is required")
+	}
+	rows, err := s.DB.QueryContext(ctx, selectSupplyChainImpactWinnersWatermarkQuery)
+	if err != nil {
+		return SupplyChainImpactWinnersFreshness{ServingFromWinners: true}, fmt.Errorf("read supply chain impact winners watermark: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return SupplyChainImpactWinnersFreshness{ServingFromWinners: true}, fmt.Errorf("read supply chain impact winners watermark: %w", err)
+		}
+		// No rows: the maintainer has not populated the read model yet (building).
+		return SupplyChainImpactWinnersFreshness{ServingFromWinners: true, Present: false}, nil
+	}
+	var materializedAt time.Time
+	if err := rows.Scan(&materializedAt); err != nil {
+		return SupplyChainImpactWinnersFreshness{ServingFromWinners: true}, fmt.Errorf("scan supply chain impact winners watermark: %w", err)
+	}
+	return SupplyChainImpactWinnersFreshness{ServingFromWinners: true, Present: true, MaterializedAt: materializedAt}, nil
 }
 
 // ListSupplyChainImpactFindings returns one bounded page of active reducer

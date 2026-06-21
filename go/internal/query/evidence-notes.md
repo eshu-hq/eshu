@@ -1004,3 +1004,56 @@ added. Operators can confirm which read path is active from the endpoint latency
 and the winners table's `MAX(materialized_at)` recency. (Surfacing winners
 freshness in the truth envelope is the immediate follow-up and is the prerequisite
 for enabling the gate in production.)
+
+## Impact findings list — winners freshness reporting (#3389 Phase 3)
+
+`GET /api/v0/supply-chain/impact/findings`
+(`supply_chain.go` handler, `supply_chain_impact_findings.go` store).
+
+Phase 2 enables serving the list from the maintained winners read model, but
+that read could lag the source facts behind the reducer maintainer's resweep
+cadence. This phase makes the read self-report that lag in the response truth
+envelope, so the gate can be turned on without ever presenting a cadence lag,
+an unpopulated table, or a probe failure as fresh truth — the I4 invariant from
+the canonical-dedup ADR (#3427) and the prerequisite the Phase 2 note named.
+
+Mechanism: the reducer maintainer resweeps the whole winners table in one atomic
+statement, stamping every row with a single `materialized_at`. So the store
+probes the watermark with `SELECT materialized_at FROM
+supply_chain_impact_canonical_winners LIMIT 1` — any row is the whole read-model
+watermark, no aggregate scan. `applyWinnersFreshness` maps it:
+
+- legacy live read (gate off) → fresh, untouched (and no probe is issued);
+- watermark within `supplyChainImpactWinnersFreshnessWindow` (2m, several resweep
+  cadences) → fresh, with the watermark surfaced as `freshness.observed_at`;
+- watermark older than the window → `stale` + cause `reducer_backlog` + bounded
+  `next_check` (the maintainer is not keeping the model current);
+- table unpopulated → `building` + cause `reducer_backlog`;
+- probe error → `unavailable` (never silently fresh); the findings page still
+  serves, the probe error is recorded on the span.
+
+Accuracy Evidence: `TestApplyWinnersFreshness` pins all six mappings (legacy
+untouched incl. on probe error, fresh+observed_at, stale+cause+next_check,
+building+cause, unavailable); `TestSupplyChainImpactWinnersWatermarkGate` pins
+that the legacy path issues no probe and never claims winners service while the
+winners path issues exactly the watermark query and reports serving-from-winners
+even when the probe errors. Validated against Postgres 18: empty table → 0 rows
+(building); populated → the stamped watermark; correct `materialized_at` value
+round-trips.
+
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` of the watermark probe on
+Postgres 18: **0.035 ms** — `Limit` over a `Seq Scan` that short-circuits at the
+first live tuple, so the probe is O(1) regardless of winners-table size (the
+`LIMIT 1` returns after the first heap tuple; no aggregate, no index needed). The
+legacy read issues no probe at all (the store short-circuits on the gate before
+any query), so the freshness work is zero-cost until the read gate is enabled and
+sub-millisecond once it is. No change to the findings read path itself.
+
+Observability Evidence: the route adds `eshu.query.freshness_state`
+(`fresh`/`stale`/`building`/`unavailable`, low cardinality) to its existing
+`query.supply_chain_impact_findings` span, records the probe error on the span
+when it fails, and the response `truth.freshness` now carries `state`,
+`observed_at` (the resweep watermark), `cause`, and the bounded `next_check`
+(`GET /api/v0/status`) so an operator can see a lagging or building read model
+and its drilldown from the trace and the payload alone. No new env var, metric
+series, graph write, or queue consumer is added.
