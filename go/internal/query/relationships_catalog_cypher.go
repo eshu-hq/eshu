@@ -73,14 +73,27 @@ var relationshipVerbByName = func() map[string]relationshipVerbEntry {
 // bare relationship-type aggregate `MATCH ()-[r:VERB]->() RETURN count(r)`,
 // which the NornicDB relationship-type index answers directly in milliseconds.
 //
-// This counts the whole-graph edge population for the verb, which is exactly the
-// documented "bounded whole-graph edge count" the catalog contract promises. A
-// source-label anchor (`MATCH (s:Label)-[r:VERB]->()`) would instead force a
-// scan of the entire source-label population per verb (e.g. every File node),
-// which at ~900k-edge scale pushed the 16-verb catalog past 30s; it would also
-// silently undercount verbs whose edges originate from more than one source
-// label. The endpoints are anonymous `()`, not bound unlabeled nodes `(s)`, so
-// the shape stays within the bounded read contract and the query-plan gate.
+// # Whole-graph scope
+//
+// The count is intentionally whole-graph: it includes every edge of that type
+// regardless of source label. This is the documented "bounded whole-graph edge
+// count" the catalog contract promises. Callers and the UI must treat the tile
+// count as the whole-graph population, not the source-label-scoped population
+// that the companion edge-slice endpoint returns. When a relationship type is
+// written by more than one source label (e.g. DEPENDS_ON is written for both
+// Repository→Repository and Workload→Workload edges), the count reflects all
+// source labels combined while the edge slice is anchored on the catalog entry's
+// sourceLabel; the two numbers can legitimately differ.
+//
+// # Why not source-label anchoring
+//
+// A source-label anchor (`MATCH (s:Label)-[r:VERB]->()`) forces a scan of the
+// entire source-label population per verb. At ~900k-edge scale the 16 sequential
+// label scans exceeded 30s (profiled live: File label alone cost 8.9s for 0
+// IMPORTS edges). NornicDB has no composite relationship-type+label index, so
+// there is no index-served path for a scoped count. The endpoints are anonymous
+// `()`, not bound unlabeled nodes `(s)`, so the shape stays within the bounded
+// read contract and the query-plan gate (issue #3429).
 //
 // The verb is taken from the fixed catalog, never from request input, so the
 // interpolation cannot inject arbitrary patterns.
@@ -104,6 +117,15 @@ func relationshipCountCypher(entry relationshipVerbEntry) string {
 // per-verb slice past the few-second budget. A labeled source node is kept on
 // purpose: on NornicDB a bare-type edge match with bound, unlabeled endpoints is
 // dramatically slower than the source-label-anchored expand.
+//
+// The secondary ORDER BY clause `coalesce(t.id, t.uid)` is a deterministic
+// tie-breaker for rows that share the same source key (e.g. one function with
+// many outgoing CALLS edges). Without it, rows tied on the primary key are
+// returned in an unspecified order, so a page boundary falling inside one
+// source node's outgoing edges can produce nondeterministic or repeated rows
+// across requests. The tie-breaker is a coalesce expression over the target's
+// two most common identity properties and does not require an index because it
+// only resolves within the already-bounded first-page set.
 func relationshipEdgesCypher(entry relationshipVerbEntry) string {
 	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
 		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
@@ -111,6 +133,6 @@ func relationshipEdgesCypher(entry relationshipVerbEntry) string {
 		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
 		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
 		"       r.rationale AS evidence\n" +
-		"ORDER BY s." + entry.sourceProperty + "\n" +
+		"ORDER BY s." + entry.sourceProperty + ", coalesce(t.id, t.uid)\n" +
 		"LIMIT $limit"
 }

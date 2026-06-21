@@ -231,6 +231,31 @@ shapes (count drops the `Function` source-label schema evidence and declares a
 The capability budget for `platform_impact.relationships_catalog` is unchanged
 (2000 ms local p95, 3000 ms production p95).
 
+**PR review follow-up (3 P2 threads):**
+
+Thread 1 (count scope): the whole-graph count is the only index-served option on
+NornicDB — there are no composite relationship-type+label indexes (confirmed via
+`SHOW INDEXES`). A source-label-anchored count (`MATCH (s:Label)-[r:VERB]->()`)
+measured at 30.7s for all 16 verbs. The fix is to document the divergence
+explicitly: the count is whole-graph, the edge slice is source-label-anchored;
+when a verb has edges from multiple source labels (e.g. `DEPENDS_ON` written for
+both `Repository` and `Workload` sources), the tile count may exceed the
+drill-down count. OpenAPI description and gate caveat updated accordingly.
+
+Thread 2 (tie-breaker): added `coalesce(t.id, t.uid)` as a deterministic
+secondary ORDER BY. Measured impact:
+
+- `ORDER BY s.uid LIMIT 51` (CALLS) — **0.05s**
+- `ORDER BY s.uid, coalesce(t.id, t.uid) LIMIT 51` (CALLS) — **0.10s**
+
+Negligible overhead; the tie-breaker resolves within the already-bounded first-page
+set without a separate sort pass.
+
+Thread 3 (gate schema): `required_schema` updated from `function_name` /
+`function_lang` to `function_uid_unique` / `nornicdb_function_uid_lookup` — the
+two indexes that actually back `ORDER BY s.uid` on the `Function` label. The gate
+now enforces the real backing and will fail if those indexes are removed.
+
 No-Observability-Change: the handlers and gate are unchanged in observability
 surface; they reuse the existing query-handler envelope and shared
 `GraphQuery.Run`/`RunSingle` adapters, add no new metrics, spans, runtime knobs,

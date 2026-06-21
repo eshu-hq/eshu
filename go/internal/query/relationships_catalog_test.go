@@ -195,9 +195,12 @@ func TestRelationshipCountCypherIsTypeIndexed(t *testing.T) {
 // TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered guards the edge
 // slice contract: every edge query stays anchored on the labeled source node
 // (bare-type edges with a bound, unlabeled source are far slower on NornicDB),
-// carries a bounded LIMIT, and orders by the indexed source-anchor property so
+// carries a bounded LIMIT, orders by the indexed source-anchor property so
 // the LIMIT short-circuits the index-ordered scan instead of materializing and
-// sorting the full edge set on a non-indexed coalesce() expression.
+// sorting the full edge set on a non-indexed coalesce() expression, and carries
+// a deterministic tie-breaker so that rows tied on the primary source key are
+// ordered consistently across requests (prevents nondeterministic sampling when
+// the page boundary falls inside one source node's outgoing edges).
 func TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered(t *testing.T) {
 	t.Parallel()
 
@@ -213,6 +216,12 @@ func TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered(t *testing.T) {
 		orderBy := "ORDER BY s." + entry.sourceProperty
 		if !strings.Contains(edges, orderBy) {
 			t.Fatalf("edge cypher for %s must order by indexed source property %q: %s", entry.verb, orderBy, edges)
+		}
+		// Tie-breaker: rows with the same source key must have a deterministic
+		// secondary sort so page boundaries inside one node's outgoing edges
+		// do not produce nondeterministic or repeated rows across requests.
+		if !strings.Contains(edges, "coalesce(t.id, t.uid)") {
+			t.Fatalf("edge cypher for %s missing deterministic tie-breaker coalesce(t.id, t.uid): %s", entry.verb, edges)
 		}
 	}
 }

@@ -195,7 +195,7 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "List the typed-edge relationship verb catalog",
-        "description": "Returns the fixed catalog of typed-edge relationship verbs across the code-to-cloud graph, each with its layer, a bounded whole-graph edge count, and an evidence/source label. Each verb is counted with its own bounded relationship-type aggregate that the graph backend answers from the relationship-type index; no source-label population scan and no unlabeled-node all-node scan is run.",
+        "description": "Returns the fixed catalog of typed-edge relationship verbs across the code-to-cloud graph, each with its layer, a bounded whole-graph edge count, and an evidence/source label. Each verb is counted with its own bounded relationship-type aggregate that the graph backend answers from the relationship-type index; no source-label population scan and no unlabeled-node all-node scan is run. The count is the whole-graph edge population for the verb across all source labels; it may exceed the edge-slice count when a relationship type is written by more than one source label (the edge slice is anchored on the catalog entry's primary source label).",
         "operationId": "getRelationshipsCatalog",
         "requestBody": {
           "required": false,
