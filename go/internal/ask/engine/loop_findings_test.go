@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -297,6 +298,174 @@ func TestAskPartialPacketPropagatesToAnswer(t *testing.T) {
 	}
 	if !ans.Packets[0].Partial {
 		t.Error("Packets[0].Partial = false, want true (embedded partial packet not preserved)")
+	}
+}
+
+// TestAskEnvelopeDataFedToModel (FINDING 5 / issue #3437): when the runner
+// returns a canonical ResponseEnvelope whose Data field carries a non-empty
+// payload (e.g. a repository list), the engine must feed that data to the LLM
+// in the tool-result message AND set a non-empty Summary on the assembled
+// AnswerPacket so bestPacketSummary returns usable prose at max-iterations.
+//
+// Before the fix, dispatchCall called NewAnswerPacket with no Summary and
+// marshalToolResult sent only the packet skeleton (no Data). The model saw
+// {"summary":"","truth_class":"deterministic","supported":true} — no content —
+// and kept calling tools until MaxIterations. bestPacketSummary then returned ""
+// producing "no supported evidence assembled".
+func TestAskEnvelopeDataFedToModel(t *testing.T) {
+	t.Parallel()
+
+	// Simulate list_indexed_repositories: envelope with real Data and no
+	// embedded answer_packet (the plain repository list handler path).
+	repoData := map[string]any{
+		"repositories": []map[string]any{
+			{"id": "repo-1", "name": "acme-api"},
+			{"id": "repo-2", "name": "acme-web"},
+		},
+		"total": 2,
+	}
+	env := &query.ResponseEnvelope{
+		Data: repoData,
+		Truth: &query.TruthEnvelope{
+			Level: query.TruthLevelExact,
+			Basis: query.TruthBasisAuthoritativeGraph,
+		},
+	}
+
+	turn1 := provider.Completion{
+		ToolCalls: []provider.ToolCall{
+			{ID: "d1", Name: "list_indexed_repositories", Arguments: map[string]any{"limit": 10}},
+		},
+		Usage: provider.TokenUsage{InputTokens: 5, OutputTokens: 3},
+	}
+	turn2 := provider.Completion{
+		Text:  "There are 2 repositories indexed: acme-api and acme-web.",
+		Usage: provider.TokenUsage{InputTokens: 10, OutputTokens: 8},
+	}
+
+	adapter := &scriptedAdapter{turns: []provider.Completion{turn1, turn2}, errOnIdx: -1}
+	runner := &recordingRunner{env: env}
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ans, err := eng.Ask(context.Background(), "How many repositories are indexed?")
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+
+	// Loop must terminate after turn2 (final text turn), not burn all iterations.
+	if adapter.calls != 2 {
+		t.Errorf("adapter.calls = %d, want 2 (loop must terminate once model has data)", adapter.calls)
+	}
+
+	// The tool-result message fed to the adapter's second call must contain the
+	// actual repository data so the model can synthesize an answer.
+	if adapter.calls >= 2 {
+		msgs := adapter.received[1]
+		var toolResultText string
+		for _, m := range msgs {
+			if m.Role == provider.RoleTool && m.ToolCallID == "d1" {
+				toolResultText = m.Text
+			}
+		}
+		if !strings.Contains(toolResultText, "acme-api") {
+			t.Errorf("tool-result message %q missing envelope data (acme-api); model cannot answer without it", toolResultText)
+		}
+	}
+
+	// The assembled packet must have a non-empty Summary so bestPacketSummary
+	// can produce prose when the loop hits max iterations.
+	if len(ans.Packets) != 1 {
+		t.Fatalf("len(Packets) = %d, want 1", len(ans.Packets))
+	}
+	if ans.Packets[0].Summary == "" {
+		t.Error("Packets[0].Summary is empty; bestPacketSummary will return '' causing 'no supported evidence assembled'")
+	}
+	if !ans.Packets[0].Supported {
+		t.Error("Packets[0].Supported = false, want true")
+	}
+
+	// Final prose must come from the model's turn2 text.
+	if ans.Prose != turn2.Text {
+		t.Errorf("Prose = %q, want %q", ans.Prose, turn2.Text)
+	}
+
+	// Must not carry the "no supported evidence assembled" limitation.
+	for _, lim := range ans.Limitations {
+		if lim == "no supported evidence assembled" {
+			t.Errorf("Limitations contains %q — evidence was assembled but not surfaced", lim)
+		}
+	}
+}
+
+// TestMarshalToolResultBoundedWithLargeData (FINDING 5 / P2): when envelope
+// Data is large enough that envelopeDataSummary fills close to maxToolResultBytes,
+// marshalToolResult must still produce output that (a) fits within
+// maxToolResultBytes and (b) actually includes the summary so the model sees
+// real content — not a dropped-summary minimal skeleton.
+//
+// Before the fix, envelopeDataSummary capped the inner JSON at maxToolResultBytes
+// (4096). marshalToolResult then wrapped it adding truth_class/supported/partial
+// plus escaping overhead (~87 bytes), causing the full skeleton to exceed 4096.
+// marshalToolResult's own fallback then silently dropped the summary and returned
+// only {"truth_class":...,"supported":true,"partial":false} — no data for the
+// model, identical to the pre-#3437 behaviour for large payloads.
+func TestMarshalToolResultBoundedWithLargeData(t *testing.T) {
+	t.Parallel()
+
+	// Construct a Data payload whose JSON is just above maxToolResultBytes so
+	// envelopeDataSummary's cap is exercised. The value fills the budget;
+	// wrapping in {"repositories":"..."} adds ~18 bytes of key overhead.
+	largeValue := strings.Repeat("a", maxToolResultBytes)
+	largeData := map[string]any{"repositories": largeValue}
+
+	env := &query.ResponseEnvelope{
+		Data: largeData,
+		Truth: &query.TruthEnvelope{
+			Level: query.TruthLevelExact,
+			Basis: query.TruthBasisAuthoritativeGraph,
+		},
+	}
+
+	summary := envelopeDataSummary(env)
+	if summary == "" {
+		t.Fatal("envelopeDataSummary returned empty for large non-nil Data")
+	}
+
+	// Use the longest truth class to maximise outer wrapper size.
+	pkt := query.AnswerPacket{
+		Summary:    summary,
+		TruthClass: query.AnswerTruthSemanticObservation,
+		Supported:  true,
+		Partial:    true,
+	}
+
+	result := marshalToolResult(pkt)
+
+	// 1. Output must not exceed the bound.
+	if len(result) > maxToolResultBytes {
+		t.Errorf("marshalToolResult output len=%d exceeds maxToolResultBytes=%d; "+
+			"inner cap must reserve headroom for the outer wrapper + escaping",
+			len(result), maxToolResultBytes)
+	}
+
+	// 2. Output must be valid JSON.
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Errorf("marshalToolResult output is not valid JSON: %v\noutput: %.200s", err, result)
+	}
+
+	// 3. The summary must be present in the output — marshalToolResult must NOT
+	// have silently dropped it due to the wrapper exceeding the bound. The model
+	// needs actual data to synthesize an answer; a dropped summary is equivalent
+	// to the pre-#3437 broken state for large payloads.
+	if _, hasSummary := parsed["summary"]; !hasSummary {
+		t.Errorf("marshalToolResult dropped the summary field; model receives no data. "+
+			"envelopeDataSummary must cap inner JSON to maxToolResultBytes - wrapperOverhead, "+
+			"not maxToolResultBytes. output: %.200s", result)
 	}
 }
 

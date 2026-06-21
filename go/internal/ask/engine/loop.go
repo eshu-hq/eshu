@@ -175,10 +175,18 @@ func (e *Engine) dispatchCall(
 		// FINDING 1: prefer an embedded answer_packet carried by the route handler.
 		pkt, ok := extractEmbeddedPacket(res.Envelope)
 		if !ok {
+			// FINDING 5 (issue #3437): pass a bounded JSON summary of the
+			// envelope Data so the model receives actual content in the
+			// tool-result message and bestPacketSummary can return prose at
+			// max-iterations. Without this, dispatchCall produced packets with
+			// Summary=="" causing "no supported evidence assembled" and the
+			// model kept calling tools until MaxIterations because the
+			// tool-result message carried no data for it to reason about.
 			pkt = query.NewAnswerPacket(query.AnswerPacketInput{
 				Question:    question,
 				PrimaryTool: call.Name,
 				Envelope:    res.Envelope,
+				Summary:     envelopeDataSummary(res.Envelope),
 			})
 		}
 		// FINDING 4: propagate partial state upward to the aggregate answer.
@@ -300,6 +308,47 @@ func bestPacketSummary(packets []query.AnswerPacket) string {
 		}
 	}
 	return ""
+}
+
+// toolResultWrapperOverhead is the byte budget reserved for the JSON fields
+// that marshalToolResult wraps around the summary string. It covers the
+// worst-case skeleton without summary:
+//
+//	{"truth_class":"semantic_observation","supported":true,"partial":true}
+//
+// plus the summary key, quotes, comma, and JSON-escaping headroom. 128 bytes
+// is a conservative bound that keeps the final marshalToolResult output within
+// maxToolResultBytes even when the summary itself is at the inner cap.
+const toolResultWrapperOverhead = 128
+
+// envelopeDataSummary returns a bounded JSON string of the envelope Data for
+// use as an AnswerPacket Summary. It gives the model actual content to reason
+// about in the tool-result message and lets bestPacketSummary return prose
+// when MaxIterations is reached without a final text turn.
+//
+// The summary is capped at maxToolResultBytes - toolResultWrapperOverhead so
+// that when marshalToolResult wraps it in a JSON skeleton (adding truth_class,
+// supported, partial, and JSON-escaping overhead) the final output stays within
+// maxToolResultBytes. Capping at the full maxToolResultBytes would cause
+// marshalToolResult to silently drop the summary and return only a minimal
+// skeleton, giving the model no data — the same broken state as before #3437
+// for large payloads.
+//
+// An empty string is returned when Data is nil or cannot be marshalled —
+// callers treat an empty Summary as "no summary available", the safe fallback.
+func envelopeDataSummary(env *query.ResponseEnvelope) string {
+	if env == nil || env.Data == nil {
+		return ""
+	}
+	b, err := json.Marshal(env.Data)
+	if err != nil {
+		return ""
+	}
+	limit := maxToolResultBytes - toolResultWrapperOverhead
+	if len(b) > limit {
+		b = b[:limit]
+	}
+	return string(b)
 }
 
 // appendLimitation appends s to limitations when s is not already present.
