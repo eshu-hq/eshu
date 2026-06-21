@@ -33,7 +33,12 @@ structural change.
    - narration posture is `Available`, AND
    - `answernarration.Validate` returns `nil`.
    A failing validation must drop prose silently and fall back to deterministic
-   packet summary. Do not bypass the validator.
+   packet summary. Do not bypass the validator. The narration prompt MUST stay
+   in sync with the validator: when the packet carries a partial signal,
+   `buildNarrationSystemPrompt` instructs the model to surface it, because the
+   validator rejects partial packets narrated as complete. Keep
+   `packetHasPartialSignal` here aligned with the validator's rule. Do not "fix"
+   a partial-narration rejection by loosening the validator — fix the prompt.
 
 4. **Bounds enforced unconditionally.** `MaxIterations` and
    `MaxToolCallsPerTurn` must be checked before every iteration and every

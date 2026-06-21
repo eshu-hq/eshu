@@ -16,10 +16,19 @@ import (
 // calls without coupling to the full prompt text.
 const narrationSystemSentinel = "ask-eshu-narration-v1"
 
-// narrationSystemPrompt is the bounded system instruction for the narration
-// completion. It instructs the model to produce a compact JSON object whose
-// sentences each cite evidence handles from the source packet. The model MUST
-// NOT invent citations; every handle ID it uses must come from the packet.
+// narrationSystemPrompt is the bounded base system instruction for the
+// narration completion. It instructs the model to produce a compact JSON object
+// whose sentences each cite evidence handles from the source packet. The model
+// MUST NOT invent citations; every handle ID it uses must come from the packet.
+//
+// This base prompt is sufficient for a fully-supported, complete packet.
+// buildNarrationSystemPrompt appends partial-signal instructions when the packet
+// carries a partial, truncated, or limitation signal, because the narration
+// validator (answernarration.Validate) rejects any narration of a partial
+// packet that does not surface that signal. Without the appended instructions a
+// weaker provider has no way to know it must emit a partial-signal sentence, so
+// the validator deterministically rejects otherwise-valid evidence-backed
+// narration (issue #3356).
 const narrationSystemPrompt = `You are the ` + narrationSystemSentinel + ` narrator.
 Your task is to narrate the answer packet below as a short list of human-readable sentences.
 
@@ -30,6 +39,49 @@ Rules:
 - Maximum 5 sentences. Each sentence must be under 500 characters.
 - Do NOT output any text outside the JSON object.
 - Do NOT include markdown fences or explanation.`
+
+// narrationPartialSignalInstructions is appended to the base narration prompt
+// when the source packet carries a partial signal. It tells the model exactly
+// how to satisfy the validator's partial-signal rule: emit one extra sentence
+// whose provenance points at a real packet limitation. The model must copy a
+// limitation string verbatim, because the validator matches the provenance id
+// against the packet's Limitations / UnsupportedReasons text.
+const narrationPartialSignalInstructions = `
+
+This packet is PARTIAL or TRUNCATED. You MUST also include exactly one sentence
+that surfaces this so the answer does not look complete:
+- Add one sentence with kind "limitation" and provenance kind "limitation".
+- Set that provenance id to one of the packet "limitations" or
+  "unsupported_reasons" strings, copied verbatim.
+- If the packet has no limitations or unsupported_reasons strings, use kind
+  "freshness" with provenance kind "freshness" and an empty id instead.
+- Do NOT claim the answer is complete.`
+
+// buildNarrationSystemPrompt returns the narration system prompt for the given
+// packet. For a fully-supported, complete packet it returns the base prompt.
+// When the packet carries a partial signal (Partial, Truncated, or any
+// limitation / missing-evidence / unsupported-reason entries) it appends the
+// partial-signal instructions so the model can produce narration the validator
+// will accept.
+func buildNarrationSystemPrompt(packet query.AnswerPacket) string {
+	if packetHasPartialSignal(packet) {
+		return narrationSystemPrompt + narrationPartialSignalInstructions
+	}
+	return narrationSystemPrompt
+}
+
+// packetHasPartialSignal reports whether the packet carries any signal that the
+// narration validator treats as "partial": an explicit partial/truncated flag,
+// or any limitation, missing-evidence, or unsupported-reason entry. It mirrors
+// the validator's packetHasPartialSignal so the prompt and the validator agree
+// on when partial-signal narration is required.
+func packetHasPartialSignal(packet query.AnswerPacket) bool {
+	return packet.Partial ||
+		packet.Truncated ||
+		len(packet.Limitations) > 0 ||
+		len(packet.MissingEvidence) > 0 ||
+		len(packet.UnsupportedReasons) > 0
+}
 
 // narrationLocalShape is the JSON shape the model is instructed to return.
 // It is parsed locally and then mapped to answernarration.Sentence values.
@@ -98,15 +150,13 @@ func (e *Engine) narrate(ctx context.Context, ans *Answer, posture status.Answer
 
 	narrationText, ok := e.callNarrationAdapter(ctx, primary)
 	if !ok {
-		ans.Narrated = false
-		ans.Limitations = appendLimitation(ans.Limitations, "narration rejected by validator")
+		e.rejectNarration(ans, "adapter_error", primary, nil)
 		return
 	}
 
 	narration, err := parseNarrationJSON(narrationText, primary)
 	if err != nil {
-		ans.Narrated = false
-		ans.Limitations = appendLimitation(ans.Limitations, "narration rejected by validator")
+		e.rejectNarration(ans, "parse_error", primary, nil)
 		return
 	}
 
@@ -120,13 +170,35 @@ func (e *Engine) narrate(ctx context.Context, ans *Answer, posture status.Answer
 	}
 	verdict := answernarration.Validate(input)
 	if !verdict.Valid {
-		ans.Narrated = false
-		ans.Limitations = appendLimitation(ans.Limitations, "narration rejected by validator")
+		e.rejectNarration(ans, "validator", primary, verdict.Findings)
 		return
 	}
 
 	ans.Prose = joinSentences(narration.Sentences)
 	ans.Narrated = true
+	e.log().Info("ask: narration accepted",
+		"partial", packetHasPartialSignal(primary),
+		"truth_class", string(primary.TruthClass))
+}
+
+// rejectNarration records a narration-gate rejection: it leaves ans.Narrated
+// false, keeps the deterministic prose, appends the bounded limitation, and
+// emits a structured operator log with a low-cardinality reason. The validator
+// finding reason codes are audit-safe (no free-form text), so they are logged
+// to let an operator distinguish a format/binding rejection from an
+// adapter/parse failure at 3 AM.
+func (e *Engine) rejectNarration(ans *Answer, reason string, primary query.AnswerPacket, findings []answernarration.Finding) {
+	ans.Narrated = false
+	ans.Limitations = appendLimitation(ans.Limitations, "narration rejected by validator")
+	reasons := make([]string, 0, len(findings))
+	for _, f := range findings {
+		reasons = append(reasons, string(f.Reason))
+	}
+	e.log().Warn("ask: narration rejected",
+		"reason", reason,
+		"finding_reasons", reasons,
+		"partial", packetHasPartialSignal(primary),
+		"truth_class", string(primary.TruthClass))
 }
 
 // callNarrationAdapter issues a single bounded narration completion call with
@@ -138,7 +210,7 @@ func (e *Engine) callNarrationAdapter(ctx context.Context, primary query.AnswerP
 		return "", false
 	}
 	messages := []provider.Message{
-		{Role: provider.RoleSystem, Text: narrationSystemPrompt},
+		{Role: provider.RoleSystem, Text: buildNarrationSystemPrompt(primary)},
 		{Role: provider.RoleUser, Text: "Narrate this answer packet:\n" + string(packetJSON)},
 	}
 	comp, err := e.adapter.Complete(ctx, messages, nil)

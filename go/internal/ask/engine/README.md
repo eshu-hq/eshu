@@ -56,6 +56,14 @@ issue #3261.
    verdict. Failing validation drops prose and the answer falls back to
    deterministic packet summary.
 
+When the primary packet carries a partial signal (`Partial`, `Truncated`, or
+any limitation / missing-evidence / unsupported-reason entry) the narration
+system prompt is partial-aware: `buildNarrationSystemPrompt` appends an
+instruction to add one partial-signal sentence so the model can satisfy the
+validator's partial-signal rule. Without this, narration of a partial packet
+is deterministically rejected because the model is never told how to surface
+the partial state.
+
 ## Injected Seams
 
 | Seam | Type | Purpose |
@@ -64,9 +72,13 @@ issue #3261.
 | `runner` | `Runner` | In-process dispatch to the Eshu query surface |
 | `tools` | `[]provider.Tool` | Tool definitions visible to the LLM |
 | narration posture | `func() status.AnswerNarrationStatus` | Governs whether LLM narration is attempted |
+| logger | `*slog.Logger` | Optional operator-facing structured logging (defaults to a discard logger) |
 
-All seams are injected at construction time via `New`. The engine holds no
-mutable session state; each `Ask` call owns its own conversation thread.
+The `adapter`, `runner`, and `tools` seams are injected at construction via
+`New`. The narration posture and logger are optional and injected after
+construction via `SetNarrationPosture` and `SetLogger` before serving requests.
+The engine holds no mutable session state; each `Ask` call owns its own
+conversation thread.
 
 ## MCP-backed Runner
 
@@ -85,6 +97,12 @@ faithfully reflects the query surface's error verdict.
 | Max LLM rounds | 6 | `Options.MaxIterations` |
 | Max tool calls per turn | 4 | `Options.MaxToolCallsPerTurn` |
 | Tool-result feedback size | 4 096 B | `maxToolResultBytes` (const) |
+
+`MaxIterations` and `MaxToolCallsPerTurn` are operator-tunable at the wiring
+layer via `ESHU_ASK_MAX_ITERATIONS` and `ESHU_ASK_MAX_TOOL_CALLS_PER_TURN`
+(see [HTTP API Reference](../../../../docs/public/reference/http-api.md) and the
+`askwiring` package). The engine itself only enforces the resolved bound; it
+does not read the environment.
 
 ## Invariants
 
@@ -109,3 +127,27 @@ No-Observability-Change: the streaming safety change adds no worker, queue,
 graph write, Postgres read, metric label, runtime knob, provider request, or
 new span. Operators still diagnose Ask failures through the existing Ask engine
 error path, query trace events, HTTP SSE events, and provider adapter logs.
+
+No-Regression Evidence (#3356 budget + partial narration):
+`go test ./internal/ask/engine ./internal/askwiring ./internal/answernarration
+-count=1` (84 tests). New regression tests:
+`engine.TestBuildNarrationSystemPromptPartialAware`,
+`engine.TestNarratePartialPacketAccepted`, and
+`askwiring.TestResolveEngineOptions*`. The two engine tests fail before the fix
+with `narration rejected by validator` and pass after; the askwiring tests
+prove default / override / invalid-fallback / ceiling-clamp behavior of the
+budget knobs.
+
+Observability Evidence (#3356): the engine now emits operator-facing structured
+logs (no new metric labels, no hot path) through the injected `*slog.Logger`:
+`ask: reached max reasoning iterations` (fields `max_iterations`,
+`max_tool_calls_per_turn`, `packets`, `has_supported_evidence`),
+`ask: tool calls truncated` (fields `requested`, `max_tool_calls_per_turn`,
+`iteration`), `ask: narration rejected` (fields `reason`, `finding_reasons`,
+`partial`, `truth_class`), and `ask: narration accepted` (fields `partial`,
+`truth_class`). The wiring layer logs the resolved budget at startup
+(`ask: engine budget resolved`) and clamps/invalid overrides at `WARN`. These
+let an operator distinguish a too-tight budget from a narration format/binding
+rejection without provider bodies leaking into logs. This change touches no
+Cypher, graph write, worker, queue, lease, batch, or runtime stage, so
+`scripts/verify-performance-evidence.sh` reports no hot files changed.
