@@ -168,6 +168,17 @@ acceptance evidence.
 ./scripts/verify_correlation_dsl_compose.sh
 ```
 
+For a no-credential proof of additional lanes against public, unauthenticated
+endpoints (CISA KEV, FIRST EPSS, OSV, public npm), use the public-collector
+gate. It claim-drives the workflow-coordinator and asserts fact commit, reducer
+drain to zero, and API/MCP readback with aggregate-only, public-safe output. See
+[Public Collector Proof](public-collector-proof.md).
+
+```bash
+./scripts/verify_local_public_collector_proof.sh --check   # no Docker, no network
+./scripts/verify_local_public_collector_proof.sh           # live public proof
+```
+
 Use `./scripts/verify_product_truth_fixtures.sh` when changing product truth
 across graph, evidence, API, MCP, CLI, or cleanup workflows.
 
