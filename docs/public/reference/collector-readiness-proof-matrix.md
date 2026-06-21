@@ -144,9 +144,9 @@ operator-local configuration required to take a lane to live promotion.
 | Terraform state | `implemented` | `fixture-parity` | Fixture parity green; live collection needs a state object + redaction key. | `ESHU_TFSTATE_S3_*` or local state + `ESHU_TFSTATE_REDACTION_KEY`. remote-e2e `remote-e2e-terraform-state`. |
 | AWS cloud | `implemented` | `operator-gated` | Fixture parity green; live collection needs a read-only AWS identity. | Read-only AWS workload identity; remote-e2e `remote-e2e-aws-cloud`. [Remote E2E](local-testing/remote-collector-e2e.md). |
 | webhook / freshness | `implemented` | `fixture-parity` | Fixture parity green; listener runs locally, but trigger handoff proof needs a signed provider delivery. | `webhook-listener` profile + signed Git/AWS/PagerDuty/Jira sample. |
-| package registry | `implemented` | `fixture-parity` | Fixture parity green; npm public endpoint reachable, but hosted proof needs coordinator claim wiring. | Coordinator claim instance; public npm or `ESHU_JFROG_PACKAGE_*`. remote-e2e `remote-e2e-package-registry`. |
+| package registry | `implemented` | `fixture-parity` | Fixture parity green; npm public endpoint reachable. A no-credential local proof is available via the [public-collector gate](local-testing/public-collector-proof.md). | None for public npm: `scripts/verify_local_public_collector_proof.sh`. JFrog feed needs `ESHU_JFROG_PACKAGE_*`. remote-e2e `remote-e2e-package-registry`. |
 | SBOM / attestation | `implemented` | `fixture-parity` | Fixture parity green; live attachment needs a document target. | `ESHU_SBOM_ATTESTATION_DOCUMENT_URL` or remote-e2e fixture server `remote-e2e-sbom-attestation`. |
-| vulnerability intelligence | `implemented` | `fixture-parity` | Fixture parity green. A live remote-E2E run is already recorded (2026-06-18, `promotion_state: implemented`) in [the canonical page](collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof). | KEV/EPSS/OSV public; NVD key-gated (`ESHU_NVD_API_KEY`). remote-e2e `remote-e2e-vulnerability-intelligence`. |
+| vulnerability intelligence | `implemented` | `fixture-parity` | Fixture parity green. A live remote-E2E run is already recorded (2026-06-18, `promotion_state: implemented`) in [the canonical page](collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof). KEV/EPSS/OSV also have a no-credential local proof via the [public-collector gate](local-testing/public-collector-proof.md). | KEV/EPSS/OSV public: `scripts/verify_local_public_collector_proof.sh`. NVD key-gated (`ESHU_NVD_API_KEY`). remote-e2e `remote-e2e-vulnerability-intelligence`. |
 | provider security alerts | `implemented` | `operator-gated` | Fixture parity green; live needs a GitHub token + repo allowlist (preflight gates bad access). | `ESHU_SECURITY_ALERT_GITHUB_TOKEN` + `ESHU_SECURITY_ALERT_REPOSITORY`. remote-e2e `remote-e2e-security-alert`. |
 | PagerDuty | `implemented` | `operator-gated` | Fixture parity green; live needs a PagerDuty token. | `ESHU_PAGERDUTY_LIVE=1` + token. [PagerDuty smoke](local-testing/collector-live-smokes.md#pagerduty). |
 | Jira | `implemented` | `operator-gated` | Fixture parity green; live needs a Jira Cloud token. | `ESHU_JIRA_LIVE=1` + site/email/token/JQL. [Jira smoke](local-testing/collector-live-smokes.md#jira). |
@@ -193,9 +193,15 @@ fixture/parity suite passed (470/470, 0 failures) and the git lane proved live
 end to end. No promotion regression was observed.
 
 The matrix surfaced one concrete coverage gap (an enhancement, not a break):
-beyond git, no `implemented` lane has a no-credential, agent-runnable local live
-proof, even though some lanes can collect against public endpoints. Tracked by
-[#3347](https://github.com/eshu-hq/eshu/issues/3347).
+beyond git, no `implemented` lane had a no-credential, agent-runnable local live
+proof, even though some lanes can collect against public endpoints. That gap
+([#3347](https://github.com/eshu-hq/eshu/issues/3347)) is now closed by the
+[No-Credential Public Collector Proof](local-testing/public-collector-proof.md):
+`scripts/verify_local_public_collector_proof.sh` claim-drives the
+workflow-coordinator against public, unauthenticated endpoints
+(CISA KEV, FIRST EPSS, OSV, public npm) and asserts fact commit, reducer drain
+to zero, and API/MCP readback with aggregate-only, public-safe output and no
+operator credentials. NVD stays key-gated and is excluded.
 
 Cloud live-smoke promotion remains operator-gated and tracked separately: GCP
 [#1997](https://github.com/eshu-hq/eshu/issues/1997) /
