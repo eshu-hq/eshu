@@ -40,8 +40,11 @@ func TestSupplyChainImpactWinnerSelectMirrorsReadDedup(t *testing.T) {
 }
 
 // TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile pins that the rebuild
-// upserts current winners and deletes winners no longer in the active set in one
-// statement (no torn rebuild visible to readers).
+// upserts current winners, deletes winners no longer in the active set, and
+// stamps the maintainer watermark in one statement (no torn rebuild visible to
+// readers). The winners upsert and delete are data-modifying CTEs; the final,
+// unconditional watermark upsert runs even on a zero-winner resweep so the read
+// can tell "never populated" from "reswept to zero findings".
 func TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile(t *testing.T) {
 	t.Parallel()
 
@@ -49,7 +52,11 @@ func TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile(t *testing.T) {
 		"WITH winners_now AS (",
 		"INSERT INTO supply_chain_impact_canonical_winners",
 		"ON CONFLICT (canonical_key) DO UPDATE SET",
-		"DELETE FROM supply_chain_impact_canonical_winners w\nWHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)",
+		"deleted AS (\n    DELETE FROM supply_chain_impact_canonical_winners w\n    WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)\n)",
+		// Unconditional watermark upsert is the final statement so it stamps even
+		// a zero-winner resweep.
+		"INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)",
+		"ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at",
 	} {
 		if !strings.Contains(rebuildSupplyChainImpactWinnersSQL, want) {
 			t.Fatalf("rebuild SQL missing %q:\n%s", want, rebuildSupplyChainImpactWinnersSQL)

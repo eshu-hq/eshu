@@ -154,9 +154,16 @@ WHERE ranked.canonical_rank = 1
 `
 
 // rebuildSupplyChainImpactWinnersSQL atomically reconciles the winners table to
-// the current active set: upsert every current winner, then delete winner rows
-// whose canonical_key is no longer present in the active set. Both happen in one
-// statement (one snapshot), so a concurrent reader never sees a torn rebuild.
+// the current active set and stamps the maintainer watermark: upsert every
+// current winner, delete winner rows whose canonical_key is no longer present in
+// the active set, and upsert the singleton materialization watermark. All happen
+// in one statement (one snapshot), so a concurrent reader never sees a torn
+// rebuild. The winners upsert and delete are data-modifying CTEs (Postgres always
+// runs them to completion regardless of whether the final statement reads them);
+// the final watermark upsert is unconditional, so it stamps even a resweep that
+// produced zero active winners — letting the read distinguish "never populated"
+// (no watermark row) from "reswept to zero findings" (watermark present, table
+// empty).
 const rebuildSupplyChainImpactWinnersSQL = `
 WITH winners_now AS (` + supplyChainImpactWinnerSelectSQL + `),
 upserted AS (
@@ -198,9 +205,14 @@ upserted AS (
         workload_ids = EXCLUDED.workload_ids,
         environments = EXCLUDED.environments,
         materialized_at = EXCLUDED.materialized_at
+),
+deleted AS (
+    DELETE FROM supply_chain_impact_canonical_winners w
+    WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)
 )
-DELETE FROM supply_chain_impact_canonical_winners w
-WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)
+INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
+VALUES (1, $1)
+ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at
 `
 
 type supplyChainImpactWinnersExecutor interface {

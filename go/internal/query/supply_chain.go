@@ -1,11 +1,14 @@
 package query
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -301,12 +304,90 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 			"after_finding_id": results[len(results)-1].FindingID,
 		}
 	}
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+	truth := BuildTruthEnvelope(
 		h.profile(),
 		supplyChainImpactFindingsCapability,
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned impact facts; CVSS, EPSS, KEV, reachability, missing evidence, and readiness coverage remain separate",
-	))
+	)
+	// When the list is served from the maintained winners read model (#3389
+	// Phase 2 gate), report its freshness from the maintainer watermark so a
+	// resweep cadence lag, an unpopulated table, or a probe failure is never
+	// served as fresh truth. The legacy live read is always current and leaves
+	// the envelope fresh; the probe costs nothing there.
+	if reader, ok := h.ImpactFindings.(supplyChainImpactWinnersFreshnessReader); ok {
+		watermark, freshnessErr := reader.SupplyChainImpactWinnersWatermark(r.Context())
+		applyWinnersFreshness(truth, watermark, freshnessErr, time.Now())
+		if freshnessErr != nil {
+			// The findings page already succeeded; only the freshness probe
+			// failed. Record it for triage but still serve the page (with an
+			// unavailable freshness state rather than a false fresh).
+			span.RecordError(freshnessErr)
+		}
+	}
+	span.SetAttributes(attribute.String("eshu.query.freshness_state", string(truth.Freshness.State)))
+	WriteSuccess(w, r, http.StatusOK, body, truth)
+}
+
+// supplyChainImpactWinnersFreshnessReader is the optional capability the
+// impact-findings store implements when it can report the maintained winners
+// read-model watermark. The handler type-asserts it so the legacy store (or a
+// test double) that does not implement it simply keeps the fresh envelope.
+type supplyChainImpactWinnersFreshnessReader interface {
+	SupplyChainImpactWinnersWatermark(context.Context) (SupplyChainImpactWinnersFreshness, error)
+}
+
+// supplyChainImpactWinnersFreshnessWindow bounds how long after the last winners
+// resweep the read model is still considered fresh. The reducer maintainer
+// resweeps on a short cadence (~30s) and stamps every row with one
+// materialized_at, so a healthy watermark is always within roughly one cadence of
+// now. The window allows several cadences of headroom for a slow resweep or a
+// transient lease handoff; a watermark older than this means the maintainer is
+// not keeping the read model current, so the read is reported stale
+// (reducer_backlog) instead of served as fresh truth.
+const supplyChainImpactWinnersFreshnessWindow = 2 * time.Minute
+
+// applyWinnersFreshness downgrades the truth envelope when the impact-findings
+// list is served from the maintained winners read model and that model is behind,
+// unpopulated, or could not be probed. It is a no-op on the legacy live read
+// (always current) and when the model is fresh. now is injected for deterministic
+// tests.
+func applyWinnersFreshness(truth *TruthEnvelope, fr SupplyChainImpactWinnersFreshness, probeErr error, now time.Time) {
+	if truth == nil || !fr.ServingFromWinners {
+		return
+	}
+	if probeErr != nil {
+		truth.Freshness = TruthFreshness{
+			State:  FreshnessUnavailable,
+			Detail: "could not determine supply-chain impact winners read-model freshness",
+		}
+		return
+	}
+	if !fr.Present {
+		// No maintainer watermark at all: the reducer has never reswept the read
+		// model. A resweep that produced zero winners still stamps the watermark,
+		// so this is the genuine never-populated case, not a zero-findings corpus.
+		truth.Freshness = TruthFreshness{
+			State:  FreshnessBuilding,
+			Detail: "supply-chain impact winners read model has not been materialized by the reducer maintainer yet",
+		}
+		WithFreshnessCause(truth, FreshnessCauseReducerBacklog)
+		return
+	}
+	materializedAt := fr.MaterializedAt.UTC()
+	observedAt := materializedAt.Format(time.RFC3339)
+	if now.UTC().Sub(materializedAt) <= supplyChainImpactWinnersFreshnessWindow {
+		// Fresh, but surface the watermark so consumers see when the read model
+		// was last resweep'd.
+		truth.Freshness.ObservedAt = observedAt
+		return
+	}
+	truth.Freshness = TruthFreshness{
+		State:      FreshnessStale,
+		ObservedAt: observedAt,
+		Detail:     "supply-chain impact winners read model is behind its maintainer resweep cadence",
+	}
+	WithFreshnessCause(truth, FreshnessCauseReducerBacklog)
 }
 
 func (h *SupplyChainHandler) readSupplyChainImpactReadinessSnapshot(
