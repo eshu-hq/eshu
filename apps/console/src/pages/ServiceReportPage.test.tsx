@@ -11,6 +11,13 @@ function liveModel() {
   return modelFromSnapshot(emptySnapshot("live"));
 }
 
+function modelWithService(name: string) {
+  return modelFromSnapshot({
+    ...emptySnapshot("live"),
+    services: [{ id: `svc:${name}`, name, kind: "service", repo: `${name}-repo`, environments: [], truth: "exact", freshness: "fresh" }]
+  });
+}
+
 function reportEnvelope(
   data: ServiceInvestigationResponse | null,
   truthState: "fresh" | "stale" = "fresh"
@@ -65,6 +72,20 @@ describe("ServiceReportPage", () => {
     renderAt("/service-report", client);
     expect(screen.getByRole("heading", { name: "Service intelligence report" })).toBeInTheDocument();
     expect(screen.getByLabelText("Service name")).toBeInTheDocument();
+  });
+
+  it("auto-loads a default catalog service on open when none is selected", async () => {
+    const { client, paths } = clientReturning(reportEnvelope(fullReport()));
+    render(
+      <MemoryRouter initialEntries={["/service-report"]}>
+        <Routes>
+          <Route path="/service-report" element={<ServiceReportPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
+          <Route path="/service-report/:serviceName" element={<ServiceReportPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(paths).toEqual(["/api/v0/investigations/services/api-node-platform"]));
+    expect(await screen.findByText("payments-repo")).toBeInTheDocument();
   });
 
   it("deep-loads a report and renders coverage, findings, and scope", async () => {

@@ -12,7 +12,9 @@ import {
   loadServiceChangedSince
 } from "../api/changedSince";
 import { buildEvidencePacketComparison } from "../api/evidencePacketDelta";
+import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
+import { defaultChangedSinceParams, type DefaultChangedSinceParams } from "../console/defaultEntity";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
 import "./changedSincePage.css";
@@ -37,17 +39,27 @@ const classifications: readonly ChangeClassification[] = [
 ];
 
 export function ChangedSincePage({
-  client
+  client,
+  model
 }: {
   readonly client?: EshuApiClient;
+  readonly model?: ConsoleModel;
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [form, setForm] = useState<FormState>(() => formFromSearch(searchParams));
+  // Auto-load a sensible default on open: with no explicit scope/baseline in the
+  // URL, seed a real repository scope plus a default observed-at window from the
+  // live catalog so the page renders a delta immediately instead of an empty
+  // form. Any explicit URL filter wins; the query form still overrides.
+  const seedDefault = useMemo(
+    () => (model && client ? defaultChangedSinceParams(model) : null),
+    [client, model]
+  );
+  const [form, setForm] = useState<FormState>(() => formFromSearch(searchParams, seedDefault));
   const [page, setPage] = useState<ChangedSincePageData | null>(null);
   const [generations, setGenerations] = useState<GenerationLifecyclePage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const request = useMemo(() => formFromSearch(searchParams), [searchParams]);
+  const request = useMemo(() => formFromSearch(searchParams, seedDefault), [searchParams, seedDefault]);
   const hasLiveClient = client !== undefined;
   const canLoadChanges = hasLiveClient && isBounded(request);
   const canLoadGenerations = hasLiveClient && request.mode === "repository" && hasRepositoryScope(request);
@@ -313,16 +325,29 @@ function CategoryRow({ category }: { readonly category: ChangedSinceCategory }):
   );
 }
 
-function formFromSearch(params: URLSearchParams): FormState {
+// SCOPE_PARAMS are the URL keys that signal the user has already chosen a
+// changed-since scope/baseline. When none are present (a fresh page open), the
+// page falls back to the catalog-derived default so it loads a delta on open.
+const SCOPE_PARAMS = [
+  "mode",
+  "repository",
+  "scope_id",
+  "service_id",
+  "since_generation_id",
+  "since_observed_at"
+] as const;
+
+function formFromSearch(params: URLSearchParams, seedDefault: DefaultChangedSinceParams | null = null): FormState {
+  const userScoped = SCOPE_PARAMS.some((key) => (params.get(key) ?? "").trim().length > 0);
   const mode = params.get("mode") === "service" ? "service" : "repository";
   return {
     mode,
-    repository: params.get("repository") ?? "",
+    repository: params.get("repository") ?? (userScoped ? "" : seedDefault?.repository ?? ""),
     sampleLimit: params.get("sample_limit") ?? defaultLimit,
     scopeId: params.get("scope_id") ?? "",
     serviceId: params.get("service_id") ?? "",
     sinceGenerationId: params.get("since_generation_id") ?? "",
-    sinceObservedAt: params.get("since_observed_at") ?? ""
+    sinceObservedAt: params.get("since_observed_at") ?? (userScoped ? "" : seedDefault?.sinceObservedAt ?? "")
   };
 }
 

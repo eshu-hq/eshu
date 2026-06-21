@@ -5,6 +5,7 @@ import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
 import { loadEntityGraph, loadEntityStoryGraph, resolveEntityHandle } from "../api/eshuGraph";
+import { defaultServiceName } from "../console/defaultEntity";
 import { Panel, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 
@@ -115,7 +116,11 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
   }
 
   useEffect(() => {
-    const seed = searchParams.get("q") ?? defaultQuery;
+    // Auto-load a sensible default on open: an explicit deep-link (?q=) or
+    // caller-provided defaultQuery wins; otherwise fall back to a real service
+    // from the live catalog so the explorer renders a graph immediately instead
+    // of an empty canvas. The search box still overrides.
+    const seed = searchParams.get("q") ?? defaultQuery ?? defaultServiceName(model);
     if (!seed || !live || seededRef.current) return;
     seededRef.current = true;
     setQuery(seed);
@@ -123,7 +128,7 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
     // expand is stable for a given client/mode; intentionally only re-run when the
     // deep-link param or live state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultQuery, searchParams, live]);
+  }, [defaultQuery, searchParams, live, model]);
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>

@@ -10,6 +10,13 @@ function liveModel() {
   return modelFromSnapshot(emptySnapshot("live"));
 }
 
+function modelWithService(name: string) {
+  return modelFromSnapshot({
+    ...emptySnapshot("live"),
+    services: [{ id: `svc:${name}`, name, kind: "service", repo: `${name}-repo`, environments: [], truth: "exact", freshness: "fresh" }]
+  });
+}
+
 function storyEnvelope(): EshuEnvelope<Record<string, unknown>> {
   return {
     data: {
@@ -85,6 +92,25 @@ describe("ServiceEvidenceGraphPage", () => {
     renderAt("/service-story", client);
     expect(screen.getByRole("heading", { name: "Service evidence graph" })).toBeInTheDocument();
     expect(screen.getByLabelText("Service name")).toBeInTheDocument();
+  });
+
+  it("auto-loads a default catalog service on open when none is selected", async () => {
+    const { client, paths } = clientFor(deriveEnvelope(supportedPacket()));
+    render(
+      <MemoryRouter initialEntries={["/service-story"]}>
+        <Routes>
+          <Route path="/service-story" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
+          <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await waitFor(() => {
+      expect(paths).toEqual([
+        "/api/v0/services/api-node-platform/story",
+        "/api/v0/visualizations/derive"
+      ]);
+    });
+    expect(await screen.findByText("billing")).toBeInTheDocument();
   });
 
   it("deep-loads a service story packet and renders nodes with truth labels", async () => {

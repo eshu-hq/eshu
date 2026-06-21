@@ -8,6 +8,7 @@ import {
 } from "../api/serviceInvestigation";
 import type { ConsoleModel } from "../console/types";
 import { uiFresh, uiTruth } from "../console/types";
+import { defaultServiceName } from "../console/defaultEntity";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import "./serviceReport.css";
 
@@ -64,6 +65,14 @@ export function ServiceReportPage({
     // instance, so navigating back to the bare route must clear the prior report
     // rather than leave stale evidence under a route that no longer selects it.
     if (routeName.length === 0) {
+      // Auto-load a sensible default on open: when the live catalog has a
+      // service, redirect the bare route to it so the report renders evidence
+      // immediately instead of an empty form. The form/picker still overrides.
+      const fallback = client ? defaultServiceName(model) : "";
+      if (fallback.length > 0) {
+        navigate(`/service-report/${encodeURIComponent(fallback)}`, { replace: true });
+        return;
+      }
       loadedRef.current = null;
       loadTokenRef.current += 1;
       setResult(null);
@@ -76,7 +85,7 @@ export function ServiceReportPage({
     loadedRef.current = routeName;
     setInput(routeName);
     void runLoad(routeName);
-  }, [routeName, runLoad]);
+  }, [client, model, navigate, routeName, runLoad]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -108,7 +117,7 @@ export function ServiceReportPage({
               list="srp-service-options"
               name="serviceName"
               onChange={(event) => setInput(event.target.value)}
-              placeholder="payments"
+              placeholder="Service name"
               value={input}
             />
           </label>

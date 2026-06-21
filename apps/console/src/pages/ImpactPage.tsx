@@ -13,6 +13,7 @@ import type { ChangeSurfaceInvestigation } from "../api/changeSurface";
 import type { EshuTruth } from "../api/envelope";
 import type { ConsoleModel, GraphNode } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
+import { defaultServiceName } from "../console/defaultEntity";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { DeployableUnitPacketPanel, packetFormFromSearch } from "./DeployableUnitPacketPanel";
@@ -45,7 +46,11 @@ export function ImpactPage({
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const demoMode = model.source === "demo";
-  const [form, setForm] = useState<ImpactFormState>(() => formFromSearch(searchParams, demoMode));
+  // Auto-load a sensible default on open: in live mode with no explicit target,
+  // seed a real service from the catalog so the page renders a blast/change graph
+  // immediately instead of an empty form. The query form still overrides.
+  const liveDefaultTarget = demoMode ? "" : defaultServiceName(model);
+  const [form, setForm] = useState<ImpactFormState>(() => formFromSearch(searchParams, demoMode, liveDefaultTarget));
   const [review, setReview] = useState<ImpactReview | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | undefined>();
   const [busy, setBusy] = useState(false);
@@ -82,12 +87,12 @@ export function ImpactPage({
   );
 
   useEffect(() => {
-    const next = formFromSearch(searchParams, demoMode);
+    const next = formFromSearch(searchParams, demoMode, liveDefaultTarget);
     setForm(next);
     if (canLoad && next.target.trim().length > 0) {
       void runReview(next);
     }
-  }, [canLoad, demoMode, runReview, searchParams]);
+  }, [canLoad, demoMode, liveDefaultTarget, runReview, searchParams]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -284,13 +289,18 @@ export function ImpactPage({
   );
 }
 
-function formFromSearch(searchParams: URLSearchParams, demoMode = false): ImpactFormState {
+// formFromSearch reads the impact query form from URL params. `liveDefaultTarget`
+// seeds the target for the live page open state (no demo, no explicit target) so
+// the page auto-loads a real catalog service instead of an empty form; an
+// explicit `target` param always wins.
+function formFromSearch(searchParams: URLSearchParams, demoMode = false, liveDefaultTarget = ""): ImpactFormState {
   const kind = searchParams.get("kind");
+  const target = searchParams.get("target") ?? (demoMode ? demoDefaults.impact.target : liveDefaultTarget);
   return {
     environment: searchParams.get("environment") ?? (demoMode ? demoDefaults.impact.environment : ""),
     kind: kind === null && demoMode ? demoDefaults.impact.kind : parseTargetKind(kind),
     repoId: searchParams.get("repoId") ?? "",
-    target: searchParams.get("target") ?? (demoMode ? demoDefaults.impact.target : "")
+    target
   };
 }
 
