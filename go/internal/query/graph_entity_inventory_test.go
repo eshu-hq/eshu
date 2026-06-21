@@ -131,6 +131,49 @@ func TestGraphEntityInventoryListsEntitiesForSelectedKind(t *testing.T) {
 	}
 }
 
+func TestGraphEntityInventoryIdentityIAMProjectsPopulatedProperties(t *testing.T) {
+	t.Parallel()
+
+	// The ExternalPrincipal writer sets principal_value and principal_account_id,
+	// not name/account_id. The identity_iam projection must read those populated
+	// properties so rows carry a meaningful name + account instead of empty
+	// strings (regression for empty identity_iam name/account).
+	reader := &graphEntityCountReader{
+		countByLabel: map[string]int{"ExternalPrincipal": 1},
+		listRows: []map[string]any{
+			{"id": "principal:hash", "name": "arn:aws:iam::PLACEHOLDER:role/example", "account": "PLACEHOLDER"},
+		},
+	}
+	handler := &GraphEntityInventoryHandler{Neo4j: reader, Profile: ProfileProduction}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/graph/entities?kind=identity_iam", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.listEntities(rec, req)
+
+	data := decodeGraphEntityBody(t, rec)
+
+	// The list cypher must select the properties the writer actually populates.
+	if !strings.Contains(reader.lastListCy, "n.principal_value") {
+		t.Fatalf("list cypher = %q, want n.principal_value name source", reader.lastListCy)
+	}
+	if !strings.Contains(reader.lastListCy, "n.principal_account_id") {
+		t.Fatalf("list cypher = %q, want n.principal_account_id account source", reader.lastListCy)
+	}
+
+	entities := data["entities"].([]any)
+	if len(entities) != 1 {
+		t.Fatalf("len(entities) = %d, want 1", len(entities))
+	}
+	first := entities[0].(map[string]any)
+	if got := first["name"].(string); got == "" {
+		t.Fatalf("identity_iam name = empty, want non-empty principal name")
+	}
+	if got := first["account"].(string); got == "" {
+		t.Fatalf("identity_iam account = empty, want non-empty principal account")
+	}
+}
+
 func TestGraphEntityInventoryNameSearchBindsLoweredParam(t *testing.T) {
 	t.Parallel()
 
