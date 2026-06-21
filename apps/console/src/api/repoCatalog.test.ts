@@ -74,6 +74,82 @@ describe("repoCatalog", () => {
     ]);
   });
 
+  it("terminates after REPOSITORY_MAX_PAGES calls when the API keeps reporting truncated:true", async () => {
+    // Guard against an API that never stops claiming more pages: the loop must
+    // exit after the page ceiling and must not silently return a clean result —
+    // a console.warn must fire to surface the incomplete list.
+    let calls = 0;
+    const warnMessages: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warnMessages.push(String(args[0])); };
+    const client = {
+      get: async (path: string) => {
+        calls += 1;
+        const url = new URL(path, "http://console.test");
+        const offset = Number(url.searchParams.get("offset") ?? "0");
+        const limit = Number(url.searchParams.get("limit") ?? "0");
+        const page = Array.from({ length: limit }, (_, i) => ({ id: `repository:r_${offset + i}`, name: `repo-${offset + i}` }));
+        return { data: { repositories: page, truncated: true, offset }, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+    try {
+      const repos = await loadRepositories(client);
+      // Must terminate (not hang) and must warn about incompleteness
+      expect(calls).toBeLessThanOrEqual(24);
+      expect(warnMessages.some((m) => m.includes("incomplete"))).toBe(true);
+      // Repos returned should equal calls × page limit (no duplicates from stalled offset)
+      expect(repos.length).toBe(calls * 500);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it("stops immediately and returns zero repos when the API returns an empty page with truncated:true", async () => {
+    // An empty page with truncated:true is contradictory; the loader must not
+    // loop forever — empty wire data is always terminal.
+    let calls = 0;
+    const client = {
+      get: async () => {
+        calls += 1;
+        return { data: { repositories: [], truncated: true }, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+
+    const repos = await loadRepositories(client);
+
+    expect(repos).toHaveLength(0);
+    expect(calls).toBe(1);
+  });
+
+  it("stops paging when the response echoes a non-advancing offset (server-side clamp)", async () => {
+    // The server clamps offset at 10000 (repositoryListMaxOffset). If the
+    // echoed offset stops advancing, the loader would re-fetch the same page
+    // indefinitely and accumulate duplicates. Break on offset stall.
+    let calls = 0;
+    const stalledOffset = 10000;
+    const client = {
+      get: async (path: string) => {
+        calls += 1;
+        const url = new URL(path, "http://console.test");
+        const requestedOffset = Number(url.searchParams.get("offset") ?? "0");
+        // Server clamps: once requested offset exceeds stalledOffset the
+        // echoed offset stays at stalledOffset no matter what we request.
+        const echoedOffset = Math.min(requestedOffset, stalledOffset);
+        const page = Array.from({ length: 500 }, (_, i) => ({ id: `repository:r_${echoedOffset + i}`, name: `repo-${echoedOffset + i}` }));
+        return { data: { repositories: page, truncated: true, offset: echoedOffset }, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+
+    const repos = await loadRepositories(client);
+
+    // Loader must stop when it detects offset did not advance, not spin
+    // until MAX_PAGES appending duplicates.
+    const uniqueIds = new Set(repos.map((r) => r.id));
+    expect(uniqueIds.size).toBe(repos.length); // no duplicates
+    // stall is detected on the second call at the clamped offset
+    expect(calls).toBeLessThanOrEqual(22); // 10000/500 = 20 advancing pages + stall detection
+  });
+
   it("stops paging when a short final page returns fewer rows than the page limit", async () => {
     // truncated is the authoritative paging signal, but a short page (fewer than
     // limit rows) is also a terminal page; the loader must not request again.
