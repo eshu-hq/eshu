@@ -229,15 +229,48 @@ graph. It is purely source-backed:
   node/edge counts so a bounded subset is never read as the full picture.
 - Empty, unsupported, partial, and error states are first-class UI. The page
   never renders a stale graph when the story or derive route fails.
-- Selecting a node or edge opens an **evidence drawer** (`EvidenceDrawer`) that
-  shows the truth label, packet truth basis/level/freshness, the source evidence
-  handle (with a link into repository source when present), limitations, and
-  recommended next calls. Missing optional fields render an explicit
-  "not provided" state and unknown truth labels render literally, so the drawer
-  never hides uncertainty or collapses on partial data. It is keyboard-closable
-  (Escape) and focuses its close control on open.
+- Selecting a node or an evidence-lane relationship pill opens the shared inline
+  **evidence panel** (`EvidencePanel`, see below) that shows the truth label,
+  packet truth basis/level/freshness, joined facts, the source evidence handle
+  (with a link into repository source when present), and limitations. Missing
+  optional fields render an explicit "not provided" state and unknown truth
+  labels render literally, so the panel never hides uncertainty or collapses on
+  partial data. It is keyboard-closable (Escape) and focuses its close control on
+  open.
 
 See `docs/public/reference/visualization-packets.md` for the packet contract.
+
+## Evidence Panel Primitive
+
+`EvidencePanel` (`src/components/EvidencePanel.tsx`) is the reusable, inline
+evidence-panel primitive behind the console-wide "everything clickable reveals
+its evidence" pattern. Any clickable element — a graph node or edge, a service
+story evidence-lane pill, a stat tile, or a table row — maps its facts into the
+packet-agnostic `EvidencePanelData` contract and renders the panel in-flow next
+to the element, with no modal scrim, so the operator keeps page context.
+
+The contract is intentionally decoupled from any single API shape so the same
+primitive backs many surfaces:
+
+- `title` / `kindLabel` — the element identity and what was selected.
+- `truthLabel` — the per-element truth signal. Known labels (`exact`, `derived`,
+  `fallback`) render as a colored Truth chip; unknown labels render literally so
+  uncertainty is never normalized away. `fallback` maps to the console
+  `inferred` vocabulary.
+- `truth` — the envelope-level basis/level/freshness, or `null` when the source
+  returned none (rendered as an explicit unavailable state).
+- `facts` / `sections` — joined label/value rows; empty values are dropped rather
+  than rendered as blank rows.
+- `evidence` / `limitations` — supporting evidence and bounded-subset caveats.
+- `sourceHref` / `sourceLabel` — an optional deep link into indexed source.
+
+Per-surface mappers keep pages thin and testable:
+`visualizationEvidencePanelData` maps a `VisualizationPacket` node/edge selection
+(Service Story), and `graphNodeEvidencePanelData` / `graphEdgeEvidencePanelData`
+map `GraphModel` nodes/edges (Graph Explorer). New adopters add a small mapper to
+this contract rather than coupling the panel to their data shape. Each evidence
+fetch is bounded and source-backed, so opening a panel stays within the
+few-seconds interaction budget.
 
 ## Service Intelligence Report
 

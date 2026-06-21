@@ -2,12 +2,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
-import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
+import type { ConsoleModel, GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
 import { loadEntityGraph, loadEntityStoryGraph, resolveEntityHandle } from "../api/eshuGraph";
 import { defaultServiceName } from "../console/defaultEntity";
 import { Panel, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
+import { EvidencePanel, type EvidencePanelData } from "../components/EvidencePanel";
+import { graphEdgeEvidencePanelData, graphNodeEvidencePanelData } from "../components/graphEvidencePanel";
 
 const LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
 
@@ -26,6 +28,10 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
     () => Object.fromEntries(LAYERS.map((l) => [l, true])) as Record<GraphLayer, boolean>
   );
   const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
+  // evidence holds the inline evidence-panel data for the node or edge the
+  // operator is inspecting, or null when no element is open. It is decoupled from
+  // sel (the centered node) so opening edge evidence does not recenter the graph.
+  const [evidence, setEvidence] = useState<EvidencePanelData | null>(null);
   const [liveGraph, setLiveGraph] = useState<GraphModel | null>(null);
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get("q") ?? defaultQuery ?? "");
@@ -77,6 +83,7 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
         : await loadEntityGraph(client, resolved.name);
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero));
+      setEvidence(null);
       // Direct mode with only the center and no edges means the entity has no
       // indexed code relationships (e.g. a service). Nudge toward Neighborhood
       // instead of leaving a blank canvas. See issue #1725.
@@ -90,7 +97,14 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
 
   function onSelect(n: GraphNode): void {
     setSel(n);
+    setEvidence(graphNodeEvidencePanelData(n));
     if ((n.kind === "service" || n.kind === "workload") && onOpenService) onOpenService(n.label);
+  }
+
+  function openEdgeEvidence(edge: GraphEdge): void {
+    const fromLabel = nodeLabels.get(edge.s) ?? edge.s;
+    const toLabel = nodeLabels.get(edge.t) ?? edge.t;
+    setEvidence(graphEdgeEvidencePanelData(edge, fromLabel, toLabel));
   }
 
   async function centerOnNode(node: GraphNode): Promise<void> {
@@ -105,6 +119,7 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
         : await loadEntityGraph(client, handle);
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero) ?? node);
+      setEvidence(null);
       if (nextMode === "direct" && g.edges.length === 0) {
         setHint("No direct code relationships for this entity — try Neighborhood.");
       }
@@ -194,9 +209,15 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
                   const endpointID = e.s === sel.id ? e.t : e.s;
                   const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
                   return (
-                    <div className="insp-evi-row" key={i} title={endpointLabel === endpointID ? undefined : endpointID}>
+                    <button
+                      className="insp-evi-row insp-evi-btn"
+                      key={i}
+                      onClick={() => openEdgeEvidence(e)}
+                      title={`Inspect ${e.verb} evidence`}
+                      type="button"
+                    >
                       {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -211,6 +232,11 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
                 ))}
               </div>
             </>
+          ) : null}
+          {evidence !== null ? (
+            <div className="insp-evidence-panel">
+              <EvidencePanel data={evidence} onClose={() => setEvidence(null)} />
+            </div>
           ) : null}
         </Panel>
       </div>
