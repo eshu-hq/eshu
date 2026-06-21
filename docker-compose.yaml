@@ -200,6 +200,13 @@ services:
       ESHU_SEMANTIC_EXTRACTION_POLICY_JSON: ${ESHU_SEMANTIC_EXTRACTION_POLICY_JSON:-}
       ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER: ${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-auto_hash}
       ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID: ${ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID:-}
+      # Optional Ask Eshu passthrough. Unset by default; ask endpoint returns
+      # 503 until ESHU_ASK_ENABLED=true and a valid agent_reasoning provider
+      # profile is configured. See docs/public/run-locally/docker-compose.md
+      # (Ask Eshu section) for setup instructions.
+      ESHU_ASK_ENABLED: ${ESHU_ASK_ENABLED:-}
+      ESHU_ASK_NARRATION_ENABLED: ${ESHU_ASK_NARRATION_ENABLED:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       ESHU_PROMETHEUS_METRICS_ENABLED: "true"
       ESHU_PROMETHEUS_METRICS_PORT: "9464"
     volumes:
@@ -255,6 +262,13 @@ services:
       ESHU_SEMANTIC_EXTRACTION_POLICY_JSON: ${ESHU_SEMANTIC_EXTRACTION_POLICY_JSON:-}
       ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER: ${ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER:-auto_hash}
       ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID: ${ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID:-}
+      # Optional Ask Eshu passthrough. Unset by default; ask tool returns
+      # 503 until ESHU_ASK_ENABLED=true and a valid agent_reasoning provider
+      # profile is configured. See docs/public/run-locally/docker-compose.md
+      # (Ask Eshu section) for setup instructions.
+      ESHU_ASK_ENABLED: ${ESHU_ASK_ENABLED:-}
+      ESHU_ASK_NARRATION_ENABLED: ${ESHU_ASK_NARRATION_ENABLED:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       ESHU_PROMETHEUS_METRICS_ENABLED: "true"
       ESHU_PROMETHEUS_METRICS_PORT: "9464"
     volumes:

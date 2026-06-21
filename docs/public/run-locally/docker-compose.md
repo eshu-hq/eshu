@@ -162,6 +162,58 @@ Optional semantic extraction is configured separately through provider profiles
 and source policy; see
 [Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md).
 
+## Ask Eshu
+
+The Ask Eshu endpoint (`POST /api/v0/ask`) and the `ask` MCP tool are
+default-off. Both require `ESHU_ASK_ENABLED=true` **and** a valid
+`agent_reasoning` provider profile in `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
+When either condition is unmet, the endpoint returns `503` and
+`GET /api/v0/status/answer-narration` reports `provider_unavailable`.
+
+The `eshu` and `mcp-server` services pass these variables through when set in
+the Compose environment; they are empty by default so the default stack
+behaviour is unchanged.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `ESHU_ASK_ENABLED` | Set to `true` to enable the ask endpoint and tool. | off |
+| `ESHU_ASK_NARRATION_ENABLED` | Set to `true` to permit governed answer narration (requires `ESHU_ASK_ENABLED=true`). | off |
+| `DEEPSEEK_API_KEY` | API key for DeepSeek; referenced by the example profile below. Keep in a private env file — never commit a real key. | unset |
+
+To enable Ask Eshu with a DeepSeek provider, load the key from a private env
+file or shell secret manager and set the profile JSON before starting Compose:
+
+```bash
+# Load DEEPSEEK_API_KEY from a private env file or shell secret manager first.
+export DEEPSEEK_API_KEY=<your-key>
+export ESHU_ASK_ENABLED=true
+export ESHU_ASK_NARRATION_ENABLED=true
+export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[{"profile_id":"ask-deepseek","provider_kind":"deepseek","credential_source":{"kind":"environment_variable","handle":"DEEPSEEK_API_KEY"},"model_id":"deepseek-chat","source_classes":["agent_reasoning"]}]}'
+docker compose up --build eshu mcp-server
+```
+
+Verify the posture after the stack is healthy:
+
+```bash
+curl -sS http://localhost:8080/api/v0/status/answer-narration | jq .
+```
+
+`available` means all gates are open. `provider_unavailable` means
+`ESHU_ASK_ENABLED` is unset or the provider adapter failed to construct (check
+that `DEEPSEEK_API_KEY` is exported and the profile JSON is valid).
+`provider_traffic_disabled` means the profile loaded but narration was not
+opened (`ESHU_ASK_NARRATION_ENABLED` is unset or not `true`).
+
+No-Regression Evidence: default Compose behaviour (no env vars set) is
+unchanged — the `${VAR:-}` passthrough expands to empty string, which is
+equivalent to the variable being absent. `ESHU_ASK_ENABLED` unset or empty
+causes `IsAskEnabled` in `go/internal/askwiring/askwiring.go` to return false
+and the handler to remain in its default 503 state.
+
+No-Observability-Change: these are optional passthrough variables. No new
+metrics, spans, or log fields are added by this change. Existing ask-path
+telemetry surfaces only when `ESHU_ASK_ENABLED=true` is explicitly set.
+
 ## Optional Profiles
 
 The default `docker-compose.yaml` also defines services that are off unless you
