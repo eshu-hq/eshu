@@ -32,6 +32,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_LIB="${REPO_ROOT}/scripts/lib/compose_verification_runtime_common.sh"
+ASSERTIONS_LIB="${REPO_ROOT}/scripts/lib/public_collector_proof_assertions.sh"
 
 KEEP_STACK="${ESHU_KEEP_COMPOSE_STACK:-false}"
 MODE="live"
@@ -59,6 +60,11 @@ ESHU_API_METRICS_PORT_BASE="${ESHU_API_METRICS_PORT:-29464}"
 ESHU_MCP_METRICS_PORT_BASE="${ESHU_MCP_METRICS_PORT:-29468}"
 ESHU_RESOLUTION_ENGINE_METRICS_PORT_BASE="${ESHU_RESOLUTION_ENGINE_METRICS_PORT:-29466}"
 ESHU_WORKFLOW_COORDINATOR_METRICS_PORT_BASE="${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-29469}"
+
+# Stable, bounded project name that isolates this proof gate's containers and
+# named volumes from a developer's default `eshu` Compose project. `down -v`
+# removes only THIS gate's volumes, never a developer's running stack.
+COMPOSE_PROJECT="${ESHU_PUBLIC_PROOF_COMPOSE_PROJECT:-eshu-public-proof}"
 
 TMP_DIR=""
 COMPOSE_CMD=()
@@ -132,8 +138,11 @@ resolve_compose_cmd() {
 		echo "Missing required compose command: docker compose or docker-compose" >&2
 		exit 1
 	fi
-	COMPOSE_CMD+=(--profile workflow-coordinator)
-	COMPOSE_DISPLAY+=" --profile workflow-coordinator"
+	# -p gives this gate its own isolated Compose project so `down -v` only
+	# removes THIS gate's named volumes and never touches a developer's default
+	# `eshu` project that may be running alongside.
+	COMPOSE_CMD+=(-p "${COMPOSE_PROJECT}" --profile workflow-coordinator)
+	COMPOSE_DISPLAY+=" -p ${COMPOSE_PROJECT} --profile workflow-coordinator"
 }
 
 configure_runtime_addresses() {
@@ -213,20 +222,7 @@ build_public_claim_instances() {
 }
 
 read_api_key() {
-	# The single-quoted script is intentionally evaluated inside the container,
-	# not by the host shell.
-	# shellcheck disable=SC2016
-	API_KEY="$("${COMPOSE_CMD[@]}" exec -T eshu sh -lc '
-		token="${ESHU_API_KEY:-}"
-		if [ -n "$token" ]; then
-			printf %s "$token"
-			exit 0
-		fi
-		home="${ESHU_HOME:-/data/.eshu}"
-		if [ -f "$home/.env" ]; then
-			sed -n "s/^ESHU_API_KEY=//p" "$home/.env" | tail -n 1 | tr -d "\n"
-		fi
-	')"
+	API_KEY="$(eshu_compose_read_api_key)"
 	if [[ -z "${API_KEY}" ]]; then
 		echo "Could not resolve the locally auto-generated API key" >&2
 		return 1
@@ -374,6 +370,8 @@ main() {
 
 	# shellcheck source=scripts/lib/compose_verification_runtime_common.sh disable=SC1091
 	source "${RUNTIME_LIB}"
+	# shellcheck source=scripts/lib/public_collector_proof_assertions.sh disable=SC1091
+	source "${ASSERTIONS_LIB}"
 
 	TMP_DIR="$(mktemp -d)"
 	trap cleanup EXIT
@@ -417,15 +415,24 @@ main() {
 		workflow-coordinator /usr/local/bin/eshu-collector-package-registry >/dev/null
 
 	echo "Waiting for facts to commit and the reducer to drain to zero..."
-	# A positive advisory count and package count prove fact commit for both
-	# public lanes; drain-to-zero proves the reducer cleared the claimed work
-	# with no dead letters. The advisory catalog surface is anchorless and reads
-	# directly from active vulnerability source facts, so a positive count there
-	# is fact-commit truth for the KEV/EPSS/OSV lane.
+	# Positive advisory and package counts prove fact commit for both public
+	# lanes. drain-to-zero proves the reducer cleared all claimed work with no
+	# dead letters.
 	local advisory_count package_count
 	advisory_count="$(wait_for_positive_count "/supply-chain/advisories?limit=1" '.count' 180)"
 	package_count="$(wait_for_positive_count "/package-registry/packages/count?ecosystem=npm" '.total_packages' 180)"
 	wait_for_reducer_drain
+
+	echo "Asserting per-source vulnerability-intelligence evidence..."
+	# Each of the three configured public sources must produce its own readback
+	# evidence. An aggregate advisory count alone cannot prove all three sources
+	# committed facts: KEV success is sufficient to make the count positive even
+	# if EPSS or OSV failed. These checks catch per-source failures before the
+	# gate declares the lane proven.
+	local kev_line epss_line osv_line
+	kev_line="$(assert_kev_evidence)"
+	epss_line="$(assert_epss_evidence)"
+	osv_line="$(assert_osv_evidence)"
 
 	echo "Asserting API readback truth labels..."
 	local advisories_file detail_file
@@ -468,10 +475,16 @@ main() {
 	echo "Aggregate evidence (public-safe):"
 	echo "  supply-chain advisory evidence count: ${advisory_count}"
 	echo "  npm package count: ${package_count}"
-	echo "  API advisory catalog rows: >=1 (kev_label=${kev_label})"
-	echo "  API advisory detail source evidence: present"
-	echo "  MCP list_package_registry_packages: truth=${mcp_truth} count=${mcp_count}"
-	echo "  reducer queue: drained to zero, 0 dead letters"
+	echo "Per-source evidence (public-safe):"
+	echo "${kev_line}"
+	echo "${epss_line}"
+	echo "${osv_line}"
+	echo "API readback:"
+	echo "  advisory catalog rows: >=1 (kev_label=${kev_label})"
+	echo "  advisory detail source evidence: present"
+	echo "MCP readback:"
+	echo "  list_package_registry_packages: truth=${mcp_truth} count=${mcp_count}"
+	echo "reducer queue: drained to zero, 0 dead letters"
 }
 
 main "$@"

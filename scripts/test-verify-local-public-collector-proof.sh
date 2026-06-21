@@ -128,4 +128,35 @@ if rg -nI 'NVD_API_KEY|api_key_env' "${script}"; then
 	exit 1
 fi
 
+# Compose project isolation: the script must declare a COMPOSE_PROJECT variable
+# and pass -p to every compose invocation via COMPOSE_CMD so this gate's
+# `down -v` never removes a developer's default `eshu` project volumes.
+if ! rg -q 'COMPOSE_PROJECT' "${script}"; then
+	echo "verify_local_public_collector_proof.sh must declare COMPOSE_PROJECT for volume isolation" >&2
+	exit 1
+fi
+if ! rg -q -- '-p.*COMPOSE_PROJECT' "${script}"; then
+	echo "verify_local_public_collector_proof.sh must pass -p \"\${COMPOSE_PROJECT}\" to compose" >&2
+	exit 1
+fi
+
+# Per-source assertions: the assertions sidecar lib must exist and export the
+# three required assertion functions.
+assertions_lib="${repo_root}/scripts/lib/public_collector_proof_assertions.sh"
+if [[ ! -f "${assertions_lib}" ]]; then
+	echo "expected scripts/lib/public_collector_proof_assertions.sh to exist" >&2
+	exit 1
+fi
+for fn in assert_kev_evidence assert_epss_evidence assert_osv_evidence; do
+	if ! rg -q "^${fn}()" "${assertions_lib}"; then
+		echo "assertions lib missing required function ${fn}" >&2
+		exit 1
+	fi
+done
+# Public-safety check on the assertions lib: no credentials or internal locators.
+if rg -nI 'password=|secret=|jfrog\.io|boatsgroup|10\.[0-9]+\.[0-9]+\.[0-9]+|NVD_API_KEY' "${assertions_lib}"; then
+	echo "public_collector_proof_assertions.sh must not embed secrets or internal locators" >&2
+	exit 1
+fi
+
 printf 'test-verify-local-public-collector-proof tests passed\n'
