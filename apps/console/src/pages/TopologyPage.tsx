@@ -3,12 +3,13 @@ import type { EshuApiClient } from "../api/client";
 import {
   buildServiceTopology,
   loadServiceTopology,
+  loadTopologyServices,
   type ServiceTopology,
   type TopologyEdge,
   type TopologyKind,
   type TopologyNode
 } from "../api/serviceTopology";
-import type { ConsoleModel } from "../console/types";
+import type { ConsoleModel, ServiceRow } from "../console/types";
 import { LAYER_COLOR } from "../console/types";
 import { Badge, Panel, StatTile } from "../components/atoms";
 import "./topology.css";
@@ -33,27 +34,53 @@ export function TopologyPage({
   readonly model: ConsoleModel;
   readonly onOpenService: (name: string) => void;
 }): React.JSX.Element {
-  const services = useMemo(() => model.services.filter((row) => row.name.length > 0), [model]);
-  const [selectedName, setSelectedName] = useState(services[0]?.name ?? "");
+  // Seed the service list from the shared snapshot; fetch from the catalog when
+  // the snapshot has not yet populated (or when the catalog returns only
+  // repositories rather than promoted service/workload nodes).
+  const snapshotServices = useMemo(
+    () => model.services.filter((row) => row.name.length > 0),
+    [model]
+  );
+  const [catalogServices, setCatalogServices] = useState<readonly ServiceRow[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+
+  useEffect(() => {
+    if (!client) return;
+    // Only fetch catalog services when the snapshot is empty so we don't issue
+    // a redundant round-trip on pages that already have services.
+    if (snapshotServices.length > 0) return;
+    let active = true;
+    setPickerLoading(true);
+    void loadTopologyServices(client).then((rows) => {
+      if (!active) return;
+      setCatalogServices(rows);
+      setPickerLoading(false);
+    });
+    return () => { active = false; };
+  }, [client, snapshotServices.length]);
+
+  const services = snapshotServices.length > 0 ? snapshotServices : catalogServices;
+  const [selectedName, setSelectedName] = useState("");
   const selected = services.find((row) => row.name === selectedName) ?? services[0];
   const [graph, setGraph] = useState<ServiceTopology | null>(null);
   const [selectedNode, setSelectedNode] = useState<TopologyNode | null>(null);
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">(
-    client && selected ? "loading" : "unavailable"
-  );
 
+  // Default to the first available service once the list populates.
   useEffect(() => {
     if (selectedName.length === 0 && services[0]) {
       setSelectedName(services[0].name);
     }
   }, [selectedName, services]);
 
+  const isPickerReady = !pickerLoading && (services.length > 0 || !client);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">("loading");
+
   useEffect(() => {
     let active = true;
     setSelectedNode(null);
     if (!selected) {
       setGraph(null);
-      setLoadState("unavailable");
+      setLoadState(isPickerReady ? "unavailable" : "loading");
       return () => { active = false; };
     }
     if (!client) {
@@ -74,7 +101,7 @@ export function TopologyPage({
         setLoadState("unavailable");
       });
     return () => { active = false; };
-  }, [client, selected]);
+  }, [client, isPickerReady, selected]);
 
   const topology = graph ?? (selected ? buildServiceTopology({ service: selected, trafficPaths: [] }) : null);
 

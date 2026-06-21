@@ -380,3 +380,73 @@ function nonEmpty(...values: readonly (string | undefined)[]): string {
   }
   return "";
 }
+
+// Wire shapes for GET /api/v0/catalog used by loadTopologyServices.
+interface TopologyCatalogRecord {
+  readonly id?: string;
+  readonly name?: string;
+  readonly kind?: string;
+  readonly repo_name?: string;
+  readonly repo_id?: string;
+  readonly environments?: readonly string[];
+}
+
+interface TopologyCatalogResponse {
+  readonly repositories?: readonly TopologyCatalogRecord[];
+  readonly services?: readonly TopologyCatalogRecord[];
+  readonly workloads?: readonly TopologyCatalogRecord[];
+}
+
+// loadTopologyServices fetches a bounded service list from the catalog so the
+// Topology page can populate its service picker without depending on the shared
+// ConsoleModel snapshot. It reads services and workloads first; when those
+// arrays are absent it falls back to repositories so the picker is never empty
+// on catalogs that only carry repository entries (955-repo live catalogs hit
+// this path). Results are deduplicated by id and sorted so named entries
+// precede blank ones. Returns [] on network failure so the caller can show a
+// graceful unavailable state.
+export async function loadTopologyServices(client: EshuApiClient): Promise<readonly ServiceRow[]> {
+  let catalog: TopologyCatalogResponse;
+  try {
+    catalog = await client.getJson<TopologyCatalogResponse>("/api/v0/catalog?limit=2000&offset=0");
+  } catch {
+    return [];
+  }
+
+  const byId = new Map<string, ServiceRow>();
+
+  const addRecord = (record: TopologyCatalogRecord, defaultKind: string): void => {
+    const id = nonEmpty(record.id, record.name);
+    if (id === "" || byId.has(id)) return;
+    byId.set(id, {
+      id,
+      name: nonEmpty(record.name, record.id),
+      kind: nonEmpty(record.kind, defaultKind),
+      repo: nonEmpty(record.repo_name, record.repo_id),
+      environments: record.environments ?? [],
+      truth: "exact",
+      freshness: "fresh"
+    });
+  };
+
+  const hasServiceEntries =
+    (catalog.services?.length ?? 0) > 0 || (catalog.workloads?.length ?? 0) > 0;
+
+  if (hasServiceEntries) {
+    for (const s of catalog.services ?? []) addRecord(s, "service");
+    for (const w of catalog.workloads ?? []) addRecord(w, "workload");
+  } else {
+    // Fall back to repositories when the catalog has no promoted service or
+    // workload nodes so the Topology picker is still populated.
+    for (const r of catalog.repositories ?? []) addRecord(r, "repository");
+  }
+
+  const rows = [...byId.values()];
+  // Named entries sort first; ties break alphabetically.
+  rows.sort((a, b) => {
+    if (a.name.length === 0 && b.name.length > 0) return 1;
+    if (a.name.length > 0 && b.name.length === 0) return -1;
+    return a.name.localeCompare(b.name);
+  });
+  return rows;
+}
