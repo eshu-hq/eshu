@@ -111,7 +111,7 @@ describe("ImpactPage", () => {
 
     const model = modelFromSnapshot({
       ...emptySnapshot("live"),
-      services: [{ id: "svc:api-node-platform", name: "api-node-platform", kind: "service", repo: "api-node-platform", environments: [], truth: "exact", freshness: "fresh" }]
+      services: [{ id: "svc:acme-app", name: "acme-app", kind: "service", repo: "acme-app", environments: [], truth: "exact", freshness: "fresh" }]
     });
 
     render(
@@ -121,7 +121,7 @@ describe("ImpactPage", () => {
     );
 
     await waitFor(() => expect(calls).toContain("/api/v0/impact/change-surface/investigate"));
-    expect(screen.getByLabelText<HTMLInputElement>("Entity target").value).toBe("api-node-platform");
+    expect(screen.getByLabelText<HTMLInputElement>("Entity target").value).toBe("acme-app");
   });
 
   it("loads a deployable-unit investigation packet from explicit scope inputs", async () => {

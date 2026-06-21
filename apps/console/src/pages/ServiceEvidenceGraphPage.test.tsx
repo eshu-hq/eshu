@@ -99,14 +99,14 @@ describe("ServiceEvidenceGraphPage", () => {
     render(
       <MemoryRouter initialEntries={["/service-story"]}>
         <Routes>
-          <Route path="/service-story" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
-          <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("api-node-platform")} onOpenService={vi.fn()} />} />
+          <Route path="/service-story" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
+          <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
         </Routes>
       </MemoryRouter>
     );
     await waitFor(() => {
       expect(paths).toEqual([
-        "/api/v0/services/api-node-platform/story",
+        "/api/v0/services/acme-app/story",
         "/api/v0/visualizations/derive"
       ]);
     });
