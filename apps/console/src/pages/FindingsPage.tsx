@@ -3,12 +3,19 @@ import { Link } from "react-router-dom";
 import { uiTruth, type ConsoleModel, type FindingRow, type VulnRow } from "../console/types";
 import { Panel, StatTile, TruthChip, Badge } from "../components/atoms";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";
+import type { SectionProvenance } from "../api/eshuConsoleLive";
 
 export function FindingsPage({ model }: { readonly model: ConsoleModel }): React.JSX.Element {
   const rows = worklistRows(model);
   const byType = new Map<string, number>();
   rows.forEach((row) => byType.set(row.type, (byType.get(row.type) ?? 0) + 1));
-  const provenance = model.provenance.findings ?? model.provenance.vulnerabilities ?? (model.source === "demo" ? "demo" : "loading");
+  // Combine the two worklist sources: only block the table when ALL sources are
+  // non-ready. If either source responded (even partially), render available rows.
+  // Partial failure (e.g. dead-code "unavailable" but supply-chain "live") must
+  // not suppress vulnerability rows that are already in the model.
+  const findingsProv = model.provenance.findings ?? (model.source === "demo" ? "demo" : "loading");
+  const vulnProv = model.provenance.vulnerabilities ?? (model.source === "demo" ? "demo" : "loading");
+  const provenance = combinedWorklist(findingsProv, vulnProv);
   return (
     <div className="page">
       <div className="page-intro">
@@ -121,4 +128,20 @@ function findingSource(finding: FindingRow): string {
   if (finding.type === "Dead code") return "POST /api/v0/code/dead-code";
   if (finding.type === "Vulnerability") return "GET /api/v0/supply-chain/impact/findings";
   return "live graph finding row";
+}
+
+// combinedWorklist derives a single AsyncStateGuard provenance for the unified
+// worklist. The table must stay visible whenever at least one source has
+// responded — partial failure (one source unavailable, the other live) must
+// not suppress rows that are already present.
+//
+// Priority:
+//   • Any source still loading  → "loading"  (both in flight; nothing to show)
+//   • All sources unavailable   → "unavailable"
+//   • At least one source ready → "live" (table renders; per-section empty
+//     rows explain any absent section)
+function combinedWorklist(a: SectionProvenance, b: SectionProvenance): SectionProvenance {
+  if (a === "loading" || b === "loading") return "loading";
+  if (a === "unavailable" && b === "unavailable") return "unavailable";
+  return "live";
 }

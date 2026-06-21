@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { FindingsPage } from "./FindingsPage";
 import { demoModel } from "../console/demoModel";
-import type { ConsoleModel } from "../console/types";
+import { emptyConsoleModel } from "../console/liveModel";
+import type { ConsoleModel, VulnRow } from "../console/types";
 
 describe("FindingsPage", () => {
   it("summarizes findings from the model", () => {
@@ -105,6 +106,54 @@ describe("FindingsPage", () => {
     expect(screen.getByText("live worklist rows")).toBeInTheDocument();
     expect(sourceCells("POST /api/v0/code/dead-code")).toHaveLength(1);
     expect(sourceCells("GET /api/v0/supply-chain/impact/findings")).toHaveLength(1);
+  });
+
+  it("renders vulnerability rows when dead-code section is unavailable (partial failure)", () => {
+    // Regression for review comment on PR #3409: the old single-provenance
+    // coalescing picked "unavailable" from provenance.findings and suppressed
+    // the whole table even though vulnerability rows were present from the
+    // supply-chain section that succeeded. combinedWorklist() now requires ALL
+    // sources to fail before blocking the table.
+    const vuln: VulnRow = {
+      id: "CVE-2026-9999",
+      package: "express",
+      severity: "high",
+      cvss: 7.5,
+      kev: false,
+      fixedVersion: "4.19.0",
+      services: ["api-service"]
+    };
+    const model: ConsoleModel = {
+      ...emptyConsoleModel(),
+      source: "live",
+      vulnerabilities: [vuln],
+      // dead-code section failed; supply-chain section succeeded
+      provenance: { findings: "unavailable", vulnerabilities: "live" }
+    };
+
+    renderFindings(model);
+
+    // Table must render with the vuln row — NOT the error/spinner guard
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+    expect(screen.getByText("CVE-2026-9999 · express")).toBeInTheDocument();
+  });
+
+  it("shows a loading spinner when both worklist sources are in flight", () => {
+    const model: ConsoleModel = emptyConsoleModel("loading");
+    renderFindings(model);
+
+    expect(screen.getByRole("status", { name: "Loading findings" })).toBeInTheDocument();
+    expect(screen.queryByText("No findings from this source.")).not.toBeInTheDocument();
+  });
+
+  it("shows an error when both worklist sources are unavailable", () => {
+    const model: ConsoleModel = emptyConsoleModel("unavailable");
+    renderFindings(model);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText(/unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText("No findings from this source.")).not.toBeInTheDocument();
   });
 });
 
