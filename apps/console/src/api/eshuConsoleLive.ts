@@ -87,6 +87,12 @@ export interface ServiceRow {
   readonly environments: readonly string[];
   readonly truth: TruthLevel;
   readonly freshness: FreshnessState;
+  // Service-catalog enrichment — present when the catalog API returns a
+  // correlated manifest declaration; absent when no manifest is indexed.
+  readonly tier?: string;
+  readonly category?: string;
+  readonly domain?: string;
+  readonly language?: string;
 }
 
 export interface LanguageRow { readonly language: string; readonly count: number; }

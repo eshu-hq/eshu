@@ -83,6 +83,8 @@ interface CatalogRecord {
   readonly id?: string; readonly name?: string; readonly kind?: string;
   readonly repo_name?: string; readonly repo_id?: string; readonly repo_slug?: string;
   readonly environments?: readonly string[]; readonly materialization_status?: string;
+  readonly tier?: string; readonly category?: string;
+  readonly domain?: string; readonly language?: string;
 }
 interface LanguageInventory { readonly languages?: readonly { language: string; count?: number; repository_count?: number; file_count?: number }[]; }
 interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>[]; }
@@ -198,11 +200,16 @@ export async function loadServices(client: EshuApiClient, ctx: SectionContext): 
     if (repoId && friendly && !ctx.repoNames.has(repoId)) ctx.repoNames.set(repoId, friendly);
     const id = w.id ?? w.name ?? "";
     if (id === "" || byId.has(id)) continue;
-    byId.set(id, {
+    const row: ServiceRow = {
       id, name: w.name ?? w.id ?? "", kind: w.kind ?? "service",
       repo: w.repo_name ?? w.repo_id ?? "", environments: w.environments ?? [],
-      truth: lvl, freshness: fresh
-    });
+      truth: lvl, freshness: fresh,
+      ...(w.tier ? { tier: w.tier } : {}),
+      ...(w.category ? { category: w.category } : {}),
+      ...(w.domain ? { domain: w.domain } : {}),
+      ...(w.language ? { language: w.language } : {}),
+    };
+    byId.set(id, row);
   }
   const rows = [...byId.values()];
   return rows.length > 0 ? rows : null;

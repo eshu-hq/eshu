@@ -251,10 +251,11 @@ func newMCPQueryRouterWithSemanticEmbedding(
 	}
 	return &query.APIRouter{
 		Repositories: &query.RepositoryHandler{
-			Neo4j:               neo4jReader,
-			Content:             contentReader,
-			CICDRunCorrelations: query.NewPostgresCICDRunCorrelationStore(db),
-			Profile:             queryProfile,
+			Neo4j:                      neo4jReader,
+			Content:                    contentReader,
+			CICDRunCorrelations:        query.NewPostgresCICDRunCorrelationStore(db),
+			ServiceCatalogCorrelations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Profile:                    queryProfile,
 		},
 		Entities: &query.EntityHandler{
 			Neo4j:                    neo4jReader,
