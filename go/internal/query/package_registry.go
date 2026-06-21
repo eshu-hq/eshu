@@ -12,12 +12,13 @@ import (
 )
 
 const (
-	packageRegistryPackagesCapability     = "package_registry.packages.list"
-	packageRegistryVersionsCapability     = "package_registry.versions.list"
-	packageRegistryDependenciesCapability = "package_registry.dependencies.list"
-	packageRegistryCorrelationsCapability = "package_registry.correlations.list"
-	packageRegistryMaxLimit               = 200
-	packageRegistryDependencyReadTimeout  = 10 * time.Second
+	packageRegistryPackagesCapability         = "package_registry.packages.list"
+	packageRegistryVersionsCapability         = "package_registry.versions.list"
+	packageRegistryDependenciesCapability     = "package_registry.dependencies.list"
+	packageRegistryCorrelationsCapability     = "package_registry.correlations.list"
+	packageRegistryDependencyChainsCapability = "package_registry.dependency_chains.list"
+	packageRegistryMaxLimit                   = 200
+	packageRegistryDependencyReadTimeout      = 10 * time.Second
 )
 
 // PackageRegistryHandler exposes graph-backed package registry identity reads.
@@ -97,6 +98,7 @@ func (h *PackageRegistryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/package-registry/versions", h.listVersions)
 	mux.HandleFunc("GET /api/v0/package-registry/dependencies", h.listDependencies)
 	mux.HandleFunc("GET /api/v0/package-registry/correlations", h.listCorrelations)
+	mux.HandleFunc("GET /api/v0/package-registry/dependency-chains", h.listDependencyChains)
 	h.packageRegistryAggregateRoutes(mux)
 }
 

@@ -6,6 +6,10 @@ const (
 	// SpanQueryPackageRegistryCorrelations wraps package publication and
 	// consumption correlation reads from reducer facts.
 	SpanQueryPackageRegistryCorrelations = "query.package_registry_correlations"
+	// SpanQueryPackageRegistryDependencyChains wraps the read-side join that
+	// resolves consumer-repo -> package -> publisher-repo dependency chains from
+	// reducer consumption and provenance-only publication/ownership correlations.
+	SpanQueryPackageRegistryDependencyChains = "query.package_registry_dependency_chains"
 	// SpanQueryPackageRegistryAggregate wraps cheap-summary count and
 	// inventory aggregates over the (:Package) corpus. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like
@@ -18,6 +22,7 @@ func init() {
 		if name == SpanQueryPackageRegistryDependencies {
 			spanNames = slices.Insert(spanNames, idx+1,
 				SpanQueryPackageRegistryCorrelations,
+				SpanQueryPackageRegistryDependencyChains,
 				SpanQueryPackageRegistryAggregate,
 			)
 			return
@@ -25,6 +30,7 @@ func init() {
 	}
 	spanNames = append(spanNames,
 		SpanQueryPackageRegistryCorrelations,
+		SpanQueryPackageRegistryDependencyChains,
 		SpanQueryPackageRegistryAggregate,
 	)
 }

@@ -59,6 +59,36 @@ func TestOpenAPISpecIncludesPackageRegistryCorrelations(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpecIncludesPackageRegistryDependencyChains(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/package-registry/dependency-chains")
+	get := mustMapField(t, path, "get")
+	if got, want := get["operationId"], "listPackageRegistryDependencyChains"; got != want {
+		t.Fatalf("operationId = %#v, want %#v", got, want)
+	}
+	responses := mustMapField(t, get, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
+	schema := mustMapField(t, content, "schema")
+	properties := mustMapField(t, schema, "properties")
+	chains := mustMapField(t, properties, "chains")
+	items := mustMapField(t, chains, "items")
+	itemProperties := mustMapField(t, items, "properties")
+	publishers := mustMapField(t, itemProperties, "publishers")
+	publisherItems := mustMapField(t, publishers, "items")
+	publisherProperties := mustMapField(t, publisherItems, "properties")
+	if got, want := mustMapField(t, publisherProperties, "provenance_only")["type"], "boolean"; got != want {
+		t.Fatalf("publisher provenance_only type = %#v, want %#v", got, want)
+	}
+}
+
 func TestOpenAPISpecIncludesPackageRegistryIdentityIssues(t *testing.T) {
 	t.Parallel()
 

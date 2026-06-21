@@ -127,6 +127,27 @@ func TestPackageRegistryCorrelationQueryExcludesTombstones(t *testing.T) {
 	}
 }
 
+func TestPackageRegistryCorrelationQuerySupportsBatchedPackageIDs(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(listPackageRegistryCorrelationsQuery, "fact.payload->>'package_id' = ANY($9::text[])") {
+		t.Fatalf("listPackageRegistryCorrelationsQuery must batch on package_id = ANY for the dependency-chain publisher read:\n%s", listPackageRegistryCorrelationsQuery)
+	}
+}
+
+func TestPackageRegistryCorrelationQuerySupportsRelationshipKindsFilter(t *testing.T) {
+	t.Parallel()
+
+	// The $10 relationship_kind filter must appear BEFORE the LIMIT clause so
+	// that the bounded page for the dependency-chain phase-2 publisher read
+	// contains only publisher-kind rows (publication/ownership). Without this
+	// WHERE predicate, a popular package with many consumer rows could fill the
+	// page before any publisher rows appear, silently dropping them.
+	if !strings.Contains(listPackageRegistryCorrelationsQuery, "fact.payload->>'relationship_kind' = ANY($10::text[])") {
+		t.Fatalf("listPackageRegistryCorrelationsQuery must filter on relationship_kind = ANY($10) before LIMIT:\n%s", listPackageRegistryCorrelationsQuery)
+	}
+}
+
 func TestPackageRegistryCorrelationQueryIncludesPublicationFacts(t *testing.T) {
 	t.Parallel()
 

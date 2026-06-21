@@ -141,8 +141,9 @@ export function RepositoriesPage({ client, model }: {
                     <ul className="plain-list">{detail.highlights.slice(0, 8).map((h, i) => <li key={i} className="t-mut">{h}</li>)}</ul>
                   </>
                 ) : null}
-                <div style={{ marginTop: 14 }}>
+                <div className="row" style={{ marginTop: 14, gap: 8, flexWrap: "wrap" }}>
                   <Link to={`/repositories/${encodeURIComponent(detail.id)}/source`} className="btn-ghost active">Browse source →</Link>
+                  <Link to={`/dependencies?repo=${encodeURIComponent(detail.id)}`} className="btn-ghost">Dependency chains →</Link>
                 </div>
               </>
             )}

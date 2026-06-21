@@ -155,6 +155,7 @@ return the same response shape.
 - `GET /api/v0/package-registry/versions`
 - `GET /api/v0/package-registry/dependencies`
 - `GET /api/v0/package-registry/correlations`
+- `GET /api/v0/package-registry/dependency-chains`
 
 `/packages` requires `limit` and either `package_id` or `ecosystem`. `name` may
 narrow an ecosystem-scoped lookup.
@@ -173,6 +174,23 @@ selector error instead of an empty page.
 `relationship_kind` can request ownership candidates, publication evidence, or
 manifest-backed consumption correlations. Provenance-only rows remain marked
 with `provenance_only=true`.
+
+`/dependency-chains` requires `limit` and `repository_id` (same selector rules as
+`/correlations`). It resolves package-evidenced consumer-repo -> package ->
+publisher-repo chains for the repository entirely on the read side: it joins the
+repository's canonical manifest-backed consumption correlations with the
+provenance-only publication/ownership correlations for each consumed package, in
+two bounded reads (one consumption read, one batched publisher read keyed by the
+consumed package set). Each chain carries the canonical consumption leg
+(`consumption_provenance_only=false`) and zero or more publisher legs. Publisher
+legs are inferred provenance-only links (`provenance_only=true`) and are never
+asserted as canonical `(:Repository)-[:DEPENDS_ON]->(:Repository)` graph edges,
+because the reducer holds package publication/ownership correlations
+provenance-only until corroborating build/release/CI evidence exists. A package
+with no publisher correlation terminates at the package; a package with more than
+one candidate publisher is marked `ambiguous=true` and never collapsed to a
+single asserted publisher; a publisher repository that equals the consumer
+repository is dropped as a self-reference.
 
 ## Dependency Inventory
 

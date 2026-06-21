@@ -111,6 +111,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedPackageRegistryCorrelationRoute(r) {
 		return true
 	}
+	if scopedPackageRegistryDependencyChainsRoute(r) {
+		return true
+	}
 	if scopedAdmissionDecisionRoute(r) {
 		return true
 	}

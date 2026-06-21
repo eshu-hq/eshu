@@ -845,22 +845,94 @@ attributes via the existing service-query stage timer, so an operator can see th
 stage outcome and latency on the same span family that already diagnoses the
 service context assembly.
 
-## Ingress posture state-count tagged-switch cleanup (#3403)
+## Package-evidenced repo-to-repo dependency chains (#3422)
 
-No-Regression Evidence: this is a pure staticcheck QF1003 cleanup in
-`service_ingress_posture.go` — the two per-edge counting `if`/`else-if` chains on
-`wafState` and `tlsState` in `buildIngressPosture` are rewritten as tagged
-`switch` statements. Behavior is byte-for-byte equivalent: neither switch has a
-`default` case, mirroring the original chains' absent trailing `else`, so the
-third state value (`unprotected` / `not_terminated`) still increments no counter.
-No Cypher, no graph round-trip, no rollup, and no reason-string logic changed.
-The WAF/TLS three-valued truth mapping (observed-positive / observed-negative /
-unproven) is untouched. Proven by the unchanged
-`go test ./internal/query -run IngressPosture -count=1` suite (9 cases, green
-both before and after the edit) and `golangci-lint run ./internal/query/`
-reporting zero issues after the change.
+Context: #3422 is the follow-up #3394 (PR #3421) deferred. PR #3421 made the
+"Dependency repos" tile truthful from the inbound runtime-services
+`(:Repository)-[:DEPENDS_ON]->(:Repository)` edge but explicitly deferred the
+package-evidenced chain because the package publication/ownership correlations are
+intentionally held `provenance_only=true, canonical_writes=0`
+(`internal/reducer/package_publication_correlation.go`, enforced by
+`package_publication_correlation_test.go`) and the package canonical writer is
+barred from adding Repository/ownership edges
+(`internal/storage/cypher/README.md`).
 
-No-Observability-Change: the edit touches only in-function counter accumulation;
-no span, metric, log, status field, or `truth.*` envelope value is added, removed,
-or renamed. The existing `ingress_posture` service-query stage span and its
-`waf_coverage` / `tls_termination` / `edge_count` attributes are unaffected.
+Truth design (architect-reviewed): resolve the chain entirely on the read side;
+write no graph edge and change no reducer/writer. `ResolvePackageDependencyChains`
+(`package_registry_dependency_chains.go`) joins, for one repository, its admitted
+manifest-backed consumption correlations (consumer repo -> package,
+`provenance_only=false`, `canonical_writes>=1`) with the provenance-only
+publication/ownership correlations for each consumed package (package ->
+publisher repo). The handler `GET /api/v0/package-registry/dependency-chains`
+(`package_registry_dependency_chains_handler.go`,
+capability `package_registry.dependency_chains.list`) surfaces each chain with the
+canonical consumption leg and zero or more inferred publisher legs, each carrying
+`provenance_only`/`canonical_writes` per leg. The console renders publisher legs
+with the `inferred` truth chip, never `exact`. A materialized package-sourced
+`DEPENDS_ON` edge was rejected because it would over-admit provenance-only truth
+into the canonical graph, violating the writer bar and the provenance-only
+invariant.
+
+Why per-leg labels, not the envelope: `BuildTruthEnvelope` derives the envelope
+level from the basis, and `TruthBasisSemanticFacts` collapses to `exact`
+(`contract.go`), exactly as the sibling `/correlations` endpoint already ships
+provenance-only rows under a semantic-facts envelope. The inferred/provenance-only
+distinction therefore travels per leg in the response payload, not in the
+envelope level.
+
+Accuracy / proof matrix (`package_registry_dependency_chains_test.go`,
+`package_registry_dependency_chains_handler_test.go`):
+
+- Positive: consumer -> package -> single provenance-only publisher resolves; the
+  consumption leg is canonical and the publisher leg is `provenance_only=true`.
+- Negative: a consumed package with no publisher correlation keeps the chain and
+  terminates at the package (the consumption row is never dropped, no publisher is
+  synthesized).
+- Ambiguous: more than one candidate publisher marks the chain `ambiguous=true`
+  and surfaces every candidate; it never collapses to a single asserted
+  publisher.
+- Self-reference: a publisher repository equal to the consumer repository is
+  dropped so a repo never appears to depend on itself through its own package.
+- Out-of-scope publisher: the existing scope gate
+  (`packageRegistryCorrelationFilterWithRepositoryAccess`,
+  `$allowed_repository_ids`/`$allowed_scope_ids`) excludes publisher rows outside
+  the caller's grant, so a scoped caller sees the package terminal rather than a
+  leaked out-of-scope repo.
+
+Performance / No-Regression Evidence: the resolution is two bounded reads, not
+1+N. Phase 1 is one consumption read anchored on the consumer repository
+(`RelationshipKind='consumption'`, `LIMIT`). Phase 2 is one batched
+publication/ownership read keyed by the distinct consumed package set via a new
+`PackageIDs []string` filter that adds
+`fact.payload->>'package_id' = ANY($9::text[])` to
+`listPackageRegistryCorrelationsQuery`. That predicate stays eligible for the
+existing partial index `fact_records_package_correlations_v2_lookup_idx`
+(`schema_fact_records.go`), which leads on `(payload->>'package_id')` over the
+three package-correlation fact kinds with `is_tombstone = FALSE`, so the batched
+`= ANY` resolves as an index scan bounded to the consumed package set rather than
+a per-package round trip or a whole-`fact_records` scan. The package set is
+bounded by the phase-1 `LIMIT` and phase 2 is itself capped at
+`packageRegistryMaxLimit`. A live full-scale `EXPLAIN`/wall-clock capture was not
+run because this environment has no provisioned ~500k Postgres stack (stated per
+cypher-query-rigor; matches the no-live-backend posture of #3389/#3394); to
+finalize on a live stack, run the dependency-chains route for a package-heavy
+repository and confirm both reads resolve via
+`fact_records_package_correlations_v2_lookup_idx` (Index Scan / Index Only Scan),
+not a Seq Scan on `fact_records`. The query keeps the byte-for-byte semantics of
+the existing scalar `package_id`/`repository_id` reads for all existing callers
+(the new `$9` array is empty for them), proven by the unchanged
+`internal/query`, `cmd/api`, `cmd/mcp-server`, `internal/mcp`,
+`internal/storage/postgres` suites (`go test ... -count=1`, 4754 passed) and
+`go vet` (no issues).
+
+Observability Evidence: the route emits the new
+`query.package_registry_dependency_chains` request span
+(`telemetry.SpanQueryPackageRegistryDependencyChains`, registered in
+`internal/telemetry/contract_package_registry.go` and pinned by the
+`TestSpanNames` golden) with the standard `http.route` and `eshu.capability`
+attributes, and reuses the existing `postgres.query` spans and
+`eshu_dp_postgres_query_duration_seconds` for both bounded reads. No new
+high-cardinality metric label, graph write, queue consumer, or reducer path is
+added; the response carries `count`/`limit`/`truncated`/`next_cursor` plus the
+per-leg `provenance_only`/`canonical_writes` so a slow or partial page is
+diagnosable from the trace and payload alone.
