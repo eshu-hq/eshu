@@ -141,6 +141,34 @@ func TestServiceStoryResultLimitsMatchIndependentDownstreamCaps(t *testing.T) {
 	}
 }
 
+func TestServiceStoryDossierSurfacesUncorrelatedCloudResourceTruncation(t *testing.T) {
+	t.Parallel()
+
+	// over-limit case: truncation flag must appear in dossier response
+	ctx := sampleServiceDossierContext()
+	ctx["uncorrelated_cloud_resources"] = numberedRows("id", serviceStoryItemLimit+1)
+	ctx["uncorrelated_cloud_resources_truncated"] = true
+
+	got := buildServiceStoryResponse("orders-api", ctx)
+	if !BoolVal(got, "uncorrelated_cloud_resources_truncated") {
+		t.Fatalf("uncorrelated_cloud_resources_truncated = false in dossier response, want true when truncation occurred")
+	}
+	// rows must still be capped
+	if n := len(mapSliceValue(got, "uncorrelated_cloud_resources")); n != serviceStoryItemLimit {
+		t.Fatalf("len(uncorrelated_cloud_resources) = %d, want %d (capped)", n, serviceStoryItemLimit)
+	}
+
+	// under-limit case: flag must be absent
+	ctx2 := sampleServiceDossierContext()
+	ctx2["uncorrelated_cloud_resources"] = numberedRows("id", 3)
+	// do NOT set truncated flag
+
+	got2 := buildServiceStoryResponse("orders-api", ctx2)
+	if _, present := got2["uncorrelated_cloud_resources_truncated"]; present {
+		t.Fatalf("uncorrelated_cloud_resources_truncated present in dossier response, want absent when no truncation")
+	}
+}
+
 func numberedRows(key string, count int) []map[string]any {
 	rows := make([]map[string]any, 0, count)
 	for i := range count {

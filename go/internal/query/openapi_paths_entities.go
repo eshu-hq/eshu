@@ -217,6 +217,7 @@ const openAPIPathsEntities = `
                     "provisioning_source_chains": {"type": "array", "items": {"type": "object"}},
                     "cloud_resources": {"type": "array", "description": "CloudResource dependencies admitted only from materialized WorkloadInstance USES CloudResource relationships.", "items": {"type": "object"}},
                     "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates that match the service name or cloud identifier but remain missing the reducer-owned workload-to-cloud relationship required for dependency truth.", "items": {"type": "object"}},
+                    "uncorrelated_cloud_resources_truncated": {"type": "boolean", "description": "Present and true when the uncorrelated_cloud_resources list was capped at the dossier item limit and additional candidates exist in the graph."},
                     "deployment_evidence": {
                       "type": "object",
                       "description": "Deployment, CI, and environment evidence pointers. Artifacts include source_location plus resolved_id/generation_id for Postgres evidence drilldown; evidence_index groups those pointers by relationship type, artifact family, and evidence kind."
