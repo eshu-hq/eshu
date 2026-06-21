@@ -12,6 +12,7 @@ import {
   Code2,
   FileText,
   FolderGit2,
+  Gauge,
   GitBranch,
   History,
   Images,
@@ -41,6 +42,7 @@ import { emptyConsoleModel, modelFromSnapshot } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
 import { fmt } from "./console/types";
 import { DashboardPage } from "./pages/DashboardPage";
+import { StatusPage } from "./pages/StatusPage";
 import { AskPage } from "./pages/AskPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { FindingsPage } from "./pages/FindingsPage";
@@ -99,6 +101,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
   {
     label: "Overview",
     items: [
+      { to: "/status", label: "Status", icon: Gauge },
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/ask", label: "Ask Eshu", icon: Search },
       { to: "/impact", label: "Impact", icon: Network },
@@ -365,6 +368,7 @@ export function App(): React.JSX.Element {
         {source.status === "connected" ? (
           <Routes>
             <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} repositories={repositories} />} />
+            <Route path="/status" element={<StatusPage client={client} />} />
             <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} repositories={repositories} />} />
             <Route path="/ask" element={<AskPage source={source} />} />
             <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
