@@ -101,6 +101,152 @@ func TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog(t *testing.T) {
 	}
 }
 
+// TestClaimBatchFairnessRankExcludesNonClaimableRows is the TDD regression for
+// the P1 found in PR #3386: the original fairness rank counted ALL visible
+// same-domain representatives regardless of whether they would pass the
+// supersede-stale-generation gate, inflating the rank for any domain that had
+// older inactive-generation rows in the queue. This caused the first actually-
+// claimable row of such a domain to sort behind every correctly-ranked row of
+// other domains — recreating the starvation that #3385 originally fixed.
+//
+// The test seeds:
+//   - starvedDomain: 10 older rows in an INACTIVE generation + 4 newer rows in
+//     the ACTIVE generation for the same scope (the inactive rows would be
+//     superseded and skipped by the outer candidate WHERE, so they must not
+//     inflate the fairness rank for the 4 active rows).
+//   - busyDomain: 8 rows all in the ACTIVE generation, with timestamps between
+//     the stale starved rows and the active starved rows.
+//
+// With the buggy rank: starved active rows get rank≥10 (behind 10 stale rows),
+// so a batch of 8 fills entirely with busyDomain rows and starvedDomain gets 0.
+// With the fixed rank: stale rows are excluded → starved active rows get rank
+// 0-3, busyDomain rows get rank 0-7 → the ordering interleaves them and the
+// batch contains at least one starvedDomain row.
+func TestClaimBatchFairnessRankExcludesNonClaimableRows(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the reducer domain fairness proof")
+	}
+
+	ctx := context.Background()
+	db := openReducerFairnessDB(t, ctx, dsn)
+
+	const (
+		busyDomain    = reducer.DomainSupplyChainImpact
+		starvedDomain = reducer.DomainAWSCloudRuntimeDrift
+		staleCount    = 10 // inactive-gen rows that must NOT inflate the rank
+		activeStarved = 4  // active-gen rows that should be fairly ranked
+		activeBusy    = 8  // active-gen rows for the competing domain
+		batchSize     = 8
+	)
+
+	now := time.Date(2026, time.June, 21, 9, 0, 0, 0, time.UTC)
+
+	// Insert scope with an active generation and a stale generation so the
+	// supersede CTE will mark stale rows during the claim transaction.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, parent_scope_id,
+    collector_kind, partition_key, observed_at, ingested_at, status,
+    active_generation_id, payload
+) VALUES ('scope-p1', 'cloud', 'aws', 'scope-p1', NULL, 'aws', 'scope-p1',
+          $1, $1, 'active', 'gen-p1-active', '{}'::jsonb)`, now); err != nil {
+		t.Fatalf("insert scope-p1: %v", err)
+	}
+	// Active generation.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, freshness_hint, observed_at,
+    ingested_at, status, activated_at, superseded_at, payload
+) VALUES ('gen-p1-active', 'scope-p1', 'snapshot', 'p1active',
+          $1, $1, 'active', $1, NULL, '{}'::jsonb)`, now); err != nil {
+		t.Fatalf("insert gen-p1-active: %v", err)
+	}
+	// Stale (inactive) generation — ingested earlier so supersede CTE marks its
+	// fact_work_items rows during claim. Status must NOT be 'active' here because
+	// scope_generations_active_scope_idx enforces at most one active generation
+	// per scope_id; use 'superseded' to satisfy the constraint while still
+	// having an older ingested_at that the supersede CTE looks at.
+	staleTime := now.Add(-2 * time.Hour)
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, freshness_hint, observed_at,
+    ingested_at, status, activated_at, superseded_at, payload
+) VALUES ('gen-p1-stale', 'scope-p1', 'snapshot', 'p1stale',
+          $1, $1, 'superseded', $1, $1, '{}'::jsonb)`, staleTime); err != nil {
+		t.Fatalf("insert gen-p1-stale: %v", err)
+	}
+
+	// Stale starvedDomain rows: oldest timestamps — they inflate the rank when
+	// the bug is present because the fairness subquery doesn't exclude them.
+	for i := 0; i < staleCount; i++ {
+		insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
+			workItemID:     fmt.Sprintf("p1-stale-starved-%03d", i),
+			scopeID:        "scope-p1",
+			generationID:   "gen-p1-stale", // INACTIVE generation
+			domain:         string(starvedDomain),
+			conflictDomain: reducerConflictDomainScope,
+			conflictKey:    fmt.Sprintf("p1-stale-starved-key-%03d", i),
+			updatedAt:      staleTime.Add(time.Duration(i) * time.Second),
+		})
+	}
+
+	// Active busyDomain rows: timestamps between stale and active starved.
+	busyBase := now.Add(-30 * time.Minute)
+	for i := 0; i < activeBusy; i++ {
+		insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
+			workItemID:     fmt.Sprintf("p1-busy-%03d", i),
+			scopeID:        "scope-p1",
+			generationID:   "gen-p1-active",
+			domain:         string(busyDomain),
+			conflictDomain: reducerConflictDomainScope,
+			conflictKey:    fmt.Sprintf("p1-busy-key-%03d", i),
+			updatedAt:      busyBase.Add(time.Duration(i) * time.Second),
+		})
+	}
+
+	// Active starvedDomain rows: newer than busyDomain but should still appear
+	// in a fair batch because their within-domain rank is 0-3 (only 4 active
+	// rows exist; stale rows must not be counted).
+	activeBase := now.Add(-10 * time.Minute)
+	for i := 0; i < activeStarved; i++ {
+		insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
+			workItemID:     fmt.Sprintf("p1-active-starved-%03d", i),
+			scopeID:        "scope-p1",
+			generationID:   "gen-p1-active",
+			domain:         string(starvedDomain),
+			conflictDomain: reducerConflictDomainScope,
+			conflictKey:    fmt.Sprintf("p1-active-starved-key-%03d", i),
+			updatedAt:      activeBase.Add(time.Duration(i) * time.Second),
+		})
+	}
+
+	queue := ReducerQueue{
+		db:            SQLDB{DB: db},
+		LeaseOwner:    "fairness-p1-test",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now.Add(time.Hour) },
+		ClaimDomains:  []reducer.Domain{busyDomain, starvedDomain},
+	}
+
+	intents, err := queue.ClaimBatch(ctx, batchSize)
+	if err != nil {
+		t.Fatalf("ClaimBatch() error = %v", err)
+	}
+
+	var starvedClaimed int
+	for _, intent := range intents {
+		if intent.Domain == starvedDomain {
+			starvedClaimed++
+		}
+	}
+	if starvedClaimed == 0 {
+		t.Fatalf("ClaimBatch() claimed %d items, none for active-gen starved domain %q; "+
+			"inactive-gen rows inflated the fairness rank (P1 in PR #3386 / issue #3385)",
+			len(intents), starvedDomain)
+	}
+}
+
 func reducerDomainFairnessDSN() string {
 	if dsn := strings.TrimSpace(os.Getenv("ESHU_REDUCER_FAIRNESS_PROOF_DSN")); dsn != "" {
 		return dsn
