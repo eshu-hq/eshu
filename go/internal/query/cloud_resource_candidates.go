@@ -10,23 +10,48 @@ const uncorrelatedCloudResourceCandidateLimit = serviceStoryItemLimit
 // infraResourceFreeTextPredicate stays on one line for NornicDB compatibility.
 const infraResourceFreeTextPredicate = "(coalesce(n.name, '') CONTAINS $query OR coalesce(n.id, '') CONTAINS $query OR coalesce(n.kind, '') CONTAINS $query OR coalesce(n.resource_type, n.data_type, '') = $resource_type_query OR coalesce(n.resource_type, n.data_type, '') CONTAINS $resource_type_query OR coalesce(n.arn, '') CONTAINS $query OR coalesce(n.resource_id, '') CONTAINS $query OR coalesce(n.service_kind, '') CONTAINS $query OR coalesce(n.account_id, '') CONTAINS $query OR coalesce(n.region, '') CONTAINS $query OR coalesce(n.source, '') CONTAINS $query OR coalesce(n.config_path, '') CONTAINS $query)"
 
+// loadUncorrelatedCloudResourceCandidates returns uncorrelated CloudResource
+// candidates that mention the service. It discards the truncation signal; prefer
+// loadUncorrelatedCloudResourceCandidatesBounded when the caller must surface
+// whether the backend held more rows than the bound.
 func loadUncorrelatedCloudResourceCandidates(
 	ctx context.Context,
 	graph GraphQuery,
 	serviceName string,
 	limit int,
 ) ([]map[string]any, error) {
+	candidates, _, err := loadUncorrelatedCloudResourceCandidatesBounded(ctx, graph, serviceName, limit)
+	return candidates, err
+}
+
+// loadUncorrelatedCloudResourceCandidatesBounded reads uncorrelated
+// CloudResource candidates whose free-text fields mention the service name. The
+// MATCH anchors the CloudResource label in the pattern so NornicDB uses a label
+// scan rather than an all-node scan over the entire graph; the prior unlabeled
+// `MATCH (n) WHERE (n:CloudResource)` shape forced a full-graph scan that hung
+// the service-story dossier at repo scale (issue #3378, 481,728 nodes).
+//
+// It over-fetches one row beyond limit so the caller can report explicit
+// truncation: truncated is true when the backend held more matches than limit.
+// The returned rows are trimmed back to limit.
+func loadUncorrelatedCloudResourceCandidatesBounded(
+	ctx context.Context,
+	graph GraphQuery,
+	serviceName string,
+	limit int,
+) (candidates []map[string]any, truncated bool, err error) {
 	serviceName = strings.TrimSpace(serviceName)
 	if graph == nil || serviceName == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 	if limit <= 0 || limit > uncorrelatedCloudResourceCandidateLimit {
 		limit = uncorrelatedCloudResourceCandidateLimit
 	}
+	// Over-fetch by one row to detect truncation without a second count query.
+	fetchLimit := limit + 1
 	rows, err := graph.Run(ctx, `
-MATCH (n)
-WHERE (n:CloudResource)
-  AND `+infraResourceFreeTextPredicate+`
+MATCH (n:CloudResource)
+WHERE `+infraResourceFreeTextPredicate+`
 RETURN coalesce(n.id, '') AS id,
        coalesce(n.name, '') AS name,
        coalesce(n.kind, '') AS kind,
@@ -49,12 +74,16 @@ ORDER BY n.name
 LIMIT $limit`, map[string]any{
 		"query":               serviceName,
 		"resource_type_query": serviceName,
-		"limit":               limit,
+		"limit":               fetchLimit,
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	candidates := make([]map[string]any, 0, len(rows))
+	truncated = len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
+	}
+	candidates = make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		candidate := compactStringMap(map[string]any{
 			"id":                    StringVal(row, "id"),
@@ -81,7 +110,7 @@ LIMIT $limit`, map[string]any{
 			candidates = append(candidates, candidate)
 		}
 	}
-	return candidates, nil
+	return candidates, truncated, nil
 }
 
 func cloudResourceCandidateStatus(row map[string]any) string {

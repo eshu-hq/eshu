@@ -42,6 +42,13 @@ func enrichServiceStoryDossierResponseWithContext(response map[string]any, build
 	if len(rawContextLimits) > 0 {
 		response["raw_context_limits"] = rawContextLimits
 	}
+	// Surface the uncorrelated cloud-resource truncation flag directly on the
+	// dossier response. The whitelist loop above copies the row slice but not
+	// the boolean, so callers would silently receive a capped list with no
+	// signal. Copy it only when true to keep the schema sparse.
+	if truncated, ok := workloadContext["uncorrelated_cloud_resources_truncated"]; ok && truncated == true {
+		response["uncorrelated_cloud_resources_truncated"] = true
+	}
 }
 
 func buildServiceIdentity(workloadContext map[string]any) map[string]any {

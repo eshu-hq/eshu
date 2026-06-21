@@ -20,8 +20,7 @@ func TestCloudResourceCandidatesUseInfraSearchSourceFields(t *testing.T) {
 		t.Fatalf("loadUncorrelatedCloudResourceCandidates() error = %v, want nil", err)
 	}
 	for _, want := range []string{
-		"MATCH (n)",
-		"WHERE (n:CloudResource)",
+		"MATCH (n:CloudResource)",
 		"LIMIT $limit",
 		"coalesce(n.arn, '') CONTAINS $query",
 		"coalesce(n.id, '') CONTAINS $query",
@@ -31,6 +30,16 @@ func TestCloudResourceCandidatesUseInfraSearchSourceFields(t *testing.T) {
 		if !strings.Contains(seenCypher, want) {
 			t.Fatalf("candidate cypher missing %q: %s", want, seenCypher)
 		}
+	}
+	// The CloudResource label MUST anchor the MATCH pattern so NornicDB uses a
+	// label scan. An unlabeled `MATCH (n)` with the label in WHERE forces an
+	// all-node scan over the entire graph (issue #3378: >60s hang at 481,728
+	// nodes), which is why the prior `MATCH (n)` shape is forbidden here.
+	if strings.Contains(seenCypher, "MATCH (n)\n") || strings.Contains(seenCypher, "MATCH (n) ") {
+		t.Fatalf("candidate cypher must anchor the CloudResource label in the MATCH pattern, not scan all nodes: %s", seenCypher)
+	}
+	if strings.Contains(seenCypher, "WHERE (n:CloudResource)") {
+		t.Fatalf("candidate cypher must not filter the label in WHERE (all-node scan); anchor it in MATCH: %s", seenCypher)
 	}
 	if strings.Contains(seenCypher, "toLower(") || strings.Contains(seenCypher, "$service_token") || strings.Contains(seenCypher, "$service_name") {
 		t.Fatalf("candidate cypher must use infra-search-compatible parameterized CONTAINS shape: %s", seenCypher)
@@ -51,6 +60,37 @@ func TestCloudResourceCandidatesUseInfraSearchSourceFields(t *testing.T) {
 	resourceIDPredicate := "coalesce(n.resource_id, '') CONTAINS $query"
 	if arnIndex, resourceIDIndex := strings.Index(seenCypher, arnPredicate), strings.Index(seenCypher, resourceIDPredicate); arnIndex < 0 || resourceIDIndex < 0 || arnIndex > resourceIDIndex {
 		t.Fatalf("candidate cypher must preserve infra-search predicate order for NornicDB compatibility: %s", seenCypher)
+	}
+}
+
+func TestCloudResourceCandidatesOverfetchToDetectTruncation(t *testing.T) {
+	t.Parallel()
+
+	var seenLimit any
+	rows := make([]map[string]any, 0, 6)
+	for i := 0; i < 6; i++ {
+		rows = append(rows, map[string]any{"id": "cloud:res:" + string(rune('a'+i)), "name": "res"})
+	}
+	got, truncated, err := loadUncorrelatedCloudResourceCandidatesBounded(t.Context(), fakeRepoGraphReader{
+		run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+			seenLimit = params["limit"]
+			return rows, nil
+		},
+	}, "sample-service", 5)
+	if err != nil {
+		t.Fatalf("loadUncorrelatedCloudResourceCandidatesBounded() error = %v, want nil", err)
+	}
+	// The query must over-fetch by one (limit+1) so the handler can prove the
+	// backend held more rows than the bound, instead of silently returning
+	// exactly `limit` with no truncation signal (Eshu truncation-truth rule).
+	if seenLimit != 6 {
+		t.Fatalf("candidate query limit = %v, want limit+1 = 6 for truncation detection", seenLimit)
+	}
+	if !truncated {
+		t.Fatalf("truncated = false, want true when backend returns more than the limit")
+	}
+	if len(got) != 5 {
+		t.Fatalf("candidate count = %d, want 5 (trimmed to limit)", len(got))
 	}
 }
 

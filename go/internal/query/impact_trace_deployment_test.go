@@ -145,10 +145,13 @@ func TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector(t *te
 	if err != nil {
 		t.Fatalf("loadUncorrelatedCloudResourceCandidates() error = %v, want nil", err)
 	}
-	for _, want := range []string{"MATCH (n)", "WHERE (n:CloudResource)", "LIMIT $limit", "coalesce(n.arn, '') CONTAINS $query"} {
+	for _, want := range []string{"MATCH (n:CloudResource)", "LIMIT $limit", "coalesce(n.arn, '') CONTAINS $query"} {
 		if !strings.Contains(seenCypher, want) {
 			t.Fatalf("candidate cypher missing %q: %s", want, seenCypher)
 		}
+	}
+	if strings.Contains(seenCypher, "MATCH (n)\n") || strings.Contains(seenCypher, "WHERE (n:CloudResource)") {
+		t.Fatalf("candidate cypher must anchor the CloudResource label in MATCH, not scan all nodes: %s", seenCypher)
 	}
 	if strings.Contains(seenCypher, "toLower(") || strings.Contains(seenCypher, "$service_token") || strings.Contains(seenCypher, "$service_name") {
 		t.Fatalf("candidate cypher must use infra-search-compatible parameterized CONTAINS shape: %s", seenCypher)
@@ -156,8 +159,10 @@ func TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector(t *te
 	if got, want := seenParams["query"], "sample-service"; got != want {
 		t.Fatalf("query = %#v, want %#v", got, want)
 	}
-	if got, want := seenParams["limit"], 3; got != want {
-		t.Fatalf("limit = %#v, want %#v", got, want)
+	// The query over-fetches one beyond the bound (limit+1) so the caller can
+	// surface explicit truncation instead of silently capping (issue #3378).
+	if got, want := seenParams["limit"], 4; got != want {
+		t.Fatalf("limit = %#v, want %#v (bound 3 + 1 over-fetch)", got, want)
 	}
 	if len(got) != 1 {
 		t.Fatalf("candidate count = %d, want 1", len(got))
@@ -345,7 +350,7 @@ func TestTraceDeploymentChainKeepsConfigDerivedCloudResources(t *testing.T) {
 							"resource_id":   "arn:aws:ssm:example:parameter/config/orders-api/database-url",
 						},
 					}, nil
-				case strings.Contains(cypher, "WHERE (n:CloudResource)"):
+				case strings.Contains(cypher, "MATCH (n:CloudResource)"):
 					return nil, nil
 				default:
 					return nil, nil
