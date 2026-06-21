@@ -191,3 +191,12 @@ non_mcp_surfaces:
   - tool: list_iac_resources
     kind: api
     reason: served by the listIaCResources HTTP operation (GET /api/v0/iac/resources)
+  - tool: list_package_registry_dependency_chains
+    kind: api
+    reason: served by the listPackageRegistryDependencyChains HTTP operation (GET /api/v0/package-registry/dependency-chains)
+  - tool: get_relationships_catalog
+    kind: api
+    reason: served by the getRelationshipsCatalog HTTP operation (POST /api/v0/relationships/catalog)
+  - tool: get_relationship_edges
+    kind: api
+    reason: served by the getRelationshipEdges HTTP operation (POST /api/v0/relationships/edges)

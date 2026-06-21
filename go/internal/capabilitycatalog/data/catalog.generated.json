@@ -2713,7 +2713,12 @@
       "display_name": "Package Registry Dependency Chains List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
-      "surfaces": [],
+      "surfaces": [
+        {
+          "tool": "list_package_registry_dependency_chains",
+          "kind": "api"
+        }
+      ],
       "profiles": {
         "local_authoritative": {
           "status": "supported",
@@ -3743,7 +3748,16 @@
       "display_name": "Platform Impact Relationships Catalog",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
-      "surfaces": [],
+      "surfaces": [
+        {
+          "tool": "get_relationship_edges",
+          "kind": "api"
+        },
+        {
+          "tool": "get_relationships_catalog",
+          "kind": "api"
+        }
+      ],
       "profiles": {
         "local_authoritative": {
           "status": "supported",
