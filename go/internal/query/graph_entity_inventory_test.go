@@ -174,6 +174,48 @@ func TestGraphEntityInventoryIdentityIAMProjectsPopulatedProperties(t *testing.T
 	}
 }
 
+func TestGraphEntityInventoryNetworkingProjectsPopulatedName(t *testing.T) {
+	t.Parallel()
+
+	// The SecurityGroupRule writer synthesizes a human-readable name from
+	// direction/ip_protocol/from_port-to_port and stores it as the "name"
+	// property. The networking projection must select n.name so rows carry a
+	// meaningful display name instead of an empty string (regression for empty
+	// networking name). SecurityGroupRule nodes carry no account_id, so the
+	// account column is always blank.
+	reader := &graphEntityCountReader{
+		countByLabel: map[string]int{"SecurityGroupRule": 1},
+		listRows: []map[string]any{
+			{"id": "rule:hash", "name": "ingress/tcp/443-443", "account": ""},
+		},
+	}
+	handler := &GraphEntityInventoryHandler{Neo4j: reader, Profile: ProfileProduction}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/graph/entities?kind=networking", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.listEntities(rec, req)
+
+	data := decodeGraphEntityBody(t, rec)
+
+	// The list cypher must anchor on SecurityGroupRule and select n.name.
+	if !strings.Contains(reader.lastListCy, "MATCH (n:SecurityGroupRule)") {
+		t.Fatalf("list cypher = %q, want SecurityGroupRule anchor", reader.lastListCy)
+	}
+	if !strings.Contains(reader.lastListCy, "n.name") {
+		t.Fatalf("list cypher = %q, want n.name name source", reader.lastListCy)
+	}
+
+	entities := data["entities"].([]any)
+	if len(entities) != 1 {
+		t.Fatalf("len(entities) = %d, want 1", len(entities))
+	}
+	first := entities[0].(map[string]any)
+	if got := first["name"].(string); got == "" {
+		t.Fatalf("networking name = empty, want non-empty rule name")
+	}
+}
+
 func TestGraphEntityInventoryNameSearchBindsLoweredParam(t *testing.T) {
 	t.Parallel()
 

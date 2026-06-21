@@ -49,7 +49,7 @@ var graphEntityKinds = []graphEntityKind{
 	{key: "environments", label: "Environment", nameProp: "name", accountProp: ""},
 	{key: "cloud_resources", label: "CloudResource", nameProp: "name", accountProp: "account_id"},
 	{key: "identity_iam", label: "ExternalPrincipal", nameProp: "principal_value", accountProp: "principal_account_id"},
-	{key: "networking", label: "SecurityGroupRule", nameProp: "name", accountProp: "account_id"},
+	{key: "networking", label: "SecurityGroupRule", nameProp: "name", accountProp: ""},
 }
 
 func graphEntityKindByKey(key string) (graphEntityKind, bool) {

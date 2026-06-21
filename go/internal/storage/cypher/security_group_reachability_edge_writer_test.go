@@ -190,6 +190,37 @@ func TestSecurityGroupReachabilityRetractScopesByEvidenceAndScope(t *testing.T) 
 	}
 }
 
+func TestSecurityGroupRuleNodeWriterSetsNameProperty(t *testing.T) {
+	t.Parallel()
+
+	// The networking inventory projection selects n.name for display. The writer
+	// must SET r.name from row.name so SecurityGroupRule nodes carry a non-empty
+	// human-readable name (regression for empty networking name on the Nodes page).
+	executor := &recordingExecutor{}
+	writer := NewSecurityGroupReachabilityWriter(executor, 0)
+	rows := []map[string]any{{
+		"uid":         "rule-a",
+		"sg_uid":      "sg-a",
+		"direction":   "ingress",
+		"ip_protocol": "tcp",
+		"from_port":   "443",
+		"to_port":     "443",
+		"source_kind": "cidr_ipv4",
+		"is_internet": true,
+		"name":        "ingress/tcp/443-443",
+	}}
+	if err := writer.WriteSecurityGroupRuleNodes(context.Background(), rows, sgReachabilityEvidence); err != nil {
+		t.Fatalf("WriteSecurityGroupRuleNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	if !strings.Contains(cypher, "r.name = row.name") {
+		t.Fatalf("rule node writer must SET r.name = row.name for display readback:\n%s", cypher)
+	}
+}
+
 func TestSecurityGroupReachabilityRetractEmptyScopesIsNoOp(t *testing.T) {
 	t.Parallel()
 
