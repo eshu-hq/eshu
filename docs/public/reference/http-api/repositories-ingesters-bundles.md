@@ -36,15 +36,18 @@ render repository groups without repository-name rules:
 - `group_key`: display label for the source-backed group, empty when no group
   evidence exists
 - `group_source`: source used for the grouping decision, currently
-  `repository_dependency_flag`, `repo_slug_namespace`, or `missing_evidence`
+  `repository_dependency_flag`, `repo_slug_namespace`, `remote_url_owner`, or
+  `missing_evidence`
 - `group_truth`: per-row grouping truth such as `derived` or
   `missing_evidence`
 - `group_kind`: `source`, `dependency`, or `unknown`
 - `group_reason`: bounded explanation for the assignment or missing evidence
 
 Dependency rows group from the repository dependency flag. Source repositories
-with a remote slug group from the first slug namespace. Rows without either
-carry `group_source=missing_evidence` and the inventory `partial_reasons` array
+with a remote slug group from the first slug namespace. Source repositories that
+lack a slug but have a git remote URL group from the org/owner segment of that
+remote (`remote_url_owner`). Rows without any of these carry
+`group_source=missing_evidence` and the inventory `partial_reasons` array
 includes `repository_group_evidence_missing` instead of forcing a heuristic
 group.
 

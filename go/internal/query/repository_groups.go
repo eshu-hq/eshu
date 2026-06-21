@@ -1,10 +1,15 @@
 package query
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+)
 
 const (
 	repositoryGroupSourceDependencyFlag = "repository_dependency_flag"
 	repositoryGroupSourceSlugNamespace  = "repo_slug_namespace"
+	repositoryGroupSourceRemoteOwner    = "remote_url_owner"
 	repositoryGroupSourceMissing        = "missing_evidence"
 	repositoryGroupTruthDerived         = "derived"
 	repositoryGroupTruthMissing         = "missing_evidence"
@@ -48,6 +53,15 @@ func deriveRepositoryGroupEvidence(repo map[string]any) repositoryGroupEvidence 
 			Reason: "derived from the first source-backed repository slug namespace",
 		}
 	}
+	if owner := repositoryRemoteOwner(StringVal(repo, "remote_url")); owner != "" {
+		return repositoryGroupEvidence{
+			Key:    titleRepositoryGroup(owner),
+			Source: repositoryGroupSourceRemoteOwner,
+			Truth:  repositoryGroupTruthDerived,
+			Kind:   "source",
+			Reason: "derived from the org/owner segment of the git remote URL",
+		}
+	}
 	return repositoryGroupEvidence{
 		Source: repositoryGroupSourceMissing,
 		Truth:  repositoryGroupTruthMissing,
@@ -64,6 +78,20 @@ func repositorySlugNamespace(slug string) string {
 		}
 	}
 	return ""
+}
+
+// repositoryRemoteOwner returns the org/owner namespace derived from a git remote
+// URL. It normalizes SSH and HTTPS remotes through the canonical repository
+// identity parser, then takes the first path segment (the org or owner). A remote
+// with no owner segment (single-component path, or unparsable) returns "" so the
+// caller falls through to the honest missing-evidence bucket.
+func repositoryRemoteOwner(remoteURL string) string {
+	slug := repositoryidentity.RepoSlugFromRemoteURL(remoteURL)
+	parts := strings.Split(slug, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	return repositorySlugNamespace(slug)
 }
 
 func titleRepositoryGroup(value string) string {
