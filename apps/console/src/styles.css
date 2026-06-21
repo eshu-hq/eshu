@@ -351,6 +351,9 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
 
 .section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--subtle); margin: 0 0 10px; }
 .empty { color: var(--subtle); font-size: 0.85rem; padding: 20px; text-align: center; }
+/* Inline loading guard: spinner + label while a section fetch is in flight. */
+.async-guard-loading { display: flex; align-items: center; gap: 10px; padding: 20px; color: var(--subtle); font-size: 0.85rem; }
+.async-guard-error { text-align: left; }
 .conn-list { display: grid; gap: 8px; }
 .dead-row {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;

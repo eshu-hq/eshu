@@ -196,6 +196,7 @@ export function App(): React.JSX.Element {
 
   async function connect(base: string, key: string): Promise<void> {
     setSource((s) => ({ ...s, base, key, mode: "private", status: "connecting", msg: "" }));
+    setModel(emptyConsoleModel("loading"));
     try {
       const next = new EshuApiClient({ baseUrl: base, apiKey: key });
       const [snap, repoRows] = await Promise.all([
