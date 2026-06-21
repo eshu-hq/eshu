@@ -1,0 +1,169 @@
+/* statusPage.css — operator Status overview (issue #3400). */
+
+.status-hero {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--bg-raised), var(--bg-panel));
+  padding: 1.25rem 1.5rem;
+}
+
+.status-hero-main {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+  flex-wrap: wrap;
+}
+
+.status-hero-ring {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background:
+    radial-gradient(closest-side, var(--bg-panel) 78%, transparent 79% 100%),
+    conic-gradient(var(--ring) calc(var(--pct) * 1%), var(--line) 0);
+}
+
+.status-hero-ring strong {
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--bone);
+  line-height: 1;
+}
+
+.status-hero-ring span {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.status-hero-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 240px;
+}
+
+.status-hero-headline {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--bone);
+}
+
+.status-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.status-hero-stats strong {
+  color: var(--bone);
+  font-weight: 600;
+}
+
+.status-collector {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.status-collector strong {
+  display: block;
+  color: var(--bone);
+}
+
+.status-schedule {
+  display: block;
+  color: var(--subtle);
+  font-size: 0.74rem;
+}
+
+.status-state-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 150px;
+}
+
+.status-progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.status-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.status-collector-table td.num,
+.status-collector-table th.num {
+  text-align: right;
+}
+
+.status-pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.status-stage {
+  flex: 1 1 120px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-field);
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.status-stage-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.status-stage-value {
+  color: var(--bone);
+  font-size: 0.92rem;
+}
+
+.status-stage-arrow {
+  align-self: center;
+  color: var(--subtle);
+  font-size: 1.1rem;
+}
+
+.status-pipeline-warn {
+  margin: 0.85rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 720px) {
+  .status-stage-arrow {
+    display: none;
+  }
+}
