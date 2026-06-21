@@ -16,6 +16,12 @@ const githubDependabotProvider = "github_dependabot"
 
 // NewGitHubDependabotAlertEnvelope converts one GitHub Dependabot alert into a
 // repository-scoped provider security-alert source fact.
+//
+// When ctx.RepositoryID is non-empty (org-wide targets), it is used for
+// payload["repository_id"] and the stableFactKey so reducer reconciliation
+// keys on the per-repository scope. ctx.ScopeID (the org generation scope) is
+// used for env.ScopeID so the envelope matches the committed generation scope
+// required by the Postgres streaming fact writer.
 func NewGitHubDependabotAlertEnvelope(
 	ctx EnvelopeContext,
 	alert GitHubDependabotAlert,
@@ -30,11 +36,20 @@ func NewGitHubDependabotAlertEnvelope(
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	providerAlertID := githubDependabotAlertID(ctx.ScopeID, alert.Number)
+	// repositoryID is the per-repository scope used for reducer keying and
+	// stable fact dedup. For per-repository targets it equals ctx.ScopeID.
+	// For org targets ctx.RepositoryID carries the per-repo scope while
+	// ctx.ScopeID holds the org generation scope that the Postgres streaming
+	// writer requires on every envelope (envelope.ScopeID == committed scope).
+	repositoryID := ctx.ScopeID
+	if r := strings.TrimSpace(ctx.RepositoryID); r != "" {
+		repositoryID = r
+	}
+	providerAlertID := githubDependabotAlertID(repositoryID, alert.Number)
 	stableFactKey := facts.StableID(facts.SecurityAlertRepositoryAlertFactKind, map[string]any{
 		"provider":              githubDependabotProvider,
 		"provider_alert_number": alert.Number,
-		"repository_id":         ctx.ScopeID,
+		"repository_id":         repositoryID,
 	})
 	payload := map[string]any{
 		"collector_instance_id": ctx.CollectorInstanceID,
@@ -42,7 +57,7 @@ func NewGitHubDependabotAlertEnvelope(
 		"provider_alert_id":     providerAlertID,
 		"provider_alert_number": int64(alert.Number),
 		"provider_state":        strings.TrimSpace(alert.State),
-		"repository_id":         ctx.ScopeID,
+		"repository_id":         repositoryID,
 		"ecosystem":             string(identity.Ecosystem),
 		"package_name":          identity.NormalizedName,
 		"package_id":            identity.PackageID,

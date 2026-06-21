@@ -8,8 +8,19 @@ const CollectorKind = "security_alert"
 
 // EnvelopeContext carries Eshu fact boundary fields for one provider security
 // alert observation.
+//
+// ScopeID is the committed generation scope that the envelope belongs to. For
+// per-repository targets it is the repository's canonical security-alert scope
+// (security-alert:github:<owner>/<repo>). For organization-wide targets it is
+// the org target scope (security-alert:github-org:<org>); RepositoryID carries
+// the per-repository scope used for reducer keying and dedup.
+//
+// RepositoryID, when non-empty, overrides the repository_id payload field and
+// the stableFactKey repository_id used for dedup. Leave it empty for
+// per-repository targets — the envelope builder falls back to ScopeID.
 type EnvelopeContext struct {
 	ScopeID             string
+	RepositoryID        string
 	GenerationID        string
 	CollectorInstanceID string
 	FencingToken        int64
@@ -30,6 +41,24 @@ type GitHubDependabotAlert struct {
 	UpdatedAt             string                                `json:"updated_at"`
 	FixedAt               string                                `json:"fixed_at"`
 	DismissedAt           string                                `json:"dismissed_at"`
+	Repository            GitHubDependabotRepository            `json:"repository"`
+}
+
+// GitHubDependabotRepository identifies the repository an alert belongs to. It
+// is populated by the organization-wide alerts endpoint
+// (GET /orgs/{org}/dependabot/alerts) so a single org request can fan out into
+// per-repository facts. The per-repository endpoint omits it because the
+// repository is encoded in the request path.
+type GitHubDependabotRepository struct {
+	FullName string                          `json:"full_name"`
+	Name     string                          `json:"name"`
+	Owner    GitHubDependabotRepositoryOwner `json:"owner"`
+}
+
+// GitHubDependabotRepositoryOwner is the owner login embedded in an
+// organization alert's repository object.
+type GitHubDependabotRepositoryOwner struct {
+	Login string `json:"login"`
 }
 
 // GitHubDependabotDependency identifies the repository-local dependency that

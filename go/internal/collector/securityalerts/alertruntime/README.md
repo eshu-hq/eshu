@@ -1,12 +1,19 @@
 # securityalerts/alertruntime
 
 This package runs hosted provider security-alert collection behind workflow
-claims. The runtime accepts explicit targets, validates each repository against
-its allowlist, resolves credentials before construction, and calls the provider
-client only for the claimed `scope_id`.
+claims. The runtime accepts explicit targets, resolves credentials before
+construction, and calls the provider client only for the claimed `scope_id`.
+Each target is `repository`-scoped (validated against its `allowed_repositories`
+allowlist) or `org`-scoped (validated to carry an `organization` and an
+explicit `allowed_repositories` allowlist that bounds which repositories receive
+fan-out facts).
 
-The first provider is GitHub Dependabot repository alerts. `ClaimedSource`
-returns only `security_alert.repository_alert` facts from
+The first provider is GitHub Dependabot alerts. Repository targets poll one
+repository; org targets poll `GET /orgs/{org}/dependabot/alerts` and fan the
+response out into per-repository facts whose `scope_id` is derived from each
+alert's source repository (`security-alert:github:<owner>/<repo>`), so a single
+org target produces the same per-repository fact shape as N repository targets.
+`ClaimedSource` returns only `security_alert.repository_alert` facts from
 `go/internal/collector/securityalerts`; reducer-owned impact/readiness truth
 stays outside this package.
 `ClaimedSource.PreflightProviderAccess` uses the same target map and provider
@@ -31,7 +38,10 @@ wrapper.
 
 Security Review Evidence: target configuration must name a credential
 environment variable and an explicit repository allowlist before the runtime can
-construct a provider client. Provider errors are mapped to bounded failure
+construct a provider client. Org-scoped targets require a non-empty
+`allowed_repositories` allowlist at construction time; fan-out only emits facts
+for repositories in that list, preserving the same private-data boundary that
+per-repository targets enforce. Provider errors are mapped to bounded failure
 classes, token-bearing source URLs are redacted by the envelope builder, metric
 labels avoid repositories and package names, and provider alerts are emitted
 only as `security_alert.repository_alert` source facts.

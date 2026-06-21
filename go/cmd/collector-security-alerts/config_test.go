@@ -273,6 +273,68 @@ func (c *preflightAlertClient) ListRepositoryAlertsPages(
 	return securityalerts.GitHubDependabotAlertResult{}, c.err
 }
 
+func (c *preflightAlertClient) ListOrganizationAlertsPages(
+	_ context.Context,
+	_ string,
+	maxPages int,
+) (securityalerts.GitHubDependabotAlertResult, error) {
+	c.maxPages = maxPages
+	return securityalerts.GitHubDependabotAlertResult{}, c.err
+}
+
+func TestLoadClaimedRuntimeConfigMapsOrganizationScopeTarget(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadClaimedRuntimeConfig(func(key string) string {
+		switch key {
+		case envCollectorInstances:
+			return `[{
+				"instance_id": "security-alert-primary",
+				"collector_kind": "security_alert",
+				"mode": "continuous",
+				"enabled": true,
+				"claims_enabled": true,
+				"configuration": {
+					"targets": [{
+						"provider": "github_dependabot",
+						"scope": "org",
+						"scope_id": "security-alert:github-org:example-org",
+						"organization": "example-org",
+						"token_env": "GITHUB_TOKEN",
+						"max_pages": 5,
+						"allowed_repositories": ["example-org/alpha-repo", "example-org/beta-repo"]
+					}]
+				}
+			}]`
+		case envCollectorInstanceID:
+			return "security-alert-primary"
+		case "GITHUB_TOKEN":
+			return "token-value"
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatalf("loadClaimedRuntimeConfig() error = %v, want nil", err)
+	}
+	target := config.Source.Targets[0]
+	if got, want := target.Scope, alertruntime.TargetScopeOrganization; got != want {
+		t.Fatalf("Scope = %q, want %q", got, want)
+	}
+	if got, want := target.Organization, "example-org"; got != want {
+		t.Fatalf("Organization = %q, want %q", got, want)
+	}
+	if got, want := target.MaxPages, 5; got != want {
+		t.Fatalf("MaxPages = %d, want %d", got, want)
+	}
+	if target.Repository != "" {
+		t.Fatalf("Repository = %q, want empty for org scope", target.Repository)
+	}
+	if got, want := len(target.AllowedRepositories), 2; got != want {
+		t.Fatalf("len(AllowedRepositories) = %d, want %d", got, want)
+	}
+}
+
 func collectPreflightMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {
 	t.Helper()
 	var rm metricdata.ResourceMetrics

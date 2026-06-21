@@ -7,16 +7,29 @@ data. For supported hosts, private validation may compare Eshu findings against
 provider alerts for the same repositories and package ecosystems.
 
 `eshu-collector-security-alerts` is the hosted provider security-alert runtime.
-It is claim-driven and currently supports GitHub Dependabot repository alerts
-behind explicit credentials and repository allowlists. Targets name a
-`token_env` rather than a token value, and every repository must appear in the
-target's `allowed_repositories` list before the runtime issues an HTTP request.
-Any `api_base_url` override must use HTTPS because the runtime sends the bearer
-token to that endpoint. Collection is bounded by `repository_alert_limit` and
-`max_pages`, requests GitHub's open-alert view directly, and surfaces
-`source_freshness=partial` plus a coverage summary when the open-alert provider
-page cap is reached. Provider rate-limit responses are surfaced as retryable
-workflow failures.
+It is claim-driven and supports GitHub Dependabot alerts in two scopes selected
+by the target `scope` field (default `repository`):
+
+- `repository`-scoped targets poll one repository
+  (`GET /repos/{owner}/{repo}/dependabot/alerts`) behind explicit credentials
+  and a `allowed_repositories` allowlist. Every repository must appear in the
+  target's `allowed_repositories` list before the runtime issues an HTTP request.
+- `org`-scoped targets poll one organization
+  (`GET /orgs/{org}/dependabot/alerts`) and fan the response out into
+  per-repository `security_alert.repository_alert` facts keyed on each alert's
+  source repository. One org target replaces N per-repository targets and
+  collapses N per-repository requests into one paginated org request per
+  collection, while producing the same per-repository fact shape so reducer
+  reconciliation is unchanged.
+
+Targets name a `token_env` rather than a token value. Any `api_base_url`
+override must use HTTPS because the runtime sends the bearer token to that
+endpoint. Both scopes share the same bounded cursor pagination, cross-host
+next-link rejection, and rate-limit handling. Collection is bounded by
+`repository_alert_limit` and `max_pages`, requests GitHub's open-alert view
+directly, and surfaces `source_freshness=partial` plus a coverage summary when
+the open-alert provider page cap is reached. Provider rate-limit responses are
+surfaced as retryable workflow failures.
 
 `security_alert.repository_alert` facts preserve repository-scoped provider
 alert state from GitHub Dependabot. The runtime emits only that source fact

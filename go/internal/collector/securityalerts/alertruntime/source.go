@@ -25,6 +25,14 @@ const (
 	// ProviderGitHubDependabot selects GitHub repository Dependabot alerts.
 	ProviderGitHubDependabot = "github_dependabot"
 
+	// TargetScopeRepository polls one repository via the per-repository
+	// Dependabot alerts endpoint. It is the default when scope is unset.
+	TargetScopeRepository = "repository"
+	// TargetScopeOrganization polls one organization via the org-wide
+	// Dependabot alerts endpoint and fans the result out into per-repository
+	// facts so reducer reconciliation is identical to the per-repository path.
+	TargetScopeOrganization = "org"
+
 	// FailureAuthDenied marks credential failures as terminal.
 	FailureAuthDenied = string(sdk.FailureAuthDenied)
 	// FailureNotFound marks missing repositories or disabled alert surfaces.
@@ -49,9 +57,16 @@ const (
 	providerAccessPreflightMaxPages      = 1
 )
 
-// RepositoryAlertClient fetches provider repository alerts for one target.
+// RepositoryAlertClient fetches provider alerts for one target. It serves both
+// the per-repository endpoint (one repo per request) and the organization-wide
+// endpoint (one request fanned out into per-repository facts).
 type RepositoryAlertClient interface {
 	ListRepositoryAlertsPages(
+		context.Context,
+		string,
+		int,
+	) (securityalerts.GitHubDependabotAlertResult, error)
+	ListOrganizationAlertsPages(
 		context.Context,
 		string,
 		int,
@@ -71,17 +86,28 @@ type SourceConfig struct {
 	Instruments         *telemetry.Instruments
 }
 
-// TargetConfig describes one allowlisted provider repository target.
+// TargetConfig describes one provider security-alert target. A repository
+// target (Scope=="repository", the default) polls a single allowlisted
+// repository. An organization target (Scope=="org") polls one organization and
+// fans the result out into per-repository facts.
 type TargetConfig struct {
 	Provider             string
+	Scope                string
 	ScopeID              string
 	Repository           string
+	Organization         string
 	Token                string
 	AllowedRepositories  []string
 	APIBaseURL           string
 	RepositoryAlertLimit int
 	MaxPages             int
 	SourceURI            string
+}
+
+// IsOrganizationScope reports whether the target polls the organization-wide
+// Dependabot alerts endpoint.
+func (t TargetConfig) IsOrganizationScope() bool {
+	return t.Scope == TargetScopeOrganization
 }
 
 type targetRuntime struct {
@@ -159,11 +185,7 @@ func (s *ClaimedSource) PreflightProviderAccess(ctx context.Context) (PreflightR
 		startedAt := time.Now()
 		observeCtx, observeSpan := s.startObserve(ctx, target.config)
 		fetchCtx, fetchSpan := s.startFetch(observeCtx)
-		_, err := target.client.ListRepositoryAlertsPages(
-			fetchCtx,
-			target.config.Repository,
-			providerAccessPreflightMaxPages,
-		)
+		_, err := fetchAlerts(fetchCtx, target, providerAccessPreflightMaxPages)
 		if err != nil {
 			failure := classifiedProviderFailure(err)
 			s.recordFetch(observeCtx, target.config, failure.FailureClass(), startedAt)
@@ -227,11 +249,7 @@ func (s *ClaimedSource) NextClaimed(
 	observeCtx, observeSpan := s.startObserve(ctx, target.config)
 	defer observeSpan.End()
 	fetchCtx, fetchSpan := s.startFetch(observeCtx)
-	result, err := target.client.ListRepositoryAlertsPages(
-		fetchCtx,
-		target.config.Repository,
-		target.config.MaxPages,
-	)
+	result, err := fetchAlerts(fetchCtx, target, target.config.MaxPages)
 	if err != nil {
 		failure := classifiedProviderFailure(err)
 		s.recordFetch(observeCtx, target.config, failure.FailureClass(), startedAt)
@@ -274,6 +292,20 @@ func (s *ClaimedSource) NextClaimed(
 	), true, nil
 }
 
+// fetchAlerts requests provider alerts for one target using the endpoint that
+// matches the target scope. Organization targets use the org-wide endpoint;
+// repository targets use the per-repository endpoint.
+func fetchAlerts(
+	ctx context.Context,
+	target targetRuntime,
+	maxPages int,
+) (securityalerts.GitHubDependabotAlertResult, error) {
+	if target.config.IsOrganizationScope() {
+		return target.client.ListOrganizationAlertsPages(ctx, target.config.Organization, maxPages)
+	}
+	return target.client.ListRepositoryAlertsPages(ctx, target.config.Repository, maxPages)
+}
+
 func defaultClientFactory(target TargetConfig) (RepositoryAlertClient, error) {
 	return securityalerts.NewGitHubDependabotClient(securityalerts.GitHubDependabotClientConfig{
 		BaseURL:              target.APIBaseURL,
@@ -292,27 +324,101 @@ func (s *ClaimedSource) envelopes(
 ) ([]facts.Envelope, error) {
 	envs := make([]facts.Envelope, 0, len(alerts))
 	for _, alert := range alerts {
-		env, err := securityalerts.NewGitHubDependabotAlertEnvelope(
-			securityalerts.EnvelopeContext{
-				ScopeID:             target.ScopeID,
-				GenerationID:        item.GenerationID,
-				CollectorInstanceID: s.collectorInstanceID,
-				FencingToken:        item.CurrentFencingToken,
-				ObservedAt:          observedAt,
-				SourceURI:           safeSourceURI(firstNonBlank(target.SourceURI, alert.HTMLURL)),
-			},
-			alert,
-		)
+		// ctx.ScopeID is always the target's committed generation scope so that
+		// every envelope's ScopeID matches the scope committed to Postgres.
+		// For per-repository targets that is the per-repo scope; for org
+		// targets it is the org scope (the committed generation scope).
+		//
+		// For org targets ctx.RepositoryID carries the per-repo scope so that
+		// payload["repository_id"] and the stableFactKey still key on the same
+		// canonical per-repository value the reducer expects.
+		ctx := securityalerts.EnvelopeContext{
+			ScopeID:             target.ScopeID,
+			GenerationID:        item.GenerationID,
+			CollectorInstanceID: s.collectorInstanceID,
+			FencingToken:        item.CurrentFencingToken,
+			ObservedAt:          observedAt,
+			SourceURI:           safeSourceURI(firstNonBlank(target.SourceURI, alert.HTMLURL)),
+		}
+		if target.IsOrganizationScope() {
+			// Derive the per-repository scope from the alert's repository
+			// object. Alerts whose repository cannot be resolved are skipped
+			// rather than misattributed to the org scope.
+			repoScopeID := organizationAlertScopeID(alert)
+			if repoScopeID == "" {
+				continue
+			}
+			// Honor the operator-declared allowlist: only fan out alerts for
+			// explicitly allowed repositories. This preserves the private-data
+			// boundary that the per-repository path enforces via its allowlist.
+			if !target.RepositoryAllowed(organizationAlertFullName(alert)) {
+				continue
+			}
+			ctx.RepositoryID = repoScopeID
+		}
+		env, err := securityalerts.NewGitHubDependabotAlertEnvelope(ctx, alert)
 		if err != nil {
 			return nil, err
 		}
 		if env.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
 			return nil, fmt.Errorf("security alert runtime refusing unsupported fact_kind %q", env.FactKind)
 		}
+		if target.IsOrganizationScope() {
+			if name := organizationAlertRepositoryName(alert); name != "" {
+				env.Payload["repository_name"] = name
+			}
+		}
 		annotateRepositoryAlertCollectionCoverage(env.Payload, coverage)
 		envs = append(envs, env)
 	}
 	return envs, nil
+}
+
+// organizationAlertScopeID derives the canonical per-repository security-alert
+// scope ID (security-alert:github:<owner>/<repo>) from an organization alert's
+// repository object. It returns "" when the repository cannot be resolved.
+func organizationAlertScopeID(alert securityalerts.GitHubDependabotAlert) string {
+	fullName := normalizeOrganizationAlertRepositoryFullName(alert)
+	if fullName == "" {
+		return ""
+	}
+	return "security-alert:github:" + fullName
+}
+
+// organizationAlertFullName returns the normalized "owner/repo" full name for
+// an organization alert. Used for allowlist filtering.
+func organizationAlertFullName(alert securityalerts.GitHubDependabotAlert) string {
+	return normalizeOrganizationAlertRepositoryFullName(alert)
+}
+
+// organizationAlertRepositoryName returns the short repository name for an
+// organization alert, used to populate the repository_name payload field that
+// the per-repository path leaves for the reducer to derive.
+func organizationAlertRepositoryName(alert securityalerts.GitHubDependabotAlert) string {
+	if name := strings.TrimSpace(alert.Repository.Name); name != "" {
+		return name
+	}
+	fullName := normalizeOrganizationAlertRepositoryFullName(alert)
+	if slash := strings.LastIndex(fullName, "/"); slash >= 0 && slash+1 < len(fullName) {
+		return fullName[slash+1:]
+	}
+	return ""
+}
+
+func normalizeOrganizationAlertRepositoryFullName(alert securityalerts.GitHubDependabotAlert) string {
+	fullName := strings.ToLower(strings.Trim(strings.TrimSpace(alert.Repository.FullName), "/"))
+	if fullName != "" {
+		if strings.Count(fullName, "/") == 1 {
+			return fullName
+		}
+		return ""
+	}
+	owner := strings.ToLower(strings.TrimSpace(alert.Repository.Owner.Login))
+	name := strings.ToLower(strings.TrimSpace(alert.Repository.Name))
+	if owner == "" || name == "" {
+		return ""
+	}
+	return owner + "/" + name
 }
 
 func repositoryAlertCollectionCoverageFromResult(
@@ -382,7 +488,15 @@ func (s *ClaimedSource) startObserve(ctx context.Context, target TargetConfig) (
 	}
 	return s.tracer.Start(ctx, telemetry.SpanSecurityAlertObserve, trace.WithAttributes(
 		attribute.String(telemetry.MetricDimensionProvider, target.Provider),
+		attribute.String(telemetry.AttrSecurityAlertTargetScope, targetScopeLabel(target)),
 	))
+}
+
+func targetScopeLabel(target TargetConfig) string {
+	if target.IsOrganizationScope() {
+		return TargetScopeOrganization
+	}
+	return TargetScopeRepository
 }
 
 func (s *ClaimedSource) startFetch(ctx context.Context) (context.Context, trace.Span) {

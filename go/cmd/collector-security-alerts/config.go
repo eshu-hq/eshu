@@ -35,8 +35,10 @@ type securityAlertRuntimeConfiguration struct {
 
 type targetJSON struct {
 	Provider             string   `json:"provider"`
+	Scope                string   `json:"scope"`
 	ScopeID              string   `json:"scope_id"`
 	Repository           string   `json:"repository"`
+	Organization         string   `json:"organization"`
 	TokenEnv             string   `json:"token_env"`
 	AllowedRepositories  []string `json:"allowed_repositories"`
 	APIBaseURL           string   `json:"api_base_url"`
@@ -163,8 +165,10 @@ func mapTarget(target targetJSON, getenv func(string) string) (alertruntime.Targ
 	}
 	return alertruntime.TargetConfig{
 		Provider:             strings.TrimSpace(target.Provider),
+		Scope:                strings.TrimSpace(target.Scope),
 		ScopeID:              strings.TrimSpace(target.ScopeID),
 		Repository:           strings.Trim(target.Repository, "/"),
+		Organization:         strings.Trim(target.Organization, "/"),
 		Token:                token,
 		AllowedRepositories:  cleanConfigStrings(target.AllowedRepositories),
 		APIBaseURL:           strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),

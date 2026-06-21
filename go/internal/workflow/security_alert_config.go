@@ -10,6 +10,9 @@ import (
 const (
 	maxSecurityAlertRepositoryAlertLimit = 100
 	maxSecurityAlertPages                = 100
+
+	securityAlertScopeRepository = "repository"
+	securityAlertScopeOrg        = "org"
 )
 
 type securityAlertCollectorConfiguration struct {
@@ -18,8 +21,10 @@ type securityAlertCollectorConfiguration struct {
 
 type securityAlertTargetConfiguration struct {
 	Provider             string   `json:"provider"`
+	Scope                string   `json:"scope"`
 	ScopeID              string   `json:"scope_id"`
 	Repository           string   `json:"repository"`
+	Organization         string   `json:"organization"`
 	TokenEnv             string   `json:"token_env"`
 	AllowedRepositories  []string `json:"allowed_repositories"`
 	APIBaseURL           string   `json:"api_base_url"`
@@ -63,18 +68,40 @@ func validateSecurityAlertTargetConfiguration(target securityAlertTargetConfigur
 	default:
 		return fmt.Errorf("unsupported security alert provider %q", strings.TrimSpace(target.Provider))
 	}
-	repository := normalizeSecurityAlertRepository(target.Repository)
-	if repository == "" {
-		return fmt.Errorf("repository must be owner/name")
-	}
 	if strings.TrimSpace(target.TokenEnv) == "" {
 		return fmt.Errorf("token_env is required")
 	}
-	if len(cleanSecurityAlertRepositories(target.AllowedRepositories)) == 0 {
-		return fmt.Errorf("allowed_repositories is required")
+	scope := strings.TrimSpace(target.Scope)
+	if scope == "" {
+		scope = securityAlertScopeRepository
 	}
-	if !securityAlertRepositoryAllowed(repository, target.AllowedRepositories) {
-		return fmt.Errorf("repository must be listed in allowed_repositories")
+	switch scope {
+	case securityAlertScopeRepository:
+		repository := normalizeSecurityAlertRepository(target.Repository)
+		if repository == "" {
+			return fmt.Errorf("repository must be owner/name")
+		}
+		if strings.TrimSpace(target.Organization) != "" {
+			return fmt.Errorf("organization must be empty for repository scope")
+		}
+		if len(cleanSecurityAlertRepositories(target.AllowedRepositories)) == 0 {
+			return fmt.Errorf("allowed_repositories is required")
+		}
+		if !securityAlertRepositoryAllowed(repository, target.AllowedRepositories) {
+			return fmt.Errorf("repository must be listed in allowed_repositories")
+		}
+	case securityAlertScopeOrg:
+		if strings.TrimSpace(target.Organization) == "" {
+			return fmt.Errorf("organization is required for org scope")
+		}
+		if strings.TrimSpace(target.Repository) != "" {
+			return fmt.Errorf("repository must be empty for org scope")
+		}
+		if len(cleanSecurityAlertRepositories(target.AllowedRepositories)) == 0 {
+			return fmt.Errorf("allowed_repositories is required for org scope")
+		}
+	default:
+		return fmt.Errorf("unsupported security alert scope %q", scope)
 	}
 	if target.RepositoryAlertLimit < 0 || target.RepositoryAlertLimit > maxSecurityAlertRepositoryAlertLimit {
 		return fmt.Errorf("repository_alert_limit must be between 0 and %d", maxSecurityAlertRepositoryAlertLimit)

@@ -13,9 +13,11 @@ flowchart LR
   D --> E["Postgres ingestion store"]
 ```
 
-Configuration requires a repository allowlist and a token env reference per
-target. The token value is read only inside this process and is never copied
-into workflow run metadata.
+Each target is repository-scoped or org-scoped (`scope: "org"`). Repository
+targets require a `repository` and `allowed_repositories` allowlist; org targets
+require an `organization` and fan the org-wide endpoint out into per-repository
+facts. Every target needs a token env reference. The token value is read only
+inside this process and is never copied into workflow run metadata.
 
 `--preflight-provider-access` runs a one-shot provider access check using the
 same collector instance JSON, token env resolution, allowlist validation, and

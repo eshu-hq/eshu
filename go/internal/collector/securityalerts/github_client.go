@@ -204,13 +204,56 @@ func (c GitHubDependabotClient) ListRepositoryAlertsPages(
 			Message: "github dependabot repository is not allowlisted",
 		}
 	}
+	firstURL, err := c.repositoryAlertsURL(repository)
+	if err != nil {
+		return GitHubDependabotAlertResult{}, err
+	}
+	return c.paginateAlerts(ctx, firstURL, maxPages)
+}
+
+// ListOrganizationAlertsPages returns bounded Dependabot alert pages for an
+// organization via GET /orgs/{org}/dependabot/alerts. Each returned alert
+// carries its source repository so callers can fan out per-repository facts.
+// Pagination, rate-limit metadata, cross-host link rejection, and the
+// state=open filter behave identically to the per-repository path.
+func (c GitHubDependabotClient) ListOrganizationAlertsPages(
+	ctx context.Context,
+	organization string,
+	maxPages int,
+) (GitHubDependabotAlertResult, error) {
+	if c.token == "" {
+		return GitHubDependabotAlertResult{}, GitHubDependabotError{
+			Message: "github dependabot token is required",
+		}
+	}
+	organization = normalizeOrganizationLogin(organization)
+	if organization == "" {
+		return GitHubDependabotAlertResult{}, GitHubDependabotError{
+			Message: "github dependabot organization scope must not be blank",
+		}
+	}
+	firstURL, err := c.organizationAlertsURL(organization)
+	if err != nil {
+		return GitHubDependabotAlertResult{}, err
+	}
+	return c.paginateAlerts(ctx, firstURL, maxPages)
+}
+
+// paginateAlerts walks bounded cursor pages for any Dependabot alert listing
+// endpoint, sharing pagination, truncation, and per-call alert clamping so the
+// repository and organization paths stay in lockstep.
+func (c GitHubDependabotClient) paginateAlerts(
+	ctx context.Context,
+	firstURL string,
+	maxPages int,
+) (GitHubDependabotAlertResult, error) {
 	if maxPages <= 0 {
 		maxPages = defaultRepositoryAlertMaxPages
 	}
 	var out GitHubDependabotAlertResult
-	nextURL := ""
+	nextURL := firstURL
 	for page := 1; page <= maxPages; page++ {
-		alerts, rateLimit, next, err := c.listRepositoryAlertsPage(ctx, repository, nextURL)
+		alerts, rateLimit, next, err := c.listAlertsPage(ctx, nextURL)
 		out.RateLimit = rateLimit
 		if err != nil {
 			return GitHubDependabotAlertResult{}, err
@@ -233,19 +276,11 @@ func (c GitHubDependabotClient) ListRepositoryAlertsPages(
 	return out, nil
 }
 
-func (c GitHubDependabotClient) listRepositoryAlertsPage(
+func (c GitHubDependabotClient) listAlertsPage(
 	ctx context.Context,
-	repository string,
-	nextURL string,
+	endpoint string,
 ) ([]GitHubDependabotAlert, GitHubRateLimitInfo, string, error) {
-	endpoint := strings.TrimSpace(nextURL)
-	if endpoint == "" {
-		var err error
-		endpoint, err = c.repositoryAlertsURL(repository)
-		if err != nil {
-			return nil, GitHubRateLimitInfo{}, "", err
-		}
-	}
+	endpoint = strings.TrimSpace(endpoint)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, GitHubRateLimitInfo{}, "", fmt.Errorf("build github dependabot request: %w", err)
@@ -308,6 +343,24 @@ func (c GitHubDependabotClient) repositoryAlertsURL(repository string) (string, 
 	query.Set("state", githubDependabotOpenAlertState)
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
+}
+
+func (c GitHubDependabotClient) organizationAlertsURL(organization string) (string, error) {
+	parsed, err := sdk.ParseBaseURL("github dependabot", c.baseURL)
+	if err != nil {
+		return "", fmt.Errorf("github dependabot base_url is invalid")
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/orgs/" +
+		url.PathEscape(organization) + "/dependabot/alerts"
+	query := parsed.Query()
+	query.Set("per_page", fmt.Sprint(c.repositoryLimit))
+	query.Set("state", githubDependabotOpenAlertState)
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
+}
+
+func normalizeOrganizationLogin(organization string) string {
+	return strings.ToLower(strings.Trim(strings.TrimSpace(organization), "/"))
 }
 
 func normalizeRepositoryFullName(repository string) string {
