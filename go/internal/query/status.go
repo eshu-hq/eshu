@@ -104,9 +104,17 @@ func (h *StatusHandler) listIngesters(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	// Enrich with live status if available
+	// Enrich with live status if available. The ingester surface renders only
+	// health, queue, and coordinator-instance counts, so it loads a filtered
+	// snapshot that skips the fact_records aggregates (see issue #3368).
 	if h.StatusReader != nil {
-		report, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+		_, report, err := loadStatusReportFiltered(
+			r.Context(),
+			h.StatusReader,
+			time.Now(),
+			status.DefaultOptions(),
+			status.SnapshotSelection{IncludeCollectorFactEvidence: false, IncludeRegistryCollectors: false},
+		)
 		if err == nil {
 			ingesters[0]["health"] = report.Health.State
 			ingesters[0]["queue_outstanding"] = report.Queue.Outstanding
@@ -143,7 +151,13 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	report, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+	_, report, err := loadStatusReportFiltered(
+		r.Context(),
+		h.StatusReader,
+		time.Now(),
+		status.DefaultOptions(),
+		status.SnapshotSelection{IncludeCollectorFactEvidence: false, IncludeRegistryCollectors: false},
+	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return
