@@ -11,10 +11,10 @@
 //
 // The registry stores only the SHA-256 hash of each token, never the token
 // itself: the server hashes the presented credential and looks it up, so a
-// leaked registry file cannot be replayed. Loading fails closed — a malformed
-// entry, duplicate hash, or unsupported version aborts startup rather than
-// running with a partial grant table — and errors never include token-hash
-// material, credentials, or other secret data.
+// leaked registry file cannot be replayed. Optional audit attribution fields
+// must also be hash-shaped. Loading fails closed when an entry is malformed, a
+// hash is duplicated, or a version is unsupported, and errors never include
+// token-hash material, credentials, or other secret data.
 //
 // Operators issue and rotate tokens by editing the secret-mounted registry file
 // referenced by ESHU_SCOPED_TOKENS_FILE: add an entry with the new token's hash

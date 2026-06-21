@@ -18,8 +18,9 @@ identities, …), so a per-team token reads only its onboarded scope.
 
 - `LoadRegistryFromFile(path)` reads and validates a JSON registry document and
   returns a `*Registry`. It **fails closed**: malformed JSON, a bad token hash,
-  a duplicate hash, a missing tenant/workspace, or an unsupported version is a
-  hard error. Error messages never include token-hash material.
+  unsafe audit metadata, a duplicate hash, a missing tenant/workspace, or an
+  unsupported version is a hard error. Error messages never include token-hash
+  material.
 - `(*Registry).ResolveScopedToken(ctx, credential)` implements
   `query.ScopedTokenResolver`. It hashes the presented credential with SHA-256
   and returns the matching `AuthContext` (`Mode = scoped`). An empty or
@@ -36,8 +37,8 @@ identities, …), so a per-team token reads only its onboarded scope.
 - Lookup is by hash of attacker-controlled input; forging a match requires a
   preimage, so a hash-map lookup is sufficient (the standard hashed-API-key
   pattern).
-- No token, credential, hash, path, or grant id is ever placed in an error,
-  log line, or metric label by this package.
+- No token, credential, raw subject, raw policy body, path, or grant id is ever
+  placed in an error, log line, or metric label by this package.
 
 ## Registry file format
 
@@ -50,8 +51,8 @@ identities, …), so a per-team token reads only its onboarded scope.
       "tenant_id": "team-payments",
       "workspace_id": "team-payments",
       "subject_class": "team_token",
-      "subject_id_hash": "<opaque low-cardinality label>",
-      "policy_revision_hash": "<opaque>",
+      "subject_id_hash": "sha256:9f86d081884c7d65",
+      "policy_revision_hash": "sha256:e3b0c44298fc1c14",
       "all_scopes": false,
       "allowed_scope_ids": ["git-repository-scope:acme/payments"],
       "allowed_repository_ids": ["repo://acme/payments"]
@@ -59,6 +60,9 @@ identities, …), so a per-team token reads only its onboarded scope.
   ]
 }
 ```
+
+Optional audit attribution fields must be `sha256:` hashes when set. Omit them
+when the registry only needs to carry scope grants.
 
 `all_scopes: true` marks an admin-equivalent scoped token. With `all_scopes`
 false and empty grants the token authorizes no repositories and reads return

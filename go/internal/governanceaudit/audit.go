@@ -13,10 +13,34 @@ type EventType string
 const (
 	// EventTypeAPIMCPAuthentication covers API or MCP authentication decisions.
 	EventTypeAPIMCPAuthentication EventType = "api_mcp_authentication"
+	// EventTypeIdentityAuthentication covers human local, OIDC, and SAML login/logout decisions.
+	EventTypeIdentityAuthentication EventType = "identity_authentication"
+	// EventTypeMFALifecycle covers MFA challenge, enrollment, reset, and recovery-code decisions.
+	EventTypeMFALifecycle EventType = "mfa_lifecycle"
+	// EventTypeSessionLifecycle covers server-managed dashboard session decisions.
+	EventTypeSessionLifecycle EventType = "session_lifecycle"
 	// EventTypeReadAuthorization covers API, MCP, or admin read authorization.
 	EventTypeReadAuthorization EventType = "read_authorization"
 	// EventTypeTokenLifecycle covers scoped token creation, rotation, or revoke decisions.
 	EventTypeTokenLifecycle EventType = "token_lifecycle"
+	// EventTypeIDPConfigChange covers external identity-provider configuration changes.
+	EventTypeIDPConfigChange EventType = "idp_config_change"
+	// EventTypeRoleGrantChange covers role, grant, and data-class permission changes.
+	EventTypeRoleGrantChange EventType = "role_grant_change"
+	// EventTypeTenantSwitch covers active tenant or workspace switch decisions.
+	EventTypeTenantSwitch EventType = "tenant_switch"
+	// EventTypeSensitiveDataAccess covers sensitive data-class reads.
+	EventTypeSensitiveDataAccess EventType = "sensitive_data_access"
+	// EventTypeAskSearchRun covers governed Ask Eshu and semantic/search runs.
+	EventTypeAskSearchRun EventType = "ask_search_run"
+	// EventTypeExport covers export, report, and portable bundle decisions.
+	EventTypeExport EventType = "export"
+	// EventTypeBootstrap covers bootstrap-owner and first-setup decisions.
+	EventTypeBootstrap EventType = "bootstrap"
+	// EventTypeBreakGlass covers time-boxed break-glass access decisions.
+	EventTypeBreakGlass EventType = "break_glass"
+	// EventTypeAuditRead covers authorized audit-read and incident-report decisions.
+	EventTypeAuditRead EventType = "audit_read"
 	// EventTypeCollectorActivation covers hosted collector enablement or claim decisions.
 	EventTypeCollectorActivation EventType = "collector_activation"
 	// EventTypeSemanticPolicyDecision covers source, egress, redaction, and retention decisions.
@@ -217,8 +241,13 @@ func fieldError(field string) error {
 
 func validEventType(value EventType) bool {
 	switch value {
-	case EventTypeAPIMCPAuthentication, EventTypeReadAuthorization,
-		EventTypeTokenLifecycle, EventTypeCollectorActivation,
+	case EventTypeAPIMCPAuthentication, EventTypeIdentityAuthentication,
+		EventTypeMFALifecycle, EventTypeSessionLifecycle,
+		EventTypeReadAuthorization, EventTypeTokenLifecycle,
+		EventTypeIDPConfigChange, EventTypeRoleGrantChange,
+		EventTypeTenantSwitch, EventTypeSensitiveDataAccess,
+		EventTypeAskSearchRun, EventTypeExport, EventTypeBootstrap,
+		EventTypeBreakGlass, EventTypeAuditRead, EventTypeCollectorActivation,
 		EventTypeSemanticPolicyDecision, EventTypeProviderBudgetDecision,
 		EventTypeExtensionActivation, EventTypeAdminRecoveryAction:
 		return true

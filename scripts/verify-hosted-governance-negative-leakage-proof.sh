@@ -67,6 +67,7 @@ required_surfaces = %w[
   graph_properties
   api_bodies
   mcp_bodies
+  console_surfaces
   audit_events
   generated_docs
   onboarding_artifacts

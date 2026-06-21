@@ -42,6 +42,10 @@ metrics, spans, and structured logs.
 - Actor and scope identifiers must be hashes when present.
 - Service principal and correlation fields accept only bounded tokens, not
   URLs, paths, email addresses, bearer tokens, or credential handles.
+- Event types include identity, MFA, session, token, IdP config, role/grant,
+  tenant-switch, sensitive-data, Ask/search, export, bootstrap, break-glass,
+  and audit-read families. Ordinary reads stay in structured telemetry unless
+  they cross a sensitive-data or export boundary.
 - Aggregation validates every event before counting it, so unsafe rows cannot
   become status readbacks.
 

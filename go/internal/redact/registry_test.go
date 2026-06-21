@@ -18,6 +18,7 @@ func TestHostedGovernanceRegistryCoversRequiredSurfaces(t *testing.T) {
 		redact.SurfaceStatusErrors,
 		redact.SurfaceGraphProperties,
 		redact.SurfaceAPIMCPBodies,
+		redact.SurfaceConsoleSurfaces,
 		redact.SurfaceAuditEvents,
 		redact.SurfaceDocsExamples,
 		redact.SurfaceOnboardingArtifacts,

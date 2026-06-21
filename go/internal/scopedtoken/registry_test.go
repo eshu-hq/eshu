@@ -37,8 +37,8 @@ func TestLoadRegistryResolvesScopedTokenGrants(t *testing.T) {
           "tenant_id": "team-a",
           "workspace_id": "team-a",
           "subject_class": "team_token",
-          "subject_id_hash": "abc123",
-          "policy_revision_hash": "rev1",
+          "subject_id_hash": "sha256:abc12345",
+          "policy_revision_hash": "sha256:def67890",
           "allowed_scope_ids": ["git-repository-scope:acme/payments"],
           "allowed_repository_ids": ["repo://acme/payments"]
         }
@@ -71,7 +71,7 @@ func TestLoadRegistryResolvesScopedTokenGrants(t *testing.T) {
 	if len(auth.AllowedScopeIDs) != 1 || auth.AllowedScopeIDs[0] != "git-repository-scope:acme/payments" {
 		t.Fatalf("AllowedScopeIDs = %#v", auth.AllowedScopeIDs)
 	}
-	if auth.SubjectIDHash != "abc123" || auth.PolicyRevisionHash != "rev1" {
+	if auth.SubjectIDHash != "sha256:abc12345" || auth.PolicyRevisionHash != "sha256:def67890" {
 		t.Fatalf("subject/policy hashes = %q/%q", auth.SubjectIDHash, auth.PolicyRevisionHash)
 	}
 }
@@ -131,6 +131,33 @@ func TestLoadRegistryRejectsInvalidEntries(t *testing.T) {
 			path := writeRegistryFile(t, body)
 			if _, err := LoadRegistryFromFile(path); err == nil {
 				t.Fatalf("LoadRegistryFromFile(%s) error = nil, want validation error", name)
+			}
+		})
+	}
+}
+
+func TestLoadRegistryRejectsUnsafeAuditMetadata(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"raw subject hash":    `{"version":1,"tokens":[{"token_sha256":"` + tokenHash("x") + `","tenant_id":"t","workspace_id":"w","subject_id_hash":"operator@example.invalid"}]}`,
+		"short subject hash":  `{"version":1,"tokens":[{"token_sha256":"` + tokenHash("x") + `","tenant_id":"t","workspace_id":"w","subject_id_hash":"abc123"}]}`,
+		"raw policy revision": `{"version":1,"tokens":[{"token_sha256":"` + tokenHash("x") + `","tenant_id":"t","workspace_id":"w","policy_revision_hash":"policy-v1"}]}`,
+	}
+	for name, body := range cases {
+		body := body
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeRegistryFile(t, body)
+			_, err := LoadRegistryFromFile(path)
+			if err == nil {
+				t.Fatal("LoadRegistryFromFile() error = nil, want unsafe audit metadata rejection")
+			}
+			for _, forbidden := range []string{"operator@example.invalid", "abc123", "policy-v1"} {
+				if containsSubstr(err.Error(), forbidden) {
+					t.Fatalf("error leaked unsafe audit metadata %q: %v", forbidden, err)
+				}
 			}
 		})
 	}
