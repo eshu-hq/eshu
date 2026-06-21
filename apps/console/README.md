@@ -276,12 +276,17 @@ evidence-backed answer — prose, a Mermaid diagram, or an exported artifact
   empty); the page presents the trace, artifacts, and limitations and never shows
   partial results as complete.
 - States are first-class: streaming, success, partial, evidence-only, disabled
-  (503 / narration disabled), scoped-token (403), bad request (400), network
-  abort, and demo mode (no live engine). The capability probe is
+  (503 / narration disabled), bad request (400), network abort, and demo mode
+  (no live engine). The capability probe is
   `GET /api/v0/status/answer-narration`.
-- Ask requires a **shared/admin** token; scoped tokens receive 403 and a clean
-  explanation. No customer or workspace identity is baked into the example
-  prompts.
+- Ask accepts both the **shared/admin** token and **scoped tokens**. A scoped
+  caller's answer is bounded to its grant: the engine's in-process runner
+  re-dispatches every inner tool call through the same scoped-route gate, so the
+  model can only reach routes that are themselves scope-safe. A tool mapped to a
+  non-allowlisted route returns 403 to the runner and surfaces as an unsupported
+  tool in the answer — never as cross-scope data. Unauthenticated requests
+  (no valid token) receive 401. No customer or workspace identity is baked into
+  the example prompts.
 
 ## Related Docs
 
