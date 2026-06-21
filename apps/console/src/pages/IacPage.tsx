@@ -61,6 +61,16 @@ export function IacPage({ model, client, sourceLabel = "live" }: { readonly mode
   const [page, setPage] = useState(0);
   const isDemo = sourceLabel === "demo fixtures";
 
+  // Clear stale live state when entering demo mode so private workspace rows
+  // never render under the demo banner (privacy guarantee).
+  useEffect(() => {
+    if (isDemo) {
+      setLivePage(null);
+      setErr("");
+      setStack([null]);
+    }
+  }, [isDemo]);
+
   const fetchPage = useCallback((filters: IacFilters, cursor: IacResourceCursor | null) => {
     if (!client || isDemo) return () => undefined;
     let cancelled = false;
