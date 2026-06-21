@@ -1,0 +1,113 @@
+name: Frontend
+
+# Gates for the JavaScript/TypeScript product surfaces that the Go-focused
+# `Build Test` workflow does not cover:
+#   * the root Vite marketing site (builds to `site-dist`, served by Cloudflare Pages)
+#   * the console package under `apps/console`
+#
+# The marketing-site and console jobs run in parallel so a failure in one is
+# clearly attributable in the checks list (distinct job/check names) instead of
+# being hidden inside a single combined log.
+#
+# npm audit policy (see the `audit` job):
+#   CI fails on HIGH and CRITICAL advisories (`--audit-level=high`). Moderate and
+#   low advisories are reported but do not block, because the only known residual
+#   is a low, Windows-only, dev-server esbuild advisory that never ships in the
+#   production `site-dist` bundle (CI runs on Linux). Critical/high frontend
+#   supply-chain findings are NOT silently ignored — they break the build.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "src/**"
+      - "apps/console/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - "wrangler.jsonc"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  marketing-site:
+    name: Marketing site (root Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (clean, lockfile-pinned)
+        run: npm ci
+
+      - name: Typecheck root site
+        run: npm run typecheck
+
+      - name: Test root site
+        run: npm test
+
+      - name: Build root site
+        run: npm run build
+
+  console:
+    name: Console (apps/console)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (clean, lockfile-pinned)
+        run: npm ci
+
+      - name: Typecheck console
+        run: npm run console:typecheck
+
+      - name: Test console
+        run: npm run console:test
+
+      - name: Build console
+        run: npm run console:build
+
+  audit:
+    name: npm audit (fail on high/critical)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (clean, lockfile-pinned)
+        run: npm ci
+
+      - name: Report all advisories (non-blocking)
+        run: npm audit || true
+
+      - name: Fail on high/critical advisories
+        run: npm audit --audit-level=high
