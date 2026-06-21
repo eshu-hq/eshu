@@ -145,7 +145,7 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 
 	query := strings.Join(queryer.queries, "\n")
 	for _, want := range []string{
-		"JOIN fact_records AS fact",
+		"FROM fact_records AS fact",
 		"active_scopes AS (",
 		"fact.generation_id = scope.generation_id",
 		"fact.is_tombstone = FALSE",
@@ -194,6 +194,38 @@ func TestCollectorFactEvidenceQueryPreAggregatesBeforeWorkflowIdentity(t *testin
 		if strings.Contains(query, forbidden) {
 			t.Fatalf("collector fact evidence query still performs per-fact workflow lookup %q:\n%s", forbidden, query)
 		}
+	}
+}
+
+// TestCollectorFactEvidenceQueryAggregatesFactsPerScope guards the issue #3375
+// fix: the fact_summary CTE MUST aggregate each active scope's facts inside a
+// per-scope LATERAL subquery rather than one global GROUP BY over every active
+// fact_records row. The global GROUP BY spilled to an on-disk external merge sort
+// that scaled with total active facts (~20s on a 4.5M-row stack); the per-scope
+// LATERAL keeps every aggregate small and in-memory, so it never spills. The
+// produced evidence is byte-identical, so the surrounding CTEs and final
+// aggregate are unchanged.
+func TestCollectorFactEvidenceQueryAggregatesFactsPerScope(t *testing.T) {
+	t.Parallel()
+
+	query := collectorFactEvidenceQuery
+	for _, want := range []string{
+		"JOIN LATERAL (",
+		"FROM fact_records AS fact\n    WHERE fact.scope_id = scope.scope_id",
+		"AND fact.generation_id = scope.generation_id",
+		"AND fact.is_tombstone = FALSE",
+		"GROUP BY evidence_source, source_system",
+		") AS per_scope ON TRUE",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("collector fact evidence query missing per-scope LATERAL marker %q:\n%s", want, query)
+		}
+	}
+	// The pre-fix shape joined every active fact row before a single global
+	// GROUP BY; that exact text must be gone so the disk-spilling aggregate
+	// cannot return.
+	if strings.Contains(query, "JOIN fact_records AS fact\n  ON fact.scope_id = scope.scope_id") {
+		t.Fatalf("collector fact evidence query still performs a global fact_records GROUP BY:\n%s", query)
 	}
 }
 

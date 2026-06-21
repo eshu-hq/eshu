@@ -10,6 +10,17 @@ import (
 	"github.com/lib/pq"
 )
 
+// collectorFactEvidenceQuery summarizes active source and reducer fact evidence
+// per collector instance for the collector-readiness surface.
+//
+// The fact_summary CTE aggregates each active scope's facts inside a per-scope
+// LATERAL subquery rather than one global GROUP BY over every active
+// fact_records row. A single global GROUP BY had to sort all active facts at
+// once, which spilled to an on-disk external merge sort that scaled with total
+// active facts (issue #3375: ~20s on a 906-repo / 4.5M fact_records stack). The
+// per-scope LATERAL keeps each aggregate bounded to one scope's facts so it
+// stays in memory and never spills. The emitted rows are byte-identical to the
+// previous shape, so collector readiness evidence is preserved exactly.
 const collectorFactEvidenceQuery = `
 WITH active_scopes AS (
 SELECT
@@ -48,6 +59,14 @@ SELECT
     scope.collector_kind,
     scope.scope_id,
     scope.generation_id,
+    per_scope.evidence_source,
+    per_scope.source_system,
+    per_scope.observation_count,
+    per_scope.last_observed_at,
+    per_scope.updated_at
+FROM active_scopes AS scope
+JOIN LATERAL (
+  SELECT
     CASE
       WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'
       ELSE 'source_facts'
@@ -56,17 +75,12 @@ SELECT
     COUNT(*) AS observation_count,
     MAX(fact.observed_at) AS last_observed_at,
     MAX(fact.ingested_at) AS updated_at
-FROM active_scopes AS scope
-JOIN fact_records AS fact
-  ON fact.scope_id = scope.scope_id
- AND fact.generation_id = scope.generation_id
-WHERE fact.is_tombstone = FALSE
-GROUP BY
-    scope.collector_kind,
-    scope.scope_id,
-    scope.generation_id,
-    evidence_source,
-    source_system
+  FROM fact_records AS fact
+    WHERE fact.scope_id = scope.scope_id
+      AND fact.generation_id = scope.generation_id
+      AND fact.is_tombstone = FALSE
+  GROUP BY evidence_source, source_system
+) AS per_scope ON TRUE
 ),
 workflow_instances AS (
 SELECT DISTINCT ON (
