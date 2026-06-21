@@ -18,6 +18,7 @@ const supplyChainImpactCanonicalWinnersSchemaSQL = `
 CREATE TABLE IF NOT EXISTS supply_chain_impact_canonical_winners (
     canonical_key TEXT PRIMARY KEY,
     winner_fact_id TEXT NOT NULL,
+    winner_scope_id TEXT NOT NULL DEFAULT '',
     finding_id TEXT NOT NULL,
     priority_score INTEGER NOT NULL DEFAULT 0,
     source_count INTEGER NOT NULL DEFAULT 1,
@@ -32,6 +33,8 @@ CREATE TABLE IF NOT EXISTS supply_chain_impact_canonical_winners (
     image_ref TEXT NOT NULL DEFAULT '',
     priority_bucket TEXT NOT NULL DEFAULT '',
     detection_profile TEXT NOT NULL DEFAULT '',
+    observed_version TEXT NOT NULL DEFAULT '',
+    match_reason TEXT NOT NULL DEFAULT '',
     suppression_state TEXT NOT NULL DEFAULT 'active',
     service_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     workload_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
