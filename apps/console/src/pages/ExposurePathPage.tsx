@@ -91,8 +91,8 @@ export function ExposurePathPage({
     [client]
   );
 
-  // Auto-load the default entrypoint when the page mounts with a service in the
-  // URL, so an operator deep-linking to a service lands on its proven chain.
+  // Auto-load on mount when the client is already available and a service is in
+  // the URL (the common case for deep-links in an already-connected session).
   useEffect(() => {
     const initial = searchParams.get("service")?.trim() ?? "";
     if (initial.length > 0 && canLoad) {
@@ -101,6 +101,25 @@ export function ExposurePathPage({
     // Run once on mount; subsequent loads are user-driven via submit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-trigger the load when the client connects after mount (boot race: the
+  // page mounts before the saved private env completes its handshake, so
+  // `client` is undefined at mount and the effect above skips the load).
+  // Guard: only fire when the ingress hasn't loaded yet and a service is in the
+  // URL, so a user-driven submit is never overwritten by this effect.
+  useEffect(() => {
+    if (!canLoad || ingress !== null || busy) {
+      return;
+    }
+    const initial = searchParams.get("service")?.trim() ?? "";
+    if (initial.length > 0) {
+      void runIngress(initial);
+    }
+    // Depend on client readiness (canLoad) so this fires exactly once when the
+    // client transitions from undefined → defined after mount. ingress/busy are
+    // guards only; runIngress is stable (useCallback on [client]).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canLoad]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();

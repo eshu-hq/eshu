@@ -8,25 +8,34 @@ import (
 )
 
 // Ingress posture truth states. They are deliberately three-valued so the
-// console never collapses "no protection" and "no evidence" into one tile: a
-// missing WAF edge on a materialized edge resource is an observed-negative
-// (unprotected), while no materialized edge resource at all is unresolved.
+// console never collapses "no protection", "no evidence", and "collector absent"
+// into one tile. The distinction matters:
+//   - observed-positive (protected/terminated): the graph has a WAF/ACM edge.
+//   - observed-negative (unprotected/not_terminated): the graph ran the
+//     collector for that resource but found no protection edge.
+//   - unresolved (unproven): either no internet-facing edge resource is
+//     materialized, OR the AWS collector slice for a known resource has not yet
+//     been collected, so no evidence either way exists.
 const (
 	// ingressPostureProtected means an internet-facing edge resource carries a
 	// materialized WAF web-ACL edge (observed positive).
 	ingressPostureProtected = "protected"
 	// ingressPostureUnprotected means an internet-facing edge resource exists in
-	// the graph but carries no WAF web-ACL edge (observed negative).
+	// the graph AND was returned by the collector, but carries no WAF web-ACL
+	// edge (observed negative).
 	ingressPostureUnprotected = "unprotected"
 	// ingressPostureTerminated means an internet-facing edge resource carries a
 	// materialized ACM certificate edge (observed positive).
 	ingressPostureTerminated = "terminated"
 	// ingressPostureNotTerminated means an internet-facing edge resource exists
-	// but carries no ACM certificate edge (observed negative).
+	// AND was returned by the collector, but carries no ACM certificate edge
+	// (observed negative).
 	ingressPostureNotTerminated = "not_terminated"
-	// ingressPostureUnproven means no internet-facing edge resource is
-	// materialized for this service, so neither WAF nor TLS can be proven or
-	// disproven (unresolved).
+	// ingressPostureUnproven means either no internet-facing edge resource is
+	// materialized for this service, or the AWS collector slice for a known
+	// resource has not yet been collected. Neither WAF nor TLS posture can be
+	// proven or disproven (unresolved — absence of collector ≠ absence of
+	// protection).
 	ingressPostureUnproven = "unproven"
 )
 
@@ -56,13 +65,21 @@ type ingressEdgeResource struct {
 }
 
 // ingressEdgeProtection records, per edge-resource id, whether a WAF web-ACL
-// and/or an ACM certificate edge is materialized in the graph.
+// and/or an ACM certificate edge is materialized in the graph, and whether the
+// AWS collector slice for this resource has been collected at all.
 type ingressEdgeProtection struct {
+	// collectorPresent is true when the graph query returned a row for this
+	// resource id. If false, the AWS collector slice for this resource has not
+	// yet been collected, so the absence of a protection edge is ambiguous —
+	// the posture is unproven, not observed-negative.
+	collectorPresent bool
 	// wafProtected is true when an AWS_wafv2_web_acl_protects_resource edge
-	// terminates on the edge resource.
+	// terminates on the edge resource. Only meaningful when collectorPresent is
+	// true.
 	wafProtected bool
 	// tlsTerminated is true when an AWS_acm_certificate_used_by_resource edge
-	// terminates on the edge resource.
+	// terminates on the edge resource. Only meaningful when collectorPresent is
+	// true.
 	tlsTerminated bool
 }
 
@@ -111,10 +128,21 @@ func edgeResourcesFromCloudResources(cloudResources []map[string]any) []ingressE
 
 // buildIngressPosture assembles the honest WAF/TLS posture block for a service's
 // internet-facing edge resources. It is a pure function: the caller supplies the
-// edge resources and the per-resource protection map loaded from the graph. With
-// no edge resources it returns an unproven posture (neither WAF nor TLS can be
-// proven or disproven). With edge resources it reports protected/unprotected and
-// terminated/not_terminated honestly, plus the counts an operator needs.
+// edge resources and the per-resource protection map loaded from the graph.
+//
+// Truth mapping:
+//   - no edge resources → unproven (nothing to observe)
+//   - edge resource present but collectorPresent=false → unproven per edge
+//     (the AWS collector slice for that resource has not yet been collected;
+//     absence of collector ≠ absence of protection)
+//   - edge resource present, collectorPresent=true, flag=false → observed-negative
+//   - edge resource present, collectorPresent=true, flag=true → observed-positive
+//
+// The rolled-up tile is positive only when every edge is observed-positive.
+// Any unproven edge rolls the tile to unproven. Any observed-negative edge (with
+// all others observed or positive) rolls the tile to the negative state. This
+// ordering (unproven beats negative) prevents a partially-collected stack from
+// appearing fully protected when collector slices are still pending.
 func buildIngressPosture(
 	edges []ingressEdgeResource,
 	protection map[string]ingressEdgeProtection,
@@ -133,72 +161,107 @@ func buildIngressPosture(
 
 	wafProtected := 0
 	tlsTerminated := 0
+	wafUnproven := 0
+	tlsUnproven := 0
 	edgeRows := make([]map[string]any, 0, len(edges))
 	for _, edge := range edges {
 		p := protection[edge.id]
-		if p.wafProtected {
+		wafState := edgeWAFState(p)
+		tlsState := edgeTLSState(p)
+		if wafState == ingressPostureProtected {
 			wafProtected++
+		} else if wafState == ingressPostureUnproven {
+			wafUnproven++
 		}
-		if p.tlsTerminated {
+		if tlsState == ingressPostureTerminated {
 			tlsTerminated++
+		} else if tlsState == ingressPostureUnproven {
+			tlsUnproven++
 		}
 		edgeRows = append(edgeRows, map[string]any{
 			"id":              edge.id,
 			"name":            edge.name,
 			"resource_type":   edge.resourceType,
-			"waf_coverage":    edgeWAFState(p.wafProtected),
-			"tls_termination": edgeTLSState(p.tlsTerminated),
+			"waf_coverage":    wafState,
+			"tls_termination": tlsState,
 		})
 	}
 
 	return map[string]any{
-		"waf_coverage":    coverageState(wafProtected, len(edges), ingressPostureProtected, ingressPostureUnprotected),
-		"tls_termination": coverageState(tlsTerminated, len(edges), ingressPostureTerminated, ingressPostureNotTerminated),
+		"waf_coverage":    rollupState(wafProtected, wafUnproven, len(edges), ingressPostureProtected, ingressPostureUnprotected),
+		"tls_termination": rollupState(tlsTerminated, tlsUnproven, len(edges), ingressPostureTerminated, ingressPostureNotTerminated),
 		"edge_count":      len(edges),
 		"waf_protected":   wafProtected,
 		"tls_terminated":  tlsTerminated,
 		"truth_basis":     "observed",
 		"edges":           edgeRows,
-		"reason":          ingressPostureReason(wafProtected, tlsTerminated, len(edges)),
+		"reason":          ingressPostureReason(wafProtected, wafUnproven, tlsTerminated, tlsUnproven, len(edges)),
 	}
 }
 
-// edgeWAFState maps a single edge's WAF observation to the closed state vocab.
-func edgeWAFState(protected bool) string {
-	if protected {
+// edgeWAFState maps a single edge's WAF observation to the three-valued state
+// vocab. If the AWS collector slice has not been collected for the resource
+// (collectorPresent=false), the result is unproven — absence of collector is
+// not the same as absence of WAF protection.
+func edgeWAFState(p ingressEdgeProtection) string {
+	if !p.collectorPresent {
+		return ingressPostureUnproven
+	}
+	if p.wafProtected {
 		return ingressPostureProtected
 	}
 	return ingressPostureUnprotected
 }
 
-// edgeTLSState maps a single edge's TLS observation to the closed state vocab.
-func edgeTLSState(terminated bool) string {
-	if terminated {
+// edgeTLSState maps a single edge's TLS observation to the three-valued state
+// vocab. If the AWS collector slice has not been collected for the resource
+// (collectorPresent=false), the result is unproven — absence of collector is
+// not the same as absence of TLS termination.
+func edgeTLSState(p ingressEdgeProtection) string {
+	if !p.collectorPresent {
+		return ingressPostureUnproven
+	}
+	if p.tlsTerminated {
 		return ingressPostureTerminated
 	}
 	return ingressPostureNotTerminated
 }
 
-// coverageState rolls per-edge observations into one tile state. With every edge
-// covered it is the positive state, with none covered the negative state, and
-// with a mix it stays negative (the most cautious roll-up: any uncovered edge is
-// an exposure an operator must see).
-func coverageState(covered, total int, positive, negative string) string {
-	if covered >= total && total > 0 {
-		return positive
+// rollupState rolls per-edge three-valued observations into one tile state.
+// Ordering: all-positive → positive; any unproven → unproven (collector absent
+// beats observed-negative so a partially-collected stack stays honest); any
+// negative → negative. This ordering prevents a mix of collected-negative and
+// uncollected edges from appearing fully protected.
+func rollupState(positive, unproven, total int, positiveState, negativeState string) string {
+	if positive >= total && total > 0 {
+		return positiveState
 	}
-	return negative
+	if unproven > 0 {
+		return ingressPostureUnproven
+	}
+	return negativeState
 }
 
-// ingressPostureReason explains the rolled-up posture for an operator.
-func ingressPostureReason(wafProtected, tlsTerminated, total int) string {
+// ingressPostureReason explains the rolled-up posture for an operator,
+// distinguishing between collector-absent resources and observed-negative ones.
+func ingressPostureReason(wafProtected, wafUnproven, tlsTerminated, tlsUnproven, total int) string {
 	var b strings.Builder
 	b.WriteString("observed across ")
 	b.WriteString(plural(total, "internet-facing edge resource", "internet-facing edge resources"))
 	b.WriteString(": ")
 	b.WriteString(plural(wafProtected, "WAF web-ACL edge", "WAF web-ACL edges"))
+	if wafUnproven > 0 {
+		b.WriteString(" (")
+		b.WriteString(plural(wafUnproven, "resource", "resources"))
+		b.WriteString(" collector-absent)")
+	}
 	b.WriteString(", ")
 	b.WriteString(plural(tlsTerminated, "ACM certificate edge", "ACM certificate edges"))
+	if tlsUnproven > 0 {
+		b.WriteString(" (")
+		b.WriteString(plural(tlsUnproven, "resource", "resources"))
+		b.WriteString(" collector-absent)")
+	}
 	return b.String()
 }
 
@@ -226,6 +289,11 @@ func loadServiceIngressPosture(
 	if len(edges) == 0 {
 		return buildIngressPosture(nil, nil), nil
 	}
+	// protection maps each edge resource id to its collector observation. An id
+	// that is absent from the map means the graph did not return a row for it,
+	// which means the AWS collector slice for that resource has not yet been
+	// collected. collectorPresent=false keeps the tile honest (unproven) rather
+	// than falsely reporting observed-negative.
 	protection := map[string]ingressEdgeProtection{}
 	if graph != nil {
 		ids := make([]string, 0, len(edges))
@@ -243,9 +311,13 @@ func loadServiceIngressPosture(
 			if id == "" {
 				continue
 			}
+			// collectorPresent=true: the graph returned a row for this resource,
+			// so the OPTIONAL MATCH result is a genuine observed-negative when the
+			// protection flags are false, not a missing-collector gap.
 			protection[id] = ingressEdgeProtection{
-				wafProtected:  BoolVal(row, "waf_protected"),
-				tlsTerminated: BoolVal(row, "tls_terminated"),
+				collectorPresent: true,
+				wafProtected:     BoolVal(row, "waf_protected"),
+				tlsTerminated:    BoolVal(row, "tls_terminated"),
 			}
 		}
 	}

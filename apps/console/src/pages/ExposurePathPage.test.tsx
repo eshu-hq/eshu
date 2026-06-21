@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import type { EshuApiClient } from "../api/client";
 import { ExposurePathPage } from "./ExposurePathPage";
+import { act } from "react";
 
 // ExposurePathPage is the entrypoint-first exposure view (#3403). It must:
 // - auto-load the proven ingress chain for a service deep-linked via ?service=
@@ -105,6 +106,43 @@ describe("ExposurePathPage", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
     expect(screen.getByText("A service name is required to trace its ingress chain.")).toBeInTheDocument();
+  });
+
+  it("loads the ingress chain when client connects after mount (boot race)", async () => {
+    // Simulate the saved-private-env boot race: the page mounts with
+    // client=undefined, then the client becomes available after mount.
+    const client = {
+      get: async (path: string) => {
+        expect(path).toBe("/api/v0/services/checkout/context");
+        return {
+          data: publicContext(),
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
+        <ExposurePathPage client={undefined} />
+      </MemoryRouter>
+    );
+
+    // At mount client is undefined — no load fires. The page shows the empty prompt.
+    expect(screen.queryByText("Ingress chain")).not.toBeInTheDocument();
+
+    // Client connects after mount (boot race resolves).
+    await act(async () => {
+      rerender(
+        <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
+          <ExposurePathPage client={client} />
+        </MemoryRouter>
+      );
+    });
+
+    // The canLoad effect must now trigger the load automatically.
+    expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
+    expect(screen.getByText("WAF coverage")).toBeInTheDocument();
   });
 
   it("keeps the handler-trace form available as advanced mode", async () => {

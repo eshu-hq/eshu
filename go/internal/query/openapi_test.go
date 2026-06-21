@@ -775,7 +775,7 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	}
 	workloadContextSchema := mustMapField(t, schemas, "WorkloadContext")
 	workloadContextProperties := mustMapField(t, workloadContextSchema, "properties")
-	for _, field := range []string{"deployment_evidence", "entrypoints", "network_paths", "dependents"} {
+	for _, field := range []string{"deployment_evidence", "entrypoints", "network_paths", "dependents", "ingress_posture"} {
 		if _, ok := workloadContextProperties[field]; !ok {
 			t.Fatalf("WorkloadContext schema missing %s", field)
 		}
