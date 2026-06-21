@@ -2,11 +2,13 @@
 import { Link } from "react-router-dom";
 import { uiTruth, type ConsoleModel, type FindingRow, type VulnRow } from "../console/types";
 import { Panel, StatTile, TruthChip, Badge } from "../components/atoms";
+import { AsyncStateGuard } from "../components/AsyncStateGuard";
 
 export function FindingsPage({ model }: { readonly model: ConsoleModel }): React.JSX.Element {
   const rows = worklistRows(model);
   const byType = new Map<string, number>();
   rows.forEach((row) => byType.set(row.type, (byType.get(row.type) ?? 0) + 1));
+  const provenance = model.provenance.findings ?? model.provenance.vulnerabilities ?? (model.source === "demo" ? "demo" : "loading");
   return (
     <div className="page">
       <div className="page-intro">
@@ -25,26 +27,28 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
         <StatTile label="Types" value={byType.size} color="var(--blue)" sub="distinct categories" />
       </div>
       <Panel className="flush mt" title="Unified worklist">
-        <table className="tbl">
-          <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Source</th><th>Truth</th><th>Actions</th></tr></thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td className="cell-stack" style={{ maxWidth: 460 }}><span style={{ color: "var(--bone)", fontWeight: 600 }}>{row.title}</span><small>{row.detail}</small></td>
-                <td><Badge tone={row.type === "Vulnerability" ? "crit" : "neutral"}>{row.type}</Badge></td>
-                <td className="t-name" style={{ fontSize: ".8rem" }}>{row.entity}</td>
-                <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{row.source}</td>
-                <td><TruthChip level={row.truth} /></td>
-                <td>
-                  <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                    {row.actions.map((action) => <Link key={action.label} className="btn-ghost" to={action.to}>{action.label}</Link>)}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 ? <tr><td colSpan={6} className="empty">No findings from this source.</td></tr> : null}
-          </tbody>
-        </table>
+        <AsyncStateGuard provenance={provenance} label="findings">
+          <table className="tbl">
+            <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Source</th><th>Truth</th><th>Actions</th></tr></thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="cell-stack" style={{ maxWidth: 460 }}><span style={{ color: "var(--bone)", fontWeight: 600 }}>{row.title}</span><small>{row.detail}</small></td>
+                  <td><Badge tone={row.type === "Vulnerability" ? "crit" : "neutral"}>{row.type}</Badge></td>
+                  <td className="t-name" style={{ fontSize: ".8rem" }}>{row.entity}</td>
+                  <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{row.source}</td>
+                  <td><TruthChip level={row.truth} /></td>
+                  <td>
+                    <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                      {row.actions.map((action) => <Link key={action.label} className="btn-ghost" to={action.to}>{action.label}</Link>)}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 ? <tr><td colSpan={6} className="empty">No findings from this source.</td></tr> : null}
+            </tbody>
+          </table>
+        </AsyncStateGuard>
       </Panel>
     </div>
   );

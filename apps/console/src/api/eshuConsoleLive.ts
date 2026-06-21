@@ -41,7 +41,7 @@ export { severityFromCvss } from "./eshuConsoleSections";
 // import surface for live API row shapes.
 export type { CloudResourceRow } from "./cloudResources";
 
-export type SectionProvenance = "demo" | "live" | "empty" | "unavailable";
+export type SectionProvenance = "demo" | "live" | "empty" | "loading" | "unavailable";
 
 export type { ImageRow, ImagePage };
 export { loadImages };

@@ -8,6 +8,7 @@ import { SEVERITY_COLOR } from "../console/types";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { Donut } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
+import { AsyncStateGuard } from "../components/AsyncStateGuard";
 import "./supplyChainImpactPath.css";
 
 type ImpactImage = ConsoleModel["images"][number];
@@ -26,7 +27,7 @@ export function ReachableAdvisories({ model }: { readonly model: ConsoleModel })
   rows.forEach((v) => { const k = v.severity as Severity; if (k in sevCount) sevCount[k] += 1; });
   const kev = rows.filter((v) => v.kev).length;
   const fixable = rows.filter((v) => v.fixedVersion).length;
-  const unavailable = model.provenance.vulnerabilities === "unavailable";
+  const provenance = model.provenance.vulnerabilities ?? (model.source === "demo" ? "demo" : "loading");
   return (
     <div>
       <p className="t-mut" style={{ fontSize: ".82rem", margin: "0 0 var(--gap)" }}>
@@ -48,28 +49,26 @@ export function ReachableAdvisories({ model }: { readonly model: ConsoleModel })
         </Panel>
         <Panel className="flush" title="Advisory register" sub="Sorted by CVSS">
           <div className="supply-chain-register-scroll">
-            <table className="tbl">
-              <thead><tr><th>ID</th><th>Severity</th><th>CVSS</th><th>Package</th><th>Services</th><th>Fix</th></tr></thead>
-              <tbody>
-                {rows.map((v) => (
-                  <tr key={v.id}>
-                    <td className="row" style={{ gap: 7 }}><Link to={`/vulnerabilities/${encodeURIComponent(v.id)}`} className="t-name link-btn" style={{ fontSize: ".8rem" }}>{v.id}</Link>{v.kev ? <span className="kev-flag">KEV</span> : null}</td>
-                    <td><span className="sev-tag" style={{ color: SEVERITY_COLOR[(v.severity as Severity) in SEVERITY_COLOR ? (v.severity as Severity) : "medium"] }}><i style={{ background: "currentColor" }} />{v.severity}</span></td>
-                    <td className="mono" style={{ fontSize: ".82rem" }}>{v.cvss || "—"}</td>
-                    <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{v.package}</td>
-                    <td className="t-mut" style={{ fontSize: ".76rem" }}>{v.services.slice(0, 2).join(", ")}{v.services.length > 2 ? ` +${v.services.length - 2}` : ""}</td>
-                    <td>{v.fixedVersion ? <Badge tone="teal">{v.fixedVersion}</Badge> : <Badge tone="crit">none</Badge>}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 ? (
-                  <tr><td colSpan={6} className="empty">
-                    {unavailable
-                      ? "Impact findings are unavailable — the supply-chain impact read model did not respond."
-                      : "No advisories from this source — requires the vulnerability-intelligence collector."}
-                  </td></tr>
-                ) : null}
-              </tbody>
-            </table>
+            <AsyncStateGuard provenance={provenance} label="vulnerabilities">
+              <table className="tbl">
+                <thead><tr><th>ID</th><th>Severity</th><th>CVSS</th><th>Package</th><th>Services</th><th>Fix</th></tr></thead>
+                <tbody>
+                  {rows.map((v) => (
+                    <tr key={v.id}>
+                      <td className="row" style={{ gap: 7 }}><Link to={`/vulnerabilities/${encodeURIComponent(v.id)}`} className="t-name link-btn" style={{ fontSize: ".8rem" }}>{v.id}</Link>{v.kev ? <span className="kev-flag">KEV</span> : null}</td>
+                      <td><span className="sev-tag" style={{ color: SEVERITY_COLOR[(v.severity as Severity) in SEVERITY_COLOR ? (v.severity as Severity) : "medium"] }}><i style={{ background: "currentColor" }} />{v.severity}</span></td>
+                      <td className="mono" style={{ fontSize: ".82rem" }}>{v.cvss || "—"}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{v.package}</td>
+                      <td className="t-mut" style={{ fontSize: ".76rem" }}>{v.services.slice(0, 2).join(", ")}{v.services.length > 2 ? ` +${v.services.length - 2}` : ""}</td>
+                      <td>{v.fixedVersion ? <Badge tone="teal">{v.fixedVersion}</Badge> : <Badge tone="crit">none</Badge>}</td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 ? (
+                    <tr><td colSpan={6} className="empty">No advisories from this source — requires the vulnerability-intelligence collector.</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </AsyncStateGuard>
           </div>
         </Panel>
       </div>

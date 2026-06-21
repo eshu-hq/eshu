@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { CatalogPage } from "./CatalogPage";
 import { demoModel } from "../console/demoModel";
+import { emptyConsoleModel } from "../console/liveModel";
 import type { ConsoleModel } from "../console/types";
 
 describe("CatalogPage", () => {
@@ -75,5 +76,25 @@ describe("CatalogPage", () => {
     render(<CatalogPage model={live} />);
     expect(screen.getByText("live catalog rows")).toBeInTheDocument();
     expect(screen.getByText("GET /api/v0/catalog?limit=2000")).toBeInTheDocument();
+  });
+
+  it("shows a loading spinner while the fetch is in flight (loading provenance)", () => {
+    // Reproduces issue #3395: during the ~20s GET /api/v0/catalog fetch the page
+    // must NOT render 'No catalog entries' — it must show a spinner instead.
+    const loading: ConsoleModel = emptyConsoleModel("loading");
+    render(<CatalogPage model={loading} />);
+
+    expect(screen.getByRole("status", { name: "Loading catalog" })).toBeInTheDocument();
+    expect(screen.queryByText("No catalog entries from this source.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows an error state when the catalog section is unavailable", () => {
+    const unavailable: ConsoleModel = emptyConsoleModel("unavailable");
+    render(<CatalogPage model={unavailable} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText(/unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText("No catalog entries from this source.")).not.toBeInTheDocument();
   });
 });
