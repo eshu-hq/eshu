@@ -326,3 +326,35 @@ func TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel(t *testing.T) {
 		}
 	}
 }
+
+// TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor pins the bounded
+// per-fact-kind scan shape that #3389 relies on. The advisory catalog spine
+// (cve_facts CTE) and the KEV CTE each enumerate one fact_kind's active tuples
+// with no cve_id anchor, so each must keep its single-fact_kind predicate plus
+// `is_tombstone = FALSE` and the active-generation join. Those are exactly the
+// columns the partial indexes fact_records_vulnerability_cve_active_scan_idx and
+// fact_records_vulnerability_known_exploited_active_scan_idx are built on (the
+// index DDL/presence is pinned in
+// go/internal/storage/postgres/facts_active_supply_chain_impact_test.go). If a
+// later edit folds these CTEs onto a multi-kind predicate or drops the active
+// filter, the planner can no longer bound the scan to one kind's active rows and
+// the whole-table scan regression from #3389 returns.
+func TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		// Catalog spine: bounded to exactly the active vulnerability.cve tuples.
+		"WHERE fact.fact_kind = 'vulnerability.cve'\n      AND fact.is_tombstone = FALSE",
+		// Affected CTE: bounded to exactly the active vulnerability.affected_package tuples.
+		"WHERE fact.fact_kind = 'vulnerability.affected_package'\n      AND fact.is_tombstone = FALSE",
+		// KEV CTE: bounded to exactly the active vulnerability.known_exploited tuples.
+		"WHERE fact.fact_kind = 'vulnerability.known_exploited'\n      AND fact.is_tombstone = FALSE",
+		// Active-generation join the (scope_id, generation_id)-leading partial
+		// index resolves alongside the fact_kind bound.
+		"ON fact.scope_id = scope.scope_id\n     AND scope.active_generation_id = fact.generation_id",
+	} {
+		if !strings.Contains(listAdvisoryCatalogQuery, want) {
+			t.Fatalf("listAdvisoryCatalogQuery missing #3389 bounded-scan anchor %q:\n%s", want, listAdvisoryCatalogQuery)
+		}
+	}
+}
