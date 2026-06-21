@@ -37,6 +37,66 @@ describe("repoCatalog", () => {
     });
   });
 
+  it("pages through every offset until the API stops reporting more repositories", async () => {
+    // 906-repo stack: API max page is 500, so a single fetch leaves 406 repos
+    // invisible. The loader must page (offset 0 -> 500) until truncated is false.
+    const total = 906;
+    const pageLimit = 500;
+    const wireRepos = Array.from({ length: total }, (_, index) => ({
+      id: `repository:r_${index}`,
+      name: `repo-${index}`,
+      repo_slug: `org/repo-${index}`
+    }));
+    const requested: { limit: string | null; offset: string | null }[] = [];
+    const client = {
+      get: async (path: string) => {
+        const url = new URL(path, "http://console.test");
+        const limit = Number(url.searchParams.get("limit") ?? "0");
+        const offset = Number(url.searchParams.get("offset") ?? "0");
+        requested.push({ limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+        const page = wireRepos.slice(offset, offset + limit);
+        return {
+          data: { repositories: page, count: page.length, limit, offset, truncated: offset + limit < total },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    const repos = await loadRepositories(client);
+
+    expect(repos).toHaveLength(total);
+    expect(repos[0]?.id).toBe("repository:r_0");
+    expect(repos[total - 1]?.id).toBe(`repository:r_${total - 1}`);
+    expect(requested).toEqual([
+      { limit: String(pageLimit), offset: "0" },
+      { limit: String(pageLimit), offset: String(pageLimit) }
+    ]);
+  });
+
+  it("stops paging when a short final page returns fewer rows than the page limit", async () => {
+    // truncated is the authoritative paging signal, but a short page (fewer than
+    // limit rows) is also a terminal page; the loader must not request again.
+    const wireRepos = Array.from({ length: 120 }, (_, index) => ({ id: `repository:r_${index}`, name: `repo-${index}` }));
+    let calls = 0;
+    const client = {
+      get: async (path: string) => {
+        calls += 1;
+        const url = new URL(path, "http://console.test");
+        const limit = Number(url.searchParams.get("limit") ?? "0");
+        const offset = Number(url.searchParams.get("offset") ?? "0");
+        const page = wireRepos.slice(offset, offset + limit);
+        // The fixture API omits truncated here; the short page is the stop signal.
+        return { data: { repositories: page }, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+
+    const repos = await loadRepositories(client);
+
+    expect(repos).toHaveLength(120);
+    expect(calls).toBe(1);
+  });
+
   it("builds a repository id to name map from the live repository list", async () => {
     const client = {
       get: async () => ({

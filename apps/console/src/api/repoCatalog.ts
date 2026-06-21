@@ -41,7 +41,20 @@ interface RepoRecord {
   readonly group_key?: string; readonly group_source?: string; readonly group_truth?: string;
   readonly group_kind?: string; readonly group_reason?: string;
 }
-interface RepoListResponse { readonly repositories?: readonly RepoRecord[]; }
+interface RepoListResponse {
+  readonly repositories?: readonly RepoRecord[];
+  readonly truncated?: boolean;
+}
+
+// API max page size for GET /api/v0/repositories (repositoryListMaxLimit in the
+// query handler). Larger values are clamped server-side, so request exactly the
+// cap to page through a large stack in the fewest round trips.
+const REPOSITORY_PAGE_LIMIT = 500;
+
+// Hard ceiling on pages so a misbehaving API that always reports truncated can
+// never spin forever. The route caps offset at 10000, so 64 pages of 500 covers
+// every reachable repository (32k) with headroom.
+const REPOSITORY_MAX_PAGES = 64;
 
 function str(v: unknown): string { return typeof v === "string" ? v : ""; }
 
@@ -60,10 +73,8 @@ function repoDisplayName(repo: RepoRecord): string {
   return repoSlugLeaf(str(repo.repo_slug)) || name || str(repo.id);
 }
 
-export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
-  const env = await client.get<RepoListResponse>("/api/v0/repositories?limit=500&offset=0");
-  if (env.error) throw new EshuEnvelopeError(env.error);
-  return (env.data?.repositories ?? []).map((r) => ({
+function repoListItem(r: RepoRecord): RepoListItem {
+  return {
     id: str(r.id) || str(r.name),
     name: repoDisplayName(r),
     repoSlug: str(r.repo_slug),
@@ -74,7 +85,37 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
     groupTruth: str(r.group_truth),
     groupKind: str(r.group_kind),
     groupReason: str(r.group_reason)
-  })).filter((r) => r.id !== "");
+  };
+}
+
+// loadRepositories pages through GET /api/v0/repositories until the API stops
+// reporting more repositories. The route caps a page at 500 rows and signals
+// more pages with `truncated=true`, so a single fetch silently dropped every
+// repository beyond the first page on large stacks (issue #3376). Paging makes
+// the returned list the true total, which the Repositories page then counts
+// honestly instead of showing a single-page slice. A short page (fewer rows than
+// the page limit) is also treated as terminal so callers that omit `truncated`
+// still stop, and never fabricates rows the API did not return.
+export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
+  const items: RepoListItem[] = [];
+  let offset = 0;
+  for (let page = 0; page < REPOSITORY_MAX_PAGES; page += 1) {
+    const env = await client.get<RepoListResponse>(`/api/v0/repositories?limit=${REPOSITORY_PAGE_LIMIT}&offset=${offset}`);
+    if (env.error) throw new EshuEnvelopeError(env.error);
+    const wire = env.data?.repositories ?? [];
+    for (const record of wire) {
+      const item = repoListItem(record);
+      if (item.id !== "") items.push(item);
+    }
+    // truncated is the authoritative paging signal. When the API omits it
+    // (older/fixture shape), a full page is the only hint that more may exist;
+    // a short page is terminal.
+    const truncated = env.data?.truncated;
+    const morePages = truncated === undefined ? wire.length === REPOSITORY_PAGE_LIMIT : truncated;
+    if (!morePages || wire.length === 0) break;
+    offset += REPOSITORY_PAGE_LIMIT;
+  }
+  return items;
 }
 
 export async function loadRepositoryNameMap(client: EshuApiClient): Promise<ReadonlyMap<string, string>> {
