@@ -18,7 +18,8 @@ function modelWithVulnerability(): ConsoleModel {
       queryP50: [],
       queryP95: [],
       queryP99: [],
-      newVulns: []
+      newVulns: [],
+      metricsConfigured: true
     },
     runtime: {
       indexStatus: "healthy",
@@ -53,6 +54,7 @@ function modelWithVulnerability(): ConsoleModel {
     images: [],
     iacResources: [],
     advisories: [],
+    argoCDApps: [],
     provenance: {
       services: "live",
       languages: "live",

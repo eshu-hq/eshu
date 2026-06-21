@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { OperationsPage } from "./OperationsPage";
 import { demoModel } from "../console/demoModel";
+import { emptySeries } from "../console/liveModel";
 
 describe("OperationsPage", () => {
   it("labels repository language inventory with the aggregate endpoint", () => {
@@ -46,5 +47,66 @@ describe("OperationsPage", () => {
     expect(screen.getByText("Metric contract pending")).toBeInTheDocument();
     expect(screen.getByText("Tracked in issue #2216")).toBeInTheDocument();
     expect(screen.getByText(/write-throughput, cache-hit, and vulnerability-feed intake/)).toBeInTheDocument();
+  });
+
+  it("shows 'no history yet' placeholder when metrics source is configured but has no samples", () => {
+    render(<OperationsPage model={{
+      ...demoModel,
+      series: { ...emptySeries, metricsConfigured: true }
+    }} />);
+
+    expect(screen.getAllByText(/Trend history appears when the metrics source has recent samples/)).not.toHaveLength(0);
+    expect(screen.queryByText(/Metrics source not configured/)).not.toBeInTheDocument();
+  });
+
+  it("shows explicit 'not configured' message when metrics source is absent", () => {
+    render(<OperationsPage model={{
+      ...demoModel,
+      series: { ...emptySeries, metricsConfigured: false }
+    }} />);
+
+    const notConfigured = screen.getAllByText(/Metrics source not configured/);
+    expect(notConfigured.length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Trend history appears when the metrics source has recent samples/)).not.toBeInTheDocument();
+  });
+
+  it("renders ArgoCD deployed workloads grid when apps are present", () => {
+    render(<OperationsPage model={demoModel} />);
+
+    expect(screen.getByText("ArgoCD deployed workloads")).toBeInTheDocument();
+    expect(screen.getByText(/4 apps/)).toBeInTheDocument();
+    expect(screen.getByText(/3 source-indexed/)).toBeInTheDocument();
+    expect(screen.getByText("checkout-app")).toBeInTheDocument();
+    expect(screen.getByText("external-app")).toBeInTheDocument();
+  });
+
+  it("renders indexed and not-indexed pills for ArgoCD apps", () => {
+    render(<OperationsPage model={demoModel} />);
+
+    const indexedPills = screen.getAllByText("indexed");
+    const notIndexedPills = screen.getAllByText("not indexed");
+    expect(indexedPills.length).toBe(3);
+    expect(notIndexedPills.length).toBe(1);
+  });
+
+  it("shows empty ArgoCD state for live source with live provenance but zero apps", () => {
+    render(<OperationsPage model={{
+      ...demoModel,
+      source: "live",
+      argoCDApps: [],
+      provenance: { ...demoModel.provenance, argoCDApps: "live" }
+    }} />);
+
+    expect(screen.getByText(/No ArgoCD Application or ApplicationSet nodes found/)).toBeInTheDocument();
+  });
+
+  it("hides ArgoCD panel for demo source with no apps", () => {
+    render(<OperationsPage model={{
+      ...demoModel,
+      argoCDApps: [],
+      provenance: { ...demoModel.provenance, argoCDApps: "demo" }
+    }} />);
+
+    expect(screen.queryByText("ArgoCD deployed workloads")).not.toBeInTheDocument();
   });
 });

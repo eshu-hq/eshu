@@ -5,14 +5,14 @@
 import type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
   IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
-  AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle
+  AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle, ArgoCDAppRow
 } from "../api/eshuConsoleLive";
 import type { CollectorReadinessRow } from "../api/collectorReadiness";
 
 export type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
   IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
-  AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle
+  AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle, ArgoCDAppRow
 };
 export type { CollectorReadinessRow };
 

@@ -19,6 +19,7 @@ import type { ImagePage, ImageRow } from "./imageInventory";
 import {
   emptyRuntime,
   loadAdvisories,
+  loadArgoCDApps,
   loadDependenciesSection,
   loadFindings,
   loadIacResources,
@@ -59,6 +60,7 @@ export interface ConsoleSnapshot {
   readonly iacResources: readonly IacResourceRow[];
   readonly advisories: readonly AdvisoryRow[];
   readonly collectorReadiness: readonly CollectorReadinessRow[];
+  readonly argoCDApps: readonly ArgoCDAppRow[];
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
@@ -206,6 +208,22 @@ export interface SeriesBundle {
   readonly queryP95: readonly number[];
   readonly queryP99: readonly number[];
   readonly newVulns: readonly number[];
+  // metricsConfigured is false when the metrics time-series source is not
+  // wired up (truth freshness returns "unavailable"). The UI uses this to
+  // render an explicit "not configured" message instead of a silent
+  // placeholder that could be mistaken for missing data.
+  readonly metricsConfigured: boolean;
+}
+
+// ArgoCDAppRow is one ArgoCD Application or ApplicationSet returned by the
+// infra search. sourceIndexed is true when the app's source repository has
+// been ingested by Eshu (its name appears in the catalog).
+export interface ArgoCDAppRow {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly source: string;
+  readonly sourceIndexed: boolean;
 }
 
 // SbomEvidenceRow is the cheap SBOM/attestation rollup the snapshot carries so
@@ -297,12 +315,13 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   });
   const seriesPromise = loadSeriesBundle(client, runSection);
 
-  // vulnerabilities and dead-code findings depend on catalog-derived repoNames,
-  // so they only start after services resolves; they then run concurrently with
-  // the rest.
+  // vulnerabilities, dead-code findings, and ArgoCD apps depend on
+  // catalog-derived repoNames, so they only start after services resolves;
+  // they then run concurrently with the rest.
   await servicesPromise;
   const findingsPromise = runSection("findings", () => loadFindings(client, ctx));
   const vulnerabilitiesPromise = runSection("vulnerabilities", () => loadVulnerabilities(client, ctx));
+  const argoCDAppsPromise = runSection("argoCDApps", () => loadArgoCDApps(client, ctx));
 
   const [
     runtime,
@@ -317,6 +336,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     iacResources,
     advisories,
     collectorReadiness,
+    argoCDApps,
     series
   ] = await Promise.all([
     runtimePromise,
@@ -331,6 +351,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     iacPromise,
     advisoriesPromise,
     collectorReadinessPromise,
+    argoCDAppsPromise,
     seriesPromise
   ] as const);
 
@@ -347,6 +368,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     iacResources: iacResources ?? [],
     advisories: advisories ?? [],
     collectorReadiness: collectorReadiness ?? [],
+    argoCDApps: argoCDApps ?? [],
     series,
     truth,
     provenance: prov

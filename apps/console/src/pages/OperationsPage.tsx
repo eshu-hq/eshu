@@ -13,6 +13,8 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
   const graphGrowthRows = graphRows(model.series.graphNodes, model.series.graphEdges);
   const graphGrowthTrend = model.series.graphEdges.length ? model.series.graphEdges : model.series.graphNodes;
   const graphGrowthTrendColor = model.series.graphEdges.length ? "var(--ember)" : "var(--teal)";
+  const metricsConfigured = model.series.metricsConfigured;
+  const argoCDIndexed = model.argoCDApps.filter((a) => a.sourceIndexed).length;
   return (
     <div className="page">
       <div className="page-intro"><h2>Operations</h2><p>Eshu runtime &amp; NornicDB backend health. Source: <strong style={{ color: model.source === "live" ? "var(--teal)" : "var(--bone)" }}>{model.source === "live" ? "live API" : "demo"}</strong>.</p></div>
@@ -23,9 +25,21 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
         <StatTile label="Succeeded" value={fmt(r.succeeded)} color="var(--blue)" sub="work items (run)" />
       </div>
       <div className="grid g-2 mt">
-        <Panel title="Reducer queue depth" sub="Outstanding work items">{model.series.queueDepth.length ? <AreaChart data={model.series.queueDepth} color="var(--violet)" h={180} unit=" items" /> : <p className="empty" style={{ padding: "32px 12px" }}>Current depth above. Trend history appears when the metrics source has recent samples.</p>}</Panel>
+        <Panel title="Reducer queue depth" sub="Outstanding work items">
+          {model.series.queueDepth.length
+            ? <AreaChart data={model.series.queueDepth} color="var(--violet)" h={180} unit=" items" />
+            : metricsConfigured
+              ? <p className="empty" style={{ padding: "32px 12px" }}>Current depth above. Trend history appears when the metrics source has recent samples.</p>
+              : <p className="empty" style={{ padding: "32px 12px" }}>Metrics source not configured. Connect a Prometheus/Mimir collector to enable trend charts.</p>
+          }
+        </Panel>
         <Panel title="Query latency" sub={queryLatencySummary ?? "GET /api/v0/metrics/timeseries"}>
-          {model.series.queryP99.length ? <AreaChart data={model.series.queryP99} color="var(--crit)" h={180} unit="ms" /> : <p className="empty" style={{ padding: "32px 12px" }}>Query latency history appears when the metrics source has recent samples.</p>}
+          {model.series.queryP99.length
+            ? <AreaChart data={model.series.queryP99} color="var(--crit)" h={180} unit="ms" />
+            : metricsConfigured
+              ? <p className="empty" style={{ padding: "32px 12px" }}>Query latency history appears when the metrics source has recent samples.</p>
+              : <p className="empty" style={{ padding: "32px 12px" }}>Metrics source not configured. Connect a Prometheus/Mimir collector to enable trend charts.</p>
+          }
         </Panel>
       </div>
       <Panel className="mt" title="Graph growth" sub={graphGrowthSummary ?? "GET /api/v0/metrics/timeseries"}>
@@ -34,7 +48,10 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
             <AreaChart data={graphGrowthTrend} color={graphGrowthTrendColor} h={180} />
             <BarRows rows={graphGrowthRows} />
           </div>
-        ) : <p className="empty" style={{ padding: "32px 12px" }}>Graph growth history appears when the metrics source has recent samples.</p>}
+        ) : metricsConfigured
+          ? <p className="empty" style={{ padding: "32px 12px" }}>Graph growth history appears when the metrics source has recent samples.</p>
+          : <p className="empty" style={{ padding: "32px 12px" }}>Metrics source not configured. Connect a Prometheus/Mimir collector to enable trend charts.</p>
+        }
       </Panel>
       {model.source === "live" ? (
         <Panel className="mt" title="Metric contract pending" sub="Tracked in issue #2216">
@@ -44,6 +61,25 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
         </Panel>
       ) : null}
       <Panel className="mt" title="Repositories by language" sub="GET /api/v0/repositories/language-inventory">{langRows.length ? <BarRows rows={langRows} /> : <p className="empty">No language inventory from this source.</p>}</Panel>
+      {model.argoCDApps.length > 0 ? (
+        <Panel className="mt" title="ArgoCD deployed workloads" sub={`${model.argoCDApps.length} apps · ${argoCDIndexed} source-indexed · POST /api/v0/infra/resources/search`}>
+          <div className="argocd-grid">
+            {model.argoCDApps.map((app) => (
+              <div key={app.id} className={`argocd-app${app.sourceIndexed ? " indexed" : ""}`}>
+                <span className="argocd-name" title={app.name}>{app.name}</span>
+                {app.sourceIndexed
+                  ? <span className="argocd-tag" style={{ color: "var(--teal)", background: "color-mix(in oklab, var(--teal) 12%, transparent)" }}>indexed</span>
+                  : <span className="argocd-tag">not indexed</span>
+                }
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : model.source === "live" && model.provenance["argoCDApps"] === "live" ? (
+        <Panel className="mt" title="ArgoCD deployed workloads" sub="POST /api/v0/infra/resources/search">
+          <p className="empty" style={{ padding: "32px 12px" }}>No ArgoCD Application or ApplicationSet nodes found in the graph. Index a GitOps repository to populate this view.</p>
+        </Panel>
+      ) : null}
       <Panel className="flush mt" title="Collectors / ingesters" sub={`${model.ingesters.length} fact sources`}>
         <table className="tbl">
           <thead><tr><th>Collector</th><th>Instance</th><th>State</th><th>Facts</th><th>Freshness</th></tr></thead>
