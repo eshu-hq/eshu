@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -397,6 +398,74 @@ func TestAskEnvelopeDataFedToModel(t *testing.T) {
 		if lim == "no supported evidence assembled" {
 			t.Errorf("Limitations contains %q — evidence was assembled but not surfaced", lim)
 		}
+	}
+}
+
+// TestMarshalToolResultBoundedWithLargeData (FINDING 5 / P2): when envelope
+// Data is large enough that envelopeDataSummary fills close to maxToolResultBytes,
+// marshalToolResult must still produce output that (a) fits within
+// maxToolResultBytes and (b) actually includes the summary so the model sees
+// real content — not a dropped-summary minimal skeleton.
+//
+// Before the fix, envelopeDataSummary capped the inner JSON at maxToolResultBytes
+// (4096). marshalToolResult then wrapped it adding truth_class/supported/partial
+// plus escaping overhead (~87 bytes), causing the full skeleton to exceed 4096.
+// marshalToolResult's own fallback then silently dropped the summary and returned
+// only {"truth_class":...,"supported":true,"partial":false} — no data for the
+// model, identical to the pre-#3437 behaviour for large payloads.
+func TestMarshalToolResultBoundedWithLargeData(t *testing.T) {
+	t.Parallel()
+
+	// Construct a Data payload whose JSON is just above maxToolResultBytes so
+	// envelopeDataSummary's cap is exercised. The value fills the budget;
+	// wrapping in {"repositories":"..."} adds ~18 bytes of key overhead.
+	largeValue := strings.Repeat("a", maxToolResultBytes)
+	largeData := map[string]any{"repositories": largeValue}
+
+	env := &query.ResponseEnvelope{
+		Data: largeData,
+		Truth: &query.TruthEnvelope{
+			Level: query.TruthLevelExact,
+			Basis: query.TruthBasisAuthoritativeGraph,
+		},
+	}
+
+	summary := envelopeDataSummary(env)
+	if summary == "" {
+		t.Fatal("envelopeDataSummary returned empty for large non-nil Data")
+	}
+
+	// Use the longest truth class to maximise outer wrapper size.
+	pkt := query.AnswerPacket{
+		Summary:    summary,
+		TruthClass: query.AnswerTruthSemanticObservation,
+		Supported:  true,
+		Partial:    true,
+	}
+
+	result := marshalToolResult(pkt)
+
+	// 1. Output must not exceed the bound.
+	if len(result) > maxToolResultBytes {
+		t.Errorf("marshalToolResult output len=%d exceeds maxToolResultBytes=%d; "+
+			"inner cap must reserve headroom for the outer wrapper + escaping",
+			len(result), maxToolResultBytes)
+	}
+
+	// 2. Output must be valid JSON.
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Errorf("marshalToolResult output is not valid JSON: %v\noutput: %.200s", err, result)
+	}
+
+	// 3. The summary must be present in the output — marshalToolResult must NOT
+	// have silently dropped it due to the wrapper exceeding the bound. The model
+	// needs actual data to synthesize an answer; a dropped summary is equivalent
+	// to the pre-#3437 broken state for large payloads.
+	if _, hasSummary := parsed["summary"]; !hasSummary {
+		t.Errorf("marshalToolResult dropped the summary field; model receives no data. "+
+			"envelopeDataSummary must cap inner JSON to maxToolResultBytes - wrapperOverhead, "+
+			"not maxToolResultBytes. output: %.200s", result)
 	}
 }
 
