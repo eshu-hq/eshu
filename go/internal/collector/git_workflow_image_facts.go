@@ -96,7 +96,7 @@ func workflowImageEvidenceFactEnvelope(
 		"evidence_class": evidence.EvidenceClass,
 		"reason":         evidence.Reason,
 	})
-	return factEnvelope(
+	envelope := factEnvelope(
 		facts.CICDWorkflowImageEvidenceFactKind,
 		scopeID,
 		generationID,
@@ -105,6 +105,8 @@ func workflowImageEvidenceFactEnvelope(
 		payload,
 		evidence.WorkflowPath,
 	)
+	envelope.SchemaVersion = facts.CICDSchemaVersion
+	return envelope
 }
 
 func isGitHubActionsWorkflowPath(relativePath string) bool {

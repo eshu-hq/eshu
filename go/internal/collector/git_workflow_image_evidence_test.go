@@ -56,6 +56,9 @@ jobs:
 	if got.SourceConfidence != facts.SourceConfidenceObserved {
 		t.Fatalf("SourceConfidence = %q, want observed", got.SourceConfidence)
 	}
+	if got.SchemaVersion != facts.CICDSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", got.SchemaVersion, facts.CICDSchemaVersion)
+	}
 	if got.Payload["repository_id"] != "repo://example/api" {
 		t.Fatalf("repository_id = %#v, want repo://example/api", got.Payload["repository_id"])
 	}
