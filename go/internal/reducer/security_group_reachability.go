@@ -150,6 +150,7 @@ func ExtractSecurityGroupReachability(
 		ruleNodesByUID[ruleUID] = map[string]any{
 			"uid":              ruleUID,
 			"sg_uid":           sgUID,
+			"name":             securityGroupRuleDisplayName(direction, ipProtocol, fromPort, toPort),
 			"direction":        direction,
 			"ip_protocol":      ipProtocol,
 			"from_port":        fromPort,
@@ -293,6 +294,19 @@ func normalizeSecurityGroupRulePort(value any) string {
 	default:
 		return ""
 	}
+}
+
+// securityGroupRuleDisplayName builds the human-readable name stored on the
+// :SecurityGroupRule node so the graph/entities networking inventory can
+// display a meaningful label instead of an empty string. The format is
+// direction/protocol/fromPort-toPort; an all-ports rule (empty port range)
+// renders as direction/protocol/all.
+func securityGroupRuleDisplayName(direction, ipProtocol, fromPort, toPort string) string {
+	portRange := fromPort + "-" + toPort
+	if fromPort == "" && toPort == "" {
+		portRange = "all"
+	}
+	return direction + "/" + ipProtocol + "/" + portRange
 }
 
 // securityGroupRuleUID is the test-facing rule identity helper: it normalizes the
