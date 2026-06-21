@@ -153,6 +153,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/graph/entities",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/iac/resources",
       "readiness": "implemented"
     },
@@ -244,6 +249,11 @@
     {
       "category": "api_route",
       "name": "GET /api/v0/package-registry/dependencies",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/package-registry/dependency-chains",
       "readiness": "implemented"
     },
     {
@@ -843,6 +853,16 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/relationships/catalog",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/relationships/edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/replatforming/ownership-packets",
       "readiness": "implemented"
     },
@@ -1385,12 +1405,22 @@
     },
     {
       "category": "console_page",
+      "name": "NodesPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
       "name": "ObservabilityPage",
       "readiness": "implemented"
     },
     {
       "category": "console_page",
       "name": "OperationsPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "RelationshipsPage",
       "readiness": "implemented"
     },
     {
@@ -1426,6 +1456,11 @@
     {
       "category": "console_page",
       "name": "ServiceReportPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "StatusPage",
       "readiness": "implemented"
     },
     {

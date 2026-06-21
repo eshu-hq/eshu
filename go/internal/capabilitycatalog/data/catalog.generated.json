@@ -2709,6 +2709,50 @@
       "console": false
     },
     {
+      "capability": "package_registry.dependency_chains.list",
+      "display_name": "Package Registry Dependency Chains List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-package-registry-dependency-chains"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-package-registry-dependency-chains"
+        }
+      ],
+      "console": false
+    },
+    {
       "capability": "package_registry.packages.aggregate",
       "display_name": "Package Registry Packages Aggregate",
       "maturity": "general_availability",
@@ -3690,6 +3734,50 @@
         {
           "kind": "remote_validation",
           "ref": "prod-pre-change-impact"
+        }
+      ],
+      "console": false
+    },
+    {
+      "capability": "platform_impact.relationships_catalog",
+      "display_name": "Platform Impact Relationships Catalog",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-relationships-catalog"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-relationships-catalog"
         }
       ],
       "console": false
