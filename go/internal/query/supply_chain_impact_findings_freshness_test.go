@@ -86,7 +86,11 @@ func TestApplyWinnersFreshness(t *testing.T) {
 			wantNext:     true,
 		},
 		{
-			name:      "winners empty is building",
+			// No maintainer watermark row at all: the maintainer has never
+			// reswept, so the read model is genuinely building. A resweep that
+			// produced zero winners still writes the watermark, so it lands in the
+			// fresh cases above (Present=true) — not here.
+			name:      "no maintainer watermark is building",
 			fr:        SupplyChainImpactWinnersFreshness{ServingFromWinners: true, Present: false},
 			wantState: FreshnessBuilding,
 			wantCause: FreshnessCauseReducerBacklog,

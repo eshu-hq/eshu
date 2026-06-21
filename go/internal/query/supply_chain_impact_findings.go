@@ -238,23 +238,26 @@ func NewPostgresSupplyChainImpactFindingStoreWithReadModel(
 	return PostgresSupplyChainImpactFindingStore{DB: db, ReadFromWinners: readFromWinners}
 }
 
-// selectSupplyChainImpactWinnersWatermarkQuery reads the maintained winners
-// read-model watermark. The reducer maintainer resweeps the whole table in one
-// atomic statement, stamping every row with the same materialized_at, so any
-// single row's value is the read-model watermark and LIMIT 1 avoids an aggregate
-// scan. No row means the maintainer has not populated the table yet.
+// selectSupplyChainImpactWinnersWatermarkQuery reads the maintainer watermark
+// from the singleton supply_chain_impact_winners_materialization row. The
+// watermark is upserted by the same atomic resweep that reconciles the winners
+// table, so it survives a resweep that produced zero active winners. Reading the
+// watermark (not winner-row presence) lets the caller distinguish "never
+// populated" (no row) from "reswept to zero findings" (row present, winners table
+// empty) — the latter is a legitimate fresh empty result, not a building state.
 const selectSupplyChainImpactWinnersWatermarkQuery = `
 SELECT materialized_at
-FROM supply_chain_impact_canonical_winners
+FROM supply_chain_impact_winners_materialization
 LIMIT 1`
 
 // SupplyChainImpactWinnersFreshness reports the freshness of the maintained
 // winners read model for the impact-findings list. ServingFromWinners is false
 // when the store reads live impact facts (legacy path), where the answer is
 // always current and the caller MUST leave the truth envelope fresh. When
-// ServingFromWinners is true, Present reports whether the winners table holds any
-// rows and MaterializedAt carries the last resweep watermark (valid only when
-// Present is true).
+// ServingFromWinners is true, Present reports whether the maintainer watermark
+// row exists (i.e. the maintainer has reswept at least once, independent of how
+// many winners that resweep produced) and MaterializedAt carries the last
+// resweep watermark (valid only when Present is true).
 type SupplyChainImpactWinnersFreshness struct {
 	ServingFromWinners bool
 	Present            bool

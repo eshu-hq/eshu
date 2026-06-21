@@ -364,9 +364,12 @@ func applyWinnersFreshness(truth *TruthEnvelope, fr SupplyChainImpactWinnersFres
 		return
 	}
 	if !fr.Present {
+		// No maintainer watermark at all: the reducer has never reswept the read
+		// model. A resweep that produced zero winners still stamps the watermark,
+		// so this is the genuine never-populated case, not a zero-findings corpus.
 		truth.Freshness = TruthFreshness{
 			State:  FreshnessBuilding,
-			Detail: "supply-chain impact winners read model is not yet populated by the reducer maintainer",
+			Detail: "supply-chain impact winners read model has not been materialized by the reducer maintainer yet",
 		}
 		WithFreshnessCause(truth, FreshnessCauseReducerBacklog)
 		return

@@ -1017,37 +1017,56 @@ envelope, so the gate can be turned on without ever presenting a cadence lag,
 an unpopulated table, or a probe failure as fresh truth — the I4 invariant from
 the canonical-dedup ADR (#3427) and the prerequisite the Phase 2 note named.
 
-Mechanism: the reducer maintainer resweeps the whole winners table in one atomic
-statement, stamping every row with a single `materialized_at`. So the store
-probes the watermark with `SELECT materialized_at FROM
-supply_chain_impact_canonical_winners LIMIT 1` — any row is the whole read-model
-watermark, no aggregate scan. `applyWinnersFreshness` maps it:
+Mechanism: row presence in the winners table cannot be the freshness signal,
+because an empty winners table is ambiguous — it is also the correct state after a
+resweep with zero active findings (`RebuildAllWinners` deletes rows no longer in
+the active set). Using row presence would pin a legitimate zero-findings corpus to
+`building` forever. So the maintainer stamps a separate singleton watermark table,
+`supply_chain_impact_winners_materialization`, in the SAME atomic rebuild
+statement: the winners upsert and delete become data-modifying CTEs and the final,
+unconditional statement upserts the watermark, so it is stamped even when the
+resweep produced zero winners. The store probes `SELECT materialized_at FROM
+supply_chain_impact_winners_materialization LIMIT 1` (one singleton row, no
+aggregate). `applyWinnersFreshness` maps it:
 
 - legacy live read (gate off) → fresh, untouched (and no probe is issued);
 - watermark within `supplyChainImpactWinnersFreshnessWindow` (2m, several resweep
-  cadences) → fresh, with the watermark surfaced as `freshness.observed_at`;
+  cadences) → fresh, with the watermark surfaced as `freshness.observed_at` —
+  regardless of how many winners the resweep produced, so a zero-findings corpus
+  reads fresh-empty, not building;
 - watermark older than the window → `stale` + cause `reducer_backlog` + bounded
   `next_check` (the maintainer is not keeping the model current);
-- table unpopulated → `building` + cause `reducer_backlog`;
+- no watermark row at all (maintainer has never reswept) → `building` + cause
+  `reducer_backlog`;
 - probe error → `unavailable` (never silently fresh); the findings page still
   serves, the probe error is recorded on the span.
 
 Accuracy Evidence: `TestApplyWinnersFreshness` pins all six mappings (legacy
 untouched incl. on probe error, fresh+observed_at, stale+cause+next_check,
-building+cause, unavailable); `TestSupplyChainImpactWinnersWatermarkGate` pins
-that the legacy path issues no probe and never claims winners service while the
-winners path issues exactly the watermark query and reports serving-from-winners
-even when the probe errors. Validated against Postgres 18: empty table → 0 rows
-(building); populated → the stamped watermark; correct `materialized_at` value
-round-trips.
+no-watermark→building+cause, unavailable); `TestSupplyChainImpactWinnersWatermark
+Gate` pins that the legacy path issues no probe and never claims winners service
+while the winners path issues exactly the watermark query and reports serving-
+from-winners even when the probe errors; `TestRebuildSupplyChainImpactWinnersSQLIs
+AtomicReconcile` pins the upsert + delete CTEs + unconditional watermark upsert in
+one statement; `TestBootstrapDefinitionsIncludeSupplyChainImpactWinnersMaterializa
+tion` and the bootstrap order/mirror tests pin the new table. Validated against
+Postgres 18 with the shipped rebuild structure: a never-reswept DB (a stale winner
+row, no watermark) → probe returns 0 rows (building); a resweep-to-zero-findings
+(empty `winners_now`) → the stale winner is deleted (count 0) AND the watermark is
+stamped → probe returns the watermark (fresh-empty, the exact case row-presence
+would have mis-reported as building); the singleton `CHECK (singleton = 1)` keeps
+exactly one watermark row across repeated resweeps.
 
-Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` of the watermark probe on
-Postgres 18: **0.035 ms** — `Limit` over a `Seq Scan` that short-circuits at the
-first live tuple, so the probe is O(1) regardless of winners-table size (the
-`LIMIT 1` returns after the first heap tuple; no aggregate, no index needed). The
-legacy read issues no probe at all (the store short-circuits on the gate before
-any query), so the freshness work is zero-cost until the read gate is enabled and
-sub-millisecond once it is. No change to the findings read path itself.
+Performance Evidence: the watermark probe reads a single-row singleton table
+(`supply_chain_impact_winners_materialization` holds at most one row by the
+`singleton` PK + `CHECK`), so `SELECT materialized_at ... LIMIT 1` is O(1) by
+construction — independent of winners-table or corpus size, no aggregate, no
+index needed. The legacy read issues no probe at all (the store short-circuits on
+the gate before any query), so the freshness work is zero-cost until the read gate
+is enabled and sub-millisecond once it is. The watermark upsert rides the existing
+atomic resweep statement (one extra singleton upsert per ~30s resweep), so it adds
+no extra round-trip or transaction to the maintainer. No change to the findings
+read path itself.
 
 Observability Evidence: the route adds `eshu.query.freshness_state`
 (`fresh`/`stale`/`building`/`unavailable`, low cardinality) to its existing
