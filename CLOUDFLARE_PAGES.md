@@ -13,6 +13,46 @@ npm test
 npm run build
 ```
 
+## Browser Review Gate
+
+Before shipping a marketing-site change, run the local browser review gate. It
+is a repeatable Playwright check of the ROOT marketing site (the site that
+builds to `site-dist`), kept separate from any console private-data proof.
+
+The gate does not require Node's native TypeScript loader; it transforms the
+unit-tested evaluator through Vite before running the browser checks.
+
+```bash
+npx playwright install chromium   # one-time, if Chromium is missing
+npm run site:review
+```
+
+`npm run site:review` runs `scripts/marketing-review.mjs`, which:
+
+- builds the root site (`npm run build` -> `site-dist`),
+- serves the static build with `vite preview` (the same static path Cloudflare
+  Pages serves — no Workers-only behavior is exercised),
+- loads the site in Chromium at a desktop (1440x900) AND a mobile (390x844)
+  viewport,
+- verifies primary routes (anchor sections), nav links, CTAs, external links,
+  and the Ask Eshu / first-run positioning do not regress,
+- runs basic accessibility (image alt text, single `<h1>`) and performance
+  (DOMContentLoaded budget) checks,
+- captures desktop + mobile screenshots, and
+- exits non-zero on any failed check.
+
+Flags:
+
+- `npm run site:review -- --no-build` reuses an existing `site-dist`.
+- `npm run site:review -- --keep-build` keeps `site-dist` after the run.
+
+Artifacts (screenshots plus a `marketing-review.json` summary) are written to
+`site-review-artifacts/`, which is gitignored. Do not commit those binaries.
+
+The pass/fail logic lives in `src/marketingReview.ts` and is unit-tested by
+`src/marketingReview.test.ts` (run under `npm test`), so the regression contract
+is verified without a browser; the script proves the rendered page honors it.
+
 ## Cloudflare Pages Settings
 
 Use these settings when creating or checking the Pages project:
