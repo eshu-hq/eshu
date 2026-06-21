@@ -961,25 +961,40 @@ maintainer has populated the winners table.
 No-Regression Evidence: the winners read is byte-identical to the legacy read.
 On the seeded 500k-impact-fact Postgres 18, the shipped winners query and the
 legacy query were run via `COPY (...) TO STDOUT WITH (FORMAT csv)` with identical
-parameters; `diff` is empty across 12 filter/sort/cursor combinations: no filter
+parameters; `diff` is empty across 13 filter/sort/cursor combinations: no filter
 (500000), impact_status (125000), severity_bucket (100000), ecosystem
 case-insensitive (166666), repository_id (556), priority_bucket (125000),
 min_priority_score (250000), detection_profile=precise — the complex precise
 branch over observed_version + match_reason (250000), service_id membership
 (500), priority_score_desc sort (500000), priority_score_desc + cursor (4999),
-and allowed-repository scoping `$22` (556). Unit coverage:
+allowed-repository scoping `$22` (556), and — critically for cursor scoping — a
+`repository_id` filter paired with a `priority_score_desc` cursor whose
+`after_finding_id` belongs to a *different* repository (555): the out-of-filter
+cursor row contributes no priority, exactly as legacy `canonical_facts` does.
+
+The cursor priority lookup reads from a `WITH filtered AS NOT MATERIALIZED (…)`
+CTE carrying the same filter + grant predicates as the page, so an out-of-grant
+or out-of-filter `after_finding_id` cannot skip or surface authorized rows
+(addresses the read-gate review: the lookup must not read the whole winners
+table). `NOT MATERIALIZED` lets the planner inline the CTE so the page scan stays
+index-served. Unit coverage:
 `TestSupplyChainImpactReadGateSelectsQuery` pins gate→query selection,
 `TestSupplyChainImpactWinnersReadQueryShape` pins the winners-table/no-dedup/
-no-active-gen-rejoin shape, and `TestSupplyChainImpactWinnersReadEnabled` pins
-the env parse.
+no-active-gen-rejoin shape plus the filtered-CTE cursor scoping, and
+`TestSupplyChainImpactWinnersReadEnabled` pins the `strconv.ParseBool` env parse.
 
-Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` of the shipped winners read
-(broad `impact_status=affected_exact` filter, first page, `LIMIT 51`,
-`work_mem=16MB`) on the same seed: **4.2 ms** — `Index Scan` on the winners table
-feeding 51 `fact_records_pkey` lookups, no external-merge sort, no spill — vs the
-legacy read-time dedup **1873 ms** at the same filter (~440x). Bounded O(page)
-regardless of corpus size or filter breadth, because the dedup happened off the
-read path in the maintainer.
+Performance Evidence (`EXPLAIN (ANALYZE, BUFFERS)`, `work_mem=16MB`, same seed):
+- Common browse page (default `finding_id` sort, first page, `LIMIT 51`):
+  **0.58 ms** — `Index Scan` on the winners `finding_idx` feeding 51
+  `fact_records_pkey` lookups, no external-merge sort, no spill. Bounded O(page)
+  regardless of corpus size, because the dedup happened off the read path in the
+  maintainer. Filtered browses (e.g. `impact_status`) stay index-served too.
+- `priority_score_desc` **cursor** page over the full 500k set: **~742 ms**
+  (top-N over the filtered set; the COALESCE cursor predicate is not
+  index-rangeable, the same shape limit the legacy read had) — vs legacy
+  read-time dedup **1873 ms** at the same shape, ~2.5x faster with no spill. This
+  is the one path that is O(filtered-scan) rather than O(page); the dominant
+  browse/filter cases above are O(page).
 
 No-Observability-Change: the route keeps its `query.supply_chain_impact_findings`
 span, the `eshu_dp_postgres_query_duration_seconds` histogram, the readiness

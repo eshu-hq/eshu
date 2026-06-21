@@ -31,6 +31,7 @@ func TestNewMCPQueryRouterServesCollectorExtractionReadiness(t *testing.T) {
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	if router.ExtractionReadiness == nil {
 		t.Fatal("newMCPQueryRouter().ExtractionReadiness = nil, want mounted handler")

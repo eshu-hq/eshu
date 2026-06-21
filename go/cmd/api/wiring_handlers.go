@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"log/slog"
-	"os"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
@@ -42,6 +41,7 @@ func newSupplyChainHandler(
 	neo4jReader query.GraphQuery,
 	contentReader query.ContentStore,
 	profile query.QueryProfile,
+	readImpactFromWinners bool,
 ) *query.SupplyChainHandler {
 	return &query.SupplyChainHandler{
 		Neo4j:                    neo4jReader,
@@ -51,7 +51,7 @@ func newSupplyChainHandler(
 		AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
 		AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
 		ImpactFindings: query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(
-			db, query.SupplyChainImpactWinnersReadEnabled(os.Getenv(query.SupplyChainImpactWinnersReadEnv)),
+			db, readImpactFromWinners,
 		),
 		ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
 		ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),

@@ -103,6 +103,7 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 
 	if router.IaC == nil {
@@ -191,6 +192,7 @@ func TestNewMCPQueryRouterUsesSuppliedStatusReader(t *testing.T) {
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 
 	if router.Status == nil {

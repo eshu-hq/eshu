@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/lib/pq"
@@ -16,9 +17,13 @@ import (
 // reducer maintainer has populated the winners table.
 const SupplyChainImpactWinnersReadEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ"
 
-// SupplyChainImpactWinnersReadEnabled parses the Phase 2 read gate value.
+// SupplyChainImpactWinnersReadEnabled parses the Phase 2 read gate value using
+// the same bool semantics the env registry validates with (strconv.ParseBool),
+// so values like "1", "t", and "TRUE" enable the gate consistently with
+// `eshu config validate`. Unparseable or empty values leave the gate off.
 func SupplyChainImpactWinnersReadEnabled(value string) bool {
-	return strings.EqualFold(strings.TrimSpace(value), "true")
+	enabled, err := strconv.ParseBool(strings.TrimSpace(value))
+	return err == nil && enabled
 }
 
 // SupplyChainImpactFindingStore reads reducer-owned vulnerability impact

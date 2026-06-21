@@ -250,6 +250,7 @@ func buildAskProofHandler(t *testing.T, getenv func(string) string, innerLeaf ht
 		nil, nil, nil, staticStatusReader{}, nil,
 		query.ProfileLocalFullStack, query.GraphBackendNornicDB,
 		nil, nil, "", "", component.Policy{}, query.GovernanceStatusConfig{}, nil,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v", err)

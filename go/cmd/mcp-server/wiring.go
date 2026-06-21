@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -123,6 +122,7 @@ func wireAPI(
 
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
+	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
 	router := newMCPQueryRouterWithSemanticEmbedding(
 		db,
 		neo4jReader,
@@ -137,6 +137,7 @@ func wireAPI(
 		componentPolicy,
 		governanceStatus,
 		governanceAudit,
+		readImpactFromWinners,
 	)
 
 	mux := http.NewServeMux()
@@ -199,6 +200,7 @@ func newMCPQueryRouter(
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
 	governanceAudit query.GovernanceAuditSummaryReader,
+	readImpactFromWinners bool,
 ) *query.APIRouter {
 	semanticSearchEmbedding, _ := searchembedruntime.ConfigFromEnv(func(key string) string {
 		if key == envSemanticSearchLocalEmbedder {
@@ -220,6 +222,7 @@ func newMCPQueryRouter(
 		componentPolicy,
 		governanceStatus,
 		governanceAudit,
+		readImpactFromWinners,
 	)
 }
 
@@ -237,6 +240,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
 	governanceAudit query.GovernanceAuditSummaryReader,
+	readImpactFromWinners bool,
 ) *query.APIRouter {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
@@ -357,7 +361,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
 			AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
 			ImpactFindings: query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(
-				db, query.SupplyChainImpactWinnersReadEnabled(os.Getenv(query.SupplyChainImpactWinnersReadEnv)),
+				db, readImpactFromWinners,
 			),
 			ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
 			ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),

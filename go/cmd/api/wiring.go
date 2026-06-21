@@ -142,6 +142,7 @@ func wireAPI(
 	governanceAudit := pgstatus.NewGovernanceAuditStore(governanceAuditDB)
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
+	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
 	router, err := newRouterWithSemanticEmbedding(
 		db,
 		neo4jReader,
@@ -157,6 +158,7 @@ func wireAPI(
 		componentPolicy,
 		governanceStatus,
 		governanceAudit,
+		readImpactFromWinners,
 	)
 	if err != nil {
 		_ = db.Close()
@@ -280,6 +282,7 @@ func newRouter(
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
 	governanceAudit query.GovernanceAuditSummaryReader,
+	readImpactFromWinners bool,
 ) (*query.APIRouter, error) {
 	semanticSearchEmbedding, err := searchembedruntime.ConfigFromEnv(func(key string) string {
 		if key == envSemanticSearchLocalEmbedder {
@@ -305,6 +308,7 @@ func newRouter(
 		componentPolicy,
 		governanceStatus,
 		governanceAudit,
+		readImpactFromWinners,
 	)
 }
 
@@ -323,6 +327,7 @@ func newRouterWithSemanticEmbedding(
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
 	governanceAudit query.GovernanceAuditSummaryReader,
+	readImpactFromWinners bool,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
@@ -437,7 +442,7 @@ func newRouterWithSemanticEmbedding(
 			Neo4j:   neo4jReader,
 			Profile: queryProfile,
 		},
-		SupplyChain:   newSupplyChainHandler(db, neo4jReader, contentReader, queryProfile),
+		SupplyChain:   newSupplyChainHandler(db, neo4jReader, contentReader, queryProfile, readImpactFromWinners),
 		Incident:      newIncidentHandler(db, queryProfile),
 		WorkItems:     newWorkItemHandler(db, queryProfile),
 		Visualization: &query.VisualizationHandler{},
