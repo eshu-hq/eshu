@@ -166,18 +166,43 @@ func TestRelationshipsCatalogUnsupportedOnLightweightProfile(t *testing.T) {
 	}
 }
 
-// TestRelationshipCypherIsSourceAnchored guards the bounded-scan contract: every
-// catalog count and edge query must anchor on a labeled source node, never a
-// bare ()-[r:VERB]->() pattern that risks an all-node scan.
-func TestRelationshipCypherIsSourceAnchored(t *testing.T) {
+// TestRelationshipCountCypherIsTypeIndexed guards the catalog count contract:
+// every per-verb count must be the bare relationship-type aggregate
+// `MATCH ()-[r:VERB]->() RETURN count(r)`. That shape is answered by the
+// NornicDB relationship-type index in milliseconds and counts the whole-graph
+// edge population for the verb (the documented "bounded whole-graph edge
+// count"), instead of scanning the entire source-label population per verb.
+// The bare anonymous endpoints `()` are not the gate's unlabeled-bound-node
+// pattern `(s)`, so this shape stays within the bounded read contract.
+func TestRelationshipCountCypherIsTypeIndexed(t *testing.T) {
+	t.Parallel()
+
+	for _, entry := range relationshipVerbCatalog {
+		count := relationshipCountCypher(entry)
+		typeAnchor := "()-[r:" + entry.verb + "]->()"
+		if !strings.Contains(count, typeAnchor) {
+			t.Fatalf("count cypher for %s not relationship-type anchored: %s", entry.verb, count)
+		}
+		if strings.Contains(count, "(s:"+entry.sourceLabel+")") {
+			t.Fatalf("count cypher for %s must not scan the source label: %s", entry.verb, count)
+		}
+		if !strings.Contains(count, "count(r)") {
+			t.Fatalf("count cypher for %s missing count(r): %s", entry.verb, count)
+		}
+	}
+}
+
+// TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered guards the edge
+// slice contract: every edge query stays anchored on the labeled source node
+// (bare-type edges with a bound, unlabeled source are far slower on NornicDB),
+// carries a bounded LIMIT, and orders by the indexed source-anchor property so
+// the LIMIT short-circuits the index-ordered scan instead of materializing and
+// sorting the full edge set on a non-indexed coalesce() expression.
+func TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered(t *testing.T) {
 	t.Parallel()
 
 	for _, entry := range relationshipVerbCatalog {
 		anchor := "(s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]"
-		count := relationshipCountCypher(entry)
-		if !strings.Contains(count, anchor) {
-			t.Fatalf("count cypher for %s not source-anchored: %s", entry.verb, count)
-		}
 		edges := relationshipEdgesCypher(entry)
 		if !strings.Contains(edges, anchor) {
 			t.Fatalf("edge cypher for %s not source-anchored: %s", entry.verb, edges)
@@ -185,8 +210,9 @@ func TestRelationshipCypherIsSourceAnchored(t *testing.T) {
 		if !strings.Contains(edges, "LIMIT $limit") {
 			t.Fatalf("edge cypher for %s missing bounded LIMIT: %s", entry.verb, edges)
 		}
-		if !strings.Contains(edges, "ORDER BY") {
-			t.Fatalf("edge cypher for %s missing ORDER BY: %s", entry.verb, edges)
+		orderBy := "ORDER BY s." + entry.sourceProperty
+		if !strings.Contains(edges, orderBy) {
+			t.Fatalf("edge cypher for %s must order by indexed source property %q: %s", entry.verb, orderBy, edges)
 		}
 	}
 }

@@ -69,21 +69,41 @@ var relationshipVerbByName = func() map[string]relationshipVerbEntry {
 	return index
 }()
 
-// relationshipCountCypher builds the bounded, source-label-anchored count query
-// for a verb. The source label anchors the scan so the planner expands the
-// label population's outgoing edges of the type instead of scanning all nodes.
-// The verb and label are taken from the fixed catalog, never from request
-// input, so the interpolation cannot inject arbitrary patterns.
+// relationshipCountCypher builds the bounded count query for a verb. It is the
+// bare relationship-type aggregate `MATCH ()-[r:VERB]->() RETURN count(r)`,
+// which the NornicDB relationship-type index answers directly in milliseconds.
+//
+// This counts the whole-graph edge population for the verb, which is exactly the
+// documented "bounded whole-graph edge count" the catalog contract promises. A
+// source-label anchor (`MATCH (s:Label)-[r:VERB]->()`) would instead force a
+// scan of the entire source-label population per verb (e.g. every File node),
+// which at ~900k-edge scale pushed the 16-verb catalog past 30s; it would also
+// silently undercount verbs whose edges originate from more than one source
+// label. The endpoints are anonymous `()`, not bound unlabeled nodes `(s)`, so
+// the shape stays within the bounded read contract and the query-plan gate.
+//
+// The verb is taken from the fixed catalog, never from request input, so the
+// interpolation cannot inject arbitrary patterns.
 func relationshipCountCypher(entry relationshipVerbEntry) string {
-	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->()\n" +
+	return "MATCH ()-[r:" + entry.verb + "]->()\n" +
 		"RETURN count(r) AS count"
 }
 
 // relationshipEdgesCypher builds the bounded, source-label-anchored edge slice
 // query for a verb. It anchors on the source label, projects narrow endpoint
-// identity plus optional evidence fields, orders deterministically, and bounds
-// the result with $limit. Callers over-fetch limit+1 to set a truncated flag.
-// As with the count query, verb and label come from the fixed catalog only.
+// identity plus optional evidence fields, orders by the indexed source-anchor
+// property, and bounds the result with $limit. Callers over-fetch limit+1 to
+// set a truncated flag. As with the count query, verb, label, and property come
+// from the fixed catalog only.
+//
+// The ORDER BY targets the indexed source property (`s.<sourceProperty>`, the
+// same property whose schema index anchors the scan) rather than the projected
+// coalesce() expressions. An index-ordered scan lets the LIMIT short-circuit
+// after the first page, instead of materializing and sorting the verb's full
+// edge set on a non-indexed expression, which at ~900k-edge scale pushed the
+// per-verb slice past the few-second budget. A labeled source node is kept on
+// purpose: on NornicDB a bare-type edge match with bound, unlabeled endpoints is
+// dramatically slower than the source-label-anchored expand.
 func relationshipEdgesCypher(entry relationshipVerbEntry) string {
 	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
 		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
@@ -91,6 +111,6 @@ func relationshipEdgesCypher(entry relationshipVerbEntry) string {
 		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
 		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
 		"       r.rationale AS evidence\n" +
-		"ORDER BY source_name, source_id, target_id\n" +
+		"ORDER BY s." + entry.sourceProperty + "\n" +
 		"LIMIT $limit"
 }

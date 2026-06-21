@@ -195,7 +195,7 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "List the typed-edge relationship verb catalog",
-        "description": "Returns the fixed catalog of typed-edge relationship verbs across the code-to-cloud graph, each with its layer, a bounded whole-graph edge count, and an evidence/source label. Each verb is counted with its own single bounded query anchored on the verb's source-node label; no unanchored whole-graph relationship scan is run.",
+        "description": "Returns the fixed catalog of typed-edge relationship verbs across the code-to-cloud graph, each with its layer, a bounded whole-graph edge count, and an evidence/source label. Each verb is counted with its own bounded relationship-type aggregate that the graph backend answers from the relationship-type index; no source-label population scan and no unlabeled-node all-node scan is run.",
         "operationId": "getRelationshipsCatalog",
         "requestBody": {
           "required": false,
@@ -244,7 +244,7 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "List concrete edges for one relationship verb",
-        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label and always carries a LIMIT, so the slice is bounded.",
+        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label, ordered by the indexed source-anchor property, and always carries a LIMIT, so the index-ordered scan short-circuits at the page boundary and the slice is bounded.",
         "operationId": "getRelationshipEdges",
         "requestBody": {
           "required": true,
