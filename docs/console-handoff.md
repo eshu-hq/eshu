@@ -1,192 +1,200 @@
-# Eshu Console — work handoff for agents
+# Console readiness checklist
 
-Goal: finish porting the redesigned console into `apps/console/src` (native TSX,
-**live by default**), and create the missing backend API endpoints the UI needs.
-The console currently hydrates from the live API and falls back to a
-clearly-labeled demo fixture only when the API is unreachable; removing that demo
-path in favor of explicit loading/empty/error states is tracked below ("console:
-remove all demo/mock data; live-only with states"). This doc is split so agents
-can create GitHub issues first, then work them.
-
-The reference implementation is the working prototype at
-`apps/console/prototype/eshu-console/Eshu Console.html` (+ `console/*.jsx`). It shows
-the exact intended UX. The in-progress TSX port lives in `apps/console/src`
-(adapter `api/eshuConsoleLive.ts`, `api/eshuGraph.ts`, `api/eshuService.ts`,
-pages, components). Port the prototype's behavior onto **real endpoints**; where
-an endpoint does not exist yet, see "Backend API" below.
+> **Doc status:** refreshed from the original Console v2 handoff (June 2025).
+> All Console v2 backend and frontend issues from that handoff are closed or
+> shipped. This file is now a **current proof/readiness checklist** for agents
+> working on the console surface. Do not re-open the Console v2 backlog items
+> listed in the archived section at the bottom.
 
 ---
 
-## 0) Paste this first — have an agent create the GitHub issues
+## Current open work
 
-> You have repo write access and the `gh` CLI. Create GitHub issues in
-> `eshu-hq/eshu` from the specs in `docs/console-handoff.md` (this file). Create
-> one issue per "### ISSUE:" heading below. Use the heading text as the issue
-> title, the body under it as the issue body, and apply the labels listed in each
-> spec (create labels if missing: `area:console`, `area:api`, `frontend`,
-> `backend`, `blocked-on-api`). Add every issue to a new milestone
-> "Console v2 (native)". After creating them, post a summary comment listing the
-> issue numbers grouped by Backend vs Frontend. Do not start coding yet.
+These issues are the active console surface backlog as of the last audit:
 
----
+| Issue | Title | Status |
+|-------|-------|--------|
+| [#3326](https://github.com/eshu-hq/eshu/issues/3326) | Add full console/dashboard E2E proof against local Compose | OPEN |
+| [#3328](https://github.com/eshu-hq/eshu/issues/3328) | Add Node, marketing site, and console gates to CI | OPEN |
+| [#3329](https://github.com/eshu-hq/eshu/issues/3329) | Upgrade vulnerable frontend toolchain dependencies | OPEN |
+| [#3331](https://github.com/eshu-hq/eshu/issues/3331) | Add console bundle budget and split heavy graph/diagram chunks | OPEN |
 
-## Backend API — endpoints the console needs (no mock data path)
-
-These don't exist in `/api/v0/*` today (verified against `go/cmd/api` + the CLI
-client). Each should return the standard `application/eshu.envelope+json`
-envelope (`{ data, error, truth }`) and carry `truth.level` +
-`truth.freshness.state` like the existing read endpoints.
-
-### ISSUE: api: add repository file-tree endpoint
-Labels: area:api, backend
-**Why:** The console's repo browser needs to render a real directory tree (the
-prototype's tree is fabricated and must be removed under the no-mock rule).
-**Proposed contract:**
-`GET /api/v0/repositories/{id}/tree?ref={branch}&path={subpath}`
-→ `data: { ref, path, entries: [{ name, type: "dir"|"file", path, size?, child_count? }] }`
-**Acceptance:** lists one directory level (or full subtree with `?recursive=true`);
-404 envelope for unknown repo/path; truth reflects index freshness for that repo.
-
-### ISSUE: api: add repository file-content endpoint
-Labels: area:api, backend
-**Why:** The repo code viewer must show real source; there is currently no
-file-content/blob endpoint, so the viewer is stubbed behind a "requires content
-API" state (see frontend issue).
-**Proposed contract:**
-`GET /api/v0/repositories/{id}/content?path={filepath}&ref={branch}`
-→ `data: { path, ref, encoding: "utf-8"|"base64", content, size, language?, truncated? }`
-**Acceptance:** returns file bytes for an indexed path; size cap + `truncated`
-flag for large files; 404 envelope for missing path; never returns secrets that
-the collectors redact.
-
-### SHIPPED: api: repository branches/refs endpoint
-Labels: area:api, backend
-**Why:** The code viewer's branch selector uses source-backed refs when
-ingestion captured them, and keeps the indexed-ref-only state when branch
-metadata is unavailable.
-**Contract:** `GET /api/v0/repositories/{id}/branches`
-→ `data: { default_branch, branches: [{ name, kind, is_default, last_indexed_at, head_sha }] }`
-
-### SHIPPED: api: historical time-series metrics endpoint
-Labels: area:api, backend
-**Why:** Dashboard/Operations sparklines + trend charts use real history for
-ingestion throughput, queue depth, graph growth, and query latency p50/p95/p99.
-**Contract:**
-`GET /api/v0/metrics/timeseries?metric={name}&window={e.g.24h}&step={e.g.30m}`
-where `metric ∈ { ingest_rate, queue_depth, dead_letters, graph_nodes, graph_edges, query_p50, query_p95, query_p99 }`
-→ `data: { metric, unit, points: [{ t: ISO8601, v: number }] }`
-**Note:** backed by the configured Prometheus/Mimir collector target when
-available.
-**Acceptance:** returns ordered points for the window; empty `points` (not an
-error) when the source is not configured or a metric has no history yet.
-
-### ISSUE: api: add single-vulnerability detail endpoint
-Labels: area:api, backend
-**Why:** The CVE detail page wants the full advisory (description, references,
-CWE, CVSS vector, all affected components), not just the row from
-`supply-chain/impact/findings`.
-**Proposed contract:** `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}`
-→ `data: { advisory_id, title, description, severity, cvss, cvss_vector, epss, kev, cwe[], references[], fixed_version, affected: [{ repo_id, service_id, package, version }] }`
-**Acceptance:** 404 envelope for unknown id; `affected[]` joins to graph entities
-so the UI can link to services/repos.
-
-### ISSUE: api: confirm or add blast-radius endpoint
-Labels: area:api, backend
-**Why:** The service spotlight's "blast radius" graph needs transitive dependents.
-The CLI references `impact/entity-map`; confirm whether
-`POST /api/v0/impact/blast-radius` exists. If not, add it.
-**Proposed contract:** `POST /api/v0/impact/blast-radius` body
-`{ name|selector, max_depth }` → `data: { target, impacted: [{ id, name, type, distance }], edges: [{ source, target, verb }] }`
-**Acceptance:** bounded by `max_depth`; returns typed edges so the UI renders the
-relationship layers.
+Do not create new issues for items already on this list.
 
 ---
 
-## Frontend — native TSX port (live-only, no mock)
+## Console proof/readiness checklist
 
-All under `apps/console/src`. Spec = the prototype in
-`apps/console/prototype/eshu-console`. Match its visuals/interactions exactly
-(dark graphite/bone/teal/ember theme, the same component classes already in
-`src/styles.css`).
+Run this checklist before marking console work done or before requesting a
+review that touches the console surface.
 
-### ISSUE: console: remove all demo/mock data; live-only with states
-Labels: area:console, frontend
-- Delete `src/console/demoModel.ts` usage as a data source. The app must require a
-  live connection (it already auto-connects from `eshu.console.environment`).
-- Add explicit **loading**, **empty**, and **error** states per page/panel driven
-  by the adapter's `provenance` map (`live`/`empty`/`unavailable`).
-- No fabricated numbers anywhere. If a datum has no endpoint, render "—" or an
-  "API not available" note — never invent it.
-- Keep the data-source popover for entering base URL + API key.
+### 1. Private mode — correct default behavior
 
-### ISSUE: console: CVE detail view wired to the API
-Labels: area:console, frontend
-- Port `VulnDetail` from the prototype (`console/pages-data.jsx`): full-page CVE
-  view with stats (CVSS, EPSS, KEV, package, versions, ecosystem, source) and a
-  **centered affected-services graph** (`GraphCanvas`, vuln node `hero`).
-- Data: `GET /api/v0/supply-chain/vulnerabilities/{id}` (new) for detail;
-  `supply-chain/impact/findings` for the affected list/graph until the detail
-  endpoint lands.
-- CVE rows in the register + the drawer's expanded CVE link here
-  (`#vulnerabilities?cve=...`; the hashchange handler must strip the `?` query —
-  see prototype `app.jsx`).
+- [ ] Default mode is `"private"` (see `apps/console/src/config/environment.ts`
+  `defaultEnvironment.mode`).
+- [ ] With no saved environment the app shows the data-source popover, not a
+  fabricated data set.
+- [ ] Connecting to a live API at `/eshu-api/` (or a custom base URL) succeeds
+  and all panels hydrate from real data.
+- [ ] `source.mode` shows `"private"` in the connection strip after a successful
+  live connection.
 
-### ISSUE: console: service spotlight drill-downs (drawer)
-Labels: area:console, frontend
-Port from prototype `ServiceDrawer`:
-- **Blast-radius** stat → expands a radial `GraphCanvas` (`POST impact/blast-radius`).
-- **Callers/Importers** stat → expands a radial graph (`POST code/relationships`,
-  reverse edges).
-- **Findings** count → toggles a list; **each CVE row expands** to full detail
-  with a "View full vulnerability →" deep-link.
-- Severity counts + the findings list must be derived from the **same** real
-  source so the number always equals the listed rows (the prototype fixed this).
-- **Deployment-path lane** items clickable → expand typed-edge evidence from
-  `services/{id}/story`; the importers lane item opens the callers graph.
+### 2. Demo mode — optional, explicitly labeled
 
-### ISSUE: console: repository browser on real graph data
-Labels: area:console, frontend
-- Repo **list** from `GET /api/v0/repositories` (+ `/by-language` for the filter).
-- Repo **detail** from `repositories/{id}/stats` + `repositories/{id}/story` +
-  `code/relationships` (symbol/relationship graph) + `code/search`.
-- **No fabricated file tree or file contents.**
+- [ ] Demo mode activates only when `env.mode === "demo"` (set via
+  `eshu.console.environment` in `localStorage`).
+- [ ] The connection strip displays `"demo"` when demo mode is active.
+- [ ] Demo data comes only from `apps/console/src/api/demoClient.ts` and
+  `demoFixtures.ts`; live pages do not import these directly.
+- [ ] No panel invents numbers outside of the explicit demo code path.
 
-### SHIPPED: console: repo code viewer
-Labels: area:console, frontend
-- File-tree + code-viewer UI is wired to `repositories/{id}/tree`,
-  `/content`, and `/branches`.
-- Source-backed branch refs render a selector when multiple named refs are
-  available, and selected refs are passed through tree/content reads.
-- Indexed-ref-only repositories keep an explicit single-ref state instead of
-  fabricated branch names.
+### 3. Dashboard expectations
 
-### ISSUE: console: graph explorer on entity-map / relationships
-Labels: area:console, frontend
-- Explorer search → `POST entities/resolve`, then expand via
-  `POST code/relationships` (or `POST impact/entity-map` for a broader neighborhood).
-- Layer toggles map verbs → the existing layer colors. Node click opens the
-  spotlight drawer for service/workload nodes, expands relationships otherwise.
+- [ ] `DashboardPage` stat cards (repositories, services, findings) bind to
+  real `index-status`, `ecosystem/overview`, `status/pipeline`,
+  `status/ingesters` responses.
+- [ ] Sparklines and area charts load from `GET /api/v0/metrics/timeseries`.
+  When no configured metrics source has recent samples, the charts render
+  an explicit empty/unavailable state — not mock series.
+- [ ] Suggested questions panel renders from the live `ask` surface.
+- [ ] `npm run console:typecheck` passes with no errors.
+- [ ] `npm run console:test` passes (`DashboardPage.test.tsx` covers the key
+  stat-card and empty-state paths).
+- [ ] `npm run console:build` produces a clean build.
 
-### ISSUE: console: dashboard/operations real metrics (+ time-series when available)
-Labels: area:console, frontend
-- Stats from `index-status`, `ecosystem/overview`, `status/pipeline`,
-  `status/ingesters`.
-- Area charts and sparklines load from `GET /api/v0/metrics/timeseries` when
-  the API has a configured metrics source with recent samples. Keep the current
-  explicit empty states when history is unavailable; never render mock series.
+### 4. Repository browser
+
+- [ ] Repository list comes from `GET /api/v0/repositories`.
+- [ ] File tree uses `GET /api/v0/repositories/{id}/tree?path=&ref=`.
+- [ ] File content uses `GET /api/v0/repositories/{id}/content?path=&ref=`.
+- [ ] Branch selector uses `GET /api/v0/repositories/{id}/branches`.
+- [ ] Indexed-ref-only repos show a single-ref state instead of fabricated
+  branch names.
+- [ ] No fabricated file tree or file contents anywhere under
+  `apps/console/src/pages/RepoSourcePage.tsx`.
+
+### 5. Vulnerability / supply-chain surface
+
+- [ ] Vulnerability list comes from `GET /api/v0/supply-chain/impact/findings`.
+- [ ] CVE detail page (`VulnDetailPage.tsx`) calls
+  `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` for the full
+  advisory.
+- [ ] Affected-services section joins to graph entities (repo, service links).
+- [ ] Severity counts in the panel equal the count of listed finding rows —
+  no separate fabricated totals.
+
+### 6. Service spotlight / workspace
+
+- [ ] Blast-radius graph uses `POST /api/v0/impact/blast-radius`.
+- [ ] Callers/Importers graph uses `POST /api/v0/code/relationships` (reverse
+  edges).
+- [ ] Deployment-path lane items expand typed-edge evidence from
+  `services/{id}/story`.
+- [ ] Findings count equals the listed CVE rows from the same API source.
+- [ ] `ServiceSpotlightPanel.test.tsx` passes with current fixtures.
+
+### 7. Graph explorer / code graph
+
+- [ ] Entity search uses `POST /api/v0/entities/resolve`.
+- [ ] Neighborhood expansion uses `POST /api/v0/code/relationships` or
+  `POST /api/v0/impact/entity-map`.
+- [ ] Node click opens the spotlight drawer for service/workload nodes.
+- [ ] `CodeGraphPage.test.tsx` passes.
+
+### 8. Required live-stack proof (before shipping console changes)
+
+Console unit tests run against mocked adapters. Before marking a console
+feature or fix done, an operator must confirm the following against a real
+local Compose stack (see [#3326](https://github.com/eshu-hq/eshu/issues/3326)):
+
+```bash
+# Start the local stack
+docker compose up -d
+
+# Verify API health
+curl -s http://localhost:8080/api/v0/status/pipeline | jq .
+
+# Run the console in dev mode pointed at the local stack
+cd apps/console
+VITE_ESHU_API_BASE=http://localhost:8080/eshu-api/ npm run dev
+
+# After loading in a browser:
+# 1. Dashboard panel shows real repository and service counts.
+# 2. Metrics charts render data or an explicit empty state.
+# 3. At least one repository's file tree and content load without error.
+# 4. A CVE detail page renders without a 404 or fallback stub.
+```
+
+This gate is not automated yet. Issue [#3326](https://github.com/eshu-hq/eshu/issues/3326)
+tracks adding a browser-level E2E proof. Issue [#3328](https://github.com/eshu-hq/eshu/issues/3328)
+tracks wiring the console npm gates into CI.
 
 ---
 
-## Notes for whoever implements
+## Shipped: Console v2 backend endpoints
 
-- Envelope contract + client already exist: `src/api/client.ts`,
-  `src/api/envelope.ts`. Reuse `EshuApiClient.get/post`.
-- Truth mapping: API `truth.level` is `exact|derived|fallback`; UI shows
-  `fallback` as `inferred`. Freshness `building`→`lagging`, `unavailable`→`stale`.
-  Keep this in one helper (`uiTruth`/`uiFresh` in `src/console/types.ts`).
-- The adapter `src/api/eshuConsoleLive.ts` already maps index-status, catalog,
-  repositories, by-language, status/ingesters, code/dead-code, supply-chain
-  impact findings, ecosystem/overview — validated against the existing
-  `src/api/liveData.ts`. Extend it; don't duplicate.
-- Run `npm run console:typecheck` after each issue; the design environment can't
-  typecheck, so keep changes compiling.
+All endpoints that were listed as "ISSUE:" items in the original handoff are
+now shipped and registered in `go/internal/query/`. Do not re-create issues for
+these.
+
+| Endpoint | Handler / file | Shipped |
+|----------|---------------|---------|
+| `GET /api/v0/repositories/{id}/tree` | `repository.go` | yes |
+| `GET /api/v0/repositories/{id}/content` | `repository.go` | yes |
+| `GET /api/v0/repositories/{id}/branches` | `repository.go` | yes |
+| `GET /api/v0/metrics/timeseries` | `metrics.go` | yes |
+| `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` | `supply_chain_vulnerability_detail_handler.go` | yes |
+| `POST /api/v0/impact/blast-radius` | `impact.go` (`findBlastRadius`) | yes |
+
+OpenAPI docs: `go/internal/query/openapi_paths_repositories.go`,
+`go/internal/query/openapi_paths_repositories_branches.go`.
+
+---
+
+## Shipped: Console v2 frontend pages
+
+All major frontend pages from the original handoff are ported under
+`apps/console/src/pages/` and `apps/console/src/api/`:
+
+| Feature | Page / adapter file |
+|---------|---------------------|
+| Dashboard with live stats and timeseries | `DashboardPage.tsx` |
+| Repository browser + file tree/content/branches | `RepositoriesPage.tsx`, `RepoSourcePage.tsx`, `api/repoSource.ts` |
+| Vulnerability list | `VulnerabilitiesPage.tsx`, `VulnerabilitiesCatalog.tsx` |
+| CVE detail view | `VulnDetailPage.tsx`, `api/vulnerability.ts` |
+| Service spotlight (blast radius, callers, findings, deployment lanes) | `WorkspacePage.tsx`, `ServiceSpotlightPanel.tsx`, `api/serviceSpotlight.ts` |
+| Graph explorer / code relationships | `CodeGraphPage.tsx`, `api/eshuGraph.ts` |
+| Collector readiness | `CollectorReadinessPage.tsx` |
+| Evidence packet reader | see `api/investigationPacket.ts` |
+
+Truth-label helpers live in `apps/console/src/console/types.ts` (`uiTruth`,
+`uiFresh`). The live API adapter is `apps/console/src/api/liveData.ts`.
+
+---
+
+## Archive — original Console v2 handoff instructions
+
+The section below is preserved for historical context only. The agent prompt
+and issue-creation instructions are no longer actionable — the referenced
+issues are closed or the work is shipped.
+
+<details>
+<summary>Original Console v2 handoff (archived — do not act on)</summary>
+
+The original `docs/console-handoff.md` (before this refresh) contained:
+
+- A prompt for an agent to create GitHub issues in the `eshu-hq/eshu` repo
+  under the milestone "Console v2 (native)". Those issues were either created
+  and closed, or the work shipped directly without separate issues.
+- Specs for backend API endpoints (`file-tree`, `file-content`, `branches`,
+  `timeseries`, `vulnerability detail`, `blast-radius`) — all now shipped (see
+  table above).
+- Specs for frontend pages (`demo/mock removal`, `CVE detail`, `service
+  spotlight drill-downs`, `repository browser`, `repo code viewer`, `graph
+  explorer`, `dashboard real metrics`) — all now shipped (see table above).
+
+The milestone "Console v2 (native)" may or may not exist on GitHub; if it
+does, its open items have been superseded by the issues in the
+[Current open work](#current-open-work) section above.
+
+</details>
