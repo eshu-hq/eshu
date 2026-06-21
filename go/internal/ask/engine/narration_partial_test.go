@@ -131,3 +131,134 @@ func TestNarratePartialPacketAccepted(t *testing.T) {
 		t.Errorf("Prose = %q, want narrated text", ans.Prose)
 	}
 }
+
+// promptFollowingNarrationAdapter models a provider that LITERALLY follows the
+// narration system prompt. It emits a factual+citation sentence plus one
+// partial-signal sentence whose provenance kind is exactly the kind the prompt
+// instructs ("Add one sentence with ... provenance kind \"<kind>\""), with the
+// provenance id copied from partialID. This is the faithful repro for #3356 P1:
+// if the prompt instructs "limitation" provenance while partialID is an
+// unsupported-reason string, the validator rejects the narration, so the test
+// fails until the prompt instructs the matching provenance kind.
+type promptFollowingNarrationAdapter struct {
+	citationID string
+	partialID  string
+}
+
+// provenanceKindFromPrompt extracts the provenance kind the prompt instructs the
+// model to use for the partial-signal sentence, parsing `provenance kind "X"`.
+// It uses the LAST occurrence because the base prompt's first occurrence is the
+// "citation" rule; the partial-signal instruction is appended after it.
+func provenanceKindFromPrompt(prompt string) string {
+	const marker = `provenance kind "`
+	idx := strings.LastIndex(prompt, marker)
+	if idx < 0 {
+		return ""
+	}
+	rest := prompt[idx+len(marker):]
+	end := strings.IndexByte(rest, '"')
+	if end < 0 {
+		return ""
+	}
+	return rest[:end]
+}
+
+func (a *promptFollowingNarrationAdapter) Complete(_ context.Context, msgs []provider.Message, _ []provider.Tool) (provider.Completion, error) {
+	for _, m := range msgs {
+		if m.Role != provider.RoleSystem || !strings.Contains(m.Text, narrationSystemSentinel) {
+			continue
+		}
+		factual := `{"text":"The repository with the most files is repo-x.","kind":"factual","provenance":[{"kind":"citation","id":"` + a.citationID + `"}]}`
+		kind := provenanceKindFromPrompt(m.Text)
+		if kind == "" {
+			return provider.Completion{Text: `{"sentences":[` + factual + `]}`}, nil
+		}
+		partial := `{"text":"This answer is partial because the reasoning budget was reached.","kind":"limitation","provenance":[{"kind":"` + kind + `","id":"` + a.partialID + `"}]}`
+		return provider.Completion{Text: `{"sentences":[` + factual + `,` + partial + `]}`}, nil
+	}
+	return provider.Completion{Text: "final answer"}, nil
+}
+
+func (a *promptFollowingNarrationAdapter) ModelID() string {
+	return "prompt-following-narration-model"
+}
+
+// partialPacketWithUnsupportedReason builds a supported-but-partial AnswerPacket
+// whose only partial signal is an unsupported reason. This mirrors the #3356
+// DeepSeek repro: truncation and reaching the iteration budget are recorded as
+// unsupported reasons, not limitations.
+func partialPacketWithUnsupportedReason(citationRef, reason string) query.AnswerPacket {
+	return query.AnswerPacket{
+		TruthClass:         query.AnswerTruthDeterministic,
+		Supported:          true,
+		Partial:            true,
+		Summary:            "the deterministic partial summary",
+		CitationRef:        citationRef,
+		UnsupportedReasons: []string{reason},
+	}
+}
+
+// TestBuildNarrationSystemPromptUnsupportedReason proves that when the packet's
+// only partial signal is an unsupported reason, the prompt instructs
+// "unsupported_reason" provenance (not "limitation"). The validator matches an
+// unsupported-reason id only against packet.UnsupportedReasons, so a "limitation"
+// provenance instruction here is deterministically rejected (#3356, P1).
+func TestBuildNarrationSystemPromptUnsupportedReason(t *testing.T) {
+	t.Parallel()
+
+	prompt := buildNarrationSystemPrompt(
+		partialPacketWithUnsupportedReason("ref1", "reached max reasoning iterations"))
+	if !strings.Contains(prompt, `provenance kind "unsupported_reason"`) {
+		t.Errorf("unsupported-reason packet prompt must instruct `provenance kind \"unsupported_reason\"`; got:\n%s", prompt)
+	}
+}
+
+// TestNarrateUnsupportedReasonPacketAccepted is the end-to-end regression for
+// the #3356 P1: a partial packet whose only partial signal is an unsupported
+// reason, narrated by a model that emits an "unsupported_reason" provenance
+// sentence, MUST pass the validator and attach prose. Before the fix the prompt
+// told the model to use "limitation" provenance for the same string, which the
+// validator rejected with partial_signal_hidden.
+func TestNarrateUnsupportedReasonPacketAccepted(t *testing.T) {
+	t.Parallel()
+
+	const citationRef = "ref-unsupported-1"
+	const reason = "reached max reasoning iterations"
+
+	// The model literally follows the prompt's provenance-kind instruction and
+	// copies the unsupported reason as the provenance id. With the buggy prompt
+	// (provenance kind "limitation") the validator rejects it; only the fixed
+	// prompt (provenance kind "unsupported_reason") yields accepted narration.
+	adapter := &promptFollowingNarrationAdapter{
+		citationID: citationRef,
+		partialID:  reason,
+	}
+	runner := &recordingRunner{env: supportedEnvelope()}
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	posture := status.AnswerNarrationStatus{State: status.AnswerNarrationAvailable}
+	pkt := partialPacketWithUnsupportedReason(citationRef, reason)
+	ans := Answer{
+		Question: "Which indexed repository has the most files?",
+		Prose:    "deterministic fallback",
+		Partial:  true,
+		Packets:  []query.AnswerPacket{pkt},
+	}
+	eng.narrate(context.Background(), &ans, posture)
+
+	if !ans.Narrated {
+		t.Fatalf("Narrated = false, want true for evidence-backed unsupported-reason narration; Limitations = %v", ans.Limitations)
+	}
+	for _, lim := range ans.Limitations {
+		if strings.Contains(lim, "narration rejected by validator") {
+			t.Fatalf("unexpected validator rejection for valid unsupported-reason narration; Limitations = %v", ans.Limitations)
+		}
+	}
+	if !strings.Contains(ans.Prose, "repo-x") {
+		t.Errorf("Prose = %q, want narrated text", ans.Prose)
+	}
+}

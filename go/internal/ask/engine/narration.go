@@ -40,34 +40,69 @@ Rules:
 - Do NOT output any text outside the JSON object.
 - Do NOT include markdown fences or explanation.`
 
-// narrationPartialSignalInstructions is appended to the base narration prompt
-// when the source packet carries a partial signal. It tells the model exactly
-// how to satisfy the validator's partial-signal rule: emit one extra sentence
-// whose provenance points at a real packet limitation. The model must copy a
-// limitation string verbatim, because the validator matches the provenance id
-// against the packet's Limitations / UnsupportedReasons text.
-const narrationPartialSignalInstructions = `
+// Partial-signal instructions appended to the base narration prompt when the
+// source packet carries a partial signal. There is one variant per partial
+// source because the narration validator binds each provenance kind to a
+// specific packet field: a "limitation" provenance id is matched only against
+// packet.Limitations, an "unsupported_reason" id only against
+// packet.UnsupportedReasons, and "freshness" is accepted for a partial/truncated
+// packet without a copyable string. Instructing the model to surface an
+// unsupported reason with "limitation" provenance (or vice versa) is therefore
+// deterministically rejected, which was the #3356 P1 defect. buildNarration-
+// SystemPrompt picks the variant matching the packet's actual partial source so
+// a literal-following model produces narration the validator accepts.
+const (
+	partialSignalLimitationInstructions = `
 
 This packet is PARTIAL or TRUNCATED. You MUST also include exactly one sentence
 that surfaces this so the answer does not look complete:
 - Add one sentence with kind "limitation" and provenance kind "limitation".
-- Set that provenance id to one of the packet "limitations" or
-  "unsupported_reasons" strings, copied verbatim.
-- If the packet has no limitations or unsupported_reasons strings, use kind
-  "freshness" with provenance kind "freshness" and an empty id instead.
+- Set that provenance id to one of the packet "limitations" strings, copied verbatim.
 - Do NOT claim the answer is complete.`
+
+	partialSignalUnsupportedInstructions = `
+
+This packet is PARTIAL or TRUNCATED. You MUST also include exactly one sentence
+that surfaces this so the answer does not look complete:
+- Add one sentence with kind "limitation" and provenance kind "unsupported_reason".
+- Set that provenance id to one of the packet "unsupported_reasons" strings, copied verbatim.
+- Do NOT claim the answer is complete.`
+
+	partialSignalFreshnessInstructions = `
+
+This packet is PARTIAL or TRUNCATED. You MUST also include exactly one sentence
+that surfaces this so the answer does not look complete:
+- Add one sentence with kind "limitation", provenance kind "freshness", and an empty id.
+- Do NOT claim the answer is complete.`
+)
 
 // buildNarrationSystemPrompt returns the narration system prompt for the given
 // packet. For a fully-supported, complete packet it returns the base prompt.
-// When the packet carries a partial signal (Partial, Truncated, or any
-// limitation / missing-evidence / unsupported-reason entries) it appends the
-// partial-signal instructions so the model can produce narration the validator
-// will accept.
+// When the packet carries a partial signal it appends the partial-signal
+// instructions whose provenance kind the validator will accept for that packet's
+// signal source, so the model can produce narration the validator accepts.
 func buildNarrationSystemPrompt(packet query.AnswerPacket) string {
-	if packetHasPartialSignal(packet) {
-		return narrationSystemPrompt + narrationPartialSignalInstructions
+	if !packetHasPartialSignal(packet) {
+		return narrationSystemPrompt
 	}
-	return narrationSystemPrompt
+	return narrationSystemPrompt + partialSignalInstructions(packet)
+}
+
+// partialSignalInstructions selects the partial-signal instruction variant whose
+// provenance kind the narration validator will accept for this packet. Packet
+// limitations take precedence (provenance kind "limitation"), then unsupported
+// reasons (provenance kind "unsupported_reason"); a partial/truncated or
+// missing-evidence-only packet with no copyable string falls back to freshness
+// provenance, which the validator accepts for any partial packet.
+func partialSignalInstructions(packet query.AnswerPacket) string {
+	switch {
+	case len(packet.Limitations) > 0:
+		return partialSignalLimitationInstructions
+	case len(packet.UnsupportedReasons) > 0:
+		return partialSignalUnsupportedInstructions
+	default:
+		return partialSignalFreshnessInstructions
+	}
 }
 
 // packetHasPartialSignal reports whether the packet carries any signal that the
