@@ -514,6 +514,63 @@ completion logs, graph query duration metrics, retry classification, and timeout
 handling. It adds no worker, queue domain, runtime knob, metric instrument,
 metric label, or backend-specific telemetry.
 
+### Uncorrelated CloudResource Candidate Scan
+
+Issue #3378: `GET /api/v0/services/{service_name}/story` hung past the 60s curl
+budget at 900-repo scale (481,728 graph nodes). The service-story dossier and
+service context share `enrichServiceQueryContextWithOptions`, which calls
+`loadUncorrelatedCloudResourceCandidates` whenever a service has no materialized
+`cloud_resources` (the common case at scale). The prior Cypher anchored on an
+unlabeled node and filtered the label in `WHERE`:
+
+```cypher
+MATCH (n)
+WHERE (n:CloudResource)
+  AND (coalesce(n.name,'') CONTAINS $query OR ... 11 more predicates ...)
+ORDER BY n.name
+LIMIT $limit
+```
+
+On NornicDB an unlabeled `MATCH (n)` does not push the label down to a label
+scan, so the planner scanned all 481,728 nodes, evaluated a 12-way
+`CONTAINS`/`=` predicate per node, and sorted the full matched set by name
+before `LIMIT` applied. That whole-graph scan is the dossier hang.
+
+The fix anchors the label in the MATCH pattern so the scan is bounded to the
+CloudResource label population, which is the repo-standard shape the static
+query-plan gate (`go/internal/queryplan/testdata/hot-cypher.yaml`) enforces by
+rejecting unlabeled anchors:
+
+```cypher
+MATCH (n:CloudResource)
+WHERE (coalesce(n.name,'') CONTAINS $query OR ... )
+ORDER BY n.name
+LIMIT $limit
+```
+
+The result set is byte-identical (same predicates, same projection, same
+ordering, same bound); only the anchor changed, so candidate truth is preserved.
+The query now over-fetches one row beyond the service-story item limit (50) so
+the handler can set `uncorrelated_cloud_resources_truncated` when the backend
+held more matches than the bound, instead of silently capping.
+
+No-Regression Evidence: this is a correctness-of-shape fix that strictly removes
+the all-node scan; no live PROFILE was available because no local NornicDB-New
+checkout is present (stated per cypher-query-rigor). The shared shape is proven
+by `go test ./internal/query -run
+'CloudResource|ServiceStory|Story|EnrichServiceQueryContext|TraceDeployment'
+-count=1` (216 tests) plus the full `go test ./internal/query -count=1` (3094
+tests) and `scripts/verify-query-plan-regression.sh`. Input cardinality at the
+anchor drops from all graph nodes (481,728) to the CloudResource label
+population; output is bounded by the service-story item limit (50) plus the
+single over-fetch row.
+
+Observability Evidence: the `uncorrelated_cloud_resource_candidates` stage timer
+in `enrichServiceQueryContextWithOptions` keeps its `row_count` field and now
+also emits a `truncated` boolean, so an operator can see whether the bound was
+hit. The query keeps the existing `GraphQuery.Run` adapter, `neo4j.query` spans,
+and query-duration metrics; no new worker, queue, or runtime knob is introduced.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

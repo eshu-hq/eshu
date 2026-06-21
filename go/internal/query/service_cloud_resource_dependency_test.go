@@ -23,7 +23,7 @@ func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t
 				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
 				}
-				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
+				if strings.Contains(cypher, "MATCH (n:CloudResource)") {
 					return []map[string]any{
 						{
 							"id":                    "cloud-resource:orders-listener",
@@ -174,7 +174,7 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
 				}
-				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
+				if strings.Contains(cypher, "MATCH (n:CloudResource)") {
 					return []map[string]any{
 						{
 							"id":                    "cloud-resource:shared-listener",
@@ -238,7 +238,7 @@ func TestEnrichServiceQueryContextKeepsStaleAWSCloudResourceAnchorAsCandidate(t 
 				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
 				}
-				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
+				if strings.Contains(cypher, "MATCH (n:CloudResource)") {
 					return []map[string]any{
 						{
 							"id":                    "cloud-resource:old-queue",
@@ -313,7 +313,7 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 					}
 					return nil, nil
 				}
-				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
+				if strings.Contains(cypher, "MATCH (n:CloudResource)") {
 					return nil, nil
 				}
 				return nil, nil
@@ -427,7 +427,7 @@ func isUncorrelatedCloudResourceCandidateCall(call serviceCloudResourceGraphCall
 	return !hasWorkloadID &&
 		call.params["query"] == "orders-api" &&
 		call.params["resource_type_query"] == "orders-api" &&
-		call.params["limit"] == serviceStoryItemLimit
+		call.params["limit"] == serviceStoryItemLimit+1
 }
 
 func emptyServiceQueryContentResults() []contentReaderQueryResult {
