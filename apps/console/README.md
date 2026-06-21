@@ -65,7 +65,9 @@ stack or an internal deployment.
 
 The local development default is `/eshu-api/`, which the console Vite server
 proxies to `http://127.0.0.1:8080`. Start a local Eshu API before opening the
-console if you want real data.
+console if you want real data. The proxy target is overridable with the
+`ESHU_DEV_PROXY_TARGET` environment variable (for example, to point at a stack
+bound to a non-default host port without editing `vite.config.ts`).
 
 Until Eshu has real auth and authorization, real-data console deployments should
 stay local or inside a trusted private network. The console is read-only, but
@@ -96,6 +98,81 @@ npm run --prefix apps/console dev
 
 The root helper scripts run against the console Vite config while sharing the
 repository lockfile and dependency install.
+
+## Live E2E Gate
+
+`npm run console:e2e` is a browser-level gate that drives the PRIVATE/LIVE
+console against the real local Docker Compose stack and proves every major route
+renders real data or an explicit empty/unavailable state with **no demo
+fallback, no unhandled browser console errors, and no unexpected failed network
+requests**. It is the integration counterpart to the unit tests: the pass/fail
+decision logic is the unit-tested pure module `src/e2e/routeAssertions.ts`, and
+the Playwright runner `e2e/runConsoleLiveE2E.ts` only captures browser signals
+and feeds them to that evaluator.
+
+The TypeScript runner is loaded through Vite's SSR transformer by the
+`scripts/console-live-e2e-runtime.mjs` bootstrap, so the gate runs on the repo's
+supported Node range without relying on native Node TypeScript stripping
+(default only on Node >= 23.6) or an extra dependency such as `tsx`. The runner
+itself is type-checked Docker-free as part of `npm run console:typecheck` (which
+chains `console:e2e:typecheck`).
+
+The gate seeds `localStorage` with `{ mode: "private", apiBaseUrl: "/eshu-api/" }`
+before the app boots, starts the console Vite dev server (which owns the
+`/eshu-api` proxy) with `VITE_ESHU_API_KEY` so the console authenticates, walks
+the routes enumerated from the router, and writes durable proof to the
+gitignored `e2e-artifacts/` directory (per-route screenshots, a Playwright
+trace, and a JSON report). It never falls back to mocks: a refused proxy, a
+demo banner, a console error, or any unexpected non-2xx fails the run loudly.
+
+### Exact local command sequence
+
+```bash
+# 1. From the repo root, bring up (or reuse) the local stack. The gitignored
+#    env file pins a local API key and shifts host ports so the gate can coexist
+#    with another stack on the default ports. Create it once (see the example in
+#    e2e-artifacts/.env.console-e2e committed to your local machine only):
+#      ESHU_API_KEY=<local-only-key>
+#      ESHU_HTTP_PORT=9080
+#      ESHU_MCP_PORT=9081
+#      ESHU_POSTGRES_PORT=15433
+#      NEO4J_HTTP_PORT=7475
+#      NEO4J_BOLT_PORT=7688
+#      ESHU_API_METRICS_PORT=19474   # plus the other *_METRICS_PORT shifts
+#      ESHU_FILESYSTEM_HOST_ROOT=./tests/fixtures/ecosystems
+docker compose -p eshu-3326-e2e --env-file e2e-artifacts/.env.console-e2e \
+  -f docker-compose.yaml up --build -d
+
+# 2. Wait for the stack to be ready (poll health/readiness; do not sleep blindly).
+#    The npm script also probes /healthz and /readyz before launching the browser.
+for ep in /healthz /readyz; do
+  until [ "$(curl -sS -m3 -o /dev/null -w '%{http_code}' http://127.0.0.1:9080$ep)" = "200" ]; do
+    sleep 2
+  done
+done
+
+# 3. Install deps and the browser, then run the standard gates plus the live gate.
+npm ci
+npx playwright install chromium
+npm run console:typecheck
+npm run console:test          # includes the route-assertion evaluator unit tests
+npm run console:build
+npm run console:e2e           # the live browser gate; exits non-zero on any failure
+
+# 4. Tear the stack down when finished.
+docker compose -p eshu-3326-e2e --env-file e2e-artifacts/.env.console-e2e \
+  -f docker-compose.yaml down -v
+```
+
+If your stack runs on the default ports (`8080`/`8081`) with a known API key,
+omit the port overrides and set `ESHU_E2E_API_KEY` (or `ESHU_API_KEY`) and
+`ESHU_E2E_API_BASE` for the gate instead. The gate does not manage Docker; the
+stack lifecycle stays explicit so a long-lived stack can be reused across runs.
+
+The runner reads `ESHU_E2E_API_KEY`/`ESHU_API_KEY` and `ESHU_E2E_API_BASE` from
+the environment (the wrapper sources `e2e-artifacts/.env.console-e2e`); the key
+is never hard-coded. Artifacts in `e2e-artifacts/` are local proof only and are
+gitignored — never commit screenshots, traces, or the local key.
 
 ## API Contract
 
