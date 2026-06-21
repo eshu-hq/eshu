@@ -175,10 +175,18 @@ func (e *Engine) dispatchCall(
 		// FINDING 1: prefer an embedded answer_packet carried by the route handler.
 		pkt, ok := extractEmbeddedPacket(res.Envelope)
 		if !ok {
+			// FINDING 5 (issue #3437): pass a bounded JSON summary of the
+			// envelope Data so the model receives actual content in the
+			// tool-result message and bestPacketSummary can return prose at
+			// max-iterations. Without this, dispatchCall produced packets with
+			// Summary=="" causing "no supported evidence assembled" and the
+			// model kept calling tools until MaxIterations because the
+			// tool-result message carried no data for it to reason about.
 			pkt = query.NewAnswerPacket(query.AnswerPacketInput{
 				Question:    question,
 				PrimaryTool: call.Name,
 				Envelope:    res.Envelope,
+				Summary:     envelopeDataSummary(res.Envelope),
 			})
 		}
 		// FINDING 4: propagate partial state upward to the aggregate answer.
@@ -300,6 +308,30 @@ func bestPacketSummary(packets []query.AnswerPacket) string {
 		}
 	}
 	return ""
+}
+
+// envelopeDataSummary returns a bounded JSON string of the envelope Data for
+// use as an AnswerPacket Summary. It gives the model actual content to reason
+// about in the tool-result message and lets bestPacketSummary return prose
+// when MaxIterations is reached without a final text turn.
+//
+// The summary is capped at maxToolResultBytes so it never inflates the
+// conversation thread beyond the same bound used for the full tool-result
+// message. An empty string is returned when Data is nil or cannot be
+// marshalled — callers treat an empty Summary as "no summary available" which
+// is the safe fallback.
+func envelopeDataSummary(env *query.ResponseEnvelope) string {
+	if env == nil || env.Data == nil {
+		return ""
+	}
+	b, err := json.Marshal(env.Data)
+	if err != nil {
+		return ""
+	}
+	if len(b) > maxToolResultBytes {
+		b = b[:maxToolResultBytes]
+	}
+	return string(b)
 }
 
 // appendLimitation appends s to limitations when s is not already present.

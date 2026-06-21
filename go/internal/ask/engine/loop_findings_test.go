@@ -300,6 +300,106 @@ func TestAskPartialPacketPropagatesToAnswer(t *testing.T) {
 	}
 }
 
+// TestAskEnvelopeDataFedToModel (FINDING 5 / issue #3437): when the runner
+// returns a canonical ResponseEnvelope whose Data field carries a non-empty
+// payload (e.g. a repository list), the engine must feed that data to the LLM
+// in the tool-result message AND set a non-empty Summary on the assembled
+// AnswerPacket so bestPacketSummary returns usable prose at max-iterations.
+//
+// Before the fix, dispatchCall called NewAnswerPacket with no Summary and
+// marshalToolResult sent only the packet skeleton (no Data). The model saw
+// {"summary":"","truth_class":"deterministic","supported":true} — no content —
+// and kept calling tools until MaxIterations. bestPacketSummary then returned ""
+// producing "no supported evidence assembled".
+func TestAskEnvelopeDataFedToModel(t *testing.T) {
+	t.Parallel()
+
+	// Simulate list_indexed_repositories: envelope with real Data and no
+	// embedded answer_packet (the plain repository list handler path).
+	repoData := map[string]any{
+		"repositories": []map[string]any{
+			{"id": "repo-1", "name": "acme-api"},
+			{"id": "repo-2", "name": "acme-web"},
+		},
+		"total": 2,
+	}
+	env := &query.ResponseEnvelope{
+		Data: repoData,
+		Truth: &query.TruthEnvelope{
+			Level: query.TruthLevelExact,
+			Basis: query.TruthBasisAuthoritativeGraph,
+		},
+	}
+
+	turn1 := provider.Completion{
+		ToolCalls: []provider.ToolCall{
+			{ID: "d1", Name: "list_indexed_repositories", Arguments: map[string]any{"limit": 10}},
+		},
+		Usage: provider.TokenUsage{InputTokens: 5, OutputTokens: 3},
+	}
+	turn2 := provider.Completion{
+		Text:  "There are 2 repositories indexed: acme-api and acme-web.",
+		Usage: provider.TokenUsage{InputTokens: 10, OutputTokens: 8},
+	}
+
+	adapter := &scriptedAdapter{turns: []provider.Completion{turn1, turn2}, errOnIdx: -1}
+	runner := &recordingRunner{env: env}
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ans, err := eng.Ask(context.Background(), "How many repositories are indexed?")
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+
+	// Loop must terminate after turn2 (final text turn), not burn all iterations.
+	if adapter.calls != 2 {
+		t.Errorf("adapter.calls = %d, want 2 (loop must terminate once model has data)", adapter.calls)
+	}
+
+	// The tool-result message fed to the adapter's second call must contain the
+	// actual repository data so the model can synthesize an answer.
+	if adapter.calls >= 2 {
+		msgs := adapter.received[1]
+		var toolResultText string
+		for _, m := range msgs {
+			if m.Role == provider.RoleTool && m.ToolCallID == "d1" {
+				toolResultText = m.Text
+			}
+		}
+		if !strings.Contains(toolResultText, "acme-api") {
+			t.Errorf("tool-result message %q missing envelope data (acme-api); model cannot answer without it", toolResultText)
+		}
+	}
+
+	// The assembled packet must have a non-empty Summary so bestPacketSummary
+	// can produce prose when the loop hits max iterations.
+	if len(ans.Packets) != 1 {
+		t.Fatalf("len(Packets) = %d, want 1", len(ans.Packets))
+	}
+	if ans.Packets[0].Summary == "" {
+		t.Error("Packets[0].Summary is empty; bestPacketSummary will return '' causing 'no supported evidence assembled'")
+	}
+	if !ans.Packets[0].Supported {
+		t.Error("Packets[0].Supported = false, want true")
+	}
+
+	// Final prose must come from the model's turn2 text.
+	if ans.Prose != turn2.Text {
+		t.Errorf("Prose = %q, want %q", ans.Prose, turn2.Text)
+	}
+
+	// Must not carry the "no supported evidence assembled" limitation.
+	for _, lim := range ans.Limitations {
+		if lim == "no supported evidence assembled" {
+			t.Errorf("Limitations contains %q — evidence was assembled but not surfaced", lim)
+		}
+	}
+}
+
 // TestAskPartialViaNonEmbeddedPacket (FINDING 4): when NewAnswerPacket produces
 // a partial packet (e.g. stale freshness in the truth envelope), ans.Partial
 // must also be set to true even without an embedded answer_packet key.
