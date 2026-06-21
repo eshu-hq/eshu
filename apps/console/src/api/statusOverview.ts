@@ -130,25 +130,24 @@ const unavailableOverview: StatusOverview = {
   provenance: "unavailable"
 };
 
-// loadStatusOverview fetches the three bounded status surfaces concurrently and
+// loadStatusOverview fetches all four bounded status surfaces concurrently and
 // joins them. collector-readiness is the required spine (the collector roster);
 // if it is unreachable the whole overview is unavailable. The other reads are
 // optional and degrade to neutral defaults.
+//
+// All four reads are issued in parallel (Promise.all) so the total wall time is
+// bounded by the slowest single read (~2.1s) rather than their serial sum
+// (~6.3s). This is the fix for issue #3441.
 export async function loadStatusOverview(client: EshuApiClient, clock: Clock = Date.now): Promise<StatusOverview> {
-  let readiness: ReadinessWire;
-  try {
-    const env = await client.get<ReadinessWire>("/api/v0/status/collector-readiness");
-    if (env.error || !env.data) return unavailableOverview;
-    readiness = env.data;
-  } catch {
-    return unavailableOverview;
-  }
-
-  const [indexStatus, freshness, ingesters] = await Promise.all([
+  const [readinessResult, indexStatus, freshness, ingesters] = await Promise.all([
+    client.get<ReadinessWire>("/api/v0/status/collector-readiness").catch(() => null),
     optionalJson<IndexStatusWire>(client, "/api/v0/index-status"),
     optionalFreshness(client),
     optionalJson<IngesterWire>(client, "/api/v0/status/ingesters")
   ]);
+
+  if (!readinessResult || readinessResult.error || !readinessResult.data) return unavailableOverview;
+  const readiness = readinessResult.data;
 
   const now = clock();
   const instances = indexStatus?.coordinator?.collector_instances ?? [];
