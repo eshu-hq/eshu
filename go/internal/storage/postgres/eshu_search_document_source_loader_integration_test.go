@@ -55,36 +55,50 @@ func TestEshuSearchDocumentProjectionRoundTripLive(t *testing.T) {
 			EshuSearchDocumentFactKind, scopeID, generationID)
 	})
 
+	// Stream the scope's content through the bounded paginated loader, projecting
+	// and writing each page incrementally, then finalize the authoritative retire
+	// once — the production #3440 streaming path.
 	loader := NewEshuSearchDocumentSourceLoader(db)
-	input, err := loader.LoadSearchDocumentSources(ctx, scopeID, generationID)
-	if err != nil {
-		t.Fatalf("load sources: %v", err)
-	}
-	t.Logf("loaded entities=%d files=%d", len(input.ContentEntities), len(input.ContentFiles))
-	if len(input.ContentEntities)+len(input.ContentFiles) == 0 {
-		t.Fatal("loader returned no content for a scope selected to have content")
-	}
-
-	projection := reducer.ProjectSearchDocuments(input)
-	t.Logf("curated documents=%d (considered=%d)", projection.Summary.Included, projection.Summary.Considered)
-	if projection.Summary.Included == 0 {
-		t.Fatal("projection produced no documents")
-	}
-
 	writer := reducer.PostgresEshuSearchDocumentWriter{DB: db}
-	writeResult, err := writer.WriteEshuSearchDocuments(ctx, reducer.EshuSearchDocumentWrite{
+	session, err := writer.BeginEshuSearchDocumentWrite(ctx, reducer.EshuSearchDocumentWriteBegin{
 		IntentID:     "searchdoc-proof",
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		SourceSystem: "github",
-		Documents:    projection.Documents,
 	})
 	if err != nil {
-		t.Fatalf("write documents: %v", err)
+		t.Fatalf("begin write: %v", err)
+	}
+
+	var consideredTotal, includedTotal, loadedEntities, loadedFiles int
+	streamErr := loader.StreamSearchDocumentSources(ctx, scopeID, generationID,
+		func(input reducer.SearchDocumentProjectionInput) error {
+			loadedEntities += len(input.ContentEntities)
+			loadedFiles += len(input.ContentFiles)
+			projection := reducer.ProjectSearchDocuments(input)
+			consideredTotal += projection.Summary.Considered
+			includedTotal += projection.Summary.Included
+			return session.InsertPage(ctx, projection.Documents)
+		})
+	if streamErr != nil {
+		t.Fatalf("stream sources: %v", streamErr)
+	}
+	t.Logf("loaded entities=%d files=%d", loadedEntities, loadedFiles)
+	if loadedEntities+loadedFiles == 0 {
+		t.Fatal("loader returned no content for a scope selected to have content")
+	}
+	t.Logf("curated documents=%d (considered=%d)", includedTotal, consideredTotal)
+	if includedTotal == 0 {
+		t.Fatal("projection produced no documents")
+	}
+
+	writeResult, err := session.Finalize(ctx)
+	if err != nil {
+		t.Fatalf("finalize documents: %v", err)
 	}
 	t.Logf("wrote=%d retired=%d", writeResult.CanonicalWrites, writeResult.Retired)
-	if writeResult.CanonicalWrites != projection.Summary.Included {
-		t.Fatalf("wrote %d, want %d", writeResult.CanonicalWrites, projection.Summary.Included)
+	if writeResult.CanonicalWrites != includedTotal {
+		t.Fatalf("wrote %d, want %d", writeResult.CanonicalWrites, includedTotal)
 	}
 
 	store := NewEshuSearchDocumentStore(db)

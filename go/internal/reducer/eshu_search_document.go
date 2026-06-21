@@ -10,19 +10,26 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// SearchDocumentSourceLoader loads the bounded source rows projected into curated
+// SearchDocumentSourceLoader streams the source rows projected into curated
 // search documents for one scope and generation. The concrete Postgres loader
-// that iterates content_entities, content_files, and runtime read models for the
-// accepted generation is wired with this domain after the design-430 benchmark
-// gate selects the search-lane backing.
+// keyset-paginates content_entities and content_files for the scope's repository
+// and invokes page once per bounded page so peak memory stays bounded regardless
+// of repository size (issue #3440). The loader stops and returns early if page
+// returns an error.
 type SearchDocumentSourceLoader interface {
-	LoadSearchDocumentSources(ctx context.Context, scopeID string, generationID string) (SearchDocumentProjectionInput, error)
+	StreamSearchDocumentSources(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+		page func(SearchDocumentProjectionInput) error,
+	) error
 }
 
-// SearchDocumentWriter persists a complete curated document set for one scope and
-// generation, retiring stale documents.
+// SearchDocumentWriter opens a bounded streaming write for one scope and
+// generation. Callers insert curated documents page by page and Finalize once;
+// the writer retires stale documents authoritatively over the union keep-set.
 type SearchDocumentWriter interface {
-	WriteEshuSearchDocuments(ctx context.Context, write EshuSearchDocumentWrite) (EshuSearchDocumentWriteResult, error)
+	BeginEshuSearchDocumentWrite(ctx context.Context, begin EshuSearchDocumentWriteBegin) (SearchDocumentWriteSession, error)
 }
 
 // EshuSearchDocumentHandler projects curated search documents for one intent.
@@ -46,30 +53,46 @@ func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent Intent) (R
 	}
 
 	started := time.Now()
-	input, err := h.Loader.LoadSearchDocumentSources(ctx, intent.ScopeID, intent.GenerationID)
-	if err != nil {
-		return Result{}, fmt.Errorf("load eshu search document sources: %w", err)
-	}
-
-	projection := ProjectSearchDocuments(input)
-	writeResult, err := h.Writer.WriteEshuSearchDocuments(ctx, EshuSearchDocumentWrite{
+	session, err := h.Writer.BeginEshuSearchDocumentWrite(ctx, EshuSearchDocumentWriteBegin{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
 		GenerationID: intent.GenerationID,
 		SourceSystem: intent.SourceSystem,
-		Documents:    projection.Documents,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write eshu search documents: %w", err)
+		return Result{}, fmt.Errorf("begin eshu search document write: %w", err)
 	}
 
-	h.recordCycle(ctx, intent, projection.Summary, writeResult, started)
+	// Stream source pages: project and insert each bounded page independently,
+	// accumulating only the low-cardinality curation summary. Peak memory stays
+	// bounded to one page of content; the authoritative retire runs once at
+	// Finalize over the union keep-set (issue #3440).
+	summary := newSearchDocumentCurationSummary()
+	streamErr := h.Loader.StreamSearchDocumentSources(ctx, intent.ScopeID, intent.GenerationID,
+		func(input SearchDocumentProjectionInput) error {
+			projection := ProjectSearchDocuments(input)
+			summary.merge(projection.Summary)
+			if err := session.InsertPage(ctx, projection.Documents); err != nil {
+				return fmt.Errorf("write eshu search documents: %w", err)
+			}
+			return nil
+		})
+	if streamErr != nil {
+		return Result{}, fmt.Errorf("load eshu search document sources: %w", streamErr)
+	}
+
+	writeResult, err := session.Finalize(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("finalize eshu search documents: %w", err)
+	}
+
+	h.recordCycle(ctx, intent, summary, writeResult, started)
 
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          intent.Domain,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: eshuSearchDocumentEvidenceSummary(projection.Summary, writeResult),
+		EvidenceSummary: eshuSearchDocumentEvidenceSummary(summary, writeResult),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		CompletedAt:     time.Now(),
 	}, nil
