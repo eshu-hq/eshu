@@ -67,6 +67,10 @@ func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent Intent) (R
 	// accumulating only the low-cardinality curation summary. Peak memory stays
 	// bounded to one page of content; the authoritative retire runs once at
 	// Finalize over the union keep-set (issue #3440).
+	//
+	// If the stream errors after one or more pages have been inserted, Cancel
+	// removes the partial writes so the scope is not left in a half-written
+	// queryable state (issue #3450 review P1).
 	summary := newSearchDocumentCurationSummary()
 	streamErr := h.Loader.StreamSearchDocumentSources(ctx, intent.ScopeID, intent.GenerationID,
 		func(input SearchDocumentProjectionInput) error {
@@ -78,6 +82,12 @@ func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent Intent) (R
 			return nil
 		})
 	if streamErr != nil {
+		// Best-effort cancel: clean up any partially-inserted pages so the scope
+		// is not queryable in a half-written state. The cancel error is logged
+		// but does not replace the original stream error.
+		if cancelErr := session.Cancel(ctx); cancelErr != nil {
+			h.logCancelError(ctx, intent, cancelErr)
+		}
 		return Result{}, fmt.Errorf("load eshu search document sources: %w", streamErr)
 	}
 
@@ -144,4 +154,21 @@ func (h EshuSearchDocumentHandler) recordCycle(
 		logAttrs = append(logAttrs, slog.Int("included_"+string(kind), count))
 	}
 	h.Logger.InfoContext(ctx, "eshu search document projection cycle completed", logAttrs...)
+}
+
+// logCancelError emits a structured warning when Cancel fails after a stream
+// error. The original stream error is still returned to the caller; this log
+// lets an operator know that partial search documents may remain for the scope
+// and that the work item will be retried.
+func (h EshuSearchDocumentHandler) logCancelError(ctx context.Context, intent Intent, cancelErr error) {
+	if h.Logger == nil {
+		return
+	}
+	h.Logger.WarnContext(ctx, "eshu search document session cancel failed after stream error",
+		slog.String("scope_id", intent.ScopeID),
+		slog.String("generation_id", intent.GenerationID),
+		slog.String("domain", string(DomainEshuSearchDocument)),
+		slog.String("cancel_error", cancelErr.Error()),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+	)
 }

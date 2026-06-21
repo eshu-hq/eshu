@@ -172,6 +172,101 @@ func TestWriteEshuSearchDocumentsEqualsStreamingOnePage(t *testing.T) {
 	}
 }
 
+// TestStreamingSearchDocumentWriteCancelCleansUpPartialPages proves that
+// Cancel after one or more InsertPage calls removes every fact and index row
+// written for the generation so a mid-stream error does not leave partial
+// search documents queryable. This is the #3450 review regression: Handle
+// previously returned a stream error without cleaning up already-inserted pages.
+func TestStreamingSearchDocumentWriteCancelCleansUpPartialPages(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{retireAffected: 2}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+
+	session, err := writer.BeginEshuSearchDocumentWrite(context.Background(), EshuSearchDocumentWriteBegin{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+	})
+	if err != nil {
+		t.Fatalf("BeginEshuSearchDocumentWrite error = %v", err)
+	}
+
+	// Insert one page so partial state exists in the DB.
+	if err := session.InsertPage(context.Background(), []searchdocs.Document{
+		sampleSearchDoc("searchdoc:content_entity:e-1"),
+	}); err != nil {
+		t.Fatalf("InsertPage error = %v", err)
+	}
+
+	// Stream error mid-way: caller must Cancel (not Finalize).
+	if err := session.Cancel(context.Background()); err != nil {
+		t.Fatalf("Cancel error = %v", err)
+	}
+
+	// Cancel must issue the retire-by-absence statements with an empty keep-set,
+	// deleting every row written for this generation.
+	var factDeletes, indexDocDeletes, indexTermDeletes int
+	for _, exec := range db.execs {
+		switch {
+		case strings.Contains(exec.query, "DELETE FROM fact_records"):
+			factDeletes++
+			ids, ok := exec.args[3].([]string)
+			if !ok || len(ids) != 0 {
+				t.Fatalf("Cancel fact delete keep-set = %v, want empty []string", exec.args[3])
+			}
+		case strings.Contains(exec.query, "DELETE FROM eshu_search_index_documents"):
+			indexDocDeletes++
+		case strings.Contains(exec.query, "DELETE FROM eshu_search_index_terms") &&
+			strings.Contains(exec.query, "<> ALL"):
+			indexTermDeletes++
+		}
+	}
+	if factDeletes != 1 {
+		t.Fatalf("fact deletes after Cancel = %d, want 1", factDeletes)
+	}
+	if indexDocDeletes != 1 {
+		t.Fatalf("index-doc deletes after Cancel = %d, want 1", indexDocDeletes)
+	}
+	if indexTermDeletes != 1 {
+		t.Fatalf("index-term deletes after Cancel = %d, want 1", indexTermDeletes)
+	}
+}
+
+// TestHandlerCancelsSessionOnStreamError proves the handler calls Cancel on the
+// write session when StreamSearchDocumentSources returns an error mid-stream
+// (after at least one InsertPage has been issued), so no partial documents
+// remain queryable for the scope.
+func TestHandlerCancelsSessionOnStreamError(t *testing.T) {
+	t.Parallel()
+
+	// The loader delivers one page successfully then returns an error.
+	loader := &fakePagedSearchDocLoader{
+		pages: []SearchDocumentProjectionInput{{
+			ContentEntities: []searchdocs.ContentEntity{
+				{EntityID: "e-1", RepoID: "repo-1", EntityType: "Function", EntityName: "A", SourceCache: "func A(){}"},
+			},
+		}},
+		// Returning an error after delivering all pages simulates a later-page
+		// DB timeout; use errAfterPages to inject it at the callback level.
+	}
+	loader.errAfterPages = 1 // fail after delivering the first page
+
+	writer := &capturingSearchDocWriter{}
+	handler := EshuSearchDocumentHandler{Loader: loader, Writer: writer}
+
+	_, err := handler.Handle(context.Background(), searchDocIntent())
+	if err == nil {
+		t.Fatal("expected stream error to propagate")
+	}
+	// Session must have been cancelled (not finalized).
+	if writer.cancelCalls != 1 {
+		t.Fatalf("cancel calls = %d, want 1 (mid-stream error must cancel)", writer.cancelCalls)
+	}
+	if writer.finalizeCalls != 0 {
+		t.Fatalf("finalize calls = %d, want 0 (stream errored before finalize)", writer.finalizeCalls)
+	}
+}
+
 func isRetireByAbsence(query string) bool {
 	return strings.Contains(query, "DELETE FROM fact_records") ||
 		strings.Contains(query, "DELETE FROM eshu_search_index_terms\nWHERE scope_id = $1\n  AND generation_id = $2\n  AND document_id <> ALL") ||

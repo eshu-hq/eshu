@@ -119,7 +119,9 @@ func (w PostgresEshuSearchDocumentWriter) BeginEshuSearchDocumentWrite(
 
 // SearchDocumentWriteSession is a bounded streaming write for one scope and
 // generation: insert curated documents page by page, then Finalize once to run
-// the authoritative retire and stats.
+// the authoritative retire and stats. If the stream errors mid-way, the caller
+// must call Cancel instead of Finalize to remove every partially-inserted page
+// so the scope is not left in a half-written queryable state.
 type SearchDocumentWriteSession interface {
 	// InsertPage upserts one bounded page of curated documents (facts + search
 	// index rows). No retire runs here so earlier pages survive later inserts.
@@ -127,6 +129,11 @@ type SearchDocumentWriteSession interface {
 	// Finalize runs the single generation-authoritative retire over the union of
 	// every inserted page's keys and upserts the search-index stats.
 	Finalize(ctx context.Context) (EshuSearchDocumentWriteResult, error)
+	// Cancel removes every document inserted by this session for the generation
+	// (retire with empty keep-set) so a mid-stream error leaves no partial
+	// search documents queryable. Cancel must be called instead of Finalize when
+	// the stream errors after one or more InsertPage calls.
+	Cancel(ctx context.Context) error
 }
 
 // eshuSearchDocumentWriteSession accumulates the cheap written-id keep-sets
@@ -182,6 +189,27 @@ func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSear
 		return EshuSearchDocumentWriteResult{}, err
 	}
 	return EshuSearchDocumentWriteResult{CanonicalWrites: s.written, Retired: retired}, nil
+}
+
+// Cancel removes every document inserted by this session for the generation by
+// running the authoritative retire with an empty keep-set. It is called instead
+// of Finalize when the stream errors after one or more InsertPage calls so the
+// scope is not left in a half-written queryable state. An empty keep-set retires
+// all fact_records, eshu_search_index_documents, and eshu_search_index_terms
+// for the (scope_id, generation_id) pair, which is the same operation performed
+// by Finalize when no documents are produced.
+func (s *eshuSearchDocumentWriteSession) Cancel(ctx context.Context) error {
+	if _, err := s.writer.retireSearchDocumentFacts(ctx, s.scopeID, s.generationID, nil); err != nil {
+		return fmt.Errorf("cancel eshu search document partial write: %w", err)
+	}
+	// Retire index rows with an empty keep-set (delete all for this generation).
+	if _, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, s.scopeID, s.generationID, []string{}); err != nil {
+		return fmt.Errorf("cancel eshu search index terms: %w", err)
+	}
+	if _, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, s.scopeID, s.generationID, []string{}); err != nil {
+		return fmt.Errorf("cancel eshu search index documents: %w", err)
+	}
+	return nil
 }
 
 // insertSearchDocumentFacts bulk-upserts one page of curated documents as derived

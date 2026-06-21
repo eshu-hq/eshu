@@ -12,10 +12,14 @@ import (
 // fakePagedSearchDocLoader streams a fixed list of pages into the handler. It
 // records how many times each page was delivered so tests can assert the
 // handler consumes the loader in bounded increments rather than one shot.
+// errAfterPages, when > 0, causes StreamSearchDocumentSources to return an
+// error after delivering that many pages via the page callback (simulating a
+// mid-stream DB timeout so the handler has already InsertPage'd some content).
 type fakePagedSearchDocLoader struct {
-	pages []SearchDocumentProjectionInput
-	err   error
-	calls int
+	pages         []SearchDocumentProjectionInput
+	err           error
+	errAfterPages int // if > 0, inject an error after this many page callback calls
+	calls         int
 }
 
 func (f *fakePagedSearchDocLoader) StreamSearchDocumentSources(
@@ -28,23 +32,34 @@ func (f *fakePagedSearchDocLoader) StreamSearchDocumentSources(
 	if f.err != nil {
 		return f.err
 	}
+	delivered := 0
 	for _, p := range f.pages {
+		if f.errAfterPages > 0 && delivered >= f.errAfterPages {
+			return errors.New("simulated mid-stream loader error")
+		}
 		if err := page(p); err != nil {
 			return err
 		}
+		delivered++
+	}
+	if f.errAfterPages > 0 && delivered >= f.errAfterPages {
+		return errors.New("simulated mid-stream loader error")
 	}
 	return nil
 }
 
-// capturingSearchDocWriter records every InsertPage and the single Finalize so
-// tests can prove the handler writes incrementally and retires exactly once.
+// capturingSearchDocWriter records every InsertPage, the single Finalize, and
+// any Cancel so tests can prove the handler writes incrementally, retires
+// exactly once, and cancels on stream error.
 type capturingSearchDocWriter struct {
 	begins        int
 	insertedPages [][]searchdocs.Document
 	finalizeCalls int
+	cancelCalls   int
 	beginErr      error
 	insertErr     error
 	finalizeErr   error
+	cancelErr     error
 	result        EshuSearchDocumentWriteResult
 	beginArg      EshuSearchDocumentWriteBegin
 }
@@ -80,6 +95,11 @@ func (s *capturingSearchDocWriteSession) Finalize(_ context.Context) (EshuSearch
 		return EshuSearchDocumentWriteResult{}, s.parent.finalizeErr
 	}
 	return s.parent.result, nil
+}
+
+func (s *capturingSearchDocWriteSession) Cancel(_ context.Context) error {
+	s.parent.cancelCalls++
+	return s.parent.cancelErr
 }
 
 func searchDocIntent() Intent {
