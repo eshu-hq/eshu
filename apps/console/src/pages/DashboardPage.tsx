@@ -1,6 +1,7 @@
 // pages/DashboardPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EshuApiClient } from "../api/client";
+import type { RepoListItem } from "../api/repoCatalog";
 import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
 import {
   loadSourceBackedSuggestedQuestions,
@@ -28,13 +29,14 @@ type RelationshipCoverageRow = {
   readonly detail: string;
 };
 
-export function DashboardPage({ model, client, onOpenService }: {
+export function DashboardPage({ model, client, onOpenService, repositories }: {
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
   readonly onOpenService?: (name: string) => void;
+  readonly repositories?: readonly RepoListItem[];
 }): React.JSX.Element {
   const r = model.runtime;
-  const atlasSeeds = useMemo(() => liveAtlasSeeds(model), [model]);
+  const atlasSeeds = useMemo(() => liveAtlasSeeds(model, repositories), [model, repositories]);
   const atlasSeed = atlasSeeds[0];
   const seededGraph = useMemo<GraphModel>(
     () => atlasSeed ? { nodes: [atlasSeed], edges: [] } : model.graph,
@@ -164,7 +166,7 @@ export function DashboardPage({ model, client, onOpenService }: {
             {hotEntities.map((entity) => (
               <button disabled={!onOpenService} key={entity.id} onClick={() => onOpenService?.(entity.name)}>{entity.name}</button>
             ))}
-            <small>Seed probes capped at 8 catalog services.</small>
+            <small>Seeded from the live graph neighbourhood (probes capped at {MAX_SEED_PROBES}).</small>
           </div>
         </div>
         <div className="dashboard-atlas-layout">
@@ -357,16 +359,26 @@ const MEANINGFUL_SEED_EDGES = 2;
 // Bounds the entity-map calls on first paint regardless of catalog size.
 const MAX_SEED_PROBES = 8;
 
-// liveAtlasSeeds returns the ordered candidate seed nodes for the live atlas:
-// every named catalog service, in catalog order. The loader probes them in turn
-// and lands on the first that yields a meaningful neighbourhood, falling back to
-// the most-connected candidate it saw. Empty for demo data or once the model
-// already carries a graph.
-function liveAtlasSeeds(model: ConsoleModel): readonly GraphNode[] {
+// liveAtlasSeeds returns the ordered candidate seed nodes for the live atlas.
+// It prefers named catalog services (in catalog order); when the catalog is
+// empty it falls back to indexed repositories, which always exist on a populated
+// stack even before any service/workload is admitted to the catalog (issue
+// #3398). Both kinds resolve through impact/entity-map, so the loader probes them
+// in turn and lands on the first that yields a meaningful neighbourhood, falling
+// back to the most-connected candidate it saw. Empty for demo data or once the
+// model already carries a graph.
+function liveAtlasSeeds(
+  model: ConsoleModel,
+  repositories: readonly RepoListItem[] | undefined
+): readonly GraphNode[] {
   if (model.source !== "live" || model.graph.nodes.length > 0) return [];
-  return model.services
+  const serviceSeeds = model.services
     .filter((service) => service.name.trim().length > 0)
     .map(serviceSeedNode);
+  if (serviceSeeds.length > 0) return serviceSeeds;
+  return (repositories ?? [])
+    .filter((repository) => repository.name.trim().length > 0)
+    .map(repoSeedNode);
 }
 
 // selectSeedGraph probes candidate seeds in order and returns the first whose
@@ -403,6 +415,24 @@ function serviceSeedNode(service: ServiceRow): GraphNode {
     label,
     sub: repo || undefined,
     truth: uiTruth(service.truth)
+  };
+}
+
+// repoSeedNode lifts an indexed repository into an atlas seed node. The label is
+// the repository handle the entity-map resolver expects; the id keys the node so
+// distinct repos never collapse. Used only when the service catalog yields no
+// seeds (issue #3398).
+function repoSeedNode(repository: RepoListItem): GraphNode {
+  const label = repository.name.trim();
+  const id = repository.id.trim() || label;
+  return {
+    col: 1,
+    hero: true,
+    id,
+    kind: "repo",
+    label,
+    sub: repository.repoSlug.trim() || undefined,
+    truth: "exact"
   };
 }
 

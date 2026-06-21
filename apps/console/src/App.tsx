@@ -364,8 +364,8 @@ export function App(): React.JSX.Element {
         ) : null}
         {source.status === "connected" ? (
           <Routes>
-            <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} repositories={repositories} />} />
+            <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} repositories={repositories} />} />
             <Route path="/ask" element={<AskPage source={source} />} />
             <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
             <Route path="/exposure" element={<ExposurePathPage client={client} />} />

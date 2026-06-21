@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import type { EshuApiClient } from "../api/client";
+import type { RepoListItem } from "../api/repoCatalog";
 import { DashboardPage } from "./DashboardPage";
 import { demoModel } from "../console/demoModel";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
@@ -20,7 +21,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Queue outstanding")).toBeInTheDocument();
 
     expect(screen.getByText("Hot entities")).toBeInTheDocument();
-    expect(screen.getByText("Seed probes capped at 8 catalog services.")).toBeInTheDocument();
+    expect(screen.getByText("Seeded from the live graph neighbourhood (probes capped at 8).")).toBeInTheDocument();
     expect(screen.getByText(/click any node or relationship edge to read its evidence/i)).toBeInTheDocument();
     expect(screen.getByText("Relationship coverage")).toBeInTheDocument();
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
@@ -313,19 +314,98 @@ describe("DashboardPage", () => {
     expect(screen.queryByText("stale-service")).not.toBeInTheDocument();
   });
 
+  it("seeds the live atlas from indexed repositories when the catalog has no services", async () => {
+    // The live catalog (/api/v0/catalog) is empty, but 951 repositories are
+    // indexed. The atlas must fall back to seeding from the repository
+    // neighbourhood instead of blanking the landing visualization.
+    const calls: unknown[] = [];
+    const client = {
+      postJson: async () => ({ entities: [] }),
+      post: async (path: string, body: unknown) => {
+        calls.push({ path, body });
+        return {
+          data: {
+            from: "platform-repo",
+            resolution: {
+              candidates: [
+                { id: "repository:platform-repo", labels: ["Repository"], name: "platform-repo" }
+              ]
+            },
+            evidence: {
+              relationships: [
+                {
+                  direction: "outgoing",
+                  entity_id: "workload:checkout-service",
+                  entity_labels: ["Workload"],
+                  entity_name: "checkout-service",
+                  relationship_type: "DEFINES"
+                }
+              ]
+            }
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <DashboardPage
+        model={liveModelWithRepositoriesOnly()}
+        client={client}
+        repositories={[repoItem("repository:platform-repo", "platform-repo")]}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("2 nodes · 1 edges")).toBeInTheDocument();
+    });
+    expect(await screen.findByText("checkout-service")).toBeInTheDocument();
+    expect(await screen.findAllByText("platform-repo")).not.toHaveLength(0);
+    expect(calls).toEqual([
+      { path: "/api/v0/impact/entity-map", body: { from: "platform-repo", depth: 2 } }
+    ]);
+  });
+
   it("does not invent an atlas seed when live data has no entities", () => {
     const client = {
       postJson: vi.fn(),
       post: vi.fn()
     } as unknown as EshuApiClient;
 
-    render(<DashboardPage model={modelFromSnapshot(emptySnapshot("empty"))} client={client} />);
+    render(<DashboardPage model={modelFromSnapshot(emptySnapshot("empty"))} client={client} repositories={[]} />);
 
     expect(screen.getByText("No graph entities are available from the live model yet.")).toBeInTheDocument();
     expect(client.postJson).not.toHaveBeenCalled();
     expect(client.post).not.toHaveBeenCalled();
   });
 });
+
+function repoItem(id: string, name: string): RepoListItem {
+  return {
+    groupKey: "",
+    groupKind: "",
+    groupReason: "",
+    groupSource: "",
+    groupTruth: "",
+    id,
+    isDependency: false,
+    name,
+    remoteUrl: "",
+    repoSlug: name
+  };
+}
+
+function liveModelWithRepositoriesOnly(): ConsoleModel {
+  return modelFromSnapshot({
+    ...emptySnapshot(),
+    provenance: { runtime: "live" },
+    runtime: {
+      deadLetters: 0, inFlight: 0, indexStatus: "complete", instances: 0, platforms: 0,
+      profile: "local_full_stack", queueOutstanding: 0, repositories: 951, succeeded: 951, workloads: 0
+    }
+  });
+}
 
 function liveModelWithServices(): ConsoleModel {
   const model = modelFromSnapshot({
