@@ -408,6 +408,7 @@ func buildReducerService(
 		SupplyChainImpactWinnersMaintainer: &reducer.SupplyChainImpactWinnersMaintainer{
 			Rebuilder:    postgres.NewSupplyChainImpactWinnersStore(database),
 			LeaseManager: intentStore,
+			LeaseOwner:   defaultSupplyChainImpactWinnersLeaseOwner(),
 			Logger:       logger,
 		},
 		CodeCallProjectionRunner: &reducer.CodeCallProjectionRunner{
