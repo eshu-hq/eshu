@@ -78,3 +78,78 @@ so the high-cardinality fanout path is bounded by the matching candidate set
 instead of scanning every active repository for every catalog link. The focused
 unit gate `TestBuildServiceCatalogCorrelationDecisionsHandlesHighCardinalityFanout`
 keeps the ambiguous decision and 4,096 candidate readback exact.
+
+## Search-Document Writer Bulk Batching (#3430)
+
+Performance Evidence: the `eshu_search_document` reducer writer previously
+issued O(N) serial per-document `ExecContext` calls: one `INSERT INTO
+fact_records` per fact (`canonicalReducerFactInsertQuery`), one `DELETE FROM
+eshu_search_index_terms` per document for term refresh, one `INSERT INTO
+eshu_search_index_documents` per document, and one `INSERT INTO
+eshu_search_index_terms` per document — totalling 4×N round-trips per scope.
+For a scope with 159K content entities (the largest live claimed item at time of
+diagnosis) this produced ~636K serial Postgres round-trips per work item.
+
+Measured with `fakeSearchDocExecer` stub counting all `ExecContext` calls
+(same harness used by the existing writer tests, darwin/arm64, Apple M5 Max):
+
+| Documents (N) | ExecContext calls before | ExecContext calls after | Reduction |
+|---|---|---|---|
+| 100 | 404 | 8 | 50× |
+| 500 | 2004 | 8 | 250× |
+| 1000 | 4004 | 8 | 500× |
+| 10000 | 40004 | 8 | 5000× |
+
+The fix replaces the per-document loop with four bulk `unnest`-based statements
+constant in count regardless of N:
+
+1. `eshuSearchDocumentBatchFactInsertQuery` — one unnest `INSERT INTO
+   fact_records` for all N rows (separate from `canonicalReducerFactInsertQuery`
+   which remains unchanged and shared by all other writers).
+2. `eshuSearchIndexBatchDocumentUpsertQuery` — one unnest `INSERT INTO
+   eshu_search_index_documents` for all N rows.
+3. `eshuSearchIndexRefreshDocumentTermsQuery` — one `DELETE … WHERE document_id
+   = ANY($3::text[])` replacing N per-document DELETE statements.
+4. `eshuSearchIndexBatchTermUpsertQuery` — one unnest `INSERT INTO
+   eshu_search_index_terms` for all term rows across all documents.
+
+Backend: Postgres (autocommit handle via `*sql.DB`, same as before — no
+transaction boundary added, idempotency is unchanged: `ON CONFLICT (fact_id) DO
+UPDATE` and `ON CONFLICT (scope_id, generation_id, document_id) DO UPDATE` and
+`ON CONFLICT (scope_id, generation_id, term_key, document_id) DO UPDATE`).
+Input shape: complete `[]searchdocs.Document` for one `(scope_id,
+generation_id)` scope, same as before. Stats row is still written last so the
+sweeper marks a scope done only after the full write succeeds.
+
+Live evidence: at the time of diagnosis the 18 claimed scopes (all
+`eshu_search_document`) had a median of 28,383 content entities and a maximum of
+159,364. The 174 pending scopes had a median of 200 entities and would each
+complete in sub-second wall time with the batched writer. The `idx_docs` counter
+was growing at ~280 docs/20s while `succeeded` was frozen at 533, confirming
+progress within whale items but no completions — consistent with 636K serial
+round-trips per item holding all 4 workers.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestWriteEshu'
+-count=1` passes all 10 tests (9 existing + 1 new regression test).
+`TestWriteEshuSearchDocumentsBatchedWritesBoundedExecCount` (new) asserts that
+writing N=500 documents issues strictly fewer than N/2=250 `ExecContext` calls;
+it failed on the old per-document loop (2004 calls) and passes on the batched
+writer (8 calls). All write semantics are byte-identical: same `fact_id`
+derivation, same `stable_fact_key`, same payload JSON shape (including
+`content_hash`), same retire-on-missing behaviour for both facts and index
+documents, same stats upsert. `go test ./internal/reducer
+./internal/storage/postgres ./cmd/reducer -count=1` (3294 tests) passes.
+`golangci-lint run ./internal/reducer/... ./internal/storage/postgres/...
+./cmd/reducer/...` reports 0 issues.
+
+No-Observability-Change: the batched writer reuses the same
+`startSearchIndexWriteSpan`, `recordSearchIndexMutation`,
+`recordSearchIndexError`, and `recordSearchIndexWriteDuration` calls as the
+per-document loop. The `eshu_dp_search_index_mutations_total` counter still
+increments with the same `kind`/`operation`/`result` labels; the
+`eshu_dp_search_index_write_duration_seconds` histogram still records total
+write duration for the scope. No new metric instrument, metric label, span name,
+log key, queue domain, worker, lease, runtime knob, or graph write route was
+added. The `eshu_dp_search_index_mutations_total{kind="document",
+operation="upsert"}` value now reports the full batch count (N) in a single
+increment rather than N increments of 1, producing the same final counter value.
