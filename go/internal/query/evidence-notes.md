@@ -681,3 +681,57 @@ latency and Postgres `temp_bytes` / `pg_stat_database` counters.
 Wire contract unchanged: response shape, ordering (`cvss_score DESC,
 advisory_key ASC`), keyset cursor, and truncation are identical, so no OpenAPI or
 HTTP API reference change is required.
+
+### Endpoint 3 — sbom attachment count single-pass rollup (this PR)
+
+`GET /api/v0/supply-chain/sbom-attestations/attachments/count`
+(`sbom_attestation_attachment_aggregates.go`).
+
+#3402's `fact_records_sbom_attestation_attachments_active_scan_idx` bounds the
+scan, but the count handler still issued **three** queries over those active
+tuples — one `COUNT(*)` plus two `GROUP BY` (per attachment_status, per
+artifact_kind) — so it paid three full scans and three round trips. This PR folds
+all three into one `GROUP BY GROUPING SETS` scan
+(`sbomAttestationAttachmentAggregateRollupQuery`); the `GROUPING()` flags tag each
+row as a status bucket, a kind bucket, or the grand total, and
+`buildSBOMAttestationAttachmentAggregateCount` partitions them in Go. The
+single-fact_kind + `is_tombstone = FALSE` + active-generation anchor is unchanged,
+so the #3402 partial index stays eligible.
+
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` against the seeded Postgres 18
+corpus (500,000 active `reducer_sbom_attestation_attachment` facts across 900
+scopes, `work_mem=16MB`, #3402 indexes present), count-everything case (all
+payload filters empty):
+
+| | Before — COUNT(*) + 2 GROUP BY (3 queries) | After — one GROUPING SETS scan |
+| --- | --- | --- |
+| query 1 (COUNT) | 138 ms (Index Only Scan on `*_active_scan_idx`) | — |
+| query 2 (GROUP attachment_status) | 1012 ms | — |
+| query 3 (GROUP artifact_kind) | ~1012 ms | — |
+| total wall (3 round trips) | ~2.16 s | — |
+| single rollup (1 round trip) | — | 1.19 s / 0.71 s / 0.81 s |
+
+The after plan is one `MixedAggregate` over a single bounded scan
+(`fact_records_scope_generation_idx`, 901 scope loops), no external-merge spill.
+Classification: wall-clock win (~2-3x) plus two fewer round trips. The reducer
+write path is untouched.
+
+No-Regression Evidence: the rollup partitioning is byte-identical to the prior
+trio. On a 500-attachment fixture, the GROUPING SETS rows were diffed against the
+separate `COUNT(*)` and two `GROUP BY` queries: grand total (500), every
+attachment_status bucket (e.g. `attached_parse_only` 72, `attached_verified` 71,
+…), and every artifact_kind bucket (`sbom` 250, `attestation` 250) match exactly.
+Unit coverage: `TestBuildSBOMAttestationAttachmentAggregateCount` pins the
+grouping-flag partition (and that the rolled-up grand-total row never leaks into a
+bucket map); `TestSBOMAttestationAttachmentAggregateRollupUsesSinglePassGroupingSets`
+pins the GROUPING SETS shape;
+`TestSBOMAttestationAttachmentAggregateQueriesKeepActiveScanAnchor` (from #3402)
+still passes because the rollup keeps the per-kind + `is_tombstone` +
+active-generation anchor.
+
+No-Observability-Change: the count handler's response (`total_attachments`,
+`by_attachment_status`, `by_artifact_kind`, `missing_evidence`, `scope`), HTTP
+request metrics, and `postgres.query` spans/duration metrics are unchanged. The
+missing-evidence probe is untouched. No metric, span, log, status row, graph
+write, or queue consumer is added or altered; only the count handler's three
+queries collapse to one.

@@ -218,8 +218,7 @@ func TestSBOMAttestationAttachmentAggregateQueriesKeepActiveScanAnchor(t *testin
 	t.Parallel()
 
 	for name, query := range map[string]string{
-		"total":     sbomAttestationAttachmentAggregateTotalQuery,
-		"group":     sbomAttestationAttachmentAggregateGroupQueryTemplate,
+		"rollup":    sbomAttestationAttachmentAggregateRollupQuery,
 		"inventory": sbomAttestationAttachmentInventoryQueryTemplate,
 	} {
 		for _, want := range []string{
@@ -243,15 +242,74 @@ func TestSBOMAttestationAttachmentAggregateQueriesFilterSourceScopes(t *testing.
 		"fact.payload->'workload_ids' ? $7",
 		"fact.payload->'service_ids' ? $8",
 	} {
-		if !strings.Contains(sbomAttestationAttachmentAggregateTotalQuery, want) {
-			t.Fatalf("total query missing source-scope predicate %q:\n%s", want, sbomAttestationAttachmentAggregateTotalQuery)
-		}
-		if !strings.Contains(sbomAttestationAttachmentAggregateGroupQueryTemplate, want) {
-			t.Fatalf("group query missing source-scope predicate %q:\n%s", want, sbomAttestationAttachmentAggregateGroupQueryTemplate)
+		if !strings.Contains(sbomAttestationAttachmentAggregateRollupQuery, want) {
+			t.Fatalf("rollup query missing source-scope predicate %q:\n%s", want, sbomAttestationAttachmentAggregateRollupQuery)
 		}
 		if !strings.Contains(sbomAttestationAttachmentInventoryQueryTemplate, want) {
 			t.Fatalf("inventory query missing source-scope predicate %q:\n%s", want, sbomAttestationAttachmentInventoryQueryTemplate)
 		}
+	}
+}
+
+// TestSBOMAttestationAttachmentAggregateRollupUsesSinglePassGroupingSets pins
+// the #3389 count reshape: the count handler computes total + per-status +
+// per-kind in one GROUPING SETS scan instead of three separate queries, with the
+// GROUPING() flags the Go partition relies on.
+func TestSBOMAttestationAttachmentAggregateRollupUsesSinglePassGroupingSets(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"GROUP BY GROUPING SETS",
+		"GROUPING(COALESCE(NULLIF(fact.payload->>'attachment_status', ''), 'unknown')) AS grouping_status",
+		"GROUPING(COALESCE(NULLIF(fact.payload->>'artifact_kind', ''), 'unknown')) AS grouping_kind",
+	} {
+		if !strings.Contains(sbomAttestationAttachmentAggregateRollupQuery, want) {
+			t.Fatalf("rollup query missing single-pass marker %q:\n%s", want, sbomAttestationAttachmentAggregateRollupQuery)
+		}
+	}
+}
+
+// TestBuildSBOMAttestationAttachmentAggregateCount verifies the GROUPING SETS
+// rows partition into the same envelope the previous COUNT(*) + two GROUP BY
+// trio produced: grand total from the (1,1) row, attachment_status buckets from
+// grouping_status=0 rows, artifact_kind buckets from grouping_kind=0 rows.
+func TestBuildSBOMAttestationAttachmentAggregateCount(t *testing.T) {
+	t.Parallel()
+
+	rows := []sbomAttestationAttachmentRollupRow{
+		{groupingStatus: 0, groupingKind: 1, attachmentStatus: "attached_verified", count: 10},
+		{groupingStatus: 0, groupingKind: 1, attachmentStatus: "attached_unverified", count: 5},
+		{groupingStatus: 0, groupingKind: 1, attachmentStatus: "subject_mismatch", count: 3},
+		{groupingStatus: 1, groupingKind: 0, artifactKind: "sbom", count: 12},
+		{groupingStatus: 1, groupingKind: 0, artifactKind: "attestation", count: 6},
+		{groupingStatus: 1, groupingKind: 1, count: 18},
+	}
+	out := buildSBOMAttestationAttachmentAggregateCount(rows)
+
+	if out.TotalAttachments != 18 {
+		t.Fatalf("TotalAttachments = %d, want 18", out.TotalAttachments)
+	}
+	wantStatus := map[string]int{"attached_verified": 10, "attached_unverified": 5, "subject_mismatch": 3}
+	if len(out.ByAttachmentStatus) != len(wantStatus) {
+		t.Fatalf("ByAttachmentStatus = %v, want %v", out.ByAttachmentStatus, wantStatus)
+	}
+	for k, v := range wantStatus {
+		if out.ByAttachmentStatus[k] != v {
+			t.Fatalf("ByAttachmentStatus[%s] = %d, want %d", k, out.ByAttachmentStatus[k], v)
+		}
+	}
+	wantKind := map[string]int{"sbom": 12, "attestation": 6}
+	for k, v := range wantKind {
+		if out.ByArtifactKind[k] != v {
+			t.Fatalf("ByArtifactKind[%s] = %d, want %d", k, out.ByArtifactKind[k], v)
+		}
+	}
+	// The grand-total row must not leak into either bucket map.
+	if _, ok := out.ByAttachmentStatus[""]; ok {
+		t.Fatal("ByAttachmentStatus contains the rolled-up grand-total row")
+	}
+	if _, ok := out.ByArtifactKind[""]; ok {
+		t.Fatal("ByArtifactKind contains the rolled-up grand-total row")
 	}
 }
 

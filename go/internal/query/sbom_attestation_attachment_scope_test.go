@@ -262,14 +262,8 @@ func TestSBOMAttachmentSQLAppliesRepositoryGrantOverlap(t *testing.T) {
 			predicate:  "fact.payload->'repository_ids' ?| $12::text[]",
 		},
 		{
-			name:       "total",
-			query:      sbomAttestationAttachmentAggregateTotalQuery,
-			beforeText: ";",
-			predicate:  "fact.payload->'repository_ids' ?| $9::text[]",
-		},
-		{
-			name:       "group",
-			query:      sbomAttestationAttachmentAggregateGroupQueryTemplate,
+			name:       "rollup",
+			query:      sbomAttestationAttachmentAggregateRollupQuery,
 			beforeText: "GROUP BY",
 			predicate:  "fact.payload->'repository_ids' ?| $9::text[]",
 		},
