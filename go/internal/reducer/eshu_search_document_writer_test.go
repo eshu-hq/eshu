@@ -2,9 +2,8 @@ package reducer
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,64 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
-
-type fakeSearchDocExecCall struct {
-	query string
-	args  []any
-}
-
-type fakeSearchDocResult struct {
-	affected int64
-}
-
-func (r fakeSearchDocResult) LastInsertId() (int64, error) { return 0, nil }
-func (r fakeSearchDocResult) RowsAffected() (int64, error) { return r.affected, nil }
-
-type fakeSearchDocExecer struct {
-	execs          []fakeSearchDocExecCall
-	retireAffected int64
-	failOn         string
-	affected       []fakeSearchDocAffected
-}
-
-type fakeSearchDocAffected struct {
-	fragment string
-	affected int64
-}
-
-func (f *fakeSearchDocExecer) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	f.execs = append(f.execs, fakeSearchDocExecCall{query: query, args: args})
-	if f.failOn != "" && strings.Contains(query, f.failOn) {
-		return nil, errors.New("boom")
-	}
-	for _, match := range f.affected {
-		if strings.Contains(query, match.fragment) {
-			return fakeSearchDocResult{affected: match.affected}, nil
-		}
-	}
-	if strings.Contains(query, "DELETE FROM fact_records") {
-		return fakeSearchDocResult{affected: f.retireAffected}, nil
-	}
-	return fakeSearchDocResult{affected: 1}, nil
-}
-
-func sampleSearchDoc(id string) searchdocs.Document {
-	return searchdocs.Document{
-		ID:           id,
-		RepoID:       "repo-1",
-		SourceKind:   searchdocs.SourceKindCodeEntity,
-		Title:        "Function Handle",
-		GraphHandles: []searchdocs.GraphHandle{{Kind: "content_entity", ID: id}},
-		TruthScope:   searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived, Basis: searchdocs.TruthBasisContentIndex},
-		Freshness:    searchdocs.Freshness{State: searchdocs.FreshnessFresh},
-	}
-}
 
 func TestWriteEshuSearchDocumentsUpsertsAndRetires(t *testing.T) {
 	t.Parallel()
@@ -95,7 +41,7 @@ func TestWriteEshuSearchDocumentsUpsertsAndRetires(t *testing.T) {
 	if result.Retired != 2 {
 		t.Errorf("retired = %d, want 2", result.Retired)
 	}
-	// Two fact upserts plus fact retirement and persisted-index maintenance.
+	// Bulk fact insert + fact retirement + persisted-index maintenance.
 	if got := len(db.execs); got < 6 {
 		t.Fatalf("exec calls = %d, want fact writes plus search-index maintenance", got)
 	}
@@ -103,20 +49,38 @@ func TestWriteEshuSearchDocumentsUpsertsAndRetires(t *testing.T) {
 	if !strings.Contains(insert.query, "INSERT INTO fact_records") {
 		t.Fatalf("first exec is not an insert: %q", insert.query)
 	}
+	// Bulk insert uses 15 parallel slice args (one slice per column).
 	if got, want := len(insert.args), 15; got != want {
 		t.Fatalf("insert arg count = %d, want %d", got, want)
 	}
-	if got, want := insert.args[3], EshuSearchDocumentFactKind; got != want {
-		t.Errorf("fact_kind = %v, want %v", got, want)
+	// Each arg is now a slice; verify the first element of each slice.
+	factKinds, ok := insert.args[3].([]string)
+	if !ok || len(factKinds) == 0 {
+		t.Fatalf("fact_kind arg = %T, want []string with 2 elements", insert.args[3])
 	}
-	if got, want := insert.args[6], facts.SourceConfidenceInferred; got != want {
-		t.Errorf("source_confidence = %v, want %v", got, want)
+	if got, want := factKinds[0], EshuSearchDocumentFactKind; got != want {
+		t.Errorf("fact_kind[0] = %v, want %v", got, want)
 	}
-	if got, want := insert.args[1], "scope-1"; got != want {
-		t.Errorf("scope_id = %v, want %v", got, want)
+	sourceConfs, ok := insert.args[6].([]string)
+	if !ok || len(sourceConfs) == 0 {
+		t.Fatalf("source_confidence arg = %T, want []string", insert.args[6])
 	}
-	if got, want := insert.args[13], false; got != want {
-		t.Errorf("is_tombstone = %v, want false", got)
+	if got, want := sourceConfs[0], string(facts.SourceConfidenceInferred); got != want {
+		t.Errorf("source_confidence[0] = %v, want %v", got, want)
+	}
+	scopeIDs, ok := insert.args[1].([]string)
+	if !ok || len(scopeIDs) == 0 {
+		t.Fatalf("scope_id arg = %T, want []string", insert.args[1])
+	}
+	if got, want := scopeIDs[0], "scope-1"; got != want {
+		t.Errorf("scope_id[0] = %v, want %v", got, want)
+	}
+	tombstones, ok := insert.args[13].([]bool)
+	if !ok || len(tombstones) == 0 {
+		t.Fatalf("is_tombstone arg = %T, want []bool", insert.args[13])
+	}
+	if tombstones[0] {
+		t.Errorf("is_tombstone[0] = true, want false")
 	}
 	var retire fakeSearchDocExecCall
 	for _, exec := range db.execs {
@@ -196,14 +160,15 @@ func TestWriteEshuSearchDocumentsPayloadIncludesContentHash(t *testing.T) {
 	if factUpsert.query == "" {
 		t.Fatal("missing fact upsert")
 	}
-	payload, ok := factUpsert.args[14].([]byte)
-	if !ok {
-		t.Fatalf("payload arg = %T, want []byte", factUpsert.args[14])
+	// Bulk insert: args[14] is now []string of JSON payloads (one per doc).
+	payloads, ok := factUpsert.args[14].([]string)
+	if !ok || len(payloads) == 0 {
+		t.Fatalf("payload arg = %T, want []string", factUpsert.args[14])
 	}
 	var decoded struct {
 		ContentHash string `json:"content_hash"`
 	}
-	if err := json.Unmarshal(payload, &decoded); err != nil {
+	if err := json.Unmarshal([]byte(payloads[0]), &decoded); err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}
 	if got, want := decoded.ContentHash, searchhybrid.DocumentContentHash(doc); got != want {
@@ -226,7 +191,8 @@ func TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry(t *testing.T) {
 		affected: []fakeSearchDocAffected{
 			{fragment: "DELETE FROM eshu_search_index_terms\nWHERE scope_id = $1\n  AND generation_id = $2\n  AND document_id <> ALL($3::text[])", affected: 4},
 			{fragment: "DELETE FROM eshu_search_index_documents\nWHERE scope_id = $1\n  AND generation_id = $2\n  AND document_id <> ALL($3::text[])", affected: 2},
-			{fragment: "DELETE FROM eshu_search_index_terms\nWHERE scope_id = $1\n  AND generation_id = $2\n  AND document_id = $3", affected: 3},
+			// Bulk refresh: single ANY-array delete replacing the old per-doc delete.
+			{fragment: "document_id   = ANY($3::text[])", affected: 3},
 		},
 	}
 	writer := PostgresEshuSearchDocumentWriter{
@@ -401,95 +367,45 @@ func TestWriteEshuSearchDocumentsRequiresDatabaseAndScope(t *testing.T) {
 	}
 }
 
-func int64MetricValue(
-	t *testing.T,
-	rm metricdata.ResourceMetrics,
-	name string,
-	wantAttrs map[string]string,
-) int64 {
-	t.Helper()
-	for _, scope := range rm.ScopeMetrics {
-		for _, metricRecord := range scope.Metrics {
-			if metricRecord.Name != name {
-				continue
-			}
-			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Int64 sum", name, metricRecord.Data)
-			}
-			for _, point := range sum.DataPoints {
-				if metricPointHasAttrs(point.Attributes.ToSlice(), wantAttrs) {
-					return point.Value
-				}
-			}
-		}
-	}
-	t.Fatalf("metric %s with attrs %#v not found", name, wantAttrs)
-	return 0
-}
+// TestWriteEshuSearchDocumentsBatchedWritesBoundedExecCount is the TDD regression
+// test for the cross-scope starvation bug (issue #3430). Writing N documents must
+// issue O(1) bulk statements — not O(N) per-document round-trips — so whale
+// repositories do not monopolise all reducer workers indefinitely.
+//
+// The bound is: fact_batch_insert(1) + fact_retire(1) + retire_terms(1) +
+// retire_docs(1) + doc_upsert(1) + term_refresh_delete(1) + term_upsert(1) +
+// stats(1) = 8 total ExecContext calls regardless of document count.
+// We allow a small constant slack for future additions but assert the count is
+// strictly less than N/2 for N=500, which would be violated by any per-doc loop.
+func TestWriteEshuSearchDocumentsBatchedWritesBoundedExecCount(t *testing.T) {
+	t.Parallel()
 
-func assertHistogramPoint(
-	t *testing.T,
-	rm metricdata.ResourceMetrics,
-	name string,
-	wantAttrs map[string]string,
-) {
-	t.Helper()
-	for _, scope := range rm.ScopeMetrics {
-		for _, metricRecord := range scope.Metrics {
-			if metricRecord.Name != name {
-				continue
-			}
-			histogram, ok := metricRecord.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Float64 histogram", name, metricRecord.Data)
-			}
-			for _, point := range histogram.DataPoints {
-				if metricPointHasAttrs(point.Attributes.ToSlice(), wantAttrs) {
-					return
-				}
-			}
-		}
+	const docCount = 500
+	docs := make([]searchdocs.Document, docCount)
+	for i := range docs {
+		docs[i] = sampleSearchDoc(fmt.Sprintf("searchdoc:content_entity:e-%d", i))
 	}
-	t.Fatalf("histogram %s with attrs %#v not found", name, wantAttrs)
-}
 
-func metricPointHasAttrs(attrs []attribute.KeyValue, want map[string]string) bool {
-	for wantKey, wantValue := range want {
-		found := false
-		for _, attr := range attrs {
-			if string(attr.Key) == wantKey && attr.Value.AsString() == wantValue {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
-}
+	db := &fakeSearchDocExecer{}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
 
-func requireSpan(t *testing.T, spans []sdktrace.ReadOnlySpan, name string) sdktrace.ReadOnlySpan {
-	t.Helper()
-	for _, span := range spans {
-		if span.Name() == name {
-			return span
-		}
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		IntentID:     "intent-batch",
+		ScopeID:      "scope-batch",
+		GenerationID: "gen-batch",
+		SourceSystem: "content_entities",
+		Documents:    docs,
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
 	}
-	t.Fatalf("span %q not found", name)
-	return nil
-}
 
-func assertSpanStringAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string, want string) {
-	t.Helper()
-	for _, attr := range span.Attributes() {
-		if string(attr.Key) == key {
-			if got := attr.Value.AsString(); got != want {
-				t.Fatalf("span attr %s = %q, want %q", key, got, want)
-			}
-			return
-		}
+	got := len(db.execs)
+	// Per-document loop would produce ≥ 3*N calls (doc upsert + term delete +
+	// term upsert) plus N fact inserts = ≥ 4*N = 2000. A batched writer issues
+	// O(1) statements; assert strictly less than N/2 = 250 calls.
+	const maxAllowed = docCount / 2
+	if got >= maxAllowed {
+		t.Fatalf("ExecContext calls = %d for %d documents, want < %d (batched writes required, got O(N) per-doc loop)", got, docCount, maxAllowed)
 	}
-	t.Fatalf("span attr %s not found", key)
 }

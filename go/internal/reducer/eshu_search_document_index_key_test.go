@@ -9,6 +9,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 )
 
+// TestWriteEshuSearchDocumentsUsesBoundedSearchTermKeys verifies that the bulk
+// term upsert query uses bounded term_key values (truncated by searchhybrid.TermKey)
+// and that the query shape satisfies the bulk unnest contract introduced by the
+// #3430 batched-write fix: $3=document_ids, $4=terms, $5=term_keys, $6=frequencies.
 func TestWriteEshuSearchDocumentsUsesBoundedSearchTermKeys(t *testing.T) {
 	t.Parallel()
 
@@ -44,9 +48,10 @@ func TestWriteEshuSearchDocumentsUsesBoundedSearchTermKeys(t *testing.T) {
 	if termUpsert.query == "" {
 		t.Fatalf("missing search index term upsert: %#v", db.execs)
 	}
+	// Bulk shape: scope($1), gen($2), docIDs($3), terms($4), termKeys($5), freqs($6).
 	for _, fragment := range []string{
 		"term_key",
-		"unnest($4::text[], $5::text[], $6::int[])",
+		"unnest($3::text[], $4::text[], $5::text[], $6::int[])",
 		"ON CONFLICT (scope_id, generation_id, term_key, document_id)",
 	} {
 		if !strings.Contains(termUpsert.query, fragment) {
@@ -56,6 +61,8 @@ func TestWriteEshuSearchDocumentsUsesBoundedSearchTermKeys(t *testing.T) {
 	if got, want := len(termUpsert.args), 6; got != want {
 		t.Fatalf("term upsert args = %d, want %d", got, want)
 	}
+	// args[2] = document_id slice (one entry per term), args[3] = terms,
+	// args[4] = term_keys, args[5] = frequencies.
 	terms, ok := termUpsert.args[3].([]string)
 	if !ok {
 		t.Fatalf("term arg type = %T, want []string", termUpsert.args[3])
