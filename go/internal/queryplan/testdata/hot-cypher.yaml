@@ -13,6 +13,7 @@ required_ids:
   - QP-CODE-REL-TRANSITIVE
   - QP-READINESS-HOSTED
   - QP-READINESS-SC-IMPACT
+  - QP-IMPACT-CHANGE-SURFACE
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -431,3 +432,43 @@ entries:
       line_hint: 3
     caveats:
       - Supply-chain impact readiness is reducer-owned SQL/read-model evidence, not hot Cypher; it is represented here so the gate tracks the caveat explicitly.
+
+  - id: QP-IMPACT-CHANGE-SURFACE
+    domain: impact
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/impact_change_surface_legacy.go
+      symbol: findChangeSurfaceImpactRows
+      line_hint: 107
+    cypher: |
+      MATCH (start:Workload {id: $target_id})
+      OPTIONAL MATCH path = (start)-[rels*1..4]->(impacted)
+      WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
+        AND ($environment = '' OR coalesce(impacted.environment, '') = '' OR impacted.environment = $environment)
+      UNWIND relationships(path) as rel
+      WITH impacted, rel, length(path) as depth
+      RETURN DISTINCT impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
+             type(rel) as rel_type, rel.confidence as confidence, rel.reason as reason, depth
+      ORDER BY depth, impacted.name, impacted.id
+      LIMIT $limit
+    required_anchors:
+      - label: Workload
+        property: id
+    required_schema:
+      - workload_id
+      - nornicdb_workload_id_lookup
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - The traversal start label is resolved per target kind via changeSurfaceTraversalStartMatch; the Workload anchor is the dense service-kind shape that issue #3384 bounded. The recorded depth *1..4 is the production default (normalizeChangeSurfaceLegacyDepth defaults to 4); the call site clamps the requested max_depth to [1, 8]. The canonical shape pins the bounded default rather than the maximum so the hot-path gate cannot bless the hardcoded *1..8 the fix removed (see TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth, which rejects *1..8).
+    plan:
+      operators:
+        - NodeIndexSeek
+        - VarLengthExpand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
