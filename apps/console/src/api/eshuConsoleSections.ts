@@ -66,6 +66,13 @@ interface IndexStatus {
     readonly collector_instances?: readonly CollectorInstanceStatus[];
   };
 }
+// RepositoryListBrief is the minimal shape read by loadRuntime for the total
+// field. It is intentionally separate from the full RepositoryListResponse in
+// liveData.ts to keep each file's interface surface narrow.
+interface RepositoryListBrief {
+  readonly total?: number;
+  readonly repository_count?: number; // legacy alias kept for forward-compat
+}
 interface CatalogResponse {
   readonly repositories?: readonly CatalogRecord[];
   readonly services?: readonly CatalogRecord[];
@@ -117,10 +124,16 @@ export function emptyRuntime(): RuntimeSummary {
   };
 }
 
-// loadRuntime reads the ecosystem overview (enveloped) and index-status (raw
-// JSON) into the runtime summary. Each sub-fetch is optional and swallows its
-// own failure so the snapshot degrades to the unknown baseline rather than
-// throwing.
+// loadRuntime reads the ecosystem overview (enveloped), index-status (raw
+// JSON), and the repositories list total into the runtime summary. Each
+// sub-fetch is optional and swallows its own failure so the snapshot degrades
+// to the unknown baseline rather than throwing.
+//
+// Repository count priority (issue #3392): the repositories API total field is
+// the authoritative source because it reflects a true graph COUNT independent
+// of page size. index-status repository_count and ecosystem overview repo_count
+// are kept as cascading fallbacks for backward compatibility with older server
+// versions that predate the total field.
 export async function loadRuntime(client: EshuApiClient, ctx: SectionContext): Promise<RuntimeSummary | null> {
   let overview: EcosystemOverview = {};
   let profile = "unknown";
@@ -133,10 +146,17 @@ export async function loadRuntime(client: EshuApiClient, ctx: SectionContext): P
   // plain JSON (client.get would unwrap a non-existent `data` field to nothing).
   let st: IndexStatus = {};
   try { st = await client.getJson<IndexStatus>("/api/v0/index-status"); } catch { /* optional */ }
+  // Probe the repositories list with limit=1 to get the total without fetching
+  // the full page. The total field is the true graph COUNT added in issue #3392.
+  let repoTotal: number | undefined;
+  try {
+    const repoList = await client.getJson<RepositoryListBrief>("/api/v0/repositories?limit=1&offset=0");
+    repoTotal = repoList.total;
+  } catch { /* optional */ }
   const q = st.queue ?? {};
   return {
     indexStatus: st.status ?? "unknown",
-    repositories: st.repository_count ?? overview.repo_count ?? overview.repository_count ?? 0,
+    repositories: repoTotal ?? st.repository_count ?? overview.repo_count ?? overview.repository_count ?? 0,
     workloads: overview.workload_count ?? 0,
     platforms: overview.platform_count ?? 0,
     instances: overview.instance_count ?? 0,

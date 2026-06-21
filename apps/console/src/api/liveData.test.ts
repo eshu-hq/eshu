@@ -30,6 +30,8 @@ function clientFor(
 
 const repositoriesResponse = {
   count: 2,
+  // total is the true count independent of page size, added in issue #3392.
+  total: 2,
   repositories: [
     {
       id: "repository:r_1",
@@ -92,7 +94,11 @@ describe("live Eshu data adapters", () => {
     });
   });
 
-  it("uses catalog repository rows for paginated dashboard catalog totals", async () => {
+  it("uses server-supplied total for dashboard catalog count (not page-slice count)", async () => {
+    // Regression for issue #3392: loadRepositorySummary must read payload.total
+    // (the true count independent of page size) rather than payload.count (the
+    // per-page slice length). The limit=1 probe would previously return count=1,
+    // so the dashboard showed 1 instead of the actual total.
     const requests: string[] = [];
     const metrics = await loadDashboardMetrics({
       client: clientFor({
@@ -102,9 +108,10 @@ describe("live Eshu data adapters", () => {
           status: "healthy"
         },
         "/api/v0/repositories": {
-          count: 896,
-          limit: 100,
-          repositories: repositoriesResponse.repositories
+          count: 1,
+          total: 896,
+          limit: 1,
+          repositories: repositoriesResponse.repositories.slice(0, 1)
         }
       }, requests),
       mode: "private"

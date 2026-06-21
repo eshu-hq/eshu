@@ -43,15 +43,51 @@ func (h *RepositoryHandler) profile() QueryProfile {
 	return NormalizeQueryProfile(string(h.Profile))
 }
 
+// repositoryCountCypher is the bounded COUNT query used to populate the total
+// field on the repository list response independently of the page size. It runs
+// in a few milliseconds on production-scale graphs because it uses the same
+// Repository node scan that the backing store optimises for label counts.
+const repositoryCountCypher = `MATCH (r:Repository) RETURN count(r) AS total`
+
+// isRepositoryCountCypher reports whether a Cypher string is the bounded count
+// query emitted by queryRepositoryTotal. Test fakes use this to dispatch the
+// count response separately from the page response.
+func isRepositoryCountCypher(cypher string) bool {
+	return cypher == repositoryCountCypher
+}
+
+// queryRepositoryTotal runs a bounded COUNT query and returns the true number
+// of Repository nodes visible to the caller. On error it returns 0 so callers
+// always get a valid (if degraded) total rather than a server error.
+func queryRepositoryTotal(ctx context.Context, graph GraphQuery, access repositoryAccessFilter) int {
+	var cypher string
+	var params map[string]any
+	if access.scoped() {
+		cypher = fmt.Sprintf(
+			`MATCH (r:Repository) %s RETURN count(r) AS total`,
+			access.graphWhereClause("r"),
+		)
+		params = access.graphParams(nil)
+	} else {
+		cypher = repositoryCountCypher
+	}
+	row, err := graph.RunSingle(ctx, cypher, params)
+	if err != nil || row == nil {
+		return 0
+	}
+	return IntVal(row, "total")
+}
+
 // listRepositories returns a bounded page of indexed repositories. It also
 // serves the inventory (empty-selector) form of get_repository_stats, so the
-// response carries an additive result_limits drilldown block and an explicit
-// partial_reasons slot, preserving the existing truncated paging field.
+// response carries an additive result_limits drilldown block, an explicit
+// partial_reasons slot, and a total field that reflects the true repository
+// count independent of page size.
 func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	page := repositoryListPageFromRequest(r)
 	access := repositoryAccessFilterFromContext(r.Context())
 	if h == nil {
-		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false), nil)
+		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false, 0), nil)
 		return
 	}
 	if h.Neo4j == nil {
@@ -61,14 +97,21 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		repos = access.filterRepositoryMaps(repos)
+		// Capture total before paging so it reflects the full filtered set.
+		total := len(repos)
 		repos, truncated := pageRepositoryMaps(repos, page)
-		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisContentIndex, "resolved from bounded repository content catalog"))
+		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisContentIndex, "resolved from bounded repository content catalog"))
 		return
 	}
 	if access.empty() {
-		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false, 0), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 		return
 	}
+
+	// Run the total COUNT and the page query. The COUNT is a cheap label scan
+	// that resolves in a few milliseconds; it does not need to be parallelised
+	// with the page query on any graph backend at production scale.
+	total := queryRepositoryTotal(r.Context(), h.Neo4j, access)
 
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
@@ -104,7 +147,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 		repos = append(repos, decorateRepositoryGroupEvidence(repo))
 	}
 
-	WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+	WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
 func (h *RepositoryHandler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {

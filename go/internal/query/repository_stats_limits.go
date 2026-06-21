@@ -107,10 +107,12 @@ func repositoryInventoryPartialReasons(truncated bool, repos []map[string]any) [
 // additive result_limits drilldown block and explicit partial_reasons slot used
 // by the inventory (empty-selector) form of get_repository_stats. It preserves
 // the existing repositoryListResponse fields (repositories, count, limit,
-// offset, truncated).
-func repositoryInventoryResponse(repos []map[string]any, page repositoryListPage, truncated bool) map[string]any {
-	response := repositoryListResponse(repos, page, truncated)
-	response["result_limits"] = repositoryInventoryResultLimits(page, len(repos), truncated)
+// offset, truncated) and adds total: the true repository count independent of
+// page size, so callers can distinguish the per-page count from the overall
+// dataset size.
+func repositoryInventoryResponse(repos []map[string]any, page repositoryListPage, truncated bool, total int) map[string]any {
+	response := repositoryListResponse(repos, page, truncated, total)
+	response["result_limits"] = repositoryInventoryResultLimits(page, total, truncated)
 	response["partial_reasons"] = repositoryInventoryPartialReasons(truncated, repos)
 	return response
 }

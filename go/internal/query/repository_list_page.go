@@ -34,10 +34,16 @@ func repositoryListPageFromRequest(r *http.Request) repositoryListPage {
 	return repositoryListPage{Limit: limit, Offset: offset}
 }
 
-func repositoryListResponse(repos []map[string]any, page repositoryListPage, truncated bool) map[string]any {
+// repositoryListResponse builds the standard paged repository envelope. total
+// is the true repository count independent of the page size; count is the
+// number of rows returned in this page. Callers that do not yet have a total
+// (e.g. early-return paths) may pass total=len(repos) and rely on the caller
+// to patch it once the count query resolves.
+func repositoryListResponse(repos []map[string]any, page repositoryListPage, truncated bool, total int) map[string]any {
 	return map[string]any{
 		"repositories": repos,
 		"count":        len(repos),
+		"total":        total,
 		"limit":        page.Limit,
 		"offset":       page.Offset,
 		"truncated":    truncated,
