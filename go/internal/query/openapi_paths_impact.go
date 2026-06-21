@@ -203,7 +203,7 @@ const openAPIPathsImpact = `
       "post": {
         "tags": ["impact"],
         "summary": "Find change surface",
-        "description": "Analyzes the change surface for a target entity.",
+        "description": "Analyzes the change surface for a target entity. The start node is resolved through label-anchored indexed lookups (optionally hinted by kind) and the impact traversal is bounded by max_depth, so dense service-kind targets stay within the repo-scale traversal budget. Results beyond limit set truncated.",
         "operationId": "findChangeSurface",
         "requestBody": {
           "required": true,
@@ -214,7 +214,10 @@ const openAPIPathsImpact = `
                 "required": ["target"],
                 "properties": {
                   "target": {"type": "string", "description": "Target entity ID"},
+                  "kind": {"type": "string", "description": "Optional target kind hint for label-anchored resolution", "enum": ["service", "workload", "workload_instance", "repository", "resource", "cloud_resource", "terraform_module", "module"]},
+                  "target_type": {"type": "string", "description": "Alias for kind (legacy field name)", "enum": ["service", "workload", "workload_instance", "repository", "resource", "cloud_resource", "terraform_module", "module"]},
                   "environment": {"type": "string", "description": "Optional environment filter"},
+                  "max_depth": {"type": "integer", "description": "Maximum traversal hops (defaults to 4, clamped to 8)", "default": 4, "minimum": 1, "maximum": 8},
                   "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }

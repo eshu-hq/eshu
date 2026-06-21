@@ -571,6 +571,60 @@ also emits a `truncated` boolean, so an operator can see whether the bound was
 hit. The query keeps the existing `GraphQuery.Run` adapter, `neo4j.query` spans,
 and query-duration metrics; no new worker, queue, or runtime knob is introduced.
 
+### Legacy Change-Surface Service-Kind Traversal
+
+Issue #3384: `POST /api/v0/impact/change-surface` with
+`{"kind":"service","target":"<id>"}` hung past the 40s budget at 900-repo scale
+(481,728 graph nodes). Repository, module, XRD, and SQL-table targets were fine;
+only the densely connected service (Workload) kind hung. The legacy
+`findChangeSurface` Cypher had the same two anti-patterns the static query-plan
+gate rejects:
+
+```cypher
+MATCH (start) WHERE start.id = $target_id
+OPTIONAL MATCH path = (start)-[rels*1..8]->(impacted)
+WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE ...)
+UNWIND relationships(path) as rel
+...
+```
+
+1. The `MATCH (start)` anchor is unlabeled, so NornicDB resolves the id by an
+   all-node scan over the entire graph (the same class as issue #3378). A second
+   unlabeled `MATCH (n) WHERE n.id = $id` ran to hydrate the target name.
+2. The variable-length `*1..8` expansion is hardcoded and the target-label set is
+   filtered only after expansion. For a dense Workload node the engine
+   materializes the full 8-hop neighborhood frontier before any label filter
+   applies, which is the service-kind explosion.
+
+The fix resolves the start node through the existing label-anchored, indexed
+resolver probes (`resolveChangeSurfaceTarget`) — driven by the optional
+`kind`/`target_type` hint, with an ordered label fallback when it is absent — and
+anchors the resolved label in the traversal start
+(`changeSurfaceTraversalStartMatch`, e.g. `MATCH (start:Workload {id: $target_id})`,
+which uses the `Workload.id` uniqueness constraint and `nornicdb_workload_id_lookup`
+index). The traversal depth is parameterized and clamped (default 4, max 8). The
+unlabeled target-hydration scan is removed entirely; the target name comes from
+the resolved candidate. The legacy per-relationship projection
+(`rel_type`/`confidence`/`reason`) and the flat `impacted`/`count`/`limit`/`truncated`
+response shape are preserved, so edge provenance and the wire contract are
+unchanged for existing callers (`kind` and `max_depth` are additive optional
+fields). The query over-fetches one row beyond limit so `truncated` stays honest.
+
+No-Regression Evidence: this is a correctness-of-shape fix that removes the
+all-node start scan and bounds the traversal depth; no live PROFILE was available
+because no local NornicDB-New checkout is present (stated per cypher-query-rigor).
+Input cardinality at the start anchor drops from all graph nodes (481,728) to a
+single indexed point lookup, and the traversal frontier is bounded by `max_depth`
+(default 4) instead of a hardcoded 8. Output is bounded by `limit` plus one
+over-fetch row. Shape is proven by `go test ./internal/query -run ChangeSurface
+-count=1` (18 tests, including the labeled-anchor and depth-clamp regressions) and
+the full `go test ./internal/query -count=1` (3105 tests).
+
+Observability Evidence: No-Observability-Change. The handler keeps the existing
+`GraphQuery.Run` adapter, `neo4j.query` spans, and query-duration metrics; the
+`truncated` flag in the response already signals when the bound was hit. No new
+worker, queue, span, or runtime knob is introduced.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
