@@ -118,7 +118,7 @@ const openAPIComponents = `  "components": {
           "remote_url": {"type": "string"},
           "repo_slug": {"type": "string"},
           "has_remote": {"type": "boolean"},
-          "is_dependency": {"type": "boolean"},
+          "is_dependency": {"type": "boolean", "description": "True when at least one other repository depends on this one, i.e. it is the target of an admitted Repository-[:DEPENDS_ON]->Repository edge."},
           "group_key": {"type": "string", "description": "Source-backed repository group label. Empty when grouping evidence is missing."},
           "group_source": {"type": "string", "description": "Evidence source used for grouping, such as repository_dependency_flag, repo_slug_namespace, remote_url_owner, or missing_evidence."},
           "group_truth": {"type": "string", "description": "Per-row grouping truth label, e.g. derived or missing_evidence."},

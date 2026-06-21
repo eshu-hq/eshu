@@ -71,6 +71,19 @@
   white-space: nowrap;
 }
 
+.repo-dependency-tile {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 12px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.repo-dependency-tile:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
 .repo-chip-grid {
   display: flex;
   flex-wrap: wrap;

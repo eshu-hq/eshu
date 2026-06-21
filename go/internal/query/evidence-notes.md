@@ -735,3 +735,77 @@ request metrics, and `postgres.query` spans/duration metrics are unchanged. The
 missing-evidence probe is untouched. No metric, span, log, status row, graph
 write, or queue consumer is added or altered; only the count handler's three
 queries collapse to one.
+
+## Dependency-repo marker from inbound DEPENDS_ON edge (#3394)
+
+Context: the `GET /api/v0/repositories` and `GET /api/v0/catalog` list queries
+returned `coalesce(r.is_dependency, false)`, probing a Repository node property
+that no writer ever sets. `is_dependency` is a file/entity parser flag written
+onto File nodes (`internal/graph/batch.go`, `internal/collector/git_fact_builder.go`),
+never onto Repository nodes, so the console "Dependency repos" tile was always 0.
+The fix replaces the phantom property read with `repositoryDependencyMarkerProjection`
+in `internal/query/neo4j.go`, which marks a repo as a dependency when it is the
+target of an admitted `(:Repository)-[:DEPENDS_ON]->(:Repository)` edge.
+
+Accuracy: a "dependency repo" is now exactly a repository other repositories
+depend on, backed by the admitted repo-to-repo `DEPENDS_ON` edge that the
+repo-dependency projection lane already materializes (runtime-services evidence,
+`reason = 'Runtime services list declares repository dependency'`). No new edge,
+node property, or admission path is introduced, so no correlation truth is
+invented. Package-evidenced consumer->publisher repo edges remain deferred
+(see below) because the publisher side is intentionally provenance-only.
+
+Tenant-isolation correctness: for scoped callers the `repositoryDependencyMarkerProjection`
+function applies `repositoryAccessFilter.graphPredicate` to the inner (depending)
+Repository node inside the EXISTS block. This prevents a scoped caller from
+learning dependency-marker truth about in-scope repositories derived from
+depending nodes outside their grant. The `$allowed_repository_ids` and
+`$allowed_scope_ids` parameters are already bound by `access.graphParams` in
+the outer query so no extra round-trip or parameter injection is needed.
+For shared/admin/local callers (`allScopes: true`) no predicate is added.
+`TestListRepositoriesScopedDependencyMarkerFiltersDepender` asserts the EXISTS
+block contains `$allowed_repository_ids` when the request carries a scoped token.
+
+No-Regression Evidence: `go test ./internal/query ./cmd/api ./cmd/mcp-server
+./internal/mcp -count=1` passes (3801 tests) after the change. The new
+`repository_list_dependency_marker_test.go` pins that the list query derives
+`is_dependency` from an inbound `<-[:DEPENDS_ON]-` existence check, no longer
+reads `coalesce(r.is_dependency`, surfaces the marker per row, and scopes the
+depending node to the caller's grant for scoped tokens. The query is a
+pure-correctness change with no measurable regression on the same input shape:
+the marker is a bounded, correlated `EXISTS { MATCH (r)<-[:DEPENDS_ON]-(dep:Repository) ... }`
+subquery anchored on the already-bound repository row. It is a single directed
+relationship hop that short-circuits on the first inbound edge and never fans
+out, so per-row cost is O(1) in inbound degree and the list query stays within
+the bounded SKIP/LIMIT page. This `EXISTS { MATCH (x)<-[:TYPE]-(:Label) }` shape
+is already exercised by the backend-conformance corpus
+(`internal/backendconformance/corpus.go`), proving it is portable across NornicDB
+and Neo4j on the pinned binaries. A live full-corpus `EXPLAIN`/wall-clock capture
+was not run because this environment has no provisioned graph stack (stated per
+cypher-query-rigor; matches the no-live-backend posture of #3380/#3389); to
+finalize on a live stack, run the repositories list query and confirm the marker
+subquery resolves via the `Repository` label anchor without an all-node or
+relationship-fanout scan.
+
+Observability Evidence: No-Observability-Change. The repository list/catalog
+response shape, truth envelopes, `repository_*` timer stages, structured logs,
+and HTTP status output are unchanged; the `is_dependency` field keeps its
+boolean wire contract (OpenAPI `Repository.is_dependency`) and only its value
+becomes truthful.
+
+Deferred (follow-up issue, no IP): package-evidenced repo-to-repo dependency
+edges. Joining admitted consumption correlations (consumer repo -> package) with
+admitted publication/ownership correlations (package -> publisher repo) would
+produce a package-sourced `DEPENDS_ON` edge distinct from the runtime-services
+one. This is blocked today because publication/ownership correlations are held
+`provenance_only=true, canonical_writes=0` until corroborating build/release/CI
+evidence exists (`internal/reducer/package_publication_correlation.go`,
+enforced by `package_source_correlation_test.go` and
+`package_publication_correlation_test.go`), and the package canonical writer is
+explicitly barred from adding Repository/ownership edges
+(`internal/storage/cypher/README.md`). The follow-up must first admit publisher
+truth, then emit the joined edge, then add a repo-scoped filter to
+`GET /api/v0/dependencies` (currently package-native) so the console can deep-link
+a repo into its package dependency chain.
+
+

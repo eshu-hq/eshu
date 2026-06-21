@@ -138,6 +138,56 @@ describe("RepositoriesPage", () => {
     await waitFor(() => expect(within(repositoriesTile).getByText(String(total))).toBeInTheDocument());
   });
 
+  it("links the Dependency repos tile to the Dependencies view and counts depended-on repos", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/repositories?")) {
+          return {
+            data: {
+              repositories: [
+                {
+                  id: "repository:app",
+                  name: "app",
+                  repo_slug: "platform/app",
+                  is_dependency: false,
+                  group_key: "Platform",
+                  group_source: "repo_slug_namespace",
+                  group_truth: "derived",
+                  group_kind: "source",
+                  group_reason: "derived from repository slug namespace"
+                },
+                {
+                  id: "repository:lib",
+                  name: "lib",
+                  repo_slug: "libraries/lib",
+                  is_dependency: true,
+                  group_key: "Libraries",
+                  group_source: "repository_dependency_flag",
+                  group_truth: "derived",
+                  group_kind: "dependency",
+                  group_reason: "another repository depends on this one"
+                }
+              ]
+            },
+            error: null,
+            truth: null
+          };
+        }
+        return { data: {}, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+
+    render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
+
+    const dependencyLink = await screen.findByRole("link", {
+      name: /View dependency chains in the Dependencies view/
+    });
+    expect(dependencyLink).toHaveAttribute("href", "/dependencies");
+    const dependencyTile = dependencyLink.querySelector(".stat-tile");
+    expect(dependencyTile).not.toBeNull();
+    expect(within(dependencyTile as HTMLElement).getByText("1")).toBeInTheDocument();
+  });
+
   it("links repository group chips directly to the source browser", async () => {
     const client = {
       get: async (path: string) => {
