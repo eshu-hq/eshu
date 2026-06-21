@@ -364,3 +364,68 @@ No-Observability-Change: #3385 adds no table, queue, graph write, metric, span,
 or log shape. The existing `eshu_dp_queue_depth` / `eshu_dp_queue_oldest_age_seconds`
 gauges already expose per-stage backlog and oldest age, which now drains across
 all lane domains instead of one.
+
+## Refresh-Intent Batch Starvation Fix (#3451)
+
+Performance Evidence: Before the fix, the `SharedProjectionRunner` for
+`inheritance_edges` and `sql_relationships` was caught in a permanent stall.
+Baseline (live local stack, `eshu-resolution-engine-1`, Up 40+ minutes):
+`inheritance_edges` pending: 12,227; `sql_relationships` pending: 2,804;
+`shared_projection_intents` total pending: 15,031; active generations: 982;
+completed generations: 3; zero completions since reducer restart at ~22:00 UTC
+(prior process last completed at 02:04 UTC, 28,620+ deferred cycles later).
+
+Root cause: `listPendingDomainPartitionIntentsSQL` ordered rows by
+`(created_at ASC, intent_id ASC)`. When the reducer emits both a per-repo
+`refresh` intent and hundreds of per-edge `upsert` intents at the same
+millisecond timestamp, the upsert rows' partition keys sorted before the refresh
+rows' lexicographically. With `batchLimit=200`, the 200-slot window filled
+entirely with upsert rows and pushed every refresh row past position 200 — the
+first refresh row in partition 1 landed at position 226. The refresh row never
+entered any batch. The repo-wide retract fence
+(`HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents`) checks whether the
+refresh intent's `completed_at IS NOT NULL`; with the refresh row never
+processing, the fence never opened, so all per-edge upsert rows deferred
+indefinitely on every cycle.
+
+Fix: add a stored generated BOOLEAN column `is_refresh_intent` defined as
+`COALESCE(payload->>'action' = 'refresh', false)`. The column is computed by
+Postgres on every INSERT/UPDATE from the existing `payload` JSONB field — no
+write-path changes required. A new partial index
+`shared_projection_intents_domain_partition_refresh_first_idx` on
+`(projection_domain, created_at ASC, is_refresh_intent DESC, intent_id ASC)
+WHERE completed_at IS NULL AND partition_hash IS NOT NULL` makes the sort
+order index-backed. `listPendingDomainPartitionIntentsSQL` changes
+`ORDER BY created_at ASC, intent_id ASC` to
+`ORDER BY created_at ASC, is_refresh_intent DESC, intent_id ASC`.
+`DESC` on a boolean puts `true` (refresh rows) before `false` (upsert rows)
+within the same `created_at` group. The refresh row moves to position 1 in its
+partition, enters the first batch, completes normally, and opens the fence.
+Per-edge upsert rows then drain on subsequent cycles at full batch throughput.
+Input shape: 66 refresh intents + 12,227 upsert intents for `inheritance_edges`;
+5 refresh + 2,804 upsert for `sql_relationships`, across 8 partitions each.
+
+The generated column approach replaces a JSONB CASE expression sort key that
+the existing partial index could not serve. With the stored column the planner
+can use an ordered index scan instead of a full sort on large pending backlogs.
+Verified via `EXPLAIN ... SET enable_sort=off`: planner picks
+`Index Scan using shared_projection_intents_domain_partition_refresh_first_idx`.
+
+No-Regression Evidence: `TestListPendingDomainPartitionIntentsRefreshFirst`
+failed before the fix (first row was an upsert, query lacked the refresh-first
+sort key) and passed after. `go test ./internal/storage/postgres/ -count=1` →
+passed. `go test ./internal/reducer/ -count=1` → passed. `go vet
+./internal/storage/postgres/ ./internal/reducer/` → clean. `golangci-lint run
+./internal/storage/postgres/ ./internal/reducer/` → 0 issues. The change is
+backward-compatible: domains without refresh intents emit `is_refresh_intent=false`
+for all rows, preserving the prior `created_at, intent_id` order.
+
+No-Observability-Change: #3451 adds no queue domain, graph write, metric
+instrument, metric label, span name, worker, lease, route, or log field. It adds
+one stored generated column and one partial index on an existing table. Operators
+diagnose the batch-starvation condition through the existing
+`shared projection deferred per-edge rows behind repo refresh fence` log line
+(count drops to zero once the fence opens), `shared projection completed intents`
+log field, the `eshu_dp_shared_projection_intents_processed_total` counter, and
+`pending_projection` DB counts (`SELECT projection_domain, COUNT(*) FROM
+shared_projection_intents WHERE completed_at IS NULL GROUP BY projection_domain`).
