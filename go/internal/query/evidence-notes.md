@@ -492,34 +492,103 @@ and the catalog truth envelope). No span, metric, log, status row, graph write,
 or queue consumer is added or removed; the change only narrows the parameters
 and anchor of three existing read queries.
 
-## Supply-chain aggregation endpoints — follow-up scope (#3389)
+## Supply-chain aggregation endpoints (#3389)
 
-The three supply-chain read endpoints in #3389 were investigated but are NOT
-fixed in this PR; they need live ~500k-scale EXPLAIN evidence to choose a safe
-fix and are larger than the catalog/status changes shipped here.
+Three supply-chain read endpoints aggregated `fact_records` for a single
+`fact_kind` and timed out (>20-30s) once the cloud/SaaS collectors grew the stack
+to ~502,865 graph nodes and inflated `fact_records` to collector scale:
 
 - `GET /api/v0/supply-chain/advisories`
-  (`supply_chain_advisory_catalog_sql.go`): aggregates every active
-  `vulnerability.cve` / `vulnerability.affected_package` /
-  `vulnerability.known_exploited` fact and `GROUP BY advisory_key` (three
-  MATERIALIZED CTEs) before keyset pagination applies. The cost is O(active
-  vulnerability facts), not O(page).
-- `GET /api/v0/supply-chain/impact/findings`
-  (`supply_chain_impact_findings_queries.go`): scans every active
-  `reducer_supply_chain_impact_finding` fact, dedupes with `ROW_NUMBER() OVER
-  (PARTITION BY canonical_key ...)`, then paginates. The cursor comparison also
-  re-scans `canonical_facts` via correlated subqueries.
+  (`supply_chain_advisory_catalog_sql.go`): the `cve_facts` CTE (catalog spine)
+  enumerates every active `vulnerability.cve` fact and the `kev` CTE enumerates
+  every active `vulnerability.known_exploited` fact, each with no `cve_id` anchor,
+  before `GROUP BY advisory_key` and keyset pagination.
+- `GET /api/v0/supply-chain/impact/findings/count`
+  (`supply_chain_impact_aggregates_queries.go`): the shared `scoped_facts` CTE
+  enumerates every active `reducer_supply_chain_impact_finding` fact, then
+  `ranked_facts` dedupes with `ROW_NUMBER() OVER (PARTITION BY canonical_key ...)`
+  before the count/group rollups.
 - `GET /api/v0/supply-chain/sbom-attestations/attachments/count`
   (`sbom_attestation_attachment_aggregates.go`): a global `COUNT(*)` plus two
   `GROUP BY` aggregates over every active `reducer_sbom_attestation_attachment`
   fact.
 
-Root cause is whole-fact-kind aggregation, not a missing index: the supply-chain
-fact kinds already have rich partial indexes (`fact_records_vulnerability_*`,
-`fact_records_supply_chain_impact_*`,
-`fact_records_sbom_attestation_attachments_*`). A covering index does not bound a
-global rollup/count. The likely correct fix is a maintained per-scope or global
-summary (mirroring the #3375 collector-readiness reshape that removed an
-unbounded aggregate), validated with before/after EXPLAIN (ANALYZE) on the live
-~500k stack. Tracked as follow-up to keep the catalog/status fixes small and
-measurable.
+In the common "count/list everything" case the per-payload filters are all
+no-ops, so there is no payload anchor. The earlier evidence note hypothesized
+this needed a maintained summary table because "a covering index does not bound a
+global rollup/count." That framing conflated two different index properties. A
+*covering* (payload-leading) index does not help here: with no predicate on the
+leading payload expression, the planner falls back to a sequential scan of all of
+`fact_records` (every `fact_kind`, ~collector-scale rows) or a full scan of a
+wide payload-leading index. A *partial* index is categorically different: its
+`WHERE` clause is baked into the index contents, so the index physically holds
+only the rows that satisfy the predicate. Scanning it — even fully — is therefore
+bounded to that predicate's row set.
+
+The fix adds one partial index per aggregated fact_kind whose predicate is
+exactly the query's fact-kind bound and whose key columns are the
+active-generation join keys:
+
+```sql
+CREATE INDEX IF NOT EXISTS fact_records_<kind>_active_scan_idx
+    ON fact_records (scope_id, generation_id, fact_id ASC)
+    WHERE fact_kind = '<kind>' AND is_tombstone = FALSE;
+```
+
+for `<kind>` in `vulnerability.cve`, `vulnerability.known_exploited`,
+`reducer_supply_chain_impact_finding`, and `reducer_sbom_attestation_attachment`
+(`schema_fact_records_vulnerability_indexes.go`, `schema_fact_records.go`,
+`schema_fact_records_sbom.go`). The partial predicate carves the scan down from
+"all of `fact_records`" to "this one fact_kind's active, non-tombstone tuples,"
+which is the bound the aggregate needs. The `(scope_id, generation_id)` leading
+key columns are the exact join keys to `scope_generations` / `ingestion_scopes`,
+so the planner can drive the active-generation join from the index (a merge join
+that supplies both join columns without a heap trip, or a hash join fed by the
+same bounded index scan). The scan becomes index-only when the heap pages are
+all-visible in the visibility map (vacuum-fresh); on a write-heavy table it may
+take heap fetches, but it stays bounded to the fact_kind either way. No payload
+columns are covered because the count/group expressions are JSONB and vary per
+aggregate (count vs priority bucket vs severity bucket vs subject_digest); the
+load-bearing property is the partial predicate, not coverage.
+
+No GIN index was added for the `payload->'..._ids' ?| $n` array-containment
+source-scope filters: those already have `..._repository_anchor_idx` /
+`..._workload_anchor_idx` / `..._service_anchor_idx` GIN indexes, and adding more
+would add write amplification (per the #3383 write-amplification caveat) for a
+path the new btree partial index already bounds.
+
+Accuracy: the aggregates are byte-for-byte unchanged. The fix only adds indexes;
+the SQL fact-kind anchor, `is_tombstone = FALSE` filter, active-generation join,
+dedupe ranking, grouping, ordering, and pagination are all untouched, so result
+truth is identical and the indexes only change the access path.
+
+Performance Evidence: this environment has no provisioned ~500k Postgres stack,
+so a live `EXPLAIN (ANALYZE)` wall-clock capture was not run (stated per
+cypher-query-rigor; the no-live-backend posture matches #3380/#3384). The
+load-bearing proof is the partial-predicate bounding argument above plus the
+query-shape and index-presence tests, which together pin that (a) each aggregate
+keeps the single-fact_kind + `is_tombstone = FALSE` + active-generation predicate
+the index is built on, and (b) the matching partial index DDL exists in the
+bootstrap schema. Before: planner has no bounded access path for the no-anchor
+case and scans all of `fact_records` (collector scale). After: the planner has a
+partial index containing exactly the fact_kind's active tuples, ordered on the
+join keys. To finalize on a live stack, run `EXPLAIN (ANALYZE, BUFFERS)` on each
+aggregate with all payload params `''` and confirm the plan node is an Index
+Scan / Index Only Scan on the new `..._active_scan_idx`, not a Seq Scan on
+`fact_records`, after `ANALYZE fact_records`.
+
+Tests: `TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor`,
+`TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor`,
+`TestSBOMAttestationAttachmentAggregateQueriesKeepActiveScanAnchor`
+(`internal/query`) pin the bounded query shape;
+`TestBootstrapDefinitionsIncludeAdvisoryCatalogActiveScanIndexes`,
+`TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes`,
+`TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes`
+(`internal/storage/postgres`) pin the index DDL. Per-fact_kind index/scale
+detail is in
+`go/internal/storage/postgres/evidence-supply-chain-aggregate-index-scale.md`.
+
+Observability Evidence: No-Observability-Change. The response surfaces, truth
+envelopes, HTTP request metrics, and `postgres.query` spans/duration metrics are
+unchanged; the fix only changes which rows the aggregate scans, not what the
+endpoints emit.

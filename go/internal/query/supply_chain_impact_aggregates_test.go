@@ -186,6 +186,40 @@ func TestSupplyChainImpactAggregateQueriesCountCanonicalFindings(t *testing.T) {
 	}
 }
 
+// TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor pins the bounded
+// scan shape that #3389 relies on. The shared scoped_facts CTE enumerates one
+// fact_kind's active tuples and, in the common "count everything" case, applies
+// no payload anchor before ROW_NUMBER() OVER (PARTITION BY canonical_key). It
+// must keep its single-fact_kind predicate, `is_tombstone = FALSE`, and the
+// active-generation join so the window sorts over a small set. Those are exactly
+// the columns the partial index fact_records_supply_chain_impact_active_scan_idx
+// is built on (index presence pinned in
+// go/internal/storage/postgres/facts_active_supply_chain_impact_test.go). If a
+// later edit drops the active filter or broadens the fact_kind, the planner can
+// no longer bound the scan to one kind's active rows and the whole-table scan
+// regression from #3389 returns. Every aggregate embeds the same CTE.
+func TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"totals":    supplyChainImpactAggregateCountQuery,
+		"priority":  supplyChainImpactAggregatePriorityCountQuery,
+		"severity":  supplyChainImpactAggregateSeverityCountQuery,
+		"inventory": supplyChainImpactInventoryQueryTemplate,
+	} {
+		for _, want := range []string{
+			"WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'",
+			"AND fact.is_tombstone = FALSE",
+			"ON scope.scope_id = fact.scope_id\n\t AND scope.active_generation_id = fact.generation_id",
+			"AND generation.status = 'active'",
+		} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("%s aggregate query missing #3389 bounded-scan anchor %q:\n%s", name, want, query)
+			}
+		}
+	}
+}
+
 func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates(t *testing.T) {
 	t.Parallel()
 

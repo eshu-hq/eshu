@@ -203,6 +203,29 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 			t.Fatalf("Bootstrap SQL missing %q", want)
 		}
 	}
+
+	// #3389: the supply-chain impact aggregate (GET
+	// /api/v0/supply-chain/impact/findings/count) enumerates every active
+	// reducer_supply_chain_impact_finding fact with no payload anchor in the
+	// common "count everything" case, so it needs a partial index whose
+	// leading key columns are the (scope_id, generation_id) join keys -- the
+	// existing impact indexes all lead with a payload column and so cannot
+	// bound the no-anchor enumeration to the fact_kind, forcing a whole-table
+	// scan at collector scale.
+	scopeBoundIdx := "CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_active_scan_idx"
+	if !strings.Contains(facts.SQL, scopeBoundIdx) {
+		t.Fatalf("Bootstrap SQL missing scope-bound impact active-scan index %q:\n%s", scopeBoundIdx, facts.SQL)
+	}
+	impactScanSQL := facts.SQL[strings.Index(facts.SQL, scopeBoundIdx):]
+	for _, want := range []string{
+		"(\n        scope_id,\n        generation_id,\n        fact_id ASC\n    )",
+		"WHERE fact_kind = 'reducer_supply_chain_impact_finding'",
+		"AND is_tombstone = FALSE",
+	} {
+		if !strings.Contains(impactScanSQL, want) {
+			t.Fatalf("impact active-scan index missing %q:\n%s", want, impactScanSQL[:min(len(impactScanSQL), 400)])
+		}
+	}
 	statusIndexStart := strings.Index(facts.SQL, "CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_status_lookup_idx")
 	if statusIndexStart < 0 {
 		t.Fatal("supply-chain impact status index missing")
@@ -255,6 +278,53 @@ func TestBootstrapDefinitionsIncludeSecurityAlertReconciliationIndexes(t *testin
 	} {
 		if !strings.Contains(facts.SQL, want) {
 			t.Fatalf("Bootstrap SQL missing %q", want)
+		}
+	}
+}
+
+func TestBootstrapDefinitionsIncludeAdvisoryCatalogActiveScanIndexes(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+
+	// #3389: the advisory catalog (GET /api/v0/supply-chain/advisories)
+	// enumerates every active vulnerability.cve fact (the catalog spine) and
+	// every active vulnerability.known_exploited fact (the KEV CTE) with no
+	// cve_id anchor, so it needs per-fact-kind partial indexes whose leading
+	// key columns are the (scope_id, generation_id) join keys. The existing
+	// fact_records_vulnerability_active_*_v2_idx indexes lead with a payload
+	// column and span six fact kinds, so they cannot bound the single-kind
+	// no-anchor enumeration to one kind's active tuples.
+	checks := []struct {
+		index   string
+		factKnd string
+	}{
+		{"fact_records_vulnerability_cve_active_scan_idx", "WHERE fact_kind = 'vulnerability.cve'"},
+		{"fact_records_vulnerability_known_exploited_active_scan_idx", "WHERE fact_kind = 'vulnerability.known_exploited'"},
+	}
+	for _, c := range checks {
+		create := "CREATE INDEX IF NOT EXISTS " + c.index
+		if !strings.Contains(facts.SQL, create) {
+			t.Fatalf("Bootstrap SQL missing advisory catalog active-scan index %q", c.index)
+		}
+		idxSQL := facts.SQL[strings.Index(facts.SQL, create):]
+		for _, want := range []string{
+			"(\n        scope_id,\n        generation_id,\n        fact_id ASC\n    )",
+			c.factKnd,
+			"AND is_tombstone = FALSE",
+		} {
+			if !strings.Contains(idxSQL, want) {
+				t.Fatalf("index %q missing %q:\n%s", c.index, want, idxSQL[:min(len(idxSQL), 400)])
+			}
 		}
 	}
 }
