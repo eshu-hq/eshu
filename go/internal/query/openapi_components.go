@@ -120,7 +120,7 @@ const openAPIComponents = `  "components": {
           "has_remote": {"type": "boolean"},
           "is_dependency": {"type": "boolean"},
           "group_key": {"type": "string", "description": "Source-backed repository group label. Empty when grouping evidence is missing."},
-          "group_source": {"type": "string", "description": "Evidence source used for grouping, such as repository_dependency_flag, repo_slug_namespace, or missing_evidence."},
+          "group_source": {"type": "string", "description": "Evidence source used for grouping, such as repository_dependency_flag, repo_slug_namespace, remote_url_owner, or missing_evidence."},
           "group_truth": {"type": "string", "description": "Per-row grouping truth label, e.g. derived or missing_evidence."},
           "group_kind": {"type": "string", "description": "Repository grouping kind such as source, dependency, or unknown."},
           "group_reason": {"type": "string", "description": "Human-readable reason explaining the group assignment or missing evidence."}
