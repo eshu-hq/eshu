@@ -79,7 +79,7 @@ describe("ReplatformingPage", () => {
     );
 
     await screen.findByRole("heading", { name: "Replatforming plans" });
-    expect(screen.getByText("Add scope_id or account_id to load replatforming planning data.")).toBeInTheDocument();
+    expect(screen.getByText("Add account_id or scope_id to load replatforming planning data.")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Account id"), { target: { value: "123456789012" } });
     fireEvent.change(screen.getByLabelText("Region"), { target: { value: "us-east-1" } });
     fireEvent.change(screen.getByLabelText("Limit"), { target: { value: "" } });
