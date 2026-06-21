@@ -25,8 +25,15 @@ type PackageRegistryCorrelationStore interface {
 
 // PackageRegistryCorrelationFilter bounds package correlation reads to one
 // package or repository, with optional relationship-kind and cursor filters.
+//
+// PackageIDs anchors a single bounded read to a set of packages
+// (payload package_id IN PackageIDs). It is the batched companion to the
+// scalar PackageID anchor and exists so the repo-scoped dependency-chain
+// resolver can fetch publication/ownership correlations for every package a
+// repository consumes in one round trip instead of one round trip per package.
 type PackageRegistryCorrelationFilter struct {
 	PackageID            string
+	PackageIDs           []string
 	RepositoryID         string
 	RelationshipKind     string
 	AfterCorrelationID   string
@@ -85,8 +92,8 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 	if s.DB == nil {
 		return nil, fmt.Errorf("package registry correlation database is required")
 	}
-	if filter.PackageID == "" && filter.RepositoryID == "" {
-		return nil, fmt.Errorf("package_id or repository_id is required")
+	if filter.PackageID == "" && filter.RepositoryID == "" && len(filter.PackageIDs) == 0 {
+		return nil, fmt.Errorf("package_id, package_ids, or repository_id is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > packageRegistryMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d", packageRegistryMaxLimit)
@@ -103,6 +110,7 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 		filter.Limit,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
+		pq.Array(filter.PackageIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list package registry correlations: %w", err)
@@ -144,6 +152,10 @@ WHERE fact.fact_kind = ANY($1::text[])
   AND ($3 = '' OR fact.payload->>'repository_id' = $3)
   AND ($4 = '' OR fact.payload->>'relationship_kind' = $4)
   AND ($5 = '' OR fact.fact_id > $5)
+  AND (
+    COALESCE(cardinality($9::text[]), 0) = 0
+    OR fact.payload->>'package_id' = ANY($9::text[])
+  )
   AND (
     (COALESCE(cardinality($7::text[]), 0) = 0 AND COALESCE(cardinality($8::text[]), 0) = 0)
     OR fact.payload->>'repository_id' = ANY($7::text[])

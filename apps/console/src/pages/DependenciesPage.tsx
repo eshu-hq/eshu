@@ -4,8 +4,11 @@
 // on this package" (requires a package anchor). Bounded, keyset-paged, with
 // honest empty/error states and truth/freshness chips.
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { loadDependencies } from "../api/eshuDependencies";
+import { loadDependencyChains } from "../api/eshuDependencyChains";
+import type { DependencyChain, DependencyChainPage } from "../api/eshuDependencyChains";
 import type { DependencyRow, DependencyPage } from "../api/eshuConsoleLive";
 import type { EshuTruth, TruthLevel } from "../api/envelope";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
@@ -33,6 +36,21 @@ function uiFresh(truth: EshuTruth | null): UiFresh {
 }
 
 export function DependenciesPage({
+  client,
+  sourceLabel = "live"
+}: {
+  readonly client?: EshuApiClient;
+  readonly sourceLabel?: string;
+}): React.JSX.Element {
+  const [searchParams] = useSearchParams();
+  const repoAnchor = searchParams.get("repo")?.trim() ?? "";
+  if (repoAnchor !== "") {
+    return <RepoDependencyChains client={client} repository={repoAnchor} sourceLabel={sourceLabel} />;
+  }
+  return <PackageDependencyBrowser client={client} sourceLabel={sourceLabel} />;
+}
+
+function PackageDependencyBrowser({
   client,
   sourceLabel = "live"
 }: {
@@ -177,6 +195,136 @@ export function DependenciesPage({
         </Panel>
       </div>
     </div>
+  );
+}
+
+// RepoDependencyChains renders package-evidenced consumer-repo -> package ->
+// publisher-repo chains for one repository. The consumption leg is canonical
+// (manifest-backed); each publisher leg is an inferred, provenance-only link, so
+// it is rendered with the inferred chip and never asserted as an exact
+// repository dependency edge. Multiple candidate publishers render as ambiguous.
+function RepoDependencyChains({
+  client,
+  repository,
+  sourceLabel = "live"
+}: {
+  readonly client?: EshuApiClient;
+  readonly repository: string;
+  readonly sourceLabel?: string;
+}): React.JSX.Element {
+  const [page, setPage] = useState<DependencyChainPage | null>(null);
+  const [source, setSource] = useState<Source>("loading");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!client) { setSource("unavailable"); setPage(null); return; }
+    setSource("loading"); setErr("");
+    void loadDependencyChains(client, repository)
+      .then((result) => {
+        if (cancelled) return;
+        setPage(result);
+        setSource(result.chains.length === 0 ? "empty" : "live");
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setErr(e instanceof Error ? e.message : "failed");
+        setSource("unavailable"); setPage(null);
+      });
+    return () => { cancelled = true; };
+  }, [client, repository]);
+
+  const chains = page?.chains ?? [];
+  const inferredPublishers = chains.reduce((sum, chain) => sum + chain.publishers.length, 0);
+  const ambiguousCount = chains.filter((chain) => chain.ambiguous).length;
+  const sourceDisplay = source === "live" ? sourceLabel : source;
+
+  return (
+    <div className="page">
+      <div className="page-intro">
+        <h2>Dependency chains</h2>
+        <p>Package-evidenced repo-to-repo chains for <span className="mono">{repository}</span> - <span className="mono">GET /api/v0/package-registry/dependency-chains</span>. The consumption leg is canonical; publisher legs are inferred provenance-only links, not asserted repository edges.</p>
+      </div>
+
+      <div className="grid g-4">
+        <StatTile label="Consumed packages" value={chains.length} color="var(--blue)" sub="canonical consumption" />
+        <StatTile label="Inferred publishers" value={inferredPublishers} color="var(--ember)" sub="provenance-only links" />
+        <StatTile label="Ambiguous" value={ambiguousCount} color="var(--violet)" sub="multiple candidate publishers" />
+        <StatTile label="Source" value={sourceDisplay} color="var(--ember)" sub="dependency chains" />
+      </div>
+
+      <div className="evidence-workbench evidence-workbench-rail mt" aria-label="Dependency chain workbench">
+        <Panel className="flush" title="Consumer → package → publisher"
+          sub={sourceDisplay}
+          action={
+            <div className="panel-action-stack">
+              {page?.truth ? <TruthChip level={uiTruth(page.truth.level)} /> : null}
+              {page?.truth ? <FreshDot state={uiFresh(page.truth)} /> : null}
+            </div>
+          }>
+          {source === "loading" ? (
+            <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading dependency chains...</p></div>
+          ) : (
+            <div className="table-scroll">
+              <table className="tbl wide">
+                <thead><tr><th>Package</th><th>Ecosystem</th><th>Range</th><th>Publisher repo (inferred)</th></tr></thead>
+                <tbody>
+                  {chains.map((chain) => (
+                    <ChainRows key={chain.consumptionCorrelationId || chain.packageId} chain={chain} />
+                  ))}
+                  {chains.length === 0 ? (
+                    <tr><td colSpan={4} className="empty">{err ? `Failed to load: ${err}` : `No package-evidenced dependency chains for ${repository}. Requires admitted consumption correlations and package publisher hints.`}</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+        <Panel title="Truth model" sub="bounded read-side join">
+          <dl className="surface-dl">
+            <div><dt>Repository</dt><dd className="mono">{page?.repositoryId ?? repository}</dd></div>
+            <div><dt>Consumption</dt><dd>canonical (manifest-backed)</dd></div>
+            <div><dt>Publisher</dt><dd>inferred / provenance-only</dd></div>
+            <div><dt>Page state</dt><dd>{page?.truncated ? "truncated" : source}</dd></div>
+          </dl>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+// ChainRows renders one consumed package and its publisher legs. A package with
+// no publisher correlation terminates at the package (honest negative case); a
+// package with multiple candidate publishers is marked ambiguous and never
+// collapsed to a single asserted publisher.
+function ChainRows({ chain }: { readonly chain: DependencyChain }): React.JSX.Element {
+  if (chain.publishers.length === 0) {
+    return (
+      <tr>
+        <td className="t-name mono" style={{ fontSize: ".82rem" }} title={chain.packageId}>{chain.packageName || chain.packageId || "—"}</td>
+        <td className="t-mut" style={{ fontSize: ".78rem" }}>{chain.ecosystem || "—"}</td>
+        <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{chain.dependencyRange || "—"}</td>
+        <td className="t-mut">no publisher correlation</td>
+      </tr>
+    );
+  }
+  return (
+    <>
+      {chain.publishers.map((publisher, index) => (
+        <tr key={publisher.correlationId || `${chain.packageId}-${index}`}>
+          <td className="t-name mono" style={{ fontSize: ".82rem" }} title={chain.packageId}>{index === 0 ? (chain.packageName || chain.packageId || "—") : ""}</td>
+          <td className="t-mut" style={{ fontSize: ".78rem" }}>{index === 0 ? (chain.ecosystem || "—") : ""}</td>
+          <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{index === 0 ? (chain.dependencyRange || "—") : ""}</td>
+          <td>
+            <span className="row" style={{ gap: 6, alignItems: "center" }}>
+              <span className="t-name">{publisher.repositoryName || publisher.repositoryId}</span>
+              <TruthChip level="inferred" />
+              {chain.ambiguous ? <Badge tone="warn">ambiguous</Badge> : null}
+            </span>
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }
 

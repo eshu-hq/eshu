@@ -286,4 +286,83 @@ const openAPIPathsPackageRegistry = `
         }
       }
     },
+    "/api/v0/package-registry/dependency-chains": {
+      "get": {
+        "tags": ["package-registry"],
+        "summary": "List package-evidenced repo-to-repo dependency chains",
+        "description": "Resolves consumer-repo -> package -> publisher-repo dependency chains for one repository entirely on the read side, by joining canonical manifest-backed consumption correlations with provenance-only publication/ownership correlations. Publisher legs are inferred provenance-only links (provenance_only=true), never asserted Repository dependency edges; multiple candidate publishers mark the chain ambiguous and are never collapsed to a single publisher.",
+        "operationId": "listPackageRegistryDependencyChains",
+        "parameters": [
+          {"name": "repository_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL) for the consumer repository. Unknown or ambiguous selectors return a selector error instead of an empty page."},
+          {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Package-evidenced repo-to-repo dependency chains for the repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chains": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "consumer_repository_id": {"type": "string"},
+                          "consumer_repository_name": {"type": "string"},
+                          "package_id": {"type": "string"},
+                          "package_name": {"type": "string"},
+                          "ecosystem": {"type": "string"},
+                          "dependency_range": {"type": "string"},
+                          "consumption_correlation_id": {"type": "string"},
+                          "consumption_provenance_only": {"type": "boolean"},
+                          "consumption_canonical_writes": {"type": "integer"},
+                          "ambiguous": {"type": "boolean"},
+                          "publishers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "correlation_id": {"type": "string"},
+                                "relationship_kind": {"type": "string"},
+                                "repository_id": {"type": "string"},
+                                "repository_name": {"type": "string"},
+                                "source_url": {"type": "string"},
+                                "outcome": {"type": "string"},
+                                "reason": {"type": "string"},
+                                "provenance_only": {"type": "boolean"},
+                                "canonical_writes": {"type": "integer"}
+                              },
+                              "required": ["correlation_id", "relationship_kind", "repository_id", "provenance_only", "canonical_writes"]
+                            }
+                          }
+                        },
+                        "required": ["consumer_repository_id", "package_id", "consumption_correlation_id", "consumption_provenance_only", "consumption_canonical_writes", "ambiguous", "publishers"]
+                      }
+                    },
+                    "repository_id": {"type": "string"},
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_cursor": {
+                      "type": "object",
+                      "properties": {
+                        "after_correlation_id": {"type": "string"}
+                      },
+                      "required": ["after_correlation_id"]
+                    }
+                  },
+                  "required": ["chains", "count", "limit", "truncated"]
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
 `

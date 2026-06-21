@@ -127,6 +127,14 @@ func TestPackageRegistryCorrelationQueryExcludesTombstones(t *testing.T) {
 	}
 }
 
+func TestPackageRegistryCorrelationQuerySupportsBatchedPackageIDs(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(listPackageRegistryCorrelationsQuery, "fact.payload->>'package_id' = ANY($9::text[])") {
+		t.Fatalf("listPackageRegistryCorrelationsQuery must batch on package_id = ANY for the dependency-chain publisher read:\n%s", listPackageRegistryCorrelationsQuery)
+	}
+}
+
 func TestPackageRegistryCorrelationQueryIncludesPublicationFacts(t *testing.T) {
 	t.Parallel()
 

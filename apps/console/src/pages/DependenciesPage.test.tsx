@@ -1,6 +1,11 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { DependenciesPage } from "./DependenciesPage";
+
+function renderWithRouter(ui: React.ReactElement, initialEntries: string[] = ["/dependencies"]) {
+  return render(ui, { wrapper: ({ children }) => <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter> });
+}
 
 const forwardEnvelope = {
   data: {
@@ -18,7 +23,7 @@ describe("DependenciesPage", () => {
   it("renders forward dependency rows and the truth chip from the live envelope", async () => {
     const client = { get: async () => forwardEnvelope } as unknown as EshuApiClient;
 
-    render(<DependenciesPage client={client} />);
+    renderWithRouter(<DependenciesPage client={client} />);
 
     expect(screen.getByLabelText("Package graph workbench")).toBeInTheDocument();
     expect(await screen.findByText("left-pad")).toBeInTheDocument();
@@ -39,7 +44,7 @@ describe("DependenciesPage", () => {
       }
     } as unknown as EshuApiClient;
 
-    render(<DependenciesPage client={client} />);
+    renderWithRouter(<DependenciesPage client={client} />);
     await screen.findByText("left-pad");
     const callsAfterForward = calls;
 
@@ -56,8 +61,50 @@ describe("DependenciesPage", () => {
       get: async () => ({ data: { dependencies: [], direction: "forward", truncated: false }, error: null, truth: null })
     } as unknown as EshuApiClient;
 
-    render(<DependenciesPage client={client} />);
+    renderWithRouter(<DependenciesPage client={client} />);
 
     expect(await screen.findByText(/No package dependencies in the indexed package graph/)).toBeInTheDocument();
+  });
+
+  it("renders a repo dependency chain with the publisher leg labeled inferred when deep-linked by repo", async () => {
+    const chainEnvelope = {
+      data: {
+        chains: [
+          {
+            consumer_repository_id: "repo-consumer",
+            package_id: "pkg:npm://registry.example/team-api",
+            package_name: "@acme/team-api",
+            ecosystem: "npm",
+            dependency_range: "^1.2.0",
+            consumption_correlation_id: "consume-1",
+            consumption_provenance_only: false,
+            consumption_canonical_writes: 1,
+            ambiguous: false,
+            publishers: [
+              { correlation_id: "publish-1", relationship_kind: "publication", repository_id: "repo-publisher", repository_name: "team-api", provenance_only: true, canonical_writes: 0 }
+            ]
+          }
+        ],
+        repository_id: "repo-consumer",
+        truncated: false
+      },
+      error: null,
+      truth: { profile: "production", level: "exact", capability: "package_registry.dependency_chains.list", basis: "semantic_facts", freshness: { state: "fresh" } }
+    };
+    let chainPath = "";
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("dependency-chains")) { chainPath = path; return chainEnvelope; }
+        return { data: { dependencies: [], direction: "forward", truncated: false }, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+
+    renderWithRouter(<DependenciesPage client={client} />, ["/dependencies?repo=repo-consumer"]);
+
+    // The publisher repo name and an inferred (provenance-only) label must appear.
+    expect(await screen.findByText("team-api")).toBeInTheDocument();
+    expect(screen.getByText("@acme/team-api")).toBeInTheDocument();
+    expect(screen.getByTitle("Truth: inferred")).toBeInTheDocument();
+    expect(chainPath).toContain("repository_id=repo-consumer");
   });
 });
