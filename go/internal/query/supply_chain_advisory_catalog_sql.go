@@ -14,28 +14,33 @@ package query
 //	$6 cursor advisory key (ascending keyset tie-break); '' for the first page
 //	$7 page limit (page size plus one for truncation detection)
 //
-// The advisory spine is the active vulnerability.cve facts. The query keeps the
-// per-advisory aggregation bounded by grouping on the canonical key and reads
-// only the vulnerability.cve, vulnerability.affected_package, and
-// vulnerability.known_exploited fact kinds, each covered by a partial active
-// read index. Ordering is deterministic: descending cvss_score, then ascending
-// advisory key. Pagination is keyset over that ordering.
+// The advisory spine is the active vulnerability.cve facts. The query reads the
+// vulnerability.cve, vulnerability.affected_package, and
+// vulnerability.known_exploited fact kinds in one active-generation scan, then
+// rolls them up per advisory in a single GROUP BY with per-kind FILTERed
+// aggregates. HAVING bool_or(fact_kind = 'vulnerability.cve') keeps the spine
+// identity: an advisory is emitted only when it has a cve fact, matching the
+// previous catalog/affected_rollup LEFT JOIN. Ordering is deterministic:
+// descending cvss_score, then ascending advisory key. Pagination is keyset over
+// that ordering.
+//
+// #3389: the previous shape built three MATERIALIZED CTEs and LEFT JOINed two
+// whole-fact-kind aggregates (catalog, affected_rollup) on a computed
+// advisory_key. Postgres estimates that grouped, expression-keyed input at one
+// row, so the rollup joins collapsed into an O(active_facts^2) nested-loop left
+// join that did not finish within a 600s statement timeout at ~250k
+// vulnerability facts. The single scan plus single GROUP BY removes the join
+// entirely, so the cost is one O(active vulnerability facts) aggregate pass with
+// no nested-loop blowup. Output is byte-identical to the previous shape.
 const listAdvisoryCatalogQuery = `
-WITH scope_active_generations AS MATERIALIZED (
-    SELECT scope.scope_id, scope.active_generation_id
-    FROM ingestion_scopes AS scope
-    JOIN scope_generations AS generation
-      ON generation.scope_id = scope.scope_id
-     AND generation.generation_id = scope.active_generation_id
-    WHERE generation.status = 'active'
-),
-cve_facts AS MATERIALIZED (
+WITH vuln_facts AS (
     SELECT
         UPPER(TRIM(COALESCE(
             NULLIF(TRIM(fact.payload->>'cve_id'), ''),
             NULLIF(TRIM(fact.payload->>'advisory_id'), ''),
             NULLIF(TRIM(fact.payload->>'ghsa_id'), '')
         ))) AS advisory_key,
+        fact.fact_kind AS fact_kind,
         NULLIF(TRIM(fact.payload->>'cve_id'), '') AS cve_id,
         NULLIF(TRIM(fact.payload->>'ghsa_id'), '') AS ghsa_id,
         NULLIF(TRIM(fact.payload->>'source'), '') AS source,
@@ -45,91 +50,62 @@ cve_facts AS MATERIALIZED (
             WHEN (fact.payload->>'cvss_score') ~ '^[0-9]+(\.[0-9]+)?$'
             THEN (fact.payload->>'cvss_score')::numeric
             ELSE 0
-        END AS cvss_score
-    FROM scope_active_generations AS scope
-    JOIN fact_records AS fact
-      ON fact.scope_id = scope.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'vulnerability.cve'
-      AND fact.is_tombstone = FALSE
-      AND COALESCE(
-            NULLIF(TRIM(fact.payload->>'cve_id'), ''),
-            NULLIF(TRIM(fact.payload->>'advisory_id'), ''),
-            NULLIF(TRIM(fact.payload->>'ghsa_id'), '')
-          ) IS NOT NULL
-),
-catalog AS MATERIALIZED (
-    SELECT
-        advisory_key,
-        MAX(cvss_score) AS cvss_score,
-        (ARRAY_AGG(severity_label ORDER BY cvss_score DESC NULLS LAST)
-            FILTER (WHERE severity_label IS NOT NULL))[1] AS severity_label,
-        (ARRAY_AGG(cve_id ORDER BY cve_id)
-            FILTER (WHERE cve_id IS NOT NULL))[1] AS cve_id,
-        (ARRAY_AGG(ghsa_id ORDER BY ghsa_id)
-            FILTER (WHERE ghsa_id IS NOT NULL))[1] AS ghsa_id,
-        (ARRAY_AGG(published_at ORDER BY published_at)
-            FILTER (WHERE published_at IS NOT NULL))[1] AS published_at,
-        ARRAY(
-            SELECT DISTINCT s
-            FROM unnest(ARRAY_AGG(source) FILTER (WHERE source IS NOT NULL)) AS s
-            ORDER BY s
-        ) AS sources
-    FROM cve_facts
-    GROUP BY advisory_key
-),
-affected AS MATERIALIZED (
-    SELECT
-        UPPER(TRIM(COALESCE(
-            NULLIF(TRIM(fact.payload->>'cve_id'), ''),
-            NULLIF(TRIM(fact.payload->>'advisory_id'), ''),
-            NULLIF(TRIM(fact.payload->>'ghsa_id'), '')
-        ))) AS advisory_key,
+        END AS cvss_score,
         NULLIF(LOWER(TRIM(fact.payload->>'ecosystem')), '') AS ecosystem,
         NULLIF(TRIM(fact.payload->>'package_id'), '') AS package_id,
         NULLIF(TRIM(fact.payload->>'purl'), '') AS purl
-    FROM scope_active_generations AS scope
-    JOIN fact_records AS fact
-      ON fact.scope_id = scope.scope_id
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
      AND scope.active_generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'vulnerability.affected_package'
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind IN (
+            'vulnerability.cve',
+            'vulnerability.affected_package',
+            'vulnerability.known_exploited'
+          )
       AND fact.is_tombstone = FALSE
-),
-affected_rollup AS MATERIALIZED (
-    SELECT
-        advisory_key,
-        ARRAY(SELECT DISTINCT e FROM unnest(ARRAY_AGG(ecosystem)) AS e WHERE e IS NOT NULL ORDER BY e) AS ecosystems,
-        ARRAY(SELECT DISTINCT p FROM unnest(ARRAY_AGG(package_id)) AS p WHERE p IS NOT NULL ORDER BY p) AS package_ids,
-        ARRAY(SELECT DISTINCT u FROM unnest(ARRAY_AGG(purl)) AS u WHERE u IS NOT NULL ORDER BY u) AS purls
-    FROM affected
-    GROUP BY advisory_key
-),
-kev AS MATERIALIZED (
-    SELECT DISTINCT UPPER(TRIM(NULLIF(TRIM(fact.payload->>'cve_id'), ''))) AS advisory_key
-    FROM scope_active_generations AS scope
-    JOIN fact_records AS fact
-      ON fact.scope_id = scope.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'vulnerability.known_exploited'
-      AND fact.is_tombstone = FALSE
-      AND NULLIF(TRIM(fact.payload->>'cve_id'), '') IS NOT NULL
+      AND generation.status = 'active'
 ),
 joined AS (
     SELECT
-        catalog.advisory_key,
-        catalog.cvss_score,
-        catalog.severity_label,
-        catalog.cve_id,
-        catalog.ghsa_id,
-        catalog.published_at,
-        catalog.sources,
-        COALESCE(affected_rollup.ecosystems, ARRAY[]::text[]) AS ecosystems,
-        COALESCE(affected_rollup.package_ids, ARRAY[]::text[]) AS package_ids,
-        COALESCE(affected_rollup.purls, ARRAY[]::text[]) AS purls,
-        (kev.advisory_key IS NOT NULL) AS kev
-    FROM catalog
-    LEFT JOIN affected_rollup ON affected_rollup.advisory_key = catalog.advisory_key
-    LEFT JOIN kev ON kev.advisory_key = catalog.advisory_key
+        advisory_key,
+        MAX(cvss_score) FILTER (WHERE fact_kind = 'vulnerability.cve') AS cvss_score,
+        (ARRAY_AGG(severity_label ORDER BY cvss_score DESC NULLS LAST)
+            FILTER (WHERE fact_kind = 'vulnerability.cve' AND severity_label IS NOT NULL))[1] AS severity_label,
+        (ARRAY_AGG(cve_id ORDER BY cve_id)
+            FILTER (WHERE fact_kind = 'vulnerability.cve' AND cve_id IS NOT NULL))[1] AS cve_id,
+        (ARRAY_AGG(ghsa_id ORDER BY ghsa_id)
+            FILTER (WHERE fact_kind = 'vulnerability.cve' AND ghsa_id IS NOT NULL))[1] AS ghsa_id,
+        (ARRAY_AGG(published_at ORDER BY published_at)
+            FILTER (WHERE fact_kind = 'vulnerability.cve' AND published_at IS NOT NULL))[1] AS published_at,
+        ARRAY(
+            SELECT DISTINCT s
+            FROM unnest(ARRAY_AGG(source) FILTER (WHERE fact_kind = 'vulnerability.cve' AND source IS NOT NULL)) AS s
+            ORDER BY s
+        ) AS sources,
+        ARRAY(
+            SELECT DISTINCT e
+            FROM unnest(ARRAY_AGG(ecosystem) FILTER (WHERE fact_kind = 'vulnerability.affected_package')) AS e
+            WHERE e IS NOT NULL ORDER BY e
+        ) AS ecosystems,
+        ARRAY(
+            SELECT DISTINCT p
+            FROM unnest(ARRAY_AGG(package_id) FILTER (WHERE fact_kind = 'vulnerability.affected_package')) AS p
+            WHERE p IS NOT NULL ORDER BY p
+        ) AS package_ids,
+        ARRAY(
+            SELECT DISTINCT u
+            FROM unnest(ARRAY_AGG(purl) FILTER (WHERE fact_kind = 'vulnerability.affected_package')) AS u
+            WHERE u IS NOT NULL ORDER BY u
+        ) AS purls,
+        bool_or(fact_kind = 'vulnerability.known_exploited' AND cve_id IS NOT NULL) AS kev
+    FROM vuln_facts
+    WHERE advisory_key IS NOT NULL
+    GROUP BY advisory_key
+    HAVING bool_or(fact_kind = 'vulnerability.cve')
 )
 SELECT
     advisory_key,

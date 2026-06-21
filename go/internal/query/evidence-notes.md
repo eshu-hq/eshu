@@ -523,3 +523,86 @@ summary (mirroring the #3375 collector-readiness reshape that removed an
 unbounded aggregate), validated with before/after EXPLAIN (ANALYZE) on the live
 ~500k stack. Tracked as follow-up to keep the catalog/status fixes small and
 measurable.
+
+### Endpoint 1 — advisory catalog (fixed, this PR)
+
+`GET /api/v0/supply-chain/advisories` (`supply_chain_advisory_catalog_sql.go`).
+
+Measurement environment: isolated throwaway Postgres 18 (`postgres:18-alpine`,
+`work_mem=16MB`, same `fact_records` DDL/partial indexes as the live stack via a
+schema-only `pg_dump`), seeded with a production-shaped synthetic corpus:
+1,530,000 active facts across 901 active scopes — 250,000 `vulnerability.cve` +
+250,000 `vulnerability.affected_package` + 30,000 `vulnerability.known_exploited`
+in one vulnerability-intelligence scope, plus 500,000
+`reducer_supply_chain_impact_finding` and 500,000
+`reducer_sbom_attestation_attachment` across 900 repo scopes. The live stack's
+own supply-chain fact kinds are too small (9 CVE / 15 affected / 44 attachment /
+64 finding rows) to exercise the at-scale bottleneck, so a representative seed
+was required.
+
+Root cause (proved, not assumed): the original shape built three `MATERIALIZED`
+CTEs and `LEFT JOIN`ed two whole-fact-kind aggregates (`catalog`,
+`affected_rollup`) on a computed `advisory_key`. Postgres estimates that grouped,
+expression-keyed input at `rows=1`, so both rollup joins planned as
+`Nested Loop Left Join`. At 250k advisories that is an O(active_facts^2) join.
+Removing only `MATERIALIZED`, and separately rewriting the scope filter as inline
+`fact_records JOIN ingestion_scopes JOIN scope_generations` joins, did NOT fix it
+(EXPLAIN still chose nested-loop left joins from the same `rows=1` estimate on the
+grouped expression key). The join itself is the defect, so the fix removes it: a
+single scan of the three kinds (`fact.fact_kind IN (...)`) feeds one
+`GROUP BY advisory_key` with per-kind `FILTER`ed aggregates, and
+`HAVING bool_or(fact_kind = 'vulnerability.cve')` preserves the cve-spine
+identity of the previous `catalog` LEFT JOIN.
+
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` against the seeded Postgres 18
+corpus above (query shape = shipped `listAdvisoryCatalogQuery`, no-filter first
+page, `work_mem=16MB`).
+
+| Run | Before (3 MATERIALIZED CTEs + nested-loop left join) | After (single scan + single GROUP BY) |
+| --- | --- | --- |
+| 1 | did not complete — `canceling statement due to statement timeout` at 600s | 6.26 s |
+| 2 | (not retried; same plan) | 4.41 s |
+| 3 | (not retried; same plan) | 4.72 s |
+
+- Before plan: `Nested Loop Left Join (rows=1)` joining `catalog` to
+  `affected_rollup` (both actual ~250k) — quadratic, never returns within the
+  600s cap.
+- After plan: one `Nested Loop` (the cheap `scope_generation`-indexed
+  fact↔scope join, 901 loops × ~588 rows = 530,000 rows in ~0.6s) feeding one
+  `GroupAggregate` to 250,000 rows. No aggregate-to-aggregate join exists, so the
+  nested-loop blowup is structurally impossible.
+
+Classification: wall-clock win that removes an unbounded-with-scale
+(O(active_facts^2)) cost. Residual cost is one O(active vulnerability facts)
+aggregate pass; its `GROUP BY`/`ORDER BY` spills to an external merge
+(`Disk: 111MB` at 250k advisories) the same way the pre-#3375 collector-readiness
+aggregate did. Driving this below a few seconds would require a maintained
+per-advisory summary table (O(page) keyset read); that is deliberately deferred
+because it adds a writer/staleness contract, and the single-pass reshape already
+converts a hard timeout into a working browse with zero new moving parts.
+
+No-Regression Evidence: output is byte-identical to the previous shape. The
+shipped query string (param-substituted for the first page) and the original
+query were each run via `COPY (...) TO STDOUT WITH (FORMAT csv)` on an identical
+300-advisory fixture inside one snapshot; full ordered output `diff` is empty
+(300 rows). Filtered cases were diffed the same way and are byte-identical:
+`kev=true` (60 rows), `severity=critical` (75), `ecosystem=npm` (60, an
+affected-package-derived filter), and a keyset cursor `after_cvss=5.0 /
+after_advisory_key=CVE-2024-0000150` (151). Unit coverage:
+`TestAdvisoryCatalogQueryUsesBoundedSinglePassShape` pins the single-pass shape
+and guards against reintroducing `AS MATERIALIZED` / `LEFT JOIN affected_rollup`;
+`TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel` keeps the active-fact
+predicates, ordering, and keyset limit.
+
+No-Observability-Change: only the `listAdvisoryCatalogQuery` SQL text changed.
+The route still emits the `query.advisory_catalog` span
+(`telemetry.SpanQueryAdvisoryCatalog`), the Postgres query-duration histogram,
+HTTP status/error bodies, the truth envelope, and `count` / `limit` /
+`truncated` / `next_cursor`. No metric, span, log, status row, graph write, or
+queue consumer is added or altered. The eliminated nested-loop cost and the
+residual external-merge sort are visible to operators through the same endpoint
+latency and Postgres `temp_bytes` / `pg_stat_database` counters.
+
+Wire contract unchanged: response shape, ordering (`cvss_score DESC,
+advisory_key ASC`), keyset cursor, and truncation are identical, so no OpenAPI or
+HTTP API reference change is required.

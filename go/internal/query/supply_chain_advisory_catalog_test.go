@@ -313,9 +313,9 @@ func TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
-		"fact.fact_kind = 'vulnerability.cve'",
-		"fact.fact_kind = 'vulnerability.affected_package'",
-		"fact.fact_kind = 'vulnerability.known_exploited'",
+		"'vulnerability.cve'",
+		"'vulnerability.affected_package'",
+		"'vulnerability.known_exploited'",
 		"fact.is_tombstone = FALSE",
 		"generation.status = 'active'",
 		"ORDER BY cvss_score DESC, advisory_key ASC",
@@ -323,6 +323,45 @@ func TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel(t *testing.T) {
 	} {
 		if !strings.Contains(listAdvisoryCatalogQuery, want) {
 			t.Fatalf("listAdvisoryCatalogQuery missing %q:\n%s", want, listAdvisoryCatalogQuery)
+		}
+	}
+}
+
+// TestAdvisoryCatalogQueryUsesBoundedSinglePassShape pins the #3389 reshape.
+// The catalog must aggregate the three vulnerability fact kinds in a single
+// scan and a single GROUP BY (no per-kind aggregate CTEs joined back together),
+// because the previous shape joined two whole-fact-kind aggregates on a computed
+// advisory_key the planner estimates at one row. That misestimate collapsed the
+// rollup joins into an O(active_facts^2) nested-loop left join that does not
+// complete within a 600s statement timeout at ~250k vulnerability facts.
+func TestAdvisoryCatalogQueryUsesBoundedSinglePassShape(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		// One scan across all three kinds, then one grouped pass.
+		"fact.fact_kind IN (",
+		"GROUP BY advisory_key",
+		// Spine identity preserved: an advisory still requires a cve fact.
+		"HAVING bool_or(fact_kind = 'vulnerability.cve')",
+		// Per-kind rollups become FILTERed aggregates over the single group.
+		"FILTER (WHERE fact_kind = 'vulnerability.cve')",
+		"FILTER (WHERE fact_kind = 'vulnerability.affected_package')",
+	} {
+		if !strings.Contains(listAdvisoryCatalogQuery, want) {
+			t.Fatalf("listAdvisoryCatalogQuery missing bounded-shape marker %q:\n%s", want, listAdvisoryCatalogQuery)
+		}
+	}
+
+	// Regression guard: the old nested-loop-prone shape must be gone. The
+	// MATERIALIZED CTEs hid cardinality from the planner and the separate
+	// affected_rollup/kev aggregates were LEFT JOINed back to the catalog spine.
+	for _, banned := range []string{
+		"AS MATERIALIZED",
+		"LEFT JOIN affected_rollup",
+		"LEFT JOIN kev",
+	} {
+		if strings.Contains(listAdvisoryCatalogQuery, banned) {
+			t.Fatalf("listAdvisoryCatalogQuery still contains unbounded-shape construct %q:\n%s", banned, listAdvisoryCatalogQuery)
 		}
 	}
 }
