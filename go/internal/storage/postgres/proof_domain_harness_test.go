@@ -237,6 +237,13 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		return newProofRows(
 			proofActiveGenerationFactRows(db.state, true, nil),
 		), nil
+	case query == collectorFactEvidenceQuery:
+		// Collector fact evidence is observability-only data the proof harness
+		// does not exercise; return empty rows so the wider status snapshot can
+		// still resolve. This case must precede the generic "FROM fact_records"
+		// branch because the per-scope LATERAL aggregate (issue #3375) selects
+		// FROM fact_records inside its subquery.
+		return newProofRows(nil), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))
