@@ -55,7 +55,7 @@ LATERAL shape is pinned by `TestCollectorFactEvidenceQueryAggregatesFactsPerScop
 
 ## Performance Evidence
 
-`EXPLAIN (ANALYZE, BUFFERS)` of the full collector-readiness query against
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` of the full collector-readiness query against
 `eshu-remote-e2e-postgres-1`, three consecutive runs each:
 
 | Run | Before (global GROUP BY) | After (per-scope LATERAL) |
@@ -75,9 +75,18 @@ spills regardless of active-fact count, whereas the before-plan's spill grows
 linearly with active facts (~340MB / ~20s on the 4.5M-row stack in the issue).
 Classification: wall-clock win that removes an unbounded-with-scale cost.
 
+Scope caveat: the eliminated spill was the dominant `O(active_facts)` cost
+(scale-linear in total fact count). The residual outer `GROUP BY` + `ORDER BY`
+over `fact_summary` rows scales instead with active-scope x source_system
+cardinality — on the order of hundreds to low-thousands of rows (266 here), far
+below `work_mem` — and was not EXPLAIN-measured at the issue's 4.5M-fact /
+906-scope target. It is algebraically bounded well under the spill threshold,
+not measured at that scale; the load-bearing, fact-count-linear spill is what
+the proof above definitively removes.
+
 ## No-Observability-Change
 
-No metric, span, log, status row, graph write, or queue consumer is added or
+No-Observability-Change: no metric, span, log, status row, graph write, or queue consumer is added or
 altered. Only the `fact_summary` CTE shape changed; the read still flows through
 the shared `s.queryer` and the existing HTTP request metrics on
 `/api/v0/status/collector-readiness` continue to expose endpoint latency to an
