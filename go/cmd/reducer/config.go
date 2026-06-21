@@ -390,6 +390,20 @@ func defaultGraphOrphanSweepLeaseOwner() string {
 	return fmt.Sprintf("graph-orphan-sweep-runner:%s:%d", hostname, os.Getpid())
 }
 
+// defaultSupplyChainImpactWinnersLeaseOwner derives a per-process lease owner for
+// the impact canonical winners maintainer (#3389). A unique owner per pod/process
+// is required: the shared partition-lease SQL treats a live lease with the same
+// owner as re-claimable, so a shared default would let every resolution-engine
+// instance resweep the winners table concurrently each cadence, defeating the
+// single-owner guard.
+func defaultSupplyChainImpactWinnersLeaseOwner() string {
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		hostname = "unknown-host"
+	}
+	return fmt.Sprintf("supply-chain-impact-winners-maintainer:%s:%d", hostname, os.Getpid())
+}
+
 func loadStringOrDefault(getenv func(string) string, key string, defaultValue string) string {
 	raw := strings.TrimSpace(getenv(key))
 	if raw == "" {

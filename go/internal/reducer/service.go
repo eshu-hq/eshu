@@ -69,6 +69,12 @@ type Service struct {
 	// concurrently with the main claim/execute/ack loop. Nil disables the runner.
 	SharedProjectionRunner *SharedProjectionRunner
 
+	// SupplyChainImpactWinnersMaintainer keeps the
+	// supply_chain_impact_canonical_winners read model reconciled with the active
+	// impact facts (#3389) via a lease-guarded periodic atomic resweep. Nil
+	// disables the maintainer.
+	SupplyChainImpactWinnersMaintainer *SupplyChainImpactWinnersMaintainer
+
 	// CodeCallProjectionRunner runs the controlled code-call projection lane
 	// concurrently with the main claim/execute/ack loop. Nil disables the lane.
 	CodeCallProjectionRunner *CodeCallProjectionRunner
