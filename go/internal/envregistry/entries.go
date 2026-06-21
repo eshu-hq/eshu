@@ -52,6 +52,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_HOME", Type: VarString, Subsystem: "api", Description: "Root directory for persisted API key and configuration (defaults to ~/.eshu)."},
 	{Name: "ESHU_QUERY_PROFILE", Type: VarEnum, Default: "production", Subsystem: "api", Allowed: []string{"production", "local_authoritative", "local_lightweight"}, Description: "Query execution profile."},
 	{Name: "ESHU_DISABLE_NEO4J", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, disable the graph backend entirely."},
+	{Name: "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, serve GET /api/v0/supply-chain/impact/findings from the maintained canonical winners read model (#3389) instead of read-time dedup (bounded O(page)). Honored by both the API and MCP server; enable only after the reducer maintainer has populated the winners table. Output is byte-identical."},
 
 	// mcp
 	{Name: "ESHU_MCP_TRANSPORT", Type: VarEnum, Default: "http", Subsystem: "mcp", Allowed: []string{"http", "stdio"}, Description: "MCP server transport mode."},

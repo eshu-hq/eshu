@@ -149,3 +149,103 @@ ORDER BY
   finding_id ASC
 LIMIT $19
 `
+
+// listSupplyChainImpactFindingsFromWinnersQuery is the #3389 Phase 2 read that
+// serves the same page from the maintained supply_chain_impact_canonical_winners
+// read model instead of deduplicating at read time. The winners table already
+// holds one row per canonical_key (the same winner the ROW_NUMBER dedup picks),
+// denormalized with every filterable column, so this query runs the filters +
+// keyset cursor + LIMIT on the winners table alone (index-served, O(page), no
+// window, no sort spill) and joins fact_records by winner_fact_id only for the
+// page payloads.
+//
+// It takes the SAME 23-parameter slice as listSupplyChainImpactFindingsQuery so
+// the store can swap queries without rebuilding args; $1 (fact_kind) is not a
+// filter here because the winners table is impact-only, but it is referenced in a
+// trivially-true guard so every bound parameter is used.
+//
+// Correctness: winner currency is materialization-enforced (the reducer
+// maintainer keeps the table reconciled with the active facts), so this read does
+// NOT re-join the active-generation tables — that join defeats O(page) (measured)
+// and the maintainer already excludes inactive winners. Output is byte-identical
+// to the read-time-dedup query (verified across the filter/sort/cursor matrix).
+const listSupplyChainImpactFindingsFromWinnersQuery = `
+WITH filtered AS NOT MATERIALIZED (
+    SELECT w.finding_id, w.winner_fact_id, w.priority_score
+    FROM supply_chain_impact_canonical_winners AS w
+    WHERE ($1 = $1)
+      AND ($2 = '' OR w.cve_id = $2)
+      AND ($3 = '' OR w.package_id = $3)
+      AND ($4 = '' OR w.repository_id = $4)
+      AND ($5 = '' OR w.subject_digest = $5)
+      AND ($6 = '' OR w.impact_status = $6)
+      AND ($7 = '' OR w.advisory_id = $7)
+      AND ($8 = '' OR LOWER(w.ecosystem) = LOWER($8))
+      AND ($9 = '' OR w.service_ids ? $9)
+      AND ($10 = '' OR w.workload_ids ? $10)
+      AND ($11 = '' OR w.environments ? $11)
+      AND ($12 = '' OR w.severity_bucket = $12)
+      AND (
+            $13 = ''
+            OR w.detection_profile = $13
+            OR ($13 = 'comprehensive' AND COALESCE(w.detection_profile, '') = '')
+            OR (
+                  $13 = 'precise'
+                  AND COALESCE(w.detection_profile, '') = ''
+                  AND w.impact_status IN ('affected_exact', 'not_affected_known_fixed')
+                  AND COALESCE(w.observed_version, '') <> ''
+                  AND w.match_reason IN (
+                        'npm_semver_affected_range', 'npm_semver_known_fixed',
+                        'nuget_semver_affected_range', 'nuget_semver_known_fixed',
+                        'cargo_semver_affected_range', 'cargo_semver_known_fixed',
+                        'hex_semver_affected_range', 'hex_semver_known_fixed',
+                        'maven_range_match', 'maven_known_fixed',
+                        'swift_semver_affected_range', 'swift_semver_known_fixed'
+                      )
+               )
+          )
+      AND ($14 = '' OR w.priority_bucket = $14)
+      AND ($15 = 0 OR w.priority_score >= $15)
+      AND ($16 = '' OR w.image_ref = $16)
+      AND ($20 = '' OR w.suppression_state = $20)
+      AND ($21::boolean OR w.suppression_state NOT IN ('not_affected', 'accepted_risk', 'false_positive', 'ignored'))
+      AND (
+            (COALESCE(cardinality($22::text[]), 0) = 0 AND COALESCE(cardinality($23::text[]), 0) = 0)
+            OR w.repository_id = ANY($22::text[])
+            OR w.winner_scope_id = ANY($23::text[])
+          )
+)
+SELECT f.finding_id, refetch.source_confidence, refetch.payload
+FROM filtered AS f
+JOIN fact_records AS refetch
+  ON refetch.fact_id = f.winner_fact_id
+WHERE (
+        $17 = ''
+        OR ($18 = 'finding_id' AND f.finding_id > $17)
+        OR (
+              $18 = 'priority_score_desc'
+              AND (
+                f.priority_score < COALESCE((SELECT c.priority_score FROM filtered c WHERE c.finding_id = $17), -1)
+                OR (
+                  f.priority_score = COALESCE((SELECT c.priority_score FROM filtered c WHERE c.finding_id = $17), -1)
+                  AND f.finding_id > $17
+                )
+              )
+           )
+        OR (
+              $18 = 'priority_score_asc'
+              AND (
+                f.priority_score > COALESCE((SELECT c.priority_score FROM filtered c WHERE c.finding_id = $17), 101)
+                OR (
+                  f.priority_score = COALESCE((SELECT c.priority_score FROM filtered c WHERE c.finding_id = $17), 101)
+                  AND f.finding_id > $17
+                )
+              )
+           )
+      )
+ORDER BY
+  CASE WHEN $18 = 'priority_score_desc' THEN f.priority_score END DESC,
+  CASE WHEN $18 = 'priority_score_asc' THEN f.priority_score END ASC,
+  f.finding_id ASC
+LIMIT $19
+`

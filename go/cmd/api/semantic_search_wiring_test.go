@@ -29,6 +29,7 @@ func TestNewRouterLeavesLocalSemanticHybridDisabledByDefault(t *testing.T) {
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
@@ -59,6 +60,7 @@ func TestNewRouterWiresLocalSemanticHybridWhenExplicitlyConfigured(t *testing.T)
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
@@ -93,6 +95,7 @@ func TestNewRouterWiresProviderSemanticHybridWhenProfileConfigured(t *testing.T)
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("newRouterWithSemanticEmbedding() error = %v, want nil", err)
@@ -134,6 +137,7 @@ func TestNewRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstrumentatio
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)

@@ -41,6 +41,7 @@ func newSupplyChainHandler(
 	neo4jReader query.GraphQuery,
 	contentReader query.ContentStore,
 	profile query.QueryProfile,
+	readImpactFromWinners bool,
 ) *query.SupplyChainHandler {
 	return &query.SupplyChainHandler{
 		Neo4j:                    neo4jReader,
@@ -49,7 +50,9 @@ func newSupplyChainHandler(
 		SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),
 		AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
 		AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
-		ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),
+		ImpactFindings: query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(
+			db, readImpactFromWinners,
+		),
 		ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
 		ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),
 		ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),

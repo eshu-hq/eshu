@@ -936,3 +936,71 @@ high-cardinality metric label, graph write, queue consumer, or reducer path is
 added; the response carries `count`/`limit`/`truncated`/`next_cursor` plus the
 per-leg `provenance_only`/`canonical_writes` so a slow or partial page is
 diagnosable from the trace and payload alone.
+
+## Impact findings list — winners read switch (#3389 Phase 2)
+
+`GET /api/v0/supply-chain/impact/findings`
+(`supply_chain_impact_findings_queries.go`, store gate in
+`supply_chain_impact_findings.go`).
+
+The legacy read deduplicates at query time
+(`ROW_NUMBER() OVER (PARTITION BY canonical_key ...)`), sorting the full filtered
+set and spilling ~98MB at a broad page (~1873ms at ~125k matches). With the
+maintained `supply_chain_impact_canonical_winners` read model now live (Phase 1),
+this adds `listSupplyChainImpactFindingsFromWinnersQuery`: the same page served
+by filtering + keyset + LIMIT on the winners table alone (denormalized filter
+columns), joining `fact_records` by `winner_fact_id` only for the page payloads.
+No read-time dedup, no active-generation re-join (winner currency is
+materialization-enforced).
+
+Gate: `PostgresSupplyChainImpactFindingStore.ReadFromWinners`, resolved from the
+`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` env at both the API and MCP wiring sites.
+Default false (legacy read) — reversible, and only enabled after the reducer
+maintainer has populated the winners table.
+
+No-Regression Evidence: the winners read is byte-identical to the legacy read.
+On the seeded 500k-impact-fact Postgres 18, the shipped winners query and the
+legacy query were run via `COPY (...) TO STDOUT WITH (FORMAT csv)` with identical
+parameters; `diff` is empty across 13 filter/sort/cursor combinations: no filter
+(500000), impact_status (125000), severity_bucket (100000), ecosystem
+case-insensitive (166666), repository_id (556), priority_bucket (125000),
+min_priority_score (250000), detection_profile=precise — the complex precise
+branch over observed_version + match_reason (250000), service_id membership
+(500), priority_score_desc sort (500000), priority_score_desc + cursor (4999),
+allowed-repository scoping `$22` (556), and — critically for cursor scoping — a
+`repository_id` filter paired with a `priority_score_desc` cursor whose
+`after_finding_id` belongs to a *different* repository (555): the out-of-filter
+cursor row contributes no priority, exactly as legacy `canonical_facts` does.
+
+The cursor priority lookup reads from a `WITH filtered AS NOT MATERIALIZED (…)`
+CTE carrying the same filter + grant predicates as the page, so an out-of-grant
+or out-of-filter `after_finding_id` cannot skip or surface authorized rows
+(addresses the read-gate review: the lookup must not read the whole winners
+table). `NOT MATERIALIZED` lets the planner inline the CTE so the page scan stays
+index-served. Unit coverage:
+`TestSupplyChainImpactReadGateSelectsQuery` pins gate→query selection,
+`TestSupplyChainImpactWinnersReadQueryShape` pins the winners-table/no-dedup/
+no-active-gen-rejoin shape plus the filtered-CTE cursor scoping, and
+`TestSupplyChainImpactWinnersReadEnabled` pins the `strconv.ParseBool` env parse.
+
+Performance Evidence (`EXPLAIN (ANALYZE, BUFFERS)`, `work_mem=16MB`, same seed):
+- Common browse page (default `finding_id` sort, first page, `LIMIT 51`):
+  **0.58 ms** — `Index Scan` on the winners `finding_idx` feeding 51
+  `fact_records_pkey` lookups, no external-merge sort, no spill. Bounded O(page)
+  regardless of corpus size, because the dedup happened off the read path in the
+  maintainer. Filtered browses (e.g. `impact_status`) stay index-served too.
+- `priority_score_desc` **cursor** page over the full 500k set: **~742 ms**
+  (top-N over the filtered set; the COALESCE cursor predicate is not
+  index-rangeable, the same shape limit the legacy read had) — vs legacy
+  read-time dedup **1873 ms** at the same shape, ~2.5x faster with no spill. This
+  is the one path that is O(filtered-scan) rather than O(page); the dominant
+  browse/filter cases above are O(page).
+
+No-Observability-Change: the route keeps its `query.supply_chain_impact_findings`
+span, the `eshu_dp_postgres_query_duration_seconds` histogram, the readiness
+envelope, truth envelope, and `count`/`limit`/`truncated`/`next_cursor`. The gate
+adds one boolean env var; no metric, label, graph write, or queue consumer is
+added. Operators can confirm which read path is active from the endpoint latency
+and the winners table's `MAX(materialized_at)` recency. (Surfacing winners
+freshness in the truth envelope is the immediate follow-up and is the prerequisite
+for enabling the gate in production.)

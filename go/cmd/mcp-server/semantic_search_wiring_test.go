@@ -28,6 +28,7 @@ func TestNewMCPQueryRouterLeavesLocalSemanticHybridDisabledByDefault(t *testing.
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	if router.SemanticSearch == nil {
 		t.Fatal("newMCPQueryRouter().SemanticSearch = nil")
@@ -54,6 +55,7 @@ func TestNewMCPQueryRouterWiresLocalSemanticHybridWhenExplicitlyConfigured(t *te
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	if router.SemanticSearch == nil {
 		t.Fatal("newMCPQueryRouter().SemanticSearch = nil")
@@ -83,6 +85,7 @@ func TestNewMCPQueryRouterWiresProviderSemanticHybridWhenProfileConfigured(t *te
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	hybrid, ok := router.SemanticSearch.LocalHybrid.(*query.PersistedLocalSemanticSearchHybrid)
 	if !ok {
@@ -120,6 +123,7 @@ func TestNewMCPQueryRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstru
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	hybrid, ok := router.SemanticSearch.LocalHybrid.(*query.PersistedLocalSemanticSearchHybrid)
 	if !ok {

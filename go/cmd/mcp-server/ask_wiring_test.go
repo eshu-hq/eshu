@@ -32,6 +32,7 @@ func TestMCPServerMountsAskRoute(t *testing.T) {
 		component.Policy{},
 		query.GovernanceStatusConfig{},
 		nil,
+		false,
 	)
 	mux := http.NewServeMux()
 	router.Mount(mux)
