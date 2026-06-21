@@ -484,17 +484,13 @@ entries:
       symbol: relationshipCountCypher
       line_hint: 84
     cypher: |
-      MATCH (s:Function)-[r:CALLS]->()
+      MATCH ()-[r:CALLS]->()
       RETURN count(r) AS count
-    required_schema:
-      - function_name
-      - function_lang
     caveats:
-      - One bounded count per fixed catalog verb, each anchored on the verb's source-node label (this entry is the CALLS/Function representative of the 16-verb family in relationshipVerbCatalog). The scan is bounded to the source-label population plus its outgoing edges of the type, never an unanchored ()-[r:VERB]->() all-node scan. Whole-graph aggregate without a selective user anchor, mirroring QP-READINESS-HOSTED.
+      - "One bounded count per fixed catalog verb, each a bare relationship-type aggregate answered by the NornicDB relationship-type index (this entry is the CALLS representative of the 16-verb family in relationshipVerbCatalog). The endpoints are anonymous () nodes, not bound unlabeled nodes, so this is not an unlabeled-node all-node scan; it is the relationship-type-indexed whole-graph edge count the catalog contract promises. The count is intentionally whole-graph: when a relationship type is written by more than one source label (e.g. DEPENDS_ON is written for both Repository and Workload sources), the count includes all source labels combined while the companion edge-slice endpoint is anchored on the catalog entry's sourceLabel; the two numbers can legitimately differ. NornicDB has no composite relationship-type+label index, so a source-label-scoped count would require a full label-population scan (measured at 30s+ for 16 verbs at ~900k-edge scale); the whole-graph count is the only index-served option (issue #3429)."
     plan:
       operators:
-        - LabelScan
-        - Expand
+        - RelationshipTypeScan
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
@@ -515,21 +511,20 @@ entries:
              coalesce(t.id, t.uid, t.name, t.path) AS target_id,
              coalesce(t.name, t.path, t.id, t.uid) AS target_name,
              r.rationale AS evidence
-      ORDER BY source_name, source_id, target_id
+      ORDER BY s.uid, coalesce(t.id, t.uid)
       LIMIT $limit
     required_schema:
-      - function_name
-      - function_lang
+      - function_uid_unique
+      - nornicdb_function_uid_lookup
     required_limits:
       - $limit
     requires_order: true
     caveats:
-      - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 16-verb family). The LIMIT bounds work after the source-label scan, not after an all-node scan; callers over-fetch $limit+1 to flag truncation.
+      - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 16-verb family). The ORDER BY targets the indexed source-anchor property (s.uid here, s.<sourceProperty> per verb) so the LIMIT short-circuits the index-ordered scan rather than materializing and sorting the verb's full edge set on a non-indexed coalesce() expression (issue #3429). The secondary coalesce(t.id, t.uid) tie-breaker makes the ordering deterministic when the page boundary falls inside one source node's outgoing edges. Callers over-fetch $limit+1 to flag truncation.
     plan:
       operators:
         - LabelScan
         - Expand
-        - Sort
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct

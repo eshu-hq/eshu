@@ -143,6 +143,125 @@ collectors.
 
 ## Evidence Notes
 
+### Relationships Verb Catalog Live Scaling Fix
+
+Performance Evidence: issue #3429. At post-merge E2E scale (~900k typed edges /
+~500k nodes) `POST /api/v0/relationships/catalog` timed out warm (>30s, HTTP
+000), and `POST /api/v0/relationships/edges` ran 5-8.5s. Live profiling against
+the local Compose NornicDB backend (`/db/nornic/tx/commit`, db `nornic`)
+isolated two distinct root causes, neither of which the static query-plan gate
+can see because it validates query *shape*, not live wall-clock.
+
+Backend: NornicDB via local Compose Bolt-HTTP. Corpus: ~900k typed edges /
+~500k nodes (warm). Timings are `time -p` real seconds of the Bolt-HTTP call.
+
+Root cause 1 — catalog count scanned the source-label population per verb. The
+original shape `MATCH (s:<SourceLabel>)-[r:<VERB>]->() RETURN count(r)` forced a
+scan of the entire source-label population for each of the 16 verbs, *regardless
+of how many edges of the verb exist*. The largest label (`File`, used by
+`IMPORTS`) cost 8.88s by itself to return `0`. The bare relationship-type
+aggregate `MATCH ()-[r:<VERB>]->() RETURN count(r)` is answered by the
+relationship-type index and is near-instant. The anonymous `()` endpoints are
+not the gate's unlabeled-bound-node pattern `(s)`, so the shape still passes the
+static gate (`unlabeledMatchPattern` only flags a bound, unlabeled node).
+
+- `MATCH (s:File)-[r:IMPORTS]->() RETURN count(r)` — **8.88s**, returns 0.
+- `MATCH ()-[r:IMPORTS]->() RETURN count(r)` — **0.04s**, returns 0.
+- `MATCH (s:Function)-[r:CALLS]->() RETURN count(r)` — **2.46s**, returns 20389.
+- `MATCH ()-[r:CALLS]->() RETURN count(r)` — **0.76s** (then 0.04s warm),
+  returns 21355.
+
+The count value also changes on purpose: the source-label anchor silently
+undercounted verbs whose edges originate from more than one source label (CALLS
+originates from Function 20389, File 954, Class 11, Struct 1). The OpenAPI
+contract already documents this field as a "bounded whole-graph edge count," so
+the relationship-type aggregate (21355 for CALLS) is the *correct* whole-graph
+truth, and the prior 20389 was a contract-violating subset. All 16 type-indexed
+counts together run well under 2s.
+
+Root cause 2 — edge slice sorted on a non-indexed `coalesce()` expression. The
+edge query keeps the source-label anchor (a bare-type edge match with bound,
+unlabeled endpoints profiled at 18-29s on NornicDB — far worse), but its
+`ORDER BY source_name, source_id, target_id` over projected `coalesce()`
+expressions forced NornicDB to materialize and sort the verb's full edge set
+before applying `LIMIT`. Re-basing the order onto the indexed source-anchor
+property (`ORDER BY s.<sourceProperty>`) lets the index-ordered scan
+short-circuit at the page boundary.
+
+- `MATCH (s:Function)-[r:CALLS]->(t) ... ORDER BY source_name, source_id,
+  target_id LIMIT 51` — **2.46-2.65s**.
+- `MATCH (s:Function)-[r:CALLS]->(t) ... ORDER BY s.uid LIMIT 51` — **0.11s**.
+- `MATCH (s:Repository)-[r:DEPLOYS_FROM]->(t) ... ORDER BY s.id LIMIT 51` —
+  **0.11s**.
+
+Live endpoint before (`curl -w` total seconds, warm, against
+`http://localhost:8080`, against the running main-built stack):
+
+| Endpoint | Before |
+| --- | --- |
+| `POST /api/v0/relationships/catalog` | 22.16s (HTTP 200, over budget; >30s timeout when cold) |
+| `POST /api/v0/relationships/edges` (CALLS) | 5.02s |
+| `POST /api/v0/relationships/edges` (IMPORTS) | 8.58s |
+
+Endpoint-equivalent before/after measured directly against the same NornicDB
+(the dominant cost is the per-verb graph work; HTTP/handler overhead is
+negligible). The catalog row replays the 16 source-anchored counts vs the 16
+type-indexed counts sequentially, exactly as the handler issues them:
+
+| Work | Before | After | Speedup |
+| --- | --- | --- | --- |
+| Catalog: 16 per-verb counts (sequential) | 19.87s | 0.42s | ~47x |
+| Edges (CALLS), `LIMIT 51` | 3.85s | 0.05s | ~77x |
+| Edges (DEPLOYS_FROM), `LIMIT 51` | 0.62s | 0.15s | ~4x |
+
+Both bring the catalog and the populated-verb edge slices well under the
+few-second budget.
+
+Residual: `IMPORTS` has `0` edges in the corpus yet anchors on the large `File`
+label, so its *edge slice* still scans `File` (`~9.9s` even without ORDER BY).
+This is bounded and only reached if the UI drills into a verb the catalog count
+already reports as `0`, so it is out of scope for this fix; a future change can
+re-anchor empty/large-label verbs or drive the edge slice from the
+relationship-type index if drill-down latency on empty verbs becomes a problem.
+
+The gate entries `QP-RELATIONSHIPS-CATALOG-COUNT` and `QP-RELATIONSHIPS-EDGES`
+in `go/internal/queryplan/testdata/hot-cypher.yaml` are updated to the new
+shapes (count drops the `Function` source-label schema evidence and declares a
+`RelationshipTypeScan`; edges keep the source-label anchor and `s.uid` ordering).
+The capability budget for `platform_impact.relationships_catalog` is unchanged
+(2000 ms local p95, 3000 ms production p95).
+
+**PR review follow-up (3 P2 threads):**
+
+Thread 1 (count scope): the whole-graph count is the only index-served option on
+NornicDB — there are no composite relationship-type+label indexes (confirmed via
+`SHOW INDEXES`). A source-label-anchored count (`MATCH (s:Label)-[r:VERB]->()`)
+measured at 30.7s for all 16 verbs. The fix is to document the divergence
+explicitly: the count is whole-graph, the edge slice is source-label-anchored;
+when a verb has edges from multiple source labels (e.g. `DEPENDS_ON` written for
+both `Repository` and `Workload` sources), the tile count may exceed the
+drill-down count. OpenAPI description and gate caveat updated accordingly.
+
+Thread 2 (tie-breaker): added `coalesce(t.id, t.uid)` as a deterministic
+secondary ORDER BY. Measured impact:
+
+- `ORDER BY s.uid LIMIT 51` (CALLS) — **0.05s**
+- `ORDER BY s.uid, coalesce(t.id, t.uid) LIMIT 51` (CALLS) — **0.10s**
+
+Negligible overhead; the tie-breaker resolves within the already-bounded first-page
+set without a separate sort pass.
+
+Thread 3 (gate schema): `required_schema` updated from `function_name` /
+`function_lang` to `function_uid_unique` / `nornicdb_function_uid_lookup` — the
+two indexes that actually back `ORDER BY s.uid` on the `Function` label. The gate
+now enforces the real backing and will fail if those indexes are removed.
+
+No-Observability-Change: the handlers and gate are unchanged in observability
+surface; they reuse the existing query-handler envelope and shared
+`GraphQuery.Run`/`RunSingle` adapters, add no new metrics, spans, runtime knobs,
+queue behavior, or graph writes, and the query-plan gate stays static validation
+only.
+
 ### Relationships Verb Catalog And Per-Verb Edge Slice
 
 No-Regression Evidence: issue #3397 adds two new bounded read shapes in
