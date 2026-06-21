@@ -50,9 +50,51 @@ first page **1.0 ms**, vs the legacy read-time-dedup **1873 ms** (~2000×), with
 external-merge spill. The read switch lands in a later phase; this note records
 that the recompute produces the rows that read will serve.
 
-Observability Evidence: No-Observability-Change for this phase. The table and the
-recompute/backfill writer add no metric, span, log, status row, graph write, or
-queue consumer, and nothing on the request path calls the writer yet. The
-partition worker added in the next phase will introduce backlog/recompute/lease
-telemetry per concurrency-deadlock-rigor; that telemetry ships with the code that
-runs on the runtime path.
+Observability Evidence: No-Observability-Change for the storage-layer table +
+recompute writer themselves (they add no metric/span/log/status/graph/queue and
+nothing on the request path calls the writer). Runtime visibility for the
+maintainer that drives it is covered below.
+
+## Phase 1b maintainer (this change) — reducer side-runner
+
+`SupplyChainImpactWinnersMaintainer`
+(`go/internal/reducer/supply_chain_impact_winners_maintainer.go`) runs as a
+reducer service side-runner: one resweep at startup (backfill/reconcile) and then
+on a fixed cadence (default 30s), each resweep calling `RebuildAllWinners` (the
+atomic upsert-all + delete-stale statement).
+
+Design choice — correctness over incrementalism: a full atomic resweep is used
+instead of per-canonical_key dirty tracking. The atomic reconcile recomputes the
+winner set from the current active facts, so it cannot miss a change class
+(generation-activation flips, tombstones, new sources are all captured). This
+removes the "missed dirty signal / stale winner served" correctness risk the
+incremental design carried (ADR §10). Incremental per-key recompute remains a
+future performance optimization.
+
+Concurrency (conflict domain): the conflict domain is the whole winners table
+during a resweep. A single-owner partition lease (`SupplyChainImpactWinnersDomain`,
+partitionID 0, partitionCount 1, reusing the shared-intent
+`ClaimPartitionLease`/`ReleasePartitionLease`) keeps exactly one reducer instance
+resweeping at a time, so concurrent resweeps never contend on the table.
+Transaction scope = one `RebuildAllWinners` statement (atomic per resweep). Retry
+scope = the maintainer loop (next cadence, exponential backoff capped at 5m on
+error). The lease is released after every cycle (even on error), bounding takeover
+to the lease TTL; the idempotent rebuild is the backstop if the lease is lost
+mid-run — the next owner reconciles to the same state.
+
+No-Regression Evidence: maintainer logic is covered by
+`supply_chain_impact_winners_maintainer_test.go` across the replay/retry matrix:
+lease-acquired resweep, lease-not-acquired skip (no rebuild), rebuild-error with
+the lease still released (no held lease after error), idempotent repeated cycles
+(claim/release balanced), missing-dependency validation, and context-cancel loop
+exit. `go test ./internal/reducer ./cmd/reducer -count=1` passes; the winners the
+resweep writes are byte-identical to the legacy read (proven above).
+
+Observability Evidence: the maintainer emits structured logs on resweep commit
+(debug) and failure (error, with the wrapped cause carrying the
+lease-claim/rebuild/release failure class), so an operator can see whether
+resweeps are progressing or failing. Resweep recency is independently queryable as
+`MAX(materialized_at)` on `supply_chain_impact_canonical_winners`, which the read
+surfaces as `truth.freshness` in Phase 2. No graph write or queue consumer is
+added. Richer per-resweep duration/row-count metrics are a follow-up; the logs +
+materialized_at timestamp give progress/failure visibility now.
