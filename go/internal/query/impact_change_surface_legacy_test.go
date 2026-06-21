@@ -274,6 +274,61 @@ func TestFindChangeSurfaceBareTargetUsesLabeledProbesNotUnlabeledScan(t *testing
 	}
 }
 
+// TestFindChangeSurfaceBareTargetPrefersExactIdOverNameCollision proves the
+// bare (no-kind) legacy path resolves by exact identity across labels BEFORE any
+// name fallback. The old handler anchored `MATCH (start) WHERE start.id =
+// $target_id`, so a value that is a Repository id always traversed from the
+// repository. Codex P2 on #3388 flagged that the generic resolver probed Workload
+// name before Repository id, so a repo id that collides with a workload name
+// resolved to the wrong node. Here the value is BOTH a Repository id and a
+// Workload name; resolution must select the Repository.
+func TestFindChangeSurfaceBareTargetPrefersExactIdOverNameCollision(t *testing.T) {
+	t.Parallel()
+
+	const collision = "payments"
+	var traversalCypher string
+	graph := &legacyChangeSurfaceGraph{
+		handler: func(cypher string, params map[string]any) ([]map[string]any, error) {
+			target, _ := params["target"].(string)
+			// A Workload exists whose NAME equals the value (no Workload id match).
+			if strings.Contains(cypher, "MATCH (n:Workload {name:") && target == collision {
+				return []map[string]any{{"id": "workload:checkout", "name": collision, "labels": []any{"Workload"}}}, nil
+			}
+			// A Repository exists whose ID equals the value.
+			if strings.Contains(cypher, "MATCH (n:Repository {id:") && target == collision {
+				return []map[string]any{{"id": collision, "name": "payments-repo", "labels": []any{"Repository"}}}, nil
+			}
+			if strings.Contains(cypher, "relationships(path)") {
+				traversalCypher = cypher
+				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1)}}, nil
+			}
+			return nil, nil
+		},
+	}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/change-surface",
+		bytes.NewBufferString(`{"target":"`+collision+`","limit":10}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.findChangeSurface(rec, req)
+
+	data := decodeLegacyChangeSurfaceData(t, rec)
+	// Exact id (Repository) must win over the colliding Workload name.
+	if !strings.Contains(traversalCypher, "MATCH (start:Repository {id:") {
+		t.Fatalf("exact Repository id must win over colliding Workload name; traversal = %q", traversalCypher)
+	}
+	if strings.Contains(traversalCypher, "MATCH (start:Workload") {
+		t.Fatalf("must not resolve to the name-colliding Workload: %q", traversalCypher)
+	}
+	target, _ := data["target"].(map[string]any)
+	if got, want := target["id"], collision; got != want {
+		t.Fatalf("resolved target id = %#v, want %#v (the Repository)", got, want)
+	}
+}
+
 // TestFindChangeSurfaceUnresolvableTargetReturnsEmpty proves a target that
 // matches no labeled node returns a bounded empty result rather than scanning.
 func TestFindChangeSurfaceUnresolvableTargetReturnsEmpty(t *testing.T) {
