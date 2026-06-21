@@ -84,6 +84,7 @@ fact_domain_backlogs AS (
            0
          ) AS oldest_outstanding_age_seconds
   FROM active_fact_work_items
+  WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed')
   GROUP BY domain
   HAVING COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed')) > 0
 ),

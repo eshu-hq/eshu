@@ -442,3 +442,84 @@ handling, and the route documentation fragment.
 No-Observability-Change: this changes only response emission timing/content;
 existing HTTP status, SSE `trace`/`answer`/`error` events, Ask engine warnings,
 query trace entries, and provider adapter logs remain the diagnostic surface.
+
+## Bounded catalog workload enrichment (#3389)
+
+`GET /api/v0/catalog` assembles bounded workload handles by joining three
+per-workload graph enrichments (repository, instance environments, and
+deployment-evidence environments) onto the `limit+1` workloads the base query
+returns. Before this change the three enrichment queries
+(`catalogWorkloadRepoCypher`, `catalogWorkloadInstanceEnvironmentCypher`,
+`catalogWorkloadEvidenceEnvironmentCypher` in
+`catalog_workload_environments.go`) ran with no parameters and no bound, so each
+scanned and aggregated the entire `Workload`, `WorkloadInstance`, and
+`Environment` populations regardless of the requested `limit`. At the issue's
+502,865-node scale (full cloud/SaaS collector data) that whole-graph aggregation
+timed the endpoint out (HTTP 000 at 20-30s) even at `limit=5`, because the cost
+is driven by the graph size, not the page size. This is the same read-path-scale
+class as the uncorrelated `CloudResource` scan bounded in #3378.
+
+The fix passes the bounded workload id set (`$ids`) from the base query into
+each enrichment and anchors every enrichment on `(w:Workload) WHERE w.id IN
+$ids`, the indexed bounded-id lookup shape used by `repository_name_lookup.go`
+and `entity_workload_context.go` and backed by the `nornicdb_workload_id_lookup`
+index on `Workload.id`. An empty id set short-circuits all three graph round
+trips. The kept workloads, their joined repository/instance/environment facts,
+and the truncation semantics are identical to the previous shape; the only
+change is that the enrichments visit at most `limit` workloads instead of the
+whole graph.
+
+No-Regression Evidence: the bound is the issue's root cause, not a result-size
+cap. The three enrichments are now registered hot paths in the static
+query-plan gate (`QP-DEPLOY-CATALOG-ENV`, `QP-DEPLOY-CATALOG-WORKLOAD-REPO`,
+`QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE` in
+`go/internal/queryplan/testdata/hot-cypher.yaml`), each declaring the
+`Workload.id` anchor, the `nornicdb_workload_id_lookup` schema evidence, and a
+plan that forbids `AllNodesScan`/`CartesianProduct`/`UnboundedExpand`;
+`go test ./internal/queryplan -count=1` enforces those shapes. Handler behavior
+is covered by `go test ./internal/query -run Catalog -count=1`
+(`TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs` asserts each enrichment
+carries the bounded `$ids` set and the `WHERE w.id IN $ids` anchor,
+`TestListCatalogSkipsEnrichmentWhenNoWorkloads` asserts no enrichment round trip
+on an empty catalog, and the existing merge/truncation tests assert the joined
+output is unchanged). A live 500k-node wall-clock capture was not run in this
+environment; the load-bearing proof is the static plan-shape gate plus the
+elimination of the unbounded label aggregation.
+
+Observability Evidence: No-Observability-Change. The catalog handler keeps its
+existing response surface (`limit`, `truncated`, `counts`, per-collection rows
+and the catalog truth envelope). No span, metric, log, status row, graph write,
+or queue consumer is added or removed; the change only narrows the parameters
+and anchor of three existing read queries.
+
+## Supply-chain aggregation endpoints — follow-up scope (#3389)
+
+The three supply-chain read endpoints in #3389 were investigated but are NOT
+fixed in this PR; they need live ~500k-scale EXPLAIN evidence to choose a safe
+fix and are larger than the catalog/status changes shipped here.
+
+- `GET /api/v0/supply-chain/advisories`
+  (`supply_chain_advisory_catalog_sql.go`): aggregates every active
+  `vulnerability.cve` / `vulnerability.affected_package` /
+  `vulnerability.known_exploited` fact and `GROUP BY advisory_key` (three
+  MATERIALIZED CTEs) before keyset pagination applies. The cost is O(active
+  vulnerability facts), not O(page).
+- `GET /api/v0/supply-chain/impact/findings`
+  (`supply_chain_impact_findings_queries.go`): scans every active
+  `reducer_supply_chain_impact_finding` fact, dedupes with `ROW_NUMBER() OVER
+  (PARTITION BY canonical_key ...)`, then paginates. The cursor comparison also
+  re-scans `canonical_facts` via correlated subqueries.
+- `GET /api/v0/supply-chain/sbom-attestations/attachments/count`
+  (`sbom_attestation_attachment_aggregates.go`): a global `COUNT(*)` plus two
+  `GROUP BY` aggregates over every active `reducer_sbom_attestation_attachment`
+  fact.
+
+Root cause is whole-fact-kind aggregation, not a missing index: the supply-chain
+fact kinds already have rich partial indexes (`fact_records_vulnerability_*`,
+`fact_records_supply_chain_impact_*`,
+`fact_records_sbom_attestation_attachments_*`). A covering index does not bound a
+global rollup/count. The likely correct fix is a maintained per-scope or global
+summary (mirroring the #3375 collector-readiness reshape that removed an
+unbounded aggregate), validated with before/after EXPLAIN (ANALYZE) on the live
+~500k stack. Tracked as follow-up to keep the catalog/status fixes small and
+measurable.
