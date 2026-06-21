@@ -33,34 +33,33 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 
 	now := reducerWriterNow(w.Now)
 	decisions := containerImageIdentityCanonicalDecisions(write.Decisions)
+	collectorKind := reducerFactCollectorKind(write.SourceSystem)
+	rows := make([]reducerFactRow, 0, len(decisions))
 	for _, decision := range decisions {
 		canonicalID := canonicalContainerImageIdentityID(write, decision)
 		payloadJSON, err := json.Marshal(containerImageIdentityPayload(write, decision, canonicalID))
 		if err != nil {
 			return ContainerImageIdentityWriteResult{}, fmt.Errorf("marshal container image identity payload: %w", err)
 		}
-
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalReducerFactInsertQuery,
-			containerImageIdentityFactID(write, decision),
-			write.ScopeID,
-			write.GenerationID,
-			containerImageIdentityFactKind,
-			containerImageIdentityStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return ContainerImageIdentityWriteResult{}, fmt.Errorf("write container image identity fact: %w", err)
-		}
+		rows = append(rows, reducerFactRow{
+			FactID:           containerImageIdentityFactID(write, decision),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         containerImageIdentityFactKind,
+			StableFactKey:    containerImageIdentityStableFactKey(write, decision),
+			CollectorKind:    collectorKind,
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
+	}
+	// Bounded chunked bulk insert: canonical decisions are upserted in
+	// O(N/batchSize) round-trips rather than one ExecContext per decision.
+	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+		return ContainerImageIdentityWriteResult{}, fmt.Errorf("write container image identity fact: %w", err)
 	}
 
 	return ContainerImageIdentityWriteResult{

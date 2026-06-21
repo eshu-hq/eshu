@@ -311,16 +311,16 @@ func TestPostgresContainerImageIdentityWriterPersistsCanonicalDecisions(t *testi
 	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	if got, want := db.execs[0].args[3], containerImageIdentityFactKind; got != want {
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
+	}
+	if got, want := rows[0].FactKind, containerImageIdentityFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
 
-	payloadBytes, ok := db.execs[0].args[14].([]byte)
-	if !ok {
-		t.Fatalf("payload arg type = %T, want []byte", db.execs[0].args[14])
-	}
 	var payload map[string]any
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+	if err := json.Unmarshal(rows[0].Payload, &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
 	if got, want := payload["digest"], testContainerDigest; got != want {
@@ -365,17 +365,22 @@ func TestPostgresContainerImageIdentityWriterUsesStableTagReferenceIdentity(t *t
 	if err != nil {
 		t.Fatalf("second WriteContainerImageIdentityDecisions() error = %v, want nil", err)
 	}
+	// Each write batches its single decision into one ExecContext call.
 	if got, want := len(db.execs), 2; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	if got, want := db.execs[1].args[0], db.execs[0].args[0]; got != want {
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
+	}
+	if got, want := rows[1].FactID, rows[0].FactID; got != want {
 		t.Fatalf("fact_id changed after tag digest moved: first=%v second=%v", want, got)
 	}
-	if got, want := db.execs[1].args[4], db.execs[0].args[4]; got != want {
+	if got, want := rows[1].StableFactKey, rows[0].StableFactKey; got != want {
 		t.Fatalf("stable_fact_key changed after tag digest moved: first=%v second=%v", want, got)
 	}
-	firstPayload := unmarshalContainerImageIdentityPayload(t, db.execs[0].args[14])
-	secondPayload := unmarshalContainerImageIdentityPayload(t, db.execs[1].args[14])
+	firstPayload := unmarshalContainerImageIdentityPayload(t, rows[0].Payload)
+	secondPayload := unmarshalContainerImageIdentityPayload(t, rows[1].Payload)
 	if got, want := secondPayload["canonical_id"], firstPayload["canonical_id"]; got != want {
 		t.Fatalf("canonical_id changed after tag digest moved: first=%v second=%v", want, got)
 	}
@@ -412,7 +417,11 @@ func TestPostgresContainerImageIdentityWriterPublishesKnownTruthLayers(t *testin
 	if err != nil {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want nil", err)
 	}
-	payload := unmarshalContainerImageIdentityPayload(t, db.execs[0].args[14])
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if len(rows) == 0 {
+		t.Fatal("decoded rows is empty, want one batched fact row")
+	}
+	payload := unmarshalContainerImageIdentityPayload(t, rows[0].Payload)
 	layers, ok := payload["source_layers"].([]any)
 	if !ok {
 		t.Fatalf("payload source_layers = %T, want []any", payload["source_layers"])

@@ -31,32 +31,32 @@ func (w PostgresSBOMAttestationAttachmentWriter) WriteSBOMAttestationAttachments
 		return SBOMAttestationAttachmentWriteResult{}, fmt.Errorf("sbom attestation attachment database is required")
 	}
 	now := reducerWriterNow(w.Now)
+	collectorKind := reducerFactCollectorKind(write.SourceSystem)
+	rows := make([]reducerFactRow, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		payloadJSON, err := json.Marshal(sbomAttestationAttachmentPayload(write, decision))
 		if err != nil {
 			return SBOMAttestationAttachmentWriteResult{}, fmt.Errorf("marshal sbom attestation attachment payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalReducerFactInsertQuery,
-			sbomAttestationAttachmentFactID(write, decision),
-			write.ScopeID,
-			write.GenerationID,
-			sbomAttestationAttachmentFactKind,
-			sbomAttestationAttachmentStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return SBOMAttestationAttachmentWriteResult{}, fmt.Errorf("write sbom attestation attachment fact: %w", err)
-		}
+		rows = append(rows, reducerFactRow{
+			FactID:           sbomAttestationAttachmentFactID(write, decision),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         sbomAttestationAttachmentFactKind,
+			StableFactKey:    sbomAttestationAttachmentStableFactKey(write, decision),
+			CollectorKind:    collectorKind,
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
+	}
+	// Bounded chunked bulk insert: every attachment status is upserted in
+	// O(N/batchSize) round-trips instead of one ExecContext per decision.
+	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+		return SBOMAttestationAttachmentWriteResult{}, fmt.Errorf("write sbom attestation attachment fact: %w", err)
 	}
 	canonicalWrites := sbomAttestationAttachmentCanonicalWrites(write.Decisions)
 	return SBOMAttestationAttachmentWriteResult{

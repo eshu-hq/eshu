@@ -74,17 +74,23 @@ func TestCloudInventoryAdmissionEndToEndProducesCanonicalRows(t *testing.T) {
 	if got, want := result.CanonicalWrites, 3; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 3; got != want {
+	// The writer now batches all admitted resources into one bounded bulk insert,
+	// so a single ExecContext call carries all three canonical rows.
+	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("canonical upserts = %d, want %d", got, want)
 	}
 
-	for _, exec := range db.execs {
+	rows := decodeCloudInventoryBatchedRows(t, db.execs)
+	if got, want := len(rows), 3; got != want {
+		t.Fatalf("canonical rows = %d, want %d", got, want)
+	}
+	for _, row := range rows {
 		// Every canonical write targets the reducer-owned fact kind on the
 		// idempotent insert query.
-		if got, want := exec.args[3], "reducer_cloud_resource_identity"; got != want {
+		if got, want := row.factKind, "reducer_cloud_resource_identity"; got != want {
 			t.Fatalf("canonical fact kind = %v, want %v", got, want)
 		}
-		payload := cloudInventoryDecodePayload(t, exec.args[14])
+		payload := cloudInventoryDecodePayload(t, row.payload)
 		if got, want := payload["management_origin"], "observed"; got != want {
 			t.Fatalf("management_origin = %v, want %v", got, want)
 		}
@@ -149,7 +155,11 @@ func TestCloudInventoryAdmissionEndToEndAttachesAzureResourceChangeFreshness(t *
 	if len(db.execs) != 1 {
 		t.Fatalf("canonical upserts = %d, want 1", len(db.execs))
 	}
-	payload := cloudInventoryDecodePayload(t, db.execs[0].args[14])
+	rows := decodeCloudInventoryBatchedRows(t, db.execs)
+	if len(rows) != 1 {
+		t.Fatalf("canonical rows = %d, want 1", len(rows))
+	}
+	payload := cloudInventoryDecodePayload(t, rows[0].payload)
 	freshness, ok := payload["resource_change_freshness"].([]any)
 	if !ok || len(freshness) != 1 {
 		t.Fatalf("resource_change_freshness = %#v, want one row", payload["resource_change_freshness"])
@@ -182,13 +192,14 @@ func TestCloudInventoryAdmissionEndToEndIsIdempotent(t *testing.T) {
 	if _, err := newCloudInventoryAdmissionHandler(second).Handle(context.Background(), cloudInventoryAdmissionIntent()); err != nil {
 		t.Fatalf("second Handle() error = %v", err)
 	}
-	if len(first.execs) != len(second.execs) {
-		t.Fatalf("exec count drift: first=%d second=%d", len(first.execs), len(second.execs))
+	firstRows := decodeCloudInventoryBatchedRows(t, first.execs)
+	secondRows := decodeCloudInventoryBatchedRows(t, second.execs)
+	if len(firstRows) != len(secondRows) {
+		t.Fatalf("canonical row count drift: first=%d second=%d", len(firstRows), len(secondRows))
 	}
-	for i := range first.execs {
-		firstID, secondID := first.execs[i].args[0], second.execs[i].args[0]
-		if firstID != secondID {
-			t.Fatalf("canonical fact id drifted across replay at row %d: %v != %v", i, firstID, secondID)
+	for i := range firstRows {
+		if firstRows[i].factID != secondRows[i].factID {
+			t.Fatalf("canonical fact id drifted across replay at row %d: %v != %v", i, firstRows[i].factID, secondRows[i].factID)
 		}
 	}
 }
@@ -239,6 +250,50 @@ func TestCloudInventoryAdmissionEndToEndEmptyGeneration(t *testing.T) {
 	if len(db.execs) != 0 {
 		t.Fatalf("empty generation wrote %d canonical rows, want 0", len(db.execs))
 	}
+}
+
+// cloudInventoryBatchedRow is one canonical fact row recovered from a batched
+// reducer fact insert. The reducer writer now sends all admitted resources as
+// parallel arrays in one ExecContext call, so tests decode those arrays back
+// into per-row records to make the same fact-id/kind/payload assertions.
+type cloudInventoryBatchedRow struct {
+	factID   string
+	factKind string
+	payload  []byte
+}
+
+// decodeCloudInventoryBatchedRows flattens every batched canonical fact insert
+// recorded by the fake DB into its per-row records. It asserts the batched array
+// shape (fact_id, fact_kind, payload arrays), so a regression to per-row inserts
+// would surface as a type mismatch here.
+func decodeCloudInventoryBatchedRows(t *testing.T, execs []fakeExecCall) []cloudInventoryBatchedRow {
+	t.Helper()
+	var rows []cloudInventoryBatchedRow
+	for _, exec := range execs {
+		if len(exec.args) != 15 {
+			t.Fatalf("batched insert args = %d, want 15", len(exec.args))
+		}
+		factIDs, ok := exec.args[0].([]string)
+		if !ok {
+			t.Fatalf("fact_id arg type = %T, want []string (batched insert)", exec.args[0])
+		}
+		factKinds, ok := exec.args[3].([]string)
+		if !ok {
+			t.Fatalf("fact_kind arg type = %T, want []string (batched insert)", exec.args[3])
+		}
+		payloads, ok := exec.args[14].([]string)
+		if !ok {
+			t.Fatalf("payload arg type = %T, want []string (batched insert)", exec.args[14])
+		}
+		for i := range factIDs {
+			rows = append(rows, cloudInventoryBatchedRow{
+				factID:   factIDs[i],
+				factKind: factKinds[i],
+				payload:  []byte(payloads[i]),
+			})
+		}
+	}
+	return rows
 }
 
 func cloudInventoryDecodePayload(t *testing.T, arg any) map[string]any {

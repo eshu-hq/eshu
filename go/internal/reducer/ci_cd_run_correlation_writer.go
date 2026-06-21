@@ -30,33 +30,33 @@ func (w PostgresCICDRunCorrelationWriter) WriteCICDRunCorrelations(
 		return CICDRunCorrelationWriteResult{}, fmt.Errorf("ci/cd run correlation database is required")
 	}
 	now := reducerWriterNow(w.Now)
+	collectorKind := reducerFactCollectorKind(write.SourceSystem)
+	rows := make([]reducerFactRow, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
-		payload := cicdRunCorrelationPayload(write, decision)
-		payloadJSON, err := json.Marshal(payload)
+		payloadJSON, err := json.Marshal(cicdRunCorrelationPayload(write, decision))
 		if err != nil {
 			return CICDRunCorrelationWriteResult{}, fmt.Errorf("marshal ci/cd run correlation payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalReducerFactInsertQuery,
-			cicdRunCorrelationFactID(write, decision),
-			write.ScopeID,
-			write.GenerationID,
-			cicdRunCorrelationFactKind,
-			cicdRunCorrelationStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return CICDRunCorrelationWriteResult{}, fmt.Errorf("write ci/cd run correlation fact: %w", err)
-		}
+		rows = append(rows, reducerFactRow{
+			FactID:           cicdRunCorrelationFactID(write, decision),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         cicdRunCorrelationFactKind,
+			StableFactKey:    cicdRunCorrelationStableFactKey(write, decision),
+			CollectorKind:    collectorKind,
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
+	}
+	// Bounded chunked bulk insert: all decisions for the scope are upserted in
+	// O(N/batchSize) round-trips instead of one ExecContext per decision, so a
+	// large generation cannot monopolise a reducer worker with serial inserts.
+	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+		return CICDRunCorrelationWriteResult{}, fmt.Errorf("write ci/cd run correlation fact: %w", err)
 	}
 	canonicalWrites := cicdRunCorrelationCanonicalWrites(write.Decisions)
 	return CICDRunCorrelationWriteResult{
