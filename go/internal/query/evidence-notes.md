@@ -844,3 +844,23 @@ Observability Evidence: the stage emits a `startServiceQueryStage`
 attributes via the existing service-query stage timer, so an operator can see the
 stage outcome and latency on the same span family that already diagnoses the
 service context assembly.
+
+## Ingress posture state-count tagged-switch cleanup (#3403)
+
+No-Regression Evidence: this is a pure staticcheck QF1003 cleanup in
+`service_ingress_posture.go` — the two per-edge counting `if`/`else-if` chains on
+`wafState` and `tlsState` in `buildIngressPosture` are rewritten as tagged
+`switch` statements. Behavior is byte-for-byte equivalent: neither switch has a
+`default` case, mirroring the original chains' absent trailing `else`, so the
+third state value (`unprotected` / `not_terminated`) still increments no counter.
+No Cypher, no graph round-trip, no rollup, and no reason-string logic changed.
+The WAF/TLS three-valued truth mapping (observed-positive / observed-negative /
+unproven) is untouched. Proven by the unchanged
+`go test ./internal/query -run IngressPosture -count=1` suite (9 cases, green
+both before and after the edit) and `golangci-lint run ./internal/query/`
+reporting zero issues after the change.
+
+No-Observability-Change: the edit touches only in-function counter accumulation;
+no span, metric, log, status field, or `truth.*` envelope value is added, removed,
+or renamed. The existing `ingress_posture` service-query stage span and its
+`waf_coverage` / `tls_termination` / `edge_count` attributes are unaffected.
