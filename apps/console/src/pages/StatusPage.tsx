@@ -53,9 +53,11 @@ const PIPELINE_LABEL: Record<StatusPipelineState, string> = {
   unknown: "Unknown"
 };
 
-// defaultPollMs keeps progress visibly moving during indexing without hammering
-// the backend; each backing call is a bounded few-seconds read.
-const defaultPollMs = 5000;
+// defaultPollMs keeps progress visibly moving during indexing. The four backing
+// reads are now issued in parallel (fix for issue #3441), so each poll cycle
+// takes ~2s at peak. 12s gives the cycle room to complete and the operator time
+// to read the result before the next refresh fires.
+const defaultPollMs = 12000;
 
 export function StatusPage({
   client,

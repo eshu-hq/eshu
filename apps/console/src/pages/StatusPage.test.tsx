@@ -122,6 +122,51 @@ describe("StatusPage", () => {
     await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(firstCount), { timeout: 1000 });
   });
 
+  it("does not blank to a spinner on subsequent refreshes — shows last-good data while in flight", async () => {
+    // Track how many times the readiness endpoint is called so we can tell
+    // when the second (refresh) cycle has started but not yet resolved.
+    let readinessCallCount = 0;
+    // Resolvers for each readiness call, so we can control when they complete.
+    const readinessResolvers: Array<() => void> = [];
+
+    const client: EshuApiClient = {
+      get: async (path: string) => {
+        if (path.includes("collector-readiness")) {
+          readinessCallCount++;
+          await new Promise<void>((resolve) => { readinessResolvers.push(resolve); });
+          return { data: { readiness: [] }, error: null, truth: null };
+        }
+        if (path.includes("freshness-causality")) {
+          return { data: { state: "fresh", generations: { active: 1, pending: 0 }, pending_projection: { outstanding: 0, dead_letter: 0 } }, error: null, truth: null };
+        }
+        return { data: null, error: null, truth: null };
+      },
+      getJson: async () => ({ coordinator: { collector_instances: [], collector_backpressure: [] } })
+    } as unknown as EshuApiClient;
+
+    render(<StatusPage client={client} pollMs={50} />);
+
+    // The first load fires immediately. Wait until the first readiness call is
+    // pending, then resolve it so the first overview renders.
+    await waitFor(() => expect(readinessCallCount).toBeGreaterThanOrEqual(1));
+    readinessResolvers[0]?.();
+
+    // Hero must now be visible (first load complete).
+    await screen.findByText(/% indexed/i);
+    expect(screen.queryByText(/Loading status/i)).toBeNull();
+
+    // Wait for the second poll cycle to start (readiness called again).
+    await waitFor(() => expect(readinessCallCount).toBeGreaterThanOrEqual(2), { timeout: 2000 });
+
+    // While the second cycle's readiness is in-flight (not yet resolved),
+    // the page must show last-good data — NOT a loading spinner.
+    expect(screen.queryByText(/Loading status/i)).toBeNull();
+    expect(screen.getByText(/% indexed/i)).toBeInTheDocument();
+
+    // Resolve the second call to clean up.
+    readinessResolvers[1]?.();
+  });
+
   it("shows an explicit unavailable state when the source is down", async () => {
     const client = {
       get: async () => { throw new Error("offline"); },

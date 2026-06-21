@@ -130,24 +130,38 @@ const unavailableOverview: StatusOverview = {
   provenance: "unavailable"
 };
 
-// loadStatusOverview fetches the three bounded status surfaces concurrently and
+// loadStatusOverview fetches all four bounded status surfaces concurrently and
 // joins them. collector-readiness is the required spine (the collector roster);
 // if it is unreachable the whole overview is unavailable. The other reads are
 // optional and degrade to neutral defaults.
+//
+// All four reads are started concurrently (issue #3441 fix). The required read
+// is awaited first: if it fails we return unavailableOverview immediately
+// without blocking on the still-in-flight optional reads. On the happy path
+// the optional reads have been running in parallel the whole time, so we
+// collect them with Promise.all and the total wall time is bounded by the
+// slowest single read (~2.1s) rather than the serial sum (~6.3s).
 export async function loadStatusOverview(client: EshuApiClient, clock: Clock = Date.now): Promise<StatusOverview> {
-  let readiness: ReadinessWire;
-  try {
-    const env = await client.get<ReadinessWire>("/api/v0/status/collector-readiness");
-    if (env.error || !env.data) return unavailableOverview;
-    readiness = env.data;
-  } catch {
-    return unavailableOverview;
-  }
+  // Start all reads concurrently before awaiting any of them.
+  const readinessPromise = client.get<ReadinessWire>("/api/v0/status/collector-readiness").catch(() => null);
+  const indexStatusPromise = optionalJson<IndexStatusWire>(client, "/api/v0/index-status");
+  const freshnessPromise = optionalFreshness(client);
+  const ingestersPromise = optionalJson<IngesterWire>(client, "/api/v0/status/ingesters");
 
+  // Check the required read first. If it is unavailable, return immediately
+  // without waiting for the optional reads (fast-fail: avoids blocking on a
+  // slow/hung optional endpoint when the required endpoint already rejected).
+  const readinessResult = await readinessPromise;
+  if (!readinessResult || readinessResult.error || !readinessResult.data) return unavailableOverview;
+  const readiness = readinessResult.data;
+
+  // Required read succeeded — collect the optional reads that have been
+  // running in parallel. They almost certainly finished while we awaited
+  // readiness, so this Promise.all adds negligible extra latency.
   const [indexStatus, freshness, ingesters] = await Promise.all([
-    optionalJson<IndexStatusWire>(client, "/api/v0/index-status"),
-    optionalFreshness(client),
-    optionalJson<IngesterWire>(client, "/api/v0/status/ingesters")
+    indexStatusPromise,
+    freshnessPromise,
+    ingestersPromise
   ]);
 
   const now = clock();
