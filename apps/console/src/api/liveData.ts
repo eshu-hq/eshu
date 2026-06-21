@@ -25,6 +25,9 @@ interface CatalogServiceLoadOptions extends LiveLoadOptions {
 
 interface RepositoryListResponse {
   readonly count?: number;
+  // total is the true repository count independent of page size, added in
+  // issue #3392. Prefer total over count for dashboard/sidebar display.
+  readonly total?: number;
   readonly limit?: number;
   readonly offset?: number;
   readonly repositories?: readonly RepositoryRecord[];
@@ -256,7 +259,9 @@ async function loadRepositories(client: EshuApiClient): Promise<readonly Reposit
 
 async function loadRepositorySummary(client: EshuApiClient, fallbackTotal?: number): Promise<{ readonly total: number }> {
   const payload = await client.getJson<RepositoryListResponse>("/api/v0/repositories?limit=1&offset=0");
-  return { total: payload.count ?? fallbackTotal ?? payload.repositories?.length ?? 0 };
+  // Prefer the server-supplied total (true count independent of page size) over
+  // the page-slice count, then the graph-status fallback, then the raw page length.
+  return { total: payload.total ?? fallbackTotal ?? payload.repositories?.length ?? 0 };
 }
 
 async function loadRepositoryPage(client: EshuApiClient): Promise<RepositoryListResponse> {

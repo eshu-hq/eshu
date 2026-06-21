@@ -11,6 +11,10 @@ import (
 
 type repositoryListResponse struct {
 	Repositories []repositorySelectorEntry `json:"repositories"`
+	// Total is the true repository count independent of page size, added in
+	// issue #3392 so callers can display the accurate total without paging
+	// through the entire dataset.
+	Total int `json:"total"`
 }
 
 type repositorySelectorEntry struct {

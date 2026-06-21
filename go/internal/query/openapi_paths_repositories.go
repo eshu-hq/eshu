@@ -46,7 +46,8 @@ const openAPIPathsRepositories = `
                       "type": "array",
                       "items": {"$ref": "#/components/schemas/Repository"}
                     },
-                    "count": {"type": "integer"},
+                    "count": {"type": "integer", "description": "Number of repositories returned in this page."},
+                    "total": {"type": "integer", "description": "True total repository count independent of page size. Use this field — not count — to display the overall repository count on dashboards and sidebars."},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},

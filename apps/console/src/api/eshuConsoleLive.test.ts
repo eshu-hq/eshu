@@ -478,4 +478,35 @@ describe("eshuConsoleLive", () => {
     expect(requested).toContain("/api/v0/metrics/timeseries?metric=query_p95&window=24h&step=30m");
     expect(requested).toContain("/api/v0/metrics/timeseries?metric=query_p99&window=24h&step=30m");
   });
+
+  it("uses repositories API total over index-status repository_count for sidebar count", async () => {
+    // Regression for issue #3392: loadRuntime must read the repositories total
+    // field (true graph COUNT independent of page) rather than the
+    // index-status repository_count, so the sidebar, Dashboard tile, and
+    // status/index all display the same number.
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/ecosystem/overview")) {
+          return { data: { repo_count: 500, workload_count: 0, platform_count: 0, instance_count: 0 }, error: null, truth: null };
+        }
+        return { data: {}, error: null, truth: null };
+      },
+      getJson: async (path: string) => {
+        if (path.includes("/index-status")) {
+          return { status: "healthy", repository_count: 906, queue: {} };
+        }
+        if (path.includes("/repositories")) {
+          // The repositories list probe returns total=951 (true graph count).
+          return { count: 1, total: 951, limit: 1, offset: 0, truncated: true };
+        }
+        return {};
+      },
+      post: async () => ({ data: {}, error: null, truth: null })
+    } as unknown as EshuApiClient;
+
+    const snap = await loadConsoleSnapshot(client);
+    // total from repositories API wins over index-status repository_count (906)
+    // and ecosystem repo_count (500).
+    expect(snap.runtime.repositories).toBe(951);
+  });
 });
