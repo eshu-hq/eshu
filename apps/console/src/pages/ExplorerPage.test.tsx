@@ -109,6 +109,50 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
     expect(screen.queryByText(/RELATED/)).not.toBeInTheDocument();
   });
 
+  it("opens the inline evidence panel when an inspector edge row is clicked", async () => {
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "workload:checkout-api", name: "checkout-api", labels: ["Workload"], type: "Workload" }]
+      }),
+      get: async () => ({
+        data: {
+          name: "checkout-api",
+          repo_name: "checkout-api",
+          deployment_evidence: {
+            artifacts: [
+              {
+                source_repo_id: "repository:r_dd626fe7",
+                source_repo_name: "gitops-config",
+                target_repo_id: "repository:r_078043f1",
+                target_repo_name: "checkout-api",
+                relationship_type: "DEPLOYS_FROM",
+                artifact_family: "kustomize",
+                path: "applicationsets/checkout/kustomization.yaml"
+              }
+            ]
+          }
+        },
+        error: null,
+        truth: null
+      }),
+      post: async () => {
+        throw new Error("entity-map should not be called");
+      }
+    } as unknown as EshuApiClient;
+
+    renderExplorer(client, "checkout-api");
+
+    const edgeRow = await screen.findByRole("button", { name: /DEPLOYS_FROM ← checkout-api/i });
+    fireEvent.click(edgeRow);
+
+    const panel = screen.getByRole("region", { name: /Evidence for DEPLOYS_FROM/i });
+    expect(panel).toBeInTheDocument();
+    // The edge's evidence-derived facts (endpoints + layer) are now surfaced.
+    expect(panel.querySelectorAll(".evp-row").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: /Evidence for DEPLOYS_FROM/i })).toBeNull();
+  });
+
   it("keeps Direct for a code (Function) kind and loads code/relationships", async () => {
     const calls: string[] = [];
     const client = {

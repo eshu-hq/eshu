@@ -241,26 +241,26 @@ describe("ServiceEvidenceGraphPage", () => {
     await waitFor(() => expect(screen.queryByText("billing")).not.toBeInTheDocument());
   });
 
-  it("selects a node and opens the evidence drawer", async () => {
+  it("selects a node and opens the inline evidence panel", async () => {
     const { client } = clientFor(deriveEnvelope(supportedPacket()));
     renderAt("/service-story/payments", client);
 
     const billing = await screen.findByText("billing");
     fireEvent.click(billing);
 
-    const drawer = await screen.findByRole("dialog");
-    expect(within(drawer).getByText("billing")).toBeInTheDocument();
-    expect(within(drawer).getByText(/upstream/)).toBeInTheDocument();
+    const panel = await screen.findByRole("region", { name: /Evidence for billing/i });
+    expect(within(panel).getByText("billing")).toBeInTheDocument();
+    expect(within(panel).getByText(/upstream/)).toBeInTheDocument();
   });
 
-  it("selects an edge from the relationships list and opens the drawer", async () => {
+  it("selects an evidence-lane pill and opens the inline evidence panel", async () => {
     const { client } = clientFor(deriveEnvelope(supportedPacket()));
     renderAt("/service-story/payments", client);
 
     await screen.findByText("billing");
     fireEvent.click(screen.getByRole("button", { name: /DEPENDS_ON/ }));
 
-    const drawer = await screen.findByRole("dialog");
-    expect(within(drawer).getByText("DEPENDS_ON")).toBeInTheDocument();
+    const panel = await screen.findByRole("region", { name: /Evidence for DEPENDS_ON/i });
+    expect(within(panel).getByText("DEPENDS_ON")).toBeInTheDocument();
   });
 });

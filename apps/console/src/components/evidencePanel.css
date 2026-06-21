@@ -1,0 +1,134 @@
+/* EvidencePanel: the reusable inline evidence-panel primitive. Unlike the modal
+   EvidenceDrawer, it renders in-flow next to the element it explains so the
+   operator keeps the page context while reading joined facts, truth, and
+   freshness. */
+.evidence-panel {
+  border: 1px solid var(--line, #1e2630);
+  border-radius: 12px;
+  background: var(--bg-raised, #11161d);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.evp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line, #1e2630);
+}
+
+.evp-kind {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted, #9aa4af);
+}
+
+.evp-title {
+  margin: 2px 0 0;
+  font-size: 15px;
+  word-break: break-word;
+}
+
+.evp-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #1e2630);
+  background: transparent;
+  color: var(--muted, #9aa4af);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.evp-close:hover {
+  color: var(--bone, #f3ebdd);
+  background: var(--bg-panel, #0d1218);
+}
+
+.evp-body {
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.evp-section {
+  display: grid;
+  gap: 8px;
+}
+
+.evp-section h5 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted, #9aa4af);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.evp-truth-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.evp-meta {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.evp-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.evp-row dt {
+  color: var(--muted, #9aa4af);
+}
+
+.evp-row dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.evp-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.evp-muted {
+  margin: 0;
+  color: var(--muted, #9aa4af);
+  font-size: 13px;
+}
+
+.evp-source-path {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted, #9aa4af);
+  word-break: break-word;
+}
+
+.evp-source-link {
+  font-size: 13px;
+}
+
+/* Keep label/value rows from overlapping when the panel is narrow. */
+@media (max-width: 520px) {
+  .evp-row {
+    grid-template-columns: 92px 1fr;
+  }
+}

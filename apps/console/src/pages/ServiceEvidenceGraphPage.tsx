@@ -11,7 +11,9 @@ import type { ConsoleModel } from "../console/types";
 import { uiFresh, uiTruth } from "../console/types";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
-import { EvidenceDrawer, type EvidenceSelection } from "../components/EvidenceDrawer";
+import type { EvidenceSelection } from "../components/EvidenceDrawer";
+import { EvidencePanel } from "../components/EvidencePanel";
+import { visualizationEvidencePanelData } from "../components/visualizationEvidencePanel";
 import "./serviceEvidenceGraph.css";
 
 type Selection = EvidenceSelection;
@@ -249,15 +251,36 @@ function ServiceEvidenceResult({
             selectedId={selected?.kind === "node" ? selected.id : undefined}
           />
           <RelationshipList edges={packet.edges} onSelect={onSelect} selected={selected} />
+          <SelectedEvidence packet={packet} selected={selected} onClose={() => onSelect(null)} />
           <StateList title="Limitations" values={packet.limitations} />
           <NextCalls calls={packet.recommendedNextCalls} />
-          {selected !== null ? (
-            <EvidenceDrawer packet={packet} selection={selected} onClose={() => onSelect(null)} />
-          ) : null}
         </>
       )}
     </Panel>
   );
+}
+
+// SelectedEvidence renders the shared inline evidence panel for the selected
+// graph node or evidence-lane relationship pill. It maps the packet selection
+// into the packet-agnostic EvidencePanelData contract and renders nothing when
+// nothing is selected or the selection is absent from the packet.
+function SelectedEvidence({
+  onClose,
+  packet,
+  selected
+}: {
+  readonly onClose: () => void;
+  readonly packet: NonNullable<ServiceEvidenceGraphResult["packet"]>;
+  readonly selected: Selection | null;
+}): React.JSX.Element | null {
+  if (selected === null) {
+    return null;
+  }
+  const panelData = visualizationEvidencePanelData(packet, selected);
+  if (panelData === null) {
+    return null;
+  }
+  return <EvidencePanel data={panelData} onClose={onClose} />;
 }
 
 function NodeTypeLegend({ types }: { readonly types: readonly string[] }): React.JSX.Element | null {
