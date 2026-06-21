@@ -10,12 +10,28 @@ const (
 	packageConsumptionRelationshipKind = "consumption"
 )
 
+// packagePublisherRelationshipKinds are the fact relationship_kind values that
+// identify a repository as a publisher of a package. They are the only kinds
+// fetched in the phase-2 batched read so that the bounded LIMIT page is never
+// filled by consumption rows for popular packages, which would silently drop
+// publisher rows off the page.
+var packagePublisherRelationshipKinds = []string{
+	"publication",
+	"ownership",
+}
+
 // PackageDependencyChainRequest bounds a repo-scoped package dependency chain
 // resolution. RepositoryID is the already-resolved canonical consumer repository
 // id; Limit bounds the consumption page (and therefore the distinct package set
 // the batched publisher read fans out over).
+//
+// AfterCorrelationID is the keyset cursor for the consumption page: when set the
+// query returns consumption correlations whose fact_id is strictly greater than
+// this value, enabling callers to fetch subsequent pages using the
+// next_cursor.after_correlation_id value returned by the handler.
 type PackageDependencyChainRequest struct {
 	RepositoryID         string
+	AfterCorrelationID   string
 	Limit                int
 	AllowedRepositoryIDs []string
 	AllowedScopeIDs      []string
@@ -90,6 +106,7 @@ func ResolvePackageDependencyChains(
 	consumption, err := store.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		RepositoryID:         req.RepositoryID,
 		RelationshipKind:     packageConsumptionRelationshipKind,
+		AfterCorrelationID:   req.AfterCorrelationID,
 		AllowedRepositoryIDs: req.AllowedRepositoryIDs,
 		AllowedScopeIDs:      req.AllowedScopeIDs,
 		Limit:                req.Limit,
@@ -146,6 +163,7 @@ func loadPackagePublishers(
 	}
 	publishers, err := store.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		PackageIDs:           packageIDs,
+		RelationshipKinds:    packagePublisherRelationshipKinds,
 		AllowedRepositoryIDs: req.AllowedRepositoryIDs,
 		AllowedScopeIDs:      req.AllowedScopeIDs,
 		Limit:                packageRegistryMaxLimit,
@@ -154,9 +172,6 @@ func loadPackagePublishers(
 		return nil, fmt.Errorf("resolve package dependency chains (publishers): %w", err)
 	}
 	for _, row := range publishers {
-		if row.RelationshipKind == packageConsumptionRelationshipKind {
-			continue
-		}
 		if row.RepositoryID == "" {
 			continue
 		}

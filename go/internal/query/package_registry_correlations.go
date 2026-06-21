@@ -31,11 +31,18 @@ type PackageRegistryCorrelationStore interface {
 // scalar PackageID anchor and exists so the repo-scoped dependency-chain
 // resolver can fetch publication/ownership correlations for every package a
 // repository consumes in one round trip instead of one round trip per package.
+//
+// RelationshipKinds restricts the read to a specific set of relationship kinds
+// (payload relationship_kind IN RelationshipKinds) when non-empty. The
+// dependency-chain phase-2 read uses this to fetch only publisher kinds
+// (publication, ownership) before the LIMIT page, ensuring popular packages
+// with many consumer rows do not push publisher rows off the bounded page.
 type PackageRegistryCorrelationFilter struct {
 	PackageID            string
 	PackageIDs           []string
 	RepositoryID         string
 	RelationshipKind     string
+	RelationshipKinds    []string
 	AfterCorrelationID   string
 	AllowedRepositoryIDs []string
 	AllowedScopeIDs      []string
@@ -111,6 +118,7 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
 		pq.Array(filter.PackageIDs),
+		pq.Array(filter.RelationshipKinds),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list package registry correlations: %w", err)
@@ -155,6 +163,10 @@ WHERE fact.fact_kind = ANY($1::text[])
   AND (
     COALESCE(cardinality($9::text[]), 0) = 0
     OR fact.payload->>'package_id' = ANY($9::text[])
+  )
+  AND (
+    COALESCE(cardinality($10::text[]), 0) = 0
+    OR fact.payload->>'relationship_kind' = ANY($10::text[])
   )
   AND (
     (COALESCE(cardinality($7::text[]), 0) = 0 AND COALESCE(cardinality($8::text[]), 0) = 0)

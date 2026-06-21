@@ -174,6 +174,16 @@ func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/correlations"
 }
 
+// scopedPackageRegistryDependencyChainsRoute reports whether the request
+// targets the repo-scoped package dependency chain read. The handler requires
+// repository_id, intersects both the consumption and publisher reads with the
+// scoped-token grant set via AllowedRepositoryIDs / AllowedScopeIDs, and
+// short-circuits on an empty grant, so scoped callers see only chains whose
+// consumer repository is within their grant.
+func scopedPackageRegistryDependencyChainsRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/dependency-chains"
+}
+
 // scopedAdmissionDecisionRoute reports whether the request targets the
 // reducer-owned correlation admission decision read route. The handler requires
 // domain, scope_id, and generation_id before reading and intersects scoped-token

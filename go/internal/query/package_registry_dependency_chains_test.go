@@ -20,13 +20,29 @@ func (s *fakeChainCorrelationStore) ListPackageRegistryCorrelations(
 ) ([]PackageRegistryCorrelationRow, error) {
 	s.calls = append(s.calls, filter)
 	if filter.RepositoryID != "" {
-		return append([]PackageRegistryCorrelationRow(nil), s.consumption...), nil
+		// Phase-1: consumption read anchored on consumer repo.
+		out := make([]PackageRegistryCorrelationRow, 0, len(s.consumption))
+		for _, row := range s.consumption {
+			if filter.AfterCorrelationID != "" && row.CorrelationID <= filter.AfterCorrelationID {
+				continue
+			}
+			out = append(out, row)
+			if filter.Limit > 0 && len(out) >= filter.Limit {
+				break
+			}
+		}
+		return out, nil
 	}
+	// Phase-2: batched publisher read keyed by PackageIDs + RelationshipKinds.
 	out := make([]PackageRegistryCorrelationRow, 0, len(s.publication))
 	for _, row := range s.publication {
-		if len(filter.PackageIDs) == 0 || stringSliceContains(filter.PackageIDs, row.PackageID) {
-			out = append(out, row)
+		if len(filter.PackageIDs) > 0 && !stringSliceContains(filter.PackageIDs, row.PackageID) {
+			continue
 		}
+		if len(filter.RelationshipKinds) > 0 && !stringSliceContains(filter.RelationshipKinds, row.RelationshipKind) {
+			continue
+		}
+		out = append(out, row)
 	}
 	return out, nil
 }
@@ -193,6 +209,71 @@ func TestResolvePackageDependencyChainsMarksMultiplePublishersAmbiguous(t *testi
 	}
 	if !chains[0].Ambiguous {
 		t.Fatal("multiple candidate publishers must mark the chain ambiguous")
+	}
+}
+
+// TestResolvePackageDependencyChainsPhase2FiltersPublisherKinds verifies that
+// the phase-2 batched read uses RelationshipKinds to restrict the SQL query to
+// publisher kinds (publication/ownership) before the LIMIT page. This prevents
+// a popular consumed package with many consumer rows from filling the bounded
+// page and silently dropping publisher rows.
+func TestResolvePackageDependencyChainsPhase2FiltersPublisherKinds(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeChainCorrelationStore{
+		consumption: []PackageRegistryCorrelationRow{
+			{
+				CorrelationID:    "consume-1",
+				RelationshipKind: "consumption",
+				PackageID:        "pkg:npm://registry.example/popular",
+				PackageName:      "@acme/popular",
+				Ecosystem:        "npm",
+				RepositoryID:     "repo-consumer",
+				CanonicalWrites:  1,
+			},
+		},
+		publication: []PackageRegistryCorrelationRow{
+			{
+				CorrelationID:    "publish-1",
+				RelationshipKind: "publication",
+				PackageID:        "pkg:npm://registry.example/popular",
+				RepositoryID:     "repo-publisher",
+				ProvenanceOnly:   true,
+				CanonicalWrites:  0,
+			},
+		},
+	}
+
+	chains, err := ResolvePackageDependencyChains(
+		context.Background(),
+		store,
+		PackageDependencyChainRequest{RepositoryID: "repo-consumer", Limit: 50},
+	)
+	if err != nil {
+		t.Fatalf("ResolvePackageDependencyChains: %v", err)
+	}
+
+	// Phase-2 filter must use RelationshipKinds so the SQL WHERE restricts rows
+	// to publisher kinds before LIMIT — consumption rows must never appear in the
+	// phase-2 result set regardless of how many consumer rows exist for the package.
+	if got, want := len(store.calls), 2; got != want {
+		t.Fatalf("store calls = %d, want %d", got, want)
+	}
+	phase2 := store.calls[1]
+	if len(phase2.RelationshipKinds) == 0 {
+		t.Fatal("phase-2 filter must carry RelationshipKinds so the SQL WHERE restricts to publisher kinds before LIMIT")
+	}
+	for _, kind := range phase2.RelationshipKinds {
+		if kind == packageConsumptionRelationshipKind {
+			t.Fatalf("phase-2 RelationshipKinds must not include %q (consumption must be excluded before LIMIT)", kind)
+		}
+	}
+
+	if got, want := len(chains), 1; got != want {
+		t.Fatalf("len(chains) = %d, want %d", got, want)
+	}
+	if got, want := len(chains[0].Publishers), 1; got != want {
+		t.Fatalf("publisher must not be dropped; len(Publishers) = %d, want %d", got, want)
 	}
 }
 

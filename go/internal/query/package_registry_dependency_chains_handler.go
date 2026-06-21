@@ -91,9 +91,11 @@ func (h *PackageRegistryHandler) listDependencyChains(w http.ResponseWriter, r *
 		return
 	}
 
+	afterCorrelationID := QueryParam(r, "after_correlation_id")
 	req := PackageDependencyChainRequest{
-		RepositoryID: repositoryID,
-		Limit:        limit + 1,
+		RepositoryID:       repositoryID,
+		AfterCorrelationID: afterCorrelationID,
+		Limit:              limit + 1,
 	}
 	if access.scoped() {
 		req.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
