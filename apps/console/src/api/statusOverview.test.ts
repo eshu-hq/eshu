@@ -273,6 +273,48 @@ describe("loadStatusOverview", () => {
     expect(wallElapsed).toBeLessThan(300);
   });
 
+  // Fast-fail regression: when the REQUIRED read (collector-readiness) fails
+  // quickly but an optional read is slow / hangs, loadStatusOverview must
+  // return unavailableOverview promptly — it must NOT block waiting for the
+  // slow optional read to settle.
+  it("(fast-fail) returns unavailable promptly when required read fails, even if optional reads hang", async () => {
+    // The optional index-status read hangs indefinitely (simulates a slow /
+    // timed-out optional endpoint). The required readiness read fails quickly.
+    let optionalStarted = false;
+    const client: EshuApiClient = {
+      get: async (path: string) => {
+        if (path.includes("collector-readiness")) {
+          // Fail quickly (next microtask tick).
+          throw new Error("collector-readiness offline");
+        }
+        if (path.includes("freshness-causality")) {
+          // Also hangs.
+          return new Promise(() => {}) as never;
+        }
+        throw new Error(`unexpected get ${path}`);
+      },
+      getJson: async (path: string) => {
+        if (path.includes("index-status") || path.includes("ingesters")) {
+          optionalStarted = true;
+          // Hang indefinitely — must NOT block the return.
+          return new Promise(() => {}) as never;
+        }
+        throw new Error(`unexpected getJson ${path}`);
+      }
+    } as unknown as EshuApiClient;
+
+    const wallStart = Date.now();
+    const overview = await loadStatusOverview(client);
+    const wallElapsed = Date.now() - wallStart;
+
+    expect(overview.provenance).toBe("unavailable");
+    // Must resolve in well under 1s regardless of the hanging optional reads.
+    expect(wallElapsed).toBeLessThan(500);
+    // The optional reads may have been started concurrently (that is fine and
+    // expected), but the loader must not have waited for them.
+    void optionalStarted; // referenced to confirm the variable is in scope
+  });
+
   // P2 regression: promotion_state values that are not actively-running
   // ("unsupported", "gated", "disabled", etc.) were classified as "up_to_date"
   // because failedPromotion only tested for "failed" and "stale".
