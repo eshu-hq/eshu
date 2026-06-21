@@ -194,6 +194,18 @@ async function runStream(
       body,
       signal
     });
+    // A server-side failure of the SSE variant is recoverable: the synchronous
+    // JSON variant of the same route does not need an http.Flusher, so a 5xx
+    // here (issue #3381's "streaming not supported by this server configuration"
+    // when a middleware strips http.Flusher) retries the sync path before
+    // surfacing an error. Deterministic contract states (403/503/400) are
+    // identical on both variants, so they fall through to handleStatus rather
+    // than triggering a pointless second request.
+    if (response.status >= 500) {
+      await response.body?.cancel();
+      await runSync(connection, body, handlers, signal);
+      return;
+    }
     if (handleStatus(response, handlers)) {
       return;
     }
