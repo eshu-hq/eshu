@@ -9,24 +9,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 )
 
-// convergentFactStore simulates the canonicalReducerFactInsertQuery
-// ON CONFLICT (fact_id) DO UPDATE upsert by keying rows on the fact id (arg 0).
-// Two workers writing the same fact id converge to one row, exactly like the
-// Postgres primary-key conflict the real query relies on.
+// convergentFactStore simulates the reducerFactBatchInsertQuery
+// ON CONFLICT (fact_id) DO UPDATE upsert by keying rows on each fact id in the
+// batched fact_id array (arg 0). Two workers writing the same fact id converge
+// to one row, exactly like the Postgres primary-key conflict the real query
+// relies on.
 type convergentFactStore struct {
 	mu   sync.Mutex
-	rows map[string][]any
+	rows map[string]struct{}
 }
 
 func newConvergentFactStore() *convergentFactStore {
-	return &convergentFactStore{rows: make(map[string][]any)}
+	return &convergentFactStore{rows: make(map[string]struct{})}
 }
 
 func (s *convergentFactStore) ExecContext(_ context.Context, _ string, args ...any) (sql.Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	factID, _ := args[0].(string)
-	s.rows[factID] = args
+	// The batched insert sends all fact ids for a scope as the first array arg;
+	// record each so concurrent workers writing the same ids converge by key.
+	factIDs, _ := args[0].([]string)
+	for _, factID := range factIDs {
+		s.rows[factID] = struct{}{}
+	}
 	return fakeWorkloadIdentityResult{}, nil
 }
 

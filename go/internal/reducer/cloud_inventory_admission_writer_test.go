@@ -91,25 +91,27 @@ func TestPostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource(t *test
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 2; got != want {
+	// Two resources are now written in a single bounded batched insert, so the
+	// writer issues one ExecContext call regardless of resource count.
+	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	if db.execs[0].args[0] == db.execs[1].args[0] {
-		t.Fatalf("fact ids must differ per uid: %v", db.execs[0].args[0])
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
-	if got, want := db.execs[0].args[3], cloudInventoryAdmissionFactKind; got != want {
+	if rows[0].FactID == rows[1].FactID {
+		t.Fatalf("fact ids must differ per uid: %v", rows[0].FactID)
+	}
+	if got, want := rows[0].FactKind, cloudInventoryAdmissionFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[6], facts.SourceConfidenceInferred; got != want {
+	if got, want := rows[0].SourceConfidence, facts.SourceConfidenceInferred; got != want {
 		t.Fatalf("source_confidence = %v, want %v", got, want)
 	}
 
-	payloadBytes, ok := db.execs[1].args[14].([]byte)
-	if !ok {
-		t.Fatalf("payload arg type = %T, want []byte", db.execs[1].args[14])
-	}
 	var payload map[string]any
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+	if err := json.Unmarshal(rows[1].Payload, &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
 	if got, want := payload["management_origin"], string(ManagementOriginDeclared); got != want {
@@ -179,10 +181,11 @@ func TestPostgresCloudInventoryAdmissionWriterIsIdempotentByUID(t *testing.T) {
 	if len(first.CanonicalIDs) != len(second.CanonicalIDs) {
 		t.Fatalf("canonical id count drift: %d vs %d", len(first.CanonicalIDs), len(second.CanonicalIDs))
 	}
-	half := len(db.execs) / 2
+	rows := decodeBatchedFactCalls(t, db.execs)
+	half := len(rows) / 2
 	for i := 0; i < half; i++ {
-		if db.execs[i].args[0] != db.execs[i+half].args[0] {
-			t.Fatalf("fact id not stable across re-admission at %d: %v vs %v", i, db.execs[i].args[0], db.execs[i+half].args[0])
+		if rows[i].FactID != rows[i+half].FactID {
+			t.Fatalf("fact id not stable across re-admission at %d: %v vs %v", i, rows[i].FactID, rows[i+half].FactID)
 		}
 	}
 }

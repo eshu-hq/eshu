@@ -40,34 +40,35 @@ func (w PostgresCloudInventoryAdmissionWriter) WriteCloudInventoryAdmission(
 
 	now := reducerWriterNow(w.Now)
 	canonicalIDs := make([]string, 0, len(write.Resources))
+	rows := make([]reducerFactRow, 0, len(write.Resources))
 	for _, resource := range write.Resources {
 		payloadJSON, err := json.Marshal(cloudInventoryAdmissionPayload(write, resource))
 		if err != nil {
 			return CloudInventoryAdmissionWriteResult{}, fmt.Errorf("marshal cloud inventory admission payload: %w", err)
 		}
-
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalReducerFactInsertQuery,
-			cloudInventoryAdmissionFactID(write, resource),
-			write.ScopeID,
-			write.GenerationID,
-			cloudInventoryAdmissionFactKind,
-			cloudInventoryAdmissionStableFactKey(write, resource),
-			reducerFactCollectorKind(resource.Provider),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return CloudInventoryAdmissionWriteResult{}, fmt.Errorf("write cloud inventory admission fact: %w", err)
-		}
+		rows = append(rows, reducerFactRow{
+			FactID:        cloudInventoryAdmissionFactID(write, resource),
+			ScopeID:       write.ScopeID,
+			GenerationID:  write.GenerationID,
+			FactKind:      cloudInventoryAdmissionFactKind,
+			StableFactKey: cloudInventoryAdmissionStableFactKey(write, resource),
+			// collector_kind varies per resource because each admitted resource
+			// can come from a different provider, so it is set per row rather
+			// than hoisted out of the loop.
+			CollectorKind:    reducerFactCollectorKind(resource.Provider),
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
 		canonicalIDs = append(canonicalIDs, resource.CloudResourceUID)
+	}
+	// Bounded chunked bulk insert: admitted canonical identities are upserted in
+	// O(N/batchSize) round-trips instead of one ExecContext per resource.
+	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+		return CloudInventoryAdmissionWriteResult{}, fmt.Errorf("write cloud inventory admission fact: %w", err)
 	}
 
 	return CloudInventoryAdmissionWriteResult{

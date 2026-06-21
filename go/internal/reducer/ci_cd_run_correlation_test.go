@@ -220,7 +220,11 @@ func TestPostgresCICDRunCorrelationWriterPersistsReducerFacts(t *testing.T) {
 	if got, want := result.FactsWritten, 1; got != want {
 		t.Fatalf("FactsWritten = %d, want %d", got, want)
 	}
-	payload := unmarshalCICDRunCorrelationPayload(t, db.execs[0].args[14])
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if len(rows) == 0 {
+		t.Fatal("decoded rows is empty, want one batched fact row")
+	}
+	payload := unmarshalCICDRunCorrelationPayload(t, rows[0].Payload)
 	if got, want := payload["correlation_kind"], "artifact_image"; got != want {
 		t.Fatalf("correlation_kind = %#v, want %#v", got, want)
 	}
@@ -267,7 +271,11 @@ func TestPostgresCICDRunCorrelationWriterDoesNotAddObservedLayerForDerivedRows(t
 	if err != nil {
 		t.Fatalf("WriteCICDRunCorrelations() error = %v, want nil", err)
 	}
-	payload := unmarshalCICDRunCorrelationPayload(t, db.execs[0].args[14])
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if len(rows) == 0 {
+		t.Fatal("decoded rows is empty, want one batched fact row")
+	}
+	payload := unmarshalCICDRunCorrelationPayload(t, rows[0].Payload)
 	sourceLayers, ok := payload["source_layers"].([]any)
 	if !ok {
 		t.Fatalf("source_layers type = %T, want []any", payload["source_layers"])

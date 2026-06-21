@@ -153,3 +153,72 @@ log key, queue domain, worker, lease, runtime knob, or graph write route was
 added. The `eshu_dp_search_index_mutations_total{kind="document",
 operation="upsert"}` value now reports the full batch count (N) in a single
 increment rather than N increments of 1, producing the same final counter value.
+
+## Correlation/Identity Writer Bulk Batching (#3435)
+
+Follow-up to the #3430/#3434 search-document batching above. The audit in #3435
+found four more reducer writers that issued the search-document writer's old
+per-row pattern: one `canonicalReducerFactInsertQuery` `ExecContext` inside a
+document/decision/resource loop, i.e. O(N) serial Postgres round-trips per work
+item. They are lower-volume than search-docs today, so this is a capacity/no-
+regression hardening, not a fix for an active starvation incident.
+
+Batched writers (per-row loop replaced with a bounded chunked unnest insert):
+
+| Writer | Per-row arg | Was | Now |
+|---|---|---|---|
+| `ci_cd_run_correlation_writer.go` | one decision | N execs | ceil(N/1000) execs |
+| `container_image_identity_writer.go` | one canonical decision | N execs | ceil(N/1000) execs |
+| `sbom_attestation_attachment_writer.go` | one decision | N execs | ceil(N/1000) execs |
+| `cloud_inventory_admission_writer.go` | one admitted resource | N execs | ceil(N/1000) execs |
+
+All four now build a `[]reducerFactRow` and call the new shared
+`reducerBatchInsertFacts` (`reducer_fact_batch_insert.go`), which sends rows in
+bounded chunks of `reducerFactBatchSize` (1000) via `reducerFactBatchInsertQuery`
+— a writer-local unnest `INSERT INTO fact_records` whose column list, conflict
+key, and `ON CONFLICT (fact_id) DO UPDATE` set are byte-equivalent to the shared
+`canonicalReducerFactInsertQuery`. The shared query is unchanged so its other
+13 per-row callers are untouched. `cloud_inventory_admission` keeps its
+per-resource `collector_kind` (each resource can be a different provider) by
+setting `reducerFactRow.CollectorKind` per row inside the loop.
+
+The 1000-row chunk bounds the bind-parameter count: 15 columns × 1000 = 15000
+parameters, well under the Postgres 65535 ceiling, and caps per-statement memory
+and lock footprint for a single scope. Each chunk is one statement on the same
+autocommit `*sql.DB` handle the writers already used — no transaction boundary
+added, idempotency unchanged (`ON CONFLICT (fact_id) DO UPDATE`), so a retry or
+two concurrent workers admitting the same generation converge on the same rows.
+
+No writers were left as-is. Every one of the four flagged writers loops over a
+caller-supplied slice whose size is not statically bounded (decisions/resources
+per scope generation), so each carries the same structural O(N) risk if scope
+sizes grow; none is a fixed-size/single-row write, so batching all four is
+warranted rather than gratuitous.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres
+./cmd/reducer -count=1` passes (3310 tests). New bounded-exec regression tests
+assert N=400 decisions/resources issue exactly `ceil(N/reducerFactBatchSize)`=1
+`ExecContext` call instead of 400:
+`TestWriteCICDRunCorrelationsBoundedExecCount`,
+`TestWriteContainerImageIdentityDecisionsBoundedExecCount`,
+`TestWriteSBOMAttestationAttachmentsBoundedExecCount`,
+`TestWriteCloudInventoryAdmissionBoundedExecCount`. They fail on the old per-row
+loop (400 calls) and pass on the batched writers (1 call).
+`TestReducerBatchInsertFactsChunksByBatchSize` proves real chunk splitting:
+`reducerFactBatchSize*2+7` rows produce exactly 3 statements, each ≤1000 rows,
+with row order and `fact_id` identity preserved across chunk boundaries;
+`TestReducerBatchInsertFactsEmptyIssuesNoStatements` proves an empty scope
+issues zero round-trips. The existing per-row positional-arg assertions in the
+reducer and `internal/storage/postgres` cloud-inventory tests were updated to
+decode the batched parallel arrays back into per-row records (same `fact_id`,
+`fact_kind`, payload JSON assertions); the convergence simulator
+`convergentFactStore` keys on each `fact_id` in the batched array so the
+concurrent-worker convergence test still proves no MERGE/duplicate races.
+`go vet` and `golangci-lint run ./...` report 0 issues.
+
+No-Observability-Change: these four writers emitted no metric, span, or log of
+their own (they returned an `EvidenceSummary` string the handler logs); the
+batched writers preserve that exact return contract and add no new metric
+instrument, metric label, span name, log key, queue domain, worker, lease, or
+runtime knob. `ESHU_REDUCER_WORKERS` is unchanged — concurrency was not reduced
+as a mitigation.

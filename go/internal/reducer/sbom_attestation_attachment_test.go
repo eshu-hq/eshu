@@ -269,13 +269,18 @@ func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T
 	if result.FactsWritten != 2 {
 		t.Fatalf("FactsWritten = %d, want 2", result.FactsWritten)
 	}
-	if len(db.execs) != 2 {
-		t.Fatalf("execs = %d, want 2", len(db.execs))
+	// Both decisions are written in a single bounded batched insert.
+	if len(db.execs) != 1 {
+		t.Fatalf("execs = %d, want 1", len(db.execs))
 	}
-	if got, want := db.execs[0].args[3], sbomAttestationAttachmentFactKind; got != want {
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if len(rows) != 2 {
+		t.Fatalf("decoded rows = %d, want 2", len(rows))
+	}
+	if got, want := rows[0].FactKind, sbomAttestationAttachmentFactKind; got != want {
 		t.Fatalf("fact_kind = %#v, want %#v", got, want)
 	}
-	payload := unmarshalSBOMAttestationAttachmentPayload(t, db.execs[0].args[14])
+	payload := unmarshalSBOMAttestationAttachmentPayload(t, rows[0].Payload)
 	if got, want := payload["attachment_status"], string(SBOMAttachmentAttachedVerified); got != want {
 		t.Fatalf("attachment_status = %#v, want %#v", got, want)
 	}
