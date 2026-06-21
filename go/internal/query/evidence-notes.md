@@ -500,7 +500,8 @@ to ~502,865 graph nodes and inflated `fact_records` to collector scale:
 
 - `GET /api/v0/supply-chain/advisories`
   (`supply_chain_advisory_catalog_sql.go`): the `cve_facts` CTE (catalog spine)
-  enumerates every active `vulnerability.cve` fact and the `kev` CTE enumerates
+  enumerates every active `vulnerability.cve` fact, the `affected` CTE enumerates
+  every active `vulnerability.affected_package` fact, and the `kev` CTE enumerates
   every active `vulnerability.known_exploited` fact, each with no `cve_id` anchor,
   before `GROUP BY advisory_key` and keyset pagination.
 - `GET /api/v0/supply-chain/impact/findings/count`
@@ -535,8 +536,9 @@ CREATE INDEX IF NOT EXISTS fact_records_<kind>_active_scan_idx
     WHERE fact_kind = '<kind>' AND is_tombstone = FALSE;
 ```
 
-for `<kind>` in `vulnerability.cve`, `vulnerability.known_exploited`,
-`reducer_supply_chain_impact_finding`, and `reducer_sbom_attestation_attachment`
+for `<kind>` in `vulnerability.cve`, `vulnerability.affected_package`,
+`vulnerability.known_exploited`, `reducer_supply_chain_impact_finding`, and
+`reducer_sbom_attestation_attachment`
 (`schema_fact_records_vulnerability_indexes.go`, `schema_fact_records.go`,
 `schema_fact_records_sbom.go`). The partial predicate carves the scan down from
 "all of `fact_records`" to "this one fact_kind's active, non-tombstone tuples,"

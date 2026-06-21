@@ -345,6 +345,8 @@ func TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor(t *testing.T) {
 	for _, want := range []string{
 		// Catalog spine: bounded to exactly the active vulnerability.cve tuples.
 		"WHERE fact.fact_kind = 'vulnerability.cve'\n      AND fact.is_tombstone = FALSE",
+		// Affected CTE: bounded to exactly the active vulnerability.affected_package tuples.
+		"WHERE fact.fact_kind = 'vulnerability.affected_package'\n      AND fact.is_tombstone = FALSE",
 		// KEV CTE: bounded to exactly the active vulnerability.known_exploited tuples.
 		"WHERE fact.fact_kind = 'vulnerability.known_exploited'\n      AND fact.is_tombstone = FALSE",
 		// Active-generation join the (scope_id, generation_id)-leading partial

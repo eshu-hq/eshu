@@ -11,7 +11,8 @@ collectors). The companion read-model/query-shape evidence lives in
 
 Three handlers aggregate `fact_records` for a single `fact_kind`:
 
-- `GET /api/v0/supply-chain/advisories` — `vulnerability.cve` (catalog spine) and
+- `GET /api/v0/supply-chain/advisories` — `vulnerability.cve` (catalog spine),
+  `vulnerability.affected_package` (affected/affected_rollup CTE), and
   `vulnerability.known_exploited` (KEV CTE), each enumerated with no `cve_id`
   anchor.
 - `GET /api/v0/supply-chain/impact/findings/count` —
@@ -45,6 +46,7 @@ CREATE INDEX IF NOT EXISTS fact_records_<kind>_active_scan_idx
 | Index | fact_kind | File |
 | --- | --- | --- |
 | `fact_records_vulnerability_cve_active_scan_idx` | `vulnerability.cve` | `schema_fact_records_vulnerability_indexes.go` |
+| `fact_records_vulnerability_affected_package_active_scan_idx` | `vulnerability.affected_package` | `schema_fact_records_vulnerability_indexes.go` |
 | `fact_records_vulnerability_known_exploited_active_scan_idx` | `vulnerability.known_exploited` | `schema_fact_records_vulnerability_indexes.go` |
 | `fact_records_supply_chain_impact_active_scan_idx` | `reducer_supply_chain_impact_finding` | `schema_fact_records.go` |
 | `fact_records_sbom_attestation_attachments_active_scan_idx` | `reducer_sbom_attestation_attachment` | `schema_fact_records_sbom.go` |

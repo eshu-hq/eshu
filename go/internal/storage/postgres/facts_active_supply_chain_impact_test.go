@@ -310,6 +310,7 @@ func TestBootstrapDefinitionsIncludeAdvisoryCatalogActiveScanIndexes(t *testing.
 	}{
 		{"fact_records_vulnerability_cve_active_scan_idx", "WHERE fact_kind = 'vulnerability.cve'"},
 		{"fact_records_vulnerability_known_exploited_active_scan_idx", "WHERE fact_kind = 'vulnerability.known_exploited'"},
+		{"fact_records_vulnerability_affected_package_active_scan_idx", "WHERE fact_kind = 'vulnerability.affected_package'"},
 	}
 	for _, c := range checks {
 		create := "CREATE INDEX IF NOT EXISTS " + c.index
