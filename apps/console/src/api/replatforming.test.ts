@@ -60,7 +60,60 @@ describe("replatforming adapter", () => {
     expect(review.rollups.status).toBe("skipped");
     expect(review.plan.status).toBe("skipped");
     expect(review.ownership.status).toBe("skipped");
-    expect(review.rollups.status === "skipped" ? review.rollups.reason : "").toContain("scope_id or account_id");
+    expect(review.rollups.status === "skipped" ? review.rollups.reason : "").toContain("account_id or scope_id");
+  });
+
+  it("posts account-scoped bodies with region narrowing to all three endpoints", async () => {
+    const post = vi.fn(async (path: string) => ({
+      data: path.endsWith("/rollups")
+        ? rollupsPayload()
+        : path.endsWith("/plans")
+          ? planPayload()
+          : ownershipPayload(),
+      error: null,
+      truth: truthEnvelope("replatforming.rollups.readiness")
+    }));
+    const client = { post } as unknown as EshuApiClient;
+
+    const review = await loadReplatformingReview(client, {
+      accountId: "123456789012",
+      region: "us-east-1",
+      scopeKind: "account"
+    });
+
+    expect(post).toHaveBeenCalledWith("/api/v0/replatforming/rollups", expect.objectContaining({
+      account_id: "123456789012",
+      region: "us-east-1"
+    }));
+    expect(post).toHaveBeenCalledWith("/api/v0/replatforming/plans", expect.objectContaining({
+      account_id: "123456789012",
+      region: "us-east-1",
+      scope_kind: "account"
+    }));
+    expect(post).toHaveBeenCalledWith("/api/v0/replatforming/ownership-packets", expect.objectContaining({
+      account_id: "123456789012",
+      region: "us-east-1"
+    }));
+    expect(review.rollups.status).toBe("ready");
+    expect(review.plan.status).toBe("ready");
+    expect(review.ownership.status).toBe("ready");
+  });
+
+  it("skips every API call when region scope kind is supplied without an account or scope anchor", async () => {
+    const client = { post: vi.fn() } as unknown as EshuApiClient;
+
+    const review = await loadReplatformingReview(client, {
+      region: "us-east-1",
+      scopeKind: "region"
+    });
+
+    expect(client.post).not.toHaveBeenCalled();
+    expect(review.rollups.status).toBe("skipped");
+    expect(review.plan.status).toBe("skipped");
+    expect(review.ownership.status).toBe("skipped");
+    const reason = review.rollups.status === "skipped" ? review.rollups.reason : "";
+    expect(reason).toContain("account_id or scope_id");
+    expect(reason).toContain("region");
   });
 
   it("keeps successful sections visible when ownership packets are unavailable", async () => {

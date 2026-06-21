@@ -176,7 +176,9 @@ export async function loadReplatformingReview(
 ): Promise<ReplatformingReview> {
   const input = normalizeInput(rawInput);
   if (input.scopeId.length === 0 && input.accountId.length === 0) {
-    const reason = "Add scope_id or account_id to load replatforming planning data.";
+    const reason = input.region.length > 0
+      ? `region scope requires account_id or scope_id as an anchor — add account_id or scope_id to narrow by region.`
+      : "Add account_id or scope_id to load replatforming planning data.";
     return {
       input,
       ownership: skipped(sourcePaths.ownership, reason),
