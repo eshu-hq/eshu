@@ -179,4 +179,71 @@ describe("loadStatusOverview", () => {
     const git = overview.collectors.find((c) => c.kind === "git");
     expect(git?.schedule.length).toBeGreaterThan(0);
   });
+
+  // P1 regression: coordinator.collector_backpressure was omitted from the
+  // coordinatorToMap() response in go/internal/query/status.go, so the field
+  // was always an empty array in the live API.  The Go fix adds it; the TS join
+  // then reads pending + claimed + retrying correctly.
+  it("(P1) reads per-collector work-item counts from coordinator.collector_backpressure", async () => {
+    const client = mockClient({
+      readiness: { readiness: [
+        { collector_kind: "aws", display_name: "AWS", instance_id: "aws-1", promotion_state: "implemented" }
+      ]},
+      indexStatus: {
+        coordinator: {
+          collector_instances: [
+            { instance_id: "aws-1", collector_kind: "aws", enabled: true, last_observed_at: "2026-06-21T11:59:00Z" }
+          ],
+          // Previously this field was absent from the live response; the fix ensures it is exposed.
+          collector_backpressure: [
+            { collector_kind: "aws", collector_instance_id: "aws-1", pending: 20, claimed: 5, retrying: 2, dead_letter: 0 }
+          ]
+        }
+      },
+      freshness: { state: "building", generations: { active: 1, pending: 2, completed: 0, superseded: 0, failed: 0 }, pending_projection: { outstanding: 0, dead_letter: 0, domains: 0 } }
+    });
+    const overview = await loadStatusOverview(client, () => Date.parse("2026-06-21T12:00:00Z"));
+    const aws = overview.collectors.find((c) => c.kind === "aws");
+    // workItems = pending(20) + claimed(5) + retrying(2)
+    expect(aws?.workItems).toBe(27);
+    expect(aws?.state).toBe<StatusCollectorState>("catching_up");
+    // Without the backpressure field the workItems would be 0 and state would be up_to_date.
+  });
+
+  // P2 regression: promotion_state values that are not actively-running
+  // ("unsupported", "gated", "disabled", etc.) were classified as "up_to_date"
+  // because failedPromotion only tested for "failed" and "stale".
+  it("(P2) classifies unsupported/gated/disabled promotion states as stalled", async () => {
+    const client = mockClient({
+      readiness: { readiness: [
+        { collector_kind: "oci_registry", display_name: "OCI", instance_id: "oci-1", promotion_state: "unsupported" },
+        { collector_kind: "grafana", display_name: "Grafana", instance_id: "grafana-1", promotion_state: "gated" },
+        { collector_kind: "loki", display_name: "Loki", instance_id: "loki-1", promotion_state: "disabled" },
+        { collector_kind: "git", display_name: "Git", instance_id: "git-1", promotion_state: "implemented" }
+      ]},
+      indexStatus: {
+        coordinator: {
+          collector_instances: [
+            { instance_id: "oci-1", collector_kind: "oci_registry", enabled: true, last_observed_at: "2026-06-21T11:59:00Z" },
+            { instance_id: "grafana-1", collector_kind: "grafana", enabled: true, last_observed_at: "2026-06-21T11:59:00Z" },
+            { instance_id: "loki-1", collector_kind: "loki", enabled: true, last_observed_at: "2026-06-21T11:59:00Z" },
+            { instance_id: "git-1", collector_kind: "git", enabled: true, last_observed_at: "2026-06-21T11:59:00Z" }
+          ],
+          collector_backpressure: []
+        }
+      },
+      freshness: { state: "fresh", generations: { active: 1, pending: 0, completed: 1, superseded: 0, failed: 0 }, pending_projection: { outstanding: 0, dead_letter: 0, domains: 0 } }
+    });
+    const overview = await loadStatusOverview(client, () => Date.parse("2026-06-21T12:00:00Z"));
+    const oci = overview.collectors.find((c) => c.kind === "oci_registry");
+    const grafana = overview.collectors.find((c) => c.kind === "grafana");
+    const loki = overview.collectors.find((c) => c.kind === "loki");
+    const git = overview.collectors.find((c) => c.kind === "git");
+    // P2: non-active promotion states must NOT be classified as up_to_date.
+    expect(oci?.state).toBe<StatusCollectorState>("stalled");
+    expect(grafana?.state).toBe<StatusCollectorState>("stalled");
+    expect(loki?.state).toBe<StatusCollectorState>("stalled");
+    // "implemented" stays up_to_date (no backpressure, not disabled).
+    expect(git?.state).toBe<StatusCollectorState>("up_to_date");
+  });
 });

@@ -191,7 +191,15 @@ function collectorRow(
   const deadLetter = finite(bp?.dead_letter);
   const workItems = pending + claimed;
   const disabled = instance ? instance.enabled === false || clean(instance.deactivated_at) !== "" : false;
-  const failedPromotion = row.promotion_state === "failed" || row.promotion_state === "stale";
+  // Any promotion_state that is not an actively-running collector is treated as
+  // stalled.  "implemented" and "partial" mean the family is live; everything
+  // else (failed, stale, gated, disabled, unsupported, permission_hidden, or
+  // any unknown future value) means it is not making forward progress.
+  const ACTIVE_PROMOTION_STATES = new Set(["implemented", "partial"]);
+  const failedPromotion =
+    typeof row.promotion_state === "string" &&
+    row.promotion_state !== "" &&
+    !ACTIVE_PROMOTION_STATES.has(row.promotion_state);
 
   const state = collectorState({ deadLetter, disabled, failedPromotion, workItems });
   return {

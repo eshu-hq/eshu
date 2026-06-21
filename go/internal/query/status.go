@@ -450,8 +450,21 @@ func coordinatorToMap(snapshot *status.CoordinatorSnapshot) map[string]any {
 		})
 	}
 
+	backpressure := make([]map[string]any, 0, len(snapshot.CollectorBackpressure))
+	for _, bp := range snapshot.CollectorBackpressure {
+		backpressure = append(backpressure, map[string]any{
+			"collector_kind":        bp.CollectorKind,
+			"collector_instance_id": bp.CollectorInstanceID,
+			"pending":               bp.Pending,
+			"claimed":               bp.Claimed,
+			"retrying":              bp.Retrying,
+			"dead_letter":           bp.DeadLetter,
+		})
+	}
+
 	result := map[string]any{
 		"collector_instances":     instances,
+		"collector_backpressure":  backpressure,
 		"run_status_counts":       namedCountsToSlice(snapshot.RunStatusCounts),
 		"work_item_status_counts": namedCountsToSlice(snapshot.WorkItemStatusCounts),
 		"completeness_counts":     namedCountsToSlice(snapshot.CompletenessCounts),
