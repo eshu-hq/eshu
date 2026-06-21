@@ -291,6 +291,25 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_repository_lookup_id
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
 
+-- #3389: the impact aggregate (GET /api/v0/supply-chain/impact/findings/count)
+-- enumerates every active reducer_supply_chain_impact_finding fact with no
+-- payload anchor in the common "count everything" case. The payload-leading
+-- indexes above cannot bound that no-anchor enumeration to the fact_kind, so the
+-- planner falls back to a whole-table scan at collector scale. This partial
+-- index's predicate bounds the scan to exactly this fact_kind's active
+-- tuples, and its (scope_id, generation_id) leading keys resolve the
+-- ingestion_scopes/scope_generations active-generation join straight from the
+-- index (index-only when the heap is vacuum-fresh, a bounded index scan
+-- otherwise).
+CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_active_scan_idx
+    ON fact_records (
+        scope_id,
+        generation_id,
+        fact_id ASC
+    )
+    WHERE fact_kind = 'reducer_supply_chain_impact_finding'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_security_alert_repository_lookup_idx
     ON fact_records (
         (payload->>'repository_id'),
@@ -411,6 +430,40 @@ CREATE INDEX IF NOT EXISTS fact_records_vulnerability_active_cve_lookup_v2_idx O
 CREATE INDEX IF NOT EXISTS fact_records_vulnerability_active_advisory_lookup_v2_idx ON fact_records ((payload->>'advisory_id'), scope_id, generation_id, fact_kind, fact_id ASC) WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package', 'vulnerability.affected_product', 'vulnerability.epss_score', 'vulnerability.known_exploited', 'vulnerability.reference') AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_vulnerability_active_ghsa_lookup_v2_idx ON fact_records ((payload->>'ghsa_id'), scope_id, generation_id, fact_kind, fact_id ASC) WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package', 'vulnerability.affected_product', 'vulnerability.epss_score', 'vulnerability.known_exploited', 'vulnerability.reference') AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_vulnerability_package_purl_lookup_idx ON fact_records ((payload->>'purl'), (payload->>'cve_id'), fact_id ASC, generation_id) WHERE fact_kind = 'vulnerability.affected_package' AND is_tombstone = FALSE;
+-- #3389: the advisory catalog (GET /api/v0/supply-chain/advisories) enumerates
+-- every active vulnerability.cve fact (the catalog spine), every active
+-- vulnerability.affected_package fact (the affected/affected_rollup CTE), and
+-- every active vulnerability.known_exploited fact (the KEV CTE) with no cve_id
+-- anchor. The payload-leading vulnerability indexes above cannot bound that
+-- no-anchor enumeration, so the planner scans all of fact_records at collector
+-- scale. These per-fact_kind partial indexes' predicates bound the scan to
+-- exactly one kind's active tuples, and their (scope_id, generation_id) leading
+-- keys resolve the active-generation join straight from the index (index-only
+-- when the heap is vacuum-fresh, a bounded index scan otherwise).
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_cve_active_scan_idx
+    ON fact_records (
+        scope_id,
+        generation_id,
+        fact_id ASC
+    )
+    WHERE fact_kind = 'vulnerability.cve'
+      AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_affected_package_active_scan_idx
+    ON fact_records (
+        scope_id,
+        generation_id,
+        fact_id ASC
+    )
+    WHERE fact_kind = 'vulnerability.affected_package'
+      AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_known_exploited_active_scan_idx
+    ON fact_records (
+        scope_id,
+        generation_id,
+        fact_id ASC
+    )
+    WHERE fact_kind = 'vulnerability.known_exploited'
+      AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_incident_context_record_lookup_idx ON fact_records (source_system, (payload->>'provider_incident_id'), scope_id, observed_at DESC, fact_id ASC) WHERE fact_kind = 'incident.record' AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_incident_context_record_source_record_idx ON fact_records (source_system, source_record_id, scope_id, observed_at DESC, fact_id ASC) WHERE fact_kind = 'incident.record' AND is_tombstone = FALSE AND source_record_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS fact_records_incident_context_timeline_lookup_idx ON fact_records (scope_id, generation_id, (payload->>'provider_incident_id'), (payload->>'created_at'), fact_id ASC) WHERE fact_kind = 'incident.lifecycle_event' AND is_tombstone = FALSE;

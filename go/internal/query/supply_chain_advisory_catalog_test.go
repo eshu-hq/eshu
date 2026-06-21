@@ -327,23 +327,26 @@ func TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel(t *testing.T) {
 	}
 }
 
-// TestAdvisoryCatalogQueryUsesBoundedSinglePassShape pins the #3389 reshape.
-// The catalog must aggregate the three vulnerability fact kinds in a single
-// scan and a single GROUP BY (no per-kind aggregate CTEs joined back together),
-// because the previous shape joined two whole-fact-kind aggregates on a computed
-// advisory_key the planner estimates at one row. That misestimate collapsed the
-// rollup joins into an O(active_facts^2) nested-loop left join that does not
-// complete within a 600s statement timeout at ~250k vulnerability facts.
+// TestAdvisoryCatalogQueryUsesBoundedSinglePassShape pins the #3389 catalog
+// reshape. The catalog aggregates the three vulnerability fact kinds as per-kind
+// UNION ALL legs feeding a single GROUP BY (no per-kind aggregate CTEs joined
+// back together), because the previous shape joined two whole-fact-kind
+// aggregates on a computed advisory_key the planner estimates at one row. That
+// misestimate collapsed the rollup joins into an O(active_facts^2) nested-loop
+// left join that does not complete within a 600s statement timeout at ~250k
+// vulnerability facts. The #3402 per-fact_kind active_scan partial indexes bound
+// the per-kind scans but cannot bound that join; removing the join is what keeps
+// the catalog bounded as the advisory count grows.
 func TestAdvisoryCatalogQueryUsesBoundedSinglePassShape(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
-		// One scan across all three kinds, then one grouped pass.
-		"fact.fact_kind IN (",
+		// Per-kind legs unioned into one input, then one grouped pass.
+		"UNION ALL",
 		"GROUP BY advisory_key",
 		// Spine identity preserved: an advisory still requires a cve fact.
 		"HAVING bool_or(fact_kind = 'vulnerability.cve')",
-		// Per-kind rollups become FILTERed aggregates over the single group.
+		// Per-kind rollups are FILTERed aggregates over the single group.
 		"FILTER (WHERE fact_kind = 'vulnerability.cve')",
 		"FILTER (WHERE fact_kind = 'vulnerability.affected_package')",
 	} {
@@ -362,6 +365,38 @@ func TestAdvisoryCatalogQueryUsesBoundedSinglePassShape(t *testing.T) {
 	} {
 		if strings.Contains(listAdvisoryCatalogQuery, banned) {
 			t.Fatalf("listAdvisoryCatalogQuery still contains unbounded-shape construct %q:\n%s", banned, listAdvisoryCatalogQuery)
+		}
+	}
+}
+
+// TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor pins the bounded
+// per-fact-kind scan shape that #3389 relies on. Each vulnerability fact kind is
+// read by its own UNION ALL leg, so each must keep its single-fact_kind
+// predicate plus `is_tombstone = FALSE` and the active-generation join. Those are
+// exactly the columns the partial indexes
+// fact_records_vulnerability_cve_active_scan_idx and
+// fact_records_vulnerability_known_exploited_active_scan_idx are built on (the
+// index DDL/presence is pinned in
+// go/internal/storage/postgres/facts_active_supply_chain_impact_test.go). If a
+// later edit folds these legs onto a multi-kind predicate or drops the active
+// filter, the planner can no longer bound the scan to one kind's active rows and
+// the whole-table scan regression from #3389 returns.
+func TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		// Catalog spine: bounded to exactly the active vulnerability.cve tuples.
+		"WHERE fact.fact_kind = 'vulnerability.cve'\n      AND fact.is_tombstone = FALSE",
+		// Affected leg: bounded to exactly the active vulnerability.affected_package tuples.
+		"WHERE fact.fact_kind = 'vulnerability.affected_package'\n      AND fact.is_tombstone = FALSE",
+		// KEV leg: bounded to exactly the active vulnerability.known_exploited tuples.
+		"WHERE fact.fact_kind = 'vulnerability.known_exploited'\n      AND fact.is_tombstone = FALSE",
+		// Active-generation join the (scope_id, generation_id)-leading partial
+		// index resolves alongside the fact_kind bound.
+		"ON fact.scope_id = scope.scope_id\n     AND scope.active_generation_id = fact.generation_id",
+	} {
+		if !strings.Contains(listAdvisoryCatalogQuery, want) {
+			t.Fatalf("listAdvisoryCatalogQuery missing #3389 bounded-scan anchor %q:\n%s", want, listAdvisoryCatalogQuery)
 		}
 	}
 }

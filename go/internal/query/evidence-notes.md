@@ -492,107 +492,182 @@ and the catalog truth envelope). No span, metric, log, status row, graph write,
 or queue consumer is added or removed; the change only narrows the parameters
 and anchor of three existing read queries.
 
-## Supply-chain aggregation endpoints — follow-up scope (#3389)
+## Supply-chain aggregation endpoints (#3389)
 
-The three supply-chain read endpoints in #3389 were investigated but are NOT
-fixed in this PR; they need live ~500k-scale EXPLAIN evidence to choose a safe
-fix and are larger than the catalog/status changes shipped here.
+Three supply-chain read endpoints aggregated `fact_records` for a single
+`fact_kind` and timed out (>20-30s) once the cloud/SaaS collectors grew the stack
+to ~502,865 graph nodes and inflated `fact_records` to collector scale:
 
 - `GET /api/v0/supply-chain/advisories`
-  (`supply_chain_advisory_catalog_sql.go`): aggregates every active
-  `vulnerability.cve` / `vulnerability.affected_package` /
-  `vulnerability.known_exploited` fact and `GROUP BY advisory_key` (three
-  MATERIALIZED CTEs) before keyset pagination applies. The cost is O(active
-  vulnerability facts), not O(page).
-- `GET /api/v0/supply-chain/impact/findings`
-  (`supply_chain_impact_findings_queries.go`): scans every active
-  `reducer_supply_chain_impact_finding` fact, dedupes with `ROW_NUMBER() OVER
-  (PARTITION BY canonical_key ...)`, then paginates. The cursor comparison also
-  re-scans `canonical_facts` via correlated subqueries.
+  (`supply_chain_advisory_catalog_sql.go`): the `cve_facts` CTE (catalog spine)
+  enumerates every active `vulnerability.cve` fact, the `affected` CTE enumerates
+  every active `vulnerability.affected_package` fact, and the `kev` CTE enumerates
+  every active `vulnerability.known_exploited` fact, each with no `cve_id` anchor,
+  before `GROUP BY advisory_key` and keyset pagination.
+- `GET /api/v0/supply-chain/impact/findings/count`
+  (`supply_chain_impact_aggregates_queries.go`): the shared `scoped_facts` CTE
+  enumerates every active `reducer_supply_chain_impact_finding` fact, then
+  `ranked_facts` dedupes with `ROW_NUMBER() OVER (PARTITION BY canonical_key ...)`
+  before the count/group rollups.
 - `GET /api/v0/supply-chain/sbom-attestations/attachments/count`
   (`sbom_attestation_attachment_aggregates.go`): a global `COUNT(*)` plus two
   `GROUP BY` aggregates over every active `reducer_sbom_attestation_attachment`
   fact.
 
-Root cause is whole-fact-kind aggregation, not a missing index: the supply-chain
-fact kinds already have rich partial indexes (`fact_records_vulnerability_*`,
-`fact_records_supply_chain_impact_*`,
-`fact_records_sbom_attestation_attachments_*`). A covering index does not bound a
-global rollup/count. The likely correct fix is a maintained per-scope or global
-summary (mirroring the #3375 collector-readiness reshape that removed an
-unbounded aggregate), validated with before/after EXPLAIN (ANALYZE) on the live
-~500k stack. Tracked as follow-up to keep the catalog/status fixes small and
-measurable.
+In the common "count/list everything" case the per-payload filters are all
+no-ops, so there is no payload anchor. The earlier evidence note hypothesized
+this needed a maintained summary table because "a covering index does not bound a
+global rollup/count." That framing conflated two different index properties. A
+*covering* (payload-leading) index does not help here: with no predicate on the
+leading payload expression, the planner falls back to a sequential scan of all of
+`fact_records` (every `fact_kind`, ~collector-scale rows) or a full scan of a
+wide payload-leading index. A *partial* index is categorically different: its
+`WHERE` clause is baked into the index contents, so the index physically holds
+only the rows that satisfy the predicate. Scanning it — even fully — is therefore
+bounded to that predicate's row set.
 
-### Endpoint 1 — advisory catalog (fixed, this PR)
+The fix adds one partial index per aggregated fact_kind whose predicate is
+exactly the query's fact-kind bound and whose key columns are the
+active-generation join keys:
+
+```sql
+CREATE INDEX IF NOT EXISTS fact_records_<kind>_active_scan_idx
+    ON fact_records (scope_id, generation_id, fact_id ASC)
+    WHERE fact_kind = '<kind>' AND is_tombstone = FALSE;
+```
+
+for `<kind>` in `vulnerability.cve`, `vulnerability.affected_package`,
+`vulnerability.known_exploited`, `reducer_supply_chain_impact_finding`, and
+`reducer_sbom_attestation_attachment`
+(`schema_fact_records_vulnerability_indexes.go`, `schema_fact_records.go`,
+`schema_fact_records_sbom.go`). The partial predicate carves the scan down from
+"all of `fact_records`" to "this one fact_kind's active, non-tombstone tuples,"
+which is the bound the aggregate needs. The `(scope_id, generation_id)` leading
+key columns are the exact join keys to `scope_generations` / `ingestion_scopes`,
+so the planner can drive the active-generation join from the index (a merge join
+that supplies both join columns without a heap trip, or a hash join fed by the
+same bounded index scan). The scan becomes index-only when the heap pages are
+all-visible in the visibility map (vacuum-fresh); on a write-heavy table it may
+take heap fetches, but it stays bounded to the fact_kind either way. No payload
+columns are covered because the count/group expressions are JSONB and vary per
+aggregate (count vs priority bucket vs severity bucket vs subject_digest); the
+load-bearing property is the partial predicate, not coverage.
+
+No GIN index was added for the `payload->'..._ids' ?| $n` array-containment
+source-scope filters: those already have `..._repository_anchor_idx` /
+`..._workload_anchor_idx` / `..._service_anchor_idx` GIN indexes, and adding more
+would add write amplification (per the #3383 write-amplification caveat) for a
+path the new btree partial index already bounds.
+
+Accuracy: the aggregates are byte-for-byte unchanged. The fix only adds indexes;
+the SQL fact-kind anchor, `is_tombstone = FALSE` filter, active-generation join,
+dedupe ranking, grouping, ordering, and pagination are all untouched, so result
+truth is identical and the indexes only change the access path.
+
+Performance Evidence: this environment has no provisioned ~500k Postgres stack,
+so a live `EXPLAIN (ANALYZE)` wall-clock capture was not run (stated per
+cypher-query-rigor; the no-live-backend posture matches #3380/#3384). The
+load-bearing proof is the partial-predicate bounding argument above plus the
+query-shape and index-presence tests, which together pin that (a) each aggregate
+keeps the single-fact_kind + `is_tombstone = FALSE` + active-generation predicate
+the index is built on, and (b) the matching partial index DDL exists in the
+bootstrap schema. Before: planner has no bounded access path for the no-anchor
+case and scans all of `fact_records` (collector scale). After: the planner has a
+partial index containing exactly the fact_kind's active tuples, ordered on the
+join keys. To finalize on a live stack, run `EXPLAIN (ANALYZE, BUFFERS)` on each
+aggregate with all payload params `''` and confirm the plan node is an Index
+Scan / Index Only Scan on the new `..._active_scan_idx`, not a Seq Scan on
+`fact_records`, after `ANALYZE fact_records`.
+
+Tests: `TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor`,
+`TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor`,
+`TestSBOMAttestationAttachmentAggregateQueriesKeepActiveScanAnchor`
+(`internal/query`) pin the bounded query shape;
+`TestBootstrapDefinitionsIncludeAdvisoryCatalogActiveScanIndexes`,
+`TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes`,
+`TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes`
+(`internal/storage/postgres`) pin the index DDL. Per-fact_kind index/scale
+detail is in
+`go/internal/storage/postgres/evidence-supply-chain-aggregate-index-scale.md`.
+
+Observability Evidence: No-Observability-Change. The response surfaces, truth
+envelopes, HTTP request metrics, and `postgres.query` spans/duration metrics are
+unchanged; the fix only changes which rows the aggregate scans, not what the
+endpoints emit.
+
+### Endpoint 1 — advisory catalog single-pass reshape (this PR)
 
 `GET /api/v0/supply-chain/advisories` (`supply_chain_advisory_catalog_sql.go`).
 
+The #3402 partial indexes above bound each per-fact_kind *scan*. They do not, and
+cannot, bound the catalog's second cost center: the original query built three
+`MATERIALIZED` CTEs and `LEFT JOIN`ed two whole-fact-kind aggregates (`catalog`
+over `vulnerability.cve`, `affected_rollup` over `vulnerability.affected_package`)
+on a computed `advisory_key`. Postgres estimates that grouped, expression-keyed
+input at `rows=1`, so both rollup joins plan as `Nested Loop Left Join`. At high
+advisory cardinality that is an O(active_facts^2) join an index cannot touch. This
+PR removes the join: `vuln_facts` reads the three kinds as per-kind `UNION ALL`
+legs (each leg keeps its single `fact_kind` + `is_tombstone = FALSE` predicate, so
+the #3402 `*_active_scan_idx` partial indexes stay eligible) and one
+`GROUP BY advisory_key` with per-kind `FILTER`ed aggregates rolls them up.
+`HAVING bool_or(fact_kind = 'vulnerability.cve')` preserves the cve-spine identity
+of the previous `catalog` LEFT JOIN.
+
 Measurement environment: isolated throwaway Postgres 18 (`postgres:18-alpine`,
-`work_mem=16MB`, same `fact_records` DDL/partial indexes as the live stack via a
-schema-only `pg_dump`), seeded with a production-shaped synthetic corpus:
-1,530,000 active facts across 901 active scopes — 250,000 `vulnerability.cve` +
+`work_mem=16MB`, `fact_records` DDL/partial indexes including the #3402
+`*_active_scan_idx` indexes applied via schema-only `pg_dump` + the merged DDL),
+seeded with a production-shaped synthetic corpus: 250,000 `vulnerability.cve` +
 250,000 `vulnerability.affected_package` + 30,000 `vulnerability.known_exploited`
-in one vulnerability-intelligence scope, plus 500,000
-`reducer_supply_chain_impact_finding` and 500,000
-`reducer_sbom_attestation_attachment` across 900 repo scopes. The live stack's
-own supply-chain fact kinds are too small (9 CVE / 15 affected / 44 attachment /
-64 finding rows) to exercise the at-scale bottleneck, so a representative seed
-was required.
+in one vulnerability-intelligence scope, across 901 active scopes (1.53M active
+facts total). The live stack's own supply-chain fact kinds are too small (9 CVE /
+15 affected / 44 attachment / 64 finding rows) to exercise the join blowup, so a
+representative seed was required. This is the high-advisory-cardinality regime
+(e.g. full-NVD vuln-intel ingestion); it is distinct from the scan-bound regime
+#3402 measured, and both fixes are needed for the catalog to stay bounded.
 
-Root cause (proved, not assumed): the original shape built three `MATERIALIZED`
-CTEs and `LEFT JOIN`ed two whole-fact-kind aggregates (`catalog`,
-`affected_rollup`) on a computed `advisory_key`. Postgres estimates that grouped,
-expression-keyed input at `rows=1`, so both rollup joins planned as
-`Nested Loop Left Join`. At 250k advisories that is an O(active_facts^2) join.
-Removing only `MATERIALIZED`, and separately rewriting the scope filter as inline
-`fact_records JOIN ingestion_scopes JOIN scope_generations` joins, did NOT fix it
-(EXPLAIN still chose nested-loop left joins from the same `rows=1` estimate on the
-grouped expression key). The join itself is the defect, so the fix removes it: a
-single scan of the three kinds (`fact.fact_kind IN (...)`) feeds one
-`GROUP BY advisory_key` with per-kind `FILTER`ed aggregates, and
-`HAVING bool_or(fact_kind = 'vulnerability.cve')` preserves the cve-spine
-identity of the previous `catalog` LEFT JOIN.
+Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` of the shipped
+`listAdvisoryCatalogQuery` (no-filter first page, `work_mem=16MB`), with the
+#3402 `*_active_scan_idx` indexes present in both arms:
 
-Performance Evidence: `EXPLAIN (ANALYZE, BUFFERS)` against the seeded Postgres 18
-corpus above (query shape = shipped `listAdvisoryCatalogQuery`, no-filter first
-page, `work_mem=16MB`).
-
-| Run | Before (3 MATERIALIZED CTEs + nested-loop left join) | After (single scan + single GROUP BY) |
+| Run | Before — original MATERIALIZED-CTE shape (with #3402 indexes) | After — per-kind UNION ALL + single GROUP BY |
 | --- | --- | --- |
-| 1 | did not complete — `canceling statement due to statement timeout` at 600s | 6.26 s |
-| 2 | (not retried; same plan) | 4.41 s |
-| 3 | (not retried; same plan) | 4.72 s |
+| 1 | did not complete — still `Nested Loop Left Join (rows=1)`; cancelled at the 600s statement timeout | 5.10 s |
+| 2 | (same plan) | 4.31 s |
+| 3 | (same plan) | 4.91 s |
 
-- Before plan: `Nested Loop Left Join (rows=1)` joining `catalog` to
-  `affected_rollup` (both actual ~250k) — quadratic, never returns within the
-  600s cap.
-- After plan: one `Nested Loop` (the cheap `scope_generation`-indexed
-  fact↔scope join, 901 loops × ~588 rows = 530,000 rows in ~0.6s) feeding one
-  `GroupAggregate` to 250,000 rows. No aggregate-to-aggregate join exists, so the
-  nested-loop blowup is structurally impossible.
+- Before plan (even with #3402 indexes applied + `ANALYZE`): the per-kind scans
+  use the new `*_active_scan_idx` / `scope_generation` indexes, but the
+  `catalog` → `affected_rollup` → `kev` step is still `Nested Loop Left Join
+  (rows=1, actual ~250k)`. Proof that an index cannot bound the join.
+- After plan: `GroupAggregate` over an `Append` of the three per-kind legs (530k
+  rows in ~1.2s); the `vulnerability.known_exploited` leg uses
+  `fact_records_vulnerability_known_exploited_active_scan_idx` and the
+  cve/affected legs use the equally-bounded `fact_records_scope_generation_idx`.
+  No aggregate-to-aggregate join node exists, so the nested-loop blowup is
+  structurally impossible.
 
 Classification: wall-clock win that removes an unbounded-with-scale
 (O(active_facts^2)) cost. Residual cost is one O(active vulnerability facts)
 aggregate pass; its `GROUP BY`/`ORDER BY` spills to an external merge
-(`Disk: 111MB` at 250k advisories) the same way the pre-#3375 collector-readiness
-aggregate did. Driving this below a few seconds would require a maintained
-per-advisory summary table (O(page) keyset read); that is deliberately deferred
-because it adds a writer/staleness contract, and the single-pass reshape already
-converts a hard timeout into a working browse with zero new moving parts.
+(`Disk: 53MB` at 250k advisories) like the pre-#3375 collector-readiness
+aggregate. Driving this below a few seconds would need a maintained per-advisory
+summary table (O(page) keyset read), deliberately deferred because it adds a
+writer/staleness contract; this reshape already converts a hard timeout into a
+working browse with no new moving parts.
 
 No-Regression Evidence: output is byte-identical to the previous shape. The
 shipped query string (param-substituted for the first page) and the original
 query were each run via `COPY (...) TO STDOUT WITH (FORMAT csv)` on an identical
-300-advisory fixture inside one snapshot; full ordered output `diff` is empty
-(300 rows). Filtered cases were diffed the same way and are byte-identical:
-`kev=true` (60 rows), `severity=critical` (75), `ecosystem=npm` (60, an
-affected-package-derived filter), and a keyset cursor `after_cvss=5.0 /
-after_advisory_key=CVE-2024-0000150` (151). Unit coverage:
-`TestAdvisoryCatalogQueryUsesBoundedSinglePassShape` pins the single-pass shape
-and guards against reintroducing `AS MATERIALIZED` / `LEFT JOIN affected_rollup`;
-`TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel` keeps the active-fact
-predicates, ordering, and keyset limit.
+300-advisory fixture; full ordered output `diff` is empty (300 rows). Filtered
+cases were diffed the same way and are byte-identical: `kev=true` (60 rows),
+`severity=critical` (75), `ecosystem=npm` (60, an affected-package-derived
+filter), and a keyset cursor `after_cvss=5.0 / after_advisory_key=CVE-2024-0000150`
+(151). Unit coverage: `TestAdvisoryCatalogQueryUsesBoundedSinglePassShape` pins
+the per-kind-UNION-ALL + single-GROUP-BY shape and guards against reintroducing
+`AS MATERIALIZED` / `LEFT JOIN affected_rollup`;
+`TestAdvisoryCatalogQueryKeepsPerFactKindActiveScanAnchor` (from #3402) still
+passes because each leg keeps its single-fact_kind + `is_tombstone` + active-gen
+anchor that the partial indexes need.
 
 No-Observability-Change: only the `listAdvisoryCatalogQuery` SQL text changed.
 The route still emits the `query.advisory_catalog` span

@@ -288,6 +288,25 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_repository_lookup_id
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
 
+-- #3389: the impact aggregate (GET /api/v0/supply-chain/impact/findings/count)
+-- enumerates every active reducer_supply_chain_impact_finding fact with no
+-- payload anchor in the common "count everything" case. The payload-leading
+-- indexes above cannot bound that no-anchor enumeration to the fact_kind, so the
+-- planner falls back to a whole-table scan at collector scale. This partial
+-- index's predicate bounds the scan to exactly this fact_kind's active
+-- tuples, and its (scope_id, generation_id) leading keys resolve the
+-- ingestion_scopes/scope_generations active-generation join straight from the
+-- index (index-only when the heap is vacuum-fresh, a bounded index scan
+-- otherwise).
+CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_active_scan_idx
+    ON fact_records (
+        scope_id,
+        generation_id,
+        fact_id ASC
+    )
+    WHERE fact_kind = 'reducer_supply_chain_impact_finding'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_security_alert_repository_lookup_idx
     ON fact_records (
         (payload->>'repository_id'),

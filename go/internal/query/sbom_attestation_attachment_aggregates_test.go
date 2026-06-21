@@ -202,6 +202,39 @@ func TestSBOMAttestationAttachmentAggregateRoutesForwardSourceScopes(t *testing.
 	}
 }
 
+// TestSBOMAttestationAttachmentAggregateQueriesKeepActiveScanAnchor pins the
+// bounded scan shape that #3389 relies on. The count, group, and inventory
+// queries each run COUNT(*) / GROUP BY over one fact_kind's active tuples with
+// no payload anchor in the common case, so each must keep its single-fact_kind
+// predicate, `is_tombstone = FALSE`, and the active-generation join. Those are
+// exactly the columns the partial index
+// fact_records_sbom_attestation_attachments_active_scan_idx is built on (index
+// presence pinned in
+// go/internal/storage/postgres/schema_fact_records_sbom_test.go). If a later
+// edit drops the active filter or broadens the fact_kind, the planner can no
+// longer bound the scan to one kind's active rows and the whole-table scan
+// regression from #3389 returns.
+func TestSBOMAttestationAttachmentAggregateQueriesKeepActiveScanAnchor(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"total":     sbomAttestationAttachmentAggregateTotalQuery,
+		"group":     sbomAttestationAttachmentAggregateGroupQueryTemplate,
+		"inventory": sbomAttestationAttachmentInventoryQueryTemplate,
+	} {
+		for _, want := range []string{
+			"WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'",
+			"AND fact.is_tombstone = FALSE",
+			"ON scope.scope_id = fact.scope_id\n AND scope.active_generation_id = fact.generation_id",
+			"AND generation.status = 'active'",
+		} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("%s aggregate query missing #3389 bounded-scan anchor %q:\n%s", name, want, query)
+			}
+		}
+	}
+}
+
 func TestSBOMAttestationAttachmentAggregateQueriesFilterSourceScopes(t *testing.T) {
 	t.Parallel()
 
