@@ -302,17 +302,21 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "search_registry_bundles",
-			Description: "Search for available pre-indexed bundles in the registry.",
+			Description: "Search the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL. Optionally scope to one ecosystem.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"query": map[string]any{
 						"type":        "string",
-						"description": "Search query for bundles",
+						"description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Empty lists the catalog head.",
+					},
+					"ecosystem": map[string]any{
+						"type":        "string",
+						"description": "Optional ecosystem scope (e.g. npm, pypi, maven, nuget) to bound the catalog read.",
 					},
 					"unique_only": map[string]any{
 						"type":        "boolean",
-						"description": "Return only unique bundles",
+						"description": "Return only distinct package bundles",
 						"default":     false,
 					},
 					"limit": map[string]any{"type": "integer", "description": "Maximum bundles to return", "default": 50, "minimum": 1, "maximum": 200},

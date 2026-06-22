@@ -54,7 +54,7 @@ Cypher.
 | `inspect_code_quality` | optional repository selector plus optional language/function scope | `limit` and `offset` | yes | prompt-ready for complexity, long-function, high-argument, and refactoring-candidate prompts with source handles and `truncated` |
 | `execute_cypher_query` | explicit read-only Cypher supplied by caller | `limit` plus timeout | yes | diagnostics-only; use named tools first |
 | `visualize_graph_query` | explicit Cypher supplied by caller | visualization URL | no | diagnostics-only browser helper |
-| `search_registry_bundles` | optional query string over repository bundle catalog | `limit` | yes | prompt-ready for bounded catalog lookup |
+| `search_registry_bundles` | optional query string and `ecosystem` scope over the package registry bundle catalog | `limit` | yes | prompt-ready for bounded catalog lookup |
 | `list_indexed_repositories` | explicit whole-index inventory | `limit` and `offset` | yes | prompt-ready; returns `truncated` for paging |
 | `count_repositories_by_language` | explicit language family | count-only via `limit=0` | yes | prompt-ready; avoids per-repo coverage fan-out |
 | `list_repositories_by_language` | explicit language family | `limit` and `offset` | yes | prompt-ready; returns repository handles and `truncated` |

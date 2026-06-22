@@ -519,3 +519,34 @@ runtime knob, metric instrument, or metric label. Operators still diagnose the
 relationship-story read through the existing `neo4j.query` spans, query-duration
 metrics, and the answer-level `TruthEnvelope`; per-edge provenance rides as two
 additive response fields.
+
+## Registry bundle search targets the package registry catalog (#3493)
+
+`handleSearchBundles` (`code_cypher.go`, `POST /api/v0/code/bundles`, MCP
+`search_registry_bundles`) previously ran `MATCH (r:Repository) WHERE r.name
+CONTAINS $query` — a repository-name search behind a registry/SBOM-bundle name.
+It now searches the pre-indexed package registry catalog via
+`searchRegistryBundlesCypher`: `MATCH (p:Package)` filtered by a bound,
+case-insensitive substring over `normalized_name`, `namespace`, or `purl`, with
+an optional `ecosystem` scope, and returns `package_id`, `name`, `ecosystem`,
+`registry`, `namespace`, `purl`, and `version_count`. The `:Package` nodes carry
+the dual `:PackageRegistryPackage` label written by the reducer, so this reads
+real registry data the way `list_package_registry_*` does.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1` pass;
+`TestHandleSearchBundles_SearchesRegistryPackages` and
+`TestHandleSearchBundles_ScopesByEcosystem` fail before the rewrite (the handler
+emitted `:Repository`/`r.repo_id`) and pass after. The query keeps the same
+bounded shape as before — a single anchored `MATCH` with substring predicates,
+deterministic `ORDER BY p.ecosystem, p.normalized_name, p.uid`, and `LIMIT
+$limit` (`limit+1` truncation probe) — and `:Package` already backs the
+`list_package_registry_packages` read path, so the plan selectivity is no worse
+than the prior `:Repository` scan; no measurable regression for a correctness
+fix on the same call shape.
+
+No-Observability-Change: this change adds no route, graph write, queue, worker,
+runtime knob, metric instrument, or metric label. The route keeps its existing
+`cypherQueryTimeout`-bounded context, the `platform_impact.context_overview`
+`TruthEnvelope`, and HTTP route attribution; only the request now also accepts an
+optional `ecosystem` field and the response rows carry package identity instead
+of repository identity.

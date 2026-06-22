@@ -287,10 +287,29 @@ func (h *CodeHandler) visualizationGraphQueryLinkTruth() *TruthEnvelope {
 	)
 }
 
-// handleSearchBundles searches indexed repositories as pre-indexed bundles.
+// searchBundlesDefaultLimit and searchBundlesMaxLimit bound the registry
+// bundle catalog read so a single call cannot scan the whole package graph.
+const (
+	searchBundlesDefaultLimit = 50
+	searchBundlesMaxLimit     = 200
+)
+
+// handleSearchBundles searches the pre-indexed package registry catalog as
+// shareable bundle candidates.
+//
+// #3493: this handler previously ran `MATCH (r:Repository) WHERE r.name
+// CONTAINS $query`, which is a repository-name search wearing a
+// registry/SBOM-bundle name. A "registry bundle" is pre-indexed dependency or
+// library graph content, and the only such pre-indexed, queryable registry
+// catalog in the graph is the package registry (`:Package` /
+// `:PackageRegistryPackage` identities materialized by the reducer). The
+// handler now searches that catalog by package identity (normalized name,
+// namespace, or PURL) and optionally scopes to one ecosystem, aligning with the
+// list_package_registry_* read surface instead of inventing repo-name truth.
 func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Query      string `json:"query"`
+		Ecosystem  string `json:"ecosystem"`
 		UniqueOnly bool   `json:"unique_only"`
 		Limit      int    `json:"limit"`
 	}
@@ -299,26 +318,15 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cypher := `MATCH (r:Repository) WHERE r.name IS NOT NULL`
 	limit := req.Limit
 	if limit <= 0 {
-		limit = 50
+		limit = searchBundlesDefaultLimit
 	}
-	if limit > 200 {
-		limit = 200
-	}
-	params := map[string]any{"limit": limit + 1}
-
-	if req.Query != "" {
-		cypher += ` AND toLower(r.name) CONTAINS toLower($query)`
-		params["query"] = req.Query
+	if limit > searchBundlesMaxLimit {
+		limit = searchBundlesMaxLimit
 	}
 
-	if req.UniqueOnly {
-		cypher += ` RETURN DISTINCT r.name AS name, r.repo_id AS repo_id ORDER BY r.name, r.repo_id LIMIT $limit`
-	} else {
-		cypher += ` RETURN r.name AS name, r.repo_id AS repo_id ORDER BY r.name, r.repo_id LIMIT $limit`
-	}
+	cypher, params := searchRegistryBundlesCypher(req.Query, req.Ecosystem, req.UniqueOnly, limit+1)
 
 	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
 	defer cancel()
@@ -339,7 +347,50 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		"count":     len(rows),
 		"limit":     limit,
 		"truncated": truncated,
-	}, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository bundle catalog"))
+	}, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded package registry bundle catalog"))
+}
+
+// searchRegistryBundlesCypher builds the bounded, deterministically ordered
+// query over the package registry catalog. The match anchors on `:Package`
+// identities (which carry the dual `:PackageRegistryPackage` label written by
+// the reducer) and filters by case-insensitive substring over the package's
+// normalized name, namespace, or PURL. An empty query lists the catalog head;
+// a non-empty ecosystem scopes the read to one ecosystem. The query parameter
+// is always bound, never interpolated, so the substring match stays
+// injection-safe.
+func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly bool, limit int) (string, map[string]any) {
+	params := map[string]any{"limit": limit}
+
+	cypher := `MATCH (p:Package) WHERE p.uid IS NOT NULL`
+	if ecosystem != "" {
+		cypher += ` AND p.ecosystem = $ecosystem`
+		params["ecosystem"] = ecosystem
+	}
+	if query != "" {
+		cypher += ` AND (toLower(coalesce(p.normalized_name, '')) CONTAINS toLower($query)` +
+			` OR toLower(coalesce(p.namespace, '')) CONTAINS toLower($query)` +
+			` OR toLower(coalesce(p.purl, '')) CONTAINS toLower($query))`
+		params["query"] = query
+	}
+
+	projection := `RETURN`
+	if uniqueOnly {
+		projection += ` DISTINCT`
+	}
+	cypher += `
+OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
+WITH p, count(v) AS version_count
+` + projection + ` p.uid AS package_id,
+       p.normalized_name AS name,
+       p.ecosystem AS ecosystem,
+       p.registry AS registry,
+       p.namespace AS namespace,
+       p.purl AS purl,
+       version_count AS version_count
+ORDER BY p.ecosystem, p.normalized_name, p.uid
+LIMIT $limit`
+
+	return cypher, params
 }
 
 func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionName, repoID string) (map[string]any, error) {

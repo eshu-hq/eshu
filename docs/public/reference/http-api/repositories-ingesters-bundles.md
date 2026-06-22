@@ -329,13 +329,19 @@ The shipped public API does not include a per-ingester scan POST route. Use
 `POST /api/v0/code/bundles`
 
 Bundle import is not a shipped public HTTP API. The shipped bundle route
-searches indexed repositories as pre-indexed bundle candidates for callers that
-need dependency or library handles.
+searches the pre-indexed package registry catalog (the `:Package` registry
+identities materialized by the reducer) as shareable bundle candidates for
+callers that need dependency or library handles.
 
 Request contract:
 
-- JSON body with `query`
+- JSON body with `query` matched case-insensitively against package normalized
+  name, namespace, or PURL
+- optional `ecosystem` to scope the catalog read to one package ecosystem
+- optional `unique_only` to return distinct package bundles
 - optional `limit`
 
-The route returns matching bundle candidates from the active query backend. It
-does not upload files, mutate graph state, or import `.eshu` archives.
+Each result reports `package_id`, `name`, `ecosystem`, `registry`, `namespace`,
+`purl`, and `version_count`. The route returns matching bundle candidates from
+the active query backend. It does not upload files, mutate graph state, or
+import `.eshu` archives.

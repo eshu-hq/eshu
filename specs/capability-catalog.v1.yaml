@@ -146,7 +146,7 @@ tool_exemptions:
   - tool: resolve_entity
     reason: entity id resolution utility
   - tool: search_registry_bundles
-    reason: component registry bundle search utility
+    reason: package registry bundle catalog search utility
   - tool: get_repository_coverage
     reason: repository coverage diagnostic surface
   - tool: get_repository_stats
