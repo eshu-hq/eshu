@@ -129,8 +129,11 @@ unless manifest["schema_version"] == 1
 end
 
 proof_id = manifest["proof_id"].to_s
-unless proof_id.match?(/\A[A-Za-z0-9._-]+\z/)
-  fail_with("proof_id must be public-safe")
+if private_pattern.match?(proof_id)
+  fail_with("private-shaped value leaked in proof_id")
+end
+unless proof_id.match?(/\Aokta-oidc-live-proof-[0-9]{8}(?:-[a-f0-9]{64})?\z/)
+  fail_with("proof_id must be okta-oidc-live-proof-YYYYMMDD or okta-oidc-live-proof-YYYYMMDD-sha256digest")
 end
 
 generated_at = manifest["generated_at"].to_s
@@ -186,9 +189,12 @@ end
 
 seen = {}
 step_summaries = steps.map do |entry|
+  if private_pattern.match?(JSON.generate(entry))
+    fail_with("private-shaped value leaked in proof step entry")
+  end
   step = entry["step"].to_s
   unless required_steps.include?(step)
-    fail_with("unknown proof step: #{step}")
+    fail_with("unknown proof step")
   end
   if seen[step]
     fail_with("duplicate proof step: #{step}")
@@ -203,9 +209,6 @@ step_summaries = steps.map do |entry|
   end
   unless count.positive?
     fail_with("evidence_count must be positive for proof step #{step}")
-  end
-  if private_pattern.match?(JSON.generate(entry))
-    fail_with("private-shaped value leaked in proof step #{step}")
   end
   {
     "step" => step,

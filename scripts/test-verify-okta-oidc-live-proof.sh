@@ -38,7 +38,7 @@ write_good_manifest() {
 	jq -n --arg generated_at "2026-06-22T21:15:00Z" '
 		{
 			schema_version: 1,
-			proof_id: "okta-oidc-live-proof-test",
+			proof_id: "okta-oidc-live-proof-20260622",
 			generated_at: $generated_at,
 			provider: {
 				provider_kind: "external_oidc",
@@ -97,7 +97,7 @@ expect_pass() {
 	fi
 	jq -e --argjson expected_steps "${#steps[@]}" '
 		.status == "pass" and
-		.proof_id == "okta-oidc-live-proof-test" and
+		.proof_id == "okta-oidc-live-proof-20260622" and
 		.provider.provider_kind == "external_oidc" and
 		.provider.issuer_metadata_source_class == "operator_private_url" and
 		.proof_step_count == $expected_steps and
@@ -130,6 +130,29 @@ expect_fail() {
 		sed -n '1,120p' "${tmp_dir}/${label}.err" >&2
 		exit 1
 	}
+}
+
+expect_fail_without_leak() {
+	local label="$1"
+	local manifest="$2"
+	local expected="$3"
+	local forbidden="$4"
+	local out_json="${tmp_dir}/${label}.summary.json"
+	local out_md="${tmp_dir}/${label}.summary.md"
+	if "${verifier}" --input "${manifest}" --output-json "${out_json}" --output-markdown "${out_md}" >"${tmp_dir}/${label}.out" 2>"${tmp_dir}/${label}.err"; then
+		printf 'expected %s to fail\n' "${label}" >&2
+		exit 1
+	fi
+	rg --fixed-strings --quiet -- "${expected}" "${tmp_dir}/${label}.err" || {
+		printf 'expected %s failure to include %s\n' "${label}" "${expected}" >&2
+		sed -n '1,120p' "${tmp_dir}/${label}.err" >&2
+		exit 1
+	}
+	if rg --fixed-strings --quiet -- "${forbidden}" "${tmp_dir}/${label}.err"; then
+		printf 'expected %s failure not to leak %s\n' "${label}" "${forbidden}" >&2
+		sed -n '1,120p' "${tmp_dir}/${label}.err" >&2
+		exit 1
+	fi
 }
 
 good_manifest="${tmp_dir}/good.json"
@@ -179,6 +202,18 @@ expect_fail zero_denied "${zero_denied}" "public_summary.denied_count must be po
 failed_step="${tmp_dir}/failed-step.json"
 jq '(.proof_steps[] | select(.step == "group_removal_denial") | .status) = "fail"' "${good_manifest}" >"${failed_step}"
 expect_fail failed_step "${failed_step}" "proof step group_removal_denial must pass"
+
+raw_unknown_step="${tmp_dir}/raw-unknown-step.json"
+jq '(.proof_steps[] | select(.step == "group_removal_denial") | .step) = "https://tenant.example.com/oauth2/default"' "${good_manifest}" >"${raw_unknown_step}"
+expect_fail_without_leak raw_unknown_step "${raw_unknown_step}" "private-shaped value leaked in proof step entry" "tenant.example.com"
+
+unknown_step="${tmp_dir}/unknown-step.json"
+jq '(.proof_steps[] | select(.step == "group_removal_denial") | .step) = "unreviewed_step"' "${good_manifest}" >"${unknown_step}"
+expect_fail unknown_step "${unknown_step}" "unknown proof step"
+
+tenant_slug_proof_id="${tmp_dir}/tenant-slug-proof-id.json"
+jq '.proof_id = "tenant-prod-app"' "${good_manifest}" >"${tenant_slug_proof_id}"
+expect_fail_without_leak tenant_slug_proof_id "${tenant_slug_proof_id}" "proof_id must be okta-oidc-live-proof-YYYYMMDD or okta-oidc-live-proof-YYYYMMDD-sha256digest" "tenant-prod-app"
 
 bad_decision="${tmp_dir}/bad-decision.json"
 jq '.public_summary.decision_families = ["allowed", "permitted"]' "${good_manifest}" >"${bad_decision}"

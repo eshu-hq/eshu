@@ -160,13 +160,15 @@ Proof checklist:
 3. For both: capture only event-family counts, decision counts, role names,
    provider kind, refresh-window class, and pass/fail status.
 
-For OIDC, convert the private Okta run into a public-safe aggregate summary with:
+For OIDC, convert the private Okta run into a public-safe aggregate summary in
+the repo-ignored `.proof-artifacts/` directory with:
 
 ```bash
+mkdir -p .proof-artifacts
 scripts/verify-okta-oidc-live-proof.sh \
-  --input okta-oidc-proof.json \
-  --output-json okta-oidc-proof.summary.json \
-  --output-markdown okta-oidc-proof.summary.md
+  --input .proof-artifacts/okta-oidc-proof.json \
+  --output-json .proof-artifacts/okta-oidc-proof.summary.json \
+  --output-markdown .proof-artifacts/okta-oidc-proof.summary.md
 ```
 
 The input manifest is operator-local. It may describe only source classes,
@@ -175,13 +177,15 @@ counts, role names, decision families, timing classes, and pass/fail proof
 steps. Raw Okta org URLs, app IDs, client secrets, users, group values, OIDC
 tokens, cookies, provider responses, and audit bodies must stay private.
 
-For SAML, convert the private Okta run into a public-safe aggregate summary with:
+For SAML, convert the private Okta run into a public-safe aggregate summary in
+the repo-ignored `.proof-artifacts/` directory with:
 
 ```bash
+mkdir -p .proof-artifacts
 scripts/verify-okta-saml-live-proof.sh \
-  --input okta-saml-proof.json \
-  --output-json okta-saml-proof.summary.json \
-  --output-markdown okta-saml-proof.summary.md
+  --input .proof-artifacts/okta-saml-proof.json \
+  --output-json .proof-artifacts/okta-saml-proof.summary.json \
+  --output-markdown .proof-artifacts/okta-saml-proof.summary.md
 ```
 
 The input manifest is operator-local. It may describe only source classes,
@@ -303,7 +307,7 @@ only when the runtime changed.
 | Auth audit and revocation summaries | `scripts/test-verify-hosted-auth-audit-proof.sh` and `scripts/verify-hosted-auth-audit-proof.sh --input auth-audit-proof.json --output-json auth-audit-proof.summary.json --output-markdown auth-audit-proof.summary.md`. |
 | Negative leakage across public artifacts | `scripts/test-verify-hosted-governance-negative-leakage-proof.sh` and `scripts/verify-hosted-governance-negative-leakage-proof.sh --manifest leakage-proof.json --output-json leakage-proof.summary.json --output-markdown leakage-proof.summary.md`. |
 | Hosted Helm auth, secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
-| OIDC implementation or Okta OIDC proof | Focused implementation tests from #3457, `scripts/test-verify-okta-oidc-live-proof.sh`, auth audit proof, denied-access proof, negative-leakage proof, and docs build. |
+| OIDC implementation or Okta OIDC proof | Focused implementation tests from #3457, `scripts/test-verify-okta-oidc-live-proof.sh`, `scripts/verify-okta-oidc-live-proof.sh --input .proof-artifacts/okta-oidc-proof.json --output-json .proof-artifacts/okta-oidc-proof.summary.json --output-markdown .proof-artifacts/okta-oidc-proof.summary.md`, auth audit proof, denied-access proof, negative-leakage proof, and docs build. |
 | SAML implementation or Okta SAML proof | Focused implementation tests from #3458, `scripts/test-verify-okta-saml-live-proof.sh`, metadata/certificate fail-closed proof, auth audit proof, denied-access proof, negative-leakage proof, and docs build. |
 | Token lifecycle implementation | Focused implementation tests from #3461, immediate revocation proof, API/MCP parity proof, auth audit proof, and docs build. |
 | API/MCP/Ask/search authorization propagation | Focused implementation tests from #3460, API/MCP parity proof, unauthorized-evidence filtering proof, negative-leakage proof, and docs build. |
