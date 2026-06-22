@@ -31,6 +31,10 @@ type IngestionStore struct {
 	Now                      func() time.Time
 	SkipRelationshipBackfill bool
 	Logger                   *slog.Logger
+	// maintenanceBatchSize overrides the deferred-maintenance per-batch
+	// repository count. Zero uses deferredMaintenanceRepoBatchSize. It exists so
+	// tests can force multiple independent batch transactions deterministically.
+	maintenanceBatchSize int
 }
 
 // NewIngestionStore constructs a transactional storage boundary for projection

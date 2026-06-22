@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,8 +18,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// BackfillAllRelationshipEvidence runs a single corpus-wide backward evidence
-// discovery pass and publishes readiness for the active repository generations.
+// deferredMaintenanceRepoBatchSize bounds how many source repositories one
+// deferred-maintenance write transaction locks and commits together. Each batch
+// is an independent transaction that takes only its own repositories' exclusive
+// locks, so a stalled or slow batch holds at most this many repository locks and
+// releases them on commit before the next batch starts. The size trades
+// transaction/round-trip overhead (smaller batches => more commits) against lock
+// hold time and conflict surface (larger batches => longer holds, more
+// repositories blocked at once). 32 keeps per-batch lock hold time small while
+// amortizing transaction overhead across the corpus.
+const deferredMaintenanceRepoBatchSize = 32
+
+// BackfillAllRelationshipEvidence runs a corpus-wide backward evidence discovery
+// pass and publishes readiness for the active repository generations. Evidence
+// discovery reads the whole committed fact corpus (cross-repo relationships need
+// every repository's facts), but the writes are split into independent,
+// per-repository-batch transactions so the pass never holds a fleet-wide lock.
+// Each batch transaction acquires only its own repositories' exclusive
+// maintenance locks (sorted, deadlock-free), re-reads those repositories' active
+// generations under the lock so evidence attaches to the current generation, and
+// commits to release the locks before the next batch. A stall on one batch
+// therefore blocks only that batch's repositories, never unrelated commits.
 func (s IngestionStore) BackfillAllRelationshipEvidence(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -26,6 +46,9 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 ) error {
 	if s.db == nil {
 		return fmt.Errorf("ingestion store db is required")
+	}
+	if s.beginner == nil {
+		return fmt.Errorf("transaction beginner is required for batched deferred backfill")
 	}
 
 	start := time.Now()
@@ -39,14 +62,6 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	if err != nil {
 		return fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}
-	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
-	if err != nil {
-		return fmt.Errorf("load active repository generations for deferred relationship backfill: %w", err)
-	}
-	if len(repoGenerations) == 0 {
-		return nil
-	}
-
 	activeFacts, err := loadLatestRelationshipFacts(ctx, s.db)
 	if err != nil {
 		return fmt.Errorf("load latest facts for deferred relationship backfill: %w", err)
@@ -66,9 +81,108 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 		totalEvidence++
 	}
 
-	relationshipStore := NewRelationshipStore(s.db)
-	for repoID, repoEvidence := range evidenceBySourceRepo {
-		repoGeneration, ok := repoGenerations[repoID]
+	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo)
+	if err != nil {
+		return err
+	}
+
+	dur := time.Since(start).Seconds()
+	if instruments != nil {
+		instruments.DeferredBackfillDuration.Record(ctx, dur)
+		instruments.DeferredBackfillEvidence.Add(ctx, totalEvidence)
+	}
+	log.Printf("deferred_backfill_completed evidence_facts=%d readiness_rows=%d duration_s=%.2f batch_size=%d",
+		totalEvidence, readinessRows, dur, deferredMaintenanceRepoBatchSize)
+
+	return nil
+}
+
+// writeDeferredBackfillInBatches commits deferred backward-evidence and the
+// matching readiness rows in bounded per-repository batches, each in its own
+// transaction holding only that batch's exclusive maintenance locks. It returns
+// the number of readiness rows published. Every active repository is published
+// as backward-evidence-ready even when it discovered no new evidence, preserving
+// the prior corpus-wide readiness contract; repositories whose active generation
+// disappears between batches are skipped idempotently.
+func (s IngestionStore) writeDeferredBackfillInBatches(
+	ctx context.Context,
+	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+) (int, error) {
+	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
+	if err != nil {
+		return 0, fmt.Errorf("load active repository generations for deferred relationship backfill: %w", err)
+	}
+	if len(repoGenerations) == 0 {
+		return 0, nil
+	}
+
+	repoIDs := make([]string, 0, len(repoGenerations))
+	for repoID := range repoGenerations {
+		repoIDs = append(repoIDs, repoID)
+	}
+	sort.Strings(repoIDs)
+
+	batchSize := s.maintenanceBatchSize
+	if batchSize <= 0 {
+		batchSize = deferredMaintenanceRepoBatchSize
+	}
+
+	readinessRows := 0
+	for start := 0; start < len(repoIDs); start += batchSize {
+		end := start + batchSize
+		if end > len(repoIDs) {
+			end = len(repoIDs)
+		}
+		published, err := s.writeDeferredBackfillBatch(ctx, repoIDs[start:end], evidenceBySourceRepo)
+		if err != nil {
+			return readinessRows, err
+		}
+		readinessRows += published
+	}
+	return readinessRows, nil
+}
+
+// writeDeferredBackfillBatch processes one bounded batch of source repositories
+// in its own transaction. It acquires the batch's exclusive maintenance locks in
+// sorted order, re-reads the active generations under the lock so evidence and
+// readiness attach to the generation current at lock time, persists each
+// repository's evidence, publishes its readiness row, and commits to release the
+// locks. The batch is idempotent: evidence inserts are content-addressed
+// (ON CONFLICT DO NOTHING) and readiness upserts are keyed by generation.
+func (s IngestionStore) writeDeferredBackfillBatch(
+	ctx context.Context,
+	batchRepoIDs []string,
+	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+) (int, error) {
+	tx, err := s.beginner.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin deferred backfill batch transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	lockKeys := make([]string, 0, len(batchRepoIDs))
+	for _, repoID := range batchRepoIDs {
+		lockKeys = append(lockKeys, deferredMaintenanceRepoLockKeyFromID(repoID))
+	}
+	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
+		return 0, fmt.Errorf("acquire deferred backfill batch locks: %w", err)
+	}
+
+	currentGenerations, err := loadActiveRepositoryGenerations(ctx, tx)
+	if err != nil {
+		return 0, fmt.Errorf("reload active repository generations under batch lock: %w", err)
+	}
+
+	relationshipStore := NewRelationshipStore(tx)
+	phaseRows := make([]reducer.GraphProjectionPhaseState, 0, len(batchRepoIDs))
+	now := s.now()
+	for _, repoID := range batchRepoIDs {
+		repoGeneration, ok := currentGenerations[repoID]
 		if !ok {
 			log.Printf(
 				"relationship_backfill_deferred_source_skipped=true source_repo_id=%q reason=%q",
@@ -77,14 +191,11 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 			)
 			continue
 		}
-		if err := relationshipStore.UpsertEvidenceFacts(ctx, repoGeneration.GenerationID, repoEvidence); err != nil {
-			return fmt.Errorf("persist deferred relationship evidence for repo %q: %w", repoID, err)
+		if repoEvidence := evidenceBySourceRepo[repoID]; len(repoEvidence) > 0 {
+			if err := relationshipStore.UpsertEvidenceFacts(ctx, repoGeneration.GenerationID, repoEvidence); err != nil {
+				return 0, fmt.Errorf("persist deferred relationship evidence for repo %q: %w", repoID, err)
+			}
 		}
-	}
-
-	now := s.now()
-	phaseRows := make([]reducer.GraphProjectionPhaseState, 0, len(repoGenerations))
-	for _, repoGeneration := range repoGenerations {
 		phaseRows = append(phaseRows, reducer.GraphProjectionPhaseState{
 			Key: reducer.GraphProjectionPhaseKey{
 				ScopeID:          repoGeneration.ScopeID,
@@ -98,28 +209,23 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 			UpdatedAt:   now,
 		})
 	}
-	if err := NewGraphProjectionPhaseStateStore(s.db).PublishGraphProjectionPhases(ctx, phaseRows); err != nil {
-		return fmt.Errorf("publish backward evidence readiness: %w", err)
+	if err := NewGraphProjectionPhaseStateStore(tx).PublishGraphProjectionPhases(ctx, phaseRows); err != nil {
+		return 0, fmt.Errorf("publish backward evidence readiness: %w", err)
 	}
-
-	dur := time.Since(start).Seconds()
-	if instruments != nil {
-		instruments.DeferredBackfillDuration.Record(ctx, dur)
-		instruments.DeferredBackfillEvidence.Add(ctx, totalEvidence)
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit deferred backfill batch transaction: %w", err)
 	}
-	log.Printf("deferred_backfill_completed evidence_facts=%d readiness_rows=%d duration_s=%.2f",
-		totalEvidence, len(phaseRows), dur)
-
-	return nil
+	committed = true
+	return len(phaseRows), nil
 }
 
 // RunDeferredRelationshipMaintenance runs the ingester's relationship backfill
-// and deployment-mapping reopen behind per-repository exclusive
-// transaction-level advisory locks. Each active source repository is locked
-// independently in sorted order, so maintenance for disjoint repositories runs
-// in parallel and one stalled repository no longer blocks the fleet. Generation
-// commits take the matching per-repository shared lock, so a commit only waits
-// for maintenance that touches its own repository.
+// and deployment-mapping reopen. The backfill commits in bounded
+// per-repository-batch transactions that each hold only their own repositories'
+// exclusive maintenance locks, and the reopen runs in its own transaction. No
+// step holds a fleet-wide lock, so a stall on one repository batch blocks only
+// that batch's repositories; generation commits take the matching per-repository
+// shared lock and wait only for maintenance touching their own repository.
 func (s IngestionStore) RunDeferredRelationshipMaintenance(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -128,10 +234,25 @@ func (s IngestionStore) RunDeferredRelationshipMaintenance(
 	if s.beginner == nil {
 		return fmt.Errorf("transaction beginner is required")
 	}
+	if err := s.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
+		return err
+	}
+	return s.reopenDeploymentMappingWorkItemsInTransaction(ctx, tracer, instruments)
+}
 
+// reopenDeploymentMappingWorkItemsInTransaction runs the corpus-wide
+// deployment-mapping reopen in its own transaction. Reopen is not partitioned by
+// repository, so it takes no per-repository maintenance lock; it commits
+// independently of the per-batch evidence writes. Reopen is idempotent, so a
+// re-run after partial maintenance failure converges to the same queue state.
+func (s IngestionStore) reopenDeploymentMappingWorkItemsInTransaction(
+	ctx context.Context,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) error {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin deferred relationship maintenance transaction: %w", err)
+		return fmt.Errorf("begin deployment mapping reopen transaction: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -140,42 +261,17 @@ func (s IngestionStore) RunDeferredRelationshipMaintenance(
 		}
 	}()
 
-	if err := acquireDeferredMaintenanceRepoLocksForActiveRepos(ctx, tx); err != nil {
-		return fmt.Errorf("acquire deferred maintenance repo barriers: %w", err)
-	}
-
-	maintenanceStore := NewIngestionStore(tx)
-	maintenanceStore.Now = s.Now
-	maintenanceStore.Logger = s.Logger
-	if err := maintenanceStore.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
-		return err
-	}
-	if err := maintenanceStore.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
+	reopenStore := NewIngestionStore(tx)
+	reopenStore.Now = s.Now
+	reopenStore.Logger = s.Logger
+	if err := reopenStore.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit deferred relationship maintenance transaction: %w", err)
+		return fmt.Errorf("commit deployment mapping reopen transaction: %w", err)
 	}
 	committed = true
 	return nil
-}
-
-// acquireDeferredMaintenanceRepoLocksForActiveRepos locks every active source
-// repository's maintenance partition exclusively, in deterministic sorted order.
-// It loads the active repository generations the maintenance pass will read and
-// write, then takes one exclusive advisory lock per repository. Disjoint
-// repository sets share no lock partition, so independent maintenance passes do
-// not serialize against each other.
-func acquireDeferredMaintenanceRepoLocksForActiveRepos(ctx context.Context, tx Transaction) error {
-	repoGenerations, err := loadActiveRepositoryGenerations(ctx, tx)
-	if err != nil {
-		return fmt.Errorf("load active repository generations for maintenance locks: %w", err)
-	}
-	repoKeys := make([]string, 0, len(repoGenerations))
-	for repoID := range repoGenerations {
-		repoKeys = append(repoKeys, deferredMaintenanceRepoLockKeyFromID(repoID))
-	}
-	return acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, repoKeys)
 }
 
 // ReopenDeploymentMappingWorkItems replays succeeded deployment_mapping work
