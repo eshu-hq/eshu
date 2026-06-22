@@ -211,3 +211,42 @@ end
 	length := assertBucketItemByName(t, got, "function_calls", "length")
 	assertStringFieldValue(t, length, "class_context", "Demo.Worker")
 }
+
+// TestDefaultEngineParsePathElixirImplDecoratorCarriesAcrossComments proves an
+// @impl attribute still marks the following callback as a behaviour callback
+// when a comment line sits between the attribute and the definition. The former
+// line scanner carried the pending @impl until the next function; the AST walk
+// must likewise skip intervening comment siblings rather than stop at them.
+func TestDefaultEngineParsePathElixirImplDecoratorCarriesAcrossComments(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "impl_comment.ex")
+	writeTestFile(
+		t,
+		filePath,
+		`defmodule Demo.Worker do
+  use GenServer
+
+  @impl true
+  # validate the incoming state before replying
+  def init(state), do: {:ok, state}
+end
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	init := assertFunctionByNameAndClass(t, got, "init", "Demo.Worker")
+	assertParserStringSliceContains(t, init, "decorators", "@impl true")
+	assertParserStringSliceContains(t, init, "dead_code_root_kinds", "elixir.behaviour_callback")
+	assertParserStringSliceContains(t, init, "dead_code_root_kinds", "elixir.genserver_callback")
+}

@@ -267,13 +267,20 @@ func elixirGuardExpression(node *tree_sitter.Node, target *tree_sitter.Node) *tr
 	return nil
 }
 
-// decoratorsBefore returns the @decorator attribute texts immediately preceding
-// a definition node among its parent's named children.
+// decoratorsBefore returns the @decorator attribute texts preceding a definition
+// node among its parent's named children. Intervening comment siblings are
+// skipped so a decorator such as @impl still attaches to the callback when a
+// comment line sits between the attribute and the definition; the prior line
+// scanner carried a pending @impl across comment lines to the next function.
+// Any non-comment, non-attribute sibling stops the scan.
 func (e *elixirExtractor) decoratorsBefore(node *tree_sitter.Node) []string {
 	siblings := e.precedingSiblings(node)
 	decorators := make([]string, 0)
 	for index := len(siblings) - 1; index >= 0; index-- {
 		sibling := siblings[index]
+		if sibling.Kind() == "comment" {
+			continue
+		}
 		text := elixirNodeText(&sibling, e.source)
 		if sibling.Kind() != "unary_operator" || !strings.HasPrefix(text, "@") {
 			break
