@@ -740,12 +740,13 @@ type Instruments struct {
 	WebhookStoreDuration                 metric.Float64Histogram
 
 	// Collector concurrency histograms and counters
-	RepoSnapshotDuration    metric.Float64Histogram
-	FileParseDuration       metric.Float64Histogram
-	ReposSnapshotted        metric.Int64Counter
-	FilesParsed             metric.Int64Counter
-	SCIPSnapshotAttempts    metric.Int64Counter
-	SCIPProcessWaitDuration metric.Float64Histogram
+	RepoSnapshotDuration           metric.Float64Histogram
+	CollectorSnapshotStageDuration metric.Float64Histogram
+	FileParseDuration              metric.Float64Histogram
+	ReposSnapshotted               metric.Int64Counter
+	FilesParsed                    metric.Int64Counter
+	SCIPSnapshotAttempts           metric.Int64Counter
+	SCIPProcessWaitDuration        metric.Float64Histogram
 
 	// Streaming fact production metrics
 	FactBatchesCommitted metric.Int64Counter
@@ -2908,6 +2909,21 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register RepoSnapshotDuration histogram: %w", err)
+	}
+
+	// Per-stage snapshot buckets reach finer-grained low end than the
+	// whole-repo histogram because individual stages (discovery, pre-scan,
+	// materialize) routinely complete in well under a second, while parse,
+	// SCIP, and value-flow evidence can dominate a slow repository.
+	collectorStageBuckets := []float64{0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120}
+	inst.CollectorSnapshotStageDuration, err = meter.Float64Histogram(
+		"eshu_dp_collector_snapshot_stage_duration_seconds",
+		metric.WithDescription("Per-stage git-collector snapshot duration, labeled by collector_kind and stage"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(collectorStageBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CollectorSnapshotStageDuration histogram: %w", err)
 	}
 
 	fileParseBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}

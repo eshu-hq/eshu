@@ -15,7 +15,8 @@ loop metrics live in `go/internal/coordinator/metrics.go`.
 | --- | --- |
 | `eshu_dp_repos_snapshotted_total` | Repository snapshot completion volume. |
 | `eshu_dp_files_parsed_total` | File parse volume. |
-| `eshu_dp_repo_snapshot_duration_seconds` | Per-repository snapshot cost. |
+| `eshu_dp_repo_snapshot_duration_seconds` | Per-repository snapshot cost (whole snapshot). |
+| `eshu_dp_collector_snapshot_stage_duration_seconds` | Per-stage snapshot cost within one repository, labeled by `collector_kind` and bounded `stage` (`discovery`, `pre_scan`, `go_package_semantic_prescan`, `parse`, `materialize`, `value_flow_evidence`). Use it to attribute a slow `eshu_dp_repo_snapshot_duration_seconds` to a specific stage — parse and SCIP cost shows under `parse`, and taint/interprocedural/function-summary value-flow cost shows under `value_flow_evidence`. Repository and file paths stay in logs/spans, never metric labels. |
 | `eshu_dp_file_parse_duration_seconds` | Per-file parse cost. |
 | `eshu_dp_scip_snapshot_attempts_total` | SCIP supplement attempt volume per selected language package or workspace root, labeled by bounded `language` and `result` (`used`, `disabled`, `no_supported_language`, `binary_unavailable`, `indexer_failed`, `parse_failed`, or `empty_result`). A sustained non-`used` rate means call precision is falling back to native parser output; investigate SCIP binary availability, indexer errors, parser errors, language allowlists, or empty index output. Repository names, root paths, file paths, and index paths stay out of labels. |
 | `eshu_dp_scip_process_wait_seconds` | Time spent waiting for the shared SCIP process limiter before launching an external indexer, labeled only by bounded `language`. Sustained wait growth means `SCIP_WORKERS` is saturated across concurrent repository snapshots; either raise the worker budget with CPU/memory proof, narrow `SCIP_LANGUAGES`, or lower snapshot concurrency. |
@@ -36,6 +37,27 @@ loop metrics live in `go/internal/coordinator/metrics.go`.
 Content-aware skip reasons use the `content:` prefix. Repo-local
 `.eshu/discovery.json` rules use the `user:` prefix. `.eshuignore` matches use
 `skip_reason=eshuignore`.
+
+No-Regression Evidence: `go test ./internal/collector ./internal/telemetry
+-count=1` (468 tests, NornicDB-independent unit path) proves the git-collector
+snapshot path records `eshu_dp_collector_snapshot_stage_duration_seconds` once
+per bounded stage and emits one `collector.snapshot_stage` span per stage. The
+per-stage timing is pure instrumentation around already-executed snapshot work:
+it adds one `time.Now()` read, one histogram `Record`, and one zero-duration
+back-dated span per stage (six stages per repository), so it introduces no new
+graph write, Cypher, queue, lease, batch, or worker behavior and no measurable
+snapshot wall-time cost on the collector path.
+
+Observability Evidence: a slow `eshu_dp_repo_snapshot_duration_seconds` can now
+be attributed to a specific snapshot stage through
+`eshu_dp_collector_snapshot_stage_duration_seconds{collector_kind,stage}` and
+the `collector.snapshot_stage` span, where `stage` is one of the bounded values
+`discovery`, `pre_scan`, `go_package_semantic_prescan`, `parse`, `materialize`,
+or `value_flow_evidence`. Per-stage structured logs carry the repository and
+file counts; repository and file paths stay in logs and spans and never appear
+as metric labels, so the histogram and span set stay low-cardinality. When the
+collector runs without an instruments meter or tracer the path is a safe no-op,
+proven by `TestSnapshotRepositoryStageTelemetryNoInstrumentsNoPanic`.
 
 ## Terraform-State Collector
 
