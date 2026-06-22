@@ -26,6 +26,11 @@ type StatusHandler struct {
 	// rather than a static default. When nil, the handler falls back to
 	// status.DefaultAnswerNarrationStatus (Unavailable/disabled).
 	NarrationPosture func() status.AnswerNarrationStatus
+
+	// readinessCache is the short-TTL cache for GET
+	// /api/v0/status/collector-readiness. Zero value is a valid empty cache.
+	// See collectorReadinessTTL and getCollectorReadiness for details.
+	readinessCache collectorReadinessCache
 }
 
 // Mount registers status query routes on the given mux.

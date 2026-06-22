@@ -39,9 +39,20 @@ const catalogWorkloadBaseCypher = `
 // catalog endpoint out regardless of the requested limit (issue #3389). Each
 // enrichment anchors on `(w:Workload) WHERE w.id IN $ids`, the bounded-id lookup
 // shape the query-plan gate enforces (see repository_name_lookup.go).
+// catalogWorkloadRepoCypher resolves each bounded workload's defining repository
+// through a single connected path anchored on the workload id set. The earlier
+// shape used two MATCH clauses -- `MATCH (w:Workload) WHERE w.id IN $ids` then a
+// separate `MATCH (repo:Repository)-[:DEFINES]->(w)`. On NornicDB that second
+// MATCH cold-plans as a full Repository label scan with per-repository DEFINES
+// fanout re-joined to `w`, taking ~36s at the console's catalog limit (issue
+// #3466) even though it returns only a few dozen rows. Expressing the same
+// (workload)<-[:DEFINES]-(repository) relationship as one workload-anchored path
+// keeps the result rows identical while cold-planning in single-digit
+// milliseconds, mirroring the single-chain fix applied to
+// catalogWorkloadEvidenceEnvironmentCypher for issue #1731.
 const catalogWorkloadRepoCypher = `
-	MATCH (w:Workload) WHERE w.id IN $ids
-	MATCH (repo:Repository)-[:DEFINES]->(w)
+	MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)
+	WHERE w.id IN $ids
 	RETURN w.id AS id,
 	       repo.id AS repo_id,
 	       repo.name AS repo_name

@@ -3,11 +3,47 @@ package query
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
+
+// collectorReadinessTTL is the duration for which a computed readiness result
+// is cached before the underlying StatusReader (an O(6.6M-fact) Postgres
+// aggregation) is consulted again. The status page polls this endpoint on
+// every render; caching amortises the expensive query over a ~30-second window
+// without changing any data semantics — the query still computes accurate
+// MAX(observed_at) and evidence staleness, it just runs at most once per TTL
+// instead of once per request.
+//
+// The underlying query cost will also drop naturally once the #3451
+// reducer/projection backlog drains the active-fact count, but the cache
+// ensures the SLA is met regardless of that backlog state.
+const collectorReadinessTTL = 30 * time.Second
+
+// collectorReadinessCache is a simple, thread-safe in-memory cache for the
+// collector-readiness response payload keyed by auth scope. Two slots are
+// maintained — one for unscoped (admin) callers and one for scoped (tenant)
+// callers — because the two produce different payloads: scoped callers receive
+// family-level readiness with instance IDs redacted, whereas unscoped callers
+// receive the full per-instance detail. Sharing a single slot across scopes
+// would allow an admin-warmed entry to be served to a scoped caller, leaking
+// per-instance identity across auth boundaries.
+//
+// Zero value is a valid, empty (both slots expired) cache.
+type collectorReadinessCache struct {
+	mu            sync.Mutex
+	unscopedEntry collectorReadinessCacheEntry
+	scopedEntry   collectorReadinessCacheEntry
+}
+
+// collectorReadinessCacheEntry holds one auth-scope slot of the cache.
+type collectorReadinessCacheEntry struct {
+	payload map[string]any
+	expiry  time.Time
+}
 
 // collectorReadinessEntry is the redacted, console-consumable readiness record
 // for one collector family or instance. It reuses the status promotion-proof
@@ -39,11 +75,44 @@ type collectorReadinessEntry struct {
 // model over the full collector fleet. It loads the same status report the rest
 // of the status surface uses and projects status.CollectorPromotionProofs so API
 // and MCP callers see identical, redacted readiness truth.
+//
+// The response is cached for collectorReadinessTTL (~30 s) because the
+// underlying StatusReader executes an O(total-active-facts) Postgres aggregation
+// that takes several seconds at production scale. Caching amortises that cost
+// over the TTL window; data semantics are unchanged — the query still computes
+// accurate MAX(observed_at) and evidence staleness on each cache miss.
 func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
 		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
 		return
 	}
+
+	// Determine the caller's auth scope first: scoped (tenant) callers receive
+	// family-level readiness with instance IDs redacted; unscoped (admin) callers
+	// receive full per-instance detail. The cache maintains one slot per scope so
+	// an admin-warmed entry is never served to a scoped caller (and vice-versa).
+	redactInstance := scopedAuthContext(r.Context())
+
+	// Return cached payload when still within the TTL window for this scope.
+	h.readinessCache.mu.Lock()
+	entry := &h.readinessCache.unscopedEntry
+	if redactInstance {
+		entry = &h.readinessCache.scopedEntry
+	}
+	if time.Now().Before(entry.expiry) && entry.payload != nil {
+		payload := entry.payload
+		h.readinessCache.mu.Unlock()
+		WriteSuccess(w, r, http.StatusOK, payload, &TruthEnvelope{
+			Level: TruthLevelExact,
+			Basis: TruthBasisRuntimeState,
+			Freshness: TruthFreshness{
+				State:      FreshnessFresh,
+				ObservedAt: payload["generated_at"].(string),
+			},
+		})
+		return
+	}
+	h.readinessCache.mu.Unlock()
 
 	asOf := time.Now()
 	report, err := status.LoadReport(r.Context(), h.StatusReader, asOf, status.DefaultOptions())
@@ -63,7 +132,6 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 		AsOf:       report.AsOf,
 		StaleAfter: status.DefaultCollectorPromotionStaleAfter,
 	})
-	redactInstance := scopedAuthContext(r.Context())
 	entries := collectorReadinessEntries(proofs, redactInstance)
 
 	payload := map[string]any{
@@ -72,6 +140,17 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 		"readiness":    entries,
 		"count":        len(entries),
 	}
+
+	// Store the freshly computed payload in the scope-specific cache slot.
+	h.readinessCache.mu.Lock()
+	entry = &h.readinessCache.unscopedEntry
+	if redactInstance {
+		entry = &h.readinessCache.scopedEntry
+	}
+	entry.payload = payload
+	entry.expiry = time.Now().Add(collectorReadinessTTL)
+	h.readinessCache.mu.Unlock()
+
 	WriteSuccess(w, r, http.StatusOK, payload, &TruthEnvelope{
 		Level: TruthLevelExact,
 		Basis: TruthBasisRuntimeState,
