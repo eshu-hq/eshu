@@ -92,10 +92,31 @@
 {{- fail "kubernetesLiveCollector.clusters kubeconfig auth_mode requires kubeconfig_path" -}}
 {{- end -}}
 {{- end -}}
+{{- $inClusterTarget := false -}}
+{{- range .Values.kubernetesLiveCollector.clusters -}}
+{{- if eq (default "" .auth_mode) "in_cluster" -}}
+{{- $inClusterTarget = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.kubernetesLiveCollector.rbac.create (not $inClusterTarget) -}}
+{{- fail "kubernetesLiveCollector.rbac.create=true requires at least one cluster with auth_mode=in_cluster; set kubernetesLiveCollector.rbac.create=false for kubeconfig-only targets" -}}
+{{- end -}}
 {{- end -}}
 {{- if .Values.vaultLiveCollector.enabled -}}
+{{- if not .Values.vaultLiveCollector.instanceId -}}
+{{- fail "vaultLiveCollector.instanceId is required when vaultLiveCollector.enabled=true" -}}
+{{- end -}}
 {{- if not .Values.vaultLiveCollector.collectorInstances -}}
 {{- fail "vaultLiveCollector.collectorInstances must contain at least one instance when vaultLiveCollector.enabled=true" -}}
+{{- end -}}
+{{- $vaultLiveLocalMatch := false -}}
+{{- range .Values.vaultLiveCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "vault_live") (eq (default "" .instance_id) $.Values.vaultLiveCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $vaultLiveLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $vaultLiveLocalMatch -}}
+{{- fail "vaultLiveCollector.collectorInstances must contain an enabled claim-driven vault_live instance matching vaultLiveCollector.instanceId" -}}
 {{- end -}}
 {{- if not .Values.vaultLiveCollector.redaction.secretName -}}
 {{- fail "vaultLiveCollector.redaction.secretName is required when vaultLiveCollector.enabled=true" -}}

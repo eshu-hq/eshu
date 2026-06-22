@@ -159,6 +159,147 @@ vaultLiveCollector:
 	}
 }
 
+// TestHelmKubernetesLiveCollectorKubeconfigOnlyOmitsRBAC proves the read-only
+// ClusterRole/ClusterRoleBinding render only when at least one configured
+// cluster uses in_cluster auth. Kubeconfig-only targets authenticate through a
+// mounted Secret and must not receive a cluster-wide grant on the local cluster.
+func TestHelmKubernetesLiveCollectorKubeconfigOnlyOmitsRBAC(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "kubeconfig-only-values.yaml")
+	values := []byte(`
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+    username: example-user
+    password: example-pass
+kubernetesLiveCollector:
+  enabled: true
+  instanceId: kubernetes-live-primary
+  serviceAccount:
+    create: true
+  rbac:
+    create: false
+  kubeconfig:
+    secretName: example-kubeconfig
+  clusters:
+    - cluster_id: example-cluster
+      auth_mode: kubeconfig
+      kubeconfig_path: /var/run/eshu/kubeconfig/config
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write kubeconfig-only values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	requireHelmManifest(t, manifests, "Deployment", "eshu-kubernetes-live-collector")
+	requireHelmManifest(t, manifests, "ServiceAccount", "eshu-kubernetes-live-collector")
+	if helmManifestExists(manifests, "ClusterRole", "eshu-kubernetes-live-collector") {
+		t.Fatal("kubeconfig-only render included kubernetes-live ClusterRole")
+	}
+	if helmManifestExists(manifests, "ClusterRoleBinding", "eshu-kubernetes-live-collector") {
+		t.Fatal("kubeconfig-only render included kubernetes-live ClusterRoleBinding")
+	}
+}
+
+// TestHelmKubernetesLiveCollectorRBACWithoutInClusterFails proves leaving
+// rbac.create=true with kubeconfig-only targets fails render rather than
+// silently granting an unused cluster-wide read.
+func TestHelmKubernetesLiveCollectorRBACWithoutInClusterFails(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "rbac-no-incluster-values.yaml")
+	values := []byte(`
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+    username: example-user
+    password: example-pass
+kubernetesLiveCollector:
+  enabled: true
+  instanceId: kubernetes-live-primary
+  rbac:
+    create: true
+  kubeconfig:
+    secretName: example-kubeconfig
+  clusters:
+    - cluster_id: example-cluster
+      auth_mode: kubeconfig
+      kubeconfig_path: /var/run/eshu/kubeconfig/config
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write rbac-no-incluster values: %v", err)
+	}
+
+	output := renderHelmChartFailure(t, "-f", valuesPath)
+	if !strings.Contains(output, "kubernetesLiveCollector.rbac.create=true requires at least one cluster with auth_mode=in_cluster") {
+		t.Fatalf("helm template error = %q, want in_cluster RBAC requirement", output)
+	}
+}
+
+// TestHelmVaultLiveCollectorRequiresMatchingLocalInstance proves the collector's
+// collectorInstances must contain an enabled claim-driven vault_live instance
+// whose instance_id matches vaultLiveCollector.instanceId; a mismatch would make
+// the pod claim nothing and fail in selectVaultLiveInstance at startup.
+func TestHelmVaultLiveCollectorRequiresMatchingLocalInstance(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "vault-mismatch-values.yaml")
+	values := []byte(`
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+    username: example-user
+    password: example-pass
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: vault-b
+      collector_kind: vault_live
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - vault_cluster_id: example-vault
+            address: https://vault.example.test:8200
+            token_env: VAULT_READONLY_TOKEN
+vaultLiveCollector:
+  enabled: true
+  instanceId: vault-a
+  redaction:
+    secretName: vault-live-redaction
+    keyKey: redaction-key
+  collectorInstances:
+    - instance_id: vault-b
+      collector_kind: vault_live
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - vault_cluster_id: example-vault
+            address: https://vault.example.test:8200
+            token_env: VAULT_READONLY_TOKEN
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write vault-mismatch values: %v", err)
+	}
+
+	output := renderHelmChartFailure(t, "-f", valuesPath)
+	if !strings.Contains(output, "vaultLiveCollector.collectorInstances must contain an enabled claim-driven vault_live instance matching") {
+		t.Fatalf("helm template error = %q, want vault-live local-mismatch requirement", output)
+	}
+}
+
 func assertLiveCollectorWorkload(
 	t *testing.T,
 	manifests []helmManifest,

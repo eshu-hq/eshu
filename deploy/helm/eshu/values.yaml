@@ -503,9 +503,12 @@ kubernetesLiveCollector:
     name: ""
     annotations: {}
   rbac:
-    # create renders a read-only ClusterRole and ClusterRoleBinding for
-    # in_cluster auth. Set to false when auth_mode is kubeconfig only or the
-    # cluster RBAC is managed outside this chart.
+    # create renders a read-only ClusterRole and ClusterRoleBinding for the
+    # local cluster only when at least one configured cluster uses
+    # auth_mode: in_cluster. Set to false for kubeconfig-only targets or when
+    # cluster RBAC is managed outside this chart; leaving it true with no
+    # in_cluster target fails render so kubeconfig-only deployments do not get
+    # an unused cluster-wide grant.
     create: true
     extraRules: []
   kubeconfig:

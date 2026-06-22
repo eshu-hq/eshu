@@ -1,4 +1,10 @@
-{{- if and .Values.kubernetesLiveCollector.enabled .Values.kubernetesLiveCollector.rbac.create }}
+{{- $inClusterTarget := false -}}
+{{- range .Values.kubernetesLiveCollector.clusters -}}
+{{- if eq (default "" .auth_mode) "in_cluster" -}}
+{{- $inClusterTarget = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.kubernetesLiveCollector.enabled .Values.kubernetesLiveCollector.rbac.create $inClusterTarget }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
