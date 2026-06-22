@@ -55,6 +55,98 @@ func supportedPacketWithCitation(citationRef string) query.AnswerPacket {
 	}
 }
 
+// engineShapedSupportedPacket builds a supported packet exactly as the engine
+// produces one in dispatchCall (loop.go) for a route that carries a truth
+// envelope but no hydrated citation packet: a classified TruthClass and a
+// deterministic Summary, but an EMPTY CitationRef and no EvidenceHandles. This
+// is the real packet shape that reaches narrate in production, and the shape the
+// prior narration tests never exercised (they always set CitationRef), which is
+// why the #3550 narration regression shipped undetected.
+func engineShapedSupportedPacket() query.AnswerPacket {
+	return query.AnswerPacket{
+		TruthClass: query.AnswerTruthDeterministic,
+		Supported:  true,
+		Partial:    false,
+		Summary:    "the original deterministic summary",
+		// CitationRef intentionally empty; EvidenceHandles intentionally nil.
+	}
+}
+
+// TestNarrateEngineShapedPacketTruthProvenance proves that the narration path
+// accepts a model narration that backs factual sentences with "truth"
+// provenance when the engine packet carries no CitationRef and no hydrated
+// citation IDs. Before the #3550 fix the narration system prompt only offered
+// "citation" provenance keyed to the (empty) citation_ref, so the validator
+// rejected every sentence (uncited_factual_sentence + unknown_provenance) and
+// ans.Narrated stayed false for every supported engine answer.
+func TestNarrateEngineShapedPacketTruthProvenance(t *testing.T) {
+	t.Parallel()
+
+	// A literal-following model that emits "truth" provenance (validator-allowed
+	// for any classified packet) when the prompt tells it to, and "citation"
+	// provenance otherwise. The test fails if the engine still sends the
+	// citation-only prompt for an empty-CitationRef packet.
+	truthNarration := `{"sentences":[{"text":"The answer is backed by graph truth.","kind":"factual","provenance":[{"kind":"truth","id":""}]}]}`
+	citationNarration := `{"sentences":[{"text":"The answer is backed by graph truth.","kind":"factual","provenance":[{"kind":"citation","id":""}]}]}`
+
+	adapter := &truthAwareNarrationAdapter{
+		truthAware:   truthNarration,
+		citationOnly: citationNarration,
+	}
+	runner := &recordingRunner{env: supportedEnvelope()}
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	posture := status.AnswerNarrationStatus{State: status.AnswerNarrationAvailable}
+	pkt := engineShapedSupportedPacket()
+	ans := Answer{
+		Question: "test",
+		Prose:    "original deterministic",
+		Packets:  []query.AnswerPacket{pkt},
+	}
+	eng.narrate(context.Background(), &ans, posture)
+
+	if !ans.Narrated {
+		t.Errorf("Narrated = false, want true for engine-shaped packet; Limitations = %v", ans.Limitations)
+	}
+	want := "The answer is backed by graph truth."
+	if ans.Prose != want {
+		t.Errorf("Prose = %q, want %q", ans.Prose, want)
+	}
+	if adapter.narrationCalls != 1 {
+		t.Errorf("narrationCalls = %d, want 1", adapter.narrationCalls)
+	}
+}
+
+// truthAwareNarrationAdapter returns the truth-provenance narration only when
+// the narration system prompt instructs "truth" provenance; otherwise it
+// returns the citation-only narration. This models a provider that follows its
+// instructions, so the test fails if the engine sends the citation-only prompt
+// for an empty-CitationRef packet.
+type truthAwareNarrationAdapter struct {
+	truthAware     string
+	citationOnly   string
+	narrationCalls int
+}
+
+func (a *truthAwareNarrationAdapter) Complete(_ context.Context, msgs []provider.Message, _ []provider.Tool) (provider.Completion, error) {
+	for _, m := range msgs {
+		if m.Role == provider.RoleSystem && strings.Contains(m.Text, narrationSystemSentinel) {
+			a.narrationCalls++
+			if strings.Contains(m.Text, `"truth"`) {
+				return provider.Completion{Text: a.truthAware}, nil
+			}
+			return provider.Completion{Text: a.citationOnly}, nil
+		}
+	}
+	return provider.Completion{Text: "final answer"}, nil
+}
+
+func (a *truthAwareNarrationAdapter) ModelID() string { return "truth-aware-narration-model" }
+
 // TestNarratePostureUnavailableKeepsDeterministic verifies that when the
 // posture source reports Unavailable the engine skips the narration adapter
 // call, leaves ans.Narrated = false, and keeps the deterministic prose.

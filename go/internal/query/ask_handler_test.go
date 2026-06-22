@@ -400,6 +400,64 @@ func TestBuildAskResponse_FlagsSupportedAnswerWithoutCitations(t *testing.T) {
 	}
 }
 
+// TestBuildAskResponse_DerivedProseFallbackWhenNotNarrated proves the
+// defense-in-depth fallback: when the engine could not narrate (Narrated=false)
+// but a supported packet carries a non-empty deterministic Summary, the handler
+// surfaces that Summary as answer_prose instead of returning empty prose. This
+// prevents total prose loss whenever narration is unavailable or rejected
+// (issue #3550). The fallback prose is publish-safety checked and clearly
+// marked as derived/un-narrated via a limitation so callers do not mistake it
+// for a governed narration.
+func TestBuildAskResponse_DerivedProseFallbackWhenNotNarrated(t *testing.T) {
+	t.Parallel()
+
+	const summary = "checkout-service owns refund processing"
+	ans := AskAnswer{
+		Prose:    "",
+		Narrated: false,
+		Packets: []AnswerPacket{{
+			TruthClass: AnswerTruthDeterministic,
+			Supported:  true,
+			Summary:    summary,
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse != summary {
+		t.Fatalf("answer_prose = %q, want derived summary %q", resp.AnswerProse, summary)
+	}
+	if !hasLimitation(resp.Limitations, "derived") {
+		t.Fatalf("limitations = %#v, want derived/un-narrated marker", resp.Limitations)
+	}
+}
+
+// TestBuildAskResponse_DerivedProseFallbackSkipsUnsafeSummary proves the derived
+// fallback still honors publish safety: an unsafe deterministic Summary is never
+// surfaced as answer_prose even when narration is unavailable.
+func TestBuildAskResponse_DerivedProseFallbackSkipsUnsafeSummary(t *testing.T) {
+	t.Parallel()
+
+	rawAddress := strings.Join([]string{"10", "0", "5", "9"}, ".")
+	ans := AskAnswer{
+		Prose:    "",
+		Narrated: false,
+		Packets: []AnswerPacket{{
+			TruthClass: AnswerTruthDeterministic,
+			Supported:  true,
+			Summary:    "the private host is " + rawAddress,
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse != "" {
+		t.Fatalf("answer_prose = %q, want empty for unsafe derived summary", resp.AnswerProse)
+	}
+	b, _ := json.Marshal(resp)
+	if strings.Contains(string(b), rawAddress) {
+		t.Fatalf("unsafe derived summary leaked into response: %s", string(b))
+	}
+}
+
 func hasLimitation(limitations []string, want string) bool {
 	for _, limitation := range limitations {
 		if strings.Contains(limitation, want) {

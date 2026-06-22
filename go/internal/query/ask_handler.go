@@ -213,6 +213,7 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 		Limitations: ans.Limitations,
 	}
 	primarySupported := false
+	var primarySummary string
 
 	// Prose: only when the engine produced a narration.
 	if ans.Narrated {
@@ -229,6 +230,7 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 			}
 		}
 		primarySupported = primary.Supported
+		primarySummary = primary.Summary
 		resp.TruthClass = string(primary.TruthClass)
 		if len(primary.EvidenceHandles) > 0 {
 			resp.EvidenceHandles = primary.EvidenceHandles
@@ -236,6 +238,17 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 	}
 
 	applyAskRuntimeGuardrails(&resp, primarySupported)
+
+	// Defense-in-depth: when narration produced no publishable prose but a
+	// supported packet carries a deterministic Summary, surface that Summary as
+	// derived prose so the answer is not silently empty (issue #3550). The
+	// Summary is the packet builder's evidence-gated deterministic answer, not a
+	// governed narration, so it is published only when publish-safe and is
+	// explicitly marked derived/un-narrated. The guardrail's citation-coverage
+	// rule applies to governed narration prose, not to this deterministic
+	// packet Summary; the publish-safety scan is reapplied here to keep the
+	// leak-safety invariant.
+	applyDerivedProseFallback(&resp, ans.Narrated, primarySupported, primarySummary)
 
 	// Artifacts: when the answer has prose, validate the detected format and
 	// include one artifact entry.
@@ -292,6 +305,44 @@ func applyAskRuntimeGuardrails(resp *askResponse, primarySupported bool) {
 		resp.Limitations = appendAskLimitation(resp.Limitations,
 			"runtime answer guardrail blocked publishable prose: "+string(finding.Criterion))
 	}
+}
+
+// applyDerivedProseFallback surfaces a supported packet's deterministic Summary
+// as answer_prose when the engine produced no governed narration (issue #3550).
+// It is defense-in-depth for the case where narration is unavailable or the
+// narration validator rejected every sentence: without it, a fully supported
+// deterministic answer would return empty prose.
+//
+// It runs after applyAskRuntimeGuardrails and only acts when narration produced
+// no prose, the primary packet is supported, and the Summary is non-empty. The
+// Summary is the packet builder's evidence-gated deterministic answer, not a
+// governed narration, so the guardrail's citation-coverage rule (which targets
+// governed narration prose) does not apply here. Publish safety still does: an
+// unsafe Summary is never surfaced. Surfaced prose is marked derived and
+// un-narrated via a limitation so callers do not mistake it for a governed
+// narration.
+func applyDerivedProseFallback(resp *askResponse, narrated, primarySupported bool, primarySummary string) {
+	if resp == nil {
+		return
+	}
+	if narrated || !primarySupported {
+		return
+	}
+	if resp.AnswerProse != "" {
+		return
+	}
+	summary := strings.TrimSpace(primarySummary)
+	if summary == "" {
+		return
+	}
+	if answerguardrail.UnsafeString(summary) {
+		resp.Limitations = appendAskLimitation(resp.Limitations,
+			"derived deterministic summary withheld: failed publish-safety scan")
+		return
+	}
+	resp.AnswerProse = primarySummary
+	resp.Limitations = appendAskLimitation(resp.Limitations,
+		"answer_prose is the derived, un-narrated deterministic summary (no governed narration produced)")
 }
 
 func askCitationHandleStrings(handles []evidenceCitationHandle) []string {

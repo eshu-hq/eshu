@@ -178,6 +178,8 @@ behaviour is unchanged.
 | --- | --- | --- |
 | `ESHU_ASK_ENABLED` | Set to `true` to enable the ask endpoint and tool. | off |
 | `ESHU_ASK_NARRATION_ENABLED` | Set to `true` to permit governed answer narration (requires `ESHU_ASK_ENABLED=true`). | off |
+| `ESHU_ASK_MAX_ITERATIONS` | Maximum agent-loop reasoning iterations. Raise it for weaker providers that need more tool-call rounds to reach a supported answer instead of returning empty partial answers; values are clamped to a ceiling of `32`. | engine default (`6`) |
+| `ESHU_ASK_MAX_TOOL_CALLS_PER_TURN` | Maximum tool calls dispatched per completion turn; same parse, default, and clamp rules as `ESHU_ASK_MAX_ITERATIONS` (ceiling `16`). | engine default |
 | `DEEPSEEK_API_KEY` | API key for DeepSeek; referenced by the example profile below. Keep in a private env file — never commit a real key. | unset |
 
 To enable Ask Eshu with a DeepSeek provider, load the key from a private env
