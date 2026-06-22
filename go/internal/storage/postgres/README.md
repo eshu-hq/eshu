@@ -494,3 +494,74 @@ proven by `TestServiceIncidentEvidenceBoundedQueryAppliesRowLimit`.
 Observability Evidence: load failures on the bounded path are logged by the report
 source as `serviceintel.incident_load_error` (workload id + catalog service id);
 no new metric or span is added.
+
+## Repository catalog cache on the ingestion hot path (#3481)
+
+`commitScopeGeneration` previously reloaded the entire repository identity
+catalog on every scope generation commit via an unbounded
+`SELECT payload FROM fact_records WHERE fact_kind = 'repository'`
+(`listRepositoryCatalogQuery`). On the live ops-qa fleet (≈907 repositories) this
+made per-commit cost scale with the whole fleet (O(all repositories) per commit),
+degrading the reducer/correlation pipeline. The catalog only carries repository
+identity (RepoID plus aliases) and changes only when a repository-identity fact is
+committed, so it is now loaded once into a per-store
+`repositoryCatalogCache` (`ingestion_catalog_cache.go`), shared across a
+process's concurrent commit goroutines, and reused across commits.
+The cache invalidates after a generation that introduces a previously unknown
+repository **or changes a known repository's identity aliases** (slug/name), so
+onboarding and renames both become visible to the next commit; rare new-repo and
+deferred-backfill reload paths still read the freshest catalog directly.
+
+Connection handling (issue #3521 P1): the cold-cache catalog load runs on the
+**open ingestion transaction's connection** (`repositoryCatalog(ctx, tx)`), not by
+asking the pool for a second connection while the tx is open. Acquiring a second
+connection mid-transaction would block forever under a saturated pool or
+`ESHU_POSTGRES_MAX_OPEN_CONNS=1`, deadlocking the committer. Reading on the tx is
+also correct: the catalog is loaded before this generation's own repository facts
+are written, so it observes committed global identity exactly as before. Pinned by
+`TestIngestionStoreLoadsCatalogOnOpenTransaction`, whose fake flags any catalog
+read served by the outer pool while a transaction is open.
+
+Accuracy: the catalog feeds only cross-repo evidence matching and new-repo
+detection. A commit's own repository facts are not evidence targets for
+themselves, and a just-onboarded repository is repaired by
+`backfillRelationshipEvidenceForNewRepositories` (in-transaction, sees this tx's
+writes) and the deferred `BackfillAllRelationshipEvidence` pass. Because
+`DiscoverEvidence` matches via `CatalogEntry.Aliases`, invalidation also fires when
+a known repo's slug/name drifts (issue #3521 P2) — otherwise a renamed repo's
+cross-repo evidence would be silently dropped until an unrelated change evicted the
+cache. The committed-generation identity is computed with the same
+`repositoryCatalogEntryFromMap` helper the catalog loader uses, so the alias-drift
+comparison is exact. Correctness is pinned by
+`TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository`,
+`TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts`, and the unchanged
+proof-domain evidence flows (`proof_domain_*_test.go`).
+
+Concurrency: the cache is shared across concurrent collector commit goroutines
+(the store is passed as an interface value with value-receiver methods, so the
+cache field is a pointer). A mutex guards the in-memory snapshot and the single
+cold load; it never spans the per-commit Postgres transaction, and the cold load
+runs on the caller's own already-held transaction connection, so no write
+serialization and no cross-worker connection contention is added. Proven by
+`TestIngestionStoreSharedCatalogCacheIsConcurrencySafe` under `-race` and the full
+package under `-race` (970 tests, no data races). The cold load runs on the same
+transaction that holds the per-repository deferred-maintenance advisory lock added
+in #3517, so it neither serializes against nor deadlocks that partitioned lock.
+
+Performance Evidence: `BenchmarkIngestionStoreCatalogLoadsPerCommit`
+(`ingestion_catalog_cache_bench_test.go`), 1000 repositories × 200 known-repo
+commits, fake Postgres harness (`countingCatalogDB`, catalog served on the tx
+connection). Baseline (per-commit reload, `catalogCache = nil`): 1.000
+catalog_loads/commit, 303,202,406 ns/op, 290,795,342 B/op, 3,629,277 allocs/op.
+Cached (this change): 0.005 catalog_loads/commit (one amortized load), 93,123,660
+ns/op, 109,414,945 B/op, 637,417 allocs/op — a ~200x drop in global catalog
+reloads, 3.25x faster, 2.66x less memory, 5.7x fewer allocations.
+`TestIngestionStoreReusesRepositoryCatalogAcrossCommits` asserts the O(1) load
+contract (5 commits → 1 load).
+
+Observability Evidence: the `load_repository_catalog` commit-stage structured log
+carries `catalog_cache_hit` (bool) and `catalog_loads_total` (cumulative fresh
+loads); a `repository_catalog_invalidated` stage log fires when a new repo or an
+alias drift evicts the cache, with `current_generation_repo_count`. An operator can
+confirm at 3 AM that the hot path is cache-hitting (not reloading per commit) and
+see exactly when a reload was triggered, using only the ingestion commit logs.

@@ -25,6 +25,12 @@ const deferredMaintenanceBarrierLockKey int64 = 0x45534855444d42
 
 // IngestionStore owns the durable commit boundary for scope generations, facts,
 // and projector follow-up work.
+//
+// catalogCache is a pointer so that value copies of the store (the commit
+// methods use value receivers, and the store is shared as an interface value
+// across concurrent collector goroutines) all observe the same shared
+// repository catalog cache. It is nil only for stores constructed without
+// NewIngestionStore, in which case the catalog falls back to a per-commit load.
 type IngestionStore struct {
 	db                       ExecQueryer
 	beginner                 Beginner
@@ -35,12 +41,14 @@ type IngestionStore struct {
 	// repository count. Zero uses deferredMaintenanceRepoBatchSize. It exists so
 	// tests can force multiple independent batch transactions deterministically.
 	maintenanceBatchSize int
+	catalogCache         *repositoryCatalogCache
 }
 
 // NewIngestionStore constructs a transactional storage boundary for projection
-// input.
+// input. It installs a shared repository catalog cache so per-commit catalog
+// reloads stay O(1) across the lifetime of the store (issue #3481).
 func NewIngestionStore(db ExecQueryer) IngestionStore {
-	store := IngestionStore{db: db}
+	store := IngestionStore{db: db, catalogCache: newRepositoryCatalogCache()}
 	if beginner, ok := db.(Beginner); ok {
 		store.beginner = beginner
 	}
@@ -191,13 +199,28 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	s.logCommitStage(ctx, scopeValue, generation, "upsert_scope_generation", stageStart)
 	stageStart = time.Now()
-	catalog, err := loadRepositoryCatalog(ctx, tx)
+	catalogState, err := s.repositoryCatalog(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("load repository catalog: %w", err)
 	}
-	s.logCommitStage(ctx, scopeValue, generation, "load_repository_catalog", stageStart, slog.Int("repository_count", len(catalog)))
-	knownRepoIDs := catalogRepoIDs(catalog)
-	currentGenerationRepoIDs := make(map[string]struct{})
+	catalog := catalogState.Entries
+	knownRepoIDs := catalogState.RepoIDs
+	s.logCommitStage(
+		ctx,
+		scopeValue,
+		generation,
+		"load_repository_catalog",
+		stageStart,
+		slog.Int("repository_count", len(catalog)),
+		slog.Bool("catalog_cache_hit", catalogState.CacheHit),
+		slog.Int64("catalog_loads_total", s.catalogLoadCount()),
+	)
+	// currentGenerationRepos maps each repository id this generation commits to
+	// its computed catalog identity (RepoID plus aliases). The full identity —
+	// not just the id — is needed so the shared catalog cache can invalidate when
+	// an already-known repo's slug/name aliases drift, not only when a new id
+	// appears (issue #3521).
+	currentGenerationRepos := make(map[string]relationships.CatalogEntry)
 	relationshipStore := NewRelationshipStore(tx)
 	stageStart = time.Now()
 	factStats, err := upsertStreamingFacts(
@@ -211,9 +234,9 @@ func (s IngestionStore) commitScopeGeneration(
 				if envelope.FactKind != "repository" {
 					continue
 				}
-				repoID := payloadRepoID(envelope.Payload)
-				if repoID != "" {
-					currentGenerationRepoIDs[repoID] = struct{}{}
+				entry, ok := repositoryCatalogEntryFromMap(envelope.Payload)
+				if ok {
+					currentGenerationRepos[entry.RepoID] = entry
 				}
 			}
 			if !shouldDiscoverStreamingRelationshipEvidence(scopeValue) || len(catalog) == 0 {
@@ -262,7 +285,7 @@ func (s IngestionStore) commitScopeGeneration(
 			relationshipStore,
 			generation.GenerationID,
 			knownRepoIDs,
-			currentGenerationRepoIDs,
+			catalogEntryIDSet(currentGenerationRepos),
 		); err != nil {
 			return err
 		}
@@ -283,7 +306,69 @@ func (s IngestionStore) commitScopeGeneration(
 	committed = true
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
 
+	// Invalidate the shared catalog only after the generation is durably
+	// committed, so a rolled-back transaction never evicts a valid snapshot. A
+	// generation that introduces a previously unknown repository id, or that
+	// changes a known repository's identity aliases (slug/name), forces the next
+	// commit to reload a catalog that reflects the change. Commits over known
+	// repositories with unchanged identity leave the cache intact (the common
+	// hot-path case).
+	if s.invalidateCatalogForChangedRepositories(currentGenerationRepos) {
+		s.logCommitStage(
+			ctx,
+			scopeValue,
+			generation,
+			"repository_catalog_invalidated",
+			stageStart,
+			slog.Int("current_generation_repo_count", len(currentGenerationRepos)),
+		)
+	}
+
 	return nil
+}
+
+// repositoryCatalog returns the shared repository identity catalog, loading it
+// once through the supplied queryer when the cache is cold. The caller MUST pass
+// the open ingestion transaction: a cold load must reuse the transaction's
+// connection rather than acquiring a second pool connection while the tx is
+// open, which would deadlock under a saturated or single-connection pool
+// (ESHU_POSTGRES_MAX_OPEN_CONNS=1). Reading on the transaction is also correct:
+// the catalog reflects committed global repository facts plus this
+// transaction's own writes, and this generation's repository facts are not yet
+// written at load time and are not evidence targets for themselves.
+func (s IngestionStore) repositoryCatalog(ctx context.Context, queryer Queryer) (catalogSnapshot, error) {
+	return s.catalogCache.get(ctx, queryer)
+}
+
+// invalidateCatalogForChangedRepositories evicts the shared catalog when a
+// committed generation introduced a repository the cache had not seen or changed
+// a known repository's identity aliases. It returns true when an eviction
+// occurred.
+func (s IngestionStore) invalidateCatalogForChangedRepositories(
+	currentGenerationRepos map[string]relationships.CatalogEntry,
+) bool {
+	return s.catalogCache.invalidateForChangedRepositories(currentGenerationRepos)
+}
+
+// catalogEntryIDSet projects a repo-id-to-CatalogEntry map down to the set of
+// repository ids. The new-repository relationship backfill keys only on ids,
+// while cache invalidation needs the full identity.
+func catalogEntryIDSet(entries map[string]relationships.CatalogEntry) map[string]struct{} {
+	if len(entries) == 0 {
+		return nil
+	}
+	ids := make(map[string]struct{}, len(entries))
+	for repoID := range entries {
+		ids[repoID] = struct{}{}
+	}
+	return ids
+}
+
+// catalogLoadCount reports how many fresh repository catalog loads the shared
+// cache has performed. It feeds the commit-stage log so operators can confirm
+// the hot path is not reloading the catalog per commit.
+func (s IngestionStore) catalogLoadCount() int64 {
+	return s.catalogCache.loadCount()
 }
 
 // logCommitStage emits one low-cardinality timing record for the durable

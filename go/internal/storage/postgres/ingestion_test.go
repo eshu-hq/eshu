@@ -311,6 +311,13 @@ func (f *fakeTransactionalDB) ExecContext(context.Context, string, ...any) (sql.
 func (f *fakeTransactionalDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
 	if len(f.queryResponses) == 0 {
+		// The repository catalog now loads through the store's base connection
+		// (issue #3481 shared cache), not the per-commit transaction. Answer it
+		// with an empty catalog so commit-path tests that do not stage explicit
+		// responses behave as they did when the load ran on the transaction.
+		if strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'") {
+			return &queueFakeRows{}, nil
+		}
 		return nil, errors.New("unexpected QueryContext on outer db")
 	}
 
