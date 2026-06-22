@@ -99,11 +99,7 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 	case "get_repo_story":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true
 	case "get_repo_summary":
-		name := str(args, "repo_name")
-		if name == "" {
-			name = str(args, "repo_id")
-		}
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(name) + "/context"}, true
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/stats"}, true
 	case "get_repository_coverage":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/coverage"}, true
 	default:
