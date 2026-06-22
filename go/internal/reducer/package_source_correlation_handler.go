@@ -3,6 +3,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -36,6 +37,14 @@ type PackageSourceCorrelationHandler struct {
 	Instruments             *telemetry.Instruments
 	AdmissionDecisionWriter AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
+	// RepoDependencyIntentWriter persists consumer-repo DEPENDS_ON owner-repo
+	// projection intents derived from package consumption-to-owner correlation
+	// joins. When nil the join is skipped so the package-registry deployment
+	// profile stays fact-only; the existing repo-dependency projection lane
+	// drains the intents into canonical DEPENDS_ON edges (issue #3579).
+	RepoDependencyIntentWriter RepoDependencyIntentWriter
+	// Now overrides the wall clock for deterministic intent created_at in tests.
+	Now func() time.Time
 }
 
 // Handle executes package source correlation for one package-registry scope.
@@ -105,6 +114,16 @@ func (h PackageSourceCorrelationHandler) Handle(
 	); err != nil {
 		return Result{}, err
 	}
+	repoEdgeIntents, err := h.projectConsumptionRepoDependencyEdges(
+		ctx,
+		intent,
+		consumptionDecisions,
+		decisions,
+		publicationDecisions,
+	)
+	if err != nil {
+		return Result{}, err
+	}
 	h.emitCounters(ctx, counts)
 
 	return Result{
@@ -117,9 +136,107 @@ func (h PackageSourceCorrelationHandler) Handle(
 			len(publicationDecisions),
 			counts,
 			writeResult.CanonicalWrites,
-		),
+		) + fmt.Sprintf(" repo_dependency_edges=%d", len(repoEdgeIntents)),
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
+}
+
+// projectConsumptionRepoDependencyEdges joins the consumption decisions to the
+// exact/derived owner and publisher decisions on package id and persists the
+// resulting consumer-repo DEPENDS_ON owner-repo intents through the shared
+// repo-dependency projection lane. It is a no-op when no intent writer is wired
+// or the join yields no edges, so the package-registry fact-only profile is
+// unchanged. It never fails the package-correlation result for an empty join;
+// only a writer error propagates (issue #3579).
+func (h PackageSourceCorrelationHandler) projectConsumptionRepoDependencyEdges(
+	ctx context.Context,
+	intent Intent,
+	consumptionDecisions []PackageConsumptionDecision,
+	ownershipDecisions []PackageSourceCorrelationDecision,
+	publicationDecisions []PackagePublicationDecision,
+) ([]SharedProjectionIntentRow, error) {
+	if h.RepoDependencyIntentWriter == nil {
+		return nil, nil
+	}
+
+	edgeInput := PackageConsumptionRepoDependencyInput{
+		ScopeID:              intent.ScopeID,
+		GenerationID:         intent.GenerationID,
+		SourceRunID:          packageConsumptionRepoEdgeSourceRunID(intent.ScopeID, intent.GenerationID),
+		CreatedAt:            h.now(),
+		ConsumptionDecisions: consumptionDecisions,
+		OwnershipDecisions:   ownershipDecisions,
+		PublicationDecisions: publicationDecisions,
+	}
+	upsertIntents := BuildPackageConsumptionRepoDependencyIntents(edgeInput)
+	// Refresh-first: consumers that declared package dependencies but resolve no
+	// owner this generation must still reprocess so the shared lane retracts any
+	// package-consumption edge they held in a prior generation. Without these the
+	// stale edge would persist because the upsert build emits nothing for them.
+	refreshIntents := BuildPackageConsumptionRepoEdgeRefreshIntents(edgeInput)
+
+	h.emitRepoEdgeCounter(ctx, "projected", len(upsertIntents))
+	if len(refreshIntents) > 0 {
+		h.emitRepoEdgeCounter(ctx, "skipped_no_owner", len(refreshIntents))
+	}
+
+	intents := make([]SharedProjectionIntentRow, 0, len(upsertIntents)+len(refreshIntents))
+	intents = append(intents, upsertIntents...)
+	intents = append(intents, refreshIntents...)
+	if len(intents) == 0 {
+		return nil, nil
+	}
+	if err := h.RepoDependencyIntentWriter.UpsertIntents(ctx, intents); err != nil {
+		return nil, fmt.Errorf("upsert package consumption repo dependency intents: %w", err)
+	}
+	return intents, nil
+}
+
+func (h PackageSourceCorrelationHandler) emitRepoEdgeCounter(ctx context.Context, outcome string, count int) {
+	if h.Instruments == nil || count <= 0 {
+		return
+	}
+	h.Instruments.PackageConsumptionRepoEdges.Add(
+		ctx,
+		int64(count),
+		metric.WithAttributes(
+			telemetry.AttrDomain(string(DomainRepoDependency)),
+			telemetry.AttrOutcome(outcome),
+		),
+	)
+}
+
+func (h PackageSourceCorrelationHandler) now() time.Time {
+	if h.Now != nil {
+		return h.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+// packageConsumptionRepoEdgeSourceRunID returns a deterministic acceptance
+// source-run id for consumption-derived repo-dependency intents. It is a stable
+// function of the package-registry scope ONLY, deliberately excluding the
+// generation, so re-projecting the same scope in a new generation yields the
+// same source-run id and therefore the same shared-projection acceptance key
+// (scope, acceptance unit, source-run) for an unchanged consumer/owner edge.
+// That stable acceptance key is what lets the shared repo-dependency lane
+// reconstruct the consumer's active edge snapshot across generations and treat
+// the new generation's edge as a refresh of the prior edge rather than a
+// brand-new one, keeping the downstream DEPENDS_ON MERGE idempotent across
+// generations and retries. The intent id legitimately still varies by
+// generation (generation_id is part of the intent identity hash and is how the
+// lane selects the newest generation per acceptance unit); the source-run id
+// must not also vary, or the acceptance unit splits and the refresh misses. The
+// generationID argument is accepted for call-site symmetry but is not part of
+// the source-run identity. It mirrors crossRepoContributionSourceRunID, which is
+// likewise scope-only (issue #3579, review comment 3455350029).
+func packageConsumptionRepoEdgeSourceRunID(scopeID, generationID string) string {
+	_ = generationID // intentionally excluded from the stable identity
+	scopeID = strings.TrimSpace(scopeID)
+	if scopeID == "" {
+		return "package_consumption_repo_dependency"
+	}
+	return "package_consumption_repo_dependency:" + scopeID
 }
 
 func (h PackageSourceCorrelationHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {

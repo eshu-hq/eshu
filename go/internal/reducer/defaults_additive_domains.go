@@ -35,11 +35,12 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
 		packageSource := packageSourceCorrelationDomainDefinition()
 		packageSource.Handler = PackageSourceCorrelationHandler{
-			FactLoader:              handlers.FactLoader,
-			Writer:                  handlers.PackageCorrelationWriter,
-			Instruments:             handlers.Instruments,
-			AdmissionDecisionWriter: handlers.AdmissionDecisionWriter,
-			AdmissionDecisionNow:    handlers.AdmissionDecisionNow,
+			FactLoader:                 handlers.FactLoader,
+			Writer:                     handlers.PackageCorrelationWriter,
+			Instruments:                handlers.Instruments,
+			AdmissionDecisionWriter:    handlers.AdmissionDecisionWriter,
+			AdmissionDecisionNow:       handlers.AdmissionDecisionNow,
+			RepoDependencyIntentWriter: handlers.RepoDependencyIntentWriter,
 		}
 		definitions = append(definitions, packageSource)
 	}
