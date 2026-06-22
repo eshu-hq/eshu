@@ -175,8 +175,11 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 	}
 	var directReads, deeperReads int
 	for _, call := range graph.runCalls[1:] {
-		if !strings.Contains(call.cypher, "MATCH (start:Workload {id: $from_id})") {
+		if !strings.Contains(call.cypher, "(start:Workload {id: $from_id})") {
 			t.Fatalf("traversal cypher = %s, want typed Workload id anchor", call.cypher)
+		}
+		if got := strings.Count(call.cypher, "MATCH "); got != 1 {
+			t.Fatalf("traversal cypher has %d MATCH clauses, want one connected anchor+expand: %s", got, call.cypher)
 		}
 		if strings.Contains(call.cypher, "*2..2") {
 			deeperReads++
@@ -270,6 +273,61 @@ func TestEntityMapDepthTwoUsesBoundedTraversalSpecs(t *testing.T) {
 	for _, call := range graph.runCalls[1:] {
 		if strings.Contains(call.cypher, "*1..2") {
 			t.Fatalf("traversal cypher = %s, want direct depth-1 read plus separate bounded deeper read", call.cypher)
+		}
+	}
+}
+
+// TestEntityMapTraversalAnchorsExpansionInSingleConnectedMatch is the #3549
+// regression guard: the neighborhood traversal must anchor the indexed start
+// node and expand from it in one connected MATCH pattern. Splitting the anchor
+// and the expansion across two MATCH clauses (a bare MATCH (start:Label {...})
+// then a separate MATCH (start)-[rel]->(entity)) makes NornicDB re-plan the
+// second clause independently of the resolved start, scanning the relationship
+// family population instead of the indexed anchor — every service-node entity
+// map then timed out past the console's 15s budget (HTTP 000) returning zero
+// rows. Each traversal Cypher must therefore contain exactly one MATCH clause.
+func TestEntityMapTraversalAnchorsExpansionInSingleConnectedMatch(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingEntityMapGraph{runRows: [][]map[string]any{
+		{
+			{
+				"id":              "workload:checkout",
+				"name":            "checkout",
+				"labels":          []any{"Workload"},
+				"repo_id":         "repo-checkout",
+				"anchor_label":    "Workload",
+				"anchor_property": "id",
+				"anchor_value":    "workload:checkout",
+			},
+		},
+	}}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/entity-map",
+		bytes.NewBufferString(`{"from":"checkout","from_type":"service","depth":2,"limit":25}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if len(graph.runCalls) < 2 {
+		t.Fatalf("graph Run calls = %d, want resolver plus traversal specs", len(graph.runCalls))
+	}
+	for _, call := range graph.runCalls[1:] {
+		if got := strings.Count(call.cypher, "MATCH "); got != 1 {
+			t.Fatalf("traversal cypher has %d MATCH clauses, want exactly one connected anchor+expand: %s", got, call.cypher)
+		}
+		if !strings.Contains(call.cypher, "(start:Workload {id: $from_id})-[") &&
+			!strings.Contains(call.cypher, "(start:Workload {id: $from_id})<-[") {
+			t.Fatalf("traversal cypher = %s, want connected indexed Workload anchor", call.cypher)
 		}
 	}
 }

@@ -776,6 +776,86 @@ Observability Evidence: No-Observability-Change. The handler keeps the existing
 `truncated` flag in the response already signals when the bound was hit. No new
 worker, queue, span, or runtime knob is introduced.
 
+### Entity-Map Neighborhood Two-MATCH Re-Anchor
+
+Performance Evidence: issue #3549. `POST /api/v0/impact/entity-map` for a service
+(Workload) node did not return within the console's 15s topology budget, so the
+Dashboard 'Code-to-cloud topology' rendered empty (1 node, 0 edges) with all
+category counts at 0 and 'Relationship atlas unavailable ... timed out after
+15000ms'. Every other dashboard call returned <2s; entity-map was the sole slow
+path. The console sends `{from: <name>, depth: 2}`
+(`apps/console/src/api/eshuGraph.ts`).
+
+Backend: NornicDB via local Compose Bolt (`bolt://localhost:7687`, db `nornic`).
+Corpus: ~951 Workloads, ~29.1k typed edges, ~19.8k nodes (warm).
+
+Root cause — the bounded neighborhood traversal in
+`go/internal/query/entity_map_traversal.go` split the indexed anchor and the
+expansion across two MATCH clauses:
+
+```cypher
+MATCH (start:Workload {id: $from_id})
+MATCH (start)-[rel:DEPENDS_ON|USES|...]->(entity)
+WHERE ...
+RETURN ... ORDER BY name, id LIMIT $limit
+```
+
+On NornicDB a second MATCH that re-references a node bound in a prior MATCH is
+re-planned independently of the resolved anchor: instead of expanding from the
+single indexed `start` node, the planner scans the relationship-family
+population and filters, so the cost scales with whole-graph edge volume rather
+than node degree. This is the same class as the issue #3172 double-MATCH
+cold-plan re-anchor, but it fired on every entity-map traversal (direct depth-1
+and the depth-2 variable-length spec), not just cold.
+
+The fix collapses anchor and expansion into one connected MATCH pattern so the
+planner uses the `Workload.id` (or resolved label/property) index to anchor and
+expands only from that node:
+
+```cypher
+MATCH (start:Workload {id: $from_id})-[rel:DEPENDS_ON|USES|...]->(entity)
+WHERE ... RETURN ... ORDER BY name, id LIMIT $limit
+```
+
+Live backend isolation via the read-only Cypher path (same NornicDB):
+
+- `MATCH (s:Workload {id:$id}) MATCH (s)-[r:DEPENDS_ON]->(e) RETURN count(*)` —
+  upstream request timeout (does not return).
+- `MATCH (s:Workload {id:$id})-[r:DEPENDS_ON]->(e) RETURN count(*)` — instant.
+- `MATCH (s:Workload {id:$id})-[r:DEPENDS_ON|USES|...8 verbs]->(e) RETURN count(*)`
+  (full outgoing family) — instant.
+- Connected variable-length form
+  `MATCH path = (s:Workload {id:$id})<-[rels:...*2..2]-(e) ... LIMIT 26` —
+  instant, returns correct 2-hop paths.
+
+Live endpoint before/after on the same NornicDB, console payload
+`{"from":"files","depth":2}` / `{"from":"files","depth":1}` (the fixed API
+binary built from this branch was run against the running Compose NornicDB and
+Postgres on a spare port `:8099`; the unchanged Compose build on `:8080` served
+the before). `files` resolves to `Workload {id: workload:files}`, a high-degree
+service node:
+
+| Endpoint | Before (two MATCH) | After (connected MATCH) |
+| --- | --- | --- |
+| `POST /api/v0/impact/entity-map` (service, depth 2) | HTTP 000, >30s curl timeout (never returns; well past the 15s console budget) | HTTP 200, 0.48s, 25 relationships (`query_shape: typed_entity_map_bounded_relationship_family`, `truncated: true`) |
+| `POST /api/v0/impact/entity-map` (service, depth 1) | HTTP 000, >30s curl timeout | HTTP 200, 0.03s, 2 relationships (`query_shape: typed_entity_map_relationship_family`) |
+
+The result set is preserved: same relationship families, same direction specs,
+same WHERE filters, same `ORDER BY name, id`, same `LIMIT $limit` over-fetch,
+same Go dedupe/sort. Only the anchor binding moved into the expansion pattern, so
+the rendered neighborhood is byte-for-byte the same truth, now bounded by node
+degree instead of whole-graph edge volume. Covered by `go test ./internal/query
+-run EntityMap -count=1` (12 tests), including the new
+`TestEntityMapTraversalAnchorsExpansionInSingleConnectedMatch` regression that
+fails if either traversal builder ever re-introduces a second standalone MATCH.
+
+No-Observability-Change: the handler keeps the existing `GraphQuery.Run`
+adapter, the `query.entity_map` span with `eshu.entity_map.traversal_seconds`,
+`result_count`, and `truncated` attributes, and the query-duration metrics. The
+`truncated` flag already signals when the bound was hit. No new worker, queue,
+metric, span, or runtime knob is introduced; the query shape changed but the
+per-query telemetry surface did not.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

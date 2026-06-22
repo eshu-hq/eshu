@@ -174,6 +174,15 @@ func entityMapDefaultOutgoingRelationshipTypes(selected entityMapCandidate) []st
 // over a coalesce()-projected entity binding nulls the first projected column
 // (entity_id) and can drop the relationship-family constraint. Deduplication is
 // performed in Go (see dedupeEntityMapRows).
+//
+// The anchor and the expansion live in one connected MATCH pattern
+// (MATCH (start:Label {prop: $from_id})-[rel:...]->(entity)). Splitting them
+// across two MATCH clauses (a bare MATCH (start:Label {...}) followed by a
+// separate MATCH (start)-[rel]->(entity)) makes NornicDB re-plan the second
+// clause independently of the resolved start node, scanning the relationship
+// family population instead of expanding from the indexed anchor; that re-anchor
+// fanout (issue #3549, same class as the issue #3172 double-MATCH cold plan)
+// timed every service-node entity map out past the console's 15s budget.
 func entityMapTraversalCypher(selected entityMapCandidate, spec entityMapTraversalSpec) string {
 	if spec.maxHops <= 1 {
 		return entityMapDirectTraversalCypher(selected, spec)
@@ -193,20 +202,17 @@ const entityMapRawProjection = `entity.id AS id,
        labels(entity) AS entity_labels`
 
 func entityMapDirectTraversalCypher(selected entityMapCandidate, spec entityMapTraversalSpec) string {
-	edge := fmt.Sprintf("(start)-[rel:%s]->(entity)", strings.Join(spec.relationships, "|"))
+	edge := fmt.Sprintf("(start:%s {%s: $from_id})-[rel:%s]->(entity)", selected.AnchorLabel, selected.AnchorProperty, strings.Join(spec.relationships, "|"))
 	if spec.direction == "incoming" {
-		edge = fmt.Sprintf("(start)<-[rel:%s]-(entity)", strings.Join(spec.relationships, "|"))
+		edge = fmt.Sprintf("(start:%s {%s: $from_id})<-[rel:%s]-(entity)", selected.AnchorLabel, selected.AnchorProperty, strings.Join(spec.relationships, "|"))
 	}
-	return fmt.Sprintf(`MATCH (start:%s {%s: $from_id})
-MATCH %s
+	return fmt.Sprintf(`MATCH %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
 RETURN %s,
        type(rel) AS relationship_type
 ORDER BY name, id
 LIMIT $limit`,
-		selected.AnchorLabel,
-		selected.AnchorProperty,
 		edge,
 		entityMapRawProjection,
 	)
@@ -214,12 +220,11 @@ LIMIT $limit`,
 
 func entityMapVariableTraversalCypher(selected entityMapCandidate, spec entityMapTraversalSpec) string {
 	relationshipPattern := fmt.Sprintf("rels:%s*%d..%d", strings.Join(spec.relationships, "|"), spec.minHops, spec.maxHops)
-	edge := fmt.Sprintf("(start)-[%s]->(entity)", relationshipPattern)
+	edge := fmt.Sprintf("(start:%s {%s: $from_id})-[%s]->(entity)", selected.AnchorLabel, selected.AnchorProperty, relationshipPattern)
 	if spec.direction == "incoming" {
-		edge = fmt.Sprintf("(start)<-[%s]-(entity)", relationshipPattern)
+		edge = fmt.Sprintf("(start:%s {%s: $from_id})<-[%s]-(entity)", selected.AnchorLabel, selected.AnchorProperty, relationshipPattern)
 	}
-	return fmt.Sprintf(`MATCH (start:%s {%s: $from_id})
-MATCH path = %s
+	return fmt.Sprintf(`MATCH path = %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
 RETURN %s,
@@ -227,8 +232,6 @@ RETURN %s,
        [rel IN relationships(path) | type(rel)] AS relationship_types
 ORDER BY name, id
 LIMIT $limit`,
-		selected.AnchorLabel,
-		selected.AnchorProperty,
 		edge,
 		entityMapRawProjection,
 	)
