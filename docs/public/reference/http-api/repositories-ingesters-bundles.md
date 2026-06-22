@@ -335,11 +335,15 @@ callers that need dependency or library handles.
 
 Request contract:
 
-- JSON body with `query` matched case-insensitively against package normalized
-  name, namespace, or PURL
-- optional `ecosystem` to scope the catalog read to one package ecosystem
+- required JSON body that supplies a search scope: a `query`
+  (matched case-insensitively against package normalized name, namespace, or
+  PURL) or an `ecosystem` (e.g. npm, pypi, maven, nuget). The scope value must
+  contain a non-whitespace character; an empty, whitespace-only, or absent scope
+  returns `400` and the route never scans the whole catalog. The OpenAPI schema
+  enforces this with `minLength`/`pattern`, so generated clients reject blank
+  scope the same way the server does.
 - optional `unique_only` to return distinct package bundles
-- optional `limit`
+- optional `limit` (default 50, max 200)
 
 Each result reports `package_id`, `name`, `ecosystem`, `registry`, `namespace`,
 `purl`, and `version_count`. The route returns matching bundle candidates from

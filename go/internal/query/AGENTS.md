@@ -658,3 +658,67 @@ runtime knob, metric instrument, or metric label. The route keeps its existing
 `TruthEnvelope`, and HTTP route attribution; only the request now also accepts an
 optional `ecosystem` field and the response rows carry package identity instead
 of repository identity.
+
+## Registry bundle search requires a scope (#3506 follow-up)
+
+`handleSearchBundles` now rejects a request that supplies neither `query` nor
+`ecosystem` with `400` before any graph read, and the request body is required
+(OpenAPI `requestBody.required: true`, `anyOf` of `query`/`ecosystem`). #3493
+left the scope optional, so a catalog-head request anchored on
+`MATCH (p:Package)` would scan every package and run the
+`OPTIONAL MATCH (p)-[:HAS_VERSION]->(v)`/`count(v)` aggregation across the whole
+registry before `LIMIT`, violating the bounded MCP/API read contract on large
+registries. Requiring a non-empty scope keeps the read bounded by construction:
+the produced Cypher always carries a selective `$query` or `$ecosystem`
+predicate ahead of the version aggregation. The MCP tool schema keeps the
+constraint in its property descriptions and handler validation rather than a
+top-level `anyOf`, because exported MCP schemas must avoid OpenAI-restricted
+top-level keywords.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1` pass;
+`TestHandleSearchBundles_RequiresScope` (table of unscoped bodies) and
+`TestSearchRegistryBundlesCypherAlwaysScoped` fail before this change (unscoped
+requests returned `200` and queried the graph) and pass after. This strictly
+narrows the input domain — scoped requests run the identical bounded query
+shape, and the previously-unbounded unscoped path is removed — so there is no
+regression for any request that already carried a scope.
+
+No-Observability-Change: this change adds no route, graph write, queue, worker,
+runtime knob, metric instrument, or metric label. Scoped requests keep the
+existing `cypherQueryTimeout`-bounded context, `platform_impact.context_overview`
+`TruthEnvelope`, and HTTP route attribution.
+
+## Registry bundle scope validation rides the envelope (#3520 follow-up)
+
+Two refinements close the gap between the bundle handler and its advertised
+contract:
+
+- `handleSearchBundles` now returns its scope/parse/backend errors through
+  `writeSearchBundlesError`, which emits a canonical `ResponseEnvelope` with a
+  populated `Error` (code `invalid_argument` / `internal_error`, capability
+  `platform_impact.context_overview`) when the caller accepts
+  `application/eshu.envelope+json`, and a plain error otherwise. The MCP dispatch
+  path sets that Accept header and recognizes only canonical envelopes
+  (`parseCanonicalEnvelope`); a non-envelope `400` there degraded to a transport
+  error (`HTTP 400: ...`) instead of a structured `IsError` tool result. Mirrors
+  the sibling `writeCypherQueryError` helper.
+- The OpenAPI request schema and the MCP tool property schema add `minLength: 1`
+  and a `pattern` of `\S` to `query` and `ecosystem`, so generated clients and
+  docs reject empty or whitespace-only scope the same way the trimming handler
+  does. The MCP additions are property-level only; the schema keeps no top-level
+  `anyOf`/`oneOf`/`allOf` so the OpenAI-restricted-keyword contract test stays
+  green.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1` pass.
+`TestHandleSearchBundles_UnscopedReturnsEnvelopeError` and
+`TestDispatchToolSearchRegistryBundlesUnscopedReturnsEnvelopeIsError` fail before
+the helper (the handler emitted a plain `{error, detail}` body, so the HTTP test
+could not unmarshal a `ResponseEnvelope` and the MCP dispatch returned an
+`HTTP 400` transport error) and pass after.
+`TestOpenAPISearchBundlesRejectsEmptyScope` fails before the schema gains
+`minLength`/`pattern` and passes after. This only narrows accepted input and
+changes error encoding; the success query shape is unchanged.
+
+No-Observability-Change: no route, graph write, queue, worker, runtime knob,
+metric instrument, or metric label is added. The error envelope reuses the
+existing `ResponseEnvelope`/`ErrorEnvelope` contract and HTTP route attribution.

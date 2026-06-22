@@ -430,6 +430,32 @@ const (
 	searchBundlesMaxLimit     = 200
 )
 
+// searchBundlesCapability names the registry bundle search surface on both the
+// success truth envelope and the error envelope, so envelope-accepting callers
+// (the MCP dispatch path sends Accept: application/eshu.envelope+json) get a
+// capability-tagged structured result for failures, not a bare error.
+const searchBundlesCapability = "platform_impact.context_overview"
+
+// writeSearchBundlesError emits a canonical ResponseEnvelope error when the
+// caller accepts the envelope MIME type and a plain error otherwise. #3506:
+// the MCP dispatch path recognizes only canonical envelopes; a non-envelope
+// 400 there becomes a transport error instead of a structured IsError tool
+// result, so bundle validation failures must ride the envelope.
+func writeSearchBundlesError(w http.ResponseWriter, r *http.Request, status int, code ErrorCode, message string) {
+	if acceptsEnvelope(r) {
+		WriteJSON(w, status, ResponseEnvelope{
+			Data: nil,
+			Error: &ErrorEnvelope{
+				Code:       code,
+				Message:    message,
+				Capability: searchBundlesCapability,
+			},
+		})
+		return
+	}
+	WriteError(w, status, message)
+}
+
 // handleSearchBundles searches the pre-indexed package registry catalog as
 // shareable bundle candidates.
 //
@@ -442,6 +468,14 @@ const (
 // handler now searches that catalog by package identity (normalized name,
 // namespace, or PURL) and optionally scopes to one ecosystem, aligning with the
 // list_package_registry_* read surface instead of inventing repo-name truth.
+//
+// #3506: a search scope is required. The request must supply a non-empty
+// `query` or `ecosystem`; an unscoped request is rejected with 400 before any
+// graph read. Without this guard a catalog-head request anchored on
+// `MATCH (p:Package)` would scan every package and run the version
+// `OPTIONAL MATCH`/`count(v)` aggregation across the whole registry before
+// applying `LIMIT`, which violates the bounded read contract on large
+// registries. Requiring a scope keeps the read bounded by construction.
 func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Query      string `json:"query"`
@@ -450,7 +484,14 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		Limit      int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeSearchBundlesError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
+		return
+	}
+
+	query := strings.TrimSpace(req.Query)
+	ecosystem := strings.TrimSpace(req.Ecosystem)
+	if query == "" && ecosystem == "" {
+		writeSearchBundlesError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "a non-empty query or ecosystem scope is required")
 		return
 	}
 
@@ -462,14 +503,14 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		limit = searchBundlesMaxLimit
 	}
 
-	cypher, params := searchRegistryBundlesCypher(req.Query, req.Ecosystem, req.UniqueOnly, limit+1)
+	cypher, params := searchRegistryBundlesCypher(query, ecosystem, req.UniqueOnly, limit+1)
 
 	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
 	defer cancel()
 
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeSearchBundlesError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
 		return
 	}
 
@@ -483,17 +524,19 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		"count":     len(rows),
 		"limit":     limit,
 		"truncated": truncated,
-	}, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded package registry bundle catalog"))
+	}, BuildTruthEnvelope(h.profile(), searchBundlesCapability, TruthBasisAuthoritativeGraph, "resolved from bounded package registry bundle catalog"))
 }
 
 // searchRegistryBundlesCypher builds the bounded, deterministically ordered
 // query over the package registry catalog. The match anchors on `:Package`
 // identities (which carry the dual `:PackageRegistryPackage` label written by
 // the reducer) and filters by case-insensitive substring over the package's
-// normalized name, namespace, or PURL. An empty query lists the catalog head;
-// a non-empty ecosystem scopes the read to one ecosystem. The query parameter
-// is always bound, never interpolated, so the substring match stays
-// injection-safe.
+// normalized name, namespace, or PURL. A non-empty ecosystem scopes the read to
+// one ecosystem. The caller (handleSearchBundles) requires a non-empty query or
+// ecosystem before calling this, so the produced query always carries a
+// selective predicate ahead of the version aggregation and never scans the
+// whole catalog. The query parameter is always bound, never interpolated, so
+// the substring match stays injection-safe.
 func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly bool, limit int) (string, map[string]any) {
 	params := map[string]any{"limit": limit}
 
