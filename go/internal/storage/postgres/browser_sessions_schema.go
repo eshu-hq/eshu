@@ -138,8 +138,11 @@ SET revoked_at = $2,
 WHERE session_hash = $1
   AND revoked_at IS NULL
   AND subject_class = 'external_oidc_user'
-  AND external_auth_stale_after IS NOT NULL
-  AND external_auth_stale_after <= $2
+  AND (
+    external_auth_validated_at IS NULL
+    OR external_auth_stale_after IS NULL
+    OR external_auth_stale_after <= $2
+  )
 `
 
 const resolveBrowserSessionQuery = `
@@ -169,7 +172,14 @@ WHERE sess.session_hash = $1
   AND sess.revoked_at IS NULL
   AND sess.idle_expires_at > $4
   AND sess.absolute_expires_at > $4
-  AND (sess.external_auth_stale_after IS NULL OR sess.external_auth_stale_after > $4)
+  AND (
+    sess.subject_class <> 'external_oidc_user'
+    OR (
+      sess.external_auth_validated_at IS NOT NULL
+      AND sess.external_auth_stale_after IS NOT NULL
+      AND sess.external_auth_stale_after > $4
+    )
+  )
   AND sess.policy_revision_hash = ws.policy_revision_hash
   AND ten.status = 'active'
   AND ws.status = 'active'
@@ -188,7 +198,14 @@ WHERE sess.session_hash = active.session_hash
   AND sess.revoked_at IS NULL
   AND sess.idle_expires_at > $4
   AND sess.absolute_expires_at > $4
-  AND (sess.external_auth_stale_after IS NULL OR sess.external_auth_stale_after > $4)
+  AND (
+    sess.subject_class <> 'external_oidc_user'
+    OR (
+      sess.external_auth_validated_at IS NOT NULL
+      AND sess.external_auth_stale_after IS NOT NULL
+      AND sess.external_auth_stale_after > $4
+    )
+  )
 RETURNING
     sess.session_hash,
     sess.csrf_token_hash,

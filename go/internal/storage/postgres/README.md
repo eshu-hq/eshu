@@ -111,10 +111,12 @@ High-signal invariants for this package:
   validation time, and stale-after time. It does not store raw cookies, CSRF
   tokens, bearer tokens, provider tokens, raw group names, tenant names, or
   workspace names. Session resolution joins active tenants/workspaces, revokes
-  stale OIDC-backed sessions before returning auth, and re-checks the persisted
-  policy revision against the workspace row before refreshing last-seen state,
-  so provider-proof staleness and policy changes invalidate dashboard sessions
-  instead of extending them.
+  stale OIDC-backed sessions before returning auth, treats upgraded OIDC rows
+  with missing provider-proof timestamps as reauthentication-required, and
+  re-checks the persisted policy revision against the workspace row before
+  refreshing last-seen state, so provider-proof staleness, missing proof
+  metadata, and policy changes invalidate dashboard sessions instead of
+  extending them.
 - Identity subject storage persists users, provider configs, local credential
   hashes, MFA handles, roles, grants, sessions, service principals, and token
   metadata with opaque IDs, hashes, and credential handles only. Local identity
