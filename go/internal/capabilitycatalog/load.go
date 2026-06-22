@@ -45,7 +45,11 @@ func BuildFromSpecs(specsDir string, signals Signals) (Catalog, []Finding, error
 	if err != nil {
 		return Catalog{}, nil, err
 	}
-	catalog, findings := Build(matrix, overlay, signals)
+	authorization, err := LoadAuthorizationCatalog(filepath.Join(specsDir, AuthorizationFileName))
+	if err != nil {
+		return Catalog{}, nil, err
+	}
+	catalog, findings := BuildWithAuthorization(matrix, overlay, authorization, signals)
 	return catalog, findings, nil
 }
 

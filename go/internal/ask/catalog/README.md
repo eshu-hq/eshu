@@ -56,6 +56,11 @@ curated overlay in `annotations_routes.go` and `annotations_tools.go`. Every
 implemented read-only `api_route` and `mcp_tool` surface must have a matching
 entry or the coverage drift gate (`TestOverlayCoversInventory`) fails.
 
+Some read-only API routes use `POST` because their query shape is too structured
+for query parameters. The relationship catalog and relationship edge browser
+stay in the planner overlay as NornicDB reads, while admin/recovery `POST`
+routes stay out of the planner and are tracked in `mutating.go`.
+
 Side-effecting admin/recovery routes are intentionally absent from the overlay
 and from parsed catalog entries. They are listed in `mutating.go` so Ask Eshu's
 planner remains read-only while tests still prove those implemented surfaces are

@@ -10,6 +10,10 @@ without a deadline; handlers remain responsible for honoring `r.Context()`
 cancellation. Deadline and parent cancellation failures return an MCP error
 result with structured content and an `eshu://tool-error/dispatch` JSON
 resource.
+`get_capability_catalog` is transport-only over `/api/v0/capabilities`; its
+structured response preserves the top-level built-in role/grant/data-class
+catalog and each capability's matched permission family, action, scope levels,
+default roles, and sensitive-data marker.
 
 ## Where this fits in the pipeline
 

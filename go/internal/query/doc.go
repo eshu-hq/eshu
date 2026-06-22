@@ -6,7 +6,11 @@
 // capability gates for each runtime profile. Handlers read through ports such
 // as GraphQuery and ContentStore rather than concrete Neo4j, NornicDB, or
 // Postgres drivers, so backend-specific behavior stays behind narrow adapter
-// seams.
+// seams. The static capabilities route exposes the embedded capability catalog,
+// including built-in roles, grants, data classes, and per-capability
+// authorization metadata, so API and MCP callers see the same grant contract;
+// its OpenAPI schema includes the restricted and sensitive data-class
+// sensitivity values used by the catalog.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

@@ -109,7 +109,7 @@ func runtimeTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_capability_catalog",
-			Description: "Return the reconciled Eshu capability catalog: per-capability maturity, public surfaces, proof signals, owner package, known gaps, and linked issues, with optional maturity and owner filters and bounded paging.",
+			Description: "Return the reconciled Eshu capability catalog: per-capability maturity, public surfaces, proof signals, owner package, known gaps, linked issues, and role/grant/data-class authorization metadata, with optional maturity and owner filters and bounded paging.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

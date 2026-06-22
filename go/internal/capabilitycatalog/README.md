@@ -10,6 +10,7 @@ capability is implemented, exposed, documented, proven, gated, or missing.
 | --- | --- | --- |
 | Capability matrix | `specs/capability-matrix.v1.yaml` + `specs/capability-matrix/*.yaml` | capability ids, per-profile support and truth ceilings, declared tools, proof signals |
 | Editorial overlay | `specs/capability-catalog.v1.yaml` | display names, owner packages, maturity overrides, known gaps, linked issues, docs, exemptions, non-MCP surfaces |
+| Authorization catalog | `specs/authorization-catalog.v1.yaml` | built-in roles, explicit grants, data classes, permission families, bootstrap-owner posture |
 | Live signals | injected `Signals` | the MCP tool registry (`mcp.ReadOnlyTools`) |
 
 The package never imports `mcp` or `query`; the generator
@@ -30,6 +31,18 @@ flag:
   overlay entries that no longer match the matrix or registry.
 - `missing_maturity_reason`, `invalid_overlay_maturity` — malformed overlay
   maturity overrides.
+- `missing_authorization_grant`, `invalid_authorization_reference`,
+  `stale_authorization_family` — missing or malformed role/grant/data-class
+  metadata from the authorization catalog.
+
+Every catalog entry carries an `authorization` block with its matched permission
+family, action, data classes, scope levels, default roles, and sensitive-data
+marker. The top-level `authorization` block carries the built-in role and
+data-class catalog. Planned families may exist before their runtime routes land;
+live capability rows must match a permission family before the generator passes.
+Each family default role must also explicitly grant the family action with the
+family data classes and scope levels, so role tables cannot drift away from
+advertised defaults.
 
 ## Maturity
 
@@ -116,4 +129,5 @@ artifact fails CI.
 
 - [Capability Conformance Spec](../../../docs/public/reference/capability-conformance-spec.md)
 - [Capability Catalog](../../../docs/public/reference/capability-catalog.md)
+- [Authorization Catalog](../../../docs/public/reference/authorization-catalog.md)
 - `specs/README.md`

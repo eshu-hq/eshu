@@ -1,0 +1,290 @@
+# Authorization catalog overlay.
+#
+# Defines the v1 built-in roles, data classes, and permission families that
+# enrich the generated capability catalog. Capability families intentionally use
+# stable capability id prefixes from specs/capability-matrix*.yaml; runtime
+# enforcement and per-route evidence filtering land in the implementation
+# slices that consume this catalog.
+version: v1
+
+custom_policy:
+  status: deferred
+  note: Custom policy language is intentionally deferred for v1; the catalog keeps actions, data classes, roles, and scope levels explicit so a future policy language can reference the same closed vocabulary.
+
+bootstrap_owner:
+  role: owner
+  starts_with_admin: true
+  starts_with_sensitive_data_grants: true
+  delegable_roles:
+    - tenant_admin
+    - developer
+    - operator
+    - security_analyst
+    - auditor
+    - sensitive_data_reader
+
+data_classes:
+  - data_class: admin_metadata
+    sensitivity: restricted
+    description: Tenant, workspace, provider, bootstrap, and recovery administration metadata.
+  - data_class: audit_sensitive
+    sensitivity: sensitive
+    description: Detailed audit decisions, denied-decision evidence, exports, and incident report material.
+  - data_class: catalog_metadata
+    sensitivity: restricted
+    description: Static capability, surface, schema, and product contract metadata.
+  - data_class: cloud_iac
+    sensitivity: sensitive
+    description: Cloud inventory, IaC resources, drift, import, and platform topology evidence.
+  - data_class: documentation_semantic
+    sensitivity: sensitive
+    description: Documentation facts, semantic observations, code hints, source policy, and derived semantic evidence.
+  - data_class: repository_metadata
+    sensitivity: restricted
+    description: Repository identifiers, language inventory, freshness, and coverage metadata.
+  - data_class: secret_iam_risk
+    sensitivity: sensitive
+    description: Secrets, IAM, trust-chain, privilege posture, secret-access, and posture-gap evidence.
+  - data_class: service_runtime
+    sensitivity: restricted
+    description: Services, workloads, deployment stories, incidents, runtime topology, and observability coverage.
+  - data_class: source_content
+    sensitivity: sensitive
+    description: Source code, file content, entity content, code graph evidence, and citation snippets.
+  - data_class: status_metadata
+    sensitivity: restricted
+    description: Runtime health, readiness, collector, ingester, governance, and freshness status.
+  - data_class: supply_chain_security
+    sensitivity: sensitive
+    description: SBOM, image, package, vulnerability, scanner, reachability, security alert, and CI/CD correlation evidence.
+  - data_class: token_metadata
+    sensitivity: restricted
+    description: Personal token, service-principal token, expiry, rotation, owner, and last-used metadata.
+  - data_class: ask_reasoning
+    sensitivity: sensitive
+    description: Ask/search evidence retrieval, citations, reasoning traces, and answer narration metadata.
+
+roles:
+  - role: tenant_admin
+    display_name: Tenant Admin
+    description: Manages users, memberships, provider settings, roles, grants, tokens, and workspace settings without receiving sensitive data classes by default.
+    grants:
+      - action: admin.manage
+        data_classes: [admin_metadata]
+        scope_levels: [tenant, workspace]
+      - action: identity.user.manage
+        data_classes: [admin_metadata]
+        scope_levels: [tenant, workspace]
+      - action: roles.grants.manage
+        data_classes: [admin_metadata, catalog_metadata]
+        scope_levels: [tenant, workspace]
+      - action: tokens.manage
+        data_classes: [token_metadata]
+        scope_levels: [tenant, workspace]
+      - action: operations.status.read
+        data_classes: [status_metadata, catalog_metadata]
+        scope_levels: [tenant, workspace]
+  - role: developer
+    display_name: Developer
+    description: Reads repository, code, documentation, service context, and Ask/search evidence for granted workspaces, repositories, and source scopes.
+    grants:
+      - action: repository.content.read
+        data_classes: [repository_metadata, source_content]
+        scope_levels: [tenant, workspace, repository]
+      - action: service.runtime.read
+        data_classes: [repository_metadata, service_runtime]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: docs.semantic.read
+        data_classes: [documentation_semantic]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: ask.search.run
+        data_classes: [ask_reasoning, source_content, documentation_semantic]
+        scope_levels: [tenant, workspace, repository, source_scope]
+  - role: operator
+    display_name: Operator
+    description: Reads runtime status, freshness, service context, collector posture, and recovery diagnostics for granted scopes.
+    grants:
+      - action: service.runtime.read
+        data_classes: [repository_metadata, service_runtime, status_metadata]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: operations.status.read
+        data_classes: [status_metadata, catalog_metadata]
+        scope_levels: [tenant, workspace]
+      - action: admin.recovery.manage
+        data_classes: [admin_metadata, status_metadata]
+        scope_levels: [tenant, workspace]
+  - role: security_analyst
+    display_name: Security Analyst
+    description: Reads sensitive cloud/IaC, secrets/IAM, supply-chain, audit, and security evidence for granted workspaces.
+    grants:
+      - action: cloud.iac.read
+        data_classes: [cloud_iac]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: secrets.iam.read
+        data_classes: [secret_iam_risk]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: supply.chain.read
+        data_classes: [supply_chain_security]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: audit.export.read
+        data_classes: [audit_sensitive]
+        scope_levels: [tenant, workspace, repository, source_scope]
+  - role: auditor
+    display_name: Auditor
+    description: Reads audit, export, admission, work-item, governance, and status evidence without user-management write power.
+    grants:
+      - action: audit.export.read
+        data_classes: [audit_sensitive, status_metadata]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: operations.status.read
+        data_classes: [status_metadata, catalog_metadata]
+        scope_levels: [tenant, workspace]
+  - role: sensitive_data_reader
+    display_name: Sensitive Data Reader
+    description: Delegated role for sensitive data classes without broad tenant administration.
+    grants:
+      - action: sensitive.data.read
+        data_classes: [source_content, cloud_iac, secret_iam_risk, supply_chain_security, documentation_semantic, ask_reasoning, audit_sensitive]
+        scope_levels: [tenant, workspace, repository, source_scope]
+  - role: owner
+    display_name: Owner
+    description: Bootstrap-capable owner with admin plus sensitive-data grants; owners can delegate or remove those grants after setup.
+    bootstrap_default: true
+    grants:
+      - action: admin.manage
+        data_classes: [admin_metadata]
+        scope_levels: [tenant, workspace]
+      - action: identity.user.manage
+        data_classes: [admin_metadata]
+        scope_levels: [tenant, workspace]
+      - action: roles.grants.manage
+        data_classes: [admin_metadata, catalog_metadata]
+        scope_levels: [tenant, workspace]
+      - action: tokens.manage
+        data_classes: [token_metadata]
+        scope_levels: [tenant, workspace]
+      - action: repository.content.read
+        data_classes: [repository_metadata, source_content]
+        scope_levels: [tenant, workspace, repository]
+      - action: service.runtime.read
+        data_classes: [repository_metadata, service_runtime]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: cloud.iac.read
+        data_classes: [cloud_iac]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: secrets.iam.read
+        data_classes: [secret_iam_risk]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: supply.chain.read
+        data_classes: [supply_chain_security]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: docs.semantic.read
+        data_classes: [documentation_semantic]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: ask.search.run
+        data_classes: [ask_reasoning, source_content, documentation_semantic]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: operations.status.read
+        data_classes: [status_metadata, catalog_metadata]
+        scope_levels: [tenant, workspace]
+      - action: audit.export.read
+        data_classes: [audit_sensitive]
+        scope_levels: [tenant, workspace, repository, source_scope]
+      - action: admin.recovery.manage
+        data_classes: [admin_metadata, status_metadata]
+        scope_levels: [tenant, workspace]
+
+permission_families:
+  - family: identity_admin
+    description: User, invitation, membership, provider, MFA, tenant, and workspace administration. Runtime surfaces land in the identity implementation slices.
+    planned: true
+    capability_prefixes: []
+    action: identity.user.manage
+    data_classes: [admin_metadata]
+    scope_levels: [tenant, workspace]
+    default_roles: [tenant_admin, owner]
+  - family: roles_grants
+    description: Role, grant, capability-catalog, effective-permission, and data-class administration.
+    capability_prefixes: [capability_catalog.]
+    action: roles.grants.manage
+    data_classes: [admin_metadata, catalog_metadata]
+    scope_levels: [tenant, workspace]
+    default_roles: [tenant_admin, owner]
+  - family: tokens
+    description: Personal-token and service-principal token lifecycle. Runtime token surfaces land in the token implementation slice.
+    planned: true
+    capability_prefixes: []
+    action: tokens.manage
+    data_classes: [token_metadata]
+    scope_levels: [tenant, workspace]
+    default_roles: [tenant_admin, owner]
+  - family: repository_content
+    description: Repository, source, content, code graph, code-quality, relationships, evidence citation, dependency, and visualization reads.
+    capability_prefixes: [code_search., code_inventory., graph_query., symbol_graph., code_quality., security.hardcoded_secrets, call_graph., code_to_cloud., relationship_evidence., evidence_citation., dependencies., visualization.]
+    action: repository.content.read
+    data_classes: [repository_metadata, source_content]
+    scope_levels: [tenant, workspace, repository]
+    default_roles: [developer, owner]
+  - family: service_runtime
+    description: Service, workload, runtime topology, deployment story, operational context, incidents, Kubernetes correlations, service catalog, and observability coverage.
+    capability_prefixes: [platform_impact., service_catalog., kubernetes., observability., incident.]
+    action: service.runtime.read
+    data_classes: [repository_metadata, service_runtime]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [developer, operator, owner]
+  - family: cloud_iac
+    description: Cloud inventory, IaC quality, drift, import, unmanaged resource, replatforming, and cloud-resource impact reads.
+    capability_prefixes: [iac_quality., iac_management., aws_runtime_drift., iac_inventory., cloud_inventory., cloud_runtime_drift., replatforming., platform_impact.cloud_resource_list, platform_impact.infra_resource_aggregate]
+    action: cloud.iac.read
+    data_classes: [cloud_iac]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [security_analyst, owner]
+  - family: secrets_iam
+    description: Secrets/IAM trust-chain, privilege posture, secret access path, posture gap, and posture summary reads.
+    capability_prefixes: [secrets_iam.]
+    action: secrets.iam.read
+    data_classes: [secret_iam_risk]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [security_analyst, owner]
+  - family: supply_chain
+    description: Supply-chain, SBOM, image, package, dependency, reachability, security-alert, and CI/CD correlation reads.
+    capability_prefixes: [supply_chain., package_registry., ci_cd., reachability., platform_impact.container_image_list]
+    action: supply.chain.read
+    data_classes: [supply_chain_security]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [security_analyst, owner]
+  - family: docs_semantic
+    description: Documentation facts/findings, semantic evidence, semantic extraction status, and semantic observation reads.
+    capability_prefixes: [documentation_, semantic_evidence., semantic_extraction.]
+    action: docs.semantic.read
+    data_classes: [documentation_semantic]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [developer, owner]
+  - family: ask_search
+    description: Ask Eshu, semantic search, cited evidence retrieval, reasoning trace, and answer narration posture.
+    capability_prefixes: [ask., semantic_search., answer_narration.]
+    action: ask.search.run
+    data_classes: [ask_reasoning, source_content, documentation_semantic]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [developer, owner]
+  - family: operations_status
+    description: Runtime status, freshness, governance status, collector extraction readiness, surface inventory, schema inventory, and query workflow catalogs.
+    capability_prefixes: [freshness., surface_inventory., hosted_governance., collector_extraction_readiness., fact_schema_version., query., platform_metrics.]
+    action: operations.status.read
+    data_classes: [status_metadata, catalog_metadata]
+    scope_levels: [tenant, workspace]
+    default_roles: [tenant_admin, operator, auditor, owner]
+  - family: audit_export
+    description: Audit, export, admission decision, work-item evidence, denied-decision inspection, and incident/audit report reads.
+    capability_prefixes: [admission_decisions., work_item.]
+    action: audit.export.read
+    data_classes: [audit_sensitive]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [auditor, security_analyst, owner]
+  - family: admin_recovery
+    description: Recovery, extension, component, backfill, replay, dead-letter, bootstrap, and break-glass administration.
+    capability_prefixes: [component_extensions.]
+    action: admin.recovery.manage
+    data_classes: [admin_metadata, status_metadata]
+    scope_levels: [tenant, workspace]
+    default_roles: [operator, owner]

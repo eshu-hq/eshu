@@ -25,6 +25,8 @@ const (
 type Catalog struct {
 	// Version mirrors the overlay schema version.
 	Version string `json:"version"`
+	// Authorization is the v1 role, grant, and data-class catalog.
+	Authorization AuthorizationCatalog `json:"authorization"`
 	// Entries are the catalog entries sorted by capability id.
 	Entries []Entry `json:"entries"`
 }
@@ -57,6 +59,9 @@ type Entry struct {
 	Docs []string `json:"docs,omitempty"`
 	// Console reports whether the capability is surfaced in the console matrix.
 	Console bool `json:"console"`
+	// Authorization records the explicit role/grant/data-class requirement for
+	// this capability.
+	Authorization CapabilityAuthorization `json:"authorization"`
 }
 
 // Surface is one classified public surface for a capability.
@@ -98,6 +103,12 @@ type Signals struct {
 // means the catalog is fully reconciled. Build does not import the MCP or query
 // packages; callers inject their registries through Signals.
 func Build(matrix Matrix, overlay Overlay, signals Signals) (Catalog, []Finding) {
+	return BuildWithAuthorization(matrix, overlay, AuthorizationCatalog{}, signals)
+}
+
+// BuildWithAuthorization reconciles the capability matrix, editorial overlay,
+// authorization catalog, and live code signals into a deterministic catalog.
+func BuildWithAuthorization(matrix Matrix, overlay Overlay, authorization AuthorizationCatalog, signals Signals) (Catalog, []Finding) {
 	overlayByID := map[string]OverlayCapability{}
 	for _, oc := range overlay.Capabilities {
 		overlayByID[oc.Capability] = oc
@@ -116,10 +127,14 @@ func Build(matrix Matrix, overlay Overlay, signals Signals) (Catalog, []Finding)
 		}
 	}
 
+	authzIndex := newAuthorizationIndex(authorization)
 	entries := make([]Entry, 0, len(matrix.Capabilities))
 	referencedTools := map[string]bool{}
 	for _, capability := range matrix.Capabilities {
 		entry := buildEntry(capability, overlayByID[capability.Capability], signals, nonMCP)
+		if authz, ok := authzIndex.authorizationFor(capability.Capability); ok {
+			entry.Authorization = authz
+		}
 		entry.Surfaces = appendAliasSurfaces(entry.Surfaces, aliasSurfaces[capability.Capability], signals, nonMCP)
 		for _, tool := range capability.Tools {
 			referencedTools[tool] = true
@@ -130,8 +145,8 @@ func Build(matrix Matrix, overlay Overlay, signals Signals) (Catalog, []Finding)
 		return entries[i].Capability < entries[j].Capability
 	})
 
-	catalog := Catalog{Version: overlay.Version, Entries: entries}
-	findings := reconcile(matrix, overlay, signals, overlayByID, referencedTools, nonMCP)
+	catalog := Catalog{Version: overlay.Version, Authorization: authorization, Entries: entries}
+	findings := reconcile(matrix, overlay, authorization, signals, overlayByID, referencedTools, nonMCP)
 	return catalog, findings
 }
 

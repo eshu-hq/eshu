@@ -16,6 +16,7 @@ preflight and the docs freshness guard.
 | --- | --- | --- |
 | Capability matrix | `specs/capability-matrix.v1.yaml` + `specs/capability-matrix/*.yaml` | capability ids, per-profile support and truth ceilings, declared tools, proof signals |
 | Editorial overlay | `specs/capability-catalog.v1.yaml` | display names, owner packages, maturity overrides, known gaps, linked issues, docs, exemptions, non-MCP surfaces |
+| Authorization catalog | `specs/authorization-catalog.v1.yaml` | built-in roles, data classes, permission families, bootstrap-owner posture, and per-capability grant metadata |
 | Live MCP registry | `go/internal/mcp` (`ReadOnlyTools`) | the tool names exposed to MCP clients |
 
 The matrix and Go contract (`go/internal/query/contract.go`) remain the source
@@ -34,9 +35,15 @@ API, MCP, and console to read. Each entry carries:
   overrides
 - `surfaces` — each declared tool classified as `mcp`, `api`, `logical`, or
   `unknown`
+- `authorization` — the matched permission family, action, data classes, scope
+  levels, default roles, and sensitive-data marker
 - `profiles` — per-profile status, truth ceiling, and required runtime
 - `proof_signals` — deduplicated verification signals from the matrix
 - `known_gaps`, `linked_issues`, `docs`, `console`
+
+The top-level `authorization` block carries the built-in role catalog,
+data-class catalog, permission-family rules, bootstrap-owner posture, and custom
+policy posture. See [Authorization Catalog](authorization-catalog.md).
 
 ## Maturity
 
@@ -123,9 +130,16 @@ orphan tool or unmatched surface, either map it to a capability or record an
 exemption (with a reason and, where relevant, a tracking issue) in
 `specs/capability-catalog.v1.yaml`, then regenerate.
 
+If it reports a missing authorization grant, add or adjust a permission-family
+prefix in `specs/authorization-catalog.v1.yaml`. Runtime enforcement still
+belongs in the API/MCP/Ask/search implementation slices, but every capability
+must have cataloged role, action, scope, and data-class metadata before it ships
+as part of the v1 user-management model.
+
 ## Related
 
 - [Capability Conformance Spec](capability-conformance-spec.md)
+- [Authorization Catalog](authorization-catalog.md)
 - [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md)
 - `specs/README.md`
 - `go/internal/capabilitycatalog/README.md`

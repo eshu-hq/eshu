@@ -63,9 +63,55 @@ func TestCapabilitiesHandlerListsCatalogWithExactTruth(t *testing.T) {
 	if len(capabilities) != len(catalog.Entries) {
 		t.Fatalf("returned %d capabilities, want %d", len(capabilities), len(catalog.Entries))
 	}
+	authorization := data["authorization"].(map[string]any)
+	if got, want := authorization["version"].(string), catalog.Authorization.Version; got != want {
+		t.Fatalf("authorization version = %q, want %q", got, want)
+	}
+	if got, want := len(authorization["roles"].([]any)), len(catalog.Authorization.Roles); got != want {
+		t.Fatalf("authorization roles = %d, want %d", got, want)
+	}
 	first := capabilities[0].(map[string]any)
 	if first["capability"].(string) != catalog.Entries[0].Capability {
 		t.Fatalf("first capability = %q, want %q", first["capability"], catalog.Entries[0].Capability)
+	}
+	entryAuthorization := first["authorization"].(map[string]any)
+	if entryAuthorization["family"].(string) == "" || entryAuthorization["action"].(string) == "" {
+		t.Fatalf("first capability authorization missing family/action: %+v", entryAuthorization)
+	}
+}
+
+func TestOpenAPISpecDocumentsCapabilityAuthorizationCatalog(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+	paths := spec["paths"].(map[string]any)
+	path := paths["/api/v0/capabilities"].(map[string]any)
+	get := path["get"].(map[string]any)
+	response := get["responses"].(map[string]any)["200"].(map[string]any)
+	content := response["content"].(map[string]any)["application/json"].(map[string]any)
+	schema := content["schema"].(map[string]any)
+	properties := schema["properties"].(map[string]any)
+
+	if _, ok := properties["authorization"]; !ok {
+		t.Fatal("capabilities OpenAPI response missing top-level authorization catalog")
+	}
+	authorization := properties["authorization"].(map[string]any)
+	authzProperties := authorization["properties"].(map[string]any)
+	dataClasses := authzProperties["data_classes"].(map[string]any)
+	dataClassItems := dataClasses["items"].(map[string]any)
+	dataClassProperties := dataClassItems["properties"].(map[string]any)
+	sensitivity := dataClassProperties["sensitivity"].(map[string]any)
+	if !openAPIStringListIncludes(sensitivity["enum"].([]any), "restricted") {
+		t.Fatal("capabilities OpenAPI data-class sensitivity enum missing restricted")
+	}
+	capabilities := properties["capabilities"].(map[string]any)
+	items := capabilities["items"].(map[string]any)
+	entryProperties := items["properties"].(map[string]any)
+	if _, ok := entryProperties["authorization"]; !ok {
+		t.Fatal("capabilities OpenAPI entry missing authorization metadata")
 	}
 }
 

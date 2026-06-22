@@ -6,7 +6,7 @@ const openAPIPathsCapabilities = `
       "get": {
         "tags": ["capabilities"],
         "summary": "List the capability maturity catalog",
-        "description": "Returns the reconciled capability catalog from the embedded, generated artifact: per-capability maturity, public surfaces, proof signals, owner package, known gaps, and linked issues. The read is static, bounded, and exact in every profile, and backs the MCP get_capability_catalog tool and the console capability matrix. Supports optional maturity and owner_package filters with deterministic limit/offset paging.",
+        "description": "Returns the reconciled capability catalog from the embedded, generated artifact: per-capability maturity, public surfaces, proof signals, owner package, known gaps, linked issues, and role/grant/data-class authorization metadata. The read is static, bounded, and exact in every profile, and backs the MCP get_capability_catalog tool and the console capability matrix. Supports optional maturity and owner_package filters with deterministic limit/offset paging.",
         "operationId": "listCapabilities",
         "parameters": [
           {"name": "maturity", "in": "query", "required": false, "schema": {"type": "string", "enum": ["general_availability", "experimental", "preview", "gated", "degraded", "not_implemented"]}, "description": "Optional maturity filter."},
@@ -23,6 +23,79 @@ const openAPIPathsCapabilities = `
                   "type": "object",
                   "properties": {
                     "version": {"type": "string"},
+                    "authorization": {
+                      "type": "object",
+                      "description": "Built-in authorization catalog: roles, role grants, data classes, permission families, bootstrap-owner posture, and custom-policy posture.",
+                      "properties": {
+                        "version": {"type": "string"},
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "role": {"type": "string"},
+                              "display_name": {"type": "string"},
+                              "description": {"type": "string"},
+                              "bootstrap_default": {"type": "boolean"},
+                              "grants": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "action": {"type": "string"},
+                                    "data_classes": {"type": "array", "items": {"type": "string"}},
+                                    "scope_levels": {"type": "array", "items": {"type": "string"}}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "data_classes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "data_class": {"type": "string"},
+                              "sensitivity": {"type": "string", "enum": ["restricted", "sensitive"]},
+                              "description": {"type": "string"}
+                            }
+                          }
+                        },
+                        "permission_families": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "family": {"type": "string"},
+                              "description": {"type": "string"},
+                              "planned": {"type": "boolean"},
+                              "capability_prefixes": {"type": "array", "items": {"type": "string"}},
+                              "action": {"type": "string"},
+                              "data_classes": {"type": "array", "items": {"type": "string"}},
+                              "scope_levels": {"type": "array", "items": {"type": "string"}},
+                              "default_roles": {"type": "array", "items": {"type": "string"}}
+                            }
+                          }
+                        },
+                        "bootstrap_owner": {
+                          "type": "object",
+                          "properties": {
+                            "role": {"type": "string"},
+                            "starts_with_admin": {"type": "boolean"},
+                            "starts_with_sensitive_data_grants": {"type": "boolean"},
+                            "delegable_roles": {"type": "array", "items": {"type": "string"}}
+                          }
+                        },
+                        "custom_policy": {
+                          "type": "object",
+                          "properties": {
+                            "status": {"type": "string"},
+                            "note": {"type": "string"}
+                          }
+                        }
+                      }
+                    },
                     "total": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
@@ -61,7 +134,19 @@ const openAPIPathsCapabilities = `
                           "known_gaps": {"type": "array", "items": {"type": "string"}},
                           "linked_issues": {"type": "array", "items": {"type": "integer"}},
                           "docs": {"type": "array", "items": {"type": "string"}},
-                          "console": {"type": "boolean"}
+                          "console": {"type": "boolean"},
+                          "authorization": {
+                            "type": "object",
+                            "description": "Matched permission family and grant metadata for this capability.",
+                            "properties": {
+                              "family": {"type": "string"},
+                              "action": {"type": "string"},
+                              "data_classes": {"type": "array", "items": {"type": "string"}},
+                              "scope_levels": {"type": "array", "items": {"type": "string"}},
+                              "default_roles": {"type": "array", "items": {"type": "string"}},
+                              "sensitive_data": {"type": "boolean"}
+                            }
+                          }
                         }
                       }
                     }

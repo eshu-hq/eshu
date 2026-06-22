@@ -56,7 +56,6 @@ func askRouteAnnotations() map[string]Annotation {
 		"GET /api/v0/package-registry/correlations":                          {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/package-registry/dependency-chains":                     {Backend: BackendBoth, Cost: CostModerate},
 		"GET /api/v0/package-registry/dependencies":                          {Backend: BackendNornicDB, Cost: CostModerate},
-		"GET /api/v0/package-registry/dependency-chains":                     {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/package-registry/packages":                              {Backend: BackendNornicDB, Cost: CostModerate},
 		"GET /api/v0/package-registry/packages/count":                        {Backend: BackendNornicDB, Cost: CostLow},
 		"GET /api/v0/package-registry/packages/inventory":                    {Backend: BackendNornicDB, Cost: CostModerate},
@@ -175,8 +174,6 @@ func askRouteAnnotations() map[string]Annotation {
 		"POST /api/v0/replatforming/ownership-packets":      {Backend: BackendPostgres, Cost: CostModerate},
 		"POST /api/v0/replatforming/plans":                  {Backend: BackendPostgres, Cost: CostModerate},
 		"POST /api/v0/replatforming/rollups":                {Backend: BackendPostgres, Cost: CostModerate},
-		"POST /api/v0/relationships/catalog":                {Backend: BackendNornicDB, Cost: CostModerate},
-		"POST /api/v0/relationships/edges":                  {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/search/semantic":                      {Backend: BackendPostgres, Cost: CostModerate},
 		"POST /api/v0/visualizations/derive":                {Backend: BackendEmbedded, Cost: CostLow},
 	}
