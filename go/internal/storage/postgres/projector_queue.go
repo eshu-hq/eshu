@@ -265,8 +265,35 @@ func (q ProjectorQueue) Fail(
 		return errors.New("projector failure cause is required")
 	}
 
-	query := failProjectorWorkQuery
-	failureClass, failureMessage, failureDetails := queueFailureMetadata(cause, "projection_failed")
+	retryable := projector.IsRetryable(cause)
+	willRetry := retryable && work.AttemptCount < q.maxAttempts()
+
+	if willRetry {
+		// Retry path: keep the existing retryable class and preserve any
+		// detailed failure context the error carries for diagnosis.
+		_, failureMessage, failureDetails := queueFailureMetadata(cause, "projection_retryable")
+		args := []any{
+			q.now(),
+			"projection_retryable",
+			failureMessage,
+			failureDetails,
+			q.now().Add(q.retryDelay()),
+			work.Scope.ScopeID,
+			work.Generation.GenerationID,
+			q.LeaseOwner,
+		}
+		if _, err := q.db.ExecContext(ctx, retryProjectorWorkQuery, args...); err != nil {
+			return fmt.Errorf("fail projector work: %w", err)
+		}
+		return nil
+	}
+
+	// Dead-letter path: enrich the durable failure_class with an operator-facing
+	// triage class so an operator can tell why the item died (transient that
+	// exhausted retries, terminal invalid input, or a poison projection bug) and
+	// whether replaying it unchanged is safe. The retry decision stays with
+	// IsRetryable; the triage metadata only labels the outcome (issue #3514).
+	failureClass, failureMessage, failureDetails := deadLetterTriageMetadata(cause, "project_work_item", retryable)
 	args := []any{
 		q.now(),
 		failureClass,
@@ -277,22 +304,7 @@ func (q ProjectorQueue) Fail(
 		q.LeaseOwner,
 	}
 
-	if projector.IsRetryable(cause) && work.AttemptCount < q.maxAttempts() {
-		query = retryProjectorWorkQuery
-		failureClass = "projection_retryable"
-		args = []any{
-			q.now(),
-			failureClass,
-			failureMessage,
-			failureDetails,
-			q.now().Add(q.retryDelay()),
-			work.Scope.ScopeID,
-			work.Generation.GenerationID,
-			q.LeaseOwner,
-		}
-	}
-
-	_, err := q.db.ExecContext(ctx, query, args...)
+	_, err := q.db.ExecContext(ctx, failProjectorWorkQuery, args...)
 	if err != nil {
 		return fmt.Errorf("fail projector work: %w", err)
 	}

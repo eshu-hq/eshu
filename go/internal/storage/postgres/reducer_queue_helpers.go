@@ -162,24 +162,20 @@ func (q ReducerQueue) failIntent(
 	cause error,
 ) error {
 	now := q.now()
-	failureClass, failureMessage, failureDetails := queueFailureMetadata(cause, "reducer_failed")
-	query := failReducerWorkQuery
-	args := []any{
-		now,
-		failureClass,
-		failureMessage,
-		failureDetails,
-		intent.IntentID,
-		q.LeaseOwner,
-	}
 
-	if q.retryable(cause, failureClass, intent.AttemptCount) {
+	// retryable() consults both the canonical Retryable() authority and the
+	// non-counting readiness class. Probe the metadata fallback class first so a
+	// self-classified readiness failure keeps its non-counting retry behavior.
+	probeClass, _, _ := queueFailureMetadata(cause, "reducer_failed")
+	willRetry := q.retryable(cause, probeClass, intent.AttemptCount)
+
+	if willRetry {
 		retryFailureClass := "reducer_retryable"
-		if isNonCountingReducerRetryFailureClass(failureClass) {
-			retryFailureClass = failureClass
+		if isNonCountingReducerRetryFailureClass(probeClass) {
+			retryFailureClass = probeClass
 		}
-		query = retryReducerWorkQuery
-		args = []any{
+		_, failureMessage, failureDetails := queueFailureMetadata(cause, retryFailureClass)
+		args := []any{
 			now,
 			retryFailureClass,
 			failureMessage,
@@ -188,10 +184,26 @@ func (q ReducerQueue) failIntent(
 			intent.IntentID,
 			q.LeaseOwner,
 		}
+		if _, err := q.db.ExecContext(ctx, retryReducerWorkQuery, args...); err != nil {
+			return fmt.Errorf("fail reducer work: %w", err)
+		}
+		return nil
 	}
 
-	_, err := q.db.ExecContext(ctx, query, args...)
-	if err != nil {
+	// Dead-letter path: enrich the durable failure_class with an operator-facing
+	// triage class. Retryable() stays the retry-decision authority; the triage
+	// metadata only labels the outcome (issue #3514). A self-classifying error
+	// still wins over the triage fallback class.
+	failureClass, failureMessage, failureDetails := deadLetterTriageMetadata(cause, "reduce_intent", reducer.IsRetryable(cause))
+	args := []any{
+		now,
+		failureClass,
+		failureMessage,
+		failureDetails,
+		intent.IntentID,
+		q.LeaseOwner,
+	}
+	if _, err := q.db.ExecContext(ctx, failReducerWorkQuery, args...); err != nil {
 		return fmt.Errorf("fail reducer work: %w", err)
 	}
 

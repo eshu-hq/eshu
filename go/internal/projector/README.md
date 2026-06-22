@@ -543,6 +543,61 @@ Observability Evidence: each sweep emits a structured
 counter and duration plus its per-cycle log with considered/included/skipped/
 written/retired counts. No new metric series or spans are added.
 
+## Dead-letter triage (issue #3502, #3514)
+
+`dead_letter_triage.go` turns a failed work item into an operator-facing triage
+class on the durable dead-letter row. `TriageFailure` reconciles two signals that
+previously disagreed: the canonical `IsRetryable()` / `Retryable()` retry
+authority (the live projector- and reducer-queue path) and the rich
+`ClassifyFailure` categorization that issue #3514 flagged as dead code with no
+production caller. Retryable() stays the sole authority for whether an item is
+retried; `TriageClass` only records why it landed where it did, so the durable
+`failure_class` reads `retry_exhausted` / `input_invalid` /
+`dependency_unavailable` / `resource_exhausted` / `timeout` / `projection_bug`
+instead of the coarse `projection_failed` / `reducer_failed` fallback.
+
+#3514 is resolved by wiring, not deletion: the live dead-letter path in
+`storage/postgres` (`projector_queue.go` `Fail`, `reducer_queue_helpers.go`
+`failIntent`) now calls `deadLetterTriageMetadata`, which runs `ClassifyFailure`
+through `TriageFailure`. `Retryable()` remains the single source of truth for the
+retry-vs-dead-letter decision; the requeue/backpressure fix from #3513 is
+unchanged because the retry branch is taken before triage classification runs.
+
+The triage class feeds the existing operator requeue path with no new surface:
+`eshu admin facts replay --failure-class retry_exhausted` drains the safe
+transient bucket, while `projection_bug` / `resource_exhausted` map to
+`manual_review` and require `--force` after the cause is addressed. The
+`reconcileTriage` disposition can never contradict the authority — a retryable
+cause never carries `non_retryable` and vice versa, asserted by
+`TriageDispositionConflicts` and `TestTriageFailureConsistencyWithRetryable`.
+
+Performance Evidence: the dead-letter path is the cold failure branch, not the
+success hot path. `TriageFailure` adds one `ClassifyFailure` call (the same
+`errors.As` / type-switch work the reducer already ran via `queueFailureMetadata`)
+plus one `fmt.Sprintf` per dead-lettered item; no new query, index, lease, or
+graph write is introduced, and the durable `UPDATE` is byte-for-byte the prior
+`failProjectorWorkQuery` / `failReducerWorkQuery` with only the `failure_class`,
+message, and details argument values changed.
+No-Regression Evidence: `cd go && go test ./internal/projector
+./internal/storage/postgres ./internal/reducer -race -count=1` passed (3484
+tests, no data races); the retry branch and its
+`TestProjectorQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted` /
+`TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted`
+proofs are unchanged, and `TestProjectorQueueFailDeadLettersWithTriageClass`,
+`TestProjectorQueueFailDeadLettersRetryExhaustedWithTriageClass`, and
+`TestReducerQueueFailDeadLettersTerminalWithTriageClass` prove the live queue
+writes the triage class on the dead-letter row.
+
+Observability Evidence: the operator-facing signal is the durable
+`fact_work_items.failure_class` value on dead-lettered rows, surfaced through the
+existing `eshu admin facts list --status dead_letter` query and the
+`replay --failure-class` filter. The structured `details` string carries
+`stage=`, `triage=`, `class=`, `code=`, `disposition=`, `retryable=`, and
+`exhausted=` so an operator inspecting one dead letter at 3 AM can tell a
+transient pileup (safe to replay) from a poison projection bug (needs code fix)
+without reading the projector source. No new metric series or span is added; the
+change relabels an existing durable column.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

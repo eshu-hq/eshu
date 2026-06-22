@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -405,8 +406,49 @@ func TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted(t
 			t.Fatalf("terminal query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], "reducer_failed"; got != want {
+	// A retryable cause that exhausted its budget is dead-lettered as the
+	// retry_exhausted triage class (the transient bucket) so an operator can tell
+	// it gave up under transient pressure rather than from a terminal defect.
+	if got, want := db.execs[0].args[1], string(projector.TriageClassRetryExhausted); got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
+	}
+	if details, _ := db.execs[0].args[3].(string); !strings.Contains(details, "disposition=retryable") {
+		t.Fatalf("dead-letter details = %q, want disposition=retryable", details)
+	}
+}
+
+// TestReducerQueueFailDeadLettersTerminalWithTriageClass proves a non-retryable
+// reducer failure is dead-lettered with an operator-facing triage class
+// (projection_bug for an unclassified terminal error) instead of the coarse
+// "reducer_failed" fallback — the issue #3502 dead-letter-triage surface on the
+// reducer queue.
+func TestReducerQueueFailDeadLettersTerminalWithTriageClass(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	queue := ReducerQueue{
+		db:            db,
+		LeaseOwner:    "reducer-1",
+		LeaseDuration: time.Minute,
+		RetryDelay:    2 * time.Minute,
+		MaxAttempts:   3,
+		Now:           func() time.Time { return now },
+	}
+
+	intent := reducer.Intent{IntentID: "intent-1"}
+
+	if err := queue.Fail(context.Background(), intent, errors.New("nil deref in materializer")); err != nil {
+		t.Fatalf("Fail() error = %v, want nil", err)
+	}
+	if !strings.Contains(db.execs[0].query, "status = 'dead_letter'") {
+		t.Fatalf("terminal error should dead-letter, query:\n%s", db.execs[0].query)
+	}
+	if got, want := db.execs[0].args[1], string(projector.TriageClassProjectionBug); got != want {
+		t.Fatalf("failure class = %v, want %v", got, want)
+	}
+	if details, _ := db.execs[0].args[3].(string); !strings.Contains(details, "disposition=manual_review") {
+		t.Fatalf("dead-letter details = %q, want disposition=manual_review", details)
 	}
 }
 
