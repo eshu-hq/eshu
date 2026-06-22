@@ -213,6 +213,13 @@ reducer/query adapter.
 - `ScopedAPITokenStore` / `NewScopedAPITokenStore` — hash-only hosted token
   registry backed by tenant/workspace rows; reads return active scoped subject
   bounds only and never accept raw token values
+- `IdentitySubjectStore` / `NewIdentitySubjectStore` — dormant user-management
+  schema for users, provider configs, external identity links, local
+  credential hashes, MFA factor handles, tenant memberships, roles, grants,
+  sessions, service principals, service-principal role assignments, and token
+  metadata. The schema uses opaque IDs, hashes, and credential handles only and
+  leaves shared-token/scoped-token behavior unchanged until later enforcement
+  slices opt in.
 
 **Recovery**
 
@@ -278,7 +285,7 @@ reducer/query adapter.
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
   `IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
   `VulnerabilitySourceStateSchemaSQL`, `TenantWorkspaceGrantSchemaSQL`,
-  `ScopedAPITokenSchemaSQL`,
+  `ScopedAPITokenSchemaSQL`, `IdentitySubjectSchemaSQL`,
   `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`,
   `FunctionSummarySchemaSQL`
 

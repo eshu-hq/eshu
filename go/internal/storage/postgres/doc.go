@@ -196,7 +196,14 @@
 // ScopedAPITokenStore adds the default-off hash-only token registry for that
 // control plane. It stores bearer-token digests, scoped subject hashes, expiry,
 // revocation, and policy revision hashes while relying on the tenant/workspace
-// tables for active boundary checks. WorkflowControlStore persists optional
+// tables for active boundary checks.
+// IdentitySubjectStore adds the dormant user-management schema for users,
+// provider configs, external subject links, email history, credential hashes,
+// MFA factor handles, memberships, roles, grants, sessions, service
+// principals, service-principal role assignments, and token metadata. It stores
+// opaque IDs, hashes, and credential handles only and does not change existing
+// shared-token or scoped-token enforcement.
+// WorkflowControlStore persists optional
 // tenant/workspace/policy revision identity on workflow work items; guarded
 // planning treats that identity as part of target eligibility, and claim
 // heartbeat/complete paths re-check active tenant scope grants before accepting
