@@ -288,13 +288,20 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "visualize_graph_query",
-			Description: "Generates a URL to visualize the results of a Cypher query in the Neo4j Browser.",
+			Description: "Executes a read-only Cypher query and returns a bounded, renderable graph visualization packet (nodes and edges) projected from the graph nodes, relationships, and paths in the result. RETURN whole graph entities (for example RETURN n, r, m) rather than scalar properties; scalar columns are not renderable and yield an explicit unsupported packet. The query is bounded with an injected LIMIT and executed against a read-only session.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"cypher_query": map[string]any{
 						"type":        "string",
-						"description": "Cypher query to visualize",
+						"description": "Read-only Cypher query whose returned graph nodes, relationships, and paths are projected into the visualization packet",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum result rows to project when the query does not already include a LIMIT",
+						"default":     100,
+						"minimum":     1,
+						"maximum":     1000,
 					},
 				},
 				"required": []string{"cypher_query"},

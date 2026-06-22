@@ -129,7 +129,7 @@ tool_exemptions:
   # surfaces of platform_impact.context_overview (the same truth envelope they
   # emit at runtime); derive_visualization_packet has its own
   # visualization.packet_derivation row; and visualize_graph_query has its own
-  # visualization.graph_query_link row. None remain exempt here.
+  # visualization.graph_query row. None remain exempt here.
 
   # Genuine retrieval, diagnostic, and operator utilities that are not distinct
   # product capabilities.

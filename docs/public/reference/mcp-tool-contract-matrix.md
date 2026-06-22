@@ -53,7 +53,7 @@ Cypher.
 | `find_most_complex_functions` | optional repository selector | `limit` | yes | prompt-ready; deterministic ordering and `truncated` |
 | `inspect_code_quality` | optional repository selector plus optional language/function scope | `limit` and `offset` | yes | prompt-ready for complexity, long-function, high-argument, and refactoring-candidate prompts with source handles and `truncated` |
 | `execute_cypher_query` | explicit read-only Cypher supplied by caller | `limit` plus timeout | yes | diagnostics-only; use named tools first |
-| `visualize_graph_query` | explicit Cypher supplied by caller | visualization URL | no | diagnostics-only browser helper |
+| `visualize_graph_query` | explicit read-only Cypher supplied by caller; authoritative profile required | `limit` plus injected LIMIT and timeout | yes | executes the query and returns a bounded node/edge visualization packet projected from returned graph entities; `truncation` block plus `truncated` flag; scalar-only results yield an explicit unsupported packet |
 | `search_registry_bundles` | optional query string and `ecosystem` scope over the package registry bundle catalog | `limit` | yes | prompt-ready for bounded catalog lookup |
 | `list_indexed_repositories` | explicit whole-index inventory | `limit` and `offset` | yes | prompt-ready; returns `truncated` for paging |
 | `count_repositories_by_language` | explicit language family | count-only via `limit=0` | yes | prompt-ready; avoids per-repo coverage fan-out |

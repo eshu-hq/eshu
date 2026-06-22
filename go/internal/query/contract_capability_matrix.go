@@ -375,15 +375,17 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 	},
-	// visualization.graph_query_link formats a graph-browser URL for caller
-	// Cypher; the handler performs no graph read and emits a derived route
-	// envelope, so it is supported in every profile (unlike
-	// graph_query.read_only_cypher, which executes the query and needs a graph).
-	"visualization.graph_query_link": {
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
+	// visualization.graph_query executes caller-supplied read-only Cypher and
+	// projects the graph entities in the result into a renderable subgraph. It
+	// performs a real graph read, so it is unsupported in local_lightweight and
+	// reaches authoritative-graph truth in graph-backed profiles, matching the
+	// gating of graph_query.read_only_cypher.
+	"visualization.graph_query": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"documentation_findings.list": {
 		LocalLightweightMax:   nil,

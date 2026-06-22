@@ -37,6 +37,11 @@ const (
 	// incident anchor plus one node per evidence-path slot and an edge per slot
 	// transition.
 	VisualizationViewIncidentContext VisualizationView = "incident_context"
+	// VisualizationViewGraphQuery is the subgraph projected from the graph
+	// nodes, relationships, and paths returned by an executed read-only Cypher
+	// query. Unlike the other views it is derived from a live graph read rather
+	// than from a prior answer response.
+	VisualizationViewGraphQuery VisualizationView = "graph_query"
 	// VisualizationViewUnsupported marks a packet that could not be derived from
 	// the given response. It carries limitations and recommended next calls
 	// instead of nodes and edges.

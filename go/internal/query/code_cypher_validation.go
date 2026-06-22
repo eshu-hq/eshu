@@ -7,6 +7,12 @@ import (
 
 const readOnlyCypherCapability = "graph_query.read_only_cypher"
 
+// visualizationGraphQueryCapability is the capability for visualize_graph_query.
+// The tool executes a bounded read-only Cypher query and projects the graph
+// entities in the result into a renderable subgraph, so it is graph-backed and
+// shares the authoritative-graph profile gating of read-only Cypher.
+const visualizationGraphQueryCapability = "visualization.graph_query"
+
 // cypherMutationKeywords are keywords that indicate a write or destructive
 // Cypher operation. We reject these as tokens regardless of position so that
 // even obfuscated or commented-out mutations are blocked.

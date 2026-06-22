@@ -151,6 +151,6 @@ func askToolAnnotations() map[string]Annotation {
 		"trace_deployment_chain":                          {Backend: BackendNornicDB, Cost: CostHigh},
 		"trace_exposure_path":                             {Backend: BackendNornicDB, Cost: CostModerate},
 		"trace_resource_to_code":                          {Backend: BackendNornicDB, Cost: CostModerate},
-		"visualize_graph_query":                           {Backend: BackendEmbedded, Cost: CostLow},
+		"visualize_graph_query":                           {Backend: BackendNornicDB, Cost: CostModerate},
 	}
 }
