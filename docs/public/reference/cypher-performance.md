@@ -856,6 +856,47 @@ adapter, the `query.entity_map` span with `eshu.entity_map.traversal_seconds`,
 metric, span, or runtime knob is introduced; the query shape changed but the
 per-query telemetry surface did not.
 
+### MCP Dispatch Response-Size Budget
+
+Issue #3498 (performance bar) adds a tool-agnostic response-size budget at the
+MCP dispatch boundary (`go/internal/mcp/dispatch_budget.go`). Every MCP tool
+response is serialized and dispatched through `dispatchTool`, so an honestly
+bounded graph read can still produce an arbitrarily large *response* (a wide
+relationship story, a deep visualization packet, a large `execute_cypher_query`
+subgraph) that serializes straight into the model context window and blows the
+repo-scale performance contract. Per-route token budgets (for example the
+relationship-story `token_budget`) bound their own rows, but nothing bounded the
+aggregate tool response.
+
+`applyResponseBudget` measures the serialized envelope/value size and, when it
+exceeds `defaultToolResponseByteBudget` (256 KiB, ~64k tokens at the repo's
+~4-bytes-per-token heuristic), replaces the oversized payload with a small
+bounded error envelope (`error.code=mcp_response_over_budget`) carrying
+`response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name, and
+narrowing guidance. It is the response-size sibling of the dispatch deadline
+guard (#2469) and runs after per-route budgets.
+
+No-Regression Evidence: the budget is a pure post-dispatch in-process size check
+over the already-serialized response; it adds no graph, storage, queue, or HTTP
+round trip and does not change any Cypher shape. The before state is an unbounded
+response body returned verbatim (`dispatch.go` read `rec.Body.Bytes()` with no
+size cap); the after state caps it at 256 KiB and substitutes a bounded
+refusal. Input shape: any tool response routed through `dispatchToolWithOptions`.
+`go test ./internal/mcp -run 'TestDispatchToolResponse|TestDispatchToolZeroBudget|TestDefaultDispatchAppliesResponseBudget' -count=1`
+covers over-budget replacement, within-budget pass-through, disabled-budget
+(`budget<=0`), and default-entrypoint enforcement; `go test ./internal/query
+./internal/mcp ./cmd/api ./cmd/mcp-server -count=1` (3929 tests) stays green,
+proving the 256 KiB budget sits above every honestly bounded read fixture so no
+legitimate response is refused. No live NornicDB/Neo4j benchmark is load-bearing
+because the change is an in-process byte check, not a Cypher change.
+
+Observability Evidence: every budget hit emits the structured log
+`mcp tool response over budget` with `tool`, `response_bytes`, and `budget_bytes`
+fields (3 AM operable), mirroring the dispatch-deadline log precedent, and the
+budget accounting is returned in-band in `error.details`. The `internal/mcp`
+package declares no metric instruments by design, consistent with its existing
+dispatch observability surface.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

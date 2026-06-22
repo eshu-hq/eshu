@@ -6,7 +6,13 @@
 // a deterministic 30s default and propagates parent cancellation, so handlers
 // must honor r.Context rather than starting unbounded work; dispatch timeout
 // and cancellation failures are returned as MCP error results with structured
-// content. Helpers in this package normalize tool arguments, including shared
+// content. Dispatch also enforces a response-size budget
+// (defaultToolResponseByteBudget) as a tool-agnostic hub throttle: a response
+// whose serialized size exceeds the budget is replaced with a small bounded
+// envelope carrying error code mcp_response_over_budget plus budget accounting
+// and narrowing guidance, so a single heavy graph-returning tool cannot blow the
+// model context budget. Per-route token budgets still apply first.
+// Helpers in this package normalize tool arguments, including shared
 // slice and identifier helpers in
 // dispatch_args.go, build request bodies for the underlying handler, and parse
 // canonical response envelopes. Citation tools stay in this transport layer and

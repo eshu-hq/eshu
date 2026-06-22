@@ -12,6 +12,11 @@ const defaultToolDispatchTimeout = 30 * time.Second
 
 type dispatchOptions struct {
 	timeout time.Duration
+	// responseByteBudget caps the serialized size of the tool response handed
+	// back to the client. Zero or negative disables the guard. dispatchTool
+	// seeds it with defaultToolResponseByteBudget so every default dispatch is
+	// hub-throttled; tests override it to exercise the boundary.
+	responseByteBudget int
 }
 
 type dispatchContextErr struct {
