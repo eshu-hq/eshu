@@ -56,12 +56,12 @@ func partialPacketWithLimitation(citationRef, limitation string) query.AnswerPac
 func TestBuildNarrationSystemPromptPartialAware(t *testing.T) {
 	t.Parallel()
 
-	full := buildNarrationSystemPrompt(supportedPacketWithCitation("ref1"))
+	full := buildNarrationSystemPrompt(supportedPacketWithCitation("ref1"), nil)
 	if strings.Contains(full, "limitation") {
 		t.Errorf("non-partial prompt should not require a limitation sentence; got:\n%s", full)
 	}
 
-	partial := buildNarrationSystemPrompt(partialPacketWithLimitation("ref1", "reached max reasoning iterations"))
+	partial := buildNarrationSystemPrompt(partialPacketWithLimitation("ref1", "reached max reasoning iterations"), nil)
 	if !strings.Contains(partial, "limitation") {
 		t.Errorf("partial-packet prompt must instruct a limitation/partial-signal sentence; got:\n%s", partial)
 	}
@@ -207,7 +207,7 @@ func TestBuildNarrationSystemPromptUnsupportedReason(t *testing.T) {
 	t.Parallel()
 
 	prompt := buildNarrationSystemPrompt(
-		partialPacketWithUnsupportedReason("ref1", "reached max reasoning iterations"))
+		partialPacketWithUnsupportedReason("ref1", "reached max reasoning iterations"), nil)
 	if !strings.Contains(prompt, `provenance kind "unsupported_reason"`) {
 		t.Errorf("unsupported-reason packet prompt must instruct `provenance kind \"unsupported_reason\"`; got:\n%s", prompt)
 	}

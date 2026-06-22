@@ -21,14 +21,23 @@ const narrationSystemSentinel = "ask-eshu-narration-v1"
 // whose sentences each cite evidence handles from the source packet. The model
 // MUST NOT invent citations; every handle ID it uses must come from the packet.
 //
-// This base prompt is sufficient for a fully-supported, complete packet.
-// buildNarrationSystemPrompt appends partial-signal instructions when the packet
-// carries a partial, truncated, or limitation signal, because the narration
-// validator (answernarration.Validate) rejects any narration of a partial
-// packet that does not surface that signal. Without the appended instructions a
-// weaker provider has no way to know it must emit a partial-signal sentence, so
-// the validator deterministically rejects otherwise-valid evidence-backed
-// narration (issue #3356).
+// This base prompt is sufficient for a fully-supported, complete packet that
+// carries a citation_ref (or hydrated citation IDs). buildNarrationSystemPrompt
+// substitutes the truth-provenance base prompt when the packet has no
+// citation_ref and no hydrated citation IDs, because the narration validator
+// (answernarration.Validate) only accepts "citation" provenance when its id
+// matches a non-empty citation_ref or a known citation ID; an engine packet
+// built in dispatchCall (loop.go) carries an empty CitationRef and no
+// EvidenceHandles, so a citation-only prompt yields narration the validator
+// rejects on every sentence (uncited_factual_sentence + unknown_provenance),
+// leaving every supported answer un-narrated (issue #3550).
+//
+// buildNarrationSystemPrompt also appends partial-signal instructions when the
+// packet carries a partial, truncated, or limitation signal, because the
+// validator rejects any narration of a partial packet that does not surface
+// that signal. Without the appended instructions a weaker provider has no way to
+// know it must emit a partial-signal sentence, so the validator deterministically
+// rejects otherwise-valid evidence-backed narration (issue #3356).
 const narrationSystemPrompt = `You are the ` + narrationSystemSentinel + ` narrator.
 Your task is to narrate the answer packet below as a short list of human-readable sentences.
 
@@ -36,6 +45,24 @@ Rules:
 - Output ONLY valid JSON matching exactly: {"sentences":[{"text":"...","kind":"factual","provenance":[{"kind":"citation","id":"<citation_ref>"}]}]}
 - Every factual sentence MUST cite the citation_ref provided in the packet. Use kind "factual" and provenance kind "citation" with the exact id.
 - Do NOT invent citation IDs. Use only the citation_ref from the packet.
+- Maximum 5 sentences. Each sentence must be under 500 characters.
+- Do NOT output any text outside the JSON object.
+- Do NOT include markdown fences or explanation.`
+
+// narrationSystemPromptTruth is the base narration prompt variant for a
+// supported packet that has no citation_ref and no hydrated citation IDs. The
+// packet still carries a classified truth_class, and the validator accepts
+// "truth" provenance for any classified packet (validator.go provenanceAllowed
+// → ProvenanceTruth). Instructing the model to back factual sentences with
+// "truth" provenance therefore produces narration the validator accepts, where
+// the citation-only prompt would not. This is the #3550 primary fix.
+const narrationSystemPromptTruth = `You are the ` + narrationSystemSentinel + ` narrator.
+Your task is to narrate the answer packet below as a short list of human-readable sentences.
+
+Rules:
+- Output ONLY valid JSON matching exactly: {"sentences":[{"text":"...","kind":"factual","provenance":[{"kind":"truth","id":""}]}]}
+- This packet has no citation_ref. Every factual sentence MUST be backed by the packet truth_class. Use kind "factual" and provenance kind "truth" with an empty id.
+- Do NOT use provenance kind "citation" and do NOT invent citation IDs; there is no citation_ref to cite.
 - Maximum 5 sentences. Each sentence must be under 500 characters.
 - Do NOT output any text outside the JSON object.
 - Do NOT include markdown fences or explanation.`
@@ -77,15 +104,41 @@ that surfaces this so the answer does not look complete:
 )
 
 // buildNarrationSystemPrompt returns the narration system prompt for the given
-// packet. For a fully-supported, complete packet it returns the base prompt.
-// When the packet carries a partial signal it appends the partial-signal
-// instructions whose provenance kind the validator will accept for that packet's
-// signal source, so the model can produce narration the validator accepts.
-func buildNarrationSystemPrompt(packet query.AnswerPacket) string {
-	if !packetHasPartialSignal(packet) {
-		return narrationSystemPrompt
+// packet and the citation IDs available to the narration call. It selects the
+// citation-provenance base prompt when the packet can be cited (a non-empty
+// citation_ref or at least one hydrated citation ID), and the truth-provenance
+// base prompt otherwise, because the validator only accepts "citation"
+// provenance against a known citation id. When the packet carries a partial
+// signal it appends the partial-signal instructions whose provenance kind the
+// validator will accept for that packet's signal source, so the model can
+// produce narration the validator accepts.
+func buildNarrationSystemPrompt(packet query.AnswerPacket, citationIDs []string) string {
+	base := narrationSystemPrompt
+	if !packetHasCitableProvenance(packet, citationIDs) {
+		base = narrationSystemPromptTruth
 	}
-	return narrationSystemPrompt + partialSignalInstructions(packet)
+	if !packetHasPartialSignal(packet) {
+		return base
+	}
+	return base + partialSignalInstructions(packet)
+}
+
+// packetHasCitableProvenance reports whether a factual sentence can be backed by
+// "citation" provenance for this packet: the packet carries a non-empty
+// citation_ref, or at least one hydrated citation ID was supplied to the
+// narration call. It mirrors the validator's ProvenanceCitation acceptance rule
+// (validator.go provenanceAllowed) so the prompt and validator agree on whether
+// citation provenance is usable.
+func packetHasCitableProvenance(packet query.AnswerPacket, citationIDs []string) bool {
+	if strings.TrimSpace(packet.CitationRef) != "" {
+		return true
+	}
+	for _, id := range citationIDs {
+		if strings.TrimSpace(id) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // partialSignalInstructions selects the partial-signal instruction variant whose
@@ -183,7 +236,12 @@ func (e *Engine) narrate(ctx context.Context, ans *Answer, posture status.Answer
 
 	primary := primaryPacket(ans.Packets)
 
-	narrationText, ok := e.callNarrationAdapter(ctx, primary)
+	// No external citation IDs are hydrated in this context, so the prompt
+	// selector and the validator both rely on truth provenance whenever the
+	// packet has no citation_ref (issue #3550).
+	var citationIDs []string
+
+	narrationText, ok := e.callNarrationAdapter(ctx, primary, citationIDs)
 	if !ok {
 		e.rejectNarration(ans, "adapter_error", primary, nil)
 		return
@@ -198,7 +256,7 @@ func (e *Engine) narrate(ctx context.Context, ans *Answer, posture status.Answer
 	input := answernarration.Input{
 		Packet:             primary,
 		Response:           narration,
-		CitationIDs:        nil, // no external citation IDs in this context
+		CitationIDs:        citationIDs,
 		MaxSentences:       5,
 		MaxSentenceBytes:   500,
 		MaxRefsPerSentence: 4,
@@ -239,13 +297,13 @@ func (e *Engine) rejectNarration(ans *Answer, reason string, primary query.Answe
 // callNarrationAdapter issues a single bounded narration completion call with
 // no tools and returns the raw text. It returns (text, true) on success and
 // ("", false) if the adapter errors. It never leaks provider error bodies.
-func (e *Engine) callNarrationAdapter(ctx context.Context, primary query.AnswerPacket) (string, bool) {
+func (e *Engine) callNarrationAdapter(ctx context.Context, primary query.AnswerPacket, citationIDs []string) (string, bool) {
 	packetJSON, err := json.Marshal(primary)
 	if err != nil {
 		return "", false
 	}
 	messages := []provider.Message{
-		{Role: provider.RoleSystem, Text: buildNarrationSystemPrompt(primary)},
+		{Role: provider.RoleSystem, Text: buildNarrationSystemPrompt(primary, citationIDs)},
 		{Role: provider.RoleUser, Text: "Narrate this answer packet:\n" + string(packetJSON)},
 	}
 	comp, err := e.adapter.Complete(ctx, messages, nil)
