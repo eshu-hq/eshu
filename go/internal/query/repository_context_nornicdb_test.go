@@ -16,9 +16,9 @@ func TestGetRepositoryContextOverridesOptionalAggregationCountsWithScalarQueries
 			runSingleByMatch: map[string]map[string]any{
 				"OPTIONAL MATCH": {
 					"id":               "repo-1",
-					"name":             "api-node-datax",
-					"path":             "/repos/api-node-datax",
-					"local_path":       "/repos/api-node-datax",
+					"name":             "svc-dataflow",
+					"path":             "/repos/svc-dataflow",
+					"local_path":       "/repos/svc-dataflow",
 					"has_remote":       false,
 					"file_count":       int64(0),
 					"workload_count":   int64(0),

@@ -156,7 +156,7 @@ func TestTraceDeploymentChainBoundsCrossRepoSearchByMaxDepth(t *testing.T) {
 					return []map[string]any{
 						{
 							"repo_id":             "repo-consumer-1",
-							"repo_name":           "api-node-saved-search",
+							"repo_name":           "svc-saved-search",
 							"relationship_type":   "PROVISIONS_DEPENDENCY_FOR",
 							"relationship_reason": "terraform_provider_reference",
 						},

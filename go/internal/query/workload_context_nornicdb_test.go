@@ -19,12 +19,12 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				if !strings.Contains(cypher, "RETURN w.id as id, w.name as name, w.kind as kind") {
 					t.Fatalf("unexpected RunSingle cypher: %q", cypher)
 				}
-				if got, want := params["service_name"], "api-node-datax"; got != want {
+				if got, want := params["service_name"], "svc-dataflow"; got != want {
 					t.Fatalf("params[service_name] = %#v, want %#v", got, want)
 				}
 				return map[string]any{
-					"id":   "workload:api-node-datax",
-					"name": "api-node-datax",
+					"id":   "workload:svc-dataflow",
+					"name": "svc-dataflow",
 					"kind": "service",
 				}, nil
 			},
@@ -39,7 +39,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				case strings.Contains(cypher, "MATCH (r:Repository)-[:DEFINES]->(w)"):
 					return []map[string]any{{
 						"repo_id":   "repository:datax",
-						"repo_name": "api-node-datax",
+						"repo_name": "svc-dataflow",
 					}}, nil
 				case strings.Contains(cypher, "<-[rel:PROVISIONS_DEPENDENCY_FOR]-"):
 					return nil, nil
@@ -48,29 +48,29 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 						t.Fatalf("cypher = %q, want exact instance id batch lookup", cypher)
 					}
 					wantIDs := []string{
-						"workload-instance:api-node-datax:bg-prod",
-						"workload-instance:api-node-datax:ops-qa",
+						"workload-instance:svc-dataflow:bg-prod",
+						"workload-instance:svc-dataflow:ops-qa",
 					}
 					if got := StringSliceVal(params, "instance_ids"); !reflect.DeepEqual(got, wantIDs) {
 						t.Fatalf("params[instance_ids] = %#v, want %#v", got, wantIDs)
 					}
 					return []map[string]any{
 						{
-							"instance_id":         "workload-instance:api-node-datax:bg-prod",
+							"instance_id":         "workload-instance:svc-dataflow:bg-prod",
 							"platform_name":       "bg-prod",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": 0.95,
 							"platform_reason":     "resolved_deployment_evidence",
 						},
 						{
-							"instance_id":         "workload-instance:api-node-datax:bg-prod",
+							"instance_id":         "workload-instance:svc-dataflow:bg-prod",
 							"platform_name":       "ecs-prod",
 							"platform_kind":       "ecs",
 							"platform_confidence": 0.91,
 							"platform_reason":     "terraform_service_evidence",
 						},
 						{
-							"instance_id":         "workload-instance:api-node-datax:ops-qa",
+							"instance_id":         "workload-instance:svc-dataflow:ops-qa",
 							"platform_name":       "ops-qa",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": 0.95,
@@ -80,13 +80,13 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				case strings.Contains(cypher, "WHERE i.workload_id = $workload_id"):
 					return []map[string]any{
 						{
-							"instance_id":                "workload-instance:api-node-datax:bg-prod",
+							"instance_id":                "workload-instance:svc-dataflow:bg-prod",
 							"environment":                "bg-prod",
 							"materialization_confidence": 0.91,
 							"materialization_provenance": []any{"helm_values_reference"},
 						},
 						{
-							"instance_id":                "workload-instance:api-node-datax:ops-qa",
+							"instance_id":                "workload-instance:svc-dataflow:ops-qa",
 							"environment":                "ops-qa",
 							"materialization_confidence": 0.91,
 							"materialization_provenance": []any{"kustomize_resource_reference"},
@@ -109,13 +109,13 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 	ctx, err := handler.fetchWorkloadContext(
 		context.Background(),
 		"w.name = $service_name OR w.id = $service_name",
-		map[string]any{"service_name": "api-node-datax"},
+		map[string]any{"service_name": "svc-dataflow"},
 	)
 	if err != nil {
 		t.Fatalf("fetchWorkloadContext() error = %v", err)
 	}
 
-	if got, want := ctx["repo_name"], "api-node-datax"; got != want {
+	if got, want := ctx["repo_name"], "svc-dataflow"; got != want {
 		t.Fatalf("repo_name = %#v, want %#v", got, want)
 	}
 	instances, ok := ctx["instances"].([]map[string]any)

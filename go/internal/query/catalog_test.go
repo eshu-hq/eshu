@@ -53,18 +53,18 @@ func TestListCatalogReturnsRepositoriesWorkloadsAndServices(t *testing.T) {
 
 	rows := catalogGraphRows{
 		repositories: []map[string]any{
-			{"id": "repository:r_api", "name": "api-node-boats", "local_path": "/repos/api-node-boats"},
+			{"id": "repository:r_api", "name": "svc-catalog", "local_path": "/repos/svc-catalog"},
 		},
 		base: []map[string]any{
-			{"id": "workload:api-node-boats", "name": "api-node-boats", "kind": "service"},
+			{"id": "workload:svc-catalog", "name": "svc-catalog", "kind": "service"},
 			{"id": "workload:nightly-sync", "name": "nightly-sync", "kind": "cronjob"},
 		},
 		repo: []map[string]any{
-			{"id": "workload:api-node-boats", "repo_id": "repository:r_api", "repo_name": "api-node-boats"},
-			{"id": "workload:nightly-sync", "repo_id": "repository:r_api", "repo_name": "api-node-boats"},
+			{"id": "workload:svc-catalog", "repo_id": "repository:r_api", "repo_name": "svc-catalog"},
+			{"id": "workload:nightly-sync", "repo_id": "repository:r_api", "repo_name": "svc-catalog"},
 		},
 		instance: []map[string]any{
-			{"id": "workload:api-node-boats", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
+			{"id": "workload:svc-catalog", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
 			{"id": "workload:nightly-sync", "instance_count": int64(1), "environments": []any{"prod"}},
 		},
 	}
@@ -101,8 +101,8 @@ func TestListCatalogReturnsRepositoriesWorkloadsAndServices(t *testing.T) {
 
 	services := body["services"].([]any)
 	service := services[0].(map[string]any)
-	assertEnvironmentSet(t, "api-node-boats", catalogEnvironments(service), []string{"prod", "qa"})
-	if got, want := service["repo_name"], "api-node-boats"; got != want {
+	assertEnvironmentSet(t, "svc-catalog", catalogEnvironments(service), []string{"prod", "qa"})
+	if got, want := service["repo_name"], "svc-catalog"; got != want {
 		t.Fatalf("service repo_name = %#v, want %#v", got, want)
 	}
 }
@@ -112,20 +112,20 @@ func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T
 
 	rows := catalogGraphRows{
 		base: []map[string]any{
-			{"id": "workload:api-node-boats", "name": "api-node-boats", "kind": "service"},
-			{"id": "workload:api-node-forex", "name": "api-node-forex", "kind": "service"},
-			{"id": "workload:api-node-empty", "name": "api-node-empty", "kind": "service"},
+			{"id": "workload:svc-catalog", "name": "svc-catalog", "kind": "service"},
+			{"id": "workload:svc-rates", "name": "svc-rates", "kind": "service"},
+			{"id": "workload:svc-empty", "name": "svc-empty", "kind": "service"},
 		},
 		instance: []map[string]any{
 			// Instance-backed service: environments only from WorkloadInstance.
-			{"id": "workload:api-node-boats", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
+			{"id": "workload:svc-catalog", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
 		},
 		evidence: []map[string]any{
 			// Instance-less service: environments only from TARGETS_ENVIRONMENT
 			// deployment evidence, emitted as scalar per-edge rows.
-			{"id": "workload:api-node-forex", "environment": "bg-qa"},
-			{"id": "workload:api-node-forex", "environment": "bg-prod"},
-			{"id": "workload:api-node-forex", "environment": "bg-qa"},
+			{"id": "workload:svc-rates", "environment": "bg-qa"},
+			{"id": "workload:svc-rates", "environment": "bg-prod"},
+			{"id": "workload:svc-rates", "environment": "bg-qa"},
 		},
 	}
 
@@ -154,12 +154,12 @@ func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T
 		byName[service["name"].(string)] = catalogEnvironments(service)
 	}
 
-	assertEnvironmentSet(t, "api-node-boats", byName["api-node-boats"], []string{"prod", "qa"})
-	assertEnvironmentSet(t, "api-node-forex", byName["api-node-forex"], []string{"bg-prod", "bg-qa"})
-	if envs, ok := byName["api-node-empty"]; !ok {
-		t.Fatalf("api-node-empty service missing from response")
+	assertEnvironmentSet(t, "svc-catalog", byName["svc-catalog"], []string{"prod", "qa"})
+	assertEnvironmentSet(t, "svc-rates", byName["svc-rates"], []string{"bg-prod", "bg-qa"})
+	if envs, ok := byName["svc-empty"]; !ok {
+		t.Fatalf("svc-empty service missing from response")
 	} else if len(envs) != 0 {
-		t.Fatalf("api-node-empty environments = %#v, want empty", envs)
+		t.Fatalf("svc-empty environments = %#v, want empty", envs)
 	}
 }
 
@@ -206,9 +206,9 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 		Content: fakePortContentStore{
 			workloadIdentities: []CatalogWorkloadIdentityEntry{
 				{
-					Name:     "api-node-boats",
+					Name:     "svc-catalog",
 					RepoID:   "repository:r_api",
-					RepoName: "api-node-boats",
+					RepoName: "svc-catalog",
 				},
 			},
 		},
@@ -234,7 +234,7 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 	assertCatalogCollectionLength(t, body, "services", 1)
 	services := body["services"].([]any)
 	service := services[0].(map[string]any)
-	if got, want := service["name"], "api-node-boats"; got != want {
+	if got, want := service["name"], "svc-catalog"; got != want {
 		t.Fatalf("service name = %#v, want %#v", got, want)
 	}
 	if got, want := service["materialization_status"], "identity_only"; got != want {

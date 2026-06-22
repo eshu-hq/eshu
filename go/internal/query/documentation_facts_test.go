@@ -20,13 +20,13 @@ func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
 				Facts: []map[string]any{{
 					"fact_id":       "fact:doc:1",
 					"fact_kind":     "documentation_document",
-					"scope_id":      "doc-source:confluence:boats-group.atlassian.net:196609",
+					"scope_id":      "doc-source:confluence:example.atlassian.net:196609",
 					"generation_id": "gen-1",
 					"payload": map[string]any{
-						"source_id":     "doc-source:confluence:boats-group.atlassian.net:196609",
+						"source_id":     "doc-source:confluence:example.atlassian.net:196609",
 						"document_id":   "doc:confluence:123",
 						"title":         "Platform Runbook",
-						"canonical_uri": "https://boats-group.atlassian.net/wiki/spaces/PLAT/pages/123",
+						"canonical_uri": "https://example.atlassian.net/wiki/spaces/PLAT/pages/123",
 					},
 				}},
 				NextCursor: "1",
@@ -39,7 +39,7 @@ func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/documentation/facts?scope_id=doc-source:confluence:boats-group.atlassian.net:196609&fact_kind=documentation_document&limit=1",
+		"/api/v0/documentation/facts?scope_id=doc-source:confluence:example.atlassian.net:196609&fact_kind=documentation_document&limit=1",
 		nil,
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
@@ -319,7 +319,7 @@ func TestContentReaderDocumentationFactsFiltersAndPaginates(t *testing.T) {
 	first := []byte(`{
 		"fact_id": "fact:section:1",
 		"fact_kind": "documentation_section",
-		"scope_id": "doc-source:confluence:boats-group.atlassian.net:196609",
+		"scope_id": "doc-source:confluence:example.atlassian.net:196609",
 		"generation_id": "gen-1",
 		"payload": {
 			"document_id": "doc:confluence:123",
@@ -339,7 +339,7 @@ func TestContentReaderDocumentationFactsFiltersAndPaginates(t *testing.T) {
 
 	got, err := reader.documentationFacts(t.Context(), documentationFactFilter{
 		FactKind:   "documentation_section",
-		ScopeID:    "doc-source:confluence:boats-group.atlassian.net:196609",
+		ScopeID:    "doc-source:confluence:example.atlassian.net:196609",
 		DocumentID: "doc:confluence:123",
 		Query:      "deployment",
 		Limit:      1,
@@ -365,7 +365,7 @@ func TestContentReaderDocumentationFactsSearchesLinkTargetURI(t *testing.T) {
 	link := []byte(`{
 		"fact_id": "fact:link:1",
 		"fact_kind": "documentation_link",
-		"scope_id": "doc-source:confluence:boats-group.atlassian.net:196609",
+		"scope_id": "doc-source:confluence:example.atlassian.net:196609",
 		"generation_id": "gen-1",
 		"payload": {
 			"document_id": "doc:confluence:123",
@@ -384,7 +384,7 @@ func TestContentReaderDocumentationFactsSearchesLinkTargetURI(t *testing.T) {
 
 	got, err := reader.documentationFacts(t.Context(), documentationFactFilter{
 		FactKind:   "documentation_link",
-		ScopeID:    "doc-source:confluence:boats-group.atlassian.net:196609",
+		ScopeID:    "doc-source:confluence:example.atlassian.net:196609",
 		DocumentID: "doc:confluence:123",
 		Query:      "payments-api",
 		Limit:      10,
@@ -412,7 +412,7 @@ func TestContentReaderDocumentationFactsReturnsEmptyForNoMatch(t *testing.T) {
 
 	got, err := reader.documentationFacts(t.Context(), documentationFactFilter{
 		FactKind: "documentation_link",
-		ScopeID:  "doc-source:confluence:boats-group.atlassian.net:196609",
+		ScopeID:  "doc-source:confluence:example.atlassian.net:196609",
 		Query:    "not-present",
 		Limit:    10,
 	})

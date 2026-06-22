@@ -155,10 +155,10 @@ func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t 
 	graph := &recordingChangeSurfaceGraph{runRows: [][]map[string]any{
 		{},
 		{
-			{"id": "workload:api-node-boats", "name": "api-node-boats", "labels": []any{"Workload"}, "repo_id": "api-node-boats"},
+			{"id": "workload:svc-catalog", "name": "svc-catalog", "labels": []any{"Workload"}, "repo_id": "svc-catalog"},
 		},
 		{
-			{"id": "repo-api-node-boats", "name": "api-node-boats", "labels": []any{"Repository"}, "depth": int64(1), "repo_id": "api-node-boats"},
+			{"id": "repo-svc-catalog", "name": "svc-catalog", "labels": []any{"Repository"}, "depth": int64(1), "repo_id": "svc-catalog"},
 		},
 	}}
 	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
@@ -168,7 +168,7 @@ func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t 
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/impact/change-surface/investigate",
-		bytes.NewBufferString(`{"service_name":"api-node-boats","repo_id":"api-node-boats","limit":4,"max_depth":1}`),
+		bytes.NewBufferString(`{"service_name":"svc-catalog","repo_id":"svc-catalog","limit":4,"max_depth":1}`),
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
@@ -180,7 +180,7 @@ func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t 
 	if got, want := len(graph.runCalls), 3; got != want {
 		t.Fatalf("graph Run calls = %d, want exact id probe, canonical workload id probe, and traversal", got)
 	}
-	if got, want := graph.runCalls[1].params["target"], "workload:api-node-boats"; got != want {
+	if got, want := graph.runCalls[1].params["target"], "workload:svc-catalog"; got != want {
 		t.Fatalf("second resolver target = %#v, want %#v", got, want)
 	}
 
@@ -190,7 +190,7 @@ func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t 
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
 	}
 	selected := resolution["selected"].(map[string]any)
-	if got, want := selected["id"], "workload:api-node-boats"; got != want {
+	if got, want := selected["id"], "workload:svc-catalog"; got != want {
 		t.Fatalf("selected.id = %#v, want %#v", got, want)
 	}
 	if traversal := graph.runCalls[2].cypher; !strings.Contains(traversal, "MATCH (start:Workload {id: $target_id})") {
@@ -205,7 +205,7 @@ func TestInvestigateChangeSurfaceDoesNotResolveWrongServiceNameByRepoOnly(t *tes
 		runFunc: func(cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "repo_id: $target") {
 				return []map[string]any{
-					{"id": "workload:orders-api", "name": "orders-api", "labels": []any{"Workload"}, "repo_id": "api-node-boats"},
+					{"id": "workload:orders-api", "name": "orders-api", "labels": []any{"Workload"}, "repo_id": "svc-catalog"},
 				}, nil
 			}
 			return nil, nil
@@ -218,7 +218,7 @@ func TestInvestigateChangeSurfaceDoesNotResolveWrongServiceNameByRepoOnly(t *tes
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/impact/change-surface/investigate",
-		bytes.NewBufferString(`{"service_name":"missing-api","repo_id":"api-node-boats","limit":4,"max_depth":1}`),
+		bytes.NewBufferString(`{"service_name":"missing-api","repo_id":"svc-catalog","limit":4,"max_depth":1}`),
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
@@ -237,7 +237,7 @@ func TestInvestigateChangeSurfaceDoesNotResolveWrongServiceNameByRepoOnly(t *tes
 	if got, want := graph.runCalls[2].params["target"], "missing-api"; got != want {
 		t.Fatalf("repo-scoped resolver target = %#v, want %#v", got, want)
 	}
-	if got, want := graph.runCalls[2].params["repo_id"], "api-node-boats"; got != want {
+	if got, want := graph.runCalls[2].params["repo_id"], "svc-catalog"; got != want {
 		t.Fatalf("repo-scoped resolver repo_id = %#v, want %#v", got, want)
 	}
 
@@ -253,10 +253,10 @@ func TestInvestigateChangeSurfaceGenericTargetUsesBoundedResolverProbes(t *testi
 
 	graph := &recordingChangeSurfaceGraph{runRows: [][]map[string]any{
 		{
-			{"id": "workload:api-node-boats", "name": "api-node-boats", "labels": []any{"Workload"}, "repo_id": "api-node-boats"},
+			{"id": "workload:svc-catalog", "name": "svc-catalog", "labels": []any{"Workload"}, "repo_id": "svc-catalog"},
 		},
 		{
-			{"id": "repo-api-node-boats", "name": "api-node-boats", "labels": []any{"Repository"}, "depth": int64(1), "repo_id": "api-node-boats"},
+			{"id": "repo-svc-catalog", "name": "svc-catalog", "labels": []any{"Repository"}, "depth": int64(1), "repo_id": "svc-catalog"},
 		},
 	}}
 	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
@@ -266,7 +266,7 @@ func TestInvestigateChangeSurfaceGenericTargetUsesBoundedResolverProbes(t *testi
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/impact/change-surface/investigate",
-		bytes.NewBufferString(`{"target":"workload:api-node-boats","limit":2,"max_depth":1}`),
+		bytes.NewBufferString(`{"target":"workload:svc-catalog","limit":2,"max_depth":1}`),
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
