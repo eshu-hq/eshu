@@ -112,3 +112,107 @@
 - Do not change `.js`, `.jsx`, `.ts`, `.tsx`, `.mts`, `.cts`, `.mjs`, or `.cjs`
   registry ownership from the parent parser without an ADR.
 - Do not add backend, collector, reducer, query, or storage dependencies here.
+
+## Residual-regex audit — permanent exceptions (issue #3590, epic #3531)
+
+Three regex patterns remain in this package after the JS/TS/TSX regex-to-AST
+migration (#3539/#3563). Each was audited and confirmed as a justified permanent
+exception: none performs primary symbol or entity extraction over raw source. All
+three operate only on a string value already isolated by the AST. Adding any
+additional within-string regex requires an ADR.
+
+### `javaScriptStaticComputedMemberNameRe` — `javascript_names.go`
+
+**Category:** content-classification over AST node text (computed-property
+shape validator).
+
+**Justification:** This regex validates the shape of an unquoted string that
+`javaScriptComputedPropertyName` has already extracted from a
+`computed_property_name` AST node. It accepts simple identifiers, dotted member
+chains (`foo.bar.baz`), and decimal integer literals; it rejects anything that
+cannot be a static property name (binary expressions, template substitutions,
+calls, etc.). It is a post-AST filter on already-isolated node text — not a
+source scanner — so it cannot produce false positives from tokens inside
+comments, string literals, or type annotations.
+
+**Call site:** `javaScriptComputedPropertyName` in `javascript_names.go`, called
+only after `javaScriptStaticComputedPropertyName` has returned `false` and the
+bracket-expression inner text has been unquoted from an AST node.
+
+**Migration verdict:** No migration needed. The grammar does not model the
+distinction between a static and a dynamic computed property as separate node
+types; the validator must run over the extracted string value, which is already
+AST-isolated.
+
+### `javaScriptAWSClientServiceRe` — `javascript_semantics_ast.go`
+
+**Category:** content-classification over AST-isolated package-specifier string
+(slug extraction from an import module-specifier).
+
+**Justification:** This regex extracts the service slug from
+`@aws-sdk/client-<slug>` package specifiers. It receives the string value of an
+`import_statement` source or `require`/`import(...)` argument node — a string
+already isolated by `javaScriptImportModuleSpecifiers`, which walks the AST. The
+regex never sees raw source bytes. The grammar models the module specifier as a
+single `string` node; there is no tree-sitter node type that corresponds to the
+slug suffix of a scoped npm package name, so string content matching is
+structurally required.
+
+**Call site:** `javaScriptImportServiceSlugs` in `javascript_semantics_ast.go`,
+called from `detectAWSSemantics` in `javascript_semantics_helpers.go`, which
+feeds the `aws.services` payload bucket.
+
+**Migration verdict:** No migration needed. The target is the textual content of
+a string literal whose structure the grammar cannot further decompose into
+provider/slug sub-nodes. The extraction already runs on the AST boundary.
+
+### `javaScriptGCPServiceRe` — `javascript_semantics_ast.go`
+
+**Category:** content-classification over AST-isolated package-specifier string
+(slug extraction from an import module-specifier).
+
+**Justification:** Identical exception category to `javaScriptAWSClientServiceRe`.
+This regex extracts the service slug from `@google-cloud/<slug>` specifiers. It
+receives its input from `javaScriptImportModuleSpecifiers`, which has already
+walked the AST to isolate each import/require string node value.
+
+**Call site:** `javaScriptImportServiceSlugs` in `javascript_semantics_ast.go`,
+called from `detectGCPSemantics` in `javascript_semantics_helpers.go`, which
+feeds the `gcp.services` payload bucket.
+
+**Migration verdict:** No migration needed. Same structural argument as the AWS
+regex: the grammar has no sub-node type for the slug portion of a scoped package
+name.
+
+### Characterization tests
+
+All three exceptions are pinned by
+`javascript_residual_regex_characterization_test.go` (package `javascript`).
+Coverage includes:
+
+- `javaScriptStaticComputedMemberNameRe`: acceptance of identifiers, dotted
+  chains, and decimal integers; rejection of binary expressions, calls, template
+  substitutions, leading zeros, hyphens, and empty strings; AST-path integration
+  confirming the wrapper resolves a string-literal bracket expression to its
+  inner value.
+- `javaScriptAWSClientServiceRe`: slug extraction for `s3`, `dynamodb`,
+  `rds-data`, `secrets-manager`, `ssm`; rejection of `lib-*` packages, empty
+  slugs, v2 bare names, GCP specifiers, uppercase slugs; integration over static
+  `import` and `require` via `javaScriptImportServiceSlugs`; deduplication.
+- `javaScriptGCPServiceRe`: slug extraction for `storage`, `bigquery`, `pubsub`,
+  `datastore`, `logging-min`; rejection of AWS specifiers, unscoped names, empty
+  slugs, uppercase slugs; integration over `require` and static `import`;
+  cross-pattern isolation confirming AWS and GCP regexes are mutually exclusive.
+
+### No-Regression Evidence (issue #3590)
+
+```
+cd go && gofmt -l internal/parser/javascript/   # empty — no formatting drift
+cd go && go test ./internal/parser/... -count=1  # 1238 passed, 41 packages
+cd go && golangci-lint run ./internal/parser/javascript/...  # no issues
+```
+
+### No-Observability-Change
+
+This package emits no telemetry by design. The audit adds only tests and
+documentation; no spans, metrics, or logs are added or removed.
