@@ -104,11 +104,12 @@ func appendCFunction(payload map[string]any, node *tree_sitter.Node, source []by
 		return
 	}
 	item := map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(nameNode),
-		"end_line":    shared.NodeEndLine(node),
-		"decorators":  []string{},
-		"lang":        "c",
+		"name":                  name,
+		"line_number":           shared.NodeLine(nameNode),
+		"end_line":              shared.NodeEndLine(node),
+		"decorators":            []string{},
+		"lang":                  "c",
+		"cyclomatic_complexity": cyclomaticComplexity(node, source),
 	}
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)

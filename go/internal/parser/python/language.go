@@ -122,7 +122,7 @@ func Parse(
 				"args":                  pythonParameterNames(node.ChildByFieldName("parameters"), source),
 				"lang":                  "python",
 				"async":                 pythonFunctionIsAsync(functionSource),
-				"cyclomatic_complexity": cyclomaticComplexity(node),
+				"cyclomatic_complexity": cyclomaticComplexity(node, source),
 			}
 			decorators := pythonDecorators(node, source)
 			item["decorators"] = decorators

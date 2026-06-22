@@ -349,6 +349,54 @@ binary is available. Set `SCIP_INDEXER=false`, `0`, `no`, or `off` to force
 native-only parsing. `SCIP_LANGUAGES` narrows the allowlist; it does not remove
 native parser coverage for selected files outside the SCIP index.
 
+## Cyclomatic complexity coverage
+
+Function entities carry a `cyclomatic_complexity` field consumed by the
+`find_most_complex_functions` and `calculate_cyclomatic_complexity` query tools.
+Real McCabe complexity is computed from the tree-sitter AST by the shared walker
+`shared.CyclomaticComplexity`, driven by per-language `shared.BranchNodeSet`
+tables. Complexity is `1` plus one for every decision point: each
+`if`/`elif`, loop, `switch`/`match` case arm, exception handler (`catch`/`except`),
+conditional (ternary) expression, and short-circuit boolean operator (`&&`, `||`,
+and the language-specific `and`/`or`). The walk stops at nested function, lambda,
+and type definitions so an inner closure does not inflate the enclosing function.
+
+The catch-all arm is the implicit else, not a decision, so it is excluded: a
+`switch` `default`, a Rust/Scala/Python bare wildcard `_` arm, and a switch or
+match whose only arm is the catch-all all leave complexity at the base value.
+The `BranchNodeSet` `defaultCaseKinds` field names the node kinds that double as
+a `default`/wildcard arm (for example Java `switch_label`, C# `switch_section`,
+C/C++ `case_statement`, Rust `match_arm`, Scala/Python `case_clause`); the walker
+counts those nodes only for real case arms. A guarded wildcard (`_ if cond`)
+still tests a condition, so it stays counted. Go needs no entry because its
+grammar emits a distinct `default_case` node that is simply left out of the
+branch kinds.
+
+| Language | Complexity source | Status |
+| --- | --- | --- |
+| Go | AST walk (`golang.cyclomaticComplexity`) | real |
+| Python | AST walk (`python.cyclomaticComplexity`) | real |
+| C | AST walk (`c.cyclomaticComplexity`) | real |
+| C++ | AST walk (`cpp.cyclomaticComplexity`) | real |
+| Java | AST walk (`java.cyclomaticComplexity`) | real |
+| C# | AST walk (`csharp.cyclomaticComplexity`) | real |
+| Rust | AST walk (`rust.cyclomaticComplexity`) | real |
+| Scala | AST walk (`scala.cyclomaticComplexity`) | real |
+| Kotlin, Ruby, PHP, Elixir, Swift, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
+| JSON (`scripts`) | constant `1` | not source code (npm script strings) |
+| SCIP definitions | `0` (unknown) | SCIP carries no statement AST; native parse supplies the real value |
+
+Languages marked **pending** emit no `cyclomatic_complexity` field, so they
+resolve to `0` and are excluded by the ranking filter
+(`WHERE coalesce(e.cyclomatic_complexity, 0) > 0`) rather than shown with a
+misleading constant `1`. They build their function rows from line-based or
+lexical spans that do not retain the full declaration subtree at append time;
+giving them real complexity means routing their function bodies through a
+tree-sitter node and adding a `BranchNodeSet`, which is data, not new traversal
+code. Adding a new tree-sitter language to the real set is one `BranchNodeSet`
+table plus one call to `shared.CyclomaticComplexity` at the function-append
+site.
+
 ## Dependencies
 
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch

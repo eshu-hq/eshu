@@ -37,34 +37,31 @@ func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.
 	return result
 }
 
-func cyclomaticComplexity(node *tree_sitter.Node) int {
-	if node == nil {
-		return 0
-	}
+// goComplexitySet declares the Go tree-sitter node kinds and boolean operator
+// tokens that count as McCabe decision points. It is data so Go complexity stays
+// consistent with the shared walker used by every other language.
+//
+// The Go grammar exposes a distinct `default_case` node for `default:`, separate
+// from `expression_case`/`type_case`/`communication_case`. Under McCabe the
+// default arm is the implicit else, not a decision point, so `default_case` is
+// deliberately omitted from the branch kinds (and no default-case override is
+// needed). A switch whose only arm is `default:` therefore stays complexity 1.
+var goComplexitySet = shared.NewBranchNodeSet(
+	[]string{
+		"if_statement",
+		"for_statement",
+		"expression_case",
+		"type_case",
+		"communication_case",
+	},
+	[]string{"function_declaration", "method_declaration", "func_literal"},
+	[]string{"binary_expression"},
+	[]string{"&&", "||"},
+	nil,
+)
 
-	complexity := 1
-	var walk func(*tree_sitter.Node)
-	walk = func(current *tree_sitter.Node) {
-		if current == nil {
-			return
-		}
-		if current != node && isNestedDefinition(current.Kind()) {
-			return
-		}
-		if isCyclomaticBranchKind(current.Kind()) {
-			complexity++
-		}
-
-		cursor := current.Walk()
-		defer cursor.Close()
-		for _, child := range current.NamedChildren(cursor) {
-			child := child
-			walk(&child)
-		}
-	}
-
-	walk(node)
-	return complexity
+func cyclomaticComplexity(node *tree_sitter.Node, source []byte) int {
+	return shared.CyclomaticComplexity(node, source, goComplexitySet)
 }
 
 // walkScopeBindings visits scope and its named descendants but does not
@@ -102,21 +99,6 @@ func walkScopeBindings(scope *tree_sitter.Node, visit func(*tree_sitter.Node)) {
 func isNestedDefinition(kind string) bool {
 	switch kind {
 	case "function_declaration", "method_declaration", "func_literal":
-		return true
-	default:
-		return false
-	}
-}
-
-func isCyclomaticBranchKind(kind string) bool {
-	switch kind {
-	case "if_statement",
-		"for_statement",
-		"case_clause",
-		"communication_case",
-		"type_switch_statement",
-		"select_statement",
-		"conditional_expression":
 		return true
 	default:
 		return false

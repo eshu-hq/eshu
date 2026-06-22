@@ -183,11 +183,12 @@ func appendFunctionWithContext(
 	}
 
 	item := map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(nameNode),
-		"end_line":    shared.NodeEndLine(node),
-		"decorators":  []string{},
-		"lang":        lang,
+		"name":                  name,
+		"line_number":           shared.NodeLine(nameNode),
+		"end_line":              shared.NodeEndLine(node),
+		"decorators":            []string{},
+		"lang":                  lang,
+		"cyclomatic_complexity": cyclomaticComplexity(node, source),
 	}
 	if classContext := nearestNamedAncestor(node, source, contextKinds...); classContext != "" {
 		item["class_context"] = classContext

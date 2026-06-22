@@ -143,11 +143,12 @@ func appendJavaFunction(
 	}
 
 	item := map[string]any{
-		"name":            name,
-		"line_number":     nodeLine(nameNode),
-		"end_line":        nodeEndLine(node),
-		"lang":            "java",
-		"parameter_count": javaParameterCount(node),
+		"name":                  name,
+		"line_number":           nodeLine(nameNode),
+		"end_line":              nodeEndLine(node),
+		"lang":                  "java",
+		"parameter_count":       javaParameterCount(node),
+		"cyclomatic_complexity": cyclomaticComplexity(node, source),
 	}
 	if decorators := javaDecorators(node, source, name); len(decorators) > 0 {
 		item["decorators"] = decorators

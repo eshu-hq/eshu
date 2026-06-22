@@ -14,4 +14,8 @@
 // opt-in value-flow gate plus the stable repository and package identity
 // required for durable FunctionIDs, while bucket sorting keeps the parent
 // parser's line-number then name ordering contract.
+//
+// CyclomaticComplexity is the shared McCabe complexity walker. It counts
+// decision points from a BranchNodeSet so every tree-sitter language computes
+// real complexity from data tables rather than per-language traversal code.
 package shared

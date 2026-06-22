@@ -4,8 +4,12 @@
 
 1. `README.md` - package boundary and invariants
 2. `shared.go` - exported helper contracts used by child parser packages
-3. `shared_test.go` - payload and option compatibility coverage
-4. `go/internal/parser/README.md` - parent parser ownership and language layout
+3. `complexity.go` - shared McCabe walker (`CyclomaticComplexity`,
+   `BranchNodeSet`, `NewBranchNodeSet`) driven by per-language node-type tables
+4. `shared_test.go` and `complexity_test.go` - payload, option, and complexity
+   compatibility coverage
+5. `go/internal/parser/README.md` - parent parser ownership, language layout,
+   and the cyclomatic complexity coverage table
 
 ## Invariants this package enforces
 
