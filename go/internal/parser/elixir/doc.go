@@ -4,11 +4,14 @@
 // Parse emits modules, protocols, functions, imports, attributes, variables,
 // bounded call metadata, dead-code root kinds, observed dynamic-dispatch
 // blockers, and Hex dependency evidence from Mix manifests and lockfiles.
-// Tree-sitter supplies syntax-aware function spans, multiline signatures,
-// decorators, and module context while bounded helpers preserve existing call
-// and dependency contracts. Root metadata stays conservative: Application start
+// Every Elixir source symbol is extracted from the tree-sitter AST: module,
+// function, import, attribute, and call rows are keyed by node spans rather than
+// a text line index, so module membership, end lines, and per-clause context
+// follow the parse tree. Root metadata stays conservative: Application start
 // needs Application syntax, and OTP/Phoenix callback roots use arity checks
-// where the framework contract defines them. Hex dependency rows admit literal
+// where the framework contract defines them. Hex dependency rows from
+// mix.exs and mix.lock remain manifest parsing, the documented structured-format
+// exception, and are not Elixir source symbols. Hex dependency rows admit literal
 // registry dependencies only; VCS dependencies stay provenance-only so
 // downstream reducers do not invent package consumption. PreScan returns the
 // deterministic names used by the parent parser's repository import-map pass.

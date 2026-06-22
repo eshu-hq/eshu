@@ -117,46 +117,6 @@ func elixirFunctionDeadCodeRootKinds(
 	return rootKinds
 }
 
-func elixirCurrentModuleKind(scopes []scope) string {
-	for index := len(scopes) - 1; index >= 0; index-- {
-		scope := scopes[index]
-		if scope.kind != "module" || scope.item == nil {
-			continue
-		}
-		if moduleKind, _ := scope.item["module_kind"].(string); moduleKind != "" {
-			return moduleKind
-		}
-	}
-	return ""
-}
-
-func markElixirObservedExactnessBlockers(scopes []scope, line string) {
-	if !strings.Contains(line, "apply(") {
-		return
-	}
-	for index := len(scopes) - 1; index >= 0; index-- {
-		scope := scopes[index]
-		if scope.kind != "function" || scope.item == nil {
-			continue
-		}
-		scope.item["exactness_blockers"] = appendElixirMetadataString(
-			scope.item["exactness_blockers"],
-			"dynamic_dispatch_unresolved",
-		)
-		return
-	}
-}
-
-func markElixirObservedExactnessBlockersOnItem(item map[string]any, line string) {
-	if item == nil || !strings.Contains(line, "apply(") {
-		return
-	}
-	item["exactness_blockers"] = appendElixirMetadataString(
-		item["exactness_blockers"],
-		"dynamic_dispatch_unresolved",
-	)
-}
-
 func elixirModuleHasUse(facts elixirDeadCodeFacts, moduleName string, useKind string) bool {
 	if moduleName == "" || useKind == "" {
 		return false
