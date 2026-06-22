@@ -18,12 +18,12 @@ const (
 // rubyRailsCallbackMethods is the set of Rails callback registration methods
 // whose symbol arguments name reachable instance methods.
 var rubyRailsCallbackMethods = map[string]struct{}{
-	"before_action":  {},
-	"after_action":   {},
-	"around_action":  {},
-	"before_filter":  {},
-	"after_filter":   {},
-	"around_filter":  {},
+	"before_action": {},
+	"after_action":  {},
+	"around_action": {},
+	"before_filter": {},
+	"after_filter":  {},
+	"around_filter": {},
 }
 
 // rubyMethodReferenceMethods is the set of reflection methods whose symbol
@@ -138,31 +138,47 @@ func rubyLiteralMethodReferenceNames(syntax *rubySyntax) map[string]struct{} {
 }
 
 // symbolArguments returns the names of simple symbol arguments of a call node,
-// stripping the leading colon.
+// stripping the leading colon. Bare symbol arguments and symbols nested inside
+// an array argument (for example `before_action [:a, :b]`) are both collected,
+// because Rails callback registrations accept either form.
 func (s *rubySyntax) symbolArguments(node *tree_sitter.Node) []string {
 	args := node.ChildByFieldName("arguments")
 	if args == nil {
 		return nil
 	}
 	names := make([]string, 0)
-	cursor := args.Walk()
+	s.collectSymbolNames(args, &names)
+	return names
+}
+
+// collectSymbolNames appends the colon-stripped name of every simple_symbol that
+// is a direct child of node or an element of a direct child array node.
+func (s *rubySyntax) collectSymbolNames(node *tree_sitter.Node, names *[]string) {
+	cursor := node.Walk()
 	defer cursor.Close()
 	if !cursor.GotoFirstChild() {
-		return names
+		return
 	}
 	for {
 		child := cursor.Node()
-		if child.IsNamed() && child.Kind() == "simple_symbol" {
-			name := strings.TrimPrefix(s.text(child), ":")
-			if name != "" {
-				names = append(names, name)
+		if child.IsNamed() {
+			switch child.Kind() {
+			case "simple_symbol":
+				if name := strings.TrimPrefix(s.text(child), ":"); name != "" {
+					*names = append(*names, name)
+				}
+			case "array":
+				// Rails callbacks accept an array literal, e.g.
+				// `before_action [:a, :b]`, whose simple_symbol elements are
+				// grandchildren of the argument node. Descend one level so the
+				// array form is collected like bare symbol arguments.
+				s.collectSymbolNames(child, names)
 			}
 		}
 		if !cursor.GotoNextSibling() {
 			break
 		}
 	}
-	return names
 }
 
 // rubyScriptEntrypointCallNames returns the method names made reachable by a
@@ -190,11 +206,16 @@ func rubyScriptEntrypointCallNames(syntax *rubySyntax) map[string]struct{} {
 	return names
 }
 
-// rubyIsScriptGuardCondition reports whether a condition node is a `==`
-// comparison of `__FILE__` against a `$0`/`$PROGRAM_NAME` global, in either
-// order.
+// rubyIsScriptGuardCondition reports whether a condition node is an equality
+// (`==`) comparison of `__FILE__` against a `$0`/`$PROGRAM_NAME` global, in
+// either order. A non-equality operator such as `!=` guards a non-entrypoint
+// body and must not root the calls inside it.
 func rubyIsScriptGuardCondition(syntax *rubySyntax, condition *tree_sitter.Node) bool {
 	if condition == nil || condition.Kind() != "binary" {
+		return false
+	}
+	operator := condition.ChildByFieldName("operator")
+	if operator == nil || syntax.text(operator) != "==" {
 		return false
 	}
 	left := condition.ChildByFieldName("left")
