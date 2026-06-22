@@ -311,6 +311,71 @@ func TestSharedPartitionCandidatesReportsAtLimitFromCandidateWindows(t *testing.
 	}
 }
 
+// TestAppendUnhashedSharedCandidatesRefreshFirstAcrossMerge is a regression
+// test for #3474: when the DB has BOTH hashed upsert rows AND an unhashed
+// legacy refresh intent, the merged result must place the refresh row first
+// even though the refresh intent has a later created_at timestamp than the
+// upsert rows.
+//
+// Before the fix the sort used (created_at ASC, intent_id ASC), so the older
+// upsert edges always ranked before the refresh intent.  After the fix the
+// sort uses (is_refresh_intent DESC, created_at ASC, intent_id ASC), mirroring
+// the ORDER BY in listPendingDomainPartitionIntentsSQL.
+func TestAppendUnhashedSharedCandidatesRefreshFirstAcrossMerge(t *testing.T) {
+	t.Parallel()
+
+	edgeTime := time.Date(2026, 6, 21, 1, 43, 1, 0, time.UTC)
+	refreshTime := edgeTime.Add(5 * time.Minute)
+
+	partitionCount := 2
+	target := 1
+
+	// Three upsert edges with older timestamps go into the hashed lane.
+	hashed := []SharedProjectionIntentRow{
+		{
+			IntentID:     "edge-1",
+			PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "edge-1"),
+			CreatedAt:    edgeTime,
+			Payload:      map[string]any{"action": "upsert"},
+		},
+		{
+			IntentID:     "edge-2",
+			PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "edge-2"),
+			CreatedAt:    edgeTime.Add(time.Second),
+			Payload:      map[string]any{"action": "upsert"},
+		},
+	}
+
+	// The refresh intent has a later timestamp and lives in the unhashed lane.
+	reader := &stubPartitionCandidateReader{
+		unhashed: []SharedProjectionIntentRow{
+			{
+				IntentID:     "refresh-later",
+				PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "refresh-later"),
+				CreatedAt:    refreshTime,
+				Payload:      map[string]any{"action": repoRefreshAction, "intent_type": repoRefreshIntentType},
+			},
+		},
+	}
+
+	merged, matched, _, err := appendUnhashedSharedCandidates(
+		context.Background(), reader, hashed, DomainPlatformInfra, target, partitionCount, 10,
+	)
+	if err != nil {
+		t.Fatalf("appendUnhashedSharedCandidates() error = %v", err)
+	}
+	if len(merged) != 3 {
+		t.Fatalf("merged len = %d, want 3", len(merged))
+	}
+	// Refresh row must sort first despite having a later created_at (#3474).
+	if merged[0].IntentID != "refresh-later" {
+		t.Fatalf("merged[0].IntentID = %q, want refresh-later (refresh-first ordering broken across hashed+unhashed merge)", merged[0].IntentID)
+	}
+	if matched != 1 {
+		t.Fatalf("matched = %d, want 1", matched)
+	}
+}
+
 func TestSelectPartitionBatchKeepsLegacyScanWhenReaderUnsupported(t *testing.T) {
 	t.Parallel()
 

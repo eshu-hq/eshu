@@ -166,7 +166,15 @@ func appendUnhashedSharedCandidates(
 		return hashed, 0, atLimit, nil
 	}
 
+	// Preserve the refresh-first primary ordering across the merged set so a
+	// refresh intent emitted later than its paired upsert edges is not buried
+	// behind those edges after the UNION of hashed + unhashed lanes (#3474).
+	// Mirror: ORDER BY is_refresh_intent DESC, created_at ASC, intent_id ASC.
 	sort.SliceStable(merged, func(i, j int) bool {
+		ri, rj := isRepoRefreshRow(merged[i]), isRepoRefreshRow(merged[j])
+		if ri != rj {
+			return ri // refresh rows sort first (true > false)
+		}
 		if !merged[i].CreatedAt.Equal(merged[j].CreatedAt) {
 			return merged[i].CreatedAt.Before(merged[j].CreatedAt)
 		}
