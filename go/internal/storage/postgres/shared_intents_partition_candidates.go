@@ -20,6 +20,14 @@ var (
 	_ reducer.SharedProjectionUnhashedCandidateReader    = (*SharedIntentStore)(nil)
 )
 
+// listPendingDomainPartitionIntentsSQL fetches up to $4 pending intents for
+// one domain partition.  Refresh intents sort before upsert intents at the
+// same created_at timestamp via is_refresh_intent DESC — the generated
+// BOOLEAN column (payload->>'action' = 'refresh') is stored alongside the
+// row so the planner can use index
+// shared_projection_intents_domain_partition_refresh_first_idx
+// (projection_domain, created_at ASC, is_refresh_intent DESC, intent_id ASC)
+// and avoid a full sort on large pending backlogs (#3451).
 const listPendingDomainPartitionIntentsSQL = `
 SELECT intent_id, projection_domain, partition_key, scope_id,
        acceptance_unit_id, repository_id,
@@ -29,7 +37,9 @@ WHERE projection_domain = $1
   AND partition_hash IS NOT NULL
   AND mod(partition_hash, $3::numeric) = $2::numeric
   AND completed_at IS NULL
-ORDER BY created_at ASC, intent_id ASC
+ORDER BY created_at ASC,
+         is_refresh_intent DESC,
+         intent_id ASC
 LIMIT $4
 `
 

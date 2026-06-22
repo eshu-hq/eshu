@@ -18,6 +18,9 @@ ALTER TABLE shared_projection_intents
     ADD COLUMN IF NOT EXISTS acceptance_unit_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE shared_projection_intents
     ADD COLUMN IF NOT EXISTS partition_hash NUMERIC(20, 0) NULL;
+ALTER TABLE shared_projection_intents
+    ADD COLUMN IF NOT EXISTS is_refresh_intent BOOLEAN NOT NULL
+    GENERATED ALWAYS AS (COALESCE(payload->>'action' = 'refresh', false)) STORED;
 CREATE INDEX IF NOT EXISTS shared_projection_intents_repo_run_idx
     ON shared_projection_intents (repository_id, source_run_id, projection_domain, created_at);
 CREATE INDEX IF NOT EXISTS shared_projection_intents_acceptance_lookup_idx
@@ -27,6 +30,14 @@ CREATE INDEX IF NOT EXISTS shared_projection_intents_acceptance_partition_pendin
     WHERE completed_at IS NULL;
 CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_partition_pending_idx
     ON shared_projection_intents (projection_domain, created_at, intent_id)
+    WHERE completed_at IS NULL AND partition_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_partition_refresh_first_idx
+    ON shared_projection_intents (
+        projection_domain,
+        created_at ASC,
+        is_refresh_intent DESC,
+        intent_id ASC
+    )
     WHERE completed_at IS NULL AND partition_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_unhashed_pending_idx
     ON shared_projection_intents (projection_domain, created_at, intent_id)
