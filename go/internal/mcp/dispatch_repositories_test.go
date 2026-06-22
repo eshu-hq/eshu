@@ -106,11 +106,11 @@ func TestResolveRouteGetRepoContextRoutesToContext(t *testing.T) {
 	}
 }
 
-// TestGetRepoSummaryToolAcceptsRepoID asserts that the get_repo_summary tool
-// definition advertises repo_id as its canonical required selector. repo_name
-// is also advertised as a documented deprecated alias so existing clients keep
-// working; see TestGetRepoSummaryToolAdvertisesRepoNameCompat.
-func TestGetRepoSummaryToolAcceptsRepoID(t *testing.T) {
+// TestGetRepoSummaryToolAdvertisesRepoIDSelector asserts that the
+// get_repo_summary tool definition advertises repo_id as its canonical
+// selector property. repo_name is also advertised as a documented deprecated
+// alias; see TestGetRepoSummaryToolAdvertisesRepoNameCompat.
+func TestGetRepoSummaryToolAdvertisesRepoIDSelector(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "get_repo_summary")
@@ -125,16 +125,50 @@ func TestGetRepoSummaryToolAcceptsRepoID(t *testing.T) {
 	if _, hasRepoID := props["repo_id"]; !hasRepoID {
 		t.Fatal("get_repo_summary schema missing repo_id property; must use canonical repository selector")
 	}
+}
+
+// TestGetRepoSummarySchemaDoesNotForceRepoID asserts that the get_repo_summary
+// schema does not list repo_id in its required array. Forcing repo_id makes a
+// legacy repo_name-only call invalid under a schema-honoring MCP client, so the
+// client rejects it before the repositoryRoute fallback can resolve it. Because
+// the OpenAI MCP contract test forbids top-level anyOf/oneOf, "exactly one of
+// repo_id or repo_name" is expressed by leaving both out of required (so either
+// alone validates) and enforcing presence in the dispatch handler.
+func TestGetRepoSummarySchemaDoesNotForceRepoID(t *testing.T) {
+	t.Parallel()
+
+	tool := requireToolDefinition(t, "get_repo_summary")
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("get_repo_summary InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
 	required, ok := schema["required"].([]string)
 	if !ok {
-		t.Fatalf("get_repo_summary required type = %T, want []string", schema["required"])
+		// No required array at all is acceptable: a repo_name-only call validates.
+		return
 	}
 	for _, r := range required {
 		if r == "repo_id" {
-			return
+			t.Fatalf("get_repo_summary must not force repo_id in required; a repo_name-only call must be schema-valid (required = %v)", required)
 		}
 	}
-	t.Fatal("get_repo_summary: repo_id must be in required")
+}
+
+// TestResolveRouteGetRepoSummaryRejectsMissingSelector asserts that the dispatch
+// handler returns a clear error when neither repo_id nor repo_name is supplied.
+// Schema validation no longer forces a selector, so the "at least one present"
+// invariant is enforced here instead of building a malformed empty-selector
+// path.
+func TestResolveRouteGetRepoSummaryRejectsMissingSelector(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveRoute("get_repo_summary", map[string]any{})
+	if err == nil {
+		t.Fatal("resolveRoute(get_repo_summary) with no selector = nil error, want a missing-selector error")
+	}
+	if !strings.Contains(err.Error(), "repo_id") || !strings.Contains(err.Error(), "repo_name") {
+		t.Fatalf("error = %q, want it to name both repo_id and repo_name", err.Error())
+	}
 }
 
 // TestGetRepoSummaryToolAdvertisesRepoNameCompat asserts that the schema still

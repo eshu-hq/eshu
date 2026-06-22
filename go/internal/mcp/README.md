@@ -191,7 +191,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_repositories_by_language` | GET | `/api/v0/repositories/by-language` |
 | `get_repository_language_inventory` | GET | `/api/v0/repositories/language-inventory` |
 | `get_repository_stats` | GET | `/api/v0/repositories/{repo_id}/stats` |
-| `get_repo_summary` | GET | `/api/v0/repositories/{repo_id}/stats` — lightweight identity and coverage summary (file count, languages, entity count, entity types, indexing coverage state); use before `get_repo_context` for a quick overview. Accepts the legacy `repo_name` argument as a fallback when `repo_id` is absent |
+| `get_repo_summary` | GET | `/api/v0/repositories/{repo_id}/stats` — lightweight identity and coverage summary (file count, languages, entity count, entity types, indexing coverage state); use before `get_repo_context` for a quick overview. Requires exactly one of `repo_id` (preferred) or the legacy `repo_name` alias; neither is forced in the schema (so a `repo_name`-only call validates), and dispatch returns a clear error when both are absent |
 | `get_repo_context` | GET | `/api/v0/repositories/{repo_id}/context` — full enriched context including entry points, infrastructure, relationships, API surface, and deployment evidence |
 | `get_repo_story` | GET | `/api/v0/repositories/{repo_id}/story` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
