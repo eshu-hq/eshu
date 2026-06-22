@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/iacreachability"
+	"gopkg.in/yaml.v3"
 )
 
 // GroundTruth is one corpus-derived expected answer. It mirrors the fields of
@@ -75,20 +76,70 @@ func prompt(family, name string) string {
 }
 
 // definingFilesByArtifact maps each artifact key to the set of corpus files,
-// per repo, that live under the artifact's path. Those files define the
-// artifact and must be excluded from the baseline reference search.
+// per repo, that define the artifact and must be excluded from the baseline
+// reference search so the artifact's own definition never counts as a
+// reference to itself.
+//
+// For Terraform, Helm, Kustomize, and Ansible the definition lives under the
+// artifact's path, so a path-prefix match identifies it. Compose services are
+// different: the analyzer assigns them a synthetic path ("services/<name>")
+// that does not exist on disk, while the real definition is the service key
+// inside a compose file. For those rows the matching compose file in the same
+// repo is excluded instead. This is sound for the baseline because the
+// analyzer only treats a Compose service as referenced when a "docker compose"
+// command in another file names it, so excluding the declaring compose file
+// cannot hide a legitimate reference.
 func definingFilesByArtifact(rows []iacreachability.Row, filesByRepo map[string][]iacreachability.File) map[string]map[string]map[string]struct{} {
 	out := make(map[string]map[string]map[string]struct{}, len(rows))
 	for _, row := range rows {
 		key := row.RepoID + "/" + row.ArtifactPath
-		perRepo := map[string]map[string]struct{}{row.RepoID: {}}
+		defined := map[string]struct{}{}
 		prefix := strings.TrimSuffix(row.ArtifactPath, "/") + "/"
+		isCompose := row.Family == "compose"
 		for _, file := range filesByRepo[row.RepoID] {
-			if file.RelativePath == row.ArtifactPath || strings.HasPrefix(file.RelativePath, prefix) {
-				perRepo[row.RepoID][file.RelativePath] = struct{}{}
+			switch {
+			case file.RelativePath == row.ArtifactPath || strings.HasPrefix(file.RelativePath, prefix):
+				defined[file.RelativePath] = struct{}{}
+			case isCompose && composeFileDeclaresService(file, row.ArtifactName):
+				defined[file.RelativePath] = struct{}{}
 			}
 		}
-		out[key] = perRepo
+		out[key] = map[string]map[string]struct{}{row.RepoID: defined}
 	}
 	return out
+}
+
+// composeFileDeclaresService reports whether the given file is a Compose file
+// that declares a service with the given name. It parses the top-level
+// services map the same way the analyzer does, so the baseline excludes
+// exactly the file the analyzer derived the service artifact from. It is used
+// to exclude a service's own declaration file from the baseline reference
+// search.
+func composeFileDeclaresService(file iacreachability.File, service string) bool {
+	if !isComposeFilePath(file.RelativePath) {
+		return false
+	}
+	var doc struct {
+		Services map[string]yaml.Node `yaml:"services"`
+	}
+	if err := yaml.Unmarshal([]byte(file.Content), &doc); err != nil {
+		return false
+	}
+	_, ok := doc.Services[service]
+	return ok
+}
+
+// isComposeFilePath reports whether a relative path names a Docker Compose
+// file, mirroring the analyzer's Compose file detection.
+func isComposeFilePath(relativePath string) bool {
+	base := strings.ToLower(relativePath)
+	if idx := strings.LastIndexByte(base, '/'); idx >= 0 {
+		base = base[idx+1:]
+	}
+	switch base {
+	case "compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml":
+		return true
+	default:
+		return false
+	}
 }

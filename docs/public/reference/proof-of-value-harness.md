@@ -62,10 +62,20 @@ Delta (eshu − baseline): **+0.444 accuracy**, **+0.600 dead recall**.
 The eight baseline failures are explainable, not stacked: grep mislabels all
 five dynamic-reference artifacts (`dynamic-target`, `dynamic_role`) as `used`
 because the literal name appears inside a templated or interpolated path, and it
-misses three unused artifacts (`orphan-cache`, `orphan_maintenance`) whose names
-appear in unreached files. Grep still gets the easy cases right — including two
-artifacts (`orphan-worker`, `orphan-api`) it correctly calls unused — so the
-baseline is faithful, not a strawman.
+misses three unused artifacts. The two `orphan-cache` artifacts (a Terraform
+module and a Compose service that share the name) each appear in the other's
+files, so grep sees the token elsewhere and wrongly calls them `used` — a real
+cross-artifact name collision a text search cannot disambiguate. `orphan_maintenance`
+is named in an unreached playbook. Grep still gets the easy cases right —
+including two artifacts (`orphan-worker`, `orphan-api`) it correctly calls
+unused — so the baseline is faithful, not a strawman.
+
+Note: the baseline excludes each artifact's own definition from its reference
+search. For Compose services, whose analyzer artifact path is synthetic, the
+declaring `compose.yaml` is excluded explicitly so a service's own YAML key is
+never counted as a self-reference (regression-tested in
+`internal/proofofvalue`). The remaining `orphan-cache` "used" verdict is the
+genuine Terraform/Compose name collision above, not a self-reference.
 
 ## Honesty boundary
 
