@@ -55,6 +55,16 @@ func newInstrumentedPostgresStore(
 	}
 }
 
+// newCodeHybridRanker builds the optional find_code hybrid re-ranker from the
+// shared semantic-search embedder. When semantic search is disabled the embedder
+// is absent and the ranker is nil, so find_code keeps its lexical content order.
+func newCodeHybridRanker(config searchembedruntime.Config) query.CodeResultReranker {
+	if !config.Enabled || config.Embedder == nil {
+		return nil
+	}
+	return query.NewCodeHybridRanker(config.Embedder)
+}
+
 func newSemanticSearchHybrid(
 	db *sql.DB,
 	config searchembedruntime.Config,

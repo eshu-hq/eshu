@@ -279,6 +279,7 @@ const openAPIComponents = `  "components": {
           "end_line": {"type": "integer"},
           "language": {"type": "string"},
           "source_cache": {"type": "string"},
+          "search_backend": {"type": "string", "description": "Set to \"hybrid\" on code-search rows reordered by fused BM25+vector retrieval; absent when the lexical content order was served."},
           "metadata": {
             "type": "object",
             "additionalProperties": true,
