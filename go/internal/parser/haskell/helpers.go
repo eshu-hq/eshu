@@ -1,103 +1,29 @@
 package haskell
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
-func haskellCollectModuleHeader(lines []string, start int) (string, int) {
-	parts := []string{strings.TrimSpace(lines[start])}
-	if strings.Contains(parts[0], " where") || strings.HasSuffix(parts[0], "where") {
-		return parts[0], start
-	}
-	for index := start + 1; index < len(lines); index++ {
-		parts = append(parts, strings.TrimSpace(lines[index]))
-		header := strings.Join(parts, " ")
-		if strings.Contains(header, " where") || strings.HasSuffix(header, "where") {
-			return header, index
-		}
-	}
-	return strings.Join(parts, " "), start
-}
+// haskellCallTokenPattern matches qualified and bare lower-case identifiers in a
+// right-hand-side expression. Call extraction is the documented evidence
+// exception: it reports bounded lexical call tokens, not resolved Haskell name
+// binding, so it stays a regex over AST-bounded source text.
+var haskellCallTokenPattern = regexp.MustCompile(`(?:[A-Z][A-Za-z0-9_']*\.)+[a-z_][A-Za-z0-9_']*|[a-z_][A-Za-z0-9_']*`)
 
-func haskellParseModuleExports(header string) map[string]struct{} {
-	exports := make(map[string]struct{})
-	whereIndex := strings.LastIndex(header, " where")
-	if whereIndex == -1 {
-		whereIndex = len(header)
-	}
-	beforeWhere := header[:whereIndex]
-	open := strings.Index(beforeWhere, "(")
-	close := strings.LastIndex(beforeWhere, ")")
-	if open == -1 || close == -1 || close <= open {
-		return exports
-	}
-	for _, part := range strings.Split(beforeWhere[open+1:close], ",") {
-		name := strings.TrimSpace(part)
-		name = strings.TrimPrefix(name, "pattern ")
-		if paren := strings.Index(name, "("); paren >= 0 {
-			name = strings.TrimSpace(name[:paren])
-		}
-		if fields := strings.Fields(name); len(fields) > 0 {
-			name = fields[0]
-		}
-		if name != "" {
-			exports[name] = struct{}{}
-		}
-	}
-	return exports
-}
-
-func haskellParseImport(trimmed string) (string, string, bool) {
-	if !strings.HasPrefix(trimmed, "import ") {
-		return "", "", false
-	}
-	text := strings.TrimSpace(strings.TrimPrefix(trimmed, "import "))
-	text = strings.TrimSpace(strings.TrimPrefix(text, "{-# SOURCE #-}"))
-	for {
-		switch {
-		case strings.HasPrefix(text, "safe "):
-			text = strings.TrimSpace(strings.TrimPrefix(text, "safe "))
-		case strings.HasPrefix(text, "qualified "):
-			text = strings.TrimSpace(strings.TrimPrefix(text, "qualified "))
-		default:
-			goto moduleName
-		}
-	}
-
-moduleName:
-	if strings.HasPrefix(text, "\"") {
-		closeIndex := strings.Index(text[1:], "\"")
-		if closeIndex == -1 {
-			return "", "", false
-		}
-		text = strings.TrimSpace(text[closeIndex+2:])
-	}
-	fields := strings.Fields(text)
-	if len(fields) == 0 {
-		return "", "", false
-	}
-	name := fields[0]
-	alias := ""
-	for index, field := range fields {
-		if field == "as" && index+1 < len(fields) {
-			alias = strings.Trim(fields[index+1], "()[],")
-			break
-		}
-	}
-	if name == "" || !strings.ContainsAny(name[:1], "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
-		return "", "", false
-	}
-	return name, alias, true
-}
-
+// haskellIsExplicitExport reports whether name appears in the module export list.
 func haskellIsExplicitExport(exports map[string]struct{}, name string) bool {
 	_, ok := exports[name]
 	return ok
 }
 
+// haskellFunctionContextAndRoots resolves the class/instance context and
+// dead-code root kinds for a top-level or method binding. Class and instance
+// contexts yield their method roots; a top-level `main` and explicit module
+// exports yield function roots.
 func haskellFunctionContextAndRoots(name, classContext, instanceContext string, exports map[string]struct{}) (string, []string) {
 	switch {
 	case classContext != "":
@@ -115,10 +41,27 @@ func haskellFunctionContextAndRoots(name, classContext, instanceContext string, 
 	return "", rootKinds
 }
 
+// haskellFunctionKey builds the dedupe key for a function row from its context
+// and name so the same name in different class/instance contexts stays distinct.
 func haskellFunctionKey(context, name string) string {
 	return context + "\x00" + name
 }
 
+// haskellLineRangeSource returns the joined source lines covering an inclusive
+// 1-based line range, used to populate the function `source` field.
+func haskellLineRangeSource(lines []string, startLine int, endLine int) string {
+	if startLine <= 0 || endLine < startLine || startLine > len(lines) {
+		return ""
+	}
+	if endLine > len(lines) {
+		endLine = len(lines)
+	}
+	return strings.Join(lines[startLine-1:endLine], "\n")
+}
+
+// haskellAppendFunctionCalls mines the right-hand side of a binding line for
+// bounded call evidence, splitting on the first `=` so the bound name and
+// parameters are not treated as calls.
 func haskellAppendFunctionCalls(
 	payload map[string]any,
 	line string,
@@ -136,6 +79,10 @@ func haskellAppendFunctionCalls(
 	haskellAppendExpressionCalls(payload, rhs, lineNumber, functionName, context, params, seenCalls)
 }
 
+// haskellAppendExpressionCalls records bounded call rows for the identifier
+// tokens in an expression, skipping the enclosing function name, keywords, and
+// bound parameters. Calls are deduplicated per context, function, full name, and
+// line.
 func haskellAppendExpressionCalls(
 	payload map[string]any,
 	expression string,
@@ -178,6 +125,8 @@ func haskellAppendExpressionCalls(
 	}
 }
 
+// haskellTokenIsEmbedded reports whether the [start,end) token is part of a
+// larger identifier, in which case it is not a standalone call token.
 func haskellTokenIsEmbedded(text string, start int, end int) bool {
 	if start > 0 && haskellIdentifierByte(text[start-1]) {
 		return true
@@ -185,6 +134,8 @@ func haskellTokenIsEmbedded(text string, start int, end int) bool {
 	return end < len(text) && haskellIdentifierByte(text[end])
 }
 
+// haskellIdentifierByte reports whether char can appear inside a Haskell
+// identifier.
 func haskellIdentifierByte(char byte) bool {
 	return char == '_' || char == '\'' ||
 		(char >= '0' && char <= '9') ||
@@ -192,19 +143,8 @@ func haskellIdentifierByte(char byte) bool {
 		(char >= 'a' && char <= 'z')
 }
 
-func haskellFunctionParameters(lhs string) map[string]struct{} {
-	params := make(map[string]struct{})
-	fields := strings.Fields(lhs)
-	for _, field := range fields[1:] {
-		name := strings.Trim(field, "()[],")
-		if name == "" || !strings.ContainsAny(name[:1], "abcdefghijklmnopqrstuvwxyz_") {
-			continue
-		}
-		params[name] = struct{}{}
-	}
-	return params
-}
-
+// haskellStripStringsAndLineComment blanks string literals and trailing line
+// comments so call-token scanning never matches identifiers inside them.
 func haskellStripStringsAndLineComment(text string) string {
 	var builder strings.Builder
 	builder.Grow(len(text))
@@ -242,6 +182,8 @@ func haskellStripStringsAndLineComment(text string) string {
 	return builder.String()
 }
 
+// haskellIsKeyword reports whether name is a Haskell reserved word, so keyword
+// tokens never become functions, variables, or call targets.
 func haskellIsKeyword(name string) bool {
 	switch name {
 	case "case", "class", "data", "default", "deriving", "do", "else", "foreign", "if", "import",
@@ -251,19 +193,4 @@ func haskellIsKeyword(name string) bool {
 	default:
 		return false
 	}
-}
-
-func haskellLeadingIndent(line string) int {
-	indent := 0
-	for _, char := range line {
-		switch char {
-		case ' ':
-			indent++
-		case '\t':
-			indent += 8
-		default:
-			return indent
-		}
-	}
-	return indent
 }

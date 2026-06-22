@@ -1,0 +1,92 @@
+{
+  "classes": [
+    {
+      "end_line": 3,
+      "lang": "haskell",
+      "line_number": 3,
+      "name": "Shape",
+      "semantic_kind": "data"
+    },
+    {
+      "end_line": 8,
+      "lang": "haskell",
+      "line_number": 8,
+      "name": "Person",
+      "semantic_kind": "data"
+    },
+    {
+      "end_line": 13,
+      "lang": "haskell",
+      "line_number": 13,
+      "name": "Name",
+      "semantic_kind": "newtype"
+    },
+    {
+      "end_line": 15,
+      "lang": "haskell",
+      "line_number": 15,
+      "name": "Point",
+      "semantic_kind": "type"
+    },
+    {
+      "end_line": 17,
+      "lang": "haskell",
+      "line_number": 17,
+      "name": "Describable",
+      "semantic_kind": "typeclass"
+    }
+  ],
+  "function_calls": [
+    {
+      "call_kind": "haskell.function_call",
+      "context": "area",
+      "full_name": "pi",
+      "lang": "haskell",
+      "line_number": 24,
+      "name": "pi"
+    }
+  ],
+  "functions": [
+    {
+      "class_context": "Describable",
+      "dead_code_root_kinds": [
+        "haskell.typeclass_method"
+      ],
+      "decorators": [],
+      "end_line": 18,
+      "lang": "haskell",
+      "line_number": 18,
+      "name": "describe"
+    },
+    {
+      "class_context": "Describable Shape",
+      "dead_code_root_kinds": [
+        "haskell.instance_method"
+      ],
+      "decorators": [],
+      "end_line": 21,
+      "lang": "haskell",
+      "line_number": 21,
+      "name": "describe",
+      "source": "  describe (Circle r) = \"Circle\""
+    },
+    {
+      "decorators": [],
+      "end_line": 24,
+      "lang": "haskell",
+      "line_number": 24,
+      "name": "area",
+      "source": "area (Circle r) = pi * r * r"
+    }
+  ],
+  "imports": [],
+  "modules": [
+    {
+      "end_line": 1,
+      "lang": "haskell",
+      "line_number": 1,
+      "name": "Types"
+    }
+  ],
+  "variables": []
+}

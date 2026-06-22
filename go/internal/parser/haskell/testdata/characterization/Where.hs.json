@@ -1,0 +1,102 @@
+{
+  "classes": [],
+  "function_calls": [
+    {
+      "call_kind": "haskell.function_call",
+      "context": "run",
+      "full_name": "result",
+      "lang": "haskell",
+      "line_number": 3,
+      "name": "result"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "run",
+      "full_name": "result",
+      "lang": "haskell",
+      "line_number": 5,
+      "name": "result"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "withWhere",
+      "full_name": "local",
+      "lang": "haskell",
+      "line_number": 7,
+      "name": "local"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "withWhere",
+      "full_name": "helper",
+      "lang": "haskell",
+      "line_number": 9,
+      "name": "helper"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "withWhere",
+      "full_name": "local",
+      "lang": "haskell",
+      "line_number": 9,
+      "name": "local"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "withWhere",
+      "full_name": "value",
+      "lang": "haskell",
+      "line_number": 9,
+      "name": "value"
+    }
+  ],
+  "functions": [
+    {
+      "decorators": [],
+      "end_line": 5,
+      "lang": "haskell",
+      "line_number": 3,
+      "name": "run",
+      "source": "run task = result"
+    },
+    {
+      "decorators": [],
+      "end_line": 9,
+      "lang": "haskell",
+      "line_number": 7,
+      "name": "withWhere",
+      "source": "withWhere item = local item"
+    },
+    {
+      "decorators": [],
+      "end_line": 11,
+      "lang": "haskell",
+      "line_number": 11,
+      "name": "helper",
+      "source": "helper value = value"
+    }
+  ],
+  "imports": [],
+  "modules": [
+    {
+      "end_line": 1,
+      "lang": "haskell",
+      "line_number": 1,
+      "name": "Where"
+    }
+  ],
+  "variables": [
+    {
+      "end_line": 5,
+      "lang": "haskell",
+      "line_number": 5,
+      "name": "result"
+    },
+    {
+      "end_line": 9,
+      "lang": "haskell",
+      "line_number": 9,
+      "name": "local"
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "classes": [],
+  "function_calls": [
+    {
+      "call_kind": "haskell.function_call",
+      "context": "classify",
+      "full_name": "otherwise",
+      "lang": "haskell",
+      "line_number": 17,
+      "name": "otherwise"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "bmi",
+      "full_name": "category",
+      "lang": "haskell",
+      "line_number": 20,
+      "name": "category"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "bmi",
+      "full_name": "index",
+      "lang": "haskell",
+      "line_number": 22,
+      "name": "index"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "bmi",
+      "full_name": "category",
+      "lang": "haskell",
+      "line_number": 23,
+      "name": "category"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "bmi",
+      "full_name": "index",
+      "lang": "haskell",
+      "line_number": 24,
+      "name": "index"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "bmi",
+      "full_name": "index",
+      "lang": "haskell",
+      "line_number": 25,
+      "name": "index"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "bmi",
+      "full_name": "otherwise",
+      "lang": "haskell",
+      "line_number": 26,
+      "name": "otherwise"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "processNames",
+      "full_name": "intercalate",
+      "lang": "haskell",
+      "line_number": 33,
+      "name": "intercalate"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "processNames",
+      "full_name": "map",
+      "lang": "haskell",
+      "line_number": 33,
+      "name": "map"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "processNames",
+      "full_name": "nub",
+      "lang": "haskell",
+      "line_number": 33,
+      "name": "nub"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "processNames",
+      "full_name": "sort",
+      "lang": "haskell",
+      "line_number": 33,
+      "name": "sort"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "processNames",
+      "full_name": "toUpper",
+      "lang": "haskell",
+      "line_number": 33,
+      "name": "toUpper"
+    }
+  ],
+  "functions": [
+    {
+      "decorators": [],
+      "end_line": 7,
+      "lang": "haskell",
+      "line_number": 7,
+      "name": "greet",
+      "source": "greet name = \"Hello, \" ++ name ++ \"!\""
+    },
+    {
+      "decorators": [],
+      "end_line": 10,
+      "lang": "haskell",
+      "line_number": 10,
+      "name": "add",
+      "source": "add a b = a + b"
+    },
+    {
+      "decorators": [],
+      "end_line": 17,
+      "lang": "haskell",
+      "line_number": 13,
+      "name": "classify",
+      "source": "classify n\n  | n \u003c 0     = \"negative\"\n  | n == 0    = \"zero\"\n  | n \u003c 10    = \"small\"\n  | otherwise = \"large\""
+    },
+    {
+      "decorators": [],
+      "end_line": 26,
+      "lang": "haskell",
+      "line_number": 20,
+      "name": "bmi",
+      "source": "bmi weight height = category"
+    },
+    {
+      "decorators": [],
+      "end_line": 30,
+      "lang": "haskell",
+      "line_number": 29,
+      "name": "head'",
+      "source": "head' []    = Nothing"
+    },
+    {
+      "decorators": [],
+      "end_line": 33,
+      "lang": "haskell",
+      "line_number": 33,
+      "name": "processNames",
+      "source": "processNames = intercalate \", \" . sort . nub . map (map toUpper)"
+    }
+  ],
+  "imports": [
+    {
+      "lang": "haskell",
+      "line_number": 3,
+      "name": "Data.List"
+    },
+    {
+      "lang": "haskell",
+      "line_number": 4,
+      "name": "Data.Char"
+    }
+  ],
+  "modules": [
+    {
+      "end_line": 1,
+      "lang": "haskell",
+      "line_number": 1,
+      "name": "Basic"
+    }
+  ],
+  "variables": [
+    {
+      "end_line": 22,
+      "lang": "haskell",
+      "line_number": 22,
+      "name": "index"
+    },
+    {
+      "end_line": 23,
+      "lang": "haskell",
+      "line_number": 23,
+      "name": "category"
+    }
+  ]
+}

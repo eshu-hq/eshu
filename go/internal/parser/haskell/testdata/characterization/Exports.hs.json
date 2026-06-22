@@ -1,0 +1,161 @@
+{
+  "classes": [
+    {
+      "dead_code_root_kinds": [
+        "haskell.exported_type"
+      ],
+      "end_line": 11,
+      "lang": "haskell",
+      "line_number": 11,
+      "name": "Worker",
+      "semantic_kind": "data"
+    },
+    {
+      "dead_code_root_kinds": [
+        "haskell.exported_type"
+      ],
+      "end_line": 13,
+      "lang": "haskell",
+      "line_number": 13,
+      "name": "Runner",
+      "semantic_kind": "typeclass"
+    }
+  ],
+  "function_calls": [
+    {
+      "call_kind": "haskell.function_call",
+      "class_context": "Runner Worker",
+      "context": "runTask",
+      "full_name": "run",
+      "lang": "haskell",
+      "line_number": 17,
+      "name": "run"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "main",
+      "full_name": "run",
+      "lang": "haskell",
+      "line_number": 19,
+      "name": "run"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "run",
+      "full_name": "T.pack",
+      "lang": "haskell",
+      "line_number": 20,
+      "name": "pack"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "run",
+      "full_name": "show",
+      "lang": "haskell",
+      "line_number": 20,
+      "name": "show"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "run",
+      "full_name": "T.unpack",
+      "lang": "haskell",
+      "line_number": 20,
+      "name": "unpack"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "helper",
+      "full_name": "nub",
+      "lang": "haskell",
+      "line_number": 21,
+      "name": "nub"
+    },
+    {
+      "call_kind": "haskell.function_call",
+      "context": "helper",
+      "full_name": "sort",
+      "lang": "haskell",
+      "line_number": 21,
+      "name": "sort"
+    }
+  ],
+  "functions": [
+    {
+      "class_context": "Runner",
+      "dead_code_root_kinds": [
+        "haskell.typeclass_method"
+      ],
+      "decorators": [],
+      "end_line": 14,
+      "lang": "haskell",
+      "line_number": 14,
+      "name": "runTask"
+    },
+    {
+      "class_context": "Runner Worker",
+      "dead_code_root_kinds": [
+        "haskell.instance_method"
+      ],
+      "decorators": [],
+      "end_line": 17,
+      "lang": "haskell",
+      "line_number": 17,
+      "name": "runTask",
+      "source": "  runTask worker = run worker"
+    },
+    {
+      "dead_code_root_kinds": [
+        "haskell.main_function",
+        "haskell.module_export"
+      ],
+      "decorators": [],
+      "end_line": 19,
+      "lang": "haskell",
+      "line_number": 19,
+      "name": "main",
+      "source": "main = run Worker"
+    },
+    {
+      "dead_code_root_kinds": [
+        "haskell.module_export"
+      ],
+      "decorators": [],
+      "end_line": 20,
+      "lang": "haskell",
+      "line_number": 20,
+      "name": "run",
+      "source": "run worker = T.unpack (T.pack (show worker))"
+    },
+    {
+      "decorators": [],
+      "end_line": 21,
+      "lang": "haskell",
+      "line_number": 21,
+      "name": "helper",
+      "source": "helper worker = sort (nub [worker])"
+    }
+  ],
+  "imports": [
+    {
+      "alias": "T",
+      "lang": "haskell",
+      "line_number": 8,
+      "name": "Data.Text"
+    },
+    {
+      "lang": "haskell",
+      "line_number": 9,
+      "name": "Data.List"
+    }
+  ],
+  "modules": [
+    {
+      "end_line": 6,
+      "lang": "haskell",
+      "line_number": 1,
+      "name": "Demo.App"
+    }
+  ],
+  "variables": []
+}
