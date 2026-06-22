@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -277,12 +278,13 @@ func TestBuildSBOMAttestationAttachmentAggregateCount(t *testing.T) {
 	t.Parallel()
 
 	rows := []sbomAttestationAttachmentRollupRow{
-		{groupingStatus: 0, groupingKind: 1, attachmentStatus: "attached_verified", count: 10},
-		{groupingStatus: 0, groupingKind: 1, attachmentStatus: "attached_unverified", count: 5},
-		{groupingStatus: 0, groupingKind: 1, attachmentStatus: "subject_mismatch", count: 3},
-		{groupingStatus: 1, groupingKind: 0, artifactKind: "sbom", count: 12},
-		{groupingStatus: 1, groupingKind: 0, artifactKind: "attestation", count: 6},
-		{groupingStatus: 1, groupingKind: 1, count: 18},
+		{groupingStatus: 0, groupingKind: 1, attachmentStatus: sql.NullString{String: "attached_verified", Valid: true}, count: 10},
+		{groupingStatus: 0, groupingKind: 1, attachmentStatus: sql.NullString{String: "attached_unverified", Valid: true}, count: 5},
+		{groupingStatus: 0, groupingKind: 1, attachmentStatus: sql.NullString{String: "subject_mismatch", Valid: true}, count: 3},
+		{groupingStatus: 1, groupingKind: 0, artifactKind: sql.NullString{String: "sbom", Valid: true}, count: 12},
+		{groupingStatus: 1, groupingKind: 0, artifactKind: sql.NullString{String: "attestation", Valid: true}, count: 6},
+		// Grand-total row: GROUPING SETS emits NULL for both grouping columns (#3547).
+		{groupingStatus: 1, groupingKind: 1, attachmentStatus: sql.NullString{Valid: false}, artifactKind: sql.NullString{Valid: false}, count: 18},
 	}
 	out := buildSBOMAttestationAttachmentAggregateCount(rows)
 
@@ -619,6 +621,49 @@ func TestNextSBOMAttestationAttachmentAggregateOffsetBound(t *testing.T) {
 					tc.offset, tc.limit, tc.truncated, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestBuildSBOMAttestationAttachmentAggregateCountHandlesNullGroupingColumns is the
+// regression test for #3547. GROUPING SETS emits NULL for every column that is not
+// part of a given grouping set. The grand-total row (groupingStatus=1, groupingKind=1)
+// has both attachment_status and artifact_kind as NULL. Before the fix the scan
+// targets were plain string fields and sql.Scan returned
+// "converting NULL to string is unsupported"; after the fix they are sql.NullString.
+// This test constructs the exact row shape that was previously rejected and asserts
+// that the count envelope is correctly assembled.
+func TestBuildSBOMAttestationAttachmentAggregateCountHandlesNullGroupingColumns(t *testing.T) {
+	t.Parallel()
+
+	// Mimic exactly what Postgres emits for a dataset with two status buckets,
+	// one kind bucket, and a grand total — the grand-total row has NULL for both
+	// grouping columns. This is the shape that previously caused the 500.
+	rows := []sbomAttestationAttachmentRollupRow{
+		// attachment_status bucket: Valid=true
+		{groupingStatus: 0, groupingKind: 1, attachmentStatus: sql.NullString{String: "attached_verified", Valid: true}, count: 7},
+		// artifact_kind bucket: Valid=true
+		{groupingStatus: 1, groupingKind: 0, artifactKind: sql.NullString{String: "sbom", Valid: true}, count: 7},
+		// Grand-total row: both columns NULL (#3547 root cause)
+		{groupingStatus: 1, groupingKind: 1, attachmentStatus: sql.NullString{Valid: false}, artifactKind: sql.NullString{Valid: false}, count: 7},
+	}
+
+	out := buildSBOMAttestationAttachmentAggregateCount(rows)
+
+	if out.TotalAttachments != 7 {
+		t.Fatalf("TotalAttachments = %d, want 7", out.TotalAttachments)
+	}
+	if got := out.ByAttachmentStatus["attached_verified"]; got != 7 {
+		t.Fatalf("ByAttachmentStatus[attached_verified] = %d, want 7", got)
+	}
+	if got := out.ByArtifactKind["sbom"]; got != 7 {
+		t.Fatalf("ByArtifactKind[sbom] = %d, want 7", got)
+	}
+	// The grand-total row must not leak a "" key into either bucket map.
+	if _, ok := out.ByAttachmentStatus[""]; ok {
+		t.Fatal("ByAttachmentStatus must not contain empty-string key from NULL grand-total row (#3547)")
+	}
+	if _, ok := out.ByArtifactKind[""]; ok {
+		t.Fatal("ByArtifactKind must not contain empty-string key from NULL grand-total row (#3547)")
 	}
 }
 
