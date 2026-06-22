@@ -2,15 +2,10 @@ package c
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-)
-
-var cTypedefAliasPattern = regexp.MustCompile(
-	`(?s)typedef\s+(struct|enum|union)(?:\s+[A-Za-z_]\w*)?\s*\{.*?\}\s*([A-Za-z_]\w*)\s*;?`,
 )
 
 // Parse reads and parses a C file using a caller-owned tree-sitter parser.
@@ -203,10 +198,6 @@ func cTypedefBucket(node *tree_sitter.Node, source []byte) string {
 			return "unions"
 		}
 	}
-	matches := cTypedefAliasPattern.FindStringSubmatch(strings.TrimSpace(shared.NodeText(node, source)))
-	if len(matches) == 3 {
-		return map[string]string{"struct": "structs", "enum": "enums", "union": "unions"}[matches[1]]
-	}
 	return ""
 }
 
@@ -220,10 +211,6 @@ func cTypedefName(node *tree_sitter.Node, source []byte) string {
 		if name := cTypedefAliasName(shared.NodeText(declaratorNode, source)); name != "" {
 			return name
 		}
-	}
-	text := strings.TrimSpace(shared.NodeText(node, source))
-	if matches := cTypedefAliasPattern.FindStringSubmatch(text); len(matches) == 3 {
-		return strings.TrimSpace(matches[2])
 	}
 	cursor := node.Walk()
 	defer cursor.Close()

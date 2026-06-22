@@ -416,6 +416,44 @@ typedef struct Node {
 	assertNamedBucketContains(t, got, "structs", "NodeAlias")
 }
 
+// TestDefaultEngineParsePathCTypedefAliasMultiDeclaratorAndArray pins the C
+// typedef alias extraction once the cTypedefAliasPattern regex fallback was
+// removed (issue #3573). The alias comes solely from the tree-sitter
+// type_definition declarator field. A multi-declarator typedef
+// (`typedef struct {...} Multi, *MultiPtr;`) yields the first declarator alias
+// `Multi`, matching the prior single-alias behavior; the array form
+// (`typedef char buffer[64];`) unwraps the array_declarator to `buffer`.
+func TestDefaultEngineParsePathCTypedefAliasMultiDeclaratorAndArray(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "types.c")
+	writeTestFile(
+		t,
+		filePath,
+		`typedef struct {
+    int a;
+} Multi, *MultiPtr;
+
+typedef char buffer[64];
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertNamedBucketContains(t, got, "typedefs", "Multi")
+	assertNamedBucketContains(t, got, "structs", "Multi")
+	assertNamedBucketContains(t, got, "typedefs", "buffer")
+}
+
 // TestDefaultEngineParsePathCPPNodeModuleRegistrationFromAST pins that the
 // Node.js addon registration root is read from the call-expression AST after
 // the whole-source NODE_MODULE regex scan was removed (issue #3540).
