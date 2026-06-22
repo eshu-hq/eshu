@@ -96,18 +96,18 @@ func TestIngestionStoreCommitScopeGenerationSkipsRelationshipBackfillWhenConfigu
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	// Issue #3481: the repository catalog now loads through the shared cache on
-	// the store's base connection, not the per-commit transaction. With backfill
-	// skipped the transaction issues no reads, and the single base-connection
-	// query is the cached catalog load.
-	if got, want := len(db.tx.queries), 0; got != want {
+	// Issue #3481/#3521: the repository catalog loads through the shared cache,
+	// and the cold load runs on the OPEN ingestion transaction's connection (so a
+	// single-connection pool cannot deadlock). With backfill skipped the only
+	// transaction read is that catalog load, and the base connection issues none.
+	if got, want := len(db.tx.queries), 1; got != want {
 		t.Fatalf("transaction query count = %d, want %d", got, want)
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("base connection query count = %d, want %d", got, want)
+	if !strings.Contains(db.tx.queries[0].query, "fact_kind = 'repository'") {
+		t.Fatalf("transaction query = %q, want repository catalog load only", db.tx.queries[0].query)
 	}
-	if !strings.Contains(db.queries[0].query, "fact_kind = 'repository'") {
-		t.Fatalf("base connection query = %q, want repository catalog load only", db.queries[0].query)
+	if got, want := len(db.queries), 0; got != want {
+		t.Fatalf("base connection query count = %d, want %d (catalog must not use a second connection)", got, want)
 	}
 }
 

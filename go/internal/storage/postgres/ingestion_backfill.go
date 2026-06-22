@@ -542,10 +542,6 @@ func listSucceededDeploymentMappingWorkItemIDs(
 	return workItemIDs, nil
 }
 
-func payloadRepoID(payload map[string]any) string {
-	return catalogString(payload, "repo_id", "graph_id", "name")
-}
-
 func filterEvidenceByTargetRepo(
 	evidence []relationships.EvidenceFact,
 	targetRepoIDs map[string]struct{},
@@ -574,6 +570,16 @@ func repositoryCatalogEntryFromPayload(rawPayload []byte) (relationships.Catalog
 		return relationships.CatalogEntry{}, false
 	}
 
+	return repositoryCatalogEntryFromMap(payload)
+}
+
+// repositoryCatalogEntryFromMap derives a repository CatalogEntry (RepoID plus
+// matching aliases) from a decoded repository fact payload. The streaming commit
+// path and the JSON catalog loader share this function so a generation's
+// committed repository identity is computed identically to the cached catalog
+// entry; otherwise alias-drift detection (issue #3521) would compare
+// inconsistently shaped aliases.
+func repositoryCatalogEntryFromMap(payload map[string]any) (relationships.CatalogEntry, bool) {
 	repoID := catalogString(payload, "repo_id", "graph_id", "name")
 	if strings.TrimSpace(repoID) == "" {
 		return relationships.CatalogEntry{}, false
