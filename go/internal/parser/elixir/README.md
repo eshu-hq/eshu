@@ -70,6 +70,23 @@ No-Observability-Change: this package emits no metrics, spans, logs, or status.
 The change is parse-internal and adds none, so operator-facing signals are
 identical before and after.
 
+No-Regression Evidence: the `decoratorsBefore` scan now skips intervening
+`comment` named siblings while walking from a definition back toward its
+`@impl`/`@decorator` attributes, restoring the former line-scanner behavior that
+carried a pending `@impl` across comment lines to the next function. The scan
+still stops at the first non-comment, non-attribute sibling, so its cost stays
+bounded by the same preceding-sibling slice it already iterated; no extra parse
+pass, allocation-per-line, goroutine, channel, lock, queue, or graph-write is
+added, and the package stays single-threaded under the caller-owned parser.
+Verified by `go test ./internal/parser -run
+TestDefaultEngineParsePathElixirImplDecoratorCarriesAcrossComments` (NornicDB
+not involved; parser-only fixture `@impl true` + comment + `def init/1`), which
+fails without the comment-skip and passes with it.
+
+No-Observability-Change: the comment-skip fix is parse-internal and adds no
+metrics, spans, logs, or status, so operator-facing signals are identical before
+and after.
+
 ## Gotchas / invariants
 
 Extraction walks the AST once; it must not drop payload keys or reorder buckets
