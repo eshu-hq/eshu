@@ -76,12 +76,20 @@ grammar node kinds and fields drive each bucket:
   typeclass method, captured regardless of line wrapping (deleted
   `haskellTypeSignaturePattern`).
 - Functions: `function` and `bind` nodes in declaration scope, plus
-  `instance_declarations` method bindings, supply functions-bucket rows;
-  parameters come from the `patterns` field via `haskellTreeFunctionParameters`
-  (deleted `haskellFunctionPattern`, `haskellFunctionParameters`,
-  `haskellAppendFunctionCalls`, and the old `haskellFunctionSpan`/`collect`/
-  `applyHaskellTreeFunctionMetadata`/`appendHaskellTreeFunctionCalls`/
-  `haskellFunctionItem` augmentation path).
+  `instance_declarations` and `class_declarations` method bindings, supply
+  functions-bucket rows; parameters come from the `patterns` field via
+  `haskellTreeFunctionParameters` (deleted `haskellFunctionPattern`,
+  `haskellFunctionParameters`, `haskellAppendFunctionCalls`, and the old
+  `haskellFunctionSpan`/`collect`/`applyHaskellTreeFunctionMetadata`/
+  `appendHaskellTreeFunctionCalls`/`haskellFunctionItem` augmentation path). A
+  typeclass default-method body (`class_declarations` `function`/`bind`) keeps
+  the method as a typeclass method even with no signature and contributes its
+  right-hand-side call evidence.
+- Call evidence: `haskellAppendRHSCalls` scans each value/method/default-body
+  span line by line and slices after the first `=`, so the bound name on a
+  definition or local `where`/`let` binding line is never reported as a call.
+  Bare continuation lines (no `=`) are scanned whole so multi-line applications
+  stay covered.
 
 Justified permanent exceptions (bounded textual evidence, not symbol
 extraction): `haskellVariablePattern` records simple where-block local bindings
@@ -93,17 +101,34 @@ bounded evidence that normalizes safe/qualified/package-qualified imports and
 resolves `as` aliases, not an AST symbol walk. These three remain regex/string
 readers; everything else is AST.
 
-Deviation (AST fixes a regex bug): a class method whose type signature wraps
-across lines now produces a functions row. The deleted
-`haskellTypeSignaturePattern` required the method name and `::` on one line, so
-wrapped signatures produced no method.
-`TestParseCapturesMultilineClassMethodSignature` fails on the prior regex and
-passes on the AST. All other buckets stay byte-for-byte identical, pinned by the
-full-payload snapshot in `TestHaskellPayloadParitySnapshot`.
+Deviations (AST fixes a regex bug):
 
-No-Regression Evidence: `go test ./internal/parser/haskell -count=1` (10 tests)
+1. A class method whose type signature wraps across lines now produces a
+   functions row. The deleted `haskellTypeSignaturePattern` required the method
+   name and `::` on one line, so wrapped signatures produced no method.
+   `TestParseCapturesMultilineClassMethodSignature` fails on the prior regex and
+   passes on the AST.
+2. The bound name on a definition or local `where`/`let` binding line is no
+   longer emitted as a call. The prior multi-pass extractor inconsistently
+   scanned binding LHS names (and bare guard keywords left of `=`) as calls for
+   some span kinds. `haskellAppendRHSCalls` now restores the documented
+   right-hand-side-only contract uniformly. The full-payload snapshot golden was
+   re-baselined to drop exactly two such spurious rows: `run` -> `helper` at line
+   28 (a `where` binder LHS) and `caller` -> `otherwise` at line 34 (a guard
+   keyword left of `=`). `TestParseExcludesWhereBindingNameFromCalls` covers the
+   binder-LHS case.
+3. Typeclass default-method bodies are scanned for call evidence (and a
+   default-only method with no signature is kept as a typeclass method). The
+   migrated symbol walk had skipped class default bodies entirely.
+   `TestParseCapturesClassDefaultMethodCalls` covers this.
+
+Tests 2 and 3 fail on the first migration commit and pass after the call-evidence
+fix. Every other bucket stays byte-for-byte identical, pinned by
+`TestHaskellPayloadParitySnapshot`.
+
+No-Regression Evidence: `go test ./internal/parser/haskell -count=1` (12 tests)
 and `go test ./internal/parser -count=1` (665 tests) stay green, including
-`TestHaskellPayloadParitySnapshot` (byte-parity payload) and
+`TestHaskellPayloadParitySnapshot` (re-baselined call-evidence payload) and
 `TestDefaultEngineParsePathHaskellFixtures`. `go test ./internal/parser/...
 ./internal/collector/discovery ./internal/content/shape ./internal/collector
 -count=1` passes; `golangci-lint run ./internal/parser/...` reports 0 issues;

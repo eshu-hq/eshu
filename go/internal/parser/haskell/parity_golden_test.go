@@ -89,14 +89,6 @@ const haskellParityGolden = `{
     {
       "call_kind": "haskell.function_call",
       "context": "run",
-      "full_name": "helper",
-      "lang": "haskell",
-      "line_number": 28,
-      "name": "helper"
-    },
-    {
-      "call_kind": "haskell.function_call",
-      "context": "run",
       "full_name": "T.unpack",
       "lang": "haskell",
       "line_number": 28,
@@ -117,14 +109,6 @@ const haskellParityGolden = `{
       "lang": "haskell",
       "line_number": 33,
       "name": "run"
-    },
-    {
-      "call_kind": "haskell.function_call",
-      "context": "caller",
-      "full_name": "otherwise",
-      "lang": "haskell",
-      "line_number": 34,
-      "name": "otherwise"
     },
     {
       "call_kind": "haskell.function_call",

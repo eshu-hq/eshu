@@ -13,10 +13,11 @@ import (
 // header, classes-bucket declarations, class/instance methods, and top-level
 // value bindings are all resolved from grammar nodes rather than a line scan.
 type haskellSyntaxIndex struct {
-	module  *haskellModuleSymbol
-	types   []haskellTypeSymbol
-	methods []haskellMethodSymbol
-	values  []haskellValueSymbol
+	module      *haskellModuleSymbol
+	types       []haskellTypeSymbol
+	methods     []haskellMethodSymbol
+	values      []haskellValueSymbol
+	classBodies []haskellMethodSymbol
 }
 
 func haskellSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, haskellSyntaxIndex, error) {

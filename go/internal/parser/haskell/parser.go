@@ -60,6 +60,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	appendHaskellFunctionBuckets(
 		payload,
 		syntax,
+		lines,
 		explicitExports,
 		isDependency,
 		options,

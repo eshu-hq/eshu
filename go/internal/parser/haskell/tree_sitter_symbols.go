@@ -192,21 +192,43 @@ func (i *haskellSyntaxIndex) collectClass(node *tree_sitter.Node, source []byte,
 	}
 	for _, child := range haskellNamedChildren(decls) {
 		child := child
-		if child.Kind() != "signature" {
-			continue
+		switch child.Kind() {
+		case "signature":
+			methodName := haskellSignatureName(&child, source)
+			if methodName == "" || haskellIsKeyword(methodName) {
+				continue
+			}
+			sigLine := shared.NodeLine(&child)
+			i.methods = append(i.methods, haskellMethodSymbol{
+				name:      methodName,
+				context:   name,
+				rootKind:  "haskell.typeclass_method",
+				startLine: sigLine,
+				endLine:   sigLine,
+			})
+		case "function", "bind":
+			// Default-method implementations inside the class body. Their bodies
+			// carry call evidence, and a default-only method with no signature is
+			// still a typeclass method, matching the prior line-scan extractor.
+			nameNode := child.ChildByFieldName("name")
+			if nameNode == nil {
+				continue
+			}
+			methodName := strings.TrimSpace(shared.NodeText(nameNode, source))
+			if methodName == "" || haskellIsKeyword(methodName) {
+				continue
+			}
+			startLine := shared.NodeLine(&child)
+			endLine := shared.NodeEndLine(&child)
+			i.classBodies = append(i.classBodies, haskellMethodSymbol{
+				name:      methodName,
+				context:   name,
+				rootKind:  "haskell.typeclass_method",
+				startLine: startLine,
+				endLine:   endLine,
+				params:    haskellTreeFunctionParameters(&child, source),
+			})
 		}
-		methodName := haskellSignatureName(&child, source)
-		if methodName == "" || haskellIsKeyword(methodName) {
-			continue
-		}
-		sigLine := shared.NodeLine(&child)
-		i.methods = append(i.methods, haskellMethodSymbol{
-			name:      methodName,
-			context:   name,
-			rootKind:  "haskell.typeclass_method",
-			startLine: sigLine,
-			endLine:   sigLine,
-		})
 	}
 }
 

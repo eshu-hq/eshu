@@ -76,6 +76,32 @@ func haskellFunctionKey(context, name string) string {
 	return context + "\x00" + name
 }
 
+// haskellAppendRHSCalls records call evidence from the right-hand side of a
+// definition or binding line: it slices after the first `=` so the name being
+// bound (the binder LHS, including local where/let bindings such as
+// `helper y = ...`) is never reported as a call. The package contract is that
+// function-call rows are bounded lexical evidence from definition right-hand
+// sides, not the bound names themselves. Lines without a defining `=` (bare
+// continuation expressions) are scanned whole.
+func haskellAppendRHSCalls(
+	payload map[string]any,
+	line string,
+	lineNumber int,
+	functionName string,
+	context string,
+	params map[string]struct{},
+	seenCalls map[string]struct{},
+) {
+	expression := line
+	if equalIndex := strings.Index(line, "="); equalIndex != -1 {
+		if equalIndex == len(line)-1 {
+			return
+		}
+		expression = line[equalIndex+1:]
+	}
+	haskellAppendExpressionCalls(payload, expression, lineNumber, functionName, context, params, seenCalls)
+}
+
 func haskellAppendExpressionCalls(
 	payload map[string]any,
 	expression string,

@@ -53,6 +53,7 @@ func appendHaskellClassBucket(
 func appendHaskellFunctionBuckets(
 	payload map[string]any,
 	syntax haskellSyntaxIndex,
+	lines []string,
 	explicitExports map[string]struct{},
 	isDependency bool,
 	options shared.Options,
@@ -75,6 +76,27 @@ func appendHaskellFunctionBuckets(
 		}
 		if options.IndexSource && method.hasSource {
 			item["source"] = method.source
+		}
+		shared.AppendBucket(payload, "functions", item)
+	}
+
+	for _, body := range syntax.classBodies {
+		key := haskellFunctionKey(body.context, body.name)
+		if _, ok := seenFunctions[key]; ok {
+			continue
+		}
+		seenFunctions[key] = struct{}{}
+		item := map[string]any{
+			"name":                 body.name,
+			"line_number":          body.startLine,
+			"end_line":             body.endLine,
+			"lang":                 "haskell",
+			"class_context":        body.context,
+			"decorators":           []string{},
+			"dead_code_root_kinds": []string{body.rootKind},
+		}
+		if options.IndexSource {
+			item["source"] = haskellNodeFirstLineSource(lines, body.startLine)
 		}
 		shared.AppendBucket(payload, "functions", item)
 	}
@@ -111,8 +133,9 @@ func appendHaskellFunctionBuckets(
 }
 
 // appendHaskellValueCalls emits bounded lexical call evidence for each top-level
-// value binding and each instance-method binding across its full line span,
-// reproducing the right-hand-side token scan the line-scan extractor performed.
+// value binding, each instance-method binding, and each typeclass default-method
+// body across its line span. Each line is right-hand-side sliced by
+// haskellAppendSpanCalls so the bound name is never reported as a call.
 // Class-method type signatures contribute no call evidence because they have no
 // binding body.
 func appendHaskellValueCalls(
@@ -145,6 +168,18 @@ func appendHaskellValueCalls(
 			value.name,
 			"",
 			value.params,
+			seenCalls,
+		)
+	}
+	for _, body := range syntax.classBodies {
+		haskellAppendSpanCalls(
+			payload,
+			lines,
+			body.startLine,
+			body.endLine,
+			body.name,
+			body.context,
+			body.params,
 			seenCalls,
 		)
 	}
@@ -206,7 +241,7 @@ func haskellAppendSpanCalls(
 		if lineNumber < 1 {
 			continue
 		}
-		haskellAppendExpressionCalls(
+		haskellAppendRHSCalls(
 			payload,
 			lines[lineNumber-1],
 			lineNumber,

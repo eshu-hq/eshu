@@ -291,6 +291,102 @@ class Runner a where
 	assertParserStringSliceContains(t, method, "dead_code_root_kinds", "haskell.typeclass_method")
 }
 
+// TestParseExcludesWhereBindingNameFromCalls guards against a regression where a
+// where-block local binding line such as `helper y = unpack y` had its whole
+// line (including the bound name `helper`) scanned for call evidence. Call rows
+// are bounded evidence from definition right-hand sides, so the binder LHS must
+// not appear as a call; the RHS call (`unpack`) must still be captured. This case
+// uses a top-level bind (`main = ...`) where the prior migration scanned the
+// binder LHS that the line-scan extractor did not.
+func TestParseExcludesWhereBindingNameFromCalls(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "WhereBinding.hs", `module Demo where
+
+main = helper 1
+  where
+    helper y = unpack y
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	// The RHS call to helper on the definition line is evidence.
+	assertCallAtLine(t, payload, "helper", 3)
+	// The where-block RHS call is evidence.
+	assertCallAtLine(t, payload, "unpack", 5)
+	// The binder LHS `helper` on the where line is NOT a call.
+	assertNoCallAtLine(t, payload, "helper", 5)
+}
+
+// TestParseCapturesClassDefaultMethodCalls guards against a regression where a
+// typeclass default-method body was never scanned, dropping its call evidence.
+// The method stays a typeclass method and its body right-hand side contributes a
+// call row with the class context.
+func TestParseCapturesClassDefaultMethodCalls(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "ClassDefault.hs", `module Demo where
+
+class C a where
+  run :: a -> IO ()
+  run a = helper a
+
+helper x = x
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	method := assertBucketName(t, payload, "functions", "run")
+	if got := method["class_context"]; got != "C" {
+		t.Fatalf("functions[run][class_context] = %#v, want C", got)
+	}
+	assertParserStringSliceContains(t, method, "dead_code_root_kinds", "haskell.typeclass_method")
+
+	call := assertCallAtLine(t, payload, "helper", 5)
+	if got := call["context"]; got != "run" {
+		t.Fatalf("function_calls[helper][context] = %#v, want run", got)
+	}
+	if got := call["class_context"]; got != "C" {
+		t.Fatalf("function_calls[helper][class_context] = %#v, want C", got)
+	}
+}
+
+func assertCallAtLine(t *testing.T, payload map[string]any, fullName string, line int) map[string]any {
+	t.Helper()
+
+	items, ok := payload["function_calls"].([]map[string]any)
+	if !ok {
+		t.Fatalf("payload[function_calls] = %T, want []map[string]any", payload["function_calls"])
+	}
+	for _, item := range items {
+		if item["full_name"] == fullName && shared.IntValue(item["line_number"]) == line {
+			return item
+		}
+	}
+	t.Fatalf("function_calls missing full_name=%q at line %d in %#v", fullName, line, items)
+	return nil
+}
+
+func assertNoCallAtLine(t *testing.T, payload map[string]any, fullName string, line int) {
+	t.Helper()
+
+	items, ok := payload["function_calls"].([]map[string]any)
+	if !ok {
+		t.Fatalf("payload[function_calls] = %T, want []map[string]any", payload["function_calls"])
+	}
+	for _, item := range items {
+		if item["full_name"] == fullName && shared.IntValue(item["line_number"]) == line {
+			t.Fatalf("function_calls unexpectedly contains full_name=%q at line %d in %#v", fullName, line, items)
+		}
+	}
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 
