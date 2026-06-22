@@ -20,6 +20,7 @@ import (
 	tree_sitter_haskell "github.com/tree-sitter/tree-sitter-haskell/bindings/go"
 	tree_sitter_java "github.com/tree-sitter/tree-sitter-java/bindings/go"
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
+	tree_sitter_php "github.com/tree-sitter/tree-sitter-php/bindings/go"
 	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
 	tree_sitter_rust "github.com/tree-sitter/tree-sitter-rust/bindings/go"
 	tree_sitter_scala "github.com/tree-sitter/tree-sitter-scala/bindings/go"
@@ -93,6 +94,7 @@ var builtinLanguageLoaders = map[string]languageLoader{
 	"javascript": tree_sitter_javascript.Language,
 	"kotlin":     tree_sitter_kotlin.Language,
 	"perl":       tree_sitter_perl.GetLanguage,
+	"php":        tree_sitter_php.LanguagePHP,
 	"python":     tree_sitter_python.Language,
 	"rust":       tree_sitter_rust.Language,
 	"scala":      tree_sitter_scala.Language,
@@ -127,6 +129,8 @@ func normalizeLanguageName(name string) (string, error) {
 		return "kotlin", nil
 	case "perl", "pl", "pm":
 		return "perl", nil
+	case "php":
+		return "php", nil
 	case "py", "python":
 		return "python", nil
 	case "rs", "rust":

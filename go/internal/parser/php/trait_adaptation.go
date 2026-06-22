@@ -1,55 +1,62 @@
 package php
 
-import "strings"
+import (
+	"strings"
 
-func parsePHPClassTraitAdaptations(raw string) []string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
+
+// phpClassTraitAdaptations returns the `insteadof` and `as` trait adaptation
+// clauses declared inside a class's trait use blocks, in source order.
+func phpClassTraitAdaptations(node *tree_sitter.Node, source []byte) []string {
+	list := phpDeclarationList(node)
+	if list == nil {
 		return nil
 	}
-	if !strings.Contains(trimmed, "insteadof") && !strings.Contains(trimmed, " as ") {
-		return nil
-	}
-
-	body := trimmed
-	if strings.HasPrefix(body, "use ") {
-		body = strings.TrimSpace(body[len("use "):])
-	}
-	if openBrace := strings.Index(body, "{"); openBrace >= 0 {
-		if closeBrace := strings.LastIndex(body, "}"); closeBrace > openBrace {
-			body = body[openBrace+1 : closeBrace]
-		}
-	}
-	clauses := strings.Split(body, ";")
-	adaptations := make([]string, 0, len(clauses))
-	for _, clause := range clauses {
-		clause = strings.TrimSpace(clause)
-		if clause == "" {
+	var adaptations []string
+	cursor := list.Walk()
+	defer cursor.Close()
+	for _, member := range list.NamedChildren(cursor) {
+		member := member
+		if member.Kind() != "use_declaration" {
 			continue
 		}
-		if !strings.Contains(clause, "insteadof") && !strings.Contains(clause, " as ") {
-			continue
-		}
-		adaptations = append(adaptations, clause)
+		adaptations = append(adaptations, phpUseListAdaptations(&member, source)...)
 	}
 	return dedupePHPNonEmptyStrings(adaptations)
 }
 
-func appendPHPClassTraitAdaptations(payload map[string]any, className string, additionalAdaptations []string) {
-	if className == "" || len(additionalAdaptations) == 0 {
-		return
-	}
-	items, _ := payload["classes"].([]map[string]any)
-	for _, item := range items {
-		name, _ := item["name"].(string)
-		if name != className {
+// phpUseListAdaptations collects adaptation clause text from the use_list of a
+// single trait use declaration.
+func phpUseListAdaptations(node *tree_sitter.Node, source []byte) []string {
+	var adaptations []string
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "use_list" {
 			continue
 		}
-		existing, _ := item["trait_adaptations"].([]string)
-		merged := dedupePHPNonEmptyStrings(append(existing, additionalAdaptations...))
-		if len(merged) > 0 {
-			item["trait_adaptations"] = merged
+		listCursor := child.Walk()
+		for _, clause := range child.NamedChildren(listCursor) {
+			clause := clause
+			switch clause.Kind() {
+			case "use_instead_of_clause", "use_as_clause":
+				if text := phpNormalizeAdaptationText(shared.NodeText(&clause, source)); text != "" {
+					adaptations = append(adaptations, text)
+				}
+			}
 		}
-		return
+		listCursor.Close()
 	}
+	return adaptations
+}
+
+// phpNormalizeAdaptationText collapses internal whitespace in an adaptation
+// clause and strips the trailing semicolon to match the legacy contract.
+func phpNormalizeAdaptationText(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	trimmed = strings.TrimSuffix(trimmed, ";")
+	return strings.Join(strings.Fields(trimmed), " ")
 }

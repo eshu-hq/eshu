@@ -84,11 +84,3 @@ func normalizePHPStaticReceiver(raw string, classContext string, classParentType
 
 	return trimmed
 }
-
-func hasPHPReceiverChainPrefix(raw string, start int) bool {
-	if start < 2 || start > len(raw) {
-		return false
-	}
-	prefix := raw[start-2 : start]
-	return prefix == "->" || prefix == "::"
-}

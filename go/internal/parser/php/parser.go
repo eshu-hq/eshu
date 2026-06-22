@@ -1,485 +1,195 @@
 package php
 
 import (
-	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-var (
-	phpNamespacePattern          = regexp.MustCompile(`^\s*namespace\s+([^;]+);`)
-	phpUsePattern                = regexp.MustCompile(`^\s*use\s+([^;]+);`)
-	phpTypePattern               = regexp.MustCompile(`^\s*(?:abstract\s+|final\s+)?(class|interface|trait)\s+([A-Za-z_]\w*)(.*)$`)
-	phpFunctionPattern           = regexp.MustCompile(`^\s*(?:public\s+|protected\s+|private\s+|static\s+|abstract\s+|final\s+|readonly\s+)*function\s+([A-Za-z_]\w*)\s*\(`)
-	phpFunctionReturnPattern     = regexp.MustCompile(`\)\s*:\s*([^{;]+)`)
-	phpVariablePattern           = regexp.MustCompile(`\$[A-Za-z_]\w*`)
-	phpTypedVariablePattern      = regexp.MustCompile(`(?:(?:public|protected|private|readonly|static)\s+)*([?A-Za-z_\\][\w\\|?]*)\s+\$[A-Za-z_]\w*`)
-	phpStaticPropertyCallPattern = regexp.MustCompile(`((?:[A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*)::\$[A-Za-z_]\w*(?:->\w+(?:\([^()]*\))?)*->\w+)\s*\(`)
-	phpMethodCallPattern         = regexp.MustCompile(`((?:\((?:\$[A-Za-z_]\w*(?:->\w+(?:\([^()]*\))?)*|(?:[A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*)::[A-Za-z_]\w*\(\)|new\s+[A-Za-z_\\]\w*(?:\\[A-Za-z_]\w*)*\(\))\)|\$[A-Za-z_]\w*(?:->\w+(?:\([^()]*\))?)*|(?:[A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*)::[A-Za-z_]\w*\(\)|new\s+[A-Za-z_\\]\w*(?:\\[A-Za-z_]\w*)*\(\))(?:->\w+(?:\([^()]*\))?)*->\w+)\s*\(`)
-	phpFunctionChainPattern      = regexp.MustCompile(`((?:\((?:[A-Za-z_]\w*\(\))\)|[A-Za-z_]\w*\(\))(?:->\w+(?:\([^()]*\))?)*->\w+)\s*\(`)
-	phpStaticCallPattern         = regexp.MustCompile(`\b([A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*)::([A-Za-z_]\w*)\s*\(`)
-	phpNewCallPattern            = regexp.MustCompile(`\bnew\s+([A-Za-z_\\]\w*(?:\\[A-Za-z_]\w*)*)\s*\(`)
-	phpFunctionCallPattern       = regexp.MustCompile(`\b([A-Za-z_]\w*)\s*\(`)
-	phpVariableTypePattern       = regexp.MustCompile(`\$\w+\s*=\s*new\s+([A-Za-z_\\]\w*(?:\\[A-Za-z_]\w*)*)\s*\(`)
-)
-
-type phpScopedContext struct {
-	kind       string
-	name       string
-	braceDepth int
-	lineNumber int
+// phpParseState carries the cross-statement evidence that PHP type inference
+// and dead-code root classification need while walking the AST. The maps mirror
+// the contracts the parser payload exposes: property and parent types resolve
+// receiver chains, return-type maps resolve method and function call chains, and
+// import aliases normalize use-imported short names back to their canonical
+// types.
+type phpParseState struct {
+	payload             map[string]any
+	source              []byte
+	indexSource         bool
+	seenVariables       map[string]struct{}
+	seenCalls           map[string]struct{}
+	classPropertyTypes  map[string]map[string]string
+	classParentTypes    map[string]string
+	localVariableTypes  map[string]map[string]string
+	methodReturnTypes   map[string]map[string]string
+	functionReturnTypes map[string]string
+	importAliases       map[string]string
+	deadCodeFacts       phpDeadCodeFacts
+	deadCodeFunctions   []phpDeadCodeFunctionFact
 }
 
-func currentPHPScopedName(stack []phpScopedContext, kinds ...string) string {
-	for index := len(stack) - 1; index >= 0; index-- {
-		for _, kind := range kinds {
-			if stack[index].kind == kind {
-				return stack[index].name
-			}
-		}
-	}
-	return ""
-}
-
-func popPHPCompletedScopes(stack []phpScopedContext, braceDepth int) []phpScopedContext {
-	for len(stack) > 0 && braceDepth < stack[len(stack)-1].braceDepth {
-		stack = stack[:len(stack)-1]
-	}
-	return stack
-}
-
-// Parse reads path and returns the legacy PHP parser payload.
-func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
+// Parse extracts PHP declarations, imports, variables, and calls from the
+// tree-sitter AST and emits the parser payload buckets.
+func Parse(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
 	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
 
+	tree := parser.Parse(source, nil)
+	if tree == nil {
+		return nil, parseError(path)
+	}
+	defer tree.Close()
+
 	payload := shared.BasePayload(path, "php", isDependency)
 	payload["traits"] = []map[string]any{}
 	payload["interfaces"] = []map[string]any{}
 
-	lines := strings.Split(string(source), "\n")
-	deadCodeFacts := newPHPDeadCodeFacts()
-	deadCodeFunctions := make([]phpDeadCodeFunctionFact, 0)
-	namespace := ""
-	braceDepth := 0
-	stack := make([]phpScopedContext, 0)
-	var pendingType *phpScopedContext
-	var pendingFunction *phpScopedContext
-	var pendingAnonymousClass *phpScopedContext
-	var pendingTraitAdaptation *phpScopedContext
-	seenVariables := make(map[string]struct{})
-	seenCalls := make(map[string]struct{})
-	classPropertyTypes := make(map[string]map[string]string)
-	classParentTypes := make(map[string]string)
-	localVariableTypes := make(map[string]map[string]string)
-	methodReturnTypes := make(map[string]map[string]string)
-	functionReturnTypes := make(map[string]string)
-	importAliases := make(map[string]string)
-	routeAttributePending := false
-	inDeadCodeBlockComment := false
-
-	for index, rawLine := range lines {
-		lineNumber := index + 1
-		trimmed := strings.TrimSpace(rawLine)
-		observePHPDeadCodeStatement(phpExecutableLineWithoutComments(rawLine, &inDeadCodeBlockComment), deadCodeFacts, &routeAttributePending)
-		if pendingType != nil && strings.Contains(rawLine, "{") {
-			stack = append(stack, phpScopedContext{
-				kind:       pendingType.kind,
-				name:       pendingType.name,
-				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-				lineNumber: pendingType.lineNumber,
-			})
-			pendingType = nil
-		}
-		if pendingFunction != nil && strings.Contains(rawLine, "{") {
-			stack = append(stack, phpScopedContext{
-				kind:       pendingFunction.kind,
-				name:       pendingFunction.name,
-				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-				lineNumber: pendingFunction.lineNumber,
-			})
-			pendingFunction = nil
-		}
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") {
-			braceDepth += braceDelta(rawLine)
-			stack = popPHPCompletedScopes(stack, braceDepth)
-			continue
-		}
-
-		if matches := phpNamespacePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			namespace = strings.TrimSpace(matches[1])
-		}
-
-		if matches := phpUsePattern.FindStringSubmatch(trimmed); len(matches) == 2 && currentPHPScopedName(stack, "class_declaration", "interface_declaration", "trait_declaration") == "" {
-			for _, spec := range parsePHPImports(matches[1]) {
-				if spec.importType == "use" && spec.alias != "" {
-					importAliases[spec.alias] = normalizePHPTypeName(spec.name)
-				}
-				shared.AppendBucket(payload, "imports", map[string]any{
-					"name":             spec.name,
-					"full_import_name": trimmed,
-					"line_number":      lineNumber,
-					"alias":            spec.alias,
-					"import_type":      spec.importType,
-					"context":          []any{nil, nil},
-					"lang":             "php",
-					"is_dependency":    false,
-				})
-			}
-		} else if contextName, contextKind, _ := currentPHPContext(stack); contextKind == "class_declaration" {
-			if bases := parsePHPClassTraitUses(trimmed); len(bases) > 0 {
-				appendPHPClassBases(payload, contextName, bases)
-				recordPHPDeadCodeTraitUses(deadCodeFacts, contextName, bases)
-			}
-			if strings.Contains(trimmed, "{") && strings.Contains(trimmed, "use ") {
-				pendingTraitAdaptation = &phpScopedContext{
-					kind:       "trait_adaptation",
-					name:       contextName,
-					braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-					lineNumber: lineNumber,
-				}
-			}
-		}
-
-		if anonymousTail, ok := parsePHPAnonymousClass(trimmed); ok {
-			name := phpAnonymousClassName(lineNumber)
-			bases := parsePHPBases("class", anonymousTail)
-			item := map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "php",
-			}
-			if len(bases) > 0 {
-				item["bases"] = bases
-			}
-			if strings.Contains(anonymousTail, "extends") && len(bases) > 0 {
-				classParentTypes[name] = normalizePHPImportedTypeName(bases[0], importAliases)
-			}
-			shared.AppendBucket(payload, "classes", item)
-			pendingAnonymousClass = &phpScopedContext{
-				kind:       "class_declaration",
-				name:       name,
-				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-				lineNumber: lineNumber,
-			}
-		}
-
-		if matches := phpTypePattern.FindStringSubmatch(trimmed); len(matches) == 4 {
-			name := matches[2]
-			bases := parsePHPBases(matches[1], matches[3])
-			item := map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "php",
-			}
-			if len(bases) > 0 {
-				item["bases"] = bases
-			}
-			switch matches[1] {
-			case "class":
-				recordPHPDeadCodeType(deadCodeFacts, "class_declaration", name, bases)
-				if strings.Contains(matches[3], "extends") && len(bases) > 0 {
-					classParentTypes[name] = normalizePHPImportedTypeName(bases[0], importAliases)
-				}
-				shared.AppendBucket(payload, "classes", item)
-				context := phpScopedContext{kind: "class_declaration", name: name, lineNumber: lineNumber}
-				if strings.Contains(rawLine, "{") {
-					context.braceDepth = braceDepth + max(1, strings.Count(rawLine, "{"))
-					stack = append(stack, context)
-				} else {
-					pendingType = &context
-				}
-			case "interface":
-				recordPHPDeadCodeType(deadCodeFacts, "interface_declaration", name, bases)
-				shared.AppendBucket(payload, "interfaces", item)
-				context := phpScopedContext{kind: "interface_declaration", name: name, lineNumber: lineNumber}
-				if strings.Contains(rawLine, "{") {
-					context.braceDepth = braceDepth + max(1, strings.Count(rawLine, "{"))
-					stack = append(stack, context)
-				} else {
-					pendingType = &context
-				}
-			case "trait":
-				recordPHPDeadCodeType(deadCodeFacts, "trait_declaration", name, bases)
-				shared.AppendBucket(payload, "traits", item)
-				context := phpScopedContext{kind: "trait_declaration", name: name, lineNumber: lineNumber}
-				if strings.Contains(rawLine, "{") {
-					context.braceDepth = braceDepth + max(1, strings.Count(rawLine, "{"))
-					stack = append(stack, context)
-				} else {
-					pendingType = &context
-				}
-			}
-		}
-
-		if pendingTraitAdaptation != nil && braceDepth >= pendingTraitAdaptation.braceDepth {
-			if adaptations := parsePHPClassTraitAdaptations(trimmed); len(adaptations) > 0 {
-				appendPHPClassTraitAdaptations(payload, pendingTraitAdaptation.name, adaptations)
-			}
-		}
-
-		if matches := phpFunctionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			name := matches[1]
-			functionKind := "function_definition"
-			typeContextName, typeContextKind, _ := currentPHPTypeContext(stack)
-			if typeContextName != "" {
-				functionKind = "method_declaration"
-			}
-			returnType := extractPHPReturnType(lines, index, rawLine)
-			parameters := extractPHPParameters(lines, index, rawLine)
-			item := map[string]any{
-				"name":        name,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "php",
-				"decorators":  []string{},
-				"parameters":  parameters,
-			}
-			if typeContextName != "" {
-				item["class_context"] = typeContextName
-				if semanticKind := phpSemanticKindForMethod(name); semanticKind != "" {
-					item["semantic_kind"] = semanticKind
-				}
-				if returnType != "" {
-					if _, ok := methodReturnTypes[typeContextName]; !ok {
-						methodReturnTypes[typeContextName] = make(map[string]string)
-					}
-					methodReturnTypes[typeContextName][name] = returnType
-				}
-			} else if returnType != "" {
-				functionReturnTypes[name] = returnType
-			}
-			if returnType != "" {
-				item["return_type"] = returnType
-			}
-			recordPHPDeadCodeFunction(deadCodeFacts, name, typeContextName, typeContextKind, lineNumber, parameters, &routeAttributePending)
-			deadCodeFunctions = append(deadCodeFunctions, phpDeadCodeFunctionFact{
-				item:        item,
-				name:        name,
-				contextName: typeContextName,
-				contextKind: typeContextKind,
-				lineNumber:  lineNumber,
-				parameters:  parameters,
-				rawLine:     rawLine,
-			})
-			if options.IndexSource {
-				item["source"] = collectPHPBlockSource(lines, index)
-			}
-			shared.AppendBucket(payload, "functions", item)
-			if strings.Contains(rawLine, "{") {
-				stack = append(stack, phpScopedContext{kind: functionKind, name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")), lineNumber: lineNumber})
-			} else if !strings.Contains(rawLine, ";") {
-				pendingFunction = &phpScopedContext{kind: functionKind, name: name, lineNumber: lineNumber}
-			}
-		}
-
-		contextName, contextKind, contextLine := currentPHPContext(stack)
-		currentClassContext := currentPHPScopedName(stack, "class_declaration", "interface_declaration", "trait_declaration")
-		functionScopeKey := currentPHPFunctionScopeKey(stack)
-		if functionScopeKey != "" {
-			if _, ok := localVariableTypes[functionScopeKey]; !ok {
-				localVariableTypes[functionScopeKey] = make(map[string]string)
-			}
-		}
-
-		for _, variable := range phpVariablePattern.FindAllString(rawLine, -1) {
-			if variable == "$this" {
-				continue
-			}
-			variableType := inferPHPVariableType(
-				rawLine,
-				variable,
-				lineNumber,
-				currentClassContext,
-				classParentTypes,
-				classPropertyTypes,
-				localVariableTypes[functionScopeKey],
-				methodReturnTypes,
-				functionReturnTypes,
-				importAliases,
-			)
-			if contextKind == "class_declaration" {
-				if _, ok := classPropertyTypes[contextName]; !ok {
-					classPropertyTypes[contextName] = make(map[string]string)
-				}
-				classPropertyTypes[contextName][strings.TrimPrefix(variable, "$")] = variableType
-			}
-			if functionScopeKey != "" && variableType != "" && variableType != "mixed" {
-				localVariableTypes[functionScopeKey][strings.TrimPrefix(variable, "$")] = variableType
-			}
-			if _, ok := seenVariables[variable]; ok {
-				continue
-			}
-			seenVariables[variable] = struct{}{}
-			item := map[string]any{
-				"name":        variable,
-				"line_number": lineNumber,
-				"end_line":    lineNumber,
-				"lang":        "php",
-				"type":        variableType,
-			}
-			if contextName != "" {
-				item["context"] = contextName
-			}
-			switch contextKind {
-			case "class_declaration", "interface_declaration", "trait_declaration":
-				item["class_context"] = contextName
-			default:
-				item["class_context"] = nil
-			}
-			shared.AppendBucket(payload, "variables", item)
-		}
-
-		normalizedTrimmed := strings.ReplaceAll(trimmed, "?->", "->")
-		normalizedRawLine := strings.ReplaceAll(rawLine, "?->", "->")
-		for _, match := range phpStaticPropertyCallPattern.FindAllStringSubmatch(normalizedTrimmed, -1) {
-			if len(match) != 2 {
-				continue
-			}
-			callName := shared.LastPathSegment(match[1], "->")
-			fullName := normalizePHPMethodCall(match[1])
-			inferredObjType := inferPHPMethodReceiverType(
-				match[1],
-				currentClassContext,
-				classParentTypes,
-				classPropertyTypes,
-				localVariableTypes[functionScopeKey],
-				methodReturnTypes,
-				functionReturnTypes,
-				importAliases,
-			)
-			appendUniquePHPCall(payload, seenCalls, callName, fullName, lineNumber, extractPHPCallArgs(lines, index, normalizedRawLine, match[0]), contextName, contextKind, contextLine, inferredObjType)
-		}
-		for _, match := range phpMethodCallPattern.FindAllStringSubmatch(normalizedTrimmed, -1) {
-			if len(match) != 2 {
-				continue
-			}
-			callName := shared.LastPathSegment(match[1], "->")
-			fullName := normalizePHPMethodCall(match[1])
-			inferredObjType := inferPHPMethodReceiverType(
-				match[1],
-				currentClassContext,
-				classParentTypes,
-				classPropertyTypes,
-				localVariableTypes[functionScopeKey],
-				methodReturnTypes,
-				functionReturnTypes,
-				importAliases,
-			)
-			appendUniquePHPCall(payload, seenCalls, callName, fullName, lineNumber, extractPHPCallArgs(lines, index, normalizedRawLine, match[0]), contextName, contextKind, contextLine, inferredObjType)
-		}
-		for _, matchIndexes := range phpFunctionChainPattern.FindAllStringSubmatchIndex(normalizedTrimmed, -1) {
-			if len(matchIndexes) != 4 {
-				continue
-			}
-			matchStart := matchIndexes[2]
-			matchEnd := matchIndexes[3]
-			if hasPHPReceiverChainPrefix(normalizedTrimmed, matchStart) {
-				continue
-			}
-			match := normalizedTrimmed[matchStart:matchEnd]
-			callName := shared.LastPathSegment(match, "->")
-			fullName := normalizePHPMethodCall(match)
-			inferredObjType := inferPHPMethodReceiverType(
-				match,
-				currentClassContext,
-				classParentTypes,
-				classPropertyTypes,
-				localVariableTypes[functionScopeKey],
-				methodReturnTypes,
-				functionReturnTypes,
-				importAliases,
-			)
-			appendUniquePHPCall(payload, seenCalls, callName, fullName, lineNumber, extractPHPCallArgs(lines, index, normalizedRawLine, match), contextName, contextKind, contextLine, inferredObjType)
-		}
-		for _, match := range phpStaticCallPattern.FindAllStringSubmatch(trimmed, -1) {
-			if len(match) != 3 {
-				continue
-			}
-			receiver := normalizePHPStaticReceiver(match[1], currentClassContext, classParentTypes, importAliases)
-			if receiver == "" {
-				continue
-			}
-			methodName := strings.TrimSpace(match[2])
-			fullName := receiver + "." + methodName
-			appendUniquePHPCall(payload, seenCalls, methodName, fullName, lineNumber, extractPHPCallArgs(lines, index, rawLine, match[0]), contextName, contextKind, contextLine, receiver)
-		}
-		for _, match := range phpNewCallPattern.FindAllStringSubmatch(trimmed, -1) {
-			if len(match) != 2 {
-				continue
-			}
-			className := shared.LastPathSegment(match[1], `\`)
-			appendUniquePHPCall(payload, seenCalls, className, className, lineNumber, extractPHPCallArgs(lines, index, rawLine, match[0]), contextName, contextKind, contextLine, normalizePHPImportedTypeName(className, importAliases))
-		}
-		if !strings.Contains(trimmed, "->") && !strings.Contains(trimmed, "::") && !strings.Contains(trimmed, "new ") && !phpFunctionPattern.MatchString(trimmed) {
-			for _, match := range phpFunctionCallPattern.FindAllStringSubmatch(trimmed, -1) {
-				if len(match) != 2 {
-					continue
-				}
-				name := match[1]
-				switch name {
-				case "function", "if", "foreach", "for", "switch", "echo", "require_once":
-					continue
-				}
-				appendUniquePHPCall(payload, seenCalls, name, name, lineNumber, extractPHPCallArgs(lines, index, rawLine, match[0]), contextName, contextKind, contextLine, "")
-			}
-		}
-
-		if pendingAnonymousClass != nil {
-			stack = append(stack, *pendingAnonymousClass)
-			pendingAnonymousClass = nil
-		}
-
-		braceDepth += braceDelta(rawLine)
-		stack = popPHPCompletedScopes(stack, braceDepth)
-		if pendingTraitAdaptation != nil && braceDepth < pendingTraitAdaptation.braceDepth {
-			pendingTraitAdaptation = nil
-		}
+	state := &phpParseState{
+		payload:             payload,
+		source:              source,
+		indexSource:         options.IndexSource,
+		seenVariables:       make(map[string]struct{}),
+		seenCalls:           make(map[string]struct{}),
+		classPropertyTypes:  make(map[string]map[string]string),
+		classParentTypes:    make(map[string]string),
+		localVariableTypes:  make(map[string]map[string]string),
+		methodReturnTypes:   make(map[string]map[string]string),
+		functionReturnTypes: make(map[string]string),
+		importAliases:       make(map[string]string),
+		deadCodeFacts:       newPHPDeadCodeFacts(),
+		deadCodeFunctions:   make([]phpDeadCodeFunctionFact, 0),
 	}
 
-	for _, function := range deadCodeFunctions {
+	root := tree.RootNode()
+
+	// Phase 1: collect declarations, imports, type evidence, and dead-code
+	// facts so call and variable inference in phase 2 sees the whole file.
+	collectPHPDeclarations(state, root)
+
+	// Phase 2: emit variables and call rows that depend on the type evidence.
+	emitPHPVariablesAndCalls(state, root)
+
+	// Assign dead-code root kinds now that every interface, trait, route, and
+	// hook fact has been observed.
+	for _, function := range state.deadCodeFunctions {
 		rootKinds := phpDeadCodeRootKinds(
 			function.name,
 			function.contextName,
 			function.contextKind,
 			function.lineNumber,
 			function.parameters,
-			function.rawLine,
-			deadCodeFacts,
+			function.isPublic,
+			state.deadCodeFacts,
 		)
 		if len(rootKinds) > 0 {
 			function.item["dead_code_root_kinds"] = rootKinds
 		}
 	}
 
-	shared.SortNamedBucket(payload, "functions")
-	shared.SortNamedBucket(payload, "classes")
-	shared.SortNamedBucket(payload, "traits")
-	shared.SortNamedBucket(payload, "interfaces")
-	shared.SortNamedBucket(payload, "variables")
-	shared.SortNamedBucket(payload, "imports")
-	shared.SortNamedBucket(payload, "function_calls")
-
-	if namespace != "" {
+	if namespace := phpNamespaceName(root, source); namespace != "" {
 		payload["namespace"] = namespace
+	}
+
+	for _, bucket := range []string{
+		"functions", "classes", "traits", "interfaces", "variables", "imports", "function_calls",
+	} {
+		shared.SortNamedBucket(payload, bucket)
 	}
 
 	return payload, nil
 }
 
 // PreScan returns PHP function, class, trait, and interface names used by repository pre-scan.
-func PreScan(path string) ([]string, error) {
-	payload, err := Parse(path, false, shared.Options{})
+func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
+	payload, err := Parse(path, false, shared.Options{}, parser)
 	if err != nil {
 		return nil, err
 	}
 	names := shared.CollectBucketNames(payload, "functions", "classes", "traits", "interfaces")
 	slices.Sort(names)
 	return names, nil
+}
+
+// collectPHPDeclarations walks the AST once to populate declaration buckets,
+// import rows and aliases, property and return-type evidence, and dead-code
+// facts. Calls and free variables are emitted in a later pass.
+func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "namespace_use_declaration":
+			collectPHPImports(state, node)
+		case "class_declaration":
+			collectPHPClassDeclaration(state, node)
+		case "interface_declaration":
+			collectPHPInterfaceDeclaration(state, node)
+		case "trait_declaration":
+			collectPHPTraitDeclaration(state, node)
+		case "anonymous_class":
+			collectPHPAnonymousClass(state, node)
+		case "function_definition":
+			collectPHPFunction(state, node, "", "")
+		case "attribute":
+			observePHPAttribute(state, node)
+		case "function_call_expression":
+			observePHPWordPressHookCall(state, node)
+		case "array_creation_expression":
+			collectPHPLiteralRouteTarget(state, node)
+		}
+	})
+}
+
+// emitPHPVariablesAndCalls walks the AST a second time to emit property,
+// assignment, and parameter variable rows plus every call row with inferred
+// receiver types.
+func emitPHPVariablesAndCalls(state *phpParseState, root *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "variable_name":
+			emitPHPVariableName(state, node)
+		case "member_call_expression", "nullsafe_member_call_expression":
+			emitPHPMemberCall(state, node)
+		case "scoped_call_expression":
+			emitPHPScopedCall(state, node)
+		case "object_creation_expression":
+			emitPHPObjectCreation(state, node)
+		case "function_call_expression":
+			emitPHPFunctionCall(state, node)
+		}
+	})
+}
+
+func parseError(path string) error {
+	return &phpParseFailure{path: path}
+}
+
+type phpParseFailure struct{ path string }
+
+func (e *phpParseFailure) Error() string {
+	return "parse php file " + strconv.Quote(e.path) + ": parser returned nil tree"
+}
+
+// phpNamespaceName returns the first namespace name declared in the file, or
+// the empty string when the file declares no namespace.
+func phpNamespaceName(root *tree_sitter.Node, source []byte) string {
+	var name string
+	cursor := root.Walk()
+	defer cursor.Close()
+	for _, child := range root.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "namespace_definition" {
+			continue
+		}
+		nameNode := child.ChildByFieldName("name")
+		if nameNode == nil {
+			continue
+		}
+		name = strings.TrimSpace(shared.NodeText(nameNode, source))
+		break
+	}
+	return name
 }

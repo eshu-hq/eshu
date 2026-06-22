@@ -1,79 +1,8 @@
 package php
 
 import (
-	"regexp"
 	"strings"
 )
-
-var (
-	phpAssignmentPattern        = regexp.MustCompile(`^\s*(\$[A-Za-z_]\w*)\s*=\s*([^;]+)`)
-	phpReferenceVariablePattern = regexp.MustCompile(`^\$([A-Za-z_]\w*)`)
-	phpStaticPropertyPattern    = regexp.MustCompile(`^([A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*)::\$([A-Za-z_]\w*)$`)
-)
-
-func currentPHPFunctionScopeKey(stack []phpScopedContext) string {
-	contextName, contextKind, _ := currentPHPContext(stack)
-	if contextName == "" {
-		return ""
-	}
-	if contextKind != "function_definition" && contextKind != "method_declaration" {
-		return ""
-	}
-	classContext := currentPHPScopedName(stack, "class_declaration", "interface_declaration", "trait_declaration")
-	return classContext + "::" + contextName
-}
-
-func inferPHPVariableType(
-	rawLine string,
-	variable string,
-	lineNumber int,
-	classContext string,
-	classParentTypes map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	localVariableTypes map[string]string,
-	methodReturnTypes map[string]map[string]string,
-	functionReturnTypes map[string]string,
-	importAliases map[string]string,
-) string {
-	if matches := phpTypedVariablePattern.FindStringSubmatch(rawLine); len(matches) == 2 && strings.Contains(rawLine, variable) {
-		return normalizePHPImportedTypeName(matches[1], importAliases)
-	}
-	if matches := phpVariableTypePattern.FindStringSubmatch(rawLine); len(matches) == 2 {
-		return normalizePHPImportedTypeName(matches[1], importAliases)
-	}
-	if matches := phpAssignmentPattern.FindStringSubmatch(rawLine); len(matches) == 3 && matches[1] == variable {
-		if strings.Contains(matches[2], "new class") {
-			return phpAnonymousClassName(lineNumber)
-		}
-		if inferred := inferPHPReferenceType(matches[2], classContext, classParentTypes, classPropertyTypes, localVariableTypes, methodReturnTypes, functionReturnTypes, importAliases); inferred != "" {
-			return inferred
-		}
-		if inferred := inferPHPFunctionCallType(matches[2], functionReturnTypes, importAliases); inferred != "" {
-			return inferred
-		}
-	}
-	return "mixed"
-}
-
-func inferPHPMethodReceiverType(
-	raw string,
-	classContext string,
-	classParentTypes map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	localVariableTypes map[string]string,
-	methodReturnTypes map[string]map[string]string,
-	functionReturnTypes map[string]string,
-	importAliases map[string]string,
-) string {
-	trimmed := normalizePHPParenthesizedReceiverExpression(raw)
-	if trimmed == "" {
-		return ""
-	}
-	if index := strings.LastIndex(trimmed, "->"); index >= 0 {
-		trimmed = trimmed[:index]
-	}
-	return inferPHPReferenceType(trimmed, classContext, classParentTypes, classPropertyTypes, localVariableTypes, methodReturnTypes, functionReturnTypes, importAliases)
-}
 
 func inferPHPReferenceType(
 	raw string,
@@ -90,8 +19,8 @@ func inferPHPReferenceType(
 		return ""
 	}
 
-	if matches := phpNewCallPattern.FindStringSubmatch(trimmed); len(matches) == 2 && !strings.Contains(trimmed, "->") && !strings.Contains(trimmed, "::") {
-		normalized := normalizePHPImportedTypeName(matches[1], importAliases)
+	if newType := phpParseNewExpressionType(trimmed); newType != "" && !strings.Contains(trimmed, "->") && !strings.Contains(trimmed, "::") {
+		normalized := normalizePHPImportedTypeName(newType, importAliases)
 		switch normalized {
 		case "self", "static":
 			return classContext
@@ -130,11 +59,11 @@ func inferPHPReferenceType(
 		}
 		return resolvePHPReferenceChainType(classContext, segments[1:], classPropertyTypes, methodReturnTypes, functionReturnTypes, importAliases)
 	case strings.HasPrefix(root, "$"):
-		if matches := phpReferenceVariablePattern.FindStringSubmatch(root); len(matches) == 2 {
+		if bareName := phpVariableRootName(root); bareName != "" {
 			if localVariableTypes == nil {
 				return ""
 			}
-			rootType := strings.TrimSpace(localVariableTypes[matches[1]])
+			rootType := strings.TrimSpace(localVariableTypes[bareName])
 			if rootType == "" {
 				return ""
 			}
@@ -283,17 +212,17 @@ func resolvePHPStaticPropertyRootType(
 	classPropertyTypes map[string]map[string]string,
 	importAliases map[string]string,
 ) string {
-	matches := phpStaticPropertyPattern.FindStringSubmatch(strings.TrimSpace(raw))
-	if len(matches) != 3 {
+	ownerName, propertyName, ok := phpParseStaticProperty(strings.TrimSpace(raw))
+	if !ok {
 		return ""
 	}
 
-	ownerType := normalizePHPStaticReceiver(matches[1], classContext, classParentTypes, importAliases)
+	ownerType := normalizePHPStaticReceiver(ownerName, classContext, classParentTypes, importAliases)
 	if ownerType == "" {
 		return ""
 	}
 
-	propertyType := lookupPHPClassPropertyType(ownerType, matches[2], classParentTypes, classPropertyTypes)
+	propertyType := lookupPHPClassPropertyType(ownerType, propertyName, classParentTypes, classPropertyTypes)
 	if propertyType == "" {
 		return ""
 	}

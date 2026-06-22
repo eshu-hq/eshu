@@ -4,489 +4,246 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-type phpImportSpec struct {
-	name       string
-	alias      string
-	importType string
+// phpClassBases returns extends and implements base names for a class or
+// anonymous class declaration in source order.
+func phpClassBases(node *tree_sitter.Node, source []byte) []string {
+	var bases []string
+	bases = append(bases, phpBaseClauseNames(node, source)...)
+	bases = append(bases, phpInterfaceClauseNames(node, source)...)
+	bases = append(bases, phpTraitUseNames(node, source)...)
+	return dedupePHPNonEmptyStrings(bases)
 }
 
-func braceDelta(line string) int {
-	delta := 0
-	for _, r := range line {
-		switch r {
-		case '{':
-			delta++
-		case '}':
-			delta--
-		}
+// phpInterfaceBases returns the extends base names for an interface declaration.
+func phpInterfaceBases(node *tree_sitter.Node, source []byte) []string {
+	return dedupePHPNonEmptyStrings(phpBaseClauseNames(node, source))
+}
+
+// phpClassExtendsBase returns the first extends base name for a class so the
+// parser can resolve self/parent receiver chains.
+func phpClassExtendsBase(node *tree_sitter.Node, source []byte) string {
+	names := phpBaseClauseNames(node, source)
+	if len(names) == 0 {
+		return ""
 	}
-	return delta
+	return names[0]
 }
 
-func parsePHPImports(raw string) []phpImportSpec {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+func phpBaseClauseNames(node *tree_sitter.Node, source []byte) []string {
+	return phpNamesUnderChild(node, "base_clause", source)
+}
+
+func phpInterfaceClauseNames(node *tree_sitter.Node, source []byte) []string {
+	return phpNamesUnderChild(node, "class_interface_clause", source)
+}
+
+// phpTraitUseNames returns the trait names imported by `use Trait;` statements
+// inside a class or anonymous class declaration list.
+func phpTraitUseNames(node *tree_sitter.Node, source []byte) []string {
+	list := phpDeclarationList(node)
+	if list == nil {
 		return nil
 	}
-
-	prefixKeyword := ""
-	for _, keyword := range []string{"function ", "const "} {
-		if strings.HasPrefix(strings.ToLower(trimmed), keyword) {
-			prefixKeyword = strings.TrimSpace(keyword)
-			trimmed = strings.TrimSpace(trimmed[len(keyword):])
-			break
-		}
-	}
-	importType := "use"
-	if prefixKeyword != "" {
-		importType = prefixKeyword
-	}
-
-	openBrace := strings.Index(trimmed, "{")
-	closeBrace := strings.LastIndex(trimmed, "}")
-	if openBrace < 0 || closeBrace <= openBrace {
-		name, alias := parsePHPSingleImport(trimmed, prefixKeyword)
-		if name == "" {
-			return nil
-		}
-		return []phpImportSpec{{name: name, alias: alias, importType: importType}}
-	}
-
-	prefix := strings.TrimSpace(trimmed[:openBrace])
-	prefix = strings.TrimSuffix(prefix, `\`)
-	body := trimmed[openBrace+1 : closeBrace]
-	clauses := splitPHPCommaSeparated(body)
-	imports := make([]phpImportSpec, 0, len(clauses))
-	for _, clause := range clauses {
-		clause = strings.TrimSpace(clause)
-		if clause == "" {
+	var names []string
+	cursor := list.Walk()
+	defer cursor.Close()
+	for _, member := range list.NamedChildren(cursor) {
+		member := member
+		if member.Kind() != "use_declaration" {
 			continue
 		}
-		name, alias := parsePHPSingleImport(prefix+`\`+clause, prefixKeyword)
-		if name == "" {
-			continue
-		}
-		imports = append(imports, phpImportSpec{name: name, alias: alias, importType: importType})
+		names = append(names, phpDirectNameChildren(&member, source)...)
 	}
-	return imports
+	return names
 }
 
+// phpNamesUnderChild returns last-segment names of every `name` or
+// `qualified_name` node directly under the first child of the given kind.
+func phpNamesUnderChild(node *tree_sitter.Node, childKind string, source []byte) []string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != childKind {
+			continue
+		}
+		return phpTypeReferenceNames(&child, source)
+	}
+	return nil
+}
+
+// phpTypeReferenceNames returns last-segment names for the `name` and
+// `qualified_name` children of a clause node.
+func phpTypeReferenceNames(node *tree_sitter.Node, source []byte) []string {
+	var names []string
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "name", "qualified_name":
+			if name := shared.LastPathSegment(shared.NodeText(&child, source), `\`); name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
+}
+
+// phpDirectNameChildren returns last-segment names for direct `name` and
+// `qualified_name` children, stopping before nested groups such as use_list.
+func phpDirectNameChildren(node *tree_sitter.Node, source []byte) []string {
+	var names []string
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "name", "qualified_name":
+			if name := shared.LastPathSegment(shared.NodeText(&child, source), `\`); name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
+}
+
+// phpMemberTypeNode returns the declared type node for a property or parameter
+// declaration, skipping modifiers and variable names.
+func phpMemberTypeNode(node *tree_sitter.Node) *tree_sitter.Node {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "primitive_type", "named_type", "optional_type", "union_type", "intersection_type", "bottom_type":
+			return shared.CloneNode(&child)
+		}
+	}
+	return nil
+}
+
+// phpTypeNodeName returns the normalized type name for a type node, joining
+// union members with `|` and resolving nullable and named types.
+func phpTypeNodeName(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	return normalizePHPTypeName(shared.NodeText(node, source))
+}
+
+// phpFunctionReturnType returns the normalized declared return type for a
+// function or method declaration, or the empty string when none is declared.
+func phpFunctionReturnType(node *tree_sitter.Node, source []byte) string {
+	params := phpFormalParameters(node)
+	if params == nil {
+		return ""
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	seenParams := false
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() == "formal_parameters" {
+			seenParams = true
+			continue
+		}
+		if !seenParams {
+			continue
+		}
+		switch child.Kind() {
+		case "primitive_type", "named_type", "optional_type", "union_type", "intersection_type", "bottom_type":
+			return normalizePHPTypeName(shared.NodeText(&child, source))
+		case "compound_statement":
+			return ""
+		}
+	}
+	return ""
+}
+
+// phpFunctionParameterNames returns the `$name` tokens for each declared
+// parameter in source order.
+func phpFunctionParameterNames(node *tree_sitter.Node, source []byte) []string {
+	params := phpFormalParameters(node)
+	if params == nil {
+		return []string{}
+	}
+	names := make([]string, 0)
+	cursor := params.Walk()
+	defer cursor.Close()
+	for _, param := range params.NamedChildren(cursor) {
+		param := param
+		switch param.Kind() {
+		case "simple_parameter", "variadic_parameter", "property_promotion_parameter":
+		default:
+			continue
+		}
+		if variable := phpParameterVariableName(&param, source); variable != "" {
+			names = append(names, "$"+variable)
+		}
+	}
+	return names
+}
+
+// phpParameterVariableName returns the bare parameter name without the leading
+// dollar sign.
+func phpParameterVariableName(node *tree_sitter.Node, source []byte) string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() == "variable_name" {
+			return strings.TrimPrefix(strings.TrimSpace(shared.NodeText(&child, source)), "$")
+		}
+	}
+	return ""
+}
+
+// phpPropertyElementName returns the bare property name for a property_element.
+func phpPropertyElementName(node *tree_sitter.Node, source []byte) string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() == "variable_name" {
+			return strings.TrimPrefix(strings.TrimSpace(shared.NodeText(&child, source)), "$")
+		}
+	}
+	return ""
+}
+
+// phpMethodIsPublic reports whether a method declaration is public, treating an
+// absent visibility modifier as public per PHP semantics.
+func phpMethodIsPublic(node *tree_sitter.Node, source []byte) bool {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "visibility_modifier" {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(shared.NodeText(&child, source))) {
+		case "private", "protected":
+			return false
+		}
+	}
+	return true
+}
+
+// phpFunctionScopeKey returns the local variable scope key for a function or
+// method declaration. Free functions use an empty class context.
+func phpFunctionScopeKey(typeName string, functionName string) string {
+	return typeName + "::" + functionName
+}
+
+// phpSemanticKindForMethod classifies a method name as a magic method when it
+// uses the PHP double-underscore convention.
 func phpSemanticKindForMethod(name string) string {
 	if strings.HasPrefix(name, "__") {
 		return "magic_method"
 	}
 	return ""
-}
-
-func parsePHPSingleImport(raw string, prefixKeyword string) (string, string) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return "", ""
-	}
-	parts := strings.Fields(trimmed)
-	if len(parts) == 0 {
-		return "", ""
-	}
-	name := strings.TrimSpace(parts[0])
-	if prefixKeyword != "" {
-		name = strings.TrimSpace(prefixKeyword + " " + name)
-	}
-	alias := ""
-	if len(parts) >= 3 && strings.EqualFold(parts[1], "as") {
-		alias = strings.TrimSpace(parts[2])
-	}
-	if prefixKeyword != "" {
-		name = strings.TrimSpace(strings.TrimPrefix(name, prefixKeyword+" "))
-	}
-	return name, alias
-}
-
-func splitPHPCommaSeparated(raw string) []string {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	parts := make([]string, 0, 4)
-	var current strings.Builder
-	parenDepth := 0
-	bracketDepth := 0
-	braceDepth := 0
-	var quote rune
-	escaped := false
-	for _, r := range raw {
-		if quote != 0 {
-			current.WriteRune(r)
-			if escaped {
-				escaped = false
-				continue
-			}
-			if r == '\\' {
-				escaped = true
-				continue
-			}
-			if r == quote {
-				quote = 0
-			}
-			continue
-		}
-		switch r {
-		case '\'', '"', '`':
-			quote = r
-			current.WriteRune(r)
-		case '(':
-			parenDepth++
-			current.WriteRune(r)
-		case ')':
-			if parenDepth > 0 {
-				parenDepth--
-			}
-			current.WriteRune(r)
-		case '[':
-			bracketDepth++
-			current.WriteRune(r)
-		case ']':
-			if bracketDepth > 0 {
-				bracketDepth--
-			}
-			current.WriteRune(r)
-		case '{':
-			braceDepth++
-			current.WriteRune(r)
-		case '}':
-			if braceDepth > 0 {
-				braceDepth--
-			}
-			current.WriteRune(r)
-		case ',':
-			if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
-				parts = append(parts, strings.TrimSpace(current.String()))
-				current.Reset()
-				continue
-			}
-			current.WriteRune(r)
-		default:
-			current.WriteRune(r)
-		}
-	}
-	if tail := strings.TrimSpace(current.String()); tail != "" {
-		parts = append(parts, tail)
-	}
-	return parts
-}
-
-func parsePHPBases(kind string, tail string) []string {
-	remaining := strings.TrimSpace(tail)
-	if remaining == "" {
-		return nil
-	}
-
-	remaining = strings.TrimSpace(strings.TrimSuffix(remaining, "{"))
-	if remaining == "" {
-		return nil
-	}
-
-	var rawBases string
-	switch kind {
-	case "class":
-		if index := strings.Index(remaining, "extends"); index >= 0 {
-			afterExtends := strings.TrimSpace(remaining[index+len("extends"):])
-			if split := strings.Index(afterExtends, "implements"); split >= 0 {
-				extendsBases := appendPHPBaseList(strings.TrimSpace(afterExtends[:split]))
-				implementsBases := appendPHPBaseList(strings.TrimSpace(afterExtends[split+len("implements"):]))
-				return append(extendsBases, implementsBases...)
-			}
-			rawBases = afterExtends
-		}
-		if index := strings.Index(remaining, "implements"); index >= 0 {
-			rawBases = strings.TrimSpace(remaining[index+len("implements"):])
-		}
-	case "interface":
-		if index := strings.Index(remaining, "extends"); index >= 0 {
-			rawBases = strings.TrimSpace(remaining[index+len("extends"):])
-		}
-	}
-
-	if rawBases == "" {
-		return nil
-	}
-	return appendPHPBaseList(rawBases)
-}
-
-func appendPHPBaseList(raw string) []string {
-	segments := strings.Split(raw, ",")
-	bases := make([]string, 0, len(segments))
-	for _, segment := range segments {
-		trimmed := strings.TrimSpace(segment)
-		if trimmed == "" {
-			continue
-		}
-		bases = append(bases, shared.LastPathSegment(trimmed, `\`))
-	}
-	return bases
-}
-
-func parsePHPClassTraitUses(raw string) []string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" || !strings.HasPrefix(trimmed, "use ") {
-		return nil
-	}
-	body := strings.TrimSpace(trimmed[len("use "):])
-	if body == "" {
-		return nil
-	}
-	if braceIndex := strings.Index(body, "{"); braceIndex >= 0 {
-		body = strings.TrimSpace(body[:braceIndex])
-	}
-	if semicolonIndex := strings.Index(body, ";"); semicolonIndex >= 0 {
-		body = strings.TrimSpace(body[:semicolonIndex])
-	}
-	if body == "" {
-		return nil
-	}
-	if body == "" {
-		return nil
-	}
-	segments := strings.Split(body, ",")
-	traits := make([]string, 0, len(segments))
-	for _, segment := range segments {
-		trait := strings.TrimSpace(segment)
-		if trait == "" {
-			continue
-		}
-		traits = append(traits, shared.LastPathSegment(trait, `\`))
-	}
-	return dedupePHPNonEmptyStrings(traits)
-}
-
-func appendPHPClassBases(payload map[string]any, className string, additionalBases []string) {
-	if className == "" || len(additionalBases) == 0 {
-		return
-	}
-	items, _ := payload["classes"].([]map[string]any)
-	for _, item := range items {
-		name, _ := item["name"].(string)
-		if name != className {
-			continue
-		}
-		existing, _ := item["bases"].([]string)
-		merged := dedupePHPNonEmptyStrings(append(existing, additionalBases...))
-		if len(merged) > 0 {
-			item["bases"] = merged
-		}
-		return
-	}
-}
-
-func collectPHPBlockSource(lines []string, startIndex int) string {
-	if startIndex < 0 || startIndex >= len(lines) {
-		return ""
-	}
-
-	var builder strings.Builder
-	depth := 0
-	sawOpenBrace := false
-	for index := startIndex; index < len(lines); index++ {
-		if index > startIndex {
-			builder.WriteString("\n")
-		}
-		builder.WriteString(lines[index])
-		if strings.Contains(lines[index], "{") {
-			sawOpenBrace = true
-		}
-		depth += braceDelta(lines[index])
-		if sawOpenBrace && depth <= 0 {
-			break
-		}
-	}
-	return builder.String()
-}
-
-func currentPHPContext(stack []phpScopedContext) (string, string, int) {
-	for index := len(stack) - 1; index >= 0; index-- {
-		switch stack[index].kind {
-		case "function_definition", "method_declaration", "class_declaration", "interface_declaration", "trait_declaration":
-			return stack[index].name, stack[index].kind, stack[index].lineNumber
-		}
-	}
-	return "", "", 0
-}
-
-func extractPHPCallArgs(lines []string, startIndex int, rawLine string, callText string) []string {
-	start := strings.Index(rawLine, callText)
-	if start < 0 {
-		return nil
-	}
-	remainder := rawLine[start+len(callText):]
-	if startIndex+1 < len(lines) {
-		remainder += "\n" + strings.Join(lines[startIndex+1:], "\n")
-	}
-	rawArgs, ok := collectPHPCallArgumentSource(remainder)
-	if !ok {
-		return nil
-	}
-	rawArgs = strings.TrimSpace(rawArgs)
-	if rawArgs == "" {
-		return []string{}
-	}
-	return splitPHPCallArguments(rawArgs)
-}
-
-func collectPHPCallArgumentSource(raw string) (string, bool) {
-	if raw == "" {
-		return "", false
-	}
-
-	depth := 1
-	inSingleQuote := false
-	inDoubleQuote := false
-	escaped := false
-	var builder strings.Builder
-
-	for index := 0; index < len(raw); index++ {
-		ch := raw[index]
-		if escaped {
-			builder.WriteByte(ch)
-			escaped = false
-			continue
-		}
-		if inSingleQuote {
-			builder.WriteByte(ch)
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == '\'' {
-				inSingleQuote = false
-			}
-			continue
-		}
-		if inDoubleQuote {
-			builder.WriteByte(ch)
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == '"' {
-				inDoubleQuote = false
-			}
-			continue
-		}
-
-		switch ch {
-		case '\'':
-			inSingleQuote = true
-			builder.WriteByte(ch)
-		case '"':
-			inDoubleQuote = true
-			builder.WriteByte(ch)
-		case '(':
-			depth++
-			builder.WriteByte(ch)
-		case ')':
-			depth--
-			if depth == 0 {
-				return builder.String(), true
-			}
-			builder.WriteByte(ch)
-		default:
-			builder.WriteByte(ch)
-		}
-	}
-
-	return "", false
-}
-
-func splitPHPCallArguments(raw string) []string {
-	args := make([]string, 0)
-	var current strings.Builder
-	parenDepth := 0
-	bracketDepth := 0
-	braceDepth := 0
-	inSingleQuote := false
-	inDoubleQuote := false
-	escaped := false
-
-	flush := func() {
-		trimmed := strings.TrimSpace(current.String())
-		if trimmed != "" {
-			args = append(args, trimmed)
-		}
-		current.Reset()
-	}
-
-	for index := 0; index < len(raw); index++ {
-		ch := raw[index]
-		if escaped {
-			current.WriteByte(ch)
-			escaped = false
-			continue
-		}
-		if inSingleQuote {
-			current.WriteByte(ch)
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == '\'' {
-				inSingleQuote = false
-			}
-			continue
-		}
-		if inDoubleQuote {
-			current.WriteByte(ch)
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == '"' {
-				inDoubleQuote = false
-			}
-			continue
-		}
-
-		switch ch {
-		case '\'':
-			inSingleQuote = true
-			current.WriteByte(ch)
-		case '"':
-			inDoubleQuote = true
-			current.WriteByte(ch)
-		case '(':
-			parenDepth++
-			current.WriteByte(ch)
-		case ')':
-			if parenDepth > 0 {
-				parenDepth--
-			}
-			current.WriteByte(ch)
-		case '[':
-			bracketDepth++
-			current.WriteByte(ch)
-		case ']':
-			if bracketDepth > 0 {
-				bracketDepth--
-			}
-			current.WriteByte(ch)
-		case '{':
-			braceDepth++
-			current.WriteByte(ch)
-		case '}':
-			if braceDepth > 0 {
-				braceDepth--
-			}
-			current.WriteByte(ch)
-		case ',':
-			if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
-				flush()
-				continue
-			}
-			current.WriteByte(ch)
-		default:
-			current.WriteByte(ch)
-		}
-	}
-
-	flush()
-	return args
 }

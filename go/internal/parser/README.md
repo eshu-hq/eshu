@@ -311,7 +311,7 @@ parser path.
 | Kotlin | `kotlin` | `.kt` | yes |
 | NuGet project | `nuget_project` | `.csproj` | — |
 | Perl | `perl` | `.pl`, `.pm` | — |
-| PHP | `php` | `.php` | — |
+| PHP | `php` | `.php` | yes |
 | Python | `python` | `.ipynb`, `.py`, `.pyw` | yes |
 | Raw text | `raw_text` | `.cnf`, `.cfg`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tpl`, `.tftpl` | — |
 | Ruby | `ruby` | `.rb`, `Gemfile`, `Gemfile.lock` | — |
@@ -413,8 +413,8 @@ branch kinds.
 | C# | AST walk (`csharp.cyclomaticComplexity`) | real |
 | Rust | AST walk (`rust.cyclomaticComplexity`) | real |
 | Scala | AST walk (`scala.cyclomaticComplexity`) | real |
-| Ruby, PHP, Elixir, Swift, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
-| Kotlin | AST adapter, but no `BranchNodeSet` wired yet — emits no `cyclomatic_complexity` field | pending |
+| Ruby, Elixir, Swift, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
+| Kotlin, PHP | AST adapter, but function body not yet routed through a `BranchNodeSet` — emits no `cyclomatic_complexity` field | pending |
 | JSON (`scripts`) | constant `1` | not source code (npm script strings) |
 | SCIP definitions | `0` (unknown) | SCIP carries no statement AST; native parse supplies the real value |
 
@@ -432,8 +432,18 @@ site.
 ## Dependencies
 
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
-- Tree-sitter grammar bindings: C, C#, C++, Elixir, Go, Haskell, Java, JavaScript, Kotlin, Python, Rust, Scala, TypeScript
+- Tree-sitter grammar bindings: C, C#, C++, Elixir, Go, Haskell, Java, JavaScript, Kotlin, PHP, Python, Rust, Scala, TypeScript
 - Elixir grammar packaging replaces `github.com/tree-sitter/tree-sitter-elixir` with the official `github.com/elixir-lang/tree-sitter-elixir v0.3.5` tag.
+- PHP grammar packaging uses the official
+  `github.com/tree-sitter/tree-sitter-php v0.24.2` module via its
+  `bindings/go` `LanguagePHP` loader. Refresh by running
+  `go get github.com/tree-sitter/tree-sitter-php@<version>` from `go/`, then
+  `go test ./internal/parser -run TestDefaultEngineParsePathPHP -count=1`.
+  No-Regression Evidence: the parent PHP parity tests and the
+  `TestDefaultEngineParsePathPHPFixtures` golden gate pass unchanged after the
+  line-scanner-to-AST migration; this adds one lazy grammar loader without
+  changing existing cache keys. No-Observability-Change: no metric, span, log,
+  status, env var, queue, graph query, or runtime knob changes.
 - Kotlin grammar packaging uses
   `github.com/tree-sitter-grammars/tree-sitter-kotlin v1.1.0`, an MIT-licensed
   module with generated `bindings/go` sources and checked-in `src/parser.c` and
