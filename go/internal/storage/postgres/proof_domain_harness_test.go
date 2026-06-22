@@ -244,6 +244,11 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		// branch because the per-scope LATERAL aggregate (issue #3375) selects
 		// FROM fact_records inside its subquery.
 		return newProofRows(nil), nil
+	case strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'"):
+		// The repository catalog now loads through the store's base connection
+		// (issue #3481 shared cache) instead of the per-commit transaction, so
+		// the outer harness connection must serve the catalog read too.
+		return newProofRows(proofRepositoryCatalogRows(db.state.facts)), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))

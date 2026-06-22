@@ -149,8 +149,14 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.queries), 1; got != want {
+	// Two base-connection queries: the active-generation freshness check, then
+	// the shared repository catalog load (issue #3481 moved the catalog read off
+	// the per-commit transaction onto the cached base connection).
+	if got, want := len(db.queries), 2; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.queries[1].query, "fact_kind = 'repository'") {
+		t.Fatalf("second base query = %q, want repository catalog load", db.queries[1].query)
 	}
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
