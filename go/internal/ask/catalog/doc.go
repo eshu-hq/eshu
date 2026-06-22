@@ -4,19 +4,20 @@
 // The catalog spine is the canonical surface inventory artifact
 // (go/internal/capabilitycatalog/data/surface-inventory.generated.json), which
 // is generated and drift-gated on every surface change. The catalog parses that
-// inventory, keeps only implemented read-only api_route and mcp_tool surfaces,
-// excludes curated mutating admin/recovery routes, and joins a curated
+// inventory, keeps only implemented api_route and mcp_tool retrieval surfaces,
+// excludes curated non-retrieval control surfaces, and joins a curated
 // annotation overlay that records each surface's backend (NornicDB, Postgres,
-// both, or the embedded inventory) and a coarse cost class. The backend and cost
-// signals let the Ask Eshu planner prefer the cheapest correct retrieval path.
+// both, or the embedded inventory) and a coarse cost class. The backend and
+// cost signals let the Ask Eshu planner prefer the cheapest correct retrieval
+// path.
 //
 // Backend and cost are NOT carried by the surface inventory; they are a curated
 // overlay in this package. Some read-only routes use POST for structured query
-// bodies; those remain catalog entries, while side-effecting admin surfaces are
-// excluded through the mutating-route list. A coverage check (Catalog.Unannotated)
-// reports any implemented read surface that lacks an annotation, and
-// mutating-route tests ensure side-effecting admin surfaces are explicitly
-// accounted for instead of silently vanishing. The package is pure: it reads the
-// embedded artifact only and never queries Postgres, a graph backend, or live
-// runtime state.
+// bodies; those remain catalog entries, while admin/auth/session control routes
+// are excluded through planner_exclusions.go. A coverage check
+// (Catalog.Unannotated) reports any implemented retrieval surface that lacks an
+// annotation, and planner-exclusion tests ensure non-retrieval surfaces are
+// explicitly accounted for instead of silently vanishing. The package is pure:
+// it reads the embedded artifact only and never queries Postgres, a graph
+// backend, or live runtime state.
 package catalog

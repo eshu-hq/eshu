@@ -2,7 +2,10 @@ package query
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -35,7 +38,23 @@ const (
 	AuthModeShared AuthMode = "shared"
 	// AuthModeScoped identifies a token resolved through the scoped registry.
 	AuthModeScoped AuthMode = "scoped"
+	// AuthModeBrowserSession identifies a server-managed dashboard session.
+	AuthModeBrowserSession AuthMode = "browser_session"
 )
+
+const (
+	// BrowserSessionCookieName is the host-scoped HttpOnly dashboard session cookie.
+	BrowserSessionCookieName = "__Host-eshu_session"
+	// BrowserSessionCSRFCookieName is the readable host-scoped CSRF cookie.
+	BrowserSessionCSRFCookieName = "__Host-eshu_csrf"
+	// BrowserSessionCSRFHeaderName is required on unsafe dashboard session requests.
+	BrowserSessionCSRFHeaderName = "X-Eshu-CSRF"
+)
+
+// ErrBrowserSessionCSRFInvalid identifies a failed CSRF proof for a browser
+// session. It lets middleware return 403 instead of treating the caller as
+// unauthenticated when a session exists but the request is unsafe.
+var ErrBrowserSessionCSRFInvalid = errors.New("browser session csrf token invalid")
 
 // AuthContext carries request-scoped authorization bounds for query handlers.
 type AuthContext struct {
@@ -54,6 +73,19 @@ type AuthContext struct {
 // context without exposing raw token values to handlers.
 type ScopedTokenResolver interface {
 	ResolveScopedToken(context.Context, string) (AuthContext, bool, error)
+}
+
+// BrowserSessionResolver resolves a session-cookie credential into an auth
+// context using only server-side hashes. Raw session and CSRF values are hashed
+// by middleware before this interface is called.
+type BrowserSessionResolver interface {
+	ResolveBrowserSession(
+		context.Context,
+		string,
+		string,
+		bool,
+		time.Time,
+	) (AuthContext, bool, error)
 }
 
 // GovernanceAuditAppender records validation-safe governance audit events.
@@ -84,7 +116,7 @@ func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Conte
 //
 // Returns 401 Unauthorized with a JSON error body if authentication fails.
 func AuthMiddleware(token string, next http.Handler) http.Handler {
-	return authMiddleware(token, nil, next, nil)
+	return authMiddleware(token, nil, nil, next, nil)
 }
 
 // AuthMiddlewareWithGovernanceAudit wraps an HTTP handler with bearer token
@@ -95,7 +127,7 @@ func AuthMiddlewareWithGovernanceAudit(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
-	return authMiddleware(token, nil, next, audit)
+	return authMiddleware(token, nil, nil, next, audit)
 }
 
 // AuthMiddlewareWithScopedTokens wraps an HTTP handler with shared-token
@@ -105,7 +137,31 @@ func AuthMiddlewareWithScopedTokens(
 	resolver ScopedTokenResolver,
 	next http.Handler,
 ) http.Handler {
-	return authMiddleware(token, resolver, next, nil)
+	return authMiddleware(token, resolver, nil, next, nil)
+}
+
+// AuthMiddlewareWithBrowserSessionsAndScopedTokens wraps an HTTP handler with
+// shared-token, scoped-token, and server-managed browser-session authentication.
+func AuthMiddlewareWithBrowserSessionsAndScopedTokens(
+	token string,
+	resolver ScopedTokenResolver,
+	sessionResolver BrowserSessionResolver,
+	next http.Handler,
+) http.Handler {
+	return authMiddleware(token, resolver, sessionResolver, next, nil)
+}
+
+// AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit wraps an HTTP
+// handler with shared-token compatibility, scoped-token resolution, browser
+// session-cookie resolution, and denied read-authorization audit events.
+func AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit(
+	token string,
+	resolver ScopedTokenResolver,
+	sessionResolver BrowserSessionResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+) http.Handler {
+	return authMiddleware(token, resolver, sessionResolver, next, audit)
 }
 
 // AuthMiddlewareWithScopedTokensAndGovernanceAudit wraps an HTTP handler with
@@ -119,22 +175,17 @@ func AuthMiddlewareWithScopedTokensAndGovernanceAudit(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
-	return authMiddleware(token, resolver, next, audit)
+	return authMiddleware(token, resolver, nil, next, audit)
 }
 
 func authMiddleware(
 	token string,
 	resolver ScopedTokenResolver,
+	sessionResolver BrowserSessionResolver,
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Dev mode: skip auth when token is empty.
-		if token == "" && resolver == nil {
-			next.ServeHTTP(w, r)
-			return
-		}
-
 		// Public paths: skip auth.
 		if publicHTTPPaths[r.URL.Path] {
 			next.ServeHTTP(w, r)
@@ -142,6 +193,18 @@ func authMiddleware(
 		}
 
 		authorization := r.Header.Get("Authorization")
+		if strings.TrimSpace(authorization) == "" {
+			if sessionResolver != nil {
+				if tryBrowserSessionAuth(w, r, sessionResolver, next, audit) {
+					return
+				}
+			}
+			if token == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
 		scheme, credentials, found := strings.Cut(authorization, " ")
 		if !found || strings.ToLower(strings.TrimSpace(scheme)) != "bearer" {
 			recordReadAuthorizationDenied(r, audit)
@@ -183,6 +246,72 @@ func authMiddleware(
 
 		next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), sharedAuthContext())))
 	})
+}
+
+func tryBrowserSessionAuth(
+	w http.ResponseWriter,
+	r *http.Request,
+	resolver BrowserSessionResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+) bool {
+	sessionCookie, err := r.Cookie(BrowserSessionCookieName)
+	if err != nil || strings.TrimSpace(sessionCookie.Value) == "" {
+		return false
+	}
+	requireCSRF := browserSessionRequiresCSRF(r.Method)
+	csrfToken := strings.TrimSpace(r.Header.Get(BrowserSessionCSRFHeaderName))
+	if requireCSRF && csrfToken == "" {
+		recordReadAuthorizationDenied(r, audit)
+		csrfDeniedResponse(w, r)
+		return true
+	}
+	auth, ok, err := resolver.ResolveBrowserSession(
+		r.Context(),
+		BrowserSessionSecretHash(sessionCookie.Value),
+		BrowserSessionSecretHash(csrfToken),
+		requireCSRF,
+		time.Now().UTC(),
+	)
+	if errors.Is(err, ErrBrowserSessionCSRFInvalid) {
+		recordReadAuthorizationDenied(r, audit)
+		csrfDeniedResponse(w, r)
+		return true
+	}
+	if err != nil || !ok {
+		recordReadAuthorizationDenied(r, audit)
+		unauthorizedResponse(w, r)
+		return true
+	}
+	auth = normalizeBrowserSessionAuthContext(auth)
+	if auth.Mode == AuthModeBrowserSession && !scopedHTTPRouteSupportsTenantFilter(r) {
+		recordScopedRouteAuthorizationDenied(r, audit, auth)
+		scopedRouteDeniedResponse(w, r)
+		return true
+	}
+	next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
+	return true
+}
+
+func browserSessionRequiresCSRF(method string) bool {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
+		return false
+	default:
+		return true
+	}
+}
+
+// BrowserSessionSecretHash returns the durable hash for a session or CSRF
+// secret. It returns an empty string for blank input so missing CSRF headers
+// cannot hash into a meaningful value.
+func BrowserSessionSecretHash(secret string) string {
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(secret))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func recordReadAuthorizationDenied(r *http.Request, audit GovernanceAuditAppender) {
@@ -243,6 +372,14 @@ func safeAuditCorrelationID(value string) string {
 		}
 	}
 	return value
+}
+
+func normalizeBrowserSessionAuthContext(auth AuthContext) AuthContext {
+	auth = normalizeAuthContext(auth)
+	if auth.Mode == AuthModeScoped {
+		auth.Mode = AuthModeBrowserSession
+	}
+	return auth
 }
 
 func sharedAuthContext() AuthContext {
@@ -309,6 +446,23 @@ func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
 
 func scopedRouteDeniedResponse(w http.ResponseWriter, r *http.Request) {
 	const message = "scoped authorization is not yet enabled for this route"
+	if acceptsEnvelope(r) {
+		WriteJSON(w, http.StatusForbidden, ResponseEnvelope{Error: &ErrorEnvelope{
+			Code:          ErrorCodePermissionDenied,
+			Message:       message,
+			CorrelationID: documentationCorrelationID(r),
+		}})
+		return
+	}
+	WriteJSON(w, http.StatusForbidden, map[string]string{
+		"error_code":     string(ErrorCodePermissionDenied),
+		"message":        message,
+		"correlation_id": documentationCorrelationID(r),
+	})
+}
+
+func csrfDeniedResponse(w http.ResponseWriter, r *http.Request) {
+	const message = "csrf token is required for browser session requests"
 	if acceptsEnvelope(r) {
 		WriteJSON(w, http.StatusForbidden, ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:          ErrorCodePermissionDenied,

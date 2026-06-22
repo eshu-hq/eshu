@@ -197,6 +197,11 @@
 // control plane. It stores bearer-token digests, scoped subject hashes, expiry,
 // revocation, and policy revision hashes while relying on the tenant/workspace
 // tables for active boundary checks.
+// BrowserSessionStore adds server-managed dashboard session persistence for the
+// API console. It stores only session and CSRF digests, copies the active
+// workspace policy revision when a scoped-token registry entry omits optional
+// audit metadata, and rejects resolution if the tenant, workspace, expiry,
+// revocation, CSRF proof, or policy revision no longer matches.
 // IdentitySubjectStore adds the dormant user-management schema for users,
 // provider configs, external subject links, email history, credential hashes,
 // MFA factor handles, memberships, roles, grants, sessions, service

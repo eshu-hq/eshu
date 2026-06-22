@@ -5,8 +5,9 @@
 `cmd/api` is the entry point for the `eshu-api` binary. It boots OTEL telemetry,
 opens a Postgres connection and an optional graph driver, wires all query handlers
 through `internal/query`, mounts the shared runtime admin surface, wraps the
-combined mux with bearer-token authentication, and listens for HTTP traffic until
-`SIGINT` or `SIGTERM`.
+combined mux with shared bearer-token, scoped-token, and dashboard
+browser-session authentication, and listens for HTTP traffic until `SIGINT` or
+`SIGTERM`.
 
 ## Where this fits in the pipeline
 
@@ -34,7 +35,7 @@ flowchart TB
   G --> H["newRouter\n(builds query.APIRouter)"]
   H --> I["apiMux := http.NewServeMux\nrouter.Mount(apiMux)"]
   I --> J["mountRuntimeSurface\ninternalruntime.NewStatusAdminMux"]
-  J --> K["query.AuthMiddleware wraps mux"]
+  J --> K["wrapAPIAuth\nshared/scoped/browser-session auth"]
   K --> L["http.Server on ESHU_API_ADDR\nwrapped in otelhttp"]
   L --> M["srv.ListenAndServe"]
   M -- SIGINT/SIGTERM --> N["srv.Shutdown (5s timeout)\ncleanup() closes Postgres + driver"]
@@ -72,7 +73,13 @@ unavailable envelope rather than guessing at local CLI state.
 
 `mountRuntimeSurface` calls `internalruntime.NewStatusAdminMux` to compose
 `/healthz`, `/readyz`, `/admin/status`, and `/metrics` alongside the API routes.
-The combined mux is then wrapped with `query.AuthMiddleware`.
+The combined mux is then wrapped with `wrapAPIAuth`, which preserves the shared
+API key path, enables the optional scoped-token registry, and resolves
+server-managed dashboard browser sessions from hash-only Postgres state.
+`BrowserSessionHandler` exchanges an explicit scoped credential with
+tenant/workspace context for HttpOnly session and readable CSRF cookies; shared
+API keys stay on the bearer path because they do not carry a tenant/workspace
+boundary.
 
 The HTTP server listens on `ESHU_API_ADDR` (default `:8080`) with a
 10 s read-header timeout, 60 s write timeout, and 120 s idle timeout. On
@@ -101,13 +108,17 @@ See `doc.go` for the full godoc contract.
   `CodeHandler`, `ContentHandler`, `InfraHandler`, `IaCHandler`, `ImpactHandler`,
   `EvidenceHandler`, `SupplyChainHandler`, `IncidentHandler`, `WorkItemHandler`,
   `FreshnessHandler`, `StatusHandler`, `CompareHandler`, `AdminHandler`, `Neo4jReader`,
-  `ContentReader`, `AuthMiddleware`, `ParseQueryProfile`, `ParseGraphBackend`
+  `ContentReader`, `BrowserSessionHandler`,
+  `AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit`,
+  `ParseQueryProfile`, `ParseGraphBackend`
 - `internal/runtime` — `OpenNeo4jDriver`, `ResolveAPIKey`, `NewStatusAdminMux`,
   `NewStatusRequestHandler`
 - `internal/recovery` — `NewHandler` for refinalize/replay routes
+- `internal/scopedtoken` — optional `ESHU_SCOPED_TOKENS_FILE` resolver for
+  hosted tenant/workspace-scoped bearer credentials
 - `internal/status` — `Reader` port consumed by `internalruntime.NewStatusAdminMux`
 - `internal/storage/postgres` — `NewStatusStore`, `NewRecoveryStore`,
-  `NewStatusRequestStore`
+  `NewStatusRequestStore`, `NewBrowserSessionStore`
 - `internal/telemetry` — `NewBootstrap`, `NewProviders`, `EventAttr`,
   `NewLoggerWithWriter`
 
@@ -147,6 +158,11 @@ See `doc.go` for the full godoc contract.
   mode names, hashes, counts, or reason codes only; do not put raw policy,
   tenant, workspace, source, credential, endpoint, prompt, response, path, or
   token values in them.
+- `ESHU_SCOPED_TOKENS_FILE` — optional secret-mounted scoped-token registry.
+  When set, the API resolves hashed scoped tokens into tenant/workspace auth
+  context before falling back to the shared API key. Malformed registries fail
+  startup closed. Dashboard browser-session creation requires this scoped
+  context and never stores raw credentials or raw cookie values.
 - `ESHU_COMPONENT_HOME` plus `ESHU_COMPONENT_TRUST_MODE`,
   `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`,
   `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`,
@@ -208,9 +224,11 @@ See `doc.go` for the full godoc contract.
 
 - Graph backend: implement `query.GraphQuery` and wire the new adapter in
   `openQueryGraph`. The rest of the binary does not branch on backend brand.
-- Auth: replace `query.AuthMiddleware` with a different policy by swapping the
-  middleware call in `wireAPI`. The token is resolved via
-  `internalruntime.ResolveAPIKey`.
+- Auth: replace `wrapAPIAuth` with a different policy by swapping the
+  middleware call in `wireAPI`. The shared token is resolved via
+  `internalruntime.ResolveAPIKey`; scoped tokens come from
+  `internal/scopedtoken`, and browser sessions are mediated by
+  `BrowserSessionHandler` plus the Postgres browser-session store.
 - Admin surface: `internalruntime.NewStatusAdminMux` accepts
   `internalruntime.WithPrometheusHandler` and other options; add new admin routes
   through `internal/runtime`, not directly in this binary.
@@ -241,8 +259,8 @@ See `doc.go` for the full godoc contract.
   connections are freed when the closure runs; partial wiring failures still
   free already-acquired connections (`main.go:67`).
 
-- The API mux is wrapped with `AuthMiddleware` before it is handed to the
-  HTTP server; do not add unprotected data routes after this wrap point.
+- The API mux is wrapped with `wrapAPIAuth` before it is handed to the HTTP
+  server; do not add unprotected data routes after this wrap point.
 
 ## Related docs
 

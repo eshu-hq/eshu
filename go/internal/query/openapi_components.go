@@ -448,6 +448,31 @@ const openAPIComponents = `  "components": {
           }
         }
       },
+      "BrowserSessionAuth": {
+        "type": "object",
+        "description": "Authorization context attached to a server-managed dashboard browser session. Subject and policy identifiers are hashes or stable opaque ids; raw credentials are never returned.",
+        "properties": {
+          "mode": {"type": "string", "enum": ["browser_session"]},
+          "tenant_id": {"type": "string"},
+          "workspace_id": {"type": "string"},
+          "subject_class": {"type": "string"},
+          "subject_id_hash": {"type": "string"},
+          "policy_revision_hash": {"type": "string"},
+          "all_scopes": {"type": "boolean"},
+          "allowed_scope_ids": {"type": "array", "items": {"type": "string"}},
+          "allowed_repository_ids": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "BrowserSessionResponse": {
+        "type": "object",
+        "description": "Dashboard browser session response. csrf_token appears only when creating a session; the raw session secret is never returned in JSON and is sent only via the HttpOnly session cookie.",
+        "properties": {
+          "auth": {"$ref": "#/components/schemas/BrowserSessionAuth"},
+          "csrf_token": {"type": "string", "description": "CSRF secret for X-Eshu-CSRF on unsafe cookie-authenticated requests. It is bound to the server-side session hash."},
+          "idle_expires_at": {"type": "string", "format": "date-time"},
+          "absolute_expires_at": {"type": "string", "format": "date-time"}
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -460,63 +485,5 @@ const openAPIComponents = `  "components": {
         }
       }
     },
-    "responses": {
-      "BadRequest": {
-        "description": "Bad request",
-        "content": {
-          "application/json": {
-            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-          }
-        }
-      },
-      "NotFound": {
-        "description": "Resource not found",
-        "content": {
-          "application/json": {
-            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-          }
-        }
-      },
-      "Forbidden": {
-        "description": "Permission denied",
-        "content": {
-          "application/json": {
-            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-          }
-        }
-      },
-      "Conflict": {
-        "description": "Ambiguous request or conflicting scope",
-        "content": {
-          "application/json": {
-            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-          }
-        }
-      },
-      "InternalError": {
-        "description": "Internal server error",
-        "content": {
-          "application/json": {
-            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-          }
-        }
-      },
-      "NotImplemented": {
-        "description": "Capability is not available in the current runtime profile",
-        "content": {
-          "application/json": {
-            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-          }
-        }
-      },
-      "ServiceUnavailable": {
-        "description": "Service unavailable",
-        "content": {
-          "application/json": {
-            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-          }
-        }
-      }
-    }
-  }
+` + openAPIComponentsResponses + `  }
 }`

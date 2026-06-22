@@ -182,6 +182,7 @@ type APIRouter struct {
 	Compare                *CompareHandler
 	Admin                  *AdminHandler
 	Ask                    *AskHandler
+	BrowserSessions        *BrowserSessionHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -195,6 +196,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/openapi.json", ServeOpenAPI)
 	mux.HandleFunc("GET /api/v0/docs", ServeSwaggerUI)
 	mux.HandleFunc("GET /api/v0/redoc", ServeReDoc)
+
+	// Browser sessions
+	if a.BrowserSessions != nil {
+		a.BrowserSessions.Mount(mux)
+	}
 
 	// Repositories
 	if a.Repositories != nil {

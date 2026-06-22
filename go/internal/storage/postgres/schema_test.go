@@ -10,61 +10,11 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 49 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 49", len(defs))
+	if len(defs) != len(orderedBootstrapDefinitionNames) {
+		t.Fatalf("BootstrapDefinitions() len = %d, want %d", len(defs), len(orderedBootstrapDefinitionNames))
 	}
 
-	wantNames := []string{
-		"ingestion_scopes",
-		"scope_generations",
-		"fact_records",
-		"service_catalog_fact_record_indexes",
-		"fact_record_sbom_attestation_indexes",
-		"eshu_search_index",
-		"eshu_search_vector_metadata",
-		"eshu_search_vector_values",
-		"content_store",
-		"fact_work_items",
-		"fact_work_item_audit",
-		"semantic_extraction_jobs",
-		"collector_generation_dead_letters",
-		"governance_audit_events",
-		"tenant_workspace_grants",
-		"generation_retention_events",
-		"scoped_api_tokens",
-		"identity_subjects",
-		"projection_decisions",
-		"admission_decisions",
-		"shared_projection_intents",
-		"runtime_ingester_control",
-		"relationship_tables",
-		"shared_projection_acceptance",
-		"graph_projection_phase_state",
-		"graph_projection_phase_repair_queue",
-		"workflow_control_plane",
-		"workflow_coordinator_state",
-		"deferred_maintenance_barriers",
-		"iac_reachability",
-		"webhook_refresh_triggers",
-		"aws_pagination_checkpoints",
-		"aws_scan_status",
-		"aws_freshness_triggers",
-		"graph_schema_applications",
-		"vulnerability_source_states",
-		"incident_freshness_triggers",
-		"graph_endpoint_presence",
-		"service_materialization_generations",
-		"service_evidence_snapshots",
-		"code_reachability",
-		"function_summaries",
-		"function_sources",
-		"function_graph_ids",
-		"admin_replay_requests",
-		"value_flow_fixpoint_components",
-		"supply_chain_impact_canonical_winners",
-		"supply_chain_impact_winners_materialization",
-	}
-	for i, want := range wantNames {
+	for i, want := range orderedBootstrapDefinitionNames {
 		if defs[i].Name != want {
 			t.Fatalf("BootstrapDefinitions()[%d].Name = %q, want %q", i, defs[i].Name, want)
 		}
