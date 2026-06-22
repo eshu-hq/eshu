@@ -199,6 +199,9 @@ step_summaries = steps.map do |entry|
   unless non_negative_integer?(count)
     fail_with("evidence_count must be a non-negative integer for proof step #{step}")
   end
+  unless count.positive?
+    fail_with("evidence_count must be positive for proof step #{step}")
+  end
   if private_pattern.match?(JSON.generate(entry))
     fail_with("private-shaped value leaked in proof step #{step}")
   end
@@ -220,8 +223,14 @@ denied_count = public_summary["denied_count"]
 unless non_negative_integer?(login_count)
   fail_with("public_summary.login_count must be a non-negative integer")
 end
+unless login_count.positive?
+  fail_with("public_summary.login_count must be positive")
+end
 unless non_negative_integer?(denied_count)
   fail_with("public_summary.denied_count must be a non-negative integer")
+end
+unless denied_count.positive?
+  fail_with("public_summary.denied_count must be positive")
 end
 role_names = public_summary["mapped_role_names"] || []
 unless role_names.is_a?(Array) && role_names.all? { |role| public_safe_token?(role.to_s, 64) }

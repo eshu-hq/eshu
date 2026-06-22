@@ -153,6 +153,18 @@ bad_path="${tmp_dir}/bad-path.json"
 jq '.provider.sp_metadata_path = "/api/v0/auth/saml/providers/../../metadata"' "${good_manifest}" >"${bad_path}"
 expect_fail bad_path "${bad_path}" "provider.sp_metadata_path must be a public-safe SAML metadata path"
 
+zero_evidence="${tmp_dir}/zero-evidence.json"
+jq '(.proof_steps[] | select(.step == "saml_login") | .evidence_count) = 0' "${good_manifest}" >"${zero_evidence}"
+expect_fail zero_evidence "${zero_evidence}" "evidence_count must be positive for proof step saml_login"
+
+zero_login="${tmp_dir}/zero-login.json"
+jq '.public_summary.login_count = 0' "${good_manifest}" >"${zero_login}"
+expect_fail zero_login "${zero_login}" "public_summary.login_count must be positive"
+
+zero_denied="${tmp_dir}/zero-denied.json"
+jq '.public_summary.denied_count = 0' "${good_manifest}" >"${zero_denied}"
+expect_fail zero_denied "${zero_denied}" "public_summary.denied_count must be positive"
+
 failed_step="${tmp_dir}/failed-step.json"
 jq '(.proof_steps[] | select(.step == "denied_access") | .status) = "fail"' "${good_manifest}" >"${failed_step}"
 expect_fail failed_step "${failed_step}" "proof step denied_access must pass"
