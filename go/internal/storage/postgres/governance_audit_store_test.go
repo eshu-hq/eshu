@@ -14,8 +14,8 @@ func TestBootstrapDefinitionsIncludeGovernanceAuditEvents(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 47 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 47", len(defs))
+	if len(defs) != 48 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 48", len(defs))
 	}
 	var audit Definition
 	for _, def := range defs {

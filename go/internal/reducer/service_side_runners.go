@@ -20,6 +20,9 @@ func (s Service) startSideRunners(
 	if s.SupplyChainImpactWinnersMaintainer != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.SupplyChainImpactWinnersMaintainer)
 	}
+	if s.CollectorEvidenceSummaryMaintainer != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.CollectorEvidenceSummaryMaintainer)
+	}
 	if s.CodeCallProjectionRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.CodeCallProjectionRunner)
 	}

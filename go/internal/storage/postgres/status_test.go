@@ -225,7 +225,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"workflow_collector_backpressure",
 		"last_failure_class",
 		"WITH active_scopes AS (",
-		"fact_summary AS (",
+		"JOIN collector_evidence_summary AS summary",
 		"workflow_instances AS (",
 		"FROM collector_generation_dead_letters",
 		"FROM semantic_extraction_jobs",

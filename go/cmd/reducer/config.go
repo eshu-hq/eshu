@@ -404,6 +404,20 @@ func defaultSupplyChainImpactWinnersLeaseOwner() string {
 	return fmt.Sprintf("supply-chain-impact-winners-maintainer:%s:%d", hostname, os.Getpid())
 }
 
+// defaultCollectorEvidenceSummaryLeaseOwner builds a per-instance lease owner for
+// the #3466 collector-evidence-summary maintainer. As with the winners maintainer,
+// a per-instance owner is required: the shared partition-lease SQL treats a live
+// lease with the same owner as re-claimable, so a shared default would let every
+// reducer instance resweep the summary table concurrently each cadence, defeating
+// the single-owner guard.
+func defaultCollectorEvidenceSummaryLeaseOwner() string {
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		hostname = "unknown-host"
+	}
+	return fmt.Sprintf("collector-evidence-summary-maintainer:%s:%d", hostname, os.Getpid())
+}
+
 func loadStringOrDefault(getenv func(string) string, key string, defaultValue string) string {
 	raw := strings.TrimSpace(getenv(key))
 	if raw == "" {

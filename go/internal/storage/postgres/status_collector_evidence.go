@@ -13,75 +13,21 @@ import (
 // collectorFactEvidenceQuery summarizes active source and reducer fact evidence
 // per collector instance for the collector-readiness surface.
 //
-// The fact_summary CTE aggregates each active scope's facts inside a per-scope
-// LATERAL subquery rather than one global GROUP BY over every active
-// fact_records row. A single global GROUP BY had to sort all active facts at
-// once, which spilled to an on-disk external merge sort that scaled with total
-// active facts (issue #3375: ~20s on a 906-repo / 4.5M fact_records stack). The
-// per-scope LATERAL keeps each aggregate bounded to one scope's facts so it
-// stays in memory and never spills. The emitted rows are byte-identical to the
-// previous shape, so collector readiness evidence is preserved exactly.
+// #3466: this read joins the precomputed collector_evidence_summary materialized
+// table instead of aggregating fact_records on every request. The per-scope
+// aggregate (previously a LATERAL over fact_records that was O(total active
+// facts): ~6.6M rows / 5.4s warm at 982-scope scale) now lives in the reducer
+// resweep (rebuildCollectorEvidenceSummarySQL). This query touches only
+// ingestion_scopes / scope_generations (active_scopes), workflow_work_items, and
+// the small summary table, so it is bounded regardless of fact count.
+//
+// The active_scopes join keeps the read exact even if the summary lags one resweep
+// cadence: rows for superseded generations are filtered out, and a brand-new
+// scope not yet materialized is at most one cadence behind. The emitted rows are
+// shape- and value-identical to the previous query, so collector readiness
+// evidence is preserved exactly.
 const collectorFactEvidenceQuery = `
-WITH active_scopes AS (
-SELECT
-    scope.collector_kind,
-    scope.scope_id,
-    scope.active_generation_id AS generation_id
-FROM ingestion_scopes AS scope
-JOIN scope_generations AS generation
-  ON generation.scope_id = scope.scope_id
- AND generation.generation_id = scope.active_generation_id
-WHERE scope.active_generation_id IS NOT NULL
-  AND scope.collector_kind IN (
-    'aws',
-    'ci_cd_run',
-    'documentation',
-    'git',
-    'grafana',
-    'jira',
-    'loki',
-    'oci_registry',
-    'package_registry',
-    'pagerduty',
-    'prometheus_mimir',
-    'sbom_attestation',
-    'scanner_worker',
-    'security_alert',
-    'tempo',
-    'terraform_state',
-    'vault_live',
-    'vulnerability_intelligence'
-)
-  AND generation.status = 'active'
-),
-fact_summary AS (
-SELECT
-    scope.collector_kind,
-    scope.scope_id,
-    scope.generation_id,
-    per_scope.evidence_source,
-    per_scope.source_system,
-    per_scope.observation_count,
-    per_scope.last_observed_at,
-    per_scope.updated_at
-FROM active_scopes AS scope
-JOIN LATERAL (
-  SELECT
-    CASE
-      WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'
-      ELSE 'source_facts'
-    END AS evidence_source,
-    NULLIF(BTRIM(fact.source_system), '') AS source_system,
-    COUNT(*) AS observation_count,
-    MAX(fact.observed_at) AS last_observed_at,
-    MAX(fact.ingested_at) AS updated_at
-  FROM fact_records AS fact
-    WHERE fact.scope_id = scope.scope_id
-      AND fact.generation_id = scope.generation_id
-      AND fact.is_tombstone = FALSE
-  GROUP BY evidence_source, source_system
-) AS per_scope ON TRUE
-),
+WITH ` + activeCollectorScopesCTE + `,
 workflow_instances AS (
 SELECT DISTINCT ON (
     workflow_item.collector_kind,
@@ -106,24 +52,27 @@ ORDER BY
     workflow_item.work_item_id ASC
 )
 SELECT
-    fact.collector_kind,
+    summary.collector_kind,
     COALESCE(NULLIF(BTRIM(item.collector_instance_id), ''), '') AS collector_instance_id,
-    fact.evidence_source,
+    summary.evidence_source,
     COALESCE(
-      ARRAY_AGG(DISTINCT fact.source_system ORDER BY fact.source_system)
-        FILTER (WHERE fact.source_system IS NOT NULL),
+      ARRAY_AGG(DISTINCT summary.source_system ORDER BY summary.source_system)
+        FILTER (WHERE summary.source_system <> ''),
       ARRAY[]::text[]
     ) AS source_systems,
-    SUM(fact.observation_count) AS observation_count,
-    MAX(fact.last_observed_at) AS last_observed_at,
-    MAX(fact.updated_at) AS updated_at
-FROM fact_summary AS fact
+    SUM(summary.observation_count) AS observation_count,
+    MAX(summary.last_observed_at) AS last_observed_at,
+    MAX(summary.last_ingested_at) AS updated_at
+FROM active_scopes AS scope
+JOIN collector_evidence_summary AS summary
+  ON summary.scope_id = scope.scope_id
+ AND summary.generation_id = scope.generation_id
 LEFT JOIN workflow_instances AS item
-  ON item.collector_kind = fact.collector_kind
- AND item.scope_id = fact.scope_id
- AND item.generation_id = fact.generation_id
-GROUP BY fact.collector_kind, collector_instance_id, fact.evidence_source
-ORDER BY fact.collector_kind ASC, collector_instance_id ASC, fact.evidence_source ASC
+  ON item.collector_kind = scope.collector_kind
+ AND item.scope_id = scope.scope_id
+ AND item.generation_id = scope.generation_id
+GROUP BY summary.collector_kind, collector_instance_id, summary.evidence_source
+ORDER BY summary.collector_kind ASC, collector_instance_id ASC, summary.evidence_source ASC
 LIMIT 200
 `
 
