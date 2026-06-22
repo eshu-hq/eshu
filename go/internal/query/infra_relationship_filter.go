@@ -164,12 +164,26 @@ func filterNullRelationships(v any) []map[string]any {
 // are real edge types written by go/internal/storage/cypher; no alias invents a
 // relationship that the graph does not contain.
 //
+// what_deploys covers the full deployment topology the pre-#3492 untyped read
+// surfaced for deployment, not just DEPLOYS_FROM (#3507):
+//   - DEPLOYS_FROM: Repository->Repository / artifact deployment evidence
+//     (entity_map_response.go entityMapIsDeployedBy).
+//   - DEPLOYMENT_SOURCE: WorkloadInstance->Repository runtime deployment source
+//     (canonical.go canonicalDeploymentSourceUpsertCypher, read by
+//     fetchDeploymentSourcesFromGraph). Narrowing what_deploys to DEPLOYS_FROM
+//     alone dropped this edge, so the tool could report an empty deployment
+//     relationship for a workload-instance target even when the graph holds the
+//     deployment-source edge.
+//   - HAS_DEPLOYMENT_EVIDENCE: Repository->EvidenceArtifact deployment evidence
+//     (canonical_relationships.go), grouped with DEPLOYS_FROM as the deploy
+//     family by entity_map_response.go entityMapIsDeployedBy.
+//
 // who_consumes_xrd resolves to USES_MODULE because Crossplane XRD/composition
 // consumption is modeled today as a module-reference edge; there is no distinct
 // XRD-consumption edge type in the canonical graph. If one is added later, add
 // it here without changing the wire contract.
 var infraRelationshipTypeAliases = map[string][]string{
-	"what_deploys":     {"DEPLOYS_FROM"},
+	"what_deploys":     {"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"},
 	"what_provisions":  {"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"},
 	"module_consumers": {"USES_MODULE"},
 	"who_consumes_xrd": {"USES_MODULE"},
@@ -182,6 +196,8 @@ var infraRelationshipTypeAliases = map[string][]string{
 // semantic aliases.
 var infraCanonicalEdgeTypes = map[string]struct{}{
 	"DEPLOYS_FROM":              {},
+	"DEPLOYMENT_SOURCE":         {},
+	"HAS_DEPLOYMENT_EVIDENCE":   {},
 	"PROVISIONS_DEPENDENCY_FOR": {},
 	"PROVISIONS_PLATFORM":       {},
 	"USES_MODULE":               {},

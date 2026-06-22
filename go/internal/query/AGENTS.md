@@ -421,6 +421,38 @@
   the filter value is a span attribute, not a metric dimension, so cardinality
   stays bounded.
 
+- **`what_deploys` spans the full deployment edge family (#3507)** — the #3492
+  alias mapped `what_deploys` to `DEPLOYS_FROM` only, which dropped the runtime
+  deployment topology the pre-#3492 untyped read surfaced — notably the
+  `WorkloadInstance-[:DEPLOYMENT_SOURCE]->Repository` edge written by
+  `canonicalDeploymentSourceUpsertCypher` and read by
+  `fetchDeploymentSourcesFromGraph` (`impact_trace_deployment.go`). For a
+  workload-instance target the tool could then report an empty deployment
+  relationship even when the deployment-source edge exists. `what_deploys` now
+  resolves to `{DEPLOYS_FROM, DEPLOYMENT_SOURCE, HAS_DEPLOYMENT_EVIDENCE}` — the
+  same deploy family `entity_map_response.go` groups as "deployed by" plus the
+  runtime deployment-source edge. When adding a new deployment edge type to the
+  graph, add it here too so the deploy alias stays complete.
+
+  No-Regression Evidence: pure accuracy fix; the change only widens the
+  `what_deploys` alias edge-type set, it adds no query and changes no other
+  alias. Baseline = `what_deploys` filtering to `[r:DEPLOYS_FROM]` (dropping
+  `DEPLOYMENT_SOURCE`); after = `[r:DEPLOYS_FROM|DEPLOYMENT_SOURCE|HAS_DEPLOYMENT_EVIDENCE]`.
+  Backend NornicDB (Neo4j compat unaffected); input shape unchanged — one
+  `RunSingle` anchored on `n.id = $entity_id` returning two collected
+  relationship slices for one entity. A wider type-union in the inline pattern is
+  still index-served by the NornicDB relationship-type index and only changes
+  which edges match; it adds no round trip and no broad scan, so terminal
+  row/queue counts stay bounded by the same single-entity neighborhood. Proof:
+  `go test ./internal/query -run
+  'TestWhatDeploysSurfacesRuntimeDeploymentSourceEdge|TestResolveInfraRelationshipTypes|TestInfraRelationships'
+  -count=1` (failing-first DEPLOYMENT_SOURCE regression) and `go test
+  ./internal/query ./internal/mcp -count=1`.
+
+  No-Observability-Change: reuses the #3492 span `query.infra_relationships` and
+  its `eshu.relationship_filter` attribute (now reports the wider pipe-joined
+  deploy set for `what_deploys`); no new span, metric, label, or log is added.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`

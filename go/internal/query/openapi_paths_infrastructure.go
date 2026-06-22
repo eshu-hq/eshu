@@ -76,7 +76,7 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Get infrastructure relationships",
-        "description": "Returns the relationships for an infrastructure entity. relationship_type is optional: when omitted every relationship is returned in both directions; when set the read is bounded to the matching edge types. Accepts a semantic alias (what_deploys, what_provisions, who_consumes_xrd, module_consumers) or a canonical edge type (e.g. DEPLOYS_FROM, USES_MODULE). An unrecognized value is rejected with 400.",
+        "description": "Returns the relationships for an infrastructure entity. relationship_type is optional: when omitted every relationship is returned in both directions; when set the read is bounded to the matching edge types. Accepts a semantic alias (what_deploys, what_provisions, who_consumes_xrd, module_consumers) or a canonical edge type (e.g. DEPLOYS_FROM, USES_MODULE). The what_deploys alias spans the full deployment topology (DEPLOYS_FROM, DEPLOYMENT_SOURCE, HAS_DEPLOYMENT_EVIDENCE) so runtime deployment-source edges are not dropped. An unrecognized value is rejected with 400.",
         "operationId": "getInfraRelationships",
         "requestBody": {
           "required": true,
@@ -90,7 +90,7 @@ const openAPIPathsInfrastructure = `
                   "relationship_type": {
                     "type": "string",
                     "description": "Optional relationship filter. Semantic alias or canonical edge type; omit for all relationships.",
-                    "enum": ["what_deploys", "what_provisions", "who_consumes_xrd", "module_consumers", "DEPLOYS_FROM", "PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM", "USES_MODULE", "DEPENDS_ON", "INSTANCE_OF", "RUNS_ON", "DISCOVERS_CONFIG_IN", "READS_CONFIG_FROM", "DEFINES"]
+                    "enum": ["what_deploys", "what_provisions", "who_consumes_xrd", "module_consumers", "DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE", "PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM", "USES_MODULE", "DEPENDS_ON", "INSTANCE_OF", "RUNS_ON", "DISCOVERS_CONFIG_IN", "READS_CONFIG_FROM", "DEFINES"]
                   }
                 }
               }
