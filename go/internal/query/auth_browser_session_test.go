@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
 func TestAuthMiddlewareWithBrowserSessionsAttachesAuthContextFromCookie(t *testing.T) {
@@ -86,6 +88,39 @@ func TestAuthMiddlewareWithBrowserSessionsRequiresCSRFHeaderForUnsafeCookieReque
 	}
 	if resolver.called {
 		t.Fatal("session resolver was called without CSRF header")
+	}
+}
+
+func TestAuthMiddlewareWithBrowserSessionsDeniesRefreshRequiredSession(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeBrowserSessionResolver{err: ErrBrowserSessionRefreshRequired}
+	audit := &fakeGovernanceAuditAppender{}
+	handler := AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit(
+		"shared-token",
+		nil,
+		resolver,
+		mockHandler(),
+		audit,
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusUnauthorized; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if len(audit.events) != 1 {
+		t.Fatalf("audit events = %d, want 1", len(audit.events))
+	}
+	event := audit.events[0]
+	if got, want := event.Type, governanceaudit.EventTypeReadAuthorization; got != want {
+		t.Fatalf("event type = %q, want %q", got, want)
+	}
+	if got, want := event.ReasonCode, "oidc_session_reauth_required"; got != want {
+		t.Fatalf("event reason = %q, want %q", got, want)
 	}
 }
 

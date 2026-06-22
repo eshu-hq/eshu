@@ -28,8 +28,13 @@ func TestBootstrapDefinitionsIncludeBrowserSessions(t *testing.T) {
 		"csrf_token_hash TEXT NOT NULL",
 		"idle_expires_at TIMESTAMPTZ NOT NULL",
 		"absolute_expires_at TIMESTAMPTZ NOT NULL",
+		"external_provider_config_id TEXT NULL",
+		"external_subject_id_hash TEXT NULL",
+		"external_auth_validated_at TIMESTAMPTZ NULL",
+		"external_auth_stale_after TIMESTAMPTZ NULL",
 		"ALTER TABLE browser_sessions",
 		"ADD COLUMN IF NOT EXISTS role_ids JSONB NOT NULL DEFAULT '[]'::jsonb",
+		"ADD COLUMN IF NOT EXISTS external_auth_stale_after TIMESTAMPTZ NULL",
 		"FOREIGN KEY (tenant_id, workspace_id)",
 		"REFERENCES workspaces(tenant_id, workspace_id) ON DELETE CASCADE",
 		"browser_sessions_active_idx",
@@ -49,6 +54,57 @@ func TestBootstrapDefinitionsIncludeBrowserSessions(t *testing.T) {
 	} {
 		if strings.Contains(strings.ToLower(sessions.SQL), strings.ToLower(forbidden)) {
 			t.Fatalf("browser session SQL contains forbidden marker %q", forbidden)
+		}
+	}
+}
+
+func TestBrowserSessionStoreCreatesOIDCRefreshProofMetadata(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 13, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewBrowserSessionStore(db)
+
+	err := store.CreateSession(context.Background(), BrowserSessionRecord{
+		SessionHash:              "sha256:session",
+		CSRFTokenHash:            "sha256:csrf",
+		TenantID:                 "tenant_a",
+		WorkspaceID:              "workspace_a",
+		SubjectIDHash:            "sha256:subject",
+		SubjectClass:             "external_oidc_user",
+		PolicyRevisionHash:       "sha256:policy",
+		RoleIDs:                  []string{"developer"},
+		AllowedScopeIDs:          []string{"scope_a"},
+		ExternalProviderConfigID: "okta-dev",
+		ExternalSubjectIDHash:    "sha256:subject",
+		ExternalAuthValidatedAt:  now,
+		ExternalAuthStaleAfter:   now.Add(15 * time.Minute),
+		IssuedAt:                 now,
+		LastSeenAt:               now,
+		IdleExpiresAt:            now.Add(30 * time.Minute),
+		AbsoluteExpiresAt:        now.Add(12 * time.Hour),
+		UpdatedAt:                now,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if len(db.execs) != 1 {
+		t.Fatalf("exec count = %d, want 1", len(db.execs))
+	}
+	query := db.execs[0].query
+	for _, want := range []string{
+		"external_provider_config_id",
+		"external_subject_id_hash",
+		"external_auth_validated_at",
+		"external_auth_stale_after",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("create query missing %q:\n%s", want, query)
+		}
+	}
+	for _, forbidden := range []string{"id-token", "access-token", "refresh-token", "Eshu Developers", "user@example.test"} {
+		if fakeExecArgsContain(db.execs[0].args, forbidden) {
+			t.Fatalf("create args leaked raw provider value %q: %#v", forbidden, db.execs[0].args)
 		}
 	}
 }
@@ -237,6 +293,46 @@ func TestBrowserSessionStoreResolvesOnlyActiveUnrevokedSession(t *testing.T) {
 	}
 	if got, want := db.queries[0].args[4], now.Add(30*time.Minute); got != want {
 		t.Fatalf("next idle expiry arg = %v, want %v", got, want)
+	}
+}
+
+func TestBrowserSessionStoreRevokesStaleOIDCSessionBeforeReturningAuth(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 13, 30, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewBrowserSessionStore(db)
+
+	_, ok, err := store.ResolveSessionHash(
+		context.Background(),
+		"sha256:session",
+		"sha256:csrf",
+		false,
+		now,
+		30*time.Minute,
+	)
+	if !errors.Is(err, ErrBrowserSessionRefreshRequired) {
+		t.Fatalf("ResolveSessionHash() error = %v, want ErrBrowserSessionRefreshRequired", err)
+	}
+	if ok {
+		t.Fatal("ResolveSessionHash() ok = true, want false")
+	}
+	if len(db.execs) != 1 {
+		t.Fatalf("exec count = %d, want 1", len(db.execs))
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("query count = %d, want 0 after stale revocation", len(db.queries))
+	}
+	query := db.execs[0].query
+	for _, want := range []string{
+		"UPDATE browser_sessions",
+		"external_auth_stale_after <= $4",
+		"subject_class = 'external_oidc_user'",
+		"SET revoked_at = $4",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("resolve query missing %q:\n%s", want, query)
+		}
 	}
 }
 
