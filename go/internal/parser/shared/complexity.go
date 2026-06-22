@@ -27,21 +27,36 @@ type BranchNodeSet struct {
 	// BooleanOperators are operator token texts that add one decision point when
 	// they appear inside a BinaryExpressionKinds node, typically "&&" and "||".
 	BooleanOperators map[string]struct{}
+
+	// DefaultCaseKinds are BranchKinds whose node also covers a switch/match
+	// catch-all arm: a `default` label (Java switch_label, C# switch_section,
+	// C/C++ case_statement) or a bare wildcard `_` arm (Rust match_arm, Scala and
+	// Python case_clause). Under McCabe the catch-all is the implicit else /
+	// fall-through path, not an additional decision, so a node of one of these
+	// kinds is counted only when it is a real case arm (see isCatchAllArm).
+	// Grammars with a distinct catch-all node (Go's default_case) do not need an
+	// entry here because that kind is simply absent from BranchKinds.
+	DefaultCaseKinds map[string]struct{}
 }
 
 // NewBranchNodeSet builds a BranchNodeSet from string slices. It is the
-// constructor language tables use so call sites read as data.
+// constructor language tables use so call sites read as data. defaultCaseKinds
+// names the BranchKinds that double as switch `default` labels and must be
+// counted only for real case arms; pass nil when the grammar has a distinct
+// default node.
 func NewBranchNodeSet(
 	branchKinds []string,
 	nestedDefinitionKinds []string,
 	binaryExpressionKinds []string,
 	booleanOperators []string,
+	defaultCaseKinds []string,
 ) BranchNodeSet {
 	return BranchNodeSet{
 		BranchKinds:           stringSet(branchKinds),
 		NestedDefinitionKinds: stringSet(nestedDefinitionKinds),
 		BinaryExpressionKinds: stringSet(binaryExpressionKinds),
 		BooleanOperators:      stringSet(booleanOperators),
+		DefaultCaseKinds:      stringSet(defaultCaseKinds),
 	}
 }
 
@@ -86,7 +101,9 @@ func CyclomaticComplexity(node *tree_sitter.Node, source []byte, set BranchNodeS
 			}
 		}
 		if _, branch := set.BranchKinds[current.Kind()]; branch {
-			complexity++
+			if _, defaultable := set.DefaultCaseKinds[current.Kind()]; !defaultable || !isCatchAllArm(current) {
+				complexity++
+			}
 		}
 		if _, binary := set.BinaryExpressionKinds[current.Kind()]; binary {
 			complexity += booleanOperatorCount(current, source, set.BooleanOperators)
@@ -102,6 +119,60 @@ func CyclomaticComplexity(node *tree_sitter.Node, source []byte, set BranchNodeS
 
 	walk(node)
 	return complexity
+}
+
+// isCatchAllArm reports whether a switch/match arm is the catch-all (implicit
+// else) rather than a real decision. Under McCabe the catch-all carries no
+// condition test, so it adds no decision point. The recognized grammar shapes
+// are:
+//
+//   - a direct anonymous `default` token child (Java switch_label, C#
+//     switch_section, C/C++ case_statement reuse one node kind for `case` and
+//     `default`);
+//   - a direct `wildcard` node child (Scala case_clause `case _ =>`); and
+//   - a match_pattern/case_pattern child that is a bare `_` wildcard (Rust
+//     match_arm, Python case_clause). A guarded wildcard (`_ if cond`) parses
+//     with the guard inside the pattern, giving it more than one child, so it is
+//     not treated as a catch-all and stays counted because the guard is itself a
+//     decision.
+func isCatchAllArm(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.Children(cursor) {
+		child := child
+		switch {
+		case !child.IsNamed() && child.Kind() == "default":
+			return true
+		case child.Kind() == "wildcard":
+			return true
+		case child.Kind() == "match_pattern" || child.Kind() == "case_pattern":
+			if isBareWildcardPattern(&child) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isBareWildcardPattern reports whether a match_pattern/case_pattern is exactly
+// the wildcard `_` with no guard. A wildcard nested inside a larger pattern (for
+// example `Some(_)` or `[_, _]`) is not a catch-all because the surrounding
+// pattern still tests structure, and a guarded wildcard (`_ if cond`) carries
+// extra children, so only a single direct `_` token qualifies.
+func isBareWildcardPattern(pattern *tree_sitter.Node) bool {
+	if pattern == nil {
+		return false
+	}
+	cursor := pattern.Walk()
+	defer cursor.Close()
+	children := pattern.Children(cursor)
+	if len(children) != 1 {
+		return false
+	}
+	return children[0].Kind() == "_"
 }
 
 // booleanOperatorCount returns how many direct operator children of a binary or

@@ -356,10 +356,21 @@ Function entities carry a `cyclomatic_complexity` field consumed by the
 Real McCabe complexity is computed from the tree-sitter AST by the shared walker
 `shared.CyclomaticComplexity`, driven by per-language `shared.BranchNodeSet`
 tables. Complexity is `1` plus one for every decision point: each
-`if`/`elif`, loop, `switch`/`match` arm, exception handler, conditional
-(ternary) expression, and short-circuit boolean operator (`&&`, `||`, and the
-language-specific `and`/`or`). The walk stops at nested function, lambda, and
-type definitions so an inner closure does not inflate the enclosing function.
+`if`/`elif`, loop, `switch`/`match` case arm, exception handler (`catch`/`except`),
+conditional (ternary) expression, and short-circuit boolean operator (`&&`, `||`,
+and the language-specific `and`/`or`). The walk stops at nested function, lambda,
+and type definitions so an inner closure does not inflate the enclosing function.
+
+The catch-all arm is the implicit else, not a decision, so it is excluded: a
+`switch` `default`, a Rust/Scala/Python bare wildcard `_` arm, and a switch or
+match whose only arm is the catch-all all leave complexity at the base value.
+The `BranchNodeSet` `defaultCaseKinds` field names the node kinds that double as
+a `default`/wildcard arm (for example Java `switch_label`, C# `switch_section`,
+C/C++ `case_statement`, Rust `match_arm`, Scala/Python `case_clause`); the walker
+counts those nodes only for real case arms. A guarded wildcard (`_ if cond`)
+still tests a condition, so it stays counted. Go needs no entry because its
+grammar emits a distinct `default_case` node that is simply left out of the
+branch kinds.
 
 | Language | Complexity source | Status |
 | --- | --- | --- |

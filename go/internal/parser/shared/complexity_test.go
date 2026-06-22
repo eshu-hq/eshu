@@ -13,6 +13,7 @@ func goComplexitySet() BranchNodeSet {
 		[]string{"function_declaration", "method_declaration", "func_literal"},
 		[]string{"binary_expression"},
 		[]string{"&&", "||"},
+		nil,
 	)
 }
 

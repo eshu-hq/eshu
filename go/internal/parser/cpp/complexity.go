@@ -23,6 +23,9 @@ var cppComplexitySet = shared.NewBranchNodeSet(
 	[]string{"function_definition", "lambda_expression"},
 	[]string{"binary_expression"},
 	[]string{"&&", "||"},
+	// case_statement covers both `case` and `default`; the default arm is the
+	// implicit else, so it must not add a decision point.
+	[]string{"case_statement"},
 )
 
 func cyclomaticComplexity(node *tree_sitter.Node, source []byte) int {

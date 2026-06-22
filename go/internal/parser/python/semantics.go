@@ -310,6 +310,9 @@ var pythonComplexitySet = shared.NewBranchNodeSet(
 	[]string{"class_definition", "function_definition", "lambda"},
 	[]string{"boolean_operator"},
 	[]string{"and", "or"},
+	// case_clause covers every match arm including the catch-all `case _:`; a bare
+	// wildcard arm is the implicit else, so it must not add a decision point.
+	[]string{"case_clause"},
 )
 
 func cyclomaticComplexity(node *tree_sitter.Node, source []byte) int {

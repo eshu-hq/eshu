@@ -19,6 +19,9 @@ var rustComplexitySet = shared.NewBranchNodeSet(
 	[]string{"function_item", "closure_expression"},
 	[]string{"binary_expression"},
 	[]string{"&&", "||"},
+	// match_arm covers every arm including the catch-all `_`; a bare unguarded
+	// wildcard arm is the implicit else, so it must not add a decision point.
+	[]string{"match_arm"},
 )
 
 func cyclomaticComplexity(node *tree_sitter.Node, source []byte) int {

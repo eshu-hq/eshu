@@ -6,9 +6,10 @@ import (
 )
 
 // javaComplexitySet declares the Java tree-sitter node kinds and boolean
-// operator tokens that count as McCabe decision points. Each switch_label
-// (including default) and each catch_clause is a branch, matching how loops and
-// conditionals are counted across languages.
+// operator tokens that count as McCabe decision points. Each `case` switch_label
+// and each catch_clause is a branch, matching how loops and conditionals are
+// counted across languages. The `default` switch_label is excluded as the
+// implicit else.
 var javaComplexitySet = shared.NewBranchNodeSet(
 	[]string{
 		"if_statement",
@@ -23,6 +24,9 @@ var javaComplexitySet = shared.NewBranchNodeSet(
 	[]string{"method_declaration", "constructor_declaration", "lambda_expression"},
 	[]string{"binary_expression"},
 	[]string{"&&", "||"},
+	// switch_label covers both `case` and `default`; the default arm is the
+	// implicit else, so it must not add a decision point.
+	[]string{"switch_label"},
 )
 
 func cyclomaticComplexity(node *tree_sitter.Node, source []byte) int {

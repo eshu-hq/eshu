@@ -212,3 +212,24 @@ graph query is added. SCIP definitions now emit `0` (unknown) instead of a
 fabricated `1`; rankings exclude `0` via the existing
 `WHERE coalesce(e.cyclomatic_complexity, 0) > 0` filter, so operators see fewer
 misleading rows, not a changed observability surface.
+
+No-Regression Evidence (PR #3523 review follow-up): `go test ./internal/parser
+-run TestCyclomaticComplexityCatchAndDefaultArms -count=1` locks in two McCabe
+edge cases. Exception handlers each add one decision point (verified C++
+try/catch via a compiled grammar probe: the vendored tree-sitter-cpp grammar
+does emit a named `catch_clause`, so C++ catch increments and is not silently
+zero; Java/C#/Scala catch and Python except confirmed the same). The switch
+`default` arm and the bare Rust/Scala/Python wildcard `_` arm are the implicit
+else and are excluded, so a switch or match whose only arm is the catch-all
+stays complexity 1; this fixed a real over-count where Java `switch_label`, C#
+`switch_section`, C/C++ `case_statement`, Rust `match_arm`, and Scala/Python
+`case_clause` previously counted the catch-all as a decision. A guarded wildcard
+(`_ if cond`) still counts because the guard is a decision. Go was already
+correct because its grammar emits a distinct `default_case` node left out of the
+branch kinds. This adds no runtime, queue, or graph-write cost; the walk shape is
+unchanged aside from a bounded direct-child check on switch/match arm nodes.
+
+No-Observability-Change (PR #3523 review follow-up): the catch/default/wildcard
+correctness fix touches only the computed `cyclomatic_complexity` value; no
+metric, span, log, status field, env var, queue, worker, lease, batch, runtime
+knob, or graph query changes.

@@ -51,7 +51,10 @@ The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `CyclomaticComplexity` is the shared McCabe walker. Each tree-sitter language
 adapter passes a `BranchNodeSet` (built with `NewBranchNodeSet`) that names the
 node kinds and boolean operator tokens counted as decision points, so adding
-complexity for a language is a data table, not new traversal code.
+complexity for a language is a data table, not new traversal code. The
+`defaultCaseKinds` argument names branch kinds that double as a switch `default`
+or bare wildcard `_` arm; the walker excludes those catch-all arms because the
+implicit else is not a decision point under McCabe.
 
 ## Dependencies
 

@@ -40,6 +40,12 @@ func firstNamedDescendant(node *tree_sitter.Node, kinds ...string) *tree_sitter.
 // goComplexitySet declares the Go tree-sitter node kinds and boolean operator
 // tokens that count as McCabe decision points. It is data so Go complexity stays
 // consistent with the shared walker used by every other language.
+//
+// The Go grammar exposes a distinct `default_case` node for `default:`, separate
+// from `expression_case`/`type_case`/`communication_case`. Under McCabe the
+// default arm is the implicit else, not a decision point, so `default_case` is
+// deliberately omitted from the branch kinds (and no default-case override is
+// needed). A switch whose only arm is `default:` therefore stays complexity 1.
 var goComplexitySet = shared.NewBranchNodeSet(
 	[]string{
 		"if_statement",
@@ -51,6 +57,7 @@ var goComplexitySet = shared.NewBranchNodeSet(
 	[]string{"function_declaration", "method_declaration", "func_literal"},
 	[]string{"binary_expression"},
 	[]string{"&&", "||"},
+	nil,
 )
 
 func cyclomaticComplexity(node *tree_sitter.Node, source []byte) int {
