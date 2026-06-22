@@ -812,9 +812,14 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 `POST /api/v0/admin/replay` (`admin_replay.go`) is a guarded recovery action.
 It requires an explicit `reason` and `idempotency_key`, gates on an admin
 (all-scopes) token, refuses unsafe failure classes (`input_invalid`,
-`unsafe_payload`) unless forced, records an `admin_recovery_action` governance
-audit event for every accepted or refused attempt, and dedupes concurrent or
-duplicate delivery through the durable `admin_replay_requests` ledger.
+`unsafe_payload`, and the manual-review dead-letter triage classes
+`projection_bug` and `resource_exhausted` sourced from
+`projector.ManualReviewTriageClasses`) unless forced, records an
+`admin_recovery_action` governance audit event for every accepted or refused
+attempt, and dedupes concurrent or duplicate delivery through the durable
+`admin_replay_requests` ledger. The unsafe set is the single source of truth
+for both the targeted-class refusal and the broad-selector SQL exclusion, so a
+poison `projection_bug` never drains via a scope-wide replay without force.
 
 - Conflict domain: `admin_replay_requests.idempotency_key` (primary key) is the
   serialization point; exactly one concurrent request wins the

@@ -18,6 +18,36 @@ func TestUnsafeReplayClassesPinnedToSourceConstants(t *testing.T) {
 	}
 }
 
+// TestUnsafeReplayClassesIncludeManualReviewTriage proves every dead-letter
+// triage class the projector flags manual_review (the durable failure_class an
+// operator sees on a dead-lettered row) refuses an un-forced replay. Without
+// this, a poison projection_bug or a resource_exhausted item would drain via
+// POST /api/v0/admin/replay with no --force, contradicting the triage contract
+// documented in internal/projector (#3502, #3514).
+func TestUnsafeReplayClassesIncludeManualReviewTriage(t *testing.T) {
+	manualReview := projector.ManualReviewTriageClasses()
+	if len(manualReview) == 0 {
+		t.Fatal("projector must expose at least one manual_review triage class")
+	}
+	for _, class := range manualReview {
+		guidance, unsafe := unsafeReplayRefusal(class)
+		if !unsafe {
+			t.Fatalf("manual_review triage class %q must refuse an un-forced replay", class)
+		}
+		if guidance == "" {
+			t.Fatalf("manual_review triage class %q must carry actionable refusal guidance", class)
+		}
+	}
+
+	// The poison bucket is the highest-risk class and must be refused by name.
+	if _, unsafe := unsafeReplayRefusal(string(projector.TriageClassProjectionBug)); !unsafe {
+		t.Fatalf("projection_bug (poison) must refuse an un-forced replay")
+	}
+	if _, unsafe := unsafeReplayRefusal(string(projector.TriageClassResourceExhausted)); !unsafe {
+		t.Fatalf("resource_exhausted (manual review) must refuse an un-forced replay")
+	}
+}
+
 func TestUnsafeReplayRefusalGivesActionableGuidance(t *testing.T) {
 	guidance, ok := unsafeReplayRefusal("input_invalid")
 	if !ok || guidance == "" {
@@ -50,10 +80,33 @@ func TestReplayRequestFingerprintStableAndSelectorSensitive(t *testing.T) {
 
 func TestUnsafeReplayFailureClassListSorted(t *testing.T) {
 	list := unsafeReplayFailureClassList()
-	if len(list) != 2 {
-		t.Fatalf("expected 2 unsafe classes, got %d: %v", len(list), list)
+	if len(list) < 2 {
+		t.Fatalf("expected at least the base unsafe classes, got %d: %v", len(list), list)
 	}
-	if list[0] > list[1] {
-		t.Fatalf("unsafe class list must be sorted: %v", list)
+	for i := 1; i < len(list); i++ {
+		if list[i-1] > list[i] {
+			t.Fatalf("unsafe class list must be sorted: %v", list)
+		}
+		if list[i-1] == list[i] {
+			t.Fatalf("unsafe class list must not contain duplicates: %v", list)
+		}
+	}
+	// The base non-retryable/quarantine classes and the manual_review triage
+	// classes must all be present in the SQL exclusion list.
+	want := map[string]bool{
+		string(projector.FailureClassInputInvalid):    false,
+		string(semanticqueue.StatusUnsafePayload):      false,
+		string(projector.TriageClassProjectionBug):     false,
+		string(projector.TriageClassResourceExhausted): false,
+	}
+	for _, class := range list {
+		if _, tracked := want[class]; tracked {
+			want[class] = true
+		}
+	}
+	for class, present := range want {
+		if !present {
+			t.Fatalf("unsafe class list must include %q for SQL exclusion: %v", class, list)
+		}
 	}
 }

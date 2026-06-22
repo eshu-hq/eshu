@@ -80,7 +80,7 @@ const openAPIPathsAdmin = `
       "post": {
         "tags": ["admin"],
         "summary": "Replay failed work items",
-        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload) unless force is set. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again.",
+        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload, and the manual-review dead-letter triage classes projection_bug and resource_exhausted) unless force is set. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again.",
         "requestBody": {
           "required": true,
           "content": {
