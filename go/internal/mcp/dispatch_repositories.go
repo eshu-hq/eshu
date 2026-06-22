@@ -99,7 +99,14 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 	case "get_repo_story":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true
 	case "get_repo_summary":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/stats"}, true
+		// repo_id is the canonical selector, but keep the legacy repo_name
+		// fallback so MCP clients predating the repo_id field still resolve
+		// instead of building an empty "/repositories//stats" path.
+		selector := str(args, "repo_id")
+		if selector == "" {
+			selector = str(args, "repo_name")
+		}
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(selector) + "/stats"}, true
 	case "get_repository_coverage":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/coverage"}, true
 	default:

@@ -160,13 +160,17 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_repo_summary",
-			Description: "Get a lightweight identity and coverage summary for a repository: file count, workload count, platform count, dependency count, and indexing coverage state. Use this for a quick overview before calling get_repo_context, which returns the full enriched context including entry points, infrastructure, relationships, API surface, and deployment evidence.",
+			Description: "Get a lightweight identity and coverage summary for a repository: file count, languages, entity count, entity types, and indexing coverage state. Use this for a quick overview before calling get_repo_context, which returns the full enriched context including entry points, infrastructure, relationships, API surface, and deployment evidence.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"repo_id": map[string]any{
 						"type":        "string",
 						"description": "Repository selector: canonical ID, name, repo slug, or indexed path",
+					},
+					"repo_name": map[string]any{
+						"type":        "string",
+						"description": "Deprecated alias for repo_id, accepted for backward compatibility; repo_id takes priority when both are set",
 					},
 				},
 				"required": []string{"repo_id"},
