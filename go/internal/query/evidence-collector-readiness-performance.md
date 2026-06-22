@@ -30,7 +30,7 @@ multiplier.
 `observation_count` is an exact wire-contract field, so the count is kept exact
 and the aggregate is moved off the synchronous read path into a reducer-owned
 materialized table `collector_evidence_summary`
-(`schema/data-plane/postgres/035_collector_evidence_summary.sql`), refreshed by a
+(`schema/data-plane/postgres/036_collector_evidence_summary.sql`), refreshed by a
 lease-guarded atomic full resweep
 (`CollectorEvidenceSummaryStore.RebuildAllCollectorEvidence` /
 `reducer.CollectorEvidenceSummaryMaintainer`). This mirrors the #3389

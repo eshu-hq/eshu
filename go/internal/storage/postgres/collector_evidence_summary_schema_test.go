@@ -24,7 +24,7 @@ func TestBootstrapDefinitionsIncludeCollectorEvidenceSummary(t *testing.T) {
 	if def.Name == "" {
 		t.Fatal("collector_evidence_summary definition missing")
 	}
-	if def.Path != "schema/data-plane/postgres/035_collector_evidence_summary.sql" {
+	if def.Path != "schema/data-plane/postgres/036_collector_evidence_summary.sql" {
 		t.Fatalf("unexpected Path %q", def.Path)
 	}
 	for _, want := range []string{

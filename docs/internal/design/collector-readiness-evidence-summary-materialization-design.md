@@ -68,7 +68,7 @@ optimization, not a correctness requirement.
 
 ## Schema
 
-`schema/data-plane/postgres/035_collector_evidence_summary.sql`:
+`schema/data-plane/postgres/036_collector_evidence_summary.sql`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS collector_evidence_summary (
@@ -183,7 +183,7 @@ all readers (net win whenever readiness is queried more than ~once/cadence).
 
 ## Files
 
-- `schema/data-plane/postgres/035_collector_evidence_summary.sql` (new)
+- `schema/data-plane/postgres/036_collector_evidence_summary.sql` (new)
 - `go/internal/storage/postgres/collector_evidence_summary.go` (new: resweep store)
 - `go/internal/storage/postgres/status_collector_evidence.go` (read swap)
 - `go/internal/reducer/collector_evidence_summary_maintainer.go` (new)
