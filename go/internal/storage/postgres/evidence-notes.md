@@ -508,3 +508,54 @@ Operators diagnose the starvation condition through the same signals as #3451:
 `shared projection deferred per-edge rows behind repo refresh fence` log line
 (count drops to zero once the fence opens), `eshu_dp_shared_projection_intents_processed_total`,
 and `pending_projection` DB counts.
+
+## Write-Conflict Handling Proof Under Concurrent Claimers (#3558)
+
+`reducer_queue_conflict_claim_proof_test.go` is the live-concurrency proof that
+the reducer claim path handles MERGE / commit-time uniqueness / write-conflict
+races by partition-by-conflict-key fencing, not by serialization. The contested
+resource is the `(conflict_domain, conflict_key)` fence computed by
+`reducerConflictDomainKey`; the proof exercises the `code_graph` conflict domain
+(`reducerConflictDomainCodeGraph`) where two `code_call_materialization` work
+items share one scope conflict key. Lease settings: `LeaseDuration=1m`,
+distinct `LeaseOwner` per claimer, `Now` pinned so no claimed lease expires
+during a race. The proofs drive real `ReducerQueue.Claim`/`Ack` against the
+production `claimReducerWorkQuery` SQL on a live Postgres in a throwaway schema
+that is dropped on cleanup.
+
+Three scenarios, each a failing-first guard against a regression that drops or
+weakens the fence:
+
+- Shared conflict key, 8 concurrent claimers: at most one live lease across the
+  key at any instant (`maxLive <= 1`) and no work item claimed twice
+  concurrently. A non-atomic or removed fence would let a second claimer grab
+  the sibling while the first lease is live — the concurrent-MERGE / commit-time
+  uniqueness conflict this issue targets.
+- Disjoint conflict keys, 2 claimers: both distinct items claimed concurrently
+  (`len(claimed) == 2`). This proves the fence is partition-by-conflict-key and
+  not serialization-as-a-fix; a single-threaded drain "fix" would fail it.
+- Convergence after ack: a sibling fenced behind a live lease on the same key is
+  deferred (not lost), then becomes claimable once the holder acks and releases
+  the lease, and the post-ack claim returns the deferred sibling rather than
+  re-claiming the acked item. This is the no-lost-write / ordering / idempotent-
+  retry half of the proof.
+
+No-Regression Evidence: this change adds only proof tests; it does not alter the
+production claim SQL, conflict-key derivation, lease semantics, worker count,
+batch size, or any write path, so it cannot regress runtime behavior. Live run
+on the local Compose Postgres (`ESHU_POSTGRES_DSN=...localhost:15432/eshu`):
+`go test ./internal/storage/postgres/ -run
+'TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey|TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys|TestReducerClaimFencedSiblingBecomesClaimableAfterAck'
+-count=1 -race -v` → all three PASS (0.48s / 0.14s / 0.55s, package 9.459s), no
+data race reported. Hermetic run without a DSN skips the three proofs and the
+full `go test ./internal/storage/postgres/... ./internal/reducer/...
+./internal/projector/... -count=1 -race` suite passes (3,554 tests). The proofs
+reuse the existing `reducer_queue_domain_fairness_test.go` schema/seed helpers,
+so they add no new DDL or fixtures.
+
+No-Observability-Change: #3558 adds no queue domain, conflict domain, graph
+write, metric instrument, metric label, span name, worker, lease, route, status
+field, or log field. The claim path's existing instrumentation is unchanged;
+operators continue to diagnose conflict-fence contention through reducer claim
+spans/counters, `fact_work_items` status/`conflict_domain`/`conflict_key`
+columns, lease-owner/`claim_until` rows, and reducer queue status counts.
