@@ -120,7 +120,7 @@ func TestDefaultEngineParsePathYAMLArgoCDApplicationSetNestedSources(t *testing.
 		`apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: api-node-search
+  name: svc-search
   namespace: argocd
 spec:
   generators:
@@ -131,7 +131,7 @@ spec:
                 - git:
                     repoURL: https://github.com/example-org/deployment-charts
                     files:
-                      - path: argocd/api-node-search/overlays/*/config.yaml
+                      - path: argocd/svc-search/overlays/*/config.yaml
                 - list:
                     elements:
                       - cluster: prod
@@ -143,7 +143,7 @@ spec:
       project: "{{.argocd.project}}"
       sources:
         - repoURL: "{{.git.repoURL}}"
-          path: argocd/api-node-search/overlays/{{.environment}}
+          path: argocd/svc-search/overlays/{{.environment}}
       destination:
         namespace: "{{.helm.namespace}}"
 `,
@@ -159,10 +159,10 @@ spec:
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
-	assertNamedBucketContains(t, got, "argocd_applicationsets", "api-node-search")
+	assertNamedBucketContains(t, got, "argocd_applicationsets", "svc-search")
 	assertBucketContainsFieldValue(t, got, "argocd_applicationsets", "source_repos", "https://github.com/example-org/deployment-charts")
-	assertBucketContainsFieldValue(t, got, "argocd_applicationsets", "source_paths", "argocd/api-node-search/overlays/*/config.yaml,argocd/api-node-search/overlays/{{.environment}}")
-	assertBucketContainsFieldValue(t, got, "argocd_applicationsets", "source_roots", "argocd/api-node-search/")
+	assertBucketContainsFieldValue(t, got, "argocd_applicationsets", "source_paths", "argocd/svc-search/overlays/*/config.yaml,argocd/svc-search/overlays/{{.environment}}")
+	assertBucketContainsFieldValue(t, got, "argocd_applicationsets", "source_roots", "argocd/svc-search/")
 	assertBucketContainsFieldValue(t, got, "argocd_applicationsets", "generators", "git,list,matrix,merge,plugin")
 }
 

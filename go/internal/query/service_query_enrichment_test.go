@@ -124,7 +124,7 @@ func TestEnrichServiceQueryContextAddsServiceAndRelationshipSignals(t *testing.T
 				return []map[string]any{
 					{
 						"repo_id":   "repo-consumer-9",
-						"repo_name": "api-node-saved-search",
+						"repo_name": "svc-saved-search",
 					},
 					{
 						"repo_id":   "repo-terraform-stack",
@@ -206,7 +206,7 @@ func TestEnrichServiceQueryContextAddsServiceAndRelationshipSignals(t *testing.T
 	if got, want := StringVal(consumers[0], "repository"), "terraform-stack-staging"; got != want {
 		t.Fatalf("consumer_repositories[0].repository = %q, want %q", got, want)
 	}
-	if got, want := StringVal(consumers[1], "repository"), "api-node-saved-search"; got != want {
+	if got, want := StringVal(consumers[1], "repository"), "svc-saved-search"; got != want {
 		t.Fatalf("consumer_repositories[1].repository = %q, want %q", got, want)
 	}
 
@@ -332,7 +332,7 @@ func TestBuildServiceStoryResponseKeepsStoryFirstKeysWithDossier(t *testing.T) {
 			{"repository": "deployment-helm"},
 		},
 		"consumer_repositories": []map[string]any{
-			{"repository": "api-node-saved-search"},
+			{"repository": "svc-saved-search"},
 		},
 		"provisioning_source_chains": []map[string]any{
 			{"repository": "terraform-stack-staging"},

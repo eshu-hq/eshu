@@ -969,7 +969,7 @@ func TestBuildDeploymentTraceResponseIncludesServiceEvidenceConsumersAndProvisio
 		},
 		"consumer_repositories": []map[string]any{
 			{
-				"repository":     "api-node-saved-search",
+				"repository":     "svc-saved-search",
 				"repo_id":        "repo-consumer-1",
 				"evidence_kinds": []string{"repository_reference", "hostname_reference"},
 				"matched_values": []string{"sample-service-api", "sample-service-api.qa.example.test"},

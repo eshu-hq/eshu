@@ -137,7 +137,7 @@ func TestLoadConsumerRepositoryEnrichmentPreservesDualViews(t *testing.T) {
 					return []map[string]any{
 						{
 							"repo_id":             "repo-consumer-1",
-							"repo_name":           "api-node-saved-search",
+							"repo_name":           "svc-saved-search",
 							"relationship_type":   "PROVISIONS_DEPENDENCY_FOR",
 							"relationship_reason": "terraform_provider_reference",
 						},
@@ -169,7 +169,7 @@ func TestLoadConsumerRepositoryEnrichmentPreservesDualViews(t *testing.T) {
 	}
 
 	first := got[0]
-	if got, want := first["repository"], "api-node-saved-search"; got != want {
+	if got, want := first["repository"], "svc-saved-search"; got != want {
 		t.Fatalf("got[0][repository] = %#v, want %#v", got, want)
 	}
 	if got, want := StringSliceVal(first, "consumer_kinds"), []string{
@@ -373,7 +373,7 @@ func TestLoadConsumerRepositoryEnrichmentBackfillsRepositoryNamesForContentOnlyC
 					return []map[string]any{
 						{
 							"repo_id":   "repo-consumer-9",
-							"repo_name": "api-node-saved-search",
+							"repo_name": "svc-saved-search",
 						},
 					}, nil
 				default:
@@ -395,10 +395,10 @@ func TestLoadConsumerRepositoryEnrichmentBackfillsRepositoryNamesForContentOnlyC
 	}
 
 	consumer := got[0]
-	if gotRepo, wantRepo := StringVal(consumer, "repository"), "api-node-saved-search"; gotRepo != wantRepo {
+	if gotRepo, wantRepo := StringVal(consumer, "repository"), "svc-saved-search"; gotRepo != wantRepo {
 		t.Fatalf("consumer[repository] = %q, want %q", gotRepo, wantRepo)
 	}
-	if gotRepoName, wantRepoName := StringVal(consumer, "repo_name"), "api-node-saved-search"; gotRepoName != wantRepoName {
+	if gotRepoName, wantRepoName := StringVal(consumer, "repo_name"), "svc-saved-search"; gotRepoName != wantRepoName {
 		t.Fatalf("consumer[repo_name] = %q, want %q", gotRepoName, wantRepoName)
 	}
 }

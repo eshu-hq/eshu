@@ -17,7 +17,7 @@ func TestDefaultEngineParsePathGroovyJenkinsfile(t *testing.T) {
 
 pipelinePM2(
   use_configd: true,
-  entry_point: 'dist/api-node-whisper.js',
+  entry_point: 'dist/svc-notify.js',
   pre_deploy: { pipe, params ->
     sh 'echo migrate'
   }
@@ -57,7 +57,7 @@ pipelinePM2(
 	assertEmptyNamedBucket(t, got, "module_inclusions")
 	assertStringSliceContains(t, got["shared_libraries"], "pipelines")
 	assertStringSliceContains(t, got["pipeline_calls"], "pipelinePM2")
-	assertStringSliceContains(t, got["entry_points"], "dist/api-node-whisper.js")
+	assertStringSliceContains(t, got["entry_points"], "dist/svc-notify.js")
 	if got["use_configd"] != true {
 		t.Fatalf("use_configd = %#v, want %#v", got["use_configd"], true)
 	}

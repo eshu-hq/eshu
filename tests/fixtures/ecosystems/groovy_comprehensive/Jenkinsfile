@@ -2,7 +2,7 @@
 
 pipelinePM2(
   use_configd: true,
-  entry_point: 'dist/api-node-whisper.js',
+  entry_point: 'dist/svc-notify.js',
   pre_deploy: { pipe, params ->
     sh 'echo migrate'
   }

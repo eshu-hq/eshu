@@ -67,7 +67,7 @@ func TestImageHandlerListHappyPath(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeImageGraphReader{rows: []map[string]any{
-		imageMap("oci-descriptor://048922418463.dkr.ecr.us-east-1.amazonaws.com/api-node-brochure@sha256:aaa", "sha256:aaa", "oci-registry://048922418463.dkr.ecr.us-east-1.amazonaws.com/api-node-brochure", "4.3.0"),
+		imageMap("oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/svc-listings@sha256:aaa", "sha256:aaa", "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/svc-listings", "4.3.0"),
 	}}
 	handler := &ImageHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
@@ -85,10 +85,10 @@ func TestImageHandlerListHappyPath(t *testing.T) {
 		t.Fatalf("images = %#v, want 1 row", data["images"])
 	}
 	first := images[0].(map[string]any)
-	if got, want := first["registry"], "048922418463.dkr.ecr.us-east-1.amazonaws.com"; got != want {
+	if got, want := first["registry"], "123456789012.dkr.ecr.us-east-1.amazonaws.com"; got != want {
 		t.Fatalf("registry = %#v, want %#v", got, want)
 	}
-	if got, want := first["repository"], "api-node-brochure"; got != want {
+	if got, want := first["repository"], "svc-listings"; got != want {
 		t.Fatalf("repository = %#v, want %#v", got, want)
 	}
 	if got := data["truncated"]; got != false {
