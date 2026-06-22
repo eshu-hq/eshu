@@ -470,7 +470,6 @@ func Parse(repoRoot, path string, isDependency bool, options shared.Options, par
 			lineNumber,
 			functionDeclCutoff,
 			seenLineCalls,
-			knownTypeNames,
 			declaredTypeNames,
 		)
 

@@ -450,15 +450,20 @@ var kotlinBareCallControlKeywords = map[string]struct{}{
 // kotlinAppendBareCalls extracts unqualified (receiver-less) calls such as
 // same-scope method calls, top-level function calls, and imported function
 // calls. The qualified call pattern requires a `receiver.method` shape, so bare
-// calls would otherwise be dropped. Constructor-style calls to declared type
-// names are captured by kotlinAppendConstructorCalls and are skipped here.
+// calls would otherwise be dropped.
+//
+// Only locally-declared types are skipped as constructor candidates. Kotlin
+// imports do not declare function-vs-class, so an imported name such as
+// `helper` from `import demo.util.helper` must still emit a call edge. When an
+// imported name is genuinely a constructor (`Widget()`), the constructor-call
+// path runs first and records the same `name#line` key in seenLineCalls, so the
+// bare-call path skips it here without dropping imported function calls.
 func kotlinAppendBareCalls(
 	payload map[string]any,
 	trimmed string,
 	lineNumber int,
 	functionDeclCutoff int,
 	seenLineCalls map[string]struct{},
-	knownTypeNames map[string]struct{},
 	declaredTypeNames map[string]struct{},
 ) {
 	for _, match := range kotlinBareCallPattern.FindAllStringSubmatchIndex(trimmed, -1) {
@@ -493,12 +498,10 @@ func kotlinAppendBareCalls(
 		if kotlinCallIsChainReceiver(trimmed, match[1]-1) {
 			continue
 		}
-		// Declared types on this line and known type names are constructor
-		// targets emitted by the constructor-call path.
+		// Locally-declared types are constructor targets emitted by the
+		// constructor-call path. Imported names are not skipped here because
+		// Kotlin imports do not distinguish functions from types.
 		if _, ok := declaredTypeNames[name]; ok {
-			continue
-		}
-		if _, ok := knownTypeNames[name]; ok {
 			continue
 		}
 		callKey := name + "#" + strconv.Itoa(lineNumber)
