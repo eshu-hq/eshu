@@ -153,6 +153,7 @@ func TestSpanNames(t *testing.T) {
 		"query.replatforming_plan",
 		"query.iac_resources",
 		"query.infra_resource_search",
+		"query.infra_relationships",
 		"query.infra_resource_aggregate",
 		"query.cloud_resource_list",
 		"query.cloud_inventory_readback",
