@@ -92,6 +92,22 @@ route with no handler because tree-sitter parks the bare decorator under an
 ERROR node whose parent is not a `decorated_definition`, preserving the #2788
 correlation-truth contract.
 
+No-Regression Evidence (PR #3544 Codex P2 follow-up): the AST `__all__` reader
+now descends concatenated literals. `__all__ = ["foo"] + ["bar"]` parses with a
+`binary_operator` right-hand side, so `pythonStringSequenceLiterals` recurses
+through both operands (and nested `binary_operator` nodes) and collects string
+literals from each `list`/`tuple`/`set` operand. Before the fix the helper
+returned no names for the split form and the exported symbols lost their
+`python.module_all_export` roots, surfacing as dead-code candidates; the old
+regex RHS scan had captured them.
+`go test ./internal/parser -run 'TestDefaultEngineParsePathPythonConcatenatedAllExportsAreRoots' -count=1`
+and `go test ./internal/parser/python -run TestPythonModuleAllNamesAcceptsConcatenatedLiterals -count=1`
+fail before the fix and pass after, while the plain list/tuple `__all__` and
+`TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds` suites stay green. The
+augmented form `__all__ += [...]` parses as `augmented_assignment`, a node kind
+the prior regex-on-`assignment` path never captured, so it stays out of scope to
+preserve parity.
+
 No-Observability-Change: this change is parser-internal; it edits only how the
 existing `framework_semantics`, `orm_table_mappings`, and
 `dead_code_root_kinds` payload fields are computed. No metric instrument, metric

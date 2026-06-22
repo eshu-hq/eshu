@@ -480,6 +480,59 @@ def private_helper():
 	}
 }
 
+// TestDefaultEngineParsePathPythonConcatenatedAllExportsAreRoots proves that the
+// split `__all__ = [...] + [...]` pattern still marks every exported symbol as a
+// python.module_all_export root. The AST right-hand side is a binary_operator,
+// not a list, so the export names must be collected from both operands (#3544
+// Codex P2 regression).
+func TestDefaultEngineParsePathPythonConcatenatedAllExportsAreRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "concat_all.py")
+	writeTestFile(
+		t,
+		filePath,
+		`__all__ = ["foo"] + ["bar"]
+
+def foo():
+    return "foo"
+
+def bar():
+    return "bar"
+
+def private_helper():
+    return "candidate"
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "foo"),
+		"dead_code_root_kinds",
+		[]string{"python.module_all_export"},
+	)
+	assertParserStringSliceFieldValue(
+		t,
+		assertFunctionByName(t, got, "bar"),
+		"dead_code_root_kinds",
+		[]string{"python.module_all_export"},
+	)
+	if _, ok := assertFunctionByName(t, got, "private_helper")["dead_code_root_kinds"]; ok {
+		t.Fatalf("private_helper dead_code_root_kinds present, want absent")
+	}
+}
+
 func TestDefaultEngineParsePathPythonDoesNotMarkUnknownDecoratorsAsDeadCodeRoots(t *testing.T) {
 	t.Parallel()
 

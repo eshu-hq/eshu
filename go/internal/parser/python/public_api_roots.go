@@ -44,32 +44,44 @@ func pythonModuleAllNames(root *tree_sitter.Node, source []byte) map[string]stru
 }
 
 // pythonStringSequenceLiterals returns the identifier-shaped string literals
-// inside an `__all__` list or tuple value node. Only string entries whose
-// content is a valid Python identifier are kept, matching the prior literal
-// extraction that ignored non-identifier strings.
+// inside an `__all__` value node. It handles list, tuple, and set literals and
+// recursively descends concatenated literals (`["a"] + ("b",)`), which the
+// grammar represents as a binary_operator over operand containers. Non-literal
+// operands such as `base.__all__` contribute no names. Only string entries whose
+// content is a valid Python identifier are kept, matching the prior regex-based
+// literal extraction that scanned the whole right-hand side text.
 func pythonStringSequenceLiterals(value *tree_sitter.Node, source []byte) []string {
+	return pythonCollectStringSequenceLiterals(value, source, make([]string, 0))
+}
+
+// pythonCollectStringSequenceLiterals appends identifier-shaped string literals
+// from an `__all__` value node into names, descending through binary_operator
+// concatenations and into the string children of list, tuple, and set literals.
+func pythonCollectStringSequenceLiterals(value *tree_sitter.Node, source []byte, names []string) []string {
 	if value == nil {
-		return nil
+		return names
 	}
 	switch value.Kind() {
+	case "binary_operator":
+		names = pythonCollectStringSequenceLiterals(value.ChildByFieldName("left"), source, names)
+		return pythonCollectStringSequenceLiterals(value.ChildByFieldName("right"), source, names)
 	case "list", "tuple", "set":
+		cursor := value.Walk()
+		defer cursor.Close()
+		for _, child := range value.NamedChildren(cursor) {
+			child := child
+			if child.Kind() != "string" {
+				continue
+			}
+			literal := pythonStringLiteralValue(&child, source)
+			if pythonIsIdentifier(literal) {
+				names = appendUniqueString(names, literal)
+			}
+		}
+		return names
 	default:
-		return nil
+		return names
 	}
-	names := make([]string, 0)
-	cursor := value.Walk()
-	defer cursor.Close()
-	for _, child := range value.NamedChildren(cursor) {
-		child := child
-		if child.Kind() != "string" {
-			continue
-		}
-		literal := pythonStringLiteralValue(&child, source)
-		if pythonIsIdentifier(literal) {
-			names = appendUniqueString(names, literal)
-		}
-	}
-	return names
 }
 
 // pythonIsIdentifier reports whether s is a valid Python identifier name

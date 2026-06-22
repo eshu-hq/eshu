@@ -229,6 +229,50 @@ func TestPythonModuleAllNamesAcceptsListAndTuple(t *testing.T) {
 	}
 }
 
+// TestPythonModuleAllNamesAcceptsConcatenatedLiterals proves __all__ names are
+// collected from both operands of a concatenated literal RHS (a binary_operator
+// node), including nested concatenation and mixed list/tuple containers, while
+// ignoring non-literal operands such as `base.__all__`.
+func TestPythonModuleAllNamesAcceptsConcatenatedLiterals(t *testing.T) {
+	for _, testCase := range []struct {
+		name   string
+		source string
+		want   []string
+	}{
+		{
+			name:   "two lists",
+			source: "__all__ = [\"foo\"] + [\"bar\"]\n",
+			want:   []string{"foo", "bar"},
+		},
+		{
+			name:   "nested mixed containers",
+			source: "__all__ = [\"a\"] + (\"b\", \"c\") + [\"d\"]\n",
+			want:   []string{"a", "b", "c", "d"},
+		},
+		{
+			name:   "ignores non-literal operand",
+			source: "__all__ = [\"a\"] + base.__all__ + [\"b\"]\n",
+			want:   []string{"a", "b"},
+		},
+	} {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			root, source, closer := parsePythonForTest(t, testCase.source)
+			defer closer()
+
+			names := pythonModuleAllNames(root, source)
+			if len(names) != len(testCase.want) {
+				t.Fatalf("__all__ names = %#v, want %v", names, testCase.want)
+			}
+			for _, want := range testCase.want {
+				if _, ok := names[want]; !ok {
+					t.Fatalf("__all__ names missing %q: %#v", want, names)
+				}
+			}
+		})
+	}
+}
+
 // TestPythonScriptMainGuardConditionAST proves the script-main guard is detected
 // from the if-statement condition AST in both operand orders and parenthesized
 // form, and that an inequality guard is rejected.
