@@ -19,7 +19,7 @@ func phpParseNewExpressionType(expr string) string {
 	}
 	name := strings.TrimSpace(rest[:openParen])
 	name = strings.TrimPrefix(name, `\`)
-	if name == "" || !phpIsTypeReference(name) {
+	if name == "" || !phpIsQualifiedTypeReference(name) {
 		return ""
 	}
 	return name
@@ -62,12 +62,6 @@ func phpParseStaticProperty(expr string) (string, string, bool) {
 		return "", "", false
 	}
 	return owner, property, true
-}
-
-// phpIsTypeReference reports whether name is a single PHP type identifier
-// (no namespace separators).
-func phpIsTypeReference(name string) bool {
-	return phpIsIdentifier(name)
 }
 
 // phpIsQualifiedTypeReference reports whether name is a PHP type identifier that
