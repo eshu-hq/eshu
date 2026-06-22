@@ -58,9 +58,17 @@
 
 - No-Regression Evidence: the AST conversion replaces multi-pass regex scans
   with single-pass walks over an already-built tree; sibling files are parsed
-  once and cached. Output is byte-for-byte identical, proven by the unchanged
+  once and cached. Output is identical for valid code, proven by the unchanged
   `engine_javascript_*`, `engine_typescript_*`, `engine_tsx_*` tests and the
-  js/ts/tsx comprehensive golden fixtures.
+  js/ts/tsx comprehensive golden fixtures. Two framework-semantics buckets are
+  intentionally narrowed because the prior raw-source regexes matched code-shaped
+  tokens inside comments, strings, imports, and type annotations: `react.hooks_used`
+  now collects only real `call_expression` hook calls (bare and `React.useState`
+  member form), and `aws`/`gcp` `client_symbols` collects only `new`-constructed
+  `XxxClient` names. Dynamic `import("@aws-sdk/client-*")` is now covered for the
+  service buckets alongside static import and require. These narrowings drop prior
+  false positives and have regression tests in
+  `engine_javascript_ast_conversion_test.go`.
 - No-Observability-Change: this package emits no telemetry by design; the
   conversion neither adds nor removes spans, metrics, or logs.
 

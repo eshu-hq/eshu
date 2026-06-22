@@ -336,6 +336,94 @@ export const Badge = () => <span>new</span>;
 	assertNamedBucketContains(t, got, "components", "Badge")
 }
 
+// TestDefaultEngineParsePathReactHookMemberCallParity pins that hook detection
+// keeps the legitimate matches the prior raw-source regex produced (a namespaced
+// member call such as React.useState(...)) while dropping the regex's false
+// positives over comment and string content. The old regex
+// `\b(use[A-Z][A-Za-z0-9_]*)\s*\(` matched React.useState( and also any
+// use...( token sitting inside a comment or string literal; the AST walk must
+// match the real call and ignore the non-code occurrences.
+func TestDefaultEngineParsePathReactHookMemberCallParity(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "components", "Widget.tsx")
+	writeTestFile(
+		t,
+		filePath,
+		`import React from "react";
+
+// useGhost( should never be collected from this comment
+const note = "useString( must not be collected from a string literal";
+
+export function Widget() {
+  const [open] = React.useState(false);
+  useToolbarOverflow();
+  return <div>{String(open)}</div>;
+}
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+	assertNestedStringSliceEqual(t, got, "react", "hooks_used", []string{"useState", "useToolbarOverflow"})
+}
+
+// TestDefaultEngineParsePathAWSClientSymbolConstructorOnly pins that the AWS
+// client_symbols bucket reports only symbols actually constructed with new, not
+// every XxxClient token. The prior raw-source regex `\b([A-Z][A-Za-z0-9]+Client)\b`
+// also matched the import binding, type annotations, and comment text, which
+// over-reported symbols the file never instantiates. The AST walk fixes that:
+// here S3Client is imported and annotated but never constructed, while SSMClient
+// is constructed, so only SSMClient is reported.
+func TestDefaultEngineParsePathAWSClientSymbolConstructorOnly(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "aws", "clients.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import { S3Client } from "@aws-sdk/client-s3";
+import { SSMClient } from "@aws-sdk/client-ssm";
+
+// GhostClient referenced only in this comment must be ignored.
+let pending: S3Client;
+
+export function makeParamStore() {
+  return new SSMClient({ region: "us-east-1" });
+}
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+	assertNestedStringSliceEqual(t, got, "aws", "client_symbols", []string{"SSMClient"})
+}
+
+// TestDefaultEngineParsePathAWSServiceDynamicImportParity pins that the AWS
+// services bucket still recognizes a service imported through a dynamic
+// import("@aws-sdk/client-*") call. The prior raw-source regex matched the
+// specifier string regardless of import form; the AST specifier collector must
+// cover static import, require(), and dynamic import() so this real form is not
+// silently dropped.
+func TestDefaultEngineParsePathAWSServiceDynamicImportParity(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "aws", "lazy.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`export async function load() {
+  const mod = await import("@aws-sdk/client-s3");
+  return mod;
+}
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+	assertNestedStringSliceEqual(t, got, "aws", "services", []string{"s3"})
+}
+
 func mustParsePath(t *testing.T, repoRoot string, filePath string) map[string]any {
 	t.Helper()
 	engine, err := DefaultEngine()

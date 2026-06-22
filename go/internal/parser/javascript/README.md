@@ -88,6 +88,28 @@ source scanner, and each is a documented within-string-content exception:
   string is isolated from the AST `import_statement`/`require` node first; the
   regex only parses the trailing slug inside that isolated string.
 
+### Intentional parity narrowings (prior regex bug fixes)
+
+The AST conversion deliberately reports a stricter, more accurate set than the
+old raw-source regexes in two framework-semantics buckets. The previous regexes
+scanned the whole file, so they matched code-shaped tokens inside comments,
+string literals, imports, and type annotations. The AST walk only visits real
+syntax nodes, so those non-code matches are no longer reported:
+
+- `react.hooks_used` collects hook calls from `call_expression` callees only,
+  covering both bare `useState(...)` and member-call `React.useState(...)`
+  forms. The legitimate member-call match the old regex produced is preserved;
+  the hook-shaped tokens it also matched inside comments and strings are dropped.
+- `aws`/`gcp` `client_symbols` collects only `XxxClient` names actually
+  constructed with `new`. Import bindings, type annotations, and comment
+  mentions of an `XxxClient` token are no longer counted, because the file does
+  not instantiate them there.
+
+Both narrowings have engine-level regression tests in
+`engine_javascript_ast_conversion_test.go`
+(`TestDefaultEngineParsePathReactHookMemberCallParity`,
+`TestDefaultEngineParsePathAWSClientSymbolConstructorOnly`).
+
 ## No-Regression Evidence
 
 The AST conversion replaces multi-pass regex/full-source scans with single-pass
@@ -95,9 +117,12 @@ tree-sitter node walks over a tree the parser already builds for core symbols.
 No new full-source pass is added; sibling dead-code files are parsed once per
 `Parse` call and cached, mirroring the previous one-time `os.ReadFile` reads and
 only invoking tree-sitter when a non-empty sibling file exists. The payload is
-byte-for-byte identical: every `engine_javascript_*`, `engine_typescript_*`,
+identical for valid code: every `engine_javascript_*`, `engine_typescript_*`,
 `engine_tsx_*` test and the js/ts/tsx comprehensive golden fixtures pass
-unchanged (`go test ./internal/parser/...`). The change is a net reduction in
+unchanged (`go test ./internal/parser/...`). The only behavioral differences are
+the intentional bug-fix narrowings described under "Intentional parity
+narrowings" above, where the prior regexes over-reported tokens inside comments,
+strings, imports, and type annotations. The change is a net reduction in
 per-file scanning work, not a regression.
 
 ## No-Observability-Change

@@ -288,7 +288,14 @@ func javaScriptImportModuleSpecifiers(root *tree_sitter.Node, source []byte) []s
 			}
 		case "call_expression":
 			functionNode := node.ChildByFieldName("function")
-			if functionNode == nil || strings.TrimSpace(nodeText(functionNode, source)) != "require" {
+			if functionNode == nil {
+				return
+			}
+			// Cover both require("...") and dynamic import("..."). The grammar
+			// emits the dynamic-import callee as an "import" node, while require
+			// is a plain identifier. The prior raw-source regex matched the
+			// specifier string in either form, so both must be collected.
+			if functionNode.Kind() != "import" && strings.TrimSpace(nodeText(functionNode, source)) != "require" {
 				return
 			}
 			argsNode := node.ChildByFieldName("arguments")
@@ -312,7 +319,10 @@ func javaScriptImportModuleSpecifiers(root *tree_sitter.Node, source []byte) []s
 //   - new vision.ImageAnnotatorClient() → member_expression property  → "ImageAnnotatorClient"
 //
 // Matching is structural (AST node kinds), not regex over raw source, so
-// comments and string literals are never visited.
+// comments and string literals are never visited. This intentionally narrows
+// the prior raw-source regex, which also matched the XxxClient token in import
+// bindings, type annotations, and comments; those non-construction occurrences
+// were false positives and are no longer reported.
 func javaScriptClientSymbolNames(root *tree_sitter.Node, source []byte) []string {
 	symbols := make([]string, 0)
 	seen := make(map[string]struct{})
@@ -363,8 +373,12 @@ func isClientSymbolName(name string) bool {
 }
 
 // javaScriptHookCallNames returns the unique, source-order names of React hook
-// calls: call_expression nodes whose function is an identifier matching
-// use[A-Z][A-Za-z0-9_]*.
+// calls. A hook call is a call_expression whose callee resolves to a hook name
+// (use[A-Z][A-Za-z0-9_]*) either as a bare identifier (useState(...)) or as the
+// property of a member-expression callee (React.useState(...)). The member case
+// preserves the legitimate matches the prior raw-source regex produced while the
+// structural walk still ignores hook-shaped tokens inside comments and string
+// literals, which the regex matched in error.
 func javaScriptHookCallNames(root *tree_sitter.Node, source []byte) []string {
 	names := make([]string, 0)
 	seen := make(map[string]struct{})
@@ -376,10 +390,20 @@ func javaScriptHookCallNames(root *tree_sitter.Node, source []byte) []string {
 			return
 		}
 		fn := node.ChildByFieldName("function")
-		if fn == nil || fn.Kind() != "identifier" {
+		if fn == nil {
 			return
 		}
-		name := strings.TrimSpace(nodeText(fn, source))
+		var nameNode *tree_sitter.Node
+		switch fn.Kind() {
+		case "identifier":
+			nameNode = fn
+		case "member_expression":
+			nameNode = fn.ChildByFieldName("property")
+		}
+		if nameNode == nil {
+			return
+		}
+		name := strings.TrimSpace(nodeText(nameNode, source))
 		if !isHookName(name) {
 			return
 		}

@@ -165,7 +165,6 @@ func nextJSRequestResponseAPIs(source string) []string {
 	return apis
 }
 
-
 func isPascalIdentifier(name string) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
