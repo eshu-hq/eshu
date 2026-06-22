@@ -110,6 +110,47 @@ Both narrowings have engine-level regression tests in
 (`TestDefaultEngineParsePathReactHookMemberCallParity`,
 `TestDefaultEngineParsePathAWSClientSymbolConstructorOnly`).
 
+## Performance Evidence
+
+The dead-code, export-surface, and semantic helpers recover ancestor context
+(is-exported, enclosing class, enclosing function, CommonJS export, Hapi route
+object, NestJS controller) by walking `Node.Parent()`. Tree-sitter's
+`Node.Parent()` does not consult a stored pointer; the binding re-walks from the
+root and every call crosses cgo into `ts_node_parent`. The regex-to-AST
+migration (#3539 family) wired these helpers to walk bottom-up per declaration
+node, so the pattern scaled as O(n_declarations * depth) cgo crossings per file.
+A full-corpus CPU profile on JavaScript/TypeScript parsing (#3586) showed
+`runtime.cgocall`, driven by `ts_node_parent`, at roughly 48% of all parse CPU.
+
+`javaScriptParentLookup` (`parent_lookup.go`) removes those per-node crossings.
+`Parse` builds one child-to-parent map per tree in a single O(n) pass (the only
+cgo it costs is the one-time `Node.Child` walk over the tree the parser already
+built), then every helper consults the Go map via `parent(node)` instead of
+calling `node.Parent()`. The map keys on `Node.Id()`, a pure Go field read, so
+lookups never re-enter cgo. The mechanism is output-identical: `parent(x)`
+returns the exact node `x.Parent()` returns, so every helper's boolean and
+string results are unchanged. This is a mechanism optimization, not a behavior
+change.
+
+Benchmark Evidence: `go test ./internal/parser
+-run 'TestJavaScriptParentLookupEliminatesCgoCrossings' -count=1 -v` proves the
+old cgo-Parent walk and the Go-lookup walk return identical is-exported results
+for every declaration node, and that the lookup makes 0 cgo `Parent()` crossings
+where the old mechanism made 720 over 240 method nodes (Apple M5 Max, commit on
+branch `perf/3586-js-parser-cgo-parent`). `go test ./internal/parser -bench
+'BenchmarkParsePathTypeScriptExportHeavy' -benchmem -count=5` over a synthetic
+heavy TS file dropped allocations from 2,722,954 to 2,476,010 per parse (~9%
+fewer) by eliminating the `*Node` the cgo binding allocates per `ts_node_parent`
+call; wall time on this M-series shape is roughly flat (the synthetic fixture's
+shallow ancestor depth and its per-method `strings.Contains` import scan dominate
+its wall clock, so the cgo-crossing count is the decisive hardware-independent
+signal). The cgo-isolation benchmarks `BenchmarkJavaScriptIsExportedCgoParent`
+and `BenchmarkJavaScriptIsExportedParentLookup` keep the two mechanisms
+side by side for future profiling. Classification: handler win and diagnostic
+win on this hardware; the wall-clock win is expected to land on the x86
+full-corpus shape that produced the #3586 profile, where cgo crossing volume,
+not Go-side string work, dominates.
+
 ## No-Regression Evidence
 
 The AST conversion replaces multi-pass regex/full-source scans with single-pass

@@ -235,8 +235,9 @@ func javaScriptTypeScriptPublicDeclarationNodes(
 	if root == nil {
 		return declarations
 	}
+	parents := buildJavaScriptParentLookup(root)
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if !javaScriptIsExported(node) {
+		if !javaScriptIsExported(node, parents) {
 			return
 		}
 		if !javaScriptTypeScriptIsPublicDeclarationKind(node) {

@@ -34,13 +34,14 @@ func javaScriptTypeScriptSurfaceRootKinds(
 	root *tree_sitter.Node,
 	source []byte,
 	siblingParser *javaScriptSiblingParser,
+	parents *javaScriptParentLookup,
 ) map[string][]string {
 	rootKinds := make(map[string][]string)
 	if root == nil || !javaScriptIsTypeScriptSourcePath(path) {
 		return rootKinds
 	}
 
-	exportedNames := javaScriptTypeScriptExportedDeclarationNames(root, source)
+	exportedNames := javaScriptTypeScriptExportedDeclarationNames(root, source, parents)
 	if len(exportedNames) == 0 {
 		return rootKinds
 	}
@@ -66,7 +67,7 @@ func javaScriptTypeScriptSurfaceRootKinds(
 	for name := range javaScriptTypeScriptPublicTypeReferences(root, source, publicNames, exportedNames) {
 		rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
 	}
-	for name := range javaScriptTypeScriptStaticRegistryMemberNames(root, source) {
+	for name := range javaScriptTypeScriptStaticRegistryMemberNames(root, source, parents) {
 		rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptStaticRegistryMemberRoot)
 	}
 	return rootKinds
@@ -188,7 +189,7 @@ func cloneJavaScriptTypeScriptSurfaceNames(names map[string]struct{}) map[string
 	return clone
 }
 
-func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte) bool {
+func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
 	if node == nil || node.Kind() != "method_definition" {
 		return false
 	}
@@ -199,7 +200,7 @@ func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node,
 	if strings.HasPrefix(methodSource, "private ") || strings.HasPrefix(methodSource, "protected ") {
 		return false
 	}
-	for current := node.Parent(); current != nil; current = current.Parent() {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "class_declaration", "abstract_class_declaration":
 			return javaScriptClassHasImplementsClause(current)
@@ -217,10 +218,10 @@ func javaScriptClassHasImplementsClause(node *tree_sitter.Node) bool {
 	return javaScriptNodeContainsKind(node, "implements_clause")
 }
 
-func javaScriptTypeScriptExportedDeclarationNames(root *tree_sitter.Node, source []byte) map[string]struct{} {
+func javaScriptTypeScriptExportedDeclarationNames(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) map[string]struct{} {
 	names := make(map[string]struct{})
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if !javaScriptIsExported(node) {
+		if !javaScriptIsExported(node, parents) {
 			return
 		}
 		name := javaScriptTypeScriptDeclarationName(node, source)
@@ -361,7 +362,7 @@ func javaScriptTypeScriptPublicTypeReferences(
 	return references
 }
 
-func javaScriptTypeScriptStaticRegistryMemberNames(root *tree_sitter.Node, source []byte) map[string]struct{} {
+func javaScriptTypeScriptStaticRegistryMemberNames(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) map[string]struct{} {
 	members := make(map[string]struct{})
 	if root == nil {
 		return members
@@ -371,7 +372,7 @@ func javaScriptTypeScriptStaticRegistryMemberNames(root *tree_sitter.Node, sourc
 		return members
 	}
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "object" || !javaScriptObjectLiteralIsExportedRegistry(node, source) {
+		if node.Kind() != "object" || !javaScriptObjectLiteralIsExportedRegistry(node, source, parents) {
 			return
 		}
 		for _, name := range javaScriptObjectAliasNames(node, source, "") {
@@ -421,15 +422,15 @@ func javaScriptVariableDeclaratorHasFunctionValue(node *tree_sitter.Node) bool {
 	}
 }
 
-func javaScriptObjectLiteralIsExportedRegistry(objectNode *tree_sitter.Node, source []byte) bool {
+func javaScriptObjectLiteralIsExportedRegistry(objectNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
 	if objectNode == nil || objectNode.Kind() != "object" {
 		return false
 	}
-	parent := objectNode.Parent()
+	parent := parents.parent(objectNode)
 	if parent == nil || parent.Kind() != "variable_declarator" {
 		return false
 	}
-	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), objectNode) || !javaScriptIsExported(parent) {
+	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), objectNode) || !javaScriptIsExported(parent, parents) {
 		return false
 	}
 	return strings.TrimSpace(javaScriptTypeScriptDeclarationName(parent, source)) != ""

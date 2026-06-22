@@ -49,12 +49,13 @@ func Parse(
 	}
 	scope := options.NormalizedVariableScope()
 	root := tree.RootNode()
+	parents := buildJavaScriptParentLookup(root)
 	sourceText := string(source)
 	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source, outputLanguage)
 	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
 	siblingParser := newJavaScriptSiblingParser(parserFactory)
 	defer siblingParser.Close()
-	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser)
+	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents)
 	if len(deadCodeRoots.fileRootKinds) > 0 {
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
@@ -89,7 +90,7 @@ func Parse(
 				"lang":        outputLanguage,
 			}
 			if outputLanguage != "javascript" {
-				classItem["decorators"] = javaScriptDecorators(node, source)
+				classItem["decorators"] = javaScriptDecorators(node, source, parents)
 				classItem["type_parameters"] = javaScriptTypeParameters(node, source)
 				if interfaces := javaScriptImplementedInterfaces(node, source); len(interfaces) > 0 {
 					classItem["implemented_interfaces"] = interfaces
@@ -166,7 +167,7 @@ func Parse(
 			if outputLanguage == "tsx" && javaScriptComponentWrapperKind(valueNode, source, reactAliases) != "" {
 				maybeAppendJavaScriptComponent(payload, valueNode, nameNode, source, outputLanguage, reactAliases)
 			}
-			if scope == "module" && javaScriptInsideFunction(node) {
+			if scope == "module" && javaScriptInsideFunction(node, parents) {
 				return
 			}
 			if requireItems := javaScriptRequireImportEntries(node, source, outputLanguage); len(requireItems) > 0 {
@@ -234,7 +235,7 @@ func Parse(
 				item["inferred_obj_type"] = inferredType
 			}
 			if strings.HasPrefix(fullName, "this.") {
-				if classContext := javaScriptEnclosingClassName(node, source); classContext != "" {
+				if classContext := javaScriptEnclosingClassName(node, source, parents); classContext != "" {
 					item["class_context"] = classContext
 				}
 			}
@@ -245,6 +246,7 @@ func Parse(
 				outputLanguage,
 				commonJSModuleAliases,
 				fastifyBases,
+				parents,
 			) {
 				appendBucket(payload, "function_calls", reference)
 			}
@@ -266,6 +268,7 @@ func Parse(
 				outputLanguage,
 				commonJSModuleAliases,
 				false,
+				parents,
 			) {
 				appendBucket(payload, "function_calls", reference)
 			}
@@ -384,7 +387,7 @@ func appendFunctionDeclaration(
 		"name":            name,
 		"line_number":     nodeLine(nameNode),
 		"end_line":        nodeEndLine(declarationNode),
-		"decorators":      javaScriptDecorators(declarationNode, source),
+		"decorators":      javaScriptDecorators(declarationNode, source, deadCodeRoots.parents),
 		"type_parameters": javaScriptTypeParameters(declarationNode, source),
 		"parameter_count": javaScriptParameterCount(declarationNode.ChildByFieldName("parameters"), source),
 		"lang":            lang,
@@ -401,7 +404,7 @@ func appendFunctionDeclaration(
 	if docstring := javaScriptDocstring(declarationNode, source); docstring != "" {
 		item["docstring"] = docstring
 	}
-	for key, value := range javaScriptFunctionSemantics(declarationNode, source, lang) {
+	for key, value := range javaScriptFunctionSemantics(declarationNode, source, lang, deadCodeRoots.parents) {
 		item[key] = value
 	}
 	if options.IndexSource {

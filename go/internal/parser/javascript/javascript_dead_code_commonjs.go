@@ -95,15 +95,15 @@ func javaScriptCommonJSModuleExportAliases(root *tree_sitter.Node, source []byte
 	return aliases
 }
 
-func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source []byte) bool {
+func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
 	if node == nil || node.Kind() != "method_definition" {
 		return false
 	}
-	classNode := javaScriptNearestClassNode(node)
+	classNode := javaScriptNearestClassNode(node, parents)
 	if classNode == nil {
 		return false
 	}
-	for current := classNode.Parent(); current != nil; current = current.Parent() {
+	for current := parents.parent(classNode); current != nil; current = parents.parent(current) {
 		if current.Kind() == "program" {
 			return false
 		}
@@ -120,8 +120,8 @@ func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source 
 	return false
 }
 
-func javaScriptNearestClassNode(node *tree_sitter.Node) *tree_sitter.Node {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func javaScriptNearestClassNode(node *tree_sitter.Node, parents *javaScriptParentLookup) *tree_sitter.Node {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "class", "class_declaration", "abstract_class_declaration":
 			return current
@@ -156,11 +156,11 @@ func rewriteJavaScriptCommonJSModuleExportAliasFullName(fullName string, aliases
 	return fullName
 }
 
-func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []byte) bool {
+func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	for current := node; current != nil; current = current.Parent() {
+	for current := node; current != nil; current = parents.parent(current) {
 		if current.Kind() != "assignment_expression" {
 			continue
 		}
@@ -171,11 +171,11 @@ func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []by
 	return false
 }
 
-func javaScriptIsCommonJSMixinExport(node *tree_sitter.Node, name string, source []byte) bool {
+func javaScriptIsCommonJSMixinExport(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	for current := node; current != nil; current = current.Parent() {
+	for current := node; current != nil; current = parents.parent(current) {
 		if current.Kind() != "assignment_expression" {
 			continue
 		}
