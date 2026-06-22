@@ -18,6 +18,17 @@ type callChainRequest struct {
 	MaxDepth      int    `json:"max_depth"`
 }
 
+// codeCallChainAnchorLabelDisjunction is the label set the Neo4j-compat
+// call-chain builder seeds its start/end anchors with. It mirrors the
+// authoritative CALLS-source label set the canonical edge writer projects
+// (see retractCodeCallParserEdgesCypher in storage/cypher), so every node
+// reachable as a call-chain endpoint still resolves while the planner seeds
+// from a label/index scan instead of an all-node scan. The prior unlabeled
+// `MATCH (start)` / `MATCH (end)` gave the Neo4j planner no label to anchor on,
+// so the id/name predicate forced a full-graph scan (issue #3567). NornicDB has
+// its own builder (buildNornicDBCallChainCypher) and is intentionally untouched.
+const codeCallChainAnchorLabelDisjunction = "Function|Class|Struct|Interface|TypeAlias|File"
+
 func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 	if capabilityUnsupported(h.profile(), "call_graph.call_chain_path") {
 		WriteContractError(
@@ -128,8 +139,8 @@ func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, m
 	}
 
 	var cypher strings.Builder
-	cypher.WriteString("\n\t\tMATCH (start)\n")
-	cypher.WriteString("\t\tMATCH (end)")
+	cypher.WriteString("\n\t\tMATCH (start:" + codeCallChainAnchorLabelDisjunction + ")\n")
+	cypher.WriteString("\t\tMATCH (end:" + codeCallChainAnchorLabelDisjunction + ")")
 	if len(predicates) > 0 {
 		cypher.WriteString("\n\t\tWHERE ")
 		cypher.WriteString(strings.Join(predicates, " AND "))

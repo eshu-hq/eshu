@@ -212,12 +212,12 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 	}
 	limit := normalizeImpactListLimit(req.Limit)
 
-	cypher := fmt.Sprintf(`MATCH (start) WHERE start.id = $start_id
+	cypher := fmt.Sprintf(`MATCH (start:%s) WHERE start.id = $start_id
 		OPTIONAL MATCH path = (start)-[rels*1..%d]->(repo:Repository)
 		WITH start, path, repo, length(path) as depth, [rel IN relationships(path) | {type: type(rel), confidence: rel.confidence, reason: rel.reason}] as hops
 		RETURN DISTINCT start.id as start_id, start.name as start_name, labels(start) as start_labels, repo.id as repo_id, repo.name as repo_name, depth, hops
 		ORDER BY depth, repo_name, repo_id
-		LIMIT $limit`, req.MaxDepth)
+		LIMIT $limit`, impactAnchorLabelDisjunction, req.MaxDepth)
 
 	params := map[string]any{"start_id": req.Start, "limit": limit + 1}
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
@@ -230,7 +230,7 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 	if len(rows) > 0 {
 		start = map[string]any{"id": StringVal(rows[0], "start_id"), "name": StringVal(rows[0], "start_name"), "labels": StringSliceVal(rows[0], "start_labels")}
 	} else {
-		startRow, err := h.Neo4j.RunSingle(r.Context(), "MATCH (n) WHERE n.id = $id RETURN n.id as id, n.name as name, labels(n) as labels", map[string]any{"id": req.Start})
+		startRow, err := h.Neo4j.RunSingle(r.Context(), "MATCH (n:"+impactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id as id, n.name as name, labels(n) as labels", map[string]any{"id": req.Start})
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -309,8 +309,8 @@ func (h *ImpactHandler) explainDependencyPath(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	cypher := `MATCH (source) WHERE source.id = $source_id
-		MATCH (target) WHERE target.id = $target_id
+	cypher := `MATCH (source:` + impactAnchorLabelDisjunction + `) WHERE source.id = $source_id
+		MATCH (target:` + impactAnchorLabelDisjunction + `) WHERE target.id = $target_id
 		OPTIONAL MATCH path = shortestPath((source)-[*1..8]-(target))
 		WITH source, target, path, CASE WHEN path IS NOT NULL THEN [rel IN relationships(path) | {from_id: startNode(rel).id, from_name: startNode(rel).name, to_id: endNode(rel).id, to_name: endNode(rel).name, type: type(rel), confidence: rel.confidence, reason: rel.reason}] ELSE null END as hops
 		RETURN source.id as source_id, source.name as source_name, labels(source) as source_labels, target.id as target_id, target.name as target_name, labels(target) as target_labels, CASE WHEN path IS NOT NULL THEN length(path) ELSE -1 END as depth, hops`
