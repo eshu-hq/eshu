@@ -73,16 +73,17 @@ reference doc; emits no metrics, spans, or logs from any running service.
 
 ## Runtime impact
 
-No-Regression Evidence: this package is pure declarations plus validation
-helpers. It is read only by the `eshu config validate` CLI command (run on
-demand by an operator) and by the reference-doc generator test — never on any
-service request, graph-write, reducer, or queue hot path. No goroutines,
-channels, workers, leases, or graph queries are introduced; the trigger words in
-the variable descriptions (e.g. "heartbeat", "workers") describe other
-subsystems' settings and are not executed here. Verified by
-`go test ./internal/envregistry ./cmd/eshu -count=1` and
-`golangci-lint run ./internal/envregistry/... ./cmd/eshu/...`.
+No-Regression Evidence: #3464 only adds `ESHU_SCOPED_TOKENS_FILE` to the
+registry metadata, one generated reference-doc row, and a lookup regression
+test. Baseline and after measurement are the same runtime shape: no service
+request, graph-write, reducer, queue, goroutine, channel, worker, lease, or
+Cypher path changes, and no backend/version-specific input shape. Terminal graph
+row counts and queue counts are unchanged because the registry is read by
+`eshu config validate` and the doc-generator test, not by API/MCP auth
+resolution. Verified by `go test ./internal/envregistry ./cmd/eshu -count=1`,
+`golangci-lint run ./...`, and `scripts/verify-performance-evidence.sh`.
 
-No-Observability-Change: this change adds a CLI validation command and a
-generated reference doc; it emits no metrics, spans, or logs from any running
-service and does not alter any existing telemetry signal.
+No-Observability-Change: #3464 adds no metrics, spans, log fields, status
+payload fields, or telemetry labels. Operator-visible evidence remains the
+validation output and generated environment-variable docs; API/MCP auth
+telemetry is owned by the runtime auth code, which is unchanged here.

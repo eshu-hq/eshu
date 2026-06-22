@@ -91,6 +91,7 @@ nav:
     - Hosted Operations Runbook: operate/hosted-operations-runbook.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md
     - Hosted Governance Posture: operate/hosted-governance.md
+    - User Management Runbook: operate/user-management-runbook.md
     - Hosted Security Posture Gate: operate/hosted-security-posture.md
     - Hosted Extension Policy: operate/hosted-extension-policy.md
     - Service Runtimes:

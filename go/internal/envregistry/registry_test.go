@@ -12,14 +12,30 @@ func TestDefaultRegistryBuilds(t *testing.T) {
 	}
 }
 
+func TestDefaultRegistryIncludesScopedTokenRegistryFile(t *testing.T) {
+	t.Parallel()
+	r := Default()
+
+	entry, ok := r.Lookup("ESHU_SCOPED_TOKENS_FILE")
+	if !ok {
+		t.Fatal("ESHU_SCOPED_TOKENS_FILE missing from default registry")
+	}
+	if entry.Type != VarString {
+		t.Fatalf("ESHU_SCOPED_TOKENS_FILE type = %q, want %q", entry.Type, VarString)
+	}
+	if entry.Subsystem != "api" {
+		t.Fatalf("ESHU_SCOPED_TOKENS_FILE subsystem = %q, want api", entry.Subsystem)
+	}
+}
+
 func TestValidateInvalidValuesAreErrors(t *testing.T) {
 	t.Parallel()
 	r := Default()
 
 	env := map[string]string{
 		"ESHU_POSTGRES_MAX_OPEN_CONNS": "thirty", // not an int
-		"ESHU_POSTGRES_PING_TIMEOUT":   "10",      // missing duration unit
-		"ESHU_GRAPH_BACKEND":           "sqlite",  // not an allowed enum value
+		"ESHU_POSTGRES_PING_TIMEOUT":   "10",     // missing duration unit
+		"ESHU_GRAPH_BACKEND":           "sqlite", // not an allowed enum value
 		"ESHU_QUERY_PROFILE":           "production",
 	}
 	findings := r.Validate(env, false)
