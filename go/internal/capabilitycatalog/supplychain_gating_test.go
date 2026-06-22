@@ -17,15 +17,16 @@ func TestSupplyChainListCapabilitiesAreCollectorGated(t *testing.T) {
 	t.Parallel()
 
 	catalog, findings, err := BuildFromSpecs(repoSpecsDir(t), Signals{MCPTools: map[string]bool{
-		"list_sbom_attestation_attachments":  true,
-		"list_package_registry_packages":     true,
-		"list_package_registry_versions":     true,
-		"list_package_registry_dependencies": true,
-		"list_package_registry_correlations": true,
-		"list_container_image_identities":    true,
-		"list_supply_chain_impact_findings":  true,
-		"list_ci_cd_run_correlations":        true,
-		"list_service_catalog_correlations":  true,
+		"list_sbom_attestation_attachments":   true,
+		"list_package_registry_packages":      true,
+		"list_package_registry_versions":      true,
+		"list_package_registry_dependencies":  true,
+		"list_package_registry_correlations":  true,
+		"list_container_image_identities":     true,
+		"list_supply_chain_impact_findings":   true,
+		"list_security_alert_reconciliations": true,
+		"list_ci_cd_run_correlations":         true,
+		"list_service_catalog_correlations":   true,
 	}})
 	if err != nil {
 		t.Fatalf("BuildFromSpecs: %v", err)
@@ -87,6 +88,7 @@ var supplyChainGatedCapabilityIDs = []string{
 	"package_registry.correlations.list",
 	"supply_chain.container_image_identities.list",
 	"supply_chain.impact_findings.list",
+	"supply_chain.security_alert_reconciliations.list",
 	"ci_cd.run_correlations.list",
 }
 

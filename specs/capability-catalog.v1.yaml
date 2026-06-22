@@ -167,6 +167,11 @@ capabilities:
     maturity: gated
     maturity_reason: "Supply-chain impact findings are seeded by the vulnerability_intelligence and security_alert collectors, which are off in a default deploy (no compose service, Helm enabled: false). They are enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with those instances plus advisory-feed or provider credentials; a default git-only deploy returns an empty page whose readiness envelope reports not_configured rather than a false fresh-zero."
     linked_issues: [3496, 3480]
+  - capability: supply_chain.security_alert_reconciliations.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Provider security alert reconciliations are built from security_alert.repository_alert facts emitted only by the security_alert collector, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a security_alert instance plus provider credentials; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
   - capability: ci_cd.run_correlations.list
     owner_package: internal/query
     maturity: gated

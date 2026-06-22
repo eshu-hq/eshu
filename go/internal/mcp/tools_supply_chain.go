@@ -263,7 +263,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_security_alert_reconciliations",
-			Description: "List reducer-owned provider security alert reconciliations by repository, provider, package, CVE, or GHSA anchor while keeping provider state separate from Eshu impact state. Rows expose Eshu-owned package evidence under eshu_package, including observed_version and missing_evidence, and include reason_code plus structured missing_evidence details for provider_only, stale, unsupported, and ambiguous outcomes.",
+			Description: "List reducer-owned provider security alert reconciliations by repository, provider, package, CVE, or GHSA anchor while keeping provider state separate from Eshu impact state. Rows expose Eshu-owned package evidence under eshu_package, including observed_version and missing_evidence, and include reason_code plus structured missing_evidence details for provider_only, stale, unsupported, and ambiguous outcomes. Built from provider alert facts emitted by the opt-in security_alert collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus provider credentials), so a default git-only deploy returns an empty page.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

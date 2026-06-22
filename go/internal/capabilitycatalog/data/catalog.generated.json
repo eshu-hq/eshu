@@ -8707,8 +8707,10 @@
     {
       "capability": "supply_chain.security_alert_reconciliations.list",
       "display_name": "Supply Chain Security Alert Reconciliations List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Provider security alert reconciliations are built from security_alert.repository_alert facts emitted only by the security_alert collector, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a security_alert instance plus provider credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_security_alert_reconciliations",
@@ -8750,6 +8752,10 @@
           "kind": "remote_validation",
           "ref": "prod-security-alert-reconciliations"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
