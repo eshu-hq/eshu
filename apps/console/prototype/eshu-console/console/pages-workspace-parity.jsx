@@ -3,11 +3,11 @@
   const { useEffect: useEffectWP, useMemo: useMemoWP, useState: useStateWP } = React;
 
   function workspaceParts() {
-    const raw = String(location.hash || "#workspace/services/api-node-boats").slice(1).split("?")[0];
+    const raw = String(location.hash || "#workspace/services/svc-catalog").slice(1).split("?")[0];
     const parts = raw.split("/");
     return {
       entityKind: parts[1] || "services",
-      entityId: decodeURIComponent(parts.slice(2).join("/") || "api-node-boats")
+      entityId: decodeURIComponent(parts.slice(2).join("/") || "svc-catalog")
     };
   }
 
@@ -84,7 +84,7 @@
   }
 
   function loadDemoWorkspace(D, kind, id) {
-    const svc = demoService(D, kind, id) || D.servicesById["api-node-boats"] || D.services[0];
+    const svc = demoService(D, kind, id) || D.servicesById["svc-catalog"] || D.services[0];
     if (!svc) return null;
     const title = kind === "repositories" ? (svc.repo || svc.name).split("/").pop() : svc.name;
     const context = {

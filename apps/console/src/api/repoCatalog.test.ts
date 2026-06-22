@@ -223,7 +223,7 @@ describe("repoCatalog", () => {
     const client = {
       get: async () => ({
         data: { repositories: [
-          { id: "repository:r1", name: "api-node-platform" },
+          { id: "repository:r1", name: "svc-platform" },
           { id: "repository:r2", name: "helm-charts" }
         ] }, error: null, truth: null
       })
@@ -231,7 +231,7 @@ describe("repoCatalog", () => {
 
     const names = await loadRepositoryNameMap(client);
 
-    expect(names.get("repository:r1")).toBe("api-node-platform");
+    expect(names.get("repository:r1")).toBe("svc-platform");
     expect(names.get("repository:r2")).toBe("helm-charts");
   });
 
@@ -239,7 +239,7 @@ describe("repoCatalog", () => {
     const client = {
       get: async () => ({
         data: { repositories: [
-          { id: "repository:r_078043f1", repo_slug: "platform/api-node-platform" },
+          { id: "repository:r_078043f1", repo_slug: "platform/svc-platform" },
           { id: "repository:r_dd626fe7", name: "repository:r_dd626fe7", repo_slug: "platform/iac-eks-argocd" }
         ] }, error: null, truth: null
       })
@@ -247,7 +247,7 @@ describe("repoCatalog", () => {
 
     const repos = await loadRepositories(client);
 
-    expect(repos.map((repo) => repo.name)).toEqual(["api-node-platform", "iac-eks-argocd"]);
+    expect(repos.map((repo) => repo.name)).toEqual(["svc-platform", "iac-eks-argocd"]);
   });
 
   it("propagates repository list error envelopes instead of returning no repositories", async () => {

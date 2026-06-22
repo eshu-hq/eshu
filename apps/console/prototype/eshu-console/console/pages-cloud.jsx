@@ -97,7 +97,7 @@ function buildCanonicalCloudNetwork(D, accountId, res) {
 function buildServiceNetwork(D, s) {
   if (!s) return { nodes: [], edges: [] };
   const res = D.cloudResources.filter((r) => r.service === s.id);
-  const acc = res[0] ? res[0].account : (s.envs && s.envs.includes("bg-prod") ? "aws-prod" : "aws-qa");
+  const acc = res[0] ? res[0].account : (s.envs && s.envs.includes("acme-prod") ? "aws-prod" : "aws-qa");
   const shared = D.cloudResources.filter((r) => r.account === acc && ["aws_ec2_vpc", "aws_eks_cluster", "aws_vpc_nat_gateway"].includes(r.type));
   const mk = (r) => ({ id: r.uid, kind: CLOUD_FAM_KIND[r.family] || "aws", label: r.name, sub: cloudResLabel(r.type), _res: r });
   const nodes = [], edges = [], seen = new Set();
@@ -185,7 +185,7 @@ function Cloud({ data, client, onOpenService, onOpenNode }) {
                 <div className="acct-row" key={a.id}>
                   <span className="acct-prov" style={{ "--pc": pm.color }}><i />{pm.label}</span>
                   <span className="cell-stack" style={{ flex: 1, minWidth: 0 }}><span className="t-name" style={{ fontSize: ".84rem" }}>{a.label}</span><small className="mono">{a.account} · {a.region}</small></span>
-                  <span className={"tag-tier tier-" + (a.env === "bg-prod" ? "1" : "2")}>{a.env}</span>
+                  <span className={"tag-tier tier-" + (a.env === "acme-prod" ? "1" : "2")}>{a.env}</span>
                   <span className="mono t-mut" style={{ fontSize: ".78rem", width: 36, textAlign: "right" }}>{n}</span>
                 </div>
               );

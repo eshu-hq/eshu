@@ -120,7 +120,7 @@ function liveClient(): PrototypeClient {
               provider,
               coverage_signal: "log_signal",
               observability_object_ref: `${provider}:logs`,
-              target_service_ref: "api-node-platform",
+              target_service_ref: "svc-platform",
               coverage_status: "covered",
               freshness_state: "fresh"
             }]
@@ -199,7 +199,7 @@ function liveClient(): PrototypeClient {
       if (path.includes("/iac/resources")) {
         return {
           data: {
-            resources: [{ id: "iac-resource:aws_s3_bucket.logs", kind: "resource", name: "aws_s3_bucket.logs", resource_name: "logs", type: "aws_s3_bucket", provider: "aws", resource_service: "api-node-platform", resource_category: "storage", module: "modules/logs", repo_id: "repository:iac", relative_path: "terraform/logs.tf", line_number: 42 }]
+            resources: [{ id: "iac-resource:aws_s3_bucket.logs", kind: "resource", name: "aws_s3_bucket.logs", resource_name: "logs", type: "aws_s3_bucket", provider: "aws", resource_service: "svc-platform", resource_category: "storage", module: "modules/logs", repo_id: "repository:iac", relative_path: "terraform/logs.tf", line_number: 42 }]
           },
           truth: { level: "exact", freshness: { state: "fresh" } }
         };
@@ -272,7 +272,7 @@ describe("prototype live parity loader", () => {
       "/api/v0/observability/coverage/correlations?provider=tempo&limit=200"
     ]));
     expect(model.langInventory).toEqual([{ label: "typescript", value: 3 }]);
-    expect(model.obsCoverage?.["api-node-platform"]?.logs).toMatchObject({
+    expect(model.obsCoverage?.["svc-platform"]?.logs).toMatchObject({
       state: "covered",
       ref: "grafana:logs",
       freshness: "fresh"
@@ -365,7 +365,7 @@ describe("prototype live parity loader", () => {
       async get(path: string): Promise<unknown> {
         this.paths.push(path);
         if (path.includes("/repositories?limit=500&offset=0")) {
-          return { data: { repositories: [{ id: "repository:r1", name: "api-node-platform" }] } };
+          return { data: { repositories: [{ id: "repository:r1", name: "svc-platform" }] } };
         }
         if (path.includes("/observability/coverage/correlations")) return { data: { correlations: [] } };
         if (path.includes("/metrics/timeseries")) return { data: { points: [] } };
@@ -409,7 +409,7 @@ describe("prototype live parity loader", () => {
     expect(model.deadCode?.[1]).toMatchObject({
       entityId: "",
       file: "",
-      repo: "api-node-platform",
+      repo: "svc-platform",
       repoId: "repository:r1"
     });
     expect(model.prov.deadCode).toBe("live");

@@ -53,7 +53,7 @@ describe("RepoSourcePage", () => {
         if (path === "/api/v0/repositories?limit=500&offset=0") {
           return {
             data: {
-              repositories: [{ id: "repository:r_1", name: "api-node-platform" }]
+              repositories: [{ id: "repository:r_1", name: "svc-platform" }]
             },
             error: null,
             truth: null
@@ -79,7 +79,7 @@ describe("RepoSourcePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole("heading", { name: /api-node-platform/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /svc-platform/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /repository:r_1/ })).not.toBeInTheDocument();
   });
 

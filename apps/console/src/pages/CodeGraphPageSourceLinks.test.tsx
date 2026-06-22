@@ -12,7 +12,7 @@ describe("CodeGraphPage source-link hydration", () => {
       findings: [{
         id: "dead-1",
         type: "Dead code",
-        entity: "api-node-platform",
+        entity: "svc-platform",
         title: "Unreferenced symbol post",
         detail: "server/handlers/install.ts · unused",
         truth: "derived",
@@ -63,7 +63,7 @@ describe("CodeGraphPage source-link hydration", () => {
               source_id: "content-entity:e2",
               source_name: "caller",
               source_repo_id: "repository:r_platform",
-              source_repo_name: "api-node-platform",
+              source_repo_name: "svc-platform",
               source_file_path: "server/handlers/caller.ts",
               source_start_line: 12,
               source_end_line: 18,

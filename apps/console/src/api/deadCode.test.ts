@@ -51,7 +51,7 @@ describe("deadCode", () => {
       language: "typescript",
       name: "unusedRoute",
       repo_id: "repository:r1",
-      repo_name: "api-node-platform",
+      repo_name: "svc-platform",
       start_line: 10
     }], { truncated: true }));
     const client = { post } as unknown as EshuApiClient;
@@ -74,7 +74,7 @@ describe("deadCode", () => {
     expect(page.rows[0]).toMatchObject({
       classification: "unused",
       detail: "server/routes.ts · unused",
-      entity: "api-node-platform",
+      entity: "svc-platform",
       entityId: "function:f1",
       endLine: 22,
       filePath: "server/routes.ts",
@@ -106,17 +106,17 @@ describe("deadCode", () => {
         entity_id: "function:f3",
         file_path: "server/search.ts",
         name: "unusedSearch",
-        repo_id: "repository:api-node-search"
+        repo_id: "repository:svc-search"
       }
     ]));
     const client = { post } as unknown as EshuApiClient;
 
-    const page = await loadDeadCodePage(client, { limit: 100 }, new Map([["repository:r1", "api-node-platform"]]));
+    const page = await loadDeadCodePage(client, { limit: 100 }, new Map([["repository:r1", "svc-platform"]]));
 
     expect(page.rows.map((row) => row.entity)).toEqual([
-      "api-node-platform",
+      "svc-platform",
       "unresolved repository",
-      "api-node-search"
+      "svc-search"
     ]);
     expect(page.rows[1]?.repoId).toBe("repository:r_078043f1");
   });

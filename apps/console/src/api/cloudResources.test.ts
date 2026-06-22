@@ -23,8 +23,8 @@ describe("loadCloudResources", () => {
                 name: "role-a",
                 provider: "aws",
                 region: "us-east-1",
-                account_id: "048922418463",
-                arn: "arn:aws:iam::048922418463:role/role-a",
+                account_id: "123456789012",
+                arn: "arn:aws:iam::123456789012:role/role-a",
                 service_name: "iam",
                 state: "active"
               }
@@ -58,7 +58,7 @@ describe("loadCloudResources", () => {
       name: "role-a",
       provider: "aws",
       region: "us-east-1",
-      accountId: "048922418463",
+      accountId: "123456789012",
       serviceName: "iam",
       state: "active"
     });

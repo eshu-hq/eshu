@@ -63,12 +63,12 @@ describe("eshuConsoleSections findings", () => {
     } as unknown as EshuApiClient;
     const ctx: SectionContext = {
       truth: {},
-      repoNames: new Map([["repository:r_1", "api-node-boats"]])
+      repoNames: new Map([["repository:r_1", "svc-catalog"]])
     };
 
     const rows = await loadFindings(client, ctx);
 
-    expect(rows?.[0]?.entity).toBe("api-node-boats");
+    expect(rows?.[0]?.entity).toBe("svc-catalog");
   });
 
   it("rejects dead-code error envelopes so snapshot provenance marks findings unavailable", async () => {

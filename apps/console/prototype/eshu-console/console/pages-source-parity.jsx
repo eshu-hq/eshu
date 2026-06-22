@@ -3,12 +3,12 @@
   const { useEffect: useEffectSP, useState: useStateSP } = React;
 
   function sourceRoute() {
-    const raw = String(location.hash || "#repositories/api-node-boats/source").slice(1);
+    const raw = String(location.hash || "#repositories/svc-catalog/source").slice(1);
     const parts = raw.split("?");
     const routeParts = parts[0].split("/");
     const params = new URLSearchParams(parts.slice(1).join("?"));
     return {
-      repoId: decodeURIComponent(routeParts[1] || "api-node-boats"),
+      repoId: decodeURIComponent(routeParts[1] || "svc-catalog"),
       filePath: params.get("path") || "",
       lineStart: lineParam(params.get("lineStart")),
       lineEnd: lineParam(params.get("lineEnd"))

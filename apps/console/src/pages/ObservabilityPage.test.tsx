@@ -35,8 +35,8 @@ describe("ObservabilityPage", () => {
               correlation_id: "c1",
               provider: "grafana",
               coverage_signal: "dashboard",
-              observability_object_ref: "grafana:api-node-boats-dashboard",
-              target_service_ref: "api-node-boats",
+              observability_object_ref: "grafana:svc-catalog-dashboard",
+              target_service_ref: "svc-catalog",
               coverage_status: "covered",
               resource_class: "service",
               source_kind: "grafana",
@@ -51,8 +51,8 @@ describe("ObservabilityPage", () => {
               correlation_id: "c2",
               provider: "loki",
               coverage_signal: "logs",
-              observability_object_ref: "loki:api-node-boats-logs",
-              target_service_ref: "api-node-boats",
+              observability_object_ref: "loki:svc-catalog-logs",
+              target_service_ref: "svc-catalog",
               coverage_status: "stale",
               resource_class: "service",
               source_kind: "loki",
@@ -70,9 +70,9 @@ describe("ObservabilityPage", () => {
     expect(await screen.findByText("Signal sources")).toBeInTheDocument();
     const matrixPanel = screen.getByRole("heading", { name: "Coverage matrix" }).closest("section");
     expect(matrixPanel).not.toBeNull();
-    expect(within(matrixPanel as HTMLElement).getByText("api-node-boats")).toBeInTheDocument();
-    expect(within(matrixPanel as HTMLElement).queryByText("grafana:api-node-boats-dashboard")).not.toBeInTheDocument();
-    expect(screen.getByText("loki:api-node-boats-logs")).toBeInTheDocument();
+    expect(within(matrixPanel as HTMLElement).getByText("svc-catalog")).toBeInTheDocument();
+    expect(within(matrixPanel as HTMLElement).queryByText("grafana:svc-catalog-dashboard")).not.toBeInTheDocument();
+    expect(screen.getByText("loki:svc-catalog-logs")).toBeInTheDocument();
     expect(screen.getAllByText("dashboard").length).toBeGreaterThan(0);
     expect(screen.getAllByText("logs").length).toBeGreaterThan(0);
   });

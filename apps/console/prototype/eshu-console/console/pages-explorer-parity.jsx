@@ -421,7 +421,7 @@
         <div className="explorer-filters" style={{ gap: 8 }}>
           <div className="searchbox" style={{ minWidth: 320, height: 38, margin: 0 }}>
             <Icon.search size={16} />
-            <input placeholder="api-node-platform, helm-charts, searchByPortalId..." value={query}
+            <input placeholder="svc-platform, helm-charts, searchByPortalId..." value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void expand(query); }} />
           </div>

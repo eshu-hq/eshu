@@ -9,7 +9,7 @@ describe("CloudInventoryPanel", () => {
       data: {
         resources: [
           {
-            cloud_resource_uid: "aws:111122223333:AWS::S3::Bucket:boats-prod",
+            cloud_resource_uid: "aws:111122223333:AWS::S3::Bucket:acme-prod",
             provider: "aws",
             resource_type: "AWS::S3::Bucket",
             management_origin: "declared",

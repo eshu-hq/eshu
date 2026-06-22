@@ -23,7 +23,7 @@ function deriveRepos(D) {
 /* a believable, deeply-nested file tree with file contents for a repo */
 function repoTree(r) {
   const ext = r.lang === "go" ? "go" : r.lang === "py" ? "py" : r.lang === "rust" ? "rs" : r.lang === "java" ? "java" : "ts";
-  const svc = r.name.replace(/^api-node-|^job-node-/, "");
+  const svc = r.name.replace(/^svc-|^job-/, "");
   const mod = svc.replace(/-/g, "_");
   const cmt = (t) => ext === "py" ? "# " + t : "// " + t;
   const F = (name, content) => ({ type: "file", name, content });
@@ -91,12 +91,12 @@ app.get("/healthz", (_req, res) => res.json({ ok: true }));`;
 
   const pkg =
 `{
-  "name": "@dmm/${r.name}",
+  "name": "@acme/${r.name}",
   "version": "${r.version || "1.0.0"}",
   "private": true,
   "scripts": { "dev": "tsx watch src/index.ts", "test": "vitest", "build": "tsc" },
   "dependencies": {
-${(r.deps || []).slice(0, 4).map((d) => `    "@dmm/${d}": "workspace:*"`).join(",\n") || '    "express": "^4.19.0"'}
+${(r.deps || []).slice(0, 4).map((d) => `    "@acme/${d}": "workspace:*"`).join(",\n") || '    "express": "^4.19.0"'}
   }
 }`;
 
@@ -228,4 +228,4 @@ function buildGroupGraph(D, repos, group) {
   return { nodes, edges };
 }
 
-const SYSTEM_COLOR = { "Boat-Search": "#14b8a6", "Platform": "#4f8cff", "Marketplace": "#ff8a00", "Messaging": "#8b5cf6", "FX": "#22d3ee", "Data": "#f59e0b", "Storefront": "#f0506e", "Shared Libraries": "#c4b59a" };
+const SYSTEM_COLOR = { "Catalog-Search": "#14b8a6", "Platform": "#4f8cff", "Marketplace": "#ff8a00", "Messaging": "#8b5cf6", "FX": "#22d3ee", "Data": "#f59e0b", "Storefront": "#f0506e", "Shared Libraries": "#c4b59a" };
