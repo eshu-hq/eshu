@@ -4,7 +4,7 @@ func packageRegistryTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_package_registry_dependencies",
-			Description: "List package-native dependency edges by Package.uid or PackageVersion.uid without inferring repository ownership or runtime consumption.",
+			Description: "List package-native dependency edges by Package.uid or PackageVersion.uid without inferring repository ownership or runtime consumption. Populated by the opt-in package_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus registry credentials), so a default git-only deploy returns an empty page.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -36,7 +36,7 @@ func packageRegistryTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_package_registry_correlations",
-			Description: "List reducer-owned package ownership candidates, publication evidence, and manifest-backed consumption correlations by package_id or repository_id.",
+			Description: "List reducer-owned package ownership candidates, publication evidence, and manifest-backed consumption correlations by package_id or repository_id. A correlation persists only after the opt-in package_registry collector populates registry identities to correlate against (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus registry credentials), so a default git-only deploy returns an empty page.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

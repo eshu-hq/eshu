@@ -17,8 +17,14 @@ const (
 	// MaturityPreview means the capability is supported in at least one local
 	// profile but not yet in production.
 	MaturityPreview Maturity = "preview"
-	// MaturityGated is an overlay-only state: the capability exists but is
-	// withheld from a public surface (for example a pending public chart).
+	// MaturityGated is an overlay-only state: the capability exists and the
+	// matrix may even mark it supported, but it is off in the default surface
+	// until an operator opts in. It covers a capability withheld from a public
+	// surface (for example a pending public chart), an env-var gate the matrix
+	// cannot express (for example ESHU_EMIT_DATAFLOW value-flow reachability or
+	// ESHU_ASK_ENABLED), and a feeding collector that is off in a default deploy
+	// and enabled only through ESHU_COLLECTOR_INSTANCES_JSON plus credentials
+	// (the supply-chain list capabilities). The maturity_reason names the gate.
 	MaturityGated Maturity = "gated"
 	// MaturityDegraded is an overlay-only state: the capability is exposed but
 	// operating below contract because of a tracked condition.

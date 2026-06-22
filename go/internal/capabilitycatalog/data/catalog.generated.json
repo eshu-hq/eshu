@@ -1740,8 +1740,10 @@
     {
       "capability": "ci_cd.run_correlations.list",
       "display_name": "Ci Cd Run Correlations List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "CI/CD run correlations are populated by the ci_cd_run collector polling the provider run API (for example GitHub Actions), which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a ci_cd_run instance plus a provider token; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_ci_cd_run_correlations",
@@ -1783,6 +1785,10 @@
           "kind": "remote_validation",
           "ref": "prod-ci-cd-run-correlations"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
@@ -4442,8 +4448,10 @@
     {
       "capability": "package_registry.correlations.list",
       "display_name": "Package Registry Correlations List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Package-registry correlations join git manifest evidence to registry package identities, so a correlation row persists only when the package_registry collector has populated those identities. That collector is off in a default deploy (no compose service, Helm enabled: false) and enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_package_registry_correlations",
@@ -4486,6 +4494,10 @@
           "ref": "prod-package-registry-correlations"
         }
       ],
+      "linked_issues": [
+        3496,
+        3480
+      ],
       "console": false,
       "authorization": {
         "family": "supply_chain",
@@ -4509,8 +4521,10 @@
     {
       "capability": "package_registry.dependencies.list",
       "display_name": "Package Registry Dependencies List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Package-native registry dependencies are populated by the package_registry collector calling live registry APIs, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_package_registry_dependencies",
@@ -4552,6 +4566,10 @@
           "kind": "remote_validation",
           "ref": "prod-package-registry-dependencies"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
@@ -4714,8 +4732,10 @@
     {
       "capability": "package_registry.packages.list",
       "display_name": "Package Registry Packages List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Package-registry package identities are populated by the package_registry collector calling live registry APIs, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_package_registry_packages",
@@ -4758,6 +4778,10 @@
           "ref": "prod-package-registry-packages"
         }
       ],
+      "linked_issues": [
+        3496,
+        3480
+      ],
       "console": false,
       "authorization": {
         "family": "supply_chain",
@@ -4781,8 +4805,10 @@
     {
       "capability": "package_registry.versions.list",
       "display_name": "Package Registry Versions List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Package-registry versions are populated by the package_registry collector calling live registry APIs, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_package_registry_versions",
@@ -4824,6 +4850,10 @@
           "kind": "remote_validation",
           "ref": "prod-package-registry-versions"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
@@ -8174,8 +8204,10 @@
     {
       "capability": "supply_chain.container_image_identities.list",
       "display_name": "Supply Chain Container Image Identities List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Container image identities persist only when a git or cloud image ref matches an oci_registry digest or tag observation, so they require the oci_registry collector, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with an oci_registry instance plus container-registry credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_container_image_identities",
@@ -8217,6 +8249,10 @@
           "kind": "remote_validation",
           "ref": "prod-container-image-identities"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
@@ -8383,8 +8419,10 @@
     {
       "capability": "supply_chain.impact_findings.list",
       "display_name": "Supply Chain Impact Findings List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Supply-chain impact findings are seeded by the vulnerability_intelligence and security_alert collectors, which are off in a default deploy (no compose service, Helm enabled: false). They are enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with those instances plus advisory-feed or provider credentials; a default git-only deploy returns an empty page whose readiness envelope reports not_configured rather than a false fresh-zero.",
       "surfaces": [
         {
           "tool": "list_supply_chain_impact_findings",
@@ -8426,6 +8464,10 @@
           "kind": "remote_validation",
           "ref": "prod-supply-chain-impact"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
@@ -8521,8 +8563,10 @@
     {
       "capability": "supply_chain.sbom_attestation_attachments.list",
       "display_name": "Supply Chain Sbom Attestation Attachments List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "SBOM and attestation attachments are populated by the sbom_attestation collector, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with the sbom_attestation instance plus SBOM document URLs or OCI referrer credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_sbom_attestation_attachments",
@@ -8564,6 +8608,10 @@
           "kind": "remote_validation",
           "ref": "prod-sbom-attestation-attachments"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
@@ -8659,8 +8707,10 @@
     {
       "capability": "supply_chain.security_alert_reconciliations.list",
       "display_name": "Supply Chain Security Alert Reconciliations List",
-      "maturity": "general_availability",
+      "owner_package": "internal/query",
+      "maturity": "gated",
       "derived_maturity": "general_availability",
+      "maturity_reason": "Provider security alert reconciliations are built from security_alert.repository_alert facts emitted only by the security_alert collector, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a security_alert instance plus provider credentials; a default git-only deploy returns an empty page.",
       "surfaces": [
         {
           "tool": "list_security_alert_reconciliations",
@@ -8702,6 +8752,10 @@
           "kind": "remote_validation",
           "ref": "prod-security-alert-reconciliations"
         }
+      ],
+      "linked_issues": [
+        3496,
+        3480
       ],
       "console": false,
       "authorization": {
