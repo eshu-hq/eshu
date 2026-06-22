@@ -470,6 +470,116 @@ gcpCloudCollector:
       cpu: 1000m
       memory: 2Gi
 
+# kubernetesLiveCollector runs the live Kubernetes secrets/IAM collector. It is
+# gated off by default. It reads read-only cluster metadata (namespaces, pods,
+# services, serviceaccounts, deployments, replicasets, ingresses, roles,
+# rolebindings, clusterroles, clusterrolebindings) and is not claim-driven: each
+# configured cluster declares its own durable identity and read-only auth. For
+# in_cluster auth, leave serviceAccount.create=true and rbac.create=true so the
+# chart binds a read-only ClusterRole to the collector ServiceAccount. For
+# kubeconfig auth, mount an operator-managed read-only kubeconfig Secret and set
+# each cluster's kubeconfig_path to the mounted path.
+kubernetesLiveCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: kubernetes-live-primary
+  pollInterval: 5m
+  # clusters is the read-only target list serialized into
+  # ESHU_KUBERNETES_LIVE_CLUSTERS_JSON. Replace the example values with the
+  # operator's own cluster identities. auth_mode is in_cluster or kubeconfig.
+  # Example:
+  #   - cluster_id: example-cluster
+  #     display_name: Example Cluster
+  #     provider: example
+  #     environment: production
+  #     source_uri: k8s://example-cluster
+  #     auth_mode: in_cluster
+  #     qps: 20
+  #     burst: 30
+  clusters: []
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  rbac:
+    # create renders a read-only ClusterRole and ClusterRoleBinding for the
+    # local cluster only when at least one configured cluster uses
+    # auth_mode: in_cluster. Set to false for kubeconfig-only targets or when
+    # cluster RBAC is managed outside this chart; leaving it true with no
+    # in_cluster target fails render so kubeconfig-only deployments do not get
+    # an unused cluster-wide grant.
+    create: true
+    extraRules: []
+  kubeconfig:
+    # secretName names an operator-managed read-only Secret holding kubeconfig
+    # files for kubeconfig auth_mode. Leave empty for in_cluster auth.
+    secretName: ""
+    mountPath: /var/run/eshu/kubeconfig
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# vaultLiveCollector runs the claim-driven Vault secrets/IAM collector. It is
+# gated off by default and reads only Vault metadata (mounts, auth methods, ACL
+# policy names, identity entities/aliases, KV metadata). It requires an active
+# workflow coordinator with an enabled claim-driven vault_live instance, a
+# read-only redaction-key Secret, and a read-only Vault token per target. Supply
+# each target token through extraEnv and name it from the target's token_env;
+# tokens never appear in the targets JSON.
+vaultLiveCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: vault-live-primary
+  pollInterval: 5m
+  claimLeaseTTL: ""
+  heartbeatInterval: ""
+  collectorInstances: []
+  serviceAccount:
+    create: false
+    name: ""
+    annotations: {}
+  redaction:
+    # secretName names a read-only Secret holding the deployment-scoped
+    # redaction key used to fingerprint Vault names and paths.
+    secretName: ""
+    keyKey: redaction-key
+  # extraEnv supplies per-target read-only Vault tokens, referenced by each
+  # target's token_env. Example:
+  #   - name: VAULT_READONLY_TOKEN
+  #     valueFrom:
+  #       secretKeyRef:
+  #         name: vault-live-tokens
+  #         key: primary-token
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
 # azureCloudCollector runs the claim-driven Azure cloud collector. It is gated
 # off by default; live transport requires an explicit enabled claim-driven azure
 # instance with live_collection_enabled=true and a read-only redaction Secret.

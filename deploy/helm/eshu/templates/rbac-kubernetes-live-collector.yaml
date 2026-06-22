@@ -1,0 +1,58 @@
+{{- $inClusterTarget := false -}}
+{{- range .Values.kubernetesLiveCollector.clusters -}}
+{{- if eq (default "" .auth_mode) "in_cluster" -}}
+{{- $inClusterTarget = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.kubernetesLiveCollector.enabled .Values.kubernetesLiveCollector.rbac.create $inClusterTarget }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "eshu.kubernetesLiveCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kubernetes-live-collector
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - pods
+      - services
+      - serviceaccounts
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch"]
+  {{- with .Values.kubernetesLiveCollector.rbac.extraRules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "eshu.kubernetesLiveCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kubernetes-live-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "eshu.kubernetesLiveCollectorFullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "eshu.kubernetesLiveCollectorServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

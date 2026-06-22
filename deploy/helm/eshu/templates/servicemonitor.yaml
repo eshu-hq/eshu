@@ -502,4 +502,50 @@ spec:
       interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
       scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
 {{- end }}
+---
+{{- if .Values.kubernetesLiveCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.kubernetesLiveCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kubernetes-live-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: kubernetes-live-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.vaultLiveCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.vaultLiveCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vault-live-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: vault-live-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
 {{- end }}

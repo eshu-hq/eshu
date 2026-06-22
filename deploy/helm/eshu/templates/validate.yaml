@@ -74,6 +74,57 @@
 {{- fail "awsCloudCollector.collectorInstances must contain at least one instance when awsCloudCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.kubernetesLiveCollector.enabled -}}
+{{- if not .Values.kubernetesLiveCollector.instanceId -}}
+{{- fail "kubernetesLiveCollector.instanceId is required when kubernetesLiveCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.kubernetesLiveCollector.clusters -}}
+{{- fail "kubernetesLiveCollector.clusters must contain at least one cluster when kubernetesLiveCollector.enabled=true" -}}
+{{- end -}}
+{{- range $i, $cluster := .Values.kubernetesLiveCollector.clusters -}}
+{{- if not $cluster.cluster_id -}}
+{{- fail "kubernetesLiveCollector.clusters entries require cluster_id" -}}
+{{- end -}}
+{{- if not $cluster.auth_mode -}}
+{{- fail "kubernetesLiveCollector.clusters entries require auth_mode (in_cluster or kubeconfig)" -}}
+{{- end -}}
+{{- if and (eq $cluster.auth_mode "kubeconfig") (not $cluster.kubeconfig_path) -}}
+{{- fail "kubernetesLiveCollector.clusters kubeconfig auth_mode requires kubeconfig_path" -}}
+{{- end -}}
+{{- end -}}
+{{- $inClusterTarget := false -}}
+{{- range .Values.kubernetesLiveCollector.clusters -}}
+{{- if eq (default "" .auth_mode) "in_cluster" -}}
+{{- $inClusterTarget = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.kubernetesLiveCollector.rbac.create (not $inClusterTarget) -}}
+{{- fail "kubernetesLiveCollector.rbac.create=true requires at least one cluster with auth_mode=in_cluster; set kubernetesLiveCollector.rbac.create=false for kubeconfig-only targets" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.vaultLiveCollector.enabled -}}
+{{- if not .Values.vaultLiveCollector.instanceId -}}
+{{- fail "vaultLiveCollector.instanceId is required when vaultLiveCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.vaultLiveCollector.collectorInstances -}}
+{{- fail "vaultLiveCollector.collectorInstances must contain at least one instance when vaultLiveCollector.enabled=true" -}}
+{{- end -}}
+{{- $vaultLiveLocalMatch := false -}}
+{{- range .Values.vaultLiveCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "vault_live") (eq (default "" .instance_id) $.Values.vaultLiveCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $vaultLiveLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $vaultLiveLocalMatch -}}
+{{- fail "vaultLiveCollector.collectorInstances must contain an enabled claim-driven vault_live instance matching vaultLiveCollector.instanceId" -}}
+{{- end -}}
+{{- if not .Values.vaultLiveCollector.redaction.secretName -}}
+{{- fail "vaultLiveCollector.redaction.secretName is required when vaultLiveCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.vaultLiveCollector.redaction.keyKey -}}
+{{- fail "vaultLiveCollector.redaction.keyKey is required when vaultLiveCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.packageRegistryCollector.enabled -}}
 {{- if not .Values.packageRegistryCollector.instanceId -}}
 {{- fail "packageRegistryCollector.instanceId is required when packageRegistryCollector.enabled=true" -}}
@@ -325,7 +376,7 @@
 {{- fail "componentExtensionCollector.extraVolumeMounts must include componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
-{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.securityAlertCollector.enabled .Values.pagerDutyCollector.enabled .Values.grafanaCollector.enabled .Values.prometheusMimirCollector.enabled .Values.lokiCollector.enabled .Values.tempoCollector.enabled .Values.jiraCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled .Values.componentExtensionCollector.enabled -}}
+{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.securityAlertCollector.enabled .Values.pagerDutyCollector.enabled .Values.grafanaCollector.enabled .Values.prometheusMimirCollector.enabled .Values.lokiCollector.enabled .Values.tempoCollector.enabled .Values.jiraCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled .Values.vaultLiveCollector.enabled .Values.componentExtensionCollector.enabled -}}
 {{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.enabled) -}}
 {{- fail "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled" -}}
 {{- end -}}
@@ -375,6 +426,17 @@
 {{- end -}}
 {{- if not $securityAlertCoordinatorMatch -}}
 {{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven security_alert instance when securityAlertCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.vaultLiveCollector.enabled -}}
+{{- $vaultLiveCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "vault_live") (default false .claims_enabled) (default false .enabled) -}}
+{{- $vaultLiveCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $vaultLiveCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven vault_live instance when vaultLiveCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
 {{- if .Values.pagerDutyCollector.enabled -}}

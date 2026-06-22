@@ -56,6 +56,27 @@ guidance belong in the public Kubernetes docs.
   claimed-live mode, requires active workflow claims, mounts the redaction key
   from a read-only Secret file, and expects read-only GCP credentials from pod
   identity rather than chart values.
+- `kubernetesLiveCollector` is off by default and is not claim-driven. Each entry
+  in `kubernetesLiveCollector.clusters` declares its own durable `cluster_id` and
+  read-only `auth_mode` (`in_cluster` or `kubeconfig`). For `in_cluster` auth keep
+  `serviceAccount.create=true` and `rbac.create=true` so the chart binds a
+  read-only ClusterRole (namespaces, pods, services, serviceaccounts, deployments,
+  replicasets, ingresses, roles, rolebindings, clusterroles, clusterrolebindings)
+  to the collector ServiceAccount. The RBAC objects render only when at least one
+  configured cluster uses `auth_mode: in_cluster`. For `kubeconfig` auth set
+  `kubernetesLiveCollector.kubeconfig.secretName` to an operator-managed read-only
+  Secret, point each cluster's `kubeconfig_path` at the mount path, and set
+  `rbac.create=false` so kubeconfig-only deployments do not get an unused
+  cluster-wide grant; leaving `rbac.create=true` with no `in_cluster` target fails
+  render.
+- `vaultLiveCollector` is off by default and is claim-driven. When enabled it
+  requires an active workflow coordinator with an enabled claim-driven
+  `vault_live` instance, a `collectorInstances` entry whose `collector_kind` is
+  `vault_live` and whose `instance_id` matches `vaultLiveCollector.instanceId`
+  (otherwise the pod would claim nothing and fail at startup), a read-only
+  `redaction.secretName` Secret, and a read-only Vault token per target supplied
+  through `extraEnv` and referenced by each target's `token_env`. Tokens never
+  appear in the targets JSON.
 
 ## Verification
 

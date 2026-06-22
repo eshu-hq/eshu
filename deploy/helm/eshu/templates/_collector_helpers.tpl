@@ -392,6 +392,51 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderKubernetesLiveCollectorEnv" -}}
+- name: ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.kubernetesLiveCollector.instanceId | quote }}
+- name: ESHU_KUBERNETES_LIVE_CLUSTERS_JSON
+  value: {{ dict "clusters" (required "kubernetesLiveCollector.clusters must contain at least one cluster when kubernetesLiveCollector.enabled=true" .Values.kubernetesLiveCollector.clusters) | toJson | quote }}
+{{- with .Values.kubernetesLiveCollector.pollInterval }}
+- name: ESHU_KUBERNETES_LIVE_POLL_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.kubernetesLiveCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "eshu.renderVaultLiveCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "vaultLiveCollector.collectorInstances must contain at least one instance when vaultLiveCollector.enabled=true" .Values.vaultLiveCollector.collectorInstances | toJson | quote }}
+- name: ESHU_VAULT_LIVE_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.vaultLiveCollector.instanceId | quote }}
+- name: ESHU_VAULT_LIVE_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+{{- with .Values.vaultLiveCollector.pollInterval }}
+- name: ESHU_VAULT_LIVE_POLL_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.vaultLiveCollector.claimLeaseTTL }}
+- name: ESHU_VAULT_LIVE_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.vaultLiveCollector.heartbeatInterval }}
+- name: ESHU_VAULT_LIVE_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+- name: ESHU_VAULT_LIVE_REDACTION_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.vaultLiveCollector.redaction.secretName }}
+      key: {{ .Values.vaultLiveCollector.redaction.keyKey }}
+{{- with .Values.vaultLiveCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderScannerWorkerEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "scannerWorker.collectorInstances must contain at least one instance when scannerWorker.enabled=true" .Values.scannerWorker.collectorInstances | toJson | quote }}

@@ -88,6 +88,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-vulnerability-intelligence-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.kubernetesLiveCollectorFullname" -}}
+{{- printf "%s-kubernetes-live-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.vaultLiveCollectorFullname" -}}
+{{- printf "%s-vault-live-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.apiMetricsServiceName" -}}
 {{- printf "%s-api-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -142,6 +150,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.vulnerabilityIntelligenceCollectorMetricsServiceName" -}}
 {{- printf "%s-vulnerability-intelligence-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.kubernetesLiveCollectorMetricsServiceName" -}}
+{{- printf "%s-kubernetes-live-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.vaultLiveCollectorMetricsServiceName" -}}
+{{- printf "%s-vault-live-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.apiSelectorLabels" -}}
@@ -220,6 +236,16 @@ app.kubernetes.io/component: scanner-worker
 app.kubernetes.io/component: vulnerability-intelligence-collector
 {{- end -}}
 
+{{- define "eshu.kubernetesLiveCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: kubernetes-live-collector
+{{- end -}}
+
+{{- define "eshu.vaultLiveCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: vault-live-collector
+{{- end -}}
+
 {{- define "eshu.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
 {{- default (include "eshu.fullname" .) .Values.serviceAccount.name -}}
@@ -234,6 +260,28 @@ app.kubernetes.io/component: vulnerability-intelligence-collector
 {{- $serviceAccount.name -}}
 {{- else if $serviceAccount.create -}}
 {{- include "eshu.awsCloudCollectorFullname" . -}}
+{{- else -}}
+{{- include "eshu.serviceAccountName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "eshu.kubernetesLiveCollectorServiceAccountName" -}}
+{{- $serviceAccount := default dict .Values.kubernetesLiveCollector.serviceAccount -}}
+{{- if $serviceAccount.name -}}
+{{- $serviceAccount.name -}}
+{{- else if $serviceAccount.create -}}
+{{- include "eshu.kubernetesLiveCollectorFullname" . -}}
+{{- else -}}
+{{- include "eshu.serviceAccountName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "eshu.vaultLiveCollectorServiceAccountName" -}}
+{{- $serviceAccount := default dict .Values.vaultLiveCollector.serviceAccount -}}
+{{- if $serviceAccount.name -}}
+{{- $serviceAccount.name -}}
+{{- else if $serviceAccount.create -}}
+{{- include "eshu.vaultLiveCollectorFullname" . -}}
 {{- else -}}
 {{- include "eshu.serviceAccountName" . -}}
 {{- end -}}
