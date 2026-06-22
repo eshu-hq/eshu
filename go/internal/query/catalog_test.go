@@ -32,7 +32,7 @@ func (rows catalogGraphRows) reader(t *testing.T, wantLimit int) fakeRepoGraphRe
 				return rows.evidence, nil
 			case strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"):
 				return rows.instance, nil
-			case strings.Contains(cypher, "[:DEFINES]->(w)"):
+			case strings.Contains(cypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)"):
 				return rows.repo, nil
 			case strings.Contains(cypher, "MATCH (w:Workload)"):
 				if wantLimit > 0 {
@@ -262,6 +262,30 @@ func TestCatalogEvidenceEnvironmentCypherIsSingleChain(t *testing.T) {
 	}
 }
 
+// TestCatalogWorkloadRepoCypherIsSingleChain guards the cold-plan fix for issue
+// #3466. The workload->repository enrichment MUST express its
+// (workload)<-[:DEFINES]-(repository) relationship as a single connected path
+// anchored on the bounded workload id set, not two MATCH clauses that anchor the
+// workload and then re-match (repo:Repository)-[:DEFINES]->(w). On NornicDB the
+// double-MATCH re-anchor cold-plans as a full Repository label scan with per-repo
+// DEFINES fanout and takes ~36s at the console's catalog limit, while the
+// single-chain shape returns the identical rows in single-digit milliseconds.
+// Regressing to the double-MATCH form reintroduces the catalog timeout, so the
+// shape is pinned here alongside the evidence-environment guard above.
+func TestCatalogWorkloadRepoCypherIsSingleChain(t *testing.T) {
+	t.Parallel()
+
+	if strings.Count(catalogWorkloadRepoCypher, "MATCH ") > 1 {
+		t.Fatalf("workload repository query must be a single connected path, got multiple MATCH clauses re-anchoring on repo:\n%s", catalogWorkloadRepoCypher)
+	}
+	if !strings.Contains(catalogWorkloadRepoCypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)") {
+		t.Fatalf("workload repository query must traverse workload<-repo as one chain, got:\n%s", catalogWorkloadRepoCypher)
+	}
+	if !strings.Contains(catalogWorkloadRepoCypher, "WHERE w.id IN $ids") {
+		t.Fatalf("workload repository query must stay bounded to the workload id set, got:\n%s", catalogWorkloadRepoCypher)
+	}
+}
+
 // TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs guards issue #3389. The
 // three workload enrichment queries (repository, instance environments, and
 // deployment-evidence environments) previously scanned the entire Workload,
@@ -296,7 +320,7 @@ func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
 			case strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"):
 				recordIDs("instance", cypher, params)
 				return nil, nil
-			case strings.Contains(cypher, "[:DEFINES]->(w)"):
+			case strings.Contains(cypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)"):
 				recordIDs("repo", cypher, params)
 				return nil, nil
 			case strings.Contains(cypher, "MATCH (w:Workload)"):
@@ -346,7 +370,7 @@ func TestListCatalogSkipsEnrichmentWhenNoWorkloads(t *testing.T) {
 			switch {
 			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"),
 				strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"),
-				strings.Contains(cypher, "[:DEFINES]->(w)"):
+				strings.Contains(cypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)"):
 				enrichmentRan = true
 				return nil, nil
 			default:

@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -245,4 +246,177 @@ func keysOf(m map[string]map[string]any) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// countingStatusReader wraps fakeStatusReader and counts how many times
+// ReadStatusSnapshot is called, so tests can assert that a warm cache hit
+// does not reach the underlying reader.
+type countingStatusReader struct {
+	fakeStatusReader
+	calls int
+}
+
+func (c *countingStatusReader) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
+	c.calls++
+	return c.fakeStatusReader.ReadStatusSnapshot(ctx, asOf)
+}
+
+func (c *countingStatusReader) ReadStatusSnapshotFiltered(ctx context.Context, asOf time.Time, sel statuspkg.SnapshotSelection) (statuspkg.RawSnapshot, error) {
+	c.calls++
+	return c.fakeStatusReader.ReadStatusSnapshotFiltered(ctx, asOf, sel)
+}
+
+// TestCollectorReadinessCacheHitReturnsCached asserts that a second request
+// within the TTL window does not trigger a second read of the underlying
+// StatusReader (the expensive Postgres query path).
+func TestCollectorReadinessCacheHitReturnsCached(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	reader := &countingStatusReader{
+		fakeStatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{
+			AsOf: now,
+			Coordinator: &statuspkg.CoordinatorSnapshot{
+				CollectorInstances: []statuspkg.CollectorInstanceSummary{
+					{InstanceID: "collector-jira", CollectorKind: "jira", Enabled: true, ClaimsEnabled: true, LastObservedAt: now, UpdatedAt: now},
+				},
+			},
+			CollectorFactEvidence: []statuspkg.CollectorFactEvidence{
+				{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "reducer_facts", ObservationCount: 4, LastObservedAt: now, UpdatedAt: now},
+			},
+		}},
+	}
+
+	// Both requests must go through the same handler so the cache is shared.
+	handler := &StatusHandler{StatusReader: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	do := func() []byte {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/status/collector-readiness", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+		}
+		return rec.Body.Bytes()
+	}
+
+	body1 := do() // cache cold — reader called once
+	body2 := do() // cache warm — reader must NOT be called again
+
+	// Both responses must contain the same jira promotion_state.
+	byKind1 := collectorReadinessByKind(t, body1)
+	byKind2 := collectorReadinessByKind(t, body2)
+	if byKind1["jira"]["promotion_state"] != byKind2["jira"]["promotion_state"] {
+		t.Fatalf("cached response promotion_state = %v, want %v",
+			byKind2["jira"]["promotion_state"], byKind1["jira"]["promotion_state"])
+	}
+
+	// Underlying reader must have been called exactly once across both requests.
+	if reader.calls != 1 {
+		t.Fatalf("reader called %d times, want 1 (second request must hit cache)", reader.calls)
+	}
+}
+
+// TestCollectorReadinessCacheExpiryRefetches asserts that a request arriving
+// after the TTL window has elapsed triggers a fresh read of the StatusReader.
+func TestCollectorReadinessCacheExpiryRefetches(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 21, 13, 0, 0, 0, time.UTC)
+	reader := &countingStatusReader{
+		fakeStatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{AsOf: now}},
+	}
+
+	handler := &StatusHandler{StatusReader: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	// Seed the unscoped cache slot with an already-expired entry.
+	handler.readinessCache.mu.Lock()
+	handler.readinessCache.unscopedEntry.expiry = now.Add(-time.Second) // expired
+	handler.readinessCache.mu.Unlock()
+
+	// Request after expiry — cache must be bypassed and reader called.
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/collector-readiness", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+
+	if reader.calls != 1 {
+		t.Fatalf("reader called %d times after cache expiry, want 1", reader.calls)
+	}
+}
+
+// TestCollectorReadinessCacheDoesNotCrossScopes is a security regression test.
+// An unscoped (admin) request must never warm the cache entry served to a
+// scoped (tenant) request. The scoped response redacts per-instance IDs; if the
+// two scopes shared a slot, a scoped caller arriving after an admin request
+// within the same TTL window would receive the admin (unredacted) payload,
+// leaking per-instance identity across auth boundaries.
+func TestCollectorReadinessCacheDoesNotCrossScopes(t *testing.T) {
+	t.Parallel()
+
+	const privateInstanceID = "collector-private-instance"
+	now := time.Date(2026, 6, 21, 14, 0, 0, 0, time.UTC)
+	reader := &countingStatusReader{
+		fakeStatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{
+			AsOf: now,
+			Coordinator: &statuspkg.CoordinatorSnapshot{
+				CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+					InstanceID:     privateInstanceID,
+					CollectorKind:  "aws",
+					Enabled:        true,
+					ClaimsEnabled:  true,
+					LastObservedAt: now,
+					UpdatedAt:      now,
+				}},
+			},
+		}},
+	}
+
+	handler := &StatusHandler{StatusReader: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	doAs := func(scoped bool) []byte {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/status/collector-readiness", nil)
+		if scoped {
+			req = req.WithContext(ContextWithAuthContext(req.Context(),
+				AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"}))
+		}
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+		}
+		return rec.Body.Bytes()
+	}
+
+	// Admin (unscoped) request — warms the unscoped cache slot.
+	adminBody := doAs(false)
+	// Scoped request — must use the scoped slot (cache cold for that scope).
+	scopedBody := doAs(true)
+
+	// The admin payload must contain the private instance ID.
+	adminByKind := collectorReadinessByKind(t, adminBody)
+	if adminByKind["aws"]["instance_id"] == "" {
+		t.Fatalf("admin response should contain instance_id for %q, but it was empty", privateInstanceID)
+	}
+
+	// The scoped payload must NOT contain the private instance ID.
+	scopedByKind := collectorReadinessByKind(t, scopedBody)
+	if got := scopedByKind["aws"]["instance_id"]; got != nil && got != "" {
+		t.Fatalf("scoped response must redact instance_id, got %q (cross-scope cache leak)", got)
+	}
+
+	// Both requests must have hit the reader (different cache slots, both cold).
+	if reader.calls != 2 {
+		t.Fatalf("reader called %d times, want 2 (one per scope slot)", reader.calls)
+	}
 }
