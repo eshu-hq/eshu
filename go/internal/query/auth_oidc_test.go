@@ -110,6 +110,71 @@ func TestOIDCLoginHandlerCallbackIssuesHashOnlyBrowserSession(t *testing.T) {
 	}
 }
 
+func TestOIDCLoginHandlerCallbackMarksSessionForBoundedReauth(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 12, 30, 0, 0, time.UTC)
+	sessionStore := &fakeBrowserSessionStore{}
+	service := &fakeOIDCLoginService{
+		complete: OIDCLoginCompleteResponse{
+			Auth: AuthContext{
+				Mode:               AuthModeScoped,
+				TenantID:           "tenant_a",
+				WorkspaceID:        "workspace_a",
+				SubjectClass:       "external_oidc_user",
+				SubjectIDHash:      "sha256:subject",
+				PolicyRevisionHash: "sha256:policy",
+				RoleIDs:            []string{"developer"},
+				AllowedScopeIDs:    []string{"scope_a"},
+			},
+			ProviderConfigID:  "okta-dev",
+			ProviderSubjectID: "sha256:subject",
+			ProviderProofAt:   now.Add(-time.Minute),
+		},
+	}
+	handler := &OIDCLoginHandler{
+		Service:              service,
+		SessionRefreshWindow: 15 * time.Minute,
+		SessionIssuer: &BrowserSessionHandler{
+			Store:           sessionStore,
+			NewSecret:       sequenceSecrets("session-secret", "csrf-secret"),
+			Now:             func() time.Time { return now },
+			IdleTimeout:     30 * time.Minute,
+			AbsoluteTimeout: 12 * time.Hour,
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/oidc/callback?state=state-secret&code=auth-code", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if len(sessionStore.created) != 1 {
+		t.Fatalf("created sessions = %d, want 1", len(sessionStore.created))
+	}
+	created := sessionStore.created[0]
+	if created.ExternalProviderConfigID != "okta-dev" {
+		t.Fatalf("external provider config id = %q, want okta-dev", created.ExternalProviderConfigID)
+	}
+	if created.ExternalSubjectIDHash != "sha256:subject" {
+		t.Fatalf("external subject hash = %q, want sha256:subject", created.ExternalSubjectIDHash)
+	}
+	if !created.ExternalAuthValidatedAt.Equal(now.Add(-time.Minute)) {
+		t.Fatalf("external auth validated at = %v, want %v", created.ExternalAuthValidatedAt, now.Add(-time.Minute))
+	}
+	if got, want := created.ExternalAuthStaleAfter, now.Add(14*time.Minute); !got.Equal(want) {
+		t.Fatalf("external auth stale after = %v, want %v", got, want)
+	}
+	if !created.AbsoluteExpiresAt.Equal(now.Add(12 * time.Hour)) {
+		t.Fatalf("absolute expiry = %v, want independent browser-session timeout", created.AbsoluteExpiresAt)
+	}
+}
+
 func TestOIDCLoginRoutesArePublicOnlyForExactGETPaths(t *testing.T) {
 	t.Parallel()
 

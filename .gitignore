@@ -108,6 +108,20 @@ todo.md
 # Durable LOCAL proof only; never commit binaries or the local key.
 e2e-artifacts/
 
+# Operator-local identity-provider proof manifests and generated summaries.
+# Keep Okta tenant URLs, app identifiers, users, groups, tokens, assertions,
+# cookies, and aggregate proof packets out of commits unless explicitly moved
+# into a reviewed public-safe docs path.
+.proof-artifacts/
+okta-oidc-proof*.json
+okta-oidc-proof*.md
+okta-oidc-live-proof*.json
+okta-oidc-live-proof*.md
+okta-saml-proof*.json
+okta-saml-proof*.md
+okta-saml-live-proof*.json
+okta-saml-live-proof*.md
+
 # Claude Code per-user overrides; .claude/settings.json is committed so the
 # project hook works for everyone who clones.
 .claude/settings.local.json

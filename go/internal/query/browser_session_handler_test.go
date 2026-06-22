@@ -94,6 +94,48 @@ func TestBrowserSessionHandlerCreateSetsSecureHashOnlyCookies(t *testing.T) {
 	}
 }
 
+func TestBrowserSessionHandlerCreateCapsIdleExpiryAtAbsoluteTimeout(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	store := &fakeBrowserSessionStore{}
+	handler := &BrowserSessionHandler{
+		Store:           store,
+		NewSecret:       sequenceSecrets("session-secret", "csrf-secret"),
+		Now:             func() time.Time { return now },
+		IdleTimeout:     30 * time.Minute,
+		AbsoluteTimeout: 15 * time.Minute,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/browser-session", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:        AuthModeScoped,
+		TenantID:    "tenant_a",
+		WorkspaceID: "workspace_a",
+		AllScopes:   true,
+	}))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if len(store.created) != 1 {
+		t.Fatalf("created sessions = %d, want 1", len(store.created))
+	}
+	created := store.created[0]
+	wantExpiry := now.Add(15 * time.Minute)
+	if !created.AbsoluteExpiresAt.Equal(wantExpiry) {
+		t.Fatalf("absolute expiry = %v, want %v", created.AbsoluteExpiresAt, wantExpiry)
+	}
+	if !created.IdleExpiresAt.Equal(wantExpiry) {
+		t.Fatalf("idle expiry = %v, want capped absolute expiry %v", created.IdleExpiresAt, wantExpiry)
+	}
+}
+
 func TestBrowserSessionHandlerCreateRejectsExistingBrowserSession(t *testing.T) {
 	t.Parallel()
 

@@ -28,8 +28,13 @@ func TestBootstrapDefinitionsIncludeBrowserSessions(t *testing.T) {
 		"csrf_token_hash TEXT NOT NULL",
 		"idle_expires_at TIMESTAMPTZ NOT NULL",
 		"absolute_expires_at TIMESTAMPTZ NOT NULL",
+		"external_provider_config_id TEXT NULL",
+		"external_subject_id_hash TEXT NULL",
+		"external_auth_validated_at TIMESTAMPTZ NULL",
+		"external_auth_stale_after TIMESTAMPTZ NULL",
 		"ALTER TABLE browser_sessions",
 		"ADD COLUMN IF NOT EXISTS role_ids JSONB NOT NULL DEFAULT '[]'::jsonb",
+		"ADD COLUMN IF NOT EXISTS external_auth_stale_after TIMESTAMPTZ NULL",
 		"FOREIGN KEY (tenant_id, workspace_id)",
 		"REFERENCES workspaces(tenant_id, workspace_id) ON DELETE CASCADE",
 		"browser_sessions_active_idx",
@@ -166,6 +171,7 @@ func TestBrowserSessionStoreResolvesOnlyActiveUnrevokedSession(t *testing.T) {
 
 	now := time.Date(2026, 6, 21, 15, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
 		queryResponses: []queueFakeRows{{
 			rows: [][]any{{
 				"sha256:session",
@@ -245,6 +251,7 @@ func TestBrowserSessionStoreRejectsCSRFMismatch(t *testing.T) {
 
 	now := time.Date(2026, 6, 21, 15, 30, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
 		queryResponses: []queueFakeRows{{
 			rows: [][]any{{
 				"sha256:session",

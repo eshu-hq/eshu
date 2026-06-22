@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // OIDC login errors let provider implementations map fail-closed outcomes to
@@ -45,14 +46,22 @@ type OIDCLoginCompleteRequest struct {
 // OIDCLoginCompleteResponse carries the resolved Eshu auth context and optional
 // local path for post-login browser navigation.
 type OIDCLoginCompleteResponse struct {
-	Auth         AuthContext
-	ReturnToPath string
+	Auth              AuthContext
+	ProviderConfigID  string
+	ProviderSubjectID string
+	ProviderProofAt   time.Time
+	ReturnToPath      string
 }
+
+// DefaultOIDCSessionRefreshWindow bounds external IdP proof staleness for
+// already-issued OIDC browser sessions.
+const DefaultOIDCSessionRefreshWindow = 15 * time.Minute
 
 // OIDCLoginHandler serves generic OIDC login and callback routes.
 type OIDCLoginHandler struct {
-	Service       OIDCLoginService
-	SessionIssuer *BrowserSessionHandler
+	Service              OIDCLoginService
+	SessionIssuer        *BrowserSessionHandler
+	SessionRefreshWindow time.Duration
 }
 
 // Mount registers OIDC login routes.
@@ -97,7 +106,16 @@ func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request
 		writeOIDCLoginError(w, err)
 		return
 	}
-	response, ok := h.SessionIssuer.issueBrowserSession(w, r, complete.Auth, 0)
+	proofAt := complete.ProviderProofAt.UTC()
+	if proofAt.IsZero() {
+		proofAt = h.SessionIssuer.now()
+	}
+	response, ok := h.SessionIssuer.issueBrowserSessionWithExternalAuth(w, r, complete.Auth, 0, BrowserSessionExternalAuthProof{
+		ProviderConfigID: complete.ProviderConfigID,
+		SubjectIDHash:    complete.ProviderSubjectID,
+		ValidatedAt:      proofAt,
+		StaleAfter:       proofAt.Add(h.sessionRefreshWindow()),
+	})
 	if !ok {
 		return
 	}
@@ -126,6 +144,13 @@ func (h *OIDCLoginHandler) serviceReady(w http.ResponseWriter) bool {
 		return false
 	}
 	return true
+}
+
+func (h *OIDCLoginHandler) sessionRefreshWindow() time.Duration {
+	if h.SessionRefreshWindow > 0 {
+		return h.SessionRefreshWindow
+	}
+	return DefaultOIDCSessionRefreshWindow
 }
 
 func writeOIDCLoginError(w http.ResponseWriter, err error) {

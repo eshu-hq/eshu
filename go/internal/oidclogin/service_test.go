@@ -152,6 +152,15 @@ func TestServiceCompleteValidatesNonceAndMapsGroupsThroughRoles(t *testing.T) {
 	if complete.ReturnToPath != "/console" {
 		t.Fatalf("ReturnToPath = %q, want /console", complete.ReturnToPath)
 	}
+	if complete.ProviderConfigID != "okta-dev" {
+		t.Fatalf("ProviderConfigID = %q, want okta-dev", complete.ProviderConfigID)
+	}
+	if complete.ProviderSubjectID != SHA256Hash("okta-dev:external-subject") {
+		t.Fatalf("ProviderSubjectID = %q, want hashed provider subject", complete.ProviderSubjectID)
+	}
+	if !complete.ProviderProofAt.Equal(now) {
+		t.Fatalf("ProviderProofAt = %v, want %v", complete.ProviderProofAt, now)
+	}
 }
 
 func TestServiceCompleteDeniesNonceMismatchAndUnmappedGroups(t *testing.T) {

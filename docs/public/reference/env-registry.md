@@ -13,6 +13,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_AUTH_OIDC_CONFIG_FILE` | string | — | Path to an operator-managed OIDC login config file. When set and not disabled, the API enables backend Authorization Code login and reads provider/client/group-role mapping handles from this file. |
 | `ESHU_AUTH_OIDC_ENABLED` | bool | `false` | Explicitly enables or disables backend OIDC login. Set true with ESHU_AUTH_OIDC_CONFIG_FILE to require OIDC startup config; set false to disable even when a config file is present. |
 | `ESHU_AUTH_OIDC_PROVIDER_ID` | string | — | Optional default provider config id override for OIDC login. The id must reference a provider declared in ESHU_AUTH_OIDC_CONFIG_FILE. |
+| `ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW` | duration | `15m` | Maximum staleness window for OIDC-backed browser sessions before the API revokes the session and requires fresh IdP reauthentication. Explicit invalid or non-positive durations fail API startup closed. |
 | `ESHU_AUTH_OIDC_STATE_TTL` | duration | `10m` | OIDC login state and nonce lifetime. Explicit invalid durations fail API startup closed. |
 | `ESHU_AUTO_GENERATE_API_KEY` | bool | `false` | When true, auto-generate and persist an API key if none is set. |
 | `ESHU_DISABLE_NEO4J` | bool | `false` | When true, disable the graph backend entirely. |

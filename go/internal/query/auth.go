@@ -29,8 +29,6 @@ var publicHTTPPaths = map[string]bool{
 	"/api/v0/auth/local/break-glass/session": true,
 }
 
-const governanceAuditAppendTimeout = 500 * time.Millisecond
-
 type authContextKey struct{}
 
 // AuthMode names the source of an authenticated request context.
@@ -58,6 +56,10 @@ const (
 // session. It lets middleware return 403 instead of treating the caller as
 // unauthenticated when a session exists but the request is unsafe.
 var ErrBrowserSessionCSRFInvalid = errors.New("browser session csrf token invalid")
+
+// ErrBrowserSessionRefreshRequired identifies an OIDC-backed browser session
+// whose external-provider proof exceeded the configured staleness window.
+var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh required")
 
 // AuthContext carries request-scoped authorization bounds for query handlers.
 type AuthContext struct {
@@ -265,11 +267,6 @@ func tryBrowserSessionAuth(
 	}
 	requireCSRF := browserSessionRequiresCSRF(r.Method)
 	csrfToken := strings.TrimSpace(r.Header.Get(BrowserSessionCSRFHeaderName))
-	if requireCSRF && csrfToken == "" {
-		recordReadAuthorizationDenied(r, audit)
-		csrfDeniedResponse(w, r)
-		return true
-	}
 	auth, ok, err := resolver.ResolveBrowserSession(
 		r.Context(),
 		BrowserSessionSecretHash(sessionCookie.Value),
@@ -280,6 +277,11 @@ func tryBrowserSessionAuth(
 	if errors.Is(err, ErrBrowserSessionCSRFInvalid) {
 		recordReadAuthorizationDenied(r, audit)
 		csrfDeniedResponse(w, r)
+		return true
+	}
+	if errors.Is(err, ErrBrowserSessionRefreshRequired) {
+		recordReadAuthorizationDeniedWithReason(r, audit, "oidc_session_reauth_required")
+		unauthorizedResponse(w, r)
 		return true
 	}
 	if err != nil || !ok {
@@ -316,66 +318,6 @@ func BrowserSessionSecretHash(secret string) string {
 	}
 	sum := sha256.Sum256([]byte(secret))
 	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func recordReadAuthorizationDenied(r *http.Request, audit GovernanceAuditAppender) {
-	if audit == nil {
-		return
-	}
-	event := governanceaudit.Event{
-		Type:          governanceaudit.EventTypeReadAuthorization,
-		ActorClass:    governanceaudit.ActorClassAnonymous,
-		ScopeClass:    governanceaudit.ScopeClassAdmin,
-		Decision:      governanceaudit.DecisionDenied,
-		ReasonCode:    "authentication_required",
-		CorrelationID: safeAuditCorrelationID(documentationCorrelationID(r)),
-		OccurredAt:    time.Now().UTC(),
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
-	defer cancel()
-	_ = audit.Append(ctx, []governanceaudit.Event{event})
-}
-
-func recordScopedRouteAuthorizationDenied(
-	r *http.Request,
-	audit GovernanceAuditAppender,
-	auth AuthContext,
-) {
-	if audit == nil {
-		return
-	}
-	actorClass := governanceaudit.ActorClassScopedToken
-	if auth.SubjectIDHash == "" {
-		actorClass = governanceaudit.ActorClassAnonymous
-	}
-	event := governanceaudit.Event{
-		Type:               governanceaudit.EventTypeReadAuthorization,
-		ActorClass:         actorClass,
-		ActorIDHash:        auth.SubjectIDHash,
-		ScopeClass:         governanceaudit.ScopeClassAdmin,
-		Decision:           governanceaudit.DecisionDenied,
-		ReasonCode:         "scoped_route_not_enabled",
-		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
-		OccurredAt:         time.Now().UTC(),
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
-	defer cancel()
-	_ = audit.Append(ctx, []governanceaudit.Event{event})
-}
-
-func safeAuditCorrelationID(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" || len(value) > 96 {
-		return ""
-	}
-	for _, r := range value {
-		if (r < 'a' || r > 'z') && (r < '0' || r > '9') &&
-			r != '_' && r != '-' && r != ':' {
-			return ""
-		}
-	}
-	return value
 }
 
 func normalizeBrowserSessionAuthContext(auth AuthContext) AuthContext {

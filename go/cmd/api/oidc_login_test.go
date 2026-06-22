@@ -5,6 +5,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 func TestNewOIDCLoginHandlerDisabledByDefault(t *testing.T) {
@@ -73,6 +76,77 @@ func TestNewOIDCLoginHandlerLoadsFileBackedConfig(t *testing.T) {
 	}
 	if handler == nil || handler.Service == nil || handler.SessionIssuer == nil {
 		t.Fatalf("newOIDCLoginHandler() = %#v, want wired handler", handler)
+	}
+	if handler.SessionRefreshWindow != query.DefaultOIDCSessionRefreshWindow {
+		t.Fatalf("refresh window = %v, want default %v", handler.SessionRefreshWindow, query.DefaultOIDCSessionRefreshWindow)
+	}
+}
+
+func TestNewOIDCLoginHandlerParsesSessionRefreshWindow(t *testing.T) {
+	t.Parallel()
+
+	path := writeOIDCTestConfig(t, `{
+  "version": 1,
+  "providers": [{
+    "provider_config_id": "okta-dev",
+    "issuer_url": "https://idp.example.test/oauth2/default",
+    "client_id": "client-id",
+    "redirect_url": "https://eshu.example.test/api/v0/auth/oidc/callback",
+    "tenant_id": "tenant_a",
+    "workspace_id": "workspace_a"
+  }]
+}`)
+	handler, err := newOIDCLoginHandler(func(key string) string {
+		switch key {
+		case envAuthOIDCConfigFile:
+			return path
+		case envAuthOIDCSessionRefreshWindow:
+			return "20m"
+		default:
+			return ""
+		}
+	}, &sql.DB{}, nil)
+	if err != nil {
+		t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
+	}
+	if got, want := handler.SessionRefreshWindow, 20*time.Minute; got != want {
+		t.Fatalf("refresh window = %v, want %v", got, want)
+	}
+}
+
+func TestNewOIDCLoginHandlerInvalidSessionRefreshWindowFailsStartup(t *testing.T) {
+	t.Parallel()
+
+	path := writeOIDCTestConfig(t, `{
+  "version": 1,
+  "providers": [{
+    "provider_config_id": "okta-dev",
+    "issuer_url": "https://idp.example.test/oauth2/default",
+    "client_id": "client-id",
+    "redirect_url": "https://eshu.example.test/api/v0/auth/oidc/callback",
+    "tenant_id": "tenant_a",
+    "workspace_id": "workspace_a"
+  }]
+}`)
+	for _, raw := range []string{"0", "-1m", "not-a-duration"} {
+		raw := raw
+		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := newOIDCLoginHandler(func(key string) string {
+				switch key {
+				case envAuthOIDCConfigFile:
+					return path
+				case envAuthOIDCSessionRefreshWindow:
+					return raw
+				default:
+					return ""
+				}
+			}, &sql.DB{}, nil)
+			if err == nil || !strings.Contains(err.Error(), envAuthOIDCSessionRefreshWindow) {
+				t.Fatalf("newOIDCLoginHandler() error = %v, want refresh window failure", err)
+			}
+		})
 	}
 }
 
