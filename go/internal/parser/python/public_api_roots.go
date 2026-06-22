@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-var pythonPublicNameLiteralRe = regexp.MustCompile(`["']([A-Za-z_][A-Za-z0-9_]*)["']`)
 
 func pythonPublicAPIRootKinds(
 	repoRoot string,
@@ -39,12 +36,61 @@ func pythonModuleAllNames(root *tree_sitter.Node, source []byte) map[string]stru
 		if strings.TrimSpace(nodeText(left, source)) != "__all__" {
 			return
 		}
-		right := node.ChildByFieldName("right")
-		for _, name := range pythonPublicNameLiterals(nodeText(right, source)) {
+		for _, name := range pythonStringSequenceLiterals(node.ChildByFieldName("right"), source) {
 			names[name] = struct{}{}
 		}
 	})
 	return names
+}
+
+// pythonStringSequenceLiterals returns the identifier-shaped string literals
+// inside an `__all__` list or tuple value node. Only string entries whose
+// content is a valid Python identifier are kept, matching the prior literal
+// extraction that ignored non-identifier strings.
+func pythonStringSequenceLiterals(value *tree_sitter.Node, source []byte) []string {
+	if value == nil {
+		return nil
+	}
+	switch value.Kind() {
+	case "list", "tuple", "set":
+	default:
+		return nil
+	}
+	names := make([]string, 0)
+	cursor := value.Walk()
+	defer cursor.Close()
+	for _, child := range value.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "string" {
+			continue
+		}
+		literal := pythonStringLiteralValue(&child, source)
+		if pythonIsIdentifier(literal) {
+			names = appendUniqueString(names, literal)
+		}
+	}
+	return names
+}
+
+// pythonIsIdentifier reports whether s is a valid Python identifier name
+// (leading letter or underscore, then letters, digits, or underscores).
+func pythonIsIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for index, char := range s {
+		isLetter := char == '_' ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= 'a' && char <= 'z')
+		isDigit := char >= '0' && char <= '9'
+		if index == 0 && !isLetter {
+			return false
+		}
+		if index > 0 && !isLetter && !isDigit {
+			return false
+		}
+	}
+	return true
 }
 
 func pythonPackageInitExportedNames(repoRoot string, sourcePath string) map[string]struct{} {
@@ -141,17 +187,6 @@ func pythonFromImportStatements(source string) []string {
 		statements = append(statements, strings.Join(strings.Fields(statement), " "))
 	}
 	return statements
-}
-
-func pythonPublicNameLiterals(source string) []string {
-	matches := pythonPublicNameLiteralRe.FindAllStringSubmatch(source, -1)
-	names := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) == 2 {
-			names = appendUniqueString(names, match[1])
-		}
-	}
-	return names
 }
 
 func pythonMergeRootKinds(existing any, additional []string) []string {
