@@ -72,43 +72,6 @@ func kotlinInferReceiverType(
 	return currentType
 }
 
-func kotlinInferFunctionCallReturnType(
-	callExpression string,
-	variableTypes map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	currentClass string,
-	packageName string,
-	functionReturnTypes map[string]string,
-	classTypeParameters map[string][]string,
-) string {
-	callExpression = strings.TrimSpace(callExpression)
-	if callExpression == "" {
-		return ""
-	}
-
-	if strings.Contains(callExpression, "(") && strings.HasSuffix(callExpression, ")") {
-		return kotlinInferMethodCallReturnType(
-			callExpression,
-			variableTypes,
-			classPropertyTypes,
-			currentClass,
-			packageName,
-			functionReturnTypes,
-			classTypeParameters,
-		)
-	}
-
-	return kotlinInferMethodCallReturnType(
-		callExpression+"()",
-		variableTypes,
-		classPropertyTypes,
-		currentClass,
-		packageName,
-		functionReturnTypes,
-		classTypeParameters,
-	)
-}
-
 func kotlinInferMethodCallReturnType(
 	callExpression string,
 	variableTypes map[string]string,

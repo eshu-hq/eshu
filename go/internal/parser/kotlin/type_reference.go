@@ -1,9 +1,6 @@
 package kotlin
 
-import (
-	"regexp"
-	"strings"
-)
+import "strings"
 
 func kotlinCanonicalTypeReference(value string) string {
 	trimmed := strings.TrimSpace(value)
@@ -96,82 +93,41 @@ func kotlinResolveTypeReference(typeReference string, receiverType string, class
 	return strings.TrimSpace(resolved)
 }
 
+// replaceWholeWord replaces every whole-word occurrence of old with new in
+// value. A match is a run of old that is not flanked by identifier characters,
+// so substituting a type parameter `T` does not corrupt `Type`.
 func replaceWholeWord(value string, old string, new string) string {
 	if value == "" || old == "" {
 		return value
 	}
-	pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(old) + `\b`)
-	return pattern.ReplaceAllString(value, new)
+	var builder strings.Builder
+	for i := 0; i < len(value); {
+		if hasWordAt(value, i, old) {
+			builder.WriteString(new)
+			i += len(old)
+			continue
+		}
+		builder.WriteByte(value[i])
+		i++
+	}
+	return builder.String()
 }
 
-func kotlinDeclaredTypeParameters(line string) []string {
-	trimmed := strings.TrimSpace(line)
-	if trimmed == "" {
-		return nil
+// hasWordAt reports whether word occurs at index i in value bounded by
+// non-identifier characters on both sides.
+func hasWordAt(value string, i int, word string) bool {
+	if i+len(word) > len(value) || value[i:i+len(word)] != word {
+		return false
 	}
+	if i > 0 && isIdentifierByte(value[i-1]) {
+		return false
+	}
+	if end := i + len(word); end < len(value) && isIdentifierByte(value[end]) {
+		return false
+	}
+	return true
+}
 
-	keywordIndex := strings.Index(trimmed, "class ")
-	if keywordIndex < 0 {
-		keywordIndex = strings.Index(trimmed, "interface ")
-	}
-	if keywordIndex < 0 {
-		return nil
-	}
-
-	section := trimmed[keywordIndex:]
-	start := strings.Index(section, "<")
-	if start < 0 {
-		return nil
-	}
-	end := strings.Index(section[start+1:], ">")
-	if end < 0 {
-		return nil
-	}
-	spec := section[start+1 : start+1+end]
-	if strings.TrimSpace(spec) == "" {
-		return nil
-	}
-
-	typeParameters := make([]string, 0, 4)
-	depth := 0
-	last := 0
-	appendParameter := func(segment string) {
-		segment = strings.TrimSpace(segment)
-		if segment == "" {
-			return
-		}
-		if index := strings.Index(segment, ":"); index >= 0 {
-			segment = strings.TrimSpace(segment[:index])
-		}
-		if index := strings.Index(segment, " "); index >= 0 {
-			segment = strings.TrimSpace(segment[:index])
-		}
-		if index := strings.Index(segment, "where"); index >= 0 {
-			segment = strings.TrimSpace(segment[:index])
-		}
-		if segment != "" {
-			typeParameters = append(typeParameters, segment)
-		}
-	}
-
-	for index, char := range spec {
-		switch char {
-		case '<':
-			depth++
-		case '>':
-			if depth > 0 {
-				depth--
-			}
-		case ',':
-			if depth == 0 {
-				appendParameter(spec[last:index])
-				last = index + 1
-			}
-		}
-	}
-	appendParameter(spec[last:])
-	if len(typeParameters) == 0 {
-		return nil
-	}
-	return typeParameters
+func isIdentifierByte(c byte) bool {
+	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }

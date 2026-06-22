@@ -308,7 +308,7 @@ parser path.
 | Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
 | JSON | `json` | `.json`, `.jsonc` | — |
-| Kotlin | `kotlin` | `.kt` | yes (line scan + tree-sitter syntax index) |
+| Kotlin | `kotlin` | `.kt` | yes |
 | NuGet project | `nuget_project` | `.csproj` | — |
 | Perl | `perl` | `.pl`, `.pm` | — |
 | PHP | `php` | `.php` | — |
@@ -413,7 +413,8 @@ branch kinds.
 | C# | AST walk (`csharp.cyclomaticComplexity`) | real |
 | Rust | AST walk (`rust.cyclomaticComplexity`) | real |
 | Scala | AST walk (`scala.cyclomaticComplexity`) | real |
-| Kotlin, Ruby, PHP, Elixir, Swift, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
+| Ruby, PHP, Elixir, Swift, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
+| Kotlin | AST adapter, but no `BranchNodeSet` wired yet — emits no `cyclomatic_complexity` field | pending |
 | JSON (`scripts`) | constant `1` | not source code (npm script strings) |
 | SCIP definitions | `0` (unknown) | SCIP carries no statement AST; native parse supplies the real value |
 

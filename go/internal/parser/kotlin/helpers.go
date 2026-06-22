@@ -1,238 +1,10 @@
 package kotlin
 
-import (
-	"regexp"
-	"strconv"
-	"strings"
+import "strings"
 
-	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-)
-
-var kotlinPrimaryConstructorPropertyPattern = regexp.MustCompile(
-	`(?m)(?:^|,)\s*(?:(?:@[A-Za-z_]\w*(?:\([^)]*\))?\s+)*)*(?:(?:private|public|protected|internal|override|open|final|const|lateinit)\s+)*(?:val|var)\s+([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:<[^>]+>)?\??)`,
-)
-
-var (
-	kotlinFunctionReturnPattern = regexp.MustCompile(
-		`\bfun\s+(?:<[^>]+>\s*)?(?:([A-Za-z_]\w*)\.)?([A-Za-z_]\w*)\s*\([^)]*\)\s*:\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:<[^>]+>)?\??)`,
-	)
-	kotlinSuspendFunctionPattern    = regexp.MustCompile(`\bsuspend\s+fun\b`)
-	kotlinFunctionCallAssignPattern = regexp.MustCompile(
-		`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s*=\s*((?:[A-Za-z_]\w*\.)*[A-Za-z_]\w*)\s*\([^()]*\)\s*$`,
-	)
-	kotlinCastAssignPattern = regexp.MustCompile(
-		`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s*=\s*.+?\s+as\??\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:<[^>]+>)?\??)\s*$`,
-	)
-	kotlinLazyDelegatedAssignPattern = regexp.MustCompile(
-		`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s+by\s+lazy(?:\s*\([^)]*\))?\s*\{\s*(.+?)\s*\}\s*$`,
-	)
-	kotlinConstructorCallPattern       = regexp.MustCompile(`\b([A-Z][A-Za-z_]\w*)\s*\(`)
-	kotlinParenthesizedReceiverPattern = regexp.MustCompile(
-		`\(([A-Za-z_]\w*(?:\([^()]*\))?(?:\.[A-Za-z_]\w*(?:\([^()]*\))?)*?)\)\.`,
-	)
-)
-
-func kotlinPrimaryConstructorPropertyTypes(line string) map[string]string {
-	trimmed := strings.TrimSpace(line)
-	if trimmed == "" {
-		return nil
-	}
-
-	openIndex := strings.Index(trimmed, "(")
-	if openIndex < 0 {
-		return nil
-	}
-	closeIndex := kotlinMatchingParenIndex(trimmed, openIndex)
-	if closeIndex <= openIndex {
-		return nil
-	}
-
-	constructor := trimmed[openIndex+1 : closeIndex]
-	matches := kotlinPrimaryConstructorPropertyPattern.FindAllStringSubmatch(constructor, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-
-	properties := make(map[string]string, len(matches))
-	for _, match := range matches {
-		if len(match) != 3 {
-			continue
-		}
-		name := strings.TrimSpace(match[1])
-		typ := kotlinCanonicalTypeReference(match[2])
-		if name == "" || typ == "" {
-			continue
-		}
-		properties[name] = typ
-	}
-	if len(properties) == 0 {
-		return nil
-	}
-	return properties
-}
-
-func kotlinFunctionDeclarationReturnType(line string) (string, string, string) {
-	matches := kotlinFunctionReturnPattern.FindStringSubmatch(strings.TrimSpace(line))
-	if len(matches) != 4 {
-		return "", "", ""
-	}
-	return strings.TrimSpace(matches[1]), strings.TrimSpace(matches[2]), kotlinCanonicalTypeReference(matches[3])
-}
-
-func kotlinFunctionIsSuspend(line string) bool {
-	return kotlinSuspendFunctionPattern.MatchString(strings.TrimSpace(line))
-}
-
-func kotlinCurrentTypeScopeName(stack []scopedContext) string {
-	return currentScopedName(stack, "class", "interface")
-}
-
-func kotlinTypedDeclarationType(line string) string {
-	matches := kotlinTypedVariablePattern.FindStringSubmatch(line)
-	if len(matches) != 3 {
-		return ""
-	}
-	return kotlinCanonicalTypeReference(matches[2])
-}
-
-func kotlinInferAssignedVariableType(
-	trimmed string,
-	name string,
-	functionContext string,
-	classContext string,
-	packageName string,
-	classTypeParameters map[string][]string,
-	localVariableTypes map[string]map[string]string,
-	classPropertyTypes map[string]map[string]string,
-	functionReturnTypes map[string]string,
-) string {
-	trimmed = strings.ReplaceAll(trimmed, "?.", ".")
-	trimmed = kotlinStripReceiverPreservingScopeFunctions(trimmed)
-	switch {
-	case kotlinCtorAssignPattern.MatchString(trimmed):
-		assignMatches := kotlinCtorAssignPattern.FindStringSubmatch(trimmed)
-		if len(assignMatches) == 3 && assignMatches[1] == name {
-			assignedType := strings.TrimSpace(assignMatches[2])
-			if assignedType == "" {
-				return ""
-			}
-			if kotlinLooksLikeTypeName(assignedType) {
-				return kotlinCanonicalTypeReference(assignedType)
-			}
-			return kotlinInferFunctionCallReturnType(
-				assignedType,
-				localVariableTypes[functionContext],
-				classPropertyTypes,
-				classContext,
-				packageName,
-				functionReturnTypes,
-				classTypeParameters,
-			)
-		}
-	case kotlinFunctionCallAssignPattern.MatchString(trimmed):
-		assignMatches := kotlinFunctionCallAssignPattern.FindStringSubmatch(trimmed)
-		if len(assignMatches) == 3 && assignMatches[1] == name {
-			return kotlinInferFunctionCallReturnType(
-				assignMatches[2],
-				localVariableTypes[functionContext],
-				classPropertyTypes,
-				classContext,
-				packageName,
-				functionReturnTypes,
-				classTypeParameters,
-			)
-		}
-	case kotlinCastAssignPattern.MatchString(trimmed):
-		assignMatches := kotlinCastAssignPattern.FindStringSubmatch(trimmed)
-		if len(assignMatches) == 3 && assignMatches[1] == name {
-			return kotlinCanonicalTypeReference(assignMatches[2])
-		}
-	case kotlinStringAssignPattern.MatchString(trimmed):
-		assignMatches := kotlinStringAssignPattern.FindStringSubmatch(trimmed)
-		if len(assignMatches) == 3 && assignMatches[1] == name {
-			return "String"
-		}
-	case kotlinAliasAssignPattern.MatchString(trimmed):
-		assignMatches := kotlinAliasAssignPattern.FindStringSubmatch(trimmed)
-		if len(assignMatches) == 3 && assignMatches[1] == name {
-			return kotlinInferReceiverType(
-				assignMatches[2],
-				localVariableTypes[functionContext],
-				classPropertyTypes,
-				classContext,
-				packageName,
-				functionReturnTypes,
-				classTypeParameters,
-			)
-		}
-	case kotlinLazyDelegatedAssignPattern.MatchString(trimmed):
-		assignMatches := kotlinLazyDelegatedAssignPattern.FindStringSubmatch(trimmed)
-		if len(assignMatches) == 3 && assignMatches[1] == name {
-			return kotlinInferReceiverType(
-				assignMatches[2],
-				localVariableTypes[functionContext],
-				classPropertyTypes,
-				classContext,
-				packageName,
-				functionReturnTypes,
-				classTypeParameters,
-			)
-		}
-	}
-	return ""
-}
-
-func kotlinInferAssignedVariableCallKind(trimmed string, name string) string {
-	trimmed = strings.TrimSpace(trimmed)
-	if trimmed == "" || name == "" {
-		return ""
-	}
-
-	assignMatches := kotlinLazyDelegatedAssignPattern.FindStringSubmatch(trimmed)
-	if len(assignMatches) == 3 && assignMatches[1] == name {
-		return "kotlin_lazy_delegated_property_receiver"
-	}
-
-	return ""
-}
-
-func kotlinInferReceiverCallKind(receiver string, variableCallKinds map[string]string) string {
-	receiver = strings.TrimSpace(receiver)
-	if receiver == "" || len(variableCallKinds) == 0 {
-		return ""
-	}
-
-	receiver = kotlinNormalizeParenthesizedReceivers(receiver)
-	receiver = strings.TrimPrefix(receiver, "this.")
-	segments := strings.Split(receiver, ".")
-	if len(segments) == 0 {
-		return ""
-	}
-
-	return strings.TrimSpace(variableCallKinds[strings.TrimSpace(segments[0])])
-}
-
-func kotlinMatchingParenIndex(value string, openIndex int) int {
-	if openIndex < 0 || openIndex >= len(value) {
-		return -1
-	}
-
-	depth := 0
-	for index, char := range value[openIndex:] {
-		switch char {
-		case '(':
-			depth++
-		case ')':
-			depth--
-			if depth == 0 {
-				return openIndex + index
-			}
-		}
-	}
-
-	return -1
-}
-
+// kotlinLooksLikeTypeName reports whether a bare identifier looks like a type
+// name (starts with an upper-case letter), used to distinguish constructor
+// calls from plain function calls during type inference.
 func kotlinLooksLikeTypeName(name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -242,21 +14,106 @@ func kotlinLooksLikeTypeName(name string) bool {
 	return first >= 'A' && first <= 'Z'
 }
 
+// kotlinNormalizeParenthesizedReceivers collapses a parenthesized receiver that
+// is immediately followed by a member access, turning `(a.b()).c` into
+// `a.b().c`. It only unwraps groups whose contents are an identifier/call chain
+// (no operators), so `(x as T).m` is preserved. The scan is repeated until no
+// further group can be unwrapped.
 func kotlinNormalizeParenthesizedReceivers(value string) string {
 	normalized := strings.TrimSpace(value)
 	if normalized == "" {
 		return ""
 	}
-
 	for {
-		next := kotlinParenthesizedReceiverPattern.ReplaceAllString(normalized, "$1.")
-		if next == normalized {
+		next, changed := unwrapLeadingReceiverGroup(normalized)
+		if !changed {
 			return normalized
 		}
 		normalized = next
 	}
 }
 
+// unwrapLeadingReceiverGroup removes the first `(chain).` wrapper found in the
+// expression and reports whether a change was made. A wrapper qualifies only
+// when its contents form a plain identifier/call chain followed by `.`.
+func unwrapLeadingReceiverGroup(value string) (string, bool) {
+	for open := 0; open < len(value); open++ {
+		if value[open] != '(' {
+			continue
+		}
+		close := matchingParen(value, open)
+		if close < 0 {
+			return value, false
+		}
+		// The group must be immediately followed by a member access dot.
+		if close+1 >= len(value) || value[close+1] != '.' {
+			continue
+		}
+		inner := value[open+1 : close]
+		if !isReceiverChain(inner) {
+			continue
+		}
+		return value[:open] + inner + value[close+1:], true
+	}
+	return value, false
+}
+
+// isReceiverChain reports whether s is a plain identifier/call chain such as
+// `a.b()` or `factory.create()` with balanced parentheses and no operators.
+func isReceiverChain(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+			if depth < 0 {
+				return false
+			}
+		case depth > 0:
+			// Inside argument list: allow any character.
+		case c == '.' || c == '_' || isAlphaNumeric(c):
+			// Allowed chain characters at the top level.
+		default:
+			return false
+		}
+	}
+	return depth == 0
+}
+
+func isAlphaNumeric(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+}
+
+// matchingParen returns the index of the parenthesis that closes the one at
+// openIndex, or -1 when unbalanced.
+func matchingParen(value string, openIndex int) int {
+	if openIndex < 0 || openIndex >= len(value) {
+		return -1
+	}
+	depth := 0
+	for index := openIndex; index < len(value); index++ {
+		switch value[index] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
+}
+
+// kotlinStripWrappingParentheses removes one fully-enclosing pair of
+// parentheses from an expression, leaving inner groups intact.
 func kotlinStripWrappingParentheses(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if len(trimmed) < 2 || trimmed[0] != '(' || trimmed[len(trimmed)-1] != ')' {
@@ -282,6 +139,8 @@ func kotlinStripWrappingParentheses(value string) string {
 	return strings.TrimSpace(trimmed[1 : len(trimmed)-1])
 }
 
+// kotlinImportAlias returns the simple-name alias derived from an import path,
+// i.e. its last dot-separated segment.
 func kotlinImportAlias(name string) string {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
@@ -293,258 +152,13 @@ func kotlinImportAlias(name string) string {
 	return trimmed
 }
 
+// kotlinCallNameAllowed reports whether a member name is a real call target
+// rather than a Kotlin keyword that can appear in call-shaped positions.
 func kotlinCallNameAllowed(name string) bool {
 	switch name {
 	case "fun", "if", "for", "while", "when", "return", "class", "interface":
 		return false
 	default:
 		return true
-	}
-}
-
-type kotlinChainedCall struct {
-	Receiver string
-	Name     string
-	FullName string
-}
-
-func kotlinExpandChainedCalls(receiver string, name string, fullName string) []kotlinChainedCall {
-	if receiver == "" || name == "" || fullName == "" {
-		return nil
-	}
-
-	entries := []kotlinChainedCall{{
-		Receiver: receiver,
-		Name:     name,
-		FullName: fullName,
-	}}
-
-	current := receiver
-	for {
-		nestedReceiver, nestedName, ok := kotlinSplitChainedCall(current)
-		if !ok {
-			break
-		}
-		nestedFullName := strings.TrimSpace(strings.TrimSuffix(current, "()"))
-		entries = append([]kotlinChainedCall{{
-			Receiver: nestedReceiver,
-			Name:     nestedName,
-			FullName: nestedFullName,
-		}}, entries...)
-		current = nestedReceiver
-	}
-
-	return entries
-}
-
-func kotlinSplitChainedCall(expression string) (string, string, bool) {
-	normalized := kotlinStripWrappingParentheses(
-		kotlinNormalizeParenthesizedReceivers(strings.TrimSpace(expression)),
-	)
-	if !strings.Contains(normalized, "(") || !strings.HasSuffix(normalized, ")") {
-		return "", "", false
-	}
-
-	lastDot := strings.LastIndex(normalized, ".")
-	if lastDot <= 0 || lastDot >= len(normalized)-1 {
-		return "", "", false
-	}
-
-	receiver := strings.TrimSpace(normalized[:lastDot])
-	name := strings.TrimSuffix(strings.TrimSpace(normalized[lastDot+1:]), "()")
-	if receiver == "" || name == "" {
-		return "", "", false
-	}
-	return receiver, name, true
-}
-
-func kotlinAppendConstructorCalls(
-	payload map[string]any,
-	trimmed string,
-	lineNumber int,
-	functionDeclCutoff int,
-	seenLineCalls map[string]struct{},
-	knownTypeNames map[string]struct{},
-	skip bool,
-) {
-	if skip {
-		return
-	}
-
-	for _, match := range kotlinConstructorCallPattern.FindAllStringSubmatchIndex(trimmed, -1) {
-		if len(match) != 4 {
-			continue
-		}
-		if functionDeclCutoff >= 0 && match[0] < functionDeclCutoff {
-			continue
-		}
-		name := trimmed[match[2]:match[3]]
-		if _, ok := knownTypeNames[name]; !ok {
-			continue
-		}
-		callKey := name + "#" + strconv.Itoa(lineNumber)
-		if _, ok := seenLineCalls[callKey]; ok {
-			continue
-		}
-		seenLineCalls[callKey] = struct{}{}
-		shared.AppendBucket(payload, "function_calls", map[string]any{
-			"name":        name,
-			"full_name":   name,
-			"line_number": lineNumber,
-			"lang":        "kotlin",
-		})
-	}
-}
-
-// kotlinCallIsChainReceiver reports whether the call whose opening parenthesis
-// is at openParen is the receiver of a method chain, for example `factory()` in
-// `factory().build()`. openParen must index a `(`. It scans to the matching
-// close parenthesis (tracking nesting) and returns true when the next
-// non-whitespace byte is a member-access dot, optionally a safe-call `?.`.
-func kotlinCallIsChainReceiver(source string, openParen int) bool {
-	if openParen < 0 || openParen >= len(source) || source[openParen] != '(' {
-		return false
-	}
-	depth := 0
-	closeParen := -1
-	for index := openParen; index < len(source); index++ {
-		switch source[index] {
-		case '(':
-			depth++
-		case ')':
-			depth--
-			if depth == 0 {
-				closeParen = index
-			}
-		}
-		if closeParen >= 0 {
-			break
-		}
-	}
-	if closeParen < 0 {
-		return false
-	}
-	for index := closeParen + 1; index < len(source); index++ {
-		switch source[index] {
-		case ' ', '\t':
-			continue
-		case '.':
-			return true
-		case '?':
-			return index+1 < len(source) && source[index+1] == '.'
-		default:
-			return false
-		}
-	}
-	return false
-}
-
-// kotlinBareCallControlKeywords are keywords that take a parenthesized clause
-// but are not function calls. They must never be emitted as calls.
-var kotlinBareCallControlKeywords = map[string]struct{}{
-	"if": {}, "for": {}, "while": {}, "when": {}, "catch": {},
-	"return": {}, "switch": {}, "super": {}, "fun": {}, "class": {},
-	"interface": {}, "object": {}, "constructor": {}, "init": {},
-}
-
-// kotlinAppendBareCalls extracts unqualified (receiver-less) calls such as
-// same-scope method calls, top-level function calls, and imported function
-// calls. The qualified call pattern requires a `receiver.method` shape, so bare
-// calls would otherwise be dropped.
-//
-// Only locally-declared types are skipped as constructor candidates. Kotlin
-// imports do not declare function-vs-class, so an imported name such as
-// `helper` from `import demo.util.helper` must still emit a call edge. When an
-// imported name is genuinely a constructor (`Widget()`), the constructor-call
-// path runs first and records the same `name#line` key in seenLineCalls, so the
-// bare-call path skips it here without dropping imported function calls.
-func kotlinAppendBareCalls(
-	payload map[string]any,
-	trimmed string,
-	lineNumber int,
-	functionDeclCutoff int,
-	seenLineCalls map[string]struct{},
-	declaredTypeNames map[string]struct{},
-) {
-	for _, match := range kotlinBareCallPattern.FindAllStringSubmatchIndex(trimmed, -1) {
-		if len(match) != 4 {
-			continue
-		}
-		if functionDeclCutoff >= 0 && match[0] < functionDeclCutoff {
-			continue
-		}
-		// Skip qualified calls (handled by the receiver call pattern) and names
-		// that are a suffix of a longer identifier.
-		if match[2] > 0 {
-			prev := trimmed[match[2]-1]
-			if prev == '.' || prev == '_' ||
-				(prev >= 'A' && prev <= 'Z') ||
-				(prev >= 'a' && prev <= 'z') ||
-				(prev >= '0' && prev <= '9') {
-				continue
-			}
-		}
-		name := trimmed[match[2]:match[3]]
-		if !kotlinCallNameAllowed(name) {
-			continue
-		}
-		if _, ok := kotlinBareCallControlKeywords[name]; ok {
-			continue
-		}
-		// Skip chain receivers like `factory()` in `factory().build()`: the
-		// receiver-qualified and chained-call paths already own that expression,
-		// so emitting it here would double-count it. match[1] is the end of the
-		// full match, so the call's opening `(` is the last byte before it.
-		if kotlinCallIsChainReceiver(trimmed, match[1]-1) {
-			continue
-		}
-		// Locally-declared types are constructor targets emitted by the
-		// constructor-call path. Imported names are not skipped here because
-		// Kotlin imports do not distinguish functions from types.
-		if _, ok := declaredTypeNames[name]; ok {
-			continue
-		}
-		callKey := name + "#" + strconv.Itoa(lineNumber)
-		if _, ok := seenLineCalls[callKey]; ok {
-			continue
-		}
-		seenLineCalls[callKey] = struct{}{}
-		shared.AppendBucket(payload, "function_calls", map[string]any{
-			"name":        name,
-			"full_name":   name,
-			"line_number": lineNumber,
-			"lang":        "kotlin",
-		})
-	}
-}
-
-func kotlinAppendThisCalls(
-	payload map[string]any,
-	trimmed string,
-	lineNumber int,
-	seenLineCalls map[string]struct{},
-	classContext string,
-) {
-	for _, match := range kotlinThisCallPattern.FindAllStringSubmatch(trimmed, -1) {
-		if len(match) != 2 {
-			continue
-		}
-		name := match[1]
-		fullName := "this." + name
-		callKey := fullName + "#" + strconv.Itoa(lineNumber)
-		if _, ok := seenLineCalls[callKey]; ok {
-			continue
-		}
-		seenLineCalls[callKey] = struct{}{}
-		item := map[string]any{
-			"name":        name,
-			"full_name":   fullName,
-			"line_number": lineNumber,
-			"lang":        "kotlin",
-		}
-		if classContext != "" {
-			item["class_context"] = classContext
-		}
-		shared.AppendBucket(payload, "function_calls", item)
 	}
 }

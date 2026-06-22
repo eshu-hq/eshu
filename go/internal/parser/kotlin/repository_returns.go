@@ -3,15 +3,13 @@ package kotlin
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-var kotlinPackagePattern = regexp.MustCompile(`^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*$`)
-
-func kotlinCollectSiblingFunctionReturnTypes(repoRoot string, currentPath string, packageName string) (map[string]string, error) {
+func kotlinCollectSiblingFunctionReturnTypes(repoRoot string, currentPath string, packageName string, parser *tree_sitter.Parser) (map[string]string, error) {
 	root := filepath.Dir(currentPath)
 	currentAbs, err := filepath.Abs(currentPath)
 	if err != nil {
@@ -64,7 +62,7 @@ func kotlinCollectSiblingFunctionReturnTypes(repoRoot string, currentPath string
 		roots = append(roots, ancestor)
 	}
 	for _, directory := range roots {
-		functionReturnTypes, err := kotlinCollectFunctionReturnTypesFromDirectory(directory, currentAbs, packageName)
+		functionReturnTypes, err := kotlinCollectFunctionReturnTypesFromDirectory(directory, currentAbs, packageName, parser)
 		if err != nil {
 			return nil, err
 		}
@@ -83,7 +81,7 @@ func kotlinCollectSiblingFunctionReturnTypes(repoRoot string, currentPath string
 	return results, nil
 }
 
-func kotlinCollectFunctionReturnTypesFromDirectory(directory string, currentAbs string, packageName string) (map[string]string, error) {
+func kotlinCollectFunctionReturnTypesFromDirectory(directory string, currentAbs string, packageName string, parser *tree_sitter.Parser) (map[string]string, error) {
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return nil, err
@@ -96,7 +94,7 @@ func kotlinCollectFunctionReturnTypesFromDirectory(directory string, currentAbs 
 			if strings.HasPrefix(entry.Name(), "TemporaryItems") {
 				continue
 			}
-			functionReturnTypes, err := kotlinCollectFunctionReturnTypesFromDirectory(path, currentAbs, packageName)
+			functionReturnTypes, err := kotlinCollectFunctionReturnTypesFromDirectory(path, currentAbs, packageName, parser)
 			if err != nil {
 				return nil, err
 			}
@@ -115,7 +113,7 @@ func kotlinCollectFunctionReturnTypesFromDirectory(directory string, currentAbs 
 			continue
 		}
 
-		functionReturnTypes, err := kotlinCollectFunctionReturnTypesFromFile(path, packageName)
+		functionReturnTypes, err := kotlinCollectFunctionReturnTypesFromFile(path, packageName, parser)
 		if err != nil {
 			return nil, err
 		}
@@ -129,89 +127,31 @@ func kotlinCollectFunctionReturnTypesFromDirectory(directory string, currentAbs 
 	return results, nil
 }
 
-func kotlinCollectFunctionReturnTypesFromFile(path string, packageName string) (map[string]string, error) {
+// kotlinCollectFunctionReturnTypesFromFile parses one sibling Kotlin file with
+// tree-sitter and returns its function return-type map when the file shares the
+// requested package. Extraction walks the AST so it agrees with the main parse.
+func kotlinCollectFunctionReturnTypesFromFile(path string, packageName string, parser *tree_sitter.Parser) (map[string]string, error) {
 	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
-	filePackageName := kotlinFilePackage(string(source))
+	if parser == nil {
+		return nil, errNilParser
+	}
+	tree := parser.Parse(source, nil)
+	if tree == nil {
+		return nil, errNilTree
+	}
+	defer tree.Close()
+
+	filePackageName := kotlinPackageNameFromTree(tree.RootNode(), source)
 	if packageName != "" && filePackageName != packageName {
 		return nil, nil
 	}
 
-	lines := strings.Split(string(source), "\n")
-	braceDepth := 0
-	stack := make([]scopedContext, 0)
-	results := make(map[string]string)
-
-	for _, rawLine := range lines {
-		trimmed := strings.TrimSpace(rawLine)
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
-			braceDepth += braceDelta(rawLine)
-			stack = popCompletedScopes(stack, braceDepth)
-			continue
-		}
-
-		if matches := kotlinClassPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			stack = append(stack, scopedContext{kind: "class", name: matches[1], braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
-		}
-		if matches := kotlinObjectPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			stack = append(stack, scopedContext{kind: "class", name: matches[1], braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
-		}
-		if matches := kotlinCompanionPattern.FindStringSubmatch(trimmed); len(matches) >= 1 {
-			name := "Companion"
-			if len(matches) == 2 && strings.TrimSpace(matches[1]) != "" {
-				name = matches[1]
-			}
-			stack = append(stack, scopedContext{kind: "companion", name: name, braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
-		}
-		if matches := kotlinInterfacePattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			stack = append(stack, scopedContext{kind: "class", name: matches[1], braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
-		}
-		if matches := kotlinEnumPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			stack = append(stack, scopedContext{kind: "class", name: matches[1], braceDepth: braceDepth + max(1, strings.Count(rawLine, "{"))})
-		}
-
-		if matches := kotlinFunctionPattern.FindStringSubmatch(trimmed); len(matches) == 3 {
-			receiverType, functionName, returnType := kotlinFunctionDeclarationReturnType(trimmed)
-			if functionName != "" && returnType != "" {
-				key := functionName
-				if receiverType != "" {
-					key = receiverType + "." + functionName
-				} else if classContext := kotlinCurrentTypeScopeName(stack); classContext != "" {
-					key = classContext + "." + functionName
-				}
-				kotlinStoreFunctionReturnType(results, filePackageName, key, returnType)
-			}
-			if strings.Contains(rawLine, "{") {
-				stack = append(stack, scopedContext{
-					kind:       "function",
-					name:       matches[2],
-					braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
-				})
-			}
-		}
-
-		braceDepth += braceDelta(rawLine)
-		stack = popCompletedScopes(stack, braceDepth)
-	}
-
-	return results, nil
-}
-
-func kotlinFilePackage(source string) string {
-	for _, rawLine := range strings.Split(source, "\n") {
-		trimmed := strings.TrimSpace(rawLine)
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
-			continue
-		}
-		matches := kotlinPackagePattern.FindStringSubmatch(trimmed)
-		if len(matches) == 2 {
-			return strings.TrimSpace(matches[1])
-		}
-		break
-	}
-	return ""
+	collector := &astWalker{source: source, packageName: filePackageName, functionReturnTypes: make(map[string]string)}
+	collector.collectReturnTypesIn(tree.RootNode(), "")
+	return collector.functionReturnTypes, nil
 }
 
 func kotlinQualifiedFunctionReturnKey(packageName string, key string) string {
