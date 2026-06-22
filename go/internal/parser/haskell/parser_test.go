@@ -259,6 +259,38 @@ helper value = value
 	assertBucketMissingField(t, payload, "function_calls", "full_name", "value")
 }
 
+// TestParseCapturesMultilineClassMethodSignature documents the tree-sitter
+// deviation from the prior line-scan extractor (epic #3531). The old
+// haskellTypeSignaturePattern required the method name and `::` on one line, so a
+// class method whose signature wrapped across lines produced no functions row.
+// The AST reads the class declaration's signature node by field, so the method is
+// captured with its class context regardless of line wrapping.
+func TestParseCapturesMultilineClassMethodSignature(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "MultilineSignature.hs", `module Demo where
+
+class Runner a where
+  runTask
+    :: a
+    -> IO ()
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	method := assertBucketName(t, payload, "functions", "runTask")
+	if got := method["class_context"]; got != "Runner" {
+		t.Fatalf("functions[runTask][class_context] = %#v, want Runner", got)
+	}
+	if got := method["line_number"]; got != 4 {
+		t.Fatalf("functions[runTask][line_number] = %#v, want 4", got)
+	}
+	assertParserStringSliceContains(t, method, "dead_code_root_kinds", "haskell.typeclass_method")
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 

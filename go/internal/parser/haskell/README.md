@@ -3,13 +3,15 @@
 ## Purpose
 
 This package owns the Haskell parser adapter used by the parent parser engine.
-Tree-sitter supplies syntax-aware function spans and names, while bounded
-lexical helpers preserve existing module declarations, imports with common
-aliases, data and class names, top-level functions, function-call evidence from
-definition bodies and continuation lines, and simple local variables from where
-blocks without promoting those local bindings to top-level functions. It also
-annotates dead-code root kinds for explicit module exports, `main`, typeclass
-methods, and instance methods.
+Primary symbol extraction is a tree-sitter grammar walk: the module header,
+data/newtype/type and data-family declarations, typeclasses, instances,
+class-method type signatures, and top-level value bindings all come from grammar
+nodes. Two bounded textual-evidence readers remain by design and are not symbol
+extraction: a where-block scan records simple local variables (kept out of the
+functions bucket), and a lexical token scan over definition right-hand sides
+records function-call evidence. Imports use a bounded import-line reader that
+resolves common aliases. The adapter annotates dead-code root kinds for explicit
+module exports, `main`, typeclass methods, and instance methods.
 
 ## Ownership boundary
 
@@ -36,17 +38,18 @@ parser engine.
 
 ## Gotchas / invariants
 
-Tree-sitter metadata augments the existing bounded line and scope helpers; it
-must not drop payload keys or reorder buckets without downstream tests.
-Where-block variable extraction depends on raw-line indentation. Keep that
+Primary symbols come from the tree-sitter grammar walk in
+`tree_sitter_symbols.go`; the bucket builders in `tree_sitter_buckets.go` must
+not drop payload keys or reorder buckets without downstream tests. A top-level
+binding whose head line already contains `=` stores that single line as
+`source`; a guarded or multi-clause binding whose head line has no `=` stores
+its full node range and records `is_dependency`, matching the prior payload.
+Where-block variable extraction still depends on raw-line indentation. Keep that
 check stable so local bindings stay in the `variables` bucket and do not become
-top-level `functions`. Explicit export parsing is intentionally bounded to the
-module header; modules without an export list do not mark every top-level
-declaration as a dead-code root. Indented keyword-led bindings such as
-`let name = ...` stay inside the current function context, so call evidence on
-the right-hand side is kept without creating a fake `let` function. PreScan
-sorts names after collecting them from the parsed function, class, and module
-buckets.
+top-level `functions`. Explicit export parsing reads the module header export
+list; modules without an export list do not mark every top-level declaration as
+a dead-code root. PreScan sorts names after collecting them from the parsed
+function, class, and module buckets.
 
 ## Related docs
 

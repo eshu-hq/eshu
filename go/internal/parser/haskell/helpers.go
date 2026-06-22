@@ -7,49 +7,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
-func haskellCollectModuleHeader(lines []string, start int) (string, int) {
-	parts := []string{strings.TrimSpace(lines[start])}
-	if strings.Contains(parts[0], " where") || strings.HasSuffix(parts[0], "where") {
-		return parts[0], start
-	}
-	for index := start + 1; index < len(lines); index++ {
-		parts = append(parts, strings.TrimSpace(lines[index]))
-		header := strings.Join(parts, " ")
-		if strings.Contains(header, " where") || strings.HasSuffix(header, "where") {
-			return header, index
-		}
-	}
-	return strings.Join(parts, " "), start
-}
-
-func haskellParseModuleExports(header string) map[string]struct{} {
-	exports := make(map[string]struct{})
-	whereIndex := strings.LastIndex(header, " where")
-	if whereIndex == -1 {
-		whereIndex = len(header)
-	}
-	beforeWhere := header[:whereIndex]
-	open := strings.Index(beforeWhere, "(")
-	close := strings.LastIndex(beforeWhere, ")")
-	if open == -1 || close == -1 || close <= open {
-		return exports
-	}
-	for _, part := range strings.Split(beforeWhere[open+1:close], ",") {
-		name := strings.TrimSpace(part)
-		name = strings.TrimPrefix(name, "pattern ")
-		if paren := strings.Index(name, "("); paren >= 0 {
-			name = strings.TrimSpace(name[:paren])
-		}
-		if fields := strings.Fields(name); len(fields) > 0 {
-			name = fields[0]
-		}
-		if name != "" {
-			exports[name] = struct{}{}
-		}
-	}
-	return exports
-}
-
 func haskellParseImport(trimmed string) (string, string, bool) {
 	if !strings.HasPrefix(trimmed, "import ") {
 		return "", "", false
@@ -119,23 +76,6 @@ func haskellFunctionKey(context, name string) string {
 	return context + "\x00" + name
 }
 
-func haskellAppendFunctionCalls(
-	payload map[string]any,
-	line string,
-	lineNumber int,
-	functionName string,
-	context string,
-	params map[string]struct{},
-	seenCalls map[string]struct{},
-) {
-	equalIndex := strings.Index(line, "=")
-	if equalIndex == -1 || equalIndex == len(line)-1 {
-		return
-	}
-	rhs := haskellStripStringsAndLineComment(line[equalIndex+1:])
-	haskellAppendExpressionCalls(payload, rhs, lineNumber, functionName, context, params, seenCalls)
-}
-
 func haskellAppendExpressionCalls(
 	payload map[string]any,
 	expression string,
@@ -192,19 +132,6 @@ func haskellIdentifierByte(char byte) bool {
 		(char >= 'a' && char <= 'z')
 }
 
-func haskellFunctionParameters(lhs string) map[string]struct{} {
-	params := make(map[string]struct{})
-	fields := strings.Fields(lhs)
-	for _, field := range fields[1:] {
-		name := strings.Trim(field, "()[],")
-		if name == "" || !strings.ContainsAny(name[:1], "abcdefghijklmnopqrstuvwxyz_") {
-			continue
-		}
-		params[name] = struct{}{}
-	}
-	return params
-}
-
 func haskellStripStringsAndLineComment(text string) string {
 	var builder strings.Builder
 	builder.Grow(len(text))
@@ -251,19 +178,4 @@ func haskellIsKeyword(name string) bool {
 	default:
 		return false
 	}
-}
-
-func haskellLeadingIndent(line string) int {
-	indent := 0
-	for _, char := range line {
-		switch char {
-		case ' ':
-			indent++
-		case '\t':
-			indent += 8
-		default:
-			return indent
-		}
-	}
-	return indent
 }

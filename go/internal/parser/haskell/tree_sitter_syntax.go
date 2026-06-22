@@ -8,16 +8,15 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-type haskellFunctionSpan struct {
-	name      string
-	params    map[string]struct{}
-	source    string
-	startLine int
-	endLine   int
-}
-
+// haskellSyntaxIndex holds the tree-sitter symbol view of a Haskell source file.
+// It is the single source of truth for every primary payload bucket: the module
+// header, classes-bucket declarations, class/instance methods, and top-level
+// value bindings are all resolved from grammar nodes rather than a line scan.
 type haskellSyntaxIndex struct {
-	functions []haskellFunctionSpan
+	module  *haskellModuleSymbol
+	types   []haskellTypeSymbol
+	methods []haskellMethodSymbol
+	values  []haskellValueSymbol
 }
 
 func haskellSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, haskellSyntaxIndex, error) {
@@ -36,27 +35,8 @@ func haskellSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, ha
 
 	lines := strings.Split(string(source), "\n")
 	index := haskellSyntaxIndex{}
-	index.collect(tree.RootNode(), source, lines)
+	index.collectSymbols(tree.RootNode(), source, lines)
 	return source, index, nil
-}
-
-func (i *haskellSyntaxIndex) collect(node *tree_sitter.Node, source []byte, lines []string) {
-	if node == nil {
-		return
-	}
-	if node.Kind() == "function" {
-		if !haskellTreeFunctionInDeclarationScope(node) {
-			return
-		}
-		if fn := haskellFunctionFromTree(node, source, lines); fn.name != "" {
-			i.functions = append(i.functions, fn)
-		}
-		return
-	}
-	for _, child := range haskellNamedChildren(node) {
-		child := child
-		i.collect(&child, source, lines)
-	}
 }
 
 func haskellTreeFunctionInDeclarationScope(node *tree_sitter.Node) bool {
@@ -71,26 +51,6 @@ func haskellTreeFunctionInDeclarationScope(node *tree_sitter.Node) bool {
 		parent = parent.Parent()
 	}
 	return false
-}
-
-func haskellFunctionFromTree(node *tree_sitter.Node, source []byte, lines []string) haskellFunctionSpan {
-	nameNode := node.ChildByFieldName("name")
-	if nameNode == nil {
-		return haskellFunctionSpan{}
-	}
-	name := strings.TrimSpace(shared.NodeText(nameNode, source))
-	if name == "" || haskellIsKeyword(name) {
-		return haskellFunctionSpan{}
-	}
-	startLine := shared.NodeLine(node)
-	endLine := shared.NodeEndLine(node)
-	return haskellFunctionSpan{
-		name:      name,
-		params:    haskellTreeFunctionParameters(node, source),
-		source:    haskellLineRangeSource(lines, startLine, endLine),
-		startLine: startLine,
-		endLine:   endLine,
-	}
 }
 
 func haskellTreeFunctionParameters(node *tree_sitter.Node, source []byte) map[string]struct{} {
@@ -128,81 +88,6 @@ func haskellTreeParameterName(name string) bool {
 		return false
 	}
 	return strings.ContainsAny(name[:1], "abcdefghijklmnopqrstuvwxyz_")
-}
-
-func applyHaskellTreeFunctionMetadata(
-	payload map[string]any,
-	syntax haskellSyntaxIndex,
-	explicitExports map[string]struct{},
-	isDependency bool,
-	options shared.Options,
-) {
-	functions, _ := payload["functions"].([]map[string]any)
-	for _, fn := range syntax.functions {
-		item := haskellFunctionItem(functions, fn)
-		created := false
-		if item == nil {
-			item = map[string]any{
-				"name":          fn.name,
-				"line_number":   fn.startLine,
-				"end_line":      fn.endLine,
-				"lang":          "haskell",
-				"is_dependency": isDependency,
-				"decorators":    []string{},
-			}
-			_, rootKinds := haskellFunctionContextAndRoots(fn.name, "", "", explicitExports)
-			if len(rootKinds) > 0 {
-				item["dead_code_root_kinds"] = rootKinds
-			}
-			shared.AppendBucket(payload, "functions", item)
-			functions, _ = payload["functions"].([]map[string]any)
-			created = true
-		}
-		item["end_line"] = fn.endLine
-		if options.IndexSource && (created || item["source"] == nil) {
-			item["source"] = fn.source
-		}
-	}
-}
-
-func appendHaskellTreeFunctionCalls(
-	payload map[string]any,
-	syntax haskellSyntaxIndex,
-	lines []string,
-	seenCalls map[string]struct{},
-) {
-	functions, _ := payload["functions"].([]map[string]any)
-	for _, fn := range syntax.functions {
-		context := ""
-		if item := haskellFunctionItem(functions, fn); item != nil {
-			context, _ = item["class_context"].(string)
-		}
-		for lineNumber := fn.startLine; lineNumber <= fn.endLine && lineNumber <= len(lines); lineNumber++ {
-			haskellAppendExpressionCalls(
-				payload,
-				lines[lineNumber-1],
-				lineNumber,
-				fn.name,
-				context,
-				fn.params,
-				seenCalls,
-			)
-		}
-	}
-}
-
-func haskellFunctionItem(functions []map[string]any, fn haskellFunctionSpan) map[string]any {
-	for _, item := range functions {
-		if item["name"] == fn.name && shared.IntValue(item["line_number"]) == fn.startLine {
-			return item
-		}
-	}
-	for _, item := range functions {
-		if item["name"] == fn.name {
-			return item
-		}
-	}
-	return nil
 }
 
 func haskellNamedChildren(node *tree_sitter.Node) []tree_sitter.Node {
