@@ -114,16 +114,20 @@
 // enforcement. Middleware resolves raw bearer tokens at the edge, stores only
 // scoped tenant/workspace/subject hashes on the request context, keeps handlers
 // free of token material, and fails closed before unsupported scoped routes
-// reach handlers. Repository list and selector canary routes apply these bounds
-// before pagination, counts, ambiguity, and not-found decisions so out-of-scope
-// repositories do not leak through metadata. Code search, entity resolution,
-// content read/search routes, evidence citation packets, entity context reads,
-// service/workload context or story reads, and service investigation reads
-// apply the same bounds to selector resolution, graph predicates, exact content
-// lookups, candidate ambiguity, citation handle hydration, repo-identity
-// hydration, coverage metadata, recommended next calls, and content fallback
-// calls before allowing scoped-token API or MCP reads. Query playbook catalog
-// and resolver routes, the vulnerability scanner read-contract route, and the
+// reach handlers. Browser-session middleware hashes the HttpOnly session cookie
+// and the `X-Eshu-CSRF` header proof before resolver calls on unsafe methods,
+// then attaches the same scoped tenant/workspace/grant context for dashboard
+// cookie reads. Repository list and selector canary routes apply these bounds
+// before pagination, counts, ambiguity, and not-found decisions so
+// out-of-scope repositories do not leak through metadata. Code search, entity
+// resolution, content read/search routes, evidence citation packets, entity
+// context reads, service/workload context or story reads, and service
+// investigation reads apply the same bounds to selector resolution, graph
+// predicates, exact content lookups, candidate ambiguity, citation handle
+// hydration, repo-identity hydration, coverage metadata, recommended next
+// calls, and content fallback calls before allowing scoped-token API or MCP
+// reads. Query playbook catalog and resolver routes, the vulnerability scanner
+// read-contract route, and the
 // redacted hosted governance, semantic extraction, and answer narration status
 // routes, bounded
 // semantic evidence reads, documentation finding/fact list reads,
