@@ -7,8 +7,8 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func detectAWSSemantics(source string) (map[string]any, bool) {
-	services := uniqueOrdered(javaScriptAWSImportRe.FindAllStringSubmatch(source, -1), 1)
+func detectAWSSemantics(root *tree_sitter.Node, source []byte) (map[string]any, bool) {
+	services := javaScriptImportServiceSlugs(root, source, javaScriptAWSClientServiceRe)
 	if len(services) == 0 {
 		return nil, false
 	}
@@ -18,34 +18,35 @@ func detectAWSSemantics(source string) (map[string]any, bool) {
 	}
 	return map[string]any{
 		"services":       services,
-		"client_symbols": uniqueOrdered(javaScriptClientSymbolRe.FindAllStringSubmatch(source, -1), 1),
+		"client_symbols": javaScriptClientSymbolNames(root, source),
 	}, true
 }
 
-func detectGCPSemantics(source string) (map[string]any, bool) {
-	services := uniqueOrdered(javaScriptGCPImportRe.FindAllStringSubmatch(source, -1), 1)
+func detectGCPSemantics(root *tree_sitter.Node, source []byte) (map[string]any, bool) {
+	services := javaScriptImportServiceSlugs(root, source, javaScriptGCPServiceRe)
 	if len(services) == 0 {
 		return nil, false
 	}
 	return map[string]any{
 		"services":       services,
-		"client_symbols": uniqueOrdered(javaScriptClientSymbolRe.FindAllStringSubmatch(source, -1), 1),
+		"client_symbols": javaScriptClientSymbolNames(root, source),
 	}, true
 }
 
-func detectReactSemantics(path string, source string, payload map[string]any) (map[string]any, bool) {
+func detectReactSemantics(path string, root *tree_sitter.Node, source []byte, payload map[string]any) (map[string]any, bool) {
+	text := string(source)
 	componentExports := componentNames(payload)
-	hooksUsed := uniqueOrdered(javaScriptHookCallRe.FindAllStringSubmatch(source, -1), 1)
-	hasDirective := javaScriptDirectiveRe.MatchString(source)
-	hasReactImport := strings.Contains(source, "from \"react\"") || strings.Contains(source, "from 'react'") ||
-		strings.Contains(source, "require(\"react\")") || strings.Contains(source, "require('react')")
-	if len(componentExports) == 0 && len(hooksUsed) == 0 && !hasDirective && !hasReactImport && !strings.HasSuffix(path, ".tsx") {
+	hooksUsed := javaScriptHookCallNames(root, source)
+	directive := javaScriptRuntimeDirective(root, source)
+	hasReactImport := strings.Contains(text, "from \"react\"") || strings.Contains(text, "from 'react'") ||
+		strings.Contains(text, "require(\"react\")") || strings.Contains(text, "require('react')")
+	if len(componentExports) == 0 && len(hooksUsed) == 0 && directive == "" && !hasReactImport && !strings.HasSuffix(path, ".tsx") {
 		return nil, false
 	}
 
 	boundary := "shared"
-	if directive := javaScriptDirectiveRe.FindStringSubmatch(source); len(directive) == 2 {
-		boundary = directive[1]
+	if directive != "" {
+		boundary = directive
 	}
 	return map[string]any{
 		"boundary":          boundary,
@@ -164,33 +165,6 @@ func nextJSRequestResponseAPIs(source string) []string {
 	return apis
 }
 
-func uniqueOrdered(matches [][]string, group int) []string {
-	seen := make(map[string]struct{}, len(matches))
-	values := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) <= group {
-			continue
-		}
-		value := strings.TrimSpace(match[group])
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		values = append(values, value)
-	}
-	return values
-}
-
-func uniqueOrderedUpper(matches [][]string, group int) []string {
-	values := uniqueOrdered(matches, group)
-	for index := range values {
-		values[index] = strings.ToUpper(values[index])
-	}
-	return values
-}
 
 func isPascalIdentifier(name string) bool {
 	if strings.TrimSpace(name) == "" {

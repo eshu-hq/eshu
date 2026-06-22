@@ -65,6 +65,47 @@ The local alias file only exposes helper names with package-local callers. It
 must not import the parent parser package, collector packages, graph storage,
 or reducer code.
 
+## AST extraction and retained within-string regexes
+
+Symbol, edge, and framework-metadata extraction is tree-sitter AST node-walking.
+Method getter/setter/async/generator kinds, `child_process` embedded-shell
+commands, Hapi route objects, Express routes, Next.js route verbs / metadata /
+runtime directives, JSX-return component detection, AWS/GCP service imports, and
+the TypeScript public-API re-export / import / declaration surface (including
+sibling files parsed through the `ParserFactory`) are all derived from AST
+nodes, not from regular expressions over raw source.
+
+A small set of regular expressions is retained deliberately. Each runs only
+against the value of a string literal or an identifier token, never as a
+source scanner, and each is a documented within-string-content exception:
+
+- `javaScriptStaticComputedMemberNameRe` (`javascript_names.go`) validates that
+  an already-unquoted computed-property string value looks like a static member
+  path or numeric literal. It checks within-string content, not source layout.
+- `javaScriptAWSClientServiceRe` / `javaScriptGCPServiceRe`
+  (`javascript_semantics_ast.go`) extract the service slug from an
+  `@aws-sdk/client-*` or `@google-cloud/*` package specifier. The specifier
+  string is isolated from the AST `import_statement`/`require` node first; the
+  regex only parses the trailing slug inside that isolated string.
+
+## No-Regression Evidence
+
+The AST conversion replaces multi-pass regex/full-source scans with single-pass
+tree-sitter node walks over a tree the parser already builds for core symbols.
+No new full-source pass is added; sibling dead-code files are parsed once per
+`Parse` call and cached, mirroring the previous one-time `os.ReadFile` reads and
+only invoking tree-sitter when a non-empty sibling file exists. The payload is
+byte-for-byte identical: every `engine_javascript_*`, `engine_typescript_*`,
+`engine_tsx_*` test and the js/ts/tsx comprehensive golden fixtures pass
+unchanged (`go test ./internal/parser/...`). The change is a net reduction in
+per-file scanning work, not a regression.
+
+## No-Observability-Change
+
+This package emits no telemetry by design, and the conversion preserves that.
+No spans, metrics, or logs were added or removed. Parse timing remains owned by
+the parent parser engine and runtime instrumentation.
+
 ## Telemetry
 
 This package emits no telemetry. Parse timing remains owned by the parent

@@ -1,163 +1,181 @@
 package javascript
 
 import (
-	"regexp"
 	"strings"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// javaScriptHapiHandlerRe binds a Hapi route to its handler only when the
-// handler value is a single bare named identifier (e.g. handler: createOrder).
-// It requires the value to terminate at a comma, closing brace, newline, or end
-// of segment, so an inline function (handler: (req, h) => ... or
-// handler: function (...) {...}) never matches and stays unbound (#2788). It
-// matches both the top-level handler and the nested config: { handler: ... }
-// form because both place the handler key inside the same route object. The
-// identifier is intentionally bare (no dotted member access), matching the
-// Express slice so a qualified handler.method reference, which downstream
-// Function resolution cannot bind exactly, stays unbound rather than guessed.
-var javaScriptHapiHandlerRe = regexp.MustCompile(`\bhandler\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:[,}\n]|$)`)
-
-// javaScriptHapiRouteEntries preserves the observed method/path pairing for Hapi
-// route objects, including routes with nested config blocks, and binds the
-// route's handler symbol when the object declares an unambiguous bare named
-// handler. Each route object is isolated by brace depth before extraction, so a
-// handler is only ever read from the same object that owns the method/path. A
-// handler from a neighbouring route object can never be mis-attached
+// javaScriptHapiRouteObjects returns every route-shaped object node in root: an
+// object that declares both a Hapi method and path, and does not itself contain
+// a deeper route-shaped object. Isolating routes by AST containment keeps a
+// nested config: { handler } block attached to its owning route object and
+// prevents a wrapper function body or route array from being read as one route
 // (correlation-truth, #2788).
-func javaScriptHapiRouteEntries(source string) []map[string]string {
-	objects := javaScriptHapiRouteObjects(source)
-	entries := make([]map[string]string, 0, len(objects))
-	for _, object := range objects {
-		method, path, ok := javaScriptHapiObjectMethodPath(object)
-		if !ok {
+func javaScriptHapiRouteObjects(root *tree_sitter.Node, source []byte) []*tree_sitter.Node {
+	if root == nil {
+		return nil
+	}
+	shaped := make([]*tree_sitter.Node, 0)
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() == "object" && javaScriptHapiObjectIsRouteShaped(node, source) {
+			shaped = append(shaped, node)
+		}
+	})
+	objects := make([]*tree_sitter.Node, 0, len(shaped))
+	for _, candidate := range shaped {
+		if javaScriptHapiContainsNestedRoute(candidate, shaped) {
 			continue
 		}
-		entries = append(entries, routeEntry(method, path, javaScriptHapiObjectHandler(object)))
-	}
-	return entries
-}
-
-// javaScriptHapiObjectMethodPath extracts the method and path declared on a
-// single route object. It returns ok=false when either is missing so a config
-// object that is not a route is skipped rather than emitted with a blank field.
-func javaScriptHapiObjectMethodPath(object string) (string, string, bool) {
-	methodMatch := javaScriptHapiMethodRe.FindStringSubmatch(object)
-	pathMatch := javaScriptHapiPathRe.FindStringSubmatch(object)
-	if len(methodMatch) < 2 || len(pathMatch) < 2 {
-		return "", "", false
-	}
-	method := strings.TrimSpace(methodMatch[1])
-	path := strings.TrimSpace(pathMatch[1])
-	if method == "" || path == "" || !strings.HasPrefix(path, "/") {
-		return "", "", false
-	}
-	return method, path, true
-}
-
-// javaScriptHapiObjectHandler returns the bare named handler for a single route
-// object, or "" when the handler is inline, absent, or otherwise not a single
-// named reference. Because object is one isolated route object, the handler can
-// only belong to that route (#2788).
-func javaScriptHapiObjectHandler(object string) string {
-	match := javaScriptHapiHandlerRe.FindStringSubmatch(object)
-	if len(match) < 2 {
-		return ""
-	}
-	return strings.TrimSpace(match[1])
-}
-
-// braceBlock is the body text of one balanced { ... } block and its nesting
-// depth, used to pick the route objects out of wrapper functions and arrays.
-type braceBlock struct {
-	body  string
-	depth int
-}
-
-// javaScriptHapiRouteObjects splits Hapi route source into the text of each
-// route object. It walks every balanced { ... } block (tracking string and
-// template literals so braces inside quotes are ignored), then keeps only the
-// route-shaped blocks: those that declare both method and path but do NOT
-// themselves contain a deeper route-shaped block. This isolates each route
-// object even when it is wrapped in a registerRoutes(server) { ... } function
-// or an array, and keeps a nested config: { handler } block attached to its
-// owning route object rather than treating the wrapper as a single route
-// (correlation-truth, #2788).
-func javaScriptHapiRouteObjects(source string) []string {
-	blocks := javaScriptBraceBlocks(source)
-	objects := make([]string, 0, len(blocks))
-	for _, block := range blocks {
-		if !javaScriptHapiRouteShaped(block.body) {
-			continue
-		}
-		// A route object is the innermost route-shaped block: it must not contain
-		// a deeper block that is itself route-shaped (which would be a sibling
-		// route object captured separately). Wrapper functions and route arrays
-		// contain multiple route-shaped children and are filtered out here.
-		if javaScriptHapiContainsNestedRoute(block, blocks) {
-			continue
-		}
-		objects = append(objects, block.body)
+		objects = append(objects, candidate)
 	}
 	return objects
 }
 
-// javaScriptHapiRouteShaped reports whether a block body declares both a Hapi
-// method and a Hapi path, the minimal signal for a route object.
-func javaScriptHapiRouteShaped(body string) bool {
-	return javaScriptHapiMethodRe.MatchString(body) && javaScriptHapiPathRe.MatchString(body)
+// javaScriptHapiObjectIsRouteShaped reports whether an object node declares both
+// a Hapi method and a Hapi path pair, the minimal signal for a route object.
+func javaScriptHapiObjectIsRouteShaped(object *tree_sitter.Node, source []byte) bool {
+	method, path, ok := javaScriptHapiObjectMethodPath(object, source)
+	return ok && method != "" && path != ""
 }
 
-// javaScriptHapiContainsNestedRoute reports whether block strictly contains a
-// different route-shaped block, i.e. block is a wrapper (function body or route
-// array) rather than a single route object.
-func javaScriptHapiContainsNestedRoute(block braceBlock, blocks []braceBlock) bool {
-	for _, other := range blocks {
-		if other.depth <= block.depth {
+// javaScriptHapiContainsNestedRoute reports whether candidate strictly contains a
+// different route-shaped object, i.e. candidate is a wrapper (function body or
+// route array) rather than a single route object.
+func javaScriptHapiContainsNestedRoute(candidate *tree_sitter.Node, shaped []*tree_sitter.Node) bool {
+	start := candidate.StartByte()
+	end := candidate.EndByte()
+	for _, other := range shaped {
+		if other.Id() == candidate.Id() {
 			continue
 		}
-		if other.body != block.body && strings.Contains(block.body, other.body) && javaScriptHapiRouteShaped(other.body) {
+		if other.StartByte() > start && other.EndByte() <= end {
 			return true
 		}
 	}
 	return false
 }
 
-// javaScriptBraceBlocks returns every balanced { ... } block body in source,
-// each tagged with its brace depth. String and template literals are skipped so
-// braces inside quotes do not affect balancing.
-func javaScriptBraceBlocks(source string) []braceBlock {
-	blocks := make([]braceBlock, 0)
-	starts := make([]int, 0)
-	depth := 0
-	var quote byte
-	inString := false
-	for i := 0; i < len(source); i++ {
-		c := source[i]
-		if inString {
-			if c == '\\' {
-				i++
-				continue
-			}
-			if c == quote {
-				inString = false
-			}
+// javaScriptHapiRouteEntries preserves the observed method/path pairing for Hapi
+// route objects, including routes with nested config blocks, and binds the
+// route's handler symbol when the object declares an unambiguous bare named
+// handler. Each route object is isolated by AST containment, so a handler is
+// only ever read from the same object that owns the method/path. A handler from
+// a neighbouring route object can never be mis-attached (correlation-truth,
+// #2788).
+func javaScriptHapiRouteEntries(root *tree_sitter.Node, source []byte) []map[string]string {
+	objects := javaScriptHapiRouteObjects(root, source)
+	entries := make([]map[string]string, 0, len(objects))
+	for _, object := range objects {
+		method, path, ok := javaScriptHapiObjectMethodPath(object, source)
+		if !ok {
 			continue
 		}
-		switch c {
-		case '"', '\'', '`':
-			inString = true
-			quote = c
-		case '{':
-			depth++
-			starts = append(starts, i+1)
-		case '}':
-			if len(starts) > 0 {
-				start := starts[len(starts)-1]
-				starts = starts[:len(starts)-1]
-				blocks = append(blocks, braceBlock{body: source[start:i], depth: depth})
-				depth--
+		entries = append(entries, routeEntry(method, path, javaScriptHapiObjectHandler(object, source)))
+	}
+	return entries
+}
+
+// javaScriptHapiObjectMethodPath extracts the method and path declared directly
+// on a route object's pairs. It returns ok=false when either is missing so a
+// config object that is not a route is skipped rather than emitted blank. Only
+// string-literal values are accepted, and the path must be rooted at "/".
+func javaScriptHapiObjectMethodPath(object *tree_sitter.Node, source []byte) (string, string, bool) {
+	if object == nil || object.Kind() != "object" {
+		return "", "", false
+	}
+	method := ""
+	path := ""
+	cursor := object.Walk()
+	defer cursor.Close()
+	for _, child := range object.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "pair" {
+			continue
+		}
+		key := javaScriptHapiPairKey(&child, source)
+		value, ok := javaScriptHapiPairStringValue(&child, source)
+		if !ok {
+			continue
+		}
+		switch key {
+		case "method":
+			if method == "" {
+				method = strings.TrimSpace(value)
+			}
+		case "path":
+			if path == "" {
+				path = strings.TrimSpace(value)
 			}
 		}
 	}
-	return blocks
+	if method == "" || path == "" || !strings.HasPrefix(path, "/") {
+		return "", "", false
+	}
+	return method, path, true
+}
+
+// javaScriptHapiObjectHandler returns the bare named handler for a route object,
+// or "" when the handler is inline, absent, or otherwise not a single named
+// reference. The handler pair may sit directly on the route object or inside its
+// nested config object; both are searched, but a deeper route-shaped object is
+// never descended into so a sibling route's handler cannot leak in (#2788).
+func javaScriptHapiObjectHandler(object *tree_sitter.Node, source []byte) string {
+	if object == nil {
+		return ""
+	}
+	cursor := object.Walk()
+	defer cursor.Close()
+	for _, child := range object.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "pair" {
+			continue
+		}
+		key := javaScriptHapiPairKey(&child, source)
+		valueNode := child.ChildByFieldName("value")
+		if valueNode == nil {
+			continue
+		}
+		if key == "handler" {
+			if valueNode.Kind() == "identifier" {
+				return strings.TrimSpace(nodeText(valueNode, source))
+			}
+			continue
+		}
+		// Recurse into a nested config object that is not itself a route object so
+		// the config: { handler } form binds to its owning route.
+		if valueNode.Kind() == "object" && !javaScriptHapiObjectIsRouteShaped(valueNode, source) {
+			if handler := javaScriptHapiObjectHandler(valueNode, source); handler != "" {
+				return handler
+			}
+		}
+	}
+	return ""
+}
+
+// javaScriptHapiPairKey returns the property name of a pair node, reading the
+// key from an identifier, property_identifier, or string literal.
+func javaScriptHapiPairKey(pair *tree_sitter.Node, source []byte) string {
+	keyNode := pair.ChildByFieldName("key")
+	if keyNode == nil {
+		return ""
+	}
+	switch keyNode.Kind() {
+	case "property_identifier", "identifier", "private_property_identifier":
+		return strings.TrimSpace(nodeText(keyNode, source))
+	case "string":
+		return strings.TrimSpace(jsStringLiteralValue(keyNode, source))
+	default:
+		return strings.TrimSpace(nodeText(keyNode, source))
+	}
+}
+
+// javaScriptHapiPairStringValue returns the string-literal value of a pair, with
+// ok=false when the value is not a plain string literal.
+func javaScriptHapiPairStringValue(pair *tree_sitter.Node, source []byte) (string, bool) {
+	valueNode := pair.ChildByFieldName("value")
+	if valueNode == nil || valueNode.Kind() != "string" {
+		return "", false
+	}
+	return jsStringLiteralValue(valueNode, source), true
 }

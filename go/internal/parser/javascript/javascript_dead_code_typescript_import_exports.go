@@ -1,9 +1,9 @@
 package javascript
 
 import (
-	"os"
-	"regexp"
 	"strings"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 type javaScriptTypeScriptImportedBinding struct {
@@ -11,57 +11,67 @@ type javaScriptTypeScriptImportedBinding struct {
 	source       string
 }
 
-var (
-	javaScriptTypeScriptNamedImportRe       = regexp.MustCompile(`(?s)\bimport\s+(?:type\s+)?(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?\{([^}]*)\}\s+from\s+["']([^"']+)["']`)
-	javaScriptTypeScriptLocalExportClauseRe = regexp.MustCompile(`(?s)\bexport\s+(?:type\s+)?\{([^}]*)\}`)
-	javaScriptTypeScriptPublicDeclNameRe    = regexp.MustCompile(`\bexport\s+(?:abstract\s+class|interface|type|class|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b`)
-)
-
-func javaScriptTypeScriptImportedExportClauseReexportsFromSource(source string) []javaScriptTypeScriptSurfaceReexport {
-	importsByLocalName := javaScriptTypeScriptNamedImportsByLocalName(source)
+// javaScriptTypeScriptImportedExportClauseReexportsFromRoot finds re-exports
+// expressed as a local export clause over previously imported names, the
+// declare-namespace `export type { ... }` shape. It walks export_statement nodes
+// that have no module source and maps each exported specifier back to its
+// imported binding so the re-export resolves to the original module.
+func javaScriptTypeScriptImportedExportClauseReexportsFromRoot(root *tree_sitter.Node, source []byte) []javaScriptTypeScriptSurfaceReexport {
+	importsByLocalName := javaScriptTypeScriptNamedImportsByLocalName(root, source)
 	if len(importsByLocalName) == 0 {
 		return nil
 	}
 
 	reexports := make([]javaScriptTypeScriptSurfaceReexport, 0)
-	matches := javaScriptTypeScriptLocalExportClauseRe.FindAllStringSubmatchIndex(source, -1)
-	for _, match := range matches {
-		if len(match) < 4 || javaScriptTypeScriptExportClauseHasFromSource(source, match[1]) {
-			continue
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "export_statement" {
+			return
 		}
-		for _, part := range strings.Split(source[match[2]:match[3]], ",") {
-			localName, exportedName := javaScriptReExportSpecifierNames(part)
-			if localName == "" || exportedName == "" {
-				continue
-			}
-			binding, ok := importsByLocalName[localName]
+		if node.ChildByFieldName("source") != nil {
+			return
+		}
+		for _, specifier := range javaScriptReExportSpecifiers(node, source) {
+			binding, ok := importsByLocalName[specifier.originalName]
 			if !ok || binding.importedName == "" || binding.source == "" {
 				continue
 			}
 			reexports = append(reexports, javaScriptTypeScriptSurfaceReexport{
-				exportedName: exportedName,
+				exportedName: specifier.exportedName,
 				originalName: binding.importedName,
 				source:       binding.source,
 			})
 		}
-	}
+	})
 	return reexports
 }
 
-func javaScriptTypeScriptNamedImportsByLocalName(source string) map[string]javaScriptTypeScriptImportedBinding {
+// javaScriptTypeScriptNamedImportsByLocalName maps each named-import local name
+// to its imported name and module source. It walks import_statement nodes and
+// reuses the shared import-entry extraction, keeping only named bindings (not
+// default or namespace imports) to match the prior import-clause contract.
+func javaScriptTypeScriptNamedImportsByLocalName(root *tree_sitter.Node, source []byte) map[string]javaScriptTypeScriptImportedBinding {
 	bindings := make(map[string]javaScriptTypeScriptImportedBinding)
-	for _, match := range javaScriptTypeScriptNamedImportRe.FindAllStringSubmatch(source, -1) {
-		if len(match) != 3 {
-			continue
+	if root == nil {
+		return bindings
+	}
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "import_statement" {
+			return
 		}
-		moduleSource := strings.TrimSpace(match[2])
-		if moduleSource == "" {
-			continue
-		}
-		for _, part := range strings.Split(match[1], ",") {
-			importedName, localName := javaScriptReExportSpecifierNames(part)
-			if importedName == "" || localName == "" {
+		for _, item := range javaScriptImportEntries(node, source, "") {
+			importedName, _ := item["name"].(string)
+			importedName = strings.TrimSpace(importedName)
+			if importedName == "" || importedName == "default" || importedName == "*" {
 				continue
+			}
+			moduleSource, _ := item["source"].(string)
+			moduleSource = strings.TrimSpace(moduleSource)
+			if moduleSource == "" {
+				continue
+			}
+			localName := strings.TrimSpace(stringOr(item["alias"]))
+			if localName == "" {
+				localName = importedName
 			}
 			if _, exists := bindings[localName]; exists {
 				continue
@@ -71,13 +81,15 @@ func javaScriptTypeScriptNamedImportsByLocalName(source string) map[string]javaS
 				source:       moduleSource,
 			}
 		}
-	}
+	})
 	return bindings
 }
 
-func javaScriptTypeScriptExportClauseHasFromSource(source string, matchEnd int) bool {
-	remaining := strings.TrimSpace(source[matchEnd:])
-	return strings.HasPrefix(remaining, "from ")
+// stringOr returns the string held by value, or "" when it is absent or not a
+// string.
+func stringOr(value any) string {
+	text, _ := value.(string)
+	return text
 }
 
 func javaScriptTypeScriptPublicImportedTypeReferenceNames(
@@ -85,6 +97,7 @@ func javaScriptTypeScriptPublicImportedTypeReferenceNames(
 	publicPath string,
 	targetPath string,
 	exportedNames map[string]struct{},
+	siblingParser *javaScriptSiblingParser,
 ) map[string]struct{} {
 	const maxReferenceDepth = 8
 	references := make(map[string]struct{})
@@ -102,18 +115,17 @@ func javaScriptTypeScriptPublicImportedTypeReferenceNames(
 		}
 		visited[visitKey] = struct{}{}
 
-		body, err := os.ReadFile(item.path)
-		if err != nil {
+		root, source, ok := siblingParser.rootForFile(item.path)
+		if !ok {
 			continue
 		}
-		source := string(body)
-		targetBindings := javaScriptTypeScriptImportedBindingsForTarget(repoRoot, item.path, targetPath, source, exportedNames)
-		for name := range javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(source, item, targetBindings) {
+		targetBindings := javaScriptTypeScriptImportedBindingsForTarget(repoRoot, item.path, targetPath, root, source, exportedNames)
+		for name := range javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(root, source, item, targetBindings) {
 			if binding, ok := targetBindings[name]; ok {
 				references[binding.importedName] = struct{}{}
 			}
 		}
-		for _, reexport := range javaScriptTypeScriptStaticReexportsFromSource(source) {
+		for _, reexport := range javaScriptTypeScriptStaticReexportsFromRoot(root, source) {
 			nextNames, nextStar, ok := javaScriptTypeScriptPropagateReexport(item, reexport)
 			if !ok {
 				continue
@@ -135,10 +147,11 @@ func javaScriptTypeScriptImportedBindingsForTarget(
 	repoRoot string,
 	fromPath string,
 	targetPath string,
-	source string,
+	root *tree_sitter.Node,
+	source []byte,
 	exportedNames map[string]struct{},
 ) map[string]javaScriptTypeScriptImportedBinding {
-	bindings := javaScriptTypeScriptNamedImportsByLocalName(source)
+	bindings := javaScriptTypeScriptNamedImportsByLocalName(root, source)
 	if len(bindings) == 0 {
 		return nil
 	}
@@ -158,109 +171,103 @@ func javaScriptTypeScriptImportedBindingsForTarget(
 }
 
 func javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(
-	source string,
+	root *tree_sitter.Node,
+	source []byte,
 	item javaScriptTypeScriptSurfaceWalkItem,
 	importsByLocalName map[string]javaScriptTypeScriptImportedBinding,
 ) map[string]struct{} {
 	if len(importsByLocalName) == 0 {
 		return nil
 	}
-	publicNames := javaScriptTypeScriptPublicDeclarationNames(source, item)
-	if len(publicNames) == 0 {
+	declarations := javaScriptTypeScriptPublicDeclarationNodes(root, source, item)
+	if len(declarations) == 0 {
 		return nil
 	}
 	references := make(map[string]struct{})
-	for name := range publicNames {
-		declaration := javaScriptTypeScriptPublicDeclarationText(source, name)
-		if declaration == "" {
-			continue
-		}
-		for localName := range importsByLocalName {
-			if javaScriptIdentifierMentioned(declaration, localName) {
-				references[localName] = struct{}{}
-			}
+	for _, declaration := range declarations {
+		mentioned := javaScriptTypeScriptDeclarationMentionedNames(declaration, source, importsByLocalName)
+		for localName := range mentioned {
+			references[localName] = struct{}{}
 		}
 	}
 	return references
 }
 
-func javaScriptTypeScriptPublicDeclarationNames(
-	source string,
-	item javaScriptTypeScriptSurfaceWalkItem,
+// javaScriptTypeScriptDeclarationMentionedNames returns the imported local names
+// referenced as identifiers anywhere inside a public declaration node. It walks
+// identifier and type-identifier nodes so a type reference is matched on the AST
+// instead of a text identifier-boundary scan.
+func javaScriptTypeScriptDeclarationMentionedNames(
+	declaration *tree_sitter.Node,
+	source []byte,
+	importsByLocalName map[string]javaScriptTypeScriptImportedBinding,
 ) map[string]struct{} {
-	if !item.star {
-		return cloneJavaScriptTypeScriptSurfaceNames(item.names)
+	mentioned := make(map[string]struct{})
+	if declaration == nil {
+		return mentioned
 	}
-	names := make(map[string]struct{})
-	for _, match := range javaScriptTypeScriptPublicDeclNameRe.FindAllStringSubmatch(source, -1) {
-		if len(match) == 2 {
-			names[strings.TrimSpace(match[1])] = struct{}{}
+	walkNamed(declaration, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "identifier", "type_identifier", "property_identifier",
+			"shorthand_property_identifier", "nested_type_identifier",
+			"scoped_type_identifier":
+		default:
+			return
 		}
-	}
-	return names
+		name := strings.TrimSpace(nodeText(node, source))
+		if _, ok := importsByLocalName[name]; ok {
+			mentioned[name] = struct{}{}
+		}
+	})
+	return mentioned
 }
 
-func javaScriptTypeScriptPublicDeclarationText(source string, name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return ""
+// javaScriptTypeScriptPublicDeclarationNodes returns the exported declaration
+// nodes whose names are public for this walk item. A star item exposes every
+// exported interface/type/class/enum declaration; a named item exposes only the
+// declarations matching the carried names.
+func javaScriptTypeScriptPublicDeclarationNodes(
+	root *tree_sitter.Node,
+	source []byte,
+	item javaScriptTypeScriptSurfaceWalkItem,
+) []*tree_sitter.Node {
+	declarations := make([]*tree_sitter.Node, 0)
+	if root == nil {
+		return declarations
 	}
-	for _, prefix := range []string{"export interface ", "export type ", "export class ", "export abstract class ", "export enum "} {
-		start := strings.Index(source, prefix+name)
-		if start < 0 {
-			continue
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if !javaScriptIsExported(node) {
+			return
 		}
-		end := strings.Index(source[start+1:], "\nexport ")
-		if end < 0 {
-			return source[start:]
+		if !javaScriptTypeScriptIsPublicDeclarationKind(node) {
+			return
 		}
-		return source[start : start+1+end]
-	}
-	return ""
+		name := javaScriptTypeScriptDeclarationName(node, source)
+		if name == "" {
+			return
+		}
+		if !item.star {
+			if _, ok := item.names[name]; !ok {
+				return
+			}
+		}
+		declarations = append(declarations, node)
+	})
+	return declarations
 }
 
-func javaScriptIdentifierMentioned(source string, name string) bool {
-	name = strings.TrimSpace(name)
-	if name == "" {
+// javaScriptTypeScriptIsPublicDeclarationKind reports whether node is an
+// interface, type alias, class, or enum declaration, the declaration kinds the
+// prior public-declaration scan recognized (functions and variables excluded).
+func javaScriptTypeScriptIsPublicDeclarationKind(node *tree_sitter.Node) bool {
+	if node == nil {
 		return false
 	}
-	remaining := source
-	for {
-		offset := strings.Index(remaining, name)
-		if offset < 0 {
-			return false
-		}
-		if javaScriptIdentifierBoundaryBefore(remaining, offset) &&
-			javaScriptIdentifierBoundaryAfter(remaining, offset+len(name)) {
-			return true
-		}
-		nextStart := offset + len(name)
-		if nextStart >= len(remaining) {
-			return false
-		}
-		remaining = remaining[nextStart:]
-	}
-}
-
-func javaScriptIdentifierBoundaryBefore(source string, offset int) bool {
-	if offset <= 0 {
+	switch node.Kind() {
+	case "interface_declaration", "type_alias_declaration",
+		"class_declaration", "abstract_class_declaration", "enum_declaration":
 		return true
+	default:
+		return false
 	}
-	character := source[offset-1]
-	return !javaScriptIdentifierCharacter(character)
-}
-
-func javaScriptIdentifierBoundaryAfter(source string, offset int) bool {
-	if offset >= len(source) {
-		return true
-	}
-	return !javaScriptIdentifierCharacter(source[offset])
-}
-
-func javaScriptIdentifierCharacter(character byte) bool {
-	return (character >= 'A' && character <= 'Z') ||
-		(character >= 'a' && character <= 'z') ||
-		(character >= '0' && character <= '9') ||
-		character == '_' ||
-		character == '$'
 }

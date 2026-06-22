@@ -1,11 +1,39 @@
 package javascript
 
-import "testing"
+import (
+	"testing"
 
-func TestTypeScriptImportedExportClauseReexportsFromSourceHandlesFastifyShape(t *testing.T) {
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	tree_sitter_typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
+)
+
+// parseTypeScriptRootForTest parses TypeScript source into a root node and source
+// bytes for exercising the AST-based dead-code surface helpers. The caller must
+// invoke close once finished.
+func parseTypeScriptRootForTest(t *testing.T, source string) (*tree_sitter.Node, []byte, func()) {
+	t.Helper()
+	language := tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript())
+	parser := tree_sitter.NewParser()
+	if err := parser.SetLanguage(language); err != nil {
+		parser.Close()
+		t.Fatalf("SetLanguage() error = %v, want nil", err)
+	}
+	bytes := []byte(source)
+	tree := parser.Parse(bytes, nil)
+	if tree == nil {
+		parser.Close()
+		t.Fatalf("Parse() returned nil tree")
+	}
+	return tree.RootNode(), bytes, func() {
+		tree.Close()
+		parser.Close()
+	}
+}
+
+func TestTypeScriptImportedExportClauseReexportsFromRootHandlesFastifyShape(t *testing.T) {
 	t.Parallel()
 
-	source := `import { FastifyContextConfig, FastifyReplyContext, FastifyRequestContext } from './types/context'
+	root, source, closeFn := parseTypeScriptRootForTest(t, `import { FastifyContextConfig, FastifyReplyContext, FastifyRequestContext } from './types/context'
 import { FastifyRequest, RequestGenericInterface } from './types/request'
 
 declare namespace fastify {
@@ -14,9 +42,10 @@ declare namespace fastify {
     FastifyRequestContext, FastifyContextConfig, FastifyReplyContext, // './types/context'
   }
 }
-`
+`)
+	defer closeFn()
 
-	got := javaScriptTypeScriptImportedExportClauseReexportsFromSource(source)
+	got := javaScriptTypeScriptImportedExportClauseReexportsFromRoot(root, source)
 	want := map[string]string{
 		"FastifyRequest":          "./types/request",
 		"RequestGenericInterface": "./types/request",
@@ -24,15 +53,15 @@ declare namespace fastify {
 		"FastifyContextConfig":    "./types/context",
 		"FastifyReplyContext":     "./types/context",
 	}
-	for name, source := range want {
-		assertTypeScriptImportedExportReexport(t, got, name, name, source)
+	for name, moduleSource := range want {
+		assertTypeScriptImportedExportReexport(t, got, name, name, moduleSource)
 	}
 }
 
-func TestTypeScriptImportedExportClauseReexportsFromSourceHandlesDefaultAndNamedImport(t *testing.T) {
+func TestTypeScriptImportedExportClauseReexportsFromRootHandlesDefaultAndNamedImport(t *testing.T) {
 	t.Parallel()
 
-	source := `import Fastify, { type FastifyRequest, InternalReply as FastifyReply } from './types/request'
+	root, source, closeFn := parseTypeScriptRootForTest(t, `import Fastify, { type FastifyRequest, InternalReply as FastifyReply } from './types/request'
 
 declare namespace fastify {
   export type {
@@ -40,17 +69,18 @@ declare namespace fastify {
     FastifyReply
   }
 }
-`
+`)
+	defer closeFn()
 
-	got := javaScriptTypeScriptImportedExportClauseReexportsFromSource(source)
+	got := javaScriptTypeScriptImportedExportClauseReexportsFromRoot(root, source)
 	assertTypeScriptImportedExportReexport(t, got, "FastifyRequest", "FastifyRequest", "./types/request")
 	assertTypeScriptImportedExportReexport(t, got, "FastifyReply", "InternalReply", "./types/request")
 }
 
-func TestTypeScriptImportedExportClauseReexportsFromSourceIgnoresBlockComments(t *testing.T) {
+func TestTypeScriptImportedExportClauseReexportsFromRootIgnoresBlockComments(t *testing.T) {
 	t.Parallel()
 
-	source := `import { FastifyRequest, InternalReply as FastifyReply } from './types/request'
+	root, source, closeFn := parseTypeScriptRootForTest(t, `import { FastifyRequest, InternalReply as FastifyReply } from './types/request'
 
 declare namespace fastify {
   export type {
@@ -58,9 +88,10 @@ declare namespace fastify {
     FastifyReply /* public reply type */
   }
 }
-`
+`)
+	defer closeFn()
 
-	got := javaScriptTypeScriptImportedExportClauseReexportsFromSource(source)
+	got := javaScriptTypeScriptImportedExportClauseReexportsFromRoot(root, source)
 	assertTypeScriptImportedExportReexport(t, got, "FastifyRequest", "FastifyRequest", "./types/request")
 	assertTypeScriptImportedExportReexport(t, got, "FastifyReply", "InternalReply", "./types/request")
 }
@@ -68,12 +99,14 @@ declare namespace fastify {
 func TestTypeScriptImportedTypeReferencesFromPublicDeclarations(t *testing.T) {
 	t.Parallel()
 
-	source := `import { FastifyRequestType, ResolveFastifyRequestType } from './type-provider'
+	root, source, closeFn := parseTypeScriptRootForTest(t, `import { FastifyRequestType, ResolveFastifyRequestType } from './type-provider'
 
 export interface FastifyRequest<RequestType extends FastifyRequestType = ResolveFastifyRequestType> {
   body: RequestType['body'];
 }
-`
+`)
+	defer closeFn()
+
 	item := javaScriptTypeScriptSurfaceWalkItem{
 		names: map[string]struct{}{"FastifyRequest": {}},
 	}
@@ -84,10 +117,7 @@ export interface FastifyRequest<RequestType extends FastifyRequestType = Resolve
 		},
 	}
 
-	if !javaScriptIdentifierMentioned(source, "ResolveFastifyRequestType") {
-		t.Fatalf("source should mention ResolveFastifyRequestType")
-	}
-	got := javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(source, item, bindings)
+	got := javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(root, source, item, bindings)
 	if _, ok := got["ResolveFastifyRequestType"]; !ok {
 		t.Fatalf("references = %#v, want ResolveFastifyRequestType", got)
 	}

@@ -2,29 +2,9 @@ package javascript
 
 import (
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-)
-
-var (
-	javaScriptHTTPVerbExportRe = regexp.MustCompile(`(?m)export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b`)
-	javaScriptMetadataConstRe  = regexp.MustCompile(`(?m)export\s+const\s+metadata\b`)
-	javaScriptExpressRouteRe   = regexp.MustCompile(`(?m)\b([A-Za-z_$][A-Za-z0-9_$]*)\.(get|post|put|patch|delete|head|options)\(\s*["']([^"']+)["']`)
-	// javaScriptExpressRouteHandlerRe binds an Express route to its handler only
-	// when the callback is a single bare named reference closing the call
-	// (e.g. app.get("/x", getX)). Inline callbacks and middleware chains do not
-	// match, so they stay unbound rather than guess a handler symbol (#2721).
-	javaScriptExpressRouteHandlerRe = regexp.MustCompile(`(?m)\b[A-Za-z_$][A-Za-z0-9_$]*\.(get|post|put|patch|delete|head|options)\(\s*["']([^"']+)["']\s*,\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\)`)
-	javaScriptHapiMethodRe          = regexp.MustCompile(`(?m)\bmethod\s*:\s*["']([A-Za-z]+)["']`)
-	javaScriptHapiPathRe            = regexp.MustCompile(`(?m)\bpath\s*:\s*["']([^"']+)["']`)
-	javaScriptAWSImportRe           = regexp.MustCompile(`@aws-sdk/client-([a-z0-9-]+)`)
-	javaScriptGCPImportRe           = regexp.MustCompile(`@google-cloud/([a-z0-9-]+)`)
-	javaScriptClientSymbolRe        = regexp.MustCompile(`\b([A-Z][A-Za-z0-9]+Client)\b`)
-	javaScriptHookCallRe            = regexp.MustCompile(`\b(use[A-Z][A-Za-z0-9_]*)\s*\(`)
-	javaScriptDirectiveRe           = regexp.MustCompile(`(?m)^\s*["']use\s+(client|server)["'];?`)
-	javaScriptJSXReturnRe           = regexp.MustCompile(`(?m)(return\s*<|=>\s*<)`)
 )
 
 func maybeAppendJavaScriptComponent(
@@ -184,37 +164,36 @@ func javaScriptLooksLikeComponent(node *tree_sitter.Node, source []byte, outputL
 		strings.Contains(text, "useState(") ||
 		strings.Contains(text, "useEffect(") ||
 		strings.Contains(text, "useMemo(") ||
-		javaScriptJSXReturnRe.MatchString(text)
+		javaScriptContainsJSXReturn(node)
 }
 
-func buildJavaScriptFrameworkSemantics(path string, source []byte, payload map[string]any) map[string]any {
-	text := string(source)
+func buildJavaScriptFrameworkSemantics(path string, root *tree_sitter.Node, source []byte, payload map[string]any) map[string]any {
 	semantics := map[string]any{
 		"frameworks": []string{},
 	}
 	frameworks := make([]string, 0, 6)
 
-	if nextjs, ok := detectNextJSSemantics(path, text); ok {
+	if nextjs, ok := detectNextJSSemantics(path, root, source); ok {
 		frameworks = append(frameworks, "nextjs")
 		semantics["nextjs"] = nextjs
 	}
-	if express, ok := detectExpressSemantics(text); ok {
+	if express, ok := detectExpressSemantics(root, source); ok {
 		frameworks = append(frameworks, "express")
 		semantics["express"] = express
 	}
-	if aws, ok := detectAWSSemantics(text); ok {
+	if aws, ok := detectAWSSemantics(root, source); ok {
 		frameworks = append(frameworks, "aws")
 		semantics["aws"] = aws
 	}
-	if gcp, ok := detectGCPSemantics(text); ok {
+	if gcp, ok := detectGCPSemantics(root, source); ok {
 		frameworks = append(frameworks, "gcp")
 		semantics["gcp"] = gcp
 	}
-	if react, ok := detectReactSemantics(path, text, payload); ok {
+	if react, ok := detectReactSemantics(path, root, source, payload); ok {
 		frameworks = append(frameworks, "react")
 		semantics["react"] = react
 	}
-	if hapi, ok := detectHapiSemantics(text); ok {
+	if hapi, ok := detectHapiSemantics(root, source); ok {
 		frameworks = append(frameworks, "hapi")
 		semantics["hapi"] = hapi
 	}
@@ -223,7 +202,8 @@ func buildJavaScriptFrameworkSemantics(path string, source []byte, payload map[s
 	return semantics
 }
 
-func detectNextJSSemantics(path string, source string) (map[string]any, bool) {
+func detectNextJSSemantics(path string, root *tree_sitter.Node, source []byte) (map[string]any, bool) {
+	text := string(source)
 	moduleKind := ""
 	switch filepath.Base(path) {
 	case "route.ts", "route.tsx", "route.js", "route.jsx":
@@ -239,15 +219,15 @@ func detectNextJSSemantics(path string, source string) (map[string]any, bool) {
 
 	routeSegments := nextJSRouteSegments(path)
 	metadataExports := "none"
-	if strings.Contains(source, "generateMetadata") {
+	if strings.Contains(text, "generateMetadata") {
 		metadataExports = "dynamic"
-	} else if javaScriptMetadataConstRe.MatchString(source) {
+	} else if javaScriptHasMetadataConstExport(root, source) {
 		metadataExports = "static"
 	}
 
 	runtimeBoundary := "server"
-	if directive := javaScriptDirectiveRe.FindStringSubmatch(source); len(directive) == 2 {
-		runtimeBoundary = directive[1]
+	if directive := javaScriptRuntimeDirective(root, source); directive != "" {
+		runtimeBoundary = directive
 	}
 
 	nextjs := map[string]any{
@@ -257,8 +237,8 @@ func detectNextJSSemantics(path string, source string) (map[string]any, bool) {
 		"runtime_boundary": runtimeBoundary,
 	}
 	if moduleKind == "route" {
-		nextjs["route_verbs"] = uniqueOrderedUpper(javaScriptHTTPVerbExportRe.FindAllStringSubmatch(source, -1), 1)
-		nextjs["request_response_apis"] = nextJSRequestResponseAPIs(source)
+		nextjs["route_verbs"] = javaScriptHTTPVerbExports(root, source)
+		nextjs["request_response_apis"] = nextJSRequestResponseAPIs(text)
 	}
 	return nextjs, true
 }
@@ -270,49 +250,49 @@ func javaScriptHasExpressImport(source string) bool {
 		strings.Contains(source, `from 'express'`)
 }
 
-func detectExpressSemantics(source string) (map[string]any, bool) {
-	if !javaScriptHasExpressImport(source) {
+func detectExpressSemantics(root *tree_sitter.Node, source []byte) (map[string]any, bool) {
+	if !javaScriptHasExpressImport(string(source)) {
 		return nil, false
 	}
-	matches := javaScriptExpressRouteRe.FindAllStringSubmatch(source, -1)
-	if len(matches) == 0 {
+	routes := javaScriptExpressRouteCalls(root, source)
+	if len(routes) == 0 {
 		return nil, false
 	}
 
-	handlersByRoute := expressRouteHandlers(source)
-	routeRegistrations := expressRouteRegistrationCounts(matches)
-	methods := make([]string, 0, len(matches))
-	paths := make([]string, 0, len(matches))
-	entries := make([]map[string]string, 0, len(matches))
-	serverSymbols := make([]string, 0, len(matches))
+	routeRegistrations := make(map[string]int, len(routes))
+	for _, route := range routes {
+		routeRegistrations[expressRouteKey(route.method, route.path)]++
+	}
+
+	methods := make([]string, 0, len(routes))
+	paths := make([]string, 0, len(routes))
+	entries := make([]map[string]string, 0, len(routes))
+	serverSymbols := make([]string, 0, len(routes))
 	seenMethods := make(map[string]struct{})
 	seenPaths := make(map[string]struct{})
 	seenSymbols := make(map[string]struct{})
-	for _, match := range matches {
-		symbol := match[1]
-		method := strings.ToUpper(match[2])
-		path := match[3]
-		key := expressRouteKey(method, path)
+	for _, route := range routes {
+		key := expressRouteKey(route.method, route.path)
 		handler := ""
 		// A route registered exactly once has an unambiguous handler. A route
 		// registered more than once (e.g. an inline and a named callback, or two
 		// routers) is ambiguous about which handler serves it, so it stays
 		// unbound rather than attach a handler to the wrong entry (#2721).
 		if routeRegistrations[key] == 1 {
-			handler = handlersByRoute[key]
+			handler = route.handler
 		}
-		entries = append(entries, routeEntry(method, path, handler))
-		if _, ok := seenMethods[method]; !ok {
-			seenMethods[method] = struct{}{}
-			methods = append(methods, method)
+		entries = append(entries, routeEntry(route.method, route.path, handler))
+		if _, ok := seenMethods[route.method]; !ok {
+			seenMethods[route.method] = struct{}{}
+			methods = append(methods, route.method)
 		}
-		if _, ok := seenPaths[path]; !ok {
-			seenPaths[path] = struct{}{}
-			paths = append(paths, path)
+		if _, ok := seenPaths[route.path]; !ok {
+			seenPaths[route.path] = struct{}{}
+			paths = append(paths, route.path)
 		}
-		if _, ok := seenSymbols[symbol]; !ok {
-			seenSymbols[symbol] = struct{}{}
-			serverSymbols = append(serverSymbols, symbol)
+		if _, ok := seenSymbols[route.symbol]; !ok {
+			seenSymbols[route.symbol] = struct{}{}
+			serverSymbols = append(serverSymbols, route.symbol)
 		}
 	}
 
@@ -324,22 +304,38 @@ func detectExpressSemantics(source string) (map[string]any, bool) {
 	}, true
 }
 
-func detectHapiSemantics(source string) (map[string]any, bool) {
-	if strings.Contains(source, "server.inject(") {
+func detectHapiSemantics(root *tree_sitter.Node, source []byte) (map[string]any, bool) {
+	text := string(source)
+	if strings.Contains(text, "server.inject(") {
 		return nil, false
 	}
-	if !javaScriptHasHapiRouteSignal(source) {
+	if !javaScriptHasHapiRouteSignal(text) {
 		return nil, false
 	}
-	methods := uniqueOrderedUpper(javaScriptHapiMethodRe.FindAllStringSubmatch(source, -1), 1)
-	paths := uniqueOrdered(javaScriptHapiPathRe.FindAllStringSubmatch(source, -1), 1)
+	entries := javaScriptHapiRouteEntries(root, source)
+	methods := make([]string, 0, len(entries))
+	paths := make([]string, 0, len(entries))
+	seenMethods := make(map[string]struct{})
+	seenPaths := make(map[string]struct{})
+	for _, entry := range entries {
+		method := entry["method"]
+		if _, ok := seenMethods[method]; !ok && method != "" {
+			seenMethods[method] = struct{}{}
+			methods = append(methods, method)
+		}
+		path := entry["path"]
+		if _, ok := seenPaths[path]; !ok && path != "" {
+			seenPaths[path] = struct{}{}
+			paths = append(paths, path)
+		}
+	}
 	if len(methods) == 0 || len(paths) == 0 {
 		return nil, false
 	}
 	return map[string]any{
 		"route_methods":  methods,
 		"route_paths":    paths,
-		"route_entries":  javaScriptHapiRouteEntries(source),
+		"route_entries":  entries,
 		"server_symbols": []string{},
 	}, true
 }
@@ -372,38 +368,8 @@ func routeEntry(method string, path string, handler string) map[string]string {
 }
 
 // expressRouteKey identifies an Express route by its normalized method and path
-// so a separately-scanned handler binding can be matched back to its entry.
+// so a route's handler binding can be matched back to its entry and duplicate
+// registrations can be counted.
 func expressRouteKey(method string, path string) string {
 	return strings.ToUpper(strings.TrimSpace(method)) + " " + strings.TrimSpace(path)
-}
-
-// expressRouteHandlers maps an Express route to its handler function symbol for
-// routes whose callback is a single bare named reference. Ambiguity from a route
-// registered more than once is resolved by the registration-count guard in the
-// caller, so this only records the observed named handler per route key (#2721).
-func expressRouteHandlers(source string) map[string]string {
-	matches := javaScriptExpressRouteHandlerRe.FindAllStringSubmatch(source, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-	handlers := make(map[string]string, len(matches))
-	for _, match := range matches {
-		handler := strings.TrimSpace(match[3])
-		if handler == "" {
-			continue
-		}
-		handlers[expressRouteKey(match[1], match[2])] = handler
-	}
-	return handlers
-}
-
-// expressRouteRegistrationCounts counts how many times each route key (method
-// and path) is registered across all Express route calls, so a route declared
-// more than once can be treated as an ambiguous handler binding (#2721).
-func expressRouteRegistrationCounts(matches [][]string) map[string]int {
-	counts := make(map[string]int, len(matches))
-	for _, match := range matches {
-		counts[expressRouteKey(match[2], match[3])]++
-	}
-	return counts
 }

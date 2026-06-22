@@ -1,9 +1,7 @@
 package javascript
 
 import (
-	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -30,16 +28,12 @@ type javaScriptTypeScriptSurfaceWalkItem struct {
 	depth int
 }
 
-var (
-	javaScriptTypeScriptNamedReExportRe = regexp.MustCompile(`(?s)\bexport\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["']([^"']+)["']`)
-	javaScriptTypeScriptStarReExportRe  = regexp.MustCompile(`(?s)\bexport\s+(?:type\s+)?\*\s+from\s+["']([^"']+)["']`)
-)
-
 func javaScriptTypeScriptSurfaceRootKinds(
 	repoRoot string,
 	path string,
 	root *tree_sitter.Node,
 	source []byte,
+	siblingParser *javaScriptSiblingParser,
 ) map[string][]string {
 	rootKinds := make(map[string][]string)
 	if root == nil || !javaScriptIsTypeScriptSourcePath(path) {
@@ -60,11 +54,11 @@ func javaScriptTypeScriptSurfaceRootKinds(
 			}
 			continue
 		}
-		for name := range javaScriptTypeScriptPublicReexportNames(repoRoot, publicPath, path, exportedNames) {
+		for name := range javaScriptTypeScriptPublicReexportNames(repoRoot, publicPath, path, exportedNames, siblingParser) {
 			publicNames[name] = struct{}{}
 			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
 		}
-		for name := range javaScriptTypeScriptPublicImportedTypeReferenceNames(repoRoot, publicPath, path, exportedNames) {
+		for name := range javaScriptTypeScriptPublicImportedTypeReferenceNames(repoRoot, publicPath, path, exportedNames, siblingParser) {
 			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
 		}
 	}
@@ -83,6 +77,7 @@ func javaScriptTypeScriptPublicReexportNames(
 	publicPath string,
 	targetPath string,
 	exportedNames map[string]struct{},
+	siblingParser *javaScriptSiblingParser,
 ) map[string]struct{} {
 	const maxReexportDepth = 8
 	publicNames := make(map[string]struct{})
@@ -100,7 +95,7 @@ func javaScriptTypeScriptPublicReexportNames(
 		}
 		visited[visitKey] = struct{}{}
 
-		for _, reexport := range javaScriptTypeScriptStaticReexportsFromFile(item.path) {
+		for _, reexport := range javaScriptTypeScriptStaticReexportsFromFile(item.path, siblingParser) {
 			nextNames, nextStar, ok := javaScriptTypeScriptPropagateReexport(item, reexport)
 			if !ok {
 				continue
@@ -254,43 +249,52 @@ func javaScriptPackagePublicSourcePaths(repoRoot string, path string) []string {
 	return PackagePublicSourcePaths(repoRoot, path)
 }
 
-func javaScriptTypeScriptStaticReexportsFromFile(path string) []javaScriptTypeScriptSurfaceReexport {
-	raw, err := os.ReadFile(path)
-	if err != nil {
+func javaScriptTypeScriptStaticReexportsFromFile(
+	path string,
+	siblingParser *javaScriptSiblingParser,
+) []javaScriptTypeScriptSurfaceReexport {
+	root, source, ok := siblingParser.rootForFile(path)
+	if !ok {
 		return nil
 	}
-	return javaScriptTypeScriptStaticReexportsFromSource(string(raw))
+	return javaScriptTypeScriptStaticReexportsFromRoot(root, source)
 }
 
-func javaScriptTypeScriptStaticReexportsFromSource(source string) []javaScriptTypeScriptSurfaceReexport {
+// javaScriptTypeScriptStaticReexportsFromRoot extracts every static re-export
+// edge from a parsed module: named re-exports (export { A as B } from "..."),
+// star re-exports (export * from "..."), and the declare-namespace export-type
+// clause that re-exports previously imported names. It walks export_statement
+// nodes and reuses the shared re-export specifier helpers.
+func javaScriptTypeScriptStaticReexportsFromRoot(root *tree_sitter.Node, source []byte) []javaScriptTypeScriptSurfaceReexport {
 	reexports := make([]javaScriptTypeScriptSurfaceReexport, 0)
-	for _, match := range javaScriptTypeScriptStarReExportRe.FindAllStringSubmatch(source, -1) {
-		if len(match) != 2 {
-			continue
-		}
-		reexports = append(reexports, javaScriptTypeScriptSurfaceReexport{
-			exportedName: "*",
-			originalName: "*",
-			source:       strings.TrimSpace(match[1]),
-		})
+	if root == nil {
+		return reexports
 	}
-	for _, match := range javaScriptTypeScriptNamedReExportRe.FindAllStringSubmatch(source, -1) {
-		if len(match) != 3 {
-			continue
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "export_statement" {
+			return
 		}
-		for _, part := range strings.Split(match[1], ",") {
-			originalName, exportedName := javaScriptReExportSpecifierNames(part)
-			if originalName == "" || exportedName == "" {
-				continue
-			}
+		moduleSource := strings.TrimSpace(javaScriptReExportSource(node, source))
+		if moduleSource == "" {
+			return
+		}
+		if javaScriptIsStarReExport(node, source) {
 			reexports = append(reexports, javaScriptTypeScriptSurfaceReexport{
-				exportedName: exportedName,
-				originalName: originalName,
-				source:       strings.TrimSpace(match[2]),
+				exportedName: "*",
+				originalName: "*",
+				source:       moduleSource,
+			})
+			return
+		}
+		for _, specifier := range javaScriptReExportSpecifiers(node, source) {
+			reexports = append(reexports, javaScriptTypeScriptSurfaceReexport{
+				exportedName: specifier.exportedName,
+				originalName: specifier.originalName,
+				source:       moduleSource,
 			})
 		}
-	}
-	reexports = append(reexports, javaScriptTypeScriptImportedExportClauseReexportsFromSource(source)...)
+	})
+	reexports = append(reexports, javaScriptTypeScriptImportedExportClauseReexportsFromRoot(root, source)...)
 	return reexports
 }
 

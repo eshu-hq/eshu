@@ -42,7 +42,6 @@ func Parse(
 
 	payload := basePayload(path, outputLanguage, isDependency)
 	payload["components"] = []map[string]any{}
-	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(string(source), outputLanguage)
 	if outputLanguage != "javascript" {
 		payload["interfaces"] = []map[string]any{}
 		payload["type_aliases"] = []map[string]any{}
@@ -51,8 +50,11 @@ func Parse(
 	scope := options.NormalizedVariableScope()
 	root := tree.RootNode()
 	sourceText := string(source)
+	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source, outputLanguage)
 	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
-	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source)
+	siblingParser := newJavaScriptSiblingParser(parserFactory)
+	defer siblingParser.Close()
+	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser)
 	if len(deadCodeRoots.fileRootKinds) > 0 {
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
@@ -323,7 +325,7 @@ func Parse(
 		sortNamedBucket(payload, "type_aliases")
 		sortNamedBucket(payload, "enums")
 	}
-	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, source, payload)
+	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, root, source, payload)
 
 	emitValueFlowBuckets(payload, root, source, outputLanguage, options)
 
