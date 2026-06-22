@@ -296,12 +296,12 @@ parser path.
 | C | `c` | `.c` | yes |
 | C# | `c_sharp` | `.cs`, `.csx` | yes |
 | C++ | `cpp` | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp` | yes |
-| Dart | `dart` | `.dart` | — |
+| Dart | `dart` | `.dart` | yes |
 | Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
 | Elixir | `elixir` | `.ex`, `.exs`, `mix.lock` | yes |
 | Go | `go` | `.go` | yes |
 | Go modules | `gomod` | `go.mod`, `go.sum` (exact filenames) | — |
-| Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | — |
+| Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | yes (metadata scanners remain bounded) |
 | Haskell | `haskell` | `.hs` | yes |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
 | Java | `java` | `.java` | yes |
@@ -310,24 +310,28 @@ parser path.
 | JSON | `json` | `.json`, `.jsonc` | — |
 | Kotlin | `kotlin` | `.kt` | yes |
 | NuGet project | `nuget_project` | `.csproj` | — |
-| Perl | `perl` | `.pl`, `.pm` | — |
+| Perl | `perl` | `.pl`, `.pm` | yes |
 | PHP | `php` | `.php` | yes |
 | Python | `python` | `.ipynb`, `.py`, `.pyw` | yes |
 | Raw text | `raw_text` | `.cnf`, `.cfg`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tpl`, `.tftpl` | — |
-| Ruby | `ruby` | `.rb`, `Gemfile`, `Gemfile.lock` | — |
+| Ruby | `ruby` | `.rb`, `Gemfile`, `Gemfile.lock` | yes for `.rb`; Bundler manifests scanned |
 | Rust | `rust` | `.rs` | yes |
 | Scala | `scala` | `.sc`, `.scala` | yes |
-| SQL | `sql` | `.sql` | — |
+| SQL | `sql` | `.sql` | yes |
 | Swift | `swift` | `.swift` | yes (line scan + tree-sitter syntax index) |
 | TSX | `tsx` | `.tsx` | yes (TypeScript grammar) |
 | TypeScript | `typescript` | `.cts`, `.mts`, `.ts` | yes |
 | YAML | `yaml` | `.yaml`, `.yml` | — |
 
-The `—` rows are not pending tree-sitter migrations. Data, config, manifest,
-lockfile, templated-text, and precomputed-index parsers intentionally use a
-dedicated structured decoder or bounded scanner instead of a code grammar. See
-"Permanent parser exceptions (no tree-sitter migration)" in `AGENTS.md` for the
-per-parser library and rationale.
+`—` is not a permanent-exception marker. Treat a parser or helper as a
+permanent no-tree-sitter exception only when it appears in the "Permanent
+parser exceptions (no tree-sitter migration)" section of `AGENTS.md`: YAML,
+JSON, HCL/Terraform/Terragrunt, Go modules, node lockfiles, Python dependency
+manifests, Maven, NuGet, Gradle DSL, CloudFormation/SAM, `dbtsql`,
+`templated_detection`, raw text, SCIP, Dockerfile, and Java metadata. All other
+`—` rows need design or migration follow-up; do not use the dash to exempt a
+source-language adapter that has a runtime tree-sitter loader or language-owned
+AST package.
 
 ### Kotlin and Swift symbol extraction
 

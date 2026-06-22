@@ -97,6 +97,8 @@ grammar.
 | `templated_detection.go` | regex content classification | `templated_detection.go` | Classifies possibly-invalid-grammar templated text (Go template, Jinja, GitHub Actions, Terraform interpolation/directive). The input is frequently not valid in any single grammar, so tree-sitter cannot parse it; this is detection, not extraction. |
 | Raw text (`raw_text`) | filename/extension classification, no grammar | `raw_text_engine.go` | The fallback adapter for `.cnf`/`.cfg`/`.conf`/`.j2`/`.tpl` and similar. It carries content-metadata detection only and has no grammar to migrate. |
 | SCIP (`scip`) | `google.golang.org/protobuf/proto` index decode | `scip_parser.go` | `index.scip` is a precomputed protobuf index produced by an external indexer. It is ingested, not parsed from source; SCIP supplements native tree-sitter output, it does not replace a grammar. |
+| Dockerfile (`__dockerfile__`) | `bufio` instruction scanner | `dockerfile_language.go`, `dockerfile/metadata.go`, `dockerfile/tokens.go` | A Dockerfile is a build manifest of `FROM`/`COPY`/`ARG`/`ENV`/`LABEL` instructions, not a programming language. The scanner extracts bounded runtime evidence (stages, ports, args, envs, labels); there is no source grammar to migrate. |
+| Java metadata (`java_metadata`) | declarative file scanner | `java_metadata_files.go`, `java/metadata.go`, `java/parser_metadata.go` | `META-INF/services/*`, `AutoConfiguration.imports`, and `spring.factories` are declarative service-registration manifests, not Java source. They are scanned for registered class names; the `.java` grammar work lives in the `java` adapter row above. |
 
 The README cross-references this section from its tree-sitter support table.
 
