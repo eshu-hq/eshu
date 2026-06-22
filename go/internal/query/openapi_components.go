@@ -279,7 +279,6 @@ const openAPIComponents = `  "components": {
           "end_line": {"type": "integer"},
           "language": {"type": "string"},
           "source_cache": {"type": "string"},
-          "search_backend": {"type": "string", "description": "Set to \"hybrid\" on code-search rows reordered by fused BM25+vector retrieval; absent when the lexical content order was served."},
           "metadata": {
             "type": "object",
             "additionalProperties": true,
@@ -319,6 +318,7 @@ const openAPIComponents = `  "components": {
           "end_line": {"type": "integer"},
           "language": {"type": "string"},
           "source_cache": {"type": "string"},
+          "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on find_code content-fallback rows reordered by fused BM25+vector retrieval; absent when the lexical content order was served."},
           "semantic_summary": {
             "type": "string",
             "description": "Optional first-class semantic summary synthesized from parser metadata."

@@ -6,6 +6,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
+	"github.com/eshu-hq/eshu/go/internal/searchembed"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
@@ -24,19 +25,41 @@ const codeHybridRerankTimeout = 2 * time.Second
 // CodeHybridRanker reorders lexical find_code results by hybrid relevance.
 //
 // It fuses BM25 lexical scoring with vector cosine similarity (Reciprocal Rank
-// Fusion) over the entities a find_code request already retrieved, using the
-// shipped local embedder. The ranker never widens the candidate set, issues no
-// graph or Postgres reads, and produces no canonical truth: it only changes the
-// order of results the lexical path already authorized and returned.
+// Fusion) over the entities a find_code request already retrieved. The ranker
+// never widens the candidate set, issues no graph or Postgres reads, and
+// produces no canonical truth: it only changes the order of results the lexical
+// path already authorized and returned.
+//
+// Embedding is deliberately confined to a process-local deterministic hash
+// embedder. This bounded in-request re-rank MUST NOT call a governed provider
+// embedder, because that would POST request-local source snippets to an external
+// endpoint and block on the provider HTTP timeout per result, ignoring client
+// cancellation and bypassing the semantic policy / document-vector readiness
+// path. The local embedder keeps all source text inside the process.
 type CodeHybridRanker struct {
-	embedder searchhybrid.Embedder
+	// enabled gates the re-rank pass; it is true only when the runtime's
+	// semantic search is configured.
+	enabled bool
+	// localEmbedder is the deterministic no-network embedder built once at
+	// construction. It is the only embedder the re-rank ever uses, and it is not
+	// injectable, so a governed provider embedder can never embed source text on
+	// this path.
+	localEmbedder searchhybrid.Embedder
 }
 
-// NewCodeHybridRanker builds a hybrid re-ranker over the given embedder. A nil
-// embedder yields a ranker whose Rerank is a no-op, so callers can wire it
-// unconditionally and let configuration decide whether vectors participate.
-func NewCodeHybridRanker(embedder searchhybrid.Embedder) *CodeHybridRanker {
-	return &CodeHybridRanker{embedder: embedder}
+// NewCodeHybridRanker builds a find_code hybrid re-ranker. It owns a
+// deterministic local hash embedder; no provider embedder is accepted, so source
+// text never egresses on this path. When enabled is false, or the local embedder
+// cannot be built, Rerank is a no-op and the caller keeps the lexical order.
+func NewCodeHybridRanker(enabled bool) *CodeHybridRanker {
+	ranker := &CodeHybridRanker{enabled: enabled}
+	if !enabled {
+		return ranker
+	}
+	if embedder, err := searchembed.NewHashEmbedder(searchembed.DefaultDimensions); err == nil {
+		ranker.localEmbedder = embedder
+	}
+	return ranker
 }
 
 // CodeResultReranker reorders code-search result rows by hybrid relevance.
@@ -63,7 +86,10 @@ func (r *CodeHybridRanker) Rerank(
 	query string,
 	results []map[string]any,
 ) ([]map[string]any, bool) {
-	if r == nil || r.embedder == nil || repoID == "" || len(results) < 2 {
+	if r == nil || !r.enabled || r.localEmbedder == nil || repoID == "" || len(results) < 2 {
+		return results, false
+	}
+	if err := ctx.Err(); err != nil {
 		return results, false
 	}
 
@@ -77,9 +103,15 @@ func (r *CodeHybridRanker) Rerank(
 		docs = append(docs, docByID[id])
 	}
 
+	rankCtx, cancel := context.WithTimeout(ctx, codeHybridRerankTimeout)
+	defer cancel()
+
+	// The local hash embedder is deterministic and CPU-only; NewIndex embeds the
+	// projected documents here with no network call. The provider embedder is
+	// never reachable from this path.
 	index, err := searchhybrid.NewIndex(docs, searchhybrid.Options{
 		MaxDocuments:    codeHybridRerankLimit,
-		Embedder:        r.embedder,
+		Embedder:        r.localEmbedder,
 		VectorRetrieval: searchhybrid.VectorRetrievalAuto,
 	})
 	if err != nil {
@@ -97,8 +129,6 @@ func (r *CodeHybridRanker) Rerank(
 		return results, false
 	}
 
-	rankCtx, cancel := context.WithTimeout(ctx, codeHybridRerankTimeout)
-	defer cancel()
 	candidates, err := (searchhybrid.Backend{Index: index}).Search(rankCtx, req)
 	if err != nil || len(candidates) == 0 {
 		return results, false

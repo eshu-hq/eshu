@@ -400,6 +400,21 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if got, want := codeSearchSemanticProfile["type"], "object"; got != want {
 		t.Fatalf("CodeSearchResult.semantic_profile.type = %#v, want %#v", got, want)
 	}
+	// find_code emits search_backend=hybrid on content rows reordered by the
+	// hybrid re-rank, so the response row schema must document it on the row type
+	// actually returned (CodeSearchResult), not on the generic EntityContent.
+	codeSearchBackend := mustMapField(t, codeSearchResultProperties, "search_backend")
+	if got, want := codeSearchBackend["type"], "string"; got != want {
+		t.Fatalf("CodeSearchResult.search_backend.type = %#v, want %#v", got, want)
+	}
+	searchBackendEnum, ok := codeSearchBackend["enum"].([]any)
+	if !ok || len(searchBackendEnum) != 1 || searchBackendEnum[0] != "hybrid" {
+		t.Fatalf("CodeSearchResult.search_backend.enum = %#v, want [hybrid]", codeSearchBackend["enum"])
+	}
+	entityContentProperties := mustMapField(t, mustMapField(t, schemas, "EntityContent"), "properties")
+	if _, present := entityContentProperties["search_backend"]; present {
+		t.Fatal("EntityContent must not advertise the code-search-only search_backend marker")
+	}
 
 	symbolSearchPath := mustMapField(t, paths, "/api/v0/code/symbols/search")
 	symbolSearchPost := mustMapField(t, symbolSearchPath, "post")

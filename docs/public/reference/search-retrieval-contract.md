@@ -162,9 +162,17 @@ graph write, and it does not enable whole-graph search.
 
 `go/internal/query.CodeHybridRanker` reorders the lexical `find_code`
 (`POST /api/v0/code/search`) content-fallback results by fused BM25 + vector
-relevance using the shared semantic-search embedder. It closes the gap where the
-shipped embedder and in-process hybrid backend were never read at the
-`find_code` query surface.
+relevance. It closes the gap where the in-process hybrid backend was never read
+at the `find_code` query surface.
+
+Embedding on this path is confined to a process-local deterministic hash
+embedder (`searchembed.HashEmbedder`). The ranker MUST NOT use the runtime's
+governed semantic-search provider embedder: that embedder POSTs text to an
+external endpoint, so embedding the request-local `source_cache` rows through it
+would egress source snippets and block on the provider HTTP timeout per result,
+ignoring client cancellation and bypassing the semantic policy / document-vector
+readiness path. The local embedder keeps all source text inside the process,
+and the embedder is not injectable, so a provider embedder cannot reach it.
 
 The ranker:
 
@@ -172,21 +180,25 @@ The ranker:
   a bounded result set (capped by the request limit); it never widens the
   candidate set, issues no graph or Postgres read, and builds a fresh in-memory
   `searchhybrid.Index` over only those request-local rows;
+- embeds documents and the query with the process-local hash embedder only — no
+  network call, no source-text egress;
 - projects each result row through `searchdocs.ProjectContentEntity`, so the
   searchable text, truth labels, and graph handles match the persisted
   search-document lane;
 - ranks repository-scoped `hybrid` mode (BM25 fused with vector cosine via RRF)
   and reorders the existing rows by fused rank, tagging reordered rows with
   `search_backend=hybrid`;
+- bounds the pass with a context timeout derived from the caller's context and
+  returns the lexical order unchanged if the caller's context is already done;
 - preserves the lexical order and lexical `content_index` truth basis unchanged
-  when it cannot fuse a signal: no embedder configured, fewer than two results,
-  or no projectable document. It never drops, adds, or relabels a row as
-  canonical truth.
+  when it cannot fuse a signal: disabled, fewer than two results, or no
+  projectable document. It never drops, adds, or relabels a row as canonical
+  truth.
 
-The ranker is wired only when the runtime's semantic-search embedder is enabled;
-content-only deployments keep the lexical content order. The exact-match
-(`exact=true`) symbol path is left lexical because it is an identity lookup, not
-a relevance ranking.
+The ranker is wired (with its own local embedder) only when the runtime's
+semantic search is enabled; content-only deployments keep the lexical content
+order. The exact-match (`exact=true`) symbol path is left lexical because it is
+an identity lookup, not a relevance ranking.
 
 Performance Evidence: the re-rank is CPU-only over at most the request limit of
 request-local documents (default 50, hard cap 100 in the ranker), with BM25

@@ -12,10 +12,9 @@ import (
 )
 
 // TestCodeSearchContentResultsAreHybridReranked proves the find_code content
-// path reorders lexical results by vector/hybrid relevance once a hybrid ranker
-// is wired in. Without the ranker the handler preserves the content store order;
-// with it, the result whose source text is semantically closest to the query
-// must rank first even though both entities match the lexical pattern equally.
+// path reorders lexical results by vector/hybrid relevance. The result whose
+// source text is semantically closest to the query must rank first even though
+// both entities match the lexical pattern equally.
 func TestCodeSearchContentResultsAreHybridReranked(t *testing.T) {
 	t.Parallel()
 
@@ -48,10 +47,6 @@ func TestCodeSearchContentResultsAreHybridReranked(t *testing.T) {
 		},
 	}
 
-	embedder, err := searchembed.NewHashEmbedder(searchembed.DefaultDimensions)
-	if err != nil {
-		t.Fatalf("NewHashEmbedder() error = %v", err)
-	}
 	// A graph reader that returns no name matches forces the content fallback,
 	// which is the path find_code uses for full-text relevance ranking.
 	emptyGraph := fakeGraphReader{
@@ -63,7 +58,7 @@ func TestCodeSearchContentResultsAreHybridReranked(t *testing.T) {
 		Neo4j:        emptyGraph,
 		Content:      content,
 		Profile:      ProfileLocalAuthoritative,
-		HybridRanker: NewCodeHybridRanker(embedder),
+		HybridRanker: NewCodeHybridRanker(true),
 	}
 
 	req := httptest.NewRequest(
@@ -102,10 +97,39 @@ func TestCodeSearchContentResultsAreHybridReranked(t *testing.T) {
 	}
 }
 
+// TestCodeHybridRerankNeverInvokesProviderEmbedder proves the re-rank path never
+// embeds source text through a provider embedder. The ranker owns a
+// deterministic local hash embedder that is not injectable, so a governed
+// provider embedder (which POSTs text to an external endpoint) cannot reach this
+// path and no result row's source body can egress. The test asserts the embedder
+// the ranker uses is the local hash embedder, then runs a real re-rank with
+// source bodies present to prove embedding stays in-process: it completes with
+// no HTTP server, which a provider embedder could not.
+func TestCodeHybridRerankNeverInvokesProviderEmbedder(t *testing.T) {
+	t.Parallel()
+
+	ranker := NewCodeHybridRanker(true)
+	if _, ok := ranker.localEmbedder.(*searchembed.HashEmbedder); !ok {
+		t.Fatalf("ranker.localEmbedder = %T, want *searchembed.HashEmbedder (no provider egress)", ranker.localEmbedder)
+	}
+
+	results := []map[string]any{
+		{"entity_id": "entity-a", "entity_name": "Alpha", "repo_id": "repo-team-a", "source_cache": "alpha refund payment body"},
+		{"entity_id": "entity-b", "entity_name": "Beta", "repo_id": "repo-team-a", "source_cache": "beta refund payment body"},
+	}
+	reranked, applied := ranker.Rerank(context.Background(), "repo-team-a", "refund payment", results)
+	if !applied {
+		t.Fatal("Rerank applied = false, want true (local re-rank should run)")
+	}
+	if len(reranked) != 2 {
+		t.Fatalf("Rerank dropped rows: %#v", reranked)
+	}
+}
+
 // TestCodeSearchHybridRerankFallsBackToLexicalOrder proves the re-rank pass is a
-// deterministic no-op at its bounded edges: when no embedder is configured
-// (vectors unavailable) and when there is nothing to reorder. In both cases the
-// lexical input order and length are preserved exactly.
+// deterministic no-op at its bounded edges: when it is disabled and when there
+// is nothing to reorder. In both cases the lexical input order and length are
+// preserved exactly.
 func TestCodeSearchHybridRerankFallsBackToLexicalOrder(t *testing.T) {
 	t.Parallel()
 
@@ -114,24 +138,19 @@ func TestCodeSearchHybridRerankFallsBackToLexicalOrder(t *testing.T) {
 		{"entity_id": "entity-b", "entity_name": "Beta", "repo_id": "repo-team-a", "source_cache": "beta"},
 	}
 
-	// No embedder: hybrid ranking degenerates to lexical; the ranker must report
-	// it did not change the ranking input so the caller keeps the lexical basis.
-	noVector := NewCodeHybridRanker(nil)
-	reranked, applied := noVector.Rerank(context.Background(), "repo-team-a", "alpha", results)
+	// Disabled ranker: the caller keeps the lexical order and basis unchanged.
+	disabled := NewCodeHybridRanker(false)
+	reranked, applied := disabled.Rerank(context.Background(), "repo-team-a", "alpha", results)
 	if applied {
-		t.Fatal("Rerank applied = true with nil embedder, want false")
+		t.Fatal("Rerank applied = true when disabled, want false")
 	}
 	if len(reranked) != 2 || reranked[0]["entity_id"] != "entity-a" || reranked[1]["entity_id"] != "entity-b" {
-		t.Fatalf("Rerank reordered or dropped rows without an embedder: %#v", reranked)
+		t.Fatalf("Rerank reordered or dropped rows when disabled: %#v", reranked)
 	}
 
 	// Single result: nothing to reorder, so the pass is skipped.
-	embedder, err := searchembed.NewHashEmbedder(searchembed.DefaultDimensions)
-	if err != nil {
-		t.Fatalf("NewHashEmbedder() error = %v", err)
-	}
 	single := []map[string]any{{"entity_id": "entity-a", "repo_id": "repo-team-a", "source_cache": "alpha"}}
-	_, applied = NewCodeHybridRanker(embedder).Rerank(context.Background(), "repo-team-a", "alpha", single)
+	_, applied = NewCodeHybridRanker(true).Rerank(context.Background(), "repo-team-a", "alpha", single)
 	if applied {
 		t.Fatal("Rerank applied = true for single result, want false")
 	}
