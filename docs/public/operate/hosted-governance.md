@@ -280,11 +280,30 @@ scripts/verify-hosted-governance-negative-leakage-proof.sh \
 ```
 
 The manifest references operator-local artifacts for facts, logs, metric
-labels, status errors, graph properties, API bodies, MCP bodies, audit events,
-generated docs, and onboarding artifacts. It also declares the synthetic
-canaries that must not appear in any referenced artifact. The verifier writes
-only surface names, record counts, byte counts, line counts, SHA-256 digests,
-and pass/fail status.
+labels, status errors, graph properties, API bodies, MCP bodies, console
+surfaces, audit events, generated docs, and onboarding artifacts. It also
+declares the synthetic canaries that must not appear in any referenced
+artifact. The verifier writes only surface names, record counts, byte counts,
+line counts, SHA-256 digests, and pass/fail status.
+
+Run the auth-audit and revocation proof after collecting aggregate counts from
+the private audit sink and revocation checks:
+
+```bash
+scripts/test-verify-hosted-auth-audit-proof.sh
+scripts/verify-hosted-auth-audit-proof.sh \
+  --input auth-audit-proof.json \
+  --output-json auth-audit-proof.summary.json \
+  --output-markdown auth-audit-proof.summary.md
+```
+
+The manifest must include login/MFA, session and token lifecycle, IdP config,
+role/grant changes, denied reads, tenant switches, sensitive-data access,
+Ask/search runs, exports, bootstrap, break-glass, audit-read, and API/MCP
+authentication event families. Ordinary reads stay in structured telemetry
+unless they touch a sensitive-data or export boundary. The verifier also checks
+that Eshu-owned sessions and tokens revoke immediately and that external group
+membership changes refresh inside a bounded public-safe window.
 
 ## Operator Runbooks
 
@@ -431,6 +450,8 @@ closed rather than running without isolation.
       "tenant_id": "team-payments",
       "workspace_id": "team-payments",
       "subject_class": "team_token",
+      "subject_id_hash": "sha256:9f86d081884c7d65",
+      "policy_revision_hash": "sha256:e3b0c44298fc1c14",
       "all_scopes": false,
       "allowed_scope_ids": ["git-repository-scope:acme/payments"],
       "allowed_repository_ids": ["repo://acme/payments"]
@@ -438,6 +459,10 @@ closed rather than running without isolation.
   ]
 }
 ```
+
+Optional `subject_id_hash` and `policy_revision_hash` fields must be `sha256:`
+hashes when set. They are safe audit correlation fields, not places for raw
+subjects, emails, tenant names, policy bodies, or issue links.
 
 Operator lifecycle:
 
@@ -579,6 +604,7 @@ Use these gates for hosted governance-related changes:
 | Hosted governance proof artifact | `scripts/test-verify-hosted-governance-proof-artifact.sh`, `scripts/verify-hosted-governance-proof-artifact.sh --input governance-proof.json --output-json governance-proof.summary.json --output-markdown governance-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance Helm proof | `scripts/test-verify-hosted-governance-helm-proof.sh`, `scripts/verify-hosted-governance-helm-proof.sh --out-dir .proof/governance-helm --values values.eshu.yaml`, `helm lint deploy/helm/eshu -f values.eshu.yaml`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance negative leakage proof | `scripts/test-verify-hosted-governance-negative-leakage-proof.sh`, `scripts/verify-hosted-governance-negative-leakage-proof.sh --manifest leakage-proof.json --output-json leakage-proof.summary.json --output-markdown leakage-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
+| Hosted auth audit and revocation proof | `scripts/test-verify-hosted-auth-audit-proof.sh`, `scripts/verify-hosted-auth-audit-proof.sh --input auth-audit-proof.json --output-json auth-audit-proof.summary.json --output-markdown auth-audit-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
 | Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/storage/postgres ./internal/query ./cmd/api ./cmd/mcp-server -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
 | Hosted extension egress claim gate | `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |

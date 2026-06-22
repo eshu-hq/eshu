@@ -2,9 +2,9 @@
 
 Hosted governance uses `go/internal/redact.HostedGovernanceRegistry` as the
 central redaction matrix for optional provider, collector, extension, API, MCP,
-audit, status, docs, and onboarding surfaces. Source-specific packages still own
-their provider schemas and sensitive-key lists; the registry defines the shared
-negative-leakage contract those packages must satisfy.
+console, audit, status, docs, and onboarding surfaces. Source-specific packages
+still own their provider schemas and sensitive-key lists; the registry defines
+the shared negative-leakage contract those packages must satisfy.
 
 ## Surface Matrix
 
@@ -16,6 +16,7 @@ negative-leakage contract those packages must satisfy.
 | Status errors | same forbidden classes | credential source kind, credential reference, provider profile id, source class, tenant/workspace id, actor class, reason code, policy state, redaction marker, collector kind |
 | Graph properties | same forbidden classes | credential source kind, provider profile id, source class, tenant/workspace id, actor class, reason code, policy state, redaction marker, collector kind |
 | API/MCP bodies | same forbidden classes | credential source kind, credential reference, provider profile id, source class, tenant/workspace id, actor class, reason code, policy state, redaction marker, collector kind |
+| Console surfaces | same forbidden classes | credential source kind, credential reference, provider profile id, source class, tenant/workspace id, actor class, reason code, policy state, redaction marker, collector kind |
 | Audit events | same forbidden classes | credential source kind, credential reference, provider profile id, source class, tenant/workspace id, actor class, reason code, policy state, redaction marker, collector kind |
 | Docs examples | same forbidden classes | credential source kind, provider profile id, source class, tenant/workspace id, actor class, reason code, policy state, redaction marker, collector kind |
 | Onboarding artifacts | same forbidden classes | credential source kind, credential reference, provider profile id, source class, tenant/workspace id, actor class, reason code, policy state, redaction marker, collector kind |
@@ -52,9 +53,9 @@ scripts/verify-hosted-governance-negative-leakage-proof.sh \
 ```
 
 The manifest must cover facts, logs, metric labels, status errors, graph
-properties, API bodies, MCP bodies, audit events, generated docs, and onboarding
-artifacts. Referenced files stay local to the operator proof environment; the
-summary records only counts and SHA-256 digests.
+properties, API bodies, MCP bodies, console surfaces, audit events, generated
+docs, and onboarding artifacts. Referenced files stay local to the operator
+proof environment; the summary records only counts and SHA-256 digests.
 
 Registry canaries are not production secrets and are not a replacement for
 source-specific fixtures. Cloud, Terraform, semantic, plugin, API, MCP, and

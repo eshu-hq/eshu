@@ -35,6 +35,50 @@ func TestNormalizeEventAcceptsSafeDecision(t *testing.T) {
 	}
 }
 
+func TestNormalizeEventAcceptsRequiredAuthAuditFamilies(t *testing.T) {
+	t.Parallel()
+
+	eventTypes := []governanceaudit.EventType{
+		governanceaudit.EventTypeAPIMCPAuthentication,
+		governanceaudit.EventTypeIdentityAuthentication,
+		governanceaudit.EventTypeMFALifecycle,
+		governanceaudit.EventTypeSessionLifecycle,
+		governanceaudit.EventTypeTokenLifecycle,
+		governanceaudit.EventTypeIDPConfigChange,
+		governanceaudit.EventTypeRoleGrantChange,
+		governanceaudit.EventTypeReadAuthorization,
+		governanceaudit.EventTypeTenantSwitch,
+		governanceaudit.EventTypeSensitiveDataAccess,
+		governanceaudit.EventTypeAskSearchRun,
+		governanceaudit.EventTypeExport,
+		governanceaudit.EventTypeBootstrap,
+		governanceaudit.EventTypeBreakGlass,
+		governanceaudit.EventTypeAuditRead,
+	}
+
+	for _, eventType := range eventTypes {
+		eventType := eventType
+		t.Run(string(eventType), func(t *testing.T) {
+			t.Parallel()
+
+			_, err := governanceaudit.NormalizeEvent(governanceaudit.Event{
+				Type:               eventType,
+				ActorClass:         governanceaudit.ActorClassScopedToken,
+				ActorIDHash:        "sha256:abcdef1234567890",
+				ScopeClass:         governanceaudit.ScopeClassAdmin,
+				Decision:           governanceaudit.DecisionAllowed,
+				ReasonCode:         "allowed",
+				CorrelationID:      "corr:auth-audit-coverage",
+				PolicyRevisionHash: "sha256:1111222233334444",
+				OccurredAt:         time.Date(2026, 6, 21, 23, 0, 0, 0, time.UTC),
+			})
+			if err != nil {
+				t.Fatalf("NormalizeEvent(%q) error = %v, want nil", eventType, err)
+			}
+		})
+	}
+}
+
 func TestNormalizeEventRejectsUnsafeValues(t *testing.T) {
 	t.Parallel()
 

@@ -21,6 +21,8 @@ const (
 	SurfaceGraphProperties Surface = "graph_properties"
 	// SurfaceAPIMCPBodies covers HTTP API and MCP response bodies.
 	SurfaceAPIMCPBodies Surface = "api_mcp_bodies"
+	// SurfaceConsoleSurfaces covers browser console and dashboard payloads.
+	SurfaceConsoleSurfaces Surface = "console_surfaces"
 	// SurfaceAuditEvents covers hosted governance audit event payloads.
 	SurfaceAuditEvents Surface = "audit_events"
 	// SurfaceDocsExamples covers checked-in public or internal documentation.
@@ -132,6 +134,7 @@ func HostedGovernanceRegistry() Registry {
 			policy(SurfaceStatusErrors, forbidden, append(commonSafe, SafeCredentialReference)),
 			policy(SurfaceGraphProperties, forbidden, commonSafe),
 			policy(SurfaceAPIMCPBodies, forbidden, append(commonSafe, SafeCredentialReference)),
+			policy(SurfaceConsoleSurfaces, forbidden, append(commonSafe, SafeCredentialReference)),
 			policy(SurfaceAuditEvents, forbidden, append(commonSafe, SafeCredentialReference)),
 			policy(SurfaceDocsExamples, forbidden, commonSafe),
 			policy(SurfaceOnboardingArtifacts, forbidden, append(commonSafe, SafeCredentialReference)),

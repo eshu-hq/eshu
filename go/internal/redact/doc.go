@@ -8,5 +8,5 @@
 // types by hashing their type class instead of serializing raw values. The
 // hosted registry names allowed low-cardinality field classes and forbidden
 // synthetic canaries for facts, logs, metrics, status, graph, API/MCP, audit,
-// docs, and onboarding surfaces.
+// console, docs, and onboarding surfaces.
 package redact

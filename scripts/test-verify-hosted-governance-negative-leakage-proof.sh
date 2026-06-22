@@ -21,6 +21,7 @@ surfaces=(
 	graph_properties
 	api_bodies
 	mcp_bodies
+	console_surfaces
 	audit_events
 	generated_docs
 	onboarding_artifacts
@@ -55,6 +56,7 @@ EOF
 				{surface: "graph_properties", artifact: "artifacts/graph_properties.txt", record_count: 2},
 				{surface: "api_bodies", artifact: "artifacts/api_bodies.txt", record_count: 2},
 				{surface: "mcp_bodies", artifact: "artifacts/mcp_bodies.txt", record_count: 2},
+				{surface: "console_surfaces", artifact: "artifacts/console_surfaces.txt", record_count: 2},
 				{surface: "audit_events", artifact: "artifacts/audit_events.txt", record_count: 2},
 				{surface: "generated_docs", artifact: "artifacts/generated_docs.txt", record_count: 2},
 				{surface: "onboarding_artifacts", artifact: "artifacts/onboarding_artifacts.txt", record_count: 2}
@@ -76,9 +78,9 @@ expect_pass() {
 	jq -e '
 		.status == "pass" and
 		.proof_id == "negative-leakage-proof-test" and
-		.surface_count == 10 and
 		.canary_count == 2 and
-		(.surfaces | length == 10) and
+		.surface_count == 11 and
+		(.surfaces | length == 11) and
 		([.surfaces[].artifact_sha256 | type == "string" and length == 64] | all)
 	' "${out_json}" >/dev/null || {
 		printf 'expected public-safe summary fields for %s\n' "${label}" >&2

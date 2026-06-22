@@ -66,6 +66,8 @@ if [[ "${list_only}" == "true" ]]; then
 		"go test ./internal/mcp -run '${mcp_pattern}' -count=1"
 	print_step "hosted governance retention-state proof self-test" \
 		"scripts/test-verify-hosted-governance-retention-proof.sh"
+	print_step "hosted auth audit and revocation proof self-test" \
+		"scripts/test-verify-hosted-auth-audit-proof.sh"
 	print_step "two-team scoped cross-scope denial proof verifier self-test" \
 		"scripts/test-verify-two-team-governance-proof.sh"
 	print_step "live K8s two-team scoped cross-scope denial proof verifier self-test" \
@@ -106,6 +108,8 @@ run_step "hosted security posture verifier self-test" \
 	bash "${repo_root}/scripts/test-verify-hosted-security-posture.sh"
 run_step "hosted governance retention-state proof self-test" \
 	bash "${repo_root}/scripts/test-verify-hosted-governance-retention-proof.sh"
+run_step "hosted auth audit and revocation proof self-test" \
+	bash "${repo_root}/scripts/test-verify-hosted-auth-audit-proof.sh"
 run_step "two-team scoped cross-scope denial proof verifier self-test" \
 	bash "${repo_root}/scripts/test-verify-two-team-governance-proof.sh"
 run_step "live K8s two-team scoped cross-scope denial proof verifier self-test" \

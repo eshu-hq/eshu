@@ -31,10 +31,11 @@ type Entry struct {
 	TenantID    string `json:"tenant_id"`
 	WorkspaceID string `json:"workspace_id"`
 	// SubjectClass and SubjectIDHash are low-cardinality, non-identifying
-	// labels carried into governance audit; they never hold raw identities.
+	// labels carried into governance audit. SubjectIDHash must be a sha256:
+	// hash when set and must never hold a raw identity.
 	SubjectClass  string `json:"subject_class,omitempty"`
 	SubjectIDHash string `json:"subject_id_hash,omitempty"`
-	// PolicyRevisionHash pins the grant to a policy revision for audit.
+	// PolicyRevisionHash pins the grant to a sha256: policy revision for audit.
 	PolicyRevisionHash string `json:"policy_revision_hash,omitempty"`
 	// AllScopes marks an admin-equivalent scoped token that reads every scope.
 	// When false the token may read only AllowedScopeIDs/AllowedRepositoryIDs.
@@ -115,7 +116,33 @@ func (e Entry) normalize() (string, query.AuthContext, error) {
 		AllowedScopeIDs:      append([]string(nil), e.AllowedScopeIDs...),
 		AllowedRepositoryIDs: append([]string(nil), e.AllowedRepositoryIDs...),
 	}
+	if !validOptionalAuditHash(auth.SubjectIDHash) {
+		return "", query.AuthContext{}, fmt.Errorf("subject_id_hash must be a sha256 hash when set")
+	}
+	if !validOptionalAuditHash(auth.PolicyRevisionHash) {
+		return "", query.AuthContext{}, fmt.Errorf("policy_revision_hash must be a sha256 hash when set")
+	}
 	return hash, auth, nil
+}
+
+func validOptionalAuditHash(value string) bool {
+	if value == "" {
+		return true
+	}
+	const prefix = "sha256:"
+	if !strings.HasPrefix(value, prefix) {
+		return false
+	}
+	hash := strings.TrimPrefix(value, prefix)
+	if len(hash) < 8 || len(hash) > sha256HexLen {
+		return false
+	}
+	for _, r := range hash {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // ResolveScopedToken hashes the presented credential and returns the matching

@@ -39,7 +39,8 @@ does not persist raw input or emit telemetry.
   Decision` — returns `preserve`, `redact`, or `drop` for a field path.
 - `HostedGovernanceRegistry() Registry` — returns the central hosted
   redaction matrix for facts, logs, metric labels, status, graph properties,
-  API/MCP bodies, audit events, docs examples, and onboarding artifacts.
+  API/MCP bodies, console surfaces, audit events, docs examples, and onboarding
+  artifacts.
 - `Registry.AssertNoForbiddenCanary(surface, payload)` — checks a payload for
   synthetic sensitive canaries without echoing the leaked value in errors.
 - `Registry.IsSafeClass(surface, class)` — reports whether a bounded field
