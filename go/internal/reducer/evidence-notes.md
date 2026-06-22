@@ -310,3 +310,46 @@ and `written`/`considered` to confirm bounded work; note that `duration_seconds`
 now reflects the full streamed cycle while peak memory and per-page latency are
 bounded. No new metric name, label, queue domain, worker, lease, or runtime knob
 was added.
+
+## Refresh-First Intent Dedup Ordering (#3451)
+
+Performance Evidence: baseline — `shared_projection_intents` for domains
+`inheritance_edges` and `sql_relationships` accumulated 15,031 pending intents
+(12,227 + 2,804) that were flat for an extended period. The root cause:
+`LatestIntentsByRepoAndPartition` in `shared_projection_batch_selection.go`
+re-sorted deduplicated candidates by `(created_at ASC, intent_id)` only,
+discarding the `is_refresh_intent DESC` primary ordering the SQL
+(`listPendingDomainPartitionIntentsSQL`) established in #3474. Refresh intents
+created after their paired edge intents ranked at positions 957–1,492 in a
+1,496-row partition. With `SelectPartitionBatch` truncating at 200 rows, all 66
+refresh intents for `inheritance_edges` and all 5 for `sql_relationships` were
+permanently excluded from every batch — the refresh fence never opened, per-edge
+rows remained deferred indefinitely, and `pending_projection` outstanding did not
+drain. After promoting `is_refresh_intent DESC` to the primary sort key in the
+in-memory comparator (darwin/arm64, local stack), all 66 `inheritance_edges`
+refresh intents completed within ~2 minutes of deploying the fixed image, and
+the pending count began dropping from 12,227 at a rate of ~500–1,000 intents per
+polling interval, confirming the fence opened and edge intents were being
+selected and written. Backend: Postgres 16 via `shared_projection_intents`
+table; input shape: 1,496-row partition for `(scope_id, repo_id)`,
+`is_refresh_intent` generated column from `payload->>'action'='refresh'`. The
+fix is a pure comparator change in the in-memory dedup step — zero SQL, zero
+schema, zero allocation change.
+
+No-Regression Evidence: `TestLatestIntentsByRepoAndPartitionKeepsRefreshFirst`
+was written first (red: `latest[0].IntentID` was `"edge-old"` before the fix,
+proving the refresh intent was buried). After promoting the refresh-first sort,
+the test is green (`latest[0].IntentID = "refresh"`). Full suite:
+`go test ./internal/reducer ./internal/storage/postgres -count=1` — 3,351 tests
+pass. `go vet ./internal/reducer/... ./internal/storage/postgres/...` clean.
+`golangci-lint run ./internal/reducer/... ./internal/storage/postgres/...`
+reports 0 issues.
+
+No-Observability-Change: `LatestIntentsByRepoAndPartition` is a pure in-memory
+dedup function. The fix changes only the `sort.SliceStable` comparator — no
+metric name, metric label, span name, log key, queue domain, worker, lease,
+runtime knob, graph write route, or Cypher statement was added, changed, or
+removed. Operators continue to observe this path via existing
+`pending_projection` outstanding counts, partition lease rows, reducer
+`processed_intents`/`blocked_readiness` cycle logs, and
+`selection_duration_seconds` instrumentation.
