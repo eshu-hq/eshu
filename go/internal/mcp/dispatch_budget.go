@@ -57,25 +57,39 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 }
 
 // estimateResponseBytes returns the serialized byte size the dispatch result
-// would occupy in the MCP response. The canonical envelope is the authoritative
-// wire shape, so it is measured when present; otherwise the plain value is
-// measured. A marshal failure yields 0, which fails open (no false positive
-// truncation) rather than refusing a payload that could not be sized.
+// would occupy in the MCP tools/call wire response. handleMessage emits the same
+// payload twice in a single mcpToolResult: once as the raw structuredContent
+// object and again, JSON-string-escaped, inside the resource.Text block. Sizing
+// only one copy lets a ~130-256 KiB payload clear a 256 KiB guard while shipping
+// ~2x that on the wire, defeating the dispatch budget. So both copies are
+// counted: the canonical envelope when present, otherwise the plain value.
+//
+// The structuredContent copy is the marshaled payload itself. The resource.Text
+// copy is that payload re-encoded as a JSON string, so its on-wire size is the
+// quoted length, which json.Marshal of the string reports exactly (including
+// surrounding quotes and any escaping). A marshal failure yields 0, which fails
+// open (no false-positive truncation) rather than refusing a payload that could
+// not be sized.
 func estimateResponseBytes(result *dispatchResult) int {
 	if result == nil {
 		return 0
 	}
-	var encoded []byte
-	var err error
+	var payload any
 	if result.Envelope != nil {
-		encoded, err = json.Marshal(result.Envelope)
+		payload = result.Envelope
 	} else {
-		encoded, err = json.Marshal(result.Value)
+		payload = result.Value
 	}
+	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return 0
 	}
-	return len(encoded)
+	quoted, err := json.Marshal(string(encoded))
+	if err != nil {
+		return 0
+	}
+	// structuredContent copy + resource.Text (JSON-string-escaped) copy.
+	return len(encoded) + len(quoted)
 }
 
 // estimateResponseTokens converts a serialized byte size into a conservative

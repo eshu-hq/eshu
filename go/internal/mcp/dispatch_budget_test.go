@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -47,6 +48,26 @@ func dispatchWithBudget(t *testing.T, handler http.Handler, budget int) (*dispat
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		dispatchOptions{responseByteBudget: budget},
 	)
+}
+
+// singleEnvelopeMarshalBytes returns the size of a single JSON marshal of the
+// handler's envelope, dispatched with the budget disabled so the payload is the
+// untrimmed wire envelope. It lets a test assert that one copy fits under a
+// budget, isolating the duplicate-copy accounting from raw payload size.
+func singleEnvelopeMarshalBytes(t *testing.T, handler http.Handler) int {
+	t.Helper()
+	result, err := dispatchWithBudget(t, handler, 0)
+	if err != nil {
+		t.Fatalf("dispatchWithBudget(budget=0) error = %v, want nil", err)
+	}
+	if result.Envelope == nil {
+		t.Fatal("expected a canonical envelope to size")
+	}
+	encoded, err := json.Marshal(result.Envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(envelope) error = %v, want nil", err)
+	}
+	return len(encoded)
 }
 
 func TestDispatchToolResponseOverBudgetReturnsBoundedEnvelope(t *testing.T) {
@@ -125,6 +146,43 @@ func TestDispatchToolZeroBudgetDisablesEnforcement(t *testing.T) {
 	}
 	if result.IsError {
 		t.Fatal("disabled-budget result must pass through unchanged (IsError=false)")
+	}
+}
+
+func TestDispatchToolResponseDoubledWireOverBudgetTrips(t *testing.T) {
+	t.Parallel()
+
+	// handleMessage serializes an envelope-backed result onto the wire twice:
+	// once as the embedded resource.Text block and again as StructuredContent.
+	// A response whose single envelope marshal sits in the 130-256 KiB band
+	// passes a naive single-marshal guard yet ships ~2x that on the wire. The
+	// budget must account for the duplicate copy and refuse it.
+	const budget = defaultToolResponseByteBudget // 256 KiB
+
+	// 300 rows * 512 bytes marshals to ~156 KiB once: comfortably under the
+	// 256 KiB budget and inside the 130-256 KiB danger band, so a naive
+	// single-marshal guard would wave it through. The doubled wire payload
+	// (resource.Text + structuredContent) lands near ~320 KiB and must be
+	// refused.
+	handler := bigRowsHandler(t, 300, 512)
+
+	result, err := dispatchWithBudget(t, handler, budget)
+	if err != nil {
+		t.Fatalf("dispatchToolWithOptions() error = %v, want nil", err)
+	}
+	// Guard the test's own premise: one marshal of this payload must sit under
+	// the budget, so the guard can only trip by counting the duplicate copy.
+	if single := singleEnvelopeMarshalBytes(t, handler); single >= budget {
+		t.Fatalf("test payload single marshal = %d bytes, must stay under %d to prove the duplicate-copy guard", single, budget)
+	}
+	if result.Envelope == nil || result.Envelope.Error == nil {
+		t.Fatalf("doubled wire payload over budget must trip the guard, got %#v", result)
+	}
+	if got, want := result.Envelope.Error.Code, errorCodeResponseOverBudget; got != want {
+		t.Fatalf("error code = %q, want %q", got, want)
+	}
+	if !result.IsError {
+		t.Fatal("over-budget result IsError = false, want true")
 	}
 }
 
