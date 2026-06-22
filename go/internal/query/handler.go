@@ -184,6 +184,7 @@ type APIRouter struct {
 	Ask                    *AskHandler
 	LocalIdentity          *LocalIdentityHandler
 	BrowserSessions        *BrowserSessionHandler
+	OIDCLogin              *OIDCLoginHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -204,6 +205,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.BrowserSessions != nil {
 		a.BrowserSessions.Mount(mux)
+	}
+	if a.OIDCLogin != nil {
+		a.OIDCLogin.Mount(mux)
 	}
 
 	// Repositories

@@ -35,6 +35,7 @@ type BrowserSessionCreateRecord struct {
 	SubjectIDHash        string
 	SubjectClass         string
 	PolicyRevisionHash   string
+	RoleIDs              []string
 	AllScopes            bool
 	AllowedScopeIDs      []string
 	AllowedRepositoryIDs []string
@@ -71,6 +72,7 @@ type BrowserSessionAuthResponse struct {
 	SubjectClass         string   `json:"subject_class,omitempty"`
 	SubjectIDHash        string   `json:"subject_id_hash,omitempty"`
 	PolicyRevisionHash   string   `json:"policy_revision_hash,omitempty"`
+	RoleIDs              []string `json:"role_ids,omitempty"`
 	AllScopes            bool     `json:"all_scopes"`
 	AllowedScopeIDs      []string `json:"allowed_scope_ids,omitempty"`
 	AllowedRepositoryIDs []string `json:"allowed_repository_ids,omitempty"`
@@ -103,15 +105,25 @@ func (h *BrowserSessionHandler) handleCreate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	h.issueBrowserSession(w, r, auth, http.StatusCreated)
+}
+
+func (h *BrowserSessionHandler) issueBrowserSession(
+	w http.ResponseWriter,
+	r *http.Request,
+	auth AuthContext,
+	status int,
+) (BrowserSessionResponse, bool) {
+	auth = normalizeAuthContext(auth)
 	sessionSecret, err := h.newSecret()
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
-		return
+		return BrowserSessionResponse{}, false
 	}
 	csrfSecret, err := h.newSecret()
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
-		return
+		return BrowserSessionResponse{}, false
 	}
 	now := h.now()
 	idleExpiresAt := now.Add(h.idleTimeout())
@@ -124,6 +136,7 @@ func (h *BrowserSessionHandler) handleCreate(w http.ResponseWriter, r *http.Requ
 		SubjectIDHash:        auth.SubjectIDHash,
 		SubjectClass:         auth.SubjectClass,
 		PolicyRevisionHash:   auth.PolicyRevisionHash,
+		RoleIDs:              append([]string(nil), auth.RoleIDs...),
 		AllScopes:            auth.AllScopes,
 		AllowedScopeIDs:      append([]string(nil), auth.AllowedScopeIDs...),
 		AllowedRepositoryIDs: append([]string(nil), auth.AllowedRepositoryIDs...),
@@ -135,11 +148,11 @@ func (h *BrowserSessionHandler) handleCreate(w http.ResponseWriter, r *http.Requ
 	}
 	if record.SessionHash == "" || record.CSRFTokenHash == "" {
 		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
-		return
+		return BrowserSessionResponse{}, false
 	}
 	if err := h.Store.CreateBrowserSession(r.Context(), record); err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
-		return
+		return BrowserSessionResponse{}, false
 	}
 
 	sessionAuth := auth
@@ -151,12 +164,16 @@ func (h *BrowserSessionHandler) handleCreate(w http.ResponseWriter, r *http.Requ
 		absoluteExpiresAt,
 		int(h.absoluteTimeout().Seconds()),
 	)
-	WriteJSON(w, http.StatusCreated, BrowserSessionResponse{
+	response := BrowserSessionResponse{
 		Auth:              browserSessionAuthResponse(sessionAuth),
 		CSRFToken:         csrfSecret,
 		IdleExpiresAt:     idleExpiresAt,
 		AbsoluteExpiresAt: absoluteExpiresAt,
-	})
+	}
+	if status > 0 {
+		WriteJSON(w, status, response)
+	}
+	return response, true
 }
 
 func (h *BrowserSessionHandler) handleCurrent(w http.ResponseWriter, r *http.Request) {
@@ -344,6 +361,7 @@ func browserSessionAuthResponse(auth AuthContext) BrowserSessionAuthResponse {
 		SubjectClass:         auth.SubjectClass,
 		SubjectIDHash:        auth.SubjectIDHash,
 		PolicyRevisionHash:   auth.PolicyRevisionHash,
+		RoleIDs:              append([]string(nil), auth.RoleIDs...),
 		AllScopes:            auth.AllScopes,
 		AllowedScopeIDs:      append([]string(nil), auth.AllowedScopeIDs...),
 		AllowedRepositoryIDs: append([]string(nil), auth.AllowedRepositoryIDs...),

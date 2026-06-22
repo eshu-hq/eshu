@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     subject_id_hash TEXT NOT NULL,
     subject_class TEXT NOT NULL,
     policy_revision_hash TEXT NOT NULL,
+    role_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     all_scopes BOOLEAN NOT NULL DEFAULT false,
     allowed_scope_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     allowed_repository_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -19,6 +20,9 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     FOREIGN KEY (tenant_id, workspace_id)
         REFERENCES workspaces(tenant_id, workspace_id) ON DELETE CASCADE
 );
+
+ALTER TABLE browser_sessions
+    ADD COLUMN IF NOT EXISTS role_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS browser_sessions_active_idx
     ON browser_sessions (

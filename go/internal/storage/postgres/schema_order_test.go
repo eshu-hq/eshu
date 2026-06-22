@@ -20,6 +20,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"scoped_api_tokens",
 	"identity_subjects",
 	"browser_sessions",
+	"identity_oidc_login",
 	"projection_decisions",
 	"admission_decisions",
 	"shared_projection_intents",

@@ -48,6 +48,10 @@ var coreEntries = []Entry{
 	// api
 	{Name: "ESHU_API_ADDR", Type: VarString, Default: ":8080", Subsystem: "api", Description: "API server listen address."},
 	{Name: "ESHU_API_KEY", Type: VarString, Subsystem: "api", Description: "Bearer token for API authentication."},
+	{Name: "ESHU_AUTH_OIDC_CONFIG_FILE", Type: VarString, Subsystem: "api", Description: "Path to an operator-managed OIDC login config file. When set and not disabled, the API enables backend Authorization Code login and reads provider/client/group-role mapping handles from this file."},
+	{Name: "ESHU_AUTH_OIDC_ENABLED", Type: VarBool, Default: "false", Subsystem: "api", Description: "Explicitly enables or disables backend OIDC login. Set true with ESHU_AUTH_OIDC_CONFIG_FILE to require OIDC startup config; set false to disable even when a config file is present."},
+	{Name: "ESHU_AUTH_OIDC_PROVIDER_ID", Type: VarString, Subsystem: "api", Description: "Optional default provider config id override for OIDC login. The id must reference a provider declared in ESHU_AUTH_OIDC_CONFIG_FILE."},
+	{Name: "ESHU_AUTH_OIDC_STATE_TTL", Type: VarDuration, Default: "10m", Subsystem: "api", Description: "OIDC login state and nonce lifetime. Explicit invalid durations fail API startup closed."},
 	{Name: "ESHU_AUTO_GENERATE_API_KEY", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, auto-generate and persist an API key if none is set."},
 	{Name: "ESHU_DISABLE_NEO4J", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, disable the graph backend entirely."},
 	{Name: "ESHU_HOME", Type: VarString, Subsystem: "api", Description: "Root directory for persisted API key and configuration (defaults to ~/.eshu)."},

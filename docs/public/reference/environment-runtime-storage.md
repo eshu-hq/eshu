@@ -16,6 +16,10 @@ local installer.
 | `ESHU_METRICS_ADDR` | `0.0.0.0:9464` | Go service runtimes | Prometheus metrics listen address. |
 | `ESHU_PPROF_ADDR` | unset | API, MCP, ingester, reducer, bootstrap-index, workflow coordinator, hosted collectors | Opt-in `net/http/pprof` endpoint. A bare port binds to `127.0.0.1`; include a host to expose elsewhere. |
 | `ESHU_API_ADDR` | `:8080` for `eshu-api` | API CLI service wrapper | API listen address for scripted service helpers. Prefer CLI flags for direct use. |
+| `ESHU_AUTH_OIDC_ENABLED` | `false` | API | Optional backend OIDC login switch. Set `true` with `ESHU_AUTH_OIDC_CONFIG_FILE` to require file-backed provider config at startup; set `false` to disable OIDC even when a config path is present. |
+| `ESHU_AUTH_OIDC_CONFIG_FILE` | unset | API | Operator-managed OIDC login config file. The file carries issuer URL, client id, redirect URL, optional client-secret file handle, provider defaults, and group-to-role/grant mappings. Do not store raw provider tokens or private deployment identifiers in repository files. |
+| `ESHU_AUTH_OIDC_PROVIDER_ID` | unset | API | Optional default provider config id override. Startup fails closed if the id does not reference a provider in `ESHU_AUTH_OIDC_CONFIG_FILE`. |
+| `ESHU_AUTH_OIDC_STATE_TTL` | `10m` | API | Lifetime for backend OIDC state and nonce records. Invalid durations fail API startup closed. |
 | `ESHU_MCP_TRANSPORT` | `http` | MCP server | MCP transport, `http` or `stdio`. |
 | `ESHU_MCP_ADDR` | `:8080` | MCP server | HTTP MCP listen address. |
 | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | API, MCP, reducer | Optional semantic provider profile registry. JSON must contain provider metadata, source classes, model id, optional `embedding_dimensions`, endpoint profile id, and credential handles only; raw provider keys are rejected for environment-variable credential sources and must not be committed. Status output reports redacted profile state, dimensions, and source-policy gating. API/MCP/reducer can also select exactly one governed `search_documents` profile for semantic-search embeddings. |

@@ -79,7 +79,10 @@ server-managed dashboard browser sessions from hash-only Postgres state.
 `BrowserSessionHandler` exchanges an explicit scoped credential with
 tenant/workspace context for HttpOnly session and readable CSRF cookies; shared
 API keys stay on the bearer path because they do not carry a tenant/workspace
-boundary.
+boundary. When `ESHU_AUTH_OIDC_CONFIG_FILE` is set and OIDC is not explicitly
+disabled, `wireAPI` also mounts a backend Authorization Code login flow that
+validates provider ID tokens, maps hashed external groups to Eshu role grants,
+and then issues the same browser-session cookies.
 
 The HTTP server listens on `ESHU_API_ADDR` (default `:8080`) with a
 10 s read-header timeout, 60 s write timeout, and 120 s idle timeout. On
@@ -163,6 +166,14 @@ See `doc.go` for the full godoc contract.
   context before falling back to the shared API key. Malformed registries fail
   startup closed. Dashboard browser-session creation requires this scoped
   context and never stores raw credentials or raw cookie values.
+- `ESHU_AUTH_OIDC_ENABLED`, `ESHU_AUTH_OIDC_CONFIG_FILE`,
+  `ESHU_AUTH_OIDC_PROVIDER_ID`, and `ESHU_AUTH_OIDC_STATE_TTL` — optional
+  backend OIDC login configuration. OIDC is disabled when unset; a config file
+  enables the `/api/v0/auth/oidc/login` and `/api/v0/auth/oidc/callback`
+  browser routes unless explicitly disabled. Invalid explicit provider ids or
+  state TTLs fail startup closed. The config file stores provider handles and
+  group-to-role mappings only; raw provider tokens are never persisted by the
+  API.
 - `ESHU_COMPONENT_HOME` plus `ESHU_COMPONENT_TRUST_MODE`,
   `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`,
   `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`,

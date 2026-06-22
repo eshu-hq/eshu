@@ -772,8 +772,10 @@ live in [evidence-notes.md](evidence-notes.md).
   a cached row for the requested file. This is not a Postgres error; the ingester
   has not yet written content for that scope.
 - `AuthMiddleware` (`auth.go`) skips auth only when the resolved token is empty
-  (dev mode) or the path is in `publicHTTPPaths`. Adding new public routes
-  requires updating the `publicHTTPPaths` map.
+  (dev mode) or the method/path is accepted by `publicHTTPRoute`. Adding new
+  public routes requires updating that helper. OIDC login and callback are exact
+  public GET routes; all data routes still require bearer or browser-session
+  auth.
 - Browser session routes (`browser_session_handler.go`) exchange an explicit
   scoped credential for host-scoped HttpOnly session and readable CSRF cookies.
   Middleware hashes cookie and CSRF secrets before resolver calls, then attaches

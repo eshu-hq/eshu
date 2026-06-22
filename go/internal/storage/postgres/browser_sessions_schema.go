@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     subject_id_hash TEXT NOT NULL,
     subject_class TEXT NOT NULL,
     policy_revision_hash TEXT NOT NULL,
+    role_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     all_scopes BOOLEAN NOT NULL DEFAULT false,
     allowed_scope_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     allowed_repository_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -22,6 +23,9 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     FOREIGN KEY (tenant_id, workspace_id)
         REFERENCES workspaces(tenant_id, workspace_id) ON DELETE CASCADE
 );
+
+ALTER TABLE browser_sessions
+    ADD COLUMN IF NOT EXISTS role_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS browser_sessions_active_idx
     ON browser_sessions (
@@ -42,6 +46,7 @@ INSERT INTO browser_sessions (
     subject_id_hash,
     subject_class,
     policy_revision_hash,
+    role_ids,
     all_scopes,
     allowed_scope_ids,
     allowed_repository_ids,
@@ -61,16 +66,17 @@ SELECT
     $5,
     $6,
     COALESCE(NULLIF($7, ''), ws.policy_revision_hash),
-    $8,
-    $9::jsonb,
+    $8::jsonb,
+    $9,
     $10::jsonb,
-    $11,
+    $11::jsonb,
     $12,
     $13,
     $14,
     $15,
     $16,
-    $16
+    $17,
+    $17
 FROM workspaces ws
 JOIN tenants ten ON ten.tenant_id = ws.tenant_id
 WHERE ws.tenant_id = $3
@@ -86,6 +92,7 @@ SET csrf_token_hash = EXCLUDED.csrf_token_hash,
     subject_id_hash = EXCLUDED.subject_id_hash,
     subject_class = EXCLUDED.subject_class,
     policy_revision_hash = EXCLUDED.policy_revision_hash,
+    role_ids = EXCLUDED.role_ids,
     all_scopes = EXCLUDED.all_scopes,
     allowed_scope_ids = EXCLUDED.allowed_scope_ids,
     allowed_repository_ids = EXCLUDED.allowed_repository_ids,
@@ -107,6 +114,7 @@ SELECT
     sess.subject_id_hash,
     sess.subject_class,
     sess.policy_revision_hash,
+    sess.role_ids,
     sess.all_scopes,
     sess.allowed_scope_ids,
     sess.allowed_repository_ids,
@@ -149,6 +157,7 @@ RETURNING
     sess.subject_id_hash,
     sess.subject_class,
     sess.policy_revision_hash,
+    sess.role_ids,
     sess.all_scopes,
     sess.allowed_scope_ids,
     sess.allowed_repository_ids,
@@ -169,6 +178,7 @@ SELECT
     active.subject_id_hash,
     active.subject_class,
     active.policy_revision_hash,
+    active.role_ids,
     active.all_scopes,
     active.allowed_scope_ids,
     active.allowed_repository_ids,
@@ -219,6 +229,7 @@ RETURNING
     sess.subject_id_hash,
     sess.subject_class,
     sess.policy_revision_hash,
+    sess.role_ids,
     sess.all_scopes,
     sess.allowed_scope_ids,
     sess.allowed_repository_ids,

@@ -121,9 +121,10 @@
 // break-glass proofs before storage calls; bootstrap and break-glass enablement
 // stay behind shared-operator auth, while public login, invite acceptance, and
 // break-glass session creation succeed only after the storage layer validates
-// active hashed credentials or recovery windows. Repository list and selector
-// canary routes apply these bounds before pagination, counts, ambiguity, and
-// not-found decisions so
+// active hashed credentials or recovery windows. OIDC login and callback routes
+// are exact public GET routes that complete provider validation before issuing
+// browser-session cookies. Repository list and selector canary routes apply
+// these bounds before pagination, counts, ambiguity, and not-found decisions so
 // out-of-scope repositories do not leak through metadata. Code search, entity
 // resolution, content read/search routes, evidence citation packets, entity
 // context reads, service/workload context or story reads, and service

@@ -28,6 +28,7 @@ type BrowserSessionRecord struct {
 	SubjectIDHash        string
 	SubjectClass         string
 	PolicyRevisionHash   string
+	RoleIDs              []string
 	AllScopes            bool
 	AllowedScopeIDs      []string
 	AllowedRepositoryIDs []string
@@ -89,6 +90,10 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 	if err != nil {
 		return err
 	}
+	roleIDs, err := marshalBrowserSessionStrings(record.RoleIDs)
+	if err != nil {
+		return err
+	}
 	result, err := s.db.ExecContext(
 		ctx,
 		createBrowserSessionQuery,
@@ -99,6 +104,7 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 		record.SubjectIDHash,
 		record.SubjectClass,
 		record.PolicyRevisionHash,
+		roleIDs,
 		record.AllScopes,
 		allowedScopes,
 		allowedRepositories,
@@ -258,6 +264,7 @@ func normalizeBrowserSessionRecord(record BrowserSessionRecord) BrowserSessionRe
 	record.SubjectIDHash = strings.TrimSpace(record.SubjectIDHash)
 	record.SubjectClass = strings.TrimSpace(record.SubjectClass)
 	record.PolicyRevisionHash = strings.TrimSpace(record.PolicyRevisionHash)
+	record.RoleIDs = cleanBrowserSessionStrings(record.RoleIDs)
 	record.AllowedScopeIDs = cleanBrowserSessionStrings(record.AllowedScopeIDs)
 	record.AllowedRepositoryIDs = cleanBrowserSessionStrings(record.AllowedRepositoryIDs)
 	record.IssuedAt = record.IssuedAt.UTC()
@@ -293,7 +300,7 @@ func validateBrowserSessionRecord(record BrowserSessionRecord) error {
 
 func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
 	var record BrowserSessionRecord
-	var allowedScopeBytes, allowedRepositoryBytes []byte
+	var roleIDBytes, allowedScopeBytes, allowedRepositoryBytes []byte
 	var revokedAt sql.NullTime
 	var csrfOK bool
 	if err := rows.Scan(
@@ -304,6 +311,7 @@ func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
 		&record.SubjectIDHash,
 		&record.SubjectClass,
 		&record.PolicyRevisionHash,
+		&roleIDBytes,
 		&record.AllScopes,
 		&allowedScopeBytes,
 		&allowedRepositoryBytes,
@@ -316,6 +324,10 @@ func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
 	); err != nil {
 		return BrowserSessionRecord{}, false, err
 	}
+	roleIDs, err := unmarshalBrowserSessionStrings(roleIDBytes)
+	if err != nil {
+		return BrowserSessionRecord{}, false, err
+	}
 	allowedScopeIDs, err := unmarshalBrowserSessionStrings(allowedScopeBytes)
 	if err != nil {
 		return BrowserSessionRecord{}, false, err
@@ -324,6 +336,7 @@ func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
 	if err != nil {
 		return BrowserSessionRecord{}, false, err
 	}
+	record.RoleIDs = roleIDs
 	record.AllowedScopeIDs = allowedScopeIDs
 	record.AllowedRepositoryIDs = allowedRepositoryIDs
 	record.RevokedAt = timeFromNull(revokedAt)
