@@ -33,9 +33,15 @@ var cppDirectInitializerTargetPattern = regexp.MustCompile(
 
 var cppBraceInitializerPattern = regexp.MustCompile(`(?s)=\s*\{([^{}]*)\}`)
 
-var cppNodeAddonRegistrationPattern = regexp.MustCompile(
-	`\b(?:NAPI_MODULE|NODE_MODULE|NODE_MODULE_CONTEXT_AWARE)\s*\([^,]+,\s*([A-Za-z_]\w*)`,
-)
+// cppNodeAddonMacros are the Node.js native-addon registration macros whose
+// second argument names the module initializer function. They are matched on
+// the call-expression callee identifier rather than scanned from raw source so
+// the initializer reference comes from the parsed AST.
+var cppNodeAddonMacros = map[string]struct{}{
+	"NAPI_MODULE":               {},
+	"NODE_MODULE":               {},
+	"NODE_MODULE_CONTEXT_AWARE": {},
+}
 
 type cppFunctionKey struct {
 	class string
@@ -53,13 +59,14 @@ func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, so
 	for _, mainFunction := range functionsByName["main"] {
 		appendCPPDeadCodeRootKind(mainFunction, cppMainFunctionRoot)
 	}
-	annotateCPPNodeAddonRoots(functionsByName, string(source))
+	annotateCPPNodeAddonInitRoots(functionsByName)
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_definition":
 			annotateCPPMethodRuntimeRoots(functionsByKey, functionsByName, node, source)
 		case "call_expression":
+			annotateCPPNodeAddonRegistrationRoot(functionsByName, node, source)
 			for _, argument := range cppCallArguments(node, source) {
 				for _, function := range functionsByName[argument] {
 					appendCPPDeadCodeRootKind(function, cppCallbackArgumentTarget)
@@ -71,19 +78,36 @@ func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, so
 	})
 }
 
-func annotateCPPNodeAddonRoots(functionsByName map[string][]map[string]any, source string) {
+func annotateCPPNodeAddonInitRoots(functionsByName map[string][]map[string]any) {
 	for _, name := range []string{"NAPI_MODULE_INIT", "NODE_MODULE_INIT"} {
 		for _, function := range functionsByName[name] {
 			appendCPPDeadCodeRootKind(function, cppNodeAddonEntrypointRoot)
 		}
 	}
-	for _, match := range cppNodeAddonRegistrationPattern.FindAllStringSubmatch(source, -1) {
-		if len(match) != 2 {
-			continue
-		}
-		for _, function := range functionsByName[strings.TrimSpace(match[1])] {
-			appendCPPDeadCodeRootKind(function, cppNodeAddonEntrypointRoot)
-		}
+}
+
+// annotateCPPNodeAddonRegistrationRoot marks the initializer named by a Node.js
+// addon registration macro such as NODE_MODULE(name, Init). The callee and the
+// initializer argument are read from the call-expression AST rather than a
+// raw-source scan, so only genuinely parsed registrations contribute roots.
+func annotateCPPNodeAddonRegistrationRoot(
+	functionsByName map[string][]map[string]any,
+	node *tree_sitter.Node,
+	source []byte,
+) {
+	functionNode := node.ChildByFieldName("function")
+	if functionNode == nil || functionNode.Kind() != "identifier" {
+		return
+	}
+	if _, ok := cppNodeAddonMacros[strings.TrimSpace(shared.NodeText(functionNode, source))]; !ok {
+		return
+	}
+	arguments := cppCallArgumentNames(node, source)
+	if len(arguments) < 2 {
+		return
+	}
+	for _, function := range functionsByName[arguments[1]] {
+		appendCPPDeadCodeRootKind(function, cppNodeAddonEntrypointRoot)
 	}
 }
 
@@ -304,6 +328,24 @@ func cppBraceInitializerTargets(initializer string) []string {
 		targets = append(targets, target)
 	}
 	return targets
+}
+
+// cppCallArgumentNames returns one entry per call argument in source order,
+// using the resolved identifier expression or an empty string when the argument
+// is not a bare identifier. Positions are preserved so callers can address a
+// specific argument slot such as the registration initializer.
+func cppCallArgumentNames(node *tree_sitter.Node, source []byte) []string {
+	argumentsNode := node.ChildByFieldName("arguments")
+	if argumentsNode == nil {
+		return nil
+	}
+	var arguments []string
+	cursor := argumentsNode.Walk()
+	defer cursor.Close()
+	for _, child := range argumentsNode.NamedChildren(cursor) {
+		arguments = append(arguments, cppDirectIdentifierExpression(shared.NodeText(&child, source)))
+	}
+	return arguments
 }
 
 func cppCallArguments(node *tree_sitter.Node, source []byte) []string {

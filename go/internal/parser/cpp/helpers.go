@@ -123,22 +123,6 @@ func cTypedefUnderlyingType(node *tree_sitter.Node, source []byte) string {
 	return strings.TrimSpace(shared.NodeText(typeNode, source))
 }
 
-func cTypedefUnderlyingTypeFromBlock(block string) string {
-	trimmed := strings.TrimSpace(block)
-	trimmed = strings.TrimPrefix(trimmed, "typedef")
-	if aliasIndex := strings.LastIndex(trimmed, "}"); aliasIndex >= 0 {
-		return strings.TrimSpace(trimmed[:aliasIndex+1])
-	}
-	if semicolonIndex := strings.LastIndex(trimmed, ";"); semicolonIndex >= 0 {
-		trimmed = strings.TrimSpace(trimmed[:semicolonIndex])
-	}
-	parts := strings.Fields(trimmed)
-	if len(parts) <= 1 {
-		return strings.TrimSpace(trimmed)
-	}
-	return strings.Join(parts[:len(parts)-1], " ")
-}
-
 func cLikeCallNameNode(node *tree_sitter.Node) *tree_sitter.Node {
 	if node == nil {
 		return nil

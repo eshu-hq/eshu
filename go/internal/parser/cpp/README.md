@@ -41,3 +41,31 @@ direct local header declarations can match implementations under namespace
 prefixes. It does not recurse through include graphs or resolve build targets,
 template instantiations, overload sets, broad virtual dispatch, dynamic symbol
 lookup, or external linkage.
+
+### Regex disposition (issue #3540)
+
+Two whole-source regex scans were converted to AST walks and removed:
+
+- `appendCTypedefAliasesFromSource` (whole-source typedef line scan) was deleted;
+  typedef aliases, structs, enums, and unions now come solely from tree-sitter
+  `type_definition` and `declaration` nodes, proven parity-identical on the C++
+  fixtures.
+- `cppNodeAddonRegistrationPattern` (whole-source `NODE_MODULE(...)` scan) was
+  replaced by `annotateCPPNodeAddonRegistrationRoot`, which walks
+  `call_expression` nodes, matches the callee identifier against
+  `cppNodeAddonMacros`, and reads the initializer from the second call argument.
+
+The remaining regexes are documented within-AST / external-text exceptions, not
+primary symbol extraction:
+
+- `cTypedefAliasPattern` is a fallback over a `type_definition` node's own text.
+- `cppQualifiedFunctionPattern`, `cppDirectInitializerTargetPattern`, and
+  `cppBraceInitializerPattern` operate on the text of an already-located
+  `function_definition` or `declaration` node.
+- `cppFreeHeaderPrototypePattern`, `cppClassBlockPattern`,
+  `cppClassMethodPrototypePattern`, and the comment-stripping patterns scan the
+  bytes of directly included local header files, which are intentionally not
+  tree-sitter parsed to keep cost bounded.
+- `cppFunctionPointerAliasPattern` builds an auxiliary name index of
+  function-pointer typedef/`using` aliases that gates the within-AST declaration
+  handling; it produces no symbol or edge directly.

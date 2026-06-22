@@ -61,7 +61,6 @@ func Parse(
 			appendCall(payload, cLikeCallNameNode(node.ChildByFieldName("function")), source, "cpp")
 		}
 	})
-	appendCTypedefAliasesFromSource(payload, string(source), "cpp")
 	annotateCPPDeadCodeRoots(payload, root, source)
 
 	sortSystemsPayload(
@@ -211,65 +210,4 @@ func cTypedefName(node *tree_sitter.Node, source []byte) string {
 		}
 	}
 	return ""
-}
-
-func appendCTypedefAliasesFromSource(payload map[string]any, source string, lang string) {
-	lines := strings.Split(source, "\n")
-	for lineIndex := 0; lineIndex < len(lines); lineIndex++ {
-		trimmed := strings.TrimSpace(lines[lineIndex])
-		if !strings.HasPrefix(trimmed, "typedef ") {
-			continue
-		}
-		bucket := ""
-		switch {
-		case strings.Contains(trimmed, "enum") && strings.Contains(trimmed, "{"):
-			bucket = "enums"
-		case strings.Contains(trimmed, "struct") && strings.Contains(trimmed, "{"):
-			bucket = "structs"
-		case strings.Contains(trimmed, "union") && strings.Contains(trimmed, "{"):
-			bucket = "unions"
-		}
-		if bucket == "" {
-			continue
-		}
-		block := trimmed
-		endIndex := lineIndex
-		for !strings.Contains(block, "}") && endIndex+1 < len(lines) {
-			endIndex++
-			block += " " + strings.TrimSpace(lines[endIndex])
-		}
-		if !strings.Contains(block, ";") {
-			for endIndex+1 < len(lines) && !strings.Contains(block, ";") {
-				endIndex++
-				block += " " + strings.TrimSpace(lines[endIndex])
-			}
-		}
-		if !strings.Contains(block, ";") {
-			continue
-		}
-		aliasPart := strings.TrimSpace(block[strings.LastIndex(block, "}")+1:])
-		aliasPart = strings.TrimSuffix(aliasPart, ";")
-		name := cTypedefAliasName(aliasPart)
-		if name == "" {
-			continue
-		}
-		if !bucketContainsName(payload, "typedefs", name) {
-			shared.AppendBucket(payload, "typedefs", map[string]any{
-				"name":        name,
-				"line_number": lineIndex + 1,
-				"end_line":    endIndex + 1,
-				"lang":        lang,
-				"type":        cTypedefUnderlyingTypeFromBlock(block),
-			})
-		}
-		if bucketContainsName(payload, bucket, name) {
-			continue
-		}
-		shared.AppendBucket(payload, bucket, map[string]any{
-			"name":        name,
-			"line_number": lineIndex + 1,
-			"end_line":    endIndex + 1,
-			"lang":        lang,
-		})
-	}
 }

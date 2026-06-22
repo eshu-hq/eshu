@@ -20,10 +20,16 @@ used by query and relationship code.
 ## Exported surface
 
 The godoc contract is in doc.go. Current exports are Metadata,
-AnsiblePlaybookHint, Parse, PreScan, PipelineMetadata, Metadata.Map,
-ExtractClassEntities, ExtractFunctionEntities, and
-ExtractFunctionCallEntities. Metadata carries SharedLibraries, PipelineCalls,
-ShellCommands, AnsiblePlaybookHints, EntryPoints, UseConfigd, and HasPreDeploy.
+AnsiblePlaybookHint, Parse, ParseWithParser, PreScan, PreScanWithParser,
+PipelineMetadata, and Metadata.Map. Metadata carries SharedLibraries,
+PipelineCalls, ShellCommands, AnsiblePlaybookHints, EntryPoints, UseConfigd,
+and HasPreDeploy.
+
+The lexical `ExtractClassEntities`, `ExtractFunctionEntities`, and
+`ExtractFunctionCallEntities` extractors were removed (issue #3540): class,
+method, and call entities are produced solely by the tree-sitter syntax index in
+`tree_sitter_syntax.go`, so the regex declaration scanner had no remaining
+production caller.
 
 ## Dependencies
 
@@ -51,13 +57,29 @@ function entities. Metadata extraction remains lexical because Jenkins shared
 library annotations, shell strings, and Ansible hints are bounded delivery
 evidence rather than Groovy syntax ownership.
 
-ExtractFunctionEntities marks declarative/scripted Jenkinsfiles with
+`ParseWithParser` marks declarative/scripted Jenkinsfiles with
 `groovy.jenkins_pipeline_entrypoint` when a top-level `pipeline {` or `node {`
 block is present, even when the file also declares helper functions. It marks
 `call` in `vars/*.groovy` shared-library files with
 `groovy.shared_library_call` for absolute and repository-relative paths. Those
 root kinds are metadata only; the parser does not resolve Groovy dynamic
 dispatch, closure delegates, or Jenkins shared library loading.
+
+### Within-AST / source-text regex exceptions (issue #3540)
+
+These retained regexes do not perform primary symbol or edge extraction, so they
+are documented exceptions rather than AST conversions:
+
+- `metadata.go` patterns (`@Library`, `library`, `pipeline*(`, `sh '...'`,
+  `ansible-playbook`, `entry_point:`, `use_configd:`, `pre_deploy:`) extract
+  Jenkins/Groovy delivery evidence from inside Groovy string literals and shell
+  command strings. Shell commands and Jenkins annotation arguments are not Groovy
+  syntax nodes, so there is no AST node to walk; the regex matches bounded
+  delivery hints, and Groovy metaprogramming stays a named exactness blocker.
+- `groovyJenkinsEntrypointPattern` (`entities.go`) detects the top-level
+  `pipeline {` / `node {` DSL idiom to attach a synthetic Jenkinsfile entrypoint
+  root. The opener is a DSL convention, not a distinct grammar node, so it is
+  matched on source text after the tree-sitter parse.
 
 Parse and PreScan use shared payload helpers so bucket shape and pre-scan
 ordering stay aligned with other language-owned parser packages. Metadata.Map
