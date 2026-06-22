@@ -382,6 +382,45 @@
   close a session within the call. Do not hold or share sessions across handler
   calls (`neo4j.go:50`).
 
+- **`analyze_infra_relationships` honors `relationship_type` (#3492)** —
+  `getRelationships` (`infra_relationship_filter.go`) decodes the optional
+  `relationship_type` and resolves it through `resolveInfraRelationshipTypes`'s
+  fixed allowlist (semantic MCP aliases `what_deploys` / `what_provisions` /
+  `module_consumers` / `who_consumes_xrd` plus canonical edge types such as
+  `DEPLOYS_FROM`, `USES_MODULE`). The resolved types render into the
+  `OPTIONAL MATCH (n)-[r:TYPE_A|TYPE_B]->(...)` pattern as an inline
+  relationship-type filter. An empty argument keeps the prior bare untyped
+  pattern (whole-relationship); an unrecognized value returns 400. Do not feed
+  free-text into the inline clause — only allowlisted edge-type names may render
+  there. Do not add an alias that maps to an edge type the graph does not write.
+
+  No-Regression Evidence: the filter narrows the single per-entity relationship
+  read; it neither widens the seed-node lookup nor adds a query. Baseline = the
+  pre-#3492 bare `OPTIONAL MATCH (n)-[r]->(target)` / `(source)-[r2]->(n)`
+  whole-relationship pattern; after = the same pattern with an inline
+  `[r:TYPE...]` relationship-type predicate. Backend NornicDB (default canonical
+  graph backend per AGENTS.md), Neo4j compatibility mode unaffected. Input shape:
+  one `RunSingle` anchored on `n.id = $entity_id`, returning two collected
+  relationship slices for a single entity; the filter can only shrink the matched
+  edge set, so terminal row/queue counts are unchanged or lower and no extra
+  round trip is added. The inline relationship-type predicate is index-served by
+  the NornicDB relationship-type index, the same shape the relationships-catalog
+  count/edge routes already rely on. Proof: `go test ./internal/query -run
+  'TestInfraRelationships|TestResolveInfraRelationshipTypes' -count=1` (filtered
+  vs unfiltered Cypher, scoped-token coexistence, 400 on unknown) and `go test
+  ./internal/query ./internal/mcp ./internal/relationships ./internal/telemetry
+  -count=1`.
+
+  Observability Evidence: the read now opens span `query.infra_relationships`
+  (`telemetry.SpanQueryInfraRelationships`, registered in
+  `telemetry/registry.go` and pinned by `telemetry.TestSpanNames`) carrying the
+  stable `http.route` / `eshu.capability` attributes plus a low-cardinality
+  `eshu.relationship_filter` attribute (`all` when unfiltered, else the
+  pipe-joined edge types) so an operator can confirm at 3 AM whether a
+  `relationship_type` argument narrowed the read. No new metric label is added;
+  the filter value is a span attribute, not a metric dimension, so cardinality
+  stays bounded.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`
