@@ -133,6 +133,29 @@ func ResolveGCPRelationshipRepoLinks(
 	return links
 }
 
+// hasSupportedGCPRelationshipFact reports whether envelopes contain at least one
+// live, supported gcp_cloud_relationship fact with both resource names and a
+// relationship type. It is the cheap O(envelopes) guard that lets callers skip
+// the O(catalog) matcher build when no GCP edge could resolve.
+func hasSupportedGCPRelationshipFact(envelopes []facts.Envelope) bool {
+	for i := range envelopes {
+		envelope := envelopes[i]
+		if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
+			continue
+		}
+		if gcpRelationshipSupportState(envelope) != gcpRelationshipSupported {
+			continue
+		}
+		if strings.TrimSpace(payloadString(envelope.Payload, "source_full_resource_name")) == "" ||
+			strings.TrimSpace(payloadString(envelope.Payload, "target_full_resource_name")) == "" ||
+			strings.TrimSpace(payloadString(envelope.Payload, "relationship_type")) == "" {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func gcpRelationshipSupportState(envelope facts.Envelope) string {
 	return strings.TrimSpace(payloadString(envelope.Payload, "support_state"))
 }
