@@ -40,7 +40,7 @@ describe("FindingsPage", () => {
       findings: [{
         id: "dead-1",
         type: "Dead code",
-        entity: "api-node-boats",
+        entity: "svc-catalog",
         title: "Unreferenced symbol unusedRoute",
         detail: "server/routes.ts · unused",
         truth: "derived",
@@ -54,7 +54,7 @@ describe("FindingsPage", () => {
         cvss: 8.1,
         kev: true,
         fixedVersion: "4.17.22",
-        services: ["api-node-boats"]
+        services: ["svc-catalog"]
       }]
     };
 
@@ -71,7 +71,7 @@ describe("FindingsPage", () => {
     );
     expect(screen.getAllByRole("link", { name: "Explore entity" })[0]).toHaveAttribute(
       "href",
-      "/explorer?q=api-node-boats"
+      "/explorer?q=svc-catalog"
     );
   });
 
@@ -82,7 +82,7 @@ describe("FindingsPage", () => {
       findings: [{
         id: "dead-1",
         type: "Dead code",
-        entity: "api-node-boats",
+        entity: "svc-catalog",
         title: "Unreferenced symbol unusedRoute",
         detail: "server/routes.ts · unused",
         truth: "derived",
@@ -96,7 +96,7 @@ describe("FindingsPage", () => {
         cvss: 8.1,
         kev: false,
         fixedVersion: null,
-        services: ["api-node-boats"]
+        services: ["svc-catalog"]
       }]
     };
 

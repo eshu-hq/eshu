@@ -73,7 +73,7 @@ function Repos({ data, onOpenService }) {
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>Repositories</h2><p>Every source repository Eshu has indexed. <strong>Groups</strong> clusters repos by system and draws the <span className="mono">@dmm/*</span> dependencies between them; <strong>Grid</strong> browses them like your Git host. Select a repo to inspect its tree, branches and graph footprint.</p></div>
+      <div className="page-intro"><h2>Repositories</h2><p>Every source repository Eshu has indexed. <strong>Groups</strong> clusters repos by system and draws the <span className="mono">@acme/*</span> dependencies between them; <strong>Grid</strong> browses them like your Git host. Select a repo to inspect its tree, branches and graph footprint.</p></div>
       <div className="repo-toolbar">
         <div className="searchbox" style={{ minWidth: 260, height: 38, margin: 0, flex: 1 }}><Icon.search size={16} /><input placeholder={view === "groups" ? "Find a group or repository…" : "Find a repository…"} value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="dep-toggle" style={{ margin: 0 }}>
@@ -216,7 +216,7 @@ function RepoDetail({ r, D, onBack, onOpenService }) {
           </div>
         ) : (
           <div style={{ padding: "16px var(--pad)" }}>
-            <p className="t-mut" style={{ fontSize: ".8rem", margin: "0 0 12px", lineHeight: 1.5 }}>Internal <span className="mono">@dmm/*</span> import graph rooted at <span className="mono">{r.name}</span> — every node is clickable to open that service, repeated branches collapse and cycles are flagged.</p>
+            <p className="t-mut" style={{ fontSize: ".8rem", margin: "0 0 12px", lineHeight: 1.5 }}>Internal <span className="mono">@acme/*</span> import graph rooted at <span className="mono">{r.name}</span> — every node is clickable to open that service, repeated branches collapse and cycles are flagged.</p>
             {svc ? <DepTree rootId={r.id} D={D} onOpenService={onOpenService} /> : <p className="empty">No dependency manifest indexed.</p>}
           </div>
         )}

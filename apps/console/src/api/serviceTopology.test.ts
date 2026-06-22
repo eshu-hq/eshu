@@ -8,24 +8,24 @@ const service: ServiceRow = {
   freshness: "fresh",
   id: "svc-api",
   kind: "service",
-  name: "api-node-boats",
-  repo: "boats/api-node-boats",
-  environments: ["bg-prod"],
+  name: "svc-catalog",
+  repo: "catalog/svc-catalog",
+  environments: ["acme-prod"],
   truth: "exact"
 };
 
 function trafficPath(overrides: Partial<ServiceTrafficPath> = {}): ServiceTrafficPath {
   return {
-    edge: "CloudFront distribution E2BGBOATS",
-    environment: "bg-prod",
+    edge: "CloudFront distribution E2EXAMPLE0001",
+    environment: "acme-prod",
     evidenceKind: "aws_cloudfront_distribution",
-    hostname: "www.boats.com",
-    origin: "origin-alb-boats",
-    reason: "CloudFront distribution E2BGBOATS",
-    runtime: "eks-bg-prod",
-    sourceRepo: "boats/api-node-boats",
+    hostname: "www.example.com",
+    origin: "origin-alb-catalog",
+    reason: "CloudFront distribution E2EXAMPLE0001",
+    runtime: "eks-acme-prod",
+    sourceRepo: "catalog/svc-catalog",
     visibility: "public",
-    workload: "api-node-boats",
+    workload: "svc-catalog",
     ...overrides
   };
 }
@@ -37,12 +37,12 @@ describe("buildServiceTopology", () => {
     expect(graph.meta.provenance).toBe("live");
     expect(graph.nodes.map((node) => node.label)).toEqual(
       expect.arrayContaining([
-        "www.boats.com",
-        "E2BGBOATS",
-        "origin-alb-boats",
-        "eks-bg-prod",
-        "api-node-boats",
-        "boats/api-node-boats"
+        "www.example.com",
+        "E2EXAMPLE0001",
+        "origin-alb-catalog",
+        "eks-acme-prod",
+        "svc-catalog",
+        "catalog/svc-catalog"
       ])
     );
     expect(graph.nodes.map((node) => node.label)).not.toContain("WAF web ACL");
@@ -69,16 +69,16 @@ describe("buildServiceTopology", () => {
           source_repo_id: "repository:iac",
           source_repo_name: "iac-eks-argocd",
           target_repo_id: "repository:service",
-          target_repo_name: "api-node-boats"
+          target_repo_name: "svc-catalog"
         },
         {
           artifact_family: "helm",
-          path: "charts/api-node-boats/Chart.yaml",
+          path: "charts/svc-catalog/Chart.yaml",
           relationship_type: "DEPLOYS_FROM",
           source_repo_id: "repository:helm",
           source_repo_name: "helm-charts",
           target_repo_id: "repository:service",
-          target_repo_name: "api-node-boats"
+          target_repo_name: "svc-catalog"
         }
       ],
       service,
@@ -88,7 +88,7 @@ describe("buildServiceTopology", () => {
     expect(graph.nodes.map((node) => node.label)).toEqual(expect.arrayContaining([
       "iac-eks-argocd",
       "helm-charts",
-      "api-node-boats"
+      "svc-catalog"
     ]));
     expect(graph.nodes.map((node) => node.label)).not.toContain("Delivery evidence");
     expect(graph.edges).toEqual(expect.arrayContaining([
@@ -103,12 +103,12 @@ describe("buildServiceTopology", () => {
     const graph = buildServiceTopology({
       deploymentArtifacts: [{
         artifact_family: "helm",
-        path: "charts/api-node-boats/Chart.yaml",
+        path: "charts/svc-catalog/Chart.yaml",
         relationship_type: "DEPLOYS_FROM",
         source_repo_id: "repository:helm",
         source_repo_name: "helm-charts",
         target_repo_id: "repository:service",
-        target_repo_name: "api-node-boats"
+        target_repo_name: "svc-catalog"
       }],
       service,
       trafficPaths: []
@@ -118,7 +118,7 @@ describe("buildServiceTopology", () => {
     expect(graph.nodes.map((node) => node.label)).toEqual(expect.arrayContaining([
       "Entry evidence pending",
       "helm-charts",
-      "api-node-boats"
+      "svc-catalog"
     ]));
     expect(graph.edges).toContainEqual(expect.objectContaining({
       s: "repository:service",
@@ -132,12 +132,12 @@ describe("buildServiceTopology", () => {
     const graph = buildServiceTopology({
       service: {
         ...service,
-        name: "api-node-salesforce-sync-with-extremely-long-production-name"
+        name: "svc-salesforce-sync-with-extremely-long-production-name"
       },
       trafficPaths: [
         trafficPath({
-          hostname: "api-node-salesforce-sync-with-extremely-long-production-name.internal.bg",
-          sourceRepo: "enterprise-platform/api-node-salesforce-sync-with-extremely-long-production-name"
+          hostname: "svc-salesforce-sync-with-extremely-long-production-name.internal.bg",
+          sourceRepo: "enterprise-platform/svc-salesforce-sync-with-extremely-long-production-name"
         })
       ]
     });

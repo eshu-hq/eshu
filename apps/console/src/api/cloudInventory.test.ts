@@ -10,7 +10,7 @@ describe("loadCloudInventory", () => {
         return {
           data: {
             resources: [{
-              cloud_resource_uid: "aws:111122223333:AWS::S3::Bucket:boats-prod",
+              cloud_resource_uid: "aws:111122223333:AWS::S3::Bucket:acme-prod",
               provider: "aws",
               resource_type: "AWS::S3::Bucket",
               management_origin: "declared",
@@ -43,7 +43,7 @@ describe("loadCloudInventory", () => {
 
     expect(page.rows).toHaveLength(1);
     expect(page.rows[0]).toMatchObject({
-      cloudResourceUid: "aws:111122223333:AWS::S3::Bucket:boats-prod",
+      cloudResourceUid: "aws:111122223333:AWS::S3::Bucket:acme-prod",
       provider: "aws",
       resourceType: "AWS::S3::Bucket",
       managementOrigin: "declared",

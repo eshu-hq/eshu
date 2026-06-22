@@ -91,12 +91,12 @@ function dependencyRows(D) {
 
 function platformTopologyGraph(D) {
   const nodes = [
-    { id: "repo:source", kind: "repo", label: "api-node-platform", sub: "source repository", col: 0 },
+    { id: "repo:source", kind: "repo", label: "svc-platform", sub: "source repository", col: 0 },
     { id: "repo:helm", kind: "repo", label: "helm-charts", sub: "api-node chart values", col: 1 },
     { id: "repo:argocd", kind: "repo", label: "iac-eks-argocd", sub: "ArgoCD application", col: 2 },
-    { id: "image:platform", kind: "image", label: "api-node-platform:10.3.2", sub: "ECR image", col: 2 },
-    { id: "workload:platform", kind: "workload", label: "api-node-platform", sub: "Kubernetes Deployment :3081", col: 3, hero: true },
-    { id: "cluster:bg-prod", kind: "aws", label: "eks-bg-prod", sub: "EKS cluster", col: 4 }
+    { id: "image:platform", kind: "image", label: "svc-platform:10.3.2", sub: "ECR image", col: 2 },
+    { id: "workload:platform", kind: "workload", label: "svc-platform", sub: "Kubernetes Deployment :3081", col: 3, hero: true },
+    { id: "cluster:acme-prod", kind: "aws", label: "eks-acme-prod", sub: "EKS cluster", col: 4 }
   ];
   const edges = [
     { s: "repo:helm", t: "repo:source", verb: "PACKAGES", layer: "deploy" },
@@ -104,7 +104,7 @@ function platformTopologyGraph(D) {
     { s: "image:platform", t: "repo:source", verb: "BUILT_FROM", layer: "deploy" },
     { s: "workload:platform", t: "repo:argocd", verb: "DEPLOYED_BY", layer: "deploy" },
     { s: "workload:platform", t: "image:platform", verb: "RUNS_IMAGE", layer: "runtime" },
-    { s: "workload:platform", t: "cluster:bg-prod", verb: "RUNS_IN", layer: "runtime" }
+    { s: "workload:platform", t: "cluster:acme-prod", verb: "RUNS_IN", layer: "runtime" }
   ];
   return { nodes, edges };
 }
@@ -432,7 +432,7 @@ function Topology({ data, client, onOpenNode, onOpenService }) {
   }, [client, service.id]);
   const demoGraph = useMemoP(() => platformTopologyGraph(D), [D]);
   const graph = client && live ? live.graph : demoGraph;
-  const meta = client && live ? live.meta : { deployChain: "4", environment: "bg-prod cluster", exposure: "Internal", serviceName: "api-node-platform" };
+  const meta = client && live ? live.meta : { deployChain: "4", environment: "acme-prod cluster", exposure: "Internal", serviceName: "svc-platform" };
   const infra = (D.cloudResources || []).filter((r) => r.family !== "observability").length;
 
   return (
@@ -449,7 +449,7 @@ function Topology({ data, client, onOpenNode, onOpenService }) {
         <StatTile label="Exposure" value={meta.exposure} color="var(--teal)" sub={client ? "from service story/context" : "service mesh / VPC path"} />
         <StatTile label="Deploy chain" value={meta.deployChain} color="var(--ember)" sub="repo -> delivery -> workload" />
         <StatTile label="Infra in scope" value={infra} color="var(--blue)" sub="cloud resources" />
-        <StatTile label="Runtime target" value={meta.environment || "pending"} color="var(--teal)" sub={client ? "/api/v0/services/{name}/context" : "bg-prod cluster"} />
+        <StatTile label="Runtime target" value={meta.environment || "pending"} color="var(--teal)" sub={client ? "/api/v0/services/{name}/context" : "acme-prod cluster"} />
       </div>
       <Panel className="flush mt" title={meta.serviceName + " - deployment topology"} sub="What deploys what, and where the resulting workload runs" glyph={<Icon.branch />}>
         <GraphCanvas graph={graph} data={D} layout="layered" height={620} onSelect={(n) => onOpenNode && onOpenNode(n, graph)} />

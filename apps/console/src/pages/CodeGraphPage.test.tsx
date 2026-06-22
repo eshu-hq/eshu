@@ -13,7 +13,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-1",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol post",
           detail: "server/handlers/install.ts · unused",
           truth: "derived",
@@ -64,7 +64,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-1",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol post",
           detail: "server/handlers/install.ts · unused",
           truth: "derived",
@@ -82,7 +82,7 @@ describe("CodeGraphPage", () => {
     );
 
     const selector = screen.getByRole("combobox");
-    expect(selector).toHaveTextContent("post · api-node-platform");
+    expect(selector).toHaveTextContent("post · svc-platform");
     expect(selector).not.toHaveTextContent("repository:r_");
   });
 
@@ -93,7 +93,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-1",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol post",
           detail: "server/handlers/install.ts · unused",
           truth: "derived",
@@ -109,7 +109,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-2",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol put",
           detail: "server/handlers/profile.ts · unused",
           truth: "derived",
@@ -146,7 +146,7 @@ describe("CodeGraphPage", () => {
     );
     expect(screen.getByRole("link", { name: "Explore repo graph" })).toHaveAttribute(
       "href",
-      "/explorer?q=api-node-platform"
+      "/explorer?q=svc-platform"
     );
   });
 
@@ -157,7 +157,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-1",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol post",
           detail: "server/handlers/install.ts · unused",
           truth: "derived",
@@ -203,7 +203,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-1",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol post",
           detail: "server/handlers/install.ts · unused",
           truth: "derived",
@@ -219,7 +219,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-2",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol put",
           detail: "server/handlers/profile.ts · unused",
           truth: "derived",
@@ -257,7 +257,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-1",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol post",
           detail: "server/handlers/install.ts · unused",
           truth: "derived",
@@ -272,7 +272,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-2",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol put",
           detail: "server/handlers/profile.ts · unused",
           truth: "derived",
@@ -304,7 +304,7 @@ describe("CodeGraphPage", () => {
     const calls: { readonly path: string; readonly body: unknown }[] = [];
     const client = {
       get: async () => ({
-        data: { repositories: [{ id: "repository:r1", name: "api-node-platform" }] },
+        data: { repositories: [{ id: "repository:r1", name: "svc-platform" }] },
         error: null,
         truth: null
       }),
@@ -349,7 +349,7 @@ describe("CodeGraphPage", () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByRole("combobox")).toHaveTextContent("unusedRoute · api-node-platform"));
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveTextContent("unusedRoute · svc-platform"));
     expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
     expect(calls).toContainEqual({ path: "/api/v0/code/dead-code", body: { limit: 100 } });
     await waitFor(() => expect(calls).toContainEqual({
@@ -386,7 +386,7 @@ describe("CodeGraphPage", () => {
         {
           id: "dead-1",
           type: "Dead code",
-          entity: "api-node-platform",
+          entity: "svc-platform",
           title: "Unreferenced symbol post",
           detail: "server/handlers/install.ts · unused",
           truth: "derived",

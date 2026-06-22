@@ -285,7 +285,7 @@ function buildCodeGraph(D, svc) {
     dead0.forEach((d) => nodes.push({ id: "dead:" + d.id, label: d.symbol, sub: d.file, col: 5, kind: "vuln", dead: true }));
     return { nodes, edges, dead: dead0, hubs: live.hubs, cycles: live.cycles };
   }
-  const base = svc.name.replace(/^api-node-|^job-node-|^webapp-node-/, "");
+  const base = svc.name.replace(/^svc-|^job-|^web-/, "");
   const ext = D.lang[svc.lang] && svc.lang === "go" ? "go" : svc.lang === "py" ? "py" : "ts";
   const N = (id, label, col, kind) => ({ id, label, sub: id, col, kind: kind || "library" });
   const nodes = [
@@ -307,11 +307,11 @@ function buildCodeGraph(D, svc) {
     { s: "routes", t: "service", verb: "CALLS", layer: "code" },
     { s: "service", t: "db", verb: "CALLS", layer: "code" }
   ];
-  // cross-repo: consumers import the boats client
-  if ((svc.deps || []).includes("api-node-boats") && svc.id !== "api-node-boats") {
-    nodes.push(N("client:boats", "@dmm/api-node-boats-client", 4, "client"));
-    edges.push({ s: "service", t: "client:boats", verb: "IMPORTS", layer: "code" });
-    edges.push({ s: "service", t: "client:boats", verb: "CALLS", layer: "code" });
+  // cross-repo: consumers import the catalog client
+  if ((svc.deps || []).includes("svc-catalog") && svc.id !== "svc-catalog") {
+    nodes.push(N("client:catalog", "@acme/svc-catalog-client", 4, "client"));
+    edges.push({ s: "service", t: "client:catalog", verb: "IMPORTS", layer: "code" });
+    edges.push({ s: "service", t: "client:catalog", verb: "CALLS", layer: "code" });
   }
   // dead-code symbols for this repo become orphan nodes (no inbound edges)
   const dead = (D.deadCode || []).filter((d) => d.repo === svc.id);
@@ -328,7 +328,7 @@ function CodeGraph({ data, client, onOpenService }) {
   const [liveState, setLiveState] = useStateCd({ status: "idle", graph: null, error: "" });
   const [focusedNodeId, setFocusedNodeId] = useStateCd((selectedCandidate || {}).entityId || "");
   const repos = D.services.filter((s) => s.repo);
-  const [repoId, setRepoId] = useStateCd((repos.find((s) => s.id === "api-node-boats") || repos[0] || {}).id);
+  const [repoId, setRepoId] = useStateCd((repos.find((s) => s.id === "svc-catalog") || repos[0] || {}).id);
   const svc = D.servicesById[repoId];
   const demoGraph = useMemoCd(() => buildCodeGraph(D, svc), [D, svc]);
   useEffectCd(() => {

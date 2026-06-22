@@ -103,7 +103,7 @@ function kindFacts(node, graph, D) {
       F.push(["Registry", "ECR · us-east-1"], ["Base", "node-api-base:1.0.0"], ["Deploys to", verbsOut.includes("DEPLOYS_FROM") ? "workload" : "—"], ["Scanned", verbsOut.includes("AFFECTED_BY") ? "CVE found" : "clean", verbsOut.includes("AFFECTED_BY") ? "var(--crit)" : "var(--teal)"]);
       break;
     case "client":
-      F.push(["Registry", "npm · @dmm (private)"], ["Version", (node.sub || "").split("· ").pop() || "—"], ["Importers", verbsIn.filter((v) => v === "IMPORTS").length || conns.length], ["Provenance", "build attestation"]);
+      F.push(["Registry", "npm · @acme (private)"], ["Version", (node.sub || "").split("· ").pop() || "—"], ["Importers", verbsIn.filter((v) => v === "IMPORTS").length || conns.length], ["Provenance", "build attestation"]);
       break;
     case "workload":
       F.push(["Kind", "Deployment"], ["Namespace", "api-node"], ["Orchestrator", "EKS"], ["Environments", conns.filter((c) => c.neighborKind === "env").length || "—"]);
@@ -129,7 +129,7 @@ function kindFacts(node, graph, D) {
       break;
     }
     case "workitem":
-      F.push(["Tracker", "Jira · DMM-NODE"], ["State", (node.sub || "").split("· ").pop() || "open"], ["Linked to", verbsIn.includes("TRACKED_BY") ? "repo / change" : "service"], ["Edges", conns.length]);
+      F.push(["Tracker", "Jira · ACME-NODE"], ["State", (node.sub || "").split("· ").pop() || "open"], ["Linked to", verbsIn.includes("TRACKED_BY") ? "repo / change" : "service"], ["Edges", conns.length]);
       break;
     case "incident":
       F.push(["Source", "PagerDuty"], ["Correlation", "change-event window"], ["Edges", conns.length]);
@@ -267,17 +267,17 @@ function NodeDrawer({ node, graph, data, onClose, onOpenNode, onOpenService, onO
 /* ============================================================== COLLECTOR DRAWER */
 /* clicking a collector (Operations) opens what it produces + where it lands in the graph */
 const COLLECTOR_PRODUCES = {
-  git: { verbs: ["IMPORTS", "PUBLISHES", "TRACKED_BY"], kinds: ["Repository", "npm Client"], node: "repo:boats" },
-  package_registry: { verbs: ["PUBLISHES"], kinds: ["npm Client"], node: "client:boats" },
-  oci_registry: { verbs: ["BUILDS", "DEPLOYS_FROM"], kinds: ["Image"], node: "img:boats" },
-  sbom_attestation: { verbs: ["AFFECTED_BY"], kinds: ["Image"], node: "img:boats" },
-  kubernetes: { verbs: ["RUNS_AS", "RUNS_IN", "DISCOVERS_CONFIG_IN"], kinds: ["Workload", "Environment"], node: "wl:boats" },
+  git: { verbs: ["IMPORTS", "PUBLISHES", "TRACKED_BY"], kinds: ["Repository", "npm Client"], node: "repo:catalog" },
+  package_registry: { verbs: ["PUBLISHES"], kinds: ["npm Client"], node: "client:catalog" },
+  oci_registry: { verbs: ["BUILDS", "DEPLOYS_FROM"], kinds: ["Image"], node: "img:catalog" },
+  sbom_attestation: { verbs: ["AFFECTED_BY"], kinds: ["Image"], node: "img:catalog" },
+  kubernetes: { verbs: ["RUNS_AS", "RUNS_IN", "DISCOVERS_CONFIG_IN"], kinds: ["Workload", "Environment"], node: "wl:catalog" },
   aws: { verbs: ["DECLARED_BY", "ASSUMES_ROLE"], kinds: ["AWS Resource"], node: "aws:role" },
   terraform_state: { verbs: ["DECLARED_BY"], kinds: ["Terraform"], node: "tf:irsa" },
   cloudflare: { verbs: ["FRONTED_BY"], kinds: ["Edge / CDN"], node: "edge:cf" },
   vulnerability_intelligence: { verbs: ["AFFECTED_BY"], kinds: ["Vulnerability"], node: "vuln:base" },
   security_alert: { verbs: ["AFFECTED_BY"], kinds: ["Vulnerability"], node: "vuln:base" },
-  jira: { verbs: ["TRACKED_BY"], kinds: ["Work item"], node: "wi:boats" },
+  jira: { verbs: ["TRACKED_BY"], kinds: ["Work item"], node: "wi:catalog" },
   pagerduty: { verbs: ["OBSERVED_INCIDENT"], kinds: ["Incident"], node: null },
   prometheus_mimir: { verbs: ["EMITS_METRICS"], kinds: ["Telemetry"], node: "mon:metrics" },
   cloudwatch: { verbs: ["EMITS_METRICS"], kinds: ["Telemetry"], node: "mon:metrics" },

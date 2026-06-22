@@ -101,7 +101,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
   const stages = isLib ?
   [
   { title: "Source", items: [{ label: s.repo.split("/").pop(), sub: s.host + " · " + s.repo, verb: "REPO", color: "#f3ebdd", evidence: ["INDEXED_FROM " + s.host + ":" + s.repo, "default branch: main", "language: " + langInfo.label] }] },
-  { title: "Publish", items: [{ label: "@dmm/" + s.name, sub: "npm · v" + s.version, verb: "PUBLISHES", color: "#2dd4bf", evidence: ["PUBLISHES @dmm/" + s.name + "@" + s.version, "registry: npm (private)", "provenance: build attestation"] }] },
+  { title: "Publish", items: [{ label: "@acme/" + s.name, sub: "npm · v" + s.version, verb: "PUBLISHES", color: "#2dd4bf", evidence: ["PUBLISHES @acme/" + s.name + "@" + s.version, "registry: npm (private)", "provenance: build attestation"] }] },
   { title: "Consumers", items: [{ label: s.callers + " importers", sub: "across the estate", verb: "IMPORTS", color: "#c4b59a", action: openCallers }] }] :
 
   [
@@ -331,8 +331,8 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
       heroMode === "spotlight" ?
       <div className="mt"><FeaturedService onOpenService={onOpenService} /></div> :
 
-      <Panel className="mt" title="Code-to-cloud relationship atlas" sub="api-node-boats neighbourhood — click any node or relationship edge to read its evidence" glyph={<Icon.graph />}
-      action={<button className="btn-ghost" onClick={() => onOpenService("api-node-boats")}>Open spotlight →</button>}>
+      <Panel className="mt" title="Code-to-cloud relationship atlas" sub="svc-catalog neighbourhood — click any node or relationship edge to read its evidence" glyph={<Icon.graph />}
+      action={<button className="btn-ghost" onClick={() => onOpenService("svc-catalog")}>Open spotlight →</button>}>
           <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
             <GraphCanvas graph={D.graph} data={D} layout={graphStyle} height={500}
               onSelect={selectNode} onSelectEdge={selectEdge} onClear={() => setSel(null)}

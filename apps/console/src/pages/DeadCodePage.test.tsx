@@ -79,7 +79,7 @@ describe("DeadCodePage", () => {
   it("loads the dedicated live dead-code scan with filters", async () => {
     const get = vi.fn(async () => ({
       data: {
-        repositories: [{ id: "repository:r1", name: "api-node-platform" }]
+        repositories: [{ id: "repository:r1", name: "svc-platform" }]
       },
       error: null,
       truth: null
@@ -99,7 +99,7 @@ describe("DeadCodePage", () => {
     renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />);
 
     await waitFor(() => expect(screen.getByText("Unreferenced symbol unusedRoute")).toBeInTheDocument());
-    expect(screen.getByText("api-node-platform")).toBeInTheDocument();
+    expect(screen.getByText("svc-platform")).toBeInTheDocument();
     expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "server/routes.ts:10" })).toHaveAttribute(
       "href",

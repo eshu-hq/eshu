@@ -154,7 +154,7 @@ function Explorer({ onOpenService, onOpenNode, graphStyle, setGraphStyle, verifi
             selectedId={sel && sel.type === "node" ? sel.node.id : null}
             selectedEdge={sel && sel.type === "edge" ? sel.edge : null}
             expandedIds={expandedSet} tracePath={tracePathResult} />
-          <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>{focusRoot ? "Focused walk · double-click a node or press ＋ to expand its neighbours · " + filteredGraph.nodes.length + " nodes shown" : scope === "estate" ? D.services.length + " indexed services & libraries · real @dmm/* dependency edges" : "api-node-boats neighbourhood · curated evidence · double-click a node to focus & walk outward"}</div>
+          <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>{focusRoot ? "Focused walk · double-click a node or press ＋ to expand its neighbours · " + filteredGraph.nodes.length + " nodes shown" : scope === "estate" ? D.services.length + " indexed services & libraries · real @acme/* dependency edges" : "svc-catalog neighbourhood · curated evidence · double-click a node to focus & walk outward"}</div>
         </div>
         <Panel title="Inspector" glyph={<Icon.search />}>
           <GraphInspector sel={sel} graph={filteredGraph} onOpenService={onOpenService} onOpenNode={onOpenNode}

@@ -58,21 +58,21 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
     const calls: string[] = [];
     const client = {
       postJson: async () => ({
-        entities: [{ id: "workload:api-node-platform", name: "api-node-platform", labels: ["Workload"], type: "Workload" }]
+        entities: [{ id: "workload:svc-platform", name: "svc-platform", labels: ["Workload"], type: "Workload" }]
       }),
       get: async (path: string) => {
         calls.push(path);
         return {
           data: {
-            name: "api-node-platform",
-            repo_name: "api-node-platform",
+            name: "svc-platform",
+            repo_name: "svc-platform",
             deployment_evidence: {
               artifacts: [
                 {
                   source_repo_id: "repository:r_dd626fe7",
                   source_repo_name: "iac-eks-argocd",
                   target_repo_id: "repository:r_078043f1",
-                  target_repo_name: "api-node-platform",
+                  target_repo_name: "svc-platform",
                   relationship_type: "DEPLOYS_FROM",
                   artifact_family: "kustomize",
                   path: "applicationsets/core-engineering/api-node/kustomization.yaml"
@@ -81,10 +81,10 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
                   source_repo_id: "repository:r_66cd2d76",
                   source_repo_name: "helm-charts",
                   target_repo_id: "repository:r_078043f1",
-                  target_repo_name: "api-node-platform",
+                  target_repo_name: "svc-platform",
                   relationship_type: "DEPLOYS_FROM",
                   artifact_family: "helm",
-                  path: "api-node-platform/Chart.yaml"
+                  path: "svc-platform/Chart.yaml"
                 }
               ]
             }
@@ -99,12 +99,12 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
       }
     } as unknown as EshuApiClient;
 
-    renderExplorer(client, "api-node-platform");
+    renderExplorer(client, "svc-platform");
 
     expect(await screen.findByText("iac-eks-argocd")).toBeInTheDocument();
     expect(screen.getByText("helm-charts")).toBeInTheDocument();
-    expect(screen.getByText("DEPLOYS_FROM ← api-node-platform")).toBeInTheDocument();
-    expect(calls).toContain("/api/v0/services/api-node-platform/context");
+    expect(screen.getByText("DEPLOYS_FROM ← svc-platform")).toBeInTheDocument();
+    expect(calls).toContain("/api/v0/services/svc-platform/context");
     expect(calls).not.toContain("/api/v0/impact/entity-map");
     expect(screen.queryByText(/RELATED/)).not.toBeInTheDocument();
   });
@@ -190,7 +190,7 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
           name: "searchByPortalId",
           labels: ["Function"],
           repo_id: "repository:r_platform",
-          repo_name: "api-node-platform",
+          repo_name: "svc-platform",
           file_path: "server/resources/listing/index.js",
           start_line: 1653,
           end_line: 1662,
