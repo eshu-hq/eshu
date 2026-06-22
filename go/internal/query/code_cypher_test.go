@@ -66,24 +66,38 @@ func TestHandleVisualizeQuery_RejectsMutations(t *testing.T) {
 	}
 }
 
-func TestHandleSearchBundles_ReturnsResults(t *testing.T) {
+// TestHandleSearchBundles_SearchesRegistryPackages proves the bundle search
+// queries the pre-indexed package registry catalog (:Package nodes) by package
+// identity, not repository names. Regression guard for #3493: the handler used
+// to run `MATCH (r:Repository) WHERE r.name CONTAINS $query`, returning repo
+// names from a tool documented as a registry/SBOM bundle search.
+func TestHandleSearchBundles_SearchesRegistryPackages(t *testing.T) {
 	stub := fakeGraphReader{
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if !strings.Contains(cypher, "ORDER BY r.name, r.repo_id LIMIT $limit") {
-				t.Fatalf("cypher = %q, want deterministic bounded bundle query", cypher)
+			if strings.Contains(cypher, ":Repository") || strings.Contains(cypher, "r.repo_id") {
+				t.Fatalf("cypher = %q, want package registry bundle query, not repository-name search", cypher)
+			}
+			if !strings.Contains(cypher, ":Package") {
+				t.Fatalf("cypher = %q, want :Package registry catalog match", cypher)
+			}
+			if !strings.Contains(cypher, "ORDER BY") || !strings.Contains(cypher, "LIMIT $limit") {
+				t.Fatalf("cypher = %q, want deterministic bounded ordering", cypher)
 			}
 			if got, want := params["limit"], 2; got != want {
 				t.Fatalf("params[limit] = %#v, want %#v", got, want)
 			}
+			if got, want := params["query"], "react"; got != want {
+				t.Fatalf("params[query] = %#v, want %#v", got, want)
+			}
 			return []map[string]any{
-				{"name": "my-repo", "repo_id": "abc123"},
-				{"name": "my-repo-two", "repo_id": "def456"},
+				{"package_id": "pkg-1", "name": "react", "ecosystem": "npm", "registry": "npmjs", "namespace": "", "purl": "pkg:npm/react@18", "version_count": int64(3)},
+				{"package_id": "pkg-2", "name": "react-dom", "ecosystem": "npm", "registry": "npmjs", "namespace": "", "purl": "pkg:npm/react-dom@18", "version_count": int64(2)},
 			}, nil
 		},
 	}
 	h := &CodeHandler{Neo4j: stub}
 
-	body := `{"query": "my-repo", "limit": 1}`
+	body := `{"query": "react", "limit": 1}`
 	req := httptest.NewRequest("POST", "/api/v0/code/bundles", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", EnvelopeMIMEType)
@@ -92,7 +106,7 @@ func TestHandleSearchBundles_ReturnsResults(t *testing.T) {
 	h.handleSearchBundles(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
 	var envelope ResponseEnvelope
@@ -105,9 +119,86 @@ func TestHandleSearchBundles_ReturnsResults(t *testing.T) {
 	}
 	bundles, ok := resp["bundles"].([]any)
 	if !ok || len(bundles) != 1 {
-		t.Errorf("expected 1 bundle, got %v", resp["bundles"])
+		t.Fatalf("expected 1 bundle, got %v", resp["bundles"])
+	}
+	first, ok := bundles[0].(map[string]any)
+	if !ok {
+		t.Fatalf("bundle type = %T, want map", bundles[0])
+	}
+	if got, want := first["package_id"], "pkg-1"; got != want {
+		t.Fatalf("bundle package_id = %#v, want %#v", got, want)
+	}
+	if _, hasRepoID := first["repo_id"]; hasRepoID {
+		t.Fatalf("bundle leaked repo_id field: %#v", first)
 	}
 	if got, want := resp["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+}
+
+// TestHandleSearchBundles_ScopesByEcosystem proves the optional ecosystem scope
+// is forwarded to the registry query so callers can bound the bundle catalog
+// read to one package ecosystem (eshu-mcp-call-rigor: bounded, scoped reads).
+func TestHandleSearchBundles_ScopesByEcosystem(t *testing.T) {
+	stub := fakeGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "$ecosystem") {
+				t.Fatalf("cypher = %q, want ecosystem scope predicate", cypher)
+			}
+			if got, want := params["ecosystem"], "npm"; got != want {
+				t.Fatalf("params[ecosystem] = %#v, want %#v", got, want)
+			}
+			return nil, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
+
+	body := `{"query": "react", "ecosystem": "npm"}`
+	req := httptest.NewRequest("POST", "/api/v0/code/bundles", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	h.handleSearchBundles(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+// TestHandleSearchBundles_EmptyResults proves the handler returns a bounded,
+// non-truncated empty envelope rather than erroring when no bundles match.
+func TestHandleSearchBundles_EmptyResults(t *testing.T) {
+	stub := fakeGraphReader{
+		run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			return nil, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
+
+	body := `{"query": "does-not-exist"}`
+	req := httptest.NewRequest("POST", "/api/v0/code/bundles", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	h.handleSearchBundles(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	resp, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	if got, want := resp["count"], float64(0); got != want {
+		t.Fatalf("count = %#v, want %#v", got, want)
+	}
+	if got, want := resp["truncated"], false; got != want {
 		t.Fatalf("truncated = %#v, want %#v", got, want)
 	}
 }

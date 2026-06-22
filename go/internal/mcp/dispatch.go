@@ -326,6 +326,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	case "search_registry_bundles":
 		return &route{method: "POST", path: "/api/v0/code/bundles", body: map[string]any{
 			"query":       str(args, "query"),
+			"ecosystem":   str(args, "ecosystem"),
 			"unique_only": boolOr(args, "unique_only", false),
 			"limit":       intOr(args, "limit", 50),
 		}}, nil

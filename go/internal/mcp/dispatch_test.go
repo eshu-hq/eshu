@@ -463,8 +463,9 @@ func TestResolveRouteMapsSearchRegistryBundlesLimit(t *testing.T) {
 	t.Parallel()
 
 	route, err := resolveRoute("search_registry_bundles", map[string]any{
-		"query": "api",
-		"limit": float64(25),
+		"query":     "api",
+		"ecosystem": "npm",
+		"limit":     float64(25),
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
@@ -475,5 +476,8 @@ func TestResolveRouteMapsSearchRegistryBundlesLimit(t *testing.T) {
 	}
 	if got, want := body["limit"], 25; got != want {
 		t.Fatalf("body[limit] = %#v, want %#v", got, want)
+	}
+	if got, want := body["ecosystem"], "npm"; got != want {
+		t.Fatalf("body[ecosystem] = %#v, want %#v", got, want)
 	}
 }

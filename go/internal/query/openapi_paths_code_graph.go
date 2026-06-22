@@ -46,19 +46,20 @@ const openAPIPathsCodeGraph = `
     "/api/v0/code/bundles": {
       "post": {
         "tags": ["code"],
-        "summary": "Search indexed bundle candidates",
-        "description": "Searches indexed repositories as pre-indexed bundle candidates. This route does not upload bundle archives or mutate graph state.",
+        "summary": "Search package registry bundle candidates",
+        "description": "Searches the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL, optionally scoped to one ecosystem. This route does not upload bundle archives or mutate graph state.",
         "operationId": "searchCodeBundles",
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["query"],
                 "properties": {
-                  "query": {"type": "string", "description": "Bundle search text"},
-                  "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10}
+                  "query": {"type": "string", "description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Empty lists the catalog head."},
+                  "ecosystem": {"type": "string", "description": "Optional ecosystem scope (e.g. npm, pypi, maven, nuget)."},
+                  "unique_only": {"type": "boolean", "description": "Return only distinct package bundles", "default": false},
+                  "limit": {"type": "integer", "description": "Max results (default 50, max 200)", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }
             }
