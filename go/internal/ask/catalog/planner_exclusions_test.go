@@ -96,6 +96,35 @@ func TestKnownBrowserSessionRoutesArePlannerExcluded(t *testing.T) {
 	}
 }
 
+// TestKnownAuthFlowRoutesArePlannerExcluded locks the auth carve-out: SSO login
+// flows (OIDC/SAML), local-auth credential flows, and local-user administration
+// routes serve authentication and session control, not repository, graph,
+// runtime, or cloud retrieval, so they must never enter the Ask Eshu catalog.
+func TestKnownAuthFlowRoutesArePlannerExcluded(t *testing.T) {
+	t.Parallel()
+	want := []string{
+		"GET /api/v0/auth/oidc/callback",
+		"GET /api/v0/auth/oidc/login",
+		"GET /api/v0/auth/saml/providers/{provider_id}/login",
+		"GET /api/v0/auth/saml/providers/{provider_id}/metadata",
+		"POST /api/v0/auth/local/bootstrap",
+		"POST /api/v0/auth/local/break-glass",
+		"POST /api/v0/auth/local/break-glass/session",
+		"POST /api/v0/auth/local/invitations",
+		"POST /api/v0/auth/local/invitations/accept",
+		"POST /api/v0/auth/local/login",
+		"POST /api/v0/auth/local/users/{user_id}/disable",
+		"POST /api/v0/auth/local/users/{user_id}/mfa-reset",
+		"POST /api/v0/auth/local/users/{user_id}/password",
+		"POST /api/v0/auth/saml/providers/{provider_id}/acs",
+	}
+	for _, name := range want {
+		if !isPlannerExcludedSurface(name) {
+			t.Errorf("expected %q to be planner-excluded", name)
+		}
+	}
+}
+
 // TestPlannerExcludedSurfacesAreImplementedAndExcluded is the registry-drift
 // gate: every curated excluded name must (a) be a real implemented surface in
 // the inventory (no stale entries) and (b) be absent from the parsed catalog.
