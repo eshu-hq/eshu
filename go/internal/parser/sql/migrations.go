@@ -34,7 +34,12 @@ func detectSQLMigrationTool(path string) string {
 	return ""
 }
 
-func buildSQLMigrationEntries(path string, source string, payload map[string]any) []map[string]any {
+func buildSQLMigrationEntries(
+	path string,
+	source []byte,
+	payload map[string]any,
+	tableMentions []sqlMention,
+) []map[string]any {
 	tool := detectSQLMigrationTool(path)
 	if tool == "" {
 		return []map[string]any{}
@@ -73,13 +78,8 @@ func buildSQLMigrationEntries(path string, source string, payload map[string]any
 		}
 	}
 
-	for _, mention := range collectSQLTableMentions(source, true) {
-		if mention.operation != "select" &&
-			mention.operation != "update" &&
-			mention.operation != "insert" &&
-			mention.operation != "delete" &&
-			mention.operation != "alter" &&
-			mention.operation != "reference" {
+	for _, mention := range tableMentions {
+		if mention.name == "" {
 			continue
 		}
 		key := "SqlTable|" + mention.name

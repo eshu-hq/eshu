@@ -2,36 +2,32 @@ package sql
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-)
-
-var (
-	createTableHeaderPattern = regexp.MustCompile(`(?is)\bCREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(?P<name>` + sqlNamePattern + `)\s*\(`)
-	createViewPattern        = regexp.MustCompile(`(?is)\bCREATE(?:\s+OR\s+REPLACE)?\s+(?P<kind>MATERIALIZED\s+)?VIEW\s+(?P<name>` + sqlNamePattern + `)\s+AS\s+(?P<body>.*?)(?:;|$)`)
-	createTrigPattern        = regexp.MustCompile(`(?is)\bCREATE\s+TRIGGER\s+(?P<trigger>` + sqlNamePattern + `)\b.*?\bON\s+(?P<table>` + sqlNamePattern + `)\b.*?\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+(?P<function>` + sqlNamePattern + `)\s*\(`)
-	createIndexPattern       = regexp.MustCompile(`(?is)\bCREATE(?:\s+UNIQUE)?\s+INDEX(?:\s+CONCURRENTLY)?(?:\s+IF\s+NOT\s+EXISTS)?\s+(?P<name>` + sqlNamePattern + `)\s+\bON\s+(?P<table>` + sqlNamePattern + `)\b`)
-	alterTablePattern        = regexp.MustCompile(`(?is)\bALTER\s+TABLE\s+(?P<table>` + sqlNamePattern + `)\s+(?P<body>.*?)(?:;|$)`)
-	addColumnClausePattern   = regexp.MustCompile(`(?is)\bADD\s+COLUMN(?:\s+IF\s+NOT\s+EXISTS)?\s+`)
-	columnPattern            = regexp.MustCompile(`(?is)^\s*(?P<name>"[^"]+"|` + "`[^`]+`" + `|\[[^\]]+\]|[A-Za-z_][\w$]*)\s+(?P<type>[A-Za-z_][\w$]*(?:\s*\([^)]*\))?)`)
-	nextCreatePattern        = regexp.MustCompile(`(?is)\bCREATE\s+(?:TABLE|(?:MATERIALIZED\s+)?VIEW|FUNCTION|PROCEDURE|TRIGGER|INDEX)\b`)
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 // Parse extracts SQL schema objects, relationships, and migration metadata from
-// one source file.
+// one source file using a tree-sitter SQL grammar.
+//
+// The file is segmented into statement-sized fragments and each fragment is
+// parsed in isolation so a single malformed statement cannot lose its
+// neighbours. CREATE PROCEDURE, which the grammar does not parse, is recovered
+// by a bounded rewrite to CREATE FUNCTION before parsing. All entity, column,
+// routine, trigger, index, and relationship extraction walks the resulting
+// abstract syntax tree; no SQL DDL regular expressions are used.
 func Parse(
 	path string,
 	isDependency bool,
 	options Options,
+	parser *tree_sitter.Parser,
 ) (map[string]any, error) {
 	source, err := shared.ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
-	text := string(source)
 
 	payload := map[string]any{
 		"path":              path,
@@ -47,23 +43,26 @@ func Parse(
 		"lang":              "sql",
 	}
 
-	seenEntities := map[string]map[string]struct{}{
-		"sql_tables":    {},
-		"sql_columns":   {},
-		"sql_views":     {},
-		"sql_functions": {},
-		"sql_triggers":  {},
-		"sql_indexes":   {},
+	extractor := &sqlExtractor{
+		payload: payload,
+		source:  source,
+		options: options,
+		seenEntities: map[string]map[string]struct{}{
+			"sql_tables":    {},
+			"sql_columns":   {},
+			"sql_views":     {},
+			"sql_functions": {},
+			"sql_triggers":  {},
+			"sql_indexes":   {},
+		},
+		seenRelationships: make(map[string]struct{}),
 	}
-	seenRelationships := make(map[string]struct{})
 
-	parseSQLTables(payload, text, options, seenEntities, seenRelationships)
-	parseSQLAlterTableColumns(payload, text, options, seenEntities, seenRelationships)
-	parseSQLViews(payload, text, options, seenEntities, seenRelationships)
-	parseSQLFunctions(payload, text, options, seenEntities, seenRelationships)
-	parseSQLTriggers(payload, text, options, seenEntities, seenRelationships)
-	parseSQLIndexes(payload, text, options, seenEntities, seenRelationships)
-	payload["sql_migrations"] = buildSQLMigrationEntries(path, text, payload)
+	for _, segment := range splitSQLStatements(string(source)) {
+		extractor.parseSegment(segment, parser)
+	}
+
+	payload["sql_migrations"] = buildSQLMigrationEntries(path, source, payload, extractor.tableMentions)
 
 	for _, bucket := range []string{
 		"sql_tables",
@@ -80,265 +79,166 @@ func Parse(
 	return payload, nil
 }
 
-func parseSQLTables(
-	payload map[string]any,
-	source string,
-	options Options,
-	seenEntities map[string]map[string]struct{},
-	seenRelationships map[string]struct{},
-) {
-	indexes := namedCaptureIndexes(createTableHeaderPattern)
-	for _, match := range createTableHeaderPattern.FindAllStringSubmatchIndex(source, -1) {
-		name := normalizeSQLName(submatchValue(source, match, indexes["name"]))
-		bodyStart := match[1]
-		bodyEnd := sqlSectionEnd(source, bodyStart)
-		body := source[bodyStart:bodyEnd]
-		lineNumber := sqlLineNumberForOffset(source, match[0])
-		appendSQLEntity(payload, seenEntities, "sql_tables", name, map[string]any{
-			"name":            name,
-			"line_number":     lineNumber,
-			"type":            "content_entity",
-			"sql_entity_type": "SqlTable",
-			"schema":          sqlSchema(name),
-			"qualified_name":  name,
-		}, source, match[0], match[1], options)
+// parseSegment parses one statement segment and extracts its entities. The
+// segment offset is recorded so node positions map back to original source line
+// numbers. CREATE PROCEDURE segments are rewritten to CREATE FUNCTION so the
+// grammar can parse them, and the recovered routine is flagged as a procedure.
+func (x *sqlExtractor) parseSegment(segment sqlSegment, parser *tree_sitter.Parser) {
+	text, isProcedure, edits := rewriteProcedureSegment(segment.text)
 
-		consumedOffset := 0
-		for _, line := range strings.Split(body, "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" {
-				consumedOffset += len(line) + 1
-				continue
-			}
-			if candidate := columnPattern.FindStringSubmatchIndex(trimmed); candidate != nil &&
-				!isSQLTableConstraintLine(trimmed) {
-				columnName := normalizeSQLName(submatchValue(trimmed, candidate, namedCaptureIndexes(columnPattern)["name"]))
-				columnType := strings.TrimSpace(submatchValue(trimmed, candidate, namedCaptureIndexes(columnPattern)["type"]))
-				qualified := name + "." + columnName
-				columnLine := sqlLineNumberForOffset(source, bodyStart+consumedOffset)
-				appendSQLEntity(payload, seenEntities, "sql_columns", qualified, map[string]any{
-					"name":            qualified,
-					"line_number":     columnLine,
-					"type":            "content_entity",
-					"sql_entity_type": "SqlColumn",
-					"table_name":      name,
-					"column_name":     columnName,
-					"data_type":       columnType,
-				}, source, bodyStart+consumedOffset, bodyStart+consumedOffset+len(line), options)
-				appendSQLRelationship(payload, seenRelationships, "HAS_COLUMN", name, qualified, columnLine)
-			}
+	x.segmentOffset = segment.offset
+	x.procedure = isProcedure
+	x.originalSegment = segment.text
+	x.segmentEdits = edits
 
-			for _, mention := range collectSQLTableMentions(trimmed, false) {
-				appendSQLRelationship(
-					payload,
-					seenRelationships,
-					"REFERENCES_TABLE",
-					name,
-					mention.name,
-					sqlLineNumberForOffset(source, bodyStart+consumedOffset+mention.offset),
-				)
-			}
-			consumedOffset += len(line) + 1
-		}
-	}
-}
-
-func parseSQLViews(
-	payload map[string]any,
-	source string,
-	options Options,
-	seenEntities map[string]map[string]struct{},
-	seenRelationships map[string]struct{},
-) {
-	indexes := namedCaptureIndexes(createViewPattern)
-	for _, match := range createViewPattern.FindAllStringSubmatchIndex(source, -1) {
-		name := normalizeSQLName(submatchValue(source, match, indexes["name"]))
-		body := submatchValue(source, match, indexes["body"])
-		viewKind := "view"
-		if strings.TrimSpace(submatchValue(source, match, indexes["kind"])) != "" {
-			viewKind = "materialized"
-		}
-		lineNumber := sqlLineNumberForOffset(source, match[0])
-		item := map[string]any{
-			"name":            name,
-			"line_number":     lineNumber,
-			"type":            "content_entity",
-			"sql_entity_type": "SqlView",
-			"schema":          sqlSchema(name),
-			"qualified_name":  name,
-		}
-		if viewKind != "view" {
-			item["view_kind"] = viewKind
-		}
-		appendSQLEntity(payload, seenEntities, "sql_views", name, item, source, match[0], match[1], options)
-		for _, mention := range collectSQLTableMentions(body, true) {
-			if mention.operation != "select" {
-				continue
-			}
-			appendSQLRelationship(
-				payload,
-				seenRelationships,
-				"READS_FROM",
-				name,
-				mention.name,
-				sqlLineNumberForOffset(source, match[0]+mention.offset),
-			)
-		}
-	}
-}
-
-func parseSQLAlterTableColumns(
-	payload map[string]any,
-	source string,
-	options Options,
-	seenEntities map[string]map[string]struct{},
-	seenRelationships map[string]struct{},
-) {
-	indexes := namedCaptureIndexes(alterTablePattern)
-	columnIndexes := namedCaptureIndexes(columnPattern)
-	for _, match := range alterTablePattern.FindAllStringSubmatchIndex(source, -1) {
-		tableName := normalizeSQLName(submatchValue(source, match, indexes["table"]))
-		body := submatchValue(source, match, indexes["body"])
-		bodyStart := match[indexes["body"]*2]
-		for _, clause := range addColumnClausePattern.FindAllStringIndex(body, -1) {
-			fragmentStart := clause[1]
-			fragment := body[fragmentStart:]
-			fragment = fragment[:sqlClauseBoundary(fragment)]
-			candidate := columnPattern.FindStringSubmatchIndex(strings.TrimSpace(fragment))
-			if candidate == nil {
-				continue
-			}
-			columnName := normalizeSQLName(submatchValue(strings.TrimSpace(fragment), candidate, columnIndexes["name"]))
-			columnType := strings.TrimSpace(submatchValue(strings.TrimSpace(fragment), candidate, columnIndexes["type"]))
-			qualified := tableName + "." + columnName
-			lineNumber := sqlLineNumberForOffset(source, bodyStart+fragmentStart)
-			appendSQLEntity(payload, seenEntities, "sql_columns", qualified, map[string]any{
-				"name":            qualified,
-				"line_number":     lineNumber,
-				"type":            "content_entity",
-				"sql_entity_type": "SqlColumn",
-				"table_name":      tableName,
-				"column_name":     columnName,
-				"data_type":       columnType,
-			}, source, bodyStart+fragmentStart, bodyStart+fragmentStart+len(fragment), options)
-			appendSQLRelationship(payload, seenRelationships, "HAS_COLUMN", tableName, qualified, lineNumber)
-		}
-	}
-}
-
-func parseSQLFunctions(
-	payload map[string]any,
-	source string,
-	options Options,
-	seenEntities map[string]map[string]struct{},
-	seenRelationships map[string]struct{},
-) {
-	indexes := namedCaptureIndexes(createFunctionHeaderPattern)
-	for _, match := range createFunctionHeaderPattern.FindAllStringSubmatchIndex(source, -1) {
-		appendSQLRoutineFromHeader(payload, source, options, seenEntities, seenRelationships, match, indexes, "function")
-	}
-
-	indexes = namedCaptureIndexes(createProcedureHeaderPattern)
-	for _, match := range createProcedureHeaderPattern.FindAllStringSubmatchIndex(source, -1) {
-		appendSQLRoutineFromHeader(payload, source, options, seenEntities, seenRelationships, match, indexes, "procedure")
-	}
-}
-
-func parseSQLTriggers(
-	payload map[string]any,
-	source string,
-	options Options,
-	seenEntities map[string]map[string]struct{},
-	seenRelationships map[string]struct{},
-) {
-	indexes := namedCaptureIndexes(createTrigPattern)
-	for _, match := range createTrigPattern.FindAllStringSubmatchIndex(source, -1) {
-		triggerName := normalizeSQLName(submatchValue(source, match, indexes["trigger"]))
-		tableName := normalizeSQLName(submatchValue(source, match, indexes["table"]))
-		functionName := normalizeSQLName(submatchValue(source, match, indexes["function"]))
-		lineNumber := sqlLineNumberForOffset(source, match[0])
-		appendSQLEntity(payload, seenEntities, "sql_triggers", triggerName, map[string]any{
-			"name":            triggerName,
-			"line_number":     lineNumber,
-			"type":            "content_entity",
-			"sql_entity_type": "SqlTrigger",
-			"table_name":      tableName,
-			"function_name":   functionName,
-		}, source, match[0], match[1], options)
-		appendSQLRelationship(payload, seenRelationships, "TRIGGERS_ON", triggerName, tableName, lineNumber)
-		appendSQLRelationship(payload, seenRelationships, "EXECUTES", triggerName, functionName, lineNumber)
-	}
-}
-
-func parseSQLIndexes(
-	payload map[string]any,
-	source string,
-	options Options,
-	seenEntities map[string]map[string]struct{},
-	seenRelationships map[string]struct{},
-) {
-	indexes := namedCaptureIndexes(createIndexPattern)
-	for _, match := range createIndexPattern.FindAllStringSubmatchIndex(source, -1) {
-		indexName := normalizeSQLName(submatchValue(source, match, indexes["name"]))
-		tableName := normalizeSQLName(submatchValue(source, match, indexes["table"]))
-		lineNumber := sqlLineNumberForOffset(source, match[0])
-		appendSQLEntity(payload, seenEntities, "sql_indexes", indexName, map[string]any{
-			"name":            indexName,
-			"line_number":     lineNumber,
-			"type":            "content_entity",
-			"sql_entity_type": "SqlIndex",
-			"table_name":      tableName,
-		}, source, match[0], match[1], options)
-		appendSQLRelationship(payload, seenRelationships, "INDEXES", indexName, tableName, lineNumber)
-	}
-}
-
-func appendSQLEntity(
-	payload map[string]any,
-	seen map[string]map[string]struct{},
-	bucket string,
-	name string,
-	item map[string]any,
-	source string,
-	start int,
-	end int,
-	options Options,
-) {
-	if strings.TrimSpace(name) == "" {
+	parsed := []byte(text)
+	tree := parser.Parse(parsed, nil)
+	if tree == nil {
 		return
 	}
-	if _, ok := seen[bucket][name]; ok {
-		return
+	defer tree.Close()
+
+	root := tree.RootNode()
+	visitStatementConstructs(root, parsed, x.dispatchStatement)
+
+	// Accumulate every bounded table mention in this segment for migration
+	// metadata, remapping offsets back to the original source.
+	for _, mention := range collectMentionsFromNode(root, parsed, true) {
+		mention.offset = x.segmentOffset + mention.offset
+		x.tableMentions = append(x.tableMentions, mention)
 	}
-	seen[bucket][name] = struct{}{}
-	if options.IndexSource {
-		item["source"] = source[max(0, start):min(len(source), end)]
-	}
-	shared.AppendBucket(payload, bucket, item)
 }
 
-func appendSQLRelationship(
-	payload map[string]any,
-	seen map[string]struct{},
-	relationshipType string,
-	sourceName string,
-	targetName string,
-	lineNumber int,
+// visitStatementConstructs invokes visit for every statement construct node in
+// the tree (create_table, create_view, alter_table, and the rest). It descends
+// through wrapper nodes so a construct nested under `statement`, `block`, or an
+// ERROR recovery node is still discovered.
+func visitStatementConstructs(
+	node *tree_sitter.Node,
+	source []byte,
+	visit func(node *tree_sitter.Node, src []byte),
 ) {
-	if strings.TrimSpace(sourceName) == "" || strings.TrimSpace(targetName) == "" {
-		return
+	for _, child := range namedChildren(node) {
+		if _, ok := sqlStatementKinds[child.GrammarName()]; ok {
+			visit(child, source)
+			continue
+		}
+		visitStatementConstructs(child, source, visit)
 	}
-	key := relationshipType + "|" + sourceName + "|" + targetName
-	if _, ok := seen[key]; ok {
-		return
+}
+
+// sqlEdit records one substring replacement applied to a segment during the
+// procedure rewrite. position is the byte offset in the rewritten buffer where
+// the replacement text begins; delta is len(new) - len(old). Edits let routine
+// extraction map a rewritten node span back to the original source so the
+// indexed snippet is the real CREATE PROCEDURE text.
+type sqlEdit struct {
+	position int
+	delta    int
+}
+
+// rewriteProcedureSegment rewrites a leading CREATE [OR REPLACE] PROCEDURE
+// header into CREATE FUNCTION ... RETURNS void so the grammar can parse it,
+// returning the rewritten text, whether a rewrite occurred, and the ordered
+// edits applied (rewritten-buffer position and length delta). Non-procedure
+// segments are returned unchanged with no edits. The rewrite is a bounded
+// keyword/clause transform, not a data-extraction regex: the routine name,
+// arguments, body, and language clause are preserved verbatim for AST
+// extraction.
+func rewriteProcedureSegment(text string) (string, bool, []sqlEdit) {
+	upper := strings.ToUpper(text)
+	createIndex := strings.Index(upper, "CREATE")
+	if createIndex < 0 {
+		return text, false, nil
 	}
-	seen[key] = struct{}{}
-	shared.AppendBucket(payload, "sql_relationships", map[string]any{
-		"type":        relationshipType,
-		"source_name": sourceName,
-		"target_name": targetName,
-		"line_number": lineNumber,
-	})
+	procedureIndex := indexOfKeyword(upper, "PROCEDURE", createIndex)
+	if procedureIndex < 0 {
+		return text, false, nil
+	}
+
+	edits := make([]sqlEdit, 0, 2)
+
+	// Replace the PROCEDURE keyword with FUNCTION, preserving surrounding text.
+	rewritten := text[:procedureIndex] + "FUNCTION" + text[procedureIndex+len("PROCEDURE"):]
+	edits = append(edits, sqlEdit{position: procedureIndex, delta: len("FUNCTION") - len("PROCEDURE")})
+
+	// Insert "RETURNS void" after the argument list close paren that follows
+	// the routine name, when the routine does not already declare RETURNS.
+	if argsClose := matchingArgumentClose(rewritten, procedureIndex); argsClose >= 0 {
+		upperRewritten := strings.ToUpper(rewritten)
+		if indexOfKeyword(upperRewritten, "RETURNS", argsClose) < 0 {
+			insertion := " RETURNS void"
+			rewritten = rewritten[:argsClose+1] + insertion + rewritten[argsClose+1:]
+			edits = append(edits, sqlEdit{position: argsClose + 1, delta: len(insertion)})
+		}
+	}
+	return rewritten, true, edits
+}
+
+// indexOfKeyword returns the byte index of keyword in upperText at or after
+// from, requiring word boundaries so it does not match substrings of
+// identifiers. keyword must already be upper-case. Returns -1 when not found.
+func indexOfKeyword(upperText string, keyword string, from int) int {
+	for offset := from; offset >= 0 && offset < len(upperText); {
+		found := strings.Index(upperText[offset:], keyword)
+		if found < 0 {
+			return -1
+		}
+		position := offset + found
+		if isKeywordBoundary(upperText, position, len(keyword)) {
+			return position
+		}
+		offset = position + len(keyword)
+	}
+	return -1
+}
+
+func isKeywordBoundary(text string, position int, length int) bool {
+	if position > 0 {
+		prev := text[position-1]
+		if isWordByte(prev) {
+			return false
+		}
+	}
+	end := position + length
+	if end < len(text) {
+		next := text[end]
+		if isWordByte(next) {
+			return false
+		}
+	}
+	return true
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' ||
+		(b >= 'A' && b <= 'Z') ||
+		(b >= 'a' && b <= 'z') ||
+		(b >= '0' && b <= '9')
+}
+
+// matchingArgumentClose returns the index of the close paren of the routine
+// argument list that follows the routine name beginning at headerStart, or -1
+// when no balanced argument list is present.
+func matchingArgumentClose(text string, headerStart int) int {
+	open := strings.IndexByte(text[headerStart:], '(')
+	if open < 0 {
+		return -1
+	}
+	open += headerStart
+	depth := 0
+	for index := open; index < len(text); index++ {
+		switch text[index] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
 }
 
 func sortSQLBucket(payload map[string]any, key string) {
@@ -356,86 +256,8 @@ func sortSQLBucket(payload map[string]any, key string) {
 	payload[key] = items
 }
 
-func sqlSchema(name string) string {
-	if strings.Contains(name, ".") {
-		return name[:strings.LastIndex(name, ".")]
-	}
-	return ""
-}
-
-func namedCaptureIndexes(pattern *regexp.Regexp) map[string]int {
-	indexes := make(map[string]int)
-	for index, name := range pattern.SubexpNames() {
-		if name != "" {
-			indexes[name] = index
-		}
-	}
-	return indexes
-}
-
-func submatchValue(source string, match []int, index int) string {
-	if index < 0 || index*2+1 >= len(match) {
-		return ""
-	}
-	start := match[index*2]
-	end := match[index*2+1]
-	if start < 0 || end < 0 || start >= end {
-		return ""
-	}
-	return source[start:end]
-}
-
-func min(left int, right int) int {
-	if left < right {
-		return left
-	}
-	return right
-}
-
-func max(left int, right int) int {
-	if left > right {
-		return left
-	}
-	return right
-}
-
-func sqlSectionEnd(source string, start int) int {
-	remaining := source[start:]
-	closeIndex := strings.Index(remaining, ");")
-	nextCreate := -1
-	if loc := nextCreatePattern.FindStringIndex(remaining); loc != nil && loc[0] > 0 {
-		nextCreate = loc[0]
-	}
-	switch {
-	case closeIndex >= 0 && nextCreate >= 0:
-		if closeIndex < nextCreate {
-			return start + closeIndex
-		}
-		return start + nextCreate
-	case closeIndex >= 0:
-		return start + closeIndex
-	case nextCreate >= 0:
-		return start + nextCreate
-	default:
-		return len(source)
-	}
-}
-
-func sqlClauseBoundary(fragment string) int {
-	depth := 0
-	for index, r := range fragment {
-		switch r {
-		case '(':
-			depth++
-		case ')':
-			if depth > 0 {
-				depth--
-			}
-		case ',':
-			if depth == 0 {
-				return index
-			}
-		}
-	}
-	return len(fragment)
+// appendBucket appends one row to a payload bucket, allocating the slice on
+// first use. It mirrors shared.AppendBucket for the SQL payload buckets.
+func appendBucket(payload map[string]any, bucket string, item map[string]any) {
+	shared.AppendBucket(payload, bucket, item)
 }

@@ -7,8 +7,14 @@ func (e *Engine) parseSQL(
 	isDependency bool,
 	options Options,
 ) (map[string]any, error) {
+	parser, err := e.runtime.Parser("sql")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
 	return sqlparser.Parse(path, isDependency, sqlparser.Options{
 		IndexSource:   options.IndexSource,
 		VariableScope: options.VariableScope,
-	})
+	}, parser)
 }

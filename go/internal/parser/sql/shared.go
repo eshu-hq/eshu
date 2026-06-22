@@ -1,27 +1,27 @@
 package sql
 
 import (
-	"regexp"
-	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-const sqlNamePattern = "(?:\"[^\"]+\"|`[^`]+`|\\[[^\\]]+\\]|[A-Za-z_][\\w$]*)(?:\\s*\\.\\s*(?:\"[^\"]+\"|`[^`]+`|\\[[^\\]]+\\]|[A-Za-z_][\\w$]*))*"
 
 // Options configures one SQL parser execution.
 type Options = shared.Options
 
-var (
-	sqlFromJoinPattern   = regexp.MustCompile(`(?i)\b(?:FROM|JOIN)\s+(?P<name>` + sqlNamePattern + `)`)
-	sqlUpdatePattern     = regexp.MustCompile(`(?i)\bUPDATE\s+(?P<name>` + sqlNamePattern + `)`)
-	sqlInsertPattern     = regexp.MustCompile(`(?i)\bINSERT\s+INTO\s+(?P<name>` + sqlNamePattern + `)`)
-	sqlDeletePattern     = regexp.MustCompile(`(?i)\bDELETE\s+FROM\s+(?P<name>` + sqlNamePattern + `)`)
-	sqlReferencesPattern = regexp.MustCompile(`(?i)\bREFERENCES\s+(?P<name>` + sqlNamePattern + `)`)
-	sqlAlterTablePattern = regexp.MustCompile(`(?i)\bALTER\s+TABLE\s+(?P<name>` + sqlNamePattern + `)`)
-)
+// sqlMention is one bounded table reference recovered from the AST, tagged with
+// the DML/DDL operation that produced it and its byte offset for line mapping.
+type sqlMention struct {
+	name      string
+	operation string
+	offset    int
+}
 
+// normalizeSQLName strips dialect quoting (double quotes, MySQL backticks,
+// MSSQL brackets) from each dotted segment and rejoins the schema-qualified
+// name. Empty segments are dropped so trailing separators do not survive.
 func normalizeSQLName(raw string) string {
 	parts := strings.Split(raw, ".")
 	normalized := make([]string, 0, len(parts))
@@ -40,83 +40,127 @@ func normalizeSQLName(raw string) string {
 	return strings.Join(normalized, ".")
 }
 
-func sqlLineNumberForOffset(source string, offset int) int {
+// sqlLineNumberForOffset returns the 1-based line number for a byte offset.
+func sqlLineNumberForOffset(source []byte, offset int) int {
 	if offset < 0 {
 		offset = 0
 	}
 	if offset > len(source) {
 		offset = len(source)
 	}
-	return strings.Count(source[:offset], "\n") + 1
+	return strings.Count(string(source[:offset]), "\n") + 1
 }
 
-func collectSQLTableMentions(text string, includeReads bool) []sqlMention {
-	patterns := []struct {
-		operation string
-		pattern   *regexp.Regexp
-	}{
-		{operation: "update", pattern: sqlUpdatePattern},
-		{operation: "insert", pattern: sqlInsertPattern},
-		{operation: "delete", pattern: sqlDeletePattern},
-		{operation: "reference", pattern: sqlReferencesPattern},
-		{operation: "alter", pattern: sqlAlterTablePattern},
-	}
-	if includeReads {
-		patterns = append([]struct {
-			operation string
-			pattern   *regexp.Regexp
-		}{{operation: "select", pattern: sqlFromJoinPattern}}, patterns...)
-	}
-
+// collectMentionsFromNode walks a query/body subtree and returns the bounded
+// table references it contains, tagged by operation. Relations inside FROM/JOIN
+// clauses yield "select" reads; INSERT/UPDATE/DELETE/REFERENCES/ALTER yield the
+// matching mutation operation. Offsets are absolute byte positions in the
+// original source so callers can map line numbers.
+func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads bool) []sqlMention {
 	mentions := make([]sqlMention, 0)
-	for _, candidate := range patterns {
-		indexes := candidate.pattern.SubexpIndex("name")
-		for _, match := range candidate.pattern.FindAllStringSubmatchIndex(text, -1) {
-			if indexes < 0 {
-				continue
+	seen := make(map[string]struct{})
+	var visit func(n *tree_sitter.Node, operation string)
+	add := func(ref *tree_sitter.Node, operation string) {
+		if ref == nil {
+			return
+		}
+		name := objectReferenceName(ref, source)
+		if name == "" {
+			return
+		}
+		offset := int(ref.StartByte())
+		key := operation + "|" + name + "|" + strconv.Itoa(offset)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		mentions = append(mentions, sqlMention{name: name, operation: operation, offset: offset})
+	}
+	visit = func(n *tree_sitter.Node, operation string) {
+		switch n.GrammarName() {
+		case "relation":
+			if includeReads {
+				add(firstChildByKind(n, "object_reference"), "select")
 			}
-			start := match[indexes*2]
-			end := match[indexes*2+1]
-			mentions = append(mentions, sqlMention{
-				name:      normalizeSQLName(text[start:end]),
-				operation: candidate.operation,
-				offset:    start,
-			})
+		case "insert":
+			add(firstDirectChildByKind(n, "object_reference"), "insert")
+		case "update":
+			if rel := firstChildByKind(n, "relation"); rel != nil {
+				add(firstChildByKind(rel, "object_reference"), "update")
+			}
+		case "delete":
+			// DELETE FROM target lives in the sibling `from` clause; handled below.
+		case "from":
+			add(firstChildByKind(n, "object_reference"), "select")
+		case "alter_table":
+			// The altered table is the first object_reference child. A migration
+			// that only does ALTER TABLE must still record the table it touches.
+			add(firstDirectChildByKind(n, "object_reference"), "alter")
+		}
+		for _, child := range namedChildren(n) {
+			visit(child, operation)
 		}
 	}
-	sort.SliceStable(mentions, func(i, j int) bool {
-		if mentions[i].offset != mentions[j].offset {
-			return mentions[i].offset < mentions[j].offset
-		}
-		if mentions[i].operation != mentions[j].operation {
-			return mentions[i].operation < mentions[j].operation
-		}
-		return mentions[i].name < mentions[j].name
-	})
+	collectDeleteTargets(node, source, add)
+	collectReferencesTargets(node, add)
+	visit(node, "")
 	return mentions
 }
 
-func isSQLTableConstraintLine(line string) bool {
-	upper := strings.ToUpper(strings.TrimSpace(line))
-	for _, prefix := range []string{
-		"CONSTRAINT ",
-		"PRIMARY KEY",
-		"FOREIGN KEY",
-		"UNIQUE ",
-		"UNIQUE(",
-		"CHECK ",
-		"CHECK(",
-		"EXCLUDE ",
-	} {
-		if strings.HasPrefix(upper, prefix) {
-			return true
+// collectReferencesTargets records the target table of every REFERENCES (foreign
+// key) clause in the subtree. The grammar places the referenced table in an
+// object_reference that follows a keyword_references token, including inside
+// ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ... REFERENCES clauses, so a
+// migration whose only table touch is a foreign key still records a mention.
+func collectReferencesTargets(node *tree_sitter.Node, add func(ref *tree_sitter.Node, operation string)) {
+	var visit func(n *tree_sitter.Node)
+	visit = func(n *tree_sitter.Node) {
+		sawReferences := false
+		for _, child := range allChildren(n) {
+			switch child.GrammarName() {
+			case "keyword_references":
+				sawReferences = true
+				continue
+			case "object_reference":
+				if sawReferences {
+					add(child, "references")
+					sawReferences = false
+					continue
+				}
+			}
+			visit(child)
 		}
 	}
-	return false
+	visit(node)
 }
 
-type sqlMention struct {
-	name      string
-	operation string
-	offset    int
+// collectDeleteTargets attaches DELETE statements to their FROM target so a
+// delete is recorded as a "delete" mention rather than a generic read.
+func collectDeleteTargets(node *tree_sitter.Node, source []byte, add func(ref *tree_sitter.Node, operation string)) {
+	var visit func(n *tree_sitter.Node)
+	visit = func(n *tree_sitter.Node) {
+		if n.GrammarName() == "delete" {
+			parent := n.Parent()
+			if parent != nil {
+				if fromClause := firstChildByKind(parent, "from"); fromClause != nil {
+					add(firstChildByKind(fromClause, "object_reference"), "delete")
+				}
+			}
+		}
+		for _, child := range namedChildren(n) {
+			visit(child)
+		}
+	}
+	visit(node)
+}
+
+// firstDirectChildByKind returns the first direct named child of node whose
+// grammar name matches kind, without recursing into descendants.
+func firstDirectChildByKind(node *tree_sitter.Node, kind string) *tree_sitter.Node {
+	for _, child := range namedChildren(node) {
+		if child.GrammarName() == kind {
+			return child
+		}
+	}
+	return nil
 }

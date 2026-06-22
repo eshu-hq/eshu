@@ -65,6 +65,8 @@ github.com/agnivade/levenshtein v1.2.1 h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KO
 github.com/agnivade/levenshtein v1.2.1/go.mod h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=
 github.com/alexaandru/go-sitter-forest/perl v1.9.9 h1:iJREJrZQqGLK7Y40NQe66vs1BI1LytdzKsMtZ257KWw=
 github.com/alexaandru/go-sitter-forest/perl v1.9.9/go.mod h1:5BjILwbrPZeAEtvuypMPdGqqENP2Hw58ZkBFllHuqTE=
+github.com/alexaandru/go-sitter-forest/sql v1.9.9 h1:ZAWy4q/k50FTk8LzWlRpOKze9VM5KkVBagsXUUk4NJY=
+github.com/alexaandru/go-sitter-forest/sql v1.9.9/go.mod h1:9RRdyTJk7bEGQsBhhqm/ElCh/DyqLgcglMXf/NOMbpM=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 h1:bvNMNQO63//z+xNgfBlViaCIJKLlCJ6/fmUseuG0wVQ=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
 github.com/andybalholm/cascadia v1.3.3 h1:AG2YHrzJIm4BZ19iwJ/DAua6Btl3IwJX+VI4kktS1LM=
