@@ -160,6 +160,21 @@ Proof checklist:
 3. For both: capture only event-family counts, decision counts, role names,
    provider kind, refresh-window class, and pass/fail status.
 
+For SAML, convert the private Okta run into a public-safe aggregate summary with:
+
+```bash
+scripts/verify-okta-saml-live-proof.sh \
+  --input okta-saml-proof.json \
+  --output-json okta-saml-proof.summary.json \
+  --output-markdown okta-saml-proof.summary.md
+```
+
+The input manifest is operator-local. It may describe only source classes,
+public API paths, aggregate counts, role names, decision families, timing
+classes, and pass/fail proof steps. Raw Okta org URLs, app IDs, metadata XML,
+certificates, users, group values, SAML assertions, SAML attributes, cookies,
+provider responses, and audit bodies must stay private.
+
 ### Optional Brokers
 
 Cognito, Auth0, and similar systems can act as optional IdPs or IdP brokers.
@@ -274,7 +289,7 @@ only when the runtime changed.
 | Negative leakage across public artifacts | `scripts/test-verify-hosted-governance-negative-leakage-proof.sh` and `scripts/verify-hosted-governance-negative-leakage-proof.sh --manifest leakage-proof.json --output-json leakage-proof.summary.json --output-markdown leakage-proof.summary.md`. |
 | Hosted Helm auth, secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | OIDC implementation or Okta OIDC proof | Focused implementation tests from #3457, auth audit proof, denied-access proof, negative-leakage proof, and docs build. |
-| SAML implementation or Okta SAML proof | Focused implementation tests from #3458, metadata/certificate fail-closed proof, auth audit proof, denied-access proof, negative-leakage proof, and docs build. |
+| SAML implementation or Okta SAML proof | Focused implementation tests from #3458, `scripts/test-verify-okta-saml-live-proof.sh`, metadata/certificate fail-closed proof, auth audit proof, denied-access proof, negative-leakage proof, and docs build. |
 | Token lifecycle implementation | Focused implementation tests from #3461, immediate revocation proof, API/MCP parity proof, auth audit proof, and docs build. |
 | API/MCP/Ask/search authorization propagation | Focused implementation tests from #3460, API/MCP parity proof, unauthorized-evidence filtering proof, negative-leakage proof, and docs build. |
 

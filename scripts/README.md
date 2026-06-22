@@ -118,6 +118,15 @@ Any changed Go package under `go/internal` or `go/cmd` must already have
 `doc.go`, `README.md`, and `AGENTS.md`; new collectors and runtime packages
 cannot land without the code-level context future agents and reviewers need.
 
+`verify-okta-saml-live-proof.sh` turns an operator-local Okta SAML proof
+manifest into public-safe JSON and markdown summaries. The manifest can name
+only provider source classes, public SAML API paths, aggregate login/denial
+counts, role names, decision families, timing classes, and required pass/fail
+proof steps. Raw Okta org URLs, app IDs, metadata XML, certificates, users,
+group values, SAML assertions, attributes, cookies, provider responses, and
+audit bodies must remain outside the repository and public GitHub text. The
+mocked harness test is `test-verify-okta-saml-live-proof.sh`.
+
 `security_intelligence_release_gate.sh` aggregates the proofs required before
 cutting the next prerelease image with vulnerability or security-intelligence
 work. By default it runs the offline phases (state capture, focused Go tests,
