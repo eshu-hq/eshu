@@ -3,8 +3,6 @@ package ruby
 import (
 	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -106,51 +104,11 @@ func PreScanWithParser(path string, parser *tree_sitter.Parser) ([]string, error
 	return names, nil
 }
 
-// appendRubyCalls extracts function-call rows from the source lines and attaches
-// the enclosing definition, module, or class context resolved from the AST.
+// appendRubyCalls drains the function-call rows the AST walk recorded on syntax
+// into the payload bucket. Each row already carries its full name, line, and the
+// enclosing definition, module, or class context resolved during the walk.
 func appendRubyCalls(payload map[string]any, syntax *rubySyntax) {
-	seenCalls := make(map[string]struct{})
-	structural := syntax.structuralStartLines()
-	for index, rawLine := range syntax.lines {
-		lineNumber := index + 1
-		trimmed := strings.TrimSpace(rawLine)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		if trimmed == "end" || rubyVisibilityKeyword(trimmed) != "" {
-			continue
-		}
-		if _, ok := structural[lineNumber]; ok {
-			continue
-		}
-		for _, call := range rubyParseCalls(trimmed) {
-			fullName := call.fullName
-			callKey := fullName + ":" + strconv.Itoa(lineNumber)
-			if _, ok := seenCalls[callKey]; ok {
-				continue
-			}
-			seenCalls[callKey] = struct{}{}
-			item := map[string]any{
-				"name":              rubyCallName(fullName),
-				"full_name":         fullName,
-				"line_number":       lineNumber,
-				"args":              rubyParseArguments(call.args),
-				"inferred_obj_type": nil,
-				"lang":              "ruby",
-				"is_dependency":     false,
-			}
-			contextName, contextType := syntax.contextAt(lineNumber, rubyScopeClass, rubyScopeModule, rubyScopeDef)
-			if contextName != "" {
-				item["context"] = contextName
-				item["context_type"] = string(contextType)
-				if contextType == rubyScopeClass {
-					item["class_context"] = contextName
-				}
-			}
-			if className := syntax.classNameAt(lineNumber); className != "" {
-				item["class_context"] = className
-			}
-			shared.AppendBucket(payload, "function_calls", item)
-		}
+	for _, item := range syntax.calls {
+		shared.AppendBucket(payload, "function_calls", item)
 	}
 }

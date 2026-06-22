@@ -7,9 +7,12 @@
 // end lines, and bounded dead-code root metadata. Modules, classes, singleton
 // classes, method definitions, imports, inclusions, and variable assignments are
 // recovered from AST nodes; block `end_line` values come from node end
-// positions. Method calls are recovered by a byte-level line scan whose context
-// (enclosing module, class, or method) is resolved from the AST scope index, so
-// the call set stays byte-identical to the prior regex implementation. Gemfile
+// positions. Method calls are recovered from tree-sitter `call` nodes during the
+// same AST walk: the dotted full name is composed from the call's receiver and
+// method nodes (recursing through chained call receivers), and the enclosing
+// module, class, or method context is taken from the live scope stack. Bare
+// lowercase identifiers on the right side of an assignment are also recorded as
+// receiverless calls. Gemfile
 // and Gemfile.lock inputs use a Bundler-specific path that emits RubyGems
 // dependency rows, exact lockfile versions, group scope, and lockfile-proven
 // dependency chains while skipping dynamic Ruby. PreScan returns declaration

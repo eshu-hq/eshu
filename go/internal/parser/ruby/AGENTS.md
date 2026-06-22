@@ -4,11 +4,12 @@
 
 1. README.md - package boundary and Ruby context invariants
 2. doc.go - godoc contract for the Ruby adapter
-3. parser.go - Parse/PreScan entry points, payload assembly, and call pass
+3. parser.go - Parse/PreScan entry points, payload assembly, and call drain
 4. syntax.go - AST walk producing scopes, declarations, variables, imports,
-   and inclusions
-5. calls.go - per-line method-call recognizers and argument normalization
-6. scan.go - byte-level scanners that replace the legacy call regexes
+   inclusions, and method-call rows
+5. nodes.go - tree-sitter node accessors (text, constant, superclass, parameter,
+   and typed argument lookups) used by the AST walk
+6. calls.go - AST call-name composition and argument/assignment-type helpers
 7. dead_code_roots.go - Ruby parser-backed dead-code root metadata from the AST
 8. bundler_blocks.go - opaque-block helper retained for the Bundler scanner
 9. parser_test.go - behavior coverage for payload shape
@@ -17,12 +18,14 @@
 
 - Dependency direction stays one way: parent parser code may import this
   package, but this package must not import internal/parser.
-- Parse preserves the byte-identical Ruby payload shape, including modules,
-  module_inclusions, framework_semantics, and context metadata. The tree-sitter
-  rewrite must keep parity with the prior regex output for every bucket.
-- Source structure (modules, classes, singleton classes, methods, imports,
-  inclusions, variables, end lines) comes from the AST. Method-call evidence
-  comes from the byte-level line scan in calls.go/scan.go, never regex.
+- Parse preserves the Ruby payload shape, including modules, module_inclusions,
+  framework_semantics, and context metadata. The tree-sitter rewrite must keep
+  parity with the prior output for every bucket.
+- All Ruby source evidence comes from the AST: modules, classes, singleton
+  classes, methods, imports, inclusions, variables, end lines, and method calls.
+  No Ruby source bucket may be recovered by scanning source text. Only the
+  Bundler manifest path (bundler_*.go) parses lines, because Gemfile and
+  Gemfile.lock are not Ruby-grammar inputs.
 - Function and class `end_line` metadata comes from AST node end positions
   because reducer call materialization depends on method containment for
   receiverless helper calls.
@@ -46,9 +49,9 @@
 
 - Missing context metadata usually means the AST scope index in syntax.go did
   not record or resolve the enclosing module, class, or method scope.
-- Missing call rows usually mean a recognizer in calls.go/scan.go stopped
-  matching a DSL or chained-call shape, or the structural-line skip dropped a
-  line the line scan should have read.
+- Missing call rows usually mean the AST walk in syntax.go did not visit the
+  `call` node (for example a nested receiver), or the full-name composition in
+  calls.go dropped a receiver or method segment.
 - Missing Ruby root metadata usually means `dead_code_roots.go` did not see a
   literal callback symbol, script guard call, or class visibility transition.
 

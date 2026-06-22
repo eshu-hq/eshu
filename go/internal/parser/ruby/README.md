@@ -7,10 +7,11 @@ parses Ruby source with the tree-sitter-ruby grammar and extracts module and
 class declarations, method signatures, require/load imports, module inclusions,
 local and instance variables, bounded method-call evidence, parser-backed
 dead-code root metadata, and Bundler dependency evidence from `Gemfile` and
-`Gemfile.lock`. Source structure (modules, classes, singleton classes, methods,
-imports, inclusions, variables, and block end lines) comes from the AST;
-method-call evidence comes from a byte-level line scan whose context is resolved
-from the AST scope index.
+`Gemfile.lock`. All Ruby source evidence (modules, classes, singleton classes,
+methods, imports, inclusions, variables, block end lines, and method calls)
+comes from the tree-sitter AST. Only the Bundler `Gemfile`/`Gemfile.lock`
+manifest path still uses line-oriented scanning, which is appropriate for those
+non-Ruby-grammar manifest formats.
 
 ## Ownership boundary
 
@@ -44,12 +45,16 @@ method nodes provide `line_number` and `end_line` (the line of the matching
 the enclosing Ruby method before reducer materialization. Class visibility is
 tracked only for literal `public`, `private`, and `protected` statements so
 public Rails controller actions can be separated from private helpers.
-Method-call rows are recovered by a byte-level line scan that reproduces the six
-historical call shapes (chained, scoped, qualified, bare known-method, and the
-three receiverless forms) and are deduplicated by full name and source line so
-repeated calls on different lines remain visible; lines that open a module,
-class, singleton class, or method definition, along with `end` and visibility
-lines, are skipped by the call scan. PreScan sorts names after collecting them
+Method-call rows are recovered from tree-sitter `call` nodes during the AST
+walk. The dotted full name is composed from the receiver and method nodes:
+chained calls such as `original.bind(self).call` emit both `original.bind` and
+`original.bind.call` because each link is its own `call` node, and argument
+lists are excluded from the composed name. Receiverless command calls
+(`log_api_key_restore api_key`), parenthesized calls, and bare lowercase
+identifiers on the right side of an assignment (`x = build_scopes`) are all
+recorded. Rows are deduplicated by full name and source line so repeated calls
+on different lines remain visible. Enclosing context is read from the live AST
+scope stack rather than a line index. PreScan sorts names after collecting them
 from the parsed function, class, and module buckets.
 
 Constants are represented in the legacy `variables` bucket with class or module
@@ -57,9 +62,34 @@ context instead of a separate constants bucket. Predicate, bang, and writer
 method suffixes are preserved for qualified calls. Rails controller actions,
 literal Rails callback symbols, `method_missing` / `respond_to_missing?`,
 literal `method` / `send` / `public_send` symbol targets, and script guard calls
-are marked as derived dead-code roots. Other Rails-style DSL chains are captured
-as bounded call evidence only. `def self.name` and `class << self` are covered,
-while `def ClassName.name` is not part of the current contract.
+are marked as derived dead-code roots. Script guards (`if __FILE__ == $0`) are
+detected on the AST: the grammar parses the guard cleanly as an `if` node with a
+`binary` `==` condition, so the receiverless calls and bare identifiers in its
+body are read from the tree rather than from a line scan. Other Rails-style DSL
+chains are captured as bounded call evidence only. `def self.name` and
+`class << self` are covered, while `def ClassName.name` is not part of the
+current contract.
+
+## Performance and observability evidence
+
+Performance Evidence: This change moves Ruby method-call and script-guard
+extraction from a per-line byte scanner onto the existing single-pass
+tree-sitter AST walk that already produced every other Ruby bucket. The walk
+visits each `call` node once and reads context from the in-memory scope stack,
+removing the second per-line pass over the source that the deleted scanner
+performed, so the parser does strictly less per-file work on the same AST.
+
+No-Regression Evidence: The full parser suite plus the Ruby semantics and
+dead-code root tests pass unchanged (`go test ./internal/parser/... ./internal/mcp
+./internal/query ./internal/reducer -count=1`), confirming the AST call set
+matches the prior call set for the `function_calls`, `imports`,
+`module_inclusions`, and `dead_code_root_kinds` buckets. Ruby parsing is an
+ingester-side, per-file CPU step with no graph write, queue, or lease behavior,
+so there is no concurrency or backend contention surface to measure.
+
+No-Observability-Change: This package emits no telemetry; parse timing and spans
+remain owned by the parent parser engine, and this change does not add, remove,
+or alter any metric, span, log, or status field.
 
 Bundler parsing is intentionally static. Literal `gem` calls in `Gemfile`
 emit `variables` rows with `config_kind=dependency`,

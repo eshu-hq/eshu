@@ -19,83 +19,42 @@ const (
 	rubyScopeDef            rubyScopeKind = "def"
 )
 
-// rubyScope is one lexical block discovered in the AST. startLine and endLine
-// are 1-based and inclusive; endLine is the line of the matching `end`.
+// rubyScope is one lexical block discovered in the AST. It carries the kind and
+// resolved name pushed onto the active scope stack so nested definitions and
+// calls resolve their enclosing context.
 type rubyScope struct {
-	kind      rubyScopeKind
-	name      string
-	startLine int
-	endLine   int
-	item      map[string]any
+	kind rubyScopeKind
+	name string
 }
 
 // rubySyntax is the ordered, fully-resolved view of one Ruby source tree. It
-// captures the structural facts (scopes, definitions, imports, inclusions,
-// variables) the line-oriented passes need to attach context without rescanning
-// the AST.
+// captures the structural facts (definitions, imports, inclusions, variables,
+// calls) discovered while walking the AST.
 type rubySyntax struct {
-	source         []byte
-	lines          []string
-	scopes         []rubyScope
-	functions      []map[string]any
-	classes        []map[string]any
-	modules        []map[string]any
-	variables      []map[string]any
-	imports        []map[string]any
-	inclusions     []map[string]any
-	root           *tree_sitter.Node
+	source     []byte
+	lines      []string
+	functions  []map[string]any
+	classes    []map[string]any
+	modules    []map[string]any
+	variables  []map[string]any
+	imports    []map[string]any
+	inclusions []map[string]any
+	calls      []map[string]any
+	seenCalls  map[string]struct{}
+	root       *tree_sitter.Node
 }
 
 // rubyBuildSyntax parses path with parser and returns the resolved syntax view.
 func rubyBuildSyntax(source []byte, tree *tree_sitter.Tree, options shared.Options) *rubySyntax {
 	syntax := &rubySyntax{
-		source: source,
-		lines:  strings.Split(string(source), "\n"),
-		root:   tree.RootNode(),
+		source:    source,
+		lines:     strings.Split(string(source), "\n"),
+		seenCalls: make(map[string]struct{}),
+		root:      tree.RootNode(),
 	}
 	seenVariables := make(map[string]struct{})
 	syntax.walk(syntax.root, nil, "public", seenVariables, options)
 	return syntax
-}
-
-// contextAt returns the name and type of the nearest enclosing scope at line
-// from the given kinds, mirroring the legacy stack-based context resolution.
-func (s *rubySyntax) contextAt(line int, kinds ...rubyScopeKind) (string, rubyScopeKind) {
-	best := -1
-	for index := range s.scopes {
-		scope := &s.scopes[index]
-		if line < scope.startLine || line > scope.endLine {
-			continue
-		}
-		if !rubyScopeKindMatches(scope.kind, kinds) {
-			continue
-		}
-		if best == -1 || scope.startLine >= s.scopes[best].startLine {
-			best = index
-		}
-	}
-	if best == -1 {
-		return "", ""
-	}
-	return s.scopes[best].name, s.scopes[best].kind
-}
-
-// structuralStartLines returns the set of 1-based line numbers that open a
-// module, class, singleton class, or method definition. The legacy parser
-// consumed those lines structurally and never scanned them for calls, so the
-// call pass skips them to keep parity.
-func (s *rubySyntax) structuralStartLines() map[int]struct{} {
-	lines := make(map[int]struct{}, len(s.scopes))
-	for index := range s.scopes {
-		lines[s.scopes[index].startLine] = struct{}{}
-	}
-	return lines
-}
-
-// classNameAt returns the nearest enclosing class name at line, or empty.
-func (s *rubySyntax) classNameAt(line int) string {
-	name, _ := s.contextAt(line, rubyScopeClass)
-	return name
 }
 
 func rubyScopeKindMatches(kind rubyScopeKind, kinds []rubyScopeKind) bool {
@@ -154,9 +113,11 @@ func (s *rubySyntax) visit(
 		s.visitMethod(node, scopeStack, visibility, seenVariables, options)
 	case "call":
 		s.visitCall(node, scopeStack)
+		s.recordCall(node, scopeStack)
 		s.walk(node, scopeStack, visibility, seenVariables, options)
 	case "assignment", "operator_assignment":
 		s.visitAssignment(node, scopeStack, seenVariables)
+		s.recordAssignmentCall(node, scopeStack)
 		s.walk(node, scopeStack, visibility, seenVariables, options)
 	case "identifier":
 		if name := s.text(node); rubyVisibilityKeyword(name) != "" {
@@ -183,8 +144,7 @@ func (s *rubySyntax) visitModule(
 		"lang":        "ruby",
 	}
 	s.modules = append(s.modules, item)
-	scope := rubyScope{kind: rubyScopeModule, name: name, startLine: shared.NodeLine(node), endLine: shared.NodeEndLine(node), item: item}
-	s.scopes = append(s.scopes, scope)
+	scope := rubyScope{kind: rubyScopeModule, name: name}
 	body := node.ChildByFieldName("body")
 	if body != nil {
 		s.walk(body, append(scopeStack, scope), "public", seenVariables, options)
@@ -211,8 +171,7 @@ func (s *rubySyntax) visitClass(
 		}
 	}
 	s.classes = append(s.classes, item)
-	scope := rubyScope{kind: rubyScopeClass, name: name, startLine: shared.NodeLine(node), endLine: shared.NodeEndLine(node), item: item}
-	s.scopes = append(s.scopes, scope)
+	scope := rubyScope{kind: rubyScopeClass, name: name}
 	body := node.ChildByFieldName("body")
 	if body != nil {
 		s.walk(body, append(scopeStack, scope), "public", seenVariables, options)
@@ -229,8 +188,7 @@ func (s *rubySyntax) visitSingletonClass(
 	if className == "" {
 		className = "self"
 	}
-	scope := rubyScope{kind: rubyScopeSingletonClass, name: className, startLine: shared.NodeLine(node), endLine: shared.NodeEndLine(node)}
-	s.scopes = append(s.scopes, scope)
+	scope := rubyScope{kind: rubyScopeSingletonClass, name: className}
 	body := node.ChildByFieldName("body")
 	if body != nil {
 		s.walk(body, append(scopeStack, scope), "public", seenVariables, options)
@@ -280,8 +238,7 @@ func (s *rubySyntax) visitMethod(
 		item["source"] = s.rawLine(shared.NodeLine(node))
 	}
 	s.functions = append(s.functions, item)
-	scope := rubyScope{kind: rubyScopeDef, name: name, startLine: shared.NodeLine(node), endLine: shared.NodeEndLine(node), item: item}
-	s.scopes = append(s.scopes, scope)
+	scope := rubyScope{kind: rubyScopeDef, name: name}
 	body := node.ChildByFieldName("body")
 	if body != nil {
 		s.walk(body, append(scopeStack, scope), visibility, seenVariables, options)
@@ -403,153 +360,4 @@ func rubyEnclosingContext(scopeStack []rubyScope, kinds ...rubyScopeKind) (strin
 		}
 	}
 	return "", ""
-}
-
-func (s *rubySyntax) text(node *tree_sitter.Node) string {
-	if node == nil {
-		return ""
-	}
-	return strings.TrimSpace(shared.NodeText(node, s.source))
-}
-
-func (s *rubySyntax) rawLine(line int) string {
-	if line <= 0 || line > len(s.lines) {
-		return ""
-	}
-	return s.lines[line-1]
-}
-
-// constantName returns the last `::` segment of a constant or scope_resolution
-// node, matching the legacy last-segment behavior.
-func (s *rubySyntax) constantName(node *tree_sitter.Node) string {
-	if node == nil {
-		return ""
-	}
-	return shared.LastPathSegment(s.text(node), "::")
-}
-
-// superclassName returns the base constant name from a (superclass) node.
-func (s *rubySyntax) superclassName(node *tree_sitter.Node) string {
-	cursor := node.Walk()
-	defer cursor.Close()
-	if !cursor.GotoFirstChild() {
-		return ""
-	}
-	for {
-		child := cursor.Node()
-		if child.IsNamed() {
-			switch child.Kind() {
-			case "constant", "scope_resolution":
-				return shared.LastPathSegment(s.text(child), "::")
-			}
-		}
-		if !cursor.GotoNextSibling() {
-			break
-		}
-	}
-	return ""
-}
-
-// methodArguments returns normalized parameter names from a (method_parameters)
-// node, matching legacy argument normalization.
-func (s *rubySyntax) methodArguments(node *tree_sitter.Node) []string {
-	if node == nil {
-		return []string{}
-	}
-	args := make([]string, 0)
-	cursor := node.Walk()
-	defer cursor.Close()
-	if !cursor.GotoFirstChild() {
-		return args
-	}
-	for {
-		child := cursor.Node()
-		if child.IsNamed() {
-			if name := s.parameterName(child); name != "" {
-				args = append(args, name)
-			}
-		}
-		if !cursor.GotoNextSibling() {
-			break
-		}
-	}
-	return args
-}
-
-func (s *rubySyntax) parameterName(node *tree_sitter.Node) string {
-	switch node.Kind() {
-	case "identifier":
-		return s.text(node)
-	case "optional_parameter", "keyword_parameter", "splat_parameter",
-		"hash_splat_parameter", "block_parameter", "splat_argument":
-		if name := node.ChildByFieldName("name"); name != nil {
-			return s.text(name)
-		}
-		return rubyNormalizeArgument(s.text(node))
-	default:
-		return rubyNormalizeArgument(s.text(node))
-	}
-}
-
-func (s *rubySyntax) firstStringArgument(node *tree_sitter.Node) string {
-	args := node.ChildByFieldName("arguments")
-	if args == nil {
-		return ""
-	}
-	cursor := args.Walk()
-	defer cursor.Close()
-	if !cursor.GotoFirstChild() {
-		return ""
-	}
-	for {
-		child := cursor.Node()
-		if child.IsNamed() && child.Kind() == "string" {
-			return s.stringContent(child)
-		}
-		if !cursor.GotoNextSibling() {
-			break
-		}
-	}
-	return ""
-}
-
-func (s *rubySyntax) firstConstantArgument(node *tree_sitter.Node) string {
-	args := node.ChildByFieldName("arguments")
-	if args == nil {
-		return ""
-	}
-	cursor := args.Walk()
-	defer cursor.Close()
-	if !cursor.GotoFirstChild() {
-		return ""
-	}
-	for {
-		child := cursor.Node()
-		if child.IsNamed() && (child.Kind() == "constant" || child.Kind() == "scope_resolution") {
-			return shared.LastPathSegment(s.text(child), "::")
-		}
-		if !cursor.GotoNextSibling() {
-			break
-		}
-	}
-	return ""
-}
-
-// stringContent returns the (string_content) child text of a (string) node.
-func (s *rubySyntax) stringContent(node *tree_sitter.Node) string {
-	cursor := node.Walk()
-	defer cursor.Close()
-	if !cursor.GotoFirstChild() {
-		return ""
-	}
-	for {
-		child := cursor.Node()
-		if child.IsNamed() && child.Kind() == "string_content" {
-			return s.text(child)
-		}
-		if !cursor.GotoNextSibling() {
-			break
-		}
-	}
-	return ""
 }

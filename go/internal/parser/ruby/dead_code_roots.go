@@ -165,91 +165,94 @@ func (s *rubySyntax) symbolArguments(node *tree_sitter.Node) []string {
 	return names
 }
 
-// rubyScriptEntrypointCallNames returns receiverless call names that appear
-// inside a `if __FILE__ == $0` (or `$PROGRAM_NAME`) script guard. The guard and
-// its bare statement calls are recovered from the source lines because the
-// grammar produces an error region for the modifier-less guard form.
+// rubyScriptEntrypointCallNames returns the method names made reachable by a
+// `if __FILE__ == $0` (or `$PROGRAM_NAME`) script guard. The guard is detected
+// on the AST: an if/unless node whose condition compares `__FILE__` against a
+// `$0`/`$PROGRAM_NAME` global, in either order. Receiverless calls and bare
+// identifier statements in the guard body name reachable methods.
 func rubyScriptEntrypointCallNames(syntax *rubySyntax) map[string]struct{} {
 	names := make(map[string]struct{})
-	lines := syntax.lines
-	for index := 0; index < len(lines); index++ {
-		if !rubyIsScriptGuardLine(strings.TrimSpace(lines[index])) {
-			continue
+	shared.WalkNamed(syntax.root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "if", "unless":
+		default:
+			return
 		}
-		for lineIndex := index + 1; lineIndex < len(lines); lineIndex++ {
-			trimmed := strings.TrimSpace(lines[lineIndex])
-			if trimmed == "end" {
-				break
-			}
-			if name := rubyBareScriptCallName(trimmed); name != "" && !rubyKeywordLikeIdentifier(name) {
-				names[name] = struct{}{}
-			}
+		if !rubyIsScriptGuardCondition(syntax, node.ChildByFieldName("condition")) {
+			return
 		}
-	}
+		body := node.ChildByFieldName("consequence")
+		if body == nil {
+			return
+		}
+		rubyCollectScriptBodyNames(syntax, body, names)
+	})
 	return names
 }
 
-// rubyIsScriptGuardLine reports whether a trimmed line is a bare script guard:
-// `if __FILE__ == $0` or `if $0 == __FILE__` (also accepting `$PROGRAM_NAME`).
-func rubyIsScriptGuardLine(trimmed string) bool {
-	if !strings.HasPrefix(trimmed, "if ") {
+// rubyIsScriptGuardCondition reports whether a condition node is a `==`
+// comparison of `__FILE__` against a `$0`/`$PROGRAM_NAME` global, in either
+// order.
+func rubyIsScriptGuardCondition(syntax *rubySyntax, condition *tree_sitter.Node) bool {
+	if condition == nil || condition.Kind() != "binary" {
 		return false
 	}
-	condition := strings.TrimSpace(trimmed[len("if "):])
-	parts := strings.SplitN(condition, "==", 2)
-	if len(parts) != 2 {
+	left := condition.ChildByFieldName("left")
+	right := condition.ChildByFieldName("right")
+	if left == nil || right == nil {
 		return false
 	}
-	left := strings.TrimSpace(parts[0])
-	right := strings.TrimSpace(parts[1])
-	return rubyScriptGuardPair(left, right) || rubyScriptGuardPair(right, left)
+	return rubyScriptGuardOperands(syntax, left, right) ||
+		rubyScriptGuardOperands(syntax, right, left)
 }
 
-func rubyScriptGuardPair(file string, program string) bool {
-	return file == "__FILE__" && (program == "$0" || program == "$PROGRAM_NAME")
+// rubyScriptGuardOperands reports whether file is the `__FILE__` identifier and
+// program is the `$0` or `$PROGRAM_NAME` global variable.
+func rubyScriptGuardOperands(syntax *rubySyntax, file *tree_sitter.Node, program *tree_sitter.Node) bool {
+	if file.Kind() != "identifier" || syntax.text(file) != "__FILE__" {
+		return false
+	}
+	if program.Kind() != "global_variable" {
+		return false
+	}
+	switch syntax.text(program) {
+	case "$0", "$PROGRAM_NAME":
+		return true
+	default:
+		return false
+	}
 }
 
-// rubyBareScriptCallName returns the bare call name from a `name` or `name(...)`
-// statement line, or empty when the line is not a bare call.
-func rubyBareScriptCallName(trimmed string) string {
-	end := rubyScanBareScriptName(trimmed)
-	if end == 0 {
-		return ""
+// rubyCollectScriptBodyNames records the receiverless call names and bare
+// identifier statement names found among the direct children of a guard body.
+func rubyCollectScriptBodyNames(syntax *rubySyntax, body *tree_sitter.Node, names map[string]struct{}) {
+	cursor := body.Walk()
+	defer cursor.Close()
+	if !cursor.GotoFirstChild() {
+		return
 	}
-	name := trimmed[:end]
-	rest := strings.TrimSpace(trimmed[end:])
-	if rest == "" {
-		return name
-	}
-	if !strings.HasPrefix(rest, "(") {
-		return ""
-	}
-	if !strings.HasSuffix(rest, ")") {
-		return ""
-	}
-	if strings.Count(rest, "(") != 1 || strings.Count(rest, ")") != 1 {
-		return ""
-	}
-	return name
-}
-
-// rubyScanBareScriptName returns the length of a leading `[A-Za-z_]\w*[!?=]?`
-// identifier, or zero.
-func rubyScanBareScriptName(trimmed string) int {
-	if trimmed == "" || !rubyIsIdentStartByte(trimmed[0]) {
-		return 0
-	}
-	cursor := 1
-	for cursor < len(trimmed) && rubyIsIdentByte(trimmed[cursor]) {
-		cursor++
-	}
-	if cursor < len(trimmed) {
-		switch trimmed[cursor] {
-		case '!', '?', '=':
-			cursor++
+	for {
+		child := cursor.Node()
+		if child.IsNamed() {
+			switch child.Kind() {
+			case "identifier":
+				if name := syntax.text(child); name != "" {
+					names[name] = struct{}{}
+				}
+			case "call":
+				if child.ChildByFieldName("receiver") == nil {
+					if method := child.ChildByFieldName("method"); method != nil && method.Kind() == "identifier" {
+						if name := syntax.text(method); name != "" {
+							names[name] = struct{}{}
+						}
+					}
+				}
+			}
+		}
+		if !cursor.GotoNextSibling() {
+			break
 		}
 	}
-	return cursor
 }
 
 func rubyIsRailsController(contextName string) bool {
@@ -277,13 +280,4 @@ func appendRubyRootKind(rootKinds []string, rootKind string) []string {
 		}
 	}
 	return append(rootKinds, rootKind)
-}
-
-func rubyKeywordLikeIdentifier(value string) bool {
-	switch value {
-	case "if", "unless", "case", "begin", "for", "while", "until", "return", "yield", "super":
-		return true
-	default:
-		return false
-	}
 }
