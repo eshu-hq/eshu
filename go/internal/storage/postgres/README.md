@@ -411,3 +411,46 @@ harness dropping from 1.000 to 0.005 catalog loads per commit, with about 3.25x
 faster runtime and lower memory/allocations. Operator proof is in
 `load_repository_catalog` (`catalog_cache_hit`, `catalog_loads_total`) and
 `repository_catalog_invalidated` structured logs.
+
+## Scope-bounded relationship backfill catalog (#3500)
+
+When a generation onboards a new repository, `commitScopeGeneration` runs
+`backfillRelationshipEvidenceForNewRepositories` so pre-existing source repos
+that reference the new repo gain cross-repo evidence the streaming pass (which
+only sees the current batch) could not see. Before #3500 this path built the
+`DiscoverEvidence` catalog matcher from the **whole fleet** catalog and then
+discarded every result not targeting a new repo via `filterEvidenceByTargetRepo`,
+so matcher build and per-fact match memory grew O(all repositories) on every
+onboarding commit.
+
+`repositoryScopedCatalog` now narrows the matcher input to just the repositories
+the generation onboarded, the same scope-bounded model the AWS relationship
+hash-join (`reducer/aws_relationship_join.go`) uses. `DiscoverEvidence` is a pure
+function of `(envelopes, catalog)` and every emitted `EvidenceFact.TargetRepoID`
+is a catalog entry, so matching against the new-repo-scoped catalog yields exactly
+the evidence the full-catalog pass produced and then filtered. The post-filter is
+removed because the scoped catalog cannot emit evidence for any other target.
+
+Accuracy is pinned by `TestRepositoryScopedCatalogBoundsToNewRepos` (the scope is
+exactly the new-repo entries regardless of fleet size) and
+`TestBackfillScopedCatalogDiscoversSameEvidenceAsFullCatalog` (scoped discovery
+equals the prior full-catalog-then-filter result edge-for-edge).
+
+Benchmark Evidence: `BenchmarkBackfillDiscoveryFullCatalog` vs
+`BenchmarkBackfillDiscoveryScoped` on Apple M4 Pro (`go test -bench
+BenchmarkBackfillDiscovery -benchmem`, one source fact per fleet repo, fixed
+two-repo onboarding delta). At a 5000-repo fleet the scoped path drops catalog
+matcher memory from `5009964 B/op`/`65117 allocs/op` to `1508890 B/op`/`25072
+allocs/op` (about 3.3x less memory, 2.6x fewer allocations); at 1000 repos from
+`968620 B/op`/`13058 allocs/op` to `338582 B/op`/`5045 allocs/op`. The matcher
+build and the discarded full-catalog evidence set no longer scale with fleet
+size, so onboarding-commit correlation memory scales with the onboarding delta.
+No-Observability-Change: the backfill emits no new metric, span, or log shape;
+existing `relationship_backfill` commit-stage timing and the evidence-persist
+rows still surface the path, now with bounded matcher cost.
+
+The corpus-wide source-fact load (`loadLatestRelationshipFacts`) is unchanged and
+still bounds per-commit *time* to O(all source facts); narrowing that load to a
+content-scoped query that provably never drops a matcher-eligible fact is tracked
+as a #3500 follow-up because it must preserve every extractor heuristic's match
+truth.

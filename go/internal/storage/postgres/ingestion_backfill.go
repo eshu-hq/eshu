@@ -430,9 +430,21 @@ func backfillRelationshipEvidenceForNewRepositories(
 	if err != nil {
 		return fmt.Errorf("load latest facts for relationship backfill: %w", err)
 	}
-	evidence := filterEvidenceByTargetRepo(
-		relationships.DedupeEvidenceFacts(relationships.DiscoverEvidence(activeFacts, refreshedCatalog)),
-		newRepoIDs,
+
+	// Scope the catalog matcher to only the repositories this generation
+	// onboarded (issue #3500). DiscoverEvidence is a pure function of
+	// (envelopes, catalog) and every EvidenceFact.TargetRepoID is a catalog
+	// entry, so matching against the new-repo-scoped catalog yields exactly the
+	// evidence the prior full-catalog discovery produced and then discarded via
+	// filterEvidenceByTargetRepo — minus the wasted O(all-repos) matcher build
+	// and the post-filter pass. The source side (activeFacts) stays complete
+	// because a pre-existing source repo may reference a newly onboarded target.
+	scopedCatalog := repositoryScopedCatalog(refreshedCatalog, newRepoIDs)
+	if len(scopedCatalog) == 0 {
+		return nil
+	}
+	evidence := relationships.DedupeEvidenceFacts(
+		relationships.DiscoverEvidence(activeFacts, scopedCatalog),
 	)
 	if len(evidence) == 0 {
 		return nil
@@ -442,6 +454,30 @@ func backfillRelationshipEvidenceForNewRepositories(
 	}
 
 	return nil
+}
+
+// repositoryScopedCatalog returns the subset of catalog entries whose RepoID is
+// in repoIDs, preserving each entry's aliases verbatim. It is the scope-bounded
+// matcher input for the per-commit relationship backfill (issue #3500): the
+// matcher and the per-fact match cost scale with the onboarding delta, not the
+// fleet size, while correlation truth is unchanged because DiscoverEvidence
+// already keys every emitted EvidenceFact.TargetRepoID to a catalog entry.
+func repositoryScopedCatalog(
+	catalog []relationships.CatalogEntry,
+	repoIDs map[string]struct{},
+) []relationships.CatalogEntry {
+	if len(catalog) == 0 || len(repoIDs) == 0 {
+		return nil
+	}
+
+	scoped := make([]relationships.CatalogEntry, 0, len(repoIDs))
+	for _, entry := range catalog {
+		if _, ok := repoIDs[entry.RepoID]; !ok {
+			continue
+		}
+		scoped = append(scoped, entry)
+	}
+	return scoped
 }
 
 func loadLatestRelationshipFacts(ctx context.Context, queryer Queryer) ([]facts.Envelope, error) {
