@@ -238,7 +238,7 @@
             const pk = await client.post("/api/v0/code/imports/investigate", { repo_id: s.id, query_type: "package_imports", limit: 100 });
             const pkgs = (pk.data && (pk.data.dependencies || pk.data.modules || pk.data.package_imports)) || [];
             const dep = [];
-            pkgs.forEach((p) => { const nm = String(p.package || p.name || p.target_module || "").replace(/^@acme\//, ""); if (nameToId[nm] && nameToId[nm] !== s.id) dep.push(nameToId[nm]); });
+            pkgs.forEach((p) => { const nm = String(p.package || p.name || p.target_module || "").replace(/^@[^/]+\//, ""); if (nameToId[nm] && nameToId[nm] !== s.id) dep.push(nameToId[nm]); });
             if (dep.length) s.deps = Array.from(new Set(dep));
           } catch (e) {}
           map[s.id] = { modEdges, hubs, cycles };
