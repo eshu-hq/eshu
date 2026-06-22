@@ -335,11 +335,12 @@ callers that need dependency or library handles.
 
 Request contract:
 
-- JSON body with `query` matched case-insensitively against package normalized
-  name, namespace, or PURL
-- optional `ecosystem` to scope the catalog read to one package ecosystem
+- required JSON body that supplies a search scope: a non-empty `query`
+  (matched case-insensitively against package normalized name, namespace, or
+  PURL) or a non-empty `ecosystem` (e.g. npm, pypi, maven, nuget). A request
+  with neither scope returns `400`; the route never scans the whole catalog.
 - optional `unique_only` to return distinct package bundles
-- optional `limit`
+- optional `limit` (default 50, max 200)
 
 Each result reports `package_id`, `name`, `ecosystem`, `registry`, `namespace`,
 `purl`, and `version_count`. The route returns matching bundle candidates from

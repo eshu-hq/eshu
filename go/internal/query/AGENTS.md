@@ -658,3 +658,33 @@ runtime knob, metric instrument, or metric label. The route keeps its existing
 `TruthEnvelope`, and HTTP route attribution; only the request now also accepts an
 optional `ecosystem` field and the response rows carry package identity instead
 of repository identity.
+
+## Registry bundle search requires a scope (#3506 follow-up)
+
+`handleSearchBundles` now rejects a request that supplies neither `query` nor
+`ecosystem` with `400` before any graph read, and the request body is required
+(OpenAPI `requestBody.required: true`, `anyOf` of `query`/`ecosystem`). #3493
+left the scope optional, so a catalog-head request anchored on
+`MATCH (p:Package)` would scan every package and run the
+`OPTIONAL MATCH (p)-[:HAS_VERSION]->(v)`/`count(v)` aggregation across the whole
+registry before `LIMIT`, violating the bounded MCP/API read contract on large
+registries. Requiring a non-empty scope keeps the read bounded by construction:
+the produced Cypher always carries a selective `$query` or `$ecosystem`
+predicate ahead of the version aggregation. The MCP tool schema keeps the
+constraint in its property descriptions and handler validation rather than a
+top-level `anyOf`, because exported MCP schemas must avoid OpenAI-restricted
+top-level keywords.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1` pass;
+`TestHandleSearchBundles_RequiresScope` (table of unscoped bodies) and
+`TestSearchRegistryBundlesCypherAlwaysScoped` fail before this change (unscoped
+requests returned `200` and queried the graph) and pass after. This strictly
+narrows the input domain — scoped requests run the identical bounded query
+shape, and the previously-unbounded unscoped path is removed — so there is no
+regression for any request that already carried a scope.
+
+No-Observability-Change: this change adds no route, graph write, queue, worker,
+runtime knob, metric instrument, or metric label. The reject path uses the
+existing `WriteError` 400 envelope; scoped requests keep the existing
+`cypherQueryTimeout`-bounded context, `platform_impact.context_overview`
+`TruthEnvelope`, and HTTP route attribution.

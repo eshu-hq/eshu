@@ -309,17 +309,17 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "search_registry_bundles",
-			Description: "Search the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL. Optionally scope to one ecosystem.",
+			Description: "Search the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL. Supply a non-empty query or ecosystem scope; unscoped requests are rejected.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"query": map[string]any{
 						"type":        "string",
-						"description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Empty lists the catalog head.",
+						"description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Required unless ecosystem is supplied.",
 					},
 					"ecosystem": map[string]any{
 						"type":        "string",
-						"description": "Optional ecosystem scope (e.g. npm, pypi, maven, nuget) to bound the catalog read.",
+						"description": "Ecosystem scope (e.g. npm, pypi, maven, nuget) to bound the catalog read. Required unless query is supplied.",
 					},
 					"unique_only": map[string]any{
 						"type":        "boolean",
@@ -328,6 +328,10 @@ func codebaseTools() []ToolDefinition {
 					},
 					"limit": map[string]any{"type": "integer", "description": "Maximum bundles to return", "default": 50, "minimum": 1, "maximum": 200},
 				},
+				// A non-empty query or ecosystem scope is required, but the
+				// constraint lives in the descriptions above and in handler
+				// validation: exported MCP tool schemas must not use top-level
+				// anyOf/oneOf/allOf (OpenAI-restricted keywords).
 				"required": []string{},
 			},
 		},

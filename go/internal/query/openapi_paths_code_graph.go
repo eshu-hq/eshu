@@ -47,17 +47,21 @@ const openAPIPathsCodeGraph = `
       "post": {
         "tags": ["code"],
         "summary": "Search package registry bundle candidates",
-        "description": "Searches the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL, optionally scoped to one ecosystem. This route does not upload bundle archives or mutate graph state.",
+        "description": "Searches the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL, optionally scoped to one ecosystem. A non-empty query or ecosystem scope is required; an unscoped request returns 400. This route does not upload bundle archives or mutate graph state.",
         "operationId": "searchCodeBundles",
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "anyOf": [
+                  {"required": ["query"]},
+                  {"required": ["ecosystem"]}
+                ],
                 "properties": {
-                  "query": {"type": "string", "description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Empty lists the catalog head."},
-                  "ecosystem": {"type": "string", "description": "Optional ecosystem scope (e.g. npm, pypi, maven, nuget)."},
+                  "query": {"type": "string", "description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Required unless ecosystem is supplied."},
+                  "ecosystem": {"type": "string", "description": "Ecosystem scope (e.g. npm, pypi, maven, nuget). Required unless query is supplied."},
                   "unique_only": {"type": "boolean", "description": "Return only distinct package bundles", "default": false},
                   "limit": {"type": "integer", "description": "Max results (default 50, max 200)", "default": 50, "minimum": 1, "maximum": 200}
                 }

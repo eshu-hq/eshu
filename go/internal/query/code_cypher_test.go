@@ -384,6 +384,79 @@ func TestHandleSearchBundles_ScopesByEcosystem(t *testing.T) {
 	}
 }
 
+// TestHandleSearchBundles_RequiresScope proves the handler rejects a request
+// that supplies neither `query` nor `ecosystem` and never reaches the graph.
+// Regression guard for #3506: an unscoped request used to scan and aggregate
+// every :Package / version before LIMIT, violating the bounded read contract.
+func TestHandleSearchBundles_RequiresScope(t *testing.T) {
+	for name, body := range map[string]string{
+		"empty body":        ``,
+		"empty object":      `{}`,
+		"blank query":       `{"query": "   "}`,
+		"blank scope pair":  `{"query": "", "ecosystem": ""}`,
+		"limit only":        `{"limit": 10}`,
+		"unique_only":       `{"unique_only": true}`,
+		"whitespace scopes": `{"query": " ", "ecosystem": "\t"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			queried := false
+			stub := fakeGraphReader{
+				run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+					queried = true
+					return nil, nil
+				},
+			}
+			h := &CodeHandler{Neo4j: stub}
+
+			req := httptest.NewRequest("POST", "/api/v0/code/bundles", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			w := httptest.NewRecorder()
+
+			h.handleSearchBundles(w, req)
+
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+			}
+			if queried {
+				t.Fatalf("graph was queried for an unscoped bundle request; want bounded reject before scan")
+			}
+		})
+	}
+}
+
+// TestSearchRegistryBundlesCypherAlwaysScoped proves the query builder never
+// emits a bare whole-catalog scan: every produced query carries a selective
+// predicate ($query or $ecosystem) ahead of the version aggregation, so a
+// catalog-head scan-and-aggregate is impossible by construction.
+func TestSearchRegistryBundlesCypherAlwaysScoped(t *testing.T) {
+	cases := []struct {
+		name      string
+		query     string
+		ecosystem string
+	}{
+		{"query only", "react", ""},
+		{"ecosystem only", "", "npm"},
+		{"both", "react", "npm"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cypher, params := searchRegistryBundlesCypher(tc.query, tc.ecosystem, false, 51)
+			hasQueryPredicate := strings.Contains(cypher, "$query")
+			hasEcosystemPredicate := strings.Contains(cypher, "$ecosystem")
+			if !hasQueryPredicate && !hasEcosystemPredicate {
+				t.Fatalf("cypher = %q, want at least one selective predicate", cypher)
+			}
+			if tc.query != "" && params["query"] != tc.query {
+				t.Fatalf("params[query] = %#v, want %#v", params["query"], tc.query)
+			}
+			if tc.ecosystem != "" && params["ecosystem"] != tc.ecosystem {
+				t.Fatalf("params[ecosystem] = %#v, want %#v", params["ecosystem"], tc.ecosystem)
+			}
+		})
+	}
+}
+
 // TestHandleSearchBundles_EmptyResults proves the handler returns a bounded,
 // non-truncated empty envelope rather than erroring when no bundles match.
 func TestHandleSearchBundles_EmptyResults(t *testing.T) {

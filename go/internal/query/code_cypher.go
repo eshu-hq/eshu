@@ -442,6 +442,14 @@ const (
 // handler now searches that catalog by package identity (normalized name,
 // namespace, or PURL) and optionally scopes to one ecosystem, aligning with the
 // list_package_registry_* read surface instead of inventing repo-name truth.
+//
+// #3506: a search scope is required. The request must supply a non-empty
+// `query` or `ecosystem`; an unscoped request is rejected with 400 before any
+// graph read. Without this guard a catalog-head request anchored on
+// `MATCH (p:Package)` would scan every package and run the version
+// `OPTIONAL MATCH`/`count(v)` aggregation across the whole registry before
+// applying `LIMIT`, which violates the bounded read contract on large
+// registries. Requiring a scope keeps the read bounded by construction.
 func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Query      string `json:"query"`
@@ -454,6 +462,13 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	query := strings.TrimSpace(req.Query)
+	ecosystem := strings.TrimSpace(req.Ecosystem)
+	if query == "" && ecosystem == "" {
+		WriteError(w, http.StatusBadRequest, "a non-empty query or ecosystem scope is required")
+		return
+	}
+
 	limit := req.Limit
 	if limit <= 0 {
 		limit = searchBundlesDefaultLimit
@@ -462,7 +477,7 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		limit = searchBundlesMaxLimit
 	}
 
-	cypher, params := searchRegistryBundlesCypher(req.Query, req.Ecosystem, req.UniqueOnly, limit+1)
+	cypher, params := searchRegistryBundlesCypher(query, ecosystem, req.UniqueOnly, limit+1)
 
 	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
 	defer cancel()
@@ -490,10 +505,12 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 // query over the package registry catalog. The match anchors on `:Package`
 // identities (which carry the dual `:PackageRegistryPackage` label written by
 // the reducer) and filters by case-insensitive substring over the package's
-// normalized name, namespace, or PURL. An empty query lists the catalog head;
-// a non-empty ecosystem scopes the read to one ecosystem. The query parameter
-// is always bound, never interpolated, so the substring match stays
-// injection-safe.
+// normalized name, namespace, or PURL. A non-empty ecosystem scopes the read to
+// one ecosystem. The caller (handleSearchBundles) requires a non-empty query or
+// ecosystem before calling this, so the produced query always carries a
+// selective predicate ahead of the version aggregation and never scans the
+// whole catalog. The query parameter is always bound, never interpolated, so
+// the substring match stays injection-safe.
 func searchRegistryBundlesCypher(query, ecosystem string, uniqueOnly bool, limit int) (string, map[string]any) {
 	params := map[string]any{"limit": limit}
 

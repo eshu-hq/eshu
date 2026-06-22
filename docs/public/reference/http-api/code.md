@@ -256,5 +256,7 @@ optional `limit`, rejects mutation keywords, caps query length, uses a request
 timeout, and appends or enforces bounded `LIMIT` values. Use purpose-built
 code, story, impact, and content routes for normal client workflows.
 
-`POST /api/v0/code/bundles` searches indexed repositories as bundle candidates.
-It does not upload files, import `.eshu` archives, or mutate graph state.
+`POST /api/v0/code/bundles` searches the pre-indexed package registry catalog
+(package bundles) by name, namespace, or PURL. It requires a non-empty `query`
+or `ecosystem` scope and rejects unscoped requests. It does not upload files,
+import `.eshu` archives, or mutate graph state.
