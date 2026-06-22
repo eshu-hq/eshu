@@ -418,6 +418,12 @@ const (
 	// browse read is distinguishable from dead-IaC and management reads.
 	SpanQueryIaCResources        = "query.iac_resources"
 	SpanQueryInfraResourceSearch = "query.infra_resource_search"
+	// SpanQueryInfraRelationships wraps the bounded per-entity relationship read
+	// over the authoritative graph (POST /api/v0/infra/relationships, the MCP
+	// analyze_infra_relationships tool). It carries the stable http.route and
+	// eshu.capability attributes plus the resolved relationship_filter so an
+	// operator can confirm whether a relationship_type argument narrowed the read.
+	SpanQueryInfraRelationships = "query.infra_relationships"
 	// SpanQueryInfraResourceAggregate wraps cheap-summary count and inventory
 	// aggregates over the authoritative infrastructure graph. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like
