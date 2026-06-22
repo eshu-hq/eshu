@@ -21,7 +21,7 @@ func discoverArgoCDDocumentEvidence(
 		for _, deployedRepo := range matchingCatalogEntries(repoURL, matcher) {
 			evidence = append(evidence, matchCatalog(
 				controlRepoID, repoURL, filePath,
-				EvidenceKindArgoCDAppSource, RelDeploysFrom, 0.95,
+				EvidenceKindArgoCDAppSource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDAppSource),
 				"ArgoCD Application source references the target repository",
 				"argocd", matcher, seen, nil,
 			)...)
@@ -114,7 +114,7 @@ func appendDiscoveryEvidence(
 		RelationshipType: RelDiscoversConfigIn,
 		SourceRepoID:     controlRepoID,
 		TargetRepoID:     configRepo.RepoID,
-		Confidence:       0.99,
+		Confidence:       DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDApplicationSetDiscovery),
 		Rationale:        "ArgoCD ApplicationSet discovers config in the target repository",
 		Details: map[string]any{
 			"path":           filePath,
@@ -147,7 +147,7 @@ func appendDeploySourceEvidence(
 		RelationshipType: RelDeploysFrom,
 		SourceRepoID:     deployedRepo.RepoID,
 		TargetRepoID:     configRepo.RepoID,
-		Confidence:       0.99,
+		Confidence:       DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDApplicationSetDeploySource),
 		Rationale:        "The deployed repository sources manifests or overlays from the config repository",
 		Details: map[string]any{
 			"path":                  filePath,
@@ -187,7 +187,7 @@ func appendDestinationPlatformEvidence(
 		RelationshipType: RelRunsOn,
 		SourceRepoID:     sourceRepoID,
 		TargetEntityID:   platformID,
-		Confidence:       0.97,
+		Confidence:       DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDDestinationPlatform),
 		Rationale:        "ArgoCD destination points at the runtime platform where the deployed repository runs",
 		Details: map[string]any{
 			"path":                  filePath,

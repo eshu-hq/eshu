@@ -51,10 +51,24 @@
   needs a new domain for this edge kind. Check `internal/reducer` domain
   constants before inventing a new edge semantic.
 
-- **Change confidence values** → confidence affects `DefaultConfidenceThreshold`
+- **Change confidence values** → per-extractor confidence priors live only in
+  `DefaultConfidenceRegistry` in `confidence.go`, keyed by `EvidenceKind`. Do
+  NOT add a float literal to an extractor; read the prior with
+  `DefaultConfidenceRegistry.ConfidenceFor(kind)` (or the family accessors for
+  the runtime-service and schema-driven extractors). Edit the value and its
+  rationale in the registry, keep it inside its declared `ConfidenceTier` band,
+  and run `go test ./internal/relationships -run Confidence` to confirm the
+  bound/tier invariants still hold. Confidence affects `DefaultConfidenceThreshold`
   filtering in `Resolve`. Before lowering a value below 0.75, verify that the
   reducer admission contract for the affected domain still holds. Raise a
-  threshold only with evidence that it eliminates false positives.
+  threshold only with evidence that it eliminates false positives. To recalibrate
+  without editing source, use `DefaultConfidenceRegistry.WithOverrides(...)`.
+
+- **Add a new EvidenceKind** → besides the `models.go` constant and extractor
+  wiring, add a documented entry to `DefaultConfidenceRegistry` and to
+  `allEvidenceKinds` in `confidence_test.go`. The coverage test fails for any
+  `EvidenceKind` without a registry entry, which is intentional: no kind may emit
+  evidence with an undocumented confidence.
 
 - **Add a Terraform resource type extractor** → add the provider schema `.json.gz`
   to `go/internal/terraformschema/schemas/` (see `schemas/README.md`), then

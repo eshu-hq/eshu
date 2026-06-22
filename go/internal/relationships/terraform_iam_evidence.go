@@ -101,7 +101,7 @@ func discoverTerraformIAMSSMConfigReadEvidence(
 			filePath,
 			EvidenceKindTerraformIAMPermission,
 			RelReadsConfigFrom,
-			0.92,
+			DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindTerraformIAMPermission),
 			"Terraform IAM policy grants SSM read access to the target repository config path",
 			"terraform-iam-permission",
 			matcher,

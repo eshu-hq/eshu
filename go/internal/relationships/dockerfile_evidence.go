@@ -12,7 +12,7 @@ func discoverDockerfileEvidence(
 	for _, reference := range dockerfileSourceLabelReferences(parsedFileData) {
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, reference.value, filePath,
-			EvidenceKindDockerfileSourceLabel, RelDeploysFrom, 0.93,
+			EvidenceKindDockerfileSourceLabel, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindDockerfileSourceLabel),
 			"Dockerfile source label points at the target repository",
 			"dockerfile", matcher, seen, map[string]any{
 				"source_label": reference.label,

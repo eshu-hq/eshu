@@ -56,7 +56,7 @@ func discoverStructuredTerragruntConfigEvidence(
 					filePath,
 					EvidenceKindTerragruntConfigAssetPath,
 					RelDiscoversConfigIn,
-					0.88,
+					DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindTerragruntConfigAssetPath),
 					spec.reason,
 					"terragrunt-helper-config",
 					matcher,

@@ -10,7 +10,7 @@ func discoverDockerComposeEvidence(
 		for _, candidate := range dockerComposeBuildContexts(document) {
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
-				EvidenceKindDockerComposeBuildContext, RelDeploysFrom, 0.91,
+				EvidenceKindDockerComposeBuildContext, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindDockerComposeBuildContext),
 				"Docker Compose build context deploys from the target repository",
 				"docker_compose", matcher, seen, map[string]any{
 					"build_context": candidate,
@@ -20,7 +20,7 @@ func discoverDockerComposeEvidence(
 		for _, candidate := range dockerComposeImageRefs(document) {
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
-				EvidenceKindDockerComposeImage, RelDeploysFrom, 0.88,
+				EvidenceKindDockerComposeImage, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindDockerComposeImage),
 				"Docker Compose image reference deploys from artifacts owned by the target repository",
 				"docker_compose", matcher, seen, map[string]any{
 					"image_ref": candidate,
@@ -30,7 +30,7 @@ func discoverDockerComposeEvidence(
 		for _, candidate := range dockerComposeDependsOnRefs(document) {
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
-				EvidenceKindDockerComposeDependsOn, RelDependsOn, 0.84,
+				EvidenceKindDockerComposeDependsOn, RelDependsOn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindDockerComposeDependsOn),
 				"Docker Compose service dependency refers to the target repository",
 				"docker_compose", matcher, seen, map[string]any{
 					"depends_on_service": candidate,

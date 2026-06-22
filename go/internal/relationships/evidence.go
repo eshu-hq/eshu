@@ -202,7 +202,7 @@ func discoverKustomizeEvidence(
 	for _, candidate := range extractYAMLStringValues(content) {
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, candidate, filePath,
-			EvidenceKindKustomizeResource, RelDeploysFrom, 0.90,
+			EvidenceKindKustomizeResource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindKustomizeResource),
 			"Kustomize resources source deployment config from the target repository",
 			"kustomize", matcher, seen, nil,
 		)...)

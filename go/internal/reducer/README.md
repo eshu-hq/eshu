@@ -172,6 +172,52 @@ publishes `GraphProjectionPhaseDeployableUnitCorrelation`. Rejected,
 ambiguous, endpoint-less, and stale candidates therefore remove prior
 deployable-unit truth without fabricating a replacement edge.
 
+## Workload Signal Confidence Registry
+
+`ExtractWorkloadCandidates` (`candidate_loader.go`) scores whether a repository
+defines a deployable workload from provenance signals (Kubernetes resources,
+Argo CD applications, Helm charts, Dockerfiles, docker-compose, CloudFormation,
+GitHub Actions, Jenkins). Those signal-strength priors used to be float literals
+inlined in the `addProvenance` calls with no documented rationale and no test of
+their relative ordering (issue #3490). They now live in one documented registry,
+`DefaultWorkloadSignalConfidence` in `workload_signal_confidence.go`, keyed by
+`WorkloadSignalKind`. Each entry records the value, a `WorkloadSignalTier`, and a
+rationale.
+
+The tiers pin the ordering invariant that matters for admission truth: signals
+that describe a deployed runtime outrank CI/controller-only provenance, which
+only describes where automation runs.
+
+| Tier | Floor | Signals |
+| --- | --- | --- |
+| `WorkloadTierOrchestratedRuntime` | 0.95 | `k8s_resource` (0.98), `argocd_application` (0.95) |
+| `WorkloadTierPackagedRuntime` | 0.90 | `helm_chart` (0.92) |
+| `WorkloadTierLocalRuntime` | 0.78 | `dockerfile_runtime` (0.88), `docker_compose_runtime` (0.78) |
+| `WorkloadTierTemplate` | 0.50 | `cloudformation_template` (0.58) |
+| `WorkloadTierCIProvenance` | 0.00 | `github_actions_workflow` (0.45), `jenkins_pipeline` (0.42) |
+
+`workload_signal_confidence_test.go` pins that every signal has an entry, every
+value is in `[0,1]`, runtime signals strictly outrank CI signals, and tier
+floors are monotonic. Recalibrate via
+`DefaultWorkloadSignalConfidence.WithOverrides(...)`, which validates `[0,1]` and
+never mutates the shared default. Full golden-set calibration of the absolute
+values remains future work; this registry is the structural prerequisite.
+
+No-Regression Evidence: centralizing the `addProvenance` confidence literals into
+`DefaultWorkloadSignalConfidence` (issue #3490) is a pure refactor. Every emitted
+provenance confidence is byte-identical to the prior inline literal (the registry
+is built once at package init and read by O(1) map lookup), and the provenance
+kind strings are unchanged, so `ExtractWorkloadCandidates` output and downstream
+deployable-unit admission behavior are unchanged. It adds no graph write, queue
+claim, schema, worker, lease, or batch behavior. Proven by `go test
+./internal/reducer -count=1`, with the unchanged `candidate_loader_test.go`
+confidence expectations still passing and the new
+`workload_signal_confidence_test.go` invariants added.
+
+No-Observability-Change: this refactor adds no runtime stage, metric, or span.
+Operators continue to read workload-candidate confidence through the existing
+deployable-unit correlation reducer facts and graph-projection phase signals.
+
 ## GCP Cloud Resource Materialization
 
 `DomainGCPResourceMaterialization` mirrors `DomainAWSResourceMaterialization`

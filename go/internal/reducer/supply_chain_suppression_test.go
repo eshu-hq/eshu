@@ -377,7 +377,7 @@ func TestEvaluateSupplyChainSuppressionScopeMismatchReasonIncludesAllAnchors(t *
 		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:      "CVE-2026-0100",
-			AdvisoryID: "GHSA-zzzz-yyyy-xxxx", // mismatch
+			AdvisoryID: "GHSA-zzzz-yyyy-xxxx",   // mismatch
 			PURL:       "pkg:npm/example@9.9.9", // mismatch
 		},
 	}

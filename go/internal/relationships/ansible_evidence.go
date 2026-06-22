@@ -40,7 +40,7 @@ func discoverAnsibleDocumentEvidence(
 			filePath,
 			EvidenceKindAnsibleRoleReference,
 			RelDependsOn,
-			0.92,
+			DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindAnsibleRoleReference),
 			"Ansible playbook role reference points at the target repository",
 			"ansible",
 			matcher,

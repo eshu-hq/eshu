@@ -24,7 +24,7 @@ func discoverStructuredHelmEvidence(
 				)
 				evidence = append(evidence, matchCatalog(
 					sourceRepoID, candidate, filePath,
-					EvidenceKindHelmChart, RelDeploysFrom, 0.90,
+					EvidenceKindHelmChart, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmChart),
 					"Helm chart metadata references the target repository",
 					"helm", matcher, seen, details,
 				)...)
@@ -40,7 +40,7 @@ func discoverStructuredHelmEvidence(
 				)
 				evidence = append(evidence, matchCatalog(
 					sourceRepoID, normalized, filePath,
-					EvidenceKindHelmChart, RelDeploysFrom, 0.90,
+					EvidenceKindHelmChart, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmChart),
 					"Helm chart metadata references the target repository",
 					"helm", matcher, seen, details,
 				)...)
@@ -66,7 +66,7 @@ func discoverStructuredHelmEvidence(
 				)
 				evidence = append(evidence, matchCatalog(
 					sourceRepoID, normalized, filePath,
-					EvidenceKindHelmValues, RelDeploysFrom, 0.84,
+					EvidenceKindHelmValues, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmValues),
 					"Helm values reference the target repository",
 					"helm", matcher, seen, details,
 				)...)
@@ -107,7 +107,7 @@ func discoverStructuredArgoCDEvidence(
 				)
 				evidence = append(evidence, matchCatalog(
 					sourceRepoID, source.repoURL, filePath,
-					EvidenceKindArgoCDAppSource, RelDeploysFrom, 0.95,
+					EvidenceKindArgoCDAppSource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDAppSource),
 					"ArgoCD Application source references the target repository",
 					"argocd", matcher, seen, details,
 				)...)

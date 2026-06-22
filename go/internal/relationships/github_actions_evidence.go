@@ -27,7 +27,7 @@ func discoverGitHubActionsEvidence(
 				RelationshipType: RelDeploysFrom,
 				SourceRepoID:     sourceRepoID,
 				TargetRepoID:     sourceRepoID,
-				Confidence:       0.86,
+				Confidence:       DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindGitHubActionsLocalReusableWorkflow),
 				Rationale:        "GitHub Actions reuses deployment logic from a workflow file in the same repository",
 				Details: map[string]any{
 					"path":                       filePath,
@@ -46,7 +46,7 @@ func discoverGitHubActionsEvidence(
 			repo, workflowPath, version := parseGitHubRefParts(candidate)
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
-				EvidenceKindGitHubActionsReusableWorkflow, RelDeploysFrom, 0.93,
+				EvidenceKindGitHubActionsReusableWorkflow, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindGitHubActionsReusableWorkflow),
 				"GitHub Actions reusable workflow references deployment logic in the target repository",
 				"github_actions", matcher, seen, map[string]any{
 					"workflow_ref":               candidate,
@@ -63,7 +63,7 @@ func discoverGitHubActionsEvidence(
 		for _, candidate := range githubActionsCheckoutRepositoryRefs(document) {
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
-				EvidenceKindGitHubActionsCheckoutRepository, RelDiscoversConfigIn, 0.91,
+				EvidenceKindGitHubActionsCheckoutRepository, RelDiscoversConfigIn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindGitHubActionsCheckoutRepository),
 				"GitHub Actions explicitly checks out config or automation from the target repository",
 				"github_actions", matcher, seen, map[string]any{
 					"checkout_repository": candidate,
@@ -73,7 +73,7 @@ func discoverGitHubActionsEvidence(
 		for _, candidate := range githubActionsWorkflowInputRepositoryRefs(document) {
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
-				EvidenceKindGitHubActionsWorkflowInputRepository, RelDiscoversConfigIn, 0.90,
+				EvidenceKindGitHubActionsWorkflowInputRepository, RelDiscoversConfigIn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindGitHubActionsWorkflowInputRepository),
 				"GitHub Actions passes an explicit automation or config repository through workflow inputs",
 				"github_actions", matcher, seen, map[string]any{
 					"workflow_input_repository": candidate,
@@ -84,7 +84,7 @@ func discoverGitHubActionsEvidence(
 			repo, actionPath, version := parseGitHubRefParts(candidate)
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
-				EvidenceKindGitHubActionsActionRepository, RelDependsOn, 0.88,
+				EvidenceKindGitHubActionsActionRepository, RelDependsOn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindGitHubActionsActionRepository),
 				"GitHub Actions step uses the target repository as an action dependency",
 				"github_actions", matcher, seen, map[string]any{
 					"action_repository":          candidate,

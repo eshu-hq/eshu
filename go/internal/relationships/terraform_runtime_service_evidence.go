@@ -53,7 +53,7 @@ func discoverTerraformRuntimeServiceModuleEvidence(
 				filePath,
 				evidenceKind,
 				RelProvisionsDependencyFor,
-				0.96,
+				DefaultConfidenceRegistry.TerraformRuntimeServiceConfidence(),
 				"Terraform runtime service module references the target repository",
 				"terraform-runtime-service-module",
 				matcher,
