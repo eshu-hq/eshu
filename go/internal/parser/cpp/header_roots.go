@@ -8,20 +8,43 @@ import (
 	"unicode"
 )
 
+// The regex patterns in this file are a justified permanent exception to the
+// "prefer AST over regex" rule. They scan the text of EXTERNAL local header
+// files read via os.ReadFile in AnnotatePublicHeaderRoots. Those headers are not
+// part of the tree-sitter parse of the current translation unit, so there is no
+// AST to read field-by-field. The scan is deliberately bounded: it reads only
+// headers directly #included by the current file and inside the repository root,
+// it does not resolve the transitive include graph, expand macros, or parse the
+// header into a syntax tree. Migrating these to AST would require parsing each
+// header, which the package boundary (see AGENTS.md) keeps out of scope without
+// an ADR-backed design.
+
+// cppFreeHeaderPrototypePattern matches a free (non-member) function prototype
+// in external header text and captures the function name.
 var cppFreeHeaderPrototypePattern = regexp.MustCompile(
 	`(?m)(?:^|;)\s*(?:[A-Za-z_]\w*|const|extern|inline|constexpr|noexcept|auto|\s|[*&:<>])+?\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?(?:noexcept\s*)?;`,
 )
 
+// cppClassBlockPattern matches a class or struct body in external header text,
+// capturing the type name and the brace-enclosed member region so public method
+// prototypes can be scanned per visibility section.
 var cppClassBlockPattern = regexp.MustCompile(
 	`(?s)\b(?:class|struct)\s+([A-Za-z_]\w*)[^{};]*\{(.*?)\}\s*;`,
 )
 
+// cppClassMethodPrototypePattern matches a member function prototype within a
+// class body line in external header text and captures the method name.
 var cppClassMethodPrototypePattern = regexp.MustCompile(
 	`(?m)(?:^|;)\s*(?:virtual\s+)?(?:[A-Za-z_]\w*|const|inline|constexpr|noexcept|auto|\s|[*&:<>])+?\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?(?:override\s*)?(?:noexcept\s*)?;`,
 )
 
+// cppBlockCommentPattern strips `/* ... */` comments from external header text
+// before prototype scanning so commented-out declarations are not treated as
+// public API. It is a text-strip helper for the out-of-AST header scan.
 var cppBlockCommentPattern = regexp.MustCompile(`(?s)/\*.*?\*/`)
 
+// cppLineCommentPattern strips `// ...` line comments from external header text
+// for the same reason as cppBlockCommentPattern.
 var cppLineCommentPattern = regexp.MustCompile(`(?m)//.*$`)
 
 type cppRepoRootBounds struct {
