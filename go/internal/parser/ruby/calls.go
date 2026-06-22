@@ -1,36 +1,75 @@
 package ruby
 
-import (
-	"regexp"
-	"strings"
-)
+import "strings"
 
-var (
-	rubyChainedCallPattern                = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*[!?=]?)+)\(([^()]*)\)\.([A-Za-z_]\w*[!?=]?)(?:\s*\(([^)]*)\)|\s+([^#]+))?`)
-	rubyScopedCallPattern                 = regexp.MustCompile(`([A-Z][A-Za-z0-9_:]*\.[A-Za-z_]\w*[!?=]?)\(`)
-	rubyQualifiedCallPattern              = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*)+[!?=]?)(?:\s*\(|\b|[\s;])`)
-	rubyBareCallPattern                   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:require_relative|require|load|include|extend|attr_accessor|attr_reader|attr_writer|define_method|define_singleton_method|instance_method|instance_eval|cache_method|puts|sleep|method|public_send|send|super|bind))(?:\s*\(([^)]*)\)|\s+([^#]+))`)
-	rubyReceiverlessParenCallPattern      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@.])([a-z_]\w*[!?]?)\s*\(([^)]*)\)`)
-	rubyReceiverlessAssignmentCallPattern = regexp.MustCompile(`=\s*([a-z_]\w*[!?]?)\s*(?:$|[#;,)])`)
-	rubyReceiverlessStatementCallPattern  = regexp.MustCompile(`^\s*([a-z_]\w*[!?]?)\s+([^#=]+)$`)
-)
-
+// rubyCallMatch is one call shape recovered from a single source line.
 type rubyCallMatch struct {
 	name     string
 	fullName string
 	args     string
 }
 
+// rubyParseCalls reconstructs the ordered set of call shapes from one trimmed
+// source line. It applies six successive recognizers — chained, scoped,
+// qualified, bare known-method, receiverless parenthesized, receiverless
+// assignment, and receiverless statement — deduplicating by full name so each
+// distinct call is emitted once per line in recognizer order.
 func rubyParseCalls(line string) []rubyCallMatch {
 	calls := make([]rubyCallMatch, 0)
 	seen := make(map[string]struct{})
 
-	for _, matches := range rubyChainedCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) < 4 {
+	rubyScanChainedCalls(line, &calls, seen)
+	rubyScanScopedCalls(line, &calls, seen)
+	rubyScanQualifiedCalls(line, &calls, seen)
+	rubyScanBareCalls(line, &calls, seen)
+	rubyScanReceiverlessParenCalls(line, &calls, seen)
+	rubyScanReceiverlessAssignmentCalls(line, &calls, seen)
+	rubyScanReceiverlessStatementCalls(line, &calls, seen)
+
+	return calls
+}
+
+func rubyAppendCall(calls *[]rubyCallMatch, seen map[string]struct{}, fullName string, args string) {
+	if fullName == "" {
+		return
+	}
+	if _, ok := seen[fullName]; ok {
+		return
+	}
+	seen[fullName] = struct{}{}
+	*calls = append(*calls, rubyCallMatch{
+		name:     rubyCallName(fullName),
+		fullName: fullName,
+		args:     args,
+	})
+}
+
+// rubyScanChainedCalls recognizes `receiver.method(args).method2` shapes where a
+// parenthesized call is chained into a further method, mirroring the legacy
+// chained-call pattern.
+func rubyScanChainedCalls(line string, calls *[]rubyCallMatch, seen map[string]struct{}) {
+	for index := 0; index < len(line); index++ {
+		if !rubyIsReceiverStart(line, index) {
 			continue
 		}
-		receiver := strings.TrimSpace(matches[1])
-		methodName := strings.TrimSpace(matches[3])
+		receiverEnd, ok := rubyScanDottedReceiver(line, index)
+		if !ok || receiverEnd >= len(line) || line[receiverEnd] != '(' {
+			continue
+		}
+		argsEnd, _, ok := rubyScanParenArgs(line, receiverEnd)
+		if !ok {
+			continue
+		}
+		if argsEnd >= len(line) || line[argsEnd] != '.' {
+			continue
+		}
+		methodStart := argsEnd + 1
+		methodEnd := rubyScanMethodName(line, methodStart)
+		if methodEnd == methodStart {
+			continue
+		}
+		receiver := strings.TrimSpace(line[index:receiverEnd])
+		methodName := strings.TrimSpace(line[methodStart:methodEnd])
 		if receiver == "" || methodName == "" {
 			continue
 		}
@@ -38,143 +77,216 @@ func rubyParseCalls(line string) []rubyCallMatch {
 		if _, ok := seen[fullName]; ok {
 			continue
 		}
-		argsText := ""
-		switch {
-		case len(matches) >= 5 && strings.TrimSpace(matches[4]) != "":
-			argsText = matches[4]
-		case len(matches) >= 6 && strings.TrimSpace(matches[5]) != "":
-			argsText = matches[5]
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     argsText,
-		})
+		trailingArgs := rubyChainTrailingArgs(line, methodEnd)
+		rubyAppendCall(calls, seen, fullName, trailingArgs)
+		index = methodEnd - 1
 	}
+}
 
-	for _, matches := range rubyScopedCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 2 {
+// rubyChainTrailingArgs captures the argument text following a chained method,
+// either a parenthesized list or the remaining same-line tail up to a comment.
+func rubyChainTrailingArgs(line string, methodEnd int) string {
+	if methodEnd < len(line) {
+		switch line[methodEnd] {
+		case '(':
+			_, args, ok := rubyScanParenArgs(line, methodEnd)
+			if ok {
+				return strings.TrimSpace(args)
+			}
+		case ' ', '\t':
+			tail := rubyTrailingNonComment(line, methodEnd)
+			if strings.TrimSpace(tail) != "" {
+				return strings.TrimSpace(tail)
+			}
+		}
+	}
+	return ""
+}
+
+// rubyScanScopedCalls recognizes `Constant.method(` shapes where the receiver is
+// a capitalized scoped constant directly invoking a parenthesized method.
+func rubyScanScopedCalls(line string, calls *[]rubyCallMatch, seen map[string]struct{}) {
+	for index := 0; index < len(line); index++ {
+		if line[index] < 'A' || line[index] > 'Z' {
 			continue
 		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" {
+		if index > 0 && rubyIsConstantBodyByte(line[index-1]) {
 			continue
 		}
+		constEnd := rubyScanScopedConstant(line, index)
+		if constEnd >= len(line) || line[constEnd] != '.' {
+			continue
+		}
+		methodStart := constEnd + 1
+		methodEnd := rubyScanCallMethodName(line, methodStart)
+		if methodEnd == methodStart || methodEnd >= len(line) || line[methodEnd] != '(' {
+			continue
+		}
+		fullName := strings.TrimSpace(line[index:methodEnd])
 		fullName = rubyRestoreCallPunctuation(line, fullName)
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-		})
+		rubyAppendCall(calls, seen, fullName, "")
+		index = methodEnd - 1
 	}
+}
 
-	for _, matches := range rubyQualifiedCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 2 {
+// rubyScanQualifiedCalls recognizes `receiver.method` (and longer dotted chains)
+// not necessarily followed by parentheses, mirroring the qualified-call pattern.
+func rubyScanQualifiedCalls(line string, calls *[]rubyCallMatch, seen map[string]struct{}) {
+	for index := 0; index < len(line); index++ {
+		if !rubyIsReceiverStart(line, index) {
 			continue
 		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" {
+		end, count := rubyScanQualifiedChain(line, index)
+		if count == 0 {
 			continue
 		}
+		boundary := end
+		if boundary < len(line) {
+			switch line[boundary] {
+			case '?', '!', '=':
+				boundary++
+			}
+		}
+		if !rubyQualifiedBoundaryOK(line, boundary) {
+			continue
+		}
+		fullName := strings.TrimSpace(line[index:boundary])
 		fullName = rubyRestoreCallPunctuation(line, fullName)
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-		})
+		rubyAppendCall(calls, seen, fullName, "")
+		index = boundary - 1
 	}
+}
 
-	for _, matches := range rubyBareCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) < 2 {
+// rubyScanBareCalls recognizes a fixed set of receiverless Ruby DSL and Kernel
+// methods that take same-line arguments, mirroring the bare-call pattern.
+func rubyScanBareCalls(line string, calls *[]rubyCallMatch, seen map[string]struct{}) {
+	for index := 0; index < len(line); index++ {
+		if index > 0 && rubyIsBarePrefixByte(line[index-1]) {
 			continue
 		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" {
+		name, nameEnd := rubyMatchBareCallKeyword(line, index)
+		if name == "" {
 			continue
 		}
-		if _, ok := seen[fullName]; ok {
+		args, ok := rubyBareCallArgs(line, nameEnd)
+		if !ok {
 			continue
 		}
-		argsText := ""
-		switch {
-		case len(matches) >= 3 && strings.TrimSpace(matches[2]) != "":
-			argsText = matches[2]
-		case len(matches) >= 4 && strings.TrimSpace(matches[3]) != "":
-			argsText = matches[3]
+		if _, seenName := seen[name]; seenName {
+			index = nameEnd - 1
+			continue
 		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     argsText,
-		})
+		rubyAppendCall(calls, seen, name, args)
+		index = nameEnd - 1
 	}
-	for _, matches := range rubyReceiverlessParenCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) < 2 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
-			continue
-		}
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		argsText := ""
-		if len(matches) >= 3 {
-			argsText = matches[2]
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     argsText,
-		})
-	}
-	for _, matches := range rubyReceiverlessAssignmentCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 2 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
-			continue
-		}
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-		})
-	}
-	for _, matches := range rubyReceiverlessStatementCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 3 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
-			continue
-		}
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     strings.TrimSpace(matches[2]),
-		})
-	}
+}
 
-	return calls
+// rubyBareCallArgs returns the argument text for a bare call: either a
+// parenthesized list or a required same-line tail (up to a comment).
+func rubyBareCallArgs(line string, nameEnd int) (string, bool) {
+	if nameEnd < len(line) && line[nameEnd] == '(' {
+		_, args, ok := rubyScanParenArgs(line, nameEnd)
+		if ok {
+			return strings.TrimSpace(args), true
+		}
+	}
+	if nameEnd < len(line) && (line[nameEnd] == ' ' || line[nameEnd] == '\t') {
+		tail := rubyTrailingNonComment(line, nameEnd)
+		if strings.TrimSpace(tail) != "" {
+			return strings.TrimSpace(tail), true
+		}
+	}
+	return "", false
+}
+
+// rubyScanReceiverlessParenCalls recognizes `name(args)` lowercase receiverless
+// calls that are not Ruby keywords.
+func rubyScanReceiverlessParenCalls(line string, calls *[]rubyCallMatch, seen map[string]struct{}) {
+	for index := 0; index < len(line); index++ {
+		if index > 0 && rubyIsReceiverlessPrefixByte(line[index-1]) {
+			continue
+		}
+		nameEnd := rubyScanLowerCallName(line, index)
+		if nameEnd == index || nameEnd >= len(line) {
+			continue
+		}
+		argsStart := nameEnd
+		for argsStart < len(line) && (line[argsStart] == ' ' || line[argsStart] == '\t') {
+			argsStart++
+		}
+		if argsStart >= len(line) || line[argsStart] != '(' {
+			continue
+		}
+		_, args, ok := rubyScanParenArgs(line, argsStart)
+		if !ok {
+			continue
+		}
+		fullName := strings.TrimSpace(line[index:nameEnd])
+		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
+			continue
+		}
+		rubyAppendCall(calls, seen, fullName, args)
+		index = nameEnd - 1
+	}
+}
+
+// rubyScanReceiverlessAssignmentCalls recognizes `= name` shapes where a bare
+// lowercase method is the right-hand value, mirroring the assignment pattern.
+func rubyScanReceiverlessAssignmentCalls(line string, calls *[]rubyCallMatch, seen map[string]struct{}) {
+	for index := 0; index < len(line); index++ {
+		if line[index] != '=' {
+			continue
+		}
+		cursor := index + 1
+		for cursor < len(line) && (line[cursor] == ' ' || line[cursor] == '\t') {
+			cursor++
+		}
+		nameStart := cursor
+		nameEnd := rubyScanLowerCallName(line, nameStart)
+		if nameEnd == nameStart {
+			continue
+		}
+		if !rubyReceiverlessAssignmentBoundary(line, nameEnd) {
+			continue
+		}
+		fullName := strings.TrimSpace(line[nameStart:nameEnd])
+		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
+			continue
+		}
+		rubyAppendCall(calls, seen, fullName, "")
+	}
+}
+
+// rubyScanReceiverlessStatementCalls recognizes a leading `name rest` statement
+// where a bare lowercase method heads the line with same-line arguments.
+func rubyScanReceiverlessStatementCalls(line string, calls *[]rubyCallMatch, seen map[string]struct{}) {
+	index := 0
+	for index < len(line) && (line[index] == ' ' || line[index] == '\t') {
+		index++
+	}
+	nameEnd := rubyScanLowerCallName(line, index)
+	if nameEnd == index || nameEnd >= len(line) {
+		return
+	}
+	if line[nameEnd] != ' ' && line[nameEnd] != '\t' {
+		return
+	}
+	rest := line[nameEnd+1:]
+	if strings.ContainsAny(rest, "#=") {
+		return
+	}
+	rest = strings.TrimRight(rest, " \t")
+	if rest == "" {
+		return
+	}
+	for nameEnd > index && (line[nameEnd-1] == ' ' || line[nameEnd-1] == '\t') {
+		nameEnd--
+	}
+	fullName := strings.TrimSpace(line[index:nameEnd])
+	if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
+		return
+	}
+	rubyAppendCall(calls, seen, fullName, strings.TrimSpace(rest))
 }
 
 func rubyIsIgnoredReceiverlessCall(name string) bool {
@@ -204,7 +316,7 @@ func rubyCallName(fullName string) string {
 }
 
 // rubyRestoreCallPunctuation preserves Ruby predicate, bang, and writer method
-// suffixes when the line-oriented call pattern also matched the bare name.
+// suffixes when the dotted-call recognizers matched only the bare name.
 func rubyRestoreCallPunctuation(line string, fullName string) string {
 	if strings.HasSuffix(fullName, "?") || strings.HasSuffix(fullName, "!") || strings.HasSuffix(fullName, "=") {
 		return fullName

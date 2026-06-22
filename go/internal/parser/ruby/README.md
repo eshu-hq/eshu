@@ -2,11 +2,15 @@
 
 ## Purpose
 
-This package owns the line-oriented Ruby parser adapter used by the parent
-parser engine. It extracts module and class declarations, method signatures,
-require/load imports, module inclusions, local and instance variables, bounded
-method-call evidence, parser-backed dead-code root metadata, and Bundler
-dependency evidence from `Gemfile` and `Gemfile.lock`.
+This package owns the Ruby parser adapter used by the parent parser engine. It
+parses Ruby source with the tree-sitter-ruby grammar and extracts module and
+class declarations, method signatures, require/load imports, module inclusions,
+local and instance variables, bounded method-call evidence, parser-backed
+dead-code root metadata, and Bundler dependency evidence from `Gemfile` and
+`Gemfile.lock`. Source structure (modules, classes, singleton classes, methods,
+imports, inclusions, variables, and block end lines) comes from the AST;
+method-call evidence comes from a byte-level line scan whose context is resolved
+from the AST scope index.
 
 ## Ownership boundary
 
@@ -17,12 +21,15 @@ telemetry.
 
 ## Exported surface
 
-The godoc contract is in doc.go. Current exports are Parse and PreScan.
+The godoc contract is in doc.go. Current exports are Parse, ParseWithParser,
+PreScan, and PreScanWithParser. The `WithParser` variants accept a caller-owned
+tree-sitter parser so the parent engine can reuse cached language handles.
 
 ## Dependencies
 
-This package imports the Go standard library and internal/parser/shared. It
-must not import the parent internal/parser package.
+This package imports the Go standard library, internal/parser/shared, the
+go-tree-sitter runtime, and the tree-sitter-ruby grammar binding. It must not
+import the parent internal/parser package.
 
 ## Telemetry
 
@@ -31,14 +38,18 @@ parser engine.
 
 ## Gotchas / invariants
 
-Ruby block tracking is line-oriented and uses `end` to close the current
-module, class, singleton-class, or method context. Closed blocks update
-`end_line` metadata so downstream containment checks can attach receiverless
-helper calls to the enclosing Ruby method before reducer materialization. Class
-visibility is tracked only for literal `public`, `private`, and `protected`
-lines so public Rails controller actions can be separated from private helpers.
-Method-call rows are deduplicated by full name and source line so repeated calls
-on different lines remain visible. PreScan sorts names after collecting them
+Ruby block structure comes from the AST: module, class, singleton-class, and
+method nodes provide `line_number` and `end_line` (the line of the matching
+`end`) so downstream containment checks can attach receiverless helper calls to
+the enclosing Ruby method before reducer materialization. Class visibility is
+tracked only for literal `public`, `private`, and `protected` statements so
+public Rails controller actions can be separated from private helpers.
+Method-call rows are recovered by a byte-level line scan that reproduces the six
+historical call shapes (chained, scoped, qualified, bare known-method, and the
+three receiverless forms) and are deduplicated by full name and source line so
+repeated calls on different lines remain visible; lines that open a module,
+class, singleton class, or method definition, along with `end` and visibility
+lines, are skipped by the call scan. PreScan sorts names after collecting them
 from the parsed function, class, and module buckets.
 
 Constants are represented in the legacy `variables` bucket with class or module
