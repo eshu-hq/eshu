@@ -13,6 +13,41 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 	}
 
 	paths := mustMapField(t, spec, "paths")
+	loginPath := mustMapField(t, paths, "/api/v0/auth/oidc/login")
+	login := mustMapField(t, loginPath, "get")
+	loginDescription, ok := login["description"].(string)
+	if !ok {
+		t.Fatal("OIDC login GET description missing")
+	}
+	for _, want := range []string{
+		"Authorization Code",
+		"state",
+		"nonce",
+		"Eshu roles and grants",
+		"raw OIDC tokens",
+	} {
+		if !strings.Contains(loginDescription, want) {
+			t.Fatalf("OIDC login GET description missing %q: %s", want, loginDescription)
+		}
+	}
+
+	callbackPath := mustMapField(t, paths, "/api/v0/auth/oidc/callback")
+	callback := mustMapField(t, callbackPath, "get")
+	callbackDescription, ok := callback["description"].(string)
+	if !ok {
+		t.Fatal("OIDC callback GET description missing")
+	}
+	for _, want := range []string{
+		"issuer metadata/JWKS",
+		"hashed external groups",
+		"browser-session cookies",
+		"create no session",
+	} {
+		if !strings.Contains(callbackDescription, want) {
+			t.Fatalf("OIDC callback GET description missing %q: %s", want, callbackDescription)
+		}
+	}
+
 	sessionPath := mustMapField(t, paths, "/api/v0/auth/browser-session")
 	create := mustMapField(t, sessionPath, "post")
 	createDescription, ok := create["description"].(string)
@@ -46,6 +81,11 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 	schemas := mustMapField(t, components, "schemas")
 	if _, ok := schemas["BrowserSessionResponse"]; !ok {
 		t.Fatal("BrowserSessionResponse schema missing")
+	}
+	sessionAuth := mustMapField(t, schemas, "BrowserSessionAuth")
+	sessionAuthProperties := mustMapField(t, sessionAuth, "properties")
+	if _, ok := sessionAuthProperties["role_ids"]; !ok {
+		t.Fatal("BrowserSessionAuth role_ids schema missing")
 	}
 	responses := mustMapField(t, components, "responses")
 	if _, ok := responses["Unauthorized"]; !ok {

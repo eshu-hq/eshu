@@ -1,0 +1,153 @@
+package query
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strings"
+)
+
+// OIDC login errors let provider implementations map fail-closed outcomes to
+// stable HTTP statuses without leaking provider or claim details.
+var (
+	ErrOIDCLoginUnavailable    = errors.New("oidc login unavailable")
+	ErrOIDCLoginInvalidRequest = errors.New("oidc login invalid request")
+	ErrOIDCLoginDenied         = errors.New("oidc login denied")
+)
+
+// OIDCLoginService resolves generic OIDC Authorization Code login requests
+// into Eshu browser-session authorization contexts.
+type OIDCLoginService interface {
+	StartOIDCLogin(context.Context, OIDCLoginStartRequest) (OIDCLoginStartResponse, error)
+	CompleteOIDCLogin(context.Context, OIDCLoginCompleteRequest) (OIDCLoginCompleteResponse, error)
+}
+
+// OIDCLoginStartRequest selects one configured identity provider and the
+// tenant/workspace boundary the dashboard session should enter after callback.
+type OIDCLoginStartRequest struct {
+	ProviderConfigID string
+	TenantID         string
+	WorkspaceID      string
+	ReturnToPath     string
+}
+
+// OIDCLoginStartResponse contains the provider authorization redirect URL.
+type OIDCLoginStartResponse struct {
+	RedirectURL string
+}
+
+// OIDCLoginCompleteRequest carries the callback state and authorization code.
+type OIDCLoginCompleteRequest struct {
+	State string
+	Code  string
+}
+
+// OIDCLoginCompleteResponse carries the resolved Eshu auth context and optional
+// local path for post-login browser navigation.
+type OIDCLoginCompleteResponse struct {
+	Auth         AuthContext
+	ReturnToPath string
+}
+
+// OIDCLoginHandler serves generic OIDC login and callback routes.
+type OIDCLoginHandler struct {
+	Service       OIDCLoginService
+	SessionIssuer *BrowserSessionHandler
+}
+
+// Mount registers OIDC login routes.
+func (h *OIDCLoginHandler) Mount(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v0/auth/oidc/login", h.handleStart)
+	mux.HandleFunc("GET /api/v0/auth/oidc/callback", h.handleCallback)
+}
+
+func (h *OIDCLoginHandler) handleStart(w http.ResponseWriter, r *http.Request) {
+	if !h.serviceReady(w) {
+		return
+	}
+	req := OIDCLoginStartRequest{
+		ProviderConfigID: QueryParam(r, "provider_config_id"),
+		TenantID:         QueryParam(r, "tenant_id"),
+		WorkspaceID:      QueryParam(r, "workspace_id"),
+		ReturnToPath:     safeOIDCReturnPath(QueryParam(r, "return_to")),
+	}
+	start, err := h.Service.StartOIDCLogin(r.Context(), req)
+	if err != nil {
+		writeOIDCLoginError(w, err)
+		return
+	}
+	redirectURL := strings.TrimSpace(start.RedirectURL)
+	if redirectURL == "" {
+		WriteError(w, http.StatusInternalServerError, "oidc login did not return a redirect URL")
+		return
+	}
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request) {
+	if !h.ready(w) {
+		return
+	}
+	req := OIDCLoginCompleteRequest{
+		State: QueryParam(r, "state"),
+		Code:  QueryParam(r, "code"),
+	}
+	complete, err := h.Service.CompleteOIDCLogin(r.Context(), req)
+	if err != nil {
+		writeOIDCLoginError(w, err)
+		return
+	}
+	response, ok := h.SessionIssuer.issueBrowserSession(w, r, complete.Auth, 0)
+	if !ok {
+		return
+	}
+	returnTo := safeOIDCReturnPath(complete.ReturnToPath)
+	if returnTo == "" {
+		WriteJSON(w, http.StatusCreated, response)
+		return
+	}
+	http.Redirect(w, r, returnTo, http.StatusSeeOther)
+}
+
+func (h *OIDCLoginHandler) ready(w http.ResponseWriter) bool {
+	if !h.serviceReady(w) {
+		return false
+	}
+	if h.SessionIssuer == nil || h.SessionIssuer.Store == nil {
+		WriteError(w, http.StatusServiceUnavailable, "browser session store is unavailable")
+		return false
+	}
+	return true
+}
+
+func (h *OIDCLoginHandler) serviceReady(w http.ResponseWriter) bool {
+	if h == nil || h.Service == nil {
+		WriteError(w, http.StatusServiceUnavailable, "oidc login is unavailable")
+		return false
+	}
+	return true
+}
+
+func writeOIDCLoginError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, ErrOIDCLoginUnavailable):
+		WriteError(w, http.StatusServiceUnavailable, "oidc login is unavailable")
+	case errors.Is(err, ErrOIDCLoginInvalidRequest):
+		WriteError(w, http.StatusBadRequest, "invalid oidc login request")
+	case errors.Is(err, ErrOIDCLoginDenied):
+		WriteError(w, http.StatusForbidden, "oidc login denied")
+	default:
+		WriteError(w, http.StatusInternalServerError, "oidc login failed")
+	}
+}
+
+func safeOIDCReturnPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
+		return ""
+	}
+	if strings.ContainsAny(path, "\r\n\t") {
+		return ""
+	}
+	return path
+}

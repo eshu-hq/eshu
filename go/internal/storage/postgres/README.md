@@ -248,6 +248,9 @@ Primary groups:
   concurrency and Postgres pool-budget notes.
 - Graph projection phase, shared projection intent, acceptance, freshness, and
   readiness helpers used by reducer domains.
+- Hosted isolation and dashboard auth stores, including tenant/workspace
+  grants, scoped API tokens, browser sessions, OIDC login state and group-role
+  mappings, and dormant identity subject tables.
 - Projection and admission decision stores for reducer-owned write decisions
   and scope/generation/domain-bounded correlation admission explanations.
 - Fact indexes for reducer-owned package and service-catalog correlations,

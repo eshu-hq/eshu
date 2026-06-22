@@ -158,6 +158,15 @@ func wireAPI(
 		}
 		return nil, nil, fmt.Errorf("new router: %w", err)
 	}
+	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, fmt.Errorf("configure oidc login: %w", err)
+	}
+	router.OIDCLogin = oidcLoginHandler
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
@@ -232,30 +241,6 @@ func openQueryGraph(
 		logger.Info("neo4j connected", telemetry.EventAttr("runtime.neo4j.connected"), slog.String("neo4j_uri", cfg.URI))
 	}
 	return driver, cfg.DatabaseName, nil
-}
-
-func envOrDefault(getenv func(string) string, key, fallback string) string {
-	v := strings.TrimSpace(getenv(key))
-	if v == "" {
-		return fallback
-	}
-	return v
-}
-
-func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {
-	raw := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE"))
-	if raw == "" {
-		return query.ProfileProduction, nil
-	}
-	profile, err := query.ParseQueryProfile(raw)
-	if err != nil {
-		return "", err
-	}
-	return profile, nil
-}
-
-func loadGraphBackend(getenv func(string) string) (query.GraphBackend, error) {
-	return query.ParseGraphBackend(strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND")))
 }
 
 func newRouter(

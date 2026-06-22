@@ -213,6 +213,12 @@ reducer/query adapter.
 - `ScopedAPITokenStore` / `NewScopedAPITokenStore` — hash-only hosted token
   registry backed by tenant/workspace rows; reads return active scoped subject
   bounds only and never accept raw token values
+- `OIDCLoginStore` / `NewOIDCLoginStore` — hash-only OIDC Authorization Code
+  state and active group-hash to role/scope/repository grant resolution for
+  dashboard login
+- `OIDCLoginStateRecord`, `OIDCGroupGrantQuery`, and
+  `OIDCGroupGrantResolution` — typed state and grant-resolution rows; group
+  inputs are hashes, never raw group names
 - `IdentitySubjectStore` / `NewIdentitySubjectStore` — dormant user-management
   schema for users, provider configs, external identity links, local
   credential hashes, MFA factor handles, tenant memberships, roles, grants,
@@ -285,7 +291,7 @@ reducer/query adapter.
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
   `IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
   `VulnerabilitySourceStateSchemaSQL`, `TenantWorkspaceGrantSchemaSQL`,
-  `ScopedAPITokenSchemaSQL`, `IdentitySubjectSchemaSQL`,
+  `ScopedAPITokenSchemaSQL`, `IdentitySubjectSchemaSQL`, `OIDCLoginSchemaSQL`,
   `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`,
   `FunctionSummarySchemaSQL`
 

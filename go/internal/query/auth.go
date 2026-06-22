@@ -67,6 +67,7 @@ type AuthContext struct {
 	SubjectClass         string
 	SubjectIDHash        string
 	PolicyRevisionHash   string
+	RoleIDs              []string
 	AllScopes            bool
 	AllowedScopeIDs      []string
 	AllowedRepositoryIDs []string
@@ -190,7 +191,7 @@ func authMiddleware(
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public paths: skip auth.
-		if publicHTTPPaths[r.URL.Path] {
+		if publicHTTPRoute(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -402,6 +403,7 @@ func normalizeAuthContext(auth AuthContext) AuthContext {
 	auth.SubjectClass = strings.TrimSpace(auth.SubjectClass)
 	auth.SubjectIDHash = strings.TrimSpace(auth.SubjectIDHash)
 	auth.PolicyRevisionHash = strings.TrimSpace(auth.PolicyRevisionHash)
+	auth.RoleIDs = cleanedAuthStrings(auth.RoleIDs)
 	auth.AllowedScopeIDs = cleanedAuthStrings(auth.AllowedScopeIDs)
 	auth.AllowedRepositoryIDs = cleanedAuthStrings(auth.AllowedRepositoryIDs)
 	return auth

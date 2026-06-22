@@ -37,6 +37,7 @@ var coreScanFiles = []string{
 	"cmd/collector-azure-cloud/config.go",
 	"cmd/collector-kubernetes-live/config.go",
 	"cmd/collector-component-extension/config.go",
+	"cmd/api/oidc_login.go",
 }
 
 var esuVarPattern = regexp.MustCompile(`ESHU_[A-Z0-9_]+`)

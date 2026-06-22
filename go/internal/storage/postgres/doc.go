@@ -209,6 +209,9 @@
 // stay hash-only: first-owner bootstrap is advisory-lock serialized, invited
 // signup row-locks the invite, failed-attempt lockouts increment atomically,
 // and break-glass recovery windows are consumed on session creation.
+// OIDCLoginStore persists hash-only Authorization Code state and resolves
+// external group hashes through active Eshu role, scope, and repository grants
+// at login time without storing raw provider tokens or group names.
 // WorkflowControlStore persists optional
 // tenant/workspace/policy revision identity on workflow work items; guarded
 // planning treats that identity as part of target eligibility, and claim
