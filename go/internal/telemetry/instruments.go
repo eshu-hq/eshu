@@ -162,9 +162,15 @@ type Instruments struct {
 	ScannerWorkerDeadLetters                  metric.Int64Counter
 	ScannerWorkerFactsEmitted                 metric.Int64Counter
 	PackageSourceCorrelations                 metric.Int64Counter
-	ContainerImageIdentityDecisions           metric.Int64Counter
-	CICDRunCorrelations                       metric.Int64Counter
-	ServiceCatalogCorrelations                metric.Int64Counter
+	// PackageConsumptionRepoEdges counts repo-to-repo DEPENDS_ON edge intents
+	// derived from package consumption-to-owner correlation joins, labeled by
+	// reducer domain and outcome (projected, skipped reason). It lets an
+	// operator confirm the package-consumption projection lane is producing
+	// edges and see why candidates were dropped (issue #3579).
+	PackageConsumptionRepoEdges     metric.Int64Counter
+	ContainerImageIdentityDecisions metric.Int64Counter
+	CICDRunCorrelations             metric.Int64Counter
+	ServiceCatalogCorrelations      metric.Int64Counter
 	// ServiceCatalogCorrelationGuardrails counts reducer service-catalog
 	// admission guardrail events by reducer domain and bounded guardrail name.
 	// It stays separate from ServiceCatalogCorrelations so decision outcomes
@@ -1638,6 +1644,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageSourceCorrelations counter: %w", err)
+	}
+
+	inst.PackageConsumptionRepoEdges, err = meter.Int64Counter(
+		"eshu_dp_package_consumption_repo_edges_total",
+		metric.WithDescription("Total repo-to-repo DEPENDS_ON edge intents derived from package consumption-to-owner correlations by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PackageConsumptionRepoEdges counter: %w", err)
 	}
 
 	inst.ContainerImageIdentityDecisions, err = meter.Int64Counter(

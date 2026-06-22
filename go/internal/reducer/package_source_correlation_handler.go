@@ -3,6 +3,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -36,6 +37,14 @@ type PackageSourceCorrelationHandler struct {
 	Instruments             *telemetry.Instruments
 	AdmissionDecisionWriter AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
+	// RepoDependencyIntentWriter persists consumer-repo DEPENDS_ON owner-repo
+	// projection intents derived from package consumption-to-owner correlation
+	// joins. When nil the join is skipped so the package-registry deployment
+	// profile stays fact-only; the existing repo-dependency projection lane
+	// drains the intents into canonical DEPENDS_ON edges (issue #3579).
+	RepoDependencyIntentWriter RepoDependencyIntentWriter
+	// Now overrides the wall clock for deterministic intent created_at in tests.
+	Now func() time.Time
 }
 
 // Handle executes package source correlation for one package-registry scope.
@@ -105,6 +114,16 @@ func (h PackageSourceCorrelationHandler) Handle(
 	); err != nil {
 		return Result{}, err
 	}
+	repoEdgeIntents, err := h.projectConsumptionRepoDependencyEdges(
+		ctx,
+		intent,
+		consumptionDecisions,
+		decisions,
+		publicationDecisions,
+	)
+	if err != nil {
+		return Result{}, err
+	}
 	h.emitCounters(ctx, counts)
 
 	return Result{
@@ -117,9 +136,112 @@ func (h PackageSourceCorrelationHandler) Handle(
 			len(publicationDecisions),
 			counts,
 			writeResult.CanonicalWrites,
-		),
+		) + fmt.Sprintf(" repo_dependency_edges=%d", len(repoEdgeIntents)),
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
+}
+
+// projectConsumptionRepoDependencyEdges joins the consumption decisions to the
+// exact/derived owner and publisher decisions on package id and persists the
+// resulting consumer-repo DEPENDS_ON owner-repo intents through the shared
+// repo-dependency projection lane. It is a no-op when no intent writer is wired
+// or the join yields no edges, so the package-registry fact-only profile is
+// unchanged. It never fails the package-correlation result for an empty join;
+// only a writer error propagates (issue #3579).
+func (h PackageSourceCorrelationHandler) projectConsumptionRepoDependencyEdges(
+	ctx context.Context,
+	intent Intent,
+	consumptionDecisions []PackageConsumptionDecision,
+	ownershipDecisions []PackageSourceCorrelationDecision,
+	publicationDecisions []PackagePublicationDecision,
+) ([]SharedProjectionIntentRow, error) {
+	if h.RepoDependencyIntentWriter == nil {
+		return nil, nil
+	}
+
+	intents := BuildPackageConsumptionRepoDependencyIntents(PackageConsumptionRepoDependencyInput{
+		ScopeID:              intent.ScopeID,
+		GenerationID:         intent.GenerationID,
+		SourceRunID:          packageConsumptionRepoEdgeSourceRunID(intent.ScopeID, intent.GenerationID),
+		CreatedAt:            h.now(),
+		ConsumptionDecisions: consumptionDecisions,
+		OwnershipDecisions:   ownershipDecisions,
+		PublicationDecisions: publicationDecisions,
+	})
+
+	h.emitRepoEdgeCounter(ctx, "projected", len(intents))
+	if skipped := packageConsumptionUnownedCount(consumptionDecisions, ownershipDecisions, publicationDecisions); skipped > 0 {
+		h.emitRepoEdgeCounter(ctx, "skipped_no_owner", skipped)
+	}
+
+	if len(intents) == 0 {
+		return nil, nil
+	}
+	if err := h.RepoDependencyIntentWriter.UpsertIntents(ctx, intents); err != nil {
+		return nil, fmt.Errorf("upsert package consumption repo dependency intents: %w", err)
+	}
+	return intents, nil
+}
+
+func (h PackageSourceCorrelationHandler) emitRepoEdgeCounter(ctx context.Context, outcome string, count int) {
+	if h.Instruments == nil || count <= 0 {
+		return
+	}
+	h.Instruments.PackageConsumptionRepoEdges.Add(
+		ctx,
+		int64(count),
+		metric.WithAttributes(
+			telemetry.AttrDomain(string(DomainRepoDependency)),
+			telemetry.AttrOutcome(outcome),
+		),
+	)
+}
+
+func (h PackageSourceCorrelationHandler) now() time.Time {
+	if h.Now != nil {
+		return h.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+// packageConsumptionRepoEdgeSourceRunID returns a deterministic acceptance
+// source-run id for consumption-derived repo-dependency intents. It is a stable
+// function of the package-registry scope (and generation) so re-projecting the
+// same scope yields the same intent id, which keeps the downstream DEPENDS_ON
+// MERGE idempotent under retries. It mirrors crossRepoContributionSourceRunID.
+func packageConsumptionRepoEdgeSourceRunID(scopeID, generationID string) string {
+	scopeID = strings.TrimSpace(scopeID)
+	generationID = strings.TrimSpace(generationID)
+	switch {
+	case scopeID == "" && generationID == "":
+		return "package_consumption_repo_dependency"
+	case generationID == "":
+		return "package_consumption_repo_dependency:" + scopeID
+	default:
+		return "package_consumption_repo_dependency:" + scopeID + ":" + generationID
+	}
+}
+
+// packageConsumptionUnownedCount counts consumption decisions whose package id
+// has no exact/derived owner, for the skipped-no-owner telemetry outcome.
+func packageConsumptionUnownedCount(
+	consumptionDecisions []PackageConsumptionDecision,
+	ownershipDecisions []PackageSourceCorrelationDecision,
+	publicationDecisions []PackagePublicationDecision,
+) int {
+	owners := resolvePackageOwners(ownershipDecisions, publicationDecisions)
+	skipped := 0
+	for _, consumption := range consumptionDecisions {
+		packageID := strings.TrimSpace(consumption.PackageID)
+		if packageID == "" {
+			continue
+		}
+		owner, ok := owners[packageID]
+		if !ok || owner.repoID == "" {
+			skipped++
+		}
+	}
+	return skipped
 }
 
 func (h PackageSourceCorrelationHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {
