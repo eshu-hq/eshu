@@ -50,6 +50,22 @@ the repository root and nearby Kotlin directories so return-type inference does
 not scan the whole workspace. `scopedContext` in scope.go:5 tracks only the
 brace-scoped context needed by this regex parser.
 
+`Parse` extracts calls through several bounded paths that share one per-line
+`seenLineCalls` dedup set: receiver-qualified and chained calls
+(`kotlinCallPattern`), `this.` calls, infix calls, constructor calls to known
+type names, and unqualified bare calls (`kotlinAppendBareCalls`). Bare-call
+extraction covers same-scope, top-level, and imported function calls that have no
+receiver; it skips qualified calls, declaration and control-flow keywords, and
+method-chain receivers.
+
+Bare calls skip only locally-declared types as constructor candidates, never
+import aliases. Kotlin imports do not distinguish a top-level function from a
+type, so an imported name such as `helper` from `import demo.util.helper` must
+still emit a call edge. The constructor-call path runs first and records the same
+`name#line` key in `seenLineCalls`, so a genuinely imported constructor such as
+`Widget()` is emitted once by the constructor path and skipped by the bare-call
+path without dropping imported function calls.
+
 ## Related docs
 
 - docs/public/architecture.md

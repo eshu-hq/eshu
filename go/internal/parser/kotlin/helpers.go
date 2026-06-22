@@ -396,6 +396,128 @@ func kotlinAppendConstructorCalls(
 	}
 }
 
+// kotlinCallIsChainReceiver reports whether the call whose opening parenthesis
+// is at openParen is the receiver of a method chain, for example `factory()` in
+// `factory().build()`. openParen must index a `(`. It scans to the matching
+// close parenthesis (tracking nesting) and returns true when the next
+// non-whitespace byte is a member-access dot, optionally a safe-call `?.`.
+func kotlinCallIsChainReceiver(source string, openParen int) bool {
+	if openParen < 0 || openParen >= len(source) || source[openParen] != '(' {
+		return false
+	}
+	depth := 0
+	closeParen := -1
+	for index := openParen; index < len(source); index++ {
+		switch source[index] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				closeParen = index
+			}
+		}
+		if closeParen >= 0 {
+			break
+		}
+	}
+	if closeParen < 0 {
+		return false
+	}
+	for index := closeParen + 1; index < len(source); index++ {
+		switch source[index] {
+		case ' ', '\t':
+			continue
+		case '.':
+			return true
+		case '?':
+			return index+1 < len(source) && source[index+1] == '.'
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// kotlinBareCallControlKeywords are keywords that take a parenthesized clause
+// but are not function calls. They must never be emitted as calls.
+var kotlinBareCallControlKeywords = map[string]struct{}{
+	"if": {}, "for": {}, "while": {}, "when": {}, "catch": {},
+	"return": {}, "switch": {}, "super": {}, "fun": {}, "class": {},
+	"interface": {}, "object": {}, "constructor": {}, "init": {},
+}
+
+// kotlinAppendBareCalls extracts unqualified (receiver-less) calls such as
+// same-scope method calls, top-level function calls, and imported function
+// calls. The qualified call pattern requires a `receiver.method` shape, so bare
+// calls would otherwise be dropped.
+//
+// Only locally-declared types are skipped as constructor candidates. Kotlin
+// imports do not declare function-vs-class, so an imported name such as
+// `helper` from `import demo.util.helper` must still emit a call edge. When an
+// imported name is genuinely a constructor (`Widget()`), the constructor-call
+// path runs first and records the same `name#line` key in seenLineCalls, so the
+// bare-call path skips it here without dropping imported function calls.
+func kotlinAppendBareCalls(
+	payload map[string]any,
+	trimmed string,
+	lineNumber int,
+	functionDeclCutoff int,
+	seenLineCalls map[string]struct{},
+	declaredTypeNames map[string]struct{},
+) {
+	for _, match := range kotlinBareCallPattern.FindAllStringSubmatchIndex(trimmed, -1) {
+		if len(match) != 4 {
+			continue
+		}
+		if functionDeclCutoff >= 0 && match[0] < functionDeclCutoff {
+			continue
+		}
+		// Skip qualified calls (handled by the receiver call pattern) and names
+		// that are a suffix of a longer identifier.
+		if match[2] > 0 {
+			prev := trimmed[match[2]-1]
+			if prev == '.' || prev == '_' ||
+				(prev >= 'A' && prev <= 'Z') ||
+				(prev >= 'a' && prev <= 'z') ||
+				(prev >= '0' && prev <= '9') {
+				continue
+			}
+		}
+		name := trimmed[match[2]:match[3]]
+		if !kotlinCallNameAllowed(name) {
+			continue
+		}
+		if _, ok := kotlinBareCallControlKeywords[name]; ok {
+			continue
+		}
+		// Skip chain receivers like `factory()` in `factory().build()`: the
+		// receiver-qualified and chained-call paths already own that expression,
+		// so emitting it here would double-count it. match[1] is the end of the
+		// full match, so the call's opening `(` is the last byte before it.
+		if kotlinCallIsChainReceiver(trimmed, match[1]-1) {
+			continue
+		}
+		// Locally-declared types are constructor targets emitted by the
+		// constructor-call path. Imported names are not skipped here because
+		// Kotlin imports do not distinguish functions from types.
+		if _, ok := declaredTypeNames[name]; ok {
+			continue
+		}
+		callKey := name + "#" + strconv.Itoa(lineNumber)
+		if _, ok := seenLineCalls[callKey]; ok {
+			continue
+		}
+		seenLineCalls[callKey] = struct{}{}
+		shared.AppendBucket(payload, "function_calls", map[string]any{
+			"name":        name,
+			"full_name":   name,
+			"line_number": lineNumber,
+			"lang":        "kotlin",
+		})
+	}
+}
+
 func kotlinAppendThisCalls(
 	payload map[string]any,
 	trimmed string,

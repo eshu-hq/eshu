@@ -77,14 +77,24 @@ fun usage(): String {
 	}
 
 	_, rows := ExtractCodeCallRows(envelopes)
-	if len(rows) != 1 {
-		t.Fatalf("len(rows) = %d, want 1; rows=%#v; function_calls=%#v", len(rows), rows, callerPayload["function_calls"])
+	// The bare `createService()` call and the interface-typed `service.execute()`
+	// receiver call both resolve.
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2; rows=%#v; function_calls=%#v", len(rows), rows, callerPayload["function_calls"])
 	}
 
-	if got, want := rows[0]["callee_entity_id"], "content-entity:kotlin-interface-execute"; got != want {
-		t.Fatalf("callee_entity_id = %#v, want %#v", got, want)
+	assertKotlinReducerRowResolves(t, rows, "content-entity:kotlin-create-service", "createService")
+	assertKotlinReducerRowResolves(t, rows, "content-entity:kotlin-interface-execute", "service.execute")
+}
+
+// assertKotlinReducerRowResolves asserts a resolved call row with the given
+// callee entity id and full_name is present, independent of row order.
+func assertKotlinReducerRowResolves(t *testing.T, rows []map[string]any, calleeEntityID string, fullName string) {
+	t.Helper()
+	for _, row := range rows {
+		if row["callee_entity_id"] == calleeEntityID && row["full_name"] == fullName {
+			return
+		}
 	}
-	if got, want := rows[0]["full_name"], "service.execute"; got != want {
-		t.Fatalf("full_name = %#v, want %#v", got, want)
-	}
+	t.Fatalf("rows=%#v, want callee_entity_id=%q full_name=%q", rows, calleeEntityID, fullName)
 }

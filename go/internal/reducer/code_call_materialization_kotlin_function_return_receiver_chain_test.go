@@ -655,10 +655,13 @@ fun usage(): String {
 	}
 
 	_, rows := ExtractCodeCallRows(envelopes)
-	if len(rows) != 2 {
-		t.Fatalf("len(rows) = %d, want 2; rows=%#v", len(rows), rows)
+	// The bare cross-file `createService()` call and the inferred-receiver
+	// `active.info()` call both resolve.
+	if len(rows) != 3 {
+		t.Fatalf("len(rows) = %d, want 3; rows=%#v", len(rows), rows)
 	}
 
+	assertKotlinReducerRowResolves(t, rows, "content-entity:kotlin-create-service", "createService")
 	for _, row := range rows {
 		if calleeID, _ := row["callee_entity_id"].(string); calleeID == "content-entity:kotlin-service-info" {
 			if got, want := row["full_name"], "active.info"; got != want {

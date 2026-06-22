@@ -308,7 +308,7 @@ parser path.
 | Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
 | JSON | `json` | `.json`, `.jsonc` | — |
-| Kotlin | `kotlin` | `.kt` | grammar wired; parser rewrite pending |
+| Kotlin | `kotlin` | `.kt` | yes (line scan + tree-sitter syntax index) |
 | NuGet project | `nuget_project` | `.csproj` | — |
 | Perl | `perl` | `.pl`, `.pm` | — |
 | PHP | `php` | `.php` | — |
@@ -318,10 +318,41 @@ parser path.
 | Rust | `rust` | `.rs` | yes |
 | Scala | `scala` | `.sc`, `.scala` | yes |
 | SQL | `sql` | `.sql` | — |
-| Swift | `swift` | `.swift` | grammar wired; parser rewrite pending |
+| Swift | `swift` | `.swift` | yes (line scan + tree-sitter syntax index) |
 | TSX | `tsx` | `.tsx` | yes (TypeScript grammar) |
 | TypeScript | `typescript` | `.cts`, `.mts`, `.ts` | yes |
 | YAML | `yaml` | `.yaml`, `.yml` | — |
+
+### Kotlin and Swift symbol extraction
+
+Kotlin and Swift use a hybrid adapter: a line-oriented declaration scan emits
+the symbol set, and a tree-sitter syntax index (`kotlin/tree_sitter_syntax.go`,
+`swift/tree_sitter_syntax.go`) supplements it with end-of-declaration lines,
+multiline `class_context`, constructor parameter property types, function
+arguments, and inheritance bases. Both adapters emit functions, classes, calls,
+and imports; the golden gates `TestKotlinComprehensiveSymbolExtractionGate` and
+`TestSwiftComprehensiveSymbolExtractionGate` pin the comprehensive-fixture
+symbol set so a regression to empty extraction fails CI.
+
+Kotlin emits `classes` (including `data`, `sealed`, `abstract`, `object`,
+`companion object`, and `enum class`), `interfaces`, `functions` (with
+`class_context`, `extension_receiver`, and `suspend`), secondary `constructor`
+functions, `variables`, `imports`, and `function_calls`. Call extraction covers
+receiver-qualified calls, chained calls, `this.` calls, constructor calls, and
+unqualified bare calls (same-scope, top-level, and imported function calls).
+
+Swift emits `classes` (including `actor`), `structs`, `enums`, `protocols`,
+`functions` (with `args`, `class_context`, and `init`), `variables` (with
+`type`), `imports`, and `function_calls` (with `inferred_obj_type`). Members
+declared inside an `extension` block are attributed to the extended type: the
+Swift grammar models `extension Foo { ... }` as a `class_declaration` whose
+extended type is a `user_type` child, so both the line scan and the syntax index
+resolve the extended type name and push an `extension` scope without emitting a
+duplicate type entity.
+
+Neither adapter retains a whole-function AST node at the symbol-append site, so
+they remain on the cyclomatic-complexity pending list below until their function
+bodies route through a tree-sitter node with a `shared.BranchNodeSet`.
 
 ## SCIP support
 

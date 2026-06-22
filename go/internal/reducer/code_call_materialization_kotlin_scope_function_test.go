@@ -81,10 +81,13 @@ fun usage(): String {
 	}
 
 	_, rows := ExtractCodeCallRows(envelopes)
-	if len(rows) != 2 {
-		t.Fatalf("len(rows) = %d, want 2; rows=%#v; function_calls=%#v", len(rows), rows, callerPayload["function_calls"])
+	// The `Service` constructor, the bare `createService()` call, and the
+	// scope-function-preserved `service.info()` receiver call all resolve.
+	if len(rows) != 3 {
+		t.Fatalf("len(rows) = %d, want 3; rows=%#v; function_calls=%#v", len(rows), rows, callerPayload["function_calls"])
 	}
 
+	assertKotlinReducerRowResolves(t, rows, "content-entity:kotlin-create-service", "createService")
 	for _, row := range rows {
 		if got, want := row["callee_entity_id"], "content-entity:kotlin-service-info"; got == want {
 			if gotName, wantName := row["full_name"], "service.info"; gotName != wantName {
@@ -168,10 +171,13 @@ fun usage(): String {
 	}
 
 	_, rows := ExtractCodeCallRows(envelopes)
-	if len(rows) != 2 {
-		t.Fatalf("len(rows) = %d, want 2; rows=%#v; function_calls=%#v", len(rows), rows, callerPayload["function_calls"])
+	// The `Service` constructor, the bare `createService()` call, and the
+	// `also`-scope-function-preserved `service.info()` receiver call all resolve.
+	if len(rows) != 3 {
+		t.Fatalf("len(rows) = %d, want 3; rows=%#v; function_calls=%#v", len(rows), rows, callerPayload["function_calls"])
 	}
 
+	assertKotlinReducerRowResolves(t, rows, "content-entity:kotlin-create-service", "createService")
 	for _, row := range rows {
 		if got, want := row["callee_entity_id"], "content-entity:kotlin-service-info"; got == want {
 			if gotName, wantName := row["full_name"], "service.info"; gotName != wantName {

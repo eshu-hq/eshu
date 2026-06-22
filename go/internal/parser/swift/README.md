@@ -37,7 +37,16 @@ Tree-sitter supplies declaration spans, inheritance clauses, function spans,
 parameters, initializer ownership, and protocol methods. Existing bounded regex
 helpers still own imports, attributes, variables, calls, and dead-code root
 classification. Keep output deterministic because pre-scan output feeds
-repository import maps. Dead-code roots must be emitted as
+repository import maps.
+
+`extension Foo { ... }` declares no new type, so it emits no type entity. The
+grammar models it as a `class_declaration` whose extended type is a `user_type`
+child rather than a `type_identifier` name field, so both the line scan
+(`extensionPattern`) and the syntax index (`swiftExtensionTypeName`) resolve the
+extended type name and push an `extension` scope. Members declared inside the
+extension are attributed to the extended type via `class_context`.
+
+Dead-code roots must be emitted as
 `dead_code_root_kinds` metadata, not query source fallbacks. Current roots cover
 `@main` types, `main`, SwiftUI `App` types and `body`, protocol methods and
 same-file implementations, constructors on concrete types, overrides, UIKit

@@ -233,3 +233,44 @@ No-Observability-Change (PR #3523 review follow-up): the catch/default/wildcard
 correctness fix touches only the computed `cyclomatic_complexity` value; no
 metric, span, log, status field, env var, queue, worker, lease, batch, runtime
 knob, or graph query changes.
+
+### Kotlin/Swift symbol extraction parity (issue #3486)
+
+Context: issue #3486 (part of the #3480 capability regression audit) claimed
+Kotlin produced zero symbol extraction and Swift was partial regex. A diagnostic
+probe of the shipped `origin/main` adapters disproved the zero-extraction claim:
+both already emitted classes, functions, variables, imports, and calls. The real
+open items were the acceptance criteria — golden-fixture gates and capability
+state matching reality — plus two measured accuracy gaps: Swift `extension`
+members were orphaned (no `class_context`) and Kotlin dropped unqualified bare
+calls. This change fixes both, adds golden gates, and corrects the README
+capability state from "parser rewrite pending" to the real hybrid line-scan +
+tree-sitter-syntax design.
+
+No-Regression Evidence:
+`go test ./internal/parser -run 'TestDefaultEngineParsePathSwiftExtensionMethodsCarryClassContext|TestDefaultEngineParsePathKotlinExtractsBareCalls|TestKotlinComprehensiveSymbolExtractionGate|TestSwiftComprehensiveSymbolExtractionGate' -count=1`
+failed before the fix (Swift extension methods carried no `class_context`; Kotlin
+bare calls like `info(...)`/`println(...)` were absent from `function_calls`) and
+passes after. Full `go test ./internal/parser/... -count=1` (1118 tests) plus
+`./internal/mcp ./internal/query ./internal/content/shape` (4972 total) and
+`./internal/reducer/... ./internal/collector/... ./internal/projector/...` stayed
+green, so the added Swift `extension` scope and Kotlin bare-call rows did not
+regress any existing parser, reducer call-materialization, or content-shape
+contract. Backend: tree-sitter grammars vendored in `go/go.mod`
+(`go-tree-sitter v0.25.0`, `tree-sitter-kotlin v1.1.0`, Swift grammar v0.21.0).
+Input shape: single-file Kotlin/Swift fixtures plus the comprehensive
+`tests/fixtures/ecosystems/{kotlin,swift}_comprehensive` corpora with
+hand-checked symbol sets. The extension scope reuses the existing per-line
+brace-depth stack and the bare-call scan reuses the existing per-line
+`seenLineCalls` dedup, so neither adds queue, lease, worker, batch, Cypher, or
+graph-write work; both stay within the existing per-file parse budget measured by
+`eshu_dp_file_parse_duration_seconds`.
+
+No-Observability-Change: symbols flow through the existing `functions`,
+`classes`, `function_calls`, and `class_context` payload keys that `content/shape`
+already forwards; the Swift `extension` scope emits no new type entity and the
+Kotlin bare-call path emits the existing `function_calls` row shape. No new metric
+instrument, metric label, span, log line, status field, env var, queue, worker,
+lease, batch, runtime knob, or graph query is added. Operators still diagnose
+Kotlin/Swift parsing through the existing collector parse-stage logs and
+`eshu_dp_file_parse_duration_seconds`.
