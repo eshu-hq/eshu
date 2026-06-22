@@ -9,8 +9,14 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// rustWhereClausePattern and rustIdentifierPattern are text helpers, not
+// raw-source symbol scanners. They operate on strings already derived from a
+// located AST node (a signature header) or on a single candidate token:
+// rustWhereClausePattern splits a node-text header on the ` where ` keyword,
+// and rustIdentifierPattern validates that a token is a bare identifier. Neither
+// performs primary symbol extraction, so both remain documented within-AST text
+// exceptions rather than regex symbol scans.
 var (
-	rustMacroRulesPattern  = regexp.MustCompile(`\bmacro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)`)
 	rustWhereClausePattern = regexp.MustCompile(`(?s)\s+where\s+`)
 	rustIdentifierPattern  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 )
@@ -50,18 +56,6 @@ func sortSystemsPayload(payload map[string]any, keys ...string) {
 	}
 }
 
-func rustLeadingLifetimeParameters(signature string) []string {
-	trimmed := strings.TrimSpace(signature)
-	if !strings.HasPrefix(trimmed, "<") {
-		return nil
-	}
-	segment, ok := rustLeadingAngleSegment(trimmed)
-	if !ok {
-		return nil
-	}
-	return rustLifetimeNames(segment)
-}
-
 func rustLeadingAngleSegment(text string) (string, bool) {
 	if !strings.HasPrefix(text, "<") {
 		return "", false
@@ -79,44 +73,6 @@ func rustLeadingAngleSegment(text string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func rustLifetimeNames(text string) []string {
-	matches := rustLifetimePattern.FindAllStringSubmatch(text, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-
-	names := make([]string, 0, len(matches))
-	seen := make(map[string]struct{}, len(matches))
-	for _, match := range matches {
-		if len(match) < 2 {
-			continue
-		}
-		name := match[1]
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		names = append(names, name)
-	}
-	if len(names) == 0 {
-		return nil
-	}
-	return names
-}
-
-func rustReturnLifetime(signature string) string {
-	idx := strings.Index(signature, "->")
-	if idx < 0 {
-		return ""
-	}
-	returnType := strings.TrimSpace(signature[idx+len("->"):])
-	lifetimes := rustLifetimeNames(returnType)
-	if len(lifetimes) == 0 {
-		return ""
-	}
-	return lifetimes[0]
 }
 
 func rustTrimWhereClause(text string) string {
@@ -459,15 +415,15 @@ func appendUniqueString(values []string, value string) []string {
 	return append(values, value)
 }
 
+// rustMacroDefinitionName reads the name of a `macro_definition` node. The
+// tree-sitter Rust grammar always exposes the macro name as the node's `name`
+// field (an `identifier`); a `macro_rules!` invocation that lacks a name parses
+// as an ERROR node rather than a `macro_definition`, so this function is only
+// ever reached for a named definition.
 func rustMacroDefinitionName(node *tree_sitter.Node, source []byte) string {
-	if nameNode := firstNamedDescendant(node, "identifier"); nameNode != nil {
-		if name := strings.TrimSpace(shared.NodeText(nameNode, source)); name != "" {
-			return name
-		}
+	nameNode := node.ChildByFieldName("name")
+	if nameNode == nil {
+		nameNode = firstNamedDescendant(node, "identifier")
 	}
-	matches := rustMacroRulesPattern.FindStringSubmatch(shared.NodeText(node, source))
-	if len(matches) < 2 {
-		return ""
-	}
-	return strings.TrimSpace(matches[1])
+	return strings.TrimSpace(shared.NodeText(nameNode, source))
 }
