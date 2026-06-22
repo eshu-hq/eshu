@@ -318,7 +318,7 @@ parser path.
 | Rust | `rust` | `.rs` | yes |
 | Scala | `scala` | `.sc`, `.scala` | yes |
 | SQL | `sql` | `.sql` | yes |
-| Swift | `swift` | `.swift` | yes (line scan + tree-sitter syntax index) |
+| Swift | `swift` | `.swift` | yes (tree-sitter AST walk) |
 | TSX | `tsx` | `.tsx` | yes (TypeScript grammar) |
 | TypeScript | `typescript` | `.cts`, `.mts`, `.ts` | yes |
 | YAML | `yaml` | `.yaml`, `.yml` | — |
@@ -335,12 +335,13 @@ AST package.
 
 ### Kotlin and Swift symbol extraction
 
-Kotlin and Swift use a hybrid adapter: a line-oriented declaration scan emits
-the symbol set, and a tree-sitter syntax index (`kotlin/tree_sitter_syntax.go`,
-`swift/tree_sitter_syntax.go`) supplements it with end-of-declaration lines,
-multiline `class_context`, constructor parameter property types, function
-arguments, and inheritance bases. Both adapters emit functions, classes, calls,
-and imports; the golden gates `TestKotlinComprehensiveSymbolExtractionGate` and
+Kotlin uses a hybrid adapter: a line-oriented declaration scan emits the symbol
+set, and a tree-sitter syntax index (`kotlin/tree_sitter_syntax.go`) supplements
+it with end-of-declaration lines, multiline `class_context`, constructor
+parameter property types, function arguments, and inheritance bases. Swift now
+uses a single tree-sitter AST walk (`swift/ast_extract.go`) with no line scan.
+Both adapters emit functions, classes, calls, and imports; the golden gates
+`TestKotlinComprehensiveSymbolExtractionGate` and
 `TestSwiftComprehensiveSymbolExtractionGate` pin the comprehensive-fixture
 symbol set so a regression to empty extraction fails CI.
 
@@ -351,18 +352,24 @@ functions, `variables`, `imports`, and `function_calls`. Call extraction covers
 receiver-qualified calls, chained calls, `this.` calls, constructor calls, and
 unqualified bare calls (same-scope, top-level, and imported function calls).
 
-Swift emits `classes` (including `actor`), `structs`, `enums`, `protocols`,
-`functions` (with `args`, `class_context`, and `init`), `variables` (with
-`type`), `imports`, and `function_calls` (with `inferred_obj_type`). Members
-declared inside an `extension` block are attributed to the extended type: the
-Swift grammar models `extension Foo { ... }` as a `class_declaration` whose
-extended type is a `user_type` child, so both the line scan and the syntax index
-resolve the extended type name and push an `extension` scope without emitting a
-duplicate type entity.
+Swift extraction (#3589) walks the tree-sitter AST once and emits `classes`
+(including `actor`), `structs`, `enums`, `protocols`, `functions` (with `args`,
+`class_context`, and `init`), `variables` (with `type`), `imports`, and
+`function_calls` (with `inferred_obj_type`) directly from node ranges. Only
+genuine `call_expression` nodes produce call rows, so the prior line-scan
+false positives (enum case declarations, `mutating`/`override` declaration lines,
+`private(set)` modifiers, and string interpolation) are gone, and real subscript,
+initializer, and chained-method calls the scanner missed are now captured.
+Members declared inside an `extension` block are attributed to the extended type:
+the Swift grammar models `extension Foo { ... }` as a `class_declaration` whose
+extended type is a `user_type` child, so the AST walk resolves the extended type
+name and pushes an `extension` scope without emitting a duplicate type entity.
+The Vapor `use:` route hint has no symbol-node form, so it is read as framework
+evidence from call argument labels (documented permanent exception in `AGENTS.md`).
 
-Neither adapter retains a whole-function AST node at the symbol-append site, so
-they remain on the cyclomatic-complexity pending list below until their function
-bodies route through a tree-sitter node with a `shared.BranchNodeSet`.
+The Kotlin adapter does not retain a whole-function AST node at the symbol-append
+site, so it stays on the cyclomatic-complexity pending list below until its
+function bodies route through a tree-sitter node with a `shared.BranchNodeSet`.
 
 ## SCIP support
 
@@ -423,8 +430,8 @@ branch kinds.
 | C# | AST walk (`csharp.cyclomaticComplexity`) | real |
 | Rust | AST walk (`rust.cyclomaticComplexity`) | real |
 | Scala | AST walk (`scala.cyclomaticComplexity`) | real |
-| Ruby, Elixir, Swift, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
-| Kotlin, PHP | AST adapter, but function body not yet routed through a `BranchNodeSet` — emits no `cyclomatic_complexity` field | pending |
+| Ruby, Elixir, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
+| Kotlin, PHP, Swift | AST adapter, but function body not yet routed through a `BranchNodeSet` — emits no `cyclomatic_complexity` field | pending |
 | JSON (`scripts`) | constant `1` | not source code (npm script strings) |
 | SCIP definitions | `0` (unknown) | SCIP carries no statement AST; native parse supplies the real value |
 
