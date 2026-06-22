@@ -15,7 +15,8 @@ import (
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.
 func dispatchTool(ctx context.Context, handler http.Handler, toolName string, args map[string]any, authHeader string, logger *slog.Logger) (*dispatchResult, error) {
 	return dispatchToolWithOptions(ctx, handler, toolName, args, authHeader, logger, dispatchOptions{
-		timeout: defaultToolDispatchTimeout,
+		timeout:            defaultToolDispatchTimeout,
+		responseByteBudget: defaultToolResponseByteBudget,
 	})
 }
 
@@ -81,11 +82,11 @@ func dispatchToolWithOptions(
 	}
 
 	if envelope, ok := parseCanonicalEnvelope(rec.Body.Bytes()); ok {
-		return &dispatchResult{
+		return applyResponseBudget(&dispatchResult{
 			Value:    envelope,
 			Envelope: envelope,
 			IsError:  rec.Code >= 400,
-		}, nil
+		}, toolName, options.responseByteBudget, logger), nil
 	}
 
 	if rec.Code >= 400 {
@@ -94,9 +95,9 @@ func dispatchToolWithOptions(
 
 	var result any
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
-		return &dispatchResult{Value: rec.Body.String()}, nil
+		return applyResponseBudget(&dispatchResult{Value: rec.Body.String()}, toolName, options.responseByteBudget, logger), nil
 	}
-	return &dispatchResult{Value: result}, nil
+	return applyResponseBudget(&dispatchResult{Value: result}, toolName, options.responseByteBudget, logger), nil
 }
 
 type route struct {

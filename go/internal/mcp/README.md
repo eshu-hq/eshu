@@ -91,6 +91,40 @@ success path has No-Observability-Change: it preserves the existing
 `dispatch tool` debug log and does not add spans, metrics, or extra per-row
 logging.
 
+## Dispatch response-size budget
+
+Issue #3498 adds a tool-agnostic response-size budget at the dispatch boundary
+(`dispatch_budget.go`). Every tool response passes through `dispatchTool`, so the
+budget is enforced there once instead of per route. `applyResponseBudget`
+measures the serialized size of the canonical envelope (or plain value) and, when
+it exceeds `defaultToolResponseByteBudget` (256 KiB, ~64k tokens at the repo's
+conservative ~4-bytes-per-token heuristic), replaces the oversized payload with a
+small bounded canonical envelope (`error.code=mcp_response_over_budget`) carrying
+`response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name, and narrowing
+guidance. The original payload is dropped and never reaches the client, so a
+single heavy graph-returning tool (a large subgraph, a wide story, a deep
+visualization packet) cannot blow the model context budget. Per-route token
+budgets such as the relationship-story `token_budget` still apply first; this is
+the outer, tool-agnostic guard, the response-size sibling of the dispatch
+deadline guard.
+
+No-Regression Evidence: the budget is a pure post-dispatch in-process size check
+over the already-serialized response — no new graph, storage, queue, or HTTP work.
+`go test ./internal/mcp -run 'TestDispatchToolResponse|TestDispatchToolZeroBudget|TestDefaultDispatchAppliesResponseBudget' -count=1`
+covers over-budget replacement, within-budget pass-through, the disabled-budget
+(`budget<=0`) path, and that the default `dispatchTool` entrypoint enforces the
+budget. The full `go test ./internal/query ./internal/mcp ./cmd/api ./cmd/mcp-server -count=1`
+(3929 tests) stays green, proving no existing tool fixture trips the 256 KiB
+budget — the budget is sized above every honestly bounded read.
+
+Observability Evidence: every budget hit emits the structured log event
+`mcp tool response over budget` with `tool`, `response_bytes`, and `budget_bytes`
+fields (3 AM operable), mirroring the dispatch-deadline `mcp tool dispatch context
+ended` precedent. The budget accounting is also returned in-band in the
+`error.details` block, so callers see why a response was refused and how to narrow
+it. This package declares no metric instruments, consistent with the existing MCP
+dispatch observability surface.
+
 ## Tool groups
 
 `ReadOnlyTools` assembles 147 tools from the tool definition files.
