@@ -137,21 +137,31 @@ feature solving, manifest-to-lockfile feature resolution, and cross-crate
 semantic module resolution are still not modeled. Add package-local tests before
 widening either claim.
 
-### Regex disposition (issue #3540)
+### Regex disposition (issues #3540, #3572)
 
-Every retained Rust regex operates on the text of an already-located AST node or
-validates a token; none performs primary symbol extraction by scanning raw
-source, so all are documented within-AST exceptions rather than conversions:
+Lifetime extraction and the macro-definition name read now use tree-sitter AST
+nodes instead of regex (#3572). The remaining Rust regexes either operate on the
+text of an already-located AST node, validate a token, or read a macro body the
+grammar deliberately leaves unparsed; none performs primary symbol extraction by
+scanning raw source, so all stay documented exceptions rather than conversions:
 
-- `rustLifetimePattern` (`parser.go`) extracts lifetime tokens (`'a`) from a
-  signature header string that is itself the text of a `function_item`,
-  `impl_item`, or `trait_item` node.
+- Lifetime fields (`lifetime_parameters`, `signature_lifetimes`,
+  `return_lifetime`) read `lifetime` grammar nodes via the helpers in
+  `lifetimes.go`. The grammar exposes every lifetime as a `lifetime` node (`'a`)
+  under `type_parameters`, `reference_type`, `type_arguments`, `trait_bounds`,
+  `where_clause`, and the `return_type` field, so the node walk reproduces the
+  prior payload at byte-parity: names drop the leading apostrophe, first-seen
+  order is preserved, duplicates collapse, and body lifetimes are excluded by
+  skipping the `body` field range. The `rustLifetimePattern` regex is removed.
+- `rustMacroDefinitionName` (`helpers.go`) reads the `macro_definition` node's
+  `name` field directly. A `macro_rules!` form without a name parses as an
+  `ERROR` node, not a `macro_definition`, so the name read is only reached for a
+  named definition and the former `rustMacroRulesPattern` fallback (now removed)
+  was dead code.
 - `rustWhereClausePattern` and `rustIdentifierPattern` (`helpers.go`) split a
   node-text signature header on ` where ` and validate that a token is a bare
   identifier; the leading-attribute `strings.Split` recovers `#[...]` attributes
   from the bounded source slice immediately before an already-located node.
-- `rustMacroRulesPattern` (`helpers.go`) is a fallback name read over a
-  `macro_definition` node's own text when descent finds no `identifier` child.
 - `rustMacroModDeclarationPattern` and `rustMacroUseDeclarationPattern`
   (`macro_declarations.go`) read `mod`/`use` declarations from the body of a
   `macro_invocation` node. Tree-sitter leaves a macro invocation body as an

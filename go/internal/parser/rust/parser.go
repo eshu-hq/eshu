@@ -2,14 +2,11 @@ package rust
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-var rustLifetimePattern = regexp.MustCompile(`'([A-Za-z_][A-Za-z0-9_]*)`)
 
 // Parse reads and parses a Rust file using a caller-owned tree-sitter parser.
 func Parse(
@@ -223,14 +220,14 @@ func appendRustFunction(
 		rootKinds = appendUniqueString(rootKinds, "rust.public_api_item")
 	}
 	rustApplyRootKinds(item, rootKinds)
-	if lifetimeParameters := rustFunctionLifetimeParameters(signature, name); len(lifetimeParameters) > 0 {
+	if lifetimeParameters := rustDeclaredLifetimeParameters(node, source); len(lifetimeParameters) > 0 {
 		item["lifetime_parameters"] = lifetimeParameters
 	}
 	rustApplyGenericMetadata(item, rustGenericParametersAfterName(signature, name))
-	if signatureLifetimes := rustLifetimeNames(signature); len(signatureLifetimes) > 0 {
+	if signatureLifetimes := rustSignatureLifetimeNames(node, source); len(signatureLifetimes) > 0 {
 		item["signature_lifetimes"] = signatureLifetimes
 	}
-	if returnLifetime := rustReturnLifetime(signature); returnLifetime != "" {
+	if returnLifetime := rustReturnLifetimeName(node, source); returnLifetime != "" {
 		item["return_lifetime"] = returnLifetime
 	}
 	rustApplyWhereMetadata(item, signature)
@@ -426,9 +423,9 @@ func rustImplDetails(node *tree_sitter.Node, source []byte) rustImplBlockDetails
 	details := rustImplBlockDetails{
 		header:             header,
 		kind:               "inherent_impl",
-		lifetimeParameters: rustLeadingLifetimeParameters(header),
+		lifetimeParameters: rustDeclaredLifetimeParameters(node, source),
 		leadingGenerics:    rustLeadingGenericSegment(header),
-		signatureLifetimes: rustLifetimeNames(header),
+		signatureLifetimes: rustSignatureLifetimeNames(node, source),
 	}
 
 	header = strings.TrimSpace(rustStripTypeParameters(header))
@@ -480,21 +477,4 @@ func rustBaseTypeName(text string) string {
 		trimmed = trimmed[idx+2:]
 	}
 	return strings.TrimSpace(trimmed)
-}
-
-func rustFunctionLifetimeParameters(signature string, name string) []string {
-	marker := "fn " + name
-	idx := strings.Index(signature, marker)
-	if idx < 0 {
-		return nil
-	}
-	remainder := strings.TrimSpace(signature[idx+len(marker):])
-	if !strings.HasPrefix(remainder, "<") {
-		return nil
-	}
-	segment, ok := rustLeadingAngleSegment(remainder)
-	if !ok {
-		return nil
-	}
-	return rustLifetimeNames(segment)
 }
