@@ -14,6 +14,10 @@ type CodeHandler struct {
 	Neo4j        GraphQuery
 	Content      ContentStore
 	Profile      QueryProfile
+	// HybridRanker, when set, reorders content-search results by fused
+	// BM25+vector relevance using the shipped local embedder. It is optional:
+	// when nil the handler serves the lexical content order unchanged.
+	HybridRanker CodeResultReranker
 }
 
 // Mount registers all /api/v0/code/* routes on the given mux.
@@ -125,14 +129,28 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Re-rank the lexical content results by fused BM25+vector relevance when a
+	// hybrid ranker is configured. The ranker is bounded to the already-retrieved
+	// result set and falls back to lexical order when no vector/lexical signal is
+	// available, so the response never drops a row or invents canonical truth.
+	sourceBackend := "postgres_content_store"
+	truthDetail := "resolved from content index fallback"
+	if h.HybridRanker != nil && !req.Exact {
+		if reranked, applied := h.HybridRanker.Rerank(ctx, req.RepoID, req.Query, contentResults); applied {
+			contentResults = reranked
+			sourceBackend = "hybrid_content_store"
+			truthDetail = "resolved from content index fallback ranked by hybrid BM25+vector retrieval"
+		}
+	}
+
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"source":         "content",
-		"source_backend": "postgres_content_store",
+		"source_backend": sourceBackend,
 		"query":          req.Query,
 		"repo_id":        req.RepoID,
 		"results":        contentResults,
 		"matches":        contentResults,
-	}, BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, "resolved from content index fallback"))
+	}, BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, truthDetail))
 }
 
 // searchGraphEntities finds entities by name pattern in the Neo4j graph.

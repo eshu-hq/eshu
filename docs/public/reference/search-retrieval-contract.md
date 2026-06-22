@@ -154,9 +154,72 @@ The backend:
   so the runner detects truncation;
 - emits derived retrieval evidence, never canonical graph truth.
 
-This backend is used by design-430 benchmark evaluation and offline cap-sweep
-runs. It still adds no runtime flag or graph write, and it does not enable
-whole-graph search.
+This backend is used by design-430 benchmark evaluation, offline cap-sweep
+runs, and the `find_code` hybrid re-rank below. It still adds no runtime flag or
+graph write, and it does not enable whole-graph search.
+
+## find_code Hybrid Re-rank
+
+`go/internal/query.CodeHybridRanker` reorders the lexical `find_code`
+(`POST /api/v0/code/search`) content-fallback results by fused BM25 + vector
+relevance. It closes the gap where the in-process hybrid backend was never read
+at the `find_code` query surface.
+
+Embedding on this path is confined to a process-local deterministic hash
+embedder (`searchembed.HashEmbedder`). The ranker MUST NOT use the runtime's
+governed semantic-search provider embedder: that embedder POSTs text to an
+external endpoint, so embedding the request-local `source_cache` rows through it
+would egress source snippets and block on the provider HTTP timeout per result,
+ignoring client cancellation and bypassing the semantic policy / document-vector
+readiness path. The local embedder keeps all source text inside the process,
+and the embedder is not injectable, so a provider embedder cannot reach it.
+
+The ranker:
+
+- runs only after the lexical content path has already retrieved and authorized
+  a bounded result set (capped by the request limit); it never widens the
+  candidate set, issues no graph or Postgres read, and builds a fresh in-memory
+  `searchhybrid.Index` over only those request-local rows;
+- embeds documents and the query with the process-local hash embedder only — no
+  network call, no source-text egress;
+- projects each result row through `searchdocs.ProjectContentEntity`, so the
+  searchable text, truth labels, and graph handles match the persisted
+  search-document lane;
+- ranks repository-scoped `hybrid` mode (BM25 fused with vector cosine via RRF)
+  and reorders the existing rows by fused rank, tagging reordered rows with
+  `search_backend=hybrid`;
+- bounds the pass with a context timeout derived from the caller's context and
+  returns the lexical order unchanged if the caller's context is already done;
+- preserves the lexical order and lexical `content_index` truth basis unchanged
+  when it cannot fuse a signal: disabled, fewer than two results, or no
+  projectable document. It never drops, adds, or relabels a row as canonical
+  truth.
+
+The ranker is wired (with its own local embedder) only when the runtime's
+semantic search is enabled; content-only deployments keep the lexical content
+order. The exact-match (`exact=true`) symbol path is left lexical because it is
+an identity lookup, not a relevance ranking.
+
+Performance Evidence: the re-rank is CPU-only over at most the request limit of
+request-local documents (default 50, hard cap 100 in the ranker), with BM25
+served from an inverted index and vector cosine exact below the staged ANN
+threshold of 256 documents. It adds no Cypher, graph write, queue, lease, or
+goroutine, and runs after the Postgres/graph round-trips it reorders, so it
+introduces no new hot-path scan. `go test ./internal/query -run CodeSearch...`
+proves a known fixture is reordered by hybrid relevance and that the lexical
+fallback edges are byte-stable.
+
+No-Regression Evidence: `cd go && go test ./internal/query ./internal/mcp
+./internal/searchhybrid ./internal/searchretrieval ./internal/searchembed
+./internal/searchdocs -count=1` and `go test ./cmd/api ./cmd/mcp-server
+-count=1` pass with the ranker wired; behavior is identical to the prior lexical
+path when the ranker is nil or reports a no-op.
+
+Observability Evidence: reordered rows carry a `search_backend=hybrid` marker
+and the response `source_backend` switches to `hybrid_content_store` only when
+the hybrid pass changed the ranking, so an operator can confirm from the
+response envelope whether vector retrieval participated. The bounded request
+reuses the `searchretrieval` request-validation contract.
 
 ## Persisted Postgres Search Index
 
