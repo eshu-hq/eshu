@@ -235,13 +235,14 @@ func (e *swiftExtractor) handleFunction(node *tree_sitter.Node, scope swiftTypeS
 	args := swiftParameterNames(node, e.source)
 	source := shared.NodeText(node, e.source)
 	item := map[string]any{
-		"name":        name,
-		"args":        args,
-		"context":     scope.name,
-		"line_number": shared.NodeLine(node),
-		"end_line":    shared.NodeEndLine(node),
-		"lang":        "swift",
-		"decorators":  []string{},
+		"name":                  name,
+		"args":                  args,
+		"context":               scope.name,
+		"line_number":           shared.NodeLine(node),
+		"end_line":              shared.NodeEndLine(node),
+		"lang":                  "swift",
+		"decorators":            []string{},
+		"cyclomatic_complexity": swiftCyclomaticComplexity(node, e.source),
 	}
 	if scope.name != "" {
 		item["class_context"] = scope.name

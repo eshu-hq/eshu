@@ -97,11 +97,12 @@ func (i *perlSyntaxIndex) collect(node *tree_sitter.Node, source []byte, path st
 	case "subroutine_declaration_statement":
 		if name := perlFirstDirectChildText(node, source, "bareword", "identifier"); name != "" {
 			item := map[string]any{
-				"name":        name,
-				"line_number": shared.NodeLine(node),
-				"end_line":    shared.NodeEndLine(node),
-				"lang":        "perl",
-				"decorators":  []string{},
+				"name":                  name,
+				"line_number":           shared.NodeLine(node),
+				"end_line":              shared.NodeEndLine(node),
+				"lang":                  "perl",
+				"decorators":            []string{},
+				"cyclomatic_complexity": perlCyclomaticComplexity(node, source),
 			}
 			if packageName != "" {
 				item["class_context"] = shared.LastPathSegment(packageName, "::")

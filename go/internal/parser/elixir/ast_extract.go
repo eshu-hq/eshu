@@ -170,16 +170,17 @@ func (e *elixirExtractor) handleFunctionCall(
 	decorators := e.decoratorsBefore(node)
 
 	item := map[string]any{
-		"name":          name,
-		"line_number":   startLine,
-		"end_line":      endLine,
-		"args":          args,
-		"lang":          "elixir",
-		"is_dependency": e.isDependency,
-		"visibility":    "public",
-		"type":          keyword,
-		"decorators":    []string{},
-		"semantic_kind": functionSemanticKind(keyword),
+		"name":                  name,
+		"line_number":           startLine,
+		"end_line":              endLine,
+		"args":                  args,
+		"lang":                  "elixir",
+		"is_dependency":         e.isDependency,
+		"visibility":            "public",
+		"type":                  keyword,
+		"decorators":            []string{},
+		"semantic_kind":         functionSemanticKind(keyword),
+		"cyclomatic_complexity": elixirCyclomaticComplexity(node, e.source),
 	}
 	if strings.HasSuffix(keyword, "p") {
 		item["visibility"] = "private"

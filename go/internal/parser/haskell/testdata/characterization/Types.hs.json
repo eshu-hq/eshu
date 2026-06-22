@@ -60,6 +60,7 @@
     },
     {
       "class_context": "Describable Shape",
+      "cyclomatic_complexity": 1,
       "dead_code_root_kinds": [
         "haskell.instance_method"
       ],
@@ -71,6 +72,7 @@
       "source": "  describe (Circle r) = \"Circle\""
     },
     {
+      "cyclomatic_complexity": 1,
       "decorators": [],
       "end_line": 24,
       "lang": "haskell",

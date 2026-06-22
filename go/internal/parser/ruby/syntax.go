@@ -211,13 +211,14 @@ func (s *rubySyntax) visitMethod(
 		functionType = "dynamic_dispatch"
 	}
 	item := map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(node),
-		"end_line":    shared.NodeEndLine(node),
-		"lang":        "ruby",
-		"decorators":  []string{},
-		"type":        functionType,
-		"args":        s.methodArguments(node.ChildByFieldName("parameters")),
+		"name":                  name,
+		"line_number":           shared.NodeLine(node),
+		"end_line":              shared.NodeEndLine(node),
+		"lang":                  "ruby",
+		"decorators":            []string{},
+		"type":                  functionType,
+		"args":                  s.methodArguments(node.ChildByFieldName("parameters")),
+		"cyclomatic_complexity": rubyCyclomaticComplexity(node, s.source),
 	}
 	contextName, contextType := rubyEnclosingContext(scopeStack, rubyScopeClass, rubyScopeModule)
 	resolvedVisibility := "public"

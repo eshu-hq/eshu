@@ -61,9 +61,10 @@ func (i *groovySyntaxIndex) collect(node *tree_sitter.Node, source []byte, class
 		}
 		if name != "" && body != nil {
 			item := map[string]any{
-				"name":        name,
-				"line_number": shared.NodeLine(node),
-				"end_line":    shared.NodeEndLine(node),
+				"name":                  name,
+				"line_number":           shared.NodeLine(node),
+				"end_line":              shared.NodeEndLine(node),
+				"cyclomatic_complexity": groovyCyclomaticComplexity(node, source),
 			}
 			if classContext != "" {
 				item["class_context"] = classContext

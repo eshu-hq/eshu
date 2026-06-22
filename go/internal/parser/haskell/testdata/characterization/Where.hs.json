@@ -52,6 +52,7 @@
   ],
   "functions": [
     {
+      "cyclomatic_complexity": 1,
       "decorators": [],
       "end_line": 5,
       "lang": "haskell",
@@ -60,6 +61,7 @@
       "source": "run task = result"
     },
     {
+      "cyclomatic_complexity": 1,
       "decorators": [],
       "end_line": 9,
       "lang": "haskell",
@@ -68,6 +70,7 @@
       "source": "withWhere item = local item"
     },
     {
+      "cyclomatic_complexity": 1,
       "decorators": [],
       "end_line": 11,
       "lang": "haskell",

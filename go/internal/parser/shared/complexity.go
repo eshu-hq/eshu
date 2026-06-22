@@ -100,9 +100,16 @@ func CyclomaticComplexity(node *tree_sitter.Node, source []byte, set BranchNodeS
 				return
 			}
 		}
-		if _, branch := set.BranchKinds[current.Kind()]; branch {
-			if _, defaultable := set.DefaultCaseKinds[current.Kind()]; !defaultable || !isCatchAllArm(current) {
-				complexity++
+		// Only named nodes are control-flow constructs. Some grammars
+		// (tree-sitter-ruby) name the statement node and its leading keyword
+		// token the same kind, e.g. both the `if` statement and the anonymous
+		// `if` keyword report Kind() == "if"; counting the keyword token would
+		// double every such branch. Anonymous tokens never carry a decision.
+		if current.IsNamed() {
+			if _, branch := set.BranchKinds[current.Kind()]; branch {
+				if _, defaultable := set.DefaultCaseKinds[current.Kind()]; !defaultable || !isCatchAllArm(current) {
+					complexity++
+				}
 			}
 		}
 		if _, binary := set.BinaryExpressionKinds[current.Kind()]; binary {
@@ -129,6 +136,11 @@ func CyclomaticComplexity(node *tree_sitter.Node, source []byte, set BranchNodeS
 //   - a direct anonymous `default` token child (Java switch_label, C#
 //     switch_section, C/C++ case_statement reuse one node kind for `case` and
 //     `default`);
+//   - a direct anonymous `else` token child (Kotlin when_entry `else ->` and
+//     Ruby/grammars whose single arm kind covers the catch-all with an `else`
+//     keyword);
+//   - a direct named `default_keyword` child (Swift switch_entry reuses one
+//     node kind for `case` and `default`);
 //   - a direct `wildcard` node child (Scala case_clause `case _ =>`); and
 //   - a match_pattern/case_pattern child that is a bare `_` wildcard (Rust
 //     match_arm, Python case_clause). A guarded wildcard (`_ if cond`) parses
@@ -144,9 +156,9 @@ func isCatchAllArm(node *tree_sitter.Node) bool {
 	for _, child := range node.Children(cursor) {
 		child := child
 		switch {
-		case !child.IsNamed() && child.Kind() == "default":
+		case !child.IsNamed() && (child.Kind() == "default" || child.Kind() == "else"):
 			return true
-		case child.Kind() == "wildcard":
+		case child.Kind() == "wildcard" || child.Kind() == "default_keyword":
 			return true
 		case child.Kind() == "match_pattern" || child.Kind() == "case_pattern":
 			if isBareWildcardPattern(&child) {
