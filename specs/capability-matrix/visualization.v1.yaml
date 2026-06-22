@@ -1,21 +1,20 @@
 # Visualization capability matrix fragment.
 #
-# Two pure visualization helpers that issue #3028 promotes from overlay
-# exemptions to first-class, machine-verified matrix surfaces. Neither runs a
-# graph or content query, so both stay outside the graph_query.read_only_cypher
-# diagnostics capability (which requires a graph and is unsupported in
-# local_lightweight):
+# Two visualization surfaces. One is a pure transform; the other executes a
+# real graph read:
 #
 #   - derive_visualization_packet transforms an already-authorized answer
 #     response (service_story, evidence_citation, or incident_context) into a
-#     bounded node/edge packet. The packet carries the source response's truth
+#     bounded node/edge packet. It runs no graph or content query, so it stays
+#     outside the graph_query.read_only_cypher diagnostics capability and is
+#     supported in every profile. The packet carries the source response's truth
 #     envelope, while the route envelope declares visualization.packet_derivation
 #     at a derived ceiling because this helper only derives visualization shape.
-#   - visualize_graph_query formats a graph-browser URL for caller-supplied
-#     read-only Cypher. The handler performs no graph read and emits a derived
-#     visualization.graph_query_link envelope, so it is supported in every
-#     profile (the linked browser, not the tool, is what needs a running graph
-#     backend).
+#   - visualize_graph_query executes caller-supplied read-only Cypher and
+#     projects the graph nodes, relationships, and paths in the result into a
+#     bounded node/edge packet. Because it performs a real graph read it is
+#     unsupported in local_lightweight and reaches authoritative-graph truth in
+#     graph-backed profiles, matching graph_query.read_only_cypher.
 capabilities:
   - capability: visualization.packet_derivation
     tools: [derive_visualization_packet]
@@ -24,10 +23,10 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 200, max_scope_size: bounded_packet, verification: [{go_test: ./internal/query}], notes: graph sidecar unused; packet carries source truth while response envelope is derived}
       local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 200, max_scope_size: bounded_packet, verification: [{go_test: ./internal/query}], notes: pure transform with node and edge caps; packet carries source truth while response envelope is derived}
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 400, max_scope_size: bounded_packet, verification: [{remote_validation: prod-visualization-packet}], notes: pure transform with node and edge caps; packet carries source truth while response envelope is derived}
-  - capability: visualization.graph_query_link
+  - capability: visualization.graph_query
     tools: [visualize_graph_query]
     profiles:
-      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 50, max_scope_size: single_query, verification: [{go_test: ./internal/query}], notes: validates read-only Cypher and formats a graph-browser URL; no graph or content read; emits a derived graph-query-link envelope, so the linked browser (not the tool) is what needs a graph backend}
-      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 50, max_scope_size: single_query, verification: [{go_test: ./internal/query}], notes: validates read-only Cypher and formats a graph-browser URL; no graph read; emits a derived graph-query-link envelope}
-      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 50, max_scope_size: single_query, verification: [{go_test: ./internal/query}], notes: validates read-only Cypher and formats a graph-browser URL; no graph read; emits a derived graph-query-link envelope}
-      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 100, max_scope_size: single_query, verification: [{remote_validation: prod-visualization-graph-query-link}], notes: validates read-only Cypher and formats a graph-browser URL; no graph read; emits a derived graph-query-link envelope}
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: executes read-only Cypher and projects graph entities into a node/edge packet; needs a graph backend, so unsupported in the content-only lightweight profile}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: bounded_query_window, verification: [{go_test: ./internal/query}], notes: bounds the read-only Cypher with an injected LIMIT, executes it against an AccessModeRead session under a timeout, and projects the returned nodes, relationships, and paths into a bounded subgraph}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1500, max_scope_size: bounded_query_window, verification: [{go_test: ./internal/query}], notes: bounds and executes the read-only Cypher and projects the returned graph entities into a bounded subgraph}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: bounded_query_window, verification: [{remote_validation: prod-visualization-graph-query}], notes: bounds and executes the read-only Cypher and projects the returned graph entities into a bounded subgraph}

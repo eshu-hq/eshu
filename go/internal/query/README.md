@@ -858,6 +858,18 @@ duplicate delivery through the durable `admin_replay_requests` ledger.
   `neo4j.query` span in `Neo4jReader.Run`; rejected mutation/admin queries and
   unsupported profiles fail before graph execution, so they add no graph,
   reducer, queue, or worker telemetry cardinality.
+- `/api/v0/code/visualize` and MCP `visualize_graph_query` share that read-only
+  Cypher safety path: the handler gates `visualization.graph_query`, rejects
+  mutations, bounds the query with `boundedReadOnlyCypher`, executes it under the
+  same 30 second deadline against `GraphQuery`, then projects the returned graph
+  nodes, relationships, and paths into a bounded `VisualizationPacket`
+  (`BuildGraphQueryVisualizationPacket`) instead of returning a hardcoded
+  browser URL. Scalar-only results yield an explicit unsupported packet.
+  No-Regression Evidence: `go test ./internal/query -run
+  'TestHandleVisualizeQuery' -count=1` covers graph-entity projection, the
+  empty/scalar-only result contract, and mutation rejection. Observability
+  Evidence: reads reuse the existing `neo4j.query` span in `Neo4jReader.Run`; the
+  projection is a pure in-memory transform that adds no new telemetry.
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).

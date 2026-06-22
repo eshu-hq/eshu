@@ -8,12 +8,42 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-func TestHandleVisualizeQuery_ReturnsURL(t *testing.T) {
-	h := &CodeHandler{Neo4j: &stubGraphReader{}}
+// TestHandleVisualizeQuery_ReturnsGraphPacket locks issue #3485: the tool must
+// execute the caller's read-only Cypher and return a real renderable subgraph
+// (visualization packet with nodes and edges) derived from the result, not a
+// dead hardcoded localhost:7474 browser URL.
+func TestHandleVisualizeQuery_ReturnsGraphPacket(t *testing.T) {
+	stub := fakeGraphReader{
+		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "LIMIT") {
+				t.Fatalf("cypher = %q, want a bounded read-only query with LIMIT", cypher)
+			}
+			service := neo4jdriver.Node{
+				ElementId: "node-service-1",
+				Labels:    []string{"Service"},
+				Props:     map[string]any{"name": "catalog"},
+			}
+			repo := neo4jdriver.Node{
+				ElementId: "node-repo-1",
+				Labels:    []string{"Repository"},
+				Props:     map[string]any{"name": "catalog-repo"},
+			}
+			rel := neo4jdriver.Relationship{
+				ElementId:      "rel-1",
+				StartElementId: "node-service-1",
+				EndElementId:   "node-repo-1",
+				Type:           "DEPLOYED_FROM",
+			}
+			return []map[string]any{{"s": service, "r": repo, "rel": rel}}, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
 
-	body := `{"cypher_query": "MATCH (n) RETURN n LIMIT 10"}`
+	body := `{"cypher_query": "MATCH (s:Service)-[rel:DEPLOYED_FROM]->(r:Repository) RETURN s, r, rel LIMIT 10"}`
 	req := httptest.NewRequest("POST", "/api/v0/code/visualize", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", EnvelopeMIMEType)
@@ -22,7 +52,7 @@ func TestHandleVisualizeQuery_ReturnsURL(t *testing.T) {
 	h.handleVisualizeQuery(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
 	}
 
 	var envelope ResponseEnvelope
@@ -30,24 +60,81 @@ func TestHandleVisualizeQuery_ReturnsURL(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	if envelope.Truth == nil {
-		t.Fatal("truth envelope = nil, want graph-query-link capability")
+		t.Fatal("truth envelope = nil, want graph-query capability")
 	}
-	if got, want := envelope.Truth.Capability, "visualization.graph_query_link"; got != want {
+	if got, want := envelope.Truth.Capability, "visualization.graph_query"; got != want {
 		t.Fatalf("truth capability = %q, want %q", got, want)
 	}
-	if got, want := envelope.Truth.Level, TruthLevelDerived; got != want {
-		t.Fatalf("truth level = %q, want %q", got, want)
-	}
-	if got, want := envelope.Truth.Basis, TruthBasisHybrid; got != want {
+	if got, want := envelope.Truth.Basis, TruthBasisAuthoritativeGraph; got != want {
 		t.Fatalf("truth basis = %q, want %q", got, want)
 	}
 	resp, ok := envelope.Data.(map[string]any)
 	if !ok {
 		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
-	u, ok := resp["url"].(string)
-	if !ok || !strings.Contains(u, "browser") {
-		t.Errorf("expected Neo4j Browser URL, got %v", resp["url"])
+	if _, dead := resp["url"]; dead {
+		t.Fatalf("response still carries a dead browser url field: %v", resp["url"])
+	}
+	packet, ok := resp["visualization_packet"].(map[string]any)
+	if !ok {
+		t.Fatalf("resp[visualization_packet] type = %T, want map", resp["visualization_packet"])
+	}
+	if supported, _ := packet["supported"].(bool); !supported {
+		t.Fatalf("packet supported = %v, want true: %#v", packet["supported"], packet)
+	}
+	nodes, ok := packet["nodes"].([]any)
+	if !ok || len(nodes) != 2 {
+		t.Fatalf("packet nodes = %#v, want 2 nodes", packet["nodes"])
+	}
+	edges, ok := packet["edges"].([]any)
+	if !ok || len(edges) != 1 {
+		t.Fatalf("packet edges = %#v, want 1 edge", packet["edges"])
+	}
+	edge, ok := edges[0].(map[string]any)
+	if !ok {
+		t.Fatalf("edge type = %T, want map", edges[0])
+	}
+	if got, want := edge["relationship"], "DEPLOYED_FROM"; got != want {
+		t.Fatalf("edge relationship = %v, want %v", got, want)
+	}
+}
+
+// TestHandleVisualizeQuery_EmptyResult locks the empty-result-set contract: an
+// executed query that returns no graph rows yields an explicit unsupported
+// packet rather than an error or a fabricated subgraph.
+func TestHandleVisualizeQuery_EmptyResult(t *testing.T) {
+	stub := fakeGraphReader{
+		run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			return nil, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
+
+	body := `{"cypher_query": "MATCH (n:Service) RETURN n LIMIT 10"}`
+	req := httptest.NewRequest("POST", "/api/v0/code/visualize", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	h.handleVisualizeQuery(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	resp, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	packet, ok := resp["visualization_packet"].(map[string]any)
+	if !ok {
+		t.Fatalf("resp[visualization_packet] type = %T, want map", resp["visualization_packet"])
+	}
+	if supported, _ := packet["supported"].(bool); supported {
+		t.Fatalf("packet supported = true, want false for empty result: %#v", packet)
 	}
 }
 

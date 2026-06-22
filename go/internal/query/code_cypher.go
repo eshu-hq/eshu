@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -250,40 +249,85 @@ func isCypherSpace(ch byte) bool {
 	return ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == '\f'
 }
 
-// handleVisualizeQuery returns a Neo4j Browser URL for the given Cypher query.
+// handleVisualizeQuery executes a caller-supplied read-only Cypher query and
+// returns a bounded, renderable visualization packet (nodes and edges) projected
+// from the graph entities in the result, instead of a hardcoded browser URL.
+//
+// It shares the read-only safety path of handleCypherQuery: mutation keywords
+// are rejected, the query is bounded with an injected LIMIT, the read runs under
+// a timeout against an AccessModeRead session, and the row window is capped. The
+// projection is a pure transformation of the returned rows; only graph nodes,
+// relationships, and paths contribute to the subgraph.
 func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CypherQuery string `json:"cypher_query"`
+		Limit       int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeCypherQueryError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
 		return
 	}
 
 	if req.CypherQuery == "" {
-		WriteError(w, http.StatusBadRequest, "cypher_query is required")
+		writeCypherQueryError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "cypher_query is required")
 		return
 	}
 
-	if err := validateReadOnlyCypher(req.CypherQuery); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if capabilityUnsupported(h.profile(), visualizationGraphQueryCapability) {
+		WriteContractError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			"graph query visualization requires a graph-backed authoritative profile",
+			ErrorCodeUnsupportedCapability,
+			visualizationGraphQueryCapability,
+			h.profile(),
+			requiredProfile(visualizationGraphQueryCapability),
+		)
 		return
 	}
 
-	browserURL := fmt.Sprintf(
-		"http://localhost:7474/browser/?cmd=edit&arg=%s",
-		url.QueryEscape(req.CypherQuery),
-	)
+	cypher, limit, err := boundedReadOnlyCypher(req.CypherQuery, req.Limit)
+	if err != nil {
+		writeCypherQueryError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
+		return
+	}
 
-	WriteSuccess(w, r, http.StatusOK, map[string]any{"url": browserURL}, h.visualizationGraphQueryLinkTruth())
+	ctx, cancel := context.WithTimeout(r.Context(), cypherQueryTimeout)
+	defer cancel()
+
+	rows, err := h.Neo4j.Run(ctx, cypher, nil)
+	if err != nil {
+		writeCypherQueryError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
+		return
+	}
+
+	truncatedRows := len(rows) > limit
+	if truncatedRows {
+		rows = rows[:limit]
+	}
+
+	truth := h.visualizationGraphQueryTruth()
+	packet := BuildGraphQueryVisualizationPacket(rows, truth)
+	if truncatedRows {
+		packet.Truncation.Truncated = true
+		packet.Limitations = appendReason(packet.Limitations,
+			"result row window was truncated to the row limit before projection; the subgraph is a bounded subset")
+	}
+
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"visualization_packet": packet,
+		"limit":                limit,
+		"truncated":            truncatedRows,
+	}, truth)
 }
 
-func (h *CodeHandler) visualizationGraphQueryLinkTruth() *TruthEnvelope {
+func (h *CodeHandler) visualizationGraphQueryTruth() *TruthEnvelope {
 	return BuildTruthEnvelope(
 		h.profile(),
-		"visualization.graph_query_link",
-		TruthBasisHybrid,
-		"derived graph-browser link for caller-supplied read-only Cypher without executing a graph query",
+		visualizationGraphQueryCapability,
+		TruthBasisAuthoritativeGraph,
+		"projected renderable subgraph from a bounded read-only graph query result",
 	)
 }
 

@@ -322,6 +322,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	case "visualize_graph_query":
 		return &route{method: "POST", path: "/api/v0/code/visualize", body: map[string]any{
 			"cypher_query": str(args, "cypher_query"),
+			"limit":        intOr(args, "limit", 100),
 		}}, nil
 	case "search_registry_bundles":
 		return &route{method: "POST", path: "/api/v0/code/bundles", body: map[string]any{
