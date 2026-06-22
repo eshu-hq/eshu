@@ -136,34 +136,35 @@ func walkAllNodes(root *tree_sitter.Node, visit func(*tree_sitter.Node)) {
 	}
 }
 
-// isExportedViaCgoParent reproduces the pre-#3586 mechanism: walk node.Parent()
-// (a cgo crossing into ts_node_parent per step) up to the program root. It
-// returns the boolean result and the number of Parent() cgo crossings it made,
-// so the regression test can assert the lookup mechanism removes them.
-func isExportedViaCgoParent(node *tree_sitter.Node) (bool, int) {
-	crossings := 0
-	for current := node; current != nil; {
+// isExportedViaCgoParent reproduces the pre-#3586 mechanism used as the
+// baseline for BenchmarkJavaScriptIsExportedCgoParent: walk node.Parent() (a
+// cgo crossing into ts_node_parent per step) up to the program root. This is
+// benchmark scaffolding only; production code was replaced by
+// javaScriptIsExported in the javascript package.
+func isExportedViaCgoParent(node *tree_sitter.Node) bool {
+	for current := node; current != nil; current = current.Parent() {
 		switch current.Kind() {
 		case "export_statement":
-			return true, crossings
+			return true
 		case "program":
-			return false, crossings
+			return false
 		}
-		current = current.Parent()
-		crossings++
 	}
-	return false, crossings
+	return false
 }
 
-// parentLookup mirrors the production javaScriptParentLookup: one O(n)
-// child->parent map built per tree, then O(1) Go map lookups per ancestor step
-// with zero cgo per Parent() walk.
-type parentLookup struct {
+// benchParentLookup is a local benchmark scaffold that mirrors the shape of
+// the production javaScriptParentLookup in go/internal/parser/javascript. It
+// is used only by BenchmarkJavaScriptIsExportedParentLookup to measure the
+// speedup story independently of the parser integration path. The mechanism
+// regression gate (TestJavaScriptParentLookupEliminatesCgoCrossings) lives in
+// go/internal/parser/javascript and exercises the production helpers directly.
+type benchParentLookup struct {
 	parents map[uintptr]*tree_sitter.Node
 }
 
-func buildParentLookup(root *tree_sitter.Node) *parentLookup {
-	lookup := &parentLookup{parents: make(map[uintptr]*tree_sitter.Node)}
+func buildBenchParentLookup(root *tree_sitter.Node) *benchParentLookup {
+	lookup := &benchParentLookup{parents: make(map[uintptr]*tree_sitter.Node)}
 	walkAllNodes(root, func(node *tree_sitter.Node) {
 		count := node.ChildCount()
 		for i := range count {
@@ -175,26 +176,26 @@ func buildParentLookup(root *tree_sitter.Node) *parentLookup {
 	return lookup
 }
 
-func (l *parentLookup) parent(node *tree_sitter.Node) *tree_sitter.Node {
+func (l *benchParentLookup) parent(node *tree_sitter.Node) *tree_sitter.Node {
 	if node == nil {
 		return nil
 	}
 	return l.parents[node.Id()]
 }
 
-// isExportedViaLookup walks ancestors through the Go-side parent map. It returns
-// the same boolean as isExportedViaCgoParent and the cgo crossings it made,
-// which is always zero after the one-time build.
-func isExportedViaLookup(node *tree_sitter.Node, lookup *parentLookup) (bool, int) {
+// isExportedViaLookup walks ancestors through the Go-side parent map, matching
+// the pattern of the production javaScriptIsExported helper. Used only by
+// BenchmarkJavaScriptIsExportedParentLookup to measure per-call overhead.
+func isExportedViaLookup(node *tree_sitter.Node, lookup *benchParentLookup) bool {
 	for current := node; current != nil; current = lookup.parent(current) {
 		switch current.Kind() {
 		case "export_statement":
-			return true, 0
+			return true
 		case "program":
-			return false, 0
+			return false
 		}
 	}
-	return false, 0
+	return false
 }
 
 // ancestorWalksPerNode models the real per-declaration ancestor-walk density of
@@ -218,7 +219,7 @@ func BenchmarkJavaScriptIsExportedCgoParent(b *testing.B) {
 	for b.Loop() {
 		for _, node := range methods {
 			for range ancestorWalksPerNode {
-				_, _ = isExportedViaCgoParent(node)
+				_ = isExportedViaCgoParent(node)
 			}
 		}
 	}
@@ -234,45 +235,11 @@ func BenchmarkJavaScriptIsExportedParentLookup(b *testing.B) {
 	b.ReportMetric(float64(len(methods)), "method_nodes")
 	b.ResetTimer()
 	for b.Loop() {
-		lookup := buildParentLookup(root)
+		lookup := buildBenchParentLookup(root)
 		for _, node := range methods {
 			for range ancestorWalksPerNode {
-				_, _ = isExportedViaLookup(node, lookup)
+				_ = isExportedViaLookup(node, lookup)
 			}
 		}
 	}
-}
-
-// TestJavaScriptParentLookupEliminatesCgoCrossings is the mechanism regression
-// gate for #3586. It proves two things at once: (1) the cgo-Parent walk and the
-// Go-lookup walk return identical is-exported results for every declaration
-// node (output identity), and (2) the lookup mechanism makes zero Parent() cgo
-// crossings while the old mechanism makes thousands. If a future change
-// reintroduces per-node Parent() walks, the cgo count regresses and this test
-// is the place to catch it.
-func TestJavaScriptParentLookupEliminatesCgoCrossings(t *testing.T) {
-	root := parseTypeScriptTree(t, deepExportTypeScriptSource(40, 6))
-	methods := collectMethodDefinitionNodes(root)
-	if len(methods) == 0 {
-		t.Fatalf("collectMethodDefinitionNodes() = 0 nodes, want > 0")
-	}
-
-	lookup := buildParentLookup(root)
-	totalCgoCrossings := 0
-	for _, node := range methods {
-		cgoResult, crossings := isExportedViaCgoParent(node)
-		lookupResult, lookupCrossings := isExportedViaLookup(node, lookup)
-		if cgoResult != lookupResult {
-			t.Fatalf("is-exported disagreement: cgo=%v lookup=%v", cgoResult, lookupResult)
-		}
-		if lookupCrossings != 0 {
-			t.Fatalf("lookup mechanism made %d cgo Parent() crossings, want 0", lookupCrossings)
-		}
-		totalCgoCrossings += crossings
-	}
-	if totalCgoCrossings == 0 {
-		t.Fatalf("old mechanism made 0 cgo Parent() crossings over %d methods; fixture is not exercising the regression", len(methods))
-	}
-	t.Logf("old mechanism made %d cgo Parent() crossings over %d method nodes; lookup mechanism made 0",
-		totalCgoCrossings, len(methods))
 }
