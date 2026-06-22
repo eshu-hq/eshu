@@ -51,28 +51,38 @@ the repository root is ignored. Macro expansion, conditional compilation,
 transitive include graphs, dynamic symbol lookup, and broad callback registries
 remain query-reported exactness blockers.
 
-### Regex disposition (issue #3540)
+### Regex disposition (issues #3540, #3573)
 
-The whole-source `appendCTypedefAliasesFromSource` line scan was removed. Typedef
-aliases, structs, enums, and unions are now extracted solely from tree-sitter
-`type_definition` and `typedef`-prefixed `declaration` nodes, which a grammar
-probe confirmed cover every typedef form (including nested-brace anonymous
-structs the single-level regex could mishandle). The remaining regexes operate
-on already-located AST node text or bounded external header text, so they are
-documented within-AST / source-text exceptions, not primary symbol extraction:
+The whole-source `appendCTypedefAliasesFromSource` line scan was removed in
+#3540, and the residual `cTypedefAliasPattern` fallback in `parser.go` was
+removed in #3573. Typedef aliases, structs, enums, and unions are now extracted
+solely from tree-sitter `type_definition` and `typedef`-prefixed `declaration`
+nodes. A grammar probe confirmed `type_definition` exposes the alias under the
+`declarator` field for every form — `type_identifier` for plain and anonymous
+struct/enum/union bodies, `function_declarator` for function-pointer typedefs,
+and `array_declarator` for array typedefs — and the underlying struct/enum/union
+under the `type` field, so the regex fallback was unreachable for any C the
+grammar parses. No payload key, bucket assignment, or alias value changed.
 
-- `cTypedefAliasPattern` (`parser.go`) is a fallback over a `type_definition`
-  node's own text when field-based descent does not yield the alias name.
-- `cDirectInitializerTargetPattern` and `cBraceInitializerPattern`
-  (`dead_code_roots.go`) parse the text of an already-located `declaration` node
-  to recover function-pointer initializer targets.
-- `cHeaderPrototypePattern` and the comment-stripping patterns scan the bytes of
-  directly included local header files. Those headers are intentionally not
-  tree-sitter parsed (to keep cost bounded and avoid repo-wide include-graph
-  resolution), so a prototype scan is the only available structured read.
+The remaining `parser/c` regexes all live in `dead_code_roots.go` and operate on
+already-located AST node text or bounded external header text, so they are
+documented out-of-AST / source-text evidence exceptions, not primary symbol
+extraction:
+
+- `cDirectInitializerTargetPattern` and `cBraceInitializerPattern` parse the
+  text of an already-located `declaration` node to recover function-pointer
+  initializer targets. This is call-site / initializer evidence used to mark
+  functions referenced indirectly through pointers, not symbol extraction.
+- `cHeaderPrototypePattern` and the comment-stripping patterns
+  (`cBlockCommentPattern`, `cLineCommentPattern`) scan the bytes of directly
+  included local header files read via `os.ReadFile`. Those headers are not part
+  of the tree-sitter parse of the current source and are intentionally not
+  parsed (to keep cost bounded and avoid repo-wide include-graph resolution), so
+  a raw prototype scan over the unparsed file is the only available structured
+  read.
 - `cFunctionPointerTypedefPattern` builds an auxiliary name index of
-  function-pointer typedefs that gates the within-AST declaration handling above;
-  it produces no symbol or edge directly.
+  function-pointer typedefs that gates the within-declaration handling above; it
+  produces no symbol or edge directly.
 
 ## Related Docs
 
