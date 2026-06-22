@@ -421,6 +421,75 @@
   the filter value is a span attribute, not a metric dimension, so cardinality
   stays bounded.
 
+- **`what_deploys` spans the full deployment edge family (#3507)** — the #3492
+  alias mapped `what_deploys` to `DEPLOYS_FROM` only, which dropped the runtime
+  deployment topology the pre-#3492 untyped read surfaced — notably the
+  `WorkloadInstance-[:DEPLOYMENT_SOURCE]->Repository` edge written by
+  `canonicalDeploymentSourceUpsertCypher` and read by
+  `fetchDeploymentSourcesFromGraph` (`impact_trace_deployment.go`). For a
+  workload-instance target the tool could then report an empty deployment
+  relationship even when the deployment-source edge exists. `what_deploys` now
+  resolves to `{DEPLOYS_FROM, DEPLOYMENT_SOURCE, HAS_DEPLOYMENT_EVIDENCE}` — the
+  same deploy family `entity_map_response.go` groups as "deployed by" plus the
+  runtime deployment-source edge. When adding a new deployment edge type to the
+  graph, add it here too so the deploy alias stays complete.
+
+  No-Regression Evidence: pure accuracy fix; the change only widens the
+  `what_deploys` alias edge-type set, it adds no query and changes no other
+  alias. Baseline = `what_deploys` filtering to `[r:DEPLOYS_FROM]` (dropping
+  `DEPLOYMENT_SOURCE`); after = `[r:DEPLOYS_FROM|DEPLOYMENT_SOURCE|HAS_DEPLOYMENT_EVIDENCE]`.
+  Backend NornicDB (Neo4j compat unaffected); input shape unchanged — one
+  `RunSingle` anchored on `n.id = $entity_id` returning two collected
+  relationship slices for one entity. A wider type-union in the inline pattern is
+  still index-served by the NornicDB relationship-type index and only changes
+  which edges match; it adds no round trip and no broad scan, so terminal
+  row/queue counts stay bounded by the same single-entity neighborhood. Proof:
+  `go test ./internal/query -run
+  'TestWhatDeploysSurfacesRuntimeDeploymentSourceEdge|TestResolveInfraRelationshipTypes|TestInfraRelationships'
+  -count=1` (failing-first DEPLOYMENT_SOURCE regression) and `go test
+  ./internal/query ./internal/mcp -count=1`.
+
+  No-Observability-Change: reuses the #3492 span `query.infra_relationships` and
+  its `eshu.relationship_filter` attribute (now reports the wider pipe-joined
+  deploy set for `what_deploys`); no new span, metric, label, or log is added.
+
+- **Scope predicate admits the deployment-source topology (#3519)** — widening
+  `what_deploys` (above) surfaced a second scope bug: `infraResourceScopePredicate`
+  (`infra_resource_aggregates.go`) authorized a neighbor only by `repo_id` or the
+  `(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n)`
+  USES path. A `DEPLOYMENT_SOURCE` edge points from an in-grant `WorkloadInstance`
+  to a `Repository` node; the Repository neighbor carries `id`, not `repo_id`, and
+  is not a USES target, so the scope-filtered relationship read dropped the edge
+  under a scoped token even when the repository was in grant. The predicate now
+  also admits a node whose own `id` is a granted repository (`n.id IN $allowed_*`,
+  for the Repository neighbor) and a `WorkloadInstance` anchored to a granted repo
+  via `(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(n)` (no USES hop, for
+  a deployment-source seed/instance). Both new disjuncts are anchored on the
+  indexed `Repository.id` grant filter, and node ids are namespaced (`repo:` vs
+  `tf:`/`k8s:`/`workload:`), so the `id`-grant disjunct is inert for non-Repository
+  nodes and never widens their authorization. Do not drop the label/anchor shape:
+  matching a bare `id` without the `Repository`/`DEFINES` anchor would risk
+  authorizing a cross-tenant node by id collision.
+
+  No-Regression Evidence: scope-correctness fix; the predicate gains two
+  fail-closed disjuncts and removes none. Baseline = predicate with `repo_id` +
+  USES-path disjuncts (dropping in-grant `DEPLOYMENT_SOURCE` Repository
+  neighbors); after = same plus `id`-grant and DEFINES/INSTANCE_OF disjuncts.
+  Backend NornicDB (Neo4j compat unaffected); the predicate renders only in
+  scoped mode, so unscoped infra search/aggregate/relationship Cypher is
+  byte-identical and unchanged. The new EXISTS subquery mirrors the existing
+  workloadScopePredicate DEFINES anchor (indexed `Repository.id`), adding no
+  unbounded scan; it runs per candidate neighbor exactly like the existing USES
+  disjunct, so the bounded single-entity neighborhood cost class is unchanged.
+  Proof: `go test ./internal/query -run
+  'TestScopedWhatDeploys|TestInfraResourceScopePredicateAdmitsDeploymentTopology'
+  -count=1` (in-grant edge returned, out-of-grant excluded, predicate shape
+  pinned) and `go test ./internal/query ./internal/mcp -count=1`.
+
+  No-Observability-Change: the scope predicate is a Cypher WHERE fragment with no
+  span, metric, label, or log surface; the relationship read still reports the
+  #3492 `query.infra_relationships` span and `eshu.relationship_filter` attribute.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`

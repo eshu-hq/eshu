@@ -143,6 +143,68 @@ func TestInfraRelationshipsScopedFilterCoexistsWithGrantPredicate(t *testing.T) 
 	}
 }
 
+// TestWhatDeploysSurfacesRuntimeDeploymentSourceEdge is the #3507 follow-up
+// regression guard: narrowing what_deploys to only DEPLOYS_FROM dropped the
+// runtime deployment topology the pre-#3492 untyped read returned, such as the
+// WorkloadInstance-[:DEPLOYMENT_SOURCE]->Repository edge that
+// fetchDeploymentSourcesFromGraph reads. what_deploys must keep surfacing it.
+//
+// The fake reader returns the DEPLOYMENT_SOURCE edge only when the Cypher's
+// relationship-type filter admits DEPLOYMENT_SOURCE, so the test proves the edge
+// reaches the caller through the actual filter, not just that a token string is
+// present. Before the fix what_deploys filtered to ":DEPLOYS_FROM" alone, the
+// edge was dropped, and the response carried an empty outgoing slice.
+func TestWhatDeploysSurfacesRuntimeDeploymentSourceEdge(t *testing.T) {
+	t.Parallel()
+
+	deploymentSourceEdge := map[string]any{
+		"direction":     "outgoing",
+		"type":          "DEPLOYMENT_SOURCE",
+		"target_name":   "deploy-repo",
+		"target_id":     "repo:deploy",
+		"target_labels": []any{"Repository"},
+	}
+
+	handler := &InfraHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeRepoGraphReader{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				outgoing := []any{}
+				// Mirror the graph: the DEPLOYMENT_SOURCE edge only matches when
+				// the relationship-type filter admits it (or the read is untyped).
+				if !strings.Contains(cypher, ":") || strings.Contains(cypher, "DEPLOYMENT_SOURCE") {
+					outgoing = []any{deploymentSourceEdge}
+				}
+				return map[string]any{
+					"id":       "instance:eshu",
+					"name":     "eshu",
+					"labels":   []any{"WorkloadInstance"},
+					"outgoing": outgoing,
+					"incoming": []any{},
+				}, nil
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/relationships", bytes.NewBufferString(`{"entity_id":"instance:eshu","relationship_type":"what_deploys"}`))
+	rec := httptest.NewRecorder()
+	handler.getRelationships(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	payload := decodeInfraData(t, rec.Body.Bytes())
+	outgoing, ok := payload["outgoing"].([]any)
+	if !ok || len(outgoing) != 1 {
+		t.Fatalf("what_deploys dropped the runtime DEPLOYMENT_SOURCE edge: outgoing = %#v", payload["outgoing"])
+	}
+	edge, _ := outgoing[0].(map[string]any)
+	if got := StringVal(edge, "type"); got != "DEPLOYMENT_SOURCE" {
+		t.Fatalf("outgoing[0].type = %q, want DEPLOYMENT_SOURCE", got)
+	}
+}
+
 // TestResolveInfraRelationshipTypes covers every dispatch variant of the
 // alias/canonical resolver, including the empty (backward-compatible) and
 // rejected cases.
@@ -157,11 +219,11 @@ func TestResolveInfraRelationshipTypes(t *testing.T) {
 	}{
 		{name: "empty is unfiltered", input: "", wantTypes: nil, wantOK: true},
 		{name: "whitespace is unfiltered", input: "   ", wantTypes: nil, wantOK: true},
-		{name: "what_deploys alias", input: "what_deploys", wantTypes: []string{"DEPLOYS_FROM"}, wantOK: true},
+		{name: "what_deploys alias", input: "what_deploys", wantTypes: []string{"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"}, wantOK: true},
 		{name: "what_provisions alias", input: "what_provisions", wantTypes: []string{"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"}, wantOK: true},
 		{name: "module_consumers alias", input: "module_consumers", wantTypes: []string{"USES_MODULE"}, wantOK: true},
 		{name: "who_consumes_xrd alias", input: "who_consumes_xrd", wantTypes: []string{"USES_MODULE"}, wantOK: true},
-		{name: "alias is case-insensitive", input: "WHAT_DEPLOYS", wantTypes: []string{"DEPLOYS_FROM"}, wantOK: true},
+		{name: "alias is case-insensitive", input: "WHAT_DEPLOYS", wantTypes: []string{"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"}, wantOK: true},
 		{name: "canonical edge type", input: "DEPLOYS_FROM", wantTypes: []string{"DEPLOYS_FROM"}, wantOK: true},
 		{name: "canonical edge type lower", input: "uses_module", wantTypes: []string{"USES_MODULE"}, wantOK: true},
 		{name: "unknown is rejected", input: "not_a_real_filter", wantTypes: nil, wantOK: false},
