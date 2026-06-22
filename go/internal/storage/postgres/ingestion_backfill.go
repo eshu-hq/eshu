@@ -113,11 +113,13 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	return nil
 }
 
-// RunDeferredRelationshipMaintenance runs the ingester's global relationship
-// backfill and deployment-mapping reopen behind an exclusive transaction-level
-// Postgres advisory lock. Generation commits take the matching shared lock, so
-// this pass waits for in-flight source fact commits and blocks new ones until
-// both maintenance phases finish.
+// RunDeferredRelationshipMaintenance runs the ingester's relationship backfill
+// and deployment-mapping reopen behind per-repository exclusive
+// transaction-level advisory locks. Each active source repository is locked
+// independently in sorted order, so maintenance for disjoint repositories runs
+// in parallel and one stalled repository no longer blocks the fleet. Generation
+// commits take the matching per-repository shared lock, so a commit only waits
+// for maintenance that touches its own repository.
 func (s IngestionStore) RunDeferredRelationshipMaintenance(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -138,8 +140,8 @@ func (s IngestionStore) RunDeferredRelationshipMaintenance(
 		}
 	}()
 
-	if err := acquireDeferredMaintenanceExclusiveBarrier(ctx, tx); err != nil {
-		return fmt.Errorf("acquire deferred maintenance exclusive barrier: %w", err)
+	if err := acquireDeferredMaintenanceRepoLocksForActiveRepos(ctx, tx); err != nil {
+		return fmt.Errorf("acquire deferred maintenance repo barriers: %w", err)
 	}
 
 	maintenanceStore := NewIngestionStore(tx)
@@ -156,6 +158,24 @@ func (s IngestionStore) RunDeferredRelationshipMaintenance(
 	}
 	committed = true
 	return nil
+}
+
+// acquireDeferredMaintenanceRepoLocksForActiveRepos locks every active source
+// repository's maintenance partition exclusively, in deterministic sorted order.
+// It loads the active repository generations the maintenance pass will read and
+// write, then takes one exclusive advisory lock per repository. Disjoint
+// repository sets share no lock partition, so independent maintenance passes do
+// not serialize against each other.
+func acquireDeferredMaintenanceRepoLocksForActiveRepos(ctx context.Context, tx Transaction) error {
+	repoGenerations, err := loadActiveRepositoryGenerations(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("load active repository generations for maintenance locks: %w", err)
+	}
+	repoKeys := make([]string, 0, len(repoGenerations))
+	for repoID := range repoGenerations {
+		repoKeys = append(repoKeys, deferredMaintenanceRepoLockKeyFromID(repoID))
+	}
+	return acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, repoKeys)
 }
 
 // ReopenDeploymentMappingWorkItems replays succeeded deployment_mapping work

@@ -153,13 +153,17 @@ High-signal invariants for this package:
   `deferred_maintenance_barriers` and
   `deferred_maintenance_barrier_arrivals`. Each shard records its local batch
   drain in the current epoch; only the shard that completes the epoch runs
-  global maintenance. The leader then takes an exclusive transaction-level
-  Postgres advisory lock while normal source generation commits take the
-  matching shared lock before writing `fact_records` and projector work, so the
-  post-drain backfill/reopen pass waits for in-flight fact commits and blocks
-  next-cycle commits until global maintenance commits or rolls back. If a shard
-  arrives with a different shard count while an epoch is open, storage fails
-  closed instead of creating competing epochs.
+  maintenance. Maintenance no longer serializes on one fleet-wide exclusive
+  advisory lock (issue #3482). Instead the leader takes one exclusive
+  transaction-level advisory lock per active source repository, namespaced under
+  `deferred_relationship_maintenance` and acquired in sorted repository order to
+  stay deadlock-free; normal source generation commits take the matching shared
+  lock for only their own repository partition (see
+  `deferred_maintenance_lock.go`). A commit therefore waits only for maintenance
+  that touches its own repository, and maintenance over disjoint repository sets
+  proceeds in parallel, so one stalled repository no longer stalls the fleet. If
+  a shard arrives with a different shard count while an epoch is open, storage
+  fails closed instead of creating competing epochs.
 - `value_flow_fixpoint_components` stores reducer-owned solved value-flow
   component results by content-derived component key, so unchanged components
   can be reused across reducer restarts and replicas without re-solving.
@@ -169,9 +173,64 @@ No-Regression Evidence: scoped hot-path notes live in
 tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesExclusiveBarrier|ShardDrainBarrier)|TestBootstrapDefinitionsIncludeDeferredMaintenanceBarrier'
--count=1` covers the shared source-commit barrier and exclusive deferred
+'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBarrier|ShardDrainBarrier)|TestBootstrapDefinitionsIncludeDeferredMaintenanceBarrier'
+-count=1` covers the per-repo shared source-commit barrier and per-repo deferred
 maintenance barrier, the multi-shard drain rendezvous, and bootstrap DDL.
+
+### Deferred maintenance lock partitioning (issue #3482)
+
+Deferred relationship maintenance previously ran under one fleet-wide exclusive
+Postgres advisory lock (constant key `deferredMaintenanceBarrierLockKey`), so a
+single in-flight or stalled maintenance pass serialized every ingester's
+generation commits across the whole fleet. The write conflict domain is actually
+per source repository: evidence rows are keyed by each repository's active
+`generation_id` and are content-addressed (`evidence_id`, `ON CONFLICT
+(evidence_id) DO NOTHING`), so disjoint repositories never touch overlapping
+rows. The lock now partitions by repository via the established two-argument
+`pg_advisory_xact_lock[_shared](hashtext($namespace), hashtext($repo))` pattern.
+
+- Backend: Postgres advisory locks (transaction level). Lock semantics verified
+  against Postgres docs: shared and exclusive modes on `(classid, objid)` keys;
+  many shared holders coexist, one exclusive holder excludes shared+exclusive on
+  the same key; disjoint keys never contend.
+- Input shape: N active source repositories per maintenance epoch. Exclusive
+  locks acquired = number of active repositories; commit shared locks acquired =
+  1 per generation commit (its own repository).
+- Conflict domain: one repository partition key. Lock ordering: sorted unique
+  repository keys, identical across all callers, so overlapping multi-repository
+  acquisitions cannot deadlock.
+- Idempotency/retry: maintenance writes are idempotent (`ON CONFLICT DO
+  NOTHING`); a rolled-back transaction releases all advisory locks at
+  transaction end, and re-running the pass reaches the same terminal state.
+- Key alignment (correctness): a git repository scope sets
+  `PartitionKey = repo.ID` and emits a repository fact whose payload `repo_id`
+  is the same `repo.ID` (`collector/git_source_processing.go`). The commit
+  shared lock keys on `PartitionKey` and maintenance keys on the active
+  generations' `repo_id`, so both resolve to the same partition for the same
+  repository and the shared/exclusive fence holds. Non-repository scopes (for
+  example cloud partitions) never appear in the repository-only active
+  generations query, so maintenance takes no exclusive lock on their partition
+  and those commits correctly no longer wait on repository maintenance at all.
+
+Performance Evidence: before, any deferred-maintenance transaction held the
+single global key, so concurrent commits/maintenance for unrelated repositories
+serialized (effective concurrency = 1 maintenance pass fleet-wide). After,
+`TestDisjointRepoMaintenanceRunsConcurrently` proves two passes over disjoint
+repository sets both make progress while the first still holds its locks
+(would block under the global lock), and a commit for a repository under active
+maintenance still correctly waits, then proceeds once the lock releases.
+Reproduce: `go test ./internal/storage/postgres -run
+'TestDisjointRepoMaintenanceRunsConcurrently|TestMaintenanceTakesPerRepoExclusiveLocksInOrder'
+-race -count=1`. This is a Concurrency/Scheduling win: it removes fleet-wide
+serialization without lowering worker counts or batch sizes.
+
+Observability Evidence: `RunDeferredRelationshipMaintenance` records
+`instruments.DeferredBackfillDuration` and `instruments.DeferredBackfillEvidence`
+and logs `deferred_backfill_completed`; the per-repo lock acquisition emits the
+exclusive-lock SQL per repository so contention is attributable to a single
+repository partition rather than an opaque global barrier. An operator can see
+which repository's maintenance is slow via the per-repo lock waits and the
+backfill duration/evidence counters instead of a single fleet-wide stall.
 
 ### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
 

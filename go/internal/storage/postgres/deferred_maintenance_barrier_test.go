@@ -46,17 +46,26 @@ func TestIngestionStoreCommitScopeGenerationTakesSharedMaintenanceBarrier(t *tes
 	if !strings.Contains(first.query, "pg_advisory_xact_lock_shared") {
 		t.Fatalf("first transaction exec = %q, want shared advisory maintenance barrier", first.query)
 	}
-	if got, want := first.args[0], deferredMaintenanceBarrierLockKey; got != want {
-		t.Fatalf("shared barrier lock key = %v, want %v", got, want)
+	if !strings.Contains(first.query, "hashtext") {
+		t.Fatalf("first transaction exec = %q, want repo-partitioned shared barrier", first.query)
+	}
+	if got, want := first.args[0], deferredMaintenanceLockNamespace; got != want {
+		t.Fatalf("shared barrier namespace = %v, want %v", got, want)
+	}
+	if got, want := first.args[1], deferredMaintenanceRepoLockKey(scopeValue); got != want {
+		t.Fatalf("shared barrier repo key = %v, want %v", got, want)
 	}
 }
 
-func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesExclusiveBarrier(t *testing.T) {
+func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBarrier(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 18, 12, 0, 0, 0, time.UTC)
 	tx := &fakeTx{
 		queryResponses: []queueFakeRows{
+			// Active repository generations loaded for per-repo lock acquisition.
+			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
+			// Backfill pass: catalog, generations, latest facts.
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)}}},
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 			{rows: [][]any{}},
@@ -74,14 +83,20 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesExclusiveBarrier(t
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
 	if len(tx.execs) == 0 {
-		t.Fatal("transaction execs = 0, want exclusive maintenance barrier lock")
+		t.Fatal("transaction execs = 0, want per-repo exclusive maintenance barrier lock")
 	}
 	first := tx.execs[0]
-	if !strings.Contains(first.query, "pg_advisory_xact_lock") || strings.Contains(first.query, "shared") {
+	if !strings.Contains(first.query, "pg_advisory_xact_lock(") || strings.Contains(first.query, "shared") {
 		t.Fatalf("first transaction exec = %q, want exclusive advisory maintenance barrier", first.query)
 	}
-	if got, want := first.args[0], deferredMaintenanceBarrierLockKey; got != want {
-		t.Fatalf("exclusive barrier lock key = %v, want %v", got, want)
+	if !strings.Contains(first.query, "hashtext") {
+		t.Fatalf("first transaction exec = %q, want repo-partitioned exclusive barrier", first.query)
+	}
+	if got, want := first.args[0], deferredMaintenanceLockNamespace; got != want {
+		t.Fatalf("exclusive barrier namespace = %v, want %v", got, want)
+	}
+	if got, want := first.args[1], deferredMaintenanceRepoLockKeyFromID("repo-infra"); got != want {
+		t.Fatalf("exclusive barrier repo key = %v, want %v", got, want)
 	}
 	if !tx.committed {
 		t.Fatal("transaction committed = false, want true")
@@ -154,6 +169,8 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{int64(7), 2, sql.NullTime{}}}},
 			{rows: [][]any{{2}}},
+			// Active repository generations loaded for per-repo lock acquisition.
+			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)}}},
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 			{rows: [][]any{}},
@@ -176,7 +193,9 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 	if !tx.committed {
 		t.Fatal("transaction committed = false, want true")
 	}
+	// Barrier state lock (global, brief) plus per-repo maintenance lock.
 	assertExecContains(t, tx.execs, "pg_advisory_xact_lock($1)")
+	assertExecContains(t, tx.execs, "pg_advisory_xact_lock(hashtext($1), hashtext($2))")
 	assertExecContains(t, tx.execs, "INSERT INTO deferred_maintenance_barrier_arrivals")
 	assertExecContains(t, tx.execs, "INSERT INTO graph_projection_phase_state")
 	assertExecContains(t, tx.execs, "UPDATE fact_work_items")

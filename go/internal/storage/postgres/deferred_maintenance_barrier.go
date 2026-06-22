@@ -181,8 +181,8 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 		return s.waitDeferredMaintenanceBarrierCompletion(ctx, epoch, config)
 	}
 
-	if err := acquireDeferredMaintenanceExclusiveBarrier(ctx, tx); err != nil {
-		return fmt.Errorf("acquire deferred maintenance exclusive barrier: %w", err)
+	if err := acquireDeferredMaintenanceRepoLocksForActiveRepos(ctx, tx); err != nil {
+		return fmt.Errorf("acquire deferred maintenance repo barriers: %w", err)
 	}
 	maintenanceStore := NewIngestionStore(tx)
 	maintenanceStore.Now = s.Now
