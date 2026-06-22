@@ -112,7 +112,8 @@ const openAPIPathsCICD = `
                         "after_correlation_id": {"type": "string"}
                       },
                       "required": ["after_correlation_id"]
-                    }
+                    },
+                    "collector_readiness": {"$ref": "#/components/schemas/CollectorReadinessEnvelope"}
                   },
                   "required": ["correlations", "count", "limit", "truncated", "evidence_summary"]
                 }

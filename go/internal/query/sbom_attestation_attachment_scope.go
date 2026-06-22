@@ -1,6 +1,10 @@
 package query
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
 
 // Scoped-token authorization helpers for the reducer-owned SBOM/attestation
 // attachment read routes (list, count, inventory). Empty-grant and out-of-grant
@@ -26,12 +30,14 @@ func (h *SupplyChainHandler) writeEmptySBOMAttachmentPage(
 	r *http.Request,
 	limit int,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"attachments": []SBOMAttestationAttachmentResult{},
 		"count":       0,
 		"limit":       limit,
 		"truncated":   false,
-	}, BuildTruthEnvelope(
+	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorSBOMAttestation, 0, false)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		sbomAttestationAttachmentsCapability,
 		TruthBasisSemanticFacts,

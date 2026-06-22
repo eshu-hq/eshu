@@ -38,6 +38,12 @@ explicit `missing_evidence` such as:
 identity rows across more than one OCI repository, so callers should narrow the
 question before treating one image repository as selected.
 
+This list route is one of the seven gated supply-chain list routes, so its
+responses also carry the `collector_readiness` envelope
+(`collector_kind=oci_registry`) that distinguishes an unconfigured feeding
+collector from a configured-but-empty page. See
+[Gated List Collector Readiness](evidence-and-supply-chain.md#gated-list-collector-readiness).
+
 ## Performance Evidence
 
 No-Regression Evidence: `go test ./internal/query -run

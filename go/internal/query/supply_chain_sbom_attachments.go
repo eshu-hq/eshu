@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -135,6 +136,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 			"after_attachment_id": results[len(results)-1].AttachmentID,
 		}
 	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorSBOMAttestation, len(results), truncated)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		sbomAttestationAttachmentsCapability,

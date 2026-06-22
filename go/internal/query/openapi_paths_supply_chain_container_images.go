@@ -56,7 +56,8 @@ const openAPIPathsSupplyChainContainerImages = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
-                    "next_cursor": {"type": "object"}
+                    "next_cursor": {"type": "object"},
+                    "collector_readiness": {"$ref": "#/components/schemas/CollectorReadinessEnvelope"}
                   }
                 }
               }

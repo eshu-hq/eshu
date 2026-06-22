@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -105,6 +106,7 @@ func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter,
 			"after_identity_id": results[len(results)-1].IdentityID,
 		}
 	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorOCIRegistry, len(results), truncated)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		containerImageIdentitiesCapability,

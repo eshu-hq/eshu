@@ -192,6 +192,53 @@ one candidate publisher is marked `ambiguous=true` and never collapsed to a
 single asserted publisher; a publisher repository that equals the consumer
 repository is dropped as a self-reference.
 
+## Gated List Collector Readiness
+
+Seven gated supply-chain list routes are fed by opt-in collectors that stay off
+in a default git-only deploy: `/package-registry/packages`,
+`/package-registry/versions`, `/package-registry/dependencies`,
+`/package-registry/correlations`, `/supply-chain/sbom-attestations/attachments`,
+`/supply-chain/container-images/identities`, and `/ci-cd/run-correlations`. For
+these routes an empty page is otherwise ambiguous: a caller cannot tell "no data
+matched" from "the feeding collector is not enabled." Each response therefore
+carries a `collector_readiness` envelope (the per-collector mirror of the
+vulnerability impact-findings `readiness` envelope) so the empty page is never
+ambiguous:
+
+- `readiness_state`:
+  - `not_configured`: no enabled, non-deactivated instance of the feeding
+    collector is registered, so the empty page reflects a disabled collection
+    lane rather than absent data.
+  - `ready_zero_results`: the feeding collector is enabled but the bounded query
+    returned no rows, so the empty page is a genuine zero result for the scope.
+  - `ready_with_results`: the page returned at least one row. Returned rows are
+    themselves proof the collector ran, so a non-empty page never consults the
+    configured probe.
+  - `readiness_unavailable`: the configured probe itself failed. The page is
+    still returned, but its emptiness cannot be classified, so callers must not
+    read zero rows as configured-but-empty in this state.
+- `collector_kind`: the feeding collector family (`sbom_attestation`,
+  `package_registry`, `oci_registry`, or `ci_cd_run`).
+- `counts`: `results_returned` and `results_truncated` for the returned page.
+
+The configured probe is a single bounded existence check over the
+`collector_instances` registry and is omitted entirely when no readiness store
+is wired, so handlers built without the probe keep their existing response
+shape.
+
+No-Regression Evidence: `go test ./internal/query -run
+'Test(BuildCollectorListReadiness|GatedListTools(ReportNotConfiguredWhenCollectorDisabled|ReportReadyZeroResultsWhenCollectorConfigured|ReportReadinessUnavailableOnProbeError|OmitReadinessWhenStoreUnset)|PostgresCollectorListReadiness)'
+-count=1` fails if any of the 7 gated list routes stops distinguishing an
+unconfigured feeding collector from a configured-but-empty page, or if the
+Postgres configured probe drifts from the `collector_instances` existence check.
+
+No-Observability-Change: the readiness envelope reuses the existing per-route
+request span, truth envelope, and Postgres/graph query instrumentation each
+gated list route already emits. The configured probe is one bounded indexed
+existence read over `collector_instances` keyed by `(collector_kind, enabled)`;
+it adds no graph read, graph write, reducer work, queue, worker, metric
+instrument, metric label, or runtime knob.
+
 ## Dependency Inventory
 
 `GET /api/v0/dependencies` is a bounded, name-anchored browse over the

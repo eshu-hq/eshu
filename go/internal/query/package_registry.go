@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -27,7 +28,12 @@ type PackageRegistryHandler struct {
 	Content      ContentStore
 	Correlations PackageRegistryCorrelationStore
 	Aggregates   PackageRegistryAggregateStore
-	Profile      QueryProfile
+	// CollectorReadiness answers the configured-collector probe for the gated
+	// package-registry list tools so an empty page reports not_configured when
+	// the package_registry collector is disabled. It is optional: a nil store
+	// leaves the collector_readiness envelope off the response.
+	CollectorReadiness CollectorListReadinessStore
+	Profile            QueryProfile
 }
 
 // PackageRegistryPackageResult is one package identity materialized from
@@ -171,13 +177,15 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 		}
 		results = append(results, result)
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"packages":        results,
 		"identity_issues": identityIssues,
 		"count":           len(results),
 		"limit":           limit,
 		"truncated":       truncated,
-	}, BuildTruthEnvelope(
+	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorPackageRegistry, len(results), truncated)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryPackagesCapability,
 		TruthBasisAuthoritativeGraph,
@@ -248,12 +256,14 @@ func (h *PackageRegistryHandler) listVersions(w http.ResponseWriter, r *http.Req
 			IsRetracted:    BoolVal(row, "is_retracted"),
 		})
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"versions":  results,
 		"count":     len(results),
 		"limit":     limit,
 		"truncated": truncated,
-	}, BuildTruthEnvelope(
+	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorPackageRegistry, len(results), truncated)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryVersionsCapability,
 		TruthBasisAuthoritativeGraph,
@@ -361,6 +371,7 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 			"after_dependency_id": last.DependencyID,
 		}
 	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorPackageRegistry, len(results), truncated)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryDependenciesCapability,

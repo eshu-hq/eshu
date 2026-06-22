@@ -40,7 +40,12 @@ type SupplyChainHandler struct {
 	SecurityAlerts           SecurityAlertReconciliationStore
 	SecurityAlertAggregates  SecurityAlertReconciliationAggregateStore
 	Readiness                SupplyChainImpactReadinessStore
-	Profile                  QueryProfile
+	// CollectorReadiness answers the configured-collector probe for the gated
+	// SBOM/attestation and container-image list tools so an empty page reports
+	// not_configured when the feeding collector is disabled. It is optional: a
+	// nil store leaves the collector_readiness envelope off the response.
+	CollectorReadiness CollectorListReadinessStore
+	Profile            QueryProfile
 }
 
 // ContainerImageIdentityResult is one reducer-owned container image identity

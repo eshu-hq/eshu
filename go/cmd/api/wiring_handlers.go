@@ -60,6 +60,7 @@ func newSupplyChainHandler(
 		SecurityAlerts:           query.NewPostgresSecurityAlertReconciliationStore(db),
 		SecurityAlertAggregates:  query.NewPostgresSecurityAlertReconciliationAggregateStore(db),
 		Readiness:                query.NewPostgresSupplyChainImpactReadinessStore(db),
+		CollectorReadiness:       query.NewPostgresCollectorListReadinessStore(db),
 		Profile:                  profile,
 	}
 }
@@ -86,11 +87,12 @@ func newPackageRegistryHandler(
 	profile query.QueryProfile,
 ) *query.PackageRegistryHandler {
 	return &query.PackageRegistryHandler{
-		Neo4j:        neo4jReader,
-		Content:      contentReader,
-		Correlations: query.NewPostgresPackageRegistryCorrelationStore(db),
-		Aggregates:   query.NewGraphPackageRegistryAggregateStore(neo4jReader),
-		Profile:      profile,
+		Neo4j:              neo4jReader,
+		Content:            contentReader,
+		Correlations:       query.NewPostgresPackageRegistryCorrelationStore(db),
+		Aggregates:         query.NewGraphPackageRegistryAggregateStore(neo4jReader),
+		CollectorReadiness: query.NewPostgresCollectorListReadinessStore(db),
+		Profile:            profile,
 	}
 }
 
@@ -98,10 +100,11 @@ func newPackageRegistryHandler(
 // Postgres run-correlation and aggregate stores.
 func newCICDHandler(db *sql.DB, contentReader query.ContentStore, profile query.QueryProfile) *query.CICDHandler {
 	return &query.CICDHandler{
-		Content:      contentReader,
-		Correlations: query.NewPostgresCICDRunCorrelationStore(db),
-		Aggregates:   query.NewPostgresCICDRunCorrelationAggregateStore(db),
-		Profile:      profile,
+		Content:            contentReader,
+		Correlations:       query.NewPostgresCICDRunCorrelationStore(db),
+		Aggregates:         query.NewPostgresCICDRunCorrelationAggregateStore(db),
+		CollectorReadiness: query.NewPostgresCollectorListReadinessStore(db),
+		Profile:            profile,
 	}
 }
 

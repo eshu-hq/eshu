@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -18,7 +19,12 @@ type CICDHandler struct {
 	Content      ContentStore
 	Correlations CICDRunCorrelationStore
 	Aggregates   CICDRunCorrelationAggregateStore
-	Profile      QueryProfile
+	// CollectorReadiness answers the configured-collector probe for the gated
+	// CI/CD run-correlation list tool so an empty page reports not_configured
+	// when the ci_cd_run collector is disabled. It is optional: a nil store
+	// leaves the collector_readiness envelope off the response.
+	CollectorReadiness CollectorListReadinessStore
+	Profile            QueryProfile
 }
 
 // CICDRunCorrelationResult is one reducer-owned CI/CD run correlation row.
@@ -159,6 +165,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 			"after_correlation_id": results[len(results)-1].CorrelationID,
 		}
 	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorCICDRun, len(results), truncated)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		cicdRunCorrelationsCapability,
@@ -172,13 +179,15 @@ func (h *CICDHandler) writeEmptyCICDRunCorrelationPage(
 	r *http.Request,
 	limit int,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"correlations":     []CICDRunCorrelationResult{},
 		"count":            0,
 		"limit":            limit,
 		"truncated":        false,
 		"evidence_summary": h.runCorrelationEvidenceSummary(r.Context(), "", nil, false),
-	}, BuildTruthEnvelope(
+	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorCICDRun, 0, false)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		cicdRunCorrelationsCapability,
 		TruthBasisSemanticFacts,
