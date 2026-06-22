@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-var pythonPublicNameLiteralRe = regexp.MustCompile(`["']([A-Za-z_][A-Za-z0-9_]*)["']`)
 
 func pythonPublicAPIRootKinds(
 	repoRoot string,
@@ -39,12 +36,73 @@ func pythonModuleAllNames(root *tree_sitter.Node, source []byte) map[string]stru
 		if strings.TrimSpace(nodeText(left, source)) != "__all__" {
 			return
 		}
-		right := node.ChildByFieldName("right")
-		for _, name := range pythonPublicNameLiterals(nodeText(right, source)) {
+		for _, name := range pythonStringSequenceLiterals(node.ChildByFieldName("right"), source) {
 			names[name] = struct{}{}
 		}
 	})
 	return names
+}
+
+// pythonStringSequenceLiterals returns the identifier-shaped string literals
+// inside an `__all__` value node. It handles list, tuple, and set literals and
+// recursively descends concatenated literals (`["a"] + ("b",)`), which the
+// grammar represents as a binary_operator over operand containers. Non-literal
+// operands such as `base.__all__` contribute no names. Only string entries whose
+// content is a valid Python identifier are kept, matching the prior regex-based
+// literal extraction that scanned the whole right-hand side text.
+func pythonStringSequenceLiterals(value *tree_sitter.Node, source []byte) []string {
+	return pythonCollectStringSequenceLiterals(value, source, make([]string, 0))
+}
+
+// pythonCollectStringSequenceLiterals appends identifier-shaped string literals
+// from an `__all__` value node into names, descending through binary_operator
+// concatenations and into the string children of list, tuple, and set literals.
+func pythonCollectStringSequenceLiterals(value *tree_sitter.Node, source []byte, names []string) []string {
+	if value == nil {
+		return names
+	}
+	switch value.Kind() {
+	case "binary_operator":
+		names = pythonCollectStringSequenceLiterals(value.ChildByFieldName("left"), source, names)
+		return pythonCollectStringSequenceLiterals(value.ChildByFieldName("right"), source, names)
+	case "list", "tuple", "set":
+		cursor := value.Walk()
+		defer cursor.Close()
+		for _, child := range value.NamedChildren(cursor) {
+			child := child
+			if child.Kind() != "string" {
+				continue
+			}
+			literal := pythonStringLiteralValue(&child, source)
+			if pythonIsIdentifier(literal) {
+				names = appendUniqueString(names, literal)
+			}
+		}
+		return names
+	default:
+		return names
+	}
+}
+
+// pythonIsIdentifier reports whether s is a valid Python identifier name
+// (leading letter or underscore, then letters, digits, or underscores).
+func pythonIsIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for index, char := range s {
+		isLetter := char == '_' ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= 'a' && char <= 'z')
+		isDigit := char >= '0' && char <= '9'
+		if index == 0 && !isLetter {
+			return false
+		}
+		if index > 0 && !isLetter && !isDigit {
+			return false
+		}
+	}
+	return true
 }
 
 func pythonPackageInitExportedNames(repoRoot string, sourcePath string) map[string]struct{} {
@@ -141,17 +199,6 @@ func pythonFromImportStatements(source string) []string {
 		statements = append(statements, strings.Join(strings.Fields(statement), " "))
 	}
 	return statements
-}
-
-func pythonPublicNameLiterals(source string) []string {
-	matches := pythonPublicNameLiteralRe.FindAllStringSubmatch(source, -1)
-	names := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) == 2 {
-			names = appendUniqueString(names, match[1])
-		}
-	}
-	return names
 }
 
 func pythonMergeRootKinds(existing any, additional []string) []string {

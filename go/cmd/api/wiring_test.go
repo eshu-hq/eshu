@@ -216,6 +216,18 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.BrowserSessions == nil {
 		t.Fatal("newRouter().BrowserSessions = nil, want browser session routes mounted")
 	}
+	if router.BrowserSessions.Store != nil {
+		t.Fatal("newRouter().BrowserSessions.Store != nil with nil db, want unavailable store")
+	}
+	if router.LocalIdentity == nil {
+		t.Fatal("newRouter().LocalIdentity = nil, want local identity routes mounted")
+	}
+	if router.LocalIdentity.Store != nil {
+		t.Fatal("newRouter().LocalIdentity.Store != nil with nil db, want unavailable store")
+	}
+	if router.LocalIdentity.Sessions != nil {
+		t.Fatal("newRouter().LocalIdentity.Sessions != nil with nil db, want unavailable session store")
+	}
 }
 
 func TestNewRouterUsesSuppliedStatusReader(t *testing.T) {

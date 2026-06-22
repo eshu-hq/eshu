@@ -112,13 +112,14 @@ High-signal invariants for this package:
   re-checks the persisted policy revision against the workspace row before
   refreshing last-seen state, so policy changes invalidate stale dashboard
   sessions instead of extending them.
-- Identity subject storage is additive and dormant until later enforcement
-  slices opt in. It persists users, provider configs and revisions, external
-  subject links, email history, local credential hashes, MFA factor handles,
-  tenant memberships, roles, grants, sessions, service principals,
-  service-principal role assignments, and token metadata with opaque IDs,
-  hashes, and credential handles only. It does not replace existing
-  shared-token or scoped-token behavior.
+- Identity subject storage persists users, provider configs, local credential
+  hashes, MFA handles, roles, grants, sessions, service principals, and token
+  metadata with opaque IDs, hashes, and credential handles only. Local identity
+  adds one-time bootstrap, invitation-only signup, bcrypt password proof,
+  recovery-code MFA proof, lockout, resets, disablement, and time-boxed
+  break-glass windows without storing raw proofs. Bootstrap uses a transaction
+  advisory lock; invite acceptance and break-glass consumption serialize in SQL.
+  It does not replace existing shared-token or scoped-token behavior.
 - Repository ref readbacks stay bounded by the `repository_refs` primary key
   `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
   fresh ref set carried by the current materialization so content-only
@@ -185,120 +186,39 @@ maintenance barrier, the multi-shard drain rendezvous, and bootstrap DDL.
 
 ### Deferred maintenance lock partitioning (issue #3482)
 
-Deferred relationship maintenance previously ran under one fleet-wide exclusive
-Postgres advisory lock (constant key `deferredMaintenanceBarrierLockKey`), so a
-single in-flight or stalled maintenance pass serialized every ingester's
-generation commits across the whole fleet. The first partitioning increment
-keyed the lock per repository but still acquired every active repository's
-exclusive lock inside one corpus-wide maintenance transaction, so the
-whole-corpus entrypoint kept fleet-wide serialization: a stall held every
-repository's lock until the entire pass committed. The write conflict domain is
-actually per source repository: evidence rows are keyed by each repository's
-active `generation_id` and are content-addressed (`evidence_id`, `ON CONFLICT
-(evidence_id) DO NOTHING`), so disjoint repositories never touch overlapping
-rows. Maintenance now commits in bounded independent per-repository-batch
-transactions, each taking only its own batch's locks via the established
-two-argument `pg_advisory_xact_lock[_shared](hashtext($namespace),
-hashtext($repo))` pattern.
+Deferred relationship maintenance commits bounded per-repository-batch
+transactions keyed with two-argument transaction advisory locks
+(`hashtext(namespace), hashtext(repo)`), while normal generation commits take the
+matching shared lock for their repository partition. Locks are acquired in sorted
+repository order, evidence/readiness writes are idempotent, open barrier epochs
+are recoverable by later shard arrivals, and non-repository scopes no longer wait
+on repository maintenance.
 
-- Backend: Postgres advisory locks (transaction level). Lock semantics verified
-  against Postgres docs: shared and exclusive modes on `(classid, objid)` keys;
-  many shared holders coexist, one exclusive holder excludes shared+exclusive on
-  the same key; disjoint keys never contend; transaction-level locks release at
-  commit/rollback.
-- Input shape: N active source repositories per maintenance epoch, processed in
-  ceil(N / `deferredMaintenanceRepoBatchSize`) independent transactions
-  (batch size 32). Peak exclusive locks held at once = batch size, not N. Commit
-  shared locks acquired = 1 per generation commit (its own repository).
-- Conflict domain: one repository partition key. Lock ordering: sorted unique
-  repository keys within a batch, identical across all callers, so overlapping
-  multi-repository acquisitions cannot deadlock.
-- Idempotency/retry: evidence writes are idempotent (`ON CONFLICT DO NOTHING`)
-  and readiness upserts are keyed by generation. Each batch commits
-  independently; a rolled-back or failed batch releases its advisory locks at
-  transaction end, and re-running the pass converges to the same terminal state
-  (committed batches are skipped or re-applied idempotently). A repository whose
-  active generation disappears between the snapshot read and the batch lock is
-  skipped under the lock-current re-read.
-- Leader liveness under the split transactions: in the sharded path the leader
-  commits its barrier arrival, runs maintenance in independent batch
-  transactions, then marks barrier completion in its own transaction. If the
-  leader crashes after arrival but before completion, the epoch stays open
-  (uncompleted) because `ensureDeferredMaintenanceBarrierEpoch` reuses an open
-  epoch and `recordDeferredMaintenanceBarrierArrival` upserts. On the next drain
-  cycle every shard re-arrives into that open epoch and any shard that observes a
-  full arrival count re-runs the idempotent maintenance and marks completion, so
-  waiters cannot block forever. Concurrent re-run leaders are safe because
-  maintenance is per-repo-locked and idempotent.
-- Key alignment (correctness): a git repository scope sets
-  `PartitionKey = repo.ID` and emits a repository fact whose payload `repo_id`
-  is the same `repo.ID` (`collector/git_source_processing.go`). The commit
-  shared lock keys on `PartitionKey` and maintenance keys on the active
-  generations' `repo_id`, so both resolve to the same partition for the same
-  repository and the shared/exclusive fence holds. Non-repository scopes (for
-  example cloud partitions) never appear in the repository-only active
-  generations query, so maintenance takes no exclusive lock on their partition
-  and those commits correctly no longer wait on repository maintenance at all.
-
-Performance Evidence: before, the whole-corpus pass held all N active-repo
-exclusive locks in one transaction, so peak simultaneous repo locks = N and an
-unrelated commit blocked for the whole pass (effective concurrency = 1
-maintenance pass fleet-wide). After, writes commit in independent per-batch
-transactions, so peak simultaneous repo locks = batch size and locks release
-between batches. `TestWholeCorpusMaintenanceNeverHoldsFleetWideLockSet` drives
-the whole-corpus entrypoint over 4 repos at batch size 2 and asserts peak held
-<= batch size (it fails at peak = 4 on the single-transaction design).
-`TestWholeCorpusMaintenanceDoesNotBlockUnrelatedCommit` proves a commit on a
-repo not in the in-flight batch is not blocked, and
-`TestDisjointRepoMaintenanceRunsConcurrently` proves disjoint passes run in
-parallel while a same-repo commit still correctly waits then proceeds. Reproduce:
-`go test ./internal/storage/postgres -run
+Performance/concurrency evidence: `TestWholeCorpusMaintenanceNeverHoldsFleetWideLockSet`,
+`TestWholeCorpusMaintenanceDoesNotBlockUnrelatedCommit`, and
+`TestDisjointRepoMaintenanceRunsConcurrently` prove peak locks stay at batch size,
+unrelated commits avoid the current batch, and disjoint passes run in parallel.
+Reproduce with `go test ./internal/storage/postgres -run
 'TestWholeCorpusMaintenance|TestDisjointRepoMaintenanceRunsConcurrently|TestMaintenanceTakesPerRepoExclusiveLocksInOrder'
--race -count=1`. This is a Concurrency/Scheduling win: it removes fleet-wide
-serialization without lowering worker counts or batch sizes.
-
-Observability Evidence: `RunDeferredRelationshipMaintenance` records
-`instruments.DeferredBackfillDuration` and `instruments.DeferredBackfillEvidence`
-and logs `deferred_backfill_completed evidence_facts=... readiness_rows=...
-duration_s=... batch_size=...`; each batch's per-repo lock acquisition emits the
-exclusive-lock SQL per repository so contention is attributable to a single
-repository partition in a single batch rather than an opaque global barrier. An
-operator can see which repository's batch is slow via the per-repo lock waits and
-the backfill duration/evidence counters instead of a single fleet-wide stall.
+-race -count=1`. Observability stays on the existing deferred-backfill metrics and
+per-repository batch logs so operators can attribute contention to one partition.
 
 ### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
 
-`PostgresMultiCloudRuntimeDriftEvidenceLoader` is the concrete
-`reducer.MultiCloudRuntimeDriftEvidenceLoader` that backs
-`DomainMultiCloudRuntimeDrift`. It builds the provider-neutral drift join on one
-canonical `cloud_resource_uid` keyspace so AWS, GCP, and Azure share a single
-path. The loader runs three bounded reads: (1) observed inventory facts
-(`aws_resource`, `gcp_cloud_resource`, `azure_cloud_resource`) for one
-`(scope_id, generation_id)`, resolving each provider's native raw identity (ARN,
-full resource name, ARM id) into the shared uid through
-`cloudinventory.ResolveProviderIdentity`; (2) active `terraform_state_resource`
-rows whose provider-native identity (matched from `attributes.arn`,
-`attributes.id`, or `attributes.self_link`) re-resolves to one of those uids,
-bounded by a JSON allowlist of the observed identities so a stale generation
-cannot widen the join. AWS ARNs and GCP full resource names are case-significant
-and match exactly; Azure ARM ids are case-insensitive per Azure and the shared
-`cloud_resource_uid` lower-cases them before hashing, so the Azure side of the
-state-to-observed join is case-folded (the `match_key` CTE lower-cases only
-`/subscriptions/`-rooted identities, and the loader maps the returned state
-identity back to the observed uid via an exact lookup first and an Azure-only
-case-folded lookup second) so a state row whose `attributes.id` differs only in
-casing still joins instead of reading as orphaned, while AWS/GCP casing
-differences stay distinct. Read (3) loads Terraform config rows resolved per state backend
-owner through the same shared `tfstatebackend` resolver the AWS drift domain uses,
-joined to state by Terraform address. Observed-only resolves to orphaned,
-cloud+state without config to unmanaged, conflicting state owners for one uid to
-ambiguous, and an unresolved config owner to unknown. The loader never invents a
-second keyspace, never fabricates a uid for an unresolved identity, and never
-promotes a provider observation over declared Terraform config.
+`PostgresMultiCloudRuntimeDriftEvidenceLoader` backs
+`DomainMultiCloudRuntimeDrift` by joining observed cloud inventory, active
+Terraform state, and Terraform config through one canonical `cloud_resource_uid`
+keyspace. The reads are bounded by `(scope_id, generation_id)`, observed-identity
+allowlists, active generation joins, and tombstone filters; Azure ARM ids are
+case-folded only for `/subscriptions/` identities, while AWS/GCP identity casing
+stays exact.
 
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestPostgresMultiCloudRuntimeDriftEvidenceLoader' -count=1` proves the loader joins observed+state+config by uid across the three providers, classifies orphaned/unmanaged/ambiguous/unknown, resolves a Terraform state identity to the same uid as the observed fact, drops identities that cannot key into the shared keyspace, rejects blank scope/generation and a nil DB, short-circuits the state/config scans on an empty observed set (one query only), and stays stable under concurrent loads. `TestPostgresMultiCloudRuntimeDriftEvidenceLoaderAzureStateCaseInsensitiveJoin` adds the case-fold proof: an Azure state row whose `attributes.id` differs only in casing from the observed `arm_resource_id` still joins and reads as unmanaged, while AWS ARN and GCP full-resource-name casing differences stay distinct uids and read as orphaned, and the state-join SQL is asserted to case-fold only the `/subscriptions/` keyspace. The observed scan reuses `listMultiCloudObservedResourcesForGenerationQuery`, served by the existing `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind, observed_at DESC)` partial-key prefix; the state scan (`listActiveStateResourcesForMultiCloudIdentitiesQuery`) is bounded by the observed-identity JSON allowlist and the `ingestion_scopes.active_generation_id` join, with `is_tombstone = FALSE` on both reads and no full-table scan; the Azure `match_key` fold keeps the state-side join an equijoin on a computed key (no per-row function scan against the allowlist). `go test ./internal/storage/postgres ./internal/reducer -race -count=1` passed; the case-fold is read-side only beside the unchanged AWS drift loader, so the AWS path does not regress.
-
-No-Observability-Change: the loader adds no table, route, worker, queue domain, graph write, metric name, or metric label. It is wrapped by the new `reducer.multi_cloud_runtime_drift_evidence_load` span whose child `postgres.query` spans expose the observed, state, and config sub-scans; the publication handler already emits the bounded multi-cloud drift counters and the canonical `reducer_multi_cloud_runtime_drift_finding` payload, and the Postgres instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` for each read. Loader-side decode and unresolved-identity skips are surfaced through the redaction-aware `multi_cloud_observed_unresolved` and `multi_cloud_state_payload_decode` warning logs (fact kind plus redacted resource attributes only).
+No-regression evidence: `TestPostgresMultiCloudRuntimeDriftEvidenceLoader` proves
+provider joins, classification, empty-set short-circuiting, nil/blank rejection,
+and concurrent stability; `TestPostgresMultiCloudRuntimeDriftEvidenceLoaderAzureStateCaseInsensitiveJoin`
+pins the Azure-only case-fold. No new storage telemetry shape is added; reducer
+spans, `postgres.query` child spans, publication counters, and redaction-aware
+decode/unresolved warning logs carry the operator signal.
 
 ## Exported surface
 
@@ -450,30 +370,13 @@ facts, the bridge the service intelligence report's incident lane needs (the
 incident loader keys on the catalog service id, the service story exposes the
 workload id).
 
-Performance Evidence: the resolve query filters
-`fact_kind = 'reducer_service_catalog_correlation'` and
-`payload->>'workload_id' = $1` under the active-generation join, backed by the new
-partial index `fact_records_service_catalog_correlations_workload_idx` that leads
-with `(payload->>'workload_id')`. Before it, no index led with `workload_id` (the
-`_repository_idx` keyed it third), so a workload lookup scanned the
-fact-kind-filtered partition; with it the resolve is an index seek bounded by the
-active-generation correlation rows for one workload (typically 1, fail-closed when
-> 1). The report route adds one resolve plus one bounded incident load per
-request, only when the incident source is wired.
-
-No-Regression Evidence: no existing index, query, or write path is altered; the
-added `CREATE INDEX IF NOT EXISTS ... WHERE fact_kind = '...'` is a small partial
-index over an already-maintained fact kind, alongside its sibling partial indexes.
-Validated by focused unit tests (fake `Queryer`) and the schema index test
-(`schema_service_catalog_test.go`); the cost argument rests on the index
-left-prefix match above, mirroring the proven `ServiceIncidentEvidenceLoader`
-pattern rather than a live benchmark in this PR.
-
-Observability Evidence: the resolver wraps failures with `%w` so callers attribute
-the cause; the consuming report handler logs `serviceintel.incident_load_error`
-and `serviceintel.incident_ambiguous_catalog_service`, and the route is covered by
-the existing API request-duration/error metrics middleware. The resolver adds no
-new metric or span of its own.
+The resolve query is bounded by active-generation
+`reducer_service_catalog_correlation` facts and the partial
+`fact_records_service_catalog_correlations_workload_idx` index leading with
+`payload->>'workload_id'`. It fails closed on ambiguity and is covered by focused
+resolver tests plus `schema_service_catalog_test.go`. Failures are wrapped with
+`%w`, while the report handler contributes the existing incident-load logs and API
+request metrics.
 
 ### Bounded incident read for the report surface
 
@@ -483,85 +386,28 @@ the rows one report request loads. The reducer materialization path keeps the
 unbounded `GetIncidentEvidenceForServices` because it must observe every routed
 incident; only the read surface caps the load.
 
-Performance Evidence: the report source passes `reportIncidentEvidenceRowLimit`
-(512), far above the surfaced incident bound (`serviceintel.maxReportIncidents` =
-50) and the few evidence slots per incident, so a `get_service_intelligence_report`
-call can no longer scan/load an unbounded incident history while still reading
-more than enough distinct incidents for the composer's truncation flag to fire.
-No-Regression Evidence: the unbounded query and the reducer path are byte-for-byte
-unchanged (the bounded query is `serviceIncidentEvidenceQuery + "\nLIMIT $2"`),
-proven by `TestServiceIncidentEvidenceBoundedQueryAppliesRowLimit`.
-Observability Evidence: load failures on the bounded path are logged by the report
-source as `serviceintel.incident_load_error` (workload id + catalog service id);
-no new metric or span is added.
+The report source passes `reportIncidentEvidenceRowLimit` (512), above the
+surfaced incident bound but below unbounded history. The reducer path keeps the
+unbounded query; the report query appends `LIMIT $2`, pinned by
+`TestServiceIncidentEvidenceBoundedQueryAppliesRowLimit`. Load failures use the
+existing `serviceintel.incident_load_error` log.
 
 ## Repository catalog cache on the ingestion hot path (#3481)
 
-`commitScopeGeneration` previously reloaded the entire repository identity
-catalog on every scope generation commit via an unbounded
-`SELECT payload FROM fact_records WHERE fact_kind = 'repository'`
-(`listRepositoryCatalogQuery`). On the live ops-qa fleet (≈907 repositories) this
-made per-commit cost scale with the whole fleet (O(all repositories) per commit),
-degrading the reducer/correlation pipeline. The catalog only carries repository
-identity (RepoID plus aliases) and changes only when a repository-identity fact is
-committed, so it is now loaded once into a per-store
-`repositoryCatalogCache` (`ingestion_catalog_cache.go`), shared across a
-process's concurrent commit goroutines, and reused across commits.
-The cache invalidates after a generation that introduces a previously unknown
-repository **or changes a known repository's identity aliases** (slug/name), so
-onboarding and renames both become visible to the next commit; rare new-repo and
-deferred-backfill reload paths still read the freshest catalog directly.
+`commitScopeGeneration` uses a per-store `repositoryCatalogCache` instead of
+reloading the whole repository fact catalog on every commit. The cache contains
+repository identity and aliases, is shared safely across commit goroutines, and
+invalidates when a generation introduces a new repository or changes a known
+repository's slug/name. Cold loads run on the open ingestion transaction's
+connection to avoid pool self-deadlock at `ESHU_POSTGRES_MAX_OPEN_CONNS=1`.
 
-Connection handling (issue #3521 P1): the cold-cache catalog load runs on the
-**open ingestion transaction's connection** (`repositoryCatalog(ctx, tx)`), not by
-asking the pool for a second connection while the tx is open. Acquiring a second
-connection mid-transaction would block forever under a saturated pool or
-`ESHU_POSTGRES_MAX_OPEN_CONNS=1`, deadlocking the committer. Reading on the tx is
-also correct: the catalog is loaded before this generation's own repository facts
-are written, so it observes committed global identity exactly as before. Pinned by
-`TestIngestionStoreLoadsCatalogOnOpenTransaction`, whose fake flags any catalog
-read served by the outer pool while a transaction is open.
-
-Accuracy: the catalog feeds only cross-repo evidence matching and new-repo
-detection. A commit's own repository facts are not evidence targets for
-themselves, and a just-onboarded repository is repaired by
-`backfillRelationshipEvidenceForNewRepositories` (in-transaction, sees this tx's
-writes) and the deferred `BackfillAllRelationshipEvidence` pass. Because
-`DiscoverEvidence` matches via `CatalogEntry.Aliases`, invalidation also fires when
-a known repo's slug/name drifts (issue #3521 P2) — otherwise a renamed repo's
-cross-repo evidence would be silently dropped until an unrelated change evicted the
-cache. The committed-generation identity is computed with the same
-`repositoryCatalogEntryFromMap` helper the catalog loader uses, so the alias-drift
-comparison is exact. Correctness is pinned by
+Accuracy and concurrency are pinned by
+`TestIngestionStoreLoadsCatalogOnOpenTransaction`,
 `TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository`,
-`TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts`, and the unchanged
-proof-domain evidence flows (`proof_domain_*_test.go`).
-
-Concurrency: the cache is shared across concurrent collector commit goroutines
-(the store is passed as an interface value with value-receiver methods, so the
-cache field is a pointer). A mutex guards the in-memory snapshot and the single
-cold load; it never spans the per-commit Postgres transaction, and the cold load
-runs on the caller's own already-held transaction connection, so no write
-serialization and no cross-worker connection contention is added. Proven by
-`TestIngestionStoreSharedCatalogCacheIsConcurrencySafe` under `-race` and the full
-package under `-race` (970 tests, no data races). The cold load runs on the same
-transaction that holds the per-repository deferred-maintenance advisory lock added
-in #3517, so it neither serializes against nor deadlocks that partitioned lock.
-
-Performance Evidence: `BenchmarkIngestionStoreCatalogLoadsPerCommit`
-(`ingestion_catalog_cache_bench_test.go`), 1000 repositories × 200 known-repo
-commits, fake Postgres harness (`countingCatalogDB`, catalog served on the tx
-connection). Baseline (per-commit reload, `catalogCache = nil`): 1.000
-catalog_loads/commit, 303,202,406 ns/op, 290,795,342 B/op, 3,629,277 allocs/op.
-Cached (this change): 0.005 catalog_loads/commit (one amortized load), 93,123,660
-ns/op, 109,414,945 B/op, 637,417 allocs/op — a ~200x drop in global catalog
-reloads, 3.25x faster, 2.66x less memory, 5.7x fewer allocations.
-`TestIngestionStoreReusesRepositoryCatalogAcrossCommits` asserts the O(1) load
-contract (5 commits → 1 load).
-
-Observability Evidence: the `load_repository_catalog` commit-stage structured log
-carries `catalog_cache_hit` (bool) and `catalog_loads_total` (cumulative fresh
-loads); a `repository_catalog_invalidated` stage log fires when a new repo or an
-alias drift evicts the cache, with `current_generation_repo_count`. An operator can
-confirm at 3 AM that the hot path is cache-hitting (not reloading per commit) and
-see exactly when a reload was triggered, using only the ingestion commit logs.
+`TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts`,
+`TestIngestionStoreSharedCatalogCacheIsConcurrencySafe`, and the proof-domain
+flows. `BenchmarkIngestionStoreCatalogLoadsPerCommit` showed a 1000-repo/200-commit
+harness dropping from 1.000 to 0.005 catalog loads per commit, with about 3.25x
+faster runtime and lower memory/allocations. Operator proof is in
+`load_repository_catalog` (`catalog_cache_hit`, `catalog_loads_total`) and
+`repository_catalog_invalidated` structured logs.

@@ -202,12 +202,13 @@
 // workspace policy revision when a scoped-token registry entry omits optional
 // audit metadata, and rejects resolution if the tenant, workspace, expiry,
 // revocation, CSRF proof, or policy revision no longer matches.
-// IdentitySubjectStore adds the dormant user-management schema for users,
-// provider configs, external subject links, email history, credential hashes,
-// MFA factor handles, memberships, roles, grants, sessions, service
-// principals, service-principal role assignments, and token metadata. It stores
-// opaque IDs, hashes, and credential handles only and does not change existing
-// shared-token or scoped-token enforcement.
+// IdentitySubjectStore owns the user-management schema for users, provider
+// configs, external subject links, email history, credential hashes, MFA factor
+// handles, memberships, roles, grants, sessions, service principals,
+// service-principal role assignments, and token metadata. Local identity writes
+// stay hash-only: first-owner bootstrap is advisory-lock serialized, invited
+// signup row-locks the invite, failed-attempt lockouts increment atomically,
+// and break-glass recovery windows are consumed on session creation.
 // WorkflowControlStore persists optional
 // tenant/workspace/policy revision identity on workflow work items; guarded
 // planning treats that identity as part of target eligibility, and claim

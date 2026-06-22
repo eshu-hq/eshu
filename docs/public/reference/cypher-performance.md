@@ -828,15 +828,17 @@ Live backend isolation via the read-only Cypher path (same NornicDB):
   `MATCH path = (s:Workload {id:$id})<-[rels:...*2..2]-(e) ... LIMIT 26` —
   instant, returns correct 2-hop paths.
 
-Live endpoint before/after on the same NornicDB, same payload
-`{"from":"files","depth":2}` (the fixed API binary built from this branch was
-run against the running Compose NornicDB on a spare port; the unchanged Compose
-build served the before):
+Live endpoint before/after on the same NornicDB, console payload
+`{"from":"files","depth":2}` / `{"from":"files","depth":1}` (the fixed API
+binary built from this branch was run against the running Compose NornicDB and
+Postgres on a spare port `:8099`; the unchanged Compose build on `:8080` served
+the before). `files` resolves to `Workload {id: workload:files}`, a high-degree
+service node:
 
 | Endpoint | Before (two MATCH) | After (connected MATCH) |
 | --- | --- | --- |
-| `POST /api/v0/impact/entity-map` (service, depth 2) | HTTP 000, >45s (never returns; >15s console timeout) | HTTP 200, 0.38s, 25 relationships |
-| `POST /api/v0/impact/entity-map` (service, depth 1) | HTTP 200, ~19s (over budget) | HTTP 200, 0.07-0.16s |
+| `POST /api/v0/impact/entity-map` (service, depth 2) | HTTP 000, >30s curl timeout (never returns; well past the 15s console budget) | HTTP 200, 0.48s, 25 relationships (`query_shape: typed_entity_map_bounded_relationship_family`, `truncated: true`) |
+| `POST /api/v0/impact/entity-map` (service, depth 1) | HTTP 000, >30s curl timeout | HTTP 200, 0.03s, 2 relationships (`query_shape: typed_entity_map_relationship_family`) |
 
 The result set is preserved: same relationship families, same direction specs,
 same WHERE filters, same `ORDER BY name, id`, same `LIMIT $limit` over-fetch,

@@ -8,10 +8,12 @@
 4. shared_helpers.go - allowed shared helper imports and copied wire-shape helpers
 5. notebook.go and notebook_temp.go - notebook extraction and temporary source file lifecycle
 6. dead_code_roots.go, lambda_roots.go, public_api_roots.go - dead-code root evidence
-7. semantics.go, imports.go, call_inference.go, annotation_support.go - metadata helpers
-8. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over python/pydataflow
-9. payload_buckets.go - sortNamedBucket / collectBucketNames bucket utilities
-10. notebook_test.go and language_test.go - child package contract coverage
+7. framework_routes.go, ast_nodes.go - FastAPI/Flask route and ORM table
+   semantics plus the reusable decorator/call/argument AST node helpers
+9. semantics.go, imports.go, call_inference.go, annotation_support.go - metadata helpers
+10. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over python/pydataflow
+11. payload_buckets.go - sortNamedBucket / collectBucketNames bucket utilities
+12. notebook_test.go and language_test.go - child package contract coverage
 
 ## Invariants this package enforces
 
@@ -63,3 +65,53 @@
   root.
 - Do not add cross-language helper dependencies here when the shared parser
   package is the correct boundary.
+
+## Evidence notes
+
+### Framework/route/ORM/dead-code/public-api regex to AST (issue #3538)
+
+FastAPI/Flask route semantics, SQLAlchemy/Django ORM table mappings, the
+script-main guard, the dunder-protocol install evidence, and the `__all__`
+public-API export extraction now read tree-sitter AST nodes (decorator, call,
+keyword_argument, assignment, type_alias_statement, class_definition, list, and
+tuple) instead of `(?m)` regex over source text. The `(?m)` route/ORM regex
+block in `semantics.go`, the text-offset handler scan in
+`python_route_handlers.go` (file deleted), the main-guard and dunder line-scan
+regex in `dead_code_roots.go`, and the `__all__` literal regex in
+`public_api_roots.go` are removed. The remaining `regexp` usage in `language.go`
+(class header, function signature) and `embedded_shell.go` (subprocess/os import
+evidence) is out of scope for #3538 and tracked separately under epic #3531.
+
+No-Regression Evidence: `go test ./internal/parser/... -count=1` stays green
+(1112 baseline plus the new AST-node tests in
+`internal/parser/python/semantics_test.go`). The pre-existing engine parity
+suites still pass byte-for-byte:
+`go test ./internal/parser -run 'TestDefaultEngineParsePathPython(FastAPISemantics|FlaskSemantics|ORMMappings|UnknownRouteDecoratorRemainsUnclassified|FastAPIBindsDefHandler|FlaskBindsDefHandler|EmitsScriptMainGuardRoot|EmitsReversedScriptMainGuardRoot|DunderAssignmentEvidenceIsEnclosingScopeScoped|EmitsPublicAPIRootKinds)' -count=1`.
+The orphan route (`@app.post("/orphan")` with no following def) still emits the
+route with no handler because tree-sitter parks the bare decorator under an
+ERROR node whose parent is not a `decorated_definition`, preserving the #2788
+correlation-truth contract.
+
+No-Regression Evidence (PR #3544 Codex P2 follow-up): the AST `__all__` reader
+now descends concatenated literals. `__all__ = ["foo"] + ["bar"]` parses with a
+`binary_operator` right-hand side, so `pythonStringSequenceLiterals` recurses
+through both operands (and nested `binary_operator` nodes) and collects string
+literals from each `list`/`tuple`/`set` operand. Before the fix the helper
+returned no names for the split form and the exported symbols lost their
+`python.module_all_export` roots, surfacing as dead-code candidates; the old
+regex RHS scan had captured them.
+`go test ./internal/parser -run 'TestDefaultEngineParsePathPythonConcatenatedAllExportsAreRoots' -count=1`
+and `go test ./internal/parser/python -run TestPythonModuleAllNamesAcceptsConcatenatedLiterals -count=1`
+fail before the fix and pass after, while the plain list/tuple `__all__` and
+`TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds` suites stay green. The
+augmented form `__all__ += [...]` parses as `augmented_assignment`, a node kind
+the prior regex-on-`assignment` path never captured, so it stays out of scope to
+preserve parity.
+
+No-Observability-Change: this change is parser-internal; it edits only how the
+existing `framework_semantics`, `orm_table_mappings`, and
+`dead_code_root_kinds` payload fields are computed. No metric instrument, metric
+label, span, log line, status field, env var, queue, worker, lease, batch,
+runtime knob, or graph query is added or changed. Operators still diagnose
+parser behavior through existing collector parse-stage logs and
+`eshu_dp_file_parse_duration_seconds`.

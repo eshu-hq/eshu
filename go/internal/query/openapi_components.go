@@ -474,6 +474,7 @@ const openAPIComponents = `  "components": {
           "absolute_expires_at": {"type": "string", "format": "date-time"}
         }
       },
+` + openAPIComponentsLocalIdentity + `
       "ErrorResponse": {
         "type": "object",
         "properties": {

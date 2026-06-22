@@ -117,8 +117,13 @@
 // reach handlers. Browser-session middleware hashes the HttpOnly session cookie
 // and the `X-Eshu-CSRF` header proof before resolver calls on unsafe methods,
 // then attaches the same scoped tenant/workspace/grant context for dashboard
-// cookie reads. Repository list and selector canary routes apply these bounds
-// before pagination, counts, ambiguity, and not-found decisions so
+// cookie reads. Local identity routes hash login, invite, MFA recovery, and
+// break-glass proofs before storage calls; bootstrap and break-glass enablement
+// stay behind shared-operator auth, while public login, invite acceptance, and
+// break-glass session creation succeed only after the storage layer validates
+// active hashed credentials or recovery windows. Repository list and selector
+// canary routes apply these bounds before pagination, counts, ambiguity, and
+// not-found decisions so
 // out-of-scope repositories do not leak through metadata. Code search, entity
 // resolution, content read/search routes, evidence citation packets, entity
 // context reads, service/workload context or story reads, and service

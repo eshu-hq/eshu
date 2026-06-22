@@ -42,9 +42,33 @@ func newPostgresBrowserSessionAdapter(
 }
 
 func newBrowserSessionHandler(db *sql.DB, instruments *telemetry.Instruments) *query.BrowserSessionHandler {
-	return &query.BrowserSessionHandler{
-		Store: newPostgresBrowserSessionAdapter(db, instruments),
+	handler := &query.BrowserSessionHandler{}
+	if store := newPostgresBrowserSessionAdapter(db, instruments); store != nil {
+		handler.Store = store
 	}
+	return handler
+}
+
+func newBrowserSessionResolver(
+	db *sql.DB,
+	instruments *telemetry.Instruments,
+) query.BrowserSessionResolver {
+	resolver := newPostgresBrowserSessionAdapter(db, instruments)
+	if resolver == nil {
+		return nil
+	}
+	return resolver
+}
+
+func newBrowserSessionStore(
+	db *sql.DB,
+	instruments *telemetry.Instruments,
+) query.BrowserSessionStore {
+	store := newPostgresBrowserSessionAdapter(db, instruments)
+	if store == nil {
+		return nil
+	}
+	return store
 }
 
 func wrapAPIAuth(

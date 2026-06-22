@@ -93,6 +93,15 @@ The Console browser flow uses these `/api/v0` routes:
 | `GET /api/v0/auth/browser-session` | Reads the current browser-session auth context without exposing raw secrets. |
 | `DELETE /api/v0/auth/browser-session` | Revokes the current session by hash and clears browser cookies. Requires `X-Eshu-CSRF`. |
 | `PATCH /api/v0/auth/browser-session/context` | Switches the active tenant/workspace for the current all-scopes browser session. Requires `X-Eshu-CSRF`. |
+| `POST /api/v0/auth/local/bootstrap` | Shared-operator setup route that creates the first local owner/admin once. Admin MFA recovery material is required. |
+| `POST /api/v0/auth/local/login` | Public local identity login route. Passwords are verified against stored bcrypt hashes; admin accounts require MFA recovery proof before a browser session is issued. |
+| `POST /api/v0/auth/local/invitations` | All-scopes admin route that creates an assignment invite. Open self-signup is not supported. |
+| `POST /api/v0/auth/local/invitations/accept` | Public invite-acceptance route. A valid active invite code is required to create a non-bootstrap local user. |
+| `POST /api/v0/auth/local/users/{user_id}/password` | All-scopes admin route that resets a local password, revokes old credentials, and clears lockout state. |
+| `POST /api/v0/auth/local/users/{user_id}/mfa-reset` | All-scopes admin route that revokes active MFA factors and stores replacement recovery-code hashes. |
+| `POST /api/v0/auth/local/users/{user_id}/disable` | All-scopes admin route that disables the user and revokes local credentials, MFA factors, and browser sessions. |
+| `POST /api/v0/auth/local/break-glass` | Shared-operator route that enables one audited, time-boxed break-glass window. Disabled by default when no active window exists. |
+| `POST /api/v0/auth/local/break-glass/session` | Public recovery route that issues a browser session only for an active, unexpired break-glass code. |
 
 Session cookies are server-managed:
 
@@ -110,6 +119,13 @@ Session cookies are server-managed:
   capped by the absolute expiry.
 - Workspace switching is limited to all-scopes browser sessions until the
   identity/grant UX can model explicit cross-workspace grants.
+- Local identity routes persist only hashes or credential handles for login
+  identifiers, invite codes, MFA recovery codes, break-glass codes, and browser
+  session secrets. Bootstrap and break-glass enablement require the shared
+  operator bearer token. Admin lifecycle operations require an all-scopes admin
+  context. Public local login, invite acceptance, and break-glass session routes
+  do not bypass storage checks; they succeed only with valid hash-matched
+  credentials or active invitation/recovery windows.
 
 ## Ask Eshu — POST /api/v0/ask
 
