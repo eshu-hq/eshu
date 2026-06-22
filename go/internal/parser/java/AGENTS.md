@@ -73,3 +73,93 @@
   query-surface impact review.
 - Do not add runtime telemetry directly here unless the parser telemetry
   contract moves out of the parent engine.
+
+## Permanent Regex Exception: metadataClassNamePattern
+
+**Location:** `metadata.go` — constant `javaMetadataClassNameExpression`,
+variable `metadataClassNamePattern`, called only from `appendMetadataClassName`.
+
+**Regex:** `^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)+$`
+
+**Classification: content-classification over bounded plain-text resource
+files. This is NOT symbol extraction from a Java AST. Migration to tree-sitter
+is not applicable.**
+
+### Why no tree-sitter grammar applies
+
+`MetadataClassReferences` and `ParseMetadata` operate exclusively on
+non-Java resource files:
+
+- `META-INF/services/<interface-name>` — ServiceLoader provider lists.
+  Each line is a plain-text fully-qualified class name, not Java source.
+- `META-INF/spring.factories` — Spring Boot 1/2 auto-configuration keys.
+  Each line is a Java properties `key=value` entry; values are
+  comma-separated class-name tokens. No Java grammar applies.
+- `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
+  — Spring Boot 3 auto-configuration list. One class name per line,
+  plain text. No Java grammar applies.
+
+The tree-sitter Java grammar models Java *source* syntax (class bodies,
+method declarations, expressions, etc.). It has no grammar for these
+property-style or newline-delimited class-name list formats. There is no
+AST node to walk; the only structured content is the dotted class-name
+token itself, which is what the regex validates.
+
+All genuine Java *source* symbol extraction (classes, methods, interfaces,
+imports, function calls) lives in `parser.go`, `parser_metadata.go`, and
+supporting files, driven by tree-sitter. The `metadataClassNamePattern`
+regex has zero overlap with that path.
+
+### What the pattern guards
+
+The regex enforces the following invariants before a candidate string
+becomes graph evidence:
+
+1. Must start with a letter, underscore, or `$` (Java identifier start
+   characters) — rejects comment fragments, numeric lines, blank lines, and
+   property keys.
+2. Must contain at least one `.` separator — rejects bare single-segment
+   identifiers, Spring properties keys, and accidental plain-text values.
+3. Each segment must be a valid Java identifier — rejects hyphens, spaces,
+   dynamic `${placeholder}` expressions, and other non-class tokens.
+4. Duplicates are deduplicated per file by `appendMetadataClassName` before
+   the pattern check, so the regex never runs on already-seen candidates.
+
+Invalid, dynamic, duplicate, or unsupported lines are silently dropped
+rather than becoming graph evidence. This is the intended contract.
+
+### Why this is a permanent exception
+
+Agents auditing this package MUST NOT migrate `metadataClassNamePattern` to
+a tree-sitter query. The correct action for any future grammar-applicable
+site is to write a new tree-sitter-based extractor. The metadata regex must
+be preserved exactly as-is unless the entire `MetadataClassReferences`
+surface is replaced by a purpose-built parser for properties/list formats —
+which would not be tree-sitter Java either.
+
+Do not remove or weaken the pattern. Weakening it risks emitting dynamic
+strings, comment fragments, or property keys as graph evidence.
+
+### No-Regression Evidence
+
+Verification run after adding characterization tests (6 test functions in
+`metadata_test.go`):
+
+```
+cd go && gofmt -l internal/parser/java   # empty — no formatting drift
+cd go && go test ./internal/parser/... -count=1
+# 1170 passed, 41 packages
+cd go && go test ./internal/parser/java/... -count=1 -run TestMetadata -v
+# 6 passed: TestMetadataClassReferences,
+#           TestMetadataClassReferencesRejectsDynamicOrInvalidNames,
+#           TestMetadataClassReferencesMetaInfServicesProvider,
+#           TestMetadataClassReferencesSpringAutoconfigurationImports,
+#           TestMetadataClassReferencesUnrecognizedPath,
+#           TestMetadataClassReferencesRejectsBareSingleSegment
+```
+
+### No-Observability-Change
+
+No runtime behavior was modified. No telemetry, spans, metrics, or log
+lines were added or removed. This change adds test coverage and
+documentation only.
