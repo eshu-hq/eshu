@@ -118,6 +118,102 @@ func BuildPackageConsumptionRepoDependencyIntents(
 	return rows
 }
 
+// BuildPackageConsumptionRepoEdgeRefreshIntents returns one retract intent per
+// consumer repository that declares package dependencies in this generation but
+// for which no package resolves to an owning repository (owner gone, ambiguous,
+// unresolved, stale, or rejected), and which therefore projects no upsert edge.
+//
+// Without these refresh intents a consumer that had a package-consumption
+// DEPENDS_ON edge in a previous generation would keep that stale edge forever:
+// BuildPackageConsumptionRepoDependencyIntents emits nothing for the consumer,
+// so the shared repo-dependency lane never reprocesses it and never retracts the
+// edge. The refresh intent reuses the same stable acceptance identity (scope and
+// scope-only source-run id) as the upsert path, so it lands on the same
+// acceptance unit the prior edge wrote and the lane's per-consumer refresh-first
+// reconstruction retracts the now-unsupported package-consumption edges.
+//
+// Each refresh row carries the packageConsumptionEvidenceSource so the lane
+// retracts only package-consumption edges and leaves resolver/cross-repo or
+// other-source edges for the same consumer untouched. A consumer that produces
+// at least one distinct-owner upsert is excluded: its upsert intent already
+// drives the refresh-first reconstruction for this evidence source. A
+// self-referential package (consumer == owner) yields no upsert, so a consumer
+// whose only resolved package is a self-reference is still retracted: if it held
+// a real cross-repo package-consumption edge in a prior generation that edge
+// must be removed now (issue #3579, review comment 3455350032).
+func BuildPackageConsumptionRepoEdgeRefreshIntents(
+	input PackageConsumptionRepoDependencyInput,
+) []SharedProjectionIntentRow {
+	owners := resolvePackageOwners(input.OwnershipDecisions, input.PublicationDecisions)
+
+	// A consumer is "covered" by an upsert when at least one of its declared
+	// packages resolves to a distinct owning repository. Those consumers are
+	// handled by BuildPackageConsumptionRepoDependencyIntents and must not also
+	// emit a retraction, which would wipe the edge the upsert just established.
+	// Every other consumer that declared a package dependency produces no upsert
+	// this generation, so it must refresh to drop any stale package-consumption
+	// edge it carried before.
+	covered := make(map[string]struct{})
+	candidateOrder := make([]string, 0)
+	candidates := make(map[string]struct{})
+	for _, consumption := range input.ConsumptionDecisions {
+		consumerRepoID := strings.TrimSpace(consumption.RepositoryID)
+		packageID := strings.TrimSpace(consumption.PackageID)
+		if consumerRepoID == "" || packageID == "" {
+			continue
+		}
+		owner, ok := owners[packageID]
+		if ok && owner.repoID != "" && owner.repoID != consumerRepoID {
+			covered[consumerRepoID] = struct{}{}
+		}
+		if _, seen := candidates[consumerRepoID]; !seen {
+			candidates[consumerRepoID] = struct{}{}
+			candidateOrder = append(candidateOrder, consumerRepoID)
+		}
+	}
+
+	rows := make([]SharedProjectionIntentRow, 0, len(candidateOrder))
+	sort.Strings(candidateOrder)
+	for _, consumerRepoID := range candidateOrder {
+		if _, ok := covered[consumerRepoID]; ok {
+			continue
+		}
+		rows = append(rows, buildPackageConsumptionRepoEdgeRefreshIntent(input, consumerRepoID))
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return rows
+}
+
+// buildPackageConsumptionRepoEdgeRefreshIntent builds one retract-only intent
+// that triggers the shared lane to drop a consumer's package-consumption edges.
+// It carries no target_repo_id: the lane retracts every package-consumption
+// edge owned by the consumer acceptance unit for this evidence source.
+func buildPackageConsumptionRepoEdgeRefreshIntent(
+	input PackageConsumptionRepoDependencyInput,
+	consumerRepoID string,
+) SharedProjectionIntentRow {
+	payload := map[string]any{
+		"action":          "retract",
+		"repo_id":         consumerRepoID,
+		"evidence_source": packageConsumptionEvidenceSource,
+		"generation_id":   input.GenerationID,
+	}
+
+	return BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		ProjectionDomain: DomainRepoDependency,
+		PartitionKey:     fmt.Sprintf("retract:repo:%s|%s", consumerRepoID, packageConsumptionEvidenceSource),
+		ScopeID:          input.ScopeID,
+		AcceptanceUnitID: consumerRepoID,
+		RepositoryID:     consumerRepoID,
+		SourceRunID:      strings.TrimSpace(input.SourceRunID),
+		GenerationID:     input.GenerationID,
+		Payload:          payload,
+		CreatedAt:        input.CreatedAt,
+	})
+}
+
 // resolvePackageOwners builds the package-id to owning-repository map from
 // exact/derived ownership and publication decisions. Ownership decisions win
 // over publication when both resolve the same package id.

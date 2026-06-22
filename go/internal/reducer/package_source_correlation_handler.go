@@ -159,7 +159,7 @@ func (h PackageSourceCorrelationHandler) projectConsumptionRepoDependencyEdges(
 		return nil, nil
 	}
 
-	intents := BuildPackageConsumptionRepoDependencyIntents(PackageConsumptionRepoDependencyInput{
+	edgeInput := PackageConsumptionRepoDependencyInput{
 		ScopeID:              intent.ScopeID,
 		GenerationID:         intent.GenerationID,
 		SourceRunID:          packageConsumptionRepoEdgeSourceRunID(intent.ScopeID, intent.GenerationID),
@@ -167,13 +167,22 @@ func (h PackageSourceCorrelationHandler) projectConsumptionRepoDependencyEdges(
 		ConsumptionDecisions: consumptionDecisions,
 		OwnershipDecisions:   ownershipDecisions,
 		PublicationDecisions: publicationDecisions,
-	})
+	}
+	upsertIntents := BuildPackageConsumptionRepoDependencyIntents(edgeInput)
+	// Refresh-first: consumers that declared package dependencies but resolve no
+	// owner this generation must still reprocess so the shared lane retracts any
+	// package-consumption edge they held in a prior generation. Without these the
+	// stale edge would persist because the upsert build emits nothing for them.
+	refreshIntents := BuildPackageConsumptionRepoEdgeRefreshIntents(edgeInput)
 
-	h.emitRepoEdgeCounter(ctx, "projected", len(intents))
-	if skipped := packageConsumptionUnownedCount(consumptionDecisions, ownershipDecisions, publicationDecisions); skipped > 0 {
-		h.emitRepoEdgeCounter(ctx, "skipped_no_owner", skipped)
+	h.emitRepoEdgeCounter(ctx, "projected", len(upsertIntents))
+	if len(refreshIntents) > 0 {
+		h.emitRepoEdgeCounter(ctx, "skipped_no_owner", len(refreshIntents))
 	}
 
+	intents := make([]SharedProjectionIntentRow, 0, len(upsertIntents)+len(refreshIntents))
+	intents = append(intents, upsertIntents...)
+	intents = append(intents, refreshIntents...)
 	if len(intents) == 0 {
 		return nil, nil
 	}
@@ -206,42 +215,28 @@ func (h PackageSourceCorrelationHandler) now() time.Time {
 
 // packageConsumptionRepoEdgeSourceRunID returns a deterministic acceptance
 // source-run id for consumption-derived repo-dependency intents. It is a stable
-// function of the package-registry scope (and generation) so re-projecting the
-// same scope yields the same intent id, which keeps the downstream DEPENDS_ON
-// MERGE idempotent under retries. It mirrors crossRepoContributionSourceRunID.
+// function of the package-registry scope ONLY, deliberately excluding the
+// generation, so re-projecting the same scope in a new generation yields the
+// same source-run id and therefore the same shared-projection acceptance key
+// (scope, acceptance unit, source-run) for an unchanged consumer/owner edge.
+// That stable acceptance key is what lets the shared repo-dependency lane
+// reconstruct the consumer's active edge snapshot across generations and treat
+// the new generation's edge as a refresh of the prior edge rather than a
+// brand-new one, keeping the downstream DEPENDS_ON MERGE idempotent across
+// generations and retries. The intent id legitimately still varies by
+// generation (generation_id is part of the intent identity hash and is how the
+// lane selects the newest generation per acceptance unit); the source-run id
+// must not also vary, or the acceptance unit splits and the refresh misses. The
+// generationID argument is accepted for call-site symmetry but is not part of
+// the source-run identity. It mirrors crossRepoContributionSourceRunID, which is
+// likewise scope-only (issue #3579, review comment 3455350029).
 func packageConsumptionRepoEdgeSourceRunID(scopeID, generationID string) string {
+	_ = generationID // intentionally excluded from the stable identity
 	scopeID = strings.TrimSpace(scopeID)
-	generationID = strings.TrimSpace(generationID)
-	switch {
-	case scopeID == "" && generationID == "":
+	if scopeID == "" {
 		return "package_consumption_repo_dependency"
-	case generationID == "":
-		return "package_consumption_repo_dependency:" + scopeID
-	default:
-		return "package_consumption_repo_dependency:" + scopeID + ":" + generationID
 	}
-}
-
-// packageConsumptionUnownedCount counts consumption decisions whose package id
-// has no exact/derived owner, for the skipped-no-owner telemetry outcome.
-func packageConsumptionUnownedCount(
-	consumptionDecisions []PackageConsumptionDecision,
-	ownershipDecisions []PackageSourceCorrelationDecision,
-	publicationDecisions []PackagePublicationDecision,
-) int {
-	owners := resolvePackageOwners(ownershipDecisions, publicationDecisions)
-	skipped := 0
-	for _, consumption := range consumptionDecisions {
-		packageID := strings.TrimSpace(consumption.PackageID)
-		if packageID == "" {
-			continue
-		}
-		owner, ok := owners[packageID]
-		if !ok || owner.repoID == "" {
-			skipped++
-		}
-	}
-	return skipped
+	return "package_consumption_repo_dependency:" + scopeID
 }
 
 func (h PackageSourceCorrelationHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {
