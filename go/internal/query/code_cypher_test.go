@@ -153,6 +153,137 @@ func TestHandleVisualizeQuery_RejectsMutations(t *testing.T) {
 	}
 }
 
+// TestHandleVisualizeQuery_ErrorEnvelopeCarriesVisualizationCapability locks the
+// failure-path capability contract: an invalid-Cypher rejection from the
+// visualize tool must report the visualization.graph_query capability, not the
+// read-only-cypher capability, so MCP/envelope clients see the error under the
+// tool they actually called.
+func TestHandleVisualizeQuery_ErrorEnvelopeCarriesVisualizationCapability(t *testing.T) {
+	h := &CodeHandler{Neo4j: &stubGraphReader{}}
+
+	body := `{"cypher_query": "DELETE (n)"}`
+	req := httptest.NewRequest("POST", "/api/v0/code/visualize", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	h.handleVisualizeQuery(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("invalid envelope JSON: %v", err)
+	}
+	if envelope.Error == nil {
+		t.Fatalf("envelope error = nil, want invalid argument error")
+	}
+	if got, want := envelope.Error.Capability, "visualization.graph_query"; got != want {
+		t.Fatalf("error capability = %q, want %q", got, want)
+	}
+}
+
+// TestHandleVisualizeQuery_InnerLimitGetsTerminalCap locks the bounded-execution
+// contract for inner-LIMIT queries (review P2): when the caller's Cypher carries
+// only a non-terminal LIMIT (here in a WITH clause), the final result set is
+// unbounded, so the handler must inject a terminal LIMIT before executing.
+// Otherwise the live path Collects an unbounded result before slicing in memory.
+func TestHandleVisualizeQuery_InnerLimitGetsTerminalCap(t *testing.T) {
+	var executed string
+	stub := fakeGraphReader{
+		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			executed = cypher
+			return nil, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
+
+	body := `{"cypher_query": "MATCH (n) WITH n LIMIT 1 MATCH (m) RETURN m", "limit": 5}`
+	req := httptest.NewRequest("POST", "/api/v0/code/visualize", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	h.handleVisualizeQuery(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	// The executed query must end with a terminal LIMIT that bounds the final
+	// RETURN, not just the inner WITH ... LIMIT 1.
+	trimmed := strings.TrimSpace(executed)
+	if !strings.HasSuffix(strings.ToUpper(trimmed), "LIMIT 6") {
+		t.Fatalf("executed query = %q, want a terminal LIMIT 6 (requested 5 + 1 probe) appended after the inner WITH LIMIT", executed)
+	}
+}
+
+// TestBoundedVisualizationCypher_TerminalCap verifies the terminal-cap contract
+// the live visualization path depends on: queries with no terminal LIMIT (none,
+// or only an inner WITH LIMIT) get a terminal LIMIT appended; queries already
+// terminally bounded are honored and enforced against the requested limit.
+func TestBoundedVisualizationCypher_TerminalCap(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		query      string
+		limit      int
+		wantSuffix string // when set, executed query must end with this
+		wantErr    bool
+	}{
+		{
+			name:       "no limit appends terminal",
+			query:      "MATCH (n) RETURN n",
+			limit:      5,
+			wantSuffix: "LIMIT 6",
+		},
+		{
+			name:       "inner with-limit only appends terminal",
+			query:      "MATCH (n) WITH n LIMIT 1 MATCH (m) RETURN m",
+			limit:      5,
+			wantSuffix: "LIMIT 6",
+		},
+		{
+			name:       "terminal limit honored unchanged",
+			query:      "MATCH (n) RETURN n LIMIT 3",
+			limit:      5,
+			wantSuffix: "LIMIT 3",
+		},
+		{
+			name:       "inner and terminal limit keeps terminal",
+			query:      "MATCH (n) WITH n LIMIT 1 MATCH (m) RETURN m LIMIT 4",
+			limit:      5,
+			wantSuffix: "LIMIT 4",
+		},
+		{
+			name:    "terminal limit above requested rejected",
+			query:   "MATCH (n) RETURN n LIMIT 9",
+			limit:   5,
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, _, err := boundedVisualizationCypher(tc.query, tc.limit)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("boundedVisualizationCypher(%q) error = nil, want error", tc.query)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("boundedVisualizationCypher(%q) error = %v, want nil", tc.query, err)
+			}
+			if !strings.HasSuffix(strings.ToUpper(strings.TrimSpace(got)), tc.wantSuffix) {
+				t.Fatalf("boundedVisualizationCypher(%q) = %q, want suffix %q", tc.query, got, tc.wantSuffix)
+			}
+		})
+	}
+}
+
 // TestHandleSearchBundles_SearchesRegistryPackages proves the bundle search
 // queries the pre-indexed package registry catalog (:Package nodes) by package
 // identity, not repository names. Regression guard for #3493: the handler used
