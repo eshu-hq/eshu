@@ -4,16 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-var pythonFunctionSignatureRe = regexp.MustCompile(`(?s)^(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)\s*(?:->\s*([^:]+))?:$`)
-var pythonClassHeaderRe = regexp.MustCompile(`(?m)^class\s+[A-Za-z_][A-Za-z0-9_]*\s*\((.*)\)\s*:`)
 
 // Parse extracts Python declarations, imports, calls, framework semantics, and
 // dead-code root metadata from .py and .ipynb inputs.
@@ -50,8 +46,8 @@ func Parse(
 	payload := basePayload(path, "python", isDependency)
 	payload["modules"] = []map[string]any{}
 	payload["type_annotations"] = []map[string]any{}
-	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(string(source))
 	root := tree.RootNode()
+	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source)
 	scope := options.NormalizedVariableScope()
 	lambdaHandlers := pythonLambdaHandlerRoots(repoRoot, path)
 	dataclassClasses := pythonDataclassClassNames(root, source)
@@ -170,7 +166,7 @@ func Parse(
 				item["source"] = functionSource
 			}
 			appendBucket(payload, "functions", item)
-			for _, annotation := range pythonTypeAnnotations(node, functionSource, name) {
+			for _, annotation := range pythonTypeAnnotations(node, source, name) {
 				appendBucket(payload, "type_annotations", annotation)
 			}
 		case "assignment":
@@ -335,126 +331,28 @@ func pythonFunctionIsAsync(functionSource string) bool {
 	return strings.HasPrefix(strings.TrimSpace(functionSource), "async def ")
 }
 
+// pythonClassMetaclass returns the metaclass keyword argument from the
+// tree-sitter `superclasses` argument list, preserving the full dotted value
+// (for example abc.ABCMeta). It returns "" when the class declares no
+// metaclass= keyword argument.
 func pythonClassMetaclass(node *tree_sitter.Node, source []byte) string {
-	classSource := nodeText(node, source)
-	matches := pythonClassHeaderRe.FindStringSubmatch(classSource)
-	if len(matches) != 2 {
+	superclasses := node.ChildByFieldName("superclasses")
+	if superclasses == nil {
 		return ""
 	}
-	for _, argument := range splitPythonParameters(matches[1]) {
-		name, value, ok := strings.Cut(argument, "=")
-		if !ok || strings.TrimSpace(name) != "metaclass" {
+	cursor := superclasses.Walk()
+	defer cursor.Close()
+	for _, child := range superclasses.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "keyword_argument" {
 			continue
 		}
-		return strings.TrimSpace(value)
+		if strings.TrimSpace(nodeText(child.ChildByFieldName("name"), source)) != "metaclass" {
+			continue
+		}
+		return strings.TrimSpace(nodeText(child.ChildByFieldName("value"), source))
 	}
 	return ""
-}
-
-func pythonTypeAnnotations(node *tree_sitter.Node, functionSource string, functionName string) []map[string]any {
-	signature := pythonFunctionSignature(functionSource)
-	if signature == "" {
-		return nil
-	}
-	matches := pythonFunctionSignatureRe.FindStringSubmatch(signature)
-	if len(matches) != 4 {
-		return nil
-	}
-
-	lineNumber := nodeLine(node)
-	annotations := make([]map[string]any, 0)
-	for _, parameter := range splitPythonParameters(matches[2]) {
-		name, annotationType, ok := parsePythonParameterAnnotation(parameter)
-		if !ok {
-			continue
-		}
-		annotations = append(annotations, map[string]any{
-			"name":            name,
-			"line_number":     lineNumber,
-			"type":            annotationType,
-			"annotation_kind": "parameter",
-			"context":         functionName,
-			"lang":            "python",
-		})
-	}
-	if returnType := strings.TrimSpace(matches[3]); returnType != "" {
-		annotations = append(annotations, map[string]any{
-			"name":            functionName,
-			"line_number":     lineNumber,
-			"type":            pythonNormalizedAnnotation(returnType),
-			"annotation_kind": "return",
-			"context":         functionName,
-			"lang":            "python",
-		})
-	}
-	return annotations
-}
-
-func pythonFunctionSignature(functionSource string) string {
-	trimmed := strings.TrimSpace(functionSource)
-	if trimmed == "" {
-		return ""
-	}
-	if bodyIndex := strings.Index(trimmed, ":\n"); bodyIndex >= 0 {
-		return trimmed[:bodyIndex+1]
-	}
-	if colonIndex := strings.Index(trimmed, ":"); colonIndex >= 0 {
-		return trimmed[:colonIndex+1]
-	}
-	return trimmed
-}
-
-func splitPythonParameters(parameters string) []string {
-	parts := make([]string, 0)
-	var current strings.Builder
-	depth := 0
-	for _, char := range parameters {
-		switch char {
-		case '(', '[', '{':
-			depth++
-		case ')', ']', '}':
-			if depth > 0 {
-				depth--
-			}
-		case ',':
-			if depth == 0 {
-				parts = append(parts, current.String())
-				current.Reset()
-				continue
-			}
-		}
-		current.WriteRune(char)
-	}
-	if current.Len() > 0 {
-		parts = append(parts, current.String())
-	}
-	return parts
-}
-
-func parsePythonParameterAnnotation(parameter string) (string, string, bool) {
-	trimmed := strings.TrimSpace(parameter)
-	if trimmed == "" || trimmed == "/" || trimmed == "*" {
-		return "", "", false
-	}
-	colonIndex := strings.Index(trimmed, ":")
-	if colonIndex < 0 {
-		return "", "", false
-	}
-	name := strings.TrimSpace(trimmed[:colonIndex])
-	if name == "" {
-		return "", "", false
-	}
-	name = strings.TrimPrefix(name, "**")
-	name = strings.TrimPrefix(name, "*")
-	annotation := strings.TrimSpace(trimmed[colonIndex+1:])
-	if equalsIndex := strings.Index(annotation, "="); equalsIndex >= 0 {
-		annotation = strings.TrimSpace(annotation[:equalsIndex])
-	}
-	annotation = pythonNormalizedAnnotation(annotation)
-	if annotation == "" {
-		return "", "", false
-	}
-	return name, annotation, true
 }
 
 func pythonNormalizedAnnotation(annotation string) string {
