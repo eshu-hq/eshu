@@ -143,6 +143,14 @@ func (w *CanonicalNodeWriter) WithBatchedEntityContainmentInEntityUpsert() *Cano
 //
 // When the executor implements GroupExecutor, all statements are dispatched as
 // a single atomic transaction. Otherwise, statements execute sequentially.
+//
+// Every write-path error is routed through WrapRetryableNeo4jError before it
+// returns, so transient NornicDB failures (driver retry-budget exhaustion,
+// connectivity loss, and the codes in retryableNeo4jCodes) reach the projector
+// queue as projector.RetryableError and requeue with backpressure instead of
+// dead-lettering. This mirrors every other canonical graph writer; the
+// classification is not loosened here: genuinely terminal errors such as schema
+// constraint violations are returned unchanged and stay terminal.
 func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.CanonicalMaterialization) error {
 	if mat.IsEmpty() {
 		return nil
@@ -176,7 +184,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 		if err := ge.ExecuteGroup(ctx, allStatements); err != nil {
 			writeSpan.RecordError(err)
 			writeSpan.SetStatus(codes.Error, err.Error())
-			return fmt.Errorf("canonical atomic write: %w", err)
+			return WrapRetryableNeo4jError(fmt.Errorf("canonical atomic write: %w", err))
 		}
 		dur := time.Since(start).Seconds()
 		slog.Info("canonical atomic write completed",
@@ -204,7 +212,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 				writeSpan.RecordError(err)
 				writeSpan.SetStatus(codes.Error, err.Error())
 				w.logCanonicalPhaseFailure(phaseCtx, mat, phase, time.Since(phaseStart), err, "phase_group")
-				return fmt.Errorf("canonical phase-group write (%s): %w", phase.name, err)
+				return WrapRetryableNeo4jError(fmt.Errorf("canonical phase-group write (%s): %w", phase.name, err))
 			}
 			phaseSpan.End()
 			phaseSeconds := time.Since(phaseStart).Seconds()
@@ -241,7 +249,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 				writeSpan.RecordError(err)
 				writeSpan.SetStatus(codes.Error, err.Error())
 				w.logCanonicalPhaseFailure(phaseCtx, mat, phase, time.Since(phaseStart), err, "sequential")
-				return fmt.Errorf("canonical sequential write (%s): %w", phase.name, err)
+				return WrapRetryableNeo4jError(fmt.Errorf("canonical sequential write (%s): %w", phase.name, err))
 			}
 		}
 		phaseSpan.End()
