@@ -8,14 +8,22 @@
 // metadata that cannot be derived from the matrix: display names, owning
 // packages, operational maturity overrides (gated, degraded), known gaps,
 // linked issues, docs, and the exemption and non-MCP-surface lists that record
-// intentional reconciliation gaps.
+// intentional reconciliation gaps. The authorization catalog
+// (specs/authorization-catalog.v1.yaml) supplies the v1 built-in roles, data
+// classes, permission families, bootstrap-owner posture, and custom-policy
+// deferral that are attached to generated entries.
 //
 // Build merges the matrix and overlay with live code Signals (the MCP tool
-// registry) and returns a Catalog plus reconciliation Findings. A non-empty
-// Findings slice means a public surface lacks a catalog entry, a catalog entry
-// claims a surface with no code evidence, or the overlay is stale. The package
-// does not import the MCP or query packages; callers inject their registries
-// through Signals so the catalog stays free of HTTP and graph dependencies.
+// registry) and returns a Catalog plus reconciliation Findings. BuildFromSpecs
+// also loads the authorization catalog so every real capability gets explicit
+// role, action, scope, and data-class metadata. A non-empty Findings slice means
+// a public surface lacks a catalog entry, a catalog entry claims a surface with
+// no code evidence, the overlay is stale, or authorization metadata is missing
+// or malformed. Authorization reconciliation also verifies that every default
+// role for a permission family explicitly grants that family action with the
+// family data classes and scope levels. The package does not import the MCP or
+// query packages; callers inject their registries through Signals so the catalog
+// stays free of HTTP and graph dependencies.
 //
 // Build derives each entry's maturity from the matrix support statuses
 // (general_availability, experimental, preview, not_implemented). The overlay
@@ -25,8 +33,9 @@
 //
 // Load returns the committed, generated artifact embedded from
 // data/catalog.generated.json. It is the runtime entry point for the API, MCP,
-// and console surfaces. The artifact is produced by cmd/capability-inventory and
-// kept in lockstep with the specs by a drift test.
+// and console surfaces, including the top-level authorization catalog and
+// per-entry authorization requirements. The artifact is produced by
+// cmd/capability-inventory and kept in lockstep with the specs by a drift test.
 //
 // The package also reconciles the surface inventory: a generated record of every
 // platform surface across six categories (command binaries, collector families,

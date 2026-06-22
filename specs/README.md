@@ -11,6 +11,10 @@ documentation.
   the matrix and the live MCP registry by `go/cmd/capability-inventory` into
   `go/internal/capabilitycatalog/data/catalog.generated.json`. See
   `docs/public/reference/capability-catalog.md`.
+- `authorization-catalog.v1.yaml` defines the v1 built-in roles, explicit
+  action grants, data classes, permission families, bootstrap-owner posture, and
+  custom-policy deferral that enrich every generated capability catalog entry.
+  See `docs/public/reference/authorization-catalog.md`.
 - `backend-conformance.v1.yaml` defines graph-backend capability classes for
   official adapters.
 - `scale-lab-corpus.v1.yaml` defines the representative scale-lab corpus,

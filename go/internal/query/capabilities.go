@@ -78,12 +78,13 @@ func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
 	truth.Freshness = TruthFreshness{State: FreshnessFresh}
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"version":      catalog.Version,
-		"capabilities": page,
-		"total":        total,
-		"limit":        limit,
-		"offset":       offset,
-		"truncated":    truncated,
+		"version":       catalog.Version,
+		"authorization": catalog.Authorization,
+		"capabilities":  page,
+		"total":         total,
+		"limit":         limit,
+		"offset":        offset,
+		"truncated":     truncated,
 	}, truth)
 }
 

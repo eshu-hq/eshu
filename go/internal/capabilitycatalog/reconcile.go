@@ -3,6 +3,7 @@ package capabilitycatalog
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // FindingKind classifies a reconciliation finding.
@@ -29,6 +30,15 @@ const (
 	// FindingInvalidOverlayMaturity is an overlay maturity that is not an
 	// overlay-only state.
 	FindingInvalidOverlayMaturity FindingKind = "invalid_overlay_maturity"
+	// FindingMissingAuthorizationGrant is a capability with no matching
+	// authorization permission family.
+	FindingMissingAuthorizationGrant FindingKind = "missing_authorization_grant"
+	// FindingInvalidAuthorizationReference is an authorization catalog entry that
+	// references an unknown role or data class.
+	FindingInvalidAuthorizationReference FindingKind = "invalid_authorization_reference"
+	// FindingStaleAuthorizationFamily is an authorization family whose prefixes
+	// match no matrix capability.
+	FindingStaleAuthorizationFamily FindingKind = "stale_authorization_family"
 )
 
 // Finding is one reconciliation problem between the catalog overlay and live
@@ -49,6 +59,7 @@ type Finding struct {
 func reconcile(
 	matrix Matrix,
 	overlay Overlay,
+	authorization AuthorizationCatalog,
 	signals Signals,
 	overlayByID map[string]OverlayCapability,
 	referencedTools map[string]bool,
@@ -68,6 +79,7 @@ func reconcile(
 	findings = append(findings, orphanToolFindings(signals, referencedTools, exemptTools)...)
 	findings = append(findings, overlayFindings(overlay, overlayByID, matrixIDs)...)
 	findings = append(findings, exemptionAndSurfaceFindings(overlay, signals, referencedTools, matrixIDs)...)
+	findings = append(findings, authorizationFindings(matrix, authorization)...)
 
 	sort.Slice(findings, func(i, j int) bool {
 		if findings[i].Kind != findings[j].Kind {
@@ -76,6 +88,114 @@ func reconcile(
 		return findings[i].Subject < findings[j].Subject
 	})
 	return findings
+}
+
+func authorizationFindings(matrix Matrix, authorization AuthorizationCatalog) []Finding {
+	index := newAuthorizationIndex(authorization)
+	if !index.enabled {
+		return nil
+	}
+
+	var findings []Finding
+	matchedFamilies := map[string]bool{}
+	for _, capability := range matrix.Capabilities {
+		authz, ok := index.authorizationFor(capability.Capability)
+		if !ok {
+			findings = append(findings, Finding{
+				Kind:    FindingMissingAuthorizationGrant,
+				Subject: capability.Capability,
+				Detail:  fmt.Sprintf("capability %q has no matching authorization permission family", capability.Capability),
+			})
+			continue
+		}
+		matchedFamilies[authz.Family] = true
+	}
+
+	for _, family := range authorization.PermissionFamilies {
+		if strings.TrimSpace(family.Action) == "" {
+			findings = append(findings, invalidAuthorizationReference(family.Family, "permission family is missing action"))
+		}
+		if len(family.CapabilityPrefixes) == 0 && !family.Planned {
+			findings = append(findings, invalidAuthorizationReference(family.Family, "permission family is missing capability prefixes"))
+		}
+		for _, role := range family.DefaultRoles {
+			defaultRole, ok := index.roles[role]
+			if !ok {
+				findings = append(findings, invalidAuthorizationReference(
+					family.Family,
+					fmt.Sprintf("default role %q is not declared", role),
+				))
+				continue
+			}
+			if !roleCoversPermissionFamily(defaultRole, family) {
+				findings = append(findings, invalidAuthorizationReference(
+					family.Family,
+					fmt.Sprintf("default role %q does not grant action %q with the family data classes and scope levels", role, family.Action),
+				))
+			}
+		}
+		for _, dataClass := range family.DataClasses {
+			if _, ok := index.dataClassSensitivity[dataClass]; !ok {
+				findings = append(findings, invalidAuthorizationReference(
+					family.Family,
+					fmt.Sprintf("data class %q is not declared", dataClass),
+				))
+			}
+		}
+		if !matchedFamilies[family.Family] && !family.Planned {
+			findings = append(findings, Finding{
+				Kind:    FindingStaleAuthorizationFamily,
+				Subject: family.Family,
+				Detail:  fmt.Sprintf("authorization family %q matches no capability", family.Family),
+			})
+		}
+	}
+
+	for _, role := range authorization.Roles {
+		if strings.TrimSpace(role.Role) == "" {
+			findings = append(findings, invalidAuthorizationReference("<role>", "role id is required"))
+		}
+		for _, grant := range role.Grants {
+			if strings.TrimSpace(grant.Action) == "" {
+				findings = append(findings, invalidAuthorizationReference(role.Role, "role grant is missing action"))
+			}
+			for _, dataClass := range grant.DataClasses {
+				if _, ok := index.dataClassSensitivity[dataClass]; !ok {
+					findings = append(findings, invalidAuthorizationReference(
+						role.Role,
+						fmt.Sprintf("role grant data class %q is not declared", dataClass),
+					))
+				}
+			}
+		}
+	}
+
+	if authorization.BootstrapOwner.Role != "" {
+		if _, ok := index.roles[authorization.BootstrapOwner.Role]; !ok {
+			findings = append(findings, invalidAuthorizationReference(
+				"bootstrap_owner",
+				fmt.Sprintf("bootstrap owner role %q is not declared", authorization.BootstrapOwner.Role),
+			))
+		}
+	}
+	for _, role := range authorization.BootstrapOwner.DelegableRoles {
+		if _, ok := index.roles[role]; !ok {
+			findings = append(findings, invalidAuthorizationReference(
+				"bootstrap_owner",
+				fmt.Sprintf("delegable role %q is not declared", role),
+			))
+		}
+	}
+
+	return findings
+}
+
+func invalidAuthorizationReference(subject, detail string) Finding {
+	return Finding{
+		Kind:    FindingInvalidAuthorizationReference,
+		Subject: subject,
+		Detail:  detail,
+	}
 }
 
 func unmatchedSurfaceFindings(matrix Matrix, signals Signals, nonMCP map[string]SurfaceKind) []Finding {

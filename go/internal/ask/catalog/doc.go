@@ -11,9 +11,12 @@
 // signals let the Ask Eshu planner prefer the cheapest correct retrieval path.
 //
 // Backend and cost are NOT carried by the surface inventory; they are a curated
-// overlay in this package. A coverage check (Catalog.Unannotated) reports any
-// implemented read surface that lacks an annotation, and mutating-route tests
-// ensure side-effecting admin surfaces are explicitly accounted for instead of
-// silently vanishing. The package is pure: it reads the embedded artifact only
-// and never queries Postgres, a graph backend, or live runtime state.
+// overlay in this package. Some read-only routes use POST for structured query
+// bodies; those remain catalog entries, while side-effecting admin surfaces are
+// excluded through the mutating-route list. A coverage check (Catalog.Unannotated)
+// reports any implemented read surface that lacks an annotation, and
+// mutating-route tests ensure side-effecting admin surfaces are explicitly
+// accounted for instead of silently vanishing. The package is pure: it reads the
+// embedded artifact only and never queries Postgres, a graph backend, or live
+// runtime state.
 package catalog

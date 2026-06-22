@@ -7,6 +7,11 @@ contract, and all read models that back the public Eshu query API. It defines th
 `GraphQuery` and `ContentStore` ports through which every handler accesses the
 graph and Postgres content store, and it enforces the capability matrix that
 determines which queries are permitted under each runtime profile.
+The static `/api/v0/capabilities` route serves the embedded capability catalog
+with the built-in role, grant, data-class, and per-capability authorization
+metadata that also backs the MCP capability-catalog tool. Its OpenAPI schema
+documents the catalog's `restricted` and `sensitive` data-class sensitivity
+values so generated clients can model the role catalog accurately.
 Code-quality routes also classify graph-derived findings before they reach
 HTTP, MCP, or CLI callers; `code_quality.dead_code` returns candidate evidence,
 language maturity, exclusions, and truth metadata instead of presenting a raw

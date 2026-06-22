@@ -18,6 +18,9 @@
 // query package; their tool definitions live in
 // tools_structural_inventory.go, tools_import_dependencies.go,
 // tools_call_graph_metrics.go, and tools_security.go.
+// The get_capability_catalog tool forwards to /api/v0/capabilities and
+// preserves the embedded role, grant, data-class, permission-family, and
+// per-capability authorization metadata from the query response.
 // Package-registry and supply-chain tools follow the same rule and keep their
 // route builders in dedicated dispatch files, so bounded package, version,
 // dependency, correlation, source-only advisory evidence, vulnerability
