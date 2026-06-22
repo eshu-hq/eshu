@@ -123,8 +123,12 @@
 // break-glass session creation succeed only after the storage layer validates
 // active hashed credentials or recovery windows. OIDC login and callback routes
 // are exact public GET routes that complete provider validation before issuing
-// browser-session cookies. Repository list and selector canary routes apply
-// these bounds before pagination, counts, ambiguity, and not-found decisions so
+// browser-session cookies. SAML browser login routes keep metadata,
+// AuthnRequest, ACS, assertion validation, replay reservation, and principal
+// mapping behind the SAMLStore port, and they create the same hash-only
+// browser-session records after a validated external subject resolves to an
+// AuthContext. Repository list and selector canary routes apply these bounds
+// before pagination, counts, ambiguity, and not-found decisions so
 // out-of-scope repositories do not leak through metadata. Code search, entity
 // resolution, content read/search routes, evidence citation packets, entity
 // context reads, service/workload context or story reads, and service

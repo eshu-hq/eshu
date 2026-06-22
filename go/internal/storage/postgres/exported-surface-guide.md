@@ -226,6 +226,12 @@ reducer/query adapter.
   metadata. The schema uses opaque IDs, hashes, and credential handles only and
   leaves shared-token/scoped-token behavior unchanged until later enforcement
   slices opt in.
+- `SAMLSSOStore` / `NewSAMLSSOStore` — hash-only SAML AuthnRequest and replay
+  ledgers used by API SAML login. Request consume is a single guarded update,
+  replay reservation is an insert-conflict ledger, and rows store digests,
+  status, and timestamps only.
+- `SAMLAuthnRequestRecord` and `SAMLReplayKeyRecord` — typed hash-only rows for
+  SAML request creation and replay reservation.
 
 **Recovery**
 
@@ -292,6 +298,7 @@ reducer/query adapter.
   `IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
   `VulnerabilitySourceStateSchemaSQL`, `TenantWorkspaceGrantSchemaSQL`,
   `ScopedAPITokenSchemaSQL`, `IdentitySubjectSchemaSQL`, `OIDCLoginSchemaSQL`,
+  `SAMLSSOSchemaSQL`,
   `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`,
   `FunctionSummarySchemaSQL`
 

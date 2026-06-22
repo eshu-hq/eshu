@@ -134,6 +134,7 @@ func wireAPI(
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
+	browserSessionAdapter := newPostgresBrowserSessionAdapter(db, instruments)
 	router, err := newRouterWithSemanticEmbedding(
 		db,
 		neo4jReader,
@@ -167,6 +168,15 @@ func wireAPI(
 		return nil, nil, fmt.Errorf("configure oidc login: %w", err)
 	}
 	router.OIDCLogin = oidcLoginHandler
+	samlHandler, err := newSAMLHandler(db, instruments, getenv, browserSessionAdapter)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, fmt.Errorf("configure saml sso: %w", err)
+	}
+	router.SAML = samlHandler
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)

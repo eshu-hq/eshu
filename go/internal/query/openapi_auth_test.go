@@ -147,3 +147,61 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenAPIIncludesSAMLRoutes(t *testing.T) {
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	metadataPath := mustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/metadata")
+	metadata := mustMapField(t, metadataPath, "get")
+	metadataDescription, ok := metadata["description"].(string)
+	if !ok {
+		t.Fatal("SAML metadata description missing")
+	}
+	for _, want := range []string{
+		"public",
+		"service-provider metadata",
+		"raw assertions",
+	} {
+		if !strings.Contains(metadataDescription, want) {
+			t.Fatalf("SAML metadata description missing %q: %s", want, metadataDescription)
+		}
+	}
+
+	loginPath := mustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/login")
+	login := mustMapField(t, loginPath, "get")
+	loginDescription, ok := login["description"].(string)
+	if !ok {
+		t.Fatal("SAML login description missing")
+	}
+	for _, want := range []string{
+		"RelayState",
+		"SHA-256 hash",
+		"AuthnRequest",
+	} {
+		if !strings.Contains(loginDescription, want) {
+			t.Fatalf("SAML login description missing %q: %s", want, loginDescription)
+		}
+	}
+
+	acsPath := mustMapField(t, paths, "/api/v0/auth/saml/providers/{provider_id}/acs")
+	acs := mustMapField(t, acsPath, "post")
+	acsDescription, ok := acs["description"].(string)
+	if !ok {
+		t.Fatal("SAML ACS description missing")
+	}
+	for _, want := range []string{
+		"RelayState",
+		"SAMLResponse",
+		"replay",
+		"__Host-eshu_session",
+		"server persists only SHA-256 hashes",
+	} {
+		if !strings.Contains(acsDescription, want) {
+			t.Fatalf("SAML ACS description missing %q: %s", want, acsDescription)
+		}
+	}
+}

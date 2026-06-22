@@ -774,8 +774,9 @@ live in [evidence-notes.md](evidence-notes.md).
 - `AuthMiddleware` (`auth.go`) skips auth only when the resolved token is empty
   (dev mode) or the method/path is accepted by `publicHTTPRoute`. Adding new
   public routes requires updating that helper. OIDC login and callback are exact
-  public GET routes; all data routes still require bearer or browser-session
-  auth.
+  public GET routes. Dynamic SAML metadata/login/ACS paths are checked by
+  `auth_public_routes.go` so provider identifiers can vary without opening a
+  wider prefix. All data routes still require bearer or browser-session auth.
 - Browser session routes (`browser_session_handler.go`) exchange an explicit
   scoped credential for host-scoped HttpOnly session and readable CSRF cookies.
   Middleware hashes cookie and CSRF secrets before resolver calls, then attaches
@@ -783,6 +784,13 @@ live in [evidence-notes.md](evidence-notes.md).
   Unsafe cookie-authenticated requests require `X-Eshu-CSRF`, and shared API
   keys stay on the bearer path because they do not carry tenant/workspace
   bounds for session creation.
+- SAML routes (`saml_handler.go`) are public only for metadata, login, and ACS.
+  Login stores a RelayState hash with the AuthnRequest ID; ACS requires that
+  RelayState, validates the SAML response through `crewjam/saml`, reserves a
+  replay hash before session creation, and then creates the same browser-session
+  cookies as the explicit credential exchange. SAML claims identify an external
+  subject; they do not grant permissions until the store resolves them to an
+  Eshu `AuthContext`.
 - `RequestMetricsMiddleware` (`request_metrics.go`) wraps the application mux and
   records `eshu_dp_api_request_duration_seconds` and
   `eshu_dp_api_request_errors_total` per endpoint, labeled by the matched route

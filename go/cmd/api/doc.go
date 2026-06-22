@@ -5,6 +5,9 @@
 // persisted vector rows over active curated search documents. `auto_hash`
 // selects one governed search_documents provider profile when configured and
 // otherwise falls back to local hash query embeddings.
+// `ESHU_SAML_PROVIDERS_JSON` optionally enables SAML service-provider metadata,
+// login, and ACS routes using IdP metadata loaded from a private environment
+// handle and hash-only request/replay/session storage.
 //
 // When invoked with --version or -v, it prints the embedded application
 // version through the test-covered printAPIVersionFlag helper and exits before
@@ -23,10 +26,11 @@
 // ESHU_API_ADDR (default :8080) wrapped in otelhttp instrumentation. On SIGINT
 // or SIGTERM it gives the HTTP server up to five seconds for graceful shutdown
 // before exiting.
-// The runtime serves reads only; it does not own repo sync, parsing, fact
-// emission, vector builds, or queued projection work.
+// Beyond auth/session ledgers, the runtime serves reads only; it does not own
+// repo sync, parsing, fact emission, vector builds, or queued projection work.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
-// net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1
-// for port-only inputs so the default does not reach beyond the local host.
+// net/http/pprof endpoint via runtime.NewPprofServer, bound to the loopback
+// interface for port-only inputs so the default does not reach beyond the local
+// host.
 package main

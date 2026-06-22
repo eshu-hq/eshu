@@ -60,6 +60,39 @@ CREATE INDEX IF NOT EXISTS identity_provider_config_revisions_active_idx
     ON identity_provider_config_revisions (provider_config_id, activated_at DESC)
     WHERE status = 'active' AND superseded_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS identity_saml_authn_requests (
+    provider_config_id TEXT NOT NULL REFERENCES identity_provider_configs(provider_config_id) ON DELETE CASCADE,
+    request_id_hash TEXT NOT NULL,
+    relay_state_hash TEXT NOT NULL,
+    status TEXT NOT NULL,
+    issued_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (provider_config_id, request_id_hash)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS identity_saml_authn_requests_relay_state_idx
+    ON identity_saml_authn_requests (provider_config_id, relay_state_hash)
+    WHERE consumed_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS identity_saml_authn_requests_pending_idx
+    ON identity_saml_authn_requests (provider_config_id, expires_at)
+    WHERE status = 'pending' AND consumed_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS identity_saml_replay_keys (
+    provider_config_id TEXT NOT NULL REFERENCES identity_provider_configs(provider_config_id) ON DELETE CASCADE,
+    replay_hash TEXT NOT NULL,
+    status TEXT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (provider_config_id, replay_hash)
+);
+
+CREATE INDEX IF NOT EXISTS identity_saml_replay_keys_expiry_idx
+    ON identity_saml_replay_keys (expires_at);
+
 CREATE TABLE IF NOT EXISTS identity_user_emails (
     user_id TEXT NOT NULL REFERENCES identity_users(user_id) ON DELETE CASCADE,
     email_hash TEXT NOT NULL,

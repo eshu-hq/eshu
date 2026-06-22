@@ -27,7 +27,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Health, readiness, index status, queue/admin controls, ingester status | [Status and admin routes](http-api/status-admin.md) |
 | Capability maturity catalog (`GET /api/v0/capabilities`) | [Capability Catalog](capability-catalog.md#surfaces) |
 | Surface inventory readiness (`GET /api/v0/surface-inventory`) | [Surface Inventory](surface-inventory.md#drift-gate) |
-| Dashboard browser sessions and CSRF-safe Console auth | [Dashboard browser sessions](#dashboard-browser-sessions) |
+| Dashboard browser sessions, SAML SSO, and CSRF-safe Console auth | [Dashboard browser sessions](#dashboard-browser-sessions) |
 | Component extension inventory and diagnostics | [Status and admin routes](http-api/status-admin.md#component-extension-inventory) and [Component Package Manager](component-package-manager.md) |
 | Optional semantic observations and code hints | [Semantic evidence routes](http-api/semantic-evidence.md) |
 | Repository-bounded semantic retrieval over curated search documents | [Semantic search route](http-api/semantic-search.md) |
@@ -104,6 +104,9 @@ The Console browser flow uses these `/api/v0` routes:
 | `POST /api/v0/auth/local/users/{user_id}/disable` | All-scopes admin route that disables the user and revokes local credentials, MFA factors, and browser sessions. |
 | `POST /api/v0/auth/local/break-glass` | Shared-operator route that enables one audited, time-boxed break-glass window. Disabled by default when no active window exists. |
 | `POST /api/v0/auth/local/break-glass/session` | Public recovery route that issues a browser session only for an active, unexpired break-glass code. |
+| `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | Returns public SAML service-provider metadata for a configured provider. |
+| `GET /api/v0/auth/saml/providers/{provider_id}/login` | Starts SP-initiated SAML login by storing a RelayState hash and redirecting to the IdP. |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | Completes SAML login from IdP POST binding after RelayState, signature, replay, clock, NameID, and group-claim validation. |
 
 OIDC login is optional and disabled until API startup receives an
 operator-managed OIDC config file. The callback verifies provider metadata/JWKS,
@@ -138,6 +141,25 @@ Session cookies are server-managed:
 - OIDC-backed sessions carry `role_ids` in the returned auth context for UI
   display and audit correlation; repository and scope filtering still uses the
   resolved `allowed_scope_ids` and `allowed_repository_ids`.
+
+SAML SSO uses the same server-managed session cookies after assertion
+validation succeeds. The public SAML routes are unauthenticated because the IdP
+must be able to read metadata and POST assertions before the browser has an
+Eshu session. Eshu stores only hashes for RelayState, replay, session, CSRF,
+external subject, and group-claim material. Raw SAML assertions, raw NameID
+values, raw group values, provider secrets, and private operator endpoints must
+not appear in API responses, logs, docs, issues, or proof artifacts.
+
+SAML routes are enabled by `ESHU_SAML_PROVIDERS_JSON`. Each provider entry
+uses a `provider_config_id` that already exists as an active
+`identity_provider_configs` row, references IdP metadata through an environment
+handle, validates the expected issuer and configured group claim names, and
+maps normalized group claims to durable identity state. Login resolution
+requires an active external subject row with the current group-claim hash plus
+active membership, admin role, and all-scope role grant rows; missing identity
+rows, stale group claims, or revoked grants fail closed. Malformed provider
+JSON, unknown fields, or missing metadata env values fail closed during API
+wiring.
 
 ## Ask Eshu — POST /api/v0/ask
 
