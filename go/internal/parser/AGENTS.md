@@ -66,6 +66,42 @@
   on both `repoRoot` and `path`. Callers may pass relative paths but the
   payload's `repo_path` field will contain the absolute form.
 
+## Permanent parser exceptions (no tree-sitter migration)
+
+Several registered parsers intentionally do **not** use tree-sitter and never
+will. The epic-wide "no regex" / "migrate to AST" work targets *programming
+language* adapters whose grammar tree-sitter models. The parsers below read
+declarative data, configuration, dependency manifests, lockfiles, possibly
+invalid templated text, or a precomputed index. A general-purpose code grammar
+is the wrong tool for them: a dedicated structured decoder (or, for templated
+and lineage text, a bounded scanner) is the canonical, more accurate choice.
+
+Do not "migrate" these to tree-sitter or flag their non-tree-sitter technique as
+debt. When the rule says no regex, it means no regex *in the language-grammar
+adapters* — it does not mean replacing a structured-format decoder with a code
+grammar.
+
+| Parser / format | Technique used instead | Source | Why not tree-sitter |
+| --- | --- | --- | --- |
+| YAML | `gopkg.in/yaml.v3` document decode | `yaml/language.go` | YAML is a declarative data format; the canonical Go YAML library yields the exact document tree. A code grammar cannot model YAML's anchors, merges, or block scalars. |
+| JSON | `encoding/json` (+ ordered-object decode) | `json/language.go`, `json/ordered_object.go` | JSON is declarative data; the standard library decoder is the canonical, lossless parser. |
+| HCL / Terraform / Terragrunt | `github.com/hashicorp/hcl/v2` (`hclparse`, `hclsyntax`) | `hcl/parser.go`, `hcl/values.go`, `hcl/include_chain.go` | HCL has an official AST library from HashiCorp. Its native parser is the authoritative grammar for `.tf`/`.tfvars`/Terragrunt; reimplementing it via tree-sitter would diverge from upstream semantics. |
+| Go modules (`gomod`) | `golang.org/x/mod/modfile` | `gomod/parser.go` | `go.mod`/`go.sum` have a canonical Go module-file parser maintained alongside the toolchain. It is a manifest, not source code. |
+| Node lockfiles (`node_lockfile`) | custom yarn.lock scanner; pnpm-lock via `gopkg.in/yaml.v3` | `nodelockfile/parser.go`, `nodelockfile/pnpm.go`, `nodelockfile/yarn_*.go` | Lockfiles are generated manifests. yarn.lock is a bespoke format; pnpm-lock is YAML. Neither is a programming language tree-sitter can parse. |
+| Python deps (`python_requirements`, `python_toml`) | `bufio` line scanner / minimal TOML scanner | `pythondep/requirements.go`, `pythondep/toml.go`, `pythondep/pyproject.go` | pip requirements and `pyproject.toml`/`Pipfile`/`poetry.lock` are manifests, not Python source. A bounded scanner reads exactly the dependency-table shapes these manifests use. |
+| Maven | `encoding/xml` | `maven/parser.go` | `pom.xml` is XML; the standard XML decoder is canonical. |
+| NuGet project | `encoding/xml` | `nuget_project_language.go` | `.csproj` is an MSBuild XML manifest, not C# source. |
+| Gradle dependency DSL | bounded regex/string scanner over Groovy/Kotlin DSL (no execution) | `gradle/scanner.go`, `gradle/parser.go` | The parser extracts proven dependency coordinates from build-script text without executing Gradle or resolving source sets; unresolved interpolations surface as partial/unresolved evidence rather than fabricated versions. A code grammar would not evaluate the DSL anyway. |
+| CloudFormation / SAM | bounded structural evaluation over the already-decoded YAML/JSON document | `cloudformation/parser.go` (invoked from `yaml/language.go`, `json/language.go`) | CloudFormation is declarative data; it is decoded by the YAML/JSON libraries above, then evaluated for bounded resource/parameter/output/condition buckets. |
+| dbt SQL (`dbtsql`) | bounded regex SQL-lineage scanner over compiled dbt SQL | `dbtsql/lineage.go`, `dbtsql/expressions.go` | Extracts bounded column lineage (select projections, CTEs, relation aliases) from compiled model SQL; unsupported shapes go on the unresolved path. This is lineage extraction, not source-grammar parsing. |
+| `templated_detection.go` | regex content classification | `templated_detection.go` | Classifies possibly-invalid-grammar templated text (Go template, Jinja, GitHub Actions, Terraform interpolation/directive). The input is frequently not valid in any single grammar, so tree-sitter cannot parse it; this is detection, not extraction. |
+| Raw text (`raw_text`) | filename/extension classification, no grammar | `raw_text_engine.go` | The fallback adapter for `.cnf`/`.cfg`/`.conf`/`.j2`/`.tpl` and similar. It carries content-metadata detection only and has no grammar to migrate. |
+| SCIP (`scip`) | `google.golang.org/protobuf/proto` index decode | `scip_parser.go` | `index.scip` is a precomputed protobuf index produced by an external indexer. It is ingested, not parsed from source; SCIP supplements native tree-sitter output, it does not replace a grammar. |
+| Dockerfile (`__dockerfile__`) | `bufio` instruction scanner | `dockerfile_language.go`, `dockerfile/metadata.go`, `dockerfile/tokens.go` | A Dockerfile is a build manifest of `FROM`/`COPY`/`ARG`/`ENV`/`LABEL` instructions, not a programming language. The scanner extracts bounded runtime evidence (stages, ports, args, envs, labels); there is no source grammar to migrate. |
+| Java metadata (`java_metadata`) | declarative file scanner | `java_metadata_files.go`, `java/metadata.go`, `java/parser_metadata.go` | `META-INF/services/*`, `AutoConfiguration.imports`, and `spring.factories` are declarative service-registration manifests, not Java source. They are scanned for registered class names; the `.java` grammar work lives in the `java` adapter row above. |
+
+The README cross-references this section from its tree-sitter support table.
+
 ## Common changes and how to scope them
 
 - **Add a new language adapter** →
