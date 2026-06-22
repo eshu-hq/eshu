@@ -1,0 +1,215 @@
+{
+  "schema_version": "proof-of-value-evidence/v1",
+  "corpus": "product_truth/dead_iac",
+  "question_count": 18,
+  "baseline": {
+    "strategy": "baseline_grep",
+    "total": 18,
+    "correct": 10,
+    "accuracy": 0.5555555555555556,
+    "dead_true_positive": 2,
+    "dead_false_positive": 0,
+    "dead_false_negative": 3,
+    "dead_precision": 1,
+    "dead_recall": 0.4
+  },
+  "eshu": {
+    "strategy": "eshu",
+    "total": 18,
+    "correct": 18,
+    "accuracy": 1,
+    "dead_true_positive": 5,
+    "dead_false_positive": 0,
+    "dead_false_negative": 0,
+    "dead_precision": 1,
+    "dead_recall": 1
+  },
+  "delta": {
+    "accuracy_delta": 0.4444444444444444,
+    "dead_precision_delta": 0,
+    "dead_recall_delta": 0.6,
+    "dangerous_mistakes_avoided": 0
+  },
+  "questions": [
+    {
+      "question_id": "ansible.dynamic_role_ambiguous",
+      "artifact": "ansible-ops/roles/dynamic_role",
+      "family": "ansible",
+      "label": "ambiguous",
+      "baseline_answer": "used",
+      "eshu_answer": "ambiguous",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "ansible.playbook_and_role_used",
+      "artifact": "ansible-ops/roles/checkout_deploy",
+      "family": "ansible",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "ansible.role_unused",
+      "artifact": "ansible-ops/roles/orphan_maintenance",
+      "family": "ansible",
+      "label": "unused",
+      "baseline_answer": "used",
+      "eshu_answer": "unused",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "compose.dynamic_service_ambiguous",
+      "artifact": "compose-app/services/dynamic-target",
+      "family": "compose",
+      "label": "ambiguous",
+      "baseline_answer": "used",
+      "eshu_answer": "ambiguous",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "compose.service_unused",
+      "artifact": "compose-app/services/orphan-cache",
+      "family": "compose",
+      "label": "unused",
+      "baseline_answer": "used",
+      "eshu_answer": "unused",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "compose.workflow_service_used",
+      "artifact": "compose-app/services/api",
+      "family": "compose",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "compose.workflow_service_used_worker",
+      "artifact": "compose-app/services/worker",
+      "family": "compose",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "helm.argocd_chart_used",
+      "artifact": "helm-charts/charts/checkout-service",
+      "family": "helm",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "helm.chart_unused",
+      "artifact": "helm-charts/charts/orphan-worker",
+      "family": "helm",
+      "label": "unused",
+      "baseline_answer": "unused",
+      "eshu_answer": "unused",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "helm.templated_path_ambiguous",
+      "artifact": "helm-charts/charts/dynamic-target",
+      "family": "helm",
+      "label": "ambiguous",
+      "baseline_answer": "used",
+      "eshu_answer": "ambiguous",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "helm.workflow_chart_used",
+      "artifact": "helm-charts/charts/worker-service",
+      "family": "helm",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "kustomize.argocd_overlay_used",
+      "artifact": "kustomize-config/overlays/prod",
+      "family": "kustomize",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "kustomize.base_unused",
+      "artifact": "kustomize-config/base/orphan-api",
+      "family": "kustomize",
+      "label": "unused",
+      "baseline_answer": "unused",
+      "eshu_answer": "unused",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "kustomize.overlay_base_used",
+      "artifact": "kustomize-config/base/checkout-service",
+      "family": "kustomize",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "kustomize.templated_path_ambiguous",
+      "artifact": "kustomize-config/base/dynamic-target",
+      "family": "kustomize",
+      "label": "ambiguous",
+      "baseline_answer": "used",
+      "eshu_answer": "ambiguous",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "terraform.dynamic_source_ambiguous",
+      "artifact": "terraform-modules/modules/dynamic-target",
+      "family": "terraform",
+      "label": "ambiguous",
+      "baseline_answer": "used",
+      "eshu_answer": "ambiguous",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "terraform.local_module_unused",
+      "artifact": "terraform-modules/modules/orphan-cache",
+      "family": "terraform",
+      "label": "unused",
+      "baseline_answer": "used",
+      "eshu_answer": "unused",
+      "baseline_correct": false,
+      "eshu_correct": true
+    },
+    {
+      "question_id": "terraform.local_module_used",
+      "artifact": "terraform-modules/modules/checkout-service",
+      "family": "terraform",
+      "label": "used",
+      "baseline_answer": "used",
+      "eshu_answer": "used",
+      "baseline_correct": true,
+      "eshu_correct": true
+    }
+  ]
+}

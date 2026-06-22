@@ -151,6 +151,7 @@ nav:
     - Fact Envelope Reference: reference/fact-envelope-reference.md
     - Search Document Projection: reference/search-document-projection.md
     - Search Benchmark Evidence: reference/search-benchmark-evidence.md
+    - Proof-of-Value Harness: reference/proof-of-value-harness.md
     - Search Retrieval Contract: reference/search-retrieval-contract.md
     - Search Decay Scoring: reference/search-decay-scoring.md
     - Link Prediction Candidates: reference/link-prediction-candidates.md

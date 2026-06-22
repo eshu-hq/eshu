@@ -19,6 +19,7 @@ go/ingester
 go/mcp-server
 go/eshu
 go/projector
+go/proof-of-value
 go/reducer
 *.exe
 *.exe~
