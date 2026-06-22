@@ -1,17 +1,11 @@
 package python
 
 import (
-	"regexp"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-var pythonMainGuardHeaderRe = regexp.MustCompile(
-	`^\s*if\s*\(?\s*(?:__name__\s*==\s*["']__main__["']|["']__main__["']\s*==\s*__name__)\s*\)?\s*:`,
-)
-
-var pythonDunderAssignmentRe = regexp.MustCompile(`\.\s*(__[A-Za-z0-9_]+__)\s*=\s*(__[A-Za-z0-9_]+__)`)
 
 var pythonFastAPIRouteDecoratorKinds = map[string]struct{}{
 	".get(":     {},
@@ -248,54 +242,197 @@ func pythonDunderFunctionAssignedInEnclosingScope(node *tree_sitter.Node, name s
 	return false
 }
 
+// pythonScopeAssignsDunderFunction reports whether the direct body statements of
+// a module or function scope install the dunder protocol method onto an
+// attribute via `<expr>.<name> = <name>` (for example
+// `type(missing).__reduce__ = __reduce__`). It inspects the scope's direct body
+// statements rather than nested blocks so a guard inside an inner block does not
+// count as a scope-level install, matching the prior line-scan contract.
 func pythonScopeAssignsDunderFunction(scope *tree_sitter.Node, name string, source []byte) bool {
-	scopeText := nodeText(scope, source)
-	directIndent, ok := pythonDirectBodyIndent(scope.Kind(), scopeText)
-	if !ok {
-		return false
-	}
-	for _, line := range strings.Split(scopeText, "\n") {
-		if strings.TrimSpace(line) == "" || leadingWhitespace(line) != directIndent {
-			continue
-		}
-		directLine := line[directIndent:]
-		for _, match := range pythonDunderAssignmentRe.FindAllStringSubmatch(directLine, -1) {
-			if len(match) == 3 && match[1] == name && match[2] == name {
-				return true
-			}
+	for _, statement := range pythonScopeBodyStatements(scope) {
+		if pythonStatementInstallsDunder(statement, name, source) {
+			return true
 		}
 	}
 	return false
 }
 
-func pythonDirectBodyIndent(kind string, text string) (int, bool) {
-	if kind == "module" {
-		return 0, true
+// pythonScopeBodyStatements returns the direct statement nodes of a scope: the
+// module's direct children, or a function definition body block's direct
+// children.
+func pythonScopeBodyStatements(scope *tree_sitter.Node) []*tree_sitter.Node {
+	if scope.Kind() == "module" {
+		return pythonNamedChildren(scope)
 	}
-	lines := strings.Split(text, "\n")
-	if len(lines) < 2 {
-		return 0, false
+	body := scope.ChildByFieldName("body")
+	if body == nil {
+		return nil
 	}
-	headerIndent := leadingWhitespace(lines[0])
-	for _, line := range lines[1:] {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		indent := leadingWhitespace(line)
-		if indent > headerIndent {
-			return indent, true
-		}
-	}
-	return 0, false
+	return pythonNamedChildren(body)
 }
 
-func pythonIsScriptMainGuard(node *tree_sitter.Node, source []byte) bool {
-	text := strings.TrimSpace(nodeText(node, source))
-	header, _, ok := strings.Cut(text, "\n")
-	if !ok {
-		header = text
+// pythonStatementInstallsDunder reports whether a single statement assigns the
+// dunder name onto an attribute target, in either the plain `assignment` form
+// (`obj.__call__ = __call__`) or the `type_alias_statement` form that tree-sitter
+// uses when the receiver is a `type(...)` call (`type(x).__reduce__ = __reduce__`).
+func pythonStatementInstallsDunder(statement *tree_sitter.Node, name string, source []byte) bool {
+	switch statement.Kind() {
+	case "expression_statement":
+		assignment := pythonClassBodyAssignment(statement)
+		if assignment == nil {
+			return false
+		}
+		return pythonAssignmentInstallsDunder(
+			assignment.ChildByFieldName("left"),
+			assignment.ChildByFieldName("right"),
+			name,
+			source,
+		)
+	case "type_alias_statement":
+		return pythonAssignmentInstallsDunder(
+			pythonTypeAliasInner(statement.ChildByFieldName("left")),
+			pythonTypeAliasInner(statement.ChildByFieldName("right")),
+			name,
+			source,
+		)
+	default:
+		return false
 	}
-	return pythonMainGuardHeaderRe.MatchString(header)
+}
+
+// pythonTypeAliasInner returns the single named child of a `type` wrapper node
+// used by type_alias_statement operands, or the node unchanged otherwise.
+func pythonTypeAliasInner(node *tree_sitter.Node) *tree_sitter.Node {
+	if node == nil || node.Kind() != "type" {
+		return node
+	}
+	if inner := pythonFirstNamedChild(node); inner != nil {
+		return inner
+	}
+	return node
+}
+
+// pythonAssignmentInstallsDunder reports whether an assignment's left attribute
+// target and right identifier both name the dunder being installed.
+func pythonAssignmentInstallsDunder(left *tree_sitter.Node, right *tree_sitter.Node, name string, source []byte) bool {
+	if left == nil || left.Kind() != "attribute" {
+		return false
+	}
+	if strings.TrimSpace(nodeText(left.ChildByFieldName("attribute"), source)) != name {
+		return false
+	}
+	return right != nil && right.Kind() == "identifier" &&
+		strings.TrimSpace(nodeText(right, source)) == name
+}
+
+// pythonNamedChildren returns stable pointer copies of a node's direct named
+// children so callers can retain them after the cursor advances.
+func pythonNamedChildren(node *tree_sitter.Node) []*tree_sitter.Node {
+	if node == nil {
+		return nil
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	children := make([]*tree_sitter.Node, 0)
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		children = append(children, shared.CloneNode(&child))
+	}
+	return children
+}
+
+// pythonIsScriptMainGuard reports whether an if_statement is the script entry
+// guard `if __name__ == "__main__":`. It inspects the if condition AST node,
+// unwrapping a parenthesized_expression, and accepts the comparison in either
+// operand order: `__name__ == "__main__"` and `"__main__" == __name__`.
+func pythonIsScriptMainGuard(node *tree_sitter.Node, source []byte) bool {
+	condition := pythonUnwrapParenthesized(node.ChildByFieldName("condition"))
+	if condition == nil || condition.Kind() != "comparison_operator" {
+		return false
+	}
+	if !pythonComparisonUsesEquality(condition, source) {
+		return false
+	}
+	operands := pythonComparisonOperands(condition)
+	if len(operands) != 2 {
+		return false
+	}
+	return pythonOperandsAreMainGuard(operands[0], operands[1], source)
+}
+
+// pythonUnwrapParenthesized returns the inner expression of a
+// parenthesized_expression, or the node unchanged when it is not parenthesized.
+func pythonUnwrapParenthesized(node *tree_sitter.Node) *tree_sitter.Node {
+	for node != nil && node.Kind() == "parenthesized_expression" {
+		inner := pythonFirstNamedChild(node)
+		if inner == nil {
+			return node
+		}
+		node = inner
+	}
+	return node
+}
+
+// pythonComparisonUsesEquality reports whether a comparison_operator uses only
+// the `==` operator, so inequality guards are not treated as the main guard.
+func pythonComparisonUsesEquality(comparison *tree_sitter.Node, source []byte) bool {
+	cursor := comparison.Walk()
+	defer cursor.Close()
+	sawOperator := false
+	for i := uint(0); i < comparison.ChildCount(); i++ {
+		child := comparison.Child(i)
+		if comparison.FieldNameForChild(uint32(i)) != "operators" {
+			continue
+		}
+		sawOperator = true
+		if strings.TrimSpace(nodeText(child, source)) != "==" {
+			return false
+		}
+	}
+	return sawOperator
+}
+
+// pythonComparisonOperands returns the named operand nodes of a
+// comparison_operator (the non-operator children).
+func pythonComparisonOperands(comparison *tree_sitter.Node) []*tree_sitter.Node {
+	operands := make([]*tree_sitter.Node, 0, 2)
+	for i := uint(0); i < comparison.ChildCount(); i++ {
+		if comparison.FieldNameForChild(uint32(i)) == "operators" {
+			continue
+		}
+		child := comparison.Child(i)
+		if child.IsNamed() {
+			operands = append(operands, child)
+		}
+	}
+	return operands
+}
+
+// pythonOperandsAreMainGuard reports whether the two comparison operands are the
+// `__name__` identifier and the `"__main__"` string literal, in either order.
+func pythonOperandsAreMainGuard(left *tree_sitter.Node, right *tree_sitter.Node, source []byte) bool {
+	return (pythonIsNameIdentifier(left, source) && pythonIsMainStringLiteral(right, source)) ||
+		(pythonIsMainStringLiteral(left, source) && pythonIsNameIdentifier(right, source))
+}
+
+func pythonIsNameIdentifier(node *tree_sitter.Node, source []byte) bool {
+	return node != nil && node.Kind() == "identifier" &&
+		strings.TrimSpace(nodeText(node, source)) == "__name__"
+}
+
+func pythonIsMainStringLiteral(node *tree_sitter.Node, source []byte) bool {
+	return node != nil && node.Kind() == "string" &&
+		pythonStringLiteralValue(node, source) == "__main__"
+}
+
+func pythonFirstNamedChild(node *tree_sitter.Node) *tree_sitter.Node {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		return shared.CloneNode(&child)
+	}
+	return nil
 }
 
 func pythonNormalizeDecorator(decorator string) string {

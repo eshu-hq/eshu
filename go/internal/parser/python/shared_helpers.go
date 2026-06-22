@@ -60,24 +60,15 @@ func sanitizeYAMLTemplating(source string) string {
 	return yamlparser.SanitizeTemplating(source)
 }
 
-func uniqueOrdered(matches [][]string, group int) []string {
-	seen := make(map[string]struct{}, len(matches))
-	values := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) <= group {
-			continue
+// appendUniqueString appends value to values only when it is not already
+// present, preserving first-seen order for deterministic parser payloads.
+func appendUniqueString(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
 		}
-		value := strings.TrimSpace(match[group])
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		values = append(values, value)
 	}
-	return values
+	return append(values, value)
 }
 
 // routeEntry is the parser-owned wire shape consumed by query read models. The
