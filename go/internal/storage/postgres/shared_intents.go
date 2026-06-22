@@ -45,16 +45,27 @@ CREATE INDEX IF NOT EXISTS shared_projection_intents_acceptance_partition_pendin
 CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_partition_pending_idx
     ON shared_projection_intents (projection_domain, created_at, intent_id)
     WHERE completed_at IS NULL AND partition_hash IS NOT NULL;
-CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_partition_refresh_first_idx
+-- Drop the #3451 index whose created_at-primary order cannot serve the
+-- refresh-first-primary query (#3474).
+DROP INDEX IF EXISTS shared_projection_intents_domain_partition_refresh_first_idx;
+CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_partition_refresh_primary_idx
     ON shared_projection_intents (
         projection_domain,
-        created_at ASC,
         is_refresh_intent DESC,
+        created_at ASC,
         intent_id ASC
     )
     WHERE completed_at IS NULL AND partition_hash IS NOT NULL;
-CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_unhashed_pending_idx
-    ON shared_projection_intents (projection_domain, created_at, intent_id)
+-- Same refresh-first-primary order for the legacy NULL-partition_hash lane so
+-- unhashed refresh intents are not starved during a migration window (#3474).
+DROP INDEX IF EXISTS shared_projection_intents_domain_unhashed_pending_idx;
+CREATE INDEX IF NOT EXISTS shared_projection_intents_domain_unhashed_refresh_primary_idx
+    ON shared_projection_intents (
+        projection_domain,
+        is_refresh_intent DESC,
+        created_at ASC,
+        intent_id ASC
+    )
     WHERE completed_at IS NULL AND partition_hash IS NULL;
 CREATE INDEX IF NOT EXISTS shared_projection_intents_pending_idx
     ON shared_projection_intents (projection_domain, completed_at, created_at);
