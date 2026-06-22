@@ -92,14 +92,46 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 			// DELETE FROM target lives in the sibling `from` clause; handled below.
 		case "from":
 			add(firstChildByKind(n, "object_reference"), "select")
+		case "alter_table":
+			// The altered table is the first object_reference child. A migration
+			// that only does ALTER TABLE must still record the table it touches.
+			add(firstDirectChildByKind(n, "object_reference"), "alter")
 		}
 		for _, child := range namedChildren(n) {
 			visit(child, operation)
 		}
 	}
 	collectDeleteTargets(node, source, add)
+	collectReferencesTargets(node, add)
 	visit(node, "")
 	return mentions
+}
+
+// collectReferencesTargets records the target table of every REFERENCES (foreign
+// key) clause in the subtree. The grammar places the referenced table in an
+// object_reference that follows a keyword_references token, including inside
+// ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ... REFERENCES clauses, so a
+// migration whose only table touch is a foreign key still records a mention.
+func collectReferencesTargets(node *tree_sitter.Node, add func(ref *tree_sitter.Node, operation string)) {
+	var visit func(n *tree_sitter.Node)
+	visit = func(n *tree_sitter.Node) {
+		sawReferences := false
+		for _, child := range allChildren(n) {
+			switch child.GrammarName() {
+			case "keyword_references":
+				sawReferences = true
+				continue
+			case "object_reference":
+				if sawReferences {
+					add(child, "references")
+					sawReferences = false
+					continue
+				}
+			}
+			visit(child)
+		}
+	}
+	visit(node)
 }
 
 // collectDeleteTargets attaches DELETE statements to their FROM target so a

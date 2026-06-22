@@ -84,10 +84,12 @@ func Parse(
 // numbers. CREATE PROCEDURE segments are rewritten to CREATE FUNCTION so the
 // grammar can parse them, and the recovered routine is flagged as a procedure.
 func (x *sqlExtractor) parseSegment(segment sqlSegment, parser *tree_sitter.Parser) {
-	text, isProcedure := rewriteProcedureSegment(segment.text)
+	text, isProcedure, edits := rewriteProcedureSegment(segment.text)
 
 	x.segmentOffset = segment.offset
 	x.procedure = isProcedure
+	x.originalSegment = segment.text
+	x.segmentEdits = edits
 
 	parsed := []byte(text)
 	tree := parser.Parse(parsed, nil)
@@ -125,35 +127,52 @@ func visitStatementConstructs(
 	}
 }
 
+// sqlEdit records one substring replacement applied to a segment during the
+// procedure rewrite. position is the byte offset in the rewritten buffer where
+// the replacement text begins; delta is len(new) - len(old). Edits let routine
+// extraction map a rewritten node span back to the original source so the
+// indexed snippet is the real CREATE PROCEDURE text.
+type sqlEdit struct {
+	position int
+	delta    int
+}
+
 // rewriteProcedureSegment rewrites a leading CREATE [OR REPLACE] PROCEDURE
 // header into CREATE FUNCTION ... RETURNS void so the grammar can parse it,
-// returning the rewritten text and whether a rewrite occurred. Non-procedure
-// segments are returned unchanged. The rewrite is a bounded keyword/clause
-// transform, not a data-extraction regex: the routine name, arguments, body,
-// and language clause are preserved verbatim for AST extraction.
-func rewriteProcedureSegment(text string) (string, bool) {
+// returning the rewritten text, whether a rewrite occurred, and the ordered
+// edits applied (rewritten-buffer position and length delta). Non-procedure
+// segments are returned unchanged with no edits. The rewrite is a bounded
+// keyword/clause transform, not a data-extraction regex: the routine name,
+// arguments, body, and language clause are preserved verbatim for AST
+// extraction.
+func rewriteProcedureSegment(text string) (string, bool, []sqlEdit) {
 	upper := strings.ToUpper(text)
 	createIndex := strings.Index(upper, "CREATE")
 	if createIndex < 0 {
-		return text, false
+		return text, false, nil
 	}
 	procedureIndex := indexOfKeyword(upper, "PROCEDURE", createIndex)
 	if procedureIndex < 0 {
-		return text, false
+		return text, false, nil
 	}
+
+	edits := make([]sqlEdit, 0, 2)
 
 	// Replace the PROCEDURE keyword with FUNCTION, preserving surrounding text.
 	rewritten := text[:procedureIndex] + "FUNCTION" + text[procedureIndex+len("PROCEDURE"):]
+	edits = append(edits, sqlEdit{position: procedureIndex, delta: len("FUNCTION") - len("PROCEDURE")})
 
 	// Insert "RETURNS void" after the argument list close paren that follows
 	// the routine name, when the routine does not already declare RETURNS.
 	if argsClose := matchingArgumentClose(rewritten, procedureIndex); argsClose >= 0 {
 		upperRewritten := strings.ToUpper(rewritten)
 		if indexOfKeyword(upperRewritten, "RETURNS", argsClose) < 0 {
-			rewritten = rewritten[:argsClose+1] + " RETURNS void" + rewritten[argsClose+1:]
+			insertion := " RETURNS void"
+			rewritten = rewritten[:argsClose+1] + insertion + rewritten[argsClose+1:]
+			edits = append(edits, sqlEdit{position: argsClose + 1, delta: len(insertion)})
 		}
 	}
-	return rewritten, true
+	return rewritten, true, edits
 }
 
 // indexOfKeyword returns the byte index of keyword in upperText at or after

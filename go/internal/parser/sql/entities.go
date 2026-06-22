@@ -16,6 +16,13 @@ type sqlExtractor struct {
 	seenRelationships map[string]struct{}
 	segmentOffset     int
 	procedure         bool
+	// originalSegment is the un-rewritten text the current segment was parsed
+	// from. When a CREATE PROCEDURE rewrite was applied, it differs from the
+	// buffer the AST nodes index into, and segmentEdits maps a rewritten node
+	// span back into it so IndexSource persists the real procedure source rather
+	// than the synthetic CREATE FUNCTION rewrite.
+	originalSegment string
+	segmentEdits    []sqlEdit
 	// tableMentions accumulates bounded table references across all segments,
 	// with offsets remapped to the original source. Migration metadata uses
 	// these to record tables a migration file touches via DML or references.
@@ -264,9 +271,42 @@ func (x *sqlExtractor) appendEntity(
 	}
 	x.seenEntities[bucket][name] = struct{}{}
 	if x.options.IndexSource {
-		item["source"] = nodeText(node, src)
+		item["source"] = x.entitySource(node, src)
 	}
 	appendBucket(x.payload, bucket, item)
+}
+
+// entitySource returns the source snippet stored under IndexSource for an
+// entity node. When the current segment was rewritten (CREATE PROCEDURE to
+// CREATE FUNCTION), the node spans the rewritten buffer, so the span is mapped
+// back to the original segment text to persist the real procedure source. When
+// the mapped span is out of range the verbatim node text is used as a safe
+// fallback.
+func (x *sqlExtractor) entitySource(node *tree_sitter.Node, src []byte) string {
+	if len(x.segmentEdits) == 0 {
+		return nodeText(node, src)
+	}
+	start := x.mapToOriginalOffset(int(node.StartByte()))
+	end := x.mapToOriginalOffset(int(node.EndByte()))
+	if start < 0 || end > len(x.originalSegment) || start > end {
+		return nodeText(node, src)
+	}
+	return x.originalSegment[start:end]
+}
+
+// mapToOriginalOffset maps a byte offset in the rewritten segment buffer back to
+// the corresponding offset in the original segment text by subtracting the
+// cumulative length delta of every rewrite edit that begins at or before the
+// offset. Procedure-rewrite edits all sit in the header, before the routine
+// body, so entity span endpoints fall outside the edited spans and map exactly.
+func (x *sqlExtractor) mapToOriginalOffset(offset int) int {
+	mapped := offset
+	for _, edit := range x.segmentEdits {
+		if edit.position <= offset {
+			mapped -= edit.delta
+		}
+	}
+	return mapped
 }
 
 func (x *sqlExtractor) appendRelationship(

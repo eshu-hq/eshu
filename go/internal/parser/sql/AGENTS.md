@@ -48,9 +48,13 @@
 - Wrong relationships usually mean `collectMentionsFromNode` walked a clause it
   should have skipped or the segmenter merged two statements.
 - Wrong source snippets under `IndexSource` usually mean start/end offsets were
-  changed without preserving original source positions.
+  changed without preserving original source positions. For a rewritten
+  `CREATE PROCEDURE`, the snippet must map back through `segmentEdits` to the
+  original segment text, not the synthetic `CREATE FUNCTION` buffer.
 - Missing migration rows usually mean `detectSQLMigrationTool` did not classify
-  the normalized path.
+  the normalized path, or `collectMentionsFromNode` did not record the touched
+  table. A migration that only does `ALTER TABLE` or only adds a `REFERENCES`
+  foreign key still must contribute a table mention.
 
 ## Anti-patterns specific to this package
 

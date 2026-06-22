@@ -3,6 +3,7 @@ package sql
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tree_sitter_sql "github.com/alexaandru/go-sitter-forest/sql"
@@ -92,6 +93,62 @@ $proc$;
 	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.user_archive")
 }
 
+// TestParseProcedureIndexedSourceIsOriginalText guards that, when IndexSource is
+// on, the persisted source snippet for a CREATE PROCEDURE is the real procedure
+// text, not the synthetic CREATE FUNCTION ... RETURNS void the grammar parses.
+func TestParseProcedureIndexedSourceIsOriginalText(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(t, "procedure.sql", `CREATE OR REPLACE PROCEDURE public.archive_users(retention INT)
+LANGUAGE plpgsql
+AS $proc$
+BEGIN
+  DELETE FROM public.users WHERE archived = TRUE;
+END;
+$proc$;
+`)
+
+	got := parseSQLTestFile(t, path)
+
+	source := sqlBucketSource(got, "sql_functions", "public.archive_users")
+	if source == "" {
+		t.Fatalf("sql_functions missing public.archive_users with source in %#v", got["sql_functions"])
+	}
+	if !strings.Contains(source, "PROCEDURE") {
+		t.Fatalf("indexed source must keep the original PROCEDURE text, got %q", source)
+	}
+	if strings.Contains(source, "RETURNS void") {
+		t.Fatalf("indexed source must not contain the synthetic rewrite, got %q", source)
+	}
+}
+
+// TestParseMigrationTargetsFromAlterAndReferences guards that migration metadata
+// records tables that a migration only touches via ALTER TABLE or a REFERENCES
+// (foreign key) clause, not just tables reached through DML reads.
+func TestParseMigrationTargetsFromAlterAndReferences(t *testing.T) {
+	t.Parallel()
+
+	alterPath := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260620_alter_only", "migration.sql"),
+		`ALTER TABLE public.existing_orders ADD COLUMN shipped_at TIMESTAMPTZ;
+`,
+	)
+	gotAlter := parseSQLTestFile(t, alterPath)
+	assertSQLMigrationExists(t, gotAlter, "prisma", "SqlTable", "public.existing_orders")
+
+	referencesPath := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260621_fk_only", "migration.sql"),
+		`ALTER TABLE public.line_items
+  ADD CONSTRAINT line_items_order_fk
+  FOREIGN KEY (order_id) REFERENCES public.orders (id);
+`,
+	)
+	gotReferences := parseSQLTestFile(t, referencesPath)
+	assertSQLMigrationExists(t, gotReferences, "prisma", "SqlTable", "public.orders")
+}
+
 func parseSQLTestFile(t *testing.T, path string) map[string]any {
 	t.Helper()
 
@@ -140,6 +197,20 @@ func sqlBucketHasName(payload map[string]any, bucket string, name string) bool {
 		}
 	}
 	return false
+}
+
+// sqlBucketSource returns the indexed source snippet stored for a named entity,
+// or "" when the entity or its source field is absent.
+func sqlBucketSource(payload map[string]any, bucket string, name string) string {
+	items, _ := payload[bucket].([]map[string]any)
+	for _, item := range items {
+		gotName, _ := item["name"].(string)
+		if gotName == name {
+			source, _ := item["source"].(string)
+			return source
+		}
+	}
+	return ""
 }
 
 func assertSQLRelationshipExists(
