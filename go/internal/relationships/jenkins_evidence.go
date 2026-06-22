@@ -29,7 +29,7 @@ func discoverJenkinsEvidence(
 		details["shared_library"] = library
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, library, filePath,
-			EvidenceKindJenkinsSharedLibrary, RelDiscoversConfigIn, 0.89,
+			EvidenceKindJenkinsSharedLibrary, RelDiscoversConfigIn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindJenkinsSharedLibrary),
 			"Jenkins shared library references configuration or automation in the target repository",
 			"jenkins", matcher, seen, details,
 		)...)
@@ -50,7 +50,7 @@ func discoverJenkinsEvidence(
 		details["repository_name"] = repositoryName
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, repoRef, filePath,
-			EvidenceKindJenkinsGitHubRepository, RelDiscoversConfigIn, 0.92,
+			EvidenceKindJenkinsGitHubRepository, RelDiscoversConfigIn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindJenkinsGitHubRepository),
 			"Jenkins pipeline references the target repository through an explicit GitHub URL",
 			"jenkins", matcher, seen, details,
 		)...)

@@ -11,11 +11,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/terraformschema"
 )
 
-const (
-	terraformIdentityKeyConfidence      = 0.78
-	terraformResourceNameFallbackWeight = 0.55
-)
-
 var (
 	terraformResourceBlockPattern = regexp.MustCompile(`(?is)resource\s+"([^"]+)"\s+"([^"]+)"\s*\{(.*?)\n\}`)
 	terraformQuotedValuePattern   = regexp.MustCompile(`(?i)\b([A-Za-z0-9_]+)\b\s*=\s*"([^"]+)"`)
@@ -187,7 +182,7 @@ func makeTerraformSchemaExtractor(
 	return func(resourceType, resourceName, body string) []terraformResourceRelationship {
 		candidate := ""
 		matchedKey := ""
-		confidence := terraformIdentityKeyConfidence
+		confidence := DefaultConfidenceRegistry.TerraformIdentityKeyConfidence()
 
 		for _, key := range identityKeys {
 			value := firstTerraformQuotedValue(body, key)
@@ -206,7 +201,7 @@ func makeTerraformSchemaExtractor(
 			}
 			candidate = resourceName
 			matchedKey = "resource_name"
-			confidence = terraformResourceNameFallbackWeight
+			confidence = DefaultConfidenceRegistry.TerraformResourceNameFallbackWeight()
 		}
 
 		_, suffix, ok := strings.Cut(resourceType, "_")

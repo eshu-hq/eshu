@@ -159,7 +159,7 @@ func extractK8sSignals(fileData map[string]any, sig *repoSignals) {
 		}
 	}
 	if len(resources) > 0 {
-		sig.addProvenance("k8s_resource", 0.98)
+		sig.addProvenance(string(SignalK8sResource), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalK8sResource))
 	}
 }
 
@@ -171,7 +171,7 @@ func extractArgoCDSignals(fileData map[string]any, sig *repoSignals) {
 		}
 		if len(apps) > 0 {
 			sig.hasArgoCD = true
-			sig.addProvenance("argocd_application", 0.95)
+			sig.addProvenance(string(SignalArgoCDApplication), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalArgoCDApplication))
 		}
 	}
 }
@@ -185,15 +185,16 @@ func extractArtifactSignals(
 
 	// Helm chart: Chart.yaml with chart_type indicates a packaged deployment.
 	if chartType := strings.TrimSpace(fmt.Sprint(fileData["chart_type"])); chartType != "" && chartType != "<nil>" {
-		sig.addProvenance("helm_chart", 0.92)
+		sig.addProvenance(string(SignalHelmChart), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalHelmChart))
 		return
 	}
 
 	// Dockerfile: language is "dockerfile" and has parsed stages.
 	if lang == "dockerfile" && len(sliceValue(fileData["dockerfile_stages"])) > 0 {
-		sig.addProvenance("dockerfile_runtime", 0.88)
+		dockerfileConfidence := DefaultWorkloadSignalConfidence.ConfidenceFor(SignalDockerfileRuntime)
+		sig.addProvenance(string(SignalDockerfileRuntime), dockerfileConfidence)
 		if relativePath != "" {
-			sig.addProvenance("dockerfile_runtime:"+relativePath, 0.88)
+			sig.addProvenance(string(SignalDockerfileRuntime)+":"+relativePath, dockerfileConfidence)
 		}
 		return
 	}
@@ -201,20 +202,20 @@ func extractArtifactSignals(
 	// Jenkins: language is "groovy" or path is Jenkinsfile, with pipeline signals.
 	if lang == "groovy" || strings.EqualFold(strings.TrimSpace(relativePath), "Jenkinsfile") {
 		if isJenkinsArtifact(relativePath, fileData) {
-			sig.addProvenance("jenkins_pipeline", 0.42)
+			sig.addProvenance(string(SignalJenkinsPipeline), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalJenkinsPipeline))
 			return
 		}
 	}
 
 	// Docker Compose: detected via parsed docker_compose_services or service_name keys.
 	if len(sliceValue(fileData["docker_compose_services"])) > 0 {
-		sig.addProvenance("docker_compose_runtime", 0.78)
+		sig.addProvenance(string(SignalDockerComposeRuntime), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalDockerComposeRuntime))
 		return
 	}
 
 	// CloudFormation: detected via parsed cloudformation_resources etc.
 	if hasCloudFormationSignals(fileData) {
-		sig.addProvenance("cloudformation_template", 0.58)
+		sig.addProvenance(string(SignalCloudFormationTemplate), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalCloudFormationTemplate))
 		return
 	}
 
@@ -223,7 +224,7 @@ func extractArtifactSignals(
 		if strings.TrimSpace(fmt.Sprint(fileData["artifact_type"])) == "github_actions_workflow" ||
 			len(sliceValue(fileData["github_actions_workflow_triggers"])) > 0 ||
 			len(sliceValue(fileData["github_actions_reusable_workflow_refs"])) > 0 {
-			sig.addProvenance("github_actions_workflow", 0.45)
+			sig.addProvenance(string(SignalGitHubActionsWorkflow), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalGitHubActionsWorkflow))
 		}
 	}
 }

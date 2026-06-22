@@ -165,4 +165,3 @@ func assertSpanStringAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key str
 	}
 	t.Fatalf("span attr %s not found", key)
 }
-

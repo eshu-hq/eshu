@@ -58,7 +58,7 @@ func discoverGCPCloudRelationshipEvidence(
 		gcpRelationshipSourcePath(envelope),
 		EvidenceKindGCPCloudRelationship,
 		RelDependsOn,
-		0.82,
+		DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindGCPCloudRelationship),
 		"GCP provider relationship links two catalog-matched resource identities",
 		gcpRelationshipExtractor,
 		matcher,

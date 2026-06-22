@@ -105,6 +105,46 @@ distance to certainty so repeated hints do not fabricate `1.0` confidence.
 Explicit `assert` decisions still override inferred confidence to `1.0`, while
 `reject` decisions still suppress inferred output.
 
+### Confidence registry (per-extractor priors)
+
+The Bayesian corroboration math above is principled, but it is only as good as
+its inputs: the per-fact confidence each extractor emits. Those priors used to
+be float literals scattered across every `*_evidence.go` file with no central
+provenance, no documented rationale, and no test guarding their relative
+ordering (issue #3490). They now live in one documented registry,
+`DefaultConfidenceRegistry` in `confidence.go`, keyed by `EvidenceKind`. Each
+entry records the value, a `ConfidenceTier`, and a rationale describing what the
+value scores and why it earns that strength.
+
+Tiers make the strength ordering explicit and testable:
+
+| Tier | Floor | Meaning |
+| --- | --- | --- |
+| `TierDirectBinding` | 0.95 | explicit identity binding to one repository (app_repo, github URL, module source, Argo CD source) |
+| `TierStrongReference` | 0.90 | named or path reference one step from a direct binding (app_name, Helm chart, checkout repo, IAM subject) |
+| `TierReference` | 0.86 | structured reference with a concrete but weaker deployment link (Compose image, Kustomize image, action dependency) |
+| `TierWeakReference` | 0.80 | value- or convention-matched reference needing corroboration (Helm values, Compose depends_on, GCP endpoint) |
+| `TierProvenanceOnly` | 0.00 | reserved for low-trust CI/controller provenance below the resolution threshold |
+
+`confidence_test.go` pins the invariants: every `EvidenceKind` has an entry,
+every value is in `[0,1]`, tier floors are strictly monotonic, and each value
+sits at or above its declared tier floor. A hand edit that crosses a tier
+boundary or a new `EvidenceKind` added without an entry now fails the build.
+
+The registry is immutable after construction. To recalibrate from a golden set
+or apply an operator override, build a derived registry with
+`DefaultConfidenceRegistry.WithOverrides(...)`; overrides are validated to be in
+`[0,1]` and never mutate the shared default. The Terraform runtime-service and
+schema-driven families, whose `EvidenceKind` strings are computed at runtime,
+expose their priors through named accessors
+(`TerraformRuntimeServiceConfidence`, `TerraformIdentityKeyConfidence`,
+`TerraformResourceNameFallbackWeight`).
+
+Full statistical calibration (golden-set precision/recall per evidence kind to
+re-derive the absolute numbers) remains future work; this registry is the
+structural prerequisite for it, since the numbers now live in one auditable,
+overridable place instead of scattered literals.
+
 ## Exported surface
 
 - `DiscoverEvidence(envelopes, catalog)` — scan envelopes for IaC evidence;
@@ -122,6 +162,11 @@ Explicit `assert` decisions still override inferred confidence to `1.0`, while
   provider (`terraform_schema.go:49`)
 - `DefaultConfidenceThreshold` — 0.75; minimum confidence to promote an
   inferred candidate to a resolved relationship (`resolver.go:12`)
+- `DefaultConfidenceRegistry` — the documented per-`EvidenceKind` confidence
+  registry; extractors read their priors from it. `Lookup`, `ConfidenceFor`, and
+  `WithOverrides` are the access and calibration surface (`confidence.go`)
+- `ConfidenceTier` and the `Tier*` constants — documented strength bands with
+  monotonic floors that pin the confidence ordering invariant (`confidence.go`)
 
 ### Core types
 
@@ -178,6 +223,13 @@ candidate-bucket calculation. It adds no graph write, queue claim, storage
 schema, worker, lease, batch, or reducer scheduling behavior. `Resolve` still
 returns the same candidate and resolved relationship shapes, with the existing
 `confidence` and `evidence_count` fields carrying the score and support count.
+Centralizing the per-extractor confidence priors into `DefaultConfidenceRegistry`
+(issue #3490) is a pure refactor: every emitted confidence value is byte-identical
+to the prior inline literals (the registry is built once at package init and read
+by O(1) map lookup), so no evidence, candidate, resolved-relationship, or admission
+behavior changes. Proven by `go test ./internal/relationships -count=1` (136 tests
+pass, including the unchanged `resolver_confidence_test.go` and `evidence_test.go`
+expectations) plus the new `confidence_test.go` bound/tier invariants.
 
 No-Observability-Change: operators already inspect admitted relationship
 confidence and evidence count through the reducer/Postgres relationship
