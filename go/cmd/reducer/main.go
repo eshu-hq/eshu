@@ -413,6 +413,7 @@ func buildReducerService(
 		},
 		CollectorEvidenceSummaryMaintainer: &reducer.CollectorEvidenceSummaryMaintainer{
 			Rebuilder:    postgres.NewCollectorEvidenceSummaryStore(database),
+			Freshness:    postgres.NewCollectorEvidenceSummaryStore(database),
 			LeaseManager: intentStore,
 			LeaseOwner:   defaultCollectorEvidenceSummaryLeaseOwner(),
 			Logger:       logger,

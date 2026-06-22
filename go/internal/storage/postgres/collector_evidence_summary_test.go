@@ -24,6 +24,13 @@ func (e *recordingCollectorEvidenceExecer) ExecContext(_ context.Context, query 
 	return result{}, nil
 }
 
+// QueryContext satisfies the Queryer half of ExecQueryer. The resweep tests never
+// read the watermark, so a nil Rows is sufficient (and never iterated).
+func (e *recordingCollectorEvidenceExecer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+	e.queries = append(e.queries, query)
+	return nil, nil
+}
+
 func TestRebuildAllCollectorEvidenceRequiresDB(t *testing.T) {
 	t.Parallel()
 
@@ -66,6 +73,30 @@ func TestRebuildAllCollectorEvidenceWrapsExecError(t *testing.T) {
 // (covers superseded generations, tombstones, and FK-cascade pruned scopes). The
 // per-scope LATERAL aggregate must be byte-equivalent to the pre-#3466 readiness
 // aggregate so observation_count stays exact.
+func TestLastCollectorEvidenceMaterializedAtRequiresDB(t *testing.T) {
+	t.Parallel()
+
+	var store CollectorEvidenceSummaryStore
+	if _, _, err := store.LastCollectorEvidenceMaterializedAt(context.Background()); err == nil {
+		t.Fatal("LastCollectorEvidenceMaterializedAt() with nil DB error = nil, want non-nil")
+	}
+}
+
+// TestLastCollectorEvidenceMaterializedAtSQLReadsSummaryNotFacts guards the
+// #3471 last-materialized watermark: it must be a cheap MAX over the summary
+// table and never scan fact_records.
+func TestLastCollectorEvidenceMaterializedAtSQLReadsSummaryNotFacts(t *testing.T) {
+	t.Parallel()
+
+	q := lastCollectorEvidenceMaterializedAtSQL
+	if !strings.Contains(q, "MAX(materialized_at)") || !strings.Contains(q, "collector_evidence_summary") {
+		t.Fatalf("watermark SQL unexpected: %s", q)
+	}
+	if strings.Contains(q, "fact_records") {
+		t.Fatalf("watermark read must not scan fact_records: %s", q)
+	}
+}
+
 func TestRebuildCollectorEvidenceSQLIsAtomicUpsertDeleteStale(t *testing.T) {
 	t.Parallel()
 

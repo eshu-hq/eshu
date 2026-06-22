@@ -146,6 +146,99 @@ func TestCollectorEvidenceMaintainerRunOnceIsIdempotent(t *testing.T) {
 	}
 }
 
+type fakeCollectorEvidenceFreshness struct {
+	last  time.Time
+	ok    bool
+	err   error
+	calls int
+}
+
+func (f *fakeCollectorEvidenceFreshness) LastCollectorEvidenceMaterializedAt(_ context.Context) (time.Time, bool, error) {
+	f.calls++
+	return f.last, f.ok, f.err
+}
+
+// TestCollectorEvidenceMaintainerRunOnceSkipsWhenSummaryFresh covers the #3471
+// review fix: with multiple replicas the lease is released after each resweep, so
+// every replica could otherwise reclaim it and run the full O(active facts) scan
+// on its own cadence. The durable last-materialized guard makes a replica skip the
+// resweep when the summary is newer than the cadence, capping cluster-wide
+// resweeps at ~one per cadence regardless of replica count.
+func TestCollectorEvidenceMaintainerRunOnceSkipsWhenSummaryFresh(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 1, 0, 0, 0, time.UTC)
+	rebuilder := &fakeCollectorEvidenceRebuilder{}
+	lease := &fakeCollectorEvidenceLeaseManager{claim: true}
+	fresh := &fakeCollectorEvidenceFreshness{last: now.Add(-10 * time.Second), ok: true}
+	m := CollectorEvidenceSummaryMaintainer{
+		Rebuilder:    rebuilder,
+		LeaseManager: lease,
+		Freshness:    fresh,
+		Now:          func() time.Time { return now },
+		Interval:     60 * time.Second,
+	}
+
+	rebuilt, err := m.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce error = %v, want nil", err)
+	}
+	if rebuilt {
+		t.Fatal("rebuilt = true, want false when summary is fresher than the cadence")
+	}
+	if rebuilder.count() != 0 {
+		t.Fatalf("rebuild calls = %d, want 0 when summary is fresh (no redundant fact scan)", rebuilder.count())
+	}
+	if lease.releases != 1 {
+		t.Fatalf("lease releases = %d, want 1 (lease claimed and released even when skipping)", lease.releases)
+	}
+}
+
+func TestCollectorEvidenceMaintainerRunOnceResweepsWhenSummaryStale(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 1, 0, 0, 0, time.UTC)
+	rebuilder := &fakeCollectorEvidenceRebuilder{}
+	lease := &fakeCollectorEvidenceLeaseManager{claim: true}
+	stale := &fakeCollectorEvidenceFreshness{last: now.Add(-90 * time.Second), ok: true}
+	m := CollectorEvidenceSummaryMaintainer{
+		Rebuilder:    rebuilder,
+		LeaseManager: lease,
+		Freshness:    stale,
+		Now:          func() time.Time { return now },
+		Interval:     60 * time.Second,
+	}
+
+	rebuilt, err := m.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce error = %v, want nil", err)
+	}
+	if !rebuilt || rebuilder.count() != 1 {
+		t.Fatalf("rebuilt=%v calls=%d, want true/1 when summary is older than the cadence", rebuilt, rebuilder.count())
+	}
+}
+
+func TestCollectorEvidenceMaintainerRunOnceResweepsWhenNeverMaterialized(t *testing.T) {
+	t.Parallel()
+
+	rebuilder := &fakeCollectorEvidenceRebuilder{}
+	lease := &fakeCollectorEvidenceLeaseManager{claim: true}
+	empty := &fakeCollectorEvidenceFreshness{ok: false} // no summary rows yet (startup backfill)
+	m := CollectorEvidenceSummaryMaintainer{
+		Rebuilder:    rebuilder,
+		LeaseManager: lease,
+		Freshness:    empty,
+	}
+
+	rebuilt, err := m.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce error = %v, want nil", err)
+	}
+	if !rebuilt || rebuilder.count() != 1 {
+		t.Fatalf("rebuilt=%v calls=%d, want true/1 when summary has never been materialized", rebuilt, rebuilder.count())
+	}
+}
+
 func TestCollectorEvidenceMaintainerValidate(t *testing.T) {
 	t.Parallel()
 

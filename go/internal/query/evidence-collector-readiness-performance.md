@@ -103,6 +103,12 @@ envelope (`truth.level=exact`, `truth.basis=runtime_state`,
 partition lease (`CollectorEvidenceSummaryDomain`, partitionCount=1) so only one
 reducer instance resweeps at a time; the conflict domain is the whole summary
 table during a resweep and the idempotent rebuild is the lost-lease backstop.
+Because the lease is released after each resweep (fast crash failover), a durable
+last-materialized guard (`LastCollectorEvidenceMaterializedAt`, a cheap
+`MAX(materialized_at)` over the summary — never `fact_records`) makes a replica
+skip the resweep when the summary is younger than the cadence, so cluster-wide
+resweeps stay capped at ~one per cadence regardless of replica count rather than
+one full fact-scan per replica per cadence (#3471 review).
 
 ## Focused proof
 

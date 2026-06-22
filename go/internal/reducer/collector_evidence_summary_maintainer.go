@@ -61,15 +61,39 @@ type CollectorEvidenceSummaryLeaseManager interface {
 	ReleasePartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string) error
 }
 
+// CollectorEvidenceFreshnessLookup reports the newest resweep watermark
+// (max materialized_at) in collector_evidence_summary, or ok=false when the
+// summary has never been materialized. Implemented by
+// postgres.CollectorEvidenceSummaryStore.LastCollectorEvidenceMaterializedAt.
+//
+// It is the durable last-materialized guard: because the lease is released after
+// each resweep, every reducer replica could otherwise reclaim it and run the full
+// O(active facts) scan on its own cadence. Checking this watermark under the lease
+// lets a replica skip a resweep when the summary is already fresher than the
+// cadence, so cluster-wide resweeps cap at ~one per cadence regardless of replica
+// count while keeping fast crash failover (any replica may resweep when stale).
+type CollectorEvidenceFreshnessLookup interface {
+	LastCollectorEvidenceMaterializedAt(ctx context.Context) (time.Time, bool, error)
+}
+
 // CollectorEvidenceSummaryMaintainer runs the periodic atomic resweep that keeps
 // the collector-readiness evidence summary current.
 type CollectorEvidenceSummaryMaintainer struct {
 	Rebuilder    CollectorEvidenceSummaryRebuilder
 	LeaseManager CollectorEvidenceSummaryLeaseManager
+	// Freshness is the durable last-materialized guard. When set, a held lease
+	// resweep is skipped if the summary is newer than MinResweepInterval, so
+	// multiple replicas reclaiming the released lease do not each run the full
+	// O(active facts) scan every cadence. Nil disables the guard (always resweep).
+	Freshness CollectorEvidenceFreshnessLookup
 	// Now defaults to time.Now (UTC stamped at use). Injected in tests.
 	Now func() time.Time
 	// Interval is the resweep cadence; defaults to 60s.
 	Interval time.Duration
+	// MinResweepInterval is the freshness floor for the guard; a resweep is
+	// skipped when the summary watermark is younger than this. Defaults to
+	// Interval, so cluster-wide resweeps cap at ~one per cadence.
+	MinResweepInterval time.Duration
 	// LeaseOwner identifies this instance; defaults to a stable owner name.
 	LeaseOwner string
 	// LeaseTTL bounds a lost-owner takeover; defaults to 120s.
@@ -89,6 +113,13 @@ func (m CollectorEvidenceSummaryMaintainer) interval() time.Duration {
 		return m.Interval
 	}
 	return defaultCollectorEvidenceSummaryInterval
+}
+
+func (m CollectorEvidenceSummaryMaintainer) minResweepInterval() time.Duration {
+	if m.MinResweepInterval > 0 {
+		return m.MinResweepInterval
+	}
+	return m.interval()
 }
 
 func (m CollectorEvidenceSummaryMaintainer) leaseOwner() string {
@@ -139,6 +170,20 @@ func (m CollectorEvidenceSummaryMaintainer) RunOnce(ctx context.Context) (rebuil
 			err = fmt.Errorf("release collector evidence summary lease: %w", relErr)
 		}
 	}()
+
+	// Durable last-materialized guard: skip the expensive full resweep when the
+	// summary is already fresher than the cadence. This bounds cluster-wide
+	// resweeps to ~one per cadence even though the lease is released between runs
+	// and multiple replicas reclaim it on their own timers.
+	if m.Freshness != nil {
+		last, ok, freshErr := m.Freshness.LastCollectorEvidenceMaterializedAt(ctx)
+		if freshErr != nil {
+			return false, fmt.Errorf("read collector evidence summary watermark: %w", freshErr)
+		}
+		if ok && m.now().Sub(last) < m.minResweepInterval() {
+			return false, nil
+		}
+	}
 
 	start := time.Now()
 	if rbErr := m.Rebuilder.RebuildAllCollectorEvidence(ctx, m.now()); rbErr != nil {

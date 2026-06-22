@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 // activeCollectorScopesCTE selects the active generation of every readiness
@@ -120,19 +121,16 @@ WHERE NOT EXISTS (
 )
 `
 
-// collectorEvidenceSummaryExecer is the narrow exec surface the resweep needs.
-type collectorEvidenceSummaryExecer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
 // CollectorEvidenceSummaryStore maintains collector_evidence_summary, the
-// materialized read model for the collector-readiness surface (#3466).
+// materialized read model for the collector-readiness surface (#3466). It needs
+// both the resweep ExecContext and the watermark QueryContext, so it takes the
+// shared ExecQueryer surface.
 type CollectorEvidenceSummaryStore struct {
-	DB collectorEvidenceSummaryExecer
+	DB ExecQueryer
 }
 
 // NewCollectorEvidenceSummaryStore wraps a DB handle for summary maintenance.
-func NewCollectorEvidenceSummaryStore(db collectorEvidenceSummaryExecer) CollectorEvidenceSummaryStore {
+func NewCollectorEvidenceSummaryStore(db ExecQueryer) CollectorEvidenceSummaryStore {
 	return CollectorEvidenceSummaryStore{DB: db}
 }
 
@@ -149,4 +147,36 @@ func (s CollectorEvidenceSummaryStore) RebuildAllCollectorEvidence(ctx context.C
 		return fmt.Errorf("rebuild collector evidence summary: %w", err)
 	}
 	return nil
+}
+
+// lastCollectorEvidenceMaterializedAtSQL reads the newest resweep watermark. It is
+// a cheap single-row aggregate over the small summary table (no fact_records),
+// used by the maintainer's last-materialized guard.
+const lastCollectorEvidenceMaterializedAtSQL = `SELECT MAX(materialized_at) FROM collector_evidence_summary`
+
+// LastCollectorEvidenceMaterializedAt returns the newest resweep watermark in
+// collector_evidence_summary. ok is false when the summary has no rows yet (the
+// table has never been materialized), in which case the maintainer must resweep.
+func (s CollectorEvidenceSummaryStore) LastCollectorEvidenceMaterializedAt(ctx context.Context) (time.Time, bool, error) {
+	if s.DB == nil {
+		return time.Time{}, false, fmt.Errorf("collector evidence summary database is required")
+	}
+	rows, err := s.DB.QueryContext(ctx, lastCollectorEvidenceMaterializedAtSQL)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("read collector evidence summary watermark: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var watermark sql.NullTime
+	if rows.Next() {
+		if err := rows.Scan(&watermark); err != nil {
+			return time.Time{}, false, fmt.Errorf("read collector evidence summary watermark: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return time.Time{}, false, fmt.Errorf("read collector evidence summary watermark: %w", err)
+	}
+	if !watermark.Valid {
+		return time.Time{}, false, nil
+	}
+	return watermark.Time.UTC(), true, nil
 }

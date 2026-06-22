@@ -160,7 +160,16 @@ cadence is `<<` the stale window. (30s cadence -> 2880x; either is safe.)
 
 Default cadence 60s (tunable). Because the read is decoupled, cadence can be
 relaxed well within the 24h window to bound background DB duty cycle against the
-#3451 write backlog. Resweep cost ~= the current read cost (~5–9s); at 60s
+#3451 write backlog.
+
+Multi-replica guard (#3471 review): the lease is released after each resweep so a
+crashed holder fails over immediately, but that means every replica could reclaim
+the lease and run the full O(active facts) resweep on its own cadence. A durable
+last-materialized guard (`MAX(materialized_at)` over the summary, read under the
+lease) makes a replica skip the resweep when the summary is younger than the
+cadence, so cluster-wide resweeps stay capped at ~one per cadence regardless of
+replica count. The guard is decoupled from lease-hold duration, so it keeps fast
+failover while preventing redundant fact scans. Resweep cost ~= the current read cost (~5–9s); at 60s
 cadence that is <~10% duty cycle on one lease-held connection, amortized across
 all readers (net win whenever readiness is queried more than ~once/cadence).
 
