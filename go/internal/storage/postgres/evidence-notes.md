@@ -214,6 +214,18 @@ follow-up work; when callers opt into the store through an instrumented
 Postgres adapter, existing query/exec spans and
 `eshu_dp_postgres_query_duration_seconds` cover the SQL.
 
+## Identity Subject Schema (#3454)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsIncludeIdentitySubjects|TestIdentitySubjectStoreEnsureSchemaUsesDefinitionSQL|TestBootstrapDefinitionsAreOrderedAndComplete|TestBootstrapSQLFilesMirrorDefinitions' -count=1` failed before `IdentitySubjectStore` and the `identity_subjects` bootstrap DDL existed, then passed after adding the idempotent schema definition and mirror SQL file. The tables are additive and dormant: they model users, provider configs and revisions, external subject links, email history, local credential hashes, MFA factor handles, tenant memberships, roles, grants, sessions, service principals, service-principal role assignments, and token metadata without changing existing shared-token, scoped-token, fact, queue, graph, API, MCP, collector, workflow, or dashboard behavior.
+
+No-Observability-Change: #3454 adds no route, worker, queue domain, graph write,
+metric name, metric label, span name, runtime default, Helm value, API/MCP
+response field, dashboard surface, or enforcement path. Future callers that opt
+into `IdentitySubjectStore` can use the existing `InstrumentedDB` wrapper for
+`postgres.exec` spans and `eshu_dp_postgres_query_duration_seconds`; until then
+the schema is diagnosable through bootstrap/apply failures and ordinary
+Postgres catalog inspection only.
+
 ## Workflow Tenant Grant Fencing (#2050)
 
 No-Regression Evidence: `go test ./internal/workflow ./internal/coordinator ./internal/storage/postgres ./cmd/workflow-coordinator -count=1` proves workflow work items preserve optional tenant, workspace, subject-class, and policy-revision identity; coordinator planning denies configured hosted work without an active matching grant; guarded target eligibility treats the tenant boundary as part of duplicate convergence; and claim heartbeat/complete SQL re-checks active, non-tombstoned, non-expired tenant scope grants before stale hosted claims can finish.

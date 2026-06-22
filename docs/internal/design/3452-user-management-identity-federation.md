@@ -234,6 +234,44 @@ or migrated rather than replaced. Additive migration is required so current
 shared-token and scoped-token behavior stays unchanged until the new enforcement
 mode is explicitly enabled.
 
+### Identity Schema Migration And Rollback (#3454)
+
+The first implementation slice adds dormant Postgres schema only. Bootstrap
+registers the identity subject DDL after the existing tenant/workspace grant
+and scoped API token tables so foreign keys can reference the current hosted
+governance foundations without changing their behavior.
+
+Migration rules:
+
+- DDL is additive and idempotent with `CREATE TABLE IF NOT EXISTS` and
+  `CREATE INDEX IF NOT EXISTS`.
+- Stored identity material is limited to opaque IDs, hashes, timestamps, status
+  fields, policy revision hashes, and credential handles.
+- Provider client credentials, MFA secrets, session IDs, token values,
+  recovery codes, external subject values, and emails are not stored in clear
+  text.
+- Shared-token and scoped-token authentication continue to behave exactly as
+  before until a later enforcement slice explicitly switches request handling to
+  the new identity model.
+- Service-principal role assignments are scoped by tenant and workspace and
+  reference the same tenant role table as user membership role assignments.
+- Partial migration must fail closed for any future identity-enforcing mode,
+  but must not break local development, bootstrap, or existing shared/scoped
+  token reads while the schema is dormant.
+
+Rollback rules:
+
+- Prefer disabling future identity enforcement and leaving the additive tables
+  dormant. This preserves auditability, avoids destructive identity loss, and
+  keeps existing shared/scoped token behavior available.
+- A destructive rollback is allowed only before enforcement is enabled, after
+  confirming there are no live sessions, users, provider configs, service
+  principals, service-principal role assignments, token metadata rows, or
+  dependent audit requirements.
+- Rollback documentation and incident notes must not include provider secrets,
+  token values, session values, private endpoints, hostnames, IP addresses, or
+  machine-local paths.
+
 ## Edge Cases
 
 Implementation issues must cover:
