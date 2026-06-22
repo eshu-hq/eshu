@@ -182,6 +182,7 @@ type APIRouter struct {
 	Compare                *CompareHandler
 	Admin                  *AdminHandler
 	Ask                    *AskHandler
+	LocalIdentity          *LocalIdentityHandler
 	BrowserSessions        *BrowserSessionHandler
 }
 
@@ -198,6 +199,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/redoc", ServeReDoc)
 
 	// Browser sessions
+	if a.LocalIdentity != nil {
+		a.LocalIdentity.Mount(mux)
+	}
 	if a.BrowserSessions != nil {
 		a.BrowserSessions.Mount(mux)
 	}
