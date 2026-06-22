@@ -368,6 +368,10 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 		return map[string]any{"family": "pagerduty"}
 	case "get_fact_schema_version":
 		return map[string]any{"fact_kind": "terraform_state_resource"}
+	case "get_repo_summary":
+		// get_repo_summary requires at least one of repo_id or repo_name;
+		// supply the canonical selector so a route can be built.
+		return map[string]any{"repo_id": "sample-repo"}
 	default:
 		return map[string]any{}
 	}

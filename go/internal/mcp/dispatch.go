@@ -123,8 +123,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := semanticSearchRoute(toolName, args); ok {
 		return route, nil
 	}
-	if route, ok := repositoryRoute(toolName, args); ok {
-		return route, nil
+	if route, ok, err := repositoryRoute(toolName, args); ok {
+		return route, err
 	}
 	if route, ok := ecosystemRoute(toolName, args); ok {
 		return route, nil
