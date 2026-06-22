@@ -19,18 +19,34 @@ const (
 	cppNodeAddonEntrypointRoot   = "cpp.node_addon_entrypoint"
 )
 
-var cppQualifiedFunctionPattern = regexp.MustCompile(
-	`(?:^|[^\w:~])((?:[A-Za-z_]\w*\s*::\s*)+~?[A-Za-z_]\w*)\s*\(`,
-)
-
+// cppFunctionPointerAliasPattern is a documented within-node text fallback, not
+// a parse substitute. It scans the text of a single declaration node to collect
+// function-pointer alias names introduced by `using Alias = R (*)(...)` or
+// `typedef R (*Alias)(...)`. The tree-sitter declarator grammar nests pointer,
+// alias, and parameter declarators in a way that varies across alias spellings;
+// recovering only the alias identifier from the already-bounded node text is the
+// owner-confirmation evidence the dead-code roots need (function-pointer targets
+// are kept alive). It runs on declaration node text, never on raw whole-file
+// source.
 var cppFunctionPointerAliasPattern = regexp.MustCompile(
 	`(?s)\b(?:using\s+([A-Za-z_]\w*)\s*=\s*[^;]*\(\s*\*\s*\)|typedef\b[^;]*\(\s*\*\s*([A-Za-z_]\w*)\s*\))[^;]*;`,
 )
 
+// cppDirectInitializerTargetPattern is a documented within-node text fallback
+// over a single declaration node. It extracts the bare identifier a
+// function-pointer declarator is initialized with (`Alias h = target;`), which
+// is call-site/initializer evidence that the target stays reachable. Matching
+// the initializer identifier from the bounded declaration text avoids
+// reconstructing the full initializer-declarator subtree for every alias form.
 var cppDirectInitializerTargetPattern = regexp.MustCompile(
 	`=\s*&?\s*([A-Za-z_]\w*)\s*(?:[,;]|$)`,
 )
 
+// cppBraceInitializerPattern is a documented within-node text fallback over a
+// single declaration node. It captures the contents of a brace initializer
+// (`Alias table[] = { a, b };`) so each entry can be checked as a
+// function-pointer target. Like the patterns above it is initializer evidence
+// scoped to one declaration node, not a whole-file scan.
 var cppBraceInitializerPattern = regexp.MustCompile(`(?s)=\s*\{([^{}]*)\}`)
 
 // cppNodeAddonMacros are the Node.js native-addon registration macros whose
@@ -132,32 +148,6 @@ func annotateCPPMethodRuntimeRoots(
 	if cppTextHasWord(text, "override") {
 		appendCPPDeadCodeRootKind(function, cppOverrideMethodRoot)
 	}
-}
-
-func cppFunctionNameAndClass(node *tree_sitter.Node, nameNode *tree_sitter.Node, source []byte) (string, string) {
-	text := shared.NodeText(node, source)
-	if name, classContext := cppQualifiedFunctionNameAndClass(text); name != "" {
-		return name, classContext
-	}
-	return strings.TrimSpace(shared.NodeText(nameNode, source)),
-		strings.TrimSpace(nearestNamedAncestor(node, source, "class_specifier", "struct_specifier"))
-}
-
-func cppQualifiedFunctionNameAndClass(text string) (string, string) {
-	matches := cppQualifiedFunctionPattern.FindAllStringSubmatch(text, -1)
-	if len(matches) == 0 || len(matches[len(matches)-1]) != 2 {
-		return "", ""
-	}
-	parts := strings.Split(matches[len(matches)-1][1], "::")
-	if len(parts) < 2 {
-		return "", ""
-	}
-	name := strings.TrimSpace(parts[len(parts)-1])
-	classContext := strings.TrimSpace(parts[len(parts)-2])
-	if name == "" || classContext == "" {
-		return "", ""
-	}
-	return name, classContext
 }
 
 func appendCPPImportMetadata(payload map[string]any, node *tree_sitter.Node, source []byte) {

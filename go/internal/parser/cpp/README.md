@@ -44,7 +44,8 @@ lookup, or external linkage.
 
 ### Regex disposition (issue #3540)
 
-Two whole-source regex scans were converted to AST walks and removed:
+Three whole-source or node-text regex scans were converted to AST walks and
+removed:
 
 - `appendCTypedefAliasesFromSource` (whole-source typedef line scan) was deleted;
   typedef aliases, structs, enums, and unions now come solely from tree-sitter
@@ -54,14 +55,23 @@ Two whole-source regex scans were converted to AST walks and removed:
   replaced by `annotateCPPNodeAddonRegistrationRoot`, which walks
   `call_expression` nodes, matches the callee identifier against
   `cppNodeAddonMacros`, and reads the initializer from the second call argument.
+- `cppQualifiedFunctionPattern` (node-text scan for `Class::method`) was removed
+  in issue #3574 and replaced by `cppQualifiedFunctionNameAndClassFromNode` in
+  `qualified_method.go`. The extractor reads the `function_definition`
+  declarator fields (`function_declarator` -> `qualified_identifier` ->
+  `scope` / `name`), descends nested qualifiers to the innermost scope, unwraps
+  pointer/reference return declarators, and strips template argument lists. It is
+  byte-parity with the old regex on simple, destructor, and namespace-nested
+  definitions, and additionally recovers operator overloads and
+  template-qualified methods the regex dropped.
 
-The remaining regexes are documented within-AST / external-text exceptions, not
-primary symbol extraction:
+The remaining regexes are documented within-node text fallbacks or external
+header-text exceptions, not primary symbol extraction:
 
 - `cTypedefAliasPattern` is a fallback over a `type_definition` node's own text.
-- `cppQualifiedFunctionPattern`, `cppDirectInitializerTargetPattern`, and
-  `cppBraceInitializerPattern` operate on the text of an already-located
-  `function_definition` or `declaration` node.
+- `cppDirectInitializerTargetPattern` and `cppBraceInitializerPattern` operate on
+  the text of an already-located `declaration` node to read function-pointer
+  initializer targets (call-site/initializer evidence).
 - `cppFreeHeaderPrototypePattern`, `cppClassBlockPattern`,
   `cppClassMethodPrototypePattern`, and the comment-stripping patterns scan the
   bytes of directly included local header files, which are intentionally not
