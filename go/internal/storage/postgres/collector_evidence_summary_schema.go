@@ -27,7 +27,7 @@ package postgres
 // Go resweep statement.
 
 // collectorEvidenceSummarySchemaSQL mirrors
-// schema/data-plane/postgres/035_collector_evidence_summary.sql.
+// schema/data-plane/postgres/036_collector_evidence_summary.sql.
 const collectorEvidenceSummarySchemaSQL = `
 CREATE TABLE IF NOT EXISTS collector_evidence_summary (
     scope_id          TEXT NOT NULL,
@@ -51,7 +51,7 @@ CREATE INDEX IF NOT EXISTS collector_evidence_summary_scope_gen_idx
 func collectorEvidenceSummaryBootstrapDefinition() Definition {
 	return Definition{
 		Name: "collector_evidence_summary",
-		Path: "schema/data-plane/postgres/035_collector_evidence_summary.sql",
+		Path: "schema/data-plane/postgres/036_collector_evidence_summary.sql",
 		SQL:  collectorEvidenceSummarySchemaSQL,
 	}
 }
