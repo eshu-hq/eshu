@@ -240,12 +240,15 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 // sbomAttestationAttachmentRollupRow is one GROUPING SETS row from
 // sbomAttestationAttachmentAggregateRollupQuery. groupingStatus/groupingKind are
 // the GROUPING() flags: 0 means the column is part of this row's grouping set, 1
-// means it is rolled up (NULL) for this set.
+// means it is rolled up (NULL) for this set. attachmentStatus and artifactKind
+// are sql.NullString because GROUPING SETS sets the unselected grouping column to
+// NULL on rolled-up rows (the grand-total row has both NULL); scanning NULL into a
+// plain string causes "converting NULL to string is unsupported" (#3547).
 type sbomAttestationAttachmentRollupRow struct {
 	groupingStatus   int
 	groupingKind     int
-	attachmentStatus string
-	artifactKind     string
+	attachmentStatus sql.NullString
+	artifactKind     sql.NullString
 	count            int64
 }
 
@@ -266,9 +269,9 @@ func buildSBOMAttestationAttachmentAggregateCount(
 		case r.groupingStatus == 1 && r.groupingKind == 1:
 			out.TotalAttachments = int(r.count)
 		case r.groupingStatus == 0:
-			out.ByAttachmentStatus[r.attachmentStatus] = int(r.count)
+			out.ByAttachmentStatus[r.attachmentStatus.String] = int(r.count)
 		case r.groupingKind == 0:
-			out.ByArtifactKind[r.artifactKind] = int(r.count)
+			out.ByArtifactKind[r.artifactKind.String] = int(r.count)
 		}
 	}
 	return out
