@@ -143,6 +143,77 @@ collectors.
 
 ## Evidence Notes
 
+### Call-Chain And Impact Unlabeled-Anchor Label Seed
+
+Issue #3567 (surfaced during #3498/#3566): several Neo4j-compat reads resolved
+their start/target anchor by id or name without a labeled anchor, so the Neo4j
+planner had no label to seed an index from and resolved the predicate with an
+all-node scan. The NornicDB default path already anchors these reads with inline
+property patterns, so this was a Neo4j-compat-only shape defect — the same class
+as the issue #3378 (`cloud_resource_candidates`) and #3384 (legacy
+change-surface) all-node-scan fixes.
+
+The three reads and their new anchors:
+
+- `go/internal/query/code_call_chain.go` (`buildCallChainCypher`, Neo4j builder
+  only): `MATCH (start)` / `MATCH (end)` →
+  `MATCH (start:Function|Class|Struct|Interface|TypeAlias|File)` /
+  `MATCH (end:...)`. The label disjunction mirrors the authoritative CALLS-source
+  label set the canonical edge writer projects
+  (`retractCodeCallParserEdgesCypher` in `internal/storage/cypher`), so every
+  call-chain endpoint still resolves. The id/uid and name predicates, the repo
+  scoping, the `(start)-[:CALLS*1..N]->(end)` shortestPath, the projection, and
+  the `LIMIT 5` are byte-identical; only the anchor label moved into the MATCH.
+  `buildNornicDBCallChainCypher` keeps its existing inline-property anchor and is
+  untouched.
+- `go/internal/query/impact.go` (`traceResourceToCode`, ~line 215 and the ~line
+  233 fallback hydration): `MATCH (start) WHERE start.id = $start_id` and
+  `MATCH (n) WHERE n.id = $id` → `MATCH (start:<impact-anchor-disjunction>)` /
+  `MATCH (n:<impact-anchor-disjunction>)`, predicate unchanged.
+- `go/internal/query/impact.go` (`explainDependencyPath`, ~lines 312-313):
+  `MATCH (source) WHERE source.id = $source_id` and the target equivalent →
+  label-seeded anchors, `shortestPath((source)-[*1..8]-(target))` unchanged.
+
+The impact-anchor label disjunction
+(`Repository|Workload|WorkloadInstance|CloudResource|TerraformModule|DataAsset|Platform|Endpoint|CloudAction|EvidenceArtifact`,
+`impactAnchorLabelDisjunction`) enumerates the id-bearing platform graph labels a
+canonical entity id can resolve to. Plain `id` (as distinct from `uid`) is
+written only on these deployment/infrastructure/repository nodes, each of which
+declares an id uniqueness constraint or `nornicdb_*_id_lookup` index in
+`internal/graph/schema.go`, so `MATCH (n:<disjunction>) WHERE n.id = $id`
+resolves the same node set as the prior unlabeled `MATCH (n) WHERE n.id = $id`
+while the planner seeds a per-label index seek. uid-keyed labels in the set
+(TerraformModule, DataAsset) never satisfy the `id` predicate, so including them
+does not widen the match set. The disjunction-with-property anchor is the shared
+Cypher/Bolt shape the canonical edge writers already use
+(`canonical_instantiates_edges.go`, `canonical.go`), so it is portable across
+NornicDB and Neo4j and adds no backend branch.
+
+No-Regression Evidence: this is a correctness-of-shape fix that strictly removes
+the all-node anchor scan; no live PROFILE was available because no local
+NornicDB-New checkout is present (stated per cypher-query-rigor). Input
+cardinality at each anchor drops from all graph nodes to the labeled id-indexed
+populations; the predicates, traversals, projections, ordering, and bounds are
+unchanged, so the result set is preserved on both backends. Shape is proven by
+`go test ./internal/query -run
+'BuildCallChainCypher|TraceResourceToCode|ExplainDependencyPath' -count=1` (the
+new `TestBuildCallChainCypherNeo4jAnchorsCodeCallLabels`,
+`TestBuildCallChainCypherNeo4jAnchorsNameLookup`,
+`TestBuildCallChainCypherNornicDBUnchanged`,
+`TestTraceResourceToCodeAnchorsLabeledStart`,
+`TestTraceResourceToCodeFallbackHydrationAnchorsLabeled`, and
+`TestExplainDependencyPathAnchorsLabeledEndpoints` regressions, which fail if any
+of these anchors reverts to an unlabeled scan), the full
+`go test ./internal/query/... -count=1` (3278 tests),
+`go test ./cmd/api ./internal/mcp -count=1` (666 tests), and
+`scripts/verify-query-plan-regression.sh`.
+
+No-Observability-Change: the handlers keep the existing `GraphQuery.Run`/
+`RunSingle` adapters, `neo4j.query` spans, and query-duration metrics; the
+response shapes (`truncated` flags, path/hop projections) are unchanged. No new
+worker, queue, metric, span, or runtime knob is introduced; the query shape
+changed but the per-query telemetry surface did not.
+
 ### Relationships Verb Catalog Live Scaling Fix
 
 Performance Evidence: issue #3429. At post-merge E2E scale (~900k typed edges /
