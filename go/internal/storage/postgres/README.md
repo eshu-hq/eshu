@@ -106,12 +106,15 @@ High-signal invariants for this package:
   changing current API, MCP, graph, collector, or workflow enforcement.
 - Browser session storage is additive and hash-only: it persists session and
   CSRF digests, tenant/workspace IDs, optional scoped-token audit hashes, active
-  grant bounds, expiry, revocation, and the current workspace policy revision
-  without storing raw cookies, CSRF tokens, bearer tokens, tenant names, or
-  workspace names. Session resolution joins active tenants/workspaces and
-  re-checks the persisted policy revision against the workspace row before
-  refreshing last-seen state, so policy changes invalidate stale dashboard
-  sessions instead of extending them.
+  grant bounds, expiry, revocation, the current workspace policy revision, and
+  optional OIDC provider-proof metadata: provider config id, subject hash,
+  validation time, and stale-after time. It does not store raw cookies, CSRF
+  tokens, bearer tokens, provider tokens, raw group names, tenant names, or
+  workspace names. Session resolution joins active tenants/workspaces, revokes
+  stale OIDC-backed sessions before returning auth, and re-checks the persisted
+  policy revision against the workspace row before refreshing last-seen state,
+  so provider-proof staleness and policy changes invalidate dashboard sessions
+  instead of extending them.
 - Identity subject storage persists users, provider configs, local credential
   hashes, MFA handles, roles, grants, sessions, service principals, and token
   metadata with opaque IDs, hashes, and credential handles only. Local identity

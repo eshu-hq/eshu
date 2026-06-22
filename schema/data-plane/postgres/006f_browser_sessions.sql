@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     all_scopes BOOLEAN NOT NULL DEFAULT false,
     allowed_scope_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     allowed_repository_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    external_provider_config_id TEXT NULL,
+    external_subject_id_hash TEXT NULL,
+    external_auth_validated_at TIMESTAMPTZ NULL,
+    external_auth_stale_after TIMESTAMPTZ NULL,
     issued_at TIMESTAMPTZ NOT NULL,
     last_seen_at TIMESTAMPTZ NOT NULL,
     idle_expires_at TIMESTAMPTZ NOT NULL,
@@ -24,6 +28,12 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
 ALTER TABLE browser_sessions
     ADD COLUMN IF NOT EXISTS role_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+ALTER TABLE browser_sessions
+    ADD COLUMN IF NOT EXISTS external_provider_config_id TEXT NULL,
+    ADD COLUMN IF NOT EXISTS external_subject_id_hash TEXT NULL,
+    ADD COLUMN IF NOT EXISTS external_auth_validated_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS external_auth_stale_after TIMESTAMPTZ NULL;
+
 CREATE INDEX IF NOT EXISTS browser_sessions_active_idx
     ON browser_sessions (
         session_hash,
@@ -32,3 +42,8 @@ CREATE INDEX IF NOT EXISTS browser_sessions_active_idx
         updated_at DESC
     )
     WHERE revoked_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS browser_sessions_external_auth_stale_idx
+    ON browser_sessions (external_auth_stale_after)
+    WHERE revoked_at IS NULL
+      AND external_auth_stale_after IS NOT NULL;

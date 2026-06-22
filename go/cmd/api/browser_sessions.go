@@ -92,22 +92,26 @@ func (a *postgresBrowserSessionAdapter) CreateBrowserSession(
 	record query.BrowserSessionCreateRecord,
 ) error {
 	return a.store.CreateSession(ctx, pgstatus.BrowserSessionRecord{
-		SessionHash:          record.SessionHash,
-		CSRFTokenHash:        record.CSRFTokenHash,
-		TenantID:             record.TenantID,
-		WorkspaceID:          record.WorkspaceID,
-		SubjectIDHash:        record.SubjectIDHash,
-		SubjectClass:         record.SubjectClass,
-		PolicyRevisionHash:   record.PolicyRevisionHash,
-		RoleIDs:              append([]string(nil), record.RoleIDs...),
-		AllScopes:            record.AllScopes,
-		AllowedScopeIDs:      append([]string(nil), record.AllowedScopeIDs...),
-		AllowedRepositoryIDs: append([]string(nil), record.AllowedRepositoryIDs...),
-		IssuedAt:             record.IssuedAt,
-		LastSeenAt:           record.LastSeenAt,
-		IdleExpiresAt:        record.IdleExpiresAt,
-		AbsoluteExpiresAt:    record.AbsoluteExpiresAt,
-		UpdatedAt:            record.UpdatedAt,
+		SessionHash:              record.SessionHash,
+		CSRFTokenHash:            record.CSRFTokenHash,
+		TenantID:                 record.TenantID,
+		WorkspaceID:              record.WorkspaceID,
+		SubjectIDHash:            record.SubjectIDHash,
+		SubjectClass:             record.SubjectClass,
+		PolicyRevisionHash:       record.PolicyRevisionHash,
+		RoleIDs:                  append([]string(nil), record.RoleIDs...),
+		AllScopes:                record.AllScopes,
+		AllowedScopeIDs:          append([]string(nil), record.AllowedScopeIDs...),
+		AllowedRepositoryIDs:     append([]string(nil), record.AllowedRepositoryIDs...),
+		ExternalProviderConfigID: record.ExternalProviderConfigID,
+		ExternalSubjectIDHash:    record.ExternalSubjectIDHash,
+		ExternalAuthValidatedAt:  record.ExternalAuthValidatedAt,
+		ExternalAuthStaleAfter:   record.ExternalAuthStaleAfter,
+		IssuedAt:                 record.IssuedAt,
+		LastSeenAt:               record.LastSeenAt,
+		IdleExpiresAt:            record.IdleExpiresAt,
+		AbsoluteExpiresAt:        record.AbsoluteExpiresAt,
+		UpdatedAt:                record.UpdatedAt,
 	})
 }
 
@@ -146,6 +150,9 @@ func (a *postgresBrowserSessionAdapter) ResolveBrowserSession(
 	record, ok, err := a.store.ResolveSessionHash(ctx, sessionHash, csrfTokenHash, requireCSRF, asOf, a.idleWindow)
 	if errors.Is(err, pgstatus.ErrBrowserSessionCSRFInvalid) {
 		return query.AuthContext{}, false, query.ErrBrowserSessionCSRFInvalid
+	}
+	if errors.Is(err, pgstatus.ErrBrowserSessionRefreshRequired) {
+		return query.AuthContext{}, false, query.ErrBrowserSessionRefreshRequired
 	}
 	if err != nil {
 		return query.AuthContext{}, false, err

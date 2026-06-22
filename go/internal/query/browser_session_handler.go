@@ -28,22 +28,35 @@ type BrowserSessionStore interface {
 // BrowserSessionCreateRecord is the hash-only session row requested by the
 // HTTP handler.
 type BrowserSessionCreateRecord struct {
-	SessionHash          string
-	CSRFTokenHash        string
-	TenantID             string
-	WorkspaceID          string
-	SubjectIDHash        string
-	SubjectClass         string
-	PolicyRevisionHash   string
-	RoleIDs              []string
-	AllScopes            bool
-	AllowedScopeIDs      []string
-	AllowedRepositoryIDs []string
-	IssuedAt             time.Time
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	AbsoluteExpiresAt    time.Time
-	UpdatedAt            time.Time
+	SessionHash              string
+	CSRFTokenHash            string
+	TenantID                 string
+	WorkspaceID              string
+	SubjectIDHash            string
+	SubjectClass             string
+	PolicyRevisionHash       string
+	RoleIDs                  []string
+	AllScopes                bool
+	AllowedScopeIDs          []string
+	AllowedRepositoryIDs     []string
+	ExternalProviderConfigID string
+	ExternalSubjectIDHash    string
+	ExternalAuthValidatedAt  time.Time
+	ExternalAuthStaleAfter   time.Time
+	IssuedAt                 time.Time
+	LastSeenAt               time.Time
+	IdleExpiresAt            time.Time
+	AbsoluteExpiresAt        time.Time
+	UpdatedAt                time.Time
+}
+
+// BrowserSessionExternalAuthProof carries hash-only external IdP proof metadata
+// for sessions that must reauthenticate after a bounded staleness window.
+type BrowserSessionExternalAuthProof struct {
+	ProviderConfigID string
+	SubjectIDHash    string
+	ValidatedAt      time.Time
+	StaleAfter       time.Time
 }
 
 // BrowserSessionHandler serves dashboard session creation, revocation, and
@@ -114,6 +127,16 @@ func (h *BrowserSessionHandler) issueBrowserSession(
 	auth AuthContext,
 	status int,
 ) (BrowserSessionResponse, bool) {
+	return h.issueBrowserSessionWithExternalAuth(w, r, auth, status, BrowserSessionExternalAuthProof{})
+}
+
+func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
+	w http.ResponseWriter,
+	r *http.Request,
+	auth AuthContext,
+	status int,
+	externalAuth BrowserSessionExternalAuthProof,
+) (BrowserSessionResponse, bool) {
 	auth = normalizeAuthContext(auth)
 	sessionSecret, err := h.newSecret()
 	if err != nil {
@@ -128,23 +151,30 @@ func (h *BrowserSessionHandler) issueBrowserSession(
 	now := h.now()
 	idleExpiresAt := now.Add(h.idleTimeout())
 	absoluteExpiresAt := now.Add(h.absoluteTimeout())
+	if idleExpiresAt.After(absoluteExpiresAt) {
+		idleExpiresAt = absoluteExpiresAt
+	}
 	record := BrowserSessionCreateRecord{
-		SessionHash:          BrowserSessionSecretHash(sessionSecret),
-		CSRFTokenHash:        BrowserSessionSecretHash(csrfSecret),
-		TenantID:             auth.TenantID,
-		WorkspaceID:          auth.WorkspaceID,
-		SubjectIDHash:        auth.SubjectIDHash,
-		SubjectClass:         auth.SubjectClass,
-		PolicyRevisionHash:   auth.PolicyRevisionHash,
-		RoleIDs:              append([]string(nil), auth.RoleIDs...),
-		AllScopes:            auth.AllScopes,
-		AllowedScopeIDs:      append([]string(nil), auth.AllowedScopeIDs...),
-		AllowedRepositoryIDs: append([]string(nil), auth.AllowedRepositoryIDs...),
-		IssuedAt:             now,
-		LastSeenAt:           now,
-		IdleExpiresAt:        idleExpiresAt,
-		AbsoluteExpiresAt:    absoluteExpiresAt,
-		UpdatedAt:            now,
+		SessionHash:              BrowserSessionSecretHash(sessionSecret),
+		CSRFTokenHash:            BrowserSessionSecretHash(csrfSecret),
+		TenantID:                 auth.TenantID,
+		WorkspaceID:              auth.WorkspaceID,
+		SubjectIDHash:            auth.SubjectIDHash,
+		SubjectClass:             auth.SubjectClass,
+		PolicyRevisionHash:       auth.PolicyRevisionHash,
+		RoleIDs:                  append([]string(nil), auth.RoleIDs...),
+		AllScopes:                auth.AllScopes,
+		AllowedScopeIDs:          append([]string(nil), auth.AllowedScopeIDs...),
+		AllowedRepositoryIDs:     append([]string(nil), auth.AllowedRepositoryIDs...),
+		ExternalProviderConfigID: strings.TrimSpace(externalAuth.ProviderConfigID),
+		ExternalSubjectIDHash:    strings.TrimSpace(externalAuth.SubjectIDHash),
+		ExternalAuthValidatedAt:  externalAuth.ValidatedAt.UTC(),
+		ExternalAuthStaleAfter:   externalAuth.StaleAfter.UTC(),
+		IssuedAt:                 now,
+		LastSeenAt:               now,
+		IdleExpiresAt:            idleExpiresAt,
+		AbsoluteExpiresAt:        absoluteExpiresAt,
+		UpdatedAt:                now,
 	}
 	if record.SessionHash == "" || record.CSRFTokenHash == "" {
 		WriteError(w, http.StatusInternalServerError, "failed to create browser session")

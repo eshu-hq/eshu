@@ -113,7 +113,11 @@ operator-managed OIDC config file. The callback verifies provider metadata/JWKS,
 state, nonce, redirect URI proof, and subject claims before creating a session.
 Group claims map only to Eshu roles and grants; raw provider tokens and raw
 group names are not persisted. If group mappings or grant targets are missing,
-expired, or revoked, login is denied and no browser session is created.
+expired, or revoked, login is denied and no browser session is created. OIDC
+sessions also carry hash-only provider proof metadata; when
+`ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW` elapses, the API revokes the browser
+session and requires fresh provider reauthentication before returning another
+auth context.
 
 Session cookies are server-managed:
 
@@ -129,6 +133,9 @@ Session cookies are server-managed:
 - Session records enforce idle and absolute expiry before a request is treated
   as authenticated; successful session requests refresh the idle deadline,
   capped by the absolute expiry.
+- OIDC-backed session records enforce the configured provider-proof staleness
+  window before a request is treated as authenticated; stale sessions are
+  revoked without storing provider tokens or raw group values.
 - Workspace switching is limited to all-scopes browser sessions until the
   identity/grant UX can model explicit cross-workspace grants.
 - Local identity routes persist only hashes or credential handles for login

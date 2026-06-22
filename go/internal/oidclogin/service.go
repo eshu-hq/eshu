@@ -280,20 +280,24 @@ func (s *Service) CompleteOIDCLogin(
 	if !ok || len(grants.RoleIDs) == 0 {
 		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginDenied
 	}
+	subjectIDHash := SHA256Hash(provider.ProviderConfigID + ":" + strings.TrimSpace(claims.Subject))
 	return query.OIDCLoginCompleteResponse{
 		Auth: query.AuthContext{
 			Mode:                 query.AuthModeScoped,
 			TenantID:             record.TenantID,
 			WorkspaceID:          record.WorkspaceID,
 			SubjectClass:         oidcSubjectClass,
-			SubjectIDHash:        SHA256Hash(provider.ProviderConfigID + ":" + strings.TrimSpace(claims.Subject)),
+			SubjectIDHash:        subjectIDHash,
 			PolicyRevisionHash:   grants.PolicyRevisionHash,
 			RoleIDs:              append([]string(nil), grants.RoleIDs...),
 			AllScopes:            grants.AllScopes,
 			AllowedScopeIDs:      append([]string(nil), grants.AllowedScopeIDs...),
 			AllowedRepositoryIDs: append([]string(nil), grants.AllowedRepositoryIDs...),
 		},
-		ReturnToPath: safeReturnPath(record.ReturnToPath),
+		ProviderConfigID:  provider.ProviderConfigID,
+		ProviderSubjectID: subjectIDHash,
+		ProviderProofAt:   now,
+		ReturnToPath:      safeReturnPath(record.ReturnToPath),
 	}, nil
 }
 

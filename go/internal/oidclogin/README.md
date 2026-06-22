@@ -12,9 +12,10 @@ existing browser-session issuer.
 This package owns OIDC state, nonce, provider exchange, ID token verification,
 and group-to-role grant resolution for login. It does not enforce query route
 authorization, write browser-session rows directly, manage IdP admin APIs, or
-store provider tokens. Browser-session replay fails closed when Eshu workspace
-policy revisions change; IdP-driven active-session refresh is tracked
-separately from this login package.
+store provider tokens. It returns only the Eshu auth context plus hash-only
+provider proof metadata; browser-session replay, expiry, policy revision drift,
+and provider-proof stale-window enforcement live in `internal/query`,
+`cmd/api`, and `internal/storage/postgres`.
 
 ## Exported surface
 
@@ -47,10 +48,11 @@ state, or policy revision resolution fails.
 Group claims are never permissions. They map to Eshu role IDs first; roles then
 resolve to explicit scope and repository grants.
 
-Login-time grant resolution is not an IdP polling or refresh loop. Existing
-OIDC-backed browser sessions depend on browser-session revocation, expiry, and
-workspace policy-revision drift until a dedicated active-session refresh worker
-ships.
+Login-time grant resolution is not an IdP polling loop. OIDC-backed browser
+sessions store hash-only provider proof metadata and force provider
+reauthentication after the configured stale window; the login package only
+supplies the provider config id, subject hash, and proof time needed by the
+browser-session layer.
 
 ## Related docs
 

@@ -75,7 +75,7 @@ func TestAuthMiddlewareWithBrowserSessionsDevModeSkipsAuthWhenTokenEmpty(t *test
 func TestAuthMiddlewareWithBrowserSessionsRequiresCSRFHeaderForUnsafeCookieRequests(t *testing.T) {
 	t.Parallel()
 
-	resolver := &fakeBrowserSessionResolver{ok: true}
+	resolver := &fakeBrowserSessionResolver{err: ErrBrowserSessionCSRFInvalid}
 	handler := AuthMiddlewareWithBrowserSessionsAndScopedTokens("", nil, resolver, mockHandler())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/browser-session/context", nil)
@@ -86,8 +86,14 @@ func TestAuthMiddlewareWithBrowserSessionsRequiresCSRFHeaderForUnsafeCookieReque
 	if got, want := rec.Code, http.StatusForbidden; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if resolver.called {
-		t.Fatal("session resolver was called without CSRF header")
+	if !resolver.called {
+		t.Fatal("session resolver was not called")
+	}
+	if !resolver.requireCSRF {
+		t.Fatal("requireCSRF = false, want true")
+	}
+	if resolver.csrfTokenHash != "" {
+		t.Fatalf("csrf token hash = %q, want empty for missing header", resolver.csrfTokenHash)
 	}
 }
 
@@ -120,6 +126,41 @@ func TestAuthMiddlewareWithBrowserSessionsDeniesRefreshRequiredSession(t *testin
 		t.Fatalf("event type = %q, want %q", got, want)
 	}
 	if got, want := event.ReasonCode, "oidc_session_reauth_required"; got != want {
+		t.Fatalf("event reason = %q, want %q", got, want)
+	}
+}
+
+func TestAuthMiddlewareWithBrowserSessionsRevokesStaleSessionBeforeMissingCSRF(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeBrowserSessionResolver{err: ErrBrowserSessionRefreshRequired}
+	audit := &fakeGovernanceAuditAppender{}
+	handler := AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit(
+		"shared-token",
+		nil,
+		resolver,
+		mockHandler(),
+		audit,
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/browser-session/context", nil)
+	req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusUnauthorized; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if !resolver.requireCSRF {
+		t.Fatal("requireCSRF = false, want true")
+	}
+	if resolver.csrfTokenHash != "" {
+		t.Fatalf("csrf token hash = %q, want empty for missing header", resolver.csrfTokenHash)
+	}
+	if len(audit.events) != 1 {
+		t.Fatalf("audit events = %d, want 1", len(audit.events))
+	}
+	if got, want := audit.events[0].ReasonCode, "oidc_session_reauth_required"; got != want {
 		t.Fatalf("event reason = %q, want %q", got, want)
 	}
 }

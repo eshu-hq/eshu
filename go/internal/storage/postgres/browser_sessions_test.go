@@ -222,6 +222,7 @@ func TestBrowserSessionStoreResolvesOnlyActiveUnrevokedSession(t *testing.T) {
 
 	now := time.Date(2026, 6, 21, 15, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
 		queryResponses: []queueFakeRows{{
 			rows: [][]any{{
 				"sha256:session",
@@ -326,13 +327,42 @@ func TestBrowserSessionStoreRevokesStaleOIDCSessionBeforeReturningAuth(t *testin
 	query := db.execs[0].query
 	for _, want := range []string{
 		"UPDATE browser_sessions",
-		"external_auth_stale_after <= $4",
+		"external_auth_stale_after <= $2",
 		"subject_class = 'external_oidc_user'",
-		"SET revoked_at = $4",
+		"SET revoked_at = $2",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("resolve query missing %q:\n%s", want, query)
 		}
+	}
+}
+
+func TestBrowserSessionStoreRevokesStaleOIDCSessionBeforeCSRFFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 13, 45, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewBrowserSessionStore(db)
+
+	_, ok, err := store.ResolveSessionHash(
+		context.Background(),
+		"sha256:session",
+		"",
+		true,
+		now,
+		30*time.Minute,
+	)
+	if !errors.Is(err, ErrBrowserSessionRefreshRequired) {
+		t.Fatalf("ResolveSessionHash() error = %v, want ErrBrowserSessionRefreshRequired", err)
+	}
+	if ok {
+		t.Fatal("ResolveSessionHash() ok = true, want false")
+	}
+	if len(db.execs) != 1 {
+		t.Fatalf("exec count = %d, want 1", len(db.execs))
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("query count = %d, want 0 after stale revocation", len(db.queries))
 	}
 }
 
@@ -341,6 +371,7 @@ func TestBrowserSessionStoreRejectsCSRFMismatch(t *testing.T) {
 
 	now := time.Date(2026, 6, 21, 15, 30, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
 		queryResponses: []queueFakeRows{{
 			rows: [][]any{{
 				"sha256:session",

@@ -172,13 +172,16 @@ See `doc.go` for the full godoc contract.
   startup closed. Dashboard browser-session creation requires this scoped
   context and never stores raw credentials or raw cookie values.
 - `ESHU_AUTH_OIDC_ENABLED`, `ESHU_AUTH_OIDC_CONFIG_FILE`,
-  `ESHU_AUTH_OIDC_PROVIDER_ID`, and `ESHU_AUTH_OIDC_STATE_TTL` — optional
-  backend OIDC login configuration. OIDC is disabled when unset; a config file
-  enables the `/api/v0/auth/oidc/login` and `/api/v0/auth/oidc/callback`
-  browser routes unless explicitly disabled. Invalid explicit provider ids or
-  state TTLs fail startup closed. The config file stores provider handles and
-  group-to-role mappings only; raw provider tokens are never persisted by the
-  API.
+  `ESHU_AUTH_OIDC_PROVIDER_ID`, `ESHU_AUTH_OIDC_STATE_TTL`, and
+  `ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW` — optional backend OIDC login
+  configuration. OIDC is disabled when unset; a config file enables the
+  `/api/v0/auth/oidc/login` and `/api/v0/auth/oidc/callback` browser routes
+  unless explicitly disabled. Invalid explicit provider ids, state TTLs, or
+  session refresh windows fail startup closed. The config file stores provider
+  handles and group-to-role mappings only; raw provider tokens are never
+  persisted by the API. OIDC-backed sessions store hash-only provider proof
+  metadata and are revoked after the refresh window to force provider
+  reauthentication.
 - `ESHU_SAML_PROVIDERS_JSON` — optional SAML provider registry. Each entry names
   a `provider_config_id`, service-provider EntityID and ACS URL, an
   `identity_provider_metadata_xml_env` handle whose value contains the private

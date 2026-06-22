@@ -14,6 +14,10 @@ import (
 // proof did not match the server-side hash.
 var ErrBrowserSessionCSRFInvalid = errors.New("browser session csrf token invalid")
 
+// ErrBrowserSessionRefreshRequired identifies an OIDC-backed browser session
+// revoked because its external provider proof exceeded the refresh window.
+var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh required")
+
 // BrowserSessionStore persists hash-only browser session rows.
 type BrowserSessionStore struct {
 	db ExecQueryer
@@ -21,23 +25,27 @@ type BrowserSessionStore struct {
 
 // BrowserSessionRecord is the durable server-managed dashboard session state.
 type BrowserSessionRecord struct {
-	SessionHash          string
-	CSRFTokenHash        string
-	TenantID             string
-	WorkspaceID          string
-	SubjectIDHash        string
-	SubjectClass         string
-	PolicyRevisionHash   string
-	RoleIDs              []string
-	AllScopes            bool
-	AllowedScopeIDs      []string
-	AllowedRepositoryIDs []string
-	IssuedAt             time.Time
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	AbsoluteExpiresAt    time.Time
-	RevokedAt            time.Time
-	UpdatedAt            time.Time
+	SessionHash              string
+	CSRFTokenHash            string
+	TenantID                 string
+	WorkspaceID              string
+	SubjectIDHash            string
+	SubjectClass             string
+	PolicyRevisionHash       string
+	RoleIDs                  []string
+	AllScopes                bool
+	AllowedScopeIDs          []string
+	AllowedRepositoryIDs     []string
+	ExternalProviderConfigID string
+	ExternalSubjectIDHash    string
+	ExternalAuthValidatedAt  time.Time
+	ExternalAuthStaleAfter   time.Time
+	IssuedAt                 time.Time
+	LastSeenAt               time.Time
+	IdleExpiresAt            time.Time
+	AbsoluteExpiresAt        time.Time
+	RevokedAt                time.Time
+	UpdatedAt                time.Time
 }
 
 // NewBrowserSessionStore constructs a Postgres-backed browser session store.
@@ -108,6 +116,10 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 		record.AllScopes,
 		allowedScopes,
 		allowedRepositories,
+		nullBrowserSessionString(record.ExternalProviderConfigID),
+		nullBrowserSessionString(record.ExternalSubjectIDHash),
+		nullTime(record.ExternalAuthValidatedAt),
+		nullTime(record.ExternalAuthStaleAfter),
 		record.IssuedAt,
 		record.LastSeenAt,
 		record.IdleExpiresAt,
@@ -145,14 +157,29 @@ func (s *BrowserSessionStore) ResolveSessionHash(
 	if sessionHash == "" {
 		return BrowserSessionRecord{}, false, errors.New("session hash is required")
 	}
-	if requireCSRF && csrfTokenHash == "" {
-		return BrowserSessionRecord{}, false, ErrBrowserSessionCSRFInvalid
-	}
 	if asOf.IsZero() {
 		return BrowserSessionRecord{}, false, errors.New("session lookup as_of is required")
 	}
 	if idleTimeout <= 0 {
 		return BrowserSessionRecord{}, false, errors.New("session idle timeout is required")
+	}
+	result, err := s.db.ExecContext(
+		ctx,
+		revokeStaleOIDCBrowserSessionQuery,
+		sessionHash,
+		asOf.UTC(),
+	)
+	if err != nil {
+		return BrowserSessionRecord{}, false, fmt.Errorf("revoke stale oidc browser session: %w", err)
+	}
+	if result != nil {
+		affected, err := result.RowsAffected()
+		if err == nil && affected > 0 {
+			return BrowserSessionRecord{}, false, ErrBrowserSessionRefreshRequired
+		}
+	}
+	if requireCSRF && csrfTokenHash == "" {
+		return BrowserSessionRecord{}, false, ErrBrowserSessionCSRFInvalid
 	}
 	rows, err := s.db.QueryContext(
 		ctx,
@@ -267,6 +294,10 @@ func normalizeBrowserSessionRecord(record BrowserSessionRecord) BrowserSessionRe
 	record.RoleIDs = cleanBrowserSessionStrings(record.RoleIDs)
 	record.AllowedScopeIDs = cleanBrowserSessionStrings(record.AllowedScopeIDs)
 	record.AllowedRepositoryIDs = cleanBrowserSessionStrings(record.AllowedRepositoryIDs)
+	record.ExternalProviderConfigID = strings.TrimSpace(record.ExternalProviderConfigID)
+	record.ExternalSubjectIDHash = strings.TrimSpace(record.ExternalSubjectIDHash)
+	record.ExternalAuthValidatedAt = record.ExternalAuthValidatedAt.UTC()
+	record.ExternalAuthStaleAfter = record.ExternalAuthStaleAfter.UTC()
 	record.IssuedAt = record.IssuedAt.UTC()
 	record.LastSeenAt = record.LastSeenAt.UTC()
 	record.IdleExpiresAt = record.IdleExpiresAt.UTC()
@@ -294,6 +325,17 @@ func validateBrowserSessionRecord(record BrowserSessionRecord) error {
 	}
 	if record.IdleExpiresAt.After(record.AbsoluteExpiresAt) {
 		return errors.New("session idle_expires_at must not exceed absolute_expires_at")
+	}
+	hasExternalAuth := record.ExternalProviderConfigID != "" || record.ExternalSubjectIDHash != "" ||
+		!record.ExternalAuthValidatedAt.IsZero() || !record.ExternalAuthStaleAfter.IsZero()
+	if hasExternalAuth {
+		if blank(record.ExternalProviderConfigID) || blank(record.ExternalSubjectIDHash) ||
+			record.ExternalAuthValidatedAt.IsZero() || record.ExternalAuthStaleAfter.IsZero() {
+			return errors.New("external auth provider, subject hash, validation, and stale timestamps must be set together")
+		}
+		if !record.ExternalAuthStaleAfter.After(record.ExternalAuthValidatedAt) {
+			return errors.New("external_auth_stale_after must be after external_auth_validated_at")
+		}
 	}
 	return nil
 }
@@ -378,4 +420,9 @@ func cleanBrowserSessionStrings(values []string) []string {
 		cleaned = append(cleaned, value)
 	}
 	return cleaned
+}
+
+func nullBrowserSessionString(value string) sql.NullString {
+	value = strings.TrimSpace(value)
+	return sql.NullString{String: value, Valid: value != ""}
 }

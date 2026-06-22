@@ -17,7 +17,7 @@
 // impact explanation reads, admission decision readback, optional scoped-token
 // registry authentication, hash-only dashboard browser-session cookies,
 // optional backend OIDC login that maps hashed external groups to Eshu role
-// grants before issuing those browser-session cookies,
+// grants before issuing bounded-staleness browser-session cookies,
 // optional redacted semantic provider profile status, optional semantic
 // extraction source policy, optional hosted governance status readback from
 // safe ESHU_GOVERNANCE_* metadata, optional component-extension registry

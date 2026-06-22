@@ -16,10 +16,11 @@ import (
 )
 
 const (
-	envAuthOIDCEnabled    = "ESHU_AUTH_OIDC_ENABLED"
-	envAuthOIDCConfigFile = "ESHU_AUTH_OIDC_CONFIG_FILE"
-	envAuthOIDCProviderID = "ESHU_AUTH_OIDC_PROVIDER_ID"
-	envAuthOIDCStateTTL   = "ESHU_AUTH_OIDC_STATE_TTL"
+	envAuthOIDCEnabled              = "ESHU_AUTH_OIDC_ENABLED"
+	envAuthOIDCConfigFile           = "ESHU_AUTH_OIDC_CONFIG_FILE"
+	envAuthOIDCProviderID           = "ESHU_AUTH_OIDC_PROVIDER_ID"
+	envAuthOIDCStateTTL             = "ESHU_AUTH_OIDC_STATE_TTL"
+	envAuthOIDCSessionRefreshWindow = "ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW"
 )
 
 type postgresOIDCStoreAdapter struct {
@@ -65,6 +66,17 @@ func newOIDCLoginHandler(
 		}
 		config.StateTTL = ttl
 	}
+	sessionRefreshWindow := query.DefaultOIDCSessionRefreshWindow
+	if rawWindow := strings.TrimSpace(getenv(envAuthOIDCSessionRefreshWindow)); rawWindow != "" {
+		window, err := time.ParseDuration(rawWindow)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", envAuthOIDCSessionRefreshWindow, err)
+		}
+		if window <= 0 {
+			return nil, fmt.Errorf("%s must be positive", envAuthOIDCSessionRefreshWindow)
+		}
+		sessionRefreshWindow = window
+	}
 	normalized, err := oidclogin.ValidateConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("validate oidc login config: %w", err)
@@ -79,8 +91,9 @@ func newOIDCLoginHandler(
 		oidclogin.NewOIDCConnector,
 	)
 	return &query.OIDCLoginHandler{
-		Service:       service,
-		SessionIssuer: newBrowserSessionHandler(db, instruments),
+		Service:              service,
+		SessionIssuer:        newBrowserSessionHandler(db, instruments),
+		SessionRefreshWindow: sessionRefreshWindow,
 	}, nil
 }
 

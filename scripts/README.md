@@ -127,6 +127,15 @@ group values, SAML assertions, attributes, cookies, provider responses, and
 audit bodies must remain outside the repository and public GitHub text. The
 mocked harness test is `test-verify-okta-saml-live-proof.sh`.
 
+`verify-okta-oidc-live-proof.sh` turns an operator-local Okta OIDC proof
+manifest into public-safe JSON and markdown summaries. The manifest can name
+only provider source classes, public OIDC API paths, aggregate login, denial,
+refresh, and revocation counts, role names, decision families, timing classes,
+and required pass/fail proof steps. Raw Okta org URLs, app IDs, client secrets,
+users, groups, OIDC tokens, cookies, provider responses, and audit bodies must
+remain outside the repository and public GitHub text. The mocked harness test
+is `test-verify-okta-oidc-live-proof.sh`.
+
 `security_intelligence_release_gate.sh` aggregates the proofs required before
 cutting the next prerelease image with vulnerability or security-intelligence
 work. By default it runs the offline phases (state capture, focused Go tests,
