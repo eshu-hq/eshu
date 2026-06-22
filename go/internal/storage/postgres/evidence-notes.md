@@ -441,3 +441,70 @@ diagnose the batch-starvation condition through the existing
 log field, the `eshu_dp_shared_projection_intents_processed_total` counter, and
 `pending_projection` DB counts (`SELECT projection_domain, COUNT(*) FROM
 shared_projection_intents WHERE completed_at IS NULL GROUP BY projection_domain`).
+
+## Refresh-Intent Starvation: Later-Timestamp General Case (#3474)
+
+Performance Evidence: After #3451/#3467 deployed, the shared projection still
+did not drain. Baseline (live local stack, `eshu-resolution-engine-1`, Up 10+
+minutes after #3467 restart): `inheritance_edges` pending: 12,227;
+`sql_relationships` pending: 2,804; `shared_projection_intents` total pending:
+15,031; active generations: 982; completed generations: 3.
+
+Root cause: #3451's fix assumed refresh and upsert intents share the same
+`created_at` millisecond, making `is_refresh_intent DESC` a tiebreaker that
+promotes refresh to position 1. The live data disproves that assumption.
+Querying partition 5 of `inheritance_edges` (5 refresh + 1,475 upsert pending):
+refresh intents rank at positions 979, 980, 1,176, 1,475, 1,477 under the
+`(created_at ASC, is_refresh_intent DESC)` ordering — far beyond `batchLimit`.
+The 1,475 upsert edges were created at 01:43 UTC; the 5 refresh intents were
+created at 01:48–11:38 UTC. With `created_at ASC` as the primary key, the
+batch head fills entirely with the oldest upsert edges (confirmed: first 100
+rows under old ordering = 100% upsert). Those edges defer every cycle (fence
+closed), stay pending, and re-fill the same head indefinitely. The refresh
+intents are never selected, the fence never opens, and pending_projection does
+not drain.
+
+This is the general case the #3451 same-timestamp tiebreaker cannot rescue:
+when deferred head edges are older than the paired refresh intent, no
+tiebreaker on the secondary key can help.
+
+Fix: promote `is_refresh_intent DESC` to the PRIMARY sort key (before
+`created_at`) in both `listPendingDomainPartitionIntentsSQL` (hashed lane) and
+`listPendingDomainUnhashedIntentsSQL` (legacy NULL-hash lane). Drop index
+`shared_projection_intents_domain_partition_refresh_first_idx` (created_at
+primary) and replace with
+`shared_projection_intents_domain_partition_refresh_primary_idx`
+`(projection_domain, is_refresh_intent DESC, created_at ASC, intent_id ASC)
+WHERE completed_at IS NULL AND partition_hash IS NOT NULL`.
+Same for the unhashed lane:
+`shared_projection_intents_domain_unhashed_refresh_primary_idx`
+`(projection_domain, is_refresh_intent DESC, created_at ASC, intent_id ASC)
+WHERE completed_at IS NULL AND partition_hash IS NULL`.
+
+With the fix, all 5 refresh intents in partition 5 appear in the first 100
+batch positions (confirmed by live DB query with the corrected ORDER BY).
+Refresh rows complete in the first cycle, the fence opens, and the deferred
+edges drain at full batch throughput. Refresh intents are few (max 14 in any
+partition across the 900-repo corpus) so promoting them cannot starve edges.
+
+No-Regression Evidence: `TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp`
+failed under the old `(created_at ASC, is_refresh_intent DESC)` ordering (first
+row was an upsert edge despite the later-timestamp refresh being in the set)
+and passed after the `(is_refresh_intent DESC, created_at ASC)` fix.
+`TestListPendingDomainPartitionIntentsRefreshFirst` (same-timestamp case from
+#3451) continues to pass. `go test ./internal/storage/postgres ./internal/reducer
+-count=1` → 3,212 passed. `go vet ./internal/storage/postgres ./internal/reducer`
+→ clean. `golangci-lint run ./internal/storage/postgres ./internal/reducer` →
+0 issues. `scripts/verify-performance-evidence.sh` and
+`scripts/test-verify-performance-evidence.sh` → both exit 0. The change is
+backward-compatible: domains without refresh intents have `is_refresh_intent=false`
+on all rows, so their relative `created_at ASC, intent_id ASC` order is
+unchanged.
+
+No-Observability-Change: #3474 adds no queue domain, graph write, metric
+instrument, metric label, span name, worker, lease, route, or log field. It
+replaces two partial indexes and changes the ORDER BY in two SQL constants.
+Operators diagnose the starvation condition through the same signals as #3451:
+`shared projection deferred per-edge rows behind repo refresh fence` log line
+(count drops to zero once the fence opens), `eshu_dp_shared_projection_intents_processed_total`,
+and `pending_projection` DB counts.

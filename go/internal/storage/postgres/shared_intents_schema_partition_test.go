@@ -14,8 +14,8 @@ func TestSharedIntentSchemaSQLIncludesPartitionCandidateIndexes(t *testing.T) {
 		"ADD COLUMN IF NOT EXISTS is_refresh_intent",
 		"GENERATED ALWAYS AS (COALESCE(payload->>'action' = 'refresh', false)) STORED",
 		"shared_projection_intents_domain_partition_pending_idx",
-		"shared_projection_intents_domain_unhashed_pending_idx",
-		"shared_projection_intents_domain_partition_refresh_first_idx",
+		"shared_projection_intents_domain_partition_refresh_primary_idx",
+		"shared_projection_intents_domain_unhashed_refresh_primary_idx",
 		"is_refresh_intent DESC",
 	} {
 		if !strings.Contains(sqlStr, want) {

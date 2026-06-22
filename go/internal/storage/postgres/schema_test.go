@@ -10,8 +10,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 48 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 48", len(defs))
+	if len(defs) != 49 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 49", len(defs))
 	}
 
 	wantNames := []string{

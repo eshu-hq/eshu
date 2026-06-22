@@ -80,8 +80,8 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 		"partition_hash IS NOT NULL",
 		"mod(partition_hash, $3::numeric) = $2::numeric",
 		"completed_at IS NULL",
-		"ORDER BY created_at ASC",
-		"is_refresh_intent DESC",
+		"ORDER BY is_refresh_intent DESC",
+		"created_at ASC",
 		"intent_id ASC",
 	} {
 		if !strings.Contains(db.query, want) {
@@ -141,7 +141,9 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 		"projection_domain = $1",
 		"partition_hash IS NULL",
 		"completed_at IS NULL",
-		"ORDER BY created_at ASC, intent_id ASC",
+		"ORDER BY is_refresh_intent DESC",
+		"created_at ASC",
+		"intent_id ASC",
 	} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("query missing %q:\n%s", want, db.query)
@@ -191,9 +193,9 @@ func (db *partitionCandidateListTestDB) QueryContext(_ context.Context, query st
 		rows = append(rows, candidate.Intent)
 	}
 	// Mirror the index-backed SQL sort:
-	// ORDER BY created_at ASC, is_refresh_intent DESC, intent_id ASC
+	// ORDER BY is_refresh_intent DESC, created_at ASC, intent_id ASC
 	// is_refresh_intent is a stored generated BOOLEAN column; DESC puts true
-	// (refresh rows) before false (upsert rows) at the same timestamp.
+	// (refresh rows) before ALL upsert rows regardless of created_at (#3474).
 	refreshPriority := func(row reducer.SharedProjectionIntentRow) int {
 		if action, _ := row.Payload["action"].(string); action == "refresh" {
 			return 0
@@ -201,12 +203,12 @@ func (db *partitionCandidateListTestDB) QueryContext(_ context.Context, query st
 		return 1
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		if !rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
-			return rows[i].CreatedAt.Before(rows[j].CreatedAt)
-		}
 		pi, pj := refreshPriority(rows[i]), refreshPriority(rows[j])
 		if pi != pj {
 			return pi < pj
+		}
+		if !rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].CreatedAt.Before(rows[j].CreatedAt)
 		}
 		return rows[i].IntentID < rows[j].IntentID
 	})
@@ -277,6 +279,9 @@ func (r *partitionCandidateRows) Close() error {
 // refresh row, the refresh row was pushed to position >batchLimit and never
 // entered a processing batch.  The repo-wide retract fence never opened, so
 // all per-edge upsert rows deferred indefinitely (#3451).
+//
+// See also TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp for
+// the general case where the refresh intent has a later created_at (#3474).
 func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 	t.Parallel()
 
@@ -375,6 +380,118 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 	} {
 		if !strings.Contains(db.query, want) {
 			t.Fatalf("query missing index-backed refresh-priority sort %q:\n%s", want, db.query)
+		}
+	}
+}
+
+// TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp is the
+// general-case regression for #3474.
+//
+// Root cause: the #3451 fix ordered by (created_at ASC, is_refresh_intent DESC),
+// which only promoted refresh intents as a same-timestamp tiebreaker.  When
+// deferred upsert edges have an older created_at than the refresh intent, they
+// re-fill the batch head every cycle and permanently starve the refresh.  The
+// fence never opens and every per-edge row defers indefinitely.
+//
+// Fix: make is_refresh_intent DESC the PRIMARY sort key so refresh intents are
+// selected first regardless of created_at.
+func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	// Upsert edges were emitted before the paired refresh intent — the common
+	// production shape where the materializer emits edges first and the refresh
+	// intent is inserted slightly later in the same ingestion cycle.
+	edgeTime := time.Date(2026, time.June, 21, 1, 43, 1, 0, time.UTC)
+	// Refresh intent has a strictly LATER created_at than the edge rows.
+	refreshTime := edgeTime.Add(5 * time.Minute)
+
+	refreshKey := "inheritance_edges:refresh:v1:whole:repository:r_later123"
+	refreshPartition := mustPostgresTestPartitionForKey(t, refreshKey, 8)
+
+	// batchLimit upsert rows in the same partition, all older than the refresh.
+	// Without the fix, the oldest batchLimit rows are all upserts; they defer
+	// (fence closed) and permanently starve the later refresh intent.
+	const batchLimit = 3
+	rows := make([]partitionCandidateListRow, 0, batchLimit+1)
+
+	for i := range batchLimit {
+		upsertKey := fmt.Sprintf("inheritance-edges:v1:files:repository:r_later123:file%d.go", i)
+		if int(reducer.PartitionHashForKey(upsertKey)%8) != refreshPartition {
+			for j := range 1000 {
+				candidate := fmt.Sprintf("inheritance-edges:v1:files:repository:r_later123:file%d_%d.go", i, j)
+				if int(reducer.PartitionHashForKey(candidate)%8) == refreshPartition {
+					upsertKey = candidate
+					break
+				}
+			}
+		}
+		rows = append(rows, partitionCandidateListRow{
+			Intent: reducer.SharedProjectionIntentRow{
+				IntentID:         fmt.Sprintf("upsert-%d", i),
+				ProjectionDomain: reducer.DomainInheritanceEdges,
+				PartitionKey:     upsertKey,
+				ScopeID:          "scope-b",
+				AcceptanceUnitID: "au-b",
+				RepositoryID:     "repo-later123",
+				SourceRunID:      "run-2",
+				GenerationID:     "gen-2",
+				Payload:          map[string]any{"action": "upsert", "retract_via_refresh": true},
+				CreatedAt:        edgeTime,
+			},
+			HasPartitionHash: true,
+			PartitionHash:    reducer.PartitionHashForKey(upsertKey),
+		})
+	}
+
+	// Refresh intent — created AFTER the upsert edges.
+	rows = append(rows, partitionCandidateListRow{
+		Intent: reducer.SharedProjectionIntentRow{
+			IntentID:         "refresh-later",
+			ProjectionDomain: reducer.DomainInheritanceEdges,
+			PartitionKey:     refreshKey,
+			ScopeID:          "scope-b",
+			AcceptanceUnitID: "au-b",
+			RepositoryID:     "repo-later123",
+			SourceRunID:      "run-2",
+			GenerationID:     "gen-2",
+			Payload:          map[string]any{"action": "refresh", "repo_id": "repository:r_later123"},
+			CreatedAt:        refreshTime,
+		},
+		HasPartitionHash: true,
+		PartitionHash:    reducer.PartitionHashForKey(refreshKey),
+	})
+
+	db := &partitionCandidateListTestDB{rows: rows}
+	store := NewSharedIntentStore(db)
+
+	got, err := store.ListPendingDomainPartitionIntents(
+		ctx,
+		reducer.DomainInheritanceEdges,
+		refreshPartition,
+		8,
+		batchLimit, // batch exactly full — refresh must appear despite later timestamp
+	)
+	if err != nil {
+		t.Fatalf("ListPendingDomainPartitionIntents: %v", err)
+	}
+	if len(got) == 0 {
+		t.Fatal("got 0 rows, want at least 1")
+	}
+	// The refresh row must be first even though its created_at is later than
+	// all upsert rows.  With the old (created_at ASC, is_refresh_intent DESC)
+	// ordering it would rank at position batchLimit+1 and never enter a batch.
+	if got[0].IntentID != "refresh-later" {
+		t.Fatalf("first row IntentID = %q, want %q (refresh must sort before upsert even with later timestamp)",
+			got[0].IntentID, "refresh-later")
+	}
+	// Confirm the query uses refresh-first PRIMARY ordering.
+	for _, want := range []string{
+		"ORDER BY is_refresh_intent DESC",
+		"created_at ASC",
+	} {
+		if !strings.Contains(db.query, want) {
+			t.Fatalf("query missing refresh-first-primary sort %q:\n%s", want, db.query)
 		}
 	}
 }
