@@ -22,8 +22,9 @@ func javaScriptDeadCodeRootEvidence(
 	path string,
 	root *tree_sitter.Node,
 	source []byte,
+	siblingParser *javaScriptSiblingParser,
 ) javaScriptDeadCodeEvidence {
-	hapiHandlerFile := javaScriptIsHapiHandlerFile(repoRoot, path)
+	hapiHandlerFile := javaScriptIsHapiHandlerFile(repoRoot, path, siblingParser)
 	registeredRootKinds := javaScriptRegisteredDeadCodeRootKinds(root, source)
 	mergeJavaScriptRegisteredRootKinds(
 		registeredRootKinds,
@@ -52,7 +53,7 @@ func javaScriptDeadCodeRootEvidence(
 	}
 	return javaScriptDeadCodeEvidence{
 		registeredRootKinds: registeredRootKinds,
-		typeScriptRootKinds: javaScriptTypeScriptSurfaceRootKinds(repoRoot, path, root, source),
+		typeScriptRootKinds: javaScriptTypeScriptSurfaceRootKinds(repoRoot, path, root, source, siblingParser),
 		fileRootKinds:       javaScriptPackageFileRootKinds(repoRoot, path),
 		hapiControllerFile:  javaScriptIsHapiControllerFile(repoRoot, path),
 		hapiHandlerFile:     hapiHandlerFile,
@@ -90,7 +91,7 @@ func javaScriptRegisteredDeadCodeRootKinds(
 	}
 
 	allowedBases := make(map[string]struct{})
-	if express, ok := detectExpressSemantics(string(source)); ok {
+	if express, ok := detectExpressSemantics(root, source); ok {
 		for _, symbol := range javaScriptExpressServerSymbols(express) {
 			allowedBases[strings.ToLower(strings.TrimSpace(symbol))] = struct{}{}
 		}

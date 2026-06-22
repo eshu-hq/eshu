@@ -1,13 +1,10 @@
 package javascript
 
 import (
-	"regexp"
 	"strings"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-var javaScriptMethodKindRe = regexp.MustCompile(`^\s*(?:static\s+)?(get|set|async)\b`)
 
 func javaScriptDocstring(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
@@ -88,32 +85,48 @@ func javaScriptFunctionKind(node *tree_sitter.Node, source []byte) string {
 	case "generator_function_declaration", "generator_function":
 		return "generator"
 	case "method_definition", "method_signature":
-		matches := javaScriptMethodKindRe.FindStringSubmatch(nodeText(node, source))
-		if len(matches) == 2 {
-			switch matches[1] {
-			case "get":
-				return "getter"
-			case "set":
-				return "setter"
-			default:
-				return matches[1]
-			}
-		}
-		declaration := strings.TrimSpace(nodeText(node, source))
-		for {
-			switch {
-			case strings.HasPrefix(declaration, "static "):
-				declaration = strings.TrimSpace(strings.TrimPrefix(declaration, "static "))
-			case strings.HasPrefix(declaration, "async "):
-				declaration = strings.TrimSpace(strings.TrimPrefix(declaration, "async "))
-			default:
-				if strings.HasPrefix(declaration, "*") {
-					return "generator"
-				}
-				return ""
-			}
-		}
+		return javaScriptMethodKind(node)
 	}
 
+	return ""
+}
+
+// javaScriptMethodKind classifies a method_definition/method_signature node from
+// its leading modifier tokens. The tree-sitter grammar emits get/set/async and
+// the generator star as anonymous child tokens before the method name field, so
+// the kind is read directly from the AST instead of re-scanning node text. The
+// precedence mirrors the previous regex contract: a leading get/set/async (after
+// an optional static) classifies the method as getter/setter/async, and a bare
+// generator star otherwise yields "generator".
+func javaScriptMethodKind(node *tree_sitter.Node) string {
+	if node == nil {
+		return ""
+	}
+	nameNode := node.ChildByFieldName("name")
+	generator := false
+	for index := uint(0); index < node.ChildCount(); index++ {
+		child := node.Child(index)
+		if child == nil {
+			continue
+		}
+		if nameNode != nil && child.Id() == nameNode.Id() {
+			break
+		}
+		switch child.Kind() {
+		case "static":
+			continue
+		case "get":
+			return "getter"
+		case "set":
+			return "setter"
+		case "async":
+			return "async"
+		case "*":
+			generator = true
+		}
+	}
+	if generator {
+		return "generator"
+	}
 	return ""
 }

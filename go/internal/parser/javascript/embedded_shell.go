@@ -1,21 +1,15 @@
 package javascript
 
 import (
-	"regexp"
 	"sort"
 	"strings"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-var (
-	jsFunctionPattern           = regexp.MustCompile(`function\s+(?P<name>[A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{`)
-	jsRequireAliasPattern       = regexp.MustCompile(`(?m)\b(?:const|let|var)\s+(?P<alias>[A-Za-z_$][\w$]*)\s*=\s*require\(\s*["'](?:node:)?child_process["']\s*\)`)
-	jsRequireDestructurePattern = regexp.MustCompile(`(?m)\b(?:const|let|var)\s*\{(?P<names>[^}]+)\}\s*=\s*require\(\s*["'](?:node:)?child_process["']\s*\)`)
-	jsImportNamespacePattern    = regexp.MustCompile(`(?m)\bimport\s+\*\s+as\s+(?P<alias>[A-Za-z_$][\w$]*)\s+from\s+["'](?:node:)?child_process["']`)
-	jsImportDefaultPattern      = regexp.MustCompile(`(?m)\bimport\s+(?P<alias>[A-Za-z_$][\w$]*)\s+from\s+["'](?:node:)?child_process["']`)
-	jsImportNamedPattern        = regexp.MustCompile(`(?m)\bimport\s*\{(?P<names>[^}]+)\}\s+from\s+["'](?:node:)?child_process["']`)
-	jsChildProcessCallPattern   = regexp.MustCompile(`\b(?P<alias>[A-Za-z_$][\w$]*)\s*\.\s*(?P<call>execFileSync|execFile|execSync|exec|spawnSync|spawn|fork)\s*\(`)
-)
-
+// jsChildProcessCalls is the set of Node.js child_process APIs that spawn an
+// operating-system process. A call to any of these is reported as an embedded
+// shell command.
 var jsChildProcessCalls = map[string]struct{}{
 	"exec":         {},
 	"execSync":     {},
@@ -39,15 +33,16 @@ type jsShellImports struct {
 	directCalls   map[string]string
 }
 
-type jsFunctionBody struct {
-	name        string
-	body        string
-	startOffset int
-	lineNumber  int
+// jsShellFunction is one enclosing named function: a function_declaration or a
+// named function_expression whose body may contain child_process calls.
+type jsShellFunction struct {
+	name       string
+	lineNumber int
+	body       *tree_sitter.Node
 }
 
-func embeddedShellCommandPayloads(source string, language string) []map[string]any {
-	commands := embeddedShellCommands(source, language)
+func embeddedShellCommandPayloads(root *tree_sitter.Node, source []byte, language string) []map[string]any {
+	commands := embeddedShellCommands(root, source, language)
 	if len(commands) == 0 {
 		return []map[string]any{}
 	}
@@ -64,47 +59,36 @@ func embeddedShellCommandPayloads(source string, language string) []map[string]a
 	return payload
 }
 
-func embeddedShellCommands(source string, language string) []jsEmbeddedShellCommand {
-	imports := jsShellImportAliases(source)
+func embeddedShellCommands(root *tree_sitter.Node, source []byte, language string) []jsEmbeddedShellCommand {
+	if root == nil {
+		return nil
+	}
+	imports := jsShellImportAliases(root, source)
 	if len(imports.moduleAliases) == 0 && len(imports.directCalls) == 0 {
 		return nil
 	}
 
 	var commands []jsEmbeddedShellCommand
-	for _, function := range iterJSFunctionBodies(source) {
-		for _, match := range jsChildProcessCallPattern.FindAllStringSubmatchIndex(function.body, -1) {
-			aliasIndex := jsChildProcessCallPattern.SubexpIndex("alias")
-			callIndex := jsChildProcessCallPattern.SubexpIndex("call")
-			alias := function.body[match[2*aliasIndex]:match[2*aliasIndex+1]]
-			if _, ok := imports.moduleAliases[alias]; !ok {
-				continue
+	for _, function := range jsShellEnclosingFunctions(root, source) {
+		walkNamed(function.body, func(node *tree_sitter.Node) {
+			if node.Kind() != "call_expression" {
+				return
 			}
-			if jsIdentifierShadowedBefore(function.body[:match[0]], alias) {
-				continue
+			api, alias := jsChildProcessCallAPI(node, source, imports)
+			if api == "" {
+				return
 			}
-			callName := function.body[match[2*callIndex]:match[2*callIndex+1]]
+			if jsIdentifierShadowedBeforeNode(function.body, node, alias, source) {
+				return
+			}
 			commands = append(commands, jsEmbeddedShellCommand{
 				functionName:       function.name,
 				functionLineNumber: function.lineNumber,
-				lineNumber:         lineNumberForOffset(source, function.startOffset+match[0]),
-				api:                "child_process." + callName,
+				lineNumber:         nodeLine(node),
+				api:                api,
 				language:           language,
 			})
-		}
-		for local, api := range imports.directCalls {
-			for _, match := range jsIdentifierCallPattern(local).FindAllStringIndex(function.body, -1) {
-				if jsIdentifierShadowedBefore(function.body[:match[0]], local) {
-					continue
-				}
-				commands = append(commands, jsEmbeddedShellCommand{
-					functionName:       function.name,
-					functionLineNumber: function.lineNumber,
-					lineNumber:         lineNumberForOffset(source, function.startOffset+match[0]),
-					api:                api,
-					language:           language,
-				})
-			}
-		}
+		})
 	}
 	sort.Slice(commands, func(i, j int) bool {
 		if commands[i].lineNumber != commands[j].lineNumber {
@@ -115,97 +99,267 @@ func embeddedShellCommands(source string, language string) []jsEmbeddedShellComm
 	return commands
 }
 
-func jsShellImportAliases(source string) jsShellImports {
+// jsChildProcessCallAPI classifies a call_expression as an embedded shell
+// command and returns its "child_process.<api>" label plus the alias whose
+// in-function shadowing must be checked. It returns an empty api when the call
+// is not a child_process invocation. Member calls (alias.exec(...)) bind on a
+// module alias; bare calls (exec(...)) bind on a destructured/named import.
+func jsChildProcessCallAPI(node *tree_sitter.Node, source []byte, imports jsShellImports) (string, string) {
+	functionNode := node.ChildByFieldName("function")
+	if functionNode == nil {
+		return "", ""
+	}
+	switch functionNode.Kind() {
+	case "member_expression":
+		objectNode := functionNode.ChildByFieldName("object")
+		propertyNode := functionNode.ChildByFieldName("property")
+		if objectNode == nil || objectNode.Kind() != "identifier" || propertyNode == nil {
+			return "", ""
+		}
+		alias := strings.TrimSpace(nodeText(objectNode, source))
+		if _, ok := imports.moduleAliases[alias]; !ok {
+			return "", ""
+		}
+		call := strings.TrimSpace(nodeText(propertyNode, source))
+		if _, ok := jsChildProcessCalls[call]; !ok {
+			return "", ""
+		}
+		return "child_process." + call, alias
+	case "identifier":
+		local := strings.TrimSpace(nodeText(functionNode, source))
+		if api, ok := imports.directCalls[local]; ok {
+			return api, local
+		}
+	}
+	return "", ""
+}
+
+// jsShellEnclosingFunctions returns every named function whose body could host a
+// child_process call: function_declaration and named function_expression nodes.
+// A call nested inside multiple such functions is attributed to each enclosing
+// function, matching the per-function scan semantics relied upon by callers.
+func jsShellEnclosingFunctions(root *tree_sitter.Node, source []byte) []jsShellFunction {
+	functions := make([]jsShellFunction, 0)
+	walkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "function_declaration", "function_expression":
+		default:
+			return
+		}
+		nameNode := node.ChildByFieldName("name")
+		if nameNode == nil {
+			return
+		}
+		name := strings.TrimSpace(nodeText(nameNode, source))
+		if name == "" {
+			return
+		}
+		body := node.ChildByFieldName("body")
+		if body == nil {
+			return
+		}
+		functions = append(functions, jsShellFunction{
+			name:       name,
+			lineNumber: nodeLine(node),
+			body:       body,
+		})
+	})
+	return functions
+}
+
+// jsShellImportAliases collects child_process bindings from import_statement and
+// require variable_declarator nodes. Module aliases come from default/namespace
+// imports and `const alias = require("child_process")`; direct-call bindings
+// come from named imports and `const { exec } = require("child_process")`,
+// restricted to the known process-spawning APIs. The "node:" specifier prefix
+// is accepted for both forms.
+func jsShellImportAliases(root *tree_sitter.Node, source []byte) jsShellImports {
 	imports := jsShellImports{moduleAliases: map[string]struct{}{}, directCalls: map[string]string{}}
-	for _, pattern := range []*regexp.Regexp{jsRequireAliasPattern, jsImportNamespacePattern, jsImportDefaultPattern} {
-		for _, match := range pattern.FindAllStringSubmatch(source, -1) {
-			imports.moduleAliases[strings.TrimSpace(match[pattern.SubexpIndex("alias")])] = struct{}{}
+	walkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "import_statement":
+			jsCollectShellImportStatement(node, source, &imports)
+		case "variable_declarator":
+			jsCollectShellRequireDeclarator(node, source, &imports)
 		}
-	}
-	for _, pattern := range []*regexp.Regexp{jsRequireDestructurePattern, jsImportNamedPattern} {
-		for _, match := range pattern.FindAllStringSubmatch(source, -1) {
-			for local, imported := range jsNamedImports(match[pattern.SubexpIndex("names")]) {
-				if _, ok := jsChildProcessCalls[imported]; ok {
-					imports.directCalls[local] = "child_process." + imported
-				}
-			}
-		}
-	}
+	})
 	return imports
 }
 
-func jsNamedImports(raw string) map[string]string {
-	out := map[string]string{}
-	for _, part := range strings.Split(raw, ",") {
-		segment := strings.TrimSpace(part)
-		if segment == "" {
-			continue
-		}
-		if strings.Contains(segment, ":") {
-			pair := strings.SplitN(segment, ":", 2)
-			out[strings.TrimSpace(pair[1])] = strings.TrimSpace(pair[0])
-			continue
-		}
-		fields := strings.Fields(segment)
-		if len(fields) == 3 && fields[1] == "as" {
-			out[fields[2]] = fields[0]
-			continue
-		}
-		out[segment] = segment
+func jsCollectShellImportStatement(node *tree_sitter.Node, source []byte, imports *jsShellImports) {
+	sourceNode := node.ChildByFieldName("source")
+	if !jsIsChildProcessSpecifier(sourceNode, source) {
+		return
 	}
-	return out
-}
-
-func iterJSFunctionBodies(source string) []jsFunctionBody {
-	matches := jsFunctionPattern.FindAllStringSubmatchIndex(source, -1)
-	nameIndex := jsFunctionPattern.SubexpIndex("name")
-	bodies := make([]jsFunctionBody, 0, len(matches))
-	for _, match := range matches {
-		openBrace := strings.IndexByte(source[match[0]:], '{')
-		if openBrace < 0 {
-			continue
-		}
-		openIndex := match[0] + openBrace
-		closeIndex := matchingJSBraceIndex(source, openIndex)
-		if closeIndex < 0 {
-			continue
-		}
-		bodyStart := openIndex + 1
-		bodies = append(bodies, jsFunctionBody{
-			name:        source[match[2*nameIndex]:match[2*nameIndex+1]],
-			body:        source[bodyStart:closeIndex],
-			startOffset: bodyStart,
-			lineNumber:  lineNumberForOffset(source, match[0]),
-		})
-	}
-	return bodies
-}
-
-func matchingJSBraceIndex(source string, openIndex int) int {
-	depth := 0
-	for index := openIndex; index < len(source); index++ {
-		switch source[index] {
-		case '{':
-			depth++
-		case '}':
-			depth--
-			if depth == 0 {
-				return index
+	walkNamed(node, func(child *tree_sitter.Node) {
+		switch child.Kind() {
+		case "namespace_import":
+			if alias := javaScriptNamespaceImportAlias(child, source); alias != "" {
+				imports.moduleAliases[alias] = struct{}{}
+			}
+		case "import_clause":
+			// A bare default import is an identifier child of the clause.
+			cursor := child.Walk()
+			for _, clauseChild := range child.NamedChildren(cursor) {
+				clauseChild := clauseChild
+				if clauseChild.Kind() == "identifier" {
+					if alias := strings.TrimSpace(nodeText(&clauseChild, source)); alias != "" {
+						imports.moduleAliases[alias] = struct{}{}
+					}
+				}
+			}
+			cursor.Close()
+		case "import_specifier":
+			imported := strings.TrimSpace(nodeText(child.ChildByFieldName("name"), source))
+			local := imported
+			if aliasNode := child.ChildByFieldName("alias"); aliasNode != nil {
+				if aliasText := strings.TrimSpace(nodeText(aliasNode, source)); aliasText != "" {
+					local = aliasText
+				}
+			}
+			if _, ok := jsChildProcessCalls[imported]; ok && local != "" {
+				imports.directCalls[local] = "child_process." + imported
 			}
 		}
+	})
+}
+
+func jsCollectShellRequireDeclarator(node *tree_sitter.Node, source []byte, imports *jsShellImports) {
+	valueNode := node.ChildByFieldName("value")
+	if !jsIsChildProcessRequireCall(valueNode, source) {
+		return
 	}
-	return -1
+	nameNode := node.ChildByFieldName("name")
+	if nameNode == nil {
+		return
+	}
+	switch nameNode.Kind() {
+	case "identifier":
+		if alias := strings.TrimSpace(nodeText(nameNode, source)); alias != "" {
+			imports.moduleAliases[alias] = struct{}{}
+		}
+	case "object_pattern":
+		cursor := nameNode.Walk()
+		for _, child := range nameNode.NamedChildren(cursor) {
+			child := child
+			imported, local := jsObjectPatternBinding(&child, source)
+			if imported == "" || local == "" {
+				continue
+			}
+			if _, ok := jsChildProcessCalls[imported]; ok {
+				imports.directCalls[local] = "child_process." + imported
+			}
+		}
+		cursor.Close()
+	}
 }
 
-func jsIdentifierShadowedBefore(source string, identifier string) bool {
-	pattern := regexp.MustCompile(`\b(?:const|let|var)?\s*` + regexp.QuoteMeta(identifier) + `\s*=`)
-	return pattern.MatchString(source)
+// jsObjectPatternBinding returns the imported name and local binding name for one
+// destructuring element of a require object_pattern. A shorthand binding
+// ({ exec }) maps a name to itself; a renamed binding ({ exec: run }) maps the
+// source property to its local alias.
+func jsObjectPatternBinding(node *tree_sitter.Node, source []byte) (string, string) {
+	if node == nil {
+		return "", ""
+	}
+	switch node.Kind() {
+	case "shorthand_property_identifier_pattern":
+		name := strings.TrimSpace(nodeText(node, source))
+		return name, name
+	case "pair_pattern":
+		keyNode := node.ChildByFieldName("key")
+		valueNode := node.ChildByFieldName("value")
+		imported := strings.TrimSpace(nodeText(keyNode, source))
+		local := strings.TrimSpace(nodeText(valueNode, source))
+		return imported, local
+	}
+	return "", ""
 }
 
-func jsIdentifierCallPattern(identifier string) *regexp.Regexp {
-	return regexp.MustCompile(`\b` + regexp.QuoteMeta(identifier) + `\s*\(`)
+// jsIsChildProcessRequireCall reports whether node is a require("child_process")
+// call_expression, accepting the optional "node:" specifier prefix.
+func jsIsChildProcessRequireCall(node *tree_sitter.Node, source []byte) bool {
+	if node == nil || node.Kind() != "call_expression" {
+		return false
+	}
+	functionNode := node.ChildByFieldName("function")
+	if functionNode == nil || strings.TrimSpace(nodeText(functionNode, source)) != "require" {
+		return false
+	}
+	argumentsNode := node.ChildByFieldName("arguments")
+	if argumentsNode == nil {
+		return false
+	}
+	cursor := argumentsNode.Walk()
+	defer cursor.Close()
+	argChildren := argumentsNode.NamedChildren(cursor)
+	if len(argChildren) != 1 {
+		return false
+	}
+	specifier := argChildren[0]
+	return jsIsChildProcessSpecifier(&specifier, source)
 }
 
-func lineNumberForOffset(source string, offset int) int {
-	return strings.Count(source[:offset], "\n") + 1
+// jsIsChildProcessSpecifier reports whether a string-literal node resolves to the
+// child_process module, accepting the optional "node:" prefix. The string node's
+// fragment child holds the literal text without surrounding quotes.
+func jsIsChildProcessSpecifier(node *tree_sitter.Node, source []byte) bool {
+	if node == nil || node.Kind() != "string" {
+		return false
+	}
+	value := strings.TrimSpace(jsStringLiteralValue(node, source))
+	return value == "child_process" || value == "node:child_process"
+}
+
+// jsStringLiteralValue returns the unquoted content of a string node by reading
+// its string_fragment child, falling back to trimming the quote bytes.
+func jsStringLiteralValue(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() == "string_fragment" {
+			return nodeText(&child, source)
+		}
+	}
+	text := strings.TrimSpace(nodeText(node, source))
+	if unquoted, ok := trimJavaScriptQuotes(text); ok {
+		return unquoted
+	}
+	return text
+}
+
+// jsIdentifierShadowedBeforeNode reports whether identifier is re-bound inside
+// body before call, mirroring the prior "local re-binding before the call site"
+// guard: an assignment_expression or a declarator targeting identifier that ends
+// at or before the call's start byte shadows the imported binding.
+func jsIdentifierShadowedBeforeNode(body *tree_sitter.Node, call *tree_sitter.Node, identifier string, source []byte) bool {
+	if body == nil || call == nil || identifier == "" {
+		return false
+	}
+	callStart := call.StartByte()
+	shadowed := false
+	walkNamed(body, func(node *tree_sitter.Node) {
+		if shadowed || node.StartByte() >= callStart {
+			return
+		}
+		switch node.Kind() {
+		case "assignment_expression":
+			leftNode := node.ChildByFieldName("left")
+			if leftNode != nil && leftNode.Kind() == "identifier" &&
+				strings.TrimSpace(nodeText(leftNode, source)) == identifier {
+				shadowed = true
+			}
+		case "variable_declarator":
+			nameNode := node.ChildByFieldName("name")
+			if nameNode != nil && nameNode.Kind() == "identifier" &&
+				strings.TrimSpace(nodeText(nameNode, source)) == identifier {
+				shadowed = true
+			}
+		}
+	})
+	return shadowed
 }

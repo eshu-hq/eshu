@@ -97,15 +97,39 @@ func javaScriptReExportEntry(
 	return item
 }
 
+// javaScriptIsStarReExport reports whether an export_statement re-exports a whole
+// module via the star form rather than a named export clause. It is decided
+// structurally: a re-export node (one that has a module source) is a star
+// re-export when it carries no export_clause child. This covers
+//
+//	export * from "..."            (source only)
+//	export * as NS from "..."      (namespace_export child)
+//	export type * from "..."       (type modifier; grammar emits an ERROR token)
+//	export type * as NS from "..." (namespace_export child + ERROR token)
+//
+// The TypeScript tree-sitter grammar does not model the type modifier on a star
+// export, so it produces an ERROR node for the "type" token; reading the node
+// text for a leading "*" therefore misses the type-only forms. Named re-exports
+// (export { A } from "...", export type { A } from "...") carry an export_clause
+// and are not treated as star re-exports here so their per-name edges are kept.
 func javaScriptIsStarReExport(node *tree_sitter.Node, source []byte) bool {
 	if node == nil {
 		return false
 	}
-	text := strings.TrimSpace(nodeText(node, source))
-	if !strings.HasPrefix(text, "export") {
+	if node.Kind() != "export_statement" {
 		return false
 	}
-	return strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(text, "export")), "*")
+	if node.ChildByFieldName("source") == nil {
+		return false
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		if child.Kind() == "export_clause" {
+			return false
+		}
+	}
+	return true
 }
 
 func javaScriptReExportSpecifiers(node *tree_sitter.Node, source []byte) []javaScriptReExportSpecifier {
