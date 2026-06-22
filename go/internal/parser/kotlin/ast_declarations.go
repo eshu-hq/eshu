@@ -47,8 +47,13 @@ func (w *astWalker) collectDeclarationsIn(node *tree_sitter.Node, currentType st
 	nextType := currentType
 	switch node.Kind() {
 	case "import":
-		if alias := w.importAlias(node); alias != "" {
-			w.knownTypeNames[alias] = struct{}{}
+		// Record the import's simple name (explicit `as` alias, or the last
+		// path segment of a regular import) as a known type so a constructor
+		// call like `Widget()` after `import com.acme.Widget` is recognized.
+		// Imported names are NOT added to localTypeNames, so an imported
+		// top-level function such as `helper()` still emits a bare call edge.
+		if simple := w.importedSimpleName(node); simple != "" {
+			w.knownTypeNames[simple] = struct{}{}
 		}
 	case "class_declaration", "object_declaration", "companion_object":
 		name := w.declarationName(node)
@@ -324,6 +329,20 @@ func (w *astWalker) handleImport(node *tree_sitter.Node) {
 		"line_number":      shared.NodeLine(node),
 		"lang":             "kotlin",
 	})
+}
+
+// importedSimpleName returns the name an import introduces into scope: its
+// explicit `as` alias when present, otherwise the last dot-separated segment of
+// the imported path.
+func (w *astWalker) importedSimpleName(node *tree_sitter.Node) string {
+	if explicit := w.importAlias(node); explicit != "" {
+		return explicit
+	}
+	source := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), w.source))
+	if source == "" {
+		source = strings.TrimSpace(shared.NodeText(w.childByKind(node, "qualified_identifier"), w.source))
+	}
+	return kotlinImportAlias(source)
 }
 
 // importAlias returns the explicit `as` alias of an import node, or "".

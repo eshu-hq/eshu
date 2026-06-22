@@ -116,3 +116,96 @@ fun usage(value: Any): String {
 		t.Fatalf("post-block value.info inferred_obj_type = %q, want empty (no smart-cast leak)", outsideType)
 	}
 }
+
+// TestDefaultEngineParsePathKotlinImportedTypeConstructorCallEmitsRow proves a
+// regularly imported type (no `as` alias) is recognized as a constructor call
+// target: `import com.acme.Widget` then `Widget()` emits a Widget call row. The
+// pre-pass records the import's last path segment as a known type. Reported as a
+// P2 on PR #3548.
+func TestDefaultEngineParsePathKotlinImportedTypeConstructorCallEmitsRow(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "consumer.kt")
+	writeTestFile(
+		t,
+		filePath,
+		`package demo
+
+import com.acme.Widget
+import com.acme.helper
+
+fun run(): String {
+    val w = Widget()
+    return helper(w)
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	// Imported type constructed with `Widget()` emits a constructor call.
+	assertNamedBucketContains(t, got, "function_calls", "Widget")
+	// Imported top-level function `helper()` still emits a bare call edge
+	// (Kotlin imports do not distinguish a function from a type), preserving the
+	// #3528 imported-bare-call behavior.
+	assertNamedBucketContains(t, got, "function_calls", "helper")
+}
+
+// TestDefaultEngineParsePathKotlinSmartCastAppliesToUnbracedIfConsequent proves
+// a concise (unbraced) guard `if (value is Service) value.info()` narrows the
+// receiver type for the consequent call, yielding inferred_obj_type=Service.
+// Reported as a P2 on PR #3548.
+func TestDefaultEngineParsePathKotlinSmartCastAppliesToUnbracedIfConsequent(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Usage.kt")
+	writeTestFile(
+		t,
+		filePath,
+		`package comprehensive
+
+class Service {
+    fun info(): String = "ok"
+}
+
+fun usage(value: Any): String {
+    if (value is Service) value.info()
+    return ""
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	items, ok := got["function_calls"].([]map[string]any)
+	if !ok {
+		t.Fatalf("function_calls = %T, want []map[string]any", got["function_calls"])
+	}
+	for _, item := range items {
+		fullName, _ := item["full_name"].(string)
+		if fullName != "value.info" {
+			continue
+		}
+		assertStringFieldValue(t, item, "inferred_obj_type", "Service")
+		return
+	}
+	t.Fatalf("function_calls missing full_name=%q in %#v", "value.info", items)
+}

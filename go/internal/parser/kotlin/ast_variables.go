@@ -164,23 +164,37 @@ func (w *astWalker) inferExpressionType(node *tree_sitter.Node, f frame, variabl
 }
 
 // handleIfExpression narrows smart-cast types from an `if (x is T)` condition
-// into the guarded block's frame, then recurses.
+// into the consequent's frame, then recurses. The narrowing applies to the
+// consequent whether it is a braced `block` or a single unbraced statement
+// (`if (x is T) x.m()`); the condition itself and any `else` branch are walked
+// with the unguarded frame.
 func (w *astWalker) handleIfExpression(node *tree_sitter.Node, f frame) {
-	narrowed := w.smartCastFromCondition(node.ChildByFieldName("condition"))
-	guarded := f.withSmartCasts(narrowed)
+	condition := node.ChildByFieldName("condition")
+	guarded := f.withSmartCasts(w.smartCastFromCondition(condition))
 
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		// The condition itself is evaluated without the narrowing it
-		// introduces, matching prior behavior where the cast applies to the
-		// consequent block.
-		if child.Kind() == "block" {
-			w.walkNode(&child, guarded)
+	conditionStart := uint(0)
+	if condition != nil {
+		conditionStart = condition.StartByte()
+	}
+	inElse := false
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
 			continue
 		}
-		w.walkNode(&child, f)
+		if !child.IsNamed() {
+			if child.Kind() == "else" {
+				inElse = true
+			}
+			continue
+		}
+		// The condition node and the else branch are unguarded; only the
+		// consequent (after the condition, before `else`) sees the narrowing.
+		if inElse || child.StartByte() == conditionStart {
+			w.walkNode(child, f)
+			continue
+		}
+		w.walkNode(child, guarded)
 	}
 }
 
