@@ -997,7 +997,7 @@
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
-      "notes": "Read-only core resource listing and source facts exist; no claim-driven runtime, watch mode, reducer projection, drift read model, or chart yet."
+      "notes": "Read-only core resource listing, source facts, and the kubernetesLiveCollector chart workload with in-cluster RBAC exist; no claim-driven runtime, watch mode, reducer projection, or drift read model yet."
     },
     {
       "category": "collector",

@@ -251,7 +251,7 @@ implemented:
 | --- | --- |
 | Kubernetes live | No hosted collector runtime or charted workload. |
 | Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, configured `image_unpacking` image/rootfs analyzer, configured repository-manifest `sbom_generation` source, `os_package_extraction` rootfs parser, Compose service, and opt-in Helm Deployment exist. Secret, license, source, and misconfiguration analyzers are not enabled by default until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven in the target environment. |
-| Kubernetes live | Foundation only: `eshu-collector-kubernetes-live` lists a read-only core resource set (namespaces, pods, deployments, replicasets, services, ingresses) and emits `kubernetes_live.pod_template`, `kubernetes_live.relationship`, and `kubernetes_live.warning` source facts through `collector.Service`. No claim-driven runtime, watch mode, reducer projection, drift read model, or charted workload yet; the #388 correlation/drift work and Helm path remain pending. |
+| Kubernetes live | Foundation plus chart: `eshu-collector-kubernetes-live` lists a read-only core resource set (namespaces, pods, deployments, replicasets, services, ingresses) and emits `kubernetes_live.pod_template`, `kubernetes_live.relationship`, and `kubernetes_live.warning` source facts through `collector.Service`. The chart now renders the workload, metrics Service, ServiceMonitor, NetworkPolicy, PodDisruptionBudget, and read-only in-cluster RBAC through `kubernetesLiveCollector`. No claim-driven runtime, watch mode, reducer projection, or drift read model yet; the #388 correlation/drift work and live hosted promotion proof remain pending. |
 | Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, bounded `image_unpacking` rootfs/layer analyzer, bounded `sbom_generation` fallback, `os_package_extraction` rootfs parser, Compose service, and opt-in Helm Deployment exist. Concrete analyzers are not enabled by default until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven in the target environment. |
 | CI/CD runs | Fixture normalizer, reducer correlation, bounded GitHub Actions runtime source, workflow planner, hosted binary, chart values, provider telemetry, and fact-backed central collector status evidence exist. The hosted runtime strips token-bearing artifact URLs before fact emission and requires explicit repository allowlists plus run/job/artifact limits. It is not fully promoted until live target proof captures health, readiness, metrics, status, claim leases, fact counts, queue state, and reducer/API truth for the deployed chart shape. |
 | Service catalog | Repo-hosted Backstage, OpsLevel, and Cortex descriptors emit `service_catalog.*` facts through Git collection, and the provenance-only projector, reducer, API, and MCP read paths exist. Hosted Backstage/OpsLevel/Cortex API polling, credentials, provider rate-limit budgets, and charted catalog collector runtimes are not deployed lanes yet. |
@@ -270,6 +270,28 @@ Workspace documentation.
 
 No-Observability-Change: this removal adds no metric, span, log, status row,
 database query, graph write, queue consumer, or hosted runtime path.
+
+Live-Collector Chart Evidence: the `kubernetesLiveCollector` and
+`vaultLiveCollector` Helm surfaces add deploy-time wiring only (Deployment,
+metrics Service, ServiceMonitor, NetworkPolicy, PodDisruptionBudget, read-only
+in-cluster RBAC for kubernetes-live, and Secret-referenced redaction key and
+per-target Vault tokens for vault-live). They start the existing
+`/usr/local/bin/eshu-collector-kubernetes-live` and
+`/usr/local/bin/eshu-collector-vault-live` binaries with their established env
+contracts and change no Cypher, reducer, queue, worker-count, batch, or graph
+write path.
+
+No-Regression Evidence: `go test ./internal/runtime -run
+'TestHelm(LiveCollectorDeployments|ClaimDrivenCollectorDeployments)' -count=1`
+proves both live collectors are off by default, render their full workload and
+RBAC surfaces with the correct binary commands and env contracts when enabled,
+and that the existing claim-driven collector render contract still holds after
+adding vault-live to the claim-driven coordinator guard.
+
+No-Observability-Change: the live-collector chart additions add no metric, span,
+structured log, status row, database query, graph write, or queue consumer.
+Collector telemetry stays in the unchanged binaries and is scraped through the
+new metrics Services and ServiceMonitors using existing collector signals.
 
 ## Promotion Proof
 

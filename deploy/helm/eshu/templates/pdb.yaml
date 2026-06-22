@@ -311,6 +311,36 @@ spec:
       {{- include "eshu.vulnerabilityIntelligenceCollectorSelectorLabels" . | nindent 6 }}
 ---
 {{- end }}
+{{- if .Values.kubernetesLiveCollector.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.kubernetesLiveCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kubernetes-live-collector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.kubernetesLiveCollectorSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
+{{- if .Values.vaultLiveCollector.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.vaultLiveCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vault-live-collector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.vaultLiveCollectorSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
 {{- if .Values.repoSync.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
