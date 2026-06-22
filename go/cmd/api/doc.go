@@ -30,6 +30,7 @@
 // repo sync, parsing, fact emission, vector builds, or queued projection work.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
-// net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1
-// for port-only inputs so the default does not reach beyond the local host.
+// net/http/pprof endpoint via runtime.NewPprofServer, bound to the loopback
+// interface for port-only inputs so the default does not reach beyond the local
+// host.
 package main

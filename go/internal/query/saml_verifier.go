@@ -75,7 +75,7 @@ func (v CrewjamSAMLVerifier) VerifySAMLResponse(
 	if err != nil {
 		return SAMLAssertion{}, err
 	}
-	requestID, err := requestIDFromSAMLResponse(samlResponse)
+	requestID, responseID, err := responseEnvelopeIDsFromSAMLResponse(samlResponse)
 	if err != nil {
 		return SAMLAssertion{}, err
 	}
@@ -92,24 +92,32 @@ func (v CrewjamSAMLVerifier) VerifySAMLResponse(
 	if err != nil {
 		return SAMLAssertion{}, err
 	}
-	return samlAssertionFromCrewjam(assertion, provider.ClockSkew), nil
+	result := samlAssertionFromCrewjam(assertion, provider.ClockSkew)
+	result.ResponseID = responseID
+	return result, nil
 }
 
 func requestIDFromSAMLResponse(samlResponse string) (string, error) {
+	requestID, _, err := responseEnvelopeIDsFromSAMLResponse(samlResponse)
+	return requestID, err
+}
+
+func responseEnvelopeIDsFromSAMLResponse(samlResponse string) (string, string, error) {
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlResponse))
 	if err != nil {
-		return "", fmt.Errorf("decode saml response: %w", err)
+		return "", "", fmt.Errorf("decode saml response: %w", err)
 	}
 	var response struct {
+		ID           string `xml:"ID,attr"`
 		InResponseTo string `xml:"InResponseTo,attr"`
 	}
 	if err := xml.Unmarshal(raw, &response); err != nil {
-		return "", fmt.Errorf("parse saml response envelope: %w", err)
+		return "", "", fmt.Errorf("parse saml response envelope: %w", err)
 	}
 	if strings.TrimSpace(response.InResponseTo) == "" {
-		return "", fmt.Errorf("saml response missing InResponseTo")
+		return "", "", fmt.Errorf("saml response missing InResponseTo")
 	}
-	return strings.TrimSpace(response.InResponseTo), nil
+	return strings.TrimSpace(response.InResponseTo), strings.TrimSpace(response.ID), nil
 }
 
 func matchesRequestIDHash(requestID string, requestIDHashes []string) bool {

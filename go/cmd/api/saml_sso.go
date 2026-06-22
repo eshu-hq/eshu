@@ -24,37 +24,25 @@ var _ query.SAMLStore = (*postgresSAMLStore)(nil)
 
 type postgresSAMLStore struct {
 	ledger    *pgstatus.SAMLSSOStore
+	identity  *pgstatus.IdentitySubjectStore
 	providers map[string]samlProviderRuntimeConfig
 	now       func() time.Time
 }
 
 type samlProviderRuntimeConfig struct {
 	provider query.SAMLProviderConfig
-	rules    []samlAuthRuleConfig
 }
 
 type samlProviderEnvConfig struct {
-	ProviderConfigID                 string               `json:"provider_config_id"`
-	ServiceProviderEntityID          string               `json:"service_provider_entity_id"`
-	ServiceProviderACSURL            string               `json:"service_provider_acs_url"`
-	IdentityProviderMetadataXMLEnv   string               `json:"identity_provider_metadata_xml_env"`
-	ExpectedIdentityProviderEntityID string               `json:"expected_identity_provider_entity_id"`
-	GroupAttributeNames              []string             `json:"group_attribute_names"`
-	RequireGroups                    bool                 `json:"require_groups"`
-	HashScope                        string               `json:"hash_scope"`
-	ClockSkewSeconds                 int                  `json:"clock_skew_seconds"`
-	AuthRules                        []samlAuthRuleConfig `json:"auth_rules"`
-}
-
-type samlAuthRuleConfig struct {
-	RequiredGroupKeys    []string `json:"required_group_keys"`
-	TenantID             string   `json:"tenant_id"`
-	WorkspaceID          string   `json:"workspace_id"`
-	SubjectClass         string   `json:"subject_class"`
-	PolicyRevisionHash   string   `json:"policy_revision_hash"`
-	AllScopes            bool     `json:"all_scopes"`
-	AllowedScopeIDs      []string `json:"allowed_scope_ids"`
-	AllowedRepositoryIDs []string `json:"allowed_repository_ids"`
+	ProviderConfigID                 string   `json:"provider_config_id"`
+	ServiceProviderEntityID          string   `json:"service_provider_entity_id"`
+	ServiceProviderACSURL            string   `json:"service_provider_acs_url"`
+	IdentityProviderMetadataXMLEnv   string   `json:"identity_provider_metadata_xml_env"`
+	ExpectedIdentityProviderEntityID string   `json:"expected_identity_provider_entity_id"`
+	GroupAttributeNames              []string `json:"group_attribute_names"`
+	RequireGroups                    bool     `json:"require_groups"`
+	HashScope                        string   `json:"hash_scope"`
+	ClockSkewSeconds                 int      `json:"clock_skew_seconds"`
 }
 
 func newSAMLHandler(
@@ -81,7 +69,11 @@ func newSAMLHandler(
 			StoreName:   "saml_sso",
 		}
 	}
-	store, err := newPostgresSAMLStore(pgstatus.NewSAMLSSOStore(samlDB), getenv)
+	store, err := newPostgresSAMLStore(
+		pgstatus.NewSAMLSSOStore(samlDB),
+		pgstatus.NewIdentitySubjectStore(samlDB),
+		getenv,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +84,17 @@ func newSAMLHandler(
 	}, nil
 }
 
-func newPostgresSAMLStore(ledger *pgstatus.SAMLSSOStore, getenv func(string) string) (*postgresSAMLStore, error) {
+func newPostgresSAMLStore(
+	ledger *pgstatus.SAMLSSOStore,
+	identity *pgstatus.IdentitySubjectStore,
+	getenv func(string) string,
+) (*postgresSAMLStore, error) {
+	if ledger == nil {
+		return nil, errors.New("saml ledger store is required")
+	}
+	if identity == nil {
+		return nil, errors.New("identity subject store is required for saml providers")
+	}
 	providers, err := loadSAMLProviderConfigs(getenv)
 	if err != nil {
 		return nil, err
@@ -102,6 +104,7 @@ func newPostgresSAMLStore(ledger *pgstatus.SAMLSSOStore, getenv func(string) str
 	}
 	return &postgresSAMLStore{
 		ledger:    ledger,
+		identity:  identity,
 		providers: providers,
 		now:       func() time.Time { return time.Now().UTC() },
 	}, nil
@@ -156,13 +159,6 @@ func samlProviderRuntimeFromEnvConfig(
 	if cfg.HashScope == "" {
 		cfg.HashScope = cfg.ProviderConfigID
 	}
-	rules, err := normalizeSAMLAuthRules(cfg.AuthRules)
-	if err != nil {
-		return samlProviderRuntimeConfig{}, err
-	}
-	if len(rules) == 0 {
-		return samlProviderRuntimeConfig{}, errors.New("at least one SAML auth rule is required")
-	}
 	runtime := samlProviderRuntimeConfig{
 		provider: query.SAMLProviderConfig{
 			ProviderConfigID: cfg.ProviderConfigID,
@@ -179,42 +175,26 @@ func samlProviderRuntimeFromEnvConfig(
 			},
 			ClockSkew: time.Duration(cfg.ClockSkewSeconds) * time.Second,
 		},
-		rules: rules,
 	}
 	return runtime, nil
 }
 
-func normalizeSAMLAuthRules(rules []samlAuthRuleConfig) ([]samlAuthRuleConfig, error) {
-	out := make([]samlAuthRuleConfig, 0, len(rules))
-	for _, rule := range rules {
-		rule.RequiredGroupKeys = cleanSAMLGroupKeys(rule.RequiredGroupKeys)
-		rule.TenantID = strings.TrimSpace(rule.TenantID)
-		rule.WorkspaceID = strings.TrimSpace(rule.WorkspaceID)
-		rule.SubjectClass = strings.TrimSpace(rule.SubjectClass)
-		rule.PolicyRevisionHash = strings.TrimSpace(rule.PolicyRevisionHash)
-		rule.AllowedScopeIDs = cleanSAMLStrings(rule.AllowedScopeIDs)
-		rule.AllowedRepositoryIDs = cleanSAMLStrings(rule.AllowedRepositoryIDs)
-		if rule.SubjectClass == "" {
-			rule.SubjectClass = "external_saml"
-		}
-		if rule.TenantID == "" || rule.WorkspaceID == "" || rule.PolicyRevisionHash == "" {
-			return nil, errors.New("SAML auth rules require tenant_id, workspace_id, and policy_revision_hash")
-		}
-		if !rule.AllScopes && len(rule.AllowedScopeIDs) == 0 && len(rule.AllowedRepositoryIDs) == 0 {
-			return nil, errors.New("SAML auth rules require all_scopes or at least one allowed scope/repository")
-		}
-		out = append(out, rule)
-	}
-	return out, nil
-}
-
 func (s *postgresSAMLStore) GetSAMLProvider(
-	_ context.Context,
+	ctx context.Context,
 	providerID string,
 ) (query.SAMLProviderConfig, bool, error) {
 	provider, ok := s.providers[strings.TrimSpace(providerID)]
 	if !ok {
 		return query.SAMLProviderConfig{}, false, nil
+	}
+	if s.identity != nil {
+		active, err := s.identity.HasActiveSAMLProviderConfig(ctx, provider.provider.ProviderConfigID)
+		if err != nil {
+			return query.SAMLProviderConfig{}, false, err
+		}
+		if !active {
+			return query.SAMLProviderConfig{}, false, nil
+		}
 	}
 	cfg := provider.provider
 	cfg.IdentityProviderMetadataXML = append([]byte(nil), cfg.IdentityProviderMetadataXML...)
@@ -263,57 +243,38 @@ func (s *postgresSAMLStore) ReserveSAMLReplay(
 }
 
 func (s *postgresSAMLStore) ResolveSAMLPrincipal(
-	_ context.Context,
+	ctx context.Context,
 	providerID string,
 	principal samlauth.Principal,
-	_ time.Time,
+	now time.Time,
 ) (query.AuthContext, bool, error) {
 	provider, ok := s.providers[strings.TrimSpace(providerID)]
 	if !ok {
 		return query.AuthContext{}, false, nil
 	}
-	groupKeys := samlGroupKeySet(principal.GroupKeys)
-	for _, rule := range provider.rules {
-		if !samlRuleMatchesGroups(rule, groupKeys) {
-			continue
+	if s.identity != nil {
+		result, err := s.identity.ResolveSAMLExternalSubject(ctx, pgstatus.SAMLExternalSubjectResolutionRequest{
+			ProviderConfigID:      provider.provider.ProviderConfigID,
+			ExternalSubjectIDHash: principal.ExternalSubjectHash,
+			GroupClaimsHash:       principal.GroupClaimHash,
+			Now:                   now,
+		})
+		if err != nil {
+			return query.AuthContext{}, false, err
 		}
-		return query.AuthContext{
-			TenantID:             rule.TenantID,
-			WorkspaceID:          rule.WorkspaceID,
-			SubjectClass:         rule.SubjectClass,
-			SubjectIDHash:        principal.ExternalSubjectHash,
-			PolicyRevisionHash:   rule.PolicyRevisionHash,
-			AllScopes:            rule.AllScopes,
-			AllowedScopeIDs:      append([]string(nil), rule.AllowedScopeIDs...),
-			AllowedRepositoryIDs: append([]string(nil), rule.AllowedRepositoryIDs...),
-		}, true, nil
+		if result.Resolved {
+			return query.AuthContext{
+				TenantID:           result.Auth.TenantID,
+				WorkspaceID:        result.Auth.WorkspaceID,
+				SubjectClass:       result.Auth.SubjectClass,
+				SubjectIDHash:      result.Auth.SubjectIDHash,
+				PolicyRevisionHash: result.Auth.PolicyRevisionHash,
+				AllScopes:          result.Auth.AllScopes,
+			}, true, nil
+		}
+		return query.AuthContext{}, false, nil
 	}
 	return query.AuthContext{}, false, nil
-}
-
-func samlRuleMatchesGroups(rule samlAuthRuleConfig, groupKeys map[string]struct{}) bool {
-	for _, required := range rule.RequiredGroupKeys {
-		if _, ok := groupKeys[required]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func samlGroupKeySet(groups []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(groups))
-	for _, group := range cleanSAMLGroupKeys(groups) {
-		out[group] = struct{}{}
-	}
-	return out
-}
-
-func cleanSAMLGroupKeys(values []string) []string {
-	cleaned := cleanSAMLStrings(values)
-	for i, value := range cleaned {
-		cleaned[i] = strings.ToLower(value)
-	}
-	return cleaned
 }
 
 func cleanSAMLStrings(values []string) []string {

@@ -123,7 +123,10 @@ High-signal invariants for this package:
 - SAML SSO storage is additive to the identity schema. It persists only
   AuthnRequest digests, RelayState digests, replay digests, status, and
   timestamps. It never stores raw RelayState, SAMLResponse, assertions, NameID,
-  group values, certificates, or IdP metadata XML.
+  group values, certificates, or IdP metadata XML. SAML external-subject
+  resolution uses hash-only provider, subject, and group-claim inputs and
+  requires active provider, user, tenant/workspace membership, admin role, and
+  all-scope role grant rows before returning an all-scope session context.
 - Repository ref readbacks stay bounded by the `repository_refs` primary key
   `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
   fresh ref set carried by the current materialization so content-only

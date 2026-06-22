@@ -20,6 +20,21 @@ func TestRequestIDFromSAMLResponseExtractsInResponseTo(t *testing.T) {
 	}
 }
 
+func TestResponseEnvelopeIDsFromSAMLResponseExtractsRequestAndResponseIDs(t *testing.T) {
+	t.Parallel()
+
+	responseXML := `<Response xmlns="urn:oasis:names:tc:SAML:2.0:protocol" ID="response-1" InResponseTo="request-1"></Response>`
+	encoded := base64.StdEncoding.EncodeToString([]byte(responseXML))
+
+	requestID, responseID, err := responseEnvelopeIDsFromSAMLResponse(encoded)
+	if err != nil {
+		t.Fatalf("responseEnvelopeIDsFromSAMLResponse() error = %v", err)
+	}
+	if requestID != "request-1" || responseID != "response-1" {
+		t.Fatalf("ids = %q/%q, want request-1/response-1", requestID, responseID)
+	}
+}
+
 func TestRequestIDFromSAMLResponseRejectsMissingInResponseTo(t *testing.T) {
 	t.Parallel()
 

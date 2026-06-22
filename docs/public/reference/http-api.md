@@ -154,9 +154,12 @@ SAML routes are enabled by `ESHU_SAML_PROVIDERS_JSON`. Each provider entry
 uses a `provider_config_id` that already exists as an active
 `identity_provider_configs` row, references IdP metadata through an environment
 handle, validates the expected issuer and configured group claim names, and
-maps normalized group keys to an active tenant/workspace auth context.
-Malformed provider JSON, unknown fields, missing metadata env values, or rules
-without tenant/workspace/policy/scope grants fail closed during API wiring.
+maps normalized group claims to durable identity state. Login resolution
+requires an active external subject row with the current group-claim hash plus
+active membership, admin role, and all-scope role grant rows; missing identity
+rows, stale group claims, or revoked grants fail closed. Malformed provider
+JSON, unknown fields, or missing metadata env values fail closed during API
+wiring.
 
 ## Ask Eshu — POST /api/v0/ask
 

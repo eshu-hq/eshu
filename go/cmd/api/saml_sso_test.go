@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
+	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func TestNewSAMLHandlerDisabledWhenProvidersUnset(t *testing.T) {
@@ -34,7 +38,7 @@ func TestNewSAMLHandlerRequiresPostgresWhenProvidersConfigured(t *testing.T) {
 	}
 }
 
-func TestLoadSAMLProviderConfigsResolvesGroupRuleAuthContext(t *testing.T) {
+func TestResolveSAMLPrincipalDeniesWithoutDurableIdentityStore(t *testing.T) {
 	t.Parallel()
 
 	providers, err := loadSAMLProviderConfigs(samlTestGetenv())
@@ -56,17 +60,142 @@ func TestLoadSAMLProviderConfigsResolvesGroupRuleAuthContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveSAMLPrincipal() error = %v", err)
 	}
+	if ok || auth.TenantID != "" {
+		t.Fatalf("ResolveSAMLPrincipal() auth = %#v ok = %t, want no group-rule permission fallback", auth, ok)
+	}
+}
+
+func TestResolveSAMLPrincipalUsesDurableIdentity(t *testing.T) {
+	t.Parallel()
+
+	providers, err := loadSAMLProviderConfigs(samlTestGetenv())
+	if err != nil {
+		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
+	}
+	db := &samlIdentityTestDB{
+		queryResponses: []samlIdentityTestRows{{
+			rows: [][]any{{
+				"tenant_durable",
+				"workspace_durable",
+				"sha256:user-subject",
+				"sha256:policy-durable",
+			}},
+		}},
+	}
+	store := &postgresSAMLStore{
+		identity:  pgstatus.NewIdentitySubjectStore(db),
+		providers: providers,
+	}
+
+	auth, ok, err := store.ResolveSAMLPrincipal(context.Background(), "provider_a", samlauth.Principal{
+		ExternalSubjectHash: "sha256:external-subject",
+		GroupClaimHash:      "sha256:groups-current",
+		GroupKeys:           []string{"unmapped-in-static-rules"},
+	}, time.Date(2026, 6, 22, 18, 20, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ResolveSAMLPrincipal() error = %v", err)
+	}
 	if !ok {
-		t.Fatal("ResolveSAMLPrincipal() ok = false, want true")
+		t.Fatal("ResolveSAMLPrincipal() ok = false, want durable identity resolution")
 	}
-	if auth.TenantID != "tenant_a" || auth.WorkspaceID != "workspace_a" {
-		t.Fatalf("auth tenant/workspace = %q/%q, want tenant_a/workspace_a", auth.TenantID, auth.WorkspaceID)
+	if auth.TenantID != "tenant_durable" || auth.WorkspaceID != "workspace_durable" {
+		t.Fatalf("auth tenant/workspace = %q/%q, want durable identity", auth.TenantID, auth.WorkspaceID)
 	}
-	if auth.SubjectClass != "external_saml" || auth.SubjectIDHash != "sha256:subject" {
-		t.Fatalf("auth subject = %q/%q, want external_saml/sha256:subject", auth.SubjectClass, auth.SubjectIDHash)
+	if auth.SubjectIDHash != "sha256:user-subject" || auth.PolicyRevisionHash != "sha256:policy-durable" {
+		t.Fatalf("auth subject/policy = %q/%q, want durable user/policy", auth.SubjectIDHash, auth.PolicyRevisionHash)
 	}
-	if !auth.AllScopes || auth.PolicyRevisionHash != "sha256:policy" {
-		t.Fatalf("auth grant = all_scopes:%t policy:%q, want all scopes policy", auth.AllScopes, auth.PolicyRevisionHash)
+}
+
+func TestResolveSAMLPrincipalDeniesKnownDurableSubject(t *testing.T) {
+	t.Parallel()
+
+	providers, err := loadSAMLProviderConfigs(samlTestGetenv())
+	if err != nil {
+		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
+	}
+	db := &samlIdentityTestDB{
+		queryResponses: []samlIdentityTestRows{
+			{},
+			{rows: [][]any{{"external_identity_saml"}}},
+		},
+	}
+	store := &postgresSAMLStore{
+		identity:  pgstatus.NewIdentitySubjectStore(db),
+		providers: providers,
+	}
+
+	auth, ok, err := store.ResolveSAMLPrincipal(context.Background(), "provider_a", samlauth.Principal{
+		ExternalSubjectHash: "sha256:external-subject",
+		GroupClaimHash:      "sha256:groups-stale",
+		GroupKeys:           []string{"saml_admins"},
+	}, time.Date(2026, 6, 22, 18, 25, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ResolveSAMLPrincipal() error = %v", err)
+	}
+	if ok || auth.TenantID != "" {
+		t.Fatalf("ResolveSAMLPrincipal() auth = %#v ok = %t, want durable denial without auth-rule fallback", auth, ok)
+	}
+	if got := len(db.queries); got != 2 {
+		t.Fatalf("durable identity query count = %d, want resolution plus known-subject check", got)
+	}
+}
+
+func TestResolveSAMLPrincipalDeniesUnknownDurableSubject(t *testing.T) {
+	t.Parallel()
+
+	providers, err := loadSAMLProviderConfigs(samlTestGetenv())
+	if err != nil {
+		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
+	}
+	db := &samlIdentityTestDB{
+		queryResponses: []samlIdentityTestRows{{}, {}},
+	}
+	store := &postgresSAMLStore{
+		identity:  pgstatus.NewIdentitySubjectStore(db),
+		providers: providers,
+	}
+
+	auth, ok, err := store.ResolveSAMLPrincipal(context.Background(), "provider_a", samlauth.Principal{
+		ExternalSubjectHash: "sha256:external-subject",
+		GroupClaimHash:      "sha256:groups-current",
+		GroupKeys:           []string{"saml_admins"},
+	}, time.Date(2026, 6, 22, 18, 30, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ResolveSAMLPrincipal() error = %v", err)
+	}
+	if ok || auth.TenantID != "" {
+		t.Fatalf("ResolveSAMLPrincipal() auth = %#v ok = %t, want durable denial for unmapped subject", auth, ok)
+	}
+	if got := len(db.queries); got != 2 {
+		t.Fatalf("durable identity query count = %d, want resolution plus known-subject check", got)
+	}
+}
+
+func TestGetSAMLProviderRequiresActiveDurableProvider(t *testing.T) {
+	t.Parallel()
+
+	providers, err := loadSAMLProviderConfigs(samlTestGetenv())
+	if err != nil {
+		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
+	}
+	db := &samlIdentityTestDB{queryResponses: []samlIdentityTestRows{{}}}
+	store := &postgresSAMLStore{
+		identity:  pgstatus.NewIdentitySubjectStore(db),
+		providers: providers,
+	}
+
+	cfg, ok, err := store.GetSAMLProvider(context.Background(), "provider_a")
+	if err != nil {
+		t.Fatalf("GetSAMLProvider() error = %v", err)
+	}
+	if ok || cfg.ProviderConfigID != "" {
+		t.Fatalf("GetSAMLProvider() cfg = %#v ok = %t, want disabled without active provider row", cfg, ok)
+	}
+	if got := len(db.queries); got != 1 {
+		t.Fatalf("active provider query count = %d, want 1", got)
+	}
+	if !strings.Contains(db.queries[0].query, "pc.provider_kind = 'external_saml'") {
+		t.Fatalf("active provider query did not require external_saml kind:\n%s", db.queries[0].query)
 	}
 }
 
@@ -117,6 +246,70 @@ func (fakeBrowserSessionStore) SwitchBrowserSessionWorkspace(
 	return query.AuthContext{}, false, nil
 }
 
+type samlIdentityTestDB struct {
+	queries        []samlIdentityTestQuery
+	queryResponses []samlIdentityTestRows
+}
+
+type samlIdentityTestQuery struct {
+	query string
+	args  []any
+}
+
+func (db *samlIdentityTestDB) QueryContext(_ context.Context, query string, args ...any) (pgstatus.Rows, error) {
+	db.queries = append(db.queries, samlIdentityTestQuery{query: query, args: args})
+	if len(db.queryResponses) == 0 {
+		return nil, fmt.Errorf("unexpected query: %s", query)
+	}
+	rows := db.queryResponses[0]
+	db.queryResponses = db.queryResponses[1:]
+	return &rows, nil
+}
+
+func (db *samlIdentityTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, errors.New("unexpected exec")
+}
+
+type samlIdentityTestRows struct {
+	rows  [][]any
+	index int
+}
+
+func (r *samlIdentityTestRows) Next() bool {
+	return r.index < len(r.rows)
+}
+
+func (r *samlIdentityTestRows) Scan(dest ...any) error {
+	if r.index >= len(r.rows) {
+		return errors.New("scan called without row")
+	}
+	row := r.rows[r.index]
+	if len(dest) != len(row) {
+		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
+	}
+	for i := range dest {
+		target, ok := dest[i].(*string)
+		if !ok {
+			return fmt.Errorf("unsupported scan target %T", dest[i])
+		}
+		value, ok := row[i].(string)
+		if !ok {
+			return fmt.Errorf("row[%d] type = %T, want string", i, row[i])
+		}
+		*target = value
+	}
+	r.index++
+	return nil
+}
+
+func (r *samlIdentityTestRows) Err() error {
+	return nil
+}
+
+func (r *samlIdentityTestRows) Close() error {
+	return nil
+}
+
 const samlTestMetadataXML = `<EntityDescriptor entityID="https://idp.example.test"></EntityDescriptor>`
 
 const samlTestProviderJSON = `[
@@ -128,15 +321,6 @@ const samlTestProviderJSON = `[
     "expected_identity_provider_entity_id": "https://idp.example.test",
     "group_attribute_names": ["groups"],
     "require_groups": true,
-    "hash_scope": "tenant_a/provider_a",
-    "auth_rules": [
-      {
-        "required_group_keys": ["saml_admins"],
-        "tenant_id": "tenant_a",
-        "workspace_id": "workspace_a",
-        "policy_revision_hash": "sha256:policy",
-        "all_scopes": true
-      }
-    ]
+    "hash_scope": "tenant_a/provider_a"
   }
 ]`
