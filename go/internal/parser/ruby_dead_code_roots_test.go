@@ -166,3 +166,79 @@ end
 		}
 	}
 }
+
+func TestDefaultEngineParsePathRubyRootsArrayCallbackMethods(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "app", "controllers", "accounts_controller.rb")
+	writeTestFile(
+		t,
+		filePath,
+		`class Admin::AccountsController
+  before_action [:authenticate_user!, :set_account]
+
+  def authenticate_user!
+    true
+  end
+
+  def set_account
+    true
+  end
+end
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "authenticate_user!"), "dead_code_root_kinds", "ruby.rails_callback_method")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "set_account"), "dead_code_root_kinds", "ruby.rails_callback_method")
+}
+
+func TestDefaultEngineParsePathRubyRejectsNonEqualityScriptGuard(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "negative_guard.rb")
+	writeTestFile(
+		t,
+		filePath,
+		`def positive_entrypoint
+  true
+end
+
+def negative_only
+  true
+end
+
+if __FILE__ == $0
+  positive_entrypoint
+end
+
+if __FILE__ != $0
+  negative_only
+end
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "positive_entrypoint"), "dead_code_root_kinds", "ruby.script_entrypoint")
+	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "negative_only"), "dead_code_root_kinds", "ruby.script_entrypoint")
+}

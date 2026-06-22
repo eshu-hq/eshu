@@ -1,182 +1,137 @@
 package ruby
 
 import (
-	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-var (
-	rubyChainedCallPattern                = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*[!?=]?)+)\(([^()]*)\)\.([A-Za-z_]\w*[!?=]?)(?:\s*\(([^)]*)\)|\s+([^#]+))?`)
-	rubyScopedCallPattern                 = regexp.MustCompile(`([A-Z][A-Za-z0-9_:]*\.[A-Za-z_]\w*[!?=]?)\(`)
-	rubyQualifiedCallPattern              = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:[A-Za-z_]\w*|@[A-Za-z_]\w*|self|[A-Z][A-Za-z0-9_:]*)(?:\.[A-Za-z_]\w*)+[!?=]?)(?:\s*\(|\b|[\s;])`)
-	rubyBareCallPattern                   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@])((?:require_relative|require|load|include|extend|attr_accessor|attr_reader|attr_writer|define_method|define_singleton_method|instance_method|instance_eval|cache_method|puts|sleep|method|public_send|send|super|bind))(?:\s*\(([^)]*)\)|\s+([^#]+))`)
-	rubyReceiverlessParenCallPattern      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_:@.])([a-z_]\w*[!?]?)\s*\(([^)]*)\)`)
-	rubyReceiverlessAssignmentCallPattern = regexp.MustCompile(`=\s*([a-z_]\w*[!?]?)\s*(?:$|[#;,)])`)
-	rubyReceiverlessStatementCallPattern  = regexp.MustCompile(`^\s*([a-z_]\w*[!?]?)\s+([^#=]+)$`)
-)
-
-type rubyCallMatch struct {
-	name     string
-	fullName string
-	args     string
+// recordCall composes the dotted call name for a (call) node from the AST and
+// appends a deduplicated call row to the syntax view. Both the outer call and,
+// for chained receivers, the inner receiver call are recorded because the walk
+// descends into receivers separately; recording here keeps the full_name set in
+// agreement with the legacy chained-call recognizer.
+func (s *rubySyntax) recordCall(node *tree_sitter.Node, scopeStack []rubyScope) {
+	method := node.ChildByFieldName("method")
+	if method == nil {
+		return
+	}
+	methodName := s.callMethodName(method)
+	if methodName == "" {
+		return
+	}
+	fullName := methodName
+	if receiver := node.ChildByFieldName("receiver"); receiver != nil {
+		receiverName := s.receiverName(receiver)
+		if receiverName == "" {
+			return
+		}
+		fullName = receiverName + "." + methodName
+	} else if rubyIsIgnoredReceiverlessCall(methodName) {
+		return
+	}
+	s.appendCall(node, scopeStack, fullName)
 }
 
-func rubyParseCalls(line string) []rubyCallMatch {
-	calls := make([]rubyCallMatch, 0)
-	seen := make(map[string]struct{})
-
-	for _, matches := range rubyChainedCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) < 4 {
-			continue
-		}
-		receiver := strings.TrimSpace(matches[1])
-		methodName := strings.TrimSpace(matches[3])
-		if receiver == "" || methodName == "" {
-			continue
-		}
-		fullName := receiver + "." + methodName
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		argsText := ""
-		switch {
-		case len(matches) >= 5 && strings.TrimSpace(matches[4]) != "":
-			argsText = matches[4]
-		case len(matches) >= 6 && strings.TrimSpace(matches[5]) != "":
-			argsText = matches[5]
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     argsText,
-		})
+// recordAssignmentCall records a bare lowercase identifier used as the right
+// value of an assignment as a receiverless call, matching the legacy
+// assignment recognizer (e.g. `x = build_scopes` emits a `build_scopes` call).
+func (s *rubySyntax) recordAssignmentCall(node *tree_sitter.Node, scopeStack []rubyScope) {
+	right := node.ChildByFieldName("right")
+	if right == nil || right.Kind() != "identifier" {
+		return
 	}
-
-	for _, matches := range rubyScopedCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 2 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" {
-			continue
-		}
-		fullName = rubyRestoreCallPunctuation(line, fullName)
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-		})
+	name := s.text(right)
+	if name == "" || rubyIsIgnoredReceiverlessCall(name) {
+		return
 	}
-
-	for _, matches := range rubyQualifiedCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 2 {
-			continue
+	if name[0] < 'a' || name[0] > 'z' {
+		if name[0] != '_' {
+			return
 		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" {
-			continue
-		}
-		fullName = rubyRestoreCallPunctuation(line, fullName)
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-		})
 	}
-
-	for _, matches := range rubyBareCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) < 2 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" {
-			continue
-		}
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		argsText := ""
-		switch {
-		case len(matches) >= 3 && strings.TrimSpace(matches[2]) != "":
-			argsText = matches[2]
-		case len(matches) >= 4 && strings.TrimSpace(matches[3]) != "":
-			argsText = matches[3]
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     argsText,
-		})
-	}
-	for _, matches := range rubyReceiverlessParenCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) < 2 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
-			continue
-		}
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		argsText := ""
-		if len(matches) >= 3 {
-			argsText = matches[2]
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     argsText,
-		})
-	}
-	for _, matches := range rubyReceiverlessAssignmentCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 2 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
-			continue
-		}
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-		})
-	}
-	for _, matches := range rubyReceiverlessStatementCallPattern.FindAllStringSubmatch(line, -1) {
-		if len(matches) != 3 {
-			continue
-		}
-		fullName := strings.TrimSpace(matches[1])
-		if fullName == "" || rubyIsIgnoredReceiverlessCall(fullName) {
-			continue
-		}
-		if _, ok := seen[fullName]; ok {
-			continue
-		}
-		seen[fullName] = struct{}{}
-		calls = append(calls, rubyCallMatch{
-			name:     rubyCallName(fullName),
-			fullName: fullName,
-			args:     strings.TrimSpace(matches[2]),
-		})
-	}
-
-	return calls
+	s.appendCall(right, scopeStack, name)
 }
 
+// appendCall builds one function-call row from a node carrying the call's line
+// and the resolved dotted full name, deduplicating by full name plus line.
+func (s *rubySyntax) appendCall(node *tree_sitter.Node, scopeStack []rubyScope, fullName string) {
+	line := shared.NodeLine(node)
+	key := fullName + ":" + strconv.Itoa(line)
+	if _, ok := s.seenCalls[key]; ok {
+		return
+	}
+	s.seenCalls[key] = struct{}{}
+	item := map[string]any{
+		"name":              rubyCallName(fullName),
+		"full_name":         fullName,
+		"line_number":       line,
+		"args":              []string{},
+		"inferred_obj_type": nil,
+		"lang":              "ruby",
+		"is_dependency":     false,
+	}
+	contextName, contextType := rubyEnclosingContext(scopeStack, rubyScopeClass, rubyScopeModule, rubyScopeDef)
+	if contextName != "" {
+		item["context"] = contextName
+		item["context_type"] = string(contextType)
+		if contextType == rubyScopeClass {
+			item["class_context"] = contextName
+		}
+	}
+	if className := rubyEnclosingClassName(scopeStack); className != "" {
+		item["class_context"] = className
+	}
+	s.calls = append(s.calls, item)
+}
+
+// callMethodName returns the textual method name of a (call) method field. The
+// node is an identifier or constant whose text already carries any predicate,
+// bang, or writer suffix.
+func (s *rubySyntax) callMethodName(node *tree_sitter.Node) string {
+	switch node.Kind() {
+	case "identifier", "constant":
+		return s.text(node)
+	default:
+		return shared.LastPathSegment(s.text(node), "::")
+	}
+}
+
+// receiverName composes the dotted name of a call receiver. A call receiver
+// recurses to its own dotted name; other receiver kinds use their last `::`
+// segment-preserving text without argument lists.
+func (s *rubySyntax) receiverName(node *tree_sitter.Node) string {
+	switch node.Kind() {
+	case "call":
+		method := node.ChildByFieldName("method")
+		if method == nil {
+			return ""
+		}
+		methodName := s.callMethodName(method)
+		if methodName == "" {
+			return ""
+		}
+		if receiver := node.ChildByFieldName("receiver"); receiver != nil {
+			receiverName := s.receiverName(receiver)
+			if receiverName == "" {
+				return ""
+			}
+			return receiverName + "." + methodName
+		}
+		return methodName
+	case "scope_resolution", "constant":
+		return s.text(node)
+	case "identifier", "instance_variable", "self":
+		return s.text(node)
+	default:
+		return ""
+	}
+}
+
+// rubyIsIgnoredReceiverlessCall reports whether a receiverless identifier is a
+// Ruby keyword that must not be treated as a method call.
 func rubyIsIgnoredReceiverlessCall(name string) bool {
 	switch name {
 	case "and", "begin", "break", "case", "class", "def", "defined", "do", "else",
@@ -189,6 +144,7 @@ func rubyIsIgnoredReceiverlessCall(name string) bool {
 	}
 }
 
+// rubyCallName returns the trailing segment of a dotted or scoped call name.
 func rubyCallName(fullName string) string {
 	trimmed := strings.TrimSpace(fullName)
 	if trimmed == "" {
@@ -203,20 +159,8 @@ func rubyCallName(fullName string) string {
 	return trimmed
 }
 
-// rubyRestoreCallPunctuation preserves Ruby predicate, bang, and writer method
-// suffixes when the line-oriented call pattern also matched the bare name.
-func rubyRestoreCallPunctuation(line string, fullName string) string {
-	if strings.HasSuffix(fullName, "?") || strings.HasSuffix(fullName, "!") || strings.HasSuffix(fullName, "=") {
-		return fullName
-	}
-	for _, suffix := range []string{"?", "!", "="} {
-		if strings.Contains(line, fullName+suffix) {
-			return fullName + suffix
-		}
-	}
-	return fullName
-}
-
+// rubyInferAssignmentType returns the right-hand type label of an assignment
+// expression text, stripping a `new ` prefix and trailing terminators.
 func rubyInferAssignmentType(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -233,23 +177,8 @@ func rubyInferAssignmentType(raw string) string {
 	return trimmed
 }
 
-func rubyParseArguments(raw string) []string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return []string{}
-	}
-	segments := strings.Split(trimmed, ",")
-	args := make([]string, 0, len(segments))
-	for _, segment := range segments {
-		arg := rubyNormalizeArgument(segment)
-		if arg == "" {
-			continue
-		}
-		args = append(args, arg)
-	}
-	return args
-}
-
+// rubyNormalizeArgument strips block, splat, symbol, default-value, keyword, and
+// quote decoration from one raw argument token.
 func rubyNormalizeArgument(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
