@@ -137,6 +137,28 @@ feature solving, manifest-to-lockfile feature resolution, and cross-crate
 semantic module resolution are still not modeled. Add package-local tests before
 widening either claim.
 
+### Regex disposition (issue #3540)
+
+Every retained Rust regex operates on the text of an already-located AST node or
+validates a token; none performs primary symbol extraction by scanning raw
+source, so all are documented within-AST exceptions rather than conversions:
+
+- `rustLifetimePattern` (`parser.go`) extracts lifetime tokens (`'a`) from a
+  signature header string that is itself the text of a `function_item`,
+  `impl_item`, or `trait_item` node.
+- `rustWhereClausePattern` and `rustIdentifierPattern` (`helpers.go`) split a
+  node-text signature header on ` where ` and validate that a token is a bare
+  identifier; the leading-attribute `strings.Split` recovers `#[...]` attributes
+  from the bounded source slice immediately before an already-located node.
+- `rustMacroRulesPattern` (`helpers.go`) is a fallback name read over a
+  `macro_definition` node's own text when descent finds no `identifier` child.
+- `rustMacroModDeclarationPattern` and `rustMacroUseDeclarationPattern`
+  (`macro_declarations.go`) read `mod`/`use` declarations from the body of a
+  `macro_invocation` node. Tree-sitter leaves a macro invocation body as an
+  unparsed `token_tree` (the macro is not expanded), so there are no structured
+  child nodes to walk; the resulting rows are tagged
+  `macro_expansion_unavailable`.
+
 ## Related Docs
 
 See `docs/public/reference/mcp-reference.md` for the dead-code query surface that

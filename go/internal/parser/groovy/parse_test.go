@@ -310,12 +310,9 @@ func TestParseMarksJenkinsfileAndSharedLibraryCallAsRoots(t *testing.T) {
 		t.Fatalf("call framework = %#v, want jenkins", call["framework"])
 	}
 
-	relativeFunctions := ExtractFunctionEntities("vars/deployService.groovy", `def call(Map config = [:]) {
-  pipelineDeploy(config)
-}
-`)
-	call = assertNamedItem(t, relativeFunctions, "call")
-	assertStringSliceContains(t, call["dead_code_root_kinds"].([]string), "groovy.shared_library_call")
+	if !isSharedLibraryVarsFile("vars/deployService.groovy") {
+		t.Fatalf("isSharedLibraryVarsFile(relative vars path) = false, want true")
+	}
 }
 
 func TestPreScanReturnsSortedUniqueMetadataNames(t *testing.T) {

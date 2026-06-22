@@ -51,6 +51,29 @@ the repository root is ignored. Macro expansion, conditional compilation,
 transitive include graphs, dynamic symbol lookup, and broad callback registries
 remain query-reported exactness blockers.
 
+### Regex disposition (issue #3540)
+
+The whole-source `appendCTypedefAliasesFromSource` line scan was removed. Typedef
+aliases, structs, enums, and unions are now extracted solely from tree-sitter
+`type_definition` and `typedef`-prefixed `declaration` nodes, which a grammar
+probe confirmed cover every typedef form (including nested-brace anonymous
+structs the single-level regex could mishandle). The remaining regexes operate
+on already-located AST node text or bounded external header text, so they are
+documented within-AST / source-text exceptions, not primary symbol extraction:
+
+- `cTypedefAliasPattern` (`parser.go`) is a fallback over a `type_definition`
+  node's own text when field-based descent does not yield the alias name.
+- `cDirectInitializerTargetPattern` and `cBraceInitializerPattern`
+  (`dead_code_roots.go`) parse the text of an already-located `declaration` node
+  to recover function-pointer initializer targets.
+- `cHeaderPrototypePattern` and the comment-stripping patterns scan the bytes of
+  directly included local header files. Those headers are intentionally not
+  tree-sitter parsed (to keep cost bounded and avoid repo-wide include-graph
+  resolution), so a prototype scan is the only available structured read.
+- `cFunctionPointerTypedefPattern` builds an auxiliary name index of
+  function-pointer typedefs that gates the within-AST declaration handling above;
+  it produces no symbol or edge directly.
+
 ## Related Docs
 
 - `docs/public/languages/c.md`

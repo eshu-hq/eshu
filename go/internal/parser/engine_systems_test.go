@@ -372,6 +372,90 @@ typedef struct {
 	assertNamedBucketContains(t, got, "typedefs", "TypedValue")
 }
 
+// TestDefaultEngineParsePathCTypedefAliasesFromASTOnly pins that C typedef
+// aliases are extracted from the tree-sitter type_definition AST after the
+// whole-source typedef scan was removed (issue #3540). It covers function
+// pointer, nested-brace anonymous struct, and named-struct forms that the old
+// single-level regex scan could mishandle.
+func TestDefaultEngineParsePathCTypedefAliasesFromASTOnly(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "types.c")
+	writeTestFile(
+		t,
+		filePath,
+		`typedef int (*Handler)(int code);
+
+typedef struct {
+    struct {
+        int inner;
+    } nested;
+} Outer;
+
+typedef struct Node {
+    int value;
+} NodeAlias;
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertNamedBucketContains(t, got, "typedefs", "Handler")
+	assertNamedBucketContains(t, got, "typedefs", "Outer")
+	assertNamedBucketContains(t, got, "typedefs", "NodeAlias")
+	assertNamedBucketContains(t, got, "structs", "Outer")
+	assertNamedBucketContains(t, got, "structs", "NodeAlias")
+}
+
+// TestDefaultEngineParsePathCPPNodeModuleRegistrationFromAST pins that the
+// Node.js addon registration root is read from the call-expression AST after
+// the whole-source NODE_MODULE regex scan was removed (issue #3540).
+func TestDefaultEngineParsePathCPPNodeModuleRegistrationFromAST(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "addon.cpp")
+	writeTestFile(
+		t,
+		filePath,
+		`void InitAddon() {}
+
+NODE_MODULE(NODE_GYP_MODULE_NAME, InitAddon)
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	init := assertFunctionByName(t, got, "InitAddon")
+	roots, _ := init["dead_code_root_kinds"].([]string)
+	found := false
+	for _, root := range roots {
+		if root == "cpp.node_addon_entrypoint" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("InitAddon dead_code_root_kinds = %#v, want cpp.node_addon_entrypoint", roots)
+	}
+}
+
 func TestDefaultEngineParsePathSystemsEmptyFiles(t *testing.T) {
 	t.Parallel()
 

@@ -74,6 +74,22 @@ normalizes separators before matching metadata locations. Invalid or duplicate
 class names are ignored, and Spring factories preserve the starting line number
 for continued values.
 
+### Regex disposition (issue #3540)
+
+`metadata.go` parses Java metadata text formats that have no tree-sitter
+grammar: `META-INF/services/*` provider files (one fully qualified class name
+per line, per the `ServiceLoader` spec), `spring.factories` (a `.properties`
+file with `\`-continuation and comma-separated values), and
+`AutoConfiguration.imports` (one class per line). The structured parse is done
+with `strings.Cut`, `strings.Split`, and `strings.TrimSuffix` over those
+formats; this is the structured parse the issue asks for where feasible.
+`metadataClassNamePattern` (`metadata.go`) is retained as a documented
+within-format exception: it only validates that an already-tokenized value is a
+dotted Java class name, so it performs token validation rather than primary
+extraction. The `strings.Split(nodeText, "\n")` call in `parser_metadata.go`
+(`javaDecorators`) and the other `strings.Split` helpers operate on the text of
+an already-located AST node, so they are within-AST.
+
 Java taint support is intentionally conservative. A source requires a real
 Spring import for `@RequestParam`, `@PathVariable`, or `@RequestBody`; a
 same-named local annotation is ignored. Exact and package-wildcard Spring
