@@ -18,6 +18,7 @@ queued work.
 | Work through common symptoms | [Troubleshooting](troubleshooting.md) |
 | Move from remote Compose proof to hosted Kubernetes operations | [Hosted Operations Runbook](hosted-operations-runbook.md) |
 | Check hosted governance posture before onboarding a team | [Hosted Governance Posture](hosted-governance.md) |
+| Prepare identity, token, session, role, grant, audit, and revocation proof | [User Management Runbook](user-management-runbook.md) |
 | Decide whether a community extension may run in hosted Eshu | [Hosted Extension Operator Policy](hosted-extension-policy.md) |
 | Understand service ownership | [Service Runtimes](../deployment/service-runtimes.md) |
 | Prove a local change before handoff | [Local Testing Reference](../reference/local-testing.md) |

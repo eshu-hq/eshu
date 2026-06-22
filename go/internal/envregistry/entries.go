@@ -49,9 +49,10 @@ var coreEntries = []Entry{
 	{Name: "ESHU_API_ADDR", Type: VarString, Default: ":8080", Subsystem: "api", Description: "API server listen address."},
 	{Name: "ESHU_API_KEY", Type: VarString, Subsystem: "api", Description: "Bearer token for API authentication."},
 	{Name: "ESHU_AUTO_GENERATE_API_KEY", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, auto-generate and persist an API key if none is set."},
+	{Name: "ESHU_DISABLE_NEO4J", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, disable the graph backend entirely."},
 	{Name: "ESHU_HOME", Type: VarString, Subsystem: "api", Description: "Root directory for persisted API key and configuration (defaults to ~/.eshu)."},
 	{Name: "ESHU_QUERY_PROFILE", Type: VarEnum, Default: "production", Subsystem: "api", Allowed: []string{"production", "local_authoritative", "local_lightweight"}, Description: "Query execution profile."},
-	{Name: "ESHU_DISABLE_NEO4J", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, disable the graph backend entirely."},
+	{Name: "ESHU_SCOPED_TOKENS_FILE", Type: VarString, Subsystem: "api", Description: "Path to an operator-managed scoped-token registry file; API and MCP fail closed if the configured file is malformed or unreadable."},
 	{Name: "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, serve GET /api/v0/supply-chain/impact/findings from the maintained canonical winners read model (#3389) instead of read-time dedup (bounded O(page)). Honored by both the API and MCP server; enable only after the reducer maintainer has populated the winners table. Output is byte-identical."},
 
 	// mcp

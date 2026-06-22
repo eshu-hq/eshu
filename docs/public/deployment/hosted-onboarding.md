@@ -133,19 +133,25 @@ There is no dedicated readiness or hosted-governance playbook in the current
 catalog. Until one exists, hosted onboarding uses staged readiness checks
 (`/healthz`, `/readyz`, index readiness, MCP tools, one bounded query) and the
 prompt-ready status tools such as `get_index_status`. Governance prompts must
-keep the shared-token limitation below visible rather than implying tenant
-isolation.
+name the active auth posture instead of implying tenant isolation from a shared
+token alone.
 
-## Authorization limitation (read before you share)
+## Authorization Boundary (read before you share)
 
-The deployed API and MCP surface authenticate with a **single shared bearer
-token**. There is **no per-team or per-repository token scoping today**: every
-holder of the token can read every indexed repository. Treat the token source as
-a shared-service credential, not a tenant-isolated secret.
+The deployed API and MCP surface can run with a **single shared bearer token**.
+That mode is not a tenant boundary: every holder of the token can read every
+indexed repository. Treat the token source as a shared-service credential, not
+tenant-isolated access.
 
-The onboarding artifact states this limitation verbatim so it never implies
-isolation that does not exist. Scoped per-team tokens are tracked as a follow-up
-under the hosted-ops capability ([issue #1852](https://github.com/eshu-hq/eshu/issues/1852)).
-Until that lands, do not present the onboarding token as a tenant boundary.
-Use [Hosted Governance Posture](../operate/hosted-governance.md) for the
-operator preflight and runbooks that keep that limitation explicit.
+Scoped per-team tokens are available when the operator mounts an
+`ESHU_SCOPED_TOKENS_FILE` registry for API and MCP. The registry stores token
+hashes only and maps each token to tenant, workspace, repository, and
+source-scope grants. Missing, malformed, or unreadable scoped-token registry
+configuration fails closed during service startup.
+
+The onboarding artifact must state which posture is active: shared token,
+scoped-token registry, or a future identity-backed token/session model. Do not
+present a shared onboarding token as tenant isolation. Use
+[Hosted Governance Posture](../operate/hosted-governance.md) and
+[User Management Runbook](../operate/user-management-runbook.md) for the
+operator preflight, scoped-token lifecycle, and auth proof gates.
