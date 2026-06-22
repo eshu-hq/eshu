@@ -130,16 +130,7 @@ func wireAPI(
 		}
 		return nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
-	governanceAuditDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
-	if instruments != nil {
-		governanceAuditDB = &pgstatus.InstrumentedDB{
-			Inner:       governanceAuditDB,
-			Tracer:      otel.Tracer("eshu-api"),
-			Instruments: instruments,
-			StoreName:   "governance_audit",
-		}
-	}
-	governanceAudit := pgstatus.NewGovernanceAuditStore(governanceAuditDB)
+	governanceAudit := newGovernanceAuditStore(db, instruments)
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
@@ -170,7 +161,7 @@ func wireAPI(
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
-	browserSessionAdapter := newPostgresBrowserSessionAdapter(db, instruments)
+	browserSessionResolver := newBrowserSessionResolver(db, instruments)
 
 	// The Ask engine's in-process runner must dispatch inner tool calls through
 	// the scoped-auth-wrapped handler (authedMux below) so each inner read
@@ -205,7 +196,7 @@ func wireAPI(
 		return nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
-	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionAdapter, mux, governanceAudit)
+	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, mux, adminRecoveryAuditAppender(governanceAudit))
 
 	// Install the fully-wrapped handler into the Ask runner's deferred handler so
 	// inner tool dispatches re-run auth + the scoped-route gate under the caller's
@@ -333,16 +324,7 @@ func newRouterWithSemanticEmbedding(
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 	}
 	if governanceAudit == nil && db != nil {
-		governanceAuditDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
-		if instruments != nil {
-			governanceAuditDB = &pgstatus.InstrumentedDB{
-				Inner:       governanceAuditDB,
-				Tracer:      otel.Tracer("eshu-api"),
-				Instruments: instruments,
-				StoreName:   "governance_audit",
-			}
-		}
-		governanceAudit = pgstatus.NewGovernanceAuditStore(governanceAuditDB)
+		governanceAudit = newGovernanceAuditStore(db, instruments)
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
@@ -351,6 +333,7 @@ func newRouterWithSemanticEmbedding(
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
 	}
 	router := &query.APIRouter{
+		LocalIdentity:   newLocalIdentityHandler(db, instruments, governanceAudit),
 		BrowserSessions: newBrowserSessionHandler(db, instruments),
 		Repositories: &query.RepositoryHandler{
 			Neo4j:                      neo4jReader,

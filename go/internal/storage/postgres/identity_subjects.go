@@ -351,8 +351,8 @@ CREATE INDEX IF NOT EXISTS identity_token_metadata_active_idx
     WHERE status = 'active' AND revoked_at IS NULL;
 `
 
-// IdentitySubjectStore owns the dormant identity subject schema introduced for
-// user-management rollout. Enforcement paths are wired in later slices.
+// IdentitySubjectStore owns identity subject schema and local identity lifecycle
+// writes for the user-management rollout.
 type IdentitySubjectStore struct {
 	db ExecQueryer
 }
@@ -364,14 +364,14 @@ func NewIdentitySubjectStore(db ExecQueryer) *IdentitySubjectStore {
 
 // IdentitySubjectSchemaSQL returns the additive identity subject DDL.
 func IdentitySubjectSchemaSQL() string {
-	return identitySubjectSchemaSQL
+	return identitySubjectSchemaSQL + identityLocalIdentitySchemaSQL
 }
 
 func identitySubjectBootstrapDefinition() Definition {
 	return Definition{
 		Name: "identity_subjects",
 		Path: "schema/data-plane/postgres/006e_identity_subjects.sql",
-		SQL:  identitySubjectSchemaSQL,
+		SQL:  IdentitySubjectSchemaSQL(),
 	}
 }
 
@@ -379,12 +379,12 @@ func init() {
 	bootstrapDefinitions = append(bootstrapDefinitions, identitySubjectBootstrapDefinition())
 }
 
-// EnsureSchema applies the dormant identity subject schema.
+// EnsureSchema applies the identity subject schema.
 func (s *IdentitySubjectStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {
 		return errors.New("identity subject store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, identitySubjectSchemaSQL); err != nil {
+	if _, err := s.db.ExecContext(ctx, IdentitySubjectSchemaSQL()); err != nil {
 		return fmt.Errorf("ensure identity subject schema: %w", err)
 	}
 	return nil

@@ -107,4 +107,165 @@ const openAPIPathsAuth = `
         }
       }
     },
+    "/api/v0/auth/local/bootstrap": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Bootstrap the first local identity owner",
+        "description": "Operator-controlled one-time setup for deployments that do not use an external IdP. This route is not public: it requires the shared operator bearer token, stores only hashed login/recovery identifiers plus a bcrypt password hash, creates the first owner role assignment, and requires MFA recovery-code material for the admin account.",
+        "operationId": "bootstrapLocalIdentity",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityBootstrapRequest"}}}
+        },
+        "responses": {
+          "201": {"description": "First owner/admin created."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Authenticate a local identity",
+        "description": "Public local-login route. The handler hashes the submitted login id and optional recovery code before storage lookup, verifies the password against the stored bcrypt hash, enforces MFA for admin accounts, applies lockout state, and creates the same secure browser-session cookies used by the dashboard when authentication succeeds.",
+        "operationId": "loginLocalIdentity",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityLoginRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Authenticated and browser session created.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}},
+          "202": {"description": "Password accepted but MFA proof is required.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "423": {"description": "Local identity is temporarily locked."},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/invitations": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Create a local identity invitation",
+        "description": "Creates a hash-only invitation for assignment-required signup. This route requires all-scopes admin authentication; broad open self-signup is intentionally not supported.",
+        "operationId": "createLocalIdentityInvitation",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityInvitationRequest"}}}
+        },
+        "responses": {
+          "201": {"description": "Invitation created. The invite_code is returned once and only the hash is persisted."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/invitations/accept": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Accept a local identity invitation",
+        "description": "Public invitation acceptance route. A valid active invite code is required; the route stores only invite/login/recovery hashes plus a bcrypt password hash.",
+        "operationId": "acceptLocalIdentityInvitation",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityInvitationAcceptanceRequest"}}}
+        },
+        "responses": {
+          "201": {"description": "Invitation accepted and local identity created."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/users/{user_id}/password": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Reset a local identity password",
+        "description": "All-scopes admin route that revokes active local credentials, stores a new bcrypt password hash, and clears lockout state.",
+        "operationId": "resetLocalIdentityPassword",
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["password"], "properties": {"password": {"type": "string", "format": "password"}}}}}
+        },
+        "responses": {
+          "204": {"description": "Password reset."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/users/{user_id}/mfa-reset": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Reset local identity MFA recovery material",
+        "description": "All-scopes admin route that revokes active MFA factors and recovery codes, then stores replacement recovery-code hashes.",
+        "operationId": "resetLocalIdentityMFA",
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["recovery_codes"], "properties": {"mfa_factor_kind": {"type": "string"}, "mfa_credential_handle": {"type": "string"}, "recovery_codes": {"type": "array", "items": {"type": "string"}}}}}}
+        },
+        "responses": {
+          "204": {"description": "MFA material reset."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/users/{user_id}/disable": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Disable a local identity",
+        "description": "All-scopes admin route that disables a user and revokes active local credentials, MFA factors, and browser sessions.",
+        "operationId": "disableLocalIdentity",
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Local identity disabled."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/break-glass": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Enable time-boxed local identity break-glass recovery",
+        "description": "Operator-controlled break-glass enablement. This route is not public, requires the shared operator bearer token, is disabled by default when no active window exists, stores only a break-glass code hash, and emits governance audit events for allowed or denied enablement.",
+        "operationId": "enableLocalIdentityBreakGlass",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityBreakGlassRequest"}}}
+        },
+        "responses": {
+          "201": {"description": "Break-glass window enabled. The break_glass_code is returned once and only the hash is persisted."},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/local/break-glass/session": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Create a browser session from break-glass recovery",
+        "description": "Public recovery route that succeeds only when an operator-enabled break-glass window is active, unexpired, and unconsumed. The submitted break-glass code is hashed before lookup and successful recovery emits a governance audit event.",
+        "operationId": "createLocalIdentityBreakGlassSession",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["break_glass_code"], "properties": {"break_glass_code": {"type": "string", "format": "password"}}}}}
+        },
+        "responses": {
+          "200": {"description": "Break-glass browser session created.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
 `
