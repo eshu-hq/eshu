@@ -4,7 +4,21 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	tree_sitter_sql "github.com/alexaandru/go-sitter-forest/sql"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+func newSQLTestParser(t *testing.T) *tree_sitter.Parser {
+	t.Helper()
+
+	parser := tree_sitter.NewParser()
+	t.Cleanup(parser.Close)
+	if err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_sql.GetLanguage())); err != nil {
+		t.Fatalf("SetLanguage() error = %v, want nil", err)
+	}
+	return parser
+}
 
 func TestParseDoesNotMaterializeTableConstraintsAsColumns(t *testing.T) {
 	t.Parallel()
@@ -81,7 +95,7 @@ $proc$;
 func parseSQLTestFile(t *testing.T, path string) map[string]any {
 	t.Helper()
 
-	got, err := Parse(path, false, Options{IndexSource: true})
+	got, err := Parse(path, false, Options{IndexSource: true}, newSQLTestParser(t))
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}

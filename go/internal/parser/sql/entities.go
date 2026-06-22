@@ -1,0 +1,292 @@
+package sql
+
+import (
+	"strings"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
+
+// sqlExtractor carries the mutable extraction state shared across the
+// per-statement handlers for one SQL file.
+type sqlExtractor struct {
+	payload           map[string]any
+	source            []byte
+	options           Options
+	seenEntities      map[string]map[string]struct{}
+	seenRelationships map[string]struct{}
+	segmentOffset     int
+	procedure         bool
+	// tableMentions accumulates bounded table references across all segments,
+	// with offsets remapped to the original source. Migration metadata uses
+	// these to record tables a migration file touches via DML or references.
+	tableMentions []sqlMention
+}
+
+// dispatchStatement routes one top-level statement construct node to its
+// dedicated extractor based on grammar node kind. src is the buffer the node
+// was parsed from, which is one statement segment of the original file.
+func (x *sqlExtractor) dispatchStatement(node *tree_sitter.Node, src []byte) {
+	switch node.GrammarName() {
+	case "create_table":
+		x.parseTable(node, src)
+	case "create_view":
+		x.parseView(node, src, "view")
+	case "create_materialized_view":
+		x.parseView(node, src, "materialized")
+	case "create_function":
+		x.parseRoutine(node, src)
+	case "create_index":
+		x.parseIndex(node, src)
+	case "create_trigger":
+		x.parseTrigger(node, src)
+	case "alter_table":
+		x.parseAlterTable(node, src)
+	}
+}
+
+// lineFor maps a node position in the current segment back to the original
+// source line by adding the segment's starting byte offset.
+func (x *sqlExtractor) lineFor(node *tree_sitter.Node, _ []byte) int {
+	return sqlLineNumberForOffset(x.source, x.segmentOffset+int(node.StartByte()))
+}
+
+// originalLineForOffset maps a byte offset within the current segment back to
+// the original source line.
+func (x *sqlExtractor) originalLineForOffset(segmentOffset int) int {
+	return sqlLineNumberForOffset(x.source, x.segmentOffset+segmentOffset)
+}
+
+func (x *sqlExtractor) parseTable(node *tree_sitter.Node, src []byte) {
+	name := objectReferenceName(node, src)
+	line := x.lineFor(node, src)
+	x.appendEntity("sql_tables", name, map[string]any{
+		"name":            name,
+		"line_number":     line,
+		"type":            "content_entity",
+		"sql_entity_type": "SqlTable",
+		"schema":          sqlSchema(name),
+		"qualified_name":  name,
+	}, node, src)
+
+	definitions := firstChildByKind(node, "column_definitions")
+	if definitions == nil {
+		return
+	}
+	for _, child := range namedChildren(definitions) {
+		switch child.GrammarName() {
+		case "column_definition":
+			x.appendColumn(name, child, src)
+		case "constraints":
+			x.parseTableConstraints(name, child, src)
+		}
+	}
+}
+
+func (x *sqlExtractor) appendColumn(tableName string, definition *tree_sitter.Node, src []byte) {
+	columnNode := firstDirectChildByKind(definition, "identifier")
+	if columnNode == nil {
+		return
+	}
+	columnName := normalizeSQLName(nodeText(columnNode, src))
+	if columnName == "" {
+		return
+	}
+	dataType := sqlColumnDataType(definition, columnNode, src)
+	qualified := tableName + "." + columnName
+	line := x.lineFor(definition, src)
+	x.appendEntity("sql_columns", qualified, map[string]any{
+		"name":            qualified,
+		"line_number":     line,
+		"type":            "content_entity",
+		"sql_entity_type": "SqlColumn",
+		"table_name":      tableName,
+		"column_name":     columnName,
+		"data_type":       dataType,
+	}, definition, src)
+	x.appendRelationship("HAS_COLUMN", tableName, qualified, line)
+
+	// Inline REFERENCES (foreign key) on the column emits a table relationship.
+	if ref := inlineColumnReference(definition); ref != nil {
+		target := objectReferenceName(ref, src)
+		x.appendRelationship("REFERENCES_TABLE", tableName, target, line)
+	}
+}
+
+func (x *sqlExtractor) parseTableConstraints(tableName string, constraints *tree_sitter.Node, src []byte) {
+	for _, mention := range collectConstraintReferences(constraints, src) {
+		x.appendRelationship("REFERENCES_TABLE", tableName, mention.name,
+			x.originalLineForOffset(mention.offset))
+	}
+}
+
+func (x *sqlExtractor) parseView(node *tree_sitter.Node, src []byte, kind string) {
+	name := objectReferenceName(node, src)
+	line := x.lineFor(node, src)
+	item := map[string]any{
+		"name":            name,
+		"line_number":     line,
+		"type":            "content_entity",
+		"sql_entity_type": "SqlView",
+		"schema":          sqlSchema(name),
+		"qualified_name":  name,
+	}
+	if kind != "view" {
+		item["view_kind"] = kind
+	}
+	x.appendEntity("sql_views", name, item, node, src)
+
+	for _, mention := range collectMentionsFromNode(node, src, true) {
+		if mention.operation != "select" {
+			continue
+		}
+		x.appendRelationship("READS_FROM", name, mention.name,
+			x.originalLineForOffset(mention.offset))
+	}
+}
+
+func (x *sqlExtractor) parseRoutine(node *tree_sitter.Node, src []byte) {
+	name := objectReferenceName(node, src)
+	line := x.lineFor(node, src)
+	routineKind := "function"
+	if x.procedure {
+		routineKind = "procedure"
+	}
+	item := map[string]any{
+		"name":              name,
+		"line_number":       line,
+		"type":              "content_entity",
+		"sql_entity_type":   "SqlFunction",
+		"schema":            sqlSchema(name),
+		"qualified_name":    name,
+		"function_language": sqlRoutineLanguage(node, src),
+	}
+	if routineKind != "function" {
+		item["routine_kind"] = routineKind
+	}
+	x.appendEntity("sql_functions", name, item, node, src)
+
+	body := firstChildByKind(node, "function_body")
+	if body == nil {
+		return
+	}
+	for _, mention := range collectMentionsFromNode(body, src, true) {
+		x.appendRelationship("READS_FROM", name, mention.name,
+			x.originalLineForOffset(mention.offset))
+	}
+}
+
+func (x *sqlExtractor) parseIndex(node *tree_sitter.Node, src []byte) {
+	indexName := sqlIndexName(node, src)
+	tableName := sqlIndexTable(node, src)
+	line := x.lineFor(node, src)
+	x.appendEntity("sql_indexes", indexName, map[string]any{
+		"name":            indexName,
+		"line_number":     line,
+		"type":            "content_entity",
+		"sql_entity_type": "SqlIndex",
+		"table_name":      tableName,
+	}, node, src)
+	x.appendRelationship("INDEXES", indexName, tableName, line)
+}
+
+func (x *sqlExtractor) parseTrigger(node *tree_sitter.Node, src []byte) {
+	references := childObjectReferences(node)
+	if len(references) < 2 {
+		return
+	}
+	triggerName := objectReferenceName(references[0], src)
+	tableName := objectReferenceName(references[1], src)
+	functionName := ""
+	if len(references) >= 3 {
+		functionName = objectReferenceName(references[len(references)-1], src)
+	}
+	line := x.lineFor(node, src)
+	x.appendEntity("sql_triggers", triggerName, map[string]any{
+		"name":            triggerName,
+		"line_number":     line,
+		"type":            "content_entity",
+		"sql_entity_type": "SqlTrigger",
+		"table_name":      tableName,
+		"function_name":   functionName,
+	}, node, src)
+	x.appendRelationship("TRIGGERS_ON", triggerName, tableName, line)
+	if functionName != "" {
+		x.appendRelationship("EXECUTES", triggerName, functionName, line)
+	}
+}
+
+func (x *sqlExtractor) parseAlterTable(node *tree_sitter.Node, src []byte) {
+	tableName := objectReferenceName(node, src)
+	for _, child := range namedChildren(node) {
+		if child.GrammarName() != "add_column" {
+			continue
+		}
+		definition := firstChildByKind(child, "column_definition")
+		if definition == nil {
+			continue
+		}
+		columnNode := firstDirectChildByKind(definition, "identifier")
+		if columnNode == nil {
+			continue
+		}
+		columnName := normalizeSQLName(nodeText(columnNode, src))
+		if columnName == "" {
+			continue
+		}
+		dataType := sqlColumnDataType(definition, columnNode, src)
+		qualified := tableName + "." + columnName
+		line := x.lineFor(definition, src)
+		x.appendEntity("sql_columns", qualified, map[string]any{
+			"name":            qualified,
+			"line_number":     line,
+			"type":            "content_entity",
+			"sql_entity_type": "SqlColumn",
+			"table_name":      tableName,
+			"column_name":     columnName,
+			"data_type":       dataType,
+		}, definition, src)
+		x.appendRelationship("HAS_COLUMN", tableName, qualified, line)
+	}
+}
+
+func (x *sqlExtractor) appendEntity(
+	bucket string,
+	name string,
+	item map[string]any,
+	node *tree_sitter.Node,
+	src []byte,
+) {
+	if strings.TrimSpace(name) == "" {
+		return
+	}
+	if _, ok := x.seenEntities[bucket][name]; ok {
+		return
+	}
+	x.seenEntities[bucket][name] = struct{}{}
+	if x.options.IndexSource {
+		item["source"] = nodeText(node, src)
+	}
+	appendBucket(x.payload, bucket, item)
+}
+
+func (x *sqlExtractor) appendRelationship(
+	relationshipType string,
+	sourceName string,
+	targetName string,
+	lineNumber int,
+) {
+	if strings.TrimSpace(sourceName) == "" || strings.TrimSpace(targetName) == "" {
+		return
+	}
+	key := relationshipType + "|" + sourceName + "|" + targetName
+	if _, ok := x.seenRelationships[key]; ok {
+		return
+	}
+	x.seenRelationships[key] = struct{}{}
+	appendBucket(x.payload, "sql_relationships", map[string]any{
+		"type":        relationshipType,
+		"source_name": sourceName,
+		"target_name": targetName,
+		"line_number": lineNumber,
+	})
+}
