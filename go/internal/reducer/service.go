@@ -75,6 +75,12 @@ type Service struct {
 	// disables the maintainer.
 	SupplyChainImpactWinnersMaintainer *SupplyChainImpactWinnersMaintainer
 
+	// CollectorEvidenceSummaryMaintainer keeps the collector_evidence_summary read
+	// model reconciled with the active fact set (#3466) via a lease-guarded
+	// periodic atomic resweep, so the collector-readiness API read joins a small
+	// materialized table instead of scanning fact_records. Nil disables it.
+	CollectorEvidenceSummaryMaintainer *CollectorEvidenceSummaryMaintainer
+
 	// CodeCallProjectionRunner runs the controlled code-call projection lane
 	// concurrently with the main claim/execute/ack loop. Nil disables the lane.
 	CodeCallProjectionRunner *CodeCallProjectionRunner
