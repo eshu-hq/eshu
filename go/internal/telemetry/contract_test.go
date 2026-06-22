@@ -74,6 +74,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"principal_kind",
 		"budget_state",
 		"budget_reason",
+		"stage",
 		"field_class",
 	}
 
@@ -239,6 +240,7 @@ func TestSpanNames(t *testing.T) {
 		"postgres.exec",
 		"postgres.query",
 		"neo4j.execute",
+		"collector.snapshot_stage",
 	}
 
 	got := SpanNames()

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
@@ -146,7 +147,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	))
 	logTerraformStateCandidateDiscovery(ctx, s, repoPath, len(tfstateCandidates))
 	s.logDiscoveryStats(ctx, repoPath, discoveryStats)
-	s.logSnapshotStageTiming(ctx, repoPath, "discovery", discoveryStartedAt,
+	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageDiscovery, discoveryStartedAt,
 		slog.Int("file_count", len(fileSet.Files)),
 		slog.Int("file_target_count", len(repository.FileTargets)),
 	)
@@ -191,7 +192,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan repository imports for %q: %w", repoPath, err)
 	}
 	snapshot.ImportsMap = importsMap
-	s.logSnapshotStageTiming(ctx, repoPath, "pre_scan", preScanStartedAt,
+	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStagePreScan, preScanStartedAt,
 		slog.Int("file_count", len(preScanFileSet.Files)),
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
@@ -201,7 +202,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}
-	s.logSnapshotStageTiming(ctx, repoPath, "go_package_semantic_prescan", goPackageSemanticPreScanStartedAt,
+	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageGoPackageSemanticPreScan, goPackageSemanticPreScanStartedAt,
 		slog.Int("file_count", len(preScanFileSet.Files)),
 		slog.Int("go_package_target_count", len(goPackageTargets)),
 	)
@@ -232,7 +233,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("build parsed repository files for %q: %w", repoPath, err)
 	}
-	s.logSnapshotStageTiming(ctx, repoPath, "parse", parseStartedAt,
+	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageParse, parseStartedAt,
 		slog.Int("file_count", len(parserFileSet.Files)),
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("skipped_file_count", len(parserFileSet.Files)-len(parsedFiles)),
@@ -250,12 +251,13 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("materialize repository content: %w", err)
 	}
-	s.logSnapshotStageTiming(ctx, repoPath, "materialize", materializeStartedAt,
+	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageMaterialize, materializeStartedAt,
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("content_file_count", len(materialization.Records)),
 		slog.Int("content_entity_count", len(materialization.Entities)),
 	)
 
+	valueFlowStartedAt := time.Now()
 	annotateParsedFilesWithEntityIDs(repoPath, parsedFiles, materialization.Entities)
 	snapshot.TaintEvidence = buildTaintEvidence(repoPath, parsedFiles, materialization.Entities)
 	snapshot.InterprocTaintEvidence = buildInterprocTaintEvidence(repoPath, parsedFiles, materialization.Entities)
@@ -266,6 +268,14 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// emitted even when no findings were produced, letting the reducer retract
 	// stale evidence when a generation's finding set goes empty (#2919).
 	snapshot.DataflowScanned = s.EmitDataflow
+	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageValueFlowEvidence, valueFlowStartedAt,
+		slog.Int("parsed_file_count", len(parsedFiles)),
+		slog.Int("taint_evidence_count", len(snapshot.TaintEvidence)),
+		slog.Int("interproc_taint_evidence_count", len(snapshot.InterprocTaintEvidence)),
+		slog.Int("function_summary_count", len(snapshot.FunctionSummaries)),
+		slog.Int("function_source_count", len(snapshot.FunctionSources)),
+		slog.Bool("dataflow_scanned", s.EmitDataflow),
+	)
 	snapshot.FileData = parsedFiles
 	snapshot.ContentFileMetas = materializationRecordsToMetas(materialization.Records)
 	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, documentationFiles, commitSHA)
@@ -291,27 +301,55 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	return snapshot, nil
 }
 
-// logSnapshotStageTiming emits coarse repository snapshot phase timings so
-// operators can distinguish parser, materialization, and commit bottlenecks
-// before changing concurrency or graph-write tuning.
-func (s NativeRepositorySnapshotter) logSnapshotStageTiming(
+// recordSnapshotStage emits per-stage repository snapshot timing as a structured
+// log, a metric histogram, and a trace span so operators can distinguish
+// discovery, pre-scan, parse, materialization, and value-flow evidence
+// bottlenecks before changing concurrency or graph-write tuning.
+//
+// The stage argument MUST be a bounded telemetry.SnapshotStage* value. The span
+// is back-dated to startedAt so the trace reflects the real stage window even
+// though it is recorded after the stage completes; this keeps the call sites a
+// single post-stage statement rather than a control-flow rewrite.
+func (s NativeRepositorySnapshotter) recordSnapshotStage(
 	ctx context.Context,
 	repoPath string,
 	stage string,
 	startedAt time.Time,
 	attrs ...any,
 ) {
-	if s.Logger == nil {
-		return
+	endedAt := time.Now()
+	duration := endedAt.Sub(startedAt)
+
+	if s.Instruments != nil {
+		s.Instruments.CollectorSnapshotStageDuration.Record(ctx, duration.Seconds(),
+			metric.WithAttributes(
+				telemetry.AttrCollectorKind("git"),
+				telemetry.AttrStage(stage),
+			),
+		)
 	}
-	logAttrs := []any{
-		slog.String("collector_kind", "git"),
-		slog.String("repo_path", repoPath),
-		slog.String("stage", stage),
-		slog.Float64("duration_seconds", time.Since(startedAt).Seconds()),
+
+	if s.Tracer != nil {
+		_, span := s.Tracer.Start(ctx, telemetry.SpanCollectorSnapshotStage,
+			trace.WithTimestamp(startedAt),
+			trace.WithAttributes(
+				telemetry.AttrCollectorKind("git"),
+				telemetry.AttrStage(stage),
+			),
+		)
+		span.End(trace.WithTimestamp(endedAt))
 	}
-	logAttrs = append(logAttrs, attrs...)
-	s.Logger.InfoContext(ctx, "collector snapshot stage completed", logAttrs...)
+
+	if s.Logger != nil {
+		logAttrs := []any{
+			slog.String("collector_kind", "git"),
+			slog.String("repo_path", repoPath),
+			slog.String("stage", stage),
+			slog.Float64("duration_seconds", duration.Seconds()),
+		}
+		logAttrs = append(logAttrs, attrs...)
+		s.Logger.InfoContext(ctx, "collector snapshot stage completed", logAttrs...)
+	}
 }
 
 // effectiveSnapshotParseWorkers reports the actual parser worker cardinality
