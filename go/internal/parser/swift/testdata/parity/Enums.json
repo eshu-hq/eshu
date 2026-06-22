@@ -1,0 +1,112 @@
+{
+  "classes": [],
+  "enums": [
+    {
+      "bases": [
+        "String",
+        "CaseIterable"
+      ],
+      "end_line": 14,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Direction"
+    },
+    {
+      "bases": null,
+      "end_line": 28,
+      "lang": "swift",
+      "line_number": 16,
+      "name": "Result"
+    },
+    {
+      "bases": [
+        "Error",
+        "CustomStringConvertible"
+      ],
+      "end_line": 43,
+      "lang": "swift",
+      "line_number": 30,
+      "name": "NetworkError"
+    },
+    {
+      "bases": [
+        "Int"
+      ],
+      "end_line": 52,
+      "lang": "swift",
+      "line_number": 46,
+      "name": "Planet"
+    }
+  ],
+  "function_calls": [
+    {
+      "args": [
+        "value"
+      ],
+      "full_name": "transform",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 23,
+      "name": "transform"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "transform"
+      ],
+      "class_context": "Result",
+      "context": "Result",
+      "decorators": [],
+      "end_line": 27,
+      "lang": "swift",
+      "line_number": 20,
+      "name": "map",
+      "source": "func map\u003cT\u003e(_ transform: (Success) -\u003e T) -\u003e Result\u003cT, Failure\u003e {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [],
+  "structs": [],
+  "variables": [
+    {
+      "class_context": "Direction",
+      "context": "Direction",
+      "end_line": 6,
+      "lang": "swift",
+      "line_number": 6,
+      "name": "opposite",
+      "type": "Direction"
+    },
+    {
+      "class_context": "NetworkError",
+      "context": "NetworkError",
+      "end_line": 35,
+      "lang": "swift",
+      "line_number": 35,
+      "name": "description",
+      "type": "String"
+    },
+    {
+      "class_context": "Planet",
+      "context": "Planet",
+      "end_line": 49,
+      "lang": "swift",
+      "line_number": 49,
+      "name": "isInner",
+      "type": "Bool"
+    }
+  ]
+}

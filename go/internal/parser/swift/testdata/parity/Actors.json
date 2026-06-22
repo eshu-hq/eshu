@@ -1,0 +1,53 @@
+{
+  "classes": [
+    {
+      "bases": null,
+      "end_line": 7,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Worker"
+    }
+  ],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [
+        "\"running\""
+      ],
+      "full_name": "print",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 5,
+      "name": "print"
+    }
+  ],
+  "functions": [
+    {
+      "args": null,
+      "class_context": "Worker",
+      "context": "Worker",
+      "decorators": [],
+      "end_line": 6,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "run",
+      "source": "func run() {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [],
+  "structs": [],
+  "variables": []
+}

@@ -1,0 +1,223 @@
+{
+  "classes": [],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [
+        "x: 0",
+        "y: 0"
+      ],
+      "full_name": "Point",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 18,
+      "name": "Point"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "other"
+      ],
+      "class_context": "Point",
+      "context": "Point",
+      "decorators": [],
+      "end_line": 11,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "distance",
+      "source": "func distance(to other: Point) -\u003e Double {"
+    },
+    {
+      "args": [
+        "dx",
+        "dy"
+      ],
+      "class_context": "Point",
+      "context": "Point",
+      "decorators": [],
+      "end_line": 16,
+      "lang": "swift",
+      "line_number": 13,
+      "name": "translate",
+      "source": "mutating func translate(dx: Double, dy: Double) {"
+    },
+    {
+      "args": [
+        "host",
+        "port",
+        "debug"
+      ],
+      "class_context": "Config",
+      "context": "Config",
+      "dead_code_root_kinds": [
+        "swift.constructor"
+      ],
+      "decorators": [],
+      "end_line": 30,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "init",
+      "source": "init(host: String = \"localhost\", port: Int = 8080, debug: Bool = false) {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [],
+  "structs": [
+    {
+      "bases": null,
+      "end_line": 19,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Point"
+    },
+    {
+      "bases": null,
+      "end_line": 35,
+      "lang": "swift",
+      "line_number": 21,
+      "name": "Config"
+    },
+    {
+      "bases": [
+        "Equatable",
+        "CustomStringConvertible"
+      ],
+      "end_line": 46,
+      "lang": "swift",
+      "line_number": 37,
+      "name": "Size"
+    }
+  ],
+  "variables": [
+    {
+      "class_context": "Point",
+      "context": "Point",
+      "end_line": 4,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "x",
+      "type": "Double"
+    },
+    {
+      "class_context": "Point",
+      "context": "Point",
+      "end_line": 5,
+      "lang": "swift",
+      "line_number": 5,
+      "name": "y",
+      "type": "Double"
+    },
+    {
+      "class_context": "Point",
+      "context": "Point",
+      "end_line": 8,
+      "lang": "swift",
+      "line_number": 8,
+      "name": "dx",
+      "type": ""
+    },
+    {
+      "class_context": "Point",
+      "context": "Point",
+      "end_line": 9,
+      "lang": "swift",
+      "line_number": 9,
+      "name": "dy",
+      "type": ""
+    },
+    {
+      "class_context": "Point",
+      "context": "Point",
+      "end_line": 18,
+      "lang": "swift",
+      "line_number": 18,
+      "name": "origin",
+      "type": ""
+    },
+    {
+      "class_context": "Config",
+      "context": "Config",
+      "end_line": 22,
+      "lang": "swift",
+      "line_number": 22,
+      "name": "host",
+      "type": "String"
+    },
+    {
+      "class_context": "Config",
+      "context": "Config",
+      "end_line": 23,
+      "lang": "swift",
+      "line_number": 23,
+      "name": "port",
+      "type": "Int"
+    },
+    {
+      "class_context": "Config",
+      "context": "Config",
+      "end_line": 24,
+      "lang": "swift",
+      "line_number": 24,
+      "name": "debug",
+      "type": "Bool"
+    },
+    {
+      "class_context": "Config",
+      "context": "Config",
+      "end_line": 32,
+      "lang": "swift",
+      "line_number": 32,
+      "name": "url",
+      "type": "String"
+    },
+    {
+      "class_context": "Size",
+      "context": "Size",
+      "end_line": 38,
+      "lang": "swift",
+      "line_number": 38,
+      "name": "width",
+      "type": "Double"
+    },
+    {
+      "class_context": "Size",
+      "context": "Size",
+      "end_line": 39,
+      "lang": "swift",
+      "line_number": 39,
+      "name": "height",
+      "type": "Double"
+    },
+    {
+      "class_context": "Size",
+      "context": "Size",
+      "end_line": 41,
+      "lang": "swift",
+      "line_number": 41,
+      "name": "area",
+      "type": "Double"
+    },
+    {
+      "class_context": "Size",
+      "context": "Size",
+      "end_line": 43,
+      "lang": "swift",
+      "line_number": 43,
+      "name": "description",
+      "type": "String"
+    }
+  ]
+}

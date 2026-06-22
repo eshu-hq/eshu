@@ -1,0 +1,449 @@
+{
+  "classes": [
+    {
+      "bases": [
+        "Repository",
+        "Logger"
+      ],
+      "end_line": 68,
+      "lang": "swift",
+      "line_number": 44,
+      "name": "InMemoryStore"
+    }
+  ],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [
+        "\"INFO\"",
+        "message"
+      ],
+      "full_name": "log",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "log"
+    },
+    {
+      "args": [
+        "\"WARN\"",
+        "message"
+      ],
+      "full_name": "log",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 27,
+      "name": "log"
+    },
+    {
+      "args": [
+        "\"ERROR\"",
+        "message"
+      ],
+      "full_name": "log",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 28,
+      "name": "log"
+    },
+    {
+      "args": [
+        "\"Finding: \\(id)\""
+      ],
+      "full_name": "info",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 50,
+      "name": "info"
+    },
+    {
+      "args": [
+        "id"
+      ],
+      "full_name": "store",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 51,
+      "name": "store"
+    },
+    {
+      "args": [
+        "store.values"
+      ],
+      "full_name": "Array",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 54,
+      "name": "Array"
+    },
+    {
+      "args": [
+        "entity.id"
+      ],
+      "full_name": "store",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 57,
+      "name": "store"
+    },
+    {
+      "args": [
+        "\"Saved: \\(entity.id)\""
+      ],
+      "full_name": "info",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 58,
+      "name": "info"
+    },
+    {
+      "args": [
+        "forKey: id"
+      ],
+      "full_name": "store.removeValue",
+      "inferred_obj_type": "[String: T]",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 62,
+      "name": "removeValue"
+    },
+    {
+      "args": [
+        "\"[\\(level)] \\(message)\""
+      ],
+      "full_name": "print",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 66,
+      "name": "print"
+    }
+  ],
+  "functions": [
+    {
+      "args": null,
+      "class_context": "Describable",
+      "context": "Describable",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 8,
+      "lang": "swift",
+      "line_number": 8,
+      "name": "describe",
+      "source": "func describe() -\u003e String"
+    },
+    {
+      "args": [
+        "id"
+      ],
+      "class_context": "Repository",
+      "context": "Repository",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 14,
+      "lang": "swift",
+      "line_number": 14,
+      "name": "findById",
+      "source": "func findById(_ id: String) -\u003e Entity?"
+    },
+    {
+      "args": null,
+      "class_context": "Repository",
+      "context": "Repository",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 15,
+      "lang": "swift",
+      "line_number": 15,
+      "name": "findAll",
+      "source": "func findAll() -\u003e [Entity]"
+    },
+    {
+      "args": [
+        "entity"
+      ],
+      "class_context": "Repository",
+      "context": "Repository",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 16,
+      "lang": "swift",
+      "line_number": 16,
+      "name": "save",
+      "source": "func save(_ entity: Entity)"
+    },
+    {
+      "args": [
+        "id"
+      ],
+      "class_context": "Repository",
+      "context": "Repository",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 17,
+      "lang": "swift",
+      "line_number": 17,
+      "name": "delete",
+      "source": "func delete(_ id: String) -\u003e Bool"
+    },
+    {
+      "args": [
+        "level",
+        "message"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 22,
+      "lang": "swift",
+      "line_number": 22,
+      "name": "log",
+      "source": "func log(_ level: String, _ message: String)"
+    },
+    {
+      "args": [
+        "message"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "decorators": [],
+      "end_line": 26,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "info",
+      "source": "func info(_ message: String) { log(\"INFO\", message) }"
+    },
+    {
+      "args": [
+        "message"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "decorators": [],
+      "end_line": 27,
+      "lang": "swift",
+      "line_number": 27,
+      "name": "warn",
+      "source": "func warn(_ message: String) { log(\"WARN\", message) }"
+    },
+    {
+      "args": [
+        "message"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "decorators": [],
+      "end_line": 28,
+      "lang": "swift",
+      "line_number": 28,
+      "name": "error",
+      "source": "func error(_ message: String) { log(\"ERROR\", message) }"
+    },
+    {
+      "args": null,
+      "class_context": "User",
+      "context": "User",
+      "decorators": [],
+      "end_line": 41,
+      "lang": "swift",
+      "line_number": 39,
+      "name": "describe",
+      "source": "func describe() -\u003e String {"
+    },
+    {
+      "args": [
+        "id"
+      ],
+      "class_context": "InMemoryStore",
+      "context": "InMemoryStore",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 52,
+      "lang": "swift",
+      "line_number": 49,
+      "name": "findById",
+      "source": "func findById(_ id: String) -\u003e T? {"
+    },
+    {
+      "args": null,
+      "class_context": "InMemoryStore",
+      "context": "InMemoryStore",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 54,
+      "lang": "swift",
+      "line_number": 54,
+      "name": "findAll",
+      "source": "func findAll() -\u003e [T] { Array(store.values) }"
+    },
+    {
+      "args": [
+        "entity"
+      ],
+      "class_context": "InMemoryStore",
+      "context": "InMemoryStore",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 59,
+      "lang": "swift",
+      "line_number": 56,
+      "name": "save",
+      "source": "func save(_ entity: T) {"
+    },
+    {
+      "args": [
+        "id"
+      ],
+      "class_context": "InMemoryStore",
+      "context": "InMemoryStore",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 63,
+      "lang": "swift",
+      "line_number": 61,
+      "name": "delete",
+      "source": "func delete(_ id: String) -\u003e Bool {"
+    },
+    {
+      "args": [
+        "level",
+        "message"
+      ],
+      "class_context": "InMemoryStore",
+      "context": "InMemoryStore",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 67,
+      "lang": "swift",
+      "line_number": 65,
+      "name": "log",
+      "source": "func log(_ level: String, _ message: String) {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 5,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Identifiable"
+    },
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 9,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "Describable"
+    },
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 18,
+      "lang": "swift",
+      "line_number": 11,
+      "name": "Repository"
+    },
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 23,
+      "lang": "swift",
+      "line_number": 21,
+      "name": "Logger"
+    }
+  ],
+  "structs": [
+    {
+      "bases": [
+        "Trackable"
+      ],
+      "end_line": 42,
+      "lang": "swift",
+      "line_number": 34,
+      "name": "User"
+    }
+  ],
+  "variables": [
+    {
+      "class_context": "",
+      "context": "",
+      "end_line": 4,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "id",
+      "type": "String"
+    },
+    {
+      "class_context": "User",
+      "context": "User",
+      "end_line": 36,
+      "lang": "swift",
+      "line_number": 36,
+      "name": "name",
+      "type": "String"
+    },
+    {
+      "class_context": "User",
+      "context": "User",
+      "end_line": 37,
+      "lang": "swift",
+      "line_number": 37,
+      "name": "email",
+      "type": "String"
+    },
+    {
+      "class_context": "InMemoryStore",
+      "context": "InMemoryStore",
+      "end_line": 47,
+      "lang": "swift",
+      "line_number": 47,
+      "name": "store",
+      "type": "[String: T]"
+    }
+  ]
+}

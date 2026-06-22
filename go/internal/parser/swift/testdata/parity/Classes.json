@@ -1,0 +1,212 @@
+{
+  "classes": [
+    {
+      "bases": null,
+      "end_line": 19,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Animal"
+    },
+    {
+      "bases": [
+        "Animal"
+      ],
+      "end_line": 33,
+      "lang": "swift",
+      "line_number": 21,
+      "name": "Dog"
+    },
+    {
+      "bases": [
+        "Dog"
+      ],
+      "end_line": 46,
+      "lang": "swift",
+      "line_number": 35,
+      "name": "GuideDog"
+    }
+  ],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [
+        "\"\\(name) is being deallocated\""
+      ],
+      "full_name": "print",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 17,
+      "name": "print"
+    },
+    {
+      "args": [
+        "name: name",
+        "species: \"Canine\""
+      ],
+      "full_name": "super.init",
+      "inferred_obj_type": "",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 23,
+      "name": "init"
+    },
+    {
+      "args": [
+        "name: name"
+      ],
+      "full_name": "super.init",
+      "inferred_obj_type": "",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 40,
+      "name": "init"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "name",
+        "species"
+      ],
+      "class_context": "Animal",
+      "context": "Animal",
+      "dead_code_root_kinds": [
+        "swift.constructor"
+      ],
+      "decorators": [],
+      "end_line": 10,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "init",
+      "source": "init(name: String, species: String) {"
+    },
+    {
+      "args": null,
+      "class_context": "Animal",
+      "context": "Animal",
+      "decorators": [],
+      "end_line": 14,
+      "lang": "swift",
+      "line_number": 12,
+      "name": "speak",
+      "source": "func speak() -\u003e String {"
+    },
+    {
+      "args": [
+        "name"
+      ],
+      "class_context": "Dog",
+      "context": "Dog",
+      "dead_code_root_kinds": [
+        "swift.constructor"
+      ],
+      "decorators": [],
+      "end_line": 24,
+      "lang": "swift",
+      "line_number": 22,
+      "name": "init",
+      "source": "init(name: String) {"
+    },
+    {
+      "args": null,
+      "class_context": "Dog",
+      "context": "Dog",
+      "dead_code_root_kinds": [
+        "swift.override_method"
+      ],
+      "decorators": [],
+      "end_line": 28,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "speak",
+      "source": "override func speak() -\u003e String {"
+    },
+    {
+      "args": [
+        "item"
+      ],
+      "class_context": "Dog",
+      "context": "Dog",
+      "decorators": [],
+      "end_line": 32,
+      "lang": "swift",
+      "line_number": 30,
+      "name": "fetch",
+      "source": "func fetch(_ item: String) -\u003e String {"
+    },
+    {
+      "args": [
+        "name",
+        "handler"
+      ],
+      "class_context": "GuideDog",
+      "context": "GuideDog",
+      "dead_code_root_kinds": [
+        "swift.constructor"
+      ],
+      "decorators": [],
+      "end_line": 41,
+      "lang": "swift",
+      "line_number": 38,
+      "name": "init",
+      "source": "init(name: String, handler: String) {"
+    },
+    {
+      "args": [
+        "destination"
+      ],
+      "class_context": "GuideDog",
+      "context": "GuideDog",
+      "decorators": [],
+      "end_line": 45,
+      "lang": "swift",
+      "line_number": 43,
+      "name": "guide",
+      "source": "func guide(to destination: String) -\u003e String {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [],
+  "structs": [],
+  "variables": [
+    {
+      "class_context": "Animal",
+      "context": "Animal",
+      "end_line": 4,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "name",
+      "type": "String"
+    },
+    {
+      "class_context": "Animal",
+      "context": "Animal",
+      "end_line": 5,
+      "lang": "swift",
+      "line_number": 5,
+      "name": "species",
+      "type": "String"
+    },
+    {
+      "class_context": "GuideDog",
+      "context": "GuideDog",
+      "end_line": 36,
+      "lang": "swift",
+      "line_number": 36,
+      "name": "handler",
+      "type": "String"
+    }
+  ]
+}

@@ -1,0 +1,240 @@
+{
+  "classes": [
+    {
+      "bases": null,
+      "end_line": 42,
+      "lang": "swift",
+      "line_number": 30,
+      "name": "Container"
+    }
+  ],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [
+        "item"
+      ],
+      "full_name": "items.append",
+      "inferred_obj_type": "[Element]",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 18,
+      "name": "append"
+    },
+    {
+      "args": [],
+      "full_name": "items.popLast",
+      "inferred_obj_type": "[Element]",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 22,
+      "name": "popLast"
+    },
+    {
+      "args": [
+        "value"
+      ],
+      "full_name": "transform",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 38,
+      "name": "transform"
+    },
+    {
+      "args": [
+        "items"
+      ],
+      "full_name": "Set",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 46,
+      "name": "Set"
+    },
+    {
+      "args": [
+        "0",
+        "+"
+      ],
+      "full_name": "reduce",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 52,
+      "name": "reduce"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "items"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 6,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "first",
+      "source": "func first\u003cT\u003e(_ items: [T]) -\u003e T? {"
+    },
+    {
+      "args": [
+        "a",
+        "b"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 11,
+      "lang": "swift",
+      "line_number": 9,
+      "name": "max",
+      "source": "func max\u003cT: Comparable\u003e(_ a: T, _ b: T) -\u003e T {"
+    },
+    {
+      "args": [
+        "item"
+      ],
+      "class_context": "Stack",
+      "context": "Stack",
+      "decorators": [],
+      "end_line": 19,
+      "lang": "swift",
+      "line_number": 17,
+      "name": "push",
+      "source": "mutating func push(_ item: Element) {"
+    },
+    {
+      "args": null,
+      "class_context": "Stack",
+      "context": "Stack",
+      "decorators": [],
+      "end_line": 23,
+      "lang": "swift",
+      "line_number": 21,
+      "name": "pop",
+      "source": "mutating func pop() -\u003e Element? {"
+    },
+    {
+      "args": [
+        "value"
+      ],
+      "class_context": "Container",
+      "context": "Container",
+      "dead_code_root_kinds": [
+        "swift.constructor"
+      ],
+      "decorators": [],
+      "end_line": 35,
+      "lang": "swift",
+      "line_number": 33,
+      "name": "init",
+      "source": "init(_ value: T) {"
+    },
+    {
+      "args": [
+        "transform"
+      ],
+      "class_context": "Container",
+      "context": "Container",
+      "decorators": [],
+      "end_line": 39,
+      "lang": "swift",
+      "line_number": 37,
+      "name": "map",
+      "source": "func map\u003cU\u003e(_ transform: (T) -\u003e U) -\u003e Container\u003cU\u003e {"
+    },
+    {
+      "args": null,
+      "class_context": "Container",
+      "context": "Container",
+      "decorators": [],
+      "end_line": 41,
+      "lang": "swift",
+      "line_number": 41,
+      "name": "get",
+      "source": "func get() -\u003e T { return value }"
+    },
+    {
+      "args": [
+        "items"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 47,
+      "lang": "swift",
+      "line_number": 45,
+      "name": "allEqual",
+      "source": "func allEqual\u003cT: Equatable\u003e(_ items: [T]) -\u003e Bool where T: Hashable {"
+    },
+    {
+      "args": null,
+      "class_context": "Array",
+      "context": "Array",
+      "decorators": [],
+      "end_line": 53,
+      "lang": "swift",
+      "line_number": 51,
+      "name": "total",
+      "source": "func total() -\u003e Element {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [],
+  "structs": [
+    {
+      "bases": null,
+      "end_line": 27,
+      "lang": "swift",
+      "line_number": 14,
+      "name": "Stack"
+    }
+  ],
+  "variables": [
+    {
+      "class_context": "Stack",
+      "context": "Stack",
+      "end_line": 15,
+      "lang": "swift",
+      "line_number": 15,
+      "name": "items",
+      "type": "[Element]"
+    },
+    {
+      "class_context": "Stack",
+      "context": "Stack",
+      "end_line": 25,
+      "lang": "swift",
+      "line_number": 25,
+      "name": "isEmpty",
+      "type": "Bool"
+    },
+    {
+      "class_context": "Stack",
+      "context": "Stack",
+      "end_line": 26,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "count",
+      "type": "Int"
+    },
+    {
+      "class_context": "Container",
+      "context": "Container",
+      "end_line": 31,
+      "lang": "swift",
+      "line_number": 31,
+      "name": "value",
+      "type": "T"
+    }
+  ]
+}

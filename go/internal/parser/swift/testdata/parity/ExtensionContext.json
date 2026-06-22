@@ -1,0 +1,126 @@
+{
+  "classes": [],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [
+        "\"INFO\""
+      ],
+      "full_name": "log",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 8,
+      "name": "log"
+    },
+    {
+      "args": [
+        "\"WARN\""
+      ],
+      "full_name": "log",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 9,
+      "name": "log"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "level"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 4,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "log",
+      "source": "func log(_ level: String)"
+    },
+    {
+      "args": [
+        "message"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "decorators": [],
+      "end_line": 8,
+      "lang": "swift",
+      "line_number": 8,
+      "name": "info",
+      "source": "func info(_ message: String) { log(\"INFO\") }"
+    },
+    {
+      "args": [
+        "message"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "decorators": [],
+      "end_line": 9,
+      "lang": "swift",
+      "line_number": 9,
+      "name": "warn",
+      "source": "func warn(_ message: String) { log(\"WARN\") }"
+    },
+    {
+      "args": null,
+      "class_context": "Point",
+      "context": "Point",
+      "decorators": [],
+      "end_line": 17,
+      "lang": "swift",
+      "line_number": 17,
+      "name": "translated",
+      "source": "func translated() -\u003e Point { return self }"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 5,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Logger"
+    }
+  ],
+  "structs": [
+    {
+      "bases": null,
+      "end_line": 14,
+      "lang": "swift",
+      "line_number": 12,
+      "name": "Point"
+    }
+  ],
+  "variables": [
+    {
+      "class_context": "Point",
+      "context": "Point",
+      "end_line": 13,
+      "lang": "swift",
+      "line_number": 13,
+      "name": "x",
+      "type": "Double"
+    }
+  ]
+}

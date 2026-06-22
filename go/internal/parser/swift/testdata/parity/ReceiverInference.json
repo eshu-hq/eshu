@@ -1,0 +1,130 @@
+{
+  "classes": [
+    {
+      "bases": null,
+      "end_line": 9,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "Logger"
+    },
+    {
+      "bases": [
+        "Runnable"
+      ],
+      "end_line": 21,
+      "lang": "swift",
+      "line_number": 11,
+      "name": "Worker"
+    }
+  ],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [
+        "\"running\""
+      ],
+      "full_name": "logger.info",
+      "inferred_obj_type": "Logger",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 19,
+      "name": "info"
+    }
+  ],
+  "functions": [
+    {
+      "args": null,
+      "class_context": "Runnable",
+      "context": "Runnable",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 4,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "run",
+      "source": "func run()"
+    },
+    {
+      "args": [
+        "message"
+      ],
+      "class_context": "Logger",
+      "context": "Logger",
+      "decorators": [],
+      "end_line": 8,
+      "lang": "swift",
+      "line_number": 8,
+      "name": "info",
+      "source": "func info(_ message: String) {}"
+    },
+    {
+      "args": [
+        "logger"
+      ],
+      "class_context": "Worker",
+      "context": "Worker",
+      "dead_code_root_kinds": [
+        "swift.constructor"
+      ],
+      "decorators": [],
+      "end_line": 16,
+      "lang": "swift",
+      "line_number": 14,
+      "name": "init",
+      "source": "init(logger: Logger) {"
+    },
+    {
+      "args": null,
+      "class_context": "Worker",
+      "context": "Worker",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 20,
+      "lang": "swift",
+      "line_number": 18,
+      "name": "run",
+      "source": "func run() {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 5,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Runnable"
+    }
+  ],
+  "structs": [],
+  "variables": [
+    {
+      "class_context": "Worker",
+      "context": "Worker",
+      "end_line": 12,
+      "lang": "swift",
+      "line_number": 12,
+      "name": "logger",
+      "type": "Logger"
+    }
+  ]
+}

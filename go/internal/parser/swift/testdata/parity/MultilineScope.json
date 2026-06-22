@@ -1,0 +1,154 @@
+{
+  "classes": [
+    {
+      "bases": [
+        "Runnable"
+      ],
+      "end_line": 31,
+      "lang": "swift",
+      "line_number": 15,
+      "name": "Worker"
+    }
+  ],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": [],
+      "full_name": "ContentView",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "ContentView"
+    },
+    {
+      "args": null,
+      "full_name": "WindowGroup",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "WindowGroup"
+    },
+    {
+      "args": [
+        "\"run\""
+      ],
+      "full_name": "logger.info",
+      "inferred_obj_type": "Logger",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 29,
+      "name": "info"
+    }
+  ],
+  "functions": [
+    {
+      "args": null,
+      "class_context": "Runnable",
+      "context": "Runnable",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 12,
+      "lang": "swift",
+      "line_number": 12,
+      "name": "run",
+      "source": "func run()"
+    },
+    {
+      "args": [
+        "logger"
+      ],
+      "class_context": "Worker",
+      "context": "Worker",
+      "dead_code_root_kinds": [
+        "swift.constructor"
+      ],
+      "decorators": [],
+      "end_line": 24,
+      "lang": "swift",
+      "line_number": 20,
+      "name": "init",
+      "source": "init("
+    },
+    {
+      "args": [
+        "id"
+      ],
+      "class_context": "Worker",
+      "context": "Worker",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 30,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "run",
+      "source": "func run("
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "SwiftUI",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "SwiftUI"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 13,
+      "lang": "swift",
+      "line_number": 10,
+      "name": "Runnable"
+    }
+  ],
+  "structs": [
+    {
+      "bases": [
+        "App"
+      ],
+      "dead_code_root_kinds": [
+        "swift.main_type",
+        "swift.swiftui_app_type"
+      ],
+      "end_line": 8,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "DemoApp"
+    }
+  ],
+  "variables": [
+    {
+      "class_context": "DemoApp",
+      "context": "DemoApp",
+      "dead_code_root_kinds": [
+        "swift.swiftui_body"
+      ],
+      "end_line": 7,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "body",
+      "type": "some Scene"
+    },
+    {
+      "class_context": "Worker",
+      "context": "Worker",
+      "end_line": 18,
+      "lang": "swift",
+      "line_number": 18,
+      "name": "logger",
+      "type": "Logger"
+    }
+  ]
+}

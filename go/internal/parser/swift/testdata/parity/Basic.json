@@ -1,0 +1,120 @@
+{
+  "classes": [],
+  "enums": [
+    {
+      "bases": [
+        "Error"
+      ],
+      "end_line": 34,
+      "lang": "swift",
+      "line_number": 30,
+      "name": "CalculationError"
+    }
+  ],
+  "function_calls": [
+    {
+      "args": [
+        "0",
+        "+"
+      ],
+      "full_name": "numbers.reduce",
+      "inferred_obj_type": "",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 21,
+      "name": "reduce"
+    },
+    {
+      "args": [
+        "block"
+      ],
+      "full_name": "items.map",
+      "inferred_obj_type": "",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "map"
+    }
+  ],
+  "functions": [
+    {
+      "args": [
+        "name"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 6,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "greet",
+      "source": "func greet(_ name: String) -\u003e String {"
+    },
+    {
+      "args": [
+        "a",
+        "b"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 10,
+      "lang": "swift",
+      "line_number": 8,
+      "name": "add",
+      "source": "func add(_ a: Int, _ b: Int) -\u003e Int {"
+    },
+    {
+      "args": [
+        "a",
+        "b"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 17,
+      "lang": "swift",
+      "line_number": 12,
+      "name": "divide",
+      "source": "func divide(_ a: Double, by b: Double) throws -\u003e Double {"
+    },
+    {
+      "args": [
+        "numbers"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 22,
+      "lang": "swift",
+      "line_number": 20,
+      "name": "sum",
+      "source": "func sum(_ numbers: Int...) -\u003e Int {"
+    },
+    {
+      "args": [
+        "items",
+        "block"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 27,
+      "lang": "swift",
+      "line_number": 25,
+      "name": "transform",
+      "source": "func transform(_ items: [String], using block: (String) -\u003e String) -\u003e [String] {"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Foundation",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "Foundation"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [],
+  "structs": [],
+  "variables": []
+}

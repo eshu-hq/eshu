@@ -1,0 +1,328 @@
+{
+  "classes": [
+    {
+      "bases": [
+        "BaseWorker",
+        "Runnable"
+      ],
+      "end_line": 29,
+      "lang": "swift",
+      "line_number": 21,
+      "name": "Worker"
+    },
+    {
+      "bases": [
+        "NSObject",
+        "UIApplicationDelegate"
+      ],
+      "dead_code_root_kinds": [
+        "swift.ui_application_delegate_type"
+      ],
+      "end_line": 35,
+      "lang": "swift",
+      "line_number": 31,
+      "name": "AppDelegate"
+    },
+    {
+      "bases": [
+        "XCTestCase"
+      ],
+      "end_line": 47,
+      "lang": "swift",
+      "line_number": 45,
+      "name": "ServiceTests"
+    }
+  ],
+  "enums": [],
+  "function_calls": [
+    {
+      "args": null,
+      "full_name": "WindowGroup",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 8,
+      "name": "WindowGroup"
+    },
+    {
+      "args": [],
+      "full_name": "ContentView",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 9,
+      "name": "ContentView"
+    },
+    {
+      "args": [
+        "\"health\"",
+        "use: health"
+      ],
+      "full_name": "app.get",
+      "inferred_obj_type": "",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 38,
+      "name": "get"
+    }
+  ],
+  "functions": [
+    {
+      "args": null,
+      "class_context": "Runnable",
+      "context": "Runnable",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 16,
+      "lang": "swift",
+      "line_number": 16,
+      "name": "init",
+      "source": "init()"
+    },
+    {
+      "args": null,
+      "class_context": "Runnable",
+      "context": "Runnable",
+      "dead_code_root_kinds": [
+        "swift.protocol_method"
+      ],
+      "decorators": [],
+      "end_line": 18,
+      "lang": "swift",
+      "line_number": 18,
+      "name": "run",
+      "source": "func run()"
+    },
+    {
+      "args": [
+        "name"
+      ],
+      "class_context": "Worker",
+      "context": "Worker",
+      "dead_code_root_kinds": [
+        "swift.constructor",
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 22,
+      "lang": "swift",
+      "line_number": 22,
+      "name": "init",
+      "source": "init(name: String) {}"
+    },
+    {
+      "args": null,
+      "class_context": "Worker",
+      "context": "Worker",
+      "dead_code_root_kinds": [
+        "swift.override_method"
+      ],
+      "decorators": [],
+      "end_line": 24,
+      "lang": "swift",
+      "line_number": 24,
+      "name": "start",
+      "source": "override func start() {}"
+    },
+    {
+      "args": null,
+      "class_context": "Worker",
+      "context": "Worker",
+      "dead_code_root_kinds": [
+        "swift.protocol_implementation_method"
+      ],
+      "decorators": [],
+      "end_line": 26,
+      "lang": "swift",
+      "line_number": 26,
+      "name": "run",
+      "source": "func run() {}"
+    },
+    {
+      "args": null,
+      "class_context": "Worker",
+      "context": "Worker",
+      "decorators": [],
+      "end_line": 28,
+      "lang": "swift",
+      "line_number": 28,
+      "name": "helper",
+      "source": "private func helper() {}"
+    },
+    {
+      "args": [
+        "application",
+        "launchOptions"
+      ],
+      "class_context": "AppDelegate",
+      "context": "AppDelegate",
+      "dead_code_root_kinds": [
+        "swift.ui_application_delegate_method"
+      ],
+      "decorators": [],
+      "end_line": 34,
+      "lang": "swift",
+      "line_number": 32,
+      "name": "application",
+      "source": "func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -\u003e Bool {"
+    },
+    {
+      "args": [
+        "app"
+      ],
+      "context": "",
+      "decorators": [],
+      "end_line": 39,
+      "lang": "swift",
+      "line_number": 37,
+      "name": "configure",
+      "source": "func configure(_ app: Application) throws {"
+    },
+    {
+      "args": [
+        "req"
+      ],
+      "context": "",
+      "dead_code_root_kinds": [
+        "swift.vapor_route_handler"
+      ],
+      "decorators": [],
+      "end_line": 43,
+      "lang": "swift",
+      "line_number": 41,
+      "name": "health",
+      "source": "func health(_ req: Request) async throws -\u003e String {"
+    },
+    {
+      "args": null,
+      "class_context": "ServiceTests",
+      "context": "ServiceTests",
+      "dead_code_root_kinds": [
+        "swift.xctest_method"
+      ],
+      "decorators": [],
+      "end_line": 46,
+      "lang": "swift",
+      "line_number": 46,
+      "name": "testRunsFromXCTest",
+      "source": "func testRunsFromXCTest() {}"
+    },
+    {
+      "args": null,
+      "context": "",
+      "dead_code_root_kinds": [
+        "swift.swift_testing_method"
+      ],
+      "decorators": [],
+      "end_line": 50,
+      "lang": "swift",
+      "line_number": 50,
+      "name": "swiftTestingRunsFromRunner",
+      "source": "func swiftTestingRunsFromRunner() {}"
+    },
+    {
+      "args": null,
+      "context": "",
+      "dead_code_root_kinds": [
+        "swift.main_function"
+      ],
+      "decorators": [],
+      "end_line": 52,
+      "lang": "swift",
+      "line_number": 52,
+      "name": "main",
+      "source": "func main() {}"
+    },
+    {
+      "args": null,
+      "context": "",
+      "decorators": [],
+      "end_line": 54,
+      "lang": "swift",
+      "line_number": 54,
+      "name": "unusedCleanupCandidate",
+      "source": "private func unusedCleanupCandidate() {}"
+    }
+  ],
+  "imports": [
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "SwiftUI",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 1,
+      "name": "SwiftUI"
+    },
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "UIKit",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 2,
+      "name": "UIKit"
+    },
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "Vapor",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 3,
+      "name": "Vapor"
+    },
+    {
+      "alias": null,
+      "context": null,
+      "full_import_name": "XCTest",
+      "is_dependency": false,
+      "lang": "swift",
+      "line_number": 4,
+      "name": "XCTest"
+    }
+  ],
+  "is_dependency": false,
+  "lang": "swift",
+  "protocols": [
+    {
+      "bases": null,
+      "dead_code_root_kinds": [
+        "swift.protocol_type"
+      ],
+      "end_line": 19,
+      "lang": "swift",
+      "line_number": 14,
+      "name": "Runnable"
+    }
+  ],
+  "structs": [
+    {
+      "bases": [
+        "App"
+      ],
+      "dead_code_root_kinds": [
+        "swift.main_type",
+        "swift.swiftui_app_type"
+      ],
+      "end_line": 12,
+      "lang": "swift",
+      "line_number": 6,
+      "name": "DemoApp"
+    }
+  ],
+  "variables": [
+    {
+      "class_context": "DemoApp",
+      "context": "DemoApp",
+      "dead_code_root_kinds": [
+        "swift.swiftui_body"
+      ],
+      "end_line": 7,
+      "lang": "swift",
+      "line_number": 7,
+      "name": "body",
+      "type": "some Scene"
+    }
+  ]
+}
