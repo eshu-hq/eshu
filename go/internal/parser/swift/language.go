@@ -16,6 +16,7 @@ var (
 	structPattern       = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*struct\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
 	enumPattern         = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*enum\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
 	protocolPattern     = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*protocol\s+([A-Za-z_]\w*)(?:\s*:\s*([^{]+))?`)
+	extensionPattern    = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|final)\s+)*extension\s+([A-Za-z_][\w.]*)(?:\s*:\s*([^{]+))?`)
 	functionPattern     = regexp.MustCompile(`\bfunc\s+([A-Za-z_]\w*)(?:<[^>]+>)?\s*\(`)
 	variablePattern     = regexp.MustCompile(`^\s*(?:(?:public|private|fileprivate|internal|open|static|class|final|lazy|weak|unowned|private\(set\)|fileprivate\(set\)|internal\(set\))\s+)*(?:let|var)\s+([A-Za-z_]\w*)(?:\s*:\s*([^=<{]+(?:<[^>]+>)?))?`)
 	vaporRoutePattern   = regexp.MustCompile(`\buse:\s*([A-Za-z_]\w*)`)
@@ -160,6 +161,18 @@ func appendTypes(
 			}), true
 		}
 	}
+	// `extension Foo { ... }` does not declare a new type, so it emits no type
+	// entity. It pushes a scope so members are attributed to the extended type.
+	if matches := extensionPattern.FindStringSubmatch(trimmed); len(matches) >= 2 {
+		name := swiftShortTypeName(matches[1])
+		if name != "" {
+			return append(stack, scopedContext{
+				kind:       "extension",
+				name:       name,
+				braceDepth: braceDepth + max(1, strings.Count(rawLine, "{")),
+			}), true
+		}
+	}
 	return stack, false
 }
 
@@ -175,8 +188,8 @@ func appendFunctions(
 	syntax swiftSyntaxIndex,
 ) bool {
 	matched := false
-	classContext := currentScopedName(stack, "class", "struct", "enum", "protocol")
-	scopeKind := currentScopedKind(stack, "class", "struct", "enum", "protocol")
+	classContext := currentScopedName(stack, "class", "struct", "enum", "protocol", "extension")
+	scopeKind := currentScopedKind(stack, "class", "struct", "enum", "protocol", "extension")
 	if matches := functionPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
 		appendFunction(payload, matches[1], rawLine, lineNumber, options, classContext, scopeKind, attributes, facts, syntax)
 		matched = true
@@ -252,7 +265,7 @@ func appendVariable(
 		return false
 	}
 	seenVariables[name] = struct{}{}
-	contextName := currentScopedName(stack, "class", "struct", "enum")
+	contextName := currentScopedName(stack, "class", "struct", "enum", "extension")
 	contextName = syntax.typeNameAtLineOr(contextName, lineNumber)
 	varType := ""
 	if len(matches) >= 3 {

@@ -80,6 +80,12 @@ func (i *swiftSyntaxIndex) collect(node *tree_sitter.Node, source []byte, curren
 				endLine:   shared.NodeEndLine(node),
 				bases:     swiftTreeInheritance(node, source),
 			})
+		} else if extended := swiftExtensionTypeName(node, source); extended != "" {
+			// `extension Foo { ... }` parses as a class_declaration whose name is
+			// a user_type, not a type_identifier. Attribute members to the
+			// extended type without emitting a new type entity.
+			nextType = extended
+			nextKind = "extension"
 		}
 	case "protocol_declaration":
 		nameNode := node.ChildByFieldName("name")
@@ -148,6 +154,34 @@ func swiftTreeTypeKind(node *tree_sitter.Node, nameNode *tree_sitter.Node, sourc
 		}
 	}
 	return "", ""
+}
+
+// swiftExtensionTypeName returns the extended type name for an `extension`
+// declaration. The Swift grammar models `extension Foo { ... }` as a
+// class_declaration whose extended type is a direct user_type child rather than
+// a type_identifier name field. The leading `extension` keyword must be present
+// in the text before the type so true class/struct/enum declarations are not
+// misread as extensions.
+func swiftExtensionTypeName(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	var userType *tree_sitter.Node
+	for _, child := range swiftNamedChildren(node) {
+		child := child
+		if child.Kind() == "user_type" {
+			userType = shared.CloneNode(&child)
+			break
+		}
+	}
+	if userType == nil {
+		return ""
+	}
+	prefix := string(source[node.StartByte():userType.StartByte()])
+	if !swiftTextHasToken(prefix, "extension") {
+		return ""
+	}
+	return swiftShortTypeName(strings.TrimSpace(shared.NodeText(userType, source)))
 }
 
 func swiftTextHasToken(text string, token string) bool {

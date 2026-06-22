@@ -17,6 +17,7 @@ var (
 	kotlinStringAssignPattern  = regexp.MustCompile(`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s*=\s*"([^"]*)"`)
 	kotlinAliasAssignPattern   = regexp.MustCompile(`^\s*(?:val|var)\s+([A-Za-z_]\w*)\s*=\s*((?:this\.)?(?:[A-Za-z_]\w*(?:\([^)]*\))?)(?:\.(?:[A-Za-z_]\w*(?:\([^)]*\))?))*)\s*$`)
 	kotlinThisCallPattern      = regexp.MustCompile(`this\.([A-Za-z_]\w*)\s*\(`)
+	kotlinBareCallPattern      = regexp.MustCompile(`([A-Za-z_]\w*)\s*\(`)
 	kotlinCallPattern          = regexp.MustCompile(`\b((?:[A-Za-z_]\w*(?:\([^)]*\))?)(?:\.(?:[A-Za-z_]\w*(?:\([^)]*\))?))*)\.([A-Za-z_]\w*)\s*\(`)
 	kotlinInfixCallPattern     = regexp.MustCompile(`^(?:return\s+)?([A-Za-z_]\w*)\s+([A-Za-z_]\w*)\s+(.+)$`)
 	kotlinAnnotationPattern    = regexp.MustCompile(`@([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)`)

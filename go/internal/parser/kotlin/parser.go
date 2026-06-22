@@ -464,6 +464,16 @@ func Parse(repoRoot, path string, isDependency bool, options shared.Options, par
 			}
 		}
 
+		kotlinAppendBareCalls(
+			payload,
+			normalizedTrimmed,
+			lineNumber,
+			functionDeclCutoff,
+			seenLineCalls,
+			knownTypeNames,
+			declaredTypeNames,
+		)
+
 		if functionContext != "" {
 			if scopedTypes := kotlinScopedSmartCastTypes(trimmed); len(scopedTypes) > 0 && strings.Contains(rawLine, "{") {
 				smartCastScopes = append(smartCastScopes, kotlinTypeFlowScope{
