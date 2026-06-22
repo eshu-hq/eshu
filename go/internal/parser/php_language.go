@@ -1,17 +1,32 @@
 package parser
 
 import (
+	"slices"
+
 	phpparser "github.com/eshu-hq/eshu/go/internal/parser/php"
-	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 func (e *Engine) parsePHP(path string, isDependency bool, options Options) (map[string]any, error) {
-	return phpparser.Parse(path, isDependency, shared.Options{
-		IndexSource:   options.IndexSource,
-		VariableScope: options.VariableScope,
-	})
+	parser, err := e.runtime.Parser("php")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	return phpparser.Parse(path, isDependency, sharedOptions(options), parser)
 }
 
 func (e *Engine) preScanPHP(path string) ([]string, error) {
-	return phpparser.PreScan(path)
+	parser, err := e.runtime.Parser("php")
+	if err != nil {
+		return nil, err
+	}
+	defer parser.Close()
+
+	names, err := phpparser.PreScan(path, parser)
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(names)
+	return names, nil
 }

@@ -2,38 +2,6 @@ package php
 
 import "strings"
 
-func extractPHPReturnType(lines []string, startIndex int, rawLine string) string {
-	signature := collectPHPFunctionSignature(lines, startIndex, rawLine)
-	matches := phpFunctionReturnPattern.FindStringSubmatch(signature)
-	if len(matches) != 2 {
-		return ""
-	}
-	return normalizePHPTypeName(matches[1])
-}
-
-func collectPHPFunctionSignature(lines []string, startIndex int, rawLine string) string {
-	signature := strings.TrimSpace(rawLine)
-	if signature == "" {
-		return ""
-	}
-	if strings.Contains(signature, "{") || strings.Contains(signature, ";") {
-		return signature
-	}
-
-	for index := startIndex + 1; index < len(lines); index++ {
-		nextLine := strings.TrimSpace(lines[index])
-		if nextLine == "" {
-			continue
-		}
-		signature += " " + nextLine
-		if strings.Contains(nextLine, "{") || strings.Contains(nextLine, ";") {
-			break
-		}
-	}
-
-	return signature
-}
-
 func resolvePHPReferenceChainType(
 	rootType string,
 	segments []string,

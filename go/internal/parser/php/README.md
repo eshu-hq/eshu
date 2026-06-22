@@ -2,16 +2,18 @@
 
 ## Purpose
 
-This package owns the line-oriented PHP parser adapter used by the parent parser
+This package owns the tree-sitter PHP parser adapter used by the parent parser
 engine. It extracts namespace metadata, imports, classes, interfaces, traits,
 functions, variables, call rows, receiver inference, anonymous classes, and
-trait-use adaptation evidence.
+trait-use adaptation evidence by walking the tree-sitter AST.
 
 ## Ownership boundary
 
-The package is responsible for PHP source scanning and payload bucket
+The package is responsible for PHP source parsing and payload bucket
 population. The parent parser package still owns registry dispatch, engine
-orchestration, repo path handling, and parse telemetry.
+orchestration, repo path handling, tree-sitter runtime/grammar caching, and
+parse telemetry. `Engine.parsePHP` obtains a `php` parser from the shared
+runtime and passes it to `Parse`.
 The parser also emits bounded `dead_code_root_kinds` for PHP entrypoints,
 constructors, known magic methods, same-file interface and trait methods,
 route-backed controller actions, literal route handlers, Symfony route
@@ -19,12 +21,16 @@ attributes, and WordPress hook callbacks.
 
 ## Exported surface
 
-The godoc contract is in doc.go. Current exports are Parse and PreScan.
+The godoc contract is in doc.go. Current exports are `Parse` and `PreScan`,
+both of which take a `*tree_sitter.Parser` configured for the PHP grammar.
 
 ## Dependencies
 
-This package imports the Go standard library and internal/parser/shared. It
-must not import the parent internal/parser package.
+This package imports the Go standard library, `internal/parser/shared`, and
+`github.com/tree-sitter/go-tree-sitter`. The grammar is
+`github.com/tree-sitter/tree-sitter-php` (LanguagePHP), wired into the parent
+runtime loader. This package must not import the parent `internal/parser`
+package.
 
 ## Telemetry
 
@@ -33,16 +39,21 @@ parser engine.
 
 ## Gotchas / invariants
 
-PHP scope tracking is line-oriented and uses brace depth to pop class, trait,
-interface, and function contexts. Type declarations keep a pending scope until
-their opening brace appears, so PSR-style declarations with the brace on the
-next line still attach method metadata and dead-code roots to the owning type.
-Call rows are deduplicated by full name and source line so repeated calls on
-different lines remain visible. PreScan sorts names after collecting them from
-the parsed function, class, trait, and interface buckets. Dead-code roots stay
-bounded to same-file declarations and literal framework registrations;
-Composer/autoload breadth, reflection, and dynamic dispatch remain query-layer
-exactness blockers.
+PHP parsing is AST-driven. Declarations resolve `name`, `base_clause`,
+`class_interface_clause`, and trait `use_declaration` nodes; properties and
+parameters resolve declared type nodes (`named_type`, `optional_type`,
+`union_type`, `primitive_type`); calls resolve `member_call_expression`,
+`nullsafe_member_call_expression`, `scoped_call_expression`,
+`object_creation_expression`, and `function_call_expression`. Receiver chains
+are reconstructed from receiver node source text, with nullsafe `?->`
+normalized to `->` and the final `->method` rendered as `.method` in
+`full_name`. Call rows are deduplicated by full name and source line so repeated
+calls on different lines remain visible. PreScan sorts names after collecting
+them from the parsed function, class, trait, and interface buckets. Type
+inference resolves receivers through a two-pass walk so declarations later in
+the file still inform earlier call sites. Dead-code roots stay bounded to
+same-file declarations and literal framework registrations; Composer/autoload
+breadth, reflection, and dynamic dispatch remain query-layer exactness blockers.
 
 ## Related docs
 
