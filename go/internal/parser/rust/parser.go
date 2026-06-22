@@ -189,11 +189,12 @@ func appendRustFunction(
 	}
 
 	item := map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(nameNode),
-		"end_line":    shared.NodeEndLine(node),
-		"decorators":  []string{},
-		"lang":        "rust",
+		"name":                  name,
+		"line_number":           shared.NodeLine(nameNode),
+		"end_line":              shared.NodeEndLine(node),
+		"decorators":            []string{},
+		"lang":                  "rust",
+		"cyclomatic_complexity": cyclomaticComplexity(node, source),
 	}
 	signature := rustSignatureHeader(shared.NodeText(node, source))
 	if visibility := rustVisibility(signature); visibility != "" {

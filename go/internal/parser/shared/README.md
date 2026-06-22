@@ -45,7 +45,13 @@ The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `GoPackageSemanticRoots`, `GoPackageSemanticRootOptions`, `BasePayload`, `ReadSource`,
 `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
 `AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,
-`IntValue`, `LastPathSegment`, and `DedupeNonEmptyStrings`.
+`IntValue`, `LastPathSegment`, `DedupeNonEmptyStrings`, `BranchNodeSet`,
+`NewBranchNodeSet`, and `CyclomaticComplexity`.
+
+`CyclomaticComplexity` is the shared McCabe walker. Each tree-sitter language
+adapter passes a `BranchNodeSet` (built with `NewBranchNodeSet`) that names the
+node kinds and boolean operator tokens counted as decision points, so adding
+complexity for a language is a data table, not new traversal code.
 
 ## Dependencies
 
@@ -71,6 +77,16 @@ the collector snapshot path.
 - No-Observability-Change: this package remains telemetry-free; parser timing,
   parse failures, and collector stage metrics stay on the existing collector
   runtime path, unchanged by the repository identity field.
+- No-Regression Evidence (issue #3488): `CyclomaticComplexity` is a pure
+  function of one already-parsed function subtree. It performs one bounded
+  extra named+anonymous walk per function and adds no graph write, queue
+  operation, Cypher, lock, goroutine, or worker coordination. Focused
+  verification is `go test ./internal/parser/shared -run
+  TestCyclomaticComplexity -count=1` plus
+  `go test ./internal/parser -run TestCyclomaticComplexityPerLanguage -count=1`.
+- No-Observability-Change (issue #3488): the walker writes only the existing
+  `cyclomatic_complexity` function-entity field; it adds no metric, span, log,
+  status field, env var, or graph query.
 
 ## Gotchas / invariants
 

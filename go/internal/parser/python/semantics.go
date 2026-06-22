@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -292,57 +293,32 @@ prefixDone:
 	return strings.TrimSpace(trimmed)
 }
 
-func cyclomaticComplexity(node *tree_sitter.Node) int {
-	if node == nil {
-		return 0
-	}
-
-	complexity := 1
-	var walk func(*tree_sitter.Node)
-	walk = func(current *tree_sitter.Node) {
-		if current == nil {
-			return
-		}
-		if current != node && isNestedDefinition(current.Kind()) {
-			return
-		}
-		if isCyclomaticBranchKind(current.Kind()) {
-			complexity++
-		}
-
-		cursor := current.Walk()
-		defer cursor.Close()
-		for _, child := range current.NamedChildren(cursor) {
-			child := child
-			walk(&child)
-		}
-	}
-
-	walk(node)
-	return complexity
-}
-
-func isNestedDefinition(kind string) bool {
-	switch kind {
-	case "class_definition", "function_definition", "lambda":
-		return true
-	default:
-		return false
-	}
-}
-
-func isCyclomaticBranchKind(kind string) bool {
-	switch kind {
-	case "if_statement",
+// pythonComplexitySet declares the Python tree-sitter node kinds and boolean
+// operator tokens that count as McCabe decision points. Python exposes `and`
+// and `or` as tokens inside a boolean_operator node, so that kind drives
+// short-circuit counting.
+var pythonComplexitySet = shared.NewBranchNodeSet(
+	[]string{
+		"if_statement",
 		"elif_clause",
 		"for_statement",
 		"while_statement",
 		"except_clause",
 		"case_clause",
-		"switch_statement",
-		"type_switch_statement",
-		"select_statement",
-		"conditional_expression":
+		"conditional_expression",
+	},
+	[]string{"class_definition", "function_definition", "lambda"},
+	[]string{"boolean_operator"},
+	[]string{"and", "or"},
+)
+
+func cyclomaticComplexity(node *tree_sitter.Node, source []byte) int {
+	return shared.CyclomaticComplexity(node, source, pythonComplexitySet)
+}
+
+func isNestedDefinition(kind string) bool {
+	switch kind {
+	case "class_definition", "function_definition", "lambda":
 		return true
 	default:
 		return false

@@ -96,11 +96,12 @@ func appendCPPFunction(payload map[string]any, node *tree_sitter.Node, source []
 		return
 	}
 	item := map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(nameNode),
-		"end_line":    shared.NodeEndLine(node),
-		"decorators":  []string{},
-		"lang":        "cpp",
+		"name":                  name,
+		"line_number":           shared.NodeLine(nameNode),
+		"end_line":              shared.NodeEndLine(node),
+		"decorators":            []string{},
+		"lang":                  "cpp",
+		"cyclomatic_complexity": cyclomaticComplexity(node, source),
 	}
 	if qualifiedClass != "" {
 		item["class_context"] = qualifiedClass

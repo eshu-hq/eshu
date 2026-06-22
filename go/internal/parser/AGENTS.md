@@ -184,3 +184,31 @@
 No-Regression Evidence: `go test ./internal/parser -run 'TestEngine(DispatchesRegisteredLanguageProvider|SkipsProviderPreScanWithoutCapability)' -count=1` failed before provider dispatch and pre-scan capability gating existed, then passed after custom registry providers could parse and opt into pre-scan without shared engine switch edits. `go test ./internal/reducer -run TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName -count=1` failed before language-specific code-call resolvers were registered outside the generic resolver, then passed after the Go resolver branches moved behind phase-ordered registration while preserving the previous branch order.
 
 No-Observability-Change: provider dispatch and code-call resolver registration add no graph query, queue, worker, lease, batch, runtime knob, metric instrument, metric label, route, or status field. Operators still diagnose parser behavior through existing collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`, and code-call materialization through existing durable intent rows plus the existing completion log.
+
+### Cyclomatic complexity per language (issue #3488)
+
+No-Regression Evidence: `go test ./internal/parser -run TestCyclomaticComplexityPerLanguage -count=1`
+and `go test ./internal/parser/shared -run TestCyclomaticComplexity -count=1` failed
+before the shared McCabe walker existed (C, C++, Java, C#, Rust, Scala emitted no
+`cyclomatic_complexity` field; Go and Python omitted short-circuit boolean
+operators), then passed after `shared.CyclomaticComplexity` drove every
+tree-sitter adapter from per-language `shared.BranchNodeSet` tables. Backend:
+tree-sitter grammars vendored in `go/go.mod` (`go-tree-sitter v0.25.0`). Input
+shape: single-file fixtures with hand-counted decision points (straight-line = 1,
+branchy = 1 + each if/elif/loop/case/match-arm/catch/ternary/`&&`/`||`). The walk
+adds one bounded extra named+anonymous traversal of each already-parsed function
+subtree at parse time; complexity is a pure function of the function node, so it
+adds no queue, lease, worker, batch, Cypher, or graph-write work and stays within
+the existing per-file parse budget measured by
+`eshu_dp_file_parse_duration_seconds`. Full `go test ./internal/parser/... -count=1`
+stayed green, so no language regressed.
+
+No-Observability-Change: complexity is written to the existing
+`cyclomatic_complexity` function-entity field that `content/shape` already
+forwards to the graph node property read by `find_most_complex_functions` and
+`calculate_cyclomatic_complexity`. No new metric instrument, metric label, span,
+log line, status field, env var, queue, worker, lease, batch, runtime knob, or
+graph query is added. SCIP definitions now emit `0` (unknown) instead of a
+fabricated `1`; rankings exclude `0` via the existing
+`WHERE coalesce(e.cyclomatic_complexity, 0) > 0` filter, so operators see fewer
+misleading rows, not a changed observability surface.

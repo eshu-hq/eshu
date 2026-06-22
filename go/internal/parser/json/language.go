@@ -284,11 +284,16 @@ func jsonScriptFunctions(document map[string]any, lang string, topLevelEntries [
 	lineNumber := 1
 	for _, name := range orderedJSONSectionKeys(topLevelEntries, "scripts", raw) {
 		rows = append(rows, map[string]any{
-			"name":                  name,
-			"line_number":           lineNumber,
-			"end_line":              lineNumber,
-			"args":                  []string{},
-			"cyclomatic_complexity": 1,
+			"name":        name,
+			"line_number": lineNumber,
+			"end_line":    lineNumber,
+			"args":        []string{},
+			// npm scripts are shell command strings, not parsed source functions,
+			// so there is no statement AST to measure. Emit 0 (unknown) instead of
+			// a fabricated 1 so complexity rankings exclude them via the existing
+			// coalesce(..., 0) > 0 filter rather than surface a misleading value.
+			// See issue #3488.
+			"cyclomatic_complexity": 0,
 			"source":                fmt.Sprint(raw[name]),
 			"function_kind":         "json_script",
 			"context":               "scripts",

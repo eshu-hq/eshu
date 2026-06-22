@@ -142,7 +142,12 @@ func appendSCIPDefinition(payload map[string]any, symbol string, line int, defin
 
 	switch kind {
 	case int32(scippb.SymbolInformation_Function), int32(scippb.SymbolInformation_Method):
-		node["cyclomatic_complexity"] = 1
+		// SCIP indexes carry symbols and signatures but no statement-level AST,
+		// so real McCabe complexity cannot be computed here. Emit 0 (unknown)
+		// instead of a fabricated 1: the native tree-sitter parser supplies the
+		// true value for the same file, and complexity rankings exclude 0 rather
+		// than surface a misleading constant. See issue #3488.
+		node["cyclomatic_complexity"] = 0
 		node["decorators"] = []string{}
 		node["context"] = nil
 		node["class_context"] = nil

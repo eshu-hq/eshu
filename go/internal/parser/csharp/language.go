@@ -196,11 +196,12 @@ func appendFunctionWithContext(
 	}
 
 	item := map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(nameNode),
-		"end_line":    shared.NodeEndLine(node),
-		"decorators":  csharpAttributeNames(node, source),
-		"lang":        lang,
+		"name":                  name,
+		"line_number":           shared.NodeLine(nameNode),
+		"end_line":              shared.NodeEndLine(node),
+		"decorators":            csharpAttributeNames(node, source),
+		"lang":                  lang,
+		"cyclomatic_complexity": cyclomaticComplexity(node, source),
 	}
 	contextName, contextKind, contextQualified := nearestNamedAncestorWithQualifiedKind(node, source, contextKinds...)
 	if contextName != "" {
