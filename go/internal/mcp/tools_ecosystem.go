@@ -207,7 +207,7 @@ func ecosystemTools() []ToolDefinition {
 		developerChangePlanTool(),
 		{
 			Name:        "list_package_registry_packages",
-			Description: "List package registry package identities by package_id or ecosystem/name without inferring repository ownership; malformed rows are returned under identity_issues.",
+			Description: "List package registry package identities by package_id or ecosystem/name without inferring repository ownership; malformed rows are returned under identity_issues. Populated by the opt-in package_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus registry credentials), so a default git-only deploy returns an empty page.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -236,7 +236,7 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_package_registry_versions",
-			Description: "List package registry version identities for one Package.uid without inferring repository ownership.",
+			Description: "List package registry version identities for one Package.uid without inferring repository ownership. Populated by the opt-in package_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus registry credentials), so a default git-only deploy returns an empty page.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

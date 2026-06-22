@@ -4,7 +4,7 @@ func cicdTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_ci_cd_run_correlations",
-			Description: "List reducer-owned CI/CD run, artifact, and environment correlations by run, repository, commit, artifact digest, image reference, or environment. Repository-scoped results include an evidence_summary that separates static workflow files, live run rows, run-to-artifact/image bridge evidence, and public-safe missing-hop classes.",
+			Description: "List reducer-owned CI/CD run, artifact, and environment correlations by run, repository, commit, artifact digest, image reference, or environment. Repository-scoped results include an evidence_summary that separates static workflow files, live run rows, run-to-artifact/image bridge evidence, and public-safe missing-hop classes. Live run rows come from the opt-in ci_cd_run collector polling the provider run API such as GitHub Actions (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus a provider token), so a default git-only deploy returns only static workflow evidence and no run correlation rows.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

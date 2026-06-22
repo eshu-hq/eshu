@@ -18,7 +18,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_container_image_identities",
-			Description: "List reducer-owned container image identity facts by digest, image reference, source repository bridge, OCI repository, or outcome.",
+			Description: "List reducer-owned container image identity facts by digest, image reference, source repository bridge, OCI repository, or outcome. Populated by the opt-in oci_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus container-registry credentials), so a default git-only deploy returns an empty page.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -59,7 +59,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_supply_chain_impact_findings",
-			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. The default precise profile requires supported exact-version evidence such as npm, Maven, Cargo, Pub pubspec.lock, NuGet, or Swift Package.resolved. Each row carries `vulnerable_range`, a reachability envelope with states such as reachable, not_called, unknown, unavailable, and missing_evidence, and an advisory-only remediation block (issue #595). Reachability does not change impact truth; JavaScript/TypeScript parser/SCIP package API evidence is partial prioritization evidence, and not_called is emitted only when an ecosystem-specific scanner proves stronger semantics. Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision.",
+			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. The default precise profile requires supported exact-version evidence such as npm, Maven, Cargo, Pub pubspec.lock, NuGet, or Swift Package.resolved. Each row carries `vulnerable_range`, a reachability envelope with states such as reachable, not_called, unknown, unavailable, and missing_evidence, and an advisory-only remediation block (issue #595). Reachability does not change impact truth; JavaScript/TypeScript parser/SCIP package API evidence is partial prioritization evidence, and not_called is emitted only when an ecosystem-specific scanner proves stronger semantics. Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision. Findings are seeded by the opt-in vulnerability_intelligence and security_alert collectors (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus advisory-feed or provider credentials), so a default git-only deploy returns an empty page whose readiness envelope reports not_configured rather than a false fresh-zero.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -313,7 +313,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_sbom_attestation_attachments",
-			Description: "List reducer-owned SBOM and attestation attachment evidence by repository, workload, service, image digest, or document identity. Inspect attachment_scope and missing_evidence before treating parse-only rows as image evidence. SBOM warning summaries are returned as a bounded preview with aggregate warning_summary_count and warning_summaries_truncated.",
+			Description: "List reducer-owned SBOM and attestation attachment evidence by repository, workload, service, image digest, or document identity. Inspect attachment_scope and missing_evidence before treating parse-only rows as image evidence. SBOM warning summaries are returned as a bounded preview with aggregate warning_summary_count and warning_summaries_truncated. Populated by the opt-in sbom_attestation collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus SBOM document URLs or OCI referrer credentials), so a default git-only deploy returns an empty page.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

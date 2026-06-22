@@ -119,6 +119,60 @@ capabilities:
     known_gaps:
       - "Bounded/partial: the JVM reducer family derives Maven/Gradle reachability from stored parser/SCIP package-API evidence (jvm_package_api_reachable), not a full call graph, so it never proves not_called and stays a local graph-backed preview."
 
+  # Collector-gated supply-chain list capabilities (issue #3496). The matrix
+  # records production support, so each derives general_availability and the
+  # runtime tool answers once the operator enables its feeding collector. But
+  # the feeding collectors are external opt-in runtimes that are off in a
+  # default deploy (no compose service, Helm enabled: false), enabled only by
+  # supplying ESHU_COLLECTOR_INSTANCES_JSON plus provider credentials. The
+  # matrix cannot express a collector gate, so these take an overlay gated
+  # maturity with a reason that names the gate, the same way ask and the
+  # value-flow reachability rows are gated for env-var gates. A default deploy
+  # ships only the git collector, so these tools return well-formed empty pages
+  # until the operator opts in. service_catalog.correlations.list is NOT here:
+  # it populates from the default git collector (committed catalog-info.yaml,
+  # opslevel.yml, cortex.yaml), so it stays matrix-derived general_availability.
+  - capability: supply_chain.sbom_attestation_attachments.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "SBOM and attestation attachments are populated by the sbom_attestation collector, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with the sbom_attestation instance plus SBOM document URLs or OCI referrer credentials; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
+  - capability: package_registry.packages.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Package-registry package identities are populated by the package_registry collector calling live registry APIs, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
+  - capability: package_registry.versions.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Package-registry versions are populated by the package_registry collector calling live registry APIs, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
+  - capability: package_registry.dependencies.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Package-native registry dependencies are populated by the package_registry collector calling live registry APIs, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
+  - capability: package_registry.correlations.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Package-registry correlations join git manifest evidence to registry package identities, so a correlation row persists only when the package_registry collector has populated those identities. That collector is off in a default deploy (no compose service, Helm enabled: false) and enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a package_registry instance plus registry credentials; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
+  - capability: supply_chain.container_image_identities.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Container image identities persist only when a git or cloud image ref matches an oci_registry digest or tag observation, so they require the oci_registry collector, which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with an oci_registry instance plus container-registry credentials; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
+  - capability: supply_chain.impact_findings.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Supply-chain impact findings are seeded by the vulnerability_intelligence and security_alert collectors, which are off in a default deploy (no compose service, Helm enabled: false). They are enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with those instances plus advisory-feed or provider credentials; a default git-only deploy returns an empty page whose readiness envelope reports not_configured rather than a false fresh-zero."
+    linked_issues: [3496, 3480]
+  - capability: ci_cd.run_correlations.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "CI/CD run correlations are populated by the ci_cd_run collector polling the provider run API (for example GitHub Actions), which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a ci_cd_run instance plus a provider token; a default git-only deploy returns an empty page."
+    linked_issues: [3496, 3480]
+
 # MCP tools that the matrix tools field does not reference. A capability maps
 # the tool to an existing entry as an alias surface; an empty capability marks a
 # genuine utility or operator surface that is not a distinct product capability.
