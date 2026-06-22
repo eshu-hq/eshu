@@ -118,6 +118,17 @@ That lock narrows cross-process overlap for `Package.uid` without reducing
 global worker counts; the retrying executor still remains the backend safety
 net for other MERGE-shaped races and changed NornicDB error wrapping.
 
+When the in-loop retry budget is exhausted, or a transient
+`*TransactionExecutionLimit`/`*ConnectivityError` escapes a canonical write,
+`CanonicalNodeWriter.Write` wraps the error with `WrapRetryableNeo4jError` so the
+projector queue classifies it `projection_retryable` and requeues it with
+backpressure (`retryDelay`, then bounded by `maxAttempts`) instead of recording a
+terminal `projection_failed` dead letter. A genuinely terminal error such as a
+schema constraint violation is not wrapped and stays terminal. If canonical
+projection still dead-letters on a transient NornicDB write conflict, verify that
+the escaping error implements `Retryable()` before lowering worker or batch
+knobs; serializing writers is not the fix.
+
 ## Pitfall: Composite `IS UNIQUE` Constraints Are Not The NornicDB Contract
 
 ### Observed shape
