@@ -323,9 +323,9 @@ func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggr
 
 // infraResourceScopePredicate bounds the whole-graph infra `MATCH (n)` to
 // resources attributable to a scoped-token's granted repositories. The
-// predicate has three disjuncts and is fail-closed: a node matches only when it
+// predicate is a disjunction and is fail-closed: a node matches only when it
 // resolves to a granted repository, otherwise it is excluded from every count,
-// rollup, and inventory bucket.
+// rollup, inventory bucket, and relationship-neighbor result.
 //
 //  1. Canonical IaC entity nodes (TerraformResource, K8sResource,
 //     CloudFormationResource, ArgoCDApplication, HelmChart, ...) carry a durable
@@ -336,16 +336,33 @@ func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggr
 //     (:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n).
 //     The EXISTS subquery is anchored on the indexed Repository.id grant filter,
 //     mirroring the production workloadScopePredicate traversal shape.
+//  3. Repository nodes carry no `repo_id`; their grant identity is their own
+//     `id`, so a Repository neighbor (for example the target of a DEPLOYS_FROM
+//     or WorkloadInstance-[:DEPLOYMENT_SOURCE]->Repository deployment edge) is
+//     admitted when `n.id` is itself a granted repository. Repository ids are
+//     namespaced distinctly from IaC entity ids, so this disjunct is inert for
+//     non-Repository nodes and never widens their authorization (#3519).
+//  4. WorkloadInstance nodes carry no `repo_id` and are not USES targets; they
+//     anchor to a repository through (:Repository)-[:DEFINES]->(:Workload)<-
+//     [:INSTANCE_OF]-(n). A deployment-source instance reached by what_deploys
+//     is admitted when its defining repository is in grant. The subquery is
+//     anchored on the indexed Repository.id grant filter, the same shape as
+//     disjunct 2 without the trailing USES hop, so it only admits instances
+//     genuinely anchored in-grant.
 //
-// Nodes with no granted `repo_id` and no USES path from a granted repository
-// (for example tfstate-only TerraformBackend / TerraformLockProvider nodes that
-// carry no durable repository signal) match nothing and stay invisible to
-// scoped tokens. The predicate renders only in scoped mode; the unscoped query
-// shape is unchanged.
+// Nodes with no granted `repo_id`, no granted `id`, and no DEFINES/INSTANCE_OF
+// or USES path from a granted repository (for example tfstate-only
+// TerraformBackend / TerraformLockProvider nodes that carry no durable
+// repository signal) match nothing and stay invisible to scoped tokens. The
+// predicate renders only in scoped mode; the unscoped query shape is unchanged.
 func infraResourceScopePredicate(alias string) string {
 	return "(" + alias + ".repo_id IN $allowed_repository_ids OR " +
-		alias + ".repo_id IN $allowed_scope_ids OR EXISTS { " +
+		alias + ".repo_id IN $allowed_scope_ids OR " +
+		alias + ".id IN $allowed_repository_ids OR " +
+		alias + ".id IN $allowed_scope_ids OR EXISTS { " +
 		"MATCH (scopeRepo:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(" + alias + ") " +
+		"WHERE (scopeRepo.id IN $allowed_repository_ids OR scopeRepo.id IN $allowed_scope_ids) } OR EXISTS { " +
+		"MATCH (scopeRepo:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(" + alias + ") " +
 		"WHERE (scopeRepo.id IN $allowed_repository_ids OR scopeRepo.id IN $allowed_scope_ids) })"
 }
 
