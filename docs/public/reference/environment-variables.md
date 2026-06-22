@@ -44,6 +44,7 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | Allowlist hosted semantic extraction and search embedding by provider profile, source class, source scope, limits, redaction posture, and retention posture. |
 | `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | Force deterministic no-network local vector builds on the reducer and semantic/hybrid retrieval for API/MCP search with `hash` or `local_hash`; `auto_hash` selects one governed `search_documents` provider profile when configured and otherwise falls back to local hash; unset allows provider-only auto-selection. |
 | `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | Select one governed `search_documents` provider profile when more than one eligible semantic-search profile is configured. |
+| `ESHU_SAML_PROVIDERS_JSON` | Enable SAML service-provider metadata, login, and ACS routes for configured providers whose `provider_config_id` already exists as an active identity-provider config row. Entries reference IdP metadata through env handles and map normalized group claims to tenant/workspace auth grants. |
 | `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` | Gate hosted active-mode collector scheduling before claimable work is planned. |
 | `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` | Gate hosted component-extension scheduling before claimable work is planned. |
 | `ESHU_GOVERNANCE_AUDIT_EVENT_COUNT` | Report the aggregate hosted governance audit event count without event bodies. |
@@ -70,6 +71,7 @@ Treat these variables as credentials or secret material:
 - `ESHU_NEO4J_PASSWORD`
 - `NEO4J_PASSWORD`
 - `ESHU_POSTGRES_PASSWORD`
+- SAML IdP metadata env handles referenced by `ESHU_SAML_PROVIDERS_JSON`
 - `ESHU_TFSTATE_REDACTION_KEY`
 - `ESHU_AWS_REDACTION_KEY`
 - `ESHU_VAULT_LIVE_REDACTION_KEY`

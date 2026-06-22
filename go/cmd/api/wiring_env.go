@@ -8,9 +8,34 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
+
+func envOrDefault(getenv func(string) string, key, fallback string) string {
+	v := strings.TrimSpace(getenv(key))
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {
+	raw := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE"))
+	if raw == "" {
+		return query.ProfileProduction, nil
+	}
+	profile, err := query.ParseQueryProfile(raw)
+	if err != nil {
+		return "", err
+	}
+	return profile, nil
+}
+
+func loadGraphBackend(getenv func(string) string) (query.GraphBackend, error) {
+	return query.ParseGraphBackend(strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND")))
+}
 
 // componentPolicyFromEnv builds a component trust policy from environment
 // variables. It reads the trust mode, allowed/revoked IDs and publishers,

@@ -212,6 +212,11 @@
 // OIDCLoginStore persists hash-only Authorization Code state and resolves
 // external group hashes through active Eshu role, scope, and repository grants
 // at login time without storing raw provider tokens or group names.
+// SAMLSSOStore adds hash-only AuthnRequest and replay ledgers for SAML browser
+// login. It records request, RelayState, and replay digests plus status and
+// timestamps, uses single-statement consume/reserve operations for retry and
+// replay safety, and keeps raw SAML assertions, NameID, group values,
+// certificates, provider secrets, and IdP metadata XML out of Postgres.
 // WorkflowControlStore persists optional
 // tenant/workspace/policy revision identity on workflow work items; guarded
 // planning treats that identity as part of target eligibility, and claim

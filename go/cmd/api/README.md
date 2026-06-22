@@ -75,7 +75,10 @@ unavailable envelope rather than guessing at local CLI state.
 `/healthz`, `/readyz`, `/admin/status`, and `/metrics` alongside the API routes.
 The combined mux is then wrapped with `wrapAPIAuth`, which preserves the shared
 API key path, enables the optional scoped-token registry, and resolves
-server-managed dashboard browser sessions from hash-only Postgres state.
+server-managed dashboard browser sessions from hash-only Postgres state. When
+`ESHU_SAML_PROVIDERS_JSON` is configured, `wireAPI` mounts SAML metadata, login,
+and ACS routes backed by private IdP metadata env handles plus hash-only
+AuthnRequest and replay ledgers.
 `BrowserSessionHandler` exchanges an explicit scoped credential with
 tenant/workspace context for HttpOnly session and readable CSRF cookies; shared
 API keys stay on the bearer path because they do not carry a tenant/workspace
@@ -121,7 +124,7 @@ See `doc.go` for the full godoc contract.
   hosted tenant/workspace-scoped bearer credentials
 - `internal/status` — `Reader` port consumed by `internalruntime.NewStatusAdminMux`
 - `internal/storage/postgres` — `NewStatusStore`, `NewRecoveryStore`,
-  `NewStatusRequestStore`, `NewBrowserSessionStore`
+  `NewStatusRequestStore`, `NewBrowserSessionStore`, `NewSAMLSSOStore`
 - `internal/telemetry` — `NewBootstrap`, `NewProviders`, `EventAttr`,
   `NewLoggerWithWriter`
 
@@ -174,6 +177,18 @@ See `doc.go` for the full godoc contract.
   state TTLs fail startup closed. The config file stores provider handles and
   group-to-role mappings only; raw provider tokens are never persisted by the
   API.
+- `ESHU_SAML_PROVIDERS_JSON` — optional SAML provider registry. Each entry names
+  a `provider_config_id`, service-provider EntityID and ACS URL, an
+  `identity_provider_metadata_xml_env` handle whose value contains the private
+  IdP metadata XML, expected issuer, group-claim names, and group-to-auth rules.
+  The `provider_config_id` must already exist as an active
+  `identity_provider_configs` row; SAML request and replay ledgers foreign-key
+  to that durable identity-provider config.
+  Startup fails closed on malformed JSON, unknown fields, missing metadata env
+  values, or rules that do not bind a tenant, workspace, policy revision, and
+  scope/repository grant. Do not place raw SAML assertions, raw NameID values,
+  private endpoints, provider secrets, or group-claim values in docs, issues,
+  logs, or proof artifacts.
 - `ESHU_COMPONENT_HOME` plus `ESHU_COMPONENT_TRUST_MODE`,
   `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`,
   `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`,
@@ -246,8 +261,9 @@ See `doc.go` for the full godoc contract.
 
 ## Gotchas / invariants
 
-- Reads only. This binary does not write facts, enqueue projection work, or touch
-  the reducer queue. Writes belong to `ingester`, `projector`, or `reducer`.
+- Data-plane reads only. This binary does not write facts, enqueue projection
+  work, or touch the reducer queue. Auth/session writes are limited to
+  hash-only browser-session, SAML AuthnRequest, and SAML replay ledgers.
 
 - Version probes are pre-startup checks. Keep `printAPIVersionFlag` at the top
   of `main` so `eshu-api --version` works without database credentials.
@@ -260,7 +276,9 @@ See `doc.go` for the full godoc contract.
   `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`,
   `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`, or
   `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` values fail at startup before datastore
-  connections; multiple governed search profiles without
+  connections. Invalid `ESHU_SAML_PROVIDERS_JSON` values fail during router
+  wiring after Postgres is connected and before the server is returned. Multiple
+  governed search profiles without
   `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` also fail closed. There is no
   silent default for unrecognized provider kinds, credential source kinds,
   source classes, source selectors, scopes, retention postures, or pasted

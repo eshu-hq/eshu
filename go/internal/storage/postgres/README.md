@@ -120,6 +120,10 @@ High-signal invariants for this package:
   break-glass windows without storing raw proofs. Bootstrap uses a transaction
   advisory lock; invite acceptance and break-glass consumption serialize in SQL.
   It does not replace existing shared-token or scoped-token behavior.
+- SAML SSO storage is additive to the identity schema. It persists only
+  AuthnRequest digests, RelayState digests, replay digests, status, and
+  timestamps. It never stores raw RelayState, SAMLResponse, assertions, NameID,
+  group values, certificates, or IdP metadata XML.
 - Repository ref readbacks stay bounded by the `repository_refs` primary key
   `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
   fresh ref set carried by the current materialization so content-only

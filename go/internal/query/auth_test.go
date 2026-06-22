@@ -101,30 +101,50 @@ func TestAuthMiddleware_PublicPaths(t *testing.T) {
 	token := "valid-secret-token"
 	handler := AuthMiddleware(token, mockHandler())
 
-	publicPaths := []string{
-		"/health",
-		"/healthz",
-		"/readyz",
-		"/metrics",
-		"/admin/status",
-		"/api/v0/health",
-		"/api/v0/docs",
-		"/api/v0/openapi.json",
-		"/api/v0/redoc",
+	publicRoutes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/health"},
+		{http.MethodGet, "/healthz"},
+		{http.MethodGet, "/readyz"},
+		{http.MethodGet, "/metrics"},
+		{http.MethodGet, "/admin/status"},
+		{http.MethodGet, "/api/v0/health"},
+		{http.MethodGet, "/api/v0/docs"},
+		{http.MethodGet, "/api/v0/openapi.json"},
+		{http.MethodGet, "/api/v0/redoc"},
+		{http.MethodGet, "/api/v0/auth/saml/providers/provider_a/metadata"},
+		{http.MethodGet, "/api/v0/auth/saml/providers/provider_a/login"},
+		{http.MethodPost, "/api/v0/auth/saml/providers/provider_a/acs"},
 	}
 
-	for _, path := range publicPaths {
-		t.Run(path, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, path, nil)
+	for _, route := range publicRoutes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			req := httptest.NewRequest(route.method, route.path, nil)
 			// No Authorization header
 			rec := httptest.NewRecorder()
 
 			handler.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
-				t.Errorf("expected status 200 for public path %s, got %d", path, rec.Code)
+				t.Errorf("expected status 200 for public route %s %s, got %d", route.method, route.path, rec.Code)
 			}
 		})
+	}
+}
+
+func TestAuthMiddleware_SAMLACSPublicOnlyForPOST(t *testing.T) {
+	t.Parallel()
+
+	handler := AuthMiddleware("valid-secret-token", mockHandler())
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/saml/providers/provider_a/acs", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("GET SAML ACS status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
 }
 

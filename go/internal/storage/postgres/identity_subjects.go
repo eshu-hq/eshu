@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS identity_provider_config_revisions (
 CREATE INDEX IF NOT EXISTS identity_provider_config_revisions_active_idx
     ON identity_provider_config_revisions (provider_config_id, activated_at DESC)
     WHERE status = 'active' AND superseded_at IS NULL;
-
+` + samlSSOSchemaSQL + `
 CREATE TABLE IF NOT EXISTS identity_user_emails (
     user_id TEXT NOT NULL REFERENCES identity_users(user_id) ON DELETE CASCADE,
     email_hash TEXT NOT NULL,
