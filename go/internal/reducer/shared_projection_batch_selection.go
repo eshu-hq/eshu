@@ -5,6 +5,18 @@ import "sort"
 // LatestIntentsByRepoAndPartition deduplicates intents to the most recent per
 // bounded acceptance key and partition, matching the Python
 // _latest_intents_by_repo_and_partition function.
+//
+// The surviving rows are ordered refresh-first (is_refresh_intent DESC, then
+// created_at ASC, intent_id ASC), the SAME primary ordering the indexed
+// candidate SQL and appendUnhashedSharedCandidates emit (#3474). The dedup runs
+// AFTER candidate selection but BEFORE SelectPartitionBatch truncates the ready
+// set to the batch limit, so a created_at-only sort here re-buries a per-repo
+// refresh intent behind older per-edge upsert rows that were enqueued first. The
+// refresh then falls past the batch window and is never selected, while its
+// fenced per-edge rows defer forever behind a repo-wide retract that never
+// commits (#3451). Mirroring the refresh-first primary key guarantees the
+// refresh leads the surviving set regardless of its created_at relative to the
+// head upsert edges.
 func LatestIntentsByRepoAndPartition(intents []SharedProjectionIntentRow) ([]SharedProjectionIntentRow, []string) {
 	if len(intents) == 0 {
 		return nil, nil
@@ -13,6 +25,10 @@ func LatestIntentsByRepoAndPartition(intents []SharedProjectionIntentRow) ([]Sha
 	sorted := make([]SharedProjectionIntentRow, len(intents))
 	copy(sorted, intents)
 	sort.SliceStable(sorted, func(i, j int) bool {
+		ri, rj := isRepoRefreshRow(sorted[i]), isRepoRefreshRow(sorted[j])
+		if ri != rj {
+			return ri // refresh rows sort first (true > false)
+		}
 		if !sorted[i].CreatedAt.Equal(sorted[j].CreatedAt) {
 			return sorted[i].CreatedAt.Before(sorted[j].CreatedAt)
 		}

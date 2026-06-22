@@ -31,6 +31,38 @@ func TestLatestIntentsByRepoAndPartitionDeduplicates(t *testing.T) {
 	}
 }
 
+func TestLatestIntentsByRepoAndPartitionKeepsRefreshFirst(t *testing.T) {
+	t.Parallel()
+
+	// Regression for the #3451 refresh-fence wedge (companion to #3474): the
+	// indexed candidate SQL hands rows in is_refresh_intent-DESC order so the
+	// single repo refresh leads the batch, but the in-memory dedup MUST NOT bury
+	// it behind older per-edge upsert rows. A refresh created AFTER its paired
+	// edges (the live shape: edges enqueued at ingest, refresh emitted last) must
+	// still sort first, or a fixed batch window selects only edges that defer
+	// forever behind a refresh that is never selected.
+	t0 := time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC)
+	intents := []SharedProjectionIntentRow{
+		{IntentID: "edge-old", RepositoryID: "repo-a", PartitionKey: "inheritance_edges:file:a.go", CreatedAt: t0},
+		{IntentID: "edge-mid", RepositoryID: "repo-a", PartitionKey: "inheritance_edges:file:b.go", CreatedAt: t0.Add(time.Second)},
+		{
+			IntentID:     "refresh-late",
+			RepositoryID: "repo-a",
+			PartitionKey: "inheritance_edges:refresh:v1:whole:repo-a",
+			CreatedAt:    t0.Add(time.Hour),
+			Payload:      map[string]any{"intent_type": repoRefreshIntentType, "action": repoRefreshAction},
+		},
+	}
+
+	latest, _ := LatestIntentsByRepoAndPartition(intents)
+	if len(latest) != 3 {
+		t.Fatalf("latest len = %d, want 3 (distinct partition keys, none superseded)", len(latest))
+	}
+	if latest[0].IntentID != "refresh-late" {
+		t.Errorf("latest[0].IntentID = %q, want refresh-late (refresh must lead despite newest created_at)", latest[0].IntentID)
+	}
+}
+
 func TestLatestIntentsByRepoAndPartitionEmpty(t *testing.T) {
 	t.Parallel()
 
