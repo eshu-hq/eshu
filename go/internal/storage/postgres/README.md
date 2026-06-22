@@ -104,6 +104,14 @@ High-signal invariants for this package:
   workspace IDs, token hashes, subject hashes, active bounds, expiry,
   revocation, and policy revision hashes without storing raw bearer tokens or
   changing current API, MCP, graph, collector, or workflow enforcement.
+- Browser session storage is additive and hash-only: it persists session and
+  CSRF digests, tenant/workspace IDs, optional scoped-token audit hashes, active
+  grant bounds, expiry, revocation, and the current workspace policy revision
+  without storing raw cookies, CSRF tokens, bearer tokens, tenant names, or
+  workspace names. Session resolution joins active tenants/workspaces and
+  re-checks the persisted policy revision against the workspace row before
+  refreshing last-seen state, so policy changes invalidate stale dashboard
+  sessions instead of extending them.
 - Identity subject storage is additive and dormant until later enforcement
   slices opt in. It persists users, provider configs and revisions, external
   subject links, email history, local credential hashes, MFA factor handles,

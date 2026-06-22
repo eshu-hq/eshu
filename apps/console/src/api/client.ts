@@ -2,6 +2,8 @@ import type { EshuEnvelope, EshuError } from "./envelope";
 import { EshuEnvelopeError, unwrapEnvelope } from "./envelope";
 
 export const eshuEnvelopeAccept = "application/eshu.envelope+json";
+export const browserSessionCSRFCookieName = "__Host-eshu_csrf";
+export const browserSessionCSRFHeaderName = "X-Eshu-CSRF";
 
 // EshuApiHttpError is thrown when the backend answers with a non-2xx status. It
 // carries the numeric `status` so callers can branch on the HTTP code — e.g. the
@@ -40,6 +42,25 @@ export interface EshuApiClientOptions {
   readonly timeoutMs?: number;
 }
 
+export interface BrowserSessionAuth {
+  readonly mode: "browser_session";
+  readonly tenant_id?: string;
+  readonly workspace_id?: string;
+  readonly subject_class?: string;
+  readonly subject_id_hash?: string;
+  readonly policy_revision_hash?: string;
+  readonly all_scopes: boolean;
+  readonly allowed_scope_ids?: readonly string[];
+  readonly allowed_repository_ids?: readonly string[];
+}
+
+export interface BrowserSessionResponse {
+  readonly auth: BrowserSessionAuth;
+  readonly csrf_token?: string;
+  readonly idle_expires_at?: string;
+  readonly absolute_expires_at?: string;
+}
+
 export class EshuApiClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -56,7 +77,8 @@ export class EshuApiClient {
   async get<TData>(path: string): Promise<EshuEnvelope<TData>> {
     return this.withTimeout((signal) =>
       this.fetcher(this.url(path), {
-        headers: this.headers(),
+        credentials: "same-origin",
+        headers: this.headers("GET"),
         signal
       }).then((response) => this.parse<TData>(response))
     );
@@ -65,7 +87,8 @@ export class EshuApiClient {
   async getJson<TData>(path: string): Promise<TData> {
     return this.withTimeout((signal) =>
       this.fetcher(this.url(path), {
-        headers: this.headers(),
+        credentials: "same-origin",
+        headers: this.headers("GET"),
         signal
       }).then((response) => this.parseJson<TData>(response))
     );
@@ -75,8 +98,9 @@ export class EshuApiClient {
     return this.withTimeout((signal) =>
       this.fetcher(this.url(path), {
         body: JSON.stringify(body),
+        credentials: "same-origin",
         headers: {
-          ...this.headers(),
+          ...this.headers("POST"),
           "Content-Type": "application/json"
         },
         method: "POST",
@@ -89,13 +113,62 @@ export class EshuApiClient {
     return this.withTimeout((signal) =>
       this.fetcher(this.url(path), {
         body: JSON.stringify(body),
+        credentials: "same-origin",
         headers: {
-          ...this.headers(),
+          ...this.headers("POST"),
           "Content-Type": "application/json"
         },
         method: "POST",
         signal
       }).then((response) => this.parseJson<TData>(response))
+    );
+  }
+
+  async patchJson<TData>(path: string, body: unknown): Promise<TData> {
+    return this.withTimeout((signal) =>
+      this.fetcher(this.url(path), {
+        body: JSON.stringify(body),
+        credentials: "same-origin",
+        headers: {
+          ...this.headers("PATCH"),
+          "Content-Type": "application/json"
+        },
+        method: "PATCH",
+        signal
+      }).then((response) => this.parseJson<TData>(response))
+    );
+  }
+
+  async delete(path: string): Promise<void> {
+    return this.withTimeout((signal) =>
+      this.fetcher(this.url(path), {
+        credentials: "same-origin",
+        headers: this.headers("DELETE"),
+        method: "DELETE",
+        signal
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw await this.httpError(response);
+        }
+      })
+    );
+  }
+
+  async createBrowserSession(): Promise<BrowserSessionResponse> {
+    return this.postJson<BrowserSessionResponse>("/api/v0/auth/browser-session", {});
+  }
+
+  async logoutBrowserSession(): Promise<void> {
+    await this.delete("/api/v0/auth/browser-session");
+  }
+
+  async switchBrowserSessionContext(
+    tenantId: string,
+    workspaceId: string
+  ): Promise<BrowserSessionResponse> {
+    return this.patchJson<BrowserSessionResponse>(
+      "/api/v0/auth/browser-session/context",
+      { tenant_id: tenantId, workspace_id: workspaceId }
     );
   }
 
@@ -133,9 +206,9 @@ export class EshuApiClient {
     return new URL(cleanPath, absoluteBaseUrl(this.baseUrl)).toString();
   }
 
-  private headers(): HeadersInit {
+  private headers(method: string): HeadersInit {
     if (this.apiKey.length === 0) {
-      return envelopeHeaders();
+      return cookieSessionHeaders(method);
     }
     return {
       ...envelopeHeaders(),
@@ -215,4 +288,40 @@ function envelopeHeaders(): HeadersInit {
   return {
     Accept: eshuEnvelopeAccept
   };
+}
+
+function cookieSessionHeaders(method: string): HeadersInit {
+  const headers: Record<string, string> = {
+    Accept: eshuEnvelopeAccept
+  };
+  if (requiresCSRF(method)) {
+    const csrfToken = readCookie(browserSessionCSRFCookieName);
+    if (csrfToken.length > 0) {
+      headers[browserSessionCSRFHeaderName] = csrfToken;
+    }
+  }
+  return headers;
+}
+
+function requiresCSRF(method: string): boolean {
+  switch (method.trim().toUpperCase()) {
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+    case "TRACE":
+      return false;
+    default:
+      return true;
+  }
+}
+
+function readCookie(name: string): string {
+  const cookieHeader = globalThis.document?.cookie ?? "";
+  for (const part of cookieHeader.split(";")) {
+    const [rawName, ...rawValue] = part.trim().split("=");
+    if (rawName === name) {
+      return decodeURIComponent(rawValue.join("="));
+    }
+  }
+  return "";
 }

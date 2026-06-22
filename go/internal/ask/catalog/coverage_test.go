@@ -74,7 +74,7 @@ func TestOverlayCoversInventory(t *testing.T) {
 	cat.Annotate()
 	missing := cat.Unannotated()
 	if len(missing) > 0 {
-		t.Errorf("overlay is missing %d surface(s); add them to annotations_routes.go or annotations_tools.go:", len(missing))
+		t.Errorf("overlay is missing %d surface(s); add retrieval surfaces to annotations_routes.go or annotations_tools.go, or add non-retrieval surfaces to planner_exclusions.go:", len(missing))
 		for _, name := range missing {
 			t.Errorf("  %s", name)
 		}

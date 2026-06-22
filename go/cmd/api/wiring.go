@@ -170,6 +170,7 @@ func wireAPI(
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
+	browserSessionAdapter := newPostgresBrowserSessionAdapter(db, instruments)
 
 	// The Ask engine's in-process runner must dispatch inner tool calls through
 	// the scoped-auth-wrapped handler (authedMux below) so each inner read
@@ -204,8 +205,7 @@ func wireAPI(
 		return nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
-	// Wrap with auth middleware (shared token + optional scoped-token registry)
-	authedMux := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, mux, governanceAudit)
+	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionAdapter, mux, governanceAudit)
 
 	// Install the fully-wrapped handler into the Ask runner's deferred handler so
 	// inner tool dispatches re-run auth + the scoped-route gate under the caller's
@@ -351,6 +351,7 @@ func newRouterWithSemanticEmbedding(
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
 	}
 	router := &query.APIRouter{
+		BrowserSessions: newBrowserSessionHandler(db, instruments),
 		Repositories: &query.RepositoryHandler{
 			Neo4j:                      neo4jReader,
 			Content:                    contentReader,

@@ -27,6 +27,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Health, readiness, index status, queue/admin controls, ingester status | [Status and admin routes](http-api/status-admin.md) |
 | Capability maturity catalog (`GET /api/v0/capabilities`) | [Capability Catalog](capability-catalog.md#surfaces) |
 | Surface inventory readiness (`GET /api/v0/surface-inventory`) | [Surface Inventory](surface-inventory.md#drift-gate) |
+| Dashboard browser sessions and CSRF-safe Console auth | [Dashboard browser sessions](#dashboard-browser-sessions) |
 | Component extension inventory and diagnostics | [Status and admin routes](http-api/status-admin.md#component-extension-inventory) and [Component Package Manager](component-package-manager.md) |
 | Optional semantic observations and code hints | [Semantic evidence routes](http-api/semantic-evidence.md) |
 | Repository-bounded semantic retrieval over curated search documents | [Semantic search route](http-api/semantic-search.md) |
@@ -77,6 +78,38 @@ active profile cannot answer correctly.
 - Path-based context routes require canonical entity IDs.
 - Repository-oriented routes accept a public repository selector and normalize
   it to the canonical `repo_id` server-side.
+
+## Dashboard Browser Sessions
+
+Dashboard sessions are separate from explicit bearer tokens for CLI, MCP, and
+automation clients. Programmatic clients should continue to send
+`Authorization: Bearer ...`; they do not need CSRF headers.
+
+The Console browser flow uses these `/api/v0` routes:
+
+| Route | Purpose |
+| --- | --- |
+| `POST /api/v0/auth/browser-session` | Exchanges an already-authenticated explicit API credential for a browser session. Existing browser sessions cannot mint another browser session. |
+| `GET /api/v0/auth/browser-session` | Reads the current browser-session auth context without exposing raw secrets. |
+| `DELETE /api/v0/auth/browser-session` | Revokes the current session by hash and clears browser cookies. Requires `X-Eshu-CSRF`. |
+| `PATCH /api/v0/auth/browser-session/context` | Switches the active tenant/workspace for the current all-scopes browser session. Requires `X-Eshu-CSRF`. |
+
+Session cookies are server-managed:
+
+- `__Host-eshu_session` contains the raw session secret and is set with
+  `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`.
+- The server stores only the SHA-256 session hash and can revoke the session
+  immediately by that hash.
+- `__Host-eshu_csrf` contains the CSRF secret, is readable by the browser, and
+  is set with `Secure`, `SameSite=Strict`, and `Path=/`.
+- Unsafe cookie-authenticated requests must send
+  `X-Eshu-CSRF: <csrf secret>`. The server verifies the hash bound to the
+  active session; missing or mismatched CSRF proof returns `403`.
+- Session records enforce idle and absolute expiry before a request is treated
+  as authenticated; successful session requests refresh the idle deadline,
+  capped by the absolute expiry.
+- Workspace switching is limited to all-scopes browser sessions until the
+  identity/grant UX can model explicit cross-workspace grants.
 
 ## Ask Eshu — POST /api/v0/ask
 

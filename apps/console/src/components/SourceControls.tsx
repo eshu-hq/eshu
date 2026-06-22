@@ -32,7 +32,7 @@ export function ConnectionState({
   }
   const title = status === "error" ? "No live data" : "Connect to a live Eshu API";
   const detail = status === "error"
-    ? "The last connection attempt failed. Check the base URL and API key, then reconnect."
+    ? "The last connection attempt failed. Check the base URL and API credential, then reconnect."
     : "Enter your Eshu API base URL for private data, or choose the explicit demo fixture source.";
   return (
     <div className="conn-state">
@@ -67,7 +67,7 @@ export function SourcePopover({
             <input className="popover-input mono" value={base} onChange={(e) => setBase(e.target.value)} placeholder="/eshu-api/" />
             <button className="btn-ghost active" onClick={() => onConnect(base, key)}>Connect</button>
           </div>
-          <input className="popover-input mono" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="API key (Bearer)" style={{ width: "100%", marginTop: 6 }} autoComplete="off" />
+          <input className="popover-input mono" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="API credential" style={{ width: "100%", marginTop: 6 }} autoComplete="off" />
           {source.status === "error" ? <span className="src-err">⚠ {source.msg || "unreachable"}</span> : null}
           {source.status === "connected" && source.mode === "private" ? <span className="src-ok">✓ connected</span> : null}
           {source.status === "connecting" ? <span className="t-mut" style={{ fontSize: ".72rem" }}>connecting…</span> : null}
@@ -76,7 +76,7 @@ export function SourcePopover({
           <div><strong>Prospect demo</strong><span>Typed fixtures; no live API or real workspace data.</span></div>
           <button className="btn-ghost active" type="button" onClick={onDemo}>Use demo fixtures</button>
         </div>
-        <p className="t-mut" style={{ fontSize: ".7rem", margin: "4px 2px 0", lineHeight: 1.5 }}>The console dev server proxies <span className="mono">/eshu-api/</span> → <span className="mono">127.0.0.1:8080</span>. Key is kept in memory for this session only.</p>
+        <p className="t-mut" style={{ fontSize: ".7rem", margin: "4px 2px 0", lineHeight: 1.5 }}>The console dev server proxies <span className="mono">/eshu-api/</span> → <span className="mono">127.0.0.1:8080</span>. Credential is exchanged for a browser session.</p>
       </div>
     </>
   );

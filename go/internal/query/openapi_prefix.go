@@ -27,6 +27,7 @@ const openAPISpecPrefix = `{
     {"name": "impact", "description": "Impact analysis and dependency tracing"},
     {"name": "evidence", "description": "Evidence drilldown and provenance queries"},
     {"name": "admin", "description": "Administrative control and inspection routes"},
+    {"name": "auth", "description": "Browser session and CSRF-safe dashboard authentication routes"},
     {"name": "status", "description": "Pipeline and ingester status"},
     {"name": "capabilities", "description": "Capability maturity catalog"},
     {"name": "freshness", "description": "Ingestion freshness and generation lifecycle drilldowns"},

@@ -57,6 +57,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSurfaceInventoryRoute(r) {
 		return true
 	}
+	if scopedBrowserSessionAuthRoute(r) {
+		return true
+	}
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
@@ -169,6 +172,18 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 		"/api/v0/content/files/search",
 		"/api/v0/content/entities/search",
 		"/api/v0/evidence/citations":
+		return true
+	default:
+		return false
+	}
+}
+
+func scopedBrowserSessionAuthRoute(r *http.Request) bool {
+	switch {
+	case r.URL.Path == "/api/v0/auth/browser-session" &&
+		(r.Method == http.MethodGet || r.Method == http.MethodPost || r.Method == http.MethodDelete):
+		return true
+	case r.URL.Path == "/api/v0/auth/browser-session/context" && r.Method == http.MethodPatch:
 		return true
 	default:
 		return false

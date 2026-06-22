@@ -337,6 +337,41 @@ describe("askEshu (sync fallback)", () => {
     const init = fetcher.mock.calls[0][1] as RequestInit;
     expect((init.headers as Record<string, string>).Accept).toBe("application/json");
   });
+
+  it("uses browser-session cookies and CSRF when no Ask API key is configured", async () => {
+    const cookieSpy = vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-eshu_csrf=csrf-secret");
+    let answer: AskAnswer | null = null;
+    const fetcher = vi.fn<EshuFetcher>(async () =>
+      jsonResponse({
+        answer_prose: "cookie-backed answer",
+        truth_class: "deterministic",
+        partial: false,
+        limitations: []
+      })
+    );
+    try {
+      await new Promise<void>((resolve) => {
+        askEshu({
+          connection: { baseUrl: "https://eshu.example/api/", apiKey: "", fetcher },
+          question: "How does auth work?",
+          format: "auto",
+          stream: false,
+          onAnswer: (value) => {
+            answer = value;
+          },
+          onDone: () => resolve()
+        });
+      });
+    } finally {
+      cookieSpy.mockRestore();
+    }
+
+    expect((answer as AskAnswer | null)?.answer_prose).toBe("cookie-backed answer");
+    const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+    expect(init.credentials).toBe("same-origin");
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect((init.headers as Record<string, string>)["X-Eshu-CSRF"]).toBe("csrf-secret");
+  });
 });
 
 describe("askNarrationStatus", () => {

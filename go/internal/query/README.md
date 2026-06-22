@@ -774,6 +774,13 @@ live in [evidence-notes.md](evidence-notes.md).
 - `AuthMiddleware` (`auth.go`) skips auth only when the resolved token is empty
   (dev mode) or the path is in `publicHTTPPaths`. Adding new public routes
   requires updating the `publicHTTPPaths` map.
+- Browser session routes (`browser_session_handler.go`) exchange an explicit
+  scoped credential for host-scoped HttpOnly session and readable CSRF cookies.
+  Middleware hashes cookie and CSRF secrets before resolver calls, then attaches
+  the same tenant/workspace/scoped grant context handlers already understand.
+  Unsafe cookie-authenticated requests require `X-Eshu-CSRF`, and shared API
+  keys stay on the bearer path because they do not carry tenant/workspace
+  bounds for session creation.
 - `RequestMetricsMiddleware` (`request_metrics.go`) wraps the application mux and
   records `eshu_dp_api_request_duration_seconds` and
   `eshu_dp_api_request_errors_total` per endpoint, labeled by the matched route

@@ -11,14 +11,16 @@
 // runtime setup. Otherwise the binary boots OTEL telemetry, wires the query
 // router and the shared runtime admin mux, including Postgres-backed supply
 // chain attachment, advisory evidence, work-item evidence, impact finding,
-// impact explanation reads, admission decision readback, optional redacted
-// semantic provider profile status, optional semantic extraction source policy,
-// optional hosted governance status readback from safe ESHU_GOVERNANCE_*
-// metadata, optional component-extension registry diagnostics when
-// ESHU_COMPONENT_HOME is set, and an optional Prometheus/Mimir metrics
-// time-series source for console trends. It listens on ESHU_API_ADDR
-// (default :8080) wrapped in otelhttp instrumentation. On SIGINT or SIGTERM it
-// gives the HTTP server up to five seconds for graceful shutdown before exiting.
+// impact explanation reads, admission decision readback, optional scoped-token
+// registry authentication, hash-only dashboard browser-session cookies,
+// optional redacted semantic provider profile status, optional semantic
+// extraction source policy, optional hosted governance status readback from
+// safe ESHU_GOVERNANCE_* metadata, optional component-extension registry
+// diagnostics when ESHU_COMPONENT_HOME is set, and an optional
+// Prometheus/Mimir metrics time-series source for console trends. It listens on
+// ESHU_API_ADDR (default :8080) wrapped in otelhttp instrumentation. On SIGINT
+// or SIGTERM it gives the HTTP server up to five seconds for graceful shutdown
+// before exiting.
 // The runtime serves reads only; it does not own repo sync, parsing, fact
 // emission, vector builds, or queued projection work.
 //

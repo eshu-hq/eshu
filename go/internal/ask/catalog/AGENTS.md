@@ -8,12 +8,12 @@
 2. `go/internal/ask/catalog/annotations.go` — `Annotation` type and the
    `annotations()` merger; the overlay is split across two files for size.
 3. `go/internal/ask/catalog/annotations_routes.go` — curated annotations for the
-   implemented read-only HTTP API routes; read owning handlers in
+   implemented retrieval-capable HTTP API routes; read owning handlers in
    `internal/query/` before adding or changing entries.
 4. `go/internal/ask/catalog/annotations_tools.go` — curated annotations for the
    147 implemented MCP tools; read owning handlers in `internal/mcp/` before
    adding or changing entries.
-5. `go/internal/ask/catalog/mutating.go` — side-effecting admin/recovery
+5. `go/internal/ask/catalog/planner_exclusions.go` — admin/auth/session control
    surfaces that must never enter the Ask Eshu planner catalog.
 6. `go/internal/capabilitycatalog/data/surface-inventory.generated.json` —
    the canonical surface inventory; never hand-edit it; it is produced by
@@ -22,15 +22,16 @@
 ## Invariants this package enforces
 
 - **Overlay completeness** — every implemented `api_route` and `mcp_tool` surface
-  in the inventory must be either a read catalog entry in
-  `askRouteAnnotations()` / `askToolAnnotations()` or an explicit mutating
-  surface in `mutating.go`. `TestOverlayCoversInventory` enforces read-overlay
-  coverage, and `TestEveryImplementedSurfaceIsReadOrMutating` prevents silent
-  drops.
+  in the inventory must be either a retrieval catalog entry in
+  `askRouteAnnotations()` / `askToolAnnotations()` or an explicit planner
+  exclusion in `planner_exclusions.go`. `TestOverlayCoversInventory` enforces
+  retrieval-overlay coverage, and
+  `TestEveryImplementedSurfaceIsReadOrPlannerExcluded` prevents silent drops.
 
-- **Read-only planner** — side-effecting admin/recovery routes must not appear
-  in parsed catalog entries. Add newly implemented mutating surfaces to
-  `mutating.go`, not to the planner overlay.
+- **Retrieval-only planner** — side-effecting admin/recovery routes and
+  auth/session control routes must not appear in parsed catalog entries. Add
+  newly implemented non-retrieval surfaces to `planner_exclusions.go`, not to the
+  planner overlay.
 
 - **No BackendUnknown or empty Backend in the overlay** — `annotations()` must
   never return an entry with `Backend == BackendUnknown` or `""`. Enforced by
@@ -56,8 +57,9 @@
    inventory.
 2. Read the owning handler (in `internal/query/` for routes, `internal/mcp/` for
    tools) to determine:
-   - whether it is a read surface or a side-effecting admin/recovery action. If
-     it mutates state, add it to `mutating.go` instead of the planner overlay.
+   - whether it is a retrieval surface or a side-effecting/control action. If it
+     mutates state or only manages caller/session/control-plane state, add it to
+     `planner_exclusions.go` instead of the planner overlay.
    - `Backend`: which store(s) the handler reads from (`nornicdb`, `postgres`,
      `both`, or `embedded` for static/generated data reads).
    - `Cost`: `low` for bounded/indexed reads, `moderate` for scoped fan-out,

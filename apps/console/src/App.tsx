@@ -34,7 +34,7 @@ import {
   Waves,
   Waypoints
 } from "lucide-react";
-import { EshuApiClient } from "./api/client";
+import { EshuApiClient, EshuApiHttpError } from "./api/client";
 import { createDemoApiClient, demoApiBaseUrl, demoDefaults, demoRepositories } from "./api/demoClient";
 import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
 import { loadRepositories, type RepoListItem } from "./api/repoCatalog";
@@ -207,16 +207,26 @@ export function App(): React.JSX.Element {
     setSource((s) => ({ ...s, base, key, mode: "private", status: "connecting", msg: "" }));
     setModel(emptyConsoleModel("loading"));
     try {
-      const next = new EshuApiClient({ baseUrl: base, apiKey: key });
+      let next = new EshuApiClient({ baseUrl: base, apiKey: key });
+      if (key.trim().length > 0) {
+        try {
+          await next.createBrowserSession();
+          next = new EshuApiClient({ baseUrl: base });
+        } catch (e) {
+          if (!(e instanceof EshuApiHttpError && e.status === 400)) {
+            throw e;
+          }
+        }
+      }
       const [snap, repoRows] = await Promise.all([
         loadConsoleSnapshot(next),
         loadRepositories(next).catch((): readonly RepoListItem[] => [])
       ]);
-      saveConsoleEnvironment({ mode: "private", apiBaseUrl: base, apiKey: key, recentApiBaseUrls: [base] });
+      saveConsoleEnvironment({ mode: "private", apiBaseUrl: base, apiKey: "", recentApiBaseUrls: [base] });
       setClient(next);
       setModel(modelFromSnapshot(snap));
       setRepositories(repoRows);
-      setSource({ base, key, mode: "private", status: "connected", msg: "" });
+      setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
       setOpen(false);
     } catch (e) {
       // No demo fallback: keep an explicit empty/unavailable model so panels show

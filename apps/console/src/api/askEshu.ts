@@ -13,7 +13,11 @@
 // go/internal/query/openapi_paths_ask.go (the source of truth for the shape).
 
 import type { EshuFetcher } from "./client";
-import { eshuEnvelopeAccept } from "./client";
+import {
+  browserSessionCSRFCookieName,
+  browserSessionCSRFHeaderName,
+  eshuEnvelopeAccept
+} from "./client";
 import {
   narrationData,
   narrationProviderConfigured,
@@ -160,6 +164,7 @@ export async function askNarrationStatus(
   const fetcher = connection.fetcher ?? globalFetch();
   try {
     const response = await fetcher(joinUrl(connection.baseUrl, narrationStatusPath), {
+      credentials: "same-origin",
       headers: getHeaders(connection.apiKey),
       signal
     });
@@ -190,6 +195,7 @@ async function runStream(
   try {
     const response = await fetcher(joinUrl(connection.baseUrl, askPath), {
       method: "POST",
+      credentials: "same-origin",
       headers: postHeaders(connection.apiKey, "text/event-stream"),
       body,
       signal
@@ -231,6 +237,7 @@ async function runSync(
   try {
     const response = await fetcher(joinUrl(connection.baseUrl, askPath), {
       method: "POST",
+      credentials: "same-origin",
       headers: postHeaders(connection.apiKey, "application/json"),
       body,
       signal
@@ -364,7 +371,18 @@ function finishWithError(error: unknown, handlers: AskHandlers): void {
 }
 
 function postHeaders(apiKey: string, accept: string): HeadersInit {
-  return { ...getHeaders(apiKey), Accept: accept, "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    ...getHeaders(apiKey),
+    Accept: accept,
+    "Content-Type": "application/json"
+  };
+  if (apiKey.trim().length === 0) {
+    const csrfToken = readCookie(browserSessionCSRFCookieName);
+    if (csrfToken.length > 0) {
+      headers[browserSessionCSRFHeaderName] = csrfToken;
+    }
+  }
+  return headers;
 }
 
 function getHeaders(apiKey: string): Record<string, string> {
@@ -383,6 +401,17 @@ function joinUrl(baseUrl: string, path: string): string {
   const absoluteBase =
     base.startsWith("http://") || base.startsWith("https://") ? base : new URL(base, origin).toString();
   return new URL(cleanPath, absoluteBase).toString();
+}
+
+function readCookie(name: string): string {
+  const cookieHeader = globalThis.document?.cookie ?? "";
+  for (const part of cookieHeader.split(";")) {
+    const [rawName, ...rawValue] = part.trim().split("=");
+    if (rawName === name) {
+      return decodeURIComponent(rawValue.join("="));
+    }
+  }
+  return "";
 }
 
 // isAbortError recognizes both Error and DOMException aborts. Browsers reject an

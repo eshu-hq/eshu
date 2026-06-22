@@ -213,6 +213,9 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.SemanticSearch.Index == nil {
 		t.Fatal("newRouter().SemanticSearch.Index = nil, want Postgres search-index store")
 	}
+	if router.BrowserSessions == nil {
+		t.Fatal("newRouter().BrowserSessions = nil, want browser session routes mounted")
+	}
 }
 
 func TestNewRouterUsesSuppliedStatusReader(t *testing.T) {
