@@ -423,6 +423,46 @@ func TestBackfillScopedCatalogNoGCPFactsMatchesNewRepoOnly(t *testing.T) {
 	}
 }
 
+// BenchmarkBackfillScopedCatalogNoGCP measures backfillScopedCatalog when no GCP
+// relationship fact is present (the common per-commit case): the source-side
+// augmentation must short-circuit before the O(fleet) matcher build, so cost
+// stays flat as the fleet scales (issue #3500 perf guard).
+func BenchmarkBackfillScopedCatalogNoGCP(b *testing.B) {
+	for _, fleetSize := range []int{1000, 5000} {
+		fleet, sourceFacts, newRepoIDs := newBackfillScaleCorpus(fleetSize)
+		b.Run(fmt.Sprintf("fleet=%d", fleetSize), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = backfillScopedCatalog(fleet, sourceFacts, newRepoIDs)
+			}
+		})
+	}
+}
+
+// BenchmarkBackfillScopedCatalogWithGCP measures backfillScopedCatalog when a GCP
+// relationship fact targets an onboarded repo, forcing the source-side
+// resolution against the full catalog. This is the bounded worst case the
+// issue #3500 fix accepts: it pays one O(fleet) matcher build only when a GCP
+// cross-cloud edge into a new repo actually exists.
+func BenchmarkBackfillScopedCatalogWithGCP(b *testing.B) {
+	for _, fleetSize := range []int{1000, 5000} {
+		fleet, sourceFacts, newRepoIDs := newBackfillScaleCorpus(fleetSize)
+		// repo-00007 is in newRepoIDs; alias "org/repo-00007" anchors the GCP
+		// target match, and an existing fleet repo is the GCP source.
+		fleet = append(fleet,
+			relationships.CatalogEntry{RepoID: "repo-gcp-source", Aliases: []string{"order-gateway"}},
+		)
+		gcpFact := gcpRelationshipFact("order-gateway", "repo-00007")
+		facts := append([]facts.Envelope{gcpFact}, sourceFacts...)
+		b.Run(fmt.Sprintf("fleet=%d", fleetSize), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = backfillScopedCatalog(fleet, facts, newRepoIDs)
+			}
+		})
+	}
+}
+
 func TestIngestionStoreBackfillAllRelationshipEvidenceSkipsUnknownTargetGenerations(t *testing.T) {
 	t.Parallel()
 
