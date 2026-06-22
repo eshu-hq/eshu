@@ -323,6 +323,12 @@ parser path.
 | TypeScript | `typescript` | `.cts`, `.mts`, `.ts` | yes |
 | YAML | `yaml` | `.yaml`, `.yml` | — |
 
+The `—` rows are not pending tree-sitter migrations. Data, config, manifest,
+lockfile, templated-text, and precomputed-index parsers intentionally use a
+dedicated structured decoder or bounded scanner instead of a code grammar. See
+"Permanent parser exceptions (no tree-sitter migration)" in `AGENTS.md` for the
+per-parser library and rationale.
+
 ### Kotlin and Swift symbol extraction
 
 Kotlin and Swift use a hybrid adapter: a line-oriented declaration scan emits
