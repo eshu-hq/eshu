@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,9 +38,16 @@ func newOIDCLoginHandler(
 	db *sql.DB,
 	instruments *telemetry.Instruments,
 ) (*query.OIDCLoginHandler, error) {
-	enabled := strings.EqualFold(strings.TrimSpace(getenv(envAuthOIDCEnabled)), "true")
-	if strings.EqualFold(strings.TrimSpace(getenv(envAuthOIDCEnabled)), "false") {
-		return nil, nil
+	enabled := false
+	if rawEnabled := strings.TrimSpace(getenv(envAuthOIDCEnabled)); rawEnabled != "" {
+		parsed, err := strconv.ParseBool(rawEnabled)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", envAuthOIDCEnabled, err)
+		}
+		if !parsed {
+			return nil, nil
+		}
+		enabled = true
 	}
 	configPath := strings.TrimSpace(getenv(envAuthOIDCConfigFile))
 	if configPath == "" {

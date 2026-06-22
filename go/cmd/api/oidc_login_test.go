@@ -36,6 +36,65 @@ func TestNewOIDCLoginHandlerEnabledRequiresConfigFile(t *testing.T) {
 	}
 }
 
+func TestNewOIDCLoginHandlerParsesEnabledWithVarBoolSemantics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		env     string
+		config  string
+		wantErr string
+		wantNil bool
+	}{
+		{
+			name:    "numeric true requires config",
+			env:     "1",
+			wantErr: envAuthOIDCConfigFile,
+		},
+		{
+			name:    "numeric false disables mounted config",
+			env:     "0",
+			config:  "/mounted/oidc.json",
+			wantNil: true,
+		},
+		{
+			name:    "invalid bool fails closed",
+			env:     "sometimes",
+			config:  "/mounted/oidc.json",
+			wantErr: envAuthOIDCEnabled,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler, err := newOIDCLoginHandler(func(key string) string {
+				switch key {
+				case envAuthOIDCEnabled:
+					return tt.env
+				case envAuthOIDCConfigFile:
+					return tt.config
+				default:
+					return ""
+				}
+			}, nil, nil)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("newOIDCLoginHandler() error = %v, want %s failure", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
+			}
+			if tt.wantNil && handler != nil {
+				t.Fatalf("newOIDCLoginHandler() = %#v, want nil", handler)
+			}
+		})
+	}
+}
+
 func TestNewOIDCLoginHandlerLoadsFileBackedConfig(t *testing.T) {
 	t.Parallel()
 
