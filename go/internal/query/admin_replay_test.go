@@ -123,6 +123,34 @@ func TestReplayRefusesUnsafeClassWithoutForce(t *testing.T) {
 	}
 }
 
+// TestReplayRefusesManualReviewTriageClassWithoutForce proves a dead-letter
+// triage class the projector flags manual_review (projection_bug, the poison
+// bucket) is refused at the live /admin/replay handler without force, before
+// any idempotency claim. Guards the #3502/#3514 triage contract end to end.
+func TestReplayRefusesManualReviewTriageClassWithoutForce(t *testing.T) {
+	audit := &fakeGovernanceAuditAppender{}
+	store := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}}
+	h := &AdminHandler{Store: store, Audit: audit}
+	rec := postReplay(t, h, map[string]any{
+		"failure_class":   "projection_bug",
+		"reason":          "looked like a fluke",
+		"idempotency_key": "k-poison",
+	}, nil)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422; body=%s", rec.Code, rec.Body.String())
+	}
+	got := decodeBody(t, rec)
+	if got["status"] != "refused" || got["reason"] == "" {
+		t.Fatalf("want actionable refusal, got %+v", got)
+	}
+	if store.claimCalls != 0 {
+		t.Fatalf("manual_review-class refusal must happen before claiming")
+	}
+	if len(audit.events) != 1 || audit.events[0].ReasonCode != "replay_refused_unsafe_class" {
+		t.Fatalf("want unsafe-class denied audit, got %+v", audit.events)
+	}
+}
+
 func TestReplayHappyPathExcludesUnsafeClassesAndAudits(t *testing.T) {
 	audit := &fakeGovernanceAuditAppender{}
 	store := &stubAdminStore{
@@ -138,9 +166,17 @@ func TestReplayHappyPathExcludesUnsafeClassesAndAudits(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
-	// Broad selectors must skip unsafe classes by default.
-	if len(store.replayFilter.ExcludeFailureClasses) != 2 {
-		t.Fatalf("expected unsafe classes excluded, got %v", store.replayFilter.ExcludeFailureClasses)
+	// Broad selectors must skip unsafe classes by default, including the
+	// manual_review triage classes (projection_bug, resource_exhausted) so a
+	// poison item never drains via a scope-wide replay without force.
+	excluded := make(map[string]bool, len(store.replayFilter.ExcludeFailureClasses))
+	for _, class := range store.replayFilter.ExcludeFailureClasses {
+		excluded[class] = true
+	}
+	for _, required := range []string{"input_invalid", "unsafe_payload", "projection_bug", "resource_exhausted"} {
+		if !excluded[required] {
+			t.Fatalf("broad replay must exclude %q, got %v", required, store.replayFilter.ExcludeFailureClasses)
+		}
 	}
 	if !store.completed {
 		t.Fatalf("expected idempotency completion recorded")

@@ -2,6 +2,7 @@ package projector
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/queue"
 )
@@ -116,18 +117,54 @@ func reconcileTriage(
 	// underlying error classification, but force a disposition that does not
 	// invite an operator to blindly replay a transient-looking-but-terminal
 	// failure.
+	var triageClass TriageClass
 	switch classification.FailureClass {
 	case FailureClassInputInvalid:
-		return TriageClassInputInvalid, RetryDispositionNonRetryable
+		triageClass = TriageClassInputInvalid
 	case FailureClassDependencyUnavailable:
-		return TriageClassDependencyUnavailable, RetryDispositionNonRetryable
+		triageClass = TriageClassDependencyUnavailable
 	case FailureClassResourceExhausted:
-		return TriageClassResourceExhausted, RetryDispositionManualReview
+		triageClass = TriageClassResourceExhausted
 	case FailureClassTimeout:
-		return TriageClassTimeout, RetryDispositionNonRetryable
+		triageClass = TriageClassTimeout
 	default:
-		return TriageClassProjectionBug, RetryDispositionManualReview
+		triageClass = TriageClassProjectionBug
 	}
+	return triageClass, terminalTriageDispositions[triageClass]
+}
+
+// terminalTriageDispositions is the single source of truth for the operator
+// replay disposition of every terminal (dead-lettered) TriageClass. Both
+// reconcileTriage and ManualReviewTriageClasses read it, so the replay-safety
+// guard in internal/query can never drift from the disposition reconcileTriage
+// actually writes onto a dead-letter row. Retrying/RetryExhausted are not listed
+// because they are the retryable bucket: RetryExhausted is safe to replay once
+// the dependency recovers, and Retrying never reaches a terminal row.
+var terminalTriageDispositions = map[TriageClass]RetryDisposition{
+	TriageClassInputInvalid:          RetryDispositionNonRetryable,
+	TriageClassDependencyUnavailable: RetryDispositionNonRetryable,
+	TriageClassTimeout:               RetryDispositionNonRetryable,
+	TriageClassResourceExhausted:     RetryDispositionManualReview,
+	TriageClassProjectionBug:         RetryDispositionManualReview,
+}
+
+// ManualReviewTriageClasses returns, in stable sorted order, the durable
+// failure_class strings for every TriageClass whose replay disposition is
+// manual_review. These are the dead-letter buckets an operator must not drain
+// blindly: replaying one unchanged risks an immediate re-failure (projection_bug
+// poison) or re-exhausting a constrained resource (resource_exhausted). The
+// admin replay guard treats these as unsafe and requires force, using this
+// function as the single source of truth so the guard cannot drift from the
+// triage disposition reconcileTriage writes.
+func ManualReviewTriageClasses() []string {
+	classes := make([]string, 0, len(terminalTriageDispositions))
+	for class, disposition := range terminalTriageDispositions {
+		if disposition == RetryDispositionManualReview {
+			classes = append(classes, string(class))
+		}
+	}
+	sort.Strings(classes)
+	return classes
 }
 
 // TriageDispositionConflicts reports whether a (retryable, disposition) pair is

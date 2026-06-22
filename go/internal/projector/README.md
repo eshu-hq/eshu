@@ -598,6 +598,29 @@ transient pileup (safe to replay) from a poison projection bug (needs code fix)
 without reading the projector source. No new metric series or span is added; the
 change relabels an existing durable column.
 
+`ManualReviewTriageClasses` exposes the `manual_review` triage classes
+(`projection_bug`, `resource_exhausted`) as the single source of truth for the
+admin replay-safety guard in `internal/query`, so a poison item cannot drain via
+`POST /api/v0/admin/replay` without `--force`. The disposition table
+`terminalTriageDispositions` backs both `reconcileTriage` and
+`ManualReviewTriageClasses`, so the guard can never drift from the disposition
+actually written on a dead-letter row.
+
+Performance Evidence: `ManualReviewTriageClasses` is an in-memory iteration over
+a five-entry map plus a sort, evaluated once at `internal/query` package init
+(`buildUnsafeReplayFailureClasses`), not on any request or projection path.
+`reconcileTriage` keeps the same single map lookup it already did per
+dead-lettered item; no new query, index, lock, or graph write is introduced.
+No-Regression Evidence: `cd go && go test ./internal/projector ./internal/query
+-race -count=1` passed (3486 tests, no data races); the live-path triage proofs
+and the retry-branch proofs are unchanged, and the new
+`TestReplayRefusesManualReviewTriageClassWithoutForce` /
+`TestUnsafeReplayClassesIncludeManualReviewTriage` prove the guard refuses an
+un-forced `projection_bug` replay.
+No-Observability-Change: the guard reuses the existing
+`replay_refused_unsafe_class` governance-audit reason code and the existing
+422 refusal envelope; no new metric, span, or log scope is added.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table
