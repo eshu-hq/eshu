@@ -154,6 +154,11 @@ overridable place instead of scattered literals.
   return both slices (`resolver.go:62`)
 - `DedupeEvidenceFacts(facts)` — collapse exact-duplicate `EvidenceFact`
   values while preserving discovery order (`resolver.go:16`)
+- `ResolveGCPRelationshipRepoLinks(envelopes, catalog)` — resolve each supported
+  `gcp_cloud_relationship` fact to its source/target `RepoID` pair using the same
+  source-match-then-target-match ordering as evidence discovery; lets the
+  scope-bounded per-commit backfill (issue #3500) learn which already-onboarded
+  source repos a new-target GCP edge needs in its catalog (`gcp_evidence.go`)
 - `ResolvedRelationshipID(generationID, r, ordinal)` — build the durable
   Postgres identity for a resolved relationship (`models.go:163`)
 - `RegisterSchemaDrivenTerraformExtractors(schemaDir)` — bootstrap schema-
