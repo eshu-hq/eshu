@@ -181,25 +181,24 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 		return s.waitDeferredMaintenanceBarrierCompletion(ctx, epoch, config)
 	}
 
-	if err := acquireDeferredMaintenanceExclusiveBarrier(ctx, tx); err != nil {
-		return fmt.Errorf("acquire deferred maintenance exclusive barrier: %w", err)
-	}
-	maintenanceStore := NewIngestionStore(tx)
-	maintenanceStore.Now = s.Now
-	maintenanceStore.Logger = s.Logger
-	if err := maintenanceStore.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
-		return err
-	}
-	if err := maintenanceStore.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
-		return err
-	}
-	if err := completeDeferredMaintenanceBarrier(ctx, tx, epoch, config.ShardIndex, now); err != nil {
-		return err
-	}
+	// Commit the leader's arrival and release the barrier state lock before
+	// running maintenance. Maintenance then runs in its own bounded per-repository
+	// batch transactions (see BackfillAllRelationshipEvidence), so the leader
+	// never holds the barrier state lock or a fleet-wide maintenance lock during
+	// the corpus-wide pass. Non-leader shards keep polling for completion, which
+	// is marked only after maintenance succeeds.
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit deferred maintenance transaction: %w", err)
+		return fmt.Errorf("commit deferred maintenance barrier arrival: %w", err)
 	}
 	committed = true
+
+	if err := s.RunDeferredRelationshipMaintenance(ctx, tracer, instruments); err != nil {
+		return err
+	}
+
+	if err := s.markDeferredMaintenanceBarrierComplete(ctx, epoch, config.ShardIndex); err != nil {
+		return err
+	}
 	if s.Logger != nil {
 		s.Logger.InfoContext(ctx, "deferred maintenance barrier completed",
 			telemetry.PhaseAttr("deferred_maintenance_barrier"),
@@ -209,6 +208,38 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 			"leader_shard_index", config.ShardIndex,
 		)
 	}
+	return nil
+}
+
+// markDeferredMaintenanceBarrierComplete records barrier completion for the
+// epoch in its own short transaction after the leader's maintenance pass
+// finishes. Waiting shards poll for this row, so it must be written only after
+// maintenance has committed its per-batch work.
+func (s IngestionStore) markDeferredMaintenanceBarrierComplete(
+	ctx context.Context,
+	epoch int64,
+	leaderShardIndex int,
+) error {
+	if s.beginner == nil {
+		return fmt.Errorf("transaction beginner is required")
+	}
+	tx, err := s.beginner.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin deferred maintenance completion transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if err := completeDeferredMaintenanceBarrier(ctx, tx, epoch, leaderShardIndex, s.now()); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit deferred maintenance completion: %w", err)
+	}
+	committed = true
 	return nil
 }
 
