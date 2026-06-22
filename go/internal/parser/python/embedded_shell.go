@@ -1,17 +1,10 @@
 package python
 
 import (
-	"regexp"
 	"sort"
 	"strings"
-)
 
-var (
-	pythonImportSubprocessPattern = regexp.MustCompile(`(?m)^\s*import\s+subprocess(?:\s+as\s+(?P<alias>[A-Za-z_]\w*))?`)
-	pythonImportOSPattern         = regexp.MustCompile(`(?m)^\s*import\s+os(?:\s+as\s+(?P<alias>[A-Za-z_]\w*))?`)
-	pythonFromSubprocessPattern   = regexp.MustCompile(`(?m)^\s*from\s+subprocess\s+import\s+(?P<names>[^\n]+)`)
-	pythonFromOSPattern           = regexp.MustCompile(`(?m)^\s*from\s+os\s+import\s+(?P<names>[^\n]+)`)
-	pythonDefPattern              = regexp.MustCompile(`^(?P<indent>\s*)(?:async\s+)?def\s+(?P<name>[A-Za-z_]\w*)\s*\(`)
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 var pythonSubprocessCalls = map[string]struct{}{
@@ -35,8 +28,8 @@ type pythonShellImports struct {
 	directCalls   map[string]string
 }
 
-func embeddedShellCommandPayloads(source string) []map[string]any {
-	commands := embeddedShellCommands(source)
+func embeddedShellCommandPayloads(root *tree_sitter.Node, source []byte) []map[string]any {
+	commands := embeddedShellCommands(root, source)
 	if len(commands) == 0 {
 		return []map[string]any{}
 	}
@@ -53,56 +46,48 @@ func embeddedShellCommandPayloads(source string) []map[string]any {
 	return payload
 }
 
-func embeddedShellCommands(source string) []embeddedShellCommand {
-	imports := pythonShellImportAliases(source)
+// embeddedShellCommands reports subprocess/os shell entry points reached from a
+// function body. Calls are resolved from the tree-sitter call nodes: the called
+// API is matched against the file's subprocess/os import aliases, the owning
+// function is the outermost enclosing function_definition (module-level calls
+// are not reported), and a call is dropped when its alias was reassigned earlier
+// in that function. Results are ordered by line number then API for a stable
+// payload.
+func embeddedShellCommands(root *tree_sitter.Node, source []byte) []embeddedShellCommand {
+	if root == nil {
+		return nil
+	}
+	imports := pythonShellImportAliases(root, source)
 	if len(imports.moduleAliases) == 0 && len(imports.directCalls) == 0 {
 		return nil
 	}
 
-	lines := strings.Split(source, "\n")
 	var commands []embeddedShellCommand
-	for index := 0; index < len(lines); index++ {
-		match := pythonDefPattern.FindStringSubmatch(lines[index])
-		if match == nil {
-			continue
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "call" {
+			return
 		}
-		name := match[pythonDefPattern.SubexpIndex("name")]
-		indent := len(match[pythonDefPattern.SubexpIndex("indent")])
-		startLine := index + 1
-		bodyStart := index + 1
-		bodyEnd := pythonFunctionBodyEnd(lines, bodyStart, indent)
-		bodyLines := lines[bodyStart:bodyEnd]
-		for offset, line := range bodyLines {
-			lineNumber := bodyStart + offset + 1
-			for alias, module := range imports.moduleAliases {
-				if pythonIdentifierShadowedBefore(bodyLines[:offset], alias) {
-					continue
-				}
-				for callName := range pythonSubprocessCalls {
-					api := module + "." + callName
-					if module == "os" {
-						callName = "system"
-						api = "os.system"
-					}
-					if pythonLineCalls(line, alias+"."+callName) {
-						commands = append(commands, embeddedShellCommand{name, startLine, lineNumber, api, "python"})
-					}
-					if module == "os" {
-						break
-					}
-				}
-			}
-			for callName, api := range imports.directCalls {
-				if pythonIdentifierShadowedBefore(bodyLines[:offset], callName) {
-					continue
-				}
-				if pythonLineCalls(line, callName) {
-					commands = append(commands, embeddedShellCommand{name, startLine, lineNumber, api, "python"})
-				}
-			}
+		api, aliasName, ok := imports.resolveCall(node, source)
+		if !ok {
+			return
 		}
-		index = bodyEnd - 1
-	}
+		function := pythonOutermostFunction(node)
+		if function == nil {
+			return
+		}
+		callLine := nodeLine(node)
+		if pythonAliasReassignedBefore(function, source, aliasName, callLine) {
+			return
+		}
+		commands = append(commands, embeddedShellCommand{
+			functionName:       strings.TrimSpace(nodeText(function.ChildByFieldName("name"), source)),
+			functionLineNumber: nodeLine(function),
+			lineNumber:         callLine,
+			api:                api,
+			language:           "python",
+		})
+	})
+
 	sort.Slice(commands, func(i, j int) bool {
 		if commands[i].lineNumber != commands[j].lineNumber {
 			return commands[i].lineNumber < commands[j].lineNumber
@@ -112,111 +97,165 @@ func embeddedShellCommands(source string) []embeddedShellCommand {
 	return commands
 }
 
-func pythonShellImportAliases(source string) pythonShellImports {
+// resolveCall maps a call node to its shell API and the alias identifier that
+// must not be shadowed. A direct call (from-import) keys on the function
+// identifier; an attribute call keys on a bare module-alias object.
+func (imports pythonShellImports) resolveCall(call *tree_sitter.Node, source []byte) (string, string, bool) {
+	function := call.ChildByFieldName("function")
+	if function == nil {
+		return "", "", false
+	}
+	switch function.Kind() {
+	case "identifier":
+		name := nodeText(function, source)
+		if api, ok := imports.directCalls[name]; ok {
+			return api, name, true
+		}
+	case "attribute":
+		object := function.ChildByFieldName("object")
+		if object == nil || object.Kind() != "identifier" {
+			return "", "", false
+		}
+		alias := nodeText(object, source)
+		module, ok := imports.moduleAliases[alias]
+		if !ok {
+			return "", "", false
+		}
+		attribute := nodeText(function.ChildByFieldName("attribute"), source)
+		switch module {
+		case "subprocess":
+			if _, ok := pythonSubprocessCalls[attribute]; ok {
+				return "subprocess." + attribute, alias, true
+			}
+		case "os":
+			if attribute == "system" {
+				return "os.system", alias, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+// pythonOutermostFunction returns the highest enclosing function_definition, or
+// nil when the node sits at module scope. Using the outermost function keeps the
+// owning-function attribution stable for calls nested inside inner functions.
+func pythonOutermostFunction(node *tree_sitter.Node) *tree_sitter.Node {
+	var outermost *tree_sitter.Node
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() == "function_definition" {
+			outermost = current
+		}
+	}
+	return outermost
+}
+
+// pythonAliasReassignedBefore reports whether a plain assignment binds alias to a
+// new value on a line before callLine within scope. Annotated assignments are
+// ignored so the check matches a `name =` rebind rather than a `name: T`
+// declaration.
+func pythonAliasReassignedBefore(scope *tree_sitter.Node, source []byte, alias string, callLine int) bool {
+	if alias == "" {
+		return false
+	}
+	reassigned := false
+	walkNamed(scope, func(node *tree_sitter.Node) {
+		if reassigned || node.Kind() != "assignment" {
+			return
+		}
+		if node.ChildByFieldName("type") != nil {
+			return
+		}
+		left := node.ChildByFieldName("left")
+		if left == nil || left.Kind() != "identifier" {
+			return
+		}
+		if nodeText(left, source) != alias {
+			return
+		}
+		if nodeLine(node) < callLine {
+			reassigned = true
+		}
+	})
+	return reassigned
+}
+
+// pythonShellImportAliases collects subprocess/os module aliases and the
+// from-import local names that resolve to a shell API.
+func pythonShellImportAliases(root *tree_sitter.Node, source []byte) pythonShellImports {
 	imports := pythonShellImports{moduleAliases: map[string]string{}, directCalls: map[string]string{}}
-	for _, match := range pythonImportSubprocessPattern.FindAllStringSubmatch(source, -1) {
-		alias := strings.TrimSpace(match[pythonImportSubprocessPattern.SubexpIndex("alias")])
-		if alias == "" {
-			alias = "subprocess"
+	walkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "import_statement":
+			collectPythonModuleAliases(node, source, imports.moduleAliases)
+		case "import_from_statement":
+			collectPythonDirectImports(node, source, imports.directCalls)
 		}
-		imports.moduleAliases[alias] = "subprocess"
-	}
-	for _, match := range pythonImportOSPattern.FindAllStringSubmatch(source, -1) {
-		alias := strings.TrimSpace(match[pythonImportOSPattern.SubexpIndex("alias")])
-		if alias == "" {
-			alias = "os"
-		}
-		imports.moduleAliases[alias] = "os"
-	}
-	for _, match := range pythonFromSubprocessPattern.FindAllStringSubmatch(source, -1) {
-		for local, imported := range pythonDirectImports(match[pythonFromSubprocessPattern.SubexpIndex("names")]) {
-			if _, ok := pythonSubprocessCalls[imported]; ok {
-				imports.directCalls[local] = "subprocess." + imported
-			}
-		}
-	}
-	for _, match := range pythonFromOSPattern.FindAllStringSubmatch(source, -1) {
-		for local, imported := range pythonDirectImports(match[pythonFromOSPattern.SubexpIndex("names")]) {
-			if imported == "system" {
-				imports.directCalls[local] = "os.system"
-			}
-		}
-	}
+	})
 	return imports
 }
 
-func pythonDirectImports(raw string) map[string]string {
-	out := map[string]string{}
-	for _, part := range strings.Split(raw, ",") {
-		fields := strings.Fields(strings.TrimSpace(part))
-		if len(fields) == 1 {
-			out[fields[0]] = fields[0]
-		}
-		if len(fields) == 3 && fields[1] == "as" {
-			out[fields[2]] = fields[0]
-		}
-	}
-	return out
-}
-
-func pythonFunctionBodyEnd(lines []string, start int, indent int) int {
-	for index := start; index < len(lines); index++ {
-		line := lines[index]
-		if strings.TrimSpace(line) == "" {
+func collectPythonModuleAliases(node *tree_sitter.Node, source []byte, out map[string]string) {
+	for i := uint(0); i < node.ChildCount(); i++ {
+		if node.FieldNameForChild(uint32(i)) != "name" {
 			continue
 		}
-		if len(line)-len(strings.TrimLeft(line, " \t")) <= indent {
-			return index
+		child := node.Child(i)
+		var moduleNode *tree_sitter.Node
+		alias := ""
+		switch child.Kind() {
+		case "dotted_name":
+			moduleNode = child
+		case "aliased_import":
+			moduleNode = child.ChildByFieldName("name")
+			alias = strings.TrimSpace(nodeText(child.ChildByFieldName("alias"), source))
+		default:
+			continue
 		}
-	}
-	return len(lines)
-}
-
-func pythonIdentifierShadowedBefore(lines []string, identifier string) bool {
-	pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(identifier) + `\s*=`)
-	for _, line := range lines {
-		if pattern.MatchString(pythonCodeForCallScan(line)) {
-			return true
+		module := strings.TrimSpace(nodeText(moduleNode, source))
+		if module != "subprocess" && module != "os" {
+			continue
 		}
+		if alias == "" {
+			alias = module
+		}
+		out[alias] = module
 	}
-	return false
 }
 
-func pythonLineCalls(line string, name string) bool {
-	return regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\s*\(`).MatchString(pythonCodeForCallScan(line))
-}
-
-func pythonCodeForCallScan(line string) string {
-	var out strings.Builder
-	out.Grow(len(line))
-	var quote byte
-	escaped := false
-	for index := 0; index < len(line); index++ {
-		ch := line[index]
-		if quote == 0 {
-			if ch == '#' {
-				break
+func collectPythonDirectImports(node *tree_sitter.Node, source []byte, out map[string]string) {
+	module := strings.TrimSpace(nodeText(node.ChildByFieldName("module_name"), source))
+	if module != "subprocess" && module != "os" {
+		return
+	}
+	for i := uint(0); i < node.ChildCount(); i++ {
+		if node.FieldNameForChild(uint32(i)) != "name" {
+			continue
+		}
+		child := node.Child(i)
+		local := ""
+		imported := ""
+		switch child.Kind() {
+		case "dotted_name":
+			imported = strings.TrimSpace(nodeText(child, source))
+			local = imported
+		case "aliased_import":
+			imported = strings.TrimSpace(nodeText(child.ChildByFieldName("name"), source))
+			local = strings.TrimSpace(nodeText(child.ChildByFieldName("alias"), source))
+		default:
+			continue
+		}
+		if local == "" || imported == "" {
+			continue
+		}
+		switch module {
+		case "subprocess":
+			if _, ok := pythonSubprocessCalls[imported]; ok {
+				out[local] = "subprocess." + imported
 			}
-			if ch == '\'' || ch == '"' {
-				quote = ch
-				out.WriteByte(' ')
-				continue
+		case "os":
+			if imported == "system" {
+				out[local] = "os.system"
 			}
-			out.WriteByte(ch)
-			continue
-		}
-		out.WriteByte(' ')
-		if escaped {
-			escaped = false
-			continue
-		}
-		if ch == '\\' {
-			escaped = true
-			continue
-		}
-		if ch == quote {
-			quote = 0
 		}
 	}
-	return out.String()
 }

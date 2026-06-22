@@ -78,9 +78,10 @@ tuple) instead of `(?m)` regex over source text. The `(?m)` route/ORM regex
 block in `semantics.go`, the text-offset handler scan in
 `python_route_handlers.go` (file deleted), the main-guard and dunder line-scan
 regex in `dead_code_roots.go`, and the `__all__` literal regex in
-`public_api_roots.go` are removed. The remaining `regexp` usage in `language.go`
+`public_api_roots.go` are removed. The former `regexp` usage in `language.go`
 (class header, function signature) and `embedded_shell.go` (subprocess/os import
-evidence) is out of scope for #3538 and tracked separately under epic #3531.
+evidence) is now also on AST in this branch under epic #3531 — see the
+within-node section below. No `regexp` import remains in the package.
 
 No-Regression Evidence: `go test ./internal/parser/... -count=1` stays green
 (1112 baseline plus the new AST-node tests in
@@ -114,4 +115,54 @@ existing `framework_semantics`, `orm_table_mappings`, and
 label, span, log line, status field, env var, queue, worker, lease, batch,
 runtime knob, or graph query is added or changed. Operators still diagnose
 parser behavior through existing collector parse-stage logs and
+`eshu_dp_file_parse_duration_seconds`.
+
+### Function-signature and class-header within-node regex to AST (epic #3531)
+
+The last three within-node `regexp` sites now read tree-sitter nodes instead of
+matching the rendered node text:
+
+- `pythonTypeAnnotations` (`annotation_support.go`) walks the
+  `function_definition` `parameters` and `return_type` fields. Only
+  `typed_parameter`/`typed_default_parameter` nodes (those carrying a `type`
+  field) and a present `return_type` produce `type_annotations` entries; splat
+  parameters unwrap their `list_splat_pattern`/`dictionary_splat_pattern` to the
+  bare identifier name, matching the prior `*`/`**` stripping.
+- `pythonClassBaseNames` (`class_context.go`) and `pythonClassMetaclass`
+  (`language.go`) read the `class_definition` `superclasses` argument list:
+  positional arguments become `bases` (trailing dotted name, deduped, sorted),
+  and the `metaclass=` `keyword_argument` value becomes `metaclass`. Reading the
+  AST means multi-line class headers are captured the same as single-line ones,
+  which the prior single-line `(?m)` regex could not match.
+- `embedded_shell.go` resolves `embedded_shell_commands` from `call` nodes:
+  subprocess/os import aliases come from `import_statement`/
+  `import_from_statement` nodes, a call is attributed to its outermost enclosing
+  `function_definition` (module-level calls are not reported), and a call is
+  dropped when its alias was rebound by an earlier plain `assignment` in that
+  function. Comments and string literals are never `call` nodes, so the
+  comment/string-suppression behavior is intrinsic rather than a scrub pass.
+  The deleted `pythonFunctionSignatureRe`, `pythonClassHeaderRe`,
+  `pythonFunctionSignature`, `splitPythonParameters`,
+  `parsePythonParameterAnnotation`, and all line-scan regexes leave the package
+  with no `regexp` import.
+
+No-Regression Evidence: `go test ./internal/parser/python ./internal/parser
+-count=1` (652 tests) and `go test ./internal/parser
+./internal/collector/discovery ./internal/content/shape ./internal/collector
+-count=1` (1020 tests) stay green; `golangci-lint run ./internal/parser/...`
+reports no issues. The pre-existing engine parity suites pass byte-for-byte:
+`go test ./internal/parser -run 'TestDefaultEngineParsePathPython(EmitsTypeAnnotationsBucket|EmitsMetaclassMetadata|EmbeddedShellCommands)' -count=1`.
+New guards added in `internal/parser/engine_python_ast_parity_test.go`:
+`TestDefaultEngineParsePathPythonMultilineClassHeaderUsesAST` fails on the prior
+single-line regex and passes on AST; the splat-typed-parameter and rich
+embedded-shell (module alias, direct import, os module, alias shadowing,
+nested-function attribution, module-level skip) tests lock the payload
+byte-for-byte against the prior line-scan output.
+
+No-Observability-Change: parser-internal; it changes only how the existing
+`type_annotations`, `classes[].bases`, `classes[].metaclass`, and
+`embedded_shell_commands` payload fields are computed. No metric instrument,
+metric label, span, log line, status field, env var, queue, worker, lease,
+batch, runtime knob, or graph query is added or changed. Operators still
+diagnose parser behavior through existing collector parse-stage logs and
 `eshu_dp_file_parse_duration_seconds`.
