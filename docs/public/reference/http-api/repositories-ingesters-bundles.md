@@ -335,10 +335,13 @@ callers that need dependency or library handles.
 
 Request contract:
 
-- required JSON body that supplies a search scope: a non-empty `query`
+- required JSON body that supplies a search scope: a `query`
   (matched case-insensitively against package normalized name, namespace, or
-  PURL) or a non-empty `ecosystem` (e.g. npm, pypi, maven, nuget). A request
-  with neither scope returns `400`; the route never scans the whole catalog.
+  PURL) or an `ecosystem` (e.g. npm, pypi, maven, nuget). The scope value must
+  contain a non-whitespace character; an empty, whitespace-only, or absent scope
+  returns `400` and the route never scans the whole catalog. The OpenAPI schema
+  enforces this with `minLength`/`pattern`, so generated clients reject blank
+  scope the same way the server does.
 - optional `unique_only` to return distinct package bundles
 - optional `limit` (default 50, max 200)
 

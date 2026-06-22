@@ -430,6 +430,32 @@ const (
 	searchBundlesMaxLimit     = 200
 )
 
+// searchBundlesCapability names the registry bundle search surface on both the
+// success truth envelope and the error envelope, so envelope-accepting callers
+// (the MCP dispatch path sends Accept: application/eshu.envelope+json) get a
+// capability-tagged structured result for failures, not a bare error.
+const searchBundlesCapability = "platform_impact.context_overview"
+
+// writeSearchBundlesError emits a canonical ResponseEnvelope error when the
+// caller accepts the envelope MIME type and a plain error otherwise. #3506:
+// the MCP dispatch path recognizes only canonical envelopes; a non-envelope
+// 400 there becomes a transport error instead of a structured IsError tool
+// result, so bundle validation failures must ride the envelope.
+func writeSearchBundlesError(w http.ResponseWriter, r *http.Request, status int, code ErrorCode, message string) {
+	if acceptsEnvelope(r) {
+		WriteJSON(w, status, ResponseEnvelope{
+			Data: nil,
+			Error: &ErrorEnvelope{
+				Code:       code,
+				Message:    message,
+				Capability: searchBundlesCapability,
+			},
+		})
+		return
+	}
+	WriteError(w, status, message)
+}
+
 // handleSearchBundles searches the pre-indexed package registry catalog as
 // shareable bundle candidates.
 //
@@ -458,14 +484,14 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		Limit      int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeSearchBundlesError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
 		return
 	}
 
 	query := strings.TrimSpace(req.Query)
 	ecosystem := strings.TrimSpace(req.Ecosystem)
 	if query == "" && ecosystem == "" {
-		WriteError(w, http.StatusBadRequest, "a non-empty query or ecosystem scope is required")
+		writeSearchBundlesError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "a non-empty query or ecosystem scope is required")
 		return
 	}
 
@@ -484,7 +510,7 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeSearchBundlesError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
 		return
 	}
 
@@ -498,7 +524,7 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 		"count":     len(rows),
 		"limit":     limit,
 		"truncated": truncated,
-	}, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded package registry bundle catalog"))
+	}, BuildTruthEnvelope(h.profile(), searchBundlesCapability, TruthBasisAuthoritativeGraph, "resolved from bounded package registry bundle catalog"))
 }
 
 // searchRegistryBundlesCypher builds the bounded, deterministically ordered

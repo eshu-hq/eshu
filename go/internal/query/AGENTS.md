@@ -684,7 +684,41 @@ shape, and the previously-unbounded unscoped path is removed — so there is no
 regression for any request that already carried a scope.
 
 No-Observability-Change: this change adds no route, graph write, queue, worker,
-runtime knob, metric instrument, or metric label. The reject path uses the
-existing `WriteError` 400 envelope; scoped requests keep the existing
-`cypherQueryTimeout`-bounded context, `platform_impact.context_overview`
+runtime knob, metric instrument, or metric label. Scoped requests keep the
+existing `cypherQueryTimeout`-bounded context, `platform_impact.context_overview`
 `TruthEnvelope`, and HTTP route attribution.
+
+## Registry bundle scope validation rides the envelope (#3520 follow-up)
+
+Two refinements close the gap between the bundle handler and its advertised
+contract:
+
+- `handleSearchBundles` now returns its scope/parse/backend errors through
+  `writeSearchBundlesError`, which emits a canonical `ResponseEnvelope` with a
+  populated `Error` (code `invalid_argument` / `internal_error`, capability
+  `platform_impact.context_overview`) when the caller accepts
+  `application/eshu.envelope+json`, and a plain error otherwise. The MCP dispatch
+  path sets that Accept header and recognizes only canonical envelopes
+  (`parseCanonicalEnvelope`); a non-envelope `400` there degraded to a transport
+  error (`HTTP 400: ...`) instead of a structured `IsError` tool result. Mirrors
+  the sibling `writeCypherQueryError` helper.
+- The OpenAPI request schema and the MCP tool property schema add `minLength: 1`
+  and a `pattern` of `\S` to `query` and `ecosystem`, so generated clients and
+  docs reject empty or whitespace-only scope the same way the trimming handler
+  does. The MCP additions are property-level only; the schema keeps no top-level
+  `anyOf`/`oneOf`/`allOf` so the OpenAI-restricted-keyword contract test stays
+  green.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1` pass.
+`TestHandleSearchBundles_UnscopedReturnsEnvelopeError` and
+`TestDispatchToolSearchRegistryBundlesUnscopedReturnsEnvelopeIsError` fail before
+the helper (the handler emitted a plain `{error, detail}` body, so the HTTP test
+could not unmarshal a `ResponseEnvelope` and the MCP dispatch returned an
+`HTTP 400` transport error) and pass after.
+`TestOpenAPISearchBundlesRejectsEmptyScope` fails before the schema gains
+`minLength`/`pattern` and passes after. This only narrows accepted input and
+changes error encoding; the success query shape is unchanged.
+
+No-Observability-Change: no route, graph write, queue, worker, runtime knob,
+metric instrument, or metric label is added. The error envelope reuses the
+existing `ResponseEnvelope`/`ErrorEnvelope` contract and HTTP route attribution.

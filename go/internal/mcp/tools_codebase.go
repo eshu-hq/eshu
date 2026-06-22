@@ -315,11 +315,15 @@ func codebaseTools() []ToolDefinition {
 				"properties": map[string]any{
 					"query": map[string]any{
 						"type":        "string",
-						"description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Required unless ecosystem is supplied.",
+						"minLength":   1,
+						"pattern":     "\\S",
+						"description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Required unless ecosystem is supplied; must contain a non-whitespace character.",
 					},
 					"ecosystem": map[string]any{
 						"type":        "string",
-						"description": "Ecosystem scope (e.g. npm, pypi, maven, nuget) to bound the catalog read. Required unless query is supplied.",
+						"minLength":   1,
+						"pattern":     "\\S",
+						"description": "Ecosystem scope (e.g. npm, pypi, maven, nuget) to bound the catalog read. Required unless query is supplied; must contain a non-whitespace character.",
 					},
 					"unique_only": map[string]any{
 						"type":        "boolean",

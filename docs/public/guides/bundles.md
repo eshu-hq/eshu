@@ -19,7 +19,8 @@ The query surface exposes a searchable view over the package registry bundle
 catalog. Each request must supply a search scope: a `query` matched
 case-insensitively against each package's normalized name, namespace, or PURL,
 or an `ecosystem` (e.g. `npm`, `pypi`, `maven`, `nuget`). You may combine both.
-A request with neither scope is rejected with `400` so the read stays bounded:
+The scope must contain a non-whitespace character; an empty, whitespace-only, or
+absent scope is rejected with `400` so the read stays bounded:
 
 ```bash
 curl -s \

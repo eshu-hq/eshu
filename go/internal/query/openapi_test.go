@@ -861,6 +861,48 @@ func TestOpenAPISpecPackageRegistryPublishedAtIsDateTime(t *testing.T) {
 	}
 }
 
+// TestOpenAPISearchBundlesRejectsEmptyScope proves the bundle search schema
+// enforces a non-empty, non-whitespace query or ecosystem so generated clients
+// and docs reject blank scope the same way handleSearchBundles does (#3520
+// follow-up). Without minLength/pattern the anyOf only requires the property to
+// be present, so {"query": ""} would satisfy the schema while the handler trims
+// and returns 400 — schema and handler must agree.
+func TestOpenAPISearchBundlesRejectsEmptyScope(t *testing.T) {
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	bundlesPath := mustMapField(t, paths, "/api/v0/code/bundles")
+	post := mustMapField(t, bundlesPath, "post")
+	requestBody := mustMapField(t, post, "requestBody")
+	if required, _ := requestBody["required"].(bool); !required {
+		t.Fatalf("bundles requestBody.required = %v, want true", requestBody["required"])
+	}
+	content := mustMapField(t, requestBody, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+
+	anyOf, ok := schema["anyOf"].([]any)
+	if !ok || len(anyOf) != 2 {
+		t.Fatalf("bundles schema anyOf = %#v, want two scope alternatives", schema["anyOf"])
+	}
+
+	properties := mustMapField(t, schema, "properties")
+	for _, field := range []string{"query", "ecosystem"} {
+		prop := mustMapField(t, properties, field)
+		minLen, ok := prop["minLength"].(float64)
+		if !ok || minLen < 1 {
+			t.Fatalf("bundles schema %q minLength = %#v, want >= 1", field, prop["minLength"])
+		}
+		pattern, ok := prop["pattern"].(string)
+		if !ok || !strings.Contains(pattern, `\S`) {
+			t.Fatalf("bundles schema %q pattern = %#v, want a non-whitespace (\\S) constraint", field, prop["pattern"])
+		}
+	}
+}
+
 func mustMapField(t *testing.T, parent map[string]any, key string) map[string]any {
 	t.Helper()
 

@@ -60,8 +60,8 @@ const openAPIPathsCodeGraph = `
                   {"required": ["ecosystem"]}
                 ],
                 "properties": {
-                  "query": {"type": "string", "description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Required unless ecosystem is supplied."},
-                  "ecosystem": {"type": "string", "description": "Ecosystem scope (e.g. npm, pypi, maven, nuget). Required unless query is supplied."},
+                  "query": {"type": "string", "minLength": 1, "pattern": "\\S", "description": "Case-insensitive substring matched against package normalized name, namespace, or PURL. Required unless ecosystem is supplied; must contain a non-whitespace character."},
+                  "ecosystem": {"type": "string", "minLength": 1, "pattern": "\\S", "description": "Ecosystem scope (e.g. npm, pypi, maven, nuget). Required unless query is supplied; must contain a non-whitespace character."},
                   "unique_only": {"type": "boolean", "description": "Return only distinct package bundles", "default": false},
                   "limit": {"type": "integer", "description": "Max results (default 50, max 200)", "default": 50, "minimum": 1, "maximum": 200}
                 }

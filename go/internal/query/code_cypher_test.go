@@ -425,6 +425,50 @@ func TestHandleSearchBundles_RequiresScope(t *testing.T) {
 	}
 }
 
+// TestHandleSearchBundles_UnscopedReturnsEnvelopeError proves that when the
+// caller accepts the canonical envelope (the MCP dispatch path does), an
+// unscoped bundle request returns a ResponseEnvelope with a populated Error
+// field rather than the plain {error, detail} body. #3520 follow-up: a
+// non-envelope 400 on the MCP path is not recognized as a canonical envelope,
+// so it degrades to a transport error instead of a structured IsError result.
+func TestHandleSearchBundles_UnscopedReturnsEnvelopeError(t *testing.T) {
+	queried := false
+	stub := fakeGraphReader{
+		run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			queried = true
+			return nil, nil
+		},
+	}
+	h := &CodeHandler{Neo4j: stub}
+
+	req := httptest.NewRequest("POST", "/api/v0/code/bundles", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+
+	h.handleSearchBundles(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if queried {
+		t.Fatalf("graph was queried for an unscoped request; want bounded reject before scan")
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if envelope.Error == nil {
+		t.Fatalf("envelope.Error = nil, want populated error envelope; body=%s", w.Body.String())
+	}
+	if got, want := envelope.Error.Code, ErrorCodeInvalidArgument; got != want {
+		t.Fatalf("envelope.Error.Code = %q, want %q", got, want)
+	}
+	if envelope.Error.Capability == "" {
+		t.Fatalf("envelope.Error.Capability is empty, want bundle search capability")
+	}
+}
+
 // TestSearchRegistryBundlesCypherAlwaysScoped proves the query builder never
 // emits a bare whole-catalog scan: every produced query carries a selective
 // predicate ($query or $ecosystem) ahead of the version aggregation, so a
