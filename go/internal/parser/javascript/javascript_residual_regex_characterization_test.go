@@ -139,36 +139,71 @@ func TestJavaScriptStaticComputedMemberNameReRejectsDynamicAndInvalidForms(t *te
 	}
 }
 
-// javaScriptComputedPropertyName integration: verify the AST wrapper calls the
-// regex only after the AST has isolated the bracket-expression inner text.
-func TestJavaScriptComputedPropertyNameReturnsBracketedStaticName(t *testing.T) {
-	t.Parallel()
-
-	// obj["foo"] — string literal inside bracket; no regex needed (handled by
-	// javaScriptStaticComputedPropertyName's "string" case). The computed-name
-	// helper must still return "foo".
-	root, src, closeFn := parseJavaScriptRootForTest(t, `const x = obj["foo"];`)
-	defer closeFn()
-
-	// Walk to the subscript_expression / computed_property_name node.
-	var computedNode *tree_sitter.Node
+// firstComputedPropertyNameNode walks the AST and returns the first
+// computed_property_name node, the node kind that the production wrapper
+// javaScriptComputedPropertyName is actually called for. Bracketed class-method
+// and object-literal keys (`["foo"]() {}`, `{ ["bar"]: 1 }`) produce this node;
+// a subscript read (`obj["foo"]`) does not, so the test must build one of the
+// former so it exercises the documented wrapper path.
+func firstComputedPropertyNameNode(root *tree_sitter.Node) *tree_sitter.Node {
+	var found *tree_sitter.Node
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() == "subscript_expression" {
-			idx := node.ChildByFieldName("index")
-			if idx != nil && idx.Kind() == "string" {
-				computedNode = idx
-			}
+		if found == nil && node.Kind() == "computed_property_name" {
+			found = node
 		}
 	})
-	if computedNode == nil {
-		t.Fatal("could not locate subscript index node in AST")
+	return found
+}
+
+// TestJavaScriptComputedPropertyNameWrapperOverRealNode pins the production
+// helper javaScriptComputedPropertyName against real computed_property_name
+// nodes. This covers the documented wrapper path end to end: the static
+// string/number cases resolved by javaScriptStaticComputedPropertyName, the
+// dotted-member-chain case validated by javaScriptStaticComputedMemberNameRe,
+// and the dynamic cases the helper must reject. A regression in
+// javaScriptComputedPropertyName (including the residual regex) fails this test.
+func TestJavaScriptComputedPropertyNameWrapperOverRealNode(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		// String-literal key — resolved by the "string" case before the regex.
+		{"class method string key", `class C { ["foo"]() {} }`, "foo"},
+		{"object literal string key", `const o = { ["bar"]: 1 };`, "bar"},
+		// Static binary concatenation — resolved by the "binary_expression" case.
+		{"object literal concat key", `const o = { ["a" + "b"]: 1 };`, "ab"},
+		// Numeric-literal key — resolved by the "number" case.
+		{"object literal numeric key", `const o = { [42]: 1 };`, "42"},
+		// Dotted member chain — the inner text is NOT resolved by
+		// javaScriptStaticComputedPropertyName, so the wrapper falls through to
+		// javaScriptStaticComputedMemberNameRe, which accepts the chain. This is
+		// the branch that exercises the residual regex.
+		{"class method dotted member key", `class C { [Symbol.iterator]() {} }`, "Symbol.iterator"},
+		// Dynamic call — rejected by both the static resolver and the regex.
+		{"class method dynamic call key", `class C { [getName()]() {} }`, ""},
+		// Template substitution — rejected.
+		{"object literal template key", "const o = { [`x${y}`]: 1 };", ""},
 	}
-	// trimJavaScriptQuotes is the underlying path; confirm direct string value.
-	got, ok := trimJavaScriptQuotes(`"foo"`)
-	if !ok || got != "foo" {
-		t.Fatalf("trimJavaScriptQuotes(%q) = (%q, %v), want (\"foo\", true)", `"foo"`, got, ok)
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root, src, closeFn := parseJavaScriptRootForTest(t, tc.source)
+			defer closeFn()
+
+			node := firstComputedPropertyNameNode(root)
+			if node == nil {
+				t.Fatalf("no computed_property_name node found in %q", tc.source)
+			}
+			if got := javaScriptComputedPropertyName(node, src); got != tc.want {
+				t.Fatalf("javaScriptComputedPropertyName() = %q, want %q (source %q)", got, tc.want, tc.source)
+			}
+		})
 	}
-	_ = src
 }
 
 // ---------------------------------------------------------------------------

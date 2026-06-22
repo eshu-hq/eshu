@@ -192,9 +192,13 @@ Coverage includes:
 
 - `javaScriptStaticComputedMemberNameRe`: acceptance of identifiers, dotted
   chains, and decimal integers; rejection of binary expressions, calls, template
-  substitutions, leading zeros, hyphens, and empty strings; AST-path integration
-  confirming the wrapper resolves a string-literal bracket expression to its
-  inner value.
+  substitutions, leading zeros, hyphens, and empty strings; plus a wrapper-path
+  test that drives the production helper `javaScriptComputedPropertyName` over
+  real `computed_property_name` nodes (class-method and object-literal keys),
+  covering the static string/number/concat cases, the dotted-member-chain case
+  that exercises the residual regex (`[Symbol.iterator]` → `Symbol.iterator`),
+  and the dynamic cases the wrapper must reject (`[getName()]`, template
+  substitution).
 - `javaScriptAWSClientServiceRe`: slug extraction for `s3`, `dynamodb`,
   `rds-data`, `secrets-manager`, `ssm`; rejection of `lib-*` packages, empty
   slugs, v2 bare names, GCP specifiers, uppercase slugs; integration over static
