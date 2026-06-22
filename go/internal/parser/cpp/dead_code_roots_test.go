@@ -68,6 +68,12 @@ func TestCPPQualifiedFunctionNameAndClassFromNode(t *testing.T) {
 		{name: "destructor", src: "Widget::~Widget() { }", wantName: "~Widget", wantClass: "Widget"},
 		{name: "nested_qualifier", src: "int Outer::Inner::value() const { return 0; }", wantName: "value", wantClass: "Inner"},
 		{name: "namespace_class", src: "int api::Service::run() const { return 1; }", wantName: "run", wantClass: "Service"},
+		// 3+ component qualifiers nest recursively as qualified_identifier in
+		// tree-sitter-cpp, so the leaf component is the function name and the
+		// immediately preceding component is the class context, regardless of
+		// qualifier depth (regression guard for the reviewer's mis-keying concern).
+		{name: "namespace_nested_class", src: "int a::b::C::method() { return 0; }", wantName: "method", wantClass: "C"},
+		{name: "namespace_deep", src: "void a::b::c::d::deep() { }", wantName: "deep", wantClass: "d"},
 		{name: "operator_overload", src: "bool Vec::operator==(const Vec& o) const { return true; }", wantName: "operator==", wantClass: "Vec"},
 		{name: "template_method", src: "T Box<T>::get() { return T{}; }", wantName: "get", wantClass: "Box"},
 		{name: "reference_return", src: "Widget& Widget::self() { return *this; }", wantName: "self", wantClass: "Widget"},
