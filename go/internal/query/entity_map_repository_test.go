@@ -45,8 +45,11 @@ func TestEntityMapRepositoryAnchorUsesDirectRelationshipFamilyTraversal(t *testi
 		t.Fatalf("graph Run calls = %d, want resolver plus one direct repository traversal spec", got)
 	}
 	for _, call := range graph.runCalls[1:] {
-		if !strings.Contains(call.cypher, "MATCH (start:Repository {id: $from_id})") {
+		if !strings.Contains(call.cypher, "(start:Repository {id: $from_id})") {
 			t.Fatalf("traversal cypher = %s, want typed Repository id anchor", call.cypher)
+		}
+		if got := strings.Count(call.cypher, "MATCH "); got != 1 {
+			t.Fatalf("traversal cypher has %d MATCH clauses, want one connected anchor+expand: %s", got, call.cypher)
 		}
 		if strings.Contains(call.cypher, "*1..1") {
 			t.Fatalf("traversal cypher = %s, want direct one-hop traversal without variable path expansion", call.cypher)
@@ -63,7 +66,7 @@ func TestEntityMapRepositoryAnchorUsesDirectRelationshipFamilyTraversal(t *testi
 	}
 	var sawIncomingDeploys bool
 	for _, call := range graph.runCalls[1:] {
-		if strings.Contains(call.cypher, "(start)<-[rel:DEPLOYS_FROM|") {
+		if strings.Contains(call.cypher, "(start:Repository {id: $from_id})<-[rel:DEPLOYS_FROM|") {
 			sawIncomingDeploys = true
 		}
 	}
@@ -117,10 +120,13 @@ func TestEntityMapRepositoryAnchorUsesNarrowRelationshipFamilyForBoundedDepth(t 
 		t.Fatalf("graph Run calls = %d, want resolver plus direct and deeper repository traversal specs", got)
 	}
 	for _, call := range graph.runCalls[1:] {
-		if !strings.Contains(call.cypher, "MATCH (start:Repository {id: $from_id})") {
+		if !strings.Contains(call.cypher, "(start:Repository {id: $from_id})") {
 			t.Fatalf("traversal cypher = %s, want typed Repository id anchor", call.cypher)
 		}
-		if strings.Contains(call.cypher, "(start)-[rels:") {
+		if got := strings.Count(call.cypher, "MATCH "); got != 1 {
+			t.Fatalf("traversal cypher has %d MATCH clauses, want one connected anchor+expand: %s", got, call.cypher)
+		}
+		if strings.Contains(call.cypher, "(start:Repository {id: $from_id})-[rels:") {
 			t.Fatalf("traversal cypher = %s, want no outgoing repository default traversal", call.cypher)
 		}
 		for _, avoid := range []string{"CONTAINS", "REPO_CONTAINS", "CALLS", "IMPORTS"} {
