@@ -159,6 +159,41 @@ func TestExplainDependencyPathAnchorsLabeledEndpoints(t *testing.T) {
 	}
 }
 
+// TestImpactAnchorLabelDisjunctionIncludesTerraformResource proves that
+// TerraformResource is present in the impact anchor label disjunction.
+// TerraformResource nodes are written with SET r.id = row.uid
+// (go/internal/storage/cypher/tfstate_canonical_writer.go:13) so callers that
+// pass a TerraformResource uid as start_id must resolve to a non-empty anchor.
+// The prior unlabeled MATCH found them; the labeled disjunction must too.
+func TestImpactAnchorLabelDisjunctionIncludesTerraformResource(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(impactAnchorLabelDisjunction, "TerraformResource") {
+		t.Fatalf("impactAnchorLabelDisjunction must include TerraformResource (its .id is set to row.uid by tfstate_canonical_writer); got: %s", impactAnchorLabelDisjunction)
+	}
+}
+
+// TestImpactAnchorLabelDisjunctionIncludesTerraformOutput proves TerraformOutput
+// is present. TerraformOutput nodes are written with SET o.id = row.uid
+// (go/internal/storage/cypher/tfstate_canonical_writer.go:62) so they share the
+// same id-via-uid pattern as TerraformResource.
+func TestImpactAnchorLabelDisjunctionIncludesTerraformOutput(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(impactAnchorLabelDisjunction, "TerraformOutput") {
+		t.Fatalf("impactAnchorLabelDisjunction must include TerraformOutput (its .id is set to row.uid by tfstate_canonical_writer); got: %s", impactAnchorLabelDisjunction)
+	}
+}
+
+// TestImpactAnchorLabelDisjunctionIncludesKubernetesWorkload proves
+// KubernetesWorkload is present. KubernetesWorkload nodes are written with
+// SET w.id = row.uid (go/internal/storage/cypher/kubernetes_workload_node_writer.go)
+// so callers that pass a KubernetesWorkload uid as start_id must resolve.
+func TestImpactAnchorLabelDisjunctionIncludesKubernetesWorkload(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(impactAnchorLabelDisjunction, "KubernetesWorkload") {
+		t.Fatalf("impactAnchorLabelDisjunction must include KubernetesWorkload (its .id is set to row.uid by kubernetes_workload_node_writer); got: %s", impactAnchorLabelDisjunction)
+	}
+}
+
 // fakeGraphReaderWithSingle is a GraphQuery test double that scripts both Run
 // and RunSingle so the dependency-path and resource-to-code fallback paths can
 // be exercised independently.
