@@ -18,11 +18,14 @@ func discoverKustomizeDocumentEvidence(
 		}
 	}
 
-	appendValues(kustomizeResourceStrings(document), EvidenceKindKustomizeResource, 0.90,
+	appendValues(kustomizeResourceStrings(document), EvidenceKindKustomizeResource,
+		DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindKustomizeResource),
 		"Kustomize resources source deployment config from the target repository")
-	appendValues(kustomizeHelmStrings(document), EvidenceKindKustomizeHelmChart, 0.89,
+	appendValues(kustomizeHelmStrings(document), EvidenceKindKustomizeHelmChart,
+		DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindKustomizeHelmChart),
 		"Kustomize Helm configuration deploys from the target repository")
-	appendValues(kustomizeImageStrings(document), EvidenceKindKustomizeImage, 0.86,
+	appendValues(kustomizeImageStrings(document), EvidenceKindKustomizeImage,
+		DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindKustomizeImage),
 		"Kustomize image configuration deploys artifacts from the target repository")
 
 	return evidence

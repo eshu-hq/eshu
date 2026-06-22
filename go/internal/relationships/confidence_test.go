@@ -187,3 +187,126 @@ func TestTerraformSchemaFamilyConfidenceRegistered(t *testing.T) {
 		)
 	}
 }
+
+// withRegistryOverride swaps DefaultConfidenceRegistry for a registry carrying
+// the supplied per-kind overrides, runs fn, and restores the default. It is the
+// mechanism the emitter-routing tests use to prove an emitter reads its prior
+// from the registry rather than a hard-coded literal: if the emitter bypasses
+// the registry, the override is invisible and the assertion fails. These tests
+// must not run in parallel because they mutate the package-global registry.
+func withRegistryOverride(t *testing.T, overrides map[EvidenceKind]float64, fn func()) {
+	t.Helper()
+
+	calibrated, err := DefaultConfidenceRegistry.WithOverrides(overrides)
+	if err != nil {
+		t.Fatalf("WithOverrides returned error: %v", err)
+	}
+	original := DefaultConfidenceRegistry
+	DefaultConfidenceRegistry = calibrated
+	defer func() { DefaultConfidenceRegistry = original }()
+
+	fn()
+}
+
+// kustomizeConfidenceMatcher builds a catalog matcher that resolves the given
+// alias to a target repository for emitter tests.
+func registryRoutingMatcher(alias, targetRepoID string) *catalogMatcher {
+	return newCatalogMatcher([]CatalogEntry{
+		{RepoID: targetRepoID, Aliases: []string{alias}},
+	})
+}
+
+// TestHelmEvidenceReadsConfidenceFromRegistry pins that discoverHelmEvidence
+// emits the registry prior for both the Chart.yaml and values cases. The test
+// overrides the registry and asserts the emitted confidence reflects the
+// override, so it fails if the emitter hard-codes the value (issue #3509
+// follow-up: routing all evidence confidences through the registry).
+func TestHelmEvidenceReadsConfidenceFromRegistry(t *testing.T) {
+	cases := []struct {
+		name     string
+		fileName string
+		kind     EvidenceKind
+		override float64
+	}{
+		{"chart", "Chart.yaml", EvidenceKindHelmChart, 0.61},
+		{"values", "values.yaml", EvidenceKindHelmValues, 0.62},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			withRegistryOverride(t, map[EvidenceKind]float64{tc.kind: tc.override}, func() {
+				matcher := registryRoutingMatcher("payments-service", "repo-payments")
+				seen := make(map[evidenceKey]struct{})
+				content := "repository: payments-service\n"
+
+				evidence := discoverHelmEvidence("repo-infra", tc.fileName, content, matcher, seen)
+
+				got := requireEvidenceConfidence(t, evidence, tc.kind)
+				if got != tc.override {
+					t.Fatalf("%s confidence = %.4f, want overridden registry value %.4f (emitter bypasses registry)", tc.kind, got, tc.override)
+				}
+			})
+		})
+	}
+}
+
+// TestKustomizeDocumentEvidenceReadsConfidenceFromRegistry pins that
+// discoverKustomizeDocumentEvidence emits the registry prior for each of its
+// three evidence kinds. Same override technique as the Helm test.
+func TestKustomizeDocumentEvidenceReadsConfidenceFromRegistry(t *testing.T) {
+	cases := []struct {
+		name     string
+		document map[string]any
+		kind     EvidenceKind
+		override float64
+	}{
+		{
+			name:     "resource",
+			document: map[string]any{"resources": []any{"payments-service"}},
+			kind:     EvidenceKindKustomizeResource,
+			override: 0.63,
+		},
+		{
+			name:     "helm_chart",
+			document: map[string]any{"helmCharts": []any{map[string]any{"name": "payments-service"}}},
+			kind:     EvidenceKindKustomizeHelmChart,
+			override: 0.64,
+		},
+		{
+			name:     "image",
+			document: map[string]any{"images": []any{map[string]any{"name": "payments-service"}}},
+			kind:     EvidenceKindKustomizeImage,
+			override: 0.65,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			withRegistryOverride(t, map[EvidenceKind]float64{tc.kind: tc.override}, func() {
+				matcher := registryRoutingMatcher("payments-service", "repo-payments")
+				seen := make(map[evidenceKey]struct{})
+
+				evidence := discoverKustomizeDocumentEvidence(
+					"repo-infra", "overlays/kustomization.yaml", tc.document, matcher, seen,
+				)
+
+				got := requireEvidenceConfidence(t, evidence, tc.kind)
+				if got != tc.override {
+					t.Fatalf("%s confidence = %.4f, want overridden registry value %.4f (emitter bypasses registry)", tc.kind, got, tc.override)
+				}
+			})
+		})
+	}
+}
+
+// requireEvidenceConfidence returns the confidence of the first evidence fact of
+// the given kind, failing if none is present.
+func requireEvidenceConfidence(t *testing.T, evidence []EvidenceFact, kind EvidenceKind) float64 {
+	t.Helper()
+
+	for i := range evidence {
+		if evidence[i].EvidenceKind == kind {
+			return evidence[i].Confidence
+		}
+	}
+	t.Fatalf("no evidence fact of kind %q in %#v", kind, evidence)
+	return 0
+}

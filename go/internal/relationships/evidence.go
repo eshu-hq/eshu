@@ -162,18 +162,16 @@ func discoverHelmEvidence(
 ) []EvidenceFact {
 	lowerName := strings.ToLower(fileBaseName(filePath))
 	var evidenceKind EvidenceKind
-	var confidence float64
 	var rationale string
 
 	if _, ok := helmChartFilenames[lowerName]; ok {
 		evidenceKind = EvidenceKindHelmChart
-		confidence = 0.90
 		rationale = "Helm chart metadata references the target repository"
 	} else {
 		evidenceKind = EvidenceKindHelmValues
-		confidence = 0.84
 		rationale = "Helm values reference the target repository"
 	}
+	confidence := DefaultConfidenceRegistry.ConfidenceFor(evidenceKind)
 
 	var evidence []EvidenceFact
 	for _, candidate := range extractYAMLStringValues(content) {
