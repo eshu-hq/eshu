@@ -85,6 +85,65 @@ class Dog: Animal {
 	assertSwiftCallMetadata(t, payload, "print", "print")
 }
 
+// TestDefaultEngineParsePathSwiftOverrideFromModifiersNotBody proves that a
+// function whose body text contains "override func" in a comment or string is
+// NOT emitted as swift.override_method, and that a genuine override declaration
+// IS emitted as swift.override_method. This is a regression guard for #3589:
+// the migration changed `source` from a single signature line to the full node
+// body, making the old strings.Contains(source, "override func") check unreliable.
+func TestDefaultEngineParsePathSwiftOverrideFromModifiersNotBody(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Override.swift")
+	writeTestFile(
+		t,
+		filePath,
+		`class Base {
+    func doThing() {}
+}
+
+class Child: Base {
+    // Genuine override: should be rooted as swift.override_method.
+    override func doThing() {
+        super.doThing()
+    }
+
+    // NOT an override: body merely contains the text "override func" in a comment.
+    func helper() {
+        // TODO: replace with override func doThing once ready
+        let note = "override func doThing is called by the framework"
+        _ = note
+    }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
+	}
+
+	// Positive: genuine override declaration must root.
+	doThing := assertFunctionByNameAndClass(t, payload, "doThing", "Child")
+	assertParserStringSliceContains(t, doThing, "dead_code_root_kinds", "swift.override_method")
+
+	// Negative: helper whose body text contains "override func" must NOT root as override.
+	helper := assertFunctionByNameAndClass(t, payload, "helper", "Child")
+	if kinds, _ := helper["dead_code_root_kinds"].([]string); len(kinds) > 0 {
+		for _, k := range kinds {
+			if k == "swift.override_method" {
+				t.Fatalf("helper dead_code_root_kinds contains swift.override_method; body text must not be scanned for override keyword")
+			}
+		}
+	}
+}
+
 // TestDefaultEngineParsePathSwiftASTFunctionSourceSpansFullBody proves the AST
 // migration records the full function-body source for IndexSource, not just the
 // signature line the prior line scanner captured. The body must be part of the

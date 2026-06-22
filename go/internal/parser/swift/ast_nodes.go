@@ -153,6 +153,28 @@ func swiftPatternName(node *tree_sitter.Node, source []byte) string {
 	return strings.TrimSpace(shared.NodeText(identifier, source))
 }
 
+// swiftNodeHasMemberModifier reports whether the declaration node carries a
+// member_modifier child (inside its modifiers group) whose text equals name.
+// Use this to detect the `override` keyword on a function_declaration without
+// scanning the full function body, which would produce false positives when
+// comments or string literals contain the word.
+func swiftNodeHasMemberModifier(node *tree_sitter.Node, source []byte, name string) bool {
+	modifiers := swiftFirstChildOfKind(node, "modifiers")
+	if modifiers == nil {
+		return false
+	}
+	for _, child := range swiftNamedChildren(modifiers) {
+		child := child
+		if child.Kind() != "member_modifier" {
+			continue
+		}
+		if strings.TrimSpace(shared.NodeText(&child, source)) == name {
+			return true
+		}
+	}
+	return false
+}
+
 // swiftTypeAnnotationText returns the declared type text for a property's
 // type_annotation child with the leading colon removed and whitespace trimmed.
 // An empty string means the property relies on type inference.

@@ -250,7 +250,8 @@ func (e *swiftExtractor) handleFunction(node *tree_sitter.Node, scope swiftTypeS
 		item["source"] = source
 	}
 	modifiers := swiftNodeModifiers(node, e.source)
-	if rootKinds := swiftFunctionDeadCodeRootKinds(name, source, scope.name, scope.kind, modifiers, e.facts); len(rootKinds) > 0 {
+	isOverride := swiftNodeHasMemberModifier(node, e.source, "override")
+	if rootKinds := swiftFunctionDeadCodeRootKinds(name, isOverride, scope.name, scope.kind, modifiers, e.facts); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	shared.AppendBucket(e.payload, "functions", item)

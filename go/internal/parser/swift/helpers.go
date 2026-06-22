@@ -40,9 +40,13 @@ func swiftVariableDeadCodeRootKinds(name string, varType string, contextName str
 // initializer roots: program entrypoints, constructors, protocol requirements and
 // same-file implementations, overrides, UIKit delegate callbacks, Vapor route
 // handlers, and XCTest/Swift Testing methods.
+//
+// isOverride must be derived from the declaration's member_modifier AST node, not
+// from scanning the function body text; the body may contain "override func" in
+// comments or string literals that do not indicate an override declaration.
 func swiftFunctionDeadCodeRootKinds(
 	name string,
-	source string,
+	isOverride bool,
 	classContext string,
 	scopeKind string,
 	attributes []string,
@@ -58,7 +62,7 @@ func swiftFunctionDeadCodeRootKinds(
 	if scopeKind == "protocol" {
 		rootKinds = appendSwiftRootKind(rootKinds, "swift.protocol_method")
 	}
-	if strings.Contains(source, "override func") {
+	if isOverride {
 		rootKinds = appendSwiftRootKind(rootKinds, "swift.override_method")
 	}
 	if swiftImplementsProtocolMethod(facts, classContext, name) {
