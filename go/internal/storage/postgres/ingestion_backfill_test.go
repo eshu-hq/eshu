@@ -3,11 +3,15 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -108,6 +112,314 @@ func TestIngestionStoreCommitScopeGenerationSkipsRelationshipBackfillWhenConfigu
 	}
 	if got, want := len(db.queries), 0; got != want {
 		t.Fatalf("base connection query count = %d, want %d (catalog must not use a second connection)", got, want)
+	}
+}
+
+// TestRepositoryScopedCatalogBoundsToNewRepos pins the scope-bounded contract
+// (issue #3500): the per-commit relationship backfill must build its catalog
+// matcher from only the repositories onboarded by the current generation, never
+// the whole fleet. The returned scope is exactly the new-repo entries regardless
+// of how large the refreshed catalog is, so matcher build and discovery cost
+// scale with the onboarding delta, not O(all repositories).
+func TestRepositoryScopedCatalogBoundsToNewRepos(t *testing.T) {
+	t.Parallel()
+
+	fleet := make([]relationships.CatalogEntry, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		repoID := fmt.Sprintf("repo-%04d", i)
+		fleet = append(fleet, relationships.CatalogEntry{
+			RepoID:  repoID,
+			Aliases: []string{repoID, fmt.Sprintf("org/%s", repoID)},
+		})
+	}
+	newRepoIDs := map[string]struct{}{
+		"repo-0007": {},
+		"repo-0042": {},
+	}
+
+	scoped := repositoryScopedCatalog(fleet, newRepoIDs)
+
+	if got, want := len(scoped), len(newRepoIDs); got != want {
+		t.Fatalf("scoped catalog size = %d, want %d (must bound to new repos, not the %d-repo fleet)", got, want, len(fleet))
+	}
+	gotIDs := make([]string, 0, len(scoped))
+	for _, entry := range scoped {
+		if _, ok := newRepoIDs[entry.RepoID]; !ok {
+			t.Fatalf("scoped catalog leaked non-new repo %q", entry.RepoID)
+		}
+		gotIDs = append(gotIDs, entry.RepoID)
+		// Aliases must be preserved verbatim so matching truth is unchanged.
+		if len(entry.Aliases) != 2 {
+			t.Fatalf("scoped entry %q aliases = %v, want full alias set preserved", entry.RepoID, entry.Aliases)
+		}
+	}
+	sort.Strings(gotIDs)
+	if want := []string{"repo-0007", "repo-0042"}; !reflect.DeepEqual(gotIDs, want) {
+		t.Fatalf("scoped catalog repo ids = %v, want %v", gotIDs, want)
+	}
+}
+
+// TestBackfillScopedCatalogDiscoversSameEvidenceAsFullCatalog proves the
+// scope-bounded backfill preserves correlation truth (issue #3500 accuracy
+// gate): discovering evidence with the new-repo-scoped catalog yields exactly
+// the same evidence that the prior full-catalog-then-filter path produced. The
+// fleet here carries many unrelated repos plus the source facts that reference
+// one newly onboarded target; both paths must agree edge-for-edge.
+func TestBackfillScopedCatalogDiscoversSameEvidenceAsFullCatalog(t *testing.T) {
+	t.Parallel()
+
+	fleet := []relationships.CatalogEntry{
+		{RepoID: "repo-app", Aliases: []string{"app-repo"}},
+		{RepoID: "repo-infra", Aliases: []string{"infra-repo"}},
+		{RepoID: "repo-unrelated-1", Aliases: []string{"unrelated-1"}},
+		{RepoID: "repo-unrelated-2", Aliases: []string{"unrelated-2"}},
+	}
+	// Source facts from a pre-existing infra repo that reference the newly
+	// onboarded app repo via Terraform content.
+	sourceFacts := []facts.Envelope{{
+		FactKind: "content",
+		ScopeID:  "scope-infra",
+		Payload: map[string]any{
+			"repo_id":       "repo-infra",
+			"artifact_type": "terraform",
+			"relative_path": "main.tf",
+			"content":       `app_repo = "app-repo"` + "\n" + `unrelated = "unrelated-1"`,
+		},
+	}}
+	newRepoIDs := map[string]struct{}{"repo-app": {}}
+
+	// Reference: prior full-catalog discovery, then filter to the new repos.
+	reference := filterEvidenceByTargetRepo(
+		relationships.DedupeEvidenceFacts(relationships.DiscoverEvidence(sourceFacts, fleet)),
+		newRepoIDs,
+	)
+	// New: scope the catalog to the new repos before discovery (no post-filter).
+	scoped := relationships.DedupeEvidenceFacts(
+		relationships.DiscoverEvidence(sourceFacts, repositoryScopedCatalog(fleet, newRepoIDs)),
+	)
+
+	if !reflect.DeepEqual(scoped, reference) {
+		t.Fatalf("scoped backfill evidence diverged from full-catalog reference:\nscoped    = %#v\nreference = %#v", scoped, reference)
+	}
+	if len(scoped) == 0 {
+		t.Fatal("expected at least one evidence fact targeting the onboarded repo")
+	}
+	for _, fact := range scoped {
+		if fact.TargetRepoID != "repo-app" {
+			t.Fatalf("scoped evidence targeted %q, want only the onboarded repo-app", fact.TargetRepoID)
+		}
+	}
+}
+
+// newBackfillScaleCorpus builds a fleet of fleetSize repositories and a set of
+// source content facts that reference the two onboarded target repos, for the
+// scope-bounded backfill scale benchmarks (issue #3500). The onboarding delta is
+// fixed at two repos regardless of fleetSize, so the benchmarks isolate how
+// backfill cost responds to fleet growth.
+func newBackfillScaleCorpus(fleetSize int) ([]relationships.CatalogEntry, []facts.Envelope, map[string]struct{}) {
+	fleet := make([]relationships.CatalogEntry, 0, fleetSize)
+	for i := 0; i < fleetSize; i++ {
+		repoID := fmt.Sprintf("repo-%05d", i)
+		fleet = append(fleet, relationships.CatalogEntry{
+			RepoID:  repoID,
+			Aliases: []string{repoID, fmt.Sprintf("org/%s", repoID)},
+		})
+	}
+	newRepoIDs := map[string]struct{}{"repo-00007": {}, "repo-00042": {}}
+
+	// One source content fact per fleet repo, mirroring the corpus-wide fact
+	// load the backfill performs. A handful reference the onboarded repos.
+	sourceFacts := make([]facts.Envelope, 0, fleetSize)
+	for i := 0; i < fleetSize; i++ {
+		repoID := fmt.Sprintf("repo-%05d", i)
+		content := fmt.Sprintf("module_source = %q", repoID)
+		if i%500 == 0 {
+			content = `app = "repo-00007"` + "\n" + `infra = "repo-00042"`
+		}
+		sourceFacts = append(sourceFacts, facts.Envelope{
+			FactKind: "content",
+			ScopeID:  "scope-" + repoID,
+			Payload: map[string]any{
+				"repo_id":       repoID,
+				"artifact_type": "terraform",
+				"relative_path": "main.tf",
+				"content":       content,
+			},
+		})
+	}
+	return fleet, sourceFacts, newRepoIDs
+}
+
+// BenchmarkBackfillDiscoveryFullCatalog measures the prior per-commit backfill
+// shape: discover evidence against the whole fleet catalog, then filter to the
+// onboarded repos. Matcher build and per-fact match cost grow with fleet size,
+// so this benchmark regresses as the fleet scales (the O(all-repos) behavior
+// issue #3500 removes).
+func BenchmarkBackfillDiscoveryFullCatalog(b *testing.B) {
+	for _, fleetSize := range []int{1000, 5000} {
+		fleet, sourceFacts, newRepoIDs := newBackfillScaleCorpus(fleetSize)
+		b.Run(fmt.Sprintf("fleet=%d", fleetSize), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = filterEvidenceByTargetRepo(
+					relationships.DedupeEvidenceFacts(relationships.DiscoverEvidence(sourceFacts, fleet)),
+					newRepoIDs,
+				)
+			}
+		})
+	}
+}
+
+// BenchmarkBackfillDiscoveryScoped measures the scope-bounded backfill shape
+// (issue #3500): discover evidence against only the onboarded repos' catalog.
+// Matcher build cost is bounded by the onboarding delta, so per-fact match cost
+// stays flat as the fleet scales from 1k to 5k repos.
+func BenchmarkBackfillDiscoveryScoped(b *testing.B) {
+	for _, fleetSize := range []int{1000, 5000} {
+		fleet, sourceFacts, newRepoIDs := newBackfillScaleCorpus(fleetSize)
+		scoped := repositoryScopedCatalog(fleet, newRepoIDs)
+		b.Run(fmt.Sprintf("fleet=%d", fleetSize), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = relationships.DedupeEvidenceFacts(
+					relationships.DiscoverEvidence(sourceFacts, scoped),
+				)
+			}
+		})
+	}
+}
+
+// gcpRelationshipFact builds a supported gcp_cloud_relationship envelope whose
+// source and target resource names embed the given catalog aliases. The scoped
+// backfill tests use it to exercise the source-match-then-target-match ordering
+// in discoverGCPCloudRelationshipEvidence (issue #3500).
+func gcpRelationshipFact(sourceAlias, targetAlias string) facts.Envelope {
+	return facts.Envelope{
+		FactKind:      facts.GCPCloudRelationshipFactKind,
+		ScopeID:       "gcp:project:demo:relationship:global",
+		StableFactKey: "gcp-rel-" + sourceAlias + "-" + targetAlias,
+		Payload: map[string]any{
+			"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/" + sourceAlias,
+			"source_asset_type":         "run.googleapis.com/Service",
+			"relationship_type":         "run_service_uses_secret",
+			"target_full_resource_name": "//secretmanager.googleapis.com/projects/demo/secrets/" + targetAlias,
+			"target_asset_type":         "secretmanager.googleapis.com/Secret",
+			"support_state":             "supported",
+		},
+	}
+}
+
+// TestBackfillScopedCatalogEmitsGCPEvidenceForNewTarget is the issue #3500
+// regression guard for the source-side catalog gap. A pre-existing
+// gcp_cloud_relationship fact points from an already-onboarded SOURCE repo into a
+// newly onboarded TARGET repo. discoverGCPCloudRelationshipEvidence requires a
+// unique catalog match for the SOURCE resource before it matches the target, so a
+// catalog scoped to only the new target repo resolves no source match and emits
+// no A->B evidence. The scoped catalog must therefore also carry the source-side
+// entry for any GCP relationship targeting a new repo, so the per-commit backfill
+// emits the cross-repo edge without a corpus-wide pass.
+func TestBackfillScopedCatalogEmitsGCPEvidenceForNewTarget(t *testing.T) {
+	t.Parallel()
+
+	fleet := []relationships.CatalogEntry{
+		{RepoID: "repo-source", Aliases: []string{"order-gateway"}},
+		{RepoID: "repo-target", Aliases: []string{"payments-service"}},
+		{RepoID: "repo-unrelated", Aliases: []string{"unrelated-service"}},
+	}
+	// Existing fact: source = repo-source (old), target = repo-target (new).
+	activeFacts := []facts.Envelope{gcpRelationshipFact("order-gateway", "payments-service")}
+	newRepoIDs := map[string]struct{}{"repo-target": {}}
+
+	scoped := backfillScopedCatalog(fleet, activeFacts, newRepoIDs)
+	evidence := relationships.DedupeEvidenceFacts(
+		relationships.DiscoverEvidence(activeFacts, scoped),
+	)
+
+	if len(evidence) != 1 {
+		t.Fatalf("scoped GCP backfill evidence = %d, want 1 (A->B edge into the new target)", len(evidence))
+	}
+	got := evidence[0]
+	if got.SourceRepoID != "repo-source" || got.TargetRepoID != "repo-target" {
+		t.Fatalf("edge = %s -> %s, want repo-source -> repo-target", got.SourceRepoID, got.TargetRepoID)
+	}
+
+	// The unrelated repo must not leak into the scoped catalog: scoping stays
+	// bounded to the new repos plus the source repos that reference them.
+	for _, entry := range scoped {
+		if entry.RepoID == "repo-unrelated" {
+			t.Fatalf("scoped catalog leaked unrelated repo %q (corpus-wide scan reintroduced)", entry.RepoID)
+		}
+	}
+}
+
+// TestBackfillScopedCatalogIncludesMultipleGCPSourcesForNewTarget proves the
+// source-side augmentation handles several pre-existing source repos pointing
+// into one newly onboarded target (issue #3500). Every old-source -> new-target
+// edge must be emitted, and no unrelated repo may enter the scope.
+func TestBackfillScopedCatalogIncludesMultipleGCPSourcesForNewTarget(t *testing.T) {
+	t.Parallel()
+
+	fleet := []relationships.CatalogEntry{
+		{RepoID: "repo-source-a", Aliases: []string{"gateway-a"}},
+		{RepoID: "repo-source-b", Aliases: []string{"gateway-b"}},
+		{RepoID: "repo-target", Aliases: []string{"payments-service"}},
+		{RepoID: "repo-unrelated", Aliases: []string{"unrelated-service"}},
+	}
+	activeFacts := []facts.Envelope{
+		gcpRelationshipFact("gateway-a", "payments-service"),
+		gcpRelationshipFact("gateway-b", "payments-service"),
+		// An unrelated edge that never touches the new target; its source must
+		// not be pulled into scope.
+		gcpRelationshipFact("unrelated-service", "gateway-a"),
+	}
+	newRepoIDs := map[string]struct{}{"repo-target": {}}
+
+	scoped := backfillScopedCatalog(fleet, activeFacts, newRepoIDs)
+	evidence := relationships.DedupeEvidenceFacts(
+		relationships.DiscoverEvidence(activeFacts, scoped),
+	)
+
+	edges := make(map[string]struct{})
+	for _, fact := range evidence {
+		if fact.TargetRepoID != "repo-target" {
+			t.Fatalf("edge targeted %q, want only repo-target", fact.TargetRepoID)
+		}
+		edges[fact.SourceRepoID] = struct{}{}
+	}
+	for _, want := range []string{"repo-source-a", "repo-source-b"} {
+		if _, ok := edges[want]; !ok {
+			t.Fatalf("missing A->B edge from %q into repo-target", want)
+		}
+	}
+	scopedIDs := make(map[string]struct{}, len(scoped))
+	for _, entry := range scoped {
+		scopedIDs[entry.RepoID] = struct{}{}
+	}
+	if _, leaked := scopedIDs["repo-unrelated"]; leaked {
+		t.Fatal("scoped catalog leaked repo-unrelated; source-side scoping must follow only facts into new repos")
+	}
+}
+
+// TestBackfillScopedCatalogNoGCPFactsMatchesNewRepoOnly pins that when no GCP
+// relationship targets a new repo, the scoped catalog stays exactly the new-repo
+// set (issue #3500 perf guard): the source-side augmentation adds nothing.
+func TestBackfillScopedCatalogNoGCPFactsMatchesNewRepoOnly(t *testing.T) {
+	t.Parallel()
+
+	fleet := []relationships.CatalogEntry{
+		{RepoID: "repo-source", Aliases: []string{"order-gateway"}},
+		{RepoID: "repo-target", Aliases: []string{"payments-service"}},
+	}
+	// GCP fact targets a repo that is NOT in the new set.
+	activeFacts := []facts.Envelope{gcpRelationshipFact("order-gateway", "payments-service")}
+	newRepoIDs := map[string]struct{}{"repo-source": {}}
+
+	scoped := backfillScopedCatalog(fleet, activeFacts, newRepoIDs)
+	if got, want := len(scoped), 1; got != want {
+		t.Fatalf("scoped catalog size = %d, want %d (only the new repo, no source augmentation)", got, want)
+	}
+	if scoped[0].RepoID != "repo-source" {
+		t.Fatalf("scoped catalog repo = %q, want repo-source", scoped[0].RepoID)
 	}
 }
 

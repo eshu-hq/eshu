@@ -430,9 +430,26 @@ func backfillRelationshipEvidenceForNewRepositories(
 	if err != nil {
 		return fmt.Errorf("load latest facts for relationship backfill: %w", err)
 	}
-	evidence := filterEvidenceByTargetRepo(
-		relationships.DedupeEvidenceFacts(relationships.DiscoverEvidence(activeFacts, refreshedCatalog)),
-		newRepoIDs,
+
+	// Scope the catalog matcher to only the repositories this generation
+	// onboarded (issue #3500) plus the source repos of any gcp_cloud_relationship
+	// fact targeting them. DiscoverEvidence is a pure function of
+	// (envelopes, catalog); for content-derived evidence every emitted
+	// EvidenceFact.TargetRepoID is a catalog entry, so a new-repo-scoped catalog
+	// reproduces exactly what the prior full-catalog discovery produced and then
+	// discarded via filterEvidenceByTargetRepo — minus the O(all-repos) matcher
+	// build and the post-filter pass. GCP relationship facts are the exception:
+	// discoverGCPCloudRelationshipEvidence resolves the SOURCE resource against
+	// the catalog before the target, so an old-source -> new-target edge needs the
+	// source repo's catalog entry too. backfillScopedCatalog adds exactly those
+	// source entries (scoped to facts whose target is a new repo), never the whole
+	// fleet.
+	scopedCatalog := backfillScopedCatalog(refreshedCatalog, activeFacts, newRepoIDs)
+	if len(scopedCatalog) == 0 {
+		return nil
+	}
+	evidence := relationships.DedupeEvidenceFacts(
+		relationships.DiscoverEvidence(activeFacts, scopedCatalog),
 	)
 	if len(evidence) == 0 {
 		return nil
@@ -442,6 +459,69 @@ func backfillRelationshipEvidenceForNewRepositories(
 	}
 
 	return nil
+}
+
+// backfillScopedCatalog returns the catalog entries the per-commit relationship
+// backfill must match against: every newly onboarded repository, plus the source
+// repositories of any supported gcp_cloud_relationship fact whose target is one
+// of those new repositories (issue #3500).
+//
+// Content-derived evidence (Terraform, Helm, ArgoCD, ...) carries its source repo
+// in the fact envelope and only catalog-matches the target, so a new-repo-scoped
+// catalog suffices. GCP relationship facts are different:
+// discoverGCPCloudRelationshipEvidence first requires a unique catalog match for
+// the SOURCE resource and only then matches the target, so an
+// old-source -> new-target edge resolves to nothing unless the source repo's
+// catalog entry is present. This helper resolves GCP edges against the full
+// catalog (reusing the discovery matcher rules via ResolveGCPRelationshipRepoLinks),
+// then adds only the source entries that feed a new target. The scope therefore
+// stays bounded to the onboarding delta plus its inbound GCP sources, never the
+// whole fleet, preserving the scope-bounding performance win.
+func backfillScopedCatalog(
+	catalog []relationships.CatalogEntry,
+	activeFacts []facts.Envelope,
+	newRepoIDs map[string]struct{},
+) []relationships.CatalogEntry {
+	if len(catalog) == 0 || len(newRepoIDs) == 0 {
+		return nil
+	}
+
+	scopeRepoIDs := make(map[string]struct{}, len(newRepoIDs))
+	for repoID := range newRepoIDs {
+		scopeRepoIDs[repoID] = struct{}{}
+	}
+	for _, link := range relationships.ResolveGCPRelationshipRepoLinks(activeFacts, catalog) {
+		if _, targetIsNew := newRepoIDs[link.TargetRepoID]; !targetIsNew {
+			continue
+		}
+		scopeRepoIDs[link.SourceRepoID] = struct{}{}
+	}
+
+	return repositoryScopedCatalog(catalog, scopeRepoIDs)
+}
+
+// repositoryScopedCatalog returns the subset of catalog entries whose RepoID is
+// in repoIDs, preserving each entry's aliases verbatim. It is the scope-bounded
+// matcher input for the per-commit relationship backfill (issue #3500): the
+// matcher and the per-fact match cost scale with the onboarding delta, not the
+// fleet size, while correlation truth is unchanged because DiscoverEvidence
+// already keys every emitted EvidenceFact.TargetRepoID to a catalog entry.
+func repositoryScopedCatalog(
+	catalog []relationships.CatalogEntry,
+	repoIDs map[string]struct{},
+) []relationships.CatalogEntry {
+	if len(catalog) == 0 || len(repoIDs) == 0 {
+		return nil
+	}
+
+	scoped := make([]relationships.CatalogEntry, 0, len(repoIDs))
+	for _, entry := range catalog {
+		if _, ok := repoIDs[entry.RepoID]; !ok {
+			continue
+		}
+		scoped = append(scoped, entry)
+	}
+	return scoped
 }
 
 func loadLatestRelationshipFacts(ctx context.Context, queryer Queryer) ([]facts.Envelope, error) {
