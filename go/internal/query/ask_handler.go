@@ -128,9 +128,14 @@ type askResponse struct {
 	Artifacts       []askArtifact            `json:"artifacts,omitempty"`
 	TruthClass      string                   `json:"truth_class,omitempty"`
 	EvidenceHandles []evidenceCitationHandle `json:"evidence_handles,omitempty"`
-	QueryTrace      []traceEntry             `json:"query_trace,omitempty"`
-	Partial         bool                     `json:"partial"`
-	Limitations     []string                 `json:"limitations,omitempty"`
+	// CitationRef references the citation packet that hydrates the primary
+	// packet's evidence handles. It is the packet-level citation coverage for the
+	// answer prose when individual EvidenceHandles are not inlined, and is the
+	// coverage anchor for derived, un-narrated prose (issue #3550).
+	CitationRef string       `json:"citation_ref,omitempty"`
+	QueryTrace  []traceEntry `json:"query_trace,omitempty"`
+	Partial     bool         `json:"partial"`
+	Limitations []string     `json:"limitations,omitempty"`
 }
 
 // traceEntry is the per-call representation in query_trace.
@@ -235,6 +240,10 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 		if len(primary.EvidenceHandles) > 0 {
 			resp.EvidenceHandles = primary.EvidenceHandles
 		}
+		// CitationRef is the packet-level citation coverage: it references the
+		// citation packet that hydrates the handles. Surface it so derived,
+		// un-narrated prose stays anchored to its citation packet (issue #3550).
+		resp.CitationRef = strings.TrimSpace(primary.CitationRef)
 	}
 
 	applyAskRuntimeGuardrails(&resp, primarySupported)
@@ -247,7 +256,8 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 	// explicitly marked derived/un-narrated. The guardrail's citation-coverage
 	// rule applies to governed narration prose, not to this deterministic
 	// packet Summary; the publish-safety scan is reapplied here to keep the
-	// leak-safety invariant.
+	// leak-safety invariant. The fallback also guarantees citation/provenance
+	// coverage for the surfaced prose so it is never bare uncited prose.
 	applyDerivedProseFallback(&resp, ans.Narrated, primarySupported, primarySummary)
 
 	// Artifacts: when the answer has prose, validate the detected format and
@@ -321,6 +331,14 @@ func applyAskRuntimeGuardrails(resp *askResponse, primarySupported bool) {
 // unsafe Summary is never surfaced. Surfaced prose is marked derived and
 // un-narrated via a limitation so callers do not mistake it for a governed
 // narration.
+//
+// Citation coverage parity: the narration path guarantees every published
+// answer carries citation coverage — inlined evidence handles, a citation_ref,
+// or, for an uncitable packet, truth provenance keyed to truth_class (the #3550
+// narration fix). The derived fallback matches that guarantee. It keeps any
+// publish-safe EvidenceHandles or CitationRef already on resp as the coverage,
+// and when the packet has neither it stamps an explicit truth-provenance
+// coverage marker so the surfaced prose is never bare uncited prose.
 func applyDerivedProseFallback(resp *askResponse, narrated, primarySupported bool, primarySummary string) {
 	if resp == nil {
 		return
@@ -343,6 +361,27 @@ func applyDerivedProseFallback(resp *askResponse, narrated, primarySupported boo
 	resp.AnswerProse = primarySummary
 	resp.Limitations = appendAskLimitation(resp.Limitations,
 		"answer_prose is the derived, un-narrated deterministic summary (no governed narration produced)")
+	applyDerivedProseCoverage(resp)
+}
+
+// applyDerivedProseCoverage guarantees the derived fallback prose carries
+// citation or provenance coverage, mirroring the narration path. Inlined
+// publish-safe EvidenceHandles or a non-empty CitationRef already cover the
+// prose, so nothing is added in those cases. When neither is present the packet
+// is uncitable; the answer is still backed by its classified truth_class, so an
+// explicit truth-provenance coverage marker is stamped (and the truth_class is
+// echoed in it) rather than leaving the prose with no citation or provenance
+// reference (issue #3550).
+func applyDerivedProseCoverage(resp *askResponse) {
+	if len(resp.EvidenceHandles) > 0 || strings.TrimSpace(resp.CitationRef) != "" {
+		return
+	}
+	truthClass := strings.TrimSpace(resp.TruthClass)
+	if truthClass == "" {
+		truthClass = string(AnswerTruthUnsupported)
+	}
+	resp.Limitations = appendAskLimitation(resp.Limitations,
+		"answer_prose citation coverage is the packet truth provenance (truth_class: "+truthClass+"); no citation_ref or evidence handles were resolved")
 }
 
 func askCitationHandleStrings(handles []evidenceCitationHandle) []string {

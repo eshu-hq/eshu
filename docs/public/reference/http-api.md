@@ -180,6 +180,7 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
   "artifacts":        [{"format":"string","content":"string","issues":["string"]}],
   "truth_class":      "deterministic|derived|fallback|semantic_observation|code_hint|unsupported",
   "evidence_handles": [...],
+  "citation_ref":     "string (citation packet that hydrates the evidence handles; coverage anchor for derived prose)",
   "query_trace":      [{"tool":"string","args":{},"supported":bool,"truth_class":"string","err":"string"}],
   "partial":          false,
   "limitations":      ["string"]

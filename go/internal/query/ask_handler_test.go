@@ -431,6 +431,104 @@ func TestBuildAskResponse_DerivedProseFallbackWhenNotNarrated(t *testing.T) {
 	}
 }
 
+// TestBuildAskResponse_DerivedProseFallbackCarriesTruthProvenance proves the
+// derived fallback never publishes bare uncited prose. When narration is
+// unavailable (Narrated=false) and the supported packet has no EvidenceHandles
+// and no citation_ref, the surfaced answer_prose must still carry explicit
+// provenance coverage: the narration path guarantees citation coverage (via a
+// citation_ref/handles or, for an uncitable packet, truth provenance keyed to
+// truth_class), and the deterministic fallback must match that guarantee rather
+// than emitting prose with no citation or provenance reference (issue #3550).
+func TestBuildAskResponse_DerivedProseFallbackCarriesTruthProvenance(t *testing.T) {
+	t.Parallel()
+
+	const summary = "checkout-service owns refund processing"
+	ans := AskAnswer{
+		Prose:    "",
+		Narrated: false,
+		Packets: []AnswerPacket{{
+			TruthClass: AnswerTruthDeterministic,
+			Supported:  true,
+			Summary:    summary,
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse != summary {
+		t.Fatalf("answer_prose = %q, want derived summary %q", resp.AnswerProse, summary)
+	}
+	if resp.TruthClass != string(AnswerTruthDeterministic) {
+		t.Fatalf("truth_class = %q, want %q", resp.TruthClass, AnswerTruthDeterministic)
+	}
+	// With no handles and no citation_ref, the coverage is the packet's truth
+	// provenance. The response must mark that explicitly so the prose is not
+	// bare uncited prose.
+	if !hasLimitation(resp.Limitations, "truth provenance") {
+		t.Fatalf("limitations = %#v, want explicit truth-provenance coverage marker", resp.Limitations)
+	}
+}
+
+// TestBuildAskResponse_DerivedProseFallbackSurfacesCitationRef proves the
+// derived fallback carries the packet's citation_ref as citation coverage when
+// the packet has one, so derived prose is anchored to the citation packet that
+// hydrates its evidence handles rather than published uncited (issue #3550).
+func TestBuildAskResponse_DerivedProseFallbackSurfacesCitationRef(t *testing.T) {
+	t.Parallel()
+
+	const summary = "checkout-service owns refund processing"
+	const citationRef = "eshu://citation/checkout-refunds"
+	ans := AskAnswer{
+		Prose:    "",
+		Narrated: false,
+		Packets: []AnswerPacket{{
+			TruthClass:  AnswerTruthDeterministic,
+			Supported:   true,
+			Summary:     summary,
+			CitationRef: citationRef,
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse != summary {
+		t.Fatalf("answer_prose = %q, want derived summary %q", resp.AnswerProse, summary)
+	}
+	if resp.CitationRef != citationRef {
+		t.Fatalf("citation_ref = %q, want %q surfaced as coverage", resp.CitationRef, citationRef)
+	}
+}
+
+// TestBuildAskResponse_DerivedProseFallbackKeepsEvidenceHandleCoverage proves
+// the derived fallback leaves resolved evidence handles intact as citation
+// coverage: when the supported packet carries handles, surfaced derived prose is
+// covered by those handles and no redundant truth-provenance marker is added
+// (issue #3550).
+func TestBuildAskResponse_DerivedProseFallbackKeepsEvidenceHandleCoverage(t *testing.T) {
+	t.Parallel()
+
+	const summary = "checkout-service owns refund processing"
+	ans := AskAnswer{
+		Prose:    "",
+		Narrated: false,
+		Packets: []AnswerPacket{{
+			TruthClass:      AnswerTruthDeterministic,
+			Supported:       true,
+			Summary:         summary,
+			EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse != summary {
+		t.Fatalf("answer_prose = %q, want derived summary %q", resp.AnswerProse, summary)
+	}
+	if len(resp.EvidenceHandles) != 1 {
+		t.Fatalf("evidence_handles = %#v, want one handle preserved as coverage", resp.EvidenceHandles)
+	}
+	if hasLimitation(resp.Limitations, "truth provenance") {
+		t.Fatalf("limitations = %#v, want no truth-provenance marker when handles cover the prose", resp.Limitations)
+	}
+}
+
 // TestBuildAskResponse_DerivedProseFallbackSkipsUnsafeSummary proves the derived
 // fallback still honors publish safety: an unsafe deterministic Summary is never
 // surfaced as answer_prose even when narration is unavailable.
