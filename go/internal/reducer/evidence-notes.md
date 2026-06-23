@@ -353,3 +353,60 @@ removed. Operators continue to observe this path via existing
 `pending_projection` outstanding counts, partition lease rows, reducer
 `processed_intents`/`blocked_readiness` cycle logs, and
 `selection_duration_seconds` instrumentation.
+
+## Code-Import Repo-Edge Stale Retract + baseUrl Fabrication Guard (#3651)
+
+These two fixes address review-bot findings on merged PR #3645
+(code-import repo→repo `DEPENDS_ON` edges, issue #3642). Both touch the
+code-import projection hot path that emits shared repo-dependency intents, so
+they are recorded here.
+
+Performance Evidence: the change adds no new graph write, Cypher statement,
+worker, lease, batch, or queue-claim path. P1 adds one extra in-memory pass,
+`BuildCodeImportRepoEdgeRefreshIntents`, over the same `file` fact envelopes the
+upsert builder already scans — O(files × imports per file) with a single
+`map[string]struct{}` of consumer ids and an early `break` per consumer once it
+is marked covered, so it is at worst a second linear sweep and emits at most one
+retract row per consumer that produced no upsert. The handler appends those
+refresh rows to the existing `UpsertIntents` call rather than issuing a second
+write, so the shared-intent write path keeps the same row-batch shape and the
+downstream DEPENDS_ON `MERGE` keyed on `(source_repo, target_repo)` stays
+idempotent. P2 is a constant-time guard (`isRepoRelativeResolvedSource`: a
+`strings.Contains` plus three `strings.HasPrefix` checks) inside the existing
+`codeImportEntrySource` selection, with no new allocation. Baseline before the
+fix: a full snapshot that dropped all of a consumer's resolved imports wrote
+zero rows and left the prior `projection/code-imports` edge graph-visible
+forever; after the fix the same snapshot writes exactly one retract row for that
+consumer and the lane removes the stale edge. Input shape: per-repo `file` facts
+bounded by the git-repository scope (unchanged from #3645); owner index bounded
+by the active package-registry generation (unchanged). Backend: NornicDB default
+canonical graph via the shared repo-dependency projection lane.
+
+No-Regression Evidence: both fixes were written test-first (red before green).
+P1 red cases: `TestBuildCodeImportRepoEdgeRefreshIntentsEmitRetractForZeroOwners`,
+`...CoveredConsumerExcluded`, `...SelfOnlyConsumerRetracted`, `...Idempotent`,
+and handler-level
+`TestCodeImportRepoEdgeHandlerEmitsRefreshIntentWhenOwnerlessFullSnapshot` all
+failed with `BuildCodeImportRepoEdgeRefreshIntents` undefined, then passed after
+the builder and handler wiring landed; the pre-existing
+`TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport` was updated to assert the
+now-correct single retract call. P2 red cases:
+`TestBuildCodeImportRepoDependencyIntentsTsConfigBaseUrlDropped` (a TS file whose
+`resolved_source` is `src/components/Button` with an owned package named `src`
+in the index) produced one fabricated edge before the fix and zero after, and
+the `TestCodeImportEntrySourceRepoRelativeResolvedSourceDropped` table confirms
+the fallback keeps bare/scoped specifiers while dropping repo-relative paths.
+Full suite: `go test ./internal/reducer -count=1` — 2,370 tests pass.
+`go build ./...` succeeds. `gofmt -l` on all changed files is clean.
+`golangci-lint run ./internal/reducer/...` reports 0 issues.
+
+Observability Evidence: P1 adds one operator counter sample,
+`code_import_repo_edges` with `outcome="refreshed_no_owner"`, emitted via
+`emitRefreshCounter` so operators can see how many consumers were retracted for
+lost ownership in a generation; the existing `considered`/`written`/`skipped_*`
+outcome counters and the structured `code import repo edge projection completed`
+log are unchanged. No new metric name, span name, queue domain, worker, lease,
+runtime knob, or Cypher statement is introduced. P2 changes only which import
+specifier feeds owner lookup and surfaces through the existing
+`skipped_relative`/`skipped_no_owner` counters already on this path, so no
+observability surface changes for it.

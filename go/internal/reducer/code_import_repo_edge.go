@@ -148,17 +148,65 @@ func BuildCodeImportRepoDependencyIntents(
 }
 
 // codeImportEntrySource returns the external import identity for one parser
-// import entry, preferring the language-resolved source over the raw source.
-// resolved_source is preferred because it carries the parser's resolution of
-// alias/baseUrl rewrites; for external packages the two usually agree, but when
-// resolved_source resolves a baseUrl import to an intra-repo path the normalizer
-// will drop it as a relative/intra-repo specifier, which is the conservative
-// outcome.
+// import entry, preferring the language-resolved source over the raw source
+// when the resolved value is a bare or scoped npm/pypi/go specifier. For
+// TypeScript/JavaScript imports resolved via tsconfig baseUrl or paths,
+// resolved_source is a repo-relative path (e.g. "src/components/Button"),
+// not a bare specifier. Passing such a path to normalizeNPMImportSource
+// reduces it to its first segment ("src"), which can collide with a real
+// owned npm package named "src" and fabricate a cross-repo DEPENDS_ON edge.
+//
+// Resolution semantics:
+//
+//   - resolved_source present and external: use it (the tsconfig parser proved a
+//     real external specifier).
+//   - resolved_source present but repo-relative (a baseUrl/paths-resolved
+//     intra-repo path such as "src/resources/jwt.ts"): DROP the import by
+//     returning "". The raw source field must NOT be used as a fallback here —
+//     it can itself be a repo-local alias with a separator (e.g. "resources/jwt")
+//     that normalizeNPMImportSource would wrongly reduce to a package name
+//     ("resources") and fabricate a DEPENDS_ON edge. Once resolution proves the
+//     import is intra-repo, no alias of it is an external dependency.
+//   - resolved_source absent (Go/Python, or a JS import the tsconfig parser left
+//     unresolved): use the raw external specifier.
 func codeImportEntrySource(entry map[string]any) string {
-	if resolved := strings.TrimSpace(anyToString(entry["resolved_source"])); resolved != "" {
+	resolved := strings.TrimSpace(anyToString(entry["resolved_source"]))
+	if resolved != "" {
+		if isRepoRelativeResolvedSource(resolved) {
+			return ""
+		}
 		return resolved
 	}
 	return strings.TrimSpace(anyToString(entry["source"]))
+}
+
+// isRepoRelativeResolvedSource reports whether a resolved_source value is a
+// repo-relative path produced by tsconfig baseUrl/paths resolution rather than
+// a true bare external specifier. Such paths contain a "/" separator but do
+// not match any of the forms that belong to real external packages:
+//
+//   - relative: starts with "./" or "../" (intra-repo, dropped by normalizer)
+//   - node built-in: starts with "node:"
+//   - scoped npm: starts with "@" (e.g. "@scope/name")
+//
+// A value that contains "/" but fits none of these patterns is treated as a
+// repo-relative path (e.g. "src/components/Button") and is not used for owner
+// lookup. Bare specifiers without a "/" (e.g. "express", "requests") are
+// unambiguously external and are not repo-relative, so they return false.
+func isRepoRelativeResolvedSource(resolved string) bool {
+	if !strings.Contains(resolved, "/") {
+		// No path separator — bare specifier, definitely external.
+		return false
+	}
+	// Known-external forms that legitimately contain "/".
+	if strings.HasPrefix(resolved, "./") ||
+		strings.HasPrefix(resolved, "../") ||
+		strings.HasPrefix(resolved, "node:") ||
+		strings.HasPrefix(resolved, "@") {
+		return false
+	}
+	// Contains "/" but matches no external-specifier prefix: repo-relative.
+	return true
 }
 
 // buildCodeImportRepoEdgeIntent builds one upsert intent for a single

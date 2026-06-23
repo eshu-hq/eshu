@@ -114,14 +114,26 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent Intent) (R
 
 	counts := classifyCodeImportEdges(edgeInput)
 	upsertIntents := BuildCodeImportRepoDependencyIntents(edgeInput)
+	// Refresh-first: consumers that appear in this full snapshot but resolve no
+	// owner this generation must still reprocess so the shared lane retracts any
+	// projection/code-imports edge they held in a prior generation. Without these
+	// the stale DEPENDS_ON edge would persist because the upsert build emits
+	// nothing for them (mirrors the #3598 package-consumption refresh pattern).
+	refreshIntents := BuildCodeImportRepoEdgeRefreshIntents(edgeInput)
 
 	h.emitCounters(ctx, counts, len(upsertIntents))
+	if len(refreshIntents) > 0 {
+		h.emitRefreshCounter(ctx, len(refreshIntents))
+	}
 	h.logCompleted(ctx, intent, counts, len(upsertIntents))
 
-	if len(upsertIntents) == 0 {
+	intents := make([]SharedProjectionIntentRow, 0, len(upsertIntents)+len(refreshIntents))
+	intents = append(intents, upsertIntents...)
+	intents = append(intents, refreshIntents...)
+	if len(intents) == 0 {
 		return h.succeededResult(intent, counts, 0), nil
 	}
-	if err := h.RepoDependencyIntentWriter.UpsertIntents(ctx, upsertIntents); err != nil {
+	if err := h.RepoDependencyIntentWriter.UpsertIntents(ctx, intents); err != nil {
 		return Result{}, fmt.Errorf("upsert code import repo dependency intents: %w", err)
 	}
 	return h.succeededResult(intent, counts, len(upsertIntents)), nil
@@ -189,6 +201,22 @@ func (h CodeImportRepoEdgeHandler) emitCounters(ctx context.Context, counts code
 	add("skipped_ambiguous", counts.skippedAmbiguous)
 	add("skipped_no_owner", counts.skippedNoOwner)
 	add("skipped_self", counts.skippedSelf)
+}
+
+// emitRefreshCounter records the number of retract-only refresh intents
+// emitted for consumers that produced no upsert edge this generation.
+func (h CodeImportRepoEdgeHandler) emitRefreshCounter(ctx context.Context, count int) {
+	if h.Instruments == nil || count <= 0 {
+		return
+	}
+	h.Instruments.CodeImportRepoEdges.Add(
+		ctx,
+		int64(count),
+		metric.WithAttributes(
+			telemetry.AttrDomain(string(DomainRepoDependency)),
+			telemetry.AttrOutcome("refreshed_no_owner"),
+		),
+	)
 }
 
 func (h CodeImportRepoEdgeHandler) logCompleted(
