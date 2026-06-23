@@ -823,6 +823,11 @@ type Instruments struct {
 	CrossRepoResolutionDuration metric.Float64Histogram
 	CrossRepoEvidenceLoaded     metric.Int64Counter
 	CrossRepoEdgesResolved      metric.Int64Counter
+	// CrossRepoActivationFenced counts generations whose publish (generation
+	// activation) was withheld because the durable graph-acceptance intents
+	// failed to commit, leaving the generation un-published so no stranded
+	// denormalized edges are stranded at the source.
+	CrossRepoActivationFenced metric.Int64Counter
 
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
@@ -3344,6 +3349,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossRepoEdgesResolved counter: %w", err)
+	}
+
+	inst.CrossRepoActivationFenced, err = meter.Int64Counter(
+		"eshu_dp_cross_repo_activation_fenced_total",
+		metric.WithDescription(
+			"Total generations whose activation was fenced because durable graph-acceptance intents failed to commit",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossRepoActivationFenced counter: %w", err)
 	}
 
 	pipelineOverlapBuckets := []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}
