@@ -199,9 +199,11 @@ func TestLoadReducerAdmissionConfigDefaultsToEnabledHighWaterMark(t *testing.T) 
 	}
 }
 
-func TestLoadReducerAdmissionConfigExplicitZeroDisablesDefault(t *testing.T) {
+func TestLoadReducerAdmissionConfigExplicitZeroDisablesTotalDepthGate(t *testing.T) {
 	t.Parallel()
 
+	// Explicit zero on the total-depth mark disables the total-depth gate, but
+	// the writer stays enabled because the graph-write pressure gate defaults on.
 	config, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
 		"ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK": "0",
 	}))
@@ -211,8 +213,26 @@ func TestLoadReducerAdmissionConfigExplicitZeroDisablesDefault(t *testing.T) {
 	if got := config.HighWaterMark; got != 0 {
 		t.Fatalf("HighWaterMark = %d, want explicit disabled value 0", got)
 	}
+	if !config.enabled() {
+		t.Fatal("writer disabled with total-depth gate off, want enabled via graph-write gate")
+	}
+	if !config.graphWritePressureEnabled() {
+		t.Fatal("graph-write pressure gate disabled, want enabled by default")
+	}
+}
+
+func TestLoadReducerAdmissionConfigBothGatesExplicitZeroDisablesWriter(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
+		"ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK":          "0",
+		"ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK": "0",
+	}))
+	if err != nil {
+		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+	}
 	if config.enabled() {
-		t.Fatal("explicit zero reducer admission config is enabled, want disabled")
+		t.Fatal("both gates explicit zero is enabled, want disabled")
 	}
 }
 

@@ -187,6 +187,8 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_LARGE_REPO_MAX_CONCURRENT | 2 | Max concurrent large-repo snapshots |
 | ESHU_PROJECTOR_WORKERS | min(NumCPU,8); local_authoritative NornicDB: NumCPU | Projector worker count |
 | ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK | 10000; set 0 to disable | Reducer queue depth threshold where ingester source-local projection defers new reducer intent enqueues |
+| ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK | 500; set 0 to disable | Graph-write backpressure: defers reducer intent enqueues once retrying-state reducer depth (the durable signal of recurring graph-write timeouts) reaches this value |
+| ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK | 100 | Hysteresis floor; admission resumes only after retrying depth falls below this value. Must be less than the retrying high-water mark |
 | ESHU_REDUCER_ADMISSION_POLL_INTERVAL | 1s | Reducer queue depth recheck interval while admission is deferring |
 | ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
@@ -278,6 +280,17 @@ The ingester inherits collector and projector telemetry. Key signals:
   outside SQL transactions before rechecking. Bootstrap projection, recovery
   replay, admin reopen, and reducer follow-up lanes bypass this gate so
   freshness-critical repair paths continue.
+- Graph-write backpressure (#3560) adds a second admission gate keyed on
+  retrying-state reducer depth, the backend-neutral signal that canonical graph
+  writes are timing out (a recoverable write requeues as `projection_retryable`
+  into `retrying` via `WrapRetryableNeo4jError`). It defers at
+  ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK (default 500) and resumes only
+  below ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK (default 100); the gap is
+  hysteresis that stops the producer from flapping. Set the high-water mark to 0
+  to disable it. This slows the producer so recoverable work stays in the
+  retrying bucket instead of exhausting its attempt budget and dead-lettering as
+  `retry_exhausted` — it is bounded admission, not worker serialization. See
+  `docs/public/reference/nornicdb-tuning.md` for the root-cause writeup.
 
 No-Regression Evidence: the default changes admission from disabled to an
 enabled 10000-row backlog threshold without changing reducer worker counts,
@@ -295,13 +308,35 @@ reported disabled 3.417 ns/op, manually enabled below high-water 49.25 ns/op,
 default-active below high-water 39.29 ns/op, and one no-op deferral 87.96
 ns/op; all four paths reported 0 allocs/op.
 
-No-Observability-Change: the path reuses existing
-`eshu_dp_reducer_admission_deferrals_total`,
-`eshu_dp_queue_depth{queue="reducer",status=...}`,
-`eshu_dp_queue_oldest_age_seconds{queue="reducer"}`, and the bounded
-`reducer admission deferring enqueue` debug log. No metric name, metric label,
-span, log field, status field, worker, queue domain, or runtime surface is
-added or removed.
+No-Regression Evidence (graph-write backpressure, #3560): the retrying-depth gate
+adds a second admission condition without changing reducer worker counts, claim
+batch size, queue schema, graph writes, or transaction scope. When the gate is
+disabled (retrying high-water mark 0) or retrying depth is below the marks, the
+loop performs the same single bounded queue-depth read and one map lookup as the
+total-depth gate, then calls the unchanged `ReducerQueue.Enqueue`. Verified by
+`go test ./cmd/ingester -run 'Admission' -count=1 -race` (128 tests, no data
+races): the gate defers on a retrying spike with low total depth
+(`TestReducerAdmissionDefersOnGraphWritePressure`), holds through the high/low
+hysteresis gap (`TestReducerAdmissionGraphWritePressureHysteresis`), resumes on
+recovery, records the correct deferral reason
+(`TestReducerAdmissionGraphWritePressureRecordsReason`,
+`TestReducerAdmissionTotalDepthRecordsHighWaterReason`), loses no intents under
+16 concurrent producers
+(`TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState`), and the
+total-depth and disabled paths are unchanged. The existing benchmarks still
+cover the disabled and below-high-water fast paths.
+
+Observability Evidence (graph-write backpressure, #3560): producer deferrals
+reuse the existing `eshu_dp_reducer_admission_deferrals_total` counter and now
+carry a `reason` attribute value — `graph_write_pressure` when retrying depth
+tripped the gate, `high_water` when total outstanding depth tripped the original
+gate — so an operator can distinguish "backend is timing out" from "queue is
+just deep". The deferral log was promoted from `Debug` to `Warn` and now names
+`reason`, `queue_depth`, `high_water_mark`, `retrying_high_water_mark`,
+`retrying_low_water_mark`, and `poll_interval`. No metric or counter name, span,
+status field, worker, queue domain, or runtime surface is added or removed;
+retrying-state depth remains exported by the existing
+`eshu_dp_queue_depth{queue="reducer",status="retrying"}` gauge.
 - The `local_lightweight` profile (ESHU_QUERY_PROFILE=local_lightweight or
   ESHU_DISABLE_NEO4J=true) skips canonical graph writes entirely; useful for
   laptop code-search workflows where the graph backend is not running.

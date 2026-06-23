@@ -113,6 +113,85 @@ knob. Increase it only when reducer logs name an acceptance-scan cap and a
 discovery advisory proves the volume is authored source that should remain in
 the graph.
 
+## Producer Write-Timeout Backpressure
+
+When the graph backend is slow, individual canonical writes time out. Eshu
+already converts a recoverable timeout into a requeue rather than a dead letter:
+`go/internal/storage/cypher/canonical_node_writer.go` wraps a transient write
+error (`*neo4j.TransactionExecutionLimit`, `*neo4j.ConnectivityError`, the typed
+NornicDB commit-time `UNIQUE` codes, and `GraphWriteTimeoutError`, which reports
+`Retryable() == true`) with `WrapRetryableNeo4jError`, so the projector/reducer
+queue records `projection_retryable` and requeues the item into the `retrying`
+state with `ESHU_*_RETRY_DELAY` backoff, bounded by `ESHU_*_MAX_ATTEMPTS`.
+
+That per-item path stops a single slow write from dead-lettering, but it does not
+slow the producer. While the backend stays slow, the ingester keeps enqueuing new
+reducer intents, retrying-state depth climbs, and items eventually exhaust their
+attempt budget and dead-letter as `retry_exhausted` (the #3560 / 376-224 backlog
+shape). The producer-side gate below closes that loop.
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK` | `500` | Defers ingester reducer-intent admission once retrying-state reducer depth reaches this value. Retrying depth is the durable, backend-neutral signal that graph writes are timing out. Set to `0` to disable the graph-write backpressure gate. |
+| `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` | `100` | Hysteresis floor: admission resumes only after retrying depth falls below this value. Must be less than the high-water mark. An unset or out-of-range value is clamped to one fifth of the high mark. |
+
+The gate reuses the existing admission loop in
+`go/cmd/ingester/reducer_admission.go` and the
+`eshu_dp_reducer_admission_deferrals_total` counter. A deferral carries a
+`reason` attribute: `graph_write_pressure` when retrying depth tripped the gate,
+`high_water` when total outstanding depth tripped the original gate. The
+hysteresis flag is shared and mutex-guarded across concurrent producer Enqueue
+calls, so the producer pauses and resumes as one unit instead of flapping
+per worker.
+
+This is bounded admission, not serialization: worker counts, batch sizes, and
+concurrent writers are unchanged. When the backend recovers, retrying depth
+drains below the low-water mark and full producer throughput resumes
+automatically.
+
+### Root cause of the recurring write/retract timeouts
+
+The recurring NornicDB write timeouts trace to commit-time work on canonical
+`MERGE` writes under concurrent producers, not to a missing Eshu retry. Two
+NornicDB behaviors documented in
+[NornicDB Pitfalls](nornicdb-pitfalls.md) compound under load:
+
+- Concurrent `MERGE` on the same `uid` can lose at commit with a
+  `TransactionCommitFailed` `UNIQUE` violation; the driver's internal
+  `session.ExecuteWrite` retries this for up to its deadlock budget (about 30s)
+  before surfacing `*TransactionExecutionLimit`. Under sustained fan-in, that
+  budget is consumed and the client-side `ESHU_CANONICAL_WRITE_TIMEOUT`
+  (`30s` local, `120s` Helm) elapses, producing a `graph_write_timeout`.
+- Relationship `MERGE` commit cost is dominated by start-node outgoing-fanout
+  existence checks and constraint validation, so commit latency rises with graph
+  size even at a fixed batch size.
+
+The correct fix is therefore twofold and already partly in place: keep the
+backend safety net (`RetryingExecutor` + `WrapRetryableNeo4jError`) so a
+recoverable timeout requeues instead of dead-lettering, and add producer
+backpressure so a slow backend slows new admission before the retrying bucket
+exhausts its attempt budget. Lowering worker counts is explicitly rejected as a
+fix: it hides the contention rather than absorbing it, and the project rule
+"Serialization Is Not A Fix" applies.
+
+No-Regression Evidence: `go test ./cmd/ingester -run Admission -count=1 -race`
+(128 tests, no data races) proves the graph-write-pressure gate defers on a
+retrying spike with low total depth, holds through the high/low hysteresis gap,
+resumes on recovery, records the `graph_write_pressure` vs `high_water` reason,
+loses no intents under 16 concurrent producers, and that the total-depth gate
+and disabled-gate paths are unchanged. The disabled gate keeps the original
+single-read fast path (`BenchmarkReducerAdmissionDisabled`,
+`BenchmarkReducerAdmissionBelowHighWater`), so steady-state admission adds one
+map lookup and no extra queue read when pressure is absent.
+
+Observability Evidence: producer deferrals increment
+`eshu_dp_reducer_admission_deferrals_total{reason="graph_write_pressure"}` and
+emit a `WARN` log naming the retrying depth, both water marks, and the poll
+interval, so an operator can distinguish "backend is timing out" from "queue is
+just deep" from a dashboard or log at 3 AM. Retrying-state depth is already
+exported by the queue-depth observable gauges, and per-item requeues keep the
+existing `eshu_dp_neo4j_deadlock_retries_total` counter.
+
 ## Content-Store Tuning
 
 Content writes are Postgres work, not NornicDB graph work.
