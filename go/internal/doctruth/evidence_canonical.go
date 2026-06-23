@@ -13,12 +13,25 @@ import (
 // finding summary. The excerptHash should be the packet bounded_excerpt
 // text_hash so the citation pins the exact cited bytes.
 //
+// When ClaimByteOffset and ClaimByteLength are both non-zero, Canonical threads
+// them into truth.Citation so the citation carries a real document-absolute byte
+// window (#3637). A zero ClaimByteLength means the byte position was not
+// captured during extraction; in that case ByteOffset and ByteLength remain zero
+// so the citation is valid via EntityID alone without fabricating a window.
+//
 // The VerificationFinding remains the durable documentation model. Canonical
 // lets documentation evidence speak the same confidence + citation + provenance
 // contract as relationship evidence and citation packets.
 func (f VerificationFinding) Canonical(excerptHash string) truth.Evidence {
 	citation := truth.Citation{
 		ContentHash: excerptHash,
+	}
+	// Only set the byte window when length is non-zero. ByteLength==0 with a
+	// non-zero ByteOffset is ambiguous ("from offset to end"), so we treat the
+	// pair as a unit: either both are meaningful or neither is surfaced.
+	if f.ClaimByteLength > 0 {
+		citation.ByteOffset = f.ClaimByteOffset
+		citation.ByteLength = f.ClaimByteLength
 	}
 	switch {
 	case f.DocumentID != "":

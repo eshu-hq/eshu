@@ -60,3 +60,46 @@ func TestVerificationFindingCanonicalDerivedHasLowerConfidence(t *testing.T) {
 		t.Fatalf("exact confidence %v must exceed derived confidence %v", got, derived.Canonical("").Confidence)
 	}
 }
+
+func TestVerificationFindingCanonicalCarriesByteWindow(t *testing.T) {
+	t.Parallel()
+
+	finding := VerificationFinding{
+		DocumentID:      "doc:readme",
+		Summary:         "cli claim valid",
+		TruthLevel:      string(TruthLevelExact),
+		ClaimByteOffset: 42,
+		ClaimByteLength: 16,
+	}
+
+	ev := finding.Canonical("sha256:excerpt")
+	if ev.Citation.ByteOffset != 42 {
+		t.Fatalf("Citation.ByteOffset = %d, want 42", ev.Citation.ByteOffset)
+	}
+	if ev.Citation.ByteLength != 16 {
+		t.Fatalf("Citation.ByteLength = %d, want 16", ev.Citation.ByteLength)
+	}
+}
+
+func TestVerificationFindingCanonicalZeroByteWindowIsAbsent(t *testing.T) {
+	t.Parallel()
+
+	// When byte offset/length are both zero the citation must still validate and
+	// the byte window fields should remain zero (not fabricated).
+	finding := VerificationFinding{
+		DocumentID: "doc:readme",
+		Summary:    "s",
+		TruthLevel: string(TruthLevelExact),
+	}
+
+	ev := finding.Canonical("sha256:h")
+	if ev.Citation.ByteOffset != 0 {
+		t.Fatalf("Citation.ByteOffset = %d, want 0 when absent", ev.Citation.ByteOffset)
+	}
+	if ev.Citation.ByteLength != 0 {
+		t.Fatalf("Citation.ByteLength = %d, want 0 when absent", ev.Citation.ByteLength)
+	}
+	if err := ev.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil for zero byte window", err)
+	}
+}

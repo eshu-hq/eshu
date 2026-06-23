@@ -113,6 +113,14 @@ type VerificationFinding struct {
 	NormalizedClaim  string `json:"normalized_claim"`
 	Summary          string `json:"summary"`
 	EvidencePacketID string `json:"evidence_packet_id"`
+	// ClaimByteOffset is the document-absolute byte offset of the first byte of
+	// ClaimText in the source document. ClaimByteLength is len(ClaimText). Both
+	// are zero when extraction could not determine the byte position (for example
+	// when the claim text was not located after line splitting). Callers must
+	// treat a zero ClaimByteLength as "byte window absent" and must never
+	// fabricate an offset.
+	ClaimByteOffset int `json:"claim_byte_offset,omitempty"`
+	ClaimByteLength int `json:"claim_byte_length,omitempty"`
 }
 
 // VerificationEvidencePacket is an immutable packet supporting one finding.
@@ -360,6 +368,8 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 		NormalizedClaim:  claim.normalized,
 		Summary:          verificationSummaryText(claim, status),
 		EvidencePacketID: packetID,
+		ClaimByteOffset:  claim.byteOffset,
+		ClaimByteLength:  claim.byteLength,
 	}
 	packetPayload := v.evidencePacketPayload(doc, claim, finding, packetID, canonicalURI)
 	packet := VerificationEvidencePacket{
@@ -406,10 +416,7 @@ func (v *Verifier) evidencePacketPayload(
 		"unified_evidence": map[string]any{
 			"kind":       canonicalEvidence.Kind,
 			"confidence": canonicalEvidence.Confidence,
-			"citation": map[string]any{
-				"entity_id":    canonicalEvidence.Citation.EntityID,
-				"content_hash": canonicalEvidence.Citation.ContentHash,
-			},
+			"citation":   canonicalEvidenceCitationMap(canonicalEvidence.Citation),
 			"provenance": map[string]any{
 				"basis":     string(canonicalEvidence.Provenance.Basis),
 				"rationale": canonicalEvidence.Provenance.Rationale,

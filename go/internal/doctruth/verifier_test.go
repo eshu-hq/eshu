@@ -283,6 +283,103 @@ func TestVerifierDocumentIDsIncludeSourceURI(t *testing.T) {
 	}
 }
 
+// TestVerifierEvidencePacketCarriesByteWindow checks that the evidence packet
+// payload's unified_evidence.citation carries non-zero byte_offset and
+// byte_length that correspond to the claim's real position in the document.
+func TestVerifierEvidencePacketCarriesByteWindow(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		Commands: []doctruth.CommandTruth{
+			{Path: []string{"scan"}},
+		},
+	})
+
+	// Content: "`eshu scan .`\n" — the backtick content starts at byte 1.
+	content := "`eshu scan .`\n"
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{{
+		Path:       "README.md",
+		RevisionID: "rev-byte",
+		Content:    content,
+	}})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+	if len(result.EvidencePackets) == 0 {
+		t.Fatal("no evidence packets, want at least one")
+	}
+	if len(result.Findings) == 0 {
+		t.Fatal("no findings, want at least one")
+	}
+
+	// The finding must carry non-zero byte window.
+	f := result.Findings[0]
+	if f.ClaimByteOffset == 0 && f.ClaimByteLength == 0 {
+		t.Fatal("finding ClaimByteOffset and ClaimByteLength are both zero; want real byte window")
+	}
+	if f.ClaimByteLength == 0 {
+		t.Fatal("finding ClaimByteLength is zero; want length of claim text")
+	}
+
+	// The evidence packet payload's unified_evidence.citation must also carry
+	// byte_offset and byte_length.
+	packet := result.EvidencePackets[0]
+	unified, ok := packet.Payload["unified_evidence"].(map[string]any)
+	if !ok {
+		t.Fatalf("unified_evidence not a map in packet payload: %T", packet.Payload["unified_evidence"])
+	}
+	citation, ok := unified["citation"].(map[string]any)
+	if !ok {
+		t.Fatalf("unified_evidence.citation not a map: %T", unified["citation"])
+	}
+	byteOffset, _ := citation["byte_offset"].(int)
+	byteLength, _ := citation["byte_length"].(int)
+	if byteOffset == 0 && byteLength == 0 {
+		t.Fatal("unified_evidence.citation byte_offset and byte_length both zero; want real byte window")
+	}
+	if byteLength == 0 {
+		t.Fatalf("unified_evidence.citation byte_length = 0; want length matching claim text %q", f.ClaimText)
+	}
+}
+
+// TestVerifierByteWindowMatchesClaimText validates that the captured byte
+// window exactly spans the claim text inside the document content.
+func TestVerifierByteWindowMatchesClaimText(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		EnvironmentVariables: []string{"ESHU_SERVICE_URL"},
+	})
+
+	// Put the claim on a second line to ensure the byte offset accounts for the
+	// first line rather than resetting per-line.
+	content := "intro line\nSet `ESHU_SERVICE_URL` for remote access.\n"
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{{
+		Path:       "docs/config.md",
+		RevisionID: "rev-window",
+		Content:    content,
+	}})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+	if len(result.Findings) == 0 {
+		t.Fatal("no findings, want at least one")
+	}
+
+	f := result.Findings[0]
+	if f.ClaimByteOffset <= 0 {
+		t.Fatalf("ClaimByteOffset = %d; want positive offset (claim is on line 2)", f.ClaimByteOffset)
+	}
+	end := f.ClaimByteOffset + f.ClaimByteLength
+	if end > len(content) {
+		t.Fatalf("byte window [%d:%d] exceeds content length %d", f.ClaimByteOffset, end, len(content))
+	}
+	window := content[f.ClaimByteOffset:end]
+	if window != f.ClaimText {
+		t.Fatalf("content[%d:%d] = %q, want claim text %q", f.ClaimByteOffset, end, window, f.ClaimText)
+	}
+}
+
 func assertFindingStatus(t *testing.T, findings []doctruth.VerificationFinding, claimType string, status string) {
 	t.Helper()
 
