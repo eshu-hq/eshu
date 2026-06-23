@@ -430,21 +430,41 @@ branch kinds.
 | C# | AST walk (`csharp.cyclomaticComplexity`) | real |
 | Rust | AST walk (`rust.cyclomaticComplexity`) | real |
 | Scala | AST walk (`scala.cyclomaticComplexity`) | real |
-| Ruby, Elixir, Perl, Haskell, Dart, Groovy, SQL | line/lexical adapters — no whole-function AST node at append time | pending |
-| Kotlin, PHP, Swift | AST adapter, but function body not yet routed through a `BranchNodeSet` — emits no `cyclomatic_complexity` field | pending |
+| Kotlin | `BranchNodeSet` table (`kotlin.kotlinCyclomaticComplexity`) | real |
+| Ruby | `BranchNodeSet` table (`ruby.rubyCyclomaticComplexity`) | real |
+| PHP | `BranchNodeSet` table (`php.phpCyclomaticComplexity`) | real |
+| Swift | `BranchNodeSet` table (`swift.swiftCyclomaticComplexity`) | real |
+| Perl | `BranchNodeSet` table (`perl.perlCyclomaticComplexity`) | real |
+| Dart | `BranchNodeSet` table (`dart.dartCyclomaticComplexity`) | real |
+| Groovy | `BranchNodeSet` table (`groovy.groovyCyclomaticComplexity`) | real |
+| Elixir | macro-aware pass (`elixir.elixirCyclomaticComplexity`) | real |
+| Haskell | per-equation pass (`haskell.haskellEquationDecisions`) | real |
+| SQL | line/lexical adapter — no whole-function AST node | pending |
 | JSON (`scripts`) | constant `1` | not source code (npm script strings) |
 | SCIP definitions | `0` (unknown) | SCIP carries no statement AST; native parse supplies the real value |
+
+Issue #3524 routed the nine lexical-adapter languages above (Kotlin, Ruby, PHP,
+Swift, Perl, Dart, Groovy, Elixir, Haskell) through real McCabe scoring. Seven
+use the shared `BranchNodeSet` table directly; Elixir and Haskell express control
+flow as macro calls and pattern-match equations rather than dedicated grammar
+nodes, so they carry a small dedicated pass instead of a table. Each language is
+guarded by the #3488 golden-gate fixture in
+`engine_cyclomatic_complexity_test.go` (straight-line = 1, branchy =
+hand-counted).
+
+SQL stays **pending** by design: its adapter is a bounded lexical/lineage scanner
+that never retains a whole-function declaration subtree, and SQL routines (stored
+procedures, functions) are not modeled as scorable function rows here, so there
+is no AST node to feed `shared.CyclomaticComplexity`. Per issue #3524 the
+decision is documented rather than faked — SQL emits no `cyclomatic_complexity`
+field instead of a fabricated constant.
 
 Languages marked **pending** emit no `cyclomatic_complexity` field, so they
 resolve to `0` and are excluded by the ranking filter
 (`WHERE coalesce(e.cyclomatic_complexity, 0) > 0`) rather than shown with a
-misleading constant `1`. They build their function rows from line-based or
-lexical spans that do not retain the full declaration subtree at append time;
-giving them real complexity means routing their function bodies through a
-tree-sitter node and adding a `BranchNodeSet`, which is data, not new traversal
-code. Adding a new tree-sitter language to the real set is one `BranchNodeSet`
-table plus one call to `shared.CyclomaticComplexity` at the function-append
-site.
+misleading constant `1`. Adding a new tree-sitter language to the real set is one
+`BranchNodeSet` table plus one call to `shared.CyclomaticComplexity` at the
+function-append site.
 
 ## Dependencies
 

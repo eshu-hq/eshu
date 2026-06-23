@@ -23,6 +23,13 @@ type haskellExtractor struct {
 	seenVariables map[string]struct{}
 	seenCalls     map[string]struct{}
 	functionItems map[string]map[string]any
+	// funcDecisions sums McCabe decision points across every equation of a
+	// function keyed by its function key, and funcEquations counts the equations.
+	// A Haskell function may be defined by several pattern-match equations, each a
+	// separate binding node; dispatch between equations is itself a decision, so
+	// the final complexity is 1 + total decisions + (equations - 1).
+	funcDecisions map[string]int
+	funcEquations map[string]int
 }
 
 // newHaskellExtractor builds an extractor bound to one parsed file.
@@ -44,6 +51,8 @@ func newHaskellExtractor(
 		seenVariables: make(map[string]struct{}),
 		seenCalls:     make(map[string]struct{}),
 		functionItems: make(map[string]map[string]any),
+		funcDecisions: make(map[string]int),
+		funcEquations: make(map[string]int),
 	}
 }
 
@@ -61,6 +70,23 @@ func (e *haskellExtractor) extract(root *tree_sitter.Node) {
 	}
 	if declarations := haskellFirstChildOfKind(root, "declarations"); declarations != nil {
 		e.walkDeclarations(declarations, "", "")
+	}
+	e.applyComplexity()
+}
+
+// applyComplexity sets the McCabe cyclomatic complexity on each function row that
+// has at least one defining equation. The value is 1 + the summed decision points
+// of every equation + one extra point for each equation beyond the first, since
+// dispatch between pattern-match equations is itself a decision. A type-signature
+// row with no binding has no equation and is left without a complexity field
+// rather than scored as a fabricated 1.
+func (e *haskellExtractor) applyComplexity() {
+	for key, equations := range e.funcEquations {
+		item, ok := e.functionItems[key]
+		if !ok {
+			continue
+		}
+		item["cyclomatic_complexity"] = 1 + e.funcDecisions[key] + (equations - 1)
 	}
 }
 
@@ -229,6 +255,9 @@ func (e *haskellExtractor) handleBinding(node *tree_sitter.Node, classContext, i
 	sourceEndLine := haskellBindingSourceEndLine(node)
 	context, rootKinds := haskellFunctionContextAndRoots(name, classContext, instanceContext, e.exports)
 	key := haskellFunctionKey(context, name)
+
+	e.funcDecisions[key] += haskellEquationDecisions(node, e.source)
+	e.funcEquations[key]++
 
 	e.ensureFunctionItem(key, name, context, rootKinds, startLine, endLine, sourceEndLine)
 	params := haskellTreeFunctionParameters(node, e.source)

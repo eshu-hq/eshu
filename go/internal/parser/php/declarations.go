@@ -137,12 +137,13 @@ func collectPHPFunction(state *phpParseState, node *tree_sitter.Node, typeName s
 	returnType := phpFunctionReturnType(node, state.source)
 
 	item := map[string]any{
-		"name":        name,
-		"line_number": shared.NodeLine(phpNameNode(node)),
-		"end_line":    shared.NodeLine(phpNameNode(node)),
-		"lang":        "php",
-		"decorators":  []string{},
-		"parameters":  parameters,
+		"name":                  name,
+		"line_number":           shared.NodeLine(phpNameNode(node)),
+		"end_line":              shared.NodeLine(phpNameNode(node)),
+		"lang":                  "php",
+		"decorators":            []string{},
+		"parameters":            parameters,
+		"cyclomatic_complexity": phpCyclomaticComplexity(node, state.source),
 	}
 	if typeName != "" {
 		item["class_context"] = typeName

@@ -25,6 +25,7 @@ type dartFunctionSpan struct {
 	source       string
 	startLine    int
 	endLine      int
+	complexity   int
 }
 
 type dartNamedSpan struct {
@@ -141,6 +142,10 @@ func dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string,
 	}
 	startLine := shared.NodeLine(node)
 	endNode := dartDeclarationEndNode(node)
+	bodyNode := endNode
+	if bodyNode != nil && bodyNode.Kind() != "function_body" {
+		bodyNode = nil
+	}
 	return dartFunctionSpan{
 		name:         name,
 		classContext: scope.name,
@@ -148,6 +153,7 @@ func dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string,
 		source:       strings.TrimSpace(dartNodeRangeText(node, endNode, source)),
 		startLine:    startLine,
 		endLine:      dartFunctionEndLine(endNode, lines),
+		complexity:   dartCyclomaticComplexity(node, bodyNode, source),
 	}
 }
 

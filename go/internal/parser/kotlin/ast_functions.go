@@ -23,11 +23,12 @@ func (w *astWalker) handleFunctionDeclaration(node *tree_sitter.Node, f frame) {
 
 	line := shared.NodeLine(node)
 	item := map[string]any{
-		"name":        name,
-		"line_number": line,
-		"end_line":    shared.NodeEndLine(node),
-		"lang":        "kotlin",
-		"decorators":  []string{},
+		"name":                  name,
+		"line_number":           line,
+		"end_line":              shared.NodeEndLine(node),
+		"lang":                  "kotlin",
+		"decorators":            []string{},
+		"cyclomatic_complexity": kotlinCyclomaticComplexity(node, w.source),
 	}
 	if w.functionIsSuspend(node) {
 		item["suspend"] = true
@@ -73,12 +74,13 @@ func (w *astWalker) handleFunctionDeclaration(node *tree_sitter.Node, f frame) {
 // handleSecondaryConstructor emits one secondary-constructor row.
 func (w *astWalker) handleSecondaryConstructor(node *tree_sitter.Node, f frame) {
 	item := map[string]any{
-		"name":             "constructor",
-		"line_number":      shared.NodeLine(node),
-		"end_line":         shared.NodeEndLine(node),
-		"constructor_kind": "secondary",
-		"lang":             "kotlin",
-		"decorators":       []string{},
+		"name":                  "constructor",
+		"line_number":           shared.NodeLine(node),
+		"end_line":              shared.NodeEndLine(node),
+		"constructor_kind":      "secondary",
+		"lang":                  "kotlin",
+		"decorators":            []string{},
+		"cyclomatic_complexity": kotlinCyclomaticComplexity(node, w.source),
 	}
 	if f.classContext != "" {
 		item["class_context"] = f.classContext

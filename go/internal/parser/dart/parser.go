@@ -59,11 +59,12 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	}
 	for _, fn := range syntax.functions {
 		item := map[string]any{
-			"name":        fn.name,
-			"line_number": fn.startLine,
-			"end_line":    fn.endLine,
-			"lang":        "dart",
-			"decorators":  []string{},
+			"name":                  fn.name,
+			"line_number":           fn.startLine,
+			"end_line":              fn.endLine,
+			"lang":                  "dart",
+			"decorators":            []string{},
+			"cyclomatic_complexity": fn.complexity,
 		}
 		if fn.classContext != "" {
 			item["class_context"] = fn.classContext

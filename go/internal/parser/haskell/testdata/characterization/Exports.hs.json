@@ -94,6 +94,7 @@
     },
     {
       "class_context": "Runner Worker",
+      "cyclomatic_complexity": 1,
       "dead_code_root_kinds": [
         "haskell.instance_method"
       ],
@@ -105,6 +106,7 @@
       "source": "  runTask worker = run worker"
     },
     {
+      "cyclomatic_complexity": 1,
       "dead_code_root_kinds": [
         "haskell.main_function",
         "haskell.module_export"
@@ -117,6 +119,7 @@
       "source": "main = run Worker"
     },
     {
+      "cyclomatic_complexity": 1,
       "dead_code_root_kinds": [
         "haskell.module_export"
       ],
@@ -128,6 +131,7 @@
       "source": "run worker = T.unpack (T.pack (show worker))"
     },
     {
+      "cyclomatic_complexity": 1,
       "decorators": [],
       "end_line": 21,
       "lang": "haskell",
