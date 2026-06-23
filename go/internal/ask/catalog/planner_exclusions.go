@@ -21,6 +21,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"PATCH /api/v0/auth/browser-session/context": {}, // switches the caller's tenant/workspace context
 		"POST /api/v0/admin/backfill":                {}, // RequestBackfill enqueues backfill work
 		"POST /api/v0/admin/dead-letter":             {}, // DeadLetterWorkItems dead-letters queued work
+		"POST /api/v0/admin/recover-generations":     {}, // re-drives wedged generation scopes through recovery
 		"POST /api/v0/admin/refinalize":              {}, // re-enqueues projector work for the given scope
 		"POST /api/v0/admin/reindex":                 {}, // RequestReindex enqueues ingester reindex work
 		"POST /api/v0/admin/replay":                  {}, // ReplayFailed re-processes failed work items
@@ -29,15 +30,18 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		// Local-credential auth routes: login, bootstrap, break-glass recovery,
 		// invitations, and per-user account administration. All authenticate or
 		// mutate accounts rather than return facts.
-		"POST /api/v0/auth/local/bootstrap":                 {}, // bootstraps the initial local admin identity
-		"POST /api/v0/auth/local/break-glass":               {}, // issues a break-glass recovery challenge
-		"POST /api/v0/auth/local/break-glass/session":       {}, // exchanges a break-glass challenge for a session
-		"POST /api/v0/auth/local/invitations":               {}, // creates a local-account invitation
-		"POST /api/v0/auth/local/invitations/accept":        {}, // accepts a local-account invitation
-		"POST /api/v0/auth/local/login":                     {}, // authenticates a local credential
-		"POST /api/v0/auth/local/users/{user_id}/disable":   {}, // disables a local user account
-		"POST /api/v0/auth/local/users/{user_id}/mfa-reset": {}, // resets a local user's MFA enrollment
-		"POST /api/v0/auth/local/users/{user_id}/password":  {}, // rotates a local user's password
+		"POST /api/v0/auth/local/api-tokens":                   {}, // mints a local API token credential
+		"POST /api/v0/auth/local/api-tokens/{token_id}/revoke": {}, // revokes a local API token credential
+		"POST /api/v0/auth/local/api-tokens/{token_id}/rotate": {}, // rotates a local API token credential
+		"POST /api/v0/auth/local/bootstrap":                    {}, // bootstraps the initial local admin identity
+		"POST /api/v0/auth/local/break-glass":                  {}, // issues a break-glass recovery challenge
+		"POST /api/v0/auth/local/break-glass/session":          {}, // exchanges a break-glass challenge for a session
+		"POST /api/v0/auth/local/invitations":                  {}, // creates a local-account invitation
+		"POST /api/v0/auth/local/invitations/accept":           {}, // accepts a local-account invitation
+		"POST /api/v0/auth/local/login":                        {}, // authenticates a local credential
+		"POST /api/v0/auth/local/users/{user_id}/disable":      {}, // disables a local user account
+		"POST /api/v0/auth/local/users/{user_id}/mfa-reset":    {}, // resets a local user's MFA enrollment
+		"POST /api/v0/auth/local/users/{user_id}/password":     {}, // rotates a local user's password
 		// OIDC SSO handshake routes: redirect the browser and consume the IdP
 		// callback; neither returns repository, graph, runtime, or cloud facts.
 		"GET /api/v0/auth/oidc/callback": {}, // consumes the OIDC IdP callback
