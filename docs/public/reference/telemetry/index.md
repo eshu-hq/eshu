@@ -173,6 +173,33 @@ Evidence: the count path uses static-label, zero-relationship queries with a
 configured per-label limit and no graph mutation; cleanup mutations run in the
 separate `GraphOrphanSweepRunner`.
 
+## Generation-liveness signals
+
+The reducer's generation-liveness sweep publishes one observable gauge and three
+counters so an operator can tell whether active scope generations are converging
+or wedged.
+
+`eshu_dp_active_generations` is an observable gauge of the current active scope
+generation count by closed activation-age bucket. The only metric label is
+`age_bucket`, with the bounded values `fresh`, `aging`, and `stuck`. The `stuck`
+bucket is the alarm signal: a non-zero, non-draining `stuck` count means
+generations are activating but not completing.
+
+Three counters describe what the sweep did about it:
+
+- `eshu_dp_generation_liveness_recovered_total` — wedged active generations the
+  sweep re-drove through projector re-enqueue.
+- `eshu_dp_generation_liveness_superseded_total` — orphaned older active
+  generations the sweep superseded.
+- `eshu_dp_generation_liveness_failures_total` — recovery sweep failures by
+  bounded reason.
+
+Read `eshu_dp_active_generations{age_bucket="stuck"}` against the recovered and
+superseded counters to separate self-healing (the sweep is re-driving or
+superseding wedged generations) from a stuck backlog the sweep cannot clear. A
+rising `eshu_dp_generation_liveness_failures_total` means the sweep itself is
+failing; use reducer logs keyed on the bounded failure reason to find why.
+
 ## Per-Endpoint Request Metrics
 
 Every query API and MCP read route emits two metrics, recorded once by a shared
