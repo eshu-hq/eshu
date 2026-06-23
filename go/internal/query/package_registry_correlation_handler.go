@@ -3,6 +3,7 @@ package query
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -115,6 +116,7 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 			"after_correlation_id": results[len(results)-1].CorrelationID,
 		}
 	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorPackageRegistry, len(results), truncated)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryCorrelationsCapability,
@@ -128,12 +130,14 @@ func (h *PackageRegistryHandler) writeEmptyPackageRegistryCorrelationPage(
 	r *http.Request,
 	limit int,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"correlations": []PackageRegistryCorrelationResult{},
 		"count":        0,
 		"limit":        limit,
 		"truncated":    false,
-	}, BuildTruthEnvelope(
+	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorPackageRegistry, 0, false)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryCorrelationsCapability,
 		TruthBasisSemanticFacts,

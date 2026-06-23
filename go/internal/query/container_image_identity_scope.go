@@ -1,6 +1,10 @@
 package query
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
 
 // Scoped-token authorization helpers for the reducer-owned container image
 // identity read routes (list, count, inventory). Empty-grant and out-of-grant
@@ -27,12 +31,14 @@ func (h *SupplyChainHandler) writeEmptyContainerImageIdentityPage(
 	r *http.Request,
 	limit int,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"identities": []ContainerImageIdentityResult{},
 		"count":      0,
 		"limit":      limit,
 		"truncated":  false,
-	}, BuildTruthEnvelope(
+	}
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorOCIRegistry, 0, false)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		containerImageIdentitiesCapability,
 		TruthBasisSemanticFacts,

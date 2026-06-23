@@ -69,7 +69,8 @@ const openAPIPathsPackageRegistry = `
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean"},
+                    "collector_readiness": {"$ref": "#/components/schemas/CollectorReadinessEnvelope"}
                   },
                   "required": ["packages", "identity_issues", "count", "limit", "truncated"]
                 }
@@ -123,7 +124,8 @@ const openAPIPathsPackageRegistry = `
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean"},
+                    "collector_readiness": {"$ref": "#/components/schemas/CollectorReadinessEnvelope"}
                   },
                   "required": ["versions", "count", "limit", "truncated"]
                 }
@@ -199,7 +201,8 @@ const openAPIPathsPackageRegistry = `
                         "after_dependency_id": {"type": "string"}
                       },
                       "required": ["after_version_id", "after_dependency_id"]
-                    }
+                    },
+                    "collector_readiness": {"$ref": "#/components/schemas/CollectorReadinessEnvelope"}
                   },
                   "required": ["dependencies", "count", "limit", "truncated"]
                 }
@@ -272,7 +275,8 @@ const openAPIPathsPackageRegistry = `
                         "after_correlation_id": {"type": "string"}
                       },
                       "required": ["after_correlation_id"]
-                    }
+                    },
+                    "collector_readiness": {"$ref": "#/components/schemas/CollectorReadinessEnvelope"}
                   },
                   "required": ["correlations", "count", "limit", "truncated"]
                 }

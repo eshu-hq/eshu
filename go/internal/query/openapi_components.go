@@ -55,7 +55,24 @@ const openAPIComponents = `  "components": {
           "refusal": {"type": "string"}
         }
       },
-` + openAPIComponentsReplatforming + `      "Repository": {
+` + openAPIComponentsReplatforming + `      "CollectorReadinessEnvelope": {
+        "type": "object",
+        "description": "Per-collector readiness signal for a gated supply-chain list response. It distinguishes an empty page produced by an unconfigured feeding collector (not_configured) from a genuinely empty page produced by a configured-but-zero collector (ready_zero_results), so an empty page is never ambiguous. readiness_unavailable means the configured probe itself failed; the page is still returned but its emptiness cannot be classified.",
+        "properties": {
+          "readiness_state": {"type": "string", "enum": ["not_configured", "ready_zero_results", "ready_with_results", "readiness_unavailable"], "description": "not_configured: no enabled instance of the feeding collector is registered. ready_zero_results: the collector is enabled but the bounded query returned no rows. ready_with_results: the page returned at least one row. readiness_unavailable: the configured probe failed."},
+          "collector_kind": {"type": "string", "description": "Feeding collector family for the gated tool, such as sbom_attestation, package_registry, oci_registry, or ci_cd_run."},
+          "counts": {
+            "type": "object",
+            "properties": {
+              "results_returned": {"type": "integer"},
+              "results_truncated": {"type": "boolean"}
+            },
+            "required": ["results_returned", "results_truncated"]
+          }
+        },
+        "required": ["readiness_state", "collector_kind", "counts"]
+      },
+      "Repository": {
         "type": "object",
         "properties": {
           "id": {"type": "string"},
