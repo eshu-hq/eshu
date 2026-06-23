@@ -299,8 +299,8 @@ INSERT INTO scope_generations (
 `
 
 // openLivenessProofDB opens a Postgres connection for a generation liveness
-// integration proof run. It returns the open *sql.DB and a cleanup function
-// that callers must defer. The connection is single-threaded (MaxOpenConns=1)
+// integration proof run and returns the open *sql.DB. The connection is closed
+// via t.Cleanup when the test finishes. It is single-threaded (MaxOpenConns=1)
 // to avoid cross-connection search_path confusion during proof runs.
 func openLivenessProofDB(t *testing.T, dsn string) *sql.DB {
 	t.Helper()
@@ -315,8 +315,8 @@ func openLivenessProofDB(t *testing.T, dsn string) *sql.DB {
 }
 
 // provisionLivenessSchema creates a fresh proof schema, sets the search_path on
-// the connection, and creates the minimal table set. It returns a cleanup
-// function that drops the schema; callers must defer it.
+// the connection, creates the minimal table set, and applies seedSQL when it is
+// non-empty. The schema is dropped via t.Cleanup when the test finishes.
 //
 // Each subtest that needs full isolation must call this independently so that
 // RecoverWedgedGenerations sweeps run against a pristine fixture and cannot
