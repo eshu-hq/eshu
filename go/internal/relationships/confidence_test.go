@@ -285,7 +285,7 @@ func TestKustomizeDocumentEvidenceReadsConfidenceFromRegistry(t *testing.T) {
 				seen := make(map[evidenceKey]struct{})
 
 				evidence := discoverKustomizeDocumentEvidence(
-					"repo-infra", "overlays/kustomization.yaml", tc.document, matcher, seen,
+					"repo-infra", "overlays/kustomization.yaml", tc.document, matcher, seen, "",
 				)
 
 				got := requireEvidenceConfidence(t, evidence, tc.kind)

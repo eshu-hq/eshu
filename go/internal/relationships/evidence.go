@@ -206,7 +206,7 @@ func discoverKustomizeEvidence(
 	var evidence []EvidenceFact
 	for _, document := range parseYAMLDocuments(content) {
 		evidence = append(evidence, discoverKustomizeDocumentEvidence(
-			sourceRepoID, filePath, document, matcher, seen,
+			sourceRepoID, filePath, document, matcher, seen, commitSHA,
 		)...)
 	}
 	for _, candidate := range extractYAMLStringValues(content) {
