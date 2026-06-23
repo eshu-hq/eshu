@@ -118,7 +118,7 @@ const openAPIPathsEvidence = `
       "post": {
         "tags": ["evidence"],
         "summary": "Build evidence citation packet",
-        "description": "Hydrates bounded file and entity handles from story, investigation, search, or drilldown responses into ranked source, documentation, manifest, and deployment citations without graph traversal.",
+        "description": "Hydrates bounded file and entity handles from story, investigation, search, or drilldown responses into ranked source, documentation, manifest, and deployment citations without graph traversal. Each citation carries the unified evidence contract (#3489): a confidence score, a byte-level citation (line range plus byte_offset/byte_length, content_hash, commit_sha), and typed provenance.",
         "operationId": "buildEvidenceCitationPacket",
         "requestBody": {
           "required": true,
@@ -143,7 +143,8 @@ const openAPIPathsEvidence = `
                         "evidence_family": {"type": "string"},
                         "reason": {"type": "string"},
                         "start_line": {"type": "integer"},
-                        "end_line": {"type": "integer"}
+                        "end_line": {"type": "integer"},
+                        "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Optional caller-supplied confidence carried through onto the hydrated citation (#3489)."}
                       }
                     }
                   }
@@ -163,7 +164,37 @@ const openAPIPathsEvidence = `
                   "properties": {
                     "subject": {"type": "object"},
                     "question": {"type": "string"},
-                    "citations": {"type": "array", "items": {"type": "object"}},
+                    "citations": {"type": "array", "items": {
+                      "type": "object",
+                      "properties": {
+                        "citation_id": {"type": "string"},
+                        "rank": {"type": "integer"},
+                        "kind": {"type": "string", "enum": ["file", "entity"]},
+                        "evidence_family": {"type": "string"},
+                        "reason": {"type": "string"},
+                        "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Unified evidence confidence (#3489)."},
+                        "repo_id": {"type": "string"},
+                        "relative_path": {"type": "string"},
+                        "entity_id": {"type": "string"},
+                        "entity_type": {"type": "string"},
+                        "entity_name": {"type": "string"},
+                        "start_line": {"type": "integer"},
+                        "end_line": {"type": "integer"},
+                        "byte_offset": {"type": "integer", "description": "Byte offset of the cited window within the source content (#3489)."},
+                        "byte_length": {"type": "integer", "description": "Byte length of the cited window (#3489)."},
+                        "language": {"type": "string"},
+                        "artifact_type": {"type": "string"},
+                        "content_hash": {"type": "string"},
+                        "commit_sha": {"type": "string"},
+                        "provenance": {"type": "object", "description": "Typed evidence provenance (#3489).", "properties": {
+                          "basis": {"type": "string", "enum": ["source_content", "graph_projection", "assertion", "derived"]},
+                          "rationale": {"type": "string"},
+                          "source": {"type": "string"}
+                        }},
+                        "excerpt": {"type": "string"}
+                      },
+                      "required": ["citation_id", "kind", "evidence_family", "confidence", "provenance", "excerpt"]
+                    }},
                     "missing_handles": {"type": "array", "items": {"type": "object"}},
                     "coverage": {"type": "object"},
                     "recommended_next_calls": {"type": "array", "items": {"type": "object"}}
@@ -346,6 +377,19 @@ const openAPIPathsEvidence = `
                     "bounded_excerpt": {"type": "object"},
                     "linked_entities": {"type": "array", "items": {"type": "object"}},
                     "current_truth": {"type": "object"},
+                    "unified_evidence": {"type": "object", "description": "Canonical truth.Evidence projection of this finding (#3489): confidence, citation (entity_id + content_hash), and typed provenance, so documentation evidence describes proof with the same shape as relationship evidence and citation packets.", "properties": {
+                      "kind": {"type": "string"},
+                      "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                      "citation": {"type": "object", "properties": {
+                        "entity_id": {"type": "string"},
+                        "content_hash": {"type": "string"}
+                      }},
+                      "provenance": {"type": "object", "properties": {
+                        "basis": {"type": "string", "enum": ["source_content", "graph_projection", "assertion", "derived"]},
+                        "rationale": {"type": "string"},
+                        "source": {"type": "string"}
+                      }}
+                    }},
                     "evidence_refs": {"type": "array", "items": {"type": "object"}},
                     "truth": {"type": "object"},
                     "permissions": {"type": "object"},

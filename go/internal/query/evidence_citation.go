@@ -28,14 +28,15 @@ type evidenceCitationRequest struct {
 }
 
 type evidenceCitationHandle struct {
-	Kind           string `json:"kind,omitempty"`
-	RepoID         string `json:"repo_id,omitempty"`
-	RelativePath   string `json:"relative_path,omitempty"`
-	EntityID       string `json:"entity_id,omitempty"`
-	EvidenceFamily string `json:"evidence_family,omitempty"`
-	Reason         string `json:"reason,omitempty"`
-	StartLine      int    `json:"start_line,omitempty"`
-	EndLine        int    `json:"end_line,omitempty"`
+	Kind           string  `json:"kind,omitempty"`
+	RepoID         string  `json:"repo_id,omitempty"`
+	RelativePath   string  `json:"relative_path,omitempty"`
+	EntityID       string  `json:"entity_id,omitempty"`
+	EvidenceFamily string  `json:"evidence_family,omitempty"`
+	Reason         string  `json:"reason,omitempty"`
+	StartLine      int     `json:"start_line,omitempty"`
+	EndLine        int     `json:"end_line,omitempty"`
+	Confidence     float64 `json:"confidence,omitempty"`
 }
 
 type evidenceCitationResponse struct {
@@ -48,23 +49,27 @@ type evidenceCitationResponse struct {
 }
 
 type evidenceCitation struct {
-	CitationID     string `json:"citation_id"`
-	Rank           int    `json:"rank"`
-	Kind           string `json:"kind"`
-	EvidenceFamily string `json:"evidence_family"`
-	Reason         string `json:"reason,omitempty"`
-	RepoID         string `json:"repo_id,omitempty"`
-	RelativePath   string `json:"relative_path,omitempty"`
-	EntityID       string `json:"entity_id,omitempty"`
-	EntityType     string `json:"entity_type,omitempty"`
-	EntityName     string `json:"entity_name,omitempty"`
-	StartLine      int    `json:"start_line,omitempty"`
-	EndLine        int    `json:"end_line,omitempty"`
-	Language       string `json:"language,omitempty"`
-	ArtifactType   string `json:"artifact_type,omitempty"`
-	ContentHash    string `json:"content_hash,omitempty"`
-	CommitSHA      string `json:"commit_sha,omitempty"`
-	Excerpt        string `json:"excerpt"`
+	CitationID     string                     `json:"citation_id"`
+	Rank           int                        `json:"rank"`
+	Kind           string                     `json:"kind"`
+	EvidenceFamily string                     `json:"evidence_family"`
+	Reason         string                     `json:"reason,omitempty"`
+	Confidence     float64                    `json:"confidence"`
+	RepoID         string                     `json:"repo_id,omitempty"`
+	RelativePath   string                     `json:"relative_path,omitempty"`
+	EntityID       string                     `json:"entity_id,omitempty"`
+	EntityType     string                     `json:"entity_type,omitempty"`
+	EntityName     string                     `json:"entity_name,omitempty"`
+	StartLine      int                        `json:"start_line,omitempty"`
+	EndLine        int                        `json:"end_line,omitempty"`
+	ByteOffset     int                        `json:"byte_offset,omitempty"`
+	ByteLength     int                        `json:"byte_length,omitempty"`
+	Language       string                     `json:"language,omitempty"`
+	ArtifactType   string                     `json:"artifact_type,omitempty"`
+	ContentHash    string                     `json:"content_hash,omitempty"`
+	CommitSHA      string                     `json:"commit_sha,omitempty"`
+	Provenance     evidenceCitationProvenance `json:"provenance"`
+	Excerpt        string                     `json:"excerpt"`
 }
 
 type evidenceCitationCoverage struct {
@@ -348,26 +353,32 @@ func filterEvidenceCitationEntitiesForAccess(
 
 func citationFromFile(rank int, handle evidenceCitationHandle, file FileContent) evidenceCitation {
 	excerpt, startLine, endLine := boundedLineExcerpt(file.Content, handle.StartLine, handle.EndLine)
+	byteOffset, byteLength := excerptByteWindow(file.Content, startLine, excerpt)
 	return evidenceCitation{
 		CitationID:     evidenceCitationID("file", file.RepoID, file.RelativePath, startLine, endLine),
 		Rank:           rank,
 		Kind:           "file",
 		EvidenceFamily: evidenceFamily(handle.EvidenceFamily, file.RelativePath, file.ArtifactType, "file"),
 		Reason:         handle.Reason,
+		Confidence:     normalizeCitationConfidence(handle.Confidence),
 		RepoID:         file.RepoID,
 		RelativePath:   file.RelativePath,
 		StartLine:      startLine,
 		EndLine:        endLine,
+		ByteOffset:     byteOffset,
+		ByteLength:     byteLength,
 		Language:       file.Language,
 		ArtifactType:   file.ArtifactType,
 		ContentHash:    file.ContentHash,
 		CommitSHA:      file.CommitSHA,
+		Provenance:     citationProvenance(handle.Reason),
 		Excerpt:        excerpt,
 	}
 }
 
 func citationFromEntity(rank int, handle evidenceCitationHandle, entity EntityContent) evidenceCitation {
 	excerpt, offsetStart, offsetEnd := boundedLineExcerpt(entity.SourceCache, 1, 0)
+	byteOffset, byteLength := excerptByteWindow(entity.SourceCache, offsetStart, excerpt)
 	startLine := entity.StartLine
 	endLine := entity.EndLine
 	if excerpt != "" && startLine > 0 {
@@ -379,6 +390,7 @@ func citationFromEntity(rank int, handle evidenceCitationHandle, entity EntityCo
 		Kind:           "entity",
 		EvidenceFamily: evidenceFamily(handle.EvidenceFamily, entity.RelativePath, "", "entity"),
 		Reason:         handle.Reason,
+		Confidence:     normalizeCitationConfidence(handle.Confidence),
 		RepoID:         entity.RepoID,
 		RelativePath:   entity.RelativePath,
 		EntityID:       entity.EntityID,
@@ -386,7 +398,10 @@ func citationFromEntity(rank int, handle evidenceCitationHandle, entity EntityCo
 		EntityName:     entity.EntityName,
 		StartLine:      startLine,
 		EndLine:        endLine,
+		ByteOffset:     byteOffset,
+		ByteLength:     byteLength,
 		Language:       entity.Language,
+		Provenance:     citationProvenance(handle.Reason),
 		Excerpt:        excerpt,
 	}
 }

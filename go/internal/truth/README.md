@@ -2,14 +2,33 @@
 
 ## Purpose
 
-`truth` owns the layered truth contract used by reducer-owned canonical
-materialization. It defines the four bounded source layers, a typed `Layer`
-enum with parse and validate helpers, and the `Contract` value that binds one
-canonical kind to the set of source layers a reducer accepts as evidence.
+`truth` owns the canonical truth contracts shared across Eshu: the layered
+materialization contract and the unified evidence record. It defines the four
+bounded source layers, a typed `Layer` enum with parse and validate helpers,
+the `Contract` value that binds one canonical kind to the set of source layers
+a reducer accepts as evidence, and the canonical `Evidence` value.
 
 Every reducer registration, proof-domain assertion, and query-side
 `truth.layer` / `truth.backend` response field reaches for these symbols
 rather than redefining them locally.
+
+### Canonical evidence (issue #3489)
+
+`Evidence` is the single evidence record that carries BOTH a bounded `[0,1]`
+`Confidence` AND a byte-level `Citation`, plus typed `Provenance`. It unifies
+three former shapes that each carried only part of that contract:
+
+| Former shape | Had | Lacked |
+| --- | --- | --- |
+| `relationships.EvidenceFact` | confidence, free-form `Details` | byte citation |
+| `query.evidenceCitation` | path/line/hash/commit | confidence, provenance |
+| documentation evidence packets | versioned finding model | unified citation+confidence |
+
+`Citation` locates a file (`RepoID` + `RelativePath`) or an entity
+(`EntityID`), then refines it with a line range, a byte offset/length window,
+and the `ContentHash` / `CommitSHA` that pin the cited bytes. `Provenance`
+records the `Basis` (source content, graph projection, assertion, derived),
+`Rationale`, `Actor`, and `Source`.
 
 ## Where this fits
 
@@ -36,6 +55,13 @@ The package has no internal-package imports and no runtime state.
   one layer string against the known set.
 - `Contract` — binds `CanonicalKind` (string) to `SourceLayers` ([]`Layer`).
   Methods: `Contract.Validate`, `Contract.Supports(layer Layer) bool`.
+- `Evidence` — unified evidence record (`Kind`, `Confidence`, `Citation`,
+  `Provenance`). Method: `Evidence.Validate`.
+- `Citation` — byte-level source pointer. Method: `Citation.Validate`.
+- `Provenance` — typed origin record. Method: `Provenance.Validate`.
+- `ProvenanceBasis` — enum: `ProvenanceBasisSourceContent`,
+  `ProvenanceBasisGraphProjection`, `ProvenanceBasisAssertion`,
+  `ProvenanceBasisDerived`. Method: `ProvenanceBasis.Validate`.
 
 See `doc.go` for the godoc contract.
 
@@ -60,6 +86,10 @@ None. This is a pure value-type package with no runtime I/O.
 - Adding a new layer requires updating the `Validate` switch in `model.go`,
   `ParseLayer`, and any downstream materialization that switches on `Layer`
   values.
+- `Evidence.Validate` (`evidence.go`) bounds `Confidence` to `[0,1]` and
+  rejects `NaN`; it does not fetch content, so a citation that passes
+  `Citation.Validate` may still point at drifted or missing bytes. Consumers
+  that hydrate content must re-check `ContentHash` / `CommitSHA`.
 
 ## Related docs
 

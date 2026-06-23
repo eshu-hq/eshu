@@ -612,7 +612,11 @@ filtering is tracked as a follow-up.
 
 - Spans: `telemetry.SpanQueryRelationshipEvidence` (`query.relationship_evidence`)
   on evidence drilldown and `telemetry.SpanQueryEvidenceCitationPacket`
-  (`query.evidence_citation_packet`) on citation packet hydration;
+  (`query.evidence_citation_packet`) on citation packet hydration. Hydrated
+  citations carry the unified evidence contract (issue #3489): `confidence`, a
+  byte-level citation (`byte_offset`/`byte_length`, `content_hash`,
+  `commit_sha`), and a typed `provenance` object. `evidenceCitation.toCanonical`
+  round-trips one citation into `truth.Evidence`.
   `telemetry.SpanQueryDocumentationFindings`
   (`query.documentation_findings`),
   `telemetry.SpanQueryDocumentationFacts`

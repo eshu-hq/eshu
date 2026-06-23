@@ -189,7 +189,10 @@ overridable place instead of scattered literals.
 
 - `EvidenceFact` — one raw observed signal: `EvidenceKind`, `RelationshipType`,
   `SourceRepoID`, `TargetRepoID`, `Confidence`, `Rationale`, `Details`
-  (`models.go:109`)
+  (`models.go:109`). `EvidenceFact.Canonical()` projects it into the unified
+  `truth.Evidence` record (issue #3489), lifting the file path / line / hash /
+  commit out of `Details` into a typed byte-level `truth.Citation` while
+  preserving confidence and rationale (`evidence_canonical.go`).
 - `EvidenceKind` — string enum of evidence origins: `EvidenceKindTerraformAppRepo`,
   `EvidenceKindTerraformModuleSource`, `EvidenceKindHelmChart`,
   `EvidenceKindArgoCDAppSource`, `EvidenceKindGitHubActionsReusableWorkflow`,

@@ -395,12 +395,27 @@ func (v *Verifier) evidencePacketPayload(
 	canonicalURI string,
 ) map[string]any {
 	version := finding.FindingVersion
+	excerptHash := facts.StableID("documentation-excerpt", map[string]any{"claim": claim.text})
+	canonicalEvidence := finding.Canonical(excerptHash)
 	return map[string]any{
 		"packet_id":      packetID,
 		"packet_version": version,
 		"generated_at":   version,
 		"finding_id":     finding.FindingID,
 		"finding":        findingPayload(finding),
+		"unified_evidence": map[string]any{
+			"kind":       canonicalEvidence.Kind,
+			"confidence": canonicalEvidence.Confidence,
+			"citation": map[string]any{
+				"entity_id":    canonicalEvidence.Citation.EntityID,
+				"content_hash": canonicalEvidence.Citation.ContentHash,
+			},
+			"provenance": map[string]any{
+				"basis":     string(canonicalEvidence.Provenance.Basis),
+				"rationale": canonicalEvidence.Provenance.Rationale,
+				"source":    canonicalEvidence.Provenance.Source,
+			},
+		},
 		"document": map[string]any{
 			"source_id":     finding.SourceID,
 			"document_id":   finding.DocumentID,
@@ -416,7 +431,7 @@ func (v *Verifier) evidencePacketPayload(
 		},
 		"bounded_excerpt": map[string]any{
 			"text":             claim.text,
-			"text_hash":        facts.StableID("documentation-excerpt", map[string]any{"claim": claim.text}),
+			"text_hash":        excerptHash,
 			"source_start_ref": finding.SectionID,
 			"source_end_ref":   finding.SectionID,
 		},

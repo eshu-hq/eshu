@@ -71,6 +71,15 @@ packet, preserves distinct line ranges and reasons for the same file, and
 returns `coverage.truncated` when the caller should request another packet.
 It reads the Postgres content store and does not traverse the graph.
 
+Each hydrated citation carries the unified evidence contract (issue #3489): a
+`confidence` score (carried through from the handle's optional `confidence`), a
+byte-level citation (`start_line`/`end_line` plus `byte_offset`/`byte_length`
+into the source content, with `content_hash` and `commit_sha` pinning the cited
+bytes), and a typed `provenance` object (`basis`, `rationale`, `source`). This
+is the same `confidence + byte-level citation + provenance` shape defined by the
+canonical `truth.Evidence` record, so relationship evidence, citation packets,
+and documentation evidence all describe proof the same way.
+
 ## Documentation Truth
 
 Documentation updater services should use these routes instead of reading graph
@@ -1096,3 +1105,21 @@ instrument, metric label, span, or runtime flag. Operators continue to diagnose
 the route through the existing `query.sbom_attestation_attachments` span,
 truth envelope, limit/truncated cursor fields, Postgres query instrumentation,
 and persisted warning summary entries on the attachment payload.
+
+## Performance Evidence
+
+- No-Regression Evidence: #3489 introduces the canonical `truth.Evidence` type
+  and non-destructive `Canonical()` bridges; each former evidence model is
+  retained and additionally projected as `unified_evidence`. Baseline: existing
+  relationship, correlation, and documentation evidence emission. After:
+  identical emission plus the additive unified projection — no reducer domain,
+  Cypher, graph write, worker, lease, batch size, or concurrency knob changed.
+  Backend/version: NornicDB and Neo4j compatibility paths unchanged. Input
+  shape: existing evidence facts and documentation packets. Terminal queue and
+  row counts: unaffected. Verified by the full suite (6149 tests across 540
+  packages) staying green. Safe because it is a type-unification with bridges,
+  not a behavior change.
+- No-Observability-Change: no new or changed spans, metrics, metric labels,
+  logs, or status fields on any runtime path; the existing
+  `query.sbom_attestation_attachments` span and truth-envelope fields are
+  unchanged.
