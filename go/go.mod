@@ -126,7 +126,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig v1.33.1
 	github.com/aws/aws-sdk-go-v2/service/route53resolver v1.36.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.80.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3
 	github.com/aws/aws-sdk-go-v2/service/sagemaker v1.249.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.0
@@ -158,13 +158,14 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/coreos/go-oidc/v3 v3.19.0
+	github.com/crewjam/saml v0.5.1
 	github.com/dekobon/tree-sitter-groovy v0.2.2
 	github.com/eshu-hq/eshu/sdk/go/collector v0.0.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/indigo-net/Brf.it v0.21.0
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.21
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
@@ -246,14 +247,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.26 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.24 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/beevik/etree v1.5.0 // indirect
+	github.com/beevik/etree v1.6.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -266,7 +267,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.9.0 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
-	github.com/crewjam/saml v0.5.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/badger/v4 v4.9.1 // indirect
 	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
@@ -313,7 +313,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/jonboulle/clockwork v0.2.2 // indirect
+	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/jupiterrider/ffi v0.6.0 // indirect
@@ -342,7 +342,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/qdrant/go-client v1.17.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/russellhaering/goxmldsig v1.4.0 // indirect
+	github.com/russellhaering/goxmldsig v1.6.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sosodev/duration v1.4.0 // indirect
 	github.com/sourcegraph/beaut v0.0.0-20240611013027-627e4c25335a // indirect
