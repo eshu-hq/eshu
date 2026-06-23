@@ -238,7 +238,10 @@ SET artifact.name = row.name,
     artifact.runtime_platform_kind = row.runtime_platform_kind,
     artifact.matched_alias = row.matched_alias,
     artifact.matched_value = row.matched_value,
-    artifact.evidence_source = row.evidence_source
+    artifact.evidence_source = row.evidence_source,
+    artifact.start_line = row.start_line,
+    artifact.end_line = row.end_line,
+    artifact.commit_sha = row.commit_sha
 MERGE (source_repo)-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact)
 SET source_rel.evidence_source = row.evidence_source,
     source_rel.resolved_id = row.resolved_id,
