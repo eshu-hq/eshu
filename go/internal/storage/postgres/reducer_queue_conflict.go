@@ -19,6 +19,27 @@ const (
 
 	reducerConflictKeyPrefixResourceScope     = "resource-scope:v1:"
 	reducerConflictKeyPrefixCloudResourceNode = "cloud-resource-node:v1:"
+
+	// reducerConflictKeyPrefixPlatformGraph is the versioned prefix for all
+	// platform_graph conflict keys. The key is hashed over a partition token plus
+	// the scope so that non-conflicting platform-graph work drains concurrently
+	// while true same-target conflicts still serialize.
+	//
+	// Two partition tokens exist under this prefix:
+	//   - "platform-node-writer:<scope>" — shared by WorkloadMaterialization and
+	//     DeploymentMapping (both MERGE the same (p:Platform {id}) node and
+	//     WorkloadMaterialization holds no advisory lock, so they must serialize).
+	//   - "<domain>:<scope>" — one key per non-Platform-writing domain
+	//     (WorkloadIdentity, CloudAssetResolution, DeployableUnitCorrelation),
+	//     which drain concurrently with each other and with the Platform pair.
+	//
+	// Version history:
+	//   v1 (pre-#3672): raw scopeKey — all 5 platform-graph domains shared one
+	//     coarse key per scope, serializing ~26k intents into a 25-min queue wait.
+	//   v2 (#3672): partitioned by graph-write target — Platform-node writers share
+	//     one key; non-Platform domains get per-domain keys. Removes the false
+	//     serialization while preserving the real same-Platform-node MERGE fence.
+	reducerConflictKeyPrefixPlatformGraph = "platform-graph:v2:"
 )
 
 type reducerResourceConflictStatus string
@@ -102,6 +123,40 @@ func blockedResourceConflictPolicy(domain reducer.Domain) reducerResourceConflic
 // intent. The key remains scope-scoped so newer generations cannot overtake
 // older work for the same repo, while the domain separates graph families that
 // do not share the same NornicDB write-hot spots.
+//
+// Platform-graph partition (#3672): before this change all five platform-graph
+// domains shared a single coarse (platform_graph, scopeKey) pair, so only one
+// of them could be in-flight per scope. ~26k intents drained serially (~25-min
+// queue wait). The partition splits the conflict key by the actual graph-write
+// target so non-conflicting work drains concurrently while true write conflicts
+// still serialize.
+//
+// Verified write-target analysis (source-confirmed, see the per-domain table in
+// go/internal/storage/postgres/README.md):
+//
+//	| Domain                      | Write target                              | MERGEs :Platform {id}? |
+//	|-----------------------------|-------------------------------------------|------------------------|
+//	| WorkloadMaterialization     | MERGE (p:Platform {id}) + Workload/Endpoint| YES (NO advisory lock) |
+//	| DeploymentMapping           | MERGE (p:Platform {id}) + PROVISIONS_PLATFORM | YES (PlatformGraphLocker) |
+//	| WorkloadIdentity            | Postgres fact_records ON CONFLICT (fact_id)| no (idempotent upsert) |
+//	| CloudAssetResolution        | Postgres fact_records ON CONFLICT (fact_id)| no (idempotent upsert) |
+//	| DeployableUnitCorrelation   | MERGE (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) | no |
+//
+// WorkloadMaterialization and DeploymentMapping BOTH run
+// MERGE (p:Platform {id: row.platform_id}) over the same platform_id namespace,
+// and WorkloadMaterialization does NOT hold the PlatformGraphLocker advisory
+// lock that DeploymentMapping uses. Running them concurrently for the same scope
+// would race two unprotected MERGEs on the same Platform node, producing
+// commit-time uniqueness conflicts / retries / eventual dead-letter. They MUST
+// stay serialized against each other (#3672 review P1).
+//
+// Therefore the two Platform-node writers share ONE conflict key (the
+// platform-node-writer group token + scope) so the queue fence still serializes
+// them exactly as before. The three non-Platform-writing domains each get their
+// own per-domain key so they drain concurrently with each other and with the
+// platform-node-writer pair. This is the smallest provably-correct partition:
+// it removes the false serialization between the graph-edge / Postgres-fact
+// domains while preserving the real same-target Platform MERGE serialization.
 func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 	scopeKey := strings.TrimSpace(intent.ScopeID)
 	if policy, ok := reducerResourceConflictPolicyFor(intent.Domain); ok {
@@ -119,15 +174,55 @@ func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 		reducer.DomainShellExecMaterialization,
 		reducer.DomainInheritanceMaterialization:
 		return reducerConflictDomainCodeGraph, scopeKey
+	case reducer.DomainWorkloadMaterialization,
+		reducer.DomainDeploymentMapping:
+		// Both MERGE (p:Platform {id}) over the same platform_id namespace and
+		// WorkloadMaterialization holds no advisory lock, so they must serialize
+		// against each other. Share one conflict key keyed only by scope.
+		return reducerConflictDomainPlatformGraph, reducerPlatformNodeWriterConflictKey(scopeKey)
 	case reducer.DomainWorkloadIdentity,
 		reducer.DomainDeployableUnitCorrelation,
-		reducer.DomainCloudAssetResolution,
-		reducer.DomainDeploymentMapping,
-		reducer.DomainWorkloadMaterialization:
-		return reducerConflictDomainPlatformGraph, scopeKey
+		reducer.DomainCloudAssetResolution:
+		// None of these MERGE a :Platform node: WorkloadIdentity and
+		// CloudAssetResolution upsert Postgres fact_records keyed by intent id
+		// (idempotent), and DeployableUnitCorrelation MERGEs only
+		// (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) edges. They do
+		// not conflict with the Platform-node writers or with each other, so each
+		// gets its own per-domain key and drains concurrently.
+		return reducerConflictDomainPlatformGraph, reducerPlatformGraphConflictKey(intent.Domain, scopeKey)
 	default:
 		return reducerConflictDomainScope, scopeKey
 	}
+}
+
+// reducerPlatformNodeWriterConflictKey returns the shared conflict key for the
+// two reducer domains that MERGE (p:Platform {id}) over the same platform_id
+// namespace: WorkloadMaterialization and DeploymentMapping. The key is keyed
+// only by scope (not by domain) so both domains produce the IDENTICAL key for a
+// scope and the queue fence keeps them serialized. WorkloadMaterialization does
+// not hold the PlatformGraphLocker advisory lock that DeploymentMapping uses, so
+// this queue-level fence is the only thing preventing concurrent unprotected
+// MERGE on the same Platform node (#3672 review P1).
+func reducerPlatformNodeWriterConflictKey(scopeKey string) string {
+	return reducerHashedConflictKey(
+		reducerConflictKeyPrefixPlatformGraph,
+		"platform-node-writer:"+strings.TrimSpace(scopeKey),
+	)
+}
+
+// reducerPlatformGraphConflictKey returns a versioned hashed conflict key for a
+// non-Platform-writing platform-graph domain. It encodes both the domain name
+// and the scope so that different such domains for the same scope produce
+// distinct conflict keys (enabling concurrent drain) while the same domain and
+// scope always produce the same key (preserving same-scope serialization within
+// a domain). It MUST NOT be used for the Platform-node writers
+// (WorkloadMaterialization, DeploymentMapping) — those share one key via
+// reducerPlatformNodeWriterConflictKey.
+func reducerPlatformGraphConflictKey(domain reducer.Domain, scopeKey string) string {
+	return reducerHashedConflictKey(
+		reducerConflictKeyPrefixPlatformGraph,
+		string(domain)+":"+strings.TrimSpace(scopeKey),
+	)
 }
 
 func reducerResourceConflictPolicyFor(domain reducer.Domain) (reducerResourceConflictPolicy, bool) {

@@ -685,3 +685,107 @@ spans, the `DeferredBackfillDuration`/`DeferredBackfillEvidence`/
 `DeploymentMappingReopened` instruments, and the `deferred_backfill_completed`/
 `deployment_mapping_reopened`/`relationship_backfill_deferred_source_skipped`
 log lines are emitted from the same statements, now relocated.
+
+## Platform-Graph Conflict-Domain Partition (#3672)
+
+### Conflict-Domain Map
+
+`reducerConflictDomainKey` (`reducer_queue_conflict.go`) assigns every reducer
+intent a `(conflict_domain, conflict_key)` pair that the claim SQL fences on.
+Five domains shared one coarse `(platform_graph, scopeKey)` pair before this
+change, so only one of the five could be in-flight per scope:
+
+| Domain | Pre-#3672 conflict key | Post-#3672 conflict key | Partitioned or fenced |
+|---|---|---|---|
+| `workload_materialization` | `scopeKey` (raw) | `platform-graph:v2:sha256(platform-node-writer:scope)` | fenced (shared) |
+| `deployment_mapping` | `scopeKey` (raw) | `platform-graph:v2:sha256(platform-node-writer:scope)` | fenced (shared) |
+| `workload_identity` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain:scope)` | partitioned |
+| `deployable_unit_correlation` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain:scope)` | partitioned |
+| `cloud_asset_resolution` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain:scope)` | partitioned |
+
+`workload_materialization` and `deployment_mapping` share ONE key
+(`platform-node-writer:<scope>`) so they still serialize. The other three each
+get a per-domain key and drain concurrently with each other and with the
+Platform-node-writer pair.
+
+With the old key, one `platform_graph:scopeKey` fence serialized all five
+domains for each scope. ~26k materialization intents drained in single file →
+~25-min cumulative `intent_wait_seconds` (reported by `sub_duration_*`
+telemetry landed in PR #3671).
+
+### Write-Conflict Safety Evidence (source-verified)
+
+The partition is keyed by the actual graph-write target. The table below is
+confirmed against the writer source, not asserted:
+
+| Domain | Write backend | MERGE/upsert target | MERGEs `(p:Platform {id})`? | Lock |
+|---|---|---|---|---|
+| `workload_materialization` | NornicDB graph | `MERGE (p:Platform {id})` (`workload_materializer.go` `batchRuntimePlatformNodeUpsertCypher`), Workload/Instance/Endpoint nodes, RUNS_ON edges | **YES** | **none** |
+| `deployment_mapping` | NornicDB graph | `MERGE (p:Platform {id})` (`infrastructure_platform_materializer.go` `batchInfraPlatformUpsertCypher`), PROVISIONS_PLATFORM edges | **YES** | `PlatformGraphLocker` (pg_advisory_xact_lock per platformID) |
+| `workload_identity` | Postgres `fact_records` | `INSERT ... ON CONFLICT (fact_id) DO UPDATE` keyed by intent id | no | idempotent per-intent upsert |
+| `cloud_asset_resolution` | Postgres `fact_records` | `INSERT ... ON CONFLICT (fact_id) DO UPDATE` keyed by intent id | no | idempotent per-intent upsert |
+| `deployable_unit_correlation` | NornicDB graph | `MERGE (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository)` (`canonical_deployable_unit_edges.go`) | no | per-repo partition, distinct edge type |
+
+Critical hazard (#3672 review P1): `workload_materialization` and
+`deployment_mapping` BOTH run `MERGE (p:Platform {id: row.platform_id})` over the
+same `platform_id` namespace, and `workload_materialization` does **not** hold
+the `PlatformGraphLocker` advisory lock that `deployment_mapping` uses. If the
+two were claimed concurrently for the same scope, two unprotected MERGEs would
+race the same Platform node → NornicDB commit-time uniqueness conflict / retry /
+eventual dead-letter. They therefore MUST share one conflict key so the queue
+fence keeps them serialized. `TestPlatformNodeWritersShareConflictKeyForSameScope`
+is the regression guard for this invariant.
+
+The three non-Platform-writing domains share no graph node with the Platform
+writers or with each other: `workload_identity` and `cloud_asset_resolution`
+upsert Postgres `fact_records` (idempotent per `fact_id`), and
+`deployable_unit_correlation` MERGEs only Repository→Repository correlation
+edges. They are safe to drain concurrently.
+
+### Benchmark Evidence
+
+darwin/arm64, Apple M5 Max, Go 1.26,
+`pkg: github.com/eshu-hq/eshu/go/internal/storage/postgres`
+
+```
+BenchmarkReducerPlatformGraphConflictKey-18              38711040   157.2 ns/op   352 B/op   5 allocs/op
+BenchmarkReducerPlatformGraphConflictKeyAllDomains-18    38427297   160.7 ns/op   352 B/op   5 allocs/op
+```
+
+Cost per intent at enqueue time: ~157 ns, 5 allocs (SHA-256 of the partition
+token + scope string). This is negligible against any graph write (measured at
+≥0.85 s in PR #3671 telemetry). No Postgres query shape changed; the claim SQL
+fences on the stored `(conflict_domain, conflict_key)` columns unchanged.
+
+No-Regression Evidence: the claim SQL fence predicate
+(`inflight.conflict_domain = fact_work_items.conflict_domain AND COALESCE(...)`)
+is unchanged. Only the conflict key value stored at enqueue time changes. The
+existing `TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey` and
+`TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys` proofs (live
+Postgres, `-race`) cover the fence contract for same-key serialization and
+disjoint-key concurrency respectively; both continue to pass with the new key
+shape. `TestPlatformNodeWritersShareConflictKeyForSameScope` proves the two
+Platform-node writers share one key per scope so they remain serialized.
+
+Expected drain improvement: the three non-Platform-writing domains
+(`workload_identity`, `cloud_asset_resolution`, `deployable_unit_correlation`)
+no longer queue behind the Platform-node writers or each other for a scope —
+four concurrent lanes per scope instead of one. The two Platform-node writers
+(`workload_materialization`, `deployment_mapping`) still serialize against each
+other, by design, because they MERGE the same Platform node without a shared
+lock. Removing the cross-domain false serialization is the primary win; the
+`workload_materialization` long pole is no longer blocked by the other four
+domains' queue waits. Exact speedup depends on worker count, per-domain intent
+mix, and graph-write latency; full-corpus `sub_duration_*` telemetry measurement
+requires the operator's remote validation environment.
+
+### Observability Evidence
+
+No new telemetry emitted by this change. The `sub_duration_*` log attributes
+landed in PR #3671 (`sub_duration_graph_write_seconds`, `queue_wait_seconds`)
+are the primary signal for validating drain improvement after this partition.
+Operators should compare `queue_wait_seconds` histograms for the
+`workload_materialization` domain before and after deployment.
+
+No-Observability-Change: conflict key derivation is enqueue-time only; no
+runtime spans, metrics, or log lines were added or removed.

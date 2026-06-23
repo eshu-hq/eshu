@@ -76,16 +76,24 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 			wantKey:    "scope-1",
 		},
 		{
+			// Non-Platform-writing platform-graph domains use per-domain hashed
+			// keys (#3672). WorkloadIdentity upserts Postgres fact_records and never
+			// MERGEs a :Platform node, so it gets its own key. Exact key value is
+			// covered by TestPlatformGraphConflictKeyPartitionsByDomain.
 			name:       "workload identity uses platform graph conflict family",
 			domain:     reducer.DomainWorkloadIdentity,
 			wantDomain: reducerConflictDomainPlatformGraph,
-			wantKey:    "scope-1",
+			wantKey:    reducerPlatformGraphConflictKey(reducer.DomainWorkloadIdentity, "scope-1"),
 		},
 		{
-			name:       "deployment mapping uses platform graph conflict family",
+			// DeploymentMapping MERGEs (p:Platform {id}) (with the PlatformGraphLocker
+			// advisory lock); it shares one conflict key with WorkloadMaterialization
+			// (which MERGEs the same node WITHOUT the lock) so the queue fence keeps
+			// the two unprotected same-node writers serialized (#3672 review P1).
+			name:       "deployment mapping uses shared platform-node-writer key",
 			domain:     reducer.DomainDeploymentMapping,
 			wantDomain: reducerConflictDomainPlatformGraph,
-			wantKey:    "scope-1",
+			wantKey:    reducerPlatformNodeWriterConflictKey("scope-1"),
 		},
 		{
 			name:       "unknown future domains fall back to scope serialization",
