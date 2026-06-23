@@ -88,7 +88,7 @@ membership as trust.
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
 | `ESHU_API_KEY` | unset, or generated/persisted when allowed | API, MCP, CLI | Bearer token for local/API calls. |
-| `ESHU_SCOPED_TOKENS_FILE` | unset | API, MCP | Path to an operator-managed scoped-token registry file. When set, the API and MCP resolve bearer-token hashes into tenant/workspace-scoped auth contexts and fail closed if the registry is malformed or unreadable. |
+| `ESHU_SCOPED_TOKENS_FILE` | unset | API, MCP | Path to an operator-managed scoped-token registry file. API and MCP first resolve generated identity-backed token hashes from Postgres, then this optional registry, then shared-token compatibility. Malformed registry configuration fails closed. |
 | `ESHU_AUTO_GENERATE_API_KEY` | `false` | API/MCP runtime key resolver | Allows local runtimes to generate and persist an API key under `ESHU_HOME`. |
 | `ESHU_SERVICE_URL` | unset | CLI | Default remote Eshu API base URL. |
 | `ESHU_SERVICE_PROFILE` | unset | CLI | Selects `ESHU_SERVICE_URL_<PROFILE>` and `ESHU_API_KEY_<PROFILE>`. |

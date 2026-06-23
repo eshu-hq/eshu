@@ -160,6 +160,27 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
+	if !authContextAllowsPermissionFeature(r.Context(), permissionFeatureAskSearch) {
+		writeSemanticSearchError(
+			w,
+			r,
+			http.StatusForbidden,
+			ErrorCodePermissionDenied,
+			"permission denied",
+		)
+		return
+	}
+	if !authContextAllowsPermissionDataClasses(r.Context(), permissionDataClassesAskSearch...) {
+		writeSemanticSearchError(
+			w,
+			r,
+			http.StatusForbidden,
+			ErrorCodePermissionDenied,
+			"permission denied",
+		)
+		return
+	}
+
 	if capabilityUnsupported(h.profile(), semanticSearchCapability) {
 		WriteContractError(
 			w,

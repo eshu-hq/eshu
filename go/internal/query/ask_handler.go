@@ -160,6 +160,15 @@ func (h *AskHandler) Mount(mux *http.ServeMux) {
 }
 
 func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
+	if !authContextAllowsPermissionFeature(r.Context(), permissionFeatureAskSearch) {
+		writePermissionDeniedEnvelope(w, "ask_search.ask")
+		return
+	}
+	if !authContextAllowsPermissionDataClasses(r.Context(), permissionDataClassesAskSearch...) {
+		writePermissionDeniedEnvelope(w, "ask_search.ask")
+		return
+	}
+
 	// Content negotiation: SSE variant when the caller wants an event stream.
 	if acceptsSSE(r) {
 		h.handleAskSSE(w, r)

@@ -37,8 +37,9 @@ families, role names, grant families, and data-class names.
 
 | Surface | Current operator posture | Follow-up |
 | --- | --- | --- |
-| Shared API/MCP bearer token | Still available for local development, bootstrap, and compatibility. It is not a tenant boundary. | Move teams to scoped tokens or the future identity model before claiming isolation. |
-| Scoped API/MCP tokens | `ESHU_SCOPED_TOKENS_FILE` maps bearer-token hashes to tenant, workspace, repository, and source-scope grants. The registry is hash-only and fails closed. | Personal and service-principal token lifecycle is tracked by #3461. |
+| Shared API/MCP bearer token | Still available for local development, bootstrap, and compatibility. It is not a tenant boundary. | Move teams to scoped or identity-backed tokens before claiming isolation. |
+| Generated personal/service-principal tokens | API and MCP resolve hash-only `identity_token_metadata` rows through active identity subjects, role assignments, and repository/source-scope targets. Successful lookups update last-used metadata. | Token creation/rotation UX and audit event expansion continue through the user-management console work. |
+| Scoped API/MCP tokens | `ESHU_SCOPED_TOKENS_FILE` maps bearer-token hashes to tenant, workspace, repository, and source-scope grants. The registry is hash-only, optional, and tried after generated identity tokens. | Keep for bootstrap, migration, and operator-managed team tokens. |
 | Browser sessions | `POST /api/v0/auth/browser-session` exchanges an explicit API credential for `__Host-eshu_session`; unsafe cookie-authenticated requests require `X-Eshu-CSRF`. | Full login/profile/admin console UX is tracked by #3462. |
 | Identity schema | Additive and dormant tables model users, provider configs, MFA handles, memberships, roles, grants, sessions, service principals, and token metadata with opaque IDs, hashes, and credential handles. | Local identity, OIDC, and SAML enforcement are tracked by #3455, #3457, and #3458. |
 | Roles and grants | The v1 authorization catalog defines product roles, permission families, data classes, and bootstrap-owner posture. | API/MCP/Ask/search propagation is tracked by #3460. |
@@ -219,13 +220,11 @@ API tokens and dashboard sessions are different credentials.
 
 - CLI, MCP, automation, and integrations use explicit API tokens.
 - Dashboard browser sessions use server-managed cookies and CSRF proof.
-- Personal tokens cannot exceed the issuing user's effective grants once #3461
-  lands.
+- Personal tokens cannot exceed the issuing user's effective grants.
 - Service-principal tokens are independent automation subjects with owners,
-  grants, expiry, rotation, status, last-used metadata, and audit once #3461
-  lands.
-- Scoped tokens today are operator-issued hash-only registry entries and are
-  suitable for bounded team read access before the full token lifecycle lands.
+  grants, expiry, rotation, status, and last-used metadata.
+- Scoped tokens remain operator-issued hash-only registry entries and are
+  suitable for bootstrap, migration, and bounded team read access.
 
 For scoped tokens, issue, rotate, and revoke through `ESHU_SCOPED_TOKENS_FILE`:
 

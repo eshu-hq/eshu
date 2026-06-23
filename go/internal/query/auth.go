@@ -63,16 +63,19 @@ var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh requi
 
 // AuthContext carries request-scoped authorization bounds for query handlers.
 type AuthContext struct {
-	Mode                 AuthMode
-	TenantID             string
-	WorkspaceID          string
-	SubjectClass         string
-	SubjectIDHash        string
-	PolicyRevisionHash   string
-	RoleIDs              []string
-	AllScopes            bool
-	AllowedScopeIDs      []string
-	AllowedRepositoryIDs []string
+	Mode                         AuthMode
+	TenantID                     string
+	WorkspaceID                  string
+	SubjectClass                 string
+	SubjectIDHash                string
+	PolicyRevisionHash           string
+	RoleIDs                      []string
+	PermissionCatalogEnforced    bool
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
+	AllScopes                    bool
+	AllowedScopeIDs              []string
+	AllowedRepositoryIDs         []string
 }
 
 // ScopedTokenResolver resolves a presented bearer credential into an auth
@@ -346,6 +349,8 @@ func normalizeAuthContext(auth AuthContext) AuthContext {
 	auth.SubjectIDHash = strings.TrimSpace(auth.SubjectIDHash)
 	auth.PolicyRevisionHash = strings.TrimSpace(auth.PolicyRevisionHash)
 	auth.RoleIDs = cleanedAuthStrings(auth.RoleIDs)
+	auth.AllowedPermissionFeatures = cleanedAuthStrings(auth.AllowedPermissionFeatures)
+	auth.AllowedPermissionDataClasses = cleanedAuthStrings(auth.AllowedPermissionDataClasses)
 	auth.AllowedScopeIDs = cleanedAuthStrings(auth.AllowedScopeIDs)
 	auth.AllowedRepositoryIDs = cleanedAuthStrings(auth.AllowedRepositoryIDs)
 	return auth
