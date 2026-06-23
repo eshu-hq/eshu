@@ -204,6 +204,7 @@ when the reducer has a graph orphan observer.
 | `AWSOrgAccessSkipped` | `eshu_dp_aws_org_access_skipped_total` |
 | `CrossRepoEvidenceLoaded` | `eshu_dp_cross_repo_evidence_loaded_total` |
 | `CrossRepoEdgesResolved` | `eshu_dp_cross_repo_edges_resolved_total` |
+| `CrossRepoActivationFenced` | `eshu_dp_cross_repo_activation_fenced_total` |
 | `CorrelationRuleMatches` | `eshu_dp_correlation_rule_matches_total` |
 | `CorrelationDriftDetected` | `eshu_dp_correlation_drift_detected_total` |
 | `CorrelationDriftIntentsEnqueued` | `eshu_dp_correlation_drift_intents_enqueued_total` |

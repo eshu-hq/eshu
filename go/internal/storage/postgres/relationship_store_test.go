@@ -749,6 +749,13 @@ func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args
 	case strings.Contains(query, "FROM relationship_assertions"):
 		return db.queryAssertions(func(_ assertionRecord) bool { return true }), nil
 
+	case strings.Contains(query, "FROM relationship_generations") && strings.Contains(query, "status = 'active'"):
+		generationID := args[0].(string)
+		if gen, ok := db.generations[generationID]; ok && gen.status == "active" {
+			return newRelationshipRows([][]any{{int64(1)}}), nil
+		}
+		return newRelationshipRows(nil), nil
+
 	case strings.Contains(query, "FROM resolved_relationships") && strings.Contains(query, "r.source_repo_id IN"):
 		repoIDs := make(map[string]struct{}, len(args))
 		for _, arg := range args {

@@ -42,32 +42,73 @@ graph-acceptance intents are already durable.
   NOTHING`. A retry after an acceptance failure commits acceptance once and
   publishes exactly once — no double-publish.
 
-## No-Regression Evidence
+## Graph-ahead window closed (codex P1)
 
-This change reorders already-existing database statements within `Resolve` and
-adds one `Int64` counter plus one warn-log emitter. It adds no new Cypher, no new
-graph write, no new query shape, no extra round trip, no worker/lease/batch
-change, and no new hot-path scan. The same `UpsertIntents` batch
-(`ON CONFLICT (intent_id)` multi-row upsert) and the same idempotent activation
-statement run; only their order changes, so the per-generation work and cost are
-unchanged. Backend/version: backend-neutral (Postgres acceptance + activation
-statements unchanged; NornicDB/Neo4j untouched). Input shape: per generation, one
+Reordering acceptance before activation alone only moved the inconsistency: the
+repo-dependency projection runner derives graph-projection authority from
+`shared_projection_acceptance` (via `FilterAuthoritativeIntents` /
+`AcceptedGenerationLookup`), NOT from `relationship_generations.status`. The
+handler's `IntentWriter` (`SharedIntentAcceptanceWriter`) commits the intents AND
+their acceptance rows atomically, so once acceptance commits the graph runner can
+project edges for a generation that activation has not yet published — graph
+ahead of the Postgres relationship read models (which filter on
+`g.status = 'active'`). That is exactly the `graph-ahead` dual-write class
+#3559 names.
+
+The root-cause fix gates repo-dependency graph-projection authority on the
+relationship generation being active. `RelationshipStore.IsGenerationActive` (a
+primary-key lookup on `relationship_generations`) is adapted via
+`postgres.NewRelationshipGenerationActiveLookup` and composed over the runner's
+`AcceptedGen`/`AcceptedGenPrefetch` with `reducer.GateAcceptedGenerationOnActive`
+/ `GateAcceptedGenerationPrefetchOnActive`. The gate returns "not authoritative"
+(defer) whenever the accepted generation is not yet active, the active check
+errors, or there is no acceptance row. This makes activation the single fence
+that opens BOTH surfaces together:
+
+- Acceptance commits first, but the graph runner defers (generation not active)
+  → no graph-ahead.
+- Activation commits → graph authority (acceptance present AND active) and the
+  Postgres read models open together.
+- Activation fails after acceptance → graph still defers (not active) AND the
+  Postgres read models are unpublished → neither surface advanced; the retry
+  re-runs `Resolve`, idempotently re-commits acceptance, activates, and
+  converges. No graph-ahead, no graph-behind.
+
+The gate is scoped to the repo-dependency lane only — `code_call` and other
+shared-projection lanes keep the unfenced `AcceptedGenerationLookup` because they
+do not have a `relationship_generations` row. The #3559/#3616 reconciler stays as
+defense-in-depth for any residual drift.
+
+## Measurement and safety
+
+No-Regression Evidence: this change reorders already-existing database statements
+within `Resolve`, adds one primary-key generation-active lookup
+(`relationship_generations` by `generation_id`) used to gate repo-dependency
+graph-projection authority, and adds one `Int64` counter plus one warn-log
+emitter. It adds no new Cypher, no new graph write, no new query shape, no extra
+round trip on the resolve path, no worker/lease/batch change, and no new hot-path
+scan. The same `UpsertIntents` batch (`ON CONFLICT (intent_id)` multi-row upsert)
+and the same idempotent activation statement run; only their order changes, so
+the per-generation work and cost are unchanged. The new authority gate adds one
+bounded PK lookup per accepted generation on the repo-dependency selection path
+(memoizable, returns at most one row), not a scan. Backend/version:
+backend-neutral (Postgres acceptance + activation statements unchanged;
+NornicDB/Neo4j untouched). Input shape: per generation, one
 candidate/resolved/intent set bounded by the caller's resolved-edge count, same
 as before. Measurement: `go test ./internal/reducer ./internal/storage/postgres
-./internal/storage/cypher ./internal/status ./internal/telemetry -count=1 -race`
-→ 4126 passed, including the four new fence tests
-(`cross_repo_resolution_fence_test.go`): failing-first acceptance-before-
-activation ordering, no-publish-on-acceptance-failure, idempotent
-converge-on-retry (acceptance committed once, publish once), and the
-empty-evidence tombstone fence. `golangci-lint run ./internal/reducer/...
-./internal/telemetry/...` → no issues. Why safe: candidates/resolved rows only
-become queryable once the generation is activated, so persisting them ahead of
-the fence cannot publish anything; the only state that publishes a generation is
-the activation flip, which now runs strictly after the durable acceptance
-commit.
+./internal/storage/cypher ./internal/telemetry ./cmd/reducer -count=1 -race`
+→ 4148 passed, including the four publish-fence tests
+(`cross_repo_resolution_fence_test.go`), the five activation-gate tests
+(`accepted_generation_active_gate_test.go`: defer-until-active, missing-acceptance
+pass-through, defer-on-error, prefetch defer-until-active, and the end-to-end
+runner defer), and the two Postgres active-lookup tests
+(`relationship_generation_active_test.go`). `golangci-lint run ./...` → no issues.
+Why safe: candidates/resolved rows only become queryable once the generation is
+activated; the graph runner now also defers until the generation is active, so
+neither the graph nor the Postgres read-model surface can advance ahead of the
+other.
 
-## Observability Evidence
-
+Observability Evidence:
 `eshu_dp_cross_repo_activation_fenced_total` (bounded `scope_id` label) counts
 generations whose activation was withheld because the durable graph-acceptance
 intents failed to commit, so an operator can see at a glance that the prevention

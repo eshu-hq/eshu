@@ -150,6 +150,28 @@ func (s *RelationshipStore) ActivateResolutionGeneration(
 	return nil
 }
 
+// IsGenerationActive reports whether the relationship generation is currently
+// active (published). It is a primary-key lookup on relationship_generations and
+// backs the repo-dependency graph-projection authority gate: graph edges for a
+// generation must not be projected until the generation is activated, so the
+// graph cannot run ahead of the Postgres relationship read models that filter on
+// status = 'active'.
+func (s *RelationshipStore) IsGenerationActive(
+	ctx context.Context,
+	generationID string,
+) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, relationshipGenerationActiveSQL, generationID)
+	if err != nil {
+		return false, fmt.Errorf("query relationship generation active: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		return false, rows.Err()
+	}
+	return true, rows.Err()
+}
+
 // UpsertEvidenceFacts persists evidence facts for a generation.
 func (s *RelationshipStore) UpsertEvidenceFacts(
 	ctx context.Context,
