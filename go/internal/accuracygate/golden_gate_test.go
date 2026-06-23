@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/accuracygate"
+	"github.com/eshu-hq/eshu/go/internal/admissionaudit"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -79,6 +80,66 @@ func TestAccuracyGoldenGateDetectsRegression(t *testing.T) {
 			t.Fatalf("regression message missing %q: %q", dimension, result.FailureMessage())
 		}
 	}
+}
+
+// TestAccuracyGoldenGateDetectsCorrelationRegression proves the correlation
+// dimension observes real production admission behavior, not the golden
+// expectation. It drops the required deployment-repository evidence from the
+// admitted service case's INPUT, so the real correlation/admission.Evaluate
+// rejects what the golden suite expects admitted. That flipped production
+// decision must make the audit report a disagreement, the correlation metric
+// fall below its floor, and the gate fail. A tautological measurement that copied
+// ExpectedState would still report a perfect score here.
+func TestAccuracyGoldenGateDetectsCorrelationRegression(t *testing.T) {
+	t.Parallel()
+
+	baseline, err := accuracygate.LoadBaseline(baselineFixturePath())
+	if err != nil {
+		t.Fatalf("LoadBaseline() error = %v", err)
+	}
+
+	suite, err := admissionaudit.LoadSuite(correlationGoldenPath())
+	if err != nil {
+		t.Fatalf("LoadSuite() error = %v", err)
+	}
+
+	// Healthy inputs score a passing correlation metric: the baseline guard
+	// confirms the regression below is what fails the gate, not a bad fixture.
+	healthy := scoreCorrelationInputs(t, suite.Intents, correlationInputs())
+	if pass, reason := dimensionPasses(baseline, accuracygate.DimensionCorrelation, healthy); !pass {
+		t.Fatalf("healthy correlation inputs failed the floor: %s", reason)
+	}
+
+	regressed := correlationInputs()
+	admitted := regressed["deployable-service-admitted"]
+	// Strip the deployment-repository evidence the production structure gate
+	// requires; admission.Evaluate now rejects the candidate the golden expects
+	// admitted, exactly the regression a real correlation defect would cause.
+	admitted.candidate.Evidence = nil
+	regressed["deployable-service-admitted"] = admitted
+
+	metric := scoreCorrelationInputs(t, suite.Intents, regressed)
+	if pass, _ := dimensionPasses(baseline, accuracygate.DimensionCorrelation, metric); pass {
+		t.Fatalf("correlation gate passed a regressed admission decision: %+v", metric)
+	}
+}
+
+// dimensionPasses evaluates a single dimension's measured metric against the
+// baseline and returns whether it cleared the floor plus the failure reason.
+func dimensionPasses(
+	baseline accuracygate.Baseline,
+	dimension accuracygate.Dimension,
+	metric accuracygate.Metric,
+) (bool, string) {
+	result := accuracygate.Evaluate(baseline, accuracygate.Measurement{
+		Metrics: map[accuracygate.Dimension]accuracygate.Metric{dimension: metric},
+	})
+	for _, dimResult := range result.Results {
+		if dimResult.Dimension == dimension {
+			return dimResult.Pass, dimResult.Reason
+		}
+	}
+	return false, "dimension not evaluated"
 }
 
 // TestAccuracyResolverMatrixMatchesPublishedDoc keeps the gate's resolver
