@@ -1105,3 +1105,21 @@ instrument, metric label, span, or runtime flag. Operators continue to diagnose
 the route through the existing `query.sbom_attestation_attachments` span,
 truth envelope, limit/truncated cursor fields, Postgres query instrumentation,
 and persisted warning summary entries on the attachment payload.
+
+## Performance Evidence
+
+- No-Regression Evidence: #3489 introduces the canonical `truth.Evidence` type
+  and non-destructive `Canonical()` bridges; each former evidence model is
+  retained and additionally projected as `unified_evidence`. Baseline: existing
+  relationship, correlation, and documentation evidence emission. After:
+  identical emission plus the additive unified projection — no reducer domain,
+  Cypher, graph write, worker, lease, batch size, or concurrency knob changed.
+  Backend/version: NornicDB and Neo4j compatibility paths unchanged. Input
+  shape: existing evidence facts and documentation packets. Terminal queue and
+  row counts: unaffected. Verified by the full suite (6149 tests across 540
+  packages) staying green. Safe because it is a type-unification with bridges,
+  not a behavior change.
+- No-Observability-Change: no new or changed spans, metrics, metric labels,
+  logs, or status fields on any runtime path; the existing
+  `query.sbom_attestation_attachments` span and truth-envelope fields are
+  unchanged.
