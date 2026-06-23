@@ -385,17 +385,8 @@ func TestQueryRepoDeploymentEvidenceIncomingUsesArtifactFirstBoundary(t *testing
 	}
 }
 
-type recordingDeploymentEvidenceGraphReader struct {
-	cypherCalls []string
-	params      []map[string]any
-}
-
-func (r *recordingDeploymentEvidenceGraphReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	r.cypherCalls = append(r.cypherCalls, cypher)
-	r.params = append(r.params, params)
-	return nil, nil
-}
-
-func (r *recordingDeploymentEvidenceGraphReader) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
-	return nil, nil
-}
+// TestGraphDeploymentEvidenceReturnsCommitSHA proves that the graph RETURN
+// path (queryRepoDeploymentEvidence) includes commit_sha in the artifact map.
+// This is item 1 of issue #3650: the Cypher RETURN previously omitted
+// artifact.commit_sha so the API/read-model path silently dropped the version
+// pin end-to-end.

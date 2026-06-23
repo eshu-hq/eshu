@@ -2,22 +2,29 @@ package relationships
 
 import "strings"
 
+// discoverDockerfileEvidence extracts DEPLOYS_FROM evidence from Dockerfile
+// source labels (e.g. org.opencontainers.image.source). commitSHA is forwarded
+// from the fact envelope's commit_sha payload field and stored in Details so
+// Canonical() can project a typed version pin. An empty string degrades safely
+// — no fabricated citation is emitted.
 func discoverDockerfileEvidence(
-	sourceRepoID, filePath string,
+	sourceRepoID, filePath, commitSHA string,
 	parsedFileData map[string]any,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 	for _, reference := range dockerfileSourceLabelReferences(parsedFileData) {
+		details := map[string]any{
+			"source_label": reference.label,
+			"source_ref":   reference.value,
+		}
+		mergeCommitSHA(details, commitSHA)
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, reference.value, filePath,
 			EvidenceKindDockerfileSourceLabel, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindDockerfileSourceLabel),
 			"Dockerfile source label points at the target repository",
-			"dockerfile", matcher, seen, map[string]any{
-				"source_label": reference.label,
-				"source_ref":   reference.value,
-			},
+			"dockerfile", matcher, seen, details,
 		)...)
 	}
 	return evidence

@@ -224,6 +224,230 @@ func TestDiscoverEvidenceNoCommitSHAInEnvelopeDegradesSafely(t *testing.T) {
 	}
 }
 
+// TestDiscoverKustomizeDocumentEvidenceCapturesCommitSHA proves that
+// discoverKustomizeDocumentEvidence forwards commit_sha into Details for
+// resources, helmCharts, and images matches when the envelope carries a SHA.
+// This is item 2 of issue #3650: the matchCatalog calls inside
+// discoverKustomizeDocumentEvidence previously passed nil extra-details, losing
+// the commit_sha even when the envelope carried it.
+func TestDiscoverKustomizeDocumentEvidenceCapturesCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		document map[string]any
+		kind     EvidenceKind
+	}{
+		{
+			name:     "resources",
+			document: map[string]any{"resources": []any{"payments-service"}},
+			kind:     EvidenceKindKustomizeResource,
+		},
+		{
+			name:     "helmCharts",
+			document: map[string]any{"helmCharts": []any{map[string]any{"name": "payments-service"}}},
+			kind:     EvidenceKindKustomizeHelmChart,
+		},
+		{
+			name:     "images",
+			document: map[string]any{"images": []any{map[string]any{"name": "payments-service"}}},
+			kind:     EvidenceKindKustomizeImage,
+		},
+	}
+
+	const wantSHA = "kustomize-commit-abc"
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			matcher := registryRoutingMatcher("payments-service", "repo-payments")
+			seen := make(map[evidenceKey]struct{})
+
+			evidence := discoverKustomizeDocumentEvidence(
+				"repo-infra", "overlays/kustomization.yaml", tc.document,
+				matcher, seen, wantSHA,
+			)
+
+			if len(evidence) == 0 {
+				t.Fatalf("no evidence emitted for %s", tc.name)
+			}
+			for _, f := range evidence {
+				got, _ := f.Details["commit_sha"].(string)
+				if got != wantSHA {
+					t.Errorf("Details[commit_sha] = %q, want %q (kind=%s)", got, wantSHA, tc.kind)
+				}
+			}
+		})
+	}
+}
+
+// TestDiscoverKustomizeDocumentEvidenceNoCommitSHADegradesSafely proves that
+// when the envelope has no commit_sha, discoverKustomizeDocumentEvidence does
+// not fabricate one — commit_sha is simply absent from Details.
+func TestDiscoverKustomizeDocumentEvidenceNoCommitSHADegradesSafely(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"resources": []any{"payments-service"}}
+	matcher := registryRoutingMatcher("payments-service", "repo-payments")
+	seen := make(map[evidenceKey]struct{})
+
+	evidence := discoverKustomizeDocumentEvidence(
+		"repo-infra", "overlays/kustomization.yaml", document,
+		matcher, seen, "", // no commit_sha
+	)
+
+	if len(evidence) == 0 {
+		t.Fatal("no evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "" {
+			t.Errorf("Details[commit_sha] = %q, want empty (no fabrication)", got)
+		}
+	}
+}
+
+// TestDiscoverJenkinsEvidenceCapturesCommitSHA proves the Jenkins extractor
+// forwards commit_sha from the envelope into Details (item 3 of #3650).
+func TestDiscoverJenkinsEvidenceCapturesCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"relative_path": "Jenkinsfile",
+				"content":       "@Library('pipelines') _\n",
+				"commit_sha":    "jenkins-commit-abc",
+				"parsed_file_data": map[string]any{
+					"shared_libraries": []any{"pipelines"},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-pipelines", Aliases: []string{"pipelines"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Jenkins evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "jenkins-commit-abc" {
+			t.Errorf("Details[commit_sha] = %q, want jenkins-commit-abc", got)
+		}
+	}
+}
+
+// TestDiscoverJenkinsEvidenceNoCommitSHADegradesSafely proves the Jenkins
+// extractor does not fabricate a commit_sha when the envelope lacks one.
+func TestDiscoverJenkinsEvidenceNoCommitSHADegradesSafely(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"relative_path": "Jenkinsfile",
+				"content":       "@Library('pipelines') _\n",
+				"parsed_file_data": map[string]any{
+					"shared_libraries": []any{"pipelines"},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-pipelines", Aliases: []string{"pipelines"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Jenkins evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "" {
+			t.Errorf("Details[commit_sha] = %q, want empty (no fabrication)", got)
+		}
+	}
+}
+
+// TestDiscoverDockerfileEvidenceCapturesCommitSHA proves the Dockerfile
+// extractor forwards commit_sha from the envelope into Details (item 3 of
+// #3650).
+func TestDiscoverDockerfileEvidenceCapturesCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"artifact_type": "dockerfile",
+				"relative_path": "Dockerfile",
+				"content":       "FROM scratch\n",
+				"commit_sha":    "docker-commit-abc",
+				"parsed_file_data": map[string]any{
+					"dockerfile_labels": []any{
+						map[string]any{
+							"name":  "org.opencontainers.image.source",
+							"value": "https://github.com/acme/payments-service",
+						},
+					},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Dockerfile evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "docker-commit-abc" {
+			t.Errorf("Details[commit_sha] = %q, want docker-commit-abc", got)
+		}
+	}
+}
+
+// TestDiscoverDockerfileEvidenceNoCommitSHADegradesSafely proves the Dockerfile
+// extractor does not fabricate a commit_sha when the envelope lacks one.
+func TestDiscoverDockerfileEvidenceNoCommitSHADegradesSafely(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"artifact_type": "dockerfile",
+				"relative_path": "Dockerfile",
+				"content":       "FROM scratch\n",
+				"parsed_file_data": map[string]any{
+					"dockerfile_labels": []any{
+						map[string]any{
+							"name":  "org.opencontainers.image.source",
+							"value": "https://github.com/acme/payments-service",
+						},
+					},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Dockerfile evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "" {
+			t.Errorf("Details[commit_sha] = %q, want empty (no fabrication)", got)
+		}
+	}
+}
+
 // TestDiscoverHelmEvidenceCapturesCommitSHA proves that Helm evidence discovery
 // also forwards the commit_sha from the envelope into Details, i.e., the fix is
 // not limited to the Terraform code path.

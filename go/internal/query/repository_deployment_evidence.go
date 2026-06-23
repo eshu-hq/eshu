@@ -38,6 +38,7 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       artifact.evidence_source AS evidence_source,
 		       artifact.start_line AS start_line,
 		       artifact.end_line AS end_line,
+		       artifact.commit_sha AS commit_sha,
 		       r.id AS source_repo_id,
 		       r.name AS source_repo_name,
 		       target.id AS target_repo_id,
@@ -67,6 +68,7 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       artifact.evidence_source AS evidence_source,
 		       artifact.start_line AS start_line,
 		       artifact.end_line AS end_line,
+		       artifact.commit_sha AS commit_sha,
 		       source.id AS source_repo_id,
 		       source.name AS source_repo_name,
 		       r.id AS target_repo_id,
@@ -262,6 +264,9 @@ func copyOptionalDeploymentEvidenceFields(dst map[string]any, src map[string]any
 	}
 	if matchedValue := StringVal(src, "matched_value"); matchedValue != "" {
 		dst["matched_value"] = matchedValue
+	}
+	if commitSHA := StringVal(src, "commit_sha"); commitSHA != "" {
+		dst["commit_sha"] = commitSHA
 	}
 }
 

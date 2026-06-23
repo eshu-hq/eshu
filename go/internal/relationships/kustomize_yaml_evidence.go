@@ -1,11 +1,19 @@
 package relationships
 
+// discoverKustomizeDocumentEvidence extracts DEPLOYS_FROM evidence from one
+// parsed Kustomize YAML document for resources, helmCharts, and images fields.
+// commitSHA is forwarded from the fact envelope's commit_sha payload field and
+// stored in Details so Canonical() can project a typed version pin. An empty
+// string degrades safely — no fabricated citation is emitted.
 func discoverKustomizeDocumentEvidence(
 	sourceRepoID, filePath string,
 	document map[string]any,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
+	commitSHA string,
 ) []EvidenceFact {
+	extra := mergeCommitSHA(nil, commitSHA)
+
 	var evidence []EvidenceFact
 
 	appendValues := func(values []string, kind EvidenceKind, confidence float64, rationale string) {
@@ -13,7 +21,7 @@ func discoverKustomizeDocumentEvidence(
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, value, filePath,
 				kind, RelDeploysFrom, confidence, rationale,
-				"kustomize", matcher, seen, nil,
+				"kustomize", matcher, seen, extra,
 			)...)
 		}
 	}

@@ -118,11 +118,11 @@ func discoverFromEnvelopeWithIndex(
 		)...)
 	case isJenkinsArtifact(filePath):
 		evidence = append(evidence, discoverJenkinsEvidence(
-			sourceRepoID, filePath, content, parsedFileData, matcher, seen,
+			sourceRepoID, filePath, content, commitSHA, parsedFileData, matcher, seen,
 		)...)
 	case isDockerfileArtifact(artifactType, filePath):
 		evidence = append(evidence, discoverDockerfileEvidence(
-			sourceRepoID, filePath, parsedFileData, matcher, seen,
+			sourceRepoID, filePath, commitSHA, parsedFileData, matcher, seen,
 		)...)
 	case artifactType == "docker_compose":
 		evidence = append(evidence, discoverDockerComposeEvidence(
@@ -206,7 +206,7 @@ func discoverKustomizeEvidence(
 	var evidence []EvidenceFact
 	for _, document := range parseYAMLDocuments(content) {
 		evidence = append(evidence, discoverKustomizeDocumentEvidence(
-			sourceRepoID, filePath, document, matcher, seen,
+			sourceRepoID, filePath, document, matcher, seen, commitSHA,
 		)...)
 	}
 	for _, candidate := range extractYAMLStringValues(content) {

@@ -204,6 +204,9 @@ func deploymentEvidenceArtifactFromPreview(preview map[string]any, direction, re
 	if runtimeKind := firstDeploymentArtifactString(details, "runtime_platform_kind", "platform_kind"); runtimeKind != "" {
 		artifact["runtime_platform_kind"] = runtimeKind
 	}
+	if commitSHA := firstDeploymentArtifactString(details, "commit_sha"); commitSHA != "" {
+		artifact["commit_sha"] = commitSHA
+	}
 	return artifact
 }
 
