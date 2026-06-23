@@ -607,3 +607,22 @@ Observability Evidence: the proof asserts the existing
 at least once under the concurrent MERGE conflict via a manual metric reader.
 The instrument and its label are unchanged; the test only reads it, so operators
 keep the same retry-visibility signal in production.
+
+## OIDC Static Grant Fallback For Empty Persisted Mappings (#3457)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestOIDCLoginStore|TestBootstrapDefinitionsIncludeOIDCLogin' -count=1` fails
+before this fix because an empty persisted
+`identity_provider_group_role_mappings` result is reported as a policy revision
+error. After the fix, zero matching persisted OIDC group-role rows returns an
+empty not-mapped result (`ok=false`) before scope/repository target reads, so
+`cmd/api` can continue to its private static fallback resolver. The existing
+mixed-policy test still proves real multi-policy role rows fail closed.
+
+No-Observability-Change: #3457 changes only the empty-row branch after the
+bounded `ResolveGroupRoleGrants` role lookup. It adds no table, index, query
+shape, route, worker, metric, span, log field, runtime knob, provider call,
+token persistence, or raw group persistence. Operators continue to diagnose the
+path through existing OIDC login HTTP status, Postgres query spans and
+`eshu_dp_postgres_query_duration_seconds`, browser-session rows, and the OIDC
+session refresh counters/logs.

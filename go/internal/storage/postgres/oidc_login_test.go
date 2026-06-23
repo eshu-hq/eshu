@@ -192,6 +192,37 @@ func TestOIDCLoginStoreResolvesGroupsThroughRolesToGrants(t *testing.T) {
 	}
 }
 
+func TestOIDCLoginStoreReturnsNotMappedWhenNoGroupRoleRowsMatch(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 18, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: nil}},
+	}
+	store := NewOIDCLoginStore(db)
+
+	resolution, ok, err := store.ResolveGroupRoleGrants(context.Background(), OIDCGroupGrantQuery{
+		ProviderConfigID:    "okta-dev",
+		TenantID:            "tenant_a",
+		WorkspaceID:         "workspace_a",
+		ExternalGroupHashes: []string{"sha256:unmapped"},
+		AsOf:                now,
+	})
+	if err != nil {
+		t.Fatalf("ResolveGroupRoleGrants() error = %v, want nil", err)
+	}
+	if ok {
+		t.Fatal("ResolveGroupRoleGrants() ok = true, want false")
+	}
+	if len(resolution.RoleIDs) != 0 || resolution.PolicyRevisionHash != "" ||
+		len(resolution.AllowedScopeIDs) != 0 || len(resolution.AllowedRepositoryIDs) != 0 {
+		t.Fatalf("resolution = %#v, want empty not-mapped result", resolution)
+	}
+	if len(db.queries) != 1 {
+		t.Fatalf("query count = %d, want only role resolution before not-mapped result", len(db.queries))
+	}
+}
+
 func TestOIDCLoginStoreRejectsMixedPolicyRevisionRoleMappings(t *testing.T) {
 	t.Parallel()
 
