@@ -16,7 +16,7 @@ func (e *Engine) parsePython(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("python", parser)
 
 	return pythonparser.Parse(repoRoot, path, isDependency, sharedOptions(options), parser)
 }
@@ -26,7 +26,7 @@ func (e *Engine) preScanPython(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("python", parser)
 
 	names, err := pythonparser.PreScan(path, parser)
 	if err != nil {

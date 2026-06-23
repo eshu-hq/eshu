@@ -15,7 +15,7 @@ func (e *Engine) parseJava(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("java", parser)
 
 	return javaparser.Parse(path, isDependency, sharedOptions(options), parser)
 }
@@ -25,7 +25,7 @@ func (e *Engine) preScanJava(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("java", parser)
 
 	names, err := javaparser.PreScan(path, parser)
 	if err != nil {

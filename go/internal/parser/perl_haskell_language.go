@@ -22,7 +22,7 @@ func (e *Engine) parseHaskell(path string, isDependency bool, options Options) (
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("haskell", parser)
 
 	return haskellparser.ParseWithParser(path, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
@@ -35,7 +35,7 @@ func (e *Engine) preScanHaskell(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("haskell", parser)
 
 	return haskellparser.PreScanWithParser(path, parser)
 }

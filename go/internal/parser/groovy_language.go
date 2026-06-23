@@ -9,7 +9,7 @@ func (e *Engine) parseGroovy(path string, isDependency bool, options Options) (m
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("groovy", parser)
 
 	return groovyparser.ParseWithParser(path, isDependency, sharedOptions(options), parser)
 }
@@ -19,7 +19,7 @@ func (e *Engine) preScanGroovy(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("groovy", parser)
 
 	return groovyparser.PreScanWithParser(path, parser)
 }

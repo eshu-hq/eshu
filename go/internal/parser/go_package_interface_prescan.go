@@ -370,7 +370,7 @@ func (e *Engine) runPackagePrescanPass(
 				setErr(err)
 				return
 			}
-			defer parser.Close()
+			defer e.runtime.PutParser("go", parser)
 			for idx := range jobs {
 				if err := work(parser, idx); err != nil {
 					setErr(err)

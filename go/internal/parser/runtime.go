@@ -31,16 +31,41 @@ import (
 
 type languageLoader func() unsafe.Pointer
 
-// Runtime owns cached tree-sitter language handles.
+// parserFreeListCapacity bounds the number of idle tree-sitter parsers retained
+// per language. It must be large enough to cover the parse worker fan-out so
+// concurrent parsers reuse instead of reallocating, but small enough that the
+// total resident native TSParser count stays bounded at
+// parserFreeListCapacity * len(languages). Returns beyond this cap close the
+// parser instead of retaining it.
+const parserFreeListCapacity = 64
+
+// Runtime owns cached tree-sitter language handles and per-language bounded
+// parser free-lists. Reusing parsers eliminates the per-file CGO allocation
+// cost of tree_sitter.NewParser + SetLanguage for large repositories.
+//
+// The free-list is a buffered channel rather than a sync.Pool: a tree-sitter
+// Parser wraps a native TSParser C allocation that MUST be released with Close.
+// A sync.Pool may silently drop idle entries during GC without notifying the
+// owner, which would leak the native allocation in a long-running
+// ingester/parser process. The bounded channel instead guarantees every parser
+// is either reused on a later borrow or explicitly Closed when the free-list is
+// full, so the resident native parser count never grows unbounded.
 type Runtime struct {
 	mu        sync.Mutex
 	languages map[string]*tree_sitter.Language
+	// freeLists is keyed by canonical language name, matching the languages
+	// map. Each entry is a fixed-capacity buffered channel created lazily on
+	// the first Parser call for that language. Channel send/receive is
+	// goroutine-safe, so borrow/return need no extra locking once the channel
+	// exists.
+	freeLists map[string]chan *tree_sitter.Parser
 }
 
 // NewRuntime constructs one native tree-sitter runtime.
 func NewRuntime() *Runtime {
 	return &Runtime{
 		languages: make(map[string]*tree_sitter.Language),
+		freeLists: make(map[string]chan *tree_sitter.Parser),
 	}
 }
 
@@ -68,19 +93,94 @@ func (r *Runtime) Language(name string) (*tree_sitter.Language, error) {
 	return language, nil
 }
 
-// Parser returns a new parser configured for one language.
+// Parser borrows a tree-sitter parser configured for name from the per-language
+// bounded free-list. The caller must return the parser via PutParser after each
+// use, not call parser.Close() directly. The parser is guaranteed to be in a
+// reset state. When the free-list is empty a fresh parser is allocated; the
+// caller still returns it via PutParser, which either retains it (if there is
+// room under the cap) or Closes it.
 func (r *Runtime) Parser(name string) (*tree_sitter.Parser, error) {
-	language, err := r.Language(name)
+	canonical, err := normalizeLanguageName(name)
 	if err != nil {
 		return nil, err
 	}
 
-	parser := tree_sitter.NewParser()
-	if err := parser.SetLanguage(language); err != nil {
-		parser.Close()
-		return nil, fmt.Errorf("set parser language %q: %w", name, err)
+	language, err := r.Language(canonical)
+	if err != nil {
+		return nil, err
 	}
-	return parser, nil
+
+	freeList := r.freeListFor(canonical)
+
+	select {
+	case p := <-freeList:
+		// Reset clears internal cancellation and timeout state so the borrowed
+		// parser behaves identically to a freshly allocated one.
+		p.Reset()
+		return p, nil
+	default:
+		// Free-list empty: allocate a new parser and configure it.
+		p := tree_sitter.NewParser()
+		if err := p.SetLanguage(language); err != nil {
+			p.Close()
+			return nil, fmt.Errorf("set parser language %q: %w", name, err)
+		}
+		return p, nil
+	}
+}
+
+// PutParser returns a borrowed parser to the per-language bounded free-list
+// after resetting it. The canonical name must be the same language name used to
+// borrow the parser via Parser. The caller must not use p after calling
+// PutParser. Passing a nil parser is a no-op.
+//
+// If the free-list does not exist (an unknown canonical name) or is already at
+// capacity, the parser is Closed and its native TSParser allocation freed
+// rather than dropped. This guarantees no parser leaks: every parser is either
+// reused or explicitly Closed, and the free-list never grows past its cap.
+func (r *Runtime) PutParser(canonical string, p *tree_sitter.Parser) {
+	if p == nil {
+		return
+	}
+	r.mu.Lock()
+	freeList := r.freeLists[canonical]
+	r.mu.Unlock()
+	if freeList == nil {
+		p.Close()
+		return
+	}
+	p.Reset()
+	select {
+	case freeList <- p:
+		// Retained for reuse.
+	default:
+		// Free-list full: close to keep the resident parser count bounded.
+		p.Close()
+	}
+}
+
+// freeListFor returns the bounded free-list channel for canonical, creating it
+// under r.mu if needed. The channel capacity bounds the idle parsers retained
+// for the language.
+func (r *Runtime) freeListFor(canonical string) chan *tree_sitter.Parser {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if freeList := r.freeLists[canonical]; freeList != nil {
+		return freeList
+	}
+	freeList := make(chan *tree_sitter.Parser, parserFreeListCapacity)
+	r.freeLists[canonical] = freeList
+	return freeList
+}
+
+// freeListLenForTest reports the number of idle parsers currently retained for
+// canonical. It exists only for white-box tests that assert the free-list stays
+// bounded; production code must not depend on the transient free-list length.
+func (r *Runtime) freeListLenForTest(canonical string) int {
+	r.mu.Lock()
+	freeList := r.freeLists[canonical]
+	r.mu.Unlock()
+	return len(freeList)
 }
 
 var builtinLanguageLoaders = map[string]languageLoader{

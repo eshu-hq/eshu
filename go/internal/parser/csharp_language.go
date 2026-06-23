@@ -15,7 +15,7 @@ func (e *Engine) parseCSharp(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("c_sharp", parser)
 
 	return csharpparser.Parse(path, isDependency, sharedOptions(options), parser)
 }
@@ -25,7 +25,7 @@ func (e *Engine) preScanCSharp(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("c_sharp", parser)
 
 	names, err := csharpparser.PreScan(path, parser)
 	if err != nil {

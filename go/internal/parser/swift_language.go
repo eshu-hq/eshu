@@ -11,7 +11,7 @@ func (e *Engine) parseSwift(path string, isDependency bool, options Options) (ma
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("swift", parser)
 
 	return swiftparser.Parse(path, isDependency, sharedOptions(options), parser)
 }
@@ -21,7 +21,7 @@ func (e *Engine) preScanSwift(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("swift", parser)
 
 	names, err := swiftparser.PreScan(path, parser)
 	if err != nil {

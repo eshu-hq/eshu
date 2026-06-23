@@ -9,14 +9,22 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// ParserFactory returns a fresh tree-sitter parser for the requested runtime
-// grammar name. The parent parser owns runtime caching; this package owns the
-// language adapter once a parser is provided.
+// ParserFactory returns a pooled tree-sitter parser for the requested runtime
+// grammar name. The caller must return the parser via the paired ParserReturner
+// after use instead of calling parser.Close directly.
 type ParserFactory func(language string) (*tree_sitter.Parser, error)
 
+// ParserReturner returns a borrowed parser to the runtime pool. It must be
+// called with the same language name that was passed to ParserFactory.
+type ParserReturner func(language string, p *tree_sitter.Parser)
+
 // Parse reads path and returns the JavaScript-family parser payload.
+// parserReturner must be the paired return function for parserFactory; the
+// borrowed parser is returned to the pool via parserReturner instead of
+// calling parser.Close directly.
 func Parse(
 	parserFactory ParserFactory,
+	parserReturner ParserReturner,
 	repoRoot string,
 	path string,
 	runtimeLanguage string,
@@ -28,7 +36,7 @@ func Parse(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer parserReturner(runtimeLanguage, parser)
 
 	source, err := readSource(path)
 	if err != nil {
@@ -53,7 +61,7 @@ func Parse(
 	sourceText := string(source)
 	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source, outputLanguage)
 	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
-	siblingParser := newJavaScriptSiblingParser(parserFactory)
+	siblingParser := newJavaScriptSiblingParser(parserFactory, parserReturner)
 	defer siblingParser.Close()
 	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents)
 	if len(deadCodeRoots.fileRootKinds) > 0 {
@@ -336,14 +344,16 @@ func Parse(
 }
 
 // PreScan returns JavaScript-family symbols used by repository pre-scan.
+// parserReturner must be the paired return function for parserFactory.
 func PreScan(
 	parserFactory ParserFactory,
+	parserReturner ParserReturner,
 	repoRoot string,
 	path string,
 	runtimeLanguage string,
 	outputLanguage string,
 ) ([]string, error) {
-	payload, err := Parse(parserFactory, repoRoot, path, runtimeLanguage, outputLanguage, false, shared.Options{})
+	payload, err := Parse(parserFactory, parserReturner, repoRoot, path, runtimeLanguage, outputLanguage, false, shared.Options{})
 	if err != nil {
 		return nil, err
 	}

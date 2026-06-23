@@ -15,8 +15,9 @@ import (
 // surface BFS re-reads the same paths; the cache keeps one walk's repeated reads
 // from re-invoking tree-sitter on identical input.
 type javaScriptSiblingParser struct {
-	factory ParserFactory
-	cache   map[string]*javaScriptSiblingTree
+	factory  ParserFactory
+	returner ParserReturner
+	cache    map[string]*javaScriptSiblingTree
 }
 
 // javaScriptSiblingTree holds a parsed sibling file. A nil root marks a path that
@@ -28,13 +29,14 @@ type javaScriptSiblingTree struct {
 	source []byte
 }
 
-// newJavaScriptSiblingParser builds a sibling parser bound to factory. A nil
-// factory yields a parser that never resolves a root, mirroring the previous
-// behavior when no parser is available.
-func newJavaScriptSiblingParser(factory ParserFactory) *javaScriptSiblingParser {
+// newJavaScriptSiblingParser builds a sibling parser bound to factory and
+// returner. A nil factory yields a parser that never resolves a root, mirroring
+// the previous behavior when no parser is available.
+func newJavaScriptSiblingParser(factory ParserFactory, returner ParserReturner) *javaScriptSiblingParser {
 	return &javaScriptSiblingParser{
-		factory: factory,
-		cache:   make(map[string]*javaScriptSiblingTree),
+		factory:  factory,
+		returner: returner,
+		cache:    make(map[string]*javaScriptSiblingTree),
 	}
 }
 
@@ -94,7 +96,7 @@ func (p *javaScriptSiblingParser) parseFile(path string) (*tree_sitter.Node, *tr
 	if err != nil || parser == nil {
 		return nil, nil, nil
 	}
-	defer parser.Close()
+	defer p.returner(runtimeLanguage, parser)
 	tree := parser.Parse(source, nil)
 	if tree == nil {
 		return nil, nil, nil

@@ -11,7 +11,7 @@ func (e *Engine) parseGo(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("go", parser)
 
 	return golangparser.Parse(parser, path, isDependency, sharedOptions(options))
 }
@@ -21,7 +21,7 @@ func (e *Engine) preScanGo(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("go", parser)
 
 	return golangparser.PreScan(parser, path)
 }
