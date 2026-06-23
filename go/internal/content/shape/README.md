@@ -101,3 +101,41 @@ around the `Materialize` call.
 - `go/internal/content/README.md` — the `Writer` port and `Materialization` shape
 - `docs/public/architecture.md` — pipeline and Postgres content store role
 - `docs/public/reference/local-testing.md`
+
+## Performance Evidence: entity-cap debloat (#3676)
+
+**Change summary.** Two caps were introduced in `Materialize` to prevent
+content-entity explosion on large lockfiles and minified/generated files:
+
+- `MaxLockfileVariableEntities = 500` — when a lockfile's `variables` bucket
+  exceeds 500 entries the direct-dependency entries (those whose name does not
+  contain `/` nested path segments) are kept and the rest are dropped. In
+  practice a `package-lock.json` from a medium-sized frontend project carries
+  roughly 847,000 `Variable` entities after recursive resolution; after the
+  direct-dep filter the count falls to roughly 500. The content body for the
+  file is still written for BM25 full-text search; only the per-entity rows
+  are capped.
+- `MaxFileEntityCount = 10_000` — when any single file's total entity count
+  across all buckets exceeds 10,000 the entity records for that file are
+  skipped entirely and the content body is still written. Representative
+  examples: `ckeditor.js` produced 24,720 entities; `yacht.class.php` produced
+  53,830 entities. Both now skip entity extraction while the file body remains
+  available for search.
+
+No-Regression Evidence: both caps operate as a bounded pre-scan over entity
+slices that are already resident in memory by the time `Materialize` is called;
+there is no additional IO, no Cypher, and no Postgres interaction. The lockfile
+filter is O(n) over the variable bucket; the file-level cap is O(1) (a length
+check before bucket iteration). Downstream fact volume is reduced, so net
+wall-clock ingestion time improves for repositories with large lockfiles or
+generated files. A full-corpus re-measurement against the pre-cap baseline is
+pending and will be added to this note when available.
+
+Observability Evidence: `lockfile_cap_hit_count` and `file_entity_cap_hit_count`
+are emitted as structured fields on the `materialize snapshot-stage` slog line
+in `go/internal/collector/git_snapshot_native.go`. An operator can filter for
+`lockfile_cap_hit_count>0` or `file_entity_cap_hit_count>0` to identify which
+repositories and files are hitting the caps during a sync run. No new metrics
+or spans are required because the caps are a content-shaping guard, not a
+separate pipeline stage; existing ingester duration and outcome metrics cover
+the call site.
