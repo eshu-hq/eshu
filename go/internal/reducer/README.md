@@ -3076,3 +3076,31 @@ No-Observability-Change: no metrics, spans, or structured logs are added or
 altered; only the in-query confidence literal is sourced from a documented
 constant. Edge-property values written to the graph are byte-for-byte identical
 to before.
+
+## Materialization phase sub-duration telemetry (#3624)
+
+The reducer result now carries `Result.SubDurations` (a `map[string]float64` of
+per-phase handler timings) and the service log line emits them as
+`sub_duration_<key>_seconds` attributes. This surfaces the materialization
+long pole identified in #3624 — the `platform_graph` conflict domain shared by
+`WorkloadMaterialization`, `DeploymentMapping`, `WorkloadIdentity`, and
+`DeployableUnitCorrelation` serializes ~26k intents per scope — so an operator
+(and the remote full-corpus e2e proof) can see which phase dominates. The
+underlying serialization fix is tracked in #3672 (conflict-key partitioning);
+this change is observability only.
+
+Benchmark Evidence (Apple M5 Max, darwin/arm64, `workload_materialization_subduration_bench_test.go`):
+building `SubDurations` is ~190 ns/op at 2 allocs/op; the incremental log-path
+cost of the 7 added attributes is ~1.6 µs/op. Backend-agnostic (no graph write
+changed). Input shape: a fully-populated workload-materialization timing struct.
+
+No-Regression Evidence: this change adds no graph read/write and no new Cypher;
+it only converts an already-computed internal timing struct into a result map
+and log attributes. The materialization hot-path query shapes, batching, MERGE
+identity, and conflict domains are unchanged, so there is no measurable
+regression — `go test ./internal/reducer -count=1` (8950 tests) stays green.
+
+Observability Evidence: adds per-phase `sub_duration_<key>_seconds` structured-log
+attributes to the reducer result log line (via `recordReducerResult` in
+`service.go` / `service_batch.go`), giving operators per-phase visibility into the
+materialization drain so the long pole is diagnosable from logs at 3 AM.
