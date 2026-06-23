@@ -228,6 +228,9 @@ func (s *OIDCLoginStore) resolveOIDCRoles(
 	if err := rows.Err(); err != nil {
 		return nil, "", fmt.Errorf("resolve oidc group roles: %w", err)
 	}
+	if len(roles) == 0 {
+		return nil, "", nil
+	}
 	policyRevisionHash, err := singleOIDCPolicyRevisionHash(policyRevisionHashes)
 	if err != nil {
 		return nil, "", err
