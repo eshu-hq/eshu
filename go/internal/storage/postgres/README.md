@@ -479,8 +479,9 @@ latest-generation sibling of the full query, with an added predicate
 `lower(payload::text) LIKE ANY($1)`. The anchors come from
 `backfillRelationshipAnchorTerms`: `relationships.CatalogPayloadAnchors` over the
 newly onboarded repositories' catalog entries, plus the unconditional
-`argoCDOverSelectAnchors`. The full-rebuild path (`BackfillAllRelationshipEvidence`)
-still uses `loadLatestRelationshipFacts` because it must see the whole corpus.
+`argoCDOverSelectAnchors`. The corpus-wide deferred path
+(`BackfillAllRelationshipEvidence`) now scopes its load the same way — see
+[Corpus-wide deferred fact load (#3569)](#corpus-wide-deferred-fact-load-3569).
 
 The predicate is a **provable superset** of the facts the in-memory
 `catalogMatcher` could match against the new-repo-scoped catalog. The matcher
@@ -548,3 +549,68 @@ backfill time and memory now scale with the onboarding delta, not the fleet.
 No-Observability-Change: the per-commit backfill emits no new metric, span, or
 log shape; the existing `relationship_backfill` commit-stage timing and the
 evidence-persist rows still surface the path, now reading a bounded fact set.
+
+### Corpus-wide deferred fact load (#3569)
+
+The #3570 scope bound covered the per-commit path, but the corpus-wide deferred
+backfill (`BackfillAllRelationshipEvidence`, invoked by
+`RunDeferredRelationshipMaintenance` during ingester maintenance and bootstrap
+seeding) still ran `loadLatestRelationshipFacts`, which scanned **every**
+repository's latest-generation `content`/`file`/`gcp_cloud_relationship` facts,
+shipped them all to Go, and iterated them all through `DiscoverEvidence` on every
+pass. So deferred-pass *time* stayed O(all source facts) as the fleet grew, even
+though the discovered evidence is bounded by the facts that actually reference a
+catalog repository.
+
+`BackfillAllRelationshipEvidence` now calls the shared
+`loadAnchorScopedRelationshipFacts` two-phase loader with the **full** catalog as
+both the anchor source and the ArgoCD config-resolution catalog. Unlike the
+per-commit path (anchors over the onboarding delta), the deferred pass treats
+every repository as an eligible target, so anchors derive from
+`CatalogPayloadAnchors(fullCatalog)` unioned with `argoCDOverSelectAnchors`. The
+load runs `listOnboardedRepoScopedRelationshipFactRecordsQuery`
+(`lower(payload::text) LIKE ANY($1)`) plus the phase-two ArgoCD generator-config
+reload, exactly as the per-commit path does. `loadLatestRelationshipFacts` and
+its unbounded query are removed.
+
+Because the anchor predicate is the same **provable superset** of the facts
+`DiscoverEvidence` can match against a catalog (the matcher accepts an alias only
+when its tokens are a substring of the lowercased payload; private-registry
+provider suffixes and ArgoCD template synthesis are the two carve-outs handled by
+`CatalogPayloadAnchors` and `argoCDOverSelectAnchors` + phase two), scoping the
+deferred load to the full-catalog anchors yields **identical** relationship truth
+to the prior full-corpus load. The only facts excluded are those that match no
+catalog anchor at all — facts that reference no repository and therefore could
+form no edge.
+
+Accuracy is pinned by `TestCorpusWideAnchorScopedLoadEqualsFullLoad`
+(`go/internal/relationships/catalog_anchor_superset_test.go`): discovery over the
+full-catalog anchor-scoped load equals discovery over the full corpus,
+edge-for-edge, on a mixed corpus whose orphan facts are genuinely excluded. The
+scope-bounding query selection is pinned by
+`TestBackfillAllRelationshipEvidenceUsesScopedFactQuery` and
+`TestBackfillAllRelationshipEvidenceShortCircuitsWithoutAnchors`
+(`go/internal/storage/postgres/ingestion_backfill_deferred_scope_test.go`): the
+deferred backfill issues the parameterised anchor-scoped query (never the
+full-corpus query) and issues no fact query at all when the catalog has no usable
+anchors, while still publishing backward-evidence readiness.
+
+Benchmark Evidence: `BenchmarkDeferredBackfillDiscoveryFullFleet{1k,5k}` vs
+`BenchmarkDeferredBackfillDiscoveryScopedFleet{1k,5k}` in
+`go/internal/relationships/catalog_anchor_bench_test.go` on Apple M5 Max
+(`go test ./internal/relationships -run '^$' -bench BenchmarkDeferredBackfillDiscovery
+-benchmem`, one edge-forming fact plus four orphan facts per fleet repo,
+whole-fleet catalog). At a 1000-repo fleet deferred discovery drops from
+`25082833 ns/op` (`42771906 B/op`, `383025 allocs/op`) to `4549356 ns/op`
+(`3721903 B/op`, `39899 allocs/op`) — about 5.5x faster, 11x less memory. At 5000
+repos it drops from `145086120 ns/op` (`211665884 B/op`, `1915095 allocs/op`) to
+`23943981 ns/op` (`19111233 B/op`, `200008 allocs/op`) — about 6x faster, 11x
+less memory. Both yield the same evidence set. The orphan facts the full corpus
+shipped and iterated no longer reach `DiscoverEvidence`.
+
+No-Observability-Change: the deferred backfill emits no new metric, span, or log
+shape; the existing `relationship.backfill_deferred` span, the
+`DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments, and the
+`deferred_backfill_completed` log line still surface the path, now recording a
+bounded fact load. A shrinking `DeferredBackfillDuration` against a growing fleet
+is the operator-visible signal that the scope bound is in effect.
