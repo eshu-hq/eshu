@@ -27,6 +27,11 @@ func TestRecoverWedgedActiveGenerationsQueryContract(t *testing.T) {
 		"NOT EXISTS",
 		"newer.scope_id = generation.scope_id",
 		"LIMIT $3",
+		// A generation is wedged only if it has real outstanding downstream work,
+		// not merely because it aged. Healthy quiet scopes stay active+projected
+		// with all shared_projection_intents completed and must NOT be re-driven.
+		"shared_projection_intents",
+		"completed_at IS NULL",
 	} {
 		if !strings.Contains(recoverWedgedActiveGenerationsQuery, want) {
 			t.Fatalf("recover wedged query missing %q:\n%s", want, recoverWedgedActiveGenerationsQuery)
@@ -170,5 +175,87 @@ func TestGenerationLivenessStoreCountActiveByAge(t *testing.T) {
 	}
 	if !strings.Contains(db.queries[0].query, "scope_generations") {
 		t.Fatalf("count query missing scope_generations:\n%s", db.queries[0].query)
+	}
+	// The stuck bucket is the wedged-generation alarm and must require actual
+	// downstream blockage (outstanding shared_projection_intents), so a healthy
+	// quiet aged scope is counted aging/fresh, never stuck.
+	if !strings.Contains(db.queries[0].query, "shared_projection_intents") {
+		t.Fatalf("count query stuck bucket missing downstream-blockage gate:\n%s", db.queries[0].query)
+	}
+	if !strings.Contains(db.queries[0].query, "completed_at IS NULL") {
+		t.Fatalf("count query stuck bucket missing completed_at IS NULL gate:\n%s", db.queries[0].query)
+	}
+}
+
+// TestRecoverWedgedActiveGenerationsExcludesHealthyQuietScopes pins the
+// false-positive guard: an aged active generation that is projected and quiet
+// (all shared_projection_intents completed, no outstanding work) must NOT be
+// re-driven. The query's downstream-blockage subquery is the gate; here we prove
+// the store passes the deadline arg and emits the gate so a healthy quiet scope
+// produces no re-enqueue rows.
+func TestRecoverWedgedActiveGenerationsExcludesHealthyQuietScopes(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			// supersede orphaned actives: none.
+			{rows: [][]any{}},
+			// recover wedged: a healthy quiet scope returns no rows because the
+			// downstream-blockage gate excludes it.
+			{rows: [][]any{}},
+		},
+	}
+
+	store := NewGenerationLivenessStore(db)
+	now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	result, err := store.RecoverWedgedGenerations(context.Background(), GenerationLivenessPolicy{
+		ActivationDeadline: 30 * time.Minute,
+		MaxRecoverAttempts: 5,
+		BatchLimit:         100,
+	}, now)
+	if err != nil {
+		t.Fatalf("RecoverWedgedGenerations() error = %v, want nil", err)
+	}
+	if got, want := result.Recovered, 0; got != want {
+		t.Fatalf("result.Recovered = %d, want %d (healthy quiet scope must not be re-driven)", got, want)
+	}
+	// The recover query must carry the downstream-blockage gate so the exclusion
+	// is enforced in SQL, not just by the empty fixture.
+	if !strings.Contains(db.queries[1].query, "shared_projection_intents") ||
+		!strings.Contains(db.queries[1].query, "completed_at IS NULL") {
+		t.Fatalf("recover query missing downstream-blockage gate:\n%s", db.queries[1].query)
+	}
+}
+
+// TestRecoverWedgedActiveGenerationsRecoversBlockedScopes proves the positive
+// case: an aged active generation with outstanding downstream work (uncompleted
+// shared_projection_intents) is re-driven.
+func TestRecoverWedgedActiveGenerationsRecoversBlockedScopes(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			// supersede orphaned actives: none.
+			{rows: [][]any{}},
+			// recover wedged: one blocked scope is re-driven.
+			{rows: [][]any{{"scope-wedged", "gen-wedged"}}},
+		},
+	}
+
+	store := NewGenerationLivenessStore(db)
+	now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	result, err := store.RecoverWedgedGenerations(context.Background(), GenerationLivenessPolicy{
+		ActivationDeadline: 30 * time.Minute,
+		MaxRecoverAttempts: 5,
+		BatchLimit:         100,
+	}, now)
+	if err != nil {
+		t.Fatalf("RecoverWedgedGenerations() error = %v, want nil", err)
+	}
+	if got, want := result.Recovered, 1; got != want {
+		t.Fatalf("result.Recovered = %d, want %d (blocked scope must be re-driven)", got, want)
+	}
+	if len(result.RecoveredScopeIDs) != 1 || result.RecoveredScopeIDs[0] != "scope-wedged" {
+		t.Fatalf("result.RecoveredScopeIDs = %v, want [scope-wedged]", result.RecoveredScopeIDs)
 	}
 }

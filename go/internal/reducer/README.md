@@ -70,16 +70,24 @@ sits `active` indefinitely. The runner delegates to
 poll: it supersedes orphaned older `active` generations once a newer same-scope
 generation is authoritative, and re-enqueues projector work for wedged actives
 past the activation deadline (re-driving reduce -> readiness -> projection over
-existing facts). A per-generation re-drive budget (`liveness_recovery_attempts`
-on the work item payload) bounds retries so a poison scope cannot loop. The
-conflict domain is `scope_id`; both statements are idempotent under concurrent
-reducer workers. The operator escape hatch is
+existing facts). Wedge detection gates on real downstream blockage, not age
+alone: a generation is only wedged when it has an outstanding
+`shared_projection_intents` row (`completed_at IS NULL`). A healthy quiet scope
+stays `active` and projected (the projected baseline is "has been active") with
+every intent completed, so it is excluded and never re-driven; this prevents the
+sweep from burning the re-drive budget and raising false `stuck` alarms on idle
+installations. A per-generation re-drive budget (`liveness_recovery_attempts` on
+the work item payload) bounds retries so a poison scope cannot loop. The conflict
+domain is `scope_id`; both statements are idempotent under concurrent reducer
+workers. The operator escape hatch is
 `POST /api/v0/admin/recover-generations`, which durably re-drives a named scope
 set and records the action in the `admin_replay_requests` ledger.
 
 Observability Evidence: `eshu_dp_active_generations` gauges active generations by
-`fresh`/`aging`/`stuck` age bucket (`stuck` is the wedged-generation alarm
-signal); `eshu_dp_generation_liveness_recovered_total`,
+`fresh`/`aging`/`stuck` age bucket (`stuck` requires both age past the deadline
+and outstanding `shared_projection_intents`, so it is a true wedged-generation
+alarm signal and does not fire on healthy quiet aged scopes);
+`eshu_dp_generation_liveness_recovered_total`,
 `eshu_dp_generation_liveness_superseded_total`, and
 `eshu_dp_generation_liveness_failures_total` count sweep outcomes; completion and
 failure logs carry the `reduction` phase attribute. No-Regression Evidence: the

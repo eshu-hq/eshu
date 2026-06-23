@@ -632,9 +632,14 @@ arrives to supersede it. Two mechanisms protect against this:
 
 - **Self-healing (reducer liveness sweep).** The reducer runs a lease-light,
   periodic sweep (`GenerationLivenessRunner`) that flags `active` generations
-  whose `activated_at` is older than the activation deadline and that have no
-  newer same-scope generation, then durably re-enqueues projector work to
-  re-drive them. A bounded per-generation re-drive budget
+  whose `activated_at` is older than the activation deadline, that have no newer
+  same-scope generation, **and that still have real downstream blockage** — an
+  outstanding `shared_projection_intents` row (`completed_at IS NULL`) for the
+  generation — then durably re-enqueues projector work to re-drive them. Age
+  alone is not enough: a healthy quiet scope normally stays `active` and
+  projected (the projected baseline is "has been active") with every intent
+  completed, so the downstream-blockage gate excludes it and it is never
+  re-driven. A bounded per-generation re-drive budget
   (`liveness_recovery_attempts`, stored on the work item payload) prevents a
   poison scope from looping forever. The sweep also supersedes orphaned older
   `active` generations once a newer same-scope generation is authoritative.
@@ -651,8 +656,13 @@ arrives to supersede it. Two mechanisms protect against this:
 Observability for wedged generations:
 
 - `eshu_dp_active_generations` is a gauge of current active generations by
-  closed activation-age bucket (`fresh`, `aging`, `stuck`). A non-zero `stuck`
-  bucket is the wedged-generation alarm signal.
+  closed activation-age bucket (`fresh`, `aging`, `stuck`). The `stuck` bucket
+  matches the recovery gate: a generation is only `stuck` when it has aged past
+  the deadline AND has outstanding `shared_projection_intents`
+  (`completed_at IS NULL`). A healthy quiet scope that merely aged is counted
+  `aging`, never `stuck`, so a non-zero `stuck` bucket is a true
+  wedged-generation alarm signal rather than a false alarm on idle
+  installations.
 - `eshu_dp_generation_liveness_recovered_total` and
   `eshu_dp_generation_liveness_superseded_total` count what the sweep re-drove
   and retired; `eshu_dp_generation_liveness_failures_total` counts sweep errors
@@ -666,12 +676,18 @@ runs two bounded statements per poll (default 5m): a supersede UPDATE bounded by
 `scope_generations_active_scope_idx`), and a wedged-detection re-enqueue bounded by
 `LIMIT $3` that re-uses the projector `fact_work_items` upsert (`ON CONFLICT
 (work_item_id) DO UPDATE`). No new hot-path Cypher or graph write is introduced;
-the re-drive re-uses the existing projector enqueue path. The conflict domain is
-`scope_id`; both statements are idempotent under concurrent reducer workers (a
-second sweep finds no remaining wedged/orphaned row) and bound the per-generation
-re-drive budget via `liveness_recovery_attempts` so a poison scope cannot loop. No
-worker-count, batch-size, or queue-default change. The active-by-age gauge reads a
-single bounded `GROUP BY age_bucket` aggregate over active rows per metrics scrape.
+the re-drive re-uses the existing projector enqueue path. Wedge detection and the
+`stuck` age bucket gate on real downstream blockage via an `EXISTS` subquery over
+`shared_projection_intents` keyed by `generation_id` and the partial index
+`shared_projection_intents_*_pending_idx` (`WHERE completed_at IS NULL`), so a
+healthy quiet projected scope is excluded and the sweep does no work on idle
+installations. The conflict domain is `scope_id`; both statements are idempotent
+under concurrent reducer workers (a second sweep finds no remaining wedged/orphaned
+row) and bound the per-generation re-drive budget via `liveness_recovery_attempts`
+so a poison scope cannot loop. No worker-count, batch-size, or queue-default
+change. The active-by-age gauge reads a single bounded `GROUP BY age_bucket`
+aggregate over active rows (with the same `completed_at IS NULL` EXISTS gate for
+the stuck bucket) per metrics scrape.
 Baseline: no liveness sweep existed (active generations wedged indefinitely:
 observed active=982 frozen). After: wedged actives are re-driven within the
 activation deadline (default 30m) under unit and race tests. Full before/after

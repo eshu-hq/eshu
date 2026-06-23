@@ -54,16 +54,22 @@ RETURNING generation.scope_id, generation.generation_id
 // longer than the activation deadline.
 //
 // A wedged generation is one whose projector work already succeeded (status
-// active, activated_at set) but whose downstream reducer phases never advanced,
-// and for which no newer same-scope generation exists to supersede it through
-// the projector path. Such a generation sits active forever today. This query
-// re-enqueues source-local projector work for it, which re-publishes the
-// canonical-nodes-committed readiness phase and re-triggers the downstream
-// reducer consumers over the existing facts (no re-clone). The re-drive budget
-// lives in the work item payload (liveness_recovery_attempts) and is bounded by
-// $2 so a poison scope cannot loop forever; once the budget is exhausted the
-// generation is left active for an operator to inspect via the recovery
-// endpoint or a manual replay.
+// active, activated_at set) but whose downstream reducer/shared-projection work
+// never drained, and for which no newer same-scope generation exists to
+// supersede it through the projector path. Age alone is NOT enough: a healthy
+// quiet scope normally stays active and projected (the projected baseline is
+// "has been active", see generation_projected_commit.go) with no outstanding
+// work, and re-driving those on every poll would burn the liveness budget and
+// raise false alarms. The wedge gate therefore requires real downstream
+// blockage: an outstanding shared_projection_intents row (completed_at IS NULL)
+// for the generation, i.e. shared-projection/readiness work that never
+// completed. This query re-enqueues source-local projector work for genuinely
+// blocked generations, which re-publishes the canonical-nodes-committed
+// readiness phase and re-triggers the downstream consumers over the existing
+// facts (no re-clone). The re-drive budget lives in the work item payload
+// (liveness_recovery_attempts) and is bounded by $2 so a poison scope cannot
+// loop forever; once the budget is exhausted the generation is left active for
+// an operator to inspect via the recovery endpoint or a manual replay.
 //
 // The conflict domain is scope_id. ON CONFLICT DO UPDATE makes the re-enqueue
 // idempotent under concurrent sweeps and retries: a duplicate re-drive only
@@ -93,6 +99,15 @@ WITH wedged AS (
           WHERE newer.scope_id = generation.scope_id
             AND newer.generation_id <> generation.generation_id
             AND newer.status IN ('pending', 'active')
+      )
+      -- Downstream-blockage gate: only a generation with outstanding
+      -- shared-projection work is wedged. Healthy quiet projected scopes have
+      -- every intent completed and are excluded so they are never re-driven.
+      AND EXISTS (
+          SELECT 1
+          FROM shared_projection_intents AS intent
+          WHERE intent.generation_id = generation.generation_id
+            AND intent.completed_at IS NULL
       )
       AND COALESCE(
           (
@@ -179,6 +194,13 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 // unbounded scan. The deadline boundary ($2) is the same window the recovery
 // sweep uses, so "stuck" in the gauge means "eligible for recovery".
 //
+// The stuck bucket is the wedged-generation alarm and must match the recovery
+// gate: a generation is only stuck when it has aged past the deadline AND has
+// real downstream blockage (an outstanding shared_projection_intents row,
+// completed_at IS NULL). A healthy quiet projected scope that merely aged is
+// counted aging, never stuck, so the alarm does not fire on normal idle
+// installations.
+//
 // Parameter order:
 //
 //	$1 aging boundary   (now minus half the activation deadline)
@@ -187,7 +209,12 @@ const countActiveGenerationsByAgeQuery = `
 SELECT
     CASE
         WHEN generation.activated_at IS NULL THEN 'fresh'
-        WHEN generation.activated_at < $2 THEN 'stuck'
+        WHEN generation.activated_at < $2 AND EXISTS (
+            SELECT 1
+            FROM shared_projection_intents AS intent
+            WHERE intent.generation_id = generation.generation_id
+              AND intent.completed_at IS NULL
+        ) THEN 'stuck'
         WHEN generation.activated_at < $1 THEN 'aging'
         ELSE 'fresh'
     END AS age_bucket,
