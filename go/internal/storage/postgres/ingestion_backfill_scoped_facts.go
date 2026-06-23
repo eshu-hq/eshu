@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/lib/pq"
@@ -115,6 +116,66 @@ func backfillRelationshipAnchorTerms(newRepoCatalog []relationships.CatalogEntry
 	combined = append(combined, anchors...)
 	combined = append(combined, argoCDOverSelectAnchors...)
 	return combined
+}
+
+// loadAnchorScopedRelationshipFacts runs the two-phase anchor-scoped fact load
+// shared by the per-commit backfill (issue #3570) and the corpus-wide deferred
+// backfill (issue #3569). anchorCatalog is the catalog whose aliases seed the
+// content-anchor predicate: the onboarding delta for the per-commit path, the
+// whole catalog for the deferred path. configResolveCatalog is the catalog the
+// ArgoCD phase-two config-repo resolution matches against; callers pass the full
+// refreshed catalog so an ApplicationSet's external git-generator config repo is
+// resolvable even when it is not in anchorCatalog.
+//
+// Phase one loads the latest-generation content/file/gcp_cloud_relationship facts
+// whose payload matches an anchor (alias-derived anchors plus the unconditional
+// ArgoCD markers). The predicate is a provable superset of the facts
+// DiscoverEvidence could match against anchorCatalog, so no evidence is dropped
+// relative to a full-corpus load against the same catalog. When anchorCatalog has
+// no usable aliases the anchor set is empty and the load short-circuits to nil
+// without issuing any query: with no anchor no fact can resolve a catalog target.
+//
+// Phase two reloads the .yaml/.yml/.json files of the external config
+// repositories any loaded ArgoCD ApplicationSet's git generator targets. Those
+// files reference the deploy repo only through template parameters
+// (team/service/path basename), so neither the alias anchors nor the ArgoCD
+// markers select them; without them DiscoverEvidence's content index is
+// incomplete and the synthesized deploy edge is dropped. The phase-two load is
+// bounded to the resolved config repos, never the whole fleet, and is merged
+// (de-duplicated by FactID) into the phase-one facts.
+func loadAnchorScopedRelationshipFacts(
+	ctx context.Context,
+	queryer Queryer,
+	anchorCatalog []relationships.CatalogEntry,
+	configResolveCatalog []relationships.CatalogEntry,
+) ([]facts.Envelope, error) {
+	anchors := backfillRelationshipAnchorTerms(anchorCatalog)
+	if len(anchors) == 0 {
+		return nil, nil
+	}
+
+	activeFacts, err := loadOnboardedRepoScopedRelationshipFacts(ctx, queryer, anchors)
+	if err != nil {
+		return nil, err
+	}
+	if len(activeFacts) == 0 {
+		return nil, nil
+	}
+
+	configRefs := relationships.ResolveArgoCDGeneratorConfigRepos(activeFacts, configResolveCatalog)
+	if len(configRefs) > 0 {
+		configRepoIDs := make([]string, 0, len(configRefs))
+		for _, ref := range configRefs {
+			configRepoIDs = append(configRepoIDs, ref.ConfigRepoID)
+		}
+		configFacts, err := loadArgoCDGeneratorConfigFacts(ctx, queryer, configRepoIDs)
+		if err != nil {
+			return nil, fmt.Errorf("load argocd generator config facts for relationship backfill: %w", err)
+		}
+		activeFacts = mergeRelationshipFacts(activeFacts, configFacts)
+	}
+
+	return activeFacts, nil
 }
 
 // loadOnboardedRepoScopedRelationshipFacts loads the latest-generation content,
