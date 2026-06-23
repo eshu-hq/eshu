@@ -9,12 +9,6 @@ import (
 	"github.com/lib/pq"
 )
 
-// argoCDDeferredConfigFactKindMarker is a substring unique to the phase-two
-// ArgoCD generator-config query, used to assert whether the deferred backfill
-// issued the phase-two load. The full deferred backfill must not issue it when
-// no ApplicationSet targets an external config repo.
-const argoCDDeferredConfigFactKindMarker = "fact.payload->>'repo_id' = ANY($1)"
-
 // TestBackfillAllRelationshipEvidenceUsesScopedFactQuery is the issue #3569
 // scope-bounding gate: the corpus-wide deferred backfill MUST load source facts
 // through the content-anchored scoped query (parameterised LIKE-ANY predicate),
