@@ -164,6 +164,11 @@ func scoreCitationCoverage(prompt PromptResult) CriterionScore {
 			AnswerSummary:   result.AnswerSummary,
 			Supported:       result.Supported,
 			CitationHandles: result.CitationHandles,
+			// Mirror the runtime Ask handler: a classified packet's truth
+			// provenance (non-empty truth_class) is an accepted citation_coverage
+			// class, so offline CI scoring and runtime publishing share the same
+			// guardrail semantics (#3609).
+			TruthProvenance: strings.TrimSpace(result.TruthClass) != "",
 		})
 		if verdict.HasFinding(answerguardrail.CriterionCitationCoverage) {
 			return fail(CriterionCitationCoverage, fmt.Sprintf("%s result has no citation handles", result.Surface))
