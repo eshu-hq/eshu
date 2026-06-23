@@ -106,6 +106,10 @@ func wireAPI(
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
+	scopedTokenResolver = scopedtoken.ChainResolvers(
+		scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db})),
+		scopedTokenResolver,
+	)
 
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)

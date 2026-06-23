@@ -7,12 +7,13 @@ the Eshu API and MCP read surface (issue #1852, epic #1899).
 
 The hosted surface authenticates with one shared bearer token via
 `query.AuthMiddleware*`; every holder can read every indexed repository. This
-package closes that gap: an operator-managed registry maps a token to a tenant,
-workspace, and the repository / ingestion-scope ids it may read. The
-`query.AuthContext` it returns flows through the existing scoped-route gate and
-the per-family bounded query filters (repositories, code search, documentation,
-service/package/CI-CD correlations, supply-chain impact, container-image
-identities, …), so a per-team token reads only its onboarded scope.
+package closes that gap: generated identity-backed tokens and the
+operator-managed registry both map a token to a tenant, workspace, and the
+repository / ingestion-scope ids it may read. The `query.AuthContext` it
+returns flows through the existing scoped-route gate and the per-family bounded
+query filters (repositories, code search, documentation, service/package/CI-CD
+correlations, supply-chain impact, container-image identities, ...), so a
+per-team token reads only its onboarded scope.
 
 ## Contract
 
@@ -27,6 +28,13 @@ identities, …), so a per-team token reads only its onboarded scope.
   unrecognized credential returns `(zero, false, nil)` so the caller falls
   through to shared-token or unauthenticated handling. It never logs or returns
   the credential.
+- `NewPostgresIdentityResolver(store)` resolves generated personal and
+  service-principal API tokens from `identity_token_metadata`, active identity
+  subjects, active role assignments, and active repository/scope targets. It
+  records `last_used_at` after a successful lookup.
+- `ChainResolvers(...)` composes generated identity tokens, the optional file
+  registry, and any future scoped resolver without changing shared-token
+  compatibility fallback.
 - The registry is read-only after construction and safe for concurrent use.
 
 ## Security model
@@ -70,11 +78,11 @@ bounded empty/zero shapes.
 
 ## Wiring
 
-The API and MCP servers load the registry from `ESHU_SCOPED_TOKENS_FILE`
-(`internalruntime.ScopedTokenResolverFromEnv`) and pass it to
-`query.AuthMiddlewareWithScopedTokensAndGovernanceAudit`. When the variable is
-unset the resolver is nil and shared-token / local dev-mode behavior is
-unchanged.
+The API and MCP servers always add the Postgres identity-token resolver after
+Postgres connects, then append the optional registry from
+`ESHU_SCOPED_TOKENS_FILE` (`internalruntime.ScopedTokenResolverFromEnv`).
+Generated identity tokens are tried first; unknown credentials fall through to
+the file registry and then to the shared-token / local dev-mode behavior.
 
 ## Operator issuance & rotation
 

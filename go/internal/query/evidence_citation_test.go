@@ -362,12 +362,14 @@ func TestContentReaderEvidenceCitationFilesHydratesBatch(t *testing.T) {
 
 type citationPacketContentStore struct {
 	fakePortContentStore
-	files               map[evidenceCitationFileKey]FileContent
-	entities            map[string]*EntityContent
-	fileBatchCalls      int
-	entityBatchCalls    int
-	singleFileLineCalls int
-	singleEntityCalls   int
+	files                    map[evidenceCitationFileKey]FileContent
+	entities                 map[string]*EntityContent
+	fileBatchCalls           int
+	entityBatchCalls         int
+	entityScopedBatchCalls   int
+	entityScopedBatchRepoIDs []string
+	singleFileLineCalls      int
+	singleEntityCalls        int
 }
 
 func (s *citationPacketContentStore) evidenceCitationFiles(
@@ -396,6 +398,32 @@ func (s *citationPacketContentStore) GetEntityContents(
 			copyEntity := *entity
 			results[entityID] = &copyEntity
 		}
+	}
+	return results, nil
+}
+
+func (s *citationPacketContentStore) GetEntityContentsInRepositories(
+	_ context.Context,
+	entityIDs []string,
+	repoIDs []string,
+) (map[string]*EntityContent, error) {
+	s.entityScopedBatchCalls++
+	s.entityScopedBatchRepoIDs = append([]string(nil), repoIDs...)
+	allowedRepos := make(map[string]struct{}, len(repoIDs))
+	for _, repoID := range repoIDs {
+		allowedRepos[repoID] = struct{}{}
+	}
+	results := make(map[string]*EntityContent, len(entityIDs))
+	for _, entityID := range entityIDs {
+		entity, ok := s.entities[entityID]
+		if !ok || entity == nil {
+			continue
+		}
+		if _, ok := allowedRepos[entity.RepoID]; !ok {
+			continue
+		}
+		copyEntity := *entity
+		results[entityID] = &copyEntity
 	}
 	return results, nil
 }

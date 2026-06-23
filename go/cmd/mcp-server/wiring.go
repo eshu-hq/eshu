@@ -102,6 +102,10 @@ func wireAPI(
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
+	scopedTokenResolver = scopedtoken.ChainResolvers(
+		scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db})),
+		scopedTokenResolver,
+	)
 	instruments, err := telemetry.NewInstruments(otel.Meter("mcp-server"))
 	if err != nil {
 		_ = db.Close()

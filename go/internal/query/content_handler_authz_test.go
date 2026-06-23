@@ -283,6 +283,14 @@ func TestContentHandlerScopedReadEntityHidesOutOfScopeEntity(t *testing.T) {
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
+	if store.entityReadCalls != 0 {
+		t.Fatalf("entityReadCalls = %d, want 0 before repository authorization", store.entityReadCalls)
+	}
+	if got, want := store.entityScopedReads, []entityScopedRead{{entityID: "entity-b", repoIDs: []string{"repo-team-a"}}}; !slices.EqualFunc(got, want, func(a, b entityScopedRead) bool {
+		return a.entityID == b.entityID && slices.Equal(a.repoIDs, b.repoIDs)
+	}) {
+		t.Fatalf("entityScopedReads = %#v, want %#v", got, want)
+	}
 }
 
 func decodeContentAuthzBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
@@ -296,16 +304,22 @@ func decodeContentAuthzBody(t *testing.T, rec *httptest.ResponseRecorder) map[st
 
 type recordingContentAuthzStore struct {
 	fakePortContentStore
-	byFileRepo      map[string][]FileContent
-	byEntityRepo    map[string][]EntityContent
-	anyFiles        []FileContent
-	entitiesByID    map[string]*EntityContent
-	fileRepoCalls   []string
-	entityRepoCalls []string
-	anyFileCalls    int
-	anyEntityCalls  int
-	fileReadCalls   int
-	entityReadCalls int
+	byFileRepo        map[string][]FileContent
+	byEntityRepo      map[string][]EntityContent
+	anyFiles          []FileContent
+	entitiesByID      map[string]*EntityContent
+	fileRepoCalls     []string
+	entityRepoCalls   []string
+	anyFileCalls      int
+	anyEntityCalls    int
+	fileReadCalls     int
+	entityReadCalls   int
+	entityScopedReads []entityScopedRead
+}
+
+type entityScopedRead struct {
+	entityID string
+	repoIDs  []string
 }
 
 func (s *recordingContentAuthzStore) GetFileContent(
@@ -326,6 +340,27 @@ func (s *recordingContentAuthzStore) GetEntityContent(
 		return nil, nil
 	}
 	return s.entitiesByID[entityID], nil
+}
+
+func (s *recordingContentAuthzStore) GetEntityContentInRepositories(
+	_ context.Context,
+	entityID string,
+	repoIDs []string,
+) (*EntityContent, error) {
+	s.entityScopedReads = append(s.entityScopedReads, entityScopedRead{
+		entityID: entityID,
+		repoIDs:  append([]string(nil), repoIDs...),
+	})
+	entity, ok := s.entitiesByID[entityID]
+	if !ok || entity == nil {
+		return nil, nil
+	}
+	for _, repoID := range repoIDs {
+		if entity.RepoID == repoID {
+			return entity, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *recordingContentAuthzStore) SearchFileContent(

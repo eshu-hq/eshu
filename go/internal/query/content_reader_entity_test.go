@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql/driver"
+	"strings"
 	"testing"
 )
 
@@ -49,6 +50,43 @@ func TestContentReaderGetEntityContentIncludesMetadata(t *testing.T) {
 	}
 }
 
+func TestContentReaderGetEntityContentInRepositoriesBindsRepositoryPredicate(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{
+			columns: []string{
+				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+				"start_line", "end_line", "language", "source_cache", "metadata",
+			},
+			rows: [][]driver.Value{
+				{
+					"entity-1", "repo-allowed", "src/app.ts", "Function", "renderApp",
+					int64(10), int64(24), "typescript", "function renderApp() {}", []byte(`{"async":true}`),
+				},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	entity, err := reader.GetEntityContentInRepositories(context.Background(), "entity-1", []string{"repo-allowed"})
+	if err != nil {
+		t.Fatalf("GetEntityContentInRepositories() error = %v, want nil", err)
+	}
+	if entity == nil {
+		t.Fatal("GetEntityContentInRepositories() = nil, want non-nil")
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("len(recorder.queries) = %d, want %d", got, want)
+	}
+	if !strings.Contains(recorder.queries[0], "entity_id = $1") {
+		t.Fatalf("query = %q, want entity_id predicate", recorder.queries[0])
+	}
+	if !strings.Contains(recorder.queries[0], "repo_id = ANY") {
+		t.Fatalf("query = %q, want repository authorization predicate", recorder.queries[0])
+	}
+}
+
 func TestContentReaderGetEntityContentsIncludesMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -88,6 +126,48 @@ func TestContentReaderGetEntityContentsIncludesMetadata(t *testing.T) {
 	}
 	if got, want := decorators[0], "Injectable"; got != want {
 		t.Fatalf("entity-2 decorator = %#v, want %#v", got, want)
+	}
+}
+
+func TestContentReaderGetEntityContentsInRepositoriesBindsRepositoryPredicate(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{
+			columns: []string{
+				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+				"start_line", "end_line", "language", "source_cache", "metadata",
+			},
+			rows: [][]driver.Value{
+				{
+					"entity-1", "repo-allowed", "src/app.ts", "Function", "renderApp",
+					int64(10), int64(24), "typescript", "function renderApp() {}", []byte(`{"async":true}`),
+				},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	entities, err := reader.GetEntityContentsInRepositories(
+		context.Background(),
+		[]string{"entity-1", "entity-2"},
+		[]string{"repo-allowed"},
+	)
+	if err != nil {
+		t.Fatalf("GetEntityContentsInRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(entities), 1; got != want {
+		t.Fatalf("len(entities) = %d, want %d", got, want)
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("len(recorder.queries) = %d, want %d", got, want)
+	}
+	query := recorder.queries[0]
+	if !strings.Contains(query, "entity_id = ANY") {
+		t.Fatalf("query = %q, want batched entity predicate", query)
+	}
+	if !strings.Contains(query, "repo_id = ANY") {
+		t.Fatalf("query = %q, want repository authorization predicate", query)
 	}
 }
 

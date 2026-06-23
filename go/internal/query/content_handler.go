@@ -149,16 +149,12 @@ func (h *ContentHandler) readEntity(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
-	ec, err := h.Content.GetEntityContent(r.Context(), req.EntityID)
+	ec, err := getEntityContentForRepositoryAccess(r.Context(), h.Content, req.EntityID, access)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if ec == nil {
-		WriteError(w, http.StatusNotFound, "entity not found")
-		return
-	}
-	if !access.allowsRepositoryID(ec.RepoID) {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}

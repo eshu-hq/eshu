@@ -48,6 +48,56 @@ func (cr *ContentReader) GetEntityContent(ctx context.Context, entityID string) 
 	return &e, nil
 }
 
+// GetEntityContentInRepositories returns one entity only when its repository is
+// in the already-authorized repository set.
+func (cr *ContentReader) GetEntityContentInRepositories(
+	ctx context.Context,
+	entityID string,
+	repoIDs []string,
+) (*EntityContent, error) {
+	entityID = strings.TrimSpace(entityID)
+	repoIDs = cleanedAuthStrings(repoIDs)
+	if cr == nil || cr.db == nil || entityID == "" || len(repoIDs) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "get_entity_content_in_repositories"),
+			attribute.String("db.sql.table", "content_entities"),
+		),
+	)
+	defer span.End()
+
+	row := cr.db.QueryRowContext(ctx, `
+		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
+		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
+		       metadata
+		FROM content_entities
+		WHERE entity_id = $1
+		  AND repo_id = ANY(string_to_array($2, E'\x1f'))
+	`, entityID, strings.Join(repoIDs, "\x1f"))
+
+	var e EntityContent
+	var rawMetadata []byte
+	err := row.Scan(&e.EntityID, &e.RepoID, &e.RelativePath, &e.EntityType,
+		&e.EntityName, &e.StartLine, &e.EndLine, &e.Language, &e.SourceCache, &rawMetadata)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("get scoped entity content: %w", err)
+	}
+	e.Metadata, err = decodeEntityMetadata(rawMetadata)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("get scoped entity content: %w", err)
+	}
+	return &e, nil
+}
+
 // GetEntityContents returns entities keyed by entity_id in one bounded query.
 func (cr *ContentReader) GetEntityContents(ctx context.Context, entityIDs []string) (map[string]*EntityContent, error) {
 	entityIDs = cleanEntityContentIDs(entityIDs)
@@ -96,6 +146,65 @@ func (cr *ContentReader) GetEntityContents(ctx context.Context, entityIDs []stri
 		if err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("get entity contents: %w", err)
+		}
+		entities[e.EntityID] = &e
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	return entities, nil
+}
+
+// GetEntityContentsInRepositories returns entities by ID with the repository
+// authorization predicate bound in the SQL read itself.
+func (cr *ContentReader) GetEntityContentsInRepositories(
+	ctx context.Context,
+	entityIDs []string,
+	repoIDs []string,
+) (map[string]*EntityContent, error) {
+	entityIDs = cleanEntityContentIDs(entityIDs)
+	repoIDs = cleanedAuthStrings(repoIDs)
+	if cr == nil || cr.db == nil || len(entityIDs) == 0 || len(repoIDs) == 0 {
+		return map[string]*EntityContent{}, nil
+	}
+
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "get_entity_contents_in_repositories"),
+			attribute.String("db.sql.table", "content_entities"),
+		),
+	)
+	defer span.End()
+
+	rows, err := cr.db.QueryContext(ctx, `
+		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
+		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
+		       metadata
+		FROM content_entities
+		WHERE entity_id = ANY(string_to_array($1, E'\x1f'))
+		  AND repo_id = ANY(string_to_array($2, E'\x1f'))
+	`, strings.Join(entityIDs, "\x1f"), strings.Join(repoIDs, "\x1f"))
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("get scoped entity contents: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	entities := make(map[string]*EntityContent, len(entityIDs))
+	for rows.Next() {
+		var e EntityContent
+		var rawMetadata []byte
+		if err := rows.Scan(&e.EntityID, &e.RepoID, &e.RelativePath, &e.EntityType,
+			&e.EntityName, &e.StartLine, &e.EndLine, &e.Language, &e.SourceCache, &rawMetadata); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan scoped entity content: %w", err)
+		}
+		e.Metadata, err = decodeEntityMetadata(rawMetadata)
+		if err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("get scoped entity contents: %w", err)
 		}
 		entities[e.EntityID] = &e
 	}

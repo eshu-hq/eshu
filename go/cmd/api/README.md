@@ -122,8 +122,9 @@ See `doc.go` for the full godoc contract.
 - `internal/runtime` — `OpenNeo4jDriver`, `ResolveAPIKey`, `NewStatusAdminMux`,
   `NewStatusRequestHandler`
 - `internal/recovery` — `NewHandler` for refinalize/replay routes
-- `internal/scopedtoken` — optional `ESHU_SCOPED_TOKENS_FILE` resolver for
-  hosted tenant/workspace-scoped bearer credentials
+- `internal/scopedtoken` — generated identity-token and optional
+  `ESHU_SCOPED_TOKENS_FILE` resolvers for hosted tenant/workspace-scoped bearer
+  credentials
 - `internal/status` — `Reader` port consumed by `internalruntime.NewStatusAdminMux`
 - `internal/storage/postgres` — `NewStatusStore`, `NewRecoveryStore`,
   `NewStatusRequestStore`, `NewBrowserSessionStore`, `NewSAMLSSOStore`
@@ -167,10 +168,11 @@ See `doc.go` for the full godoc contract.
   tenant, workspace, source, credential, endpoint, prompt, response, path, or
   token values in them.
 - `ESHU_SCOPED_TOKENS_FILE` — optional secret-mounted scoped-token registry.
-  When set, the API resolves hashed scoped tokens into tenant/workspace auth
-  context before falling back to the shared API key. Malformed registries fail
-  startup closed. Dashboard browser-session creation requires this scoped
-  context and never stores raw credentials or raw cookie values.
+  The API always tries generated identity-backed personal/service-principal
+  tokens from Postgres first, then this registry when set, then the shared API
+  key. Malformed registries fail startup closed. Dashboard browser-session
+  creation requires scoped context and never stores raw credentials or raw
+  cookie values.
 - `ESHU_AUTH_OIDC_ENABLED`, `ESHU_AUTH_OIDC_CONFIG_FILE`,
   `ESHU_AUTH_OIDC_PROVIDER_ID`, `ESHU_AUTH_OIDC_STATE_TTL`, and
   `ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW` — optional backend OIDC login

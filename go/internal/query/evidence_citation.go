@@ -102,10 +102,6 @@ type evidenceCitationFileStore interface {
 	evidenceCitationFiles(context.Context, []evidenceCitationFileLookup) (map[evidenceCitationFileKey]FileContent, error)
 }
 
-type evidenceCitationEntityBatchStore interface {
-	GetEntityContents(context.Context, []string) (map[string]*EntityContent, error)
-}
-
 func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -330,25 +326,7 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 	if len(entityIDs) == 0 {
 		return map[string]*EntityContent{}, nil
 	}
-	if store, ok := h.Content.(evidenceCitationEntityBatchStore); ok {
-		entities, err := store.GetEntityContents(ctx, entityIDs)
-		if err != nil {
-			return nil, err
-		}
-		return filterEvidenceCitationEntitiesForAccess(entities, access), nil
-	}
-
-	results := make(map[string]*EntityContent, len(entityIDs))
-	for _, entityID := range entityIDs {
-		entity, err := h.Content.GetEntityContent(ctx, entityID)
-		if err != nil {
-			return nil, err
-		}
-		if entity != nil && access.allowsRepositoryID(entity.RepoID) {
-			results[entityID] = entity
-		}
-	}
-	return results, nil
+	return getEntityContentsForRepositoryAccess(ctx, h.Content, entityIDs, access)
 }
 
 func filterEvidenceCitationEntitiesForAccess(

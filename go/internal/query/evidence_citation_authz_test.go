@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 )
 
@@ -70,8 +71,14 @@ func TestEvidenceHandlerScopedCitationPacketFiltersOutOfScopeHandles(t *testing.
 	if store.fileBatchCalls != 0 {
 		t.Fatalf("fileBatchCalls = %d, want 0 for out-of-scope file handle", store.fileBatchCalls)
 	}
-	if store.entityBatchCalls != 1 {
-		t.Fatalf("entityBatchCalls = %d, want 1 exact entity lookup before repo filter", store.entityBatchCalls)
+	if store.entityBatchCalls != 0 {
+		t.Fatalf("entityBatchCalls = %d, want 0 before repository authorization", store.entityBatchCalls)
+	}
+	if got, want := store.entityScopedBatchCalls, 1; got != want {
+		t.Fatalf("entityScopedBatchCalls = %d, want %d", got, want)
+	}
+	if got, want := store.entityScopedBatchRepoIDs, []string{"repo-team-a"}; !slices.Equal(got, want) {
+		t.Fatalf("entityScopedBatchRepoIDs = %#v, want %#v", got, want)
 	}
 	assertCitationAuthzCoverage(t, rec, 0, 2)
 }
