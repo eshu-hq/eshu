@@ -7,8 +7,13 @@ import (
 
 var jenkinsGitHubRepoPattern = regexp.MustCompile(`(?i)github\.com[:/][^/"'\s]+/([A-Za-z0-9._-]+)(?:\.git)?`)
 
+// discoverJenkinsEvidence extracts DISCOVERS_CONFIG_IN evidence from Jenkins
+// pipeline shared-library and GitHub repository references. commitSHA is
+// forwarded from the fact envelope's commit_sha payload field and stored in
+// Details so Canonical() can project a typed version pin. An empty string
+// degrades safely — no fabricated citation is emitted.
 func discoverJenkinsEvidence(
-	sourceRepoID, filePath, content string,
+	sourceRepoID, filePath, content, commitSHA string,
 	parsedFileData map[string]any,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
@@ -27,6 +32,7 @@ func discoverJenkinsEvidence(
 			library,
 		)
 		details["shared_library"] = library
+		mergeCommitSHA(details, commitSHA)
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, library, filePath,
 			EvidenceKindJenkinsSharedLibrary, RelDiscoversConfigIn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindJenkinsSharedLibrary),
@@ -48,6 +54,7 @@ func discoverJenkinsEvidence(
 		)
 		details["repository_ref"] = repoRef
 		details["repository_name"] = repositoryName
+		mergeCommitSHA(details, commitSHA)
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, repoRef, filePath,
 			EvidenceKindJenkinsGitHubRepository, RelDiscoversConfigIn, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindJenkinsGitHubRepository),

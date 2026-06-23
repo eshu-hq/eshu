@@ -305,6 +305,149 @@ func TestDiscoverKustomizeDocumentEvidenceNoCommitSHADegradesSafely(t *testing.T
 	}
 }
 
+// TestDiscoverJenkinsEvidenceCapturesCommitSHA proves the Jenkins extractor
+// forwards commit_sha from the envelope into Details (item 3 of #3650).
+func TestDiscoverJenkinsEvidenceCapturesCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"relative_path": "Jenkinsfile",
+				"content":       "@Library('pipelines') _\n",
+				"commit_sha":    "jenkins-commit-abc",
+				"parsed_file_data": map[string]any{
+					"shared_libraries": []any{"pipelines"},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-pipelines", Aliases: []string{"pipelines"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Jenkins evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "jenkins-commit-abc" {
+			t.Errorf("Details[commit_sha] = %q, want jenkins-commit-abc", got)
+		}
+	}
+}
+
+// TestDiscoverJenkinsEvidenceNoCommitSHADegradesSafely proves the Jenkins
+// extractor does not fabricate a commit_sha when the envelope lacks one.
+func TestDiscoverJenkinsEvidenceNoCommitSHADegradesSafely(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"relative_path": "Jenkinsfile",
+				"content":       "@Library('pipelines') _\n",
+				"parsed_file_data": map[string]any{
+					"shared_libraries": []any{"pipelines"},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-pipelines", Aliases: []string{"pipelines"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Jenkins evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "" {
+			t.Errorf("Details[commit_sha] = %q, want empty (no fabrication)", got)
+		}
+	}
+}
+
+// TestDiscoverDockerfileEvidenceCapturesCommitSHA proves the Dockerfile
+// extractor forwards commit_sha from the envelope into Details (item 3 of
+// #3650).
+func TestDiscoverDockerfileEvidenceCapturesCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"artifact_type": "dockerfile",
+				"relative_path": "Dockerfile",
+				"content":       "FROM scratch\n",
+				"commit_sha":    "docker-commit-abc",
+				"parsed_file_data": map[string]any{
+					"dockerfile_labels": []any{
+						map[string]any{
+							"name":  "org.opencontainers.image.source",
+							"value": "https://github.com/acme/payments-service",
+						},
+					},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Dockerfile evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "docker-commit-abc" {
+			t.Errorf("Details[commit_sha] = %q, want docker-commit-abc", got)
+		}
+	}
+}
+
+// TestDiscoverDockerfileEvidenceNoCommitSHADegradesSafely proves the Dockerfile
+// extractor does not fabricate a commit_sha when the envelope lacks one.
+func TestDiscoverDockerfileEvidenceNoCommitSHADegradesSafely(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-service",
+			Payload: map[string]any{
+				"artifact_type": "dockerfile",
+				"relative_path": "Dockerfile",
+				"content":       "FROM scratch\n",
+				"parsed_file_data": map[string]any{
+					"dockerfile_labels": []any{
+						map[string]any{
+							"name":  "org.opencontainers.image.source",
+							"value": "https://github.com/acme/payments-service",
+						},
+					},
+				},
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Fatal("no Dockerfile evidence emitted")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "" {
+			t.Errorf("Details[commit_sha] = %q, want empty (no fabrication)", got)
+		}
+	}
+}
+
 // TestDiscoverHelmEvidenceCapturesCommitSHA proves that Helm evidence discovery
 // also forwards the commit_sha from the envelope into Details, i.e., the fix is
 // not limited to the Terraform code path.
