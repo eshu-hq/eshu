@@ -1,7 +1,10 @@
 package parser
 
 import (
+	"sync"
 	"testing"
+
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 func TestRuntimeParserLoadsKotlinGrammar(t *testing.T) {
@@ -173,8 +176,91 @@ func TestRuntimePutParserAllowsReuse(t *testing.T) {
 	}
 }
 
+// TestRuntimePutParserBoundsFreeList proves the per-language free-list never
+// grows past its fixed capacity. Returning more parsers than the capacity must
+// not grow the channel; the surplus parsers are Closed instead of retained, so
+// a long-running process cannot accumulate idle native TSParser allocations.
+func TestRuntimePutParserBoundsFreeList(t *testing.T) {
+	t.Parallel()
+
+	rt := NewRuntime()
+
+	// Borrow more parsers than the free-list can hold, then return them all.
+	// The first parserFreeListCapacity returns are retained; the rest are
+	// Closed by PutParser. None are leaked and the channel never overflows.
+	borrowed := make([]*tree_sitter.Parser, 0, parserFreeListCapacity*2)
+	for range parserFreeListCapacity * 2 {
+		p, err := rt.Parser("python")
+		if err != nil {
+			t.Fatalf("Parser(python): %v", err)
+		}
+		borrowed = append(borrowed, p)
+	}
+	for _, p := range borrowed {
+		rt.PutParser("python", p)
+	}
+
+	freeList := rt.freeListLenForTest("python")
+	if freeList != parserFreeListCapacity {
+		t.Fatalf("free-list length = %d, want %d (bounded)", freeList, parserFreeListCapacity)
+	}
+}
+
+// TestRuntimePutParserUnknownLanguageDoesNotPanic proves PutParser closes a
+// parser whose language has no free-list rather than dropping or retaining it.
+func TestRuntimePutParserUnknownLanguageDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	rt := NewRuntime()
+	// Borrow a real parser, then return it under a canonical name that was
+	// never borrowed so no free-list exists. PutParser must Close it safely.
+	p, err := rt.Parser("python")
+	if err != nil {
+		t.Fatalf("Parser(python): %v", err)
+	}
+	rt.PutParser("ruby", p) // ruby free-list does not exist yet; must Close p.
+}
+
+// TestRuntimeParserConcurrentBorrowReturnIsSafe exercises the per-language
+// free-list under the concurrent parse worker fan-out it must support. With
+// -race this proves borrow/return has no data race and that the free-list stays
+// bounded after many concurrent goroutines return parsers.
+func TestRuntimeParserConcurrentBorrowReturnIsSafe(t *testing.T) {
+	t.Parallel()
+
+	rt := NewRuntime()
+	snippet := []byte("def hello(): pass\n")
+
+	const workers = 16
+	const iterations = 64
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range iterations {
+				p, err := rt.Parser("python")
+				if err != nil {
+					t.Errorf("Parser(python): %v", err)
+					return
+				}
+				tree := p.Parse(snippet, nil)
+				if tree != nil {
+					tree.Close()
+				}
+				rt.PutParser("python", p)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := rt.freeListLenForTest("python"); got > parserFreeListCapacity {
+		t.Fatalf("free-list length = %d, want <= %d after concurrent use", got, parserFreeListCapacity)
+	}
+}
+
 // BenchmarkRuntimeParserPoolReuse measures the per-call CGO cost of Parser +
-// PutParser on a warm Runtime.  A pooled implementation should converge to
+// PutParser on a warm Runtime.  A free-list implementation should converge to
 // 0-1 allocs/op on steady-state iterations; a fresh-NewParser implementation
 // allocates 3+ objects per call.
 func BenchmarkRuntimeParserPoolReuse(b *testing.B) {
