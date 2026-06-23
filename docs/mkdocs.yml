@@ -146,6 +146,7 @@ nav:
     - Jira Evidence Contract: reference/jira-evidence.md
     - Observability Evidence Contract: reference/observability-evidence.md
     - Accuracy Golden Gate: reference/accuracy-golden-gate.md
+    - Correlation Confidence Calibration: reference/confidence-calibration.md
     - Vulnerability Parity Gate: reference/vulnerability-parity-gate.md
     - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
     - Component Package Manager: reference/component-package-manager.md
