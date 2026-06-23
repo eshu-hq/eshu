@@ -132,11 +132,6 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		return 0, fmt.Errorf("load evidence facts for resolution: %w", err)
 	}
 	if len(evidenceFacts) == 0 {
-		if h.Persister != nil {
-			if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
-				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
-			}
-		}
 		retractRows := buildResolvedEdgeRetractionIntentRows(
 			scopeID,
 			nil,
@@ -146,6 +141,11 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			time.Now().UTC(),
 		)
 		if len(retractRows) == 0 {
+			// No graph edges to retract. Activation still publishes the empty
+			// generation and stays the last durable step (#3559).
+			if err := h.activateGenerationLast(ctx, generationID, scopeID); err != nil {
+				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
+			}
 			slog.InfoContext(ctx, "cross-repo resolution skipped: no evidence",
 				slog.String(telemetry.LogKeyScopeID, scopeID),
 				slog.String(telemetry.LogKeyGenerationID, generationID),
@@ -153,8 +153,16 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			h.recordDuration(ctx, start, scopeID)
 			return 0, nil
 		}
+		// Publish-last invariant (#3559): durably enqueue the retract intents that
+		// remove the now-stale graph edges BEFORE activating the empty generation.
+		// Activating first would publish an empty generation while its stale graph
+		// edges remain present and their retraction was never queued, stranding
+		// Postgres↔graph divergence on a partial failure.
 		if err := h.IntentWriter.UpsertIntents(ctx, retractRows); err != nil {
 			return 0, fmt.Errorf("upsert cross-repo dependency retract intents: %w", err)
+		}
+		if err := h.activateGenerationLast(ctx, generationID, scopeID); err != nil {
+			return 0, fmt.Errorf("activate empty resolution generation: %w", err)
 		}
 		slog.InfoContext(ctx, "cross-repo resolution emitted retract intents: no evidence",
 			slog.String(telemetry.LogKeyScopeID, scopeID),
@@ -199,16 +207,18 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		slog.Int("resolved_count", len(resolved)),
 	)
 
-	// Step 4: Persist audit trail and activate generation for downstream queries.
+	// Step 4: Persist the resolution audit trail. Activation is deliberately NOT
+	// performed here; it is the publish point and must be the last durable step
+	// (see Step 6). Activating before the graph-edge intents are durable would
+	// publish a generation whose denormalized graph edges (carrying resolved_id /
+	// generation_id back into this active generation) were never queued, leaving
+	// Postgres↔graph divergence on a partial failure (#3559).
 	if h.Persister != nil {
 		if err := h.Persister.UpsertCandidates(ctx, generationID, candidates); err != nil {
 			return 0, fmt.Errorf("persist candidates: %w", err)
 		}
 		if err := h.Persister.UpsertResolved(ctx, generationID, resolved); err != nil {
 			return 0, fmt.Errorf("persist resolved: %w", err)
-		}
-		if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
-			return 0, fmt.Errorf("activate resolution generation: %w", err)
 		}
 	}
 
@@ -234,11 +244,25 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	)
 	intentRows := append(retractRows, writeRows...)
 	if len(intentRows) == 0 {
+		// No graph edges to write or retract for this generation, so there is no
+		// dual-write partner to strand. Activation remains the last durable step.
+		if err := h.activateGenerationLast(ctx, generationID, scopeID); err != nil {
+			return 0, fmt.Errorf("activate resolution generation: %w", err)
+		}
 		h.recordDuration(ctx, start, scopeID)
 		return 0, nil
 	}
 	if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
 		return 0, fmt.Errorf("upsert cross-repo dependency intents: %w", err)
+	}
+
+	// Step 6: Publish-last activation. Every durable write this generation
+	// implies — the resolved audit rows and the graph-edge intents that project
+	// them — has now committed, so activating publishes a fully backed
+	// generation. A failure before this point leaves the prior generation active
+	// and a retry of the same deterministic generation converges (#3559).
+	if err := h.activateGenerationLast(ctx, generationID, scopeID); err != nil {
+		return 0, fmt.Errorf("activate resolution generation: %w", err)
 	}
 
 	if h.Instruments != nil {
@@ -321,6 +345,31 @@ func crossRepoBackwardEvidenceReadinessKey(
 		return GraphProjectionPhaseKey{}, false
 	}
 	return key, true
+}
+
+// activateGenerationLast performs the publish-last generation swap: it activates
+// the relationship generation in Postgres and records the divergence-detection
+// counter. Callers MUST invoke it only after every durable write the generation
+// implies (resolved audit rows and graph-edge intents) has committed, so a
+// partial failure converges to the prior active generation instead of stranding
+// an active generation whose Postgres↔graph dual write is incomplete (#3559).
+func (h *CrossRepoRelationshipHandler) activateGenerationLast(
+	ctx context.Context,
+	generationID string,
+	scopeID string,
+) error {
+	if h.Persister == nil {
+		return nil
+	}
+	if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+		return err
+	}
+	if h.Instruments != nil {
+		h.Instruments.CrossRepoGenerationActivated.Add(ctx, 1,
+			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
+		)
+	}
+	return nil
 }
 
 // recordDuration records the cross-repo resolution duration metric.

@@ -809,6 +809,12 @@ type Instruments struct {
 	CrossRepoResolutionDuration metric.Float64Histogram
 	CrossRepoEvidenceLoaded     metric.Int64Counter
 	CrossRepoEdgesResolved      metric.Int64Counter
+	// CrossRepoGenerationActivated counts publish-last activations of a
+	// relationship generation, labelled by the dual-write path that reached it.
+	// Activation is the single Postgres↔graph publish point: it fires only after
+	// the resolved rows and their graph-edge intents are durable, so a divergence
+	// between activation count and durable-intent commits is observable (#3559).
+	CrossRepoGenerationActivated metric.Int64Counter
 
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
@@ -3297,6 +3303,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossRepoEdgesResolved counter: %w", err)
+	}
+
+	inst.CrossRepoGenerationActivated, err = meter.Int64Counter(
+		"eshu_dp_cross_repo_generation_activated_total",
+		metric.WithDescription("Publish-last activations of a cross-repo relationship generation, labelled by dual-write path"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossRepoGenerationActivated counter: %w", err)
 	}
 
 	pipelineOverlapBuckets := []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}
