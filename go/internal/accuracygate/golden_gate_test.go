@@ -1,0 +1,138 @@
+package accuracygate_test
+
+import (
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/accuracygate"
+	"github.com/eshu-hq/eshu/go/internal/parser"
+)
+
+// baselineFixturePath is the checked-in published accuracy baseline the gate
+// enforces. Its git history is how per-dimension metrics are tracked over time.
+func baselineFixturePath() string {
+	return filepath.Join("testdata", "baseline.json")
+}
+
+// TestAccuracyGoldenGate is the continuous accuracy gate (issue #3499). It takes
+// real measurements across the three accuracy dimensions — complexity through
+// the parser, resolvers through the reducer call-edge path, correlation through
+// the admission audit — and asserts each measured metric meets or exceeds its
+// published baseline floor. A regression below the floor fails CI here.
+func TestAccuracyGoldenGate(t *testing.T) {
+	t.Parallel()
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
+	}
+
+	baseline, err := accuracygate.LoadBaseline(baselineFixturePath())
+	if err != nil {
+		t.Fatalf("LoadBaseline() error = %v", err)
+	}
+
+	measurement := accuracygate.Measurement{Metrics: map[accuracygate.Dimension]accuracygate.Metric{
+		accuracygate.DimensionComplexity:  measureComplexity(t, engine),
+		accuracygate.DimensionResolvers:   measureResolvers(t, engine),
+		accuracygate.DimensionCorrelation: measureCorrelation(t),
+	}}
+
+	result := accuracygate.Evaluate(baseline, measurement)
+	if !result.Pass() {
+		t.Fatalf("accuracy golden gate regressed:\n%s\n%s", result.Summary(), result.FailureMessage())
+	}
+
+	// Always emit the published metrics so a passing run still records the
+	// per-dimension / per-label numbers for over-time tracking in CI logs.
+	published, err := accuracygate.Publish(result).Encode()
+	if err != nil {
+		t.Fatalf("Publish().Encode() error = %v", err)
+	}
+	t.Logf("published accuracy metrics:\n%s", published)
+}
+
+// TestAccuracyGoldenGateDetectsRegression proves the gate is not a tautology: a
+// fabricated measurement below the floor must fail evaluation. Without this, a
+// gate that always passed would give false assurance.
+func TestAccuracyGoldenGateDetectsRegression(t *testing.T) {
+	t.Parallel()
+
+	baseline, err := accuracygate.LoadBaseline(baselineFixturePath())
+	if err != nil {
+		t.Fatalf("LoadBaseline() error = %v", err)
+	}
+	regressed := accuracygate.Measurement{Metrics: map[accuracygate.Dimension]accuracygate.Metric{
+		accuracygate.DimensionComplexity:  {Precision: 0, Recall: 0, CoveredItems: 0},
+		accuracygate.DimensionResolvers:   {Precision: 0, Recall: 0, CoveredItems: 0},
+		accuracygate.DimensionCorrelation: {Precision: 0, Recall: 0, CoveredItems: 0},
+	}}
+	result := accuracygate.Evaluate(baseline, regressed)
+	if result.Pass() {
+		t.Fatalf("gate passed a fully-regressed measurement: %s", result.Summary())
+	}
+	for _, dimension := range []string{"complexity", "resolvers", "correlation"} {
+		if !strings.Contains(result.FailureMessage(), dimension) {
+			t.Fatalf("regression message missing %q: %q", dimension, result.FailureMessage())
+		}
+	}
+}
+
+// TestAccuracyResolverMatrixMatchesPublishedDoc keeps the gate's resolver
+// coverage set in lockstep with the published #3487 matrix in the reducer
+// README, so the coverage count the gate enforces cannot silently drift from the
+// documented coverage.
+func TestAccuracyResolverMatrixMatchesPublishedDoc(t *testing.T) {
+	t.Parallel()
+
+	readmePath := filepath.Join("..", "reducer", "README.md")
+	data, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("read reducer README error = %v", err)
+	}
+	documented := documentedResolverLanguages(string(data))
+
+	gate := append([]string(nil), resolverCoveredLanguages()...)
+	sort.Strings(gate)
+	sort.Strings(documented)
+
+	if strings.Join(gate, ",") != strings.Join(documented, ",") {
+		t.Fatalf("resolver coverage drift:\n  gate      = %v\n  documented= %v", gate, documented)
+	}
+}
+
+// documentedResolverLanguages parses the reducer README coverage matrix rows and
+// returns the languages whose "Dedicated resolver" column is "yes", splitting
+// combined cells such as "typescript / tsx" and "javascript / jsx".
+func documentedResolverLanguages(readme string) []string {
+	seen := make(map[string]struct{})
+	for _, line := range strings.Split(readme, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
+			continue
+		}
+		columns := strings.Split(line, "|")
+		if len(columns) < 4 {
+			continue
+		}
+		name := strings.TrimSpace(columns[1])
+		dedicated := strings.TrimSpace(columns[2])
+		if dedicated != "yes" {
+			continue
+		}
+		for _, part := range strings.Split(name, "/") {
+			language := strings.TrimSpace(part)
+			if language == "" {
+				continue
+			}
+			seen[language] = struct{}{}
+		}
+	}
+	languages := make([]string, 0, len(seen))
+	for language := range seen {
+		languages = append(languages, language)
+	}
+	return languages
+}

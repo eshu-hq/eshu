@@ -1,0 +1,20 @@
+{
+  "schema_version": "accuracy_golden_gate.v1",
+  "thresholds": {
+    "complexity": {
+      "min_precision": 1.0,
+      "min_recall": 1.0,
+      "min_covered_items": 8
+    },
+    "resolvers": {
+      "min_precision": 1.0,
+      "min_recall": 1.0,
+      "min_covered_items": 15
+    },
+    "correlation": {
+      "min_precision": 1.0,
+      "min_recall": 1.0,
+      "min_covered_items": 3
+    }
+  }
+}
