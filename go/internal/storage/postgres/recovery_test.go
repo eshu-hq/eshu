@@ -294,6 +294,133 @@ func TestRecoveryStoreReplayFailedWorkItemsRequiresDB(t *testing.T) {
 	}
 }
 
+func TestRecoveryStoreReplayFailedWorkItemsExcludesManualReviewClasses(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{"item-1"}}},
+		},
+	}
+
+	store := NewRecoveryStore(db)
+	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
+	_, err := store.ReplayFailedWorkItems(context.Background(), recovery.ReplayFilter{
+		Stage:                 recovery.StageProjector,
+		FailureClass:          "retry_exhausted",
+		ExcludeFailureClasses: []string{"projection_bug", "resource_exhausted"},
+	}, now)
+	if err != nil {
+		t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
+	}
+	if !strings.Contains(db.queries[0].query, "failure_class <> ALL") {
+		t.Fatalf("drain replay query missing manual-review exclusion:\n%s", db.queries[0].query)
+	}
+	// The exclusion array must be the last positional arg so a manual-review row
+	// can never be replayed even though the drain selects a broad set.
+	last, ok := db.queries[0].args[len(db.queries[0].args)-1].([]string)
+	if !ok {
+		t.Fatalf("exclusion arg type = %T, want []string", db.queries[0].args[len(db.queries[0].args)-1])
+	}
+	if len(last) != 2 || last[0] != "projection_bug" || last[1] != "resource_exhausted" {
+		t.Fatalf("exclusion arg = %v, want [projection_bug resource_exhausted]", last)
+	}
+}
+
+func TestRecoveryStoreReplayFailedWorkItemsDropsBlankExclusions(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{"item-1"}}},
+		},
+	}
+
+	store := NewRecoveryStore(db)
+	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
+	_, err := store.ReplayFailedWorkItems(context.Background(), recovery.ReplayFilter{
+		Stage:                 recovery.StageProjector,
+		ExcludeFailureClasses: []string{"", "   "},
+	}, now)
+	if err != nil {
+		t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
+	}
+	if strings.Contains(db.queries[0].query, "failure_class <> ALL") {
+		t.Fatalf("blank-only exclusions must not add a predicate:\n%s", db.queries[0].query)
+	}
+}
+
+func TestRecoveryStoreCountDeadLetterBacklog(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{376}}},
+		},
+	}
+
+	store := NewRecoveryStore(db)
+	depth, err := store.CountDeadLetterBacklog(context.Background(), recovery.ReplayFilter{
+		Stage:                 recovery.StageProjector,
+		FailureClass:          "retry_exhausted",
+		ExcludeFailureClasses: []string{"projection_bug", "resource_exhausted"},
+	})
+	if err != nil {
+		t.Fatalf("CountDeadLetterBacklog() error = %v, want nil", err)
+	}
+	if depth != 376 {
+		t.Fatalf("CountDeadLetterBacklog() = %d, want 376", depth)
+	}
+	if !strings.Contains(db.queries[0].query, "SELECT COUNT(*) FROM fact_work_items") {
+		t.Fatalf("count query missing COUNT:\n%s", db.queries[0].query)
+	}
+	if !strings.Contains(db.queries[0].query, "status IN ('dead_letter', 'failed')") {
+		t.Fatalf("count query missing terminal filter:\n%s", db.queries[0].query)
+	}
+	// The count must apply the same exclusion as the replay so it reflects exactly
+	// the rows the drain is allowed to move; placeholders start at $1 (no
+	// timestamp), so the count must not reference a $1 timestamp arg.
+	if !strings.Contains(db.queries[0].query, "failure_class <> ALL") {
+		t.Fatalf("count query missing manual-review exclusion:\n%s", db.queries[0].query)
+	}
+}
+
+func TestRecoveryStoreCountDeadLetterBacklogRequiresDB(t *testing.T) {
+	t.Parallel()
+
+	store := NewRecoveryStore(nil)
+	_, err := store.CountDeadLetterBacklog(context.Background(), recovery.ReplayFilter{
+		Stage: recovery.StageProjector,
+	})
+	if err == nil {
+		t.Fatal("CountDeadLetterBacklog() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "database is required") {
+		t.Fatalf("error = %q, want 'database is required'", err.Error())
+	}
+}
+
+func TestRecoveryStoreCountDeadLetterBacklogPropagatesQueryError(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{err: errors.New("connection refused")},
+		},
+	}
+
+	store := NewRecoveryStore(db)
+	_, err := store.CountDeadLetterBacklog(context.Background(), recovery.ReplayFilter{
+		Stage: recovery.StageReducer,
+	})
+	if err == nil {
+		t.Fatal("CountDeadLetterBacklog() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "count dead letter backlog") {
+		t.Fatalf("error = %q, want 'count dead letter backlog' context", err.Error())
+	}
+}
+
 func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 	t.Parallel()
 

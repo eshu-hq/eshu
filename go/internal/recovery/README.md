@@ -5,7 +5,11 @@
 `recovery` provides the operator-facing replay and refinalize operations for
 the facts-first write plane. `Handler.ReplayFailed` resets dead-lettered or
 failed projector or reducer work items back to pending so they re-enter the
-queue. `Handler.Refinalize` re-enqueues projector work for an explicit list of
+queue. `Handler.DrainBacklog` is the safe dead-letter backlog drain for issue
+#3560: it defaults to the transient `retry_exhausted` bucket, refuses
+manual-review (poison) classes sourced from `internal/projector` triage, and
+reports backlog depth before replaying so an operator can watch a drain make
+progress. `Handler.Refinalize` re-enqueues projector work for an explicit list of
 scopes so their active generations are projected again without rebuilding the
 graph from scratch. `Handler.ReplayCollectorGenerations` marks collector
 generation commit failures for source-level replay when those failures happened
@@ -54,9 +58,18 @@ backend, or any network connection directly.
 - Stage constants: `StageProjector` (`"projector"`), `StageReducer`
   (`"reducer"`).
 - `ReplayFilter` — filter for failed-item replay: `Stage` (required),
-  `ScopeIDs` (empty means all), `FailureClass`, `Limit`.
+  `ScopeIDs` (empty means all), `FailureClass`, `ExcludeFailureClasses` (durable
+  classes the store must never select, applied store-side), `Limit`.
 - `ReplayResult` — outcome of a replay call: `Stage`, `Replayed` count,
   `WorkItemIDs`.
+- `DrainableClass` — string alias for a failure class the drain may replay
+  without operator force; `DrainableClassRetryExhausted` (`"retry_exhausted"`)
+  is the safe transient default.
+- `DrainFilter` — safe drain filter: `Stage` (required), `ScopeIDs`,
+  `FailureClass` (defaults to `retry_exhausted`; a manual-review class is
+  refused), `Limit`.
+- `DrainResult` — outcome of a drain: `Stage`, `Replayed`,
+  `BacklogDepthBefore`, `WorkItemIDs`.
 - `RefinalizeFilter` — filter for scope re-projection: `ScopeIDs` (required,
   non-empty).
 - `RefinalizeResult` — outcome of a refinalize call: `Enqueued` count,
@@ -66,14 +79,19 @@ backend, or any network connection directly.
   `FailureClass`, `Limit`.
 - `CollectorGenerationReplayResult` — outcome of a collector generation replay
   request: `Replayed` count and `GenerationIDs`.
-- `ReplayStore` — interface the `Handler` calls: `ReplayFailedWorkItems` and
-  `RefinalizeScopeProjections`, plus `ReplayCollectorGenerations`.
+- `ReplayStore` — interface the `Handler` calls: `ReplayFailedWorkItems`,
+  `CountDeadLetterBacklog`, and `RefinalizeScopeProjections`, plus
+  `ReplayCollectorGenerations`.
 - `Handler` — orchestrates recovery through the store; construct with
   `NewHandler`.
 - `NewHandler(store ReplayStore) (*Handler, error)` — returns an error if
   `store` is nil.
 - `Handler.ReplayFailed(ctx, filter)` — validates filter, delegates to
   `ReplayStore.ReplayFailedWorkItems`.
+- `Handler.DrainBacklog(ctx, filter)` — validates the drain filter (refusing
+  manual-review classes), reads `CountDeadLetterBacklog` for the before-depth,
+  then replays only the drainable rows with the manual-review exclusion applied
+  store-side.
 - `Handler.Refinalize(ctx, filter)` — validates filter, delegates to
   `ReplayStore.RefinalizeScopeProjections`.
 - `Handler.ReplayCollectorGenerations(ctx, filter)` — validates filter,
@@ -83,8 +101,11 @@ See `doc.go` for the full godoc contract.
 
 ## Dependencies
 
-Standard library only (`context`, `errors`, `fmt`, `time`). The `ReplayStore`
-interface is the only injection point; the Postgres adapter lives in
+Standard library (`context`, `errors`, `fmt`, `strings`, `time`) plus
+`internal/projector` for the drain's drainable/manual-review triage classes, so
+the drain's safe-bucket default and poison exclusion stay sourced from the single
+triage authority rather than re-listed here. The `ReplayStore` interface is the
+only store injection point; the Postgres adapter lives in
 `internal/storage/postgres`.
 
 ## Telemetry
@@ -98,6 +119,12 @@ invokes `Handler`.
 - `ReplayFilter.Stage` must be `StageProjector` or `StageReducer`; any other
   value fails `Validate` and the call returns an error before touching the
   store.
+- `DrainBacklog` refuses a manual-review (`projection_bug`,
+  `resource_exhausted`) `FailureClass` before any store read or write, so an
+  operator cannot drain poison by naming its class. An unscoped drain still
+  carries the manual-review exclusion to the store, so a broad selector can
+  never replay a poison row. Replaying those classes requires the forced admin
+  replay path (`internal/query`), not the drain.
 - `RefinalizeFilter.ScopeIDs` must be non-empty. Refinalize is always scoped
   to explicit scope IDs; unbounded refinalize is not supported.
 - `CollectorGenerationReplayFilter.CollectorKind` is required and must not be

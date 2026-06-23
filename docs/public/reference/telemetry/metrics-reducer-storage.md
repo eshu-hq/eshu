@@ -104,9 +104,15 @@ or generation context.
 | `eshu_dp_canonical_retract_duration_seconds` | histogram | Canonical retract phase cost. |
 | `eshu_dp_canonical_batch_size` | histogram | Canonical write batch size. |
 | `eshu_dp_canonical_phase_duration_seconds` | histogram | Canonical phase-level cost. |
+| `eshu_dp_graph_write_backpressure_engaged_total` | counter | Graph writes that blocked for an in-flight permit (write-path backpressure engaged), labeled by operation. |
+| `eshu_dp_graph_write_backpressure_wait_seconds` | histogram | Time a graph write blocked waiting for an in-flight permit, labeled by operation. |
 
 Use graph/storage metrics before tuning NornicDB row caps, Neo4j batch sizes, or
-worker counts.
+worker counts. A non-zero `eshu_dp_graph_write_backpressure_engaged_total` rate
+means the reducer/projector write path hit its `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT`
+ceiling and is slowing intake rather than letting concurrent writes time out and
+flood the dead-letter queue; rising `eshu_dp_graph_write_backpressure_wait_seconds`
+p95 is the precursor to write timeouts.
 
 ## Correlation, Drift, And Relationship Work
 
