@@ -15,6 +15,14 @@ type TimeoutExecutor struct {
 	TimeoutHint string
 }
 
+// GraphWriteTimeoutFailureClass is the durable failure_class persisted on a
+// reducer/projector work item that failed (or is retrying) because a bounded
+// graph write exceeded its deadline. It is the single source of truth shared by
+// GraphWriteTimeoutError.FailureClass and the producer write-backpressure gate,
+// which counts only retrying rows in this class so readiness backlogs cannot
+// false-throttle reducer admission (#3560).
+const GraphWriteTimeoutFailureClass = "graph_write_timeout"
+
 // GraphWriteTimeoutError marks a graph write deadline/cancellation with enough
 // context for queue failure classifiers and operator status surfaces.
 type GraphWriteTimeoutError struct {
@@ -44,7 +52,7 @@ func (e GraphWriteTimeoutError) Unwrap() error {
 }
 
 func (e GraphWriteTimeoutError) FailureClass() string {
-	return "graph_write_timeout"
+	return GraphWriteTimeoutFailureClass
 }
 
 func (e GraphWriteTimeoutError) FailureDetails() string {

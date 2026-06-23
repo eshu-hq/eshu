@@ -132,9 +132,9 @@ func TestReducerAdmissionGraphWritePressureRecordsReason(t *testing.T) {
 			RetryingLowWaterMark:  10,
 			PollInterval:          time.Second,
 		},
-		deferral:   newAdmissionDeferralState(),
-		reasonSink: recorder.record,
-		sleep:      func(context.Context, time.Duration) error { return nil },
+		deferral:         newAdmissionDeferralState(),
+		failureClassSink: recorder.record,
+		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
 
 	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
@@ -168,9 +168,9 @@ func TestReducerAdmissionTotalDepthRecordsHighWaterReason(t *testing.T) {
 			RetryingHighWaterMark: 0, // graph-write pressure gate disabled
 			PollInterval:          time.Second,
 		},
-		deferral:   newAdmissionDeferralState(),
-		reasonSink: recorder.record,
-		sleep:      func(context.Context, time.Duration) error { return nil },
+		deferral:         newAdmissionDeferralState(),
+		failureClassSink: recorder.record,
+		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
 
 	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
@@ -329,7 +329,7 @@ type recordingDeferralReasonReader struct {
 	reasons []string
 }
 
-func (r *recordingDeferralReasonReader) record(_ context.Context, reason string, _ int64, _ int) {
+func (r *recordingDeferralReasonReader) record(_ context.Context, reason, _ string, _ int64, _ int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.reasons = append(r.reasons, reason)
@@ -348,4 +348,8 @@ type alwaysLowRetryingDepthReader struct{}
 
 func (alwaysLowRetryingDepthReader) QueueDepths(context.Context) (map[string]map[string]int64, error) {
 	return map[string]map[string]int64{"reducer": {"pending": 1, "retrying": 1}}, nil
+}
+
+func (alwaysLowRetryingDepthReader) ReducerGraphWriteTimeoutDepth(context.Context) (int64, error) {
+	return 1, nil
 }

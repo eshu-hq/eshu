@@ -187,8 +187,8 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_LARGE_REPO_MAX_CONCURRENT | 2 | Max concurrent large-repo snapshots |
 | ESHU_PROJECTOR_WORKERS | min(NumCPU,8); local_authoritative NornicDB: NumCPU | Projector worker count |
 | ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK | 10000; set 0 to disable | Reducer queue depth threshold where ingester source-local projection defers new reducer intent enqueues |
-| ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK | 500; set 0 to disable | Graph-write backpressure: defers reducer intent enqueues once retrying-state reducer depth (the durable signal of recurring graph-write timeouts) reaches this value |
-| ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK | 100 | Hysteresis floor; admission resumes only after retrying depth falls below this value. Must be less than the retrying high-water mark |
+| ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK | 500; set 0 to disable | Graph-write backpressure: defers reducer intent enqueues once the count of reducer rows retrying with `failure_class=graph_write_timeout` reaches this value. Scoped to the graph-write-timeout class so readiness-not-ready retry backlogs (`secrets_iam_endpoint_not_ready` and other `*_n` classes) never false-throttle admission |
+| ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK | 100 | Hysteresis floor; admission resumes only after the graph-write-timeout retrying depth falls below this value. Must be less than the retrying high-water mark |
 | ESHU_REDUCER_ADMISSION_POLL_INTERVAL | 1s | Reducer queue depth recheck interval while admission is deferring |
 | ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
@@ -280,10 +280,15 @@ The ingester inherits collector and projector telemetry. Key signals:
   outside SQL transactions before rechecking. Bootstrap projection, recovery
   replay, admin reopen, and reducer follow-up lanes bypass this gate so
   freshness-critical repair paths continue.
-- Graph-write backpressure (#3560) adds a second admission gate keyed on
-  retrying-state reducer depth, the backend-neutral signal that canonical graph
-  writes are timing out (a recoverable write requeues as `projection_retryable`
-  into `retrying` via `WrapRetryableNeo4jError`). It defers at
+- Graph-write backpressure (#3560) adds a second admission gate keyed on the
+  count of reducer rows retrying with `failure_class=graph_write_timeout`, the
+  backend-neutral signal that canonical graph writes are timing out (a bounded
+  write that exceeds `ESHU_CANONICAL_WRITE_TIMEOUT` requeues into `retrying` with
+  the self-classified `graph_write_timeout` failure class). The signal is scoped
+  to that class so a reducer readiness backlog (`secrets_iam_endpoint_not_ready`
+  and other `*_n` not-ready classes that also persist as `retrying`) can never be
+  mistaken for graph-write pressure and false-throttle unrelated admission. It
+  defers at
   ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK (default 500) and resumes only
   below ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK (default 100); the gap is
   hysteresis that stops the producer from flapping. Set the high-water mark to 0

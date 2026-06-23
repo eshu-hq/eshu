@@ -487,7 +487,11 @@ func TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget(t *testing.
 	if !strings.Contains(db.execs[0].query, "status = 'retrying'") {
 		t.Fatalf("timeout should retry within attempt budget, query:\n%s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[1], "reducer_retryable"; got != want {
+	// A graph-write timeout retry preserves its self-classified graph_write_timeout
+	// failure class on the retrying row (instead of the generic reducer_retryable)
+	// so producer write-timeout backpressure (#3560) can scope its pressure signal
+	// to graph-write classes and never throttle on a reducer readiness backlog.
+	if got, want := db.execs[0].args[1], "graph_write_timeout"; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	if got, want := db.execs[0].args[3], "semantic label=Annotation rows=10"; got != want {
@@ -497,3 +501,51 @@ func TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget(t *testing.
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }
+
+// TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass proves a
+// reducer readiness backlog (a *_not_ready cross-scope readiness miss) keeps its
+// own non-graph failure class on the retrying row and is NOT relabeled as a
+// graph-write class. This is the regression guard for #3560: producer
+// write-timeout backpressure must scope its pressure signal to graph-write
+// classes only, so a readiness backlog can never be mistaken for graph-write
+// pressure and throttle unrelated admission.
+func TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	queue := ReducerQueue{
+		db:            db,
+		LeaseOwner:    "reducer-1",
+		LeaseDuration: time.Minute,
+		RetryDelay:    2 * time.Minute,
+		MaxAttempts:   3,
+		Now:           func() time.Time { return now },
+	}
+	intent := reducer.Intent{IntentID: "intent-1", AttemptCount: 1}
+
+	if err := queue.Fail(context.Background(), intent, readinessBacklogTestError{
+		class: reducer.SecretsIAMEndpointNotReadyFailureClass,
+	}); err != nil {
+		t.Fatalf("Fail() error = %v, want nil", err)
+	}
+	if !strings.Contains(db.execs[0].query, "status = 'retrying'") {
+		t.Fatalf("readiness backlog should retry, query:\n%s", db.execs[0].query)
+	}
+	if got := db.execs[0].args[1]; got != reducer.SecretsIAMEndpointNotReadyFailureClass {
+		t.Fatalf("failure class = %v, want %v", got, reducer.SecretsIAMEndpointNotReadyFailureClass)
+	}
+	if got := db.execs[0].args[1]; got == sourcecypher.GraphWriteTimeoutFailureClass {
+		t.Fatalf("readiness backlog must not be labeled a graph-write class, got %v", got)
+	}
+}
+
+// readinessBacklogTestError is a retryable, self-classifying reducer readiness
+// miss used to prove readiness backlogs keep their own failure class.
+type readinessBacklogTestError struct {
+	class string
+}
+
+func (e readinessBacklogTestError) Error() string        { return e.class }
+func (readinessBacklogTestError) Retryable() bool        { return true }
+func (e readinessBacklogTestError) FailureClass() string { return e.class }

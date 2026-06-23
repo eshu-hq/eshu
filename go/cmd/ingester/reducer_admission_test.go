@@ -417,6 +417,21 @@ func (f *fakeReducerAdmissionDepthReader) QueueDepths(context.Context) (map[stri
 	return depth, nil
 }
 
+// ReducerGraphWriteTimeoutDepth maps the next depth map's retrying bucket to the
+// graph-write-timeout depth so the high-water-only tests (graph-write pressure
+// disabled, this method unused) and any pressure test that drives the retrying
+// bucket both observe consistent per-iteration depth. The gate calls exactly one
+// of QueueDepths / ReducerGraphWriteTimeoutDepth per loop iteration, so the
+// shared call cursor advances once per iteration either way.
+func (f *fakeReducerAdmissionDepthReader) ReducerGraphWriteTimeoutDepth(context.Context) (int64, error) {
+	if f.calls >= len(f.depths) {
+		return f.depths[len(f.depths)-1]["reducer"]["retrying"], nil
+	}
+	depth := f.depths[f.calls]["reducer"]["retrying"]
+	f.calls++
+	return depth, nil
+}
+
 type recordingReducerIntentWriter struct {
 	calls   int
 	intents []projector.ReducerIntent
@@ -451,6 +466,10 @@ func (f fixedReducerAdmissionDepthReader) QueueDepths(context.Context) (map[stri
 	return f.depth, nil
 }
 
+func (f fixedReducerAdmissionDepthReader) ReducerGraphWriteTimeoutDepth(context.Context) (int64, error) {
+	return f.depth["reducer"]["retrying"], nil
+}
+
 type alternatingReducerAdmissionDepthReader struct {
 	calls int
 	high  map[string]map[string]int64
@@ -463,4 +482,12 @@ func (f *alternatingReducerAdmissionDepthReader) QueueDepths(context.Context) (m
 		return f.high, nil
 	}
 	return f.low, nil
+}
+
+func (f *alternatingReducerAdmissionDepthReader) ReducerGraphWriteTimeoutDepth(context.Context) (int64, error) {
+	f.calls++
+	if f.calls%2 == 1 {
+		return f.high["reducer"]["retrying"], nil
+	}
+	return f.low["reducer"]["retrying"], nil
 }
