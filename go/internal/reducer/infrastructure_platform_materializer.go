@@ -44,12 +44,16 @@ func (m *InfrastructurePlatformMaterializer) batchSize() int {
 	return m.BatchSize
 }
 
-// executeBatched splits rows into batches and executes the given Cypher query
-// with each batch as a "rows" parameter.
-func (m *InfrastructurePlatformMaterializer) executeBatched(
+// executeBatchedWithParams splits rows into batches and executes the given
+// Cypher query with each batch as a "rows" parameter, merging extra
+// statement-scoped scalar parameters (such as a materialization edge-confidence
+// weight) into every batch execution. The extra parameters are constant for the
+// whole batch, so the planner treats them as fixed rather than as per-row data.
+func (m *InfrastructurePlatformMaterializer) executeBatchedWithParams(
 	ctx context.Context,
 	cypher string,
 	rows []map[string]any,
+	extra map[string]any,
 ) error {
 	batchSize := m.batchSize()
 	for i := 0; i < len(rows); i += batchSize {
@@ -58,7 +62,11 @@ func (m *InfrastructurePlatformMaterializer) executeBatched(
 			end = len(rows)
 		}
 		chunk := rows[i:end]
-		if err := m.executor.ExecuteCypher(ctx, cypher, map[string]any{"rows": chunk}); err != nil {
+		params := map[string]any{"rows": chunk}
+		for k, v := range extra {
+			params[k] = v
+		}
+		if err := m.executor.ExecuteCypher(ctx, cypher, params); err != nil {
 			return err
 		}
 	}
@@ -94,7 +102,9 @@ func (m *InfrastructurePlatformMaterializer) Materialize(
 		}
 	}
 
-	if err := m.executeBatched(ctx, batchInfraPlatformUpsertCypher, batchRows); err != nil {
+	if err := m.executeBatchedWithParams(ctx, batchInfraPlatformUpsertCypher, batchRows, map[string]any{
+		MaterializationConfidenceParam: ProvisionsPlatformEdgeConfidence,
+	}); err != nil {
 		return InfrastructurePlatformResult{}, fmt.Errorf("write infrastructure platforms: %w", err)
 	}
 
@@ -132,7 +142,7 @@ SET p.type = 'platform',
     p.region = row.platform_region,
     p.locator = row.platform_locator
 MERGE (repo)-[rel:PROVISIONS_PLATFORM]->(p)
-SET rel.confidence = 0.98,
+SET rel.confidence = $edge_confidence,
     rel.reason = 'Terraform cluster and module data declare platform provisioning',
     rel.evidence_source = row.evidence_source`
 

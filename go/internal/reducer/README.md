@@ -3049,3 +3049,29 @@ shared repo-dependency lane reconstructs the same consumer acceptance unit acros
 generations: a new generation refreshes the consumer's package-consumption edges
 in place, and a consumer whose owner disappears emits a retraction so the stale
 edge is removed instead of orphaned.
+
+## Materialization edge-confidence weights (#3518)
+
+The settled confidence stamped onto materialized graph edges
+(`PROVISIONS_PLATFORM`, runtime-services `DEPENDS_ON`, and the `RUNS_ON`
+fallback) is sourced from named, documented constants in
+`materialization_edge_confidence.go` instead of bare Cypher literals. Each
+weight is injected into its UNWIND batch statement as the statement-scoped
+`$edge_confidence` parameter via `executeBatchedWithParams`, so the graph-write
+template carries no magic number and the value has a single documented home.
+These weights are deliberately separate from the per-`EvidenceKind`
+`DefaultConfidenceRegistry` priors: the registry feeds pre-admission
+corroboration math, whereas these are the post-admission confidence written onto
+an already-materialized edge.
+
+No-Regression Evidence: this is a pure value-parameterization. Each bare literal
+(`0.98` PROVISIONS_PLATFORM, `0.9` repo/workload `DEPENDS_ON`) is replaced by the
+identical constant passed as a fixed statement-scoped scalar parameter; the
+UNWIND batch shape, MERGE identity, anchors, predicates, and index usage are
+unchanged, so the materialization hot path has no plan change and no measurable
+regression. `go test ./internal/reducer -count=1` (2312 tests) stays green.
+
+No-Observability-Change: no metrics, spans, or structured logs are added or
+altered; only the in-query confidence literal is sourced from a documented
+constant. Edge-property values written to the graph are byte-for-byte identical
+to before.
