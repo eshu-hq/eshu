@@ -62,9 +62,19 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	if err != nil {
 		return fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}
-	activeFacts, err := loadLatestRelationshipFacts(ctx, s.db)
+
+	// Scope the corpus-wide source-fact load to the content anchors of the full
+	// catalog instead of streaming every committed fact (issue #3569). The
+	// deferred backfill treats every repository as an eligible relationship
+	// target, so anchors derive from the whole catalog rather than an onboarding
+	// delta; the anchor predicate is the same provable superset the per-commit
+	// path relies on (loadAnchorScopedRelationshipFacts), so no evidence the
+	// full-corpus load would have produced is dropped. With no usable anchors no
+	// fact can resolve a catalog target, so the fact load short-circuits and the
+	// pass still publishes readiness for the active generations below.
+	activeFacts, err := loadAnchorScopedRelationshipFacts(ctx, s.db, catalog, catalog)
 	if err != nil {
-		return fmt.Errorf("load latest facts for deferred relationship backfill: %w", err)
+		return fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}
 
 	discoveredEvidence := relationships.DedupeEvidenceFacts(
@@ -430,49 +440,20 @@ func backfillRelationshipEvidenceForNewRepositories(
 	// Derive payload anchors from only the newly onboarded repositories' catalog
 	// aliases (issue #3570) and load just the latest-generation content, file, and
 	// gcp_cloud_relationship facts whose payload could reference one of them, plus
-	// the always-loaded ArgoCD-shaped facts. This replaces the O(all-repos)
-	// full-corpus fact load: the prior loadLatestRelationshipFacts shipped every
+	// the always-loaded ArgoCD-shaped facts and their external config files. This
+	// replaces an O(all-repos) full-corpus fact load that shipped every
 	// repository's facts on every onboarding commit even though the scoped catalog
 	// could only match the onboarding delta. The anchor predicate is a provable
 	// superset of the facts DiscoverEvidence could match against newRepoCatalog, so
 	// no evidence is dropped. If no anchors exist (the new repos have no usable
 	// aliases) no fact can match, so the backfill short-circuits.
 	newRepoCatalog := repositoryScopedCatalog(refreshedCatalog, newRepoIDs)
-	anchors := backfillRelationshipAnchorTerms(newRepoCatalog)
-	if len(anchors) == 0 {
-		return nil
-	}
-	activeFacts, err := loadOnboardedRepoScopedRelationshipFacts(ctx, queryer, anchors)
+	activeFacts, err := loadAnchorScopedRelationshipFacts(ctx, queryer, newRepoCatalog, refreshedCatalog)
 	if err != nil {
 		return fmt.Errorf("load anchor-scoped facts for relationship backfill: %w", err)
 	}
 	if len(activeFacts) == 0 {
 		return nil
-	}
-
-	// Phase two of the scoped fact load (issue #3570): an ArgoCD ApplicationSet's
-	// synthesized deploy edges depend on git-generator config files that live in a
-	// DIFFERENT repository. discoverArgoCDDocumentEvidence reads those files from
-	// the content index, keyed by the config repo's id, to render the deploy
-	// repoURL from template parameters (team/service/path basename). The
-	// newly-onboarded deploy repo's alias appears in neither the ApplicationSet
-	// payload nor the config file, so phase one (alias anchors plus ArgoCD markers)
-	// loads the ApplicationSet but not its external config files, which would drop
-	// the edge. Resolve the config repos the loaded ApplicationSets target against
-	// the full catalog and load their generator-path files, then merge them so the
-	// content index DiscoverEvidence builds is complete. The phase-two load is
-	// bounded to the .yaml/.yml/.json files of the resolved config repos.
-	configRefs := relationships.ResolveArgoCDGeneratorConfigRepos(activeFacts, refreshedCatalog)
-	if len(configRefs) > 0 {
-		configRepoIDs := make([]string, 0, len(configRefs))
-		for _, ref := range configRefs {
-			configRepoIDs = append(configRepoIDs, ref.ConfigRepoID)
-		}
-		configFacts, err := loadArgoCDGeneratorConfigFacts(ctx, queryer, configRepoIDs)
-		if err != nil {
-			return fmt.Errorf("load argocd generator config facts for relationship backfill: %w", err)
-		}
-		activeFacts = mergeRelationshipFacts(activeFacts, configFacts)
 	}
 
 	// Scope the catalog matcher to only the repositories this generation
@@ -582,28 +563,6 @@ func repositoryScopedCatalog(
 		scoped = append(scoped, entry)
 	}
 	return scoped
-}
-
-func loadLatestRelationshipFacts(ctx context.Context, queryer Queryer) ([]facts.Envelope, error) {
-	rows, err := queryer.QueryContext(ctx, listLatestRelationshipFactRecordsQuery)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var loaded []facts.Envelope
-	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		loaded = append(loaded, envelope)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return loaded, nil
 }
 
 func catalogRepoIDs(catalog []relationships.CatalogEntry) map[string]struct{} {

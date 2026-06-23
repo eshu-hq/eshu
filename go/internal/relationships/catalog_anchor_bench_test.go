@@ -90,6 +90,92 @@ func benchmarkBackfillDiscovery(b *testing.B, fleetSize int, scoped bool) {
 	}
 }
 
+// buildDeferredFleetCorpus models the corpus-wide deferred backfill input
+// (issue #3569): every repository is an eligible relationship target, so the
+// catalog spans the whole fleet. Each fleet repo contributes one edge-forming
+// content fact that references another fleet repo's alias, plus orphanPerRepo
+// orphan facts whose content references no catalog repository (e.g. third-party
+// image names, vendored config) — the anchor-scoped deferred load excludes those
+// because they match no catalog anchor, while the full-corpus load shipped and
+// iterated all of them.
+func buildDeferredFleetCorpus(fleetSize, orphanPerRepo int) (full []facts.Envelope, catalog []CatalogEntry) {
+	full = make([]facts.Envelope, 0, fleetSize*(1+orphanPerRepo))
+	catalog = make([]CatalogEntry, 0, fleetSize)
+	for i := 0; i < fleetSize; i++ {
+		alias := fmt.Sprintf("fleet-service-%d", i)
+		repoID := fmt.Sprintf("repo:fleet-%d", i)
+		catalog = append(catalog, CatalogEntry{RepoID: repoID, Aliases: []string{alias}})
+
+		// One edge-forming fact: repo i references repo (i+1) mod fleetSize.
+		targetAlias := fmt.Sprintf("fleet-service-%d", (i+1)%fleetSize)
+		full = append(full, facts.Envelope{
+			ScopeID: repoID,
+			Payload: map[string]any{
+				"artifact_type": "terraform",
+				"relative_path": "main.tf",
+				"content":       fmt.Sprintf(`app_repo = "%s"`, targetAlias),
+			},
+		})
+
+		// Orphan facts reference no catalog alias, so they can form no edge.
+		for j := 0; j < orphanPerRepo; j++ {
+			full = append(full, facts.Envelope{
+				ScopeID: repoID,
+				Payload: map[string]any{
+					"artifact_type": "docker_compose",
+					"relative_path": "docker-compose.yaml",
+					"content":       fmt.Sprintf("services:\n  web:\n    image: third-party-vendor-image-%d-%d\n", i, j),
+				},
+			})
+		}
+	}
+	return full, catalog
+}
+
+// benchmarkDeferredBackfillDiscovery runs the corpus-wide deferred backfill
+// discovery cost over the whole fleet catalog (issue #3569). The "Full" variant
+// discovers over every committed fact; the "Scoped" variant discovers only over
+// the facts the full-catalog anchor predicate returns, dropping the orphan facts
+// that reference no catalog repository. Both variants must yield identical
+// evidence (proven by TestCorpusWideAnchorScopedLoadEqualsFullLoad); this
+// measures the work the scoped load avoids.
+func benchmarkDeferredBackfillDiscovery(b *testing.B, fleetSize, orphanPerRepo int, scoped bool) {
+	full, catalog := buildDeferredFleetCorpus(fleetSize, orphanPerRepo)
+	anchors := CatalogPayloadAnchors(catalog)
+
+	corpus := full
+	if scoped {
+		corpus = make([]facts.Envelope, 0, fleetSize)
+		for _, envelope := range full {
+			if payloadMatchesAnchorsBench(envelope, anchors) {
+				corpus = append(corpus, envelope)
+			}
+		}
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = DedupeEvidenceFacts(DiscoverEvidence(corpus, catalog))
+	}
+}
+
+func BenchmarkDeferredBackfillDiscoveryFullFleet1k(b *testing.B) {
+	benchmarkDeferredBackfillDiscovery(b, 1000, 4, false)
+}
+
+func BenchmarkDeferredBackfillDiscoveryScopedFleet1k(b *testing.B) {
+	benchmarkDeferredBackfillDiscovery(b, 1000, 4, true)
+}
+
+func BenchmarkDeferredBackfillDiscoveryFullFleet5k(b *testing.B) {
+	benchmarkDeferredBackfillDiscovery(b, 5000, 4, false)
+}
+
+func BenchmarkDeferredBackfillDiscoveryScopedFleet5k(b *testing.B) {
+	benchmarkDeferredBackfillDiscovery(b, 5000, 4, true)
+}
+
 func BenchmarkBackfillDiscoveryFullFleet1k(b *testing.B) {
 	benchmarkBackfillDiscovery(b, 1000, false)
 }
