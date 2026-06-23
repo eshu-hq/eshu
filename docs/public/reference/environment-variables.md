@@ -54,6 +54,7 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_DISCOVERY_REPORT` | Write discovery advisory JSON before changing ignored paths or size caps. |
 | `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | Apply an operator-controlled generated/vendor/archive ignore overlay. |
 | `ESHU_CANONICAL_WRITE_TIMEOUT` | Set the canonical graph-write timeout after statement shape is proven correct. |
+| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | Bound concurrent reducer/projector graph writes so a slow backend slows intake instead of dead-lettering recoverable work; non-positive disables the bound (passthrough). |
 | `ESHU_REDUCER_WORKERS` | Tune reducer worker count after queue and graph-write evidence. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Keep reducer claim batch size near worker count on slower graph backends. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Declare claim-capable collector instances for coordinator-owned workflows. |

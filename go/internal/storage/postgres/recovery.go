@@ -11,7 +11,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-const replayFailedWorkItemsQuery = `
+// replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
+// %s is replaced by the dynamic predicate built from the replay filter (scope,
+// failure class, and the manual-review exclusion), so every replay variant
+// shares one UPDATE body and the exclusion can never be dropped by a missing
+// hand-written variant. $1 is the replay timestamp; the predicate placeholders
+// start at $2.
+const replayFailedWorkItemsTemplate = `
 WITH replayed AS (
     UPDATE fact_work_items
     SET status = 'pending',
@@ -25,74 +31,20 @@ WITH replayed AS (
         failure_details = NULL,
         updated_at = $1
     WHERE status IN ('dead_letter', 'failed')
-      AND stage = $2
+      %s
     RETURNING work_item_id
 )
 SELECT work_item_id FROM replayed ORDER BY work_item_id
 `
 
-const replayFailedWorkItemsByScopeQuery = `
-WITH replayed AS (
-    UPDATE fact_work_items
-    SET status = 'pending',
-        attempt_count = GREATEST(attempt_count, 1),
-        lease_owner = NULL,
-        claim_until = NULL,
-        visible_at = $1,
-        next_attempt_at = NULL,
-        failure_class = NULL,
-        failure_message = NULL,
-        failure_details = NULL,
-        updated_at = $1
-    WHERE status IN ('dead_letter', 'failed')
-      AND stage = $2
-      AND scope_id = ANY($3)
-    RETURNING work_item_id
-)
-SELECT work_item_id FROM replayed ORDER BY work_item_id
-`
-
-const replayFailedWorkItemsByClassQuery = `
-WITH replayed AS (
-    UPDATE fact_work_items
-    SET status = 'pending',
-        attempt_count = GREATEST(attempt_count, 1),
-        lease_owner = NULL,
-        claim_until = NULL,
-        visible_at = $1,
-        next_attempt_at = NULL,
-        failure_class = NULL,
-        failure_message = NULL,
-        failure_details = NULL,
-        updated_at = $1
-    WHERE status IN ('dead_letter', 'failed')
-      AND stage = $2
-      AND failure_class = $3
-    RETURNING work_item_id
-)
-SELECT work_item_id FROM replayed ORDER BY work_item_id
-`
-
-const replayFailedWorkItemsByScopeAndClassQuery = `
-WITH replayed AS (
-    UPDATE fact_work_items
-    SET status = 'pending',
-        attempt_count = GREATEST(attempt_count, 1),
-        lease_owner = NULL,
-        claim_until = NULL,
-        visible_at = $1,
-        next_attempt_at = NULL,
-        failure_class = NULL,
-        failure_message = NULL,
-        failure_details = NULL,
-        updated_at = $1
-    WHERE status IN ('dead_letter', 'failed')
-      AND stage = $2
-      AND scope_id = ANY($3)
-      AND failure_class = $4
-    RETURNING work_item_id
-)
-SELECT work_item_id FROM replayed ORDER BY work_item_id
+// countDeadLetterBacklogTemplate counts the terminal rows a replay with the same
+// filter would touch, before any mutation. It shares the predicate builder with
+// the replay so the count reflects exactly the rows the drain is allowed to
+// move; the predicate placeholders start at $1 because there is no timestamp.
+const countDeadLetterBacklogTemplate = `
+SELECT COUNT(*) FROM fact_work_items
+WHERE status IN ('dead_letter', 'failed')
+  %s
 `
 
 const refinalizeScopeProjectionsQuery = `
@@ -162,9 +114,67 @@ func NewRecoveryStore(db ExecQueryer) RecoveryStore {
 	return RecoveryStore{db: db}
 }
 
+// replayPredicate is the dynamic WHERE tail (after the terminal-status clause)
+// for one replay filter, plus the positional args that fill its placeholders.
+// startPlaceholder is the next $N to use, so a query with a leading timestamp
+// arg ($1) starts the predicate at $2 while a count query starts it at $1.
+type replayPredicate struct {
+	clause string
+	args   []any
+}
+
+// buildReplayPredicate renders the stage, scope, failure-class, and
+// manual-review-exclusion predicates shared by the replay UPDATE and the backlog
+// COUNT. Both call it so a count can never select a different row set than the
+// replay it precedes, and the exclusion is applied uniformly: an unscoped drain
+// that selects a broad set still cannot move a manual-review (poison) row.
+func buildReplayPredicate(filter recovery.ReplayFilter, startPlaceholder int) replayPredicate {
+	var (
+		clauses = []string{fmt.Sprintf("AND stage = $%d", startPlaceholder)}
+		args    = []any{string(filter.Stage)}
+		next    = startPlaceholder + 1
+	)
+
+	if len(filter.ScopeIDs) > 0 {
+		clauses = append(clauses, fmt.Sprintf("AND scope_id = ANY($%d)", next))
+		args = append(args, filter.ScopeIDs)
+		next++
+	}
+
+	if strings.TrimSpace(filter.FailureClass) != "" {
+		clauses = append(clauses, fmt.Sprintf("AND failure_class = $%d", next))
+		args = append(args, filter.FailureClass)
+		next++
+	}
+
+	if excluded := nonEmptyClasses(filter.ExcludeFailureClasses); len(excluded) > 0 {
+		// failure_class <> ALL(...) excludes the poison buckets. NULL is impossible
+		// here because terminal rows always carry a failure_class, but <> ALL also
+		// safely keeps a NULL out, which is acceptable for a drain.
+		clauses = append(clauses, fmt.Sprintf("AND failure_class <> ALL($%d)", next))
+		args = append(args, excluded)
+	}
+
+	return replayPredicate{clause: strings.Join(clauses, "\n      "), args: args}
+}
+
+// nonEmptyClasses returns classes with blank entries dropped so an accidental
+// empty string never becomes a meaningless exclusion predicate.
+func nonEmptyClasses(classes []string) []string {
+	out := make([]string, 0, len(classes))
+	for _, class := range classes {
+		if trimmed := strings.TrimSpace(class); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
 // ReplayFailedWorkItems resets terminal work items to pending for the given
 // stage and filter criteria. New Go runtime rows use dead_letter; legacy failed
-// rows remain replayable until they age out.
+// rows remain replayable until they age out. When the filter carries
+// ExcludeFailureClasses (the drain path), those classes are excluded store-side
+// so a broad selector can never replay a manual-review row.
 func (s RecoveryStore) ReplayFailedWorkItems(
 	ctx context.Context,
 	filter recovery.ReplayFilter,
@@ -174,27 +184,9 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		return recovery.ReplayResult{}, fmt.Errorf("recovery store database is required")
 	}
 
-	stage := string(filter.Stage)
-	hasScopeIDs := len(filter.ScopeIDs) > 0
-	hasFailureClass := strings.TrimSpace(filter.FailureClass) != ""
-
-	var query string
-	var args []any
-
-	switch {
-	case hasScopeIDs && hasFailureClass:
-		query = replayFailedWorkItemsByScopeAndClassQuery
-		args = []any{now.UTC(), stage, filter.ScopeIDs, filter.FailureClass}
-	case hasScopeIDs:
-		query = replayFailedWorkItemsByScopeQuery
-		args = []any{now.UTC(), stage, filter.ScopeIDs}
-	case hasFailureClass:
-		query = replayFailedWorkItemsByClassQuery
-		args = []any{now.UTC(), stage, filter.FailureClass}
-	default:
-		query = replayFailedWorkItemsQuery
-		args = []any{now.UTC(), stage}
-	}
+	predicate := buildReplayPredicate(filter, 2)
+	query := fmt.Sprintf(replayFailedWorkItemsTemplate, predicate.clause)
+	args := append([]any{now.UTC()}, predicate.args...)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -222,6 +214,40 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		Replayed:    len(workItemIDs),
 		WorkItemIDs: workItemIDs,
 	}, nil
+}
+
+// CountDeadLetterBacklog reports how many terminal rows match the filter before
+// any replay runs. It shares the predicate builder with ReplayFailedWorkItems so
+// the depth reflects exactly the rows a drain with the same filter would move,
+// including the manual-review exclusion.
+func (s RecoveryStore) CountDeadLetterBacklog(
+	ctx context.Context,
+	filter recovery.ReplayFilter,
+) (int, error) {
+	if s.db == nil {
+		return 0, fmt.Errorf("recovery store database is required")
+	}
+
+	predicate := buildReplayPredicate(filter, 1)
+	query := fmt.Sprintf(countDeadLetterBacklogTemplate, predicate.clause)
+
+	rows, err := s.db.QueryContext(ctx, query, predicate.args...)
+	if err != nil {
+		return 0, fmt.Errorf("count dead letter backlog: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var depth int
+	if rows.Next() {
+		if scanErr := rows.Scan(&depth); scanErr != nil {
+			return 0, fmt.Errorf("count dead letter backlog: %w", scanErr)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("count dead letter backlog: %w", err)
+	}
+
+	return depth, nil
 }
 
 // ReplayCollectorGenerations marks collector generation commit failures for

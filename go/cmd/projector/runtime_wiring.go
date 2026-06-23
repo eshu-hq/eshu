@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -173,14 +174,24 @@ func projectorCanonicalExecutorForGraphBackend(
 		Tracer:      tracer,
 		Instruments: instruments,
 	}
+	var outer sourcecypher.Executor = instrumentedExecutor
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
-		return sourcecypher.TimeoutExecutor{
+		outer = sourcecypher.TimeoutExecutor{
 			Inner:       instrumentedExecutor,
 			Timeout:     projectorNornicDBCanonicalWriteTimeout(getenv),
 			TimeoutHint: canonicalWriteTimeoutEnv,
 		}
 	}
-	return instrumentedExecutor
+	// Bound concurrent canonical writes so a slow graph backend slows intake
+	// instead of dead-lettering recoverable projector work (issue #3560). The
+	// wrapper sits outside retry/timeout so one permit covers a whole write
+	// attempt; a non-positive ESHU_GRAPH_WRITE_MAX_IN_FLIGHT leaves it a
+	// passthrough.
+	return graphbackpressure.Wrap(
+		outer,
+		graphbackpressure.MaxInFlight(getenv),
+		instruments,
+	)
 }
 
 func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Duration {
