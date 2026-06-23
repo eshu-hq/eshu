@@ -120,9 +120,9 @@ const openAPIComponents = `  "components": {
           "has_remote": {"type": "boolean"},
           "is_dependency": {"type": "boolean", "description": "True when at least one other repository depends on this one, i.e. it is the target of an admitted Repository-[:DEPENDS_ON]->Repository edge."},
           "group_key": {"type": "string", "description": "Source-backed repository group label. Empty when grouping evidence is missing."},
-          "group_source": {"type": "string", "description": "Evidence source used for grouping, such as repository_dependency_flag, repo_slug_namespace, remote_url_owner, or missing_evidence."},
+          "group_source": {"type": "string", "enum": ["dependency_cluster", "repository_dependency_flag", "repo_slug_namespace", "remote_url_owner", "missing_evidence"], "description": "Evidence source used for grouping. dependency_cluster is the highest-precedence source and is set when the repository participates in a (:Repository)-[:DEPENDS_ON]->(:Repository) connected component."},
           "group_truth": {"type": "string", "description": "Per-row grouping truth label, e.g. derived or missing_evidence."},
-          "group_kind": {"type": "string", "description": "Repository grouping kind such as source, dependency, or unknown."},
+          "group_kind": {"type": "string", "enum": ["cluster", "source", "dependency", "unknown"], "description": "Repository grouping kind. cluster is set when group_source is dependency_cluster."},
           "group_reason": {"type": "string", "description": "Human-readable reason explaining the group assignment or missing evidence."}
         }
       },

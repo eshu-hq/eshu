@@ -137,6 +137,22 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 		rows = rows[:page.Limit]
 	}
 
+	// Dependency-cluster pre-pass: one bounded edge query over
+	// (:Repository)-[:DEPENDS_ON]->(:Repository), then connected-component
+	// grouping in Go. This is the primary grouping signal (issue #3504):
+	// repositories that depend on each other share a cluster key, and the
+	// per-row decoration below gives that cluster precedence over the
+	// source-backed slug/owner/flag derivation. Repositories in no dependency
+	// edge fall through to honest missing_evidence rather than a name heuristic.
+	//
+	// The pre-pass is instrumented with the existing stage timer so operators
+	// can diagnose its duration and edge count from the
+	// repository_query.stage_started / repository_query.stage_completed log
+	// events (operation=repository_list, stage=dependency_cluster_edges).
+	clusterTimer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_list", "", "dependency_cluster_edges")
+	clusters := loadRepositoryDependencyClusters(r.Context(), h.Neo4j, access)
+	clusterTimer.Done(r.Context(), slog.Int("cluster_count", len(clusters)))
+
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		repo := map[string]any{
@@ -149,7 +165,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			"has_remote":    BoolVal(row, "has_remote"),
 			"is_dependency": BoolVal(row, "is_dependency"),
 		}
-		repos = append(repos, decorateRepositoryGroupEvidence(repo))
+		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, clusters))
 	}
 
 	WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
