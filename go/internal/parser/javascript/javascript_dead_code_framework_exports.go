@@ -7,11 +7,11 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaScriptIsNextJSAppExport(path string, node *tree_sitter.Node) bool {
+func javaScriptIsNextJSAppExport(path string, node *tree_sitter.Node, parents *javaScriptParentLookup) bool {
 	if !javaScriptIsNextJSAppModule(path) {
 		return false
 	}
-	return javaScriptIsExported(node)
+	return javaScriptIsExported(node, parents)
 }
 
 func javaScriptIsNextJSAppModule(path string) bool {
@@ -28,7 +28,7 @@ func javaScriptIsNextJSAppModule(path string) bool {
 	}
 }
 
-func javaScriptIsNodeMigrationExport(path string, node *tree_sitter.Node, name string) bool {
+func javaScriptIsNodeMigrationExport(path string, node *tree_sitter.Node, name string, parents *javaScriptParentLookup) bool {
 	if !javaScriptIsNodeMigrationFile(path) {
 		return false
 	}
@@ -37,7 +37,7 @@ func javaScriptIsNodeMigrationExport(path string, node *tree_sitter.Node, name s
 	default:
 		return false
 	}
-	return javaScriptIsExported(node)
+	return javaScriptIsExported(node, parents)
 }
 
 func javaScriptIsNodeMigrationFile(path string) bool {
@@ -45,24 +45,24 @@ func javaScriptIsNodeMigrationFile(path string) bool {
 	return strings.Contains(relativePath, "/migrations/") || strings.HasPrefix(relativePath, "migrations/")
 }
 
-func javaScriptIsTypeScriptModuleContractExport(node *tree_sitter.Node, name string, source []byte) bool {
+func javaScriptIsTypeScriptModuleContractExport(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
 	switch strings.TrimSpace(name) {
 	case "validate", "execute":
 	default:
 		return false
 	}
-	if !javaScriptIsExported(node) {
+	if !javaScriptIsExported(node, parents) {
 		return false
 	}
-	program := javaScriptProgramNode(node)
+	program := javaScriptProgramNode(node, parents)
 	if program == nil {
 		return false
 	}
-	return javaScriptProgramHasExportedConst(program, "RULE_NAME", source)
+	return javaScriptProgramHasExportedConst(program, "RULE_NAME", source, parents)
 }
 
-func javaScriptProgramNode(node *tree_sitter.Node) *tree_sitter.Node {
-	for current := node; current != nil; current = current.Parent() {
+func javaScriptProgramNode(node *tree_sitter.Node, parents *javaScriptParentLookup) *tree_sitter.Node {
+	for current := node; current != nil; current = parents.parent(current) {
 		if current.Kind() == "program" {
 			return current
 		}
@@ -70,7 +70,7 @@ func javaScriptProgramNode(node *tree_sitter.Node) *tree_sitter.Node {
 	return nil
 }
 
-func javaScriptProgramHasExportedConst(program *tree_sitter.Node, name string, source []byte) bool {
+func javaScriptProgramHasExportedConst(program *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
 	if program == nil || strings.TrimSpace(name) == "" {
 		return false
 	}
@@ -83,7 +83,7 @@ func javaScriptProgramHasExportedConst(program *tree_sitter.Node, name string, s
 		if strings.TrimSpace(nodeText(nameNode, source)) != name {
 			return
 		}
-		if javaScriptIsExported(node) {
+		if javaScriptIsExported(node, parents) {
 			found = true
 		}
 	})

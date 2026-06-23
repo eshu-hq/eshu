@@ -106,6 +106,15 @@
 - Resolving absolute aliases or paths outside repoRoot.
 - Marking every exported TypeScript symbol live without package or re-export
   evidence.
+- Calling `node.Parent()` to recover ancestor context in any helper that runs
+  per declaration node. Tree-sitter's `Parent()` crosses cgo into
+  `ts_node_parent` and re-walks from the root, so per-node Parent loops scale as
+  O(n_declarations * depth) cgo crossings and dominated parse CPU in #3586. Use
+  the per-parse `javaScriptParentLookup` (`parent_lookup.go`): `Parse` builds it
+  once, threads it through `javaScriptDeadCodeEvidence.parents` and the helper
+  signatures, and helpers walk ancestors via `parents.parent(node)`. Keep the
+  cgo-crossing regression gate
+  `TestJavaScriptParentLookupEliminatesCgoCrossings` green.
 
 ## What NOT to change without an ADR
 

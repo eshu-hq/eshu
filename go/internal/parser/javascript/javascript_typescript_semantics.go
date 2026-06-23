@@ -30,16 +30,16 @@ func javaScriptTypeAliasItem(
 	return item
 }
 
-func javaScriptFunctionSemantics(node *tree_sitter.Node, source []byte, lang string) map[string]any {
+func javaScriptFunctionSemantics(node *tree_sitter.Node, source []byte, lang string, parents *javaScriptParentLookup) map[string]any {
 	semantics := make(map[string]any)
-	if classContext := javaScriptEnclosingClassName(node, source); classContext != "" {
+	if classContext := javaScriptEnclosingClassName(node, source, parents); classContext != "" {
 		semantics["class_context"] = classContext
 	}
-	if objectContext := javaScriptEnclosingObjectLiteralName(node, source); objectContext != "" {
+	if objectContext := javaScriptEnclosingObjectLiteralName(node, source, parents); objectContext != "" {
 		semantics["context"] = objectContext
 		semantics["context_type"] = "module"
 	}
-	if enclosingFunction := javaScriptEnclosingFunctionName(node, source); enclosingFunction != "" {
+	if enclosingFunction := javaScriptEnclosingFunctionName(node, source, parents); enclosingFunction != "" {
 		semantics["enclosing_function"] = enclosingFunction
 	}
 	if lang == "tsx" && javaScriptContainsJSXFragmentShorthand(node) {
@@ -51,9 +51,9 @@ func javaScriptFunctionSemantics(node *tree_sitter.Node, source []byte, lang str
 	return semantics
 }
 
-func javaScriptEnclosingFunctionName(node *tree_sitter.Node, source []byte) string {
+func javaScriptEnclosingFunctionName(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) string {
 	original := node
-	for current := node.Parent(); current != nil; current = current.Parent() {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "function_declaration", "generator_function_declaration", "method_definition", "variable_declarator":
 			if current.Kind() == "variable_declarator" && javaScriptNodeSameRange(current.ChildByFieldName("value"), original) {
@@ -74,8 +74,8 @@ func javaScriptNodeSameRange(left *tree_sitter.Node, right *tree_sitter.Node) bo
 	return left != nil && right != nil && left.StartByte() == right.StartByte() && left.EndByte() == right.EndByte()
 }
 
-func javaScriptEnclosingClassName(node *tree_sitter.Node, source []byte) string {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func javaScriptEnclosingClassName(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) string {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "class_declaration", "abstract_class_declaration":
 			nameNode := current.ChildByFieldName("name")
@@ -85,21 +85,21 @@ func javaScriptEnclosingClassName(node *tree_sitter.Node, source []byte) string 
 	return ""
 }
 
-func javaScriptEnclosingObjectLiteralName(node *tree_sitter.Node, source []byte) string {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func javaScriptEnclosingObjectLiteralName(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) string {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		if current.Kind() != "object" {
 			continue
 		}
-		return javaScriptObjectLiteralBindingName(current, source)
+		return javaScriptObjectLiteralBindingName(current, source, parents)
 	}
 	return ""
 }
 
-func javaScriptObjectLiteralBindingName(objectNode *tree_sitter.Node, source []byte) string {
+func javaScriptObjectLiteralBindingName(objectNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) string {
 	if objectNode == nil {
 		return ""
 	}
-	parent := objectNode.Parent()
+	parent := parents.parent(objectNode)
 	if parent == nil {
 		return ""
 	}

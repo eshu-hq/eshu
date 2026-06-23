@@ -299,15 +299,15 @@ func javaScriptAddName(names map[string]struct{}, name string) {
 	}
 }
 
-func javaScriptIsNestJSControllerMethod(node *tree_sitter.Node, source []byte) bool {
+func javaScriptIsNestJSControllerMethod(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
 	if node == nil || node.Kind() != "method_definition" || !javaScriptHasNestJSCommonImport(string(source)) {
 		return false
 	}
-	if !javaScriptDecoratorsInclude(javaScriptNestJSRouteDecorators(node, source), javaScriptNestJSRouteDecoratorNames()) {
+	if !javaScriptDecoratorsInclude(javaScriptNestJSRouteDecorators(node, source, parents), javaScriptNestJSRouteDecoratorNames()) {
 		return false
 	}
-	classNode := javaScriptEnclosingClassNode(node)
-	return javaScriptDecoratorsInclude(javaScriptNestJSRouteDecorators(classNode, source), map[string]struct{}{"controller": {}})
+	classNode := javaScriptEnclosingClassNode(node, parents)
+	return javaScriptDecoratorsInclude(javaScriptNestJSRouteDecorators(classNode, source, parents), map[string]struct{}{"controller": {}})
 }
 
 func javaScriptHasNestJSCommonImport(source string) bool {
@@ -343,13 +343,13 @@ func javaScriptDecoratorsInclude(decorators []string, allowed map[string]struct{
 	return false
 }
 
-func javaScriptNestJSRouteDecorators(node *tree_sitter.Node, source []byte) []string {
-	decorators := javaScriptDecorators(node, source)
+func javaScriptNestJSRouteDecorators(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) []string {
+	decorators := javaScriptDecorators(node, source, parents)
 	if len(decorators) > 0 || node == nil {
 		return decorators
 	}
-	if node.Parent() != nil && node.Parent().Kind() == "decorated_definition" {
-		decorators = javaScriptDecorators(node.Parent(), source)
+	if parent := parents.parent(node); parent != nil && parent.Kind() == "decorated_definition" {
+		decorators = javaScriptDecorators(parent, source, parents)
 	}
 	if len(decorators) > 0 {
 		return decorators
@@ -381,8 +381,8 @@ func javaScriptContiguousLeadingDecorators(node *tree_sitter.Node, source []byte
 	return decorators
 }
 
-func javaScriptEnclosingClassNode(node *tree_sitter.Node) *tree_sitter.Node {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func javaScriptEnclosingClassNode(node *tree_sitter.Node, parents *javaScriptParentLookup) *tree_sitter.Node {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "class_declaration", "abstract_class_declaration":
 			return current

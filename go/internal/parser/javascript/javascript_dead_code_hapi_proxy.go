@@ -6,22 +6,22 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaScriptIsHapiProxyCallback(node *tree_sitter.Node, name string, source []byte) bool {
+func javaScriptIsHapiProxyCallback(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
 	if node == nil || node.Kind() != "pair" || !javaScriptIsHapiProxyCallbackName(name) {
 		return false
 	}
 	if !isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
 		return false
 	}
-	objectNode := node.Parent()
+	objectNode := parents.parent(node)
 	if objectNode == nil || objectNode.Kind() != "object" {
 		return false
 	}
-	argumentsNode := objectNode.Parent()
+	argumentsNode := parents.parent(objectNode)
 	if argumentsNode == nil || argumentsNode.Kind() != "arguments" {
 		return false
 	}
-	callNode := argumentsNode.Parent()
+	callNode := parents.parent(argumentsNode)
 	if callNode == nil || callNode.Kind() != "call_expression" {
 		return false
 	}
