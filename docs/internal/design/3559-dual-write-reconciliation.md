@@ -46,18 +46,30 @@ slice proves convergence rather than inventing an atomic two-phase commit across
 Postgres and the graph (which the runtime does not provide). The reconciliation
 pass:
 
-1. Takes the authoritative Postgres view per acceptance unit
-   (`AuthoritativePostgresGeneration`: authoritative `generation_id` plus the
-   `resolved_id` set that generation legitimately contains, built from
-   `shared_projection_acceptance` joined to `resolved_relationships`).
-2. Takes the denormalized graph edge view (`GraphDenormalizedEdge`).
-3. Classifies each edge: `in_sync`, `stale_generation`, or `orphan_resolved_id`
-   (`ClassifyReconciliationDrift`, backend-neutral and side-effect free).
-4. Names the acceptance units holding stranded edges
-   (`ReconciliationReport.DriftedEdgeKeys`), which drive the existing repo-scoped
-   `EdgeWriter.RetractEdges` path. Retract-then-reproject removes the stranded
-   edge and re-adds only authoritative-generation rows, so a subsequent
-   classification reports full convergence with zero stranded edges.
+1. Takes the authoritative Postgres view per exact acceptance identity
+   (`AuthoritativePostgresGeneration`, keyed by `AcceptanceIdentity` =
+   `(scope_id, acceptance_unit_id, source_run_id)`: authoritative
+   `generation_id` plus the `resolved_id` set that generation legitimately
+   contains, built from `shared_projection_acceptance` joined to
+   `resolved_relationships`). Keying on the full identity tuple — not
+   `acceptance_unit_id` alone — is mandatory: the same unit can appear under
+   different scopes or source runs with different authoritative generations, and
+   collapsing them would classify an edge against the wrong generation.
+2. Takes the denormalized graph edge view (`GraphDenormalizedEdge`), which
+   carries its own `AcceptanceIdentity` plus the domain-specific `RetractAnchor`
+   (the repository id / section scope id / file path the retract path keys on).
+3. Classifies each edge against its exact-identity view: `in_sync`,
+   `stale_generation`, or `orphan_resolved_id` (`ClassifyReconciliationDrift`,
+   backend-neutral and side-effect free).
+4. Yields the domain-specific retract anchors holding stranded edges
+   (`ReconciliationReport.RepairAnchors`, grouped by domain, deduped, sorted),
+   which drive the existing `EdgeWriter.RetractEdges` path. RepairAnchors returns
+   the real retract keys (repo id / scope id / file path), never the opaque
+   `EdgeKey` — the opaque key would build `repo_ids=[<edgekey>]` and delete
+   nothing. Retract-then-reproject removes the stranded edge and re-adds only
+   authoritative-generation rows, so a subsequent classification reports full
+   convergence with zero stranded edges. (`DriftedEdgeKeys` remains for logs and
+   reporting only.)
 
 The classifier is the engine; convergence reuses the existing retract mechanism,
 so no new graph-write contract or hot-path Cypher is added.

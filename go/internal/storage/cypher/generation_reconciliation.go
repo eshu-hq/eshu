@@ -55,18 +55,34 @@ const (
 	ReconciliationDriftOrphanResolvedID ReconciliationDriftClass = "orphan_resolved_id"
 )
 
-// AuthoritativePostgresGeneration is the Postgres-truth view for one acceptance
-// unit at reconciliation time: the generation Postgres currently treats as
-// authoritative, plus the resolved_id set that generation legitimately contains.
-// Callers build this from shared_projection_acceptance (the authoritative
-// generation per scope/acceptance-unit/run) joined to the resolved_relationships
-// rows of that generation.
-type AuthoritativePostgresGeneration struct {
-	// AcceptanceUnitID is the bounded unit whose authoritative generation this
-	// view describes.
+// AcceptanceIdentity is the exact bounded-unit freshness key that Postgres
+// keys shared_projection_acceptance on: (scope_id, acceptance_unit_id,
+// source_run_id). The same acceptance unit can appear under different scopes or
+// source runs with different authoritative generations, so the reconciliation
+// pass MUST join an edge to Postgres truth on the full tuple, never on
+// acceptance_unit_id alone — keying on the unit alone collapses sibling slices
+// and classifies an edge against the wrong generation.
+type AcceptanceIdentity struct {
+	// ScopeID is the ingestion scope the acceptance row belongs to.
+	ScopeID string
+	// AcceptanceUnitID is the bounded unit within the scope.
 	AcceptanceUnitID string
+	// SourceRunID is the source run that produced the acceptance row.
+	SourceRunID string
+}
+
+// AuthoritativePostgresGeneration is the Postgres-truth view for one exact
+// acceptance identity at reconciliation time: the generation Postgres currently
+// treats as authoritative, plus the resolved_id set that generation legitimately
+// contains. Callers build this from shared_projection_acceptance (the
+// authoritative generation per (scope_id, acceptance_unit_id, source_run_id))
+// joined to the resolved_relationships rows of that generation.
+type AuthoritativePostgresGeneration struct {
+	// Identity is the exact (scope_id, acceptance_unit_id, source_run_id) key
+	// this view describes.
+	Identity AcceptanceIdentity
 	// GenerationID is the generation Postgres currently treats as authoritative
-	// for the acceptance unit.
+	// for the acceptance identity.
 	GenerationID string
 	// ResolvedIDs is the set of resolved_relationship primary keys that the
 	// authoritative generation legitimately contains. An empty map means the
@@ -77,16 +93,24 @@ type AuthoritativePostgresGeneration struct {
 
 // GraphDenormalizedEdge is one denormalized graph edge observed at
 // reconciliation time, reduced to the provenance the reconciliation pass
-// compares against Postgres truth. EdgeKey identifies the edge for the retract
-// plan; AcceptanceUnitID joins it to the authoritative Postgres view.
+// compares against Postgres truth. EdgeKey identifies the edge for logs and
+// reporting; Identity joins it to the authoritative Postgres view; RetractAnchor
+// is the domain-specific key the existing retract path acts on.
 type GraphDenormalizedEdge struct {
-	// EdgeKey uniquely identifies the edge within its domain for retract
-	// planning. It is opaque to the classifier.
+	// EdgeKey uniquely identifies the edge within its domain for logs and
+	// reporting. It is opaque to the classifier and is NOT a retract key.
 	EdgeKey string
 	// Domain is the shared-projection domain that owns the edge.
 	Domain string
-	// AcceptanceUnitID joins the edge to its authoritative Postgres view.
-	AcceptanceUnitID string
+	// Identity joins the edge to its authoritative Postgres view on the exact
+	// (scope_id, acceptance_unit_id, source_run_id) tuple.
+	Identity AcceptanceIdentity
+	// RetractAnchor is the domain-specific identifier EdgeWriter.RetractEdges
+	// actually keys on: a repository id for repo-id-anchored domains, a section
+	// scope id for documentation edges, or a file path for delta-scoped domains.
+	// The convergence path feeds this to the retract builder; the opaque EdgeKey
+	// must never be used as a retract key.
+	RetractAnchor string
 	// GenerationID is the denormalized generation stamped on the edge.
 	GenerationID string
 	// ResolvedID is the denormalized Postgres back-reference. Empty when the
@@ -119,8 +143,9 @@ type ReconciliationReport struct {
 	Counts map[ReconciliationDriftClass]int
 }
 
-// DriftedEdgeKeys returns the edge keys that need retraction to converge,
-// grouped by domain and sorted for deterministic retract planning.
+// DriftedEdgeKeys returns the opaque edge keys that need retraction to converge,
+// grouped by domain and sorted. These keys are for logs and reporting only; they
+// are NOT retract keys. Use RepairAnchors to drive the actual retract path.
 func (r ReconciliationReport) DriftedEdgeKeys() map[string][]string {
 	grouped := make(map[string][]string)
 	for _, finding := range r.Findings {
@@ -128,6 +153,40 @@ func (r ReconciliationReport) DriftedEdgeKeys() map[string][]string {
 			continue
 		}
 		grouped[finding.Edge.Domain] = append(grouped[finding.Edge.Domain], finding.Edge.EdgeKey)
+	}
+	for domain := range grouped {
+		sort.Strings(grouped[domain])
+	}
+	return grouped
+}
+
+// RepairAnchors returns the domain-specific retract anchors that converge the
+// graph, grouped by domain, deduped, and sorted. Each anchor is the key
+// EdgeWriter.RetractEdges acts on for that domain (repository id, section scope
+// id, or file path) — never the opaque EdgeKey. A caller drives convergence by
+// building SharedProjectionIntentRows from these anchors and passing them to
+// RetractEdges per domain. Edges with an empty RetractAnchor are skipped so a
+// blank id can never widen a retract to every row.
+func (r ReconciliationReport) RepairAnchors() map[string][]string {
+	grouped := make(map[string][]string)
+	seen := make(map[string]map[string]struct{})
+	for _, finding := range r.Findings {
+		if !finding.NeedsRetract() {
+			continue
+		}
+		anchor := finding.Edge.RetractAnchor
+		if anchor == "" {
+			continue
+		}
+		domain := finding.Edge.Domain
+		if seen[domain] == nil {
+			seen[domain] = make(map[string]struct{})
+		}
+		if _, ok := seen[domain][anchor]; ok {
+			continue
+		}
+		seen[domain][anchor] = struct{}{}
+		grouped[domain] = append(grouped[domain], anchor)
 	}
 	for domain := range grouped {
 		sort.Strings(grouped[domain])
@@ -150,21 +209,28 @@ func (r ReconciliationReport) Converged() bool {
 }
 
 // ClassifyReconciliationDrift compares denormalized graph edges against the
-// authoritative Postgres generation per acceptance unit and classifies each
-// edge. An edge whose acceptance unit has no authoritative Postgres view is
-// treated as stale_generation: Postgres no longer recognizes any generation for
-// that unit, so the edge is stranded and must be retracted.
+// authoritative Postgres generation per exact acceptance identity
+// (scope_id, acceptance_unit_id, source_run_id) and classifies each edge. An
+// edge whose exact identity has no authoritative Postgres view is treated as
+// stale_generation: Postgres no longer recognizes any generation for that
+// identity, so the edge is stranded and must be retracted.
+//
+// Keying on the full identity tuple — not acceptance_unit_id alone — is required
+// for correctness: the same acceptance unit can appear under different scopes or
+// source runs with different authoritative generations, and collapsing those
+// siblings would classify an edge against the wrong generation, producing a
+// false retract or a missed drift.
 //
 // The classifier is deterministic and side-effect free. Callers record the
 // returned report's counts to telemetry via RecordReconciliationConvergence and
-// drive a retract over DriftedEdgeKeys to converge the graph.
+// drive a retract over RepairAnchors to converge the graph.
 func ClassifyReconciliationDrift(
 	authoritative []AuthoritativePostgresGeneration,
 	edges []GraphDenormalizedEdge,
 ) ReconciliationReport {
-	byUnit := make(map[string]AuthoritativePostgresGeneration, len(authoritative))
+	byIdentity := make(map[AcceptanceIdentity]AuthoritativePostgresGeneration, len(authoritative))
 	for _, view := range authoritative {
-		byUnit[view.AcceptanceUnitID] = view
+		byIdentity[view.Identity] = view
 	}
 
 	report := ReconciliationReport{
@@ -172,7 +238,7 @@ func ClassifyReconciliationDrift(
 		Counts:   make(map[ReconciliationDriftClass]int),
 	}
 	for _, edge := range edges {
-		class := classifyEdge(byUnit, edge)
+		class := classifyEdge(byIdentity, edge)
 		report.Findings = append(report.Findings, ReconciliationFinding{Edge: edge, Class: class})
 		report.Counts[class]++
 	}
@@ -180,13 +246,13 @@ func ClassifyReconciliationDrift(
 }
 
 func classifyEdge(
-	byUnit map[string]AuthoritativePostgresGeneration,
+	byIdentity map[AcceptanceIdentity]AuthoritativePostgresGeneration,
 	edge GraphDenormalizedEdge,
 ) ReconciliationDriftClass {
-	view, ok := byUnit[edge.AcceptanceUnitID]
+	view, ok := byIdentity[edge.Identity]
 	if !ok {
-		// Postgres recognizes no authoritative generation for this unit: the edge
-		// is stranded from a unit that has been fully retired.
+		// Postgres recognizes no authoritative generation for this exact identity:
+		// the edge is stranded from a slice that has been fully retired.
 		return ReconciliationDriftStaleGeneration
 	}
 	if edge.GenerationID != view.GenerationID {

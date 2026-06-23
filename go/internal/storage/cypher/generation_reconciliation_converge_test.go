@@ -10,19 +10,20 @@ import (
 
 // applyRetractWrite models how the existing retract-then-write projection path
 // converges a graph holding a stale edge: the retract removes every edge for the
-// affected acceptance unit, and the authoritative write re-adds only the rows
+// affected retract anchor, and the authoritative write re-adds only the rows
 // stamped with the authoritative generation. It returns the resulting edge set.
 // This mirrors ProcessPartitionOnce's retract(latest+terminal) then
 // write(latest) ordering at the granularity the reconciliation classifier
-// reasons about.
+// reasons about. retractAnchors is keyed by the domain-specific retract anchor
+// (e.g. repository id), the same key RepairAnchors yields.
 func applyRetractWrite(
 	existing []GraphDenormalizedEdge,
-	retractUnits map[string]struct{},
+	retractAnchors map[string]struct{},
 	authoritativeWrites []GraphDenormalizedEdge,
 ) []GraphDenormalizedEdge {
 	converged := make([]GraphDenormalizedEdge, 0, len(existing)+len(authoritativeWrites))
 	for _, edge := range existing {
-		if _, retract := retractUnits[edge.AcceptanceUnitID]; retract {
+		if _, retract := retractAnchors[edge.RetractAnchor]; retract {
 			continue
 		}
 		converged = append(converged, edge)
@@ -35,25 +36,27 @@ func applyRetractWrite(
 // dual-write partial-failure recovery contract end to end at the classifier
 // level: a generation swap left a stale edge in the graph (Postgres advanced to
 // gen-2, the gen-1 graph retract failed), the reconciliation pass detects the
-// drift and names the acceptance unit to repair, and after the existing
-// retract-then-write path runs against that unit the graph converges to
+// drift and names the retract anchor to repair, and after the existing
+// retract-then-write path runs against that anchor the graph converges to
 // Postgres truth with zero stranded edges.
 func TestReconciliationConvergesStaleGenerationAfterPartialFailure(t *testing.T) {
 	t.Parallel()
 
+	identity := AcceptanceIdentity{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"}
 	authoritative := []AuthoritativePostgresGeneration{{
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedIDs:      resolvedIDSet("resolved-2"),
+		Identity:     identity,
+		GenerationID: "gen-2",
+		ResolvedIDs:  resolvedIDSet("resolved-2"),
 	}}
 
 	// Pre-reconciliation graph: only the stale gen-1 edge survived the swap.
 	graph := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-gen1",
-		Domain:           reducer.DomainRepoDependency,
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-1",
-		ResolvedID:       "resolved-1",
+		EdgeKey:       "edge-gen1",
+		Domain:        reducer.DomainRepoDependency,
+		Identity:      identity,
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-1",
+		ResolvedID:    "resolved-1",
 	}}
 
 	report := ClassifyReconciliationDrift(authoritative, graph)
@@ -61,27 +64,28 @@ func TestReconciliationConvergesStaleGenerationAfterPartialFailure(t *testing.T)
 		t.Fatal("pre-reconciliation graph must report drift, not convergence")
 	}
 
-	// The pass names the acceptance units that hold stranded edges.
-	retractUnits := make(map[string]struct{})
-	for _, finding := range report.Findings {
-		if finding.NeedsRetract() {
-			retractUnits[finding.Edge.AcceptanceUnitID] = struct{}{}
-		}
+	// The pass names the domain-specific retract anchors that hold stranded edges.
+	anchors := report.RepairAnchors()
+	repoAnchors := anchors[reducer.DomainRepoDependency]
+	if len(repoAnchors) != 1 || repoAnchors[0] != "repo-a" {
+		t.Fatalf("reconciliation must target retract anchor repo-a, got %v", repoAnchors)
 	}
-	if _, ok := retractUnits["repo-a"]; !ok {
-		t.Fatalf("reconciliation must target repo-a, got %v", retractUnits)
+	retractAnchors := map[string]struct{}{}
+	for _, anchor := range repoAnchors {
+		retractAnchors[anchor] = struct{}{}
 	}
 
 	// Authoritative re-projection of gen-2 truth for the repaired unit.
 	authoritativeWrites := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-gen2",
-		Domain:           reducer.DomainRepoDependency,
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedID:       "resolved-2",
+		EdgeKey:       "edge-gen2",
+		Domain:        reducer.DomainRepoDependency,
+		Identity:      identity,
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-2",
+		ResolvedID:    "resolved-2",
 	}}
 
-	converged := applyRetractWrite(graph, retractUnits, authoritativeWrites)
+	converged := applyRetractWrite(graph, retractAnchors, authoritativeWrites)
 
 	postReport := ClassifyReconciliationDrift(authoritative, converged)
 	if !postReport.Converged() {
@@ -99,7 +103,7 @@ func TestReconciliationConvergesStaleGenerationAfterPartialFailure(t *testing.T)
 }
 
 // TestReconciliationDriftDrivesRepoScopedRetract proves the reconciliation pass
-// wires to the existing repo-scoped retract path: feeding the repository ids of
+// wires to the existing repo-scoped retract path: feeding the RepairAnchors of
 // drifted repo_dependency edges to EdgeWriter.RetractEdges issues a canonical
 // retract anchored on those repos, the mechanism that clears stranded
 // denormalized edges. This binds the new detector to the real convergence write
@@ -107,29 +111,28 @@ func TestReconciliationConvergesStaleGenerationAfterPartialFailure(t *testing.T)
 func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 	t.Parallel()
 
+	identity := AcceptanceIdentity{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"}
 	authoritative := []AuthoritativePostgresGeneration{{
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedIDs:      resolvedIDSet("resolved-2"),
+		Identity:     identity,
+		GenerationID: "gen-2",
+		ResolvedIDs:  resolvedIDSet("resolved-2"),
 	}}
 	graph := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-gen1",
-		Domain:           reducer.DomainRepoDependency,
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-1",
-		ResolvedID:       "resolved-1",
+		EdgeKey:       "edge-gen1",
+		Domain:        reducer.DomainRepoDependency,
+		Identity:      identity,
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-1",
+		ResolvedID:    "resolved-1",
 	}}
 
 	report := ClassifyReconciliationDrift(authoritative, graph)
 
 	retractRows := make([]reducer.SharedProjectionIntentRow, 0)
-	for _, finding := range report.Findings {
-		if !finding.NeedsRetract() {
-			continue
-		}
+	for _, anchor := range report.RepairAnchors()[reducer.DomainRepoDependency] {
 		retractRows = append(retractRows, reducer.SharedProjectionIntentRow{
-			RepositoryID: finding.Edge.AcceptanceUnitID,
-			Payload:      map[string]any{"repo_id": finding.Edge.AcceptanceUnitID},
+			RepositoryID: anchor,
+			Payload:      map[string]any{"repo_id": anchor},
 		})
 	}
 	if len(retractRows) != 1 {

@@ -21,6 +21,13 @@ func resolvedIDSet(ids ...string) map[string]struct{} {
 	return set
 }
 
+// testIdentity builds a single-scope/single-run acceptance identity for an
+// acceptance unit. Tests that exercise sibling scopes/runs construct
+// AcceptanceIdentity directly.
+func testIdentity(unit string) AcceptanceIdentity {
+	return AcceptanceIdentity{ScopeID: "scope-1", AcceptanceUnitID: unit, SourceRunID: "run-1"}
+}
+
 // TestClassifyReconciliationDriftInSync proves the fixture-intent ->
 // reducer-graph-truth -> Postgres-truth agreement case: when the graph edge's
 // denormalized generation and resolved_id match the authoritative Postgres
@@ -29,16 +36,17 @@ func TestClassifyReconciliationDriftInSync(t *testing.T) {
 	t.Parallel()
 
 	authoritative := []AuthoritativePostgresGeneration{{
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedIDs:      resolvedIDSet("resolved-1"),
+		Identity:     testIdentity("repo-a"),
+		GenerationID: "gen-2",
+		ResolvedIDs:  resolvedIDSet("resolved-1"),
 	}}
 	edges := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-1",
-		Domain:           "repo_dependency",
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedID:       "resolved-1",
+		EdgeKey:       "edge-1",
+		Domain:        "repo_dependency",
+		Identity:      testIdentity("repo-a"),
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-2",
+		ResolvedID:    "resolved-1",
 	}}
 
 	report := ClassifyReconciliationDrift(authoritative, edges)
@@ -66,16 +74,17 @@ func TestClassifyReconciliationDriftStaleGenerationGraphBehind(t *testing.T) {
 	t.Parallel()
 
 	authoritative := []AuthoritativePostgresGeneration{{
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedIDs:      resolvedIDSet("resolved-2"),
+		Identity:     testIdentity("repo-a"),
+		GenerationID: "gen-2",
+		ResolvedIDs:  resolvedIDSet("resolved-2"),
 	}}
 	edges := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-old",
-		Domain:           "repo_dependency",
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-1", // superseded generation still on the graph
-		ResolvedID:       "resolved-1",
+		EdgeKey:       "edge-old",
+		Domain:        "repo_dependency",
+		Identity:      testIdentity("repo-a"),
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-1", // superseded generation still on the graph
+		ResolvedID:    "resolved-1",
 	}}
 
 	report := ClassifyReconciliationDrift(authoritative, edges)
@@ -90,6 +99,10 @@ func TestClassifyReconciliationDriftStaleGenerationGraphBehind(t *testing.T) {
 	if got := keys["repo_dependency"]; len(got) != 1 || got[0] != "edge-old" {
 		t.Fatalf("drifted edges = %v, want [edge-old]", got)
 	}
+	anchors := report.RepairAnchors()
+	if got := anchors["repo_dependency"]; len(got) != 1 || got[0] != "repo-a" {
+		t.Fatalf("repair anchors = %v, want [repo-a]", got)
+	}
 }
 
 // TestClassifyReconciliationDriftStaleGenerationGraphAhead proves the inverse
@@ -101,16 +114,17 @@ func TestClassifyReconciliationDriftStaleGenerationGraphAhead(t *testing.T) {
 	t.Parallel()
 
 	authoritative := []AuthoritativePostgresGeneration{{
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-1", // Postgres never advanced past gen-1
-		ResolvedIDs:      resolvedIDSet("resolved-1"),
+		Identity:     testIdentity("repo-a"),
+		GenerationID: "gen-1", // Postgres never advanced past gen-1
+		ResolvedIDs:  resolvedIDSet("resolved-1"),
 	}}
 	edges := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-ahead",
-		Domain:           "deployable_unit_edges",
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2", // graph wrote ahead of Postgres truth
-		ResolvedID:       "resolved-9",
+		EdgeKey:       "edge-ahead",
+		Domain:        "deployable_unit_edges",
+		Identity:      testIdentity("repo-a"),
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-2", // graph wrote ahead of Postgres truth
+		ResolvedID:    "resolved-9",
 	}}
 
 	report := ClassifyReconciliationDrift(authoritative, edges)
@@ -130,16 +144,17 @@ func TestClassifyReconciliationDriftOrphanResolvedID(t *testing.T) {
 	t.Parallel()
 
 	authoritative := []AuthoritativePostgresGeneration{{
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedIDs:      resolvedIDSet("resolved-2"), // resolved-1 retired
+		Identity:     testIdentity("repo-a"),
+		GenerationID: "gen-2",
+		ResolvedIDs:  resolvedIDSet("resolved-2"), // resolved-1 retired
 	}}
 	edges := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-orphan",
-		Domain:           "repo_dependency",
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedID:       "resolved-1", // no longer in the authoritative generation
+		EdgeKey:       "edge-orphan",
+		Domain:        "repo_dependency",
+		Identity:      testIdentity("repo-a"),
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-2",
+		ResolvedID:    "resolved-1", // no longer in the authoritative generation
 	}}
 
 	report := ClassifyReconciliationDrift(authoritative, edges)
@@ -159,11 +174,12 @@ func TestClassifyReconciliationDriftRetiredAcceptanceUnit(t *testing.T) {
 	t.Parallel()
 
 	edges := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-ghost",
-		Domain:           "repo_dependency",
-		AcceptanceUnitID: "repo-gone",
-		GenerationID:     "gen-1",
-		ResolvedID:       "resolved-1",
+		EdgeKey:       "edge-ghost",
+		Domain:        "repo_dependency",
+		Identity:      testIdentity("repo-gone"),
+		RetractAnchor: "repo-gone",
+		GenerationID:  "gen-1",
+		ResolvedID:    "resolved-1",
 	}}
 
 	report := ClassifyReconciliationDrift(nil, edges)
@@ -183,16 +199,17 @@ func TestClassifyReconciliationDriftResolvedIDOptional(t *testing.T) {
 	t.Parallel()
 
 	authoritative := []AuthoritativePostgresGeneration{{
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedIDs:      nil,
+		Identity:     testIdentity("repo-a"),
+		GenerationID: "gen-2",
+		ResolvedIDs:  nil,
 	}}
 	edges := []GraphDenormalizedEdge{{
-		EdgeKey:          "edge-platform",
-		Domain:           "platform_infra",
-		AcceptanceUnitID: "repo-a",
-		GenerationID:     "gen-2",
-		ResolvedID:       "", // domain carries no resolved_id
+		EdgeKey:       "edge-platform",
+		Domain:        "platform_infra",
+		Identity:      testIdentity("repo-a"),
+		RetractAnchor: "repo-a",
+		GenerationID:  "gen-2",
+		ResolvedID:    "", // domain carries no resolved_id
 	}}
 
 	report := ClassifyReconciliationDrift(authoritative, edges)
@@ -263,16 +280,17 @@ func TestLogReconciliationReportWarnsOnDrift(t *testing.T) {
 
 	report := ClassifyReconciliationDrift(
 		[]AuthoritativePostgresGeneration{{
-			AcceptanceUnitID: "repo-a",
-			GenerationID:     "gen-2",
-			ResolvedIDs:      resolvedIDSet("resolved-2"),
+			Identity:     testIdentity("repo-a"),
+			GenerationID: "gen-2",
+			ResolvedIDs:  resolvedIDSet("resolved-2"),
 		}},
 		[]GraphDenormalizedEdge{{
-			EdgeKey:          "edge-old",
-			Domain:           "repo_dependency",
-			AcceptanceUnitID: "repo-a",
-			GenerationID:     "gen-1",
-			ResolvedID:       "resolved-1",
+			EdgeKey:       "edge-old",
+			Domain:        "repo_dependency",
+			Identity:      testIdentity("repo-a"),
+			RetractAnchor: "repo-a",
+			GenerationID:  "gen-1",
+			ResolvedID:    "resolved-1",
 		}},
 	)
 	LogReconciliationReport(logger, report)
@@ -303,16 +321,17 @@ func TestLogReconciliationReportInfoOnConvergence(t *testing.T) {
 
 	report := ClassifyReconciliationDrift(
 		[]AuthoritativePostgresGeneration{{
-			AcceptanceUnitID: "repo-a",
-			GenerationID:     "gen-2",
-			ResolvedIDs:      resolvedIDSet("resolved-2"),
+			Identity:     testIdentity("repo-a"),
+			GenerationID: "gen-2",
+			ResolvedIDs:  resolvedIDSet("resolved-2"),
 		}},
 		[]GraphDenormalizedEdge{{
-			EdgeKey:          "edge-ok",
-			Domain:           "repo_dependency",
-			AcceptanceUnitID: "repo-a",
-			GenerationID:     "gen-2",
-			ResolvedID:       "resolved-2",
+			EdgeKey:       "edge-ok",
+			Domain:        "repo_dependency",
+			Identity:      testIdentity("repo-a"),
+			RetractAnchor: "repo-a",
+			GenerationID:  "gen-2",
+			ResolvedID:    "resolved-2",
 		}},
 	)
 	LogReconciliationReport(logger, report)
