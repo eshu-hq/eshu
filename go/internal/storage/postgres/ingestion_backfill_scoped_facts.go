@@ -221,10 +221,13 @@ func backfillRelationshipAnchorTerms(newRepoCatalog []relationships.CatalogEntry
 }
 
 // loadAnchorScopedRelationshipFacts runs the two-phase anchor-scoped fact load
-// shared by the per-commit backfill (issue #3570) and the corpus-wide deferred
-// backfill (issue #3569). anchorCatalog is the catalog whose aliases seed the
-// content-anchor predicate: the onboarding delta for the per-commit path, the
-// whole catalog for the deferred path. configResolveCatalog is the catalog the
+// used by the per-commit backfill (issue #3570). The corpus-wide deferred
+// backfill uses loadDeferredAnchorScopedRelationshipFacts instead (issue #3659),
+// which adds the self-repo_id exclusion the deferred pass needs; this function
+// is the onboarding-delta variant where a new repo's own facts are not yet in the
+// corpus, so its repo_id cannot self-match. anchorCatalog is the catalog whose
+// aliases seed the content-anchor predicate (the onboarding delta for the
+// per-commit path). configResolveCatalog is the catalog the
 // ArgoCD phase-two config-repo resolution matches against; callers pass the full
 // refreshed catalog so an ApplicationSet's external git-generator config repo is
 // resolvable even when it is not in anchorCatalog.
