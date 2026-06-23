@@ -19,6 +19,12 @@ type jvmReceiverResolverConfig struct {
 	// sourceExtension is the file extension a dotted package source maps to,
 	// e.g. ".java" or ".kt".
 	sourceExtension string
+	// matchTypeFileName requires the imported file to be named after the type
+	// (`pkg/Type.ext`). Java enforces one public class per file matching the
+	// filename, so this disambiguates package directories. Kotlin allows a type
+	// to live in any file, so Kotlin matches the package directory only and
+	// trusts the prescan import map to point at the real declaring file.
+	matchTypeFileName bool
 }
 
 // resolveJVMReceiverCallee binds a receiver-typed call to the declaration of an
@@ -36,7 +42,7 @@ func resolveJVMReceiverCallee(
 	} else if attempted {
 		return "", "", ""
 	}
-	for _, candidateName := range jvmReceiverCandidateNames(ctx.call) {
+	for _, candidateName := range jvmReceiverCandidateNames(ctx.call, "") {
 		entityID := resolveJVMReceiverCandidate(ctx, candidateName)
 		if entityID == "" {
 			continue
@@ -48,9 +54,15 @@ func resolveJVMReceiverCallee(
 
 // jvmReceiverCandidateNames returns the ordered "Type.method" candidate names
 // for a receiver-typed call, widened by argument-type and arity signatures when
-// the parser recorded them.
-func jvmReceiverCandidateNames(call map[string]any) []string {
-	receiverType := strings.TrimSpace(anyToString(call["inferred_obj_type"]))
+// the parser recorded them. typeOverride replaces the call's inferred receiver
+// type when non-empty, so import-bound resolution can look up the declared type
+// (e.g. `Service`) rather than a local alias (e.g. `Svc`) that the prescan index
+// and callee declarations are not keyed by.
+func jvmReceiverCandidateNames(call map[string]any, typeOverride string) []string {
+	receiverType := strings.TrimSpace(typeOverride)
+	if receiverType == "" {
+		receiverType = strings.TrimSpace(anyToString(call["inferred_obj_type"]))
+	}
 	callName := strings.TrimSpace(anyToString(call["name"]))
 	if receiverType == "" || callName == "" {
 		return nil
@@ -90,12 +102,12 @@ func resolveJVMImportedReceiverCallee(
 	if ctx.repositoryID == "" {
 		return "", false
 	}
-	paths, attempted := jvmImportedReceiverPaths(ctx, config)
+	paths, declaredType, attempted := jvmImportedReceiverPaths(ctx, config)
 	if len(paths) == 0 {
 		return "", attempted
 	}
 	var resolvedEntityID string
-	for _, candidateName := range jvmReceiverCandidateNames(ctx.call) {
+	for _, candidateName := range jvmReceiverCandidateNames(ctx.call, declaredType) {
 		for _, path := range paths {
 			entityID := ctx.index.uniqueNameByPath[path][candidateName]
 			if entityID == "" || entityID == resolvedEntityID {
@@ -117,26 +129,33 @@ func jvmImportedReceiverBindingBlocksRepoFallback(
 	ctx codeCallResolveContext,
 	config jvmReceiverResolverConfig,
 ) bool {
-	_, attempted := jvmImportedReceiverPaths(ctx, config)
+	_, _, attempted := jvmImportedReceiverPaths(ctx, config)
 	return attempted
 }
 
+// jvmImportedReceiverPaths resolves the imported declaration files for a
+// receiver-typed call. It returns the unique candidate paths, the declared type
+// the import binds the receiver to, and whether an explicit import binding was
+// attempted. The declared type may differ from the receiver's inferred type when
+// an alias is in play (`import a.b.Service as Svc`): the receiver reads `Svc` but
+// the prescan import map and callee declarations are keyed by `Service`, so the
+// resolver keys repositoryImports and the candidate names by the declared type.
 func jvmImportedReceiverPaths(
 	ctx codeCallResolveContext,
 	config jvmReceiverResolverConfig,
-) ([]string, bool) {
+) ([]string, string, bool) {
 	receiverType := strings.TrimSpace(anyToString(ctx.call["inferred_obj_type"]))
 	if receiverType == "" {
-		return nil, false
+		return nil, "", false
 	}
 	qualifiedReceiverType := strings.TrimSpace(anyToString(ctx.call["inferred_obj_qualified_type"]))
 	importEntries := mapSlice(ctx.fileData["imports"])
-	pathsByReceiver := ctx.repositoryImports[receiverType]
-	if len(importEntries) == 0 || len(pathsByReceiver) == 0 {
-		return nil, false
+	if len(importEntries) == 0 {
+		return nil, "", false
 	}
 
 	var paths []string
+	resolvedDeclaredType := ""
 	attempted := false
 	appendPath := func(path string) {
 		path = normalizeCodeCallPath(path)
@@ -152,69 +171,107 @@ func jvmImportedReceiverPaths(
 	}
 
 	for _, entry := range importEntries {
-		if !jvmImportEntryMatchesReceiver(entry, receiverType, config) {
+		declaredType := jvmImportEntryDeclaredType(entry, receiverType, config)
+		if declaredType == "" {
+			continue
+		}
+		pathsByDeclaredType := ctx.repositoryImports[declaredType]
+		if len(pathsByDeclaredType) == 0 {
 			continue
 		}
 		for _, source := range codeCallImportEntrySources(entry) {
-			if !jvmImportSourceMatchesQualifiedReceiver(source, receiverType, qualifiedReceiverType) {
+			if !jvmImportSourceMatchesQualifiedReceiver(source, declaredType, qualifiedReceiverType) {
 				continue
 			}
 			attempted = true
-			for _, path := range pathsByReceiver {
-				if jvmImportSourceMatchesPath(source, receiverType, path, config) {
+			resolvedDeclaredType = declaredType
+			for _, path := range pathsByDeclaredType {
+				if jvmImportSourceMatchesPath(source, declaredType, path, config) {
 					appendPath(path)
 				}
 			}
 		}
 	}
 	if len(paths) != 1 {
-		return nil, attempted
+		return nil, "", attempted
 	}
-	return paths, attempted
+	return paths, resolvedDeclaredType, attempted
 }
 
-func jvmImportEntryMatchesReceiver(
+// jvmImportEntryDeclaredType returns the declared type name an import entry binds
+// the receiver to, or "" when the entry does not introduce the receiver. The
+// declared type is the type's simple name as declared at its source (the trailing
+// segment of the import `name`/`source`), which differs from the local receiver
+// name under aliasing. It is the key the prescan import map and callee
+// class_context declarations use.
+func jvmImportEntryDeclaredType(
 	entry map[string]any,
 	receiverType string,
 	config jvmReceiverResolverConfig,
-) bool {
+) string {
 	receiverType = strings.TrimSpace(receiverType)
 	if receiverType == "" {
-		return false
+		return ""
 	}
 	if _, ok := config.importTypes[strings.TrimSpace(anyToString(entry["import_type"]))]; !ok {
-		return false
+		return ""
 	}
-	for _, value := range []string{
-		anyToString(entry["alias"]),
-		codeCallTrailingName(anyToString(entry["name"])),
-		codeCallTrailingName(anyToString(entry["source"])),
-	} {
-		if strings.TrimSpace(value) == receiverType {
-			return true
+	declaredFromName := codeCallTrailingName(anyToString(entry["name"]))
+	declaredFromSource := codeCallTrailingName(anyToString(entry["source"]))
+	// The local name the receiver uses is the alias when present, otherwise the
+	// trailing name of the imported path.
+	if alias := strings.TrimSpace(anyToString(entry["alias"])); alias == receiverType {
+		if declaredFromName != "" {
+			return declaredFromName
 		}
+		if declaredFromSource != "" {
+			return declaredFromSource
+		}
+		return receiverType
 	}
-	source := strings.TrimSpace(anyToString(entry["source"]))
-	return strings.HasSuffix(source, ".*")
+	if declaredFromName == receiverType || declaredFromSource == receiverType {
+		return receiverType
+	}
+	// A wildcard `import pkg.*` brings the receiver type in under its own name.
+	if strings.HasSuffix(strings.TrimSpace(anyToString(entry["source"])), ".*") {
+		return receiverType
+	}
+	return ""
 }
 
 func jvmImportSourceMatchesPath(
 	source string,
-	receiverType string,
+	declaredType string,
 	path string,
 	config jvmReceiverResolverConfig,
 ) bool {
 	source = strings.TrimSpace(source)
-	receiverType = strings.TrimSpace(receiverType)
+	declaredType = strings.TrimSpace(declaredType)
 	path = normalizeCodeCallPath(path)
-	if source == "" || receiverType == "" || path == "" {
+	if source == "" || declaredType == "" || path == "" {
 		return false
 	}
 	if strings.HasSuffix(source, ".*") {
-		source = strings.TrimSuffix(source, ".*") + "." + receiverType
+		source = strings.TrimSuffix(source, ".*") + "." + declaredType
 	}
-	sourcePath := strings.ReplaceAll(source, ".", "/") + config.sourceExtension
-	return strings.HasSuffix(path, sourcePath)
+	if config.matchTypeFileName {
+		sourcePath := strings.ReplaceAll(source, ".", "/") + config.sourceExtension
+		return strings.HasSuffix(path, sourcePath)
+	}
+	// The type may be declared in any file (Kotlin), so match the package
+	// directory and let the prescan import map decide the real file. Strip the
+	// declared-type segment from the dotted source to get the package path.
+	packageSource := source
+	if idx := strings.LastIndex(packageSource, "."); idx >= 0 {
+		packageSource = packageSource[:idx]
+	} else {
+		packageSource = ""
+	}
+	packageDir := strings.ReplaceAll(packageSource, ".", "/")
+	if packageDir == "" {
+		return true
+	}
+	return strings.HasSuffix(codeCallDirectoryKey(path), packageDir)
 }
 
 func jvmImportSourceMatchesQualifiedReceiver(source string, receiverType string, qualifiedReceiverType string) bool {

@@ -8,8 +8,9 @@ import (
 // Java's parser output: only `import` declarations introduce types, and dotted
 // package paths map to `.java` source files.
 var javaReceiverResolverConfig = jvmReceiverResolverConfig{
-	importTypes:     map[string]struct{}{"import": {}},
-	sourceExtension: ".java",
+	importTypes:       map[string]struct{}{"import": {}},
+	sourceExtension:   ".java",
+	matchTypeFileName: true,
 }
 
 func init() {

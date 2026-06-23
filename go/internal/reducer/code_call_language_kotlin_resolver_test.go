@@ -97,8 +97,12 @@ func TestCodeCallResolutionMethodKotlinImportBinding(t *testing.T) {
 }
 
 // TestCodeCallResolutionMethodKotlinAliasedImportBinding proves Kotlin's aliased
-// `import a.b.Service as Svc` (emitted with import_type "alias") still binds the
-// receiver call to the imported declaration through the alias name.
+// `import a.b.Service as Svc` (emitted with import_type "alias") binds the
+// receiver call to the imported declaration even though the prescan import map
+// and the callee declaration are keyed by the declared type (`Service`), not the
+// alias (`Svc`). The facts mirror production: the parser emits the alias as the
+// receiver's inferred_obj_type while the prescan keys imports_map by the
+// declared class name and the callee's class_context is the declared class name.
 func TestCodeCallResolutionMethodKotlinAliasedImportBinding(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +110,7 @@ func TestCodeCallResolutionMethodKotlinAliasedImportBinding(t *testing.T) {
 		{FactKind: "repository", Payload: map[string]any{
 			"repo_id": "repo-kotlin",
 			"imports_map": map[string][]string{
-				"Svc": {"src/main/kotlin/com/example/lib/Service.kt"},
+				"Service": {"src/main/kotlin/com/example/lib/Service.kt"},
 			},
 		}},
 		{FactKind: "file", Payload: map[string]any{
@@ -145,7 +149,7 @@ func TestCodeCallResolutionMethodKotlinAliasedImportBinding(t *testing.T) {
 				"functions": []any{
 					map[string]any{
 						"name":          "query",
-						"class_context": "Svc",
+						"class_context": "Service",
 						"line_number":   2,
 						"end_line":      4,
 						"uid":           "uid:query",
@@ -159,6 +163,95 @@ func TestCodeCallResolutionMethodKotlinAliasedImportBinding(t *testing.T) {
 	if got := resolutionMethodForCallee(t, rows, "uid:query"); got != codeprovenance.MethodImportBinding {
 		t.Fatalf("resolution_method = %q, want %q", got, codeprovenance.MethodImportBinding)
 	}
+}
+
+// TestCodeCallResolutionMethodKotlinImportBindingNonMatchingFilename proves a
+// Kotlin receiver call binds through its import even when the imported class is
+// declared in a differently named file (`class Service` in `Domain.kt`), which
+// Kotlin allows. The prescan keys imports_map by the declared type and points it
+// at the real file, so the resolver must not require the `.kt` filename to equal
+// the type name. The decoy in another package must stay unbound so the package
+// directory still disambiguates.
+func TestCodeCallResolutionMethodKotlinImportBindingNonMatchingFilename(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{FactKind: "repository", Payload: map[string]any{
+			"repo_id": "repo-kotlin",
+			"imports_map": map[string][]string{
+				"Service": {
+					"src/main/kotlin/com/example/lib/Domain.kt",
+					"src/main/kotlin/com/other/Service.kt",
+				},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-kotlin",
+			"relative_path": "src/main/kotlin/example/Caller.kt",
+			"parsed_file_data": map[string]any{
+				"path": "src/main/kotlin/example/Caller.kt",
+				"functions": []any{
+					map[string]any{"name": "run", "line_number": 4, "end_line": 7, "uid": "uid:caller"},
+				},
+				"imports": []any{
+					map[string]any{
+						"name":        "com.example.lib.Service",
+						"alias":       "Service",
+						"source":      "com.example.lib.Service",
+						"import_type": "import",
+						"lang":        "kotlin",
+					},
+				},
+				"function_calls": []any{
+					map[string]any{
+						"name":              "query",
+						"full_name":         "service.query",
+						"inferred_obj_type": "Service",
+						"line_number":       5,
+						"lang":              "kotlin",
+					},
+				},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-kotlin",
+			"relative_path": "src/main/kotlin/com/example/lib/Domain.kt",
+			"parsed_file_data": map[string]any{
+				"path": "src/main/kotlin/com/example/lib/Domain.kt",
+				"functions": []any{
+					map[string]any{
+						"name":          "query",
+						"class_context": "Service",
+						"line_number":   2,
+						"end_line":      4,
+						"uid":           "uid:query",
+					},
+				},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-kotlin",
+			"relative_path": "src/main/kotlin/com/other/Service.kt",
+			"parsed_file_data": map[string]any{
+				"path": "src/main/kotlin/com/other/Service.kt",
+				"functions": []any{
+					map[string]any{
+						"name":          "query",
+						"class_context": "Service",
+						"line_number":   2,
+						"end_line":      4,
+						"uid":           "uid:query-decoy",
+					},
+				},
+			},
+		}},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	if got := resolutionMethodForCallee(t, rows, "uid:query"); got != codeprovenance.MethodImportBinding {
+		t.Fatalf("resolution_method = %q, want %q", got, codeprovenance.MethodImportBinding)
+	}
+	assertReducerNoCodeCallRow(t, rows, "uid:caller", "uid:query-decoy")
 }
 
 // TestCodeCallKotlinImportedReceiverBlocksAmbiguousRepoFallback proves that when

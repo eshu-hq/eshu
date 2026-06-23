@@ -7,7 +7,10 @@ import (
 // kotlinReceiverResolverConfig binds the shared JVM imported-receiver resolver
 // to Kotlin's parser output: both `import` and aliased `import ... as` (emitted
 // as import_type "alias") introduce types, and dotted package paths map to `.kt`
-// source files.
+// source files. matchTypeFileName stays false because Kotlin allows a type to be
+// declared in any file (e.g. `class Service` in `Domain.kt`); the prescan import
+// map already points the declared type at its real file, so the resolver matches
+// the package directory and trusts that mapping instead of the filename.
 var kotlinReceiverResolverConfig = jvmReceiverResolverConfig{
 	importTypes: map[string]struct{}{
 		"import": {},
