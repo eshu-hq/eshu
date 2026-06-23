@@ -16,6 +16,15 @@ type Result struct {
 	EvidenceSummary string
 	CanonicalWrites int
 	CompletedAt     time.Time
+	// SubDurations holds optional per-phase handler timings (seconds) that the
+	// service layer emits alongside handler_duration_seconds. Each key names one
+	// handler stage (e.g. "load_inputs", "build_projection", "graph_write",
+	// "phase_publish"). Nil or empty means the handler did not populate
+	// sub-timings; the service log line omits missing keys rather than
+	// emitting zeros. Handlers that adopt sub-timing MUST populate a
+	// non-nil map so the log line can distinguish "zero work" from
+	// "not instrumented".
+	SubDurations map[string]float64
 }
 
 // RunReport summarizes one bounded reducer drain.

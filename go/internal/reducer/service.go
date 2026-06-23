@@ -323,7 +323,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 			err = errors.Join(err, heartbeatErr)
 		}
 		status = "failed"
-		s.recordReducerResult(ctx, intent, duration, queueWait, status, workerID, err)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
 		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {
 			return errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
@@ -335,20 +335,20 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 	}
 
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		s.recordReducerResult(ctx, intent, duration, queueWait, "ack_failed", workerID, heartbeatErr)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
 		return fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 
 	if err := s.WorkSink.Ack(ctx, intent, result); err != nil {
-		s.recordReducerResult(ctx, intent, duration, queueWait, "ack_failed", workerID, err)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, err)
 		return fmt.Errorf("ack reducer work: %w", err)
 	}
 
-	s.recordReducerResult(ctx, intent, duration, queueWait, status, workerID, nil)
+	s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
 	return nil
 }
 
-func (s Service) recordReducerResult(ctx context.Context, intent Intent, duration float64, queueWait float64, status string, workerID int, execErr error) {
+func (s Service) recordReducerResult(ctx context.Context, intent Intent, result Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
 	if s.Instruments != nil {
 		attrs := metric.WithAttributes(
 			telemetry.AttrDomain(string(intent.Domain)),
@@ -380,6 +380,13 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, duratio
 		logAttrs = append(logAttrs, slog.Float64("duration_seconds", duration))
 		logAttrs = append(logAttrs, slog.Float64("handler_duration_seconds", duration))
 		logAttrs = append(logAttrs, slog.Float64("queue_wait_seconds", queueWait))
+		// Emit per-phase sub-timings when the handler populated them. Keys match
+		// the workload materialization log attribute names so operators can
+		// correlate the service-level log line with the handler-level log line
+		// without reading two separate log streams.
+		for k, v := range result.SubDurations {
+			logAttrs = append(logAttrs, slog.Float64("sub_duration_"+k+"_seconds", v))
+		}
 		logAttrs = append(logAttrs, slog.Int("worker_id", workerID))
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseReduction))
 		switch status {

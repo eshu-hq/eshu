@@ -270,7 +270,7 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 			err = errors.Join(err, heartbeatErr)
 		}
 		status = "failed"
-		s.recordReducerResult(ctx, intent, duration, queueWait, status, workerID, err)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
 		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {
 			return Result{}, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
@@ -278,10 +278,10 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 	}
 
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		s.recordReducerResult(ctx, intent, duration, queueWait, "ack_failed", workerID, heartbeatErr)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
 		return Result{}, fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 
-	s.recordReducerResult(ctx, intent, duration, queueWait, status, workerID, nil)
+	s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
 	return result, nil
 }
