@@ -11,7 +11,7 @@ func (e *Engine) parseElixir(path string, isDependency bool, options Options) (m
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("elixir", parser)
 
 	return elixirparser.ParseWithParser(path, isDependency, sharedOptions(options), parser)
 }
@@ -21,7 +21,7 @@ func (e *Engine) preScanElixir(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("elixir", parser)
 
 	names, err := elixirparser.PreScanWithParser(path, parser)
 	if err != nil {

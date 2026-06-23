@@ -31,16 +31,23 @@ import (
 
 type languageLoader func() unsafe.Pointer
 
-// Runtime owns cached tree-sitter language handles.
+// Runtime owns cached tree-sitter language handles and per-language parser
+// pools. Pooling eliminates the per-file CGO allocation cost of
+// tree_sitter.NewParser + SetLanguage for large repositories.
 type Runtime struct {
 	mu        sync.Mutex
 	languages map[string]*tree_sitter.Language
+	// pools is keyed by canonical language name, matching the languages map.
+	// Each entry is created lazily on the first Parser call for that language.
+	// Once created, pool Get/Put are lock-free (sync.Pool is goroutine-safe).
+	pools map[string]*sync.Pool
 }
 
 // NewRuntime constructs one native tree-sitter runtime.
 func NewRuntime() *Runtime {
 	return &Runtime{
 		languages: make(map[string]*tree_sitter.Language),
+		pools:     make(map[string]*sync.Pool),
 	}
 }
 
@@ -68,19 +75,79 @@ func (r *Runtime) Language(name string) (*tree_sitter.Language, error) {
 	return language, nil
 }
 
-// Parser returns a new parser configured for one language.
+// Parser borrows a tree-sitter parser configured for name from the per-language
+// pool. The caller must return the parser via PutParser after each use, not
+// call parser.Close() directly. The parser is guaranteed to be in a reset state.
 func (r *Runtime) Parser(name string) (*tree_sitter.Parser, error) {
-	language, err := r.Language(name)
+	canonical, err := normalizeLanguageName(name)
 	if err != nil {
 		return nil, err
 	}
 
-	parser := tree_sitter.NewParser()
-	if err := parser.SetLanguage(language); err != nil {
-		parser.Close()
+	language, err := r.Language(canonical)
+	if err != nil {
+		return nil, err
+	}
+
+	pool := r.poolFor(canonical, language)
+
+	if p, ok := pool.Get().(*tree_sitter.Parser); ok && p != nil {
+		// Reset clears internal cancellation and timeout state so the borrowed
+		// parser behaves identically to a freshly allocated one.
+		p.Reset()
+		return p, nil
+	}
+
+	// Pool was empty: allocate a new parser and configure it.
+	p := tree_sitter.NewParser()
+	if err := p.SetLanguage(language); err != nil {
+		p.Close()
 		return nil, fmt.Errorf("set parser language %q: %w", name, err)
 	}
-	return parser, nil
+	return p, nil
+}
+
+// PutParser returns a borrowed parser to the per-language pool after resetting
+// it. The canonical name must be the same language name used to borrow the
+// parser via Parser. The caller must not use p after calling PutParser.
+// Passing a nil parser is a no-op. If the language pool does not exist (e.g.
+// an unknown language was passed) the parser is closed and freed instead.
+func (r *Runtime) PutParser(canonical string, p *tree_sitter.Parser) {
+	if p == nil {
+		return
+	}
+	r.mu.Lock()
+	pool := r.pools[canonical]
+	r.mu.Unlock()
+	if pool == nil {
+		p.Close()
+		return
+	}
+	p.Reset()
+	pool.Put(p)
+}
+
+// poolFor returns the sync.Pool for canonical, creating it under r.mu if
+// needed. language is captured in the pool's New closure so the pool can
+// allocate parsers without re-looking up the language handle.
+func (r *Runtime) poolFor(canonical string, language *tree_sitter.Language) *sync.Pool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if pool := r.pools[canonical]; pool != nil {
+		return pool
+	}
+	pool := &sync.Pool{
+		New: func() any {
+			p := tree_sitter.NewParser()
+			if err := p.SetLanguage(language); err != nil {
+				p.Close()
+				return nil
+			}
+			return p
+		},
+	}
+	r.pools[canonical] = pool
+	return pool
 }
 
 var builtinLanguageLoaders = map[string]languageLoader{

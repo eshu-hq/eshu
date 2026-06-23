@@ -11,7 +11,7 @@ func (e *Engine) parsePHP(path string, isDependency bool, options Options) (map[
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("php", parser)
 
 	return phpparser.Parse(path, isDependency, sharedOptions(options), parser)
 }
@@ -21,7 +21,7 @@ func (e *Engine) preScanPHP(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("php", parser)
 
 	names, err := phpparser.PreScan(path, parser)
 	if err != nil {

@@ -22,7 +22,7 @@ func (e *Engine) parseRust(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("rust", parser)
 
 	payload, err := rustparser.Parse(path, isDependency, sharedOptions(options), parser)
 	if err != nil {
@@ -37,7 +37,7 @@ func (e *Engine) preScanRust(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("rust", parser)
 
 	names, err := rustparser.PreScan(path, parser)
 	if err != nil {

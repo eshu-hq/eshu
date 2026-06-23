@@ -16,7 +16,7 @@ func (e *Engine) parseC(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("c", parser)
 
 	payload, err := cparser.Parse(path, isDependency, sharedOptions(options), parser)
 	if err != nil {
@@ -31,7 +31,7 @@ func (e *Engine) preScanC(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("c", parser)
 
 	names, err := cparser.PreScan(path, parser)
 	if err != nil {

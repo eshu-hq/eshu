@@ -11,7 +11,7 @@ func (e *Engine) parseSQL(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("sql", parser)
 
 	return sqlparser.Parse(path, isDependency, sqlparser.Options{
 		IndexSource:   options.IndexSource,

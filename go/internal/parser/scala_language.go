@@ -15,7 +15,7 @@ func (e *Engine) parseScala(
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("scala", parser)
 
 	return scalaparser.Parse(path, isDependency, sharedOptions(options), parser)
 }
@@ -25,7 +25,7 @@ func (e *Engine) preScanScala(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("scala", parser)
 
 	names, err := scalaparser.PreScan(path, parser)
 	if err != nil {

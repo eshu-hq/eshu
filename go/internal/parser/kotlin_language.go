@@ -7,7 +7,7 @@ func (e *Engine) parseKotlin(repoRoot string, path string, isDependency bool, op
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("kotlin", parser)
 
 	return kotlinparser.Parse(repoRoot, path, isDependency, sharedOptions(options), parser)
 }
@@ -17,7 +17,7 @@ func (e *Engine) preScanKotlin(repoRoot string, path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("kotlin", parser)
 
 	return kotlinparser.PreScan(repoRoot, path, parser)
 }

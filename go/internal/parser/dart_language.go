@@ -10,7 +10,7 @@ func (e *Engine) parseDart(path string, isDependency bool, options Options) (map
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("dart", parser)
 
 	return dartparser.ParseWithParser(path, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
@@ -23,7 +23,7 @@ func (e *Engine) preScanDart(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("dart", parser)
 
 	return dartparser.PreScanWithParser(path, parser)
 }

@@ -13,7 +13,7 @@ func (e *Engine) parseJavaScriptLike(
 	isDependency bool,
 	options Options,
 ) (map[string]any, error) {
-	return jsparser.Parse(e.runtime.Parser, repoRoot, path, runtimeLanguage, outputLanguage, isDependency, shared.Options{
+	return jsparser.Parse(e.runtime.Parser, e.runtime.PutParser, repoRoot, path, runtimeLanguage, outputLanguage, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
 		VariableScope: options.VariableScope,
 		RepositoryID:  options.RepositoryID,
@@ -27,5 +27,5 @@ func (e *Engine) preScanJavaScriptLike(
 	runtimeLanguage string,
 	outputLanguage string,
 ) ([]string, error) {
-	return jsparser.PreScan(e.runtime.Parser, repoRoot, path, runtimeLanguage, outputLanguage)
+	return jsparser.PreScan(e.runtime.Parser, e.runtime.PutParser, repoRoot, path, runtimeLanguage, outputLanguage)
 }

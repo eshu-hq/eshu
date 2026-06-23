@@ -12,7 +12,7 @@ func (e *Engine) parseRuby(path string, isDependency bool, options Options) (map
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("ruby", parser)
 
 	return rubyparser.ParseWithParser(path, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
@@ -25,7 +25,7 @@ func (e *Engine) preScanRuby(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer parser.Close()
+	defer e.runtime.PutParser("ruby", parser)
 
 	names, err := rubyparser.PreScanWithParser(path, parser)
 	if err != nil {
