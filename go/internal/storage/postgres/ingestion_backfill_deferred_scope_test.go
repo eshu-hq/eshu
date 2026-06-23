@@ -202,44 +202,29 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want nil", err)
 	}
 
-	usedScopedQuery := false
+	usedDeferredQuery := false
+	usedPerCommitQuery := false
 	usedFullCorpusQuery := false
 	for _, q := range inner.queries {
+		if q.query == listDeferredScopedRelationshipFactRecordsQuery {
+			usedDeferredQuery = true
+			assertDeferredSelfExclusionArgs(t, q.args)
+		}
 		if q.query == listOnboardedRepoScopedRelationshipFactRecordsQuery {
-			usedScopedQuery = true
-			assertScopedAnchorArg(t, q.args)
+			usedPerCommitQuery = true
 		}
 		if q.query == listLatestRelationshipFactRecordsQuery {
 			usedFullCorpusQuery = true
 		}
 	}
 	if usedFullCorpusQuery {
-		t.Fatal("deferred backfill issued the unbounded full-corpus fact query; it must use the anchor-scoped query")
+		t.Fatal("deferred backfill issued the unbounded full-corpus fact query; it must use the deferred self-exclusion query")
 	}
-	if !usedScopedQuery {
-		t.Fatal("deferred backfill did not issue the anchor-scoped fact query")
+	if usedPerCommitQuery {
+		t.Fatal("deferred backfill issued the per-commit scoped query (no self-exclusion); it must use the deferred self-exclusion query")
 	}
-}
-
-// assertScopedAnchorArg confirms the scoped fact query was parameterised with a
-// non-empty %...% LIKE term array, proving the query is bounded by the catalog
-// anchor surface rather than scanning every fact.
-func assertScopedAnchorArg(t *testing.T, args []any) {
-	t.Helper()
-	if len(args) != 1 {
-		t.Fatalf("scoped fact query args = %d, want 1 anchor array", len(args))
-	}
-	terms, ok := args[0].(pq.StringArray)
-	if !ok {
-		t.Fatalf("scoped fact query arg type = %T, want pq.StringArray", args[0])
-	}
-	if len(terms) == 0 {
-		t.Fatal("scoped fact query anchor array is empty; the load is not bounded")
-	}
-	for _, term := range terms {
-		if !strings.HasPrefix(term, "%") || !strings.HasSuffix(term, "%") {
-			t.Fatalf("scoped anchor term %q is not a wrapped LIKE substring term", term)
-		}
+	if !usedDeferredQuery {
+		t.Fatal("deferred backfill did not issue the deferred self-exclusion fact query")
 	}
 }
 
