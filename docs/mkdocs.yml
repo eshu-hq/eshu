@@ -145,6 +145,7 @@ nav:
     - PagerDuty Evidence Contract: reference/pagerduty-evidence.md
     - Jira Evidence Contract: reference/jira-evidence.md
     - Observability Evidence Contract: reference/observability-evidence.md
+    - Accuracy Golden Gate: reference/accuracy-golden-gate.md
     - Vulnerability Parity Gate: reference/vulnerability-parity-gate.md
     - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
     - Component Package Manager: reference/component-package-manager.md
