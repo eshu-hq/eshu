@@ -60,6 +60,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedBrowserSessionAuthRoute(r) {
 		return true
 	}
+	if scopedLocalIdentityAPITokenRoute(r) {
+		return true
+	}
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
@@ -176,6 +179,25 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+func scopedLocalIdentityAPITokenRoute(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	if r.URL.Path == "/api/v0/auth/local/api-tokens" {
+		return true
+	}
+	const prefix = "/api/v0/auth/local/api-tokens/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		return false
+	}
+	tokenLifecycleAction := strings.TrimPrefix(r.URL.Path, prefix)
+	tokenID, action, ok := strings.Cut(tokenLifecycleAction, "/")
+	if !ok || tokenID == "" || strings.Contains(tokenID, "/") {
+		return false
+	}
+	return action == "revoke" || action == "rotate"
 }
 
 func scopedBrowserSessionAuthRoute(r *http.Request) bool {

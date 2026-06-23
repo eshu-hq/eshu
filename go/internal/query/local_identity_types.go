@@ -20,6 +20,9 @@ type LocalIdentityStore interface {
 	DisableLocalIdentityUser(context.Context, LocalIdentityDisableUser) error
 	EnableLocalIdentityBreakGlass(context.Context, LocalIdentityBreakGlassWindow) error
 	ResolveLocalIdentityBreakGlass(context.Context, LocalIdentityBreakGlassAttempt) (LocalIdentityAuthContext, error)
+	CreateLocalIdentityAPIToken(context.Context, LocalIdentityAPITokenCreate) error
+	RevokeLocalIdentityAPIToken(context.Context, LocalIdentityAPITokenRevoke) error
+	RotateLocalIdentityAPIToken(context.Context, LocalIdentityAPITokenRotate) error
 }
 
 // LocalIdentityBootstrapRecord contains hash-only first-owner setup state.

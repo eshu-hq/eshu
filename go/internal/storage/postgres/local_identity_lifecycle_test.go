@@ -163,3 +163,134 @@ func TestEnableLocalIdentityBreakGlassRequiresTimeBoxAndAuditSafeCodeHash(t *tes
 		t.Fatalf("break-glass args leaked raw code: %#v", db.execs[0].args)
 	}
 }
+
+func TestCreateLocalIdentityAPITokenStoresHashOnlyPersonalToken(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewIdentitySubjectStore(db)
+
+	err := store.CreateLocalIdentityAPIToken(context.Background(), LocalIdentityAPITokenCreate{
+		TokenID:            "token_personal",
+		TokenHash:          "sha256:generated-token",
+		TokenClass:         "personal",
+		TenantID:           "tenant_local",
+		WorkspaceID:        "workspace_local",
+		UserID:             "user_owner",
+		DisplayHandleHash:  "sha256:display",
+		PolicyRevisionHash: "sha256:policy",
+		IssuedAt:           now,
+		ExpiresAt:          now.Add(7 * 24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("CreateLocalIdentityAPIToken() error = %v", err)
+	}
+	if len(db.execs) != 1 {
+		t.Fatalf("exec count = %d, want 1", len(db.execs))
+	}
+	query := db.execs[0].query
+	for _, want := range []string{
+		"INSERT INTO identity_token_metadata",
+		"FROM identity_users user_subject",
+		"JOIN identity_tenant_memberships membership",
+		"user_subject.status = 'active'",
+		"membership.status = 'active'",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("personal token query missing %q:\n%s", want, query)
+		}
+	}
+	if fakeExecArgsContain(db.execs[0].args, "raw-generated-token") ||
+		fakeExecArgsContain(db.execs[0].args, "owner laptop") {
+		t.Fatalf("token create args leaked raw material: %#v", db.execs[0].args)
+	}
+}
+
+func TestCreateLocalIdentityAPITokenStoresHashOnlyServicePrincipalToken(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 10, 5, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewIdentitySubjectStore(db)
+
+	err := store.CreateLocalIdentityAPIToken(context.Background(), LocalIdentityAPITokenCreate{
+		TokenID:            "token_service",
+		TokenHash:          "sha256:generated-token",
+		TokenClass:         "service_principal",
+		TenantID:           "tenant_local",
+		WorkspaceID:        "workspace_local",
+		ServicePrincipalID: "svc_worker",
+		PolicyRevisionHash: "sha256:policy",
+		IssuedAt:           now,
+	})
+	if err != nil {
+		t.Fatalf("CreateLocalIdentityAPIToken() error = %v", err)
+	}
+	query := db.execs[0].query
+	for _, want := range []string{
+		"INSERT INTO identity_token_metadata",
+		"FROM identity_service_principals service_principal",
+		"service_principal.owner_user_id IS NOT NULL",
+		"service_principal.status = 'active'",
+		"service_principal.disabled_at IS NULL",
+		"service_principal.tombstoned_at IS NULL",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("service principal token query missing %q:\n%s", want, query)
+		}
+	}
+	if fakeExecArgsContain(db.execs[0].args, "raw-generated-token") {
+		t.Fatalf("service token args leaked raw material: %#v", db.execs[0].args)
+	}
+}
+
+func TestRevokeAndRotateLocalIdentityAPITokenUpdateActiveMetadata(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 10, 10, 0, 0, time.UTC)
+	db := &fakeBeginnerExecQueryer{}
+	store := NewIdentitySubjectStore(db)
+
+	if err := store.RevokeLocalIdentityAPIToken(context.Background(), LocalIdentityAPITokenRevoke{
+		TokenID:     "token_old",
+		TenantID:    "tenant_local",
+		WorkspaceID: "workspace_local",
+		RevokedAt:   now,
+	}); err != nil {
+		t.Fatalf("RevokeLocalIdentityAPIToken() error = %v", err)
+	}
+	if !fakeExecsContainQuery(db.execs, "UPDATE identity_token_metadata") ||
+		!fakeExecsContainQuery(db.execs, "revoked_at = $4") {
+		t.Fatalf("revoke execs missing active metadata update: %#v", db.execs)
+	}
+
+	if err := store.RotateLocalIdentityAPIToken(context.Background(), LocalIdentityAPITokenRotate{
+		OldTokenID:      "token_old",
+		NewTokenID:      "token_new",
+		NewTokenHash:    "sha256:new-generated-token",
+		TenantID:        "tenant_local",
+		WorkspaceID:     "workspace_local",
+		RotatedAt:       now.Add(time.Minute),
+		NewTokenExpires: now.Add(7 * 24 * time.Hour),
+	}); err != nil {
+		t.Fatalf("RotateLocalIdentityAPIToken() error = %v", err)
+	}
+	if !db.committed || db.rolledBack {
+		t.Fatalf("transaction committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
+	}
+	for _, want := range []string{
+		"UPDATE identity_token_metadata",
+		"INSERT INTO identity_token_metadata",
+		"FROM identity_token_metadata old_token",
+		"old_token.status = 'active'",
+		"old_token.revoked_at IS NULL",
+	} {
+		if !fakeExecsContainQuery(db.execs, want) {
+			t.Fatalf("rotate execs missing %q: %#v", want, db.execs)
+		}
+	}
+	if fakeExecArgsContain(db.execs[len(db.execs)-1].args, "raw-new-token") {
+		t.Fatalf("rotate args leaked raw token: %#v", db.execs[len(db.execs)-1].args)
+	}
+}

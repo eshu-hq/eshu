@@ -35,6 +35,7 @@ func (h *LocalIdentityHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/auth/local/users/{user_id}/disable", h.handleDisableUser)
 	mux.HandleFunc("POST /api/v0/auth/local/break-glass", h.handleEnableBreakGlass)
 	mux.HandleFunc("POST /api/v0/auth/local/break-glass/session", h.handleBreakGlassSession)
+	h.mountAPITokenRoutes(mux)
 }
 
 func (h *LocalIdentityHandler) handleBootstrap(w http.ResponseWriter, r *http.Request) {
