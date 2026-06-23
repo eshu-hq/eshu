@@ -376,9 +376,13 @@ func TestBuildAskResponse_DropsUnsafeGuardrailFields(t *testing.T) {
 	}
 }
 
-func TestBuildAskResponse_FlagsSupportedAnswerWithoutCitations(t *testing.T) {
+func TestBuildAskResponse_PublishesTruthProvenanceAnswerWithoutCitations(t *testing.T) {
 	t.Parallel()
 
+	// A supported, narrated answer backed by a classified packet's truth
+	// provenance (non-empty truth_class) but carrying no inlined citation
+	// handles must PUBLISH: truth provenance is an accepted citation_coverage
+	// class, mirroring the narration validator (issue #3609).
 	ans := AskAnswer{
 		Prose:    "checkout-service owns refunds",
 		Narrated: true,
@@ -389,8 +393,32 @@ func TestBuildAskResponse_FlagsSupportedAnswerWithoutCitations(t *testing.T) {
 	}
 
 	resp := buildAskResponse(ans, "q", "")
+	if resp.AnswerProse == "" {
+		t.Fatal("answer_prose = \"\", want published truth-provenance prose (#3609)")
+	}
+	if hasLimitation(resp.Limitations, "citation_coverage") {
+		t.Fatalf("limitations = %#v, want no citation_coverage marker for truth-provenance prose", resp.Limitations)
+	}
+}
+
+func TestBuildAskResponse_SuppressesGenuinelyUncitedAnswer(t *testing.T) {
+	t.Parallel()
+
+	// A supported answer with NO truth provenance (empty truth_class) and NO
+	// citation handles is genuinely uncited and must still be suppressed by the
+	// citation_coverage guardrail (the #3609 change must not weaken this).
+	ans := AskAnswer{
+		Prose:    "checkout-service owns refunds",
+		Narrated: true,
+		Packets: []AnswerPacket{{
+			TruthClass: "",
+			Supported:  true,
+		}},
+	}
+
+	resp := buildAskResponse(ans, "q", "")
 	if resp.AnswerProse != "" {
-		t.Fatalf("answer_prose = %q, want suppressed uncited prose", resp.AnswerProse)
+		t.Fatalf("answer_prose = %q, want suppressed genuinely-uncited prose", resp.AnswerProse)
 	}
 	if !resp.Partial {
 		t.Fatal("partial = false, want true when citation guardrail suppresses output")
