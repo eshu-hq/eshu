@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // kubernetesRunsImageRelType is the canonical relationship type for the live
@@ -13,7 +14,7 @@ import (
 // validates it against this exact constant, so no upstream value can fabricate a
 // different relationship type. A live workload "RUNS_IMAGE" the resolved
 // digest-addressed source node it was observed running.
-const kubernetesRunsImageRelType = "RUNS_IMAGE"
+const kubernetesRunsImageRelType = string(edgetype.RunsImage)
 
 // kubernetesCorrelationEdgeTally is the bounded, honest accounting surface for
 // the RUNS_IMAGE edge projection (issue #388 PR3, mirroring the #805 §6 and #391

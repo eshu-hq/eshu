@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // IAM permission fact field constants. PR1 (#1134) emits these payload keys on
@@ -27,7 +28,7 @@ const (
 // iamCanAssumeRelationshipType is the closed single-member relationship
 // vocabulary this slice projects. It is the static token the cypher writer
 // interpolates into the relationship-type position after validation.
-const iamCanAssumeRelationshipType = "CAN_ASSUME"
+const iamCanAssumeRelationshipType = string(edgetype.CanAssume)
 
 // Assuming-principal kinds for the edge-projection counter principal_kind
 // dimension. Bounded and stable so operators can group the counter by the

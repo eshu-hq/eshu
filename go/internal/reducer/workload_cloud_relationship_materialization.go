@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -188,7 +189,7 @@ func (workloadCloudRelationshipNotReadyError) FailureClass() string {
 }
 
 const (
-	workloadCloudRelationshipRelationshipType = "USES"
+	workloadCloudRelationshipRelationshipType = string(edgetype.Uses)
 	workloadCloudRelationshipModeWorkload     = "explicit_workload_anchor"
 
 	workloadCloudRelationshipSkipMissingWorkloadAnchor = "missing_workload_anchor"

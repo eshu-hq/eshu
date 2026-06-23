@@ -5,11 +5,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 const (
 	iamInstanceProfileRoleResourceTypeInstanceProfile = "aws_iam_instance_profile"
-	iamInstanceProfileRoleRelationshipType            = "HAS_ROLE"
+	iamInstanceProfileRoleRelationshipType            = string(edgetype.HasRole)
 	iamInstanceProfileRoleModeARN                     = "arn"
 )
 

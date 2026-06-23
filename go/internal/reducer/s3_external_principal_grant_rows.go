@@ -5,10 +5,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 const (
-	s3ExternalPrincipalGrantRelationshipType = "GRANTS_ACCESS_TO"
+	s3ExternalPrincipalGrantRelationshipType = string(edgetype.GrantsAccessTo)
 	s3ExternalPrincipalGrantResolutionMode   = "bucket_name"
 
 	s3ExternalPrincipalKindPublic      = "public"

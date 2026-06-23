@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // s3LogsToResourceTypeBucket is the aws_resource resource_type the S3 scanner
@@ -22,7 +23,7 @@ const s3LogsToARNInfix = ":::"
 // s3LogsToRelationshipType is the closed single-member relationship vocabulary
 // this slice projects. It is the static token the cypher writer interpolates
 // into the relationship-type position after validation.
-const s3LogsToRelationshipType = "LOGS_TO"
+const s3LogsToRelationshipType = string(edgetype.LogsTo)
 
 // s3LogsToModeName is the only resolution mode for the LOGS_TO edge counter:
 // the target log bucket is resolved by bucket-name equality against the

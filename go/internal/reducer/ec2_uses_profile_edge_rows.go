@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // ec2UsesProfileResourceTypeInstanceProfile is the aws_resource resource_type the
@@ -22,7 +23,7 @@ const ec2UsesProfileResourceTypeInstance = "aws_ec2_instance"
 // ec2UsesProfileRelationshipType is the closed single-member relationship
 // vocabulary this slice projects. It is the static token the cypher writer
 // interpolates into the relationship-type position after validation.
-const ec2UsesProfileRelationshipType = "USES_PROFILE"
+const ec2UsesProfileRelationshipType = string(edgetype.UsesProfile)
 
 // ec2UsesProfileModeARN is the only resolution mode for the USES_PROFILE edge
 // counter: the target instance profile is resolved by exact ARN equality against

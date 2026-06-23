@@ -3,11 +3,13 @@ package cypher
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 const (
 	canonicalPhaseCodeInterprocEvidence = "code_interproc_evidence"
-	codeInterprocEvidenceRelType        = "TAINT_FLOWS_TO"
+	codeInterprocEvidenceRelType        = string(edgetype.TaintFlowsTo)
 )
 
 // codeInterprocEvidenceUpsertCypher draws a TAINT_FLOWS_TO edge from the source

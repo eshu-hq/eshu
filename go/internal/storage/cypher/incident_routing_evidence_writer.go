@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 const (
@@ -18,9 +20,9 @@ var incidentRoutingSlotVocabulary = map[string]struct{}{
 }
 
 var incidentRoutingSlotRelationshipTypes = map[string]string{
-	"intended_routing": "HAS_INTENDED_ROUTING",
-	"applied_routing":  "HAS_APPLIED_ROUTING",
-	"live_routing":     "HAS_LIVE_ROUTING",
+	"intended_routing": string(edgetype.HasIntendedRouting),
+	"applied_routing":  string(edgetype.HasAppliedRouting),
+	"live_routing":     string(edgetype.HasLiveRouting),
 }
 
 const canonicalIncidentRoutingEvidenceUpsertCypherFormat = `UNWIND $rows AS row
