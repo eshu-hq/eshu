@@ -464,8 +464,67 @@ No-Observability-Change: the backfill emits no new metric, span, or log shape;
 existing `relationship_backfill` commit-stage timing and the evidence-persist
 rows still surface the path, now with bounded matcher cost.
 
-The corpus-wide source-fact load (`loadLatestRelationshipFacts`) is unchanged and
-still bounds per-commit *time* to O(all source facts); narrowing that load to a
-content-scoped query that provably never drops a matcher-eligible fact is tracked
-as a #3500 follow-up because it must preserve every extractor heuristic's match
-truth.
+### Content-scoped per-commit fact load (#3570)
+
+The #3500 scope bound narrowed the catalog matcher but left the per-commit fact
+load at O(all source facts): `backfillRelationshipEvidenceForNewRepositories`
+still ran `loadLatestRelationshipFacts`, which scans every repository's
+latest-generation `content`/`file`/`gcp_cloud_relationship` facts on every
+onboarding commit, ships them all to Go, and iterates them all through
+`DiscoverEvidence`. So onboarding-commit *time* still grew with fleet size.
+
+`loadOnboardedRepoScopedRelationshipFacts` replaces that load on the per-commit
+path. It runs `listOnboardedRepoScopedRelationshipFactRecordsQuery`, the
+latest-generation sibling of the full query, with an added predicate
+`lower(payload::text) LIKE ANY($1)`. The anchors come from
+`backfillRelationshipAnchorTerms`: `relationships.CatalogPayloadAnchors` over the
+newly onboarded repositories' catalog entries, plus the unconditional
+`argoCDOverSelectAnchors`. The full-rebuild path (`BackfillAllRelationshipEvidence`)
+still uses `loadLatestRelationshipFacts` because it must see the whole corpus.
+
+The predicate is a **provable superset** of the facts the in-memory
+`catalogMatcher` could match against the new-repo-scoped catalog. The matcher
+accepts an alias only when its tokens appear as a consecutive token subsequence
+of a candidate string, so every alias token a match needs is a substring of the
+lowercased candidate. Content/file payloads store candidate strings verbatim
+(file bodies are raw UTF-8 under `content`/`content_body`; `parsed_file_data` is
+nested JSON whose `/`, `.`, and `-` survive escaping), and gcp facts store the
+resource names verbatim, so every needed token is a substring of
+`lower(payload::text)`. Two correctness carve-outs:
+
+- **Private Terraform registry modules.** For a catalog alias
+  `terraform-modules-<provider>` the matcher resolves via
+  `privateTerraformRegistryProvider`, where only the `<provider>` path segment
+  appears in the payload, never the full alias. `CatalogPayloadAnchors` therefore
+  also emits the captured `<provider>` suffix as an anchor.
+- **ArgoCD ApplicationSet template synthesis.** `discoverArgoCDDocumentEvidence`
+  renders candidate repoURLs by substituting template parameters harvested from a
+  *different* config repository's content and from `normalizePlatformToken`'d path
+  basenames, so the matched token need not appear in the ArgoCD fact's own
+  payload. ArgoCD-shaped facts are over-selected unconditionally via
+  `argoCDOverSelectAnchors` (`kind: Application`, `kind: ApplicationSet`,
+  `argocd_applications`, `argocd_applicationsets`, `"artifact_type":"argocd"`).
+
+Over-selection is safe; under-selection would drop correlation truth. Accuracy is
+pinned by `TestCatalogPayloadAnchorsSelectsEveryExtractorFamily` (one matching
+fact per extractor family, including the private-registry module and the
+ApplicationSet, is selected) and the central
+`TestScopedFactLoadEqualsFullLoadForScopedCatalog` gate (discovery over the
+anchor-scoped load equals discovery over the full corpus, edge-for-edge, on a
+mixed corpus that genuinely excludes non-matching facts).
+
+Benchmark Evidence: `BenchmarkBackfillDiscoveryFullFleet{1k,5k}` vs
+`BenchmarkBackfillDiscoveryScopedFleet{1k,5k}` in
+`go/internal/relationships/catalog_anchor_bench_test.go` on Apple M5 Max
+(`go test ./internal/relationships -run '^$' -bench BenchmarkBackfillDiscovery
+-benchmem`, one source fact per fleet repo, fixed one-repo onboarding delta).
+Per-commit discovery cost for the full-load path is `7930898 ns/op`
+(`784070 B/op`, `12972 allocs/op`) at a 1000-repo fleet and `38288156 ns/op`
+(`3721535 B/op`, `65002 allocs/op`) at 5000 repos — linear in fleet size. The
+content-scoped path is `14093 ns/op` (`3537 B/op`, `48 allocs/op`) at 1000 repos
+and `13914 ns/op` (`3545 B/op`, `48 allocs/op`) at 5000 repos — flat. Per-commit
+backfill time and memory now scale with the onboarding delta, not the fleet.
+
+No-Observability-Change: the per-commit backfill emits no new metric, span, or
+log shape; the existing `relationship_backfill` commit-stage timing and the
+evidence-persist rows still surface the path, now reading a bounded fact set.

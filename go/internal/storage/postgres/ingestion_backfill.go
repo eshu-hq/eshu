@@ -426,9 +426,28 @@ func backfillRelationshipEvidenceForNewRepositories(
 	if err != nil {
 		return fmt.Errorf("reload repository catalog for relationship backfill: %w", err)
 	}
-	activeFacts, err := loadLatestRelationshipFacts(ctx, queryer)
+
+	// Derive payload anchors from only the newly onboarded repositories' catalog
+	// aliases (issue #3570) and load just the latest-generation content, file, and
+	// gcp_cloud_relationship facts whose payload could reference one of them, plus
+	// the always-loaded ArgoCD-shaped facts. This replaces the O(all-repos)
+	// full-corpus fact load: the prior loadLatestRelationshipFacts shipped every
+	// repository's facts on every onboarding commit even though the scoped catalog
+	// could only match the onboarding delta. The anchor predicate is a provable
+	// superset of the facts DiscoverEvidence could match against newRepoCatalog, so
+	// no evidence is dropped. If no anchors exist (the new repos have no usable
+	// aliases) no fact can match, so the backfill short-circuits.
+	newRepoCatalog := repositoryScopedCatalog(refreshedCatalog, newRepoIDs)
+	anchors := backfillRelationshipAnchorTerms(newRepoCatalog)
+	if len(anchors) == 0 {
+		return nil
+	}
+	activeFacts, err := loadOnboardedRepoScopedRelationshipFacts(ctx, queryer, anchors)
 	if err != nil {
-		return fmt.Errorf("load latest facts for relationship backfill: %w", err)
+		return fmt.Errorf("load anchor-scoped facts for relationship backfill: %w", err)
+	}
+	if len(activeFacts) == 0 {
+		return nil
 	}
 
 	// Scope the catalog matcher to only the repositories this generation

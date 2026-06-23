@@ -159,6 +159,12 @@ overridable place instead of scattered literals.
   source-match-then-target-match ordering as evidence discovery; lets the
   scope-bounded per-commit backfill (issue #3500) learn which already-onboarded
   source repos a new-target GCP edge needs in its catalog (`gcp_evidence.go`)
+- `CatalogPayloadAnchors(catalog)` — derive the lowercase payload-substring
+  anchors (longest alias token plus the captured `<provider>` suffix for
+  `terraform-modules?-*` aliases) that a content-scoped SQL fact load must test so
+  its result is a provable superset of the facts the matcher could match against
+  the same catalog; drives the per-commit backfill's narrowed fact load
+  (issue #3570) (`catalog_anchor.go`)
 - `ResolvedRelationshipID(generationID, r, ordinal)` — build the durable
   Postgres identity for a resolved relationship (`models.go:163`)
 - `RegisterSchemaDrivenTerraformExtractors(schemaDir)` — bootstrap schema-
