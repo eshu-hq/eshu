@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -82,12 +83,13 @@ func TestBoundReducerGraphWritesSharesOnePoolAcrossBaseExecutor(t *testing.T) {
 	const callers = 16
 
 	probe := &poolProbeExecutor{release: make(chan struct{})}
-	bounded := boundReducerGraphWrites(probe, func(name string) string {
+	gate := newReducerGraphWriteGate(func(name string) string {
 		if name == graphbackpressure.MaxInFlightEnv {
 			return "2"
 		}
 		return ""
 	}, nil)
+	bounded := gate.boundExecutor(probe)
 
 	var wg sync.WaitGroup
 	for i := 0; i < callers; i++ {
@@ -110,20 +112,200 @@ func TestBoundReducerGraphWritesSharesOnePoolAcrossBaseExecutor(t *testing.T) {
 	}
 }
 
-// TestBoundReducerGraphWritesDisabledIsPassthrough proves a non-positive
-// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT leaves the base executor unchanged, so the
-// helper is a safe no-op and preserves the GroupExecutor interface.
-func TestBoundReducerGraphWritesDisabledIsPassthrough(t *testing.T) {
+// TestReducerGraphWriteGateSharesOnePoolAcrossExecutorAndMaterializer is the
+// regression for issue #3652 P2: the Executor path and the materializer
+// CypherExecutor path MUST draw from the SAME shared permit pool. Before the
+// fix only the Executor was wrapped, so workload/infrastructure-platform
+// materializer writes bypassed the bound entirely. This test saturates the pool
+// with materializer writes and proves an Executor write is then gated too (and
+// vice versa), so the combined in-flight count never exceeds the ceiling.
+func TestReducerGraphWriteGateSharesOnePoolAcrossExecutorAndMaterializer(t *testing.T) {
+	t.Parallel()
+
+	const maxInFlight = 2
+
+	probe := &poolProbeExecutor{release: make(chan struct{})}
+	gate := newReducerGraphWriteGate(func(name string) string {
+		if name == graphbackpressure.MaxInFlightEnv {
+			return "2"
+		}
+		return ""
+	}, nil)
+	boundedExec := gate.boundExecutor(probe)
+	boundedMat := gate.boundCypherExecutor(cypherExecutorAdapter{probe})
+
+	var wg sync.WaitGroup
+	// Mix Executor and materializer callers against one pool.
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = boundedExec.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = boundedMat.ExecuteCypher(context.Background(), "RETURN 1", nil)
+		}()
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && probe.peakConcurrency() < maxInFlight {
+		time.Sleep(time.Millisecond)
+	}
+	close(probe.release)
+	wg.Wait()
+
+	if peak := probe.peakConcurrency(); peak > maxInFlight {
+		t.Fatalf("peak concurrent writes across Executor+materializer = %d, want <= %d (paths not sharing one pool)", peak, maxInFlight)
+	}
+}
+
+// TestReducerGraphWriteGateDisabledIsPassthrough proves a non-positive
+// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT leaves both the Executor and the materializer
+// path unchanged, so the gate is a safe no-op and preserves the GroupExecutor
+// interface on the Executor path.
+func TestReducerGraphWriteGateDisabledIsPassthrough(t *testing.T) {
 	t.Parallel()
 
 	probe := &poolProbeExecutor{}
-	bounded := boundReducerGraphWrites(probe, func(string) string { return "" }, nil)
+	gate := newReducerGraphWriteGate(func(string) string { return "" }, nil)
 
+	bounded := gate.boundExecutor(probe)
 	if bounded != sourcecypher.Executor(probe) {
-		t.Fatalf("boundReducerGraphWrites disabled = %T, want inner unchanged", bounded)
+		t.Fatalf("disabled gate boundExecutor = %T, want inner unchanged", bounded)
 	}
 	if _, ok := bounded.(sourcecypher.GroupExecutor); !ok {
 		t.Fatal("disabled bound dropped GroupExecutor, want interface preserved")
+	}
+
+	mat := cypherExecutorAdapter{probe}
+	if got := gate.boundCypherExecutor(mat); got != reducer.CypherExecutor(mat) {
+		t.Fatalf("disabled gate boundCypherExecutor = %T, want inner unchanged", got)
+	}
+}
+
+// cypherExecutorAdapter adapts a poolProbeExecutor to reducer.CypherExecutor so
+// one probe can record peak concurrency across both the Executor and the
+// materializer paths sharing a gate.
+type cypherExecutorAdapter struct {
+	probe *poolProbeExecutor
+}
+
+func (a cypherExecutorAdapter) ExecuteCypher(ctx context.Context, _ string, _ map[string]any) error {
+	return a.probe.block(ctx)
+}
+
+// deadlineProbeExecutor records the context deadline budget it observes on entry
+// so a test can prove whether permit-wait time was charged against a downstream
+// write timeout. It always completes immediately (no blocking).
+type deadlineProbeExecutor struct {
+	gotDeadline chan time.Duration
+}
+
+func (e *deadlineProbeExecutor) Execute(ctx context.Context, _ sourcecypher.Statement) error {
+	if dl, ok := ctx.Deadline(); ok {
+		select {
+		case e.gotDeadline <- time.Until(dl):
+		default:
+		}
+	}
+	return nil
+}
+
+// permitHolderExecutor blocks until release is closed and signals when it has
+// entered, so a test can pin the shared permit without being subject to any
+// downstream write timeout.
+type permitHolderExecutor struct {
+	release chan struct{}
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (e *permitHolderExecutor) Execute(ctx context.Context, _ sourcecypher.Statement) error {
+	e.once.Do(func() { close(e.entered) })
+	select {
+	case <-e.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// TestSemanticPathPermitWaitIsOutsideWriteTimeout is the regression for issue
+// #3652 P1: the shared permit MUST be acquired OUTSIDE the per-statement
+// TimeoutExecutor (ESHU_CANONICAL_WRITE_TIMEOUT). Otherwise a queued semantic
+// write that waits for a saturated pool burns its write-timeout budget while
+// waiting and fails as graph_write_timeout before reaching the backend —
+// reintroducing the dead-letter flood backpressure exists to prevent.
+//
+// The test shares ONE gate across two paths: a holder path (no timeout) pins the
+// single permit, and the semantic path (gate.boundExecutor wrapping a
+// TimeoutExecutor, exactly as buildReducerService composes it) queues a write
+// behind it. The queued write waits far longer than the write timeout for the
+// permit; with the permit OUTSIDE the timeout, its timeout clock only starts
+// after it acquires the permit, so the backend sees a full, unexpired deadline
+// and the write succeeds rather than timing out.
+func TestSemanticPathPermitWaitIsOutsideWriteTimeout(t *testing.T) {
+	t.Parallel()
+
+	const writeTimeout = 40 * time.Millisecond
+
+	gate := newReducerGraphWriteGate(func(name string) string {
+		if name == graphbackpressure.MaxInFlightEnv {
+			return "1"
+		}
+		return ""
+	}, nil)
+
+	// Holder path: no timeout, just the shared permit. It pins the only permit.
+	holder := &permitHolderExecutor{release: make(chan struct{}), entered: make(chan struct{})}
+	holderBound := gate.boundExecutor(holder)
+
+	// Semantic path: TimeoutExecutor inside, permit gate outermost — the exact
+	// layering buildReducerService now uses.
+	backend := &deadlineProbeExecutor{gotDeadline: make(chan time.Duration, 4)}
+	semanticBound := gate.boundExecutor(sourcecypher.TimeoutExecutor{Inner: backend, Timeout: writeTimeout})
+
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		_ = holderBound.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
+	}()
+	<-holder.entered // holder owns the only permit
+
+	// Queue the semantic write; it must block waiting for the permit.
+	queuedErr := make(chan error, 1)
+	go func() {
+		queuedErr <- semanticBound.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
+	}()
+
+	// Park the queued caller on the permit far longer than the write timeout. If
+	// the permit were inside the timeout, the queued write would already have
+	// failed as graph_write_timeout by now.
+	time.Sleep(3 * writeTimeout)
+
+	// Release the holder so the queued write acquires the permit and runs with a
+	// fresh timeout budget.
+	close(holder.release)
+	<-holderDone
+
+	select {
+	case budget := <-backend.gotDeadline:
+		if budget < writeTimeout/2 {
+			t.Fatalf("queued write deadline budget = %v, want ~%v (permit-wait leaked into the write timeout)", budget, writeTimeout)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("queued write never reached the backend")
+	}
+
+	select {
+	case err := <-queuedErr:
+		if err != nil {
+			t.Fatalf("queued write error = %v, want nil (a saturated pool must delay, not time out, a queued write)", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("queued write did not complete")
 	}
 }
 

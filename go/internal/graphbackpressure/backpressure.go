@@ -93,12 +93,43 @@ func Wrap(inner cypher.Executor, maxInFlight int, instruments *telemetry.Instrum
 	if maxInFlight <= 0 {
 		return inner
 	}
-	bp := cypher.NewBackpressureExecutor(inner, maxInFlight, NewObserver(instruments))
-	// Only expose GroupExecutor if the inner executor supports it. When inner is
-	// ExecuteOnlyExecutor (ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false), the
-	// wrapper must not advertise ExecuteGroup or callers that type-assert
-	// GroupExecutor will hit errInnerNoExecuteGroup instead of falling through to
-	// sequential execution.
+	return WrapExecutorWithGate(inner, NewGate(maxInFlight, instruments))
+}
+
+// NewGate builds a shared backpressure permit pool bounded to maxInFlight,
+// wired to the telemetry observer. Share one gate across every wrapper that must
+// draw from the same pool — the single-statement Executor path, the grouped
+// path, and the reducer.CypherExecutor materializer path — so the
+// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT ceiling bounds every reducer graph write as one
+// pool rather than per-wrapper sub-pools (#3652).
+//
+// A non-positive maxInFlight returns nil so callers can treat a disabled bound
+// as a passthrough: WrapExecutorWithGate and WrapCypherExecutorWithGate return
+// their inner executor unchanged when the gate is nil.
+func NewGate(maxInFlight int, instruments *telemetry.Instruments) *cypher.BackpressureGate {
+	if maxInFlight <= 0 {
+		return nil
+	}
+	return cypher.NewBackpressureGate(maxInFlight, NewObserver(instruments))
+}
+
+// WrapExecutorWithGate wraps inner so it draws from the shared gate's permit
+// pool. The wrapper acquires a permit, then delegates to inner, so it must be
+// composed as the OUTERMOST layer of a write path: a permit then covers the
+// whole inner attempt (timeout, retry, backend write). Composing it inside a
+// TimeoutExecutor would charge permit-wait time against that timeout, turning a
+// saturated pool into spurious graph_write_timeout dead letters (#3652 P1).
+//
+// A nil gate returns inner unchanged (passthrough), preserving any interface it
+// exposes. When the gate is set but inner does not implement GroupExecutor (the
+// ExecuteOnlyExecutor path), the returned value intentionally does not expose
+// ExecuteGroup so callers that type-assert GroupExecutor fall through to
+// sequential execution instead of hitting errInnerNoExecuteGroup.
+func WrapExecutorWithGate(inner cypher.Executor, gate *cypher.BackpressureGate) cypher.Executor {
+	if gate == nil {
+		return inner
+	}
+	bp := cypher.NewBackpressureExecutorWithGate(inner, gate)
 	if _, ok := inner.(cypher.GroupExecutor); ok {
 		return bp // full interface: Executor + GroupExecutor
 	}

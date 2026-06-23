@@ -165,6 +165,21 @@ func TestBackpressureExecutorZeroBoundIsPassthrough(t *testing.T) {
 	}
 }
 
+func TestBackpressureExecutorNilGateReportsDisabled(t *testing.T) {
+	probe := &concurrencyProbeExecutor{}
+	exec := NewBackpressureExecutorWithGate(probe, nil)
+
+	if got := exec.MaxInFlight(); got != 0 {
+		t.Fatalf("MaxInFlight() = %d, want 0 for nil gate", got)
+	}
+	if got := exec.InFlight(); got != 0 {
+		t.Fatalf("InFlight() = %d, want 0 for nil gate", got)
+	}
+	if err := exec.Execute(context.Background(), Statement{Cypher: "RETURN 1"}); err != nil {
+		t.Fatalf("Execute() with nil gate returned error: %v", err)
+	}
+}
+
 // TestBackpressureExecutorGroupRespectsBound proves grouped writes share the
 // same permit pool as single-statement writes; otherwise a busy ExecuteGroup
 // path could bypass the in-flight ceiling.
