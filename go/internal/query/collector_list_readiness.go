@@ -130,9 +130,13 @@ func attachCollectorListReadiness(
 	body["collector_readiness"] = envelope
 }
 
-// collectorListReadiness runs the configured probe for kind and builds the
-// readiness envelope for a page of resultsReturned rows. A nil store yields no
-// envelope (the optional readiness field stays unset); a probe error yields the
+// collectorListReadiness builds the readiness envelope for a page of
+// resultsReturned rows. A nil store yields no envelope (the optional readiness
+// field stays unset). A non-empty page is classified ready_with_results without
+// consulting the probe: returned rows are themselves proof the collector ran, so
+// a stale or failing probe must never downgrade an already-evidenced page. The
+// configured probe is consulted only for an empty page, where it disambiguates
+// not_configured from ready_zero_results; a probe error there yields the
 // readiness_unavailable envelope so the page is never dropped. The boolean
 // reports whether an envelope was produced.
 func collectorListReadiness(
@@ -144,6 +148,11 @@ func collectorListReadiness(
 ) (CollectorListReadinessEnvelope, bool) {
 	if store == nil {
 		return CollectorListReadinessEnvelope{}, false
+	}
+	if resultsReturned > 0 {
+		// Rows prove the collector ran; skip the probe entirely so a probe
+		// failure cannot mask a demonstrably-working collector.
+		return BuildCollectorListReadiness(kind, resultsReturned, truncated, true), true
 	}
 	configured, err := store.CollectorConfigured(ctx, kind)
 	if err != nil {
