@@ -330,6 +330,75 @@ func TestScopedFactLoadEqualsFullLoadForScopedCatalog(t *testing.T) {
 	}
 }
 
+// TestCorpusWideAnchorScopedLoadEqualsFullLoad is the issue #3569 accuracy gate:
+// the corpus-wide deferred backfill scopes its source-fact DB load to the
+// content-anchor predicate derived from the FULL catalog (every repository is an
+// eligible target), then discovers evidence over the loaded facts against that
+// same full catalog. The result must equal discovering over the entire fact
+// corpus against the full catalog. The fixture corpus mixes every extractor
+// family's matching fact with noise facts that reference no catalog repo, so the
+// anchor predicate genuinely drops facts while preserving all evidence.
+func TestCorpusWideAnchorScopedLoadEqualsFullLoad(t *testing.T) {
+	t.Parallel()
+
+	fixtures := allExtractorSupersetFixtures()
+
+	var fullCorpus []facts.Envelope
+	var fullCatalog []CatalogEntry
+	for _, fixture := range fixtures {
+		fullCorpus = append(fullCorpus, fixture.envelope)
+		fullCatalog = append(fullCatalog, fixture.catalog)
+	}
+
+	// Noise facts reference repositories absent from the catalog, so the anchor
+	// predicate has facts to legitimately exclude.
+	noise := []facts.Envelope{
+		{
+			ScopeID: "repo:noise-a",
+			Payload: map[string]any{
+				"artifact_type": "terraform",
+				"relative_path": "main.tf",
+				"content":       `app_repo = "absent-service-alpha"`,
+			},
+		},
+		{
+			ScopeID: "repo:noise-b",
+			Payload: map[string]any{
+				"artifact_type": "helm",
+				"relative_path": "values.yaml",
+				"content":       "image:\n  repository: absent-service-beta\n",
+			},
+		},
+	}
+	fullCorpus = append(fullCorpus, noise...)
+
+	// Anchors are derived from the WHOLE catalog, mirroring the deferred backfill
+	// (no new-repo scoping: every repository is an eligible target).
+	anchors := backfillRelationshipAnchorTermsSim(fullCatalog)
+
+	var scopedLoad []facts.Envelope
+	for _, envelope := range fullCorpus {
+		if payloadMatchesAnchorsSim(t, envelope, anchors) {
+			scopedLoad = append(scopedLoad, envelope)
+		}
+	}
+
+	if len(scopedLoad) >= len(fullCorpus) {
+		t.Fatalf("corpus-wide scoped load (%d) did not exclude any noise from the full corpus (%d)", len(scopedLoad), len(fullCorpus))
+	}
+
+	fullEvidence := DedupeEvidenceFacts(DiscoverEvidence(fullCorpus, fullCatalog))
+	scopedEvidence := DedupeEvidenceFacts(DiscoverEvidence(scopedLoad, fullCatalog))
+
+	if !reflect.DeepEqual(canonicalEvidence(fullEvidence), canonicalEvidence(scopedEvidence)) {
+		t.Fatalf("corpus-wide scoped evidence != full evidence\nfull:   %v\nscoped: %v",
+			canonicalEvidence(fullEvidence), canonicalEvidence(scopedEvidence))
+	}
+	if len(fullEvidence) == 0 {
+		t.Fatal("expected non-empty evidence from the mixed corpus")
+	}
+}
+
 // backfillRelationshipAnchorTermsSim mirrors the postgres-package
 // backfillRelationshipAnchorTerms: alias-derived anchors plus the ArgoCD markers.
 func backfillRelationshipAnchorTermsSim(catalog []CatalogEntry) []string {
