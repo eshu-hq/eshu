@@ -9,11 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 const (
 	deployableUnitCorrelationEvidenceSource   = "reducer/deployable-unit-correlation"
-	deployableUnitCorrelationRelationshipType = "CORRELATES_DEPLOYABLE_UNIT"
+	deployableUnitCorrelationRelationshipType = string(edgetype.CorrelatesDeployableUnit)
 )
 
 func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(

@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // ExistingRepoDependencyEdge represents one existing DEPENDS_ON edge between repositories.
@@ -38,7 +40,7 @@ func BuildRepoDependencyIntentRows(
 		relationshipType := anyToString(row["relationship_type"])
 		partitionKey := ""
 		if repoID != "" && targetRepoID != "" {
-			if relationshipType != "" && relationshipType != "DEPENDS_ON" {
+			if relationshipType != "" && relationshipType != string(edgetype.DependsOn) {
 				partitionKey = fmt.Sprintf("repo:%s->%s|%s", repoID, targetRepoID, relationshipType)
 			} else {
 				partitionKey = fmt.Sprintf("repo:%s->%s", repoID, targetRepoID)
@@ -57,7 +59,7 @@ func BuildRepoDependencyIntentRows(
 	for _, edge := range existingRows {
 		partitionKey := ""
 		if edge.RepoID != "" && edge.TargetRepoID != "" {
-			if edge.RelationshipType != "" && edge.RelationshipType != "DEPENDS_ON" {
+			if edge.RelationshipType != "" && edge.RelationshipType != string(edgetype.DependsOn) {
 				partitionKey = fmt.Sprintf("repo:%s->%s|%s", edge.RepoID, edge.TargetRepoID, edge.RelationshipType)
 			} else {
 				partitionKey = fmt.Sprintf("repo:%s->%s", edge.RepoID, edge.TargetRepoID)

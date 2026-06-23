@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // EvidenceKind classifies the origin of one piece of relationship evidence.
@@ -82,21 +84,25 @@ const (
 // RelationshipType classifies the kind of link between two entities.
 type RelationshipType string
 
+// These resolution relationship types delegate to the central edge-type
+// registry so the resolver and the graph write/read paths share one source of
+// truth for each relationship-type string. The string values stay byte-identical
+// to the graph-wire contract.
 const (
 	// RelDeploysFrom indicates the source deploys artifacts from the target.
-	RelDeploysFrom RelationshipType = "DEPLOYS_FROM"
+	RelDeploysFrom RelationshipType = RelationshipType(edgetype.DeploysFrom)
 	// RelDiscoversConfigIn indicates the source discovers config in the target.
-	RelDiscoversConfigIn RelationshipType = "DISCOVERS_CONFIG_IN"
+	RelDiscoversConfigIn RelationshipType = RelationshipType(edgetype.DiscoversConfigIn)
 	// RelRunsOn indicates the source runs on the target platform.
-	RelRunsOn RelationshipType = "RUNS_ON"
+	RelRunsOn RelationshipType = RelationshipType(edgetype.RunsOn)
 	// RelProvisionsDependencyFor indicates the source provisions infra for the target.
-	RelProvisionsDependencyFor RelationshipType = "PROVISIONS_DEPENDENCY_FOR"
+	RelProvisionsDependencyFor RelationshipType = RelationshipType(edgetype.ProvisionsDependencyFor)
 	// RelDependsOn is a generic dependency relationship.
-	RelDependsOn RelationshipType = "DEPENDS_ON"
+	RelDependsOn RelationshipType = RelationshipType(edgetype.DependsOn)
 	// RelUsesModule indicates the source consumes a target module repository.
-	RelUsesModule RelationshipType = "USES_MODULE"
+	RelUsesModule RelationshipType = RelationshipType(edgetype.UsesModule)
 	// RelReadsConfigFrom indicates the source is granted read access to target config.
-	RelReadsConfigFrom RelationshipType = "READS_CONFIG_FROM"
+	RelReadsConfigFrom RelationshipType = RelationshipType(edgetype.ReadsConfigFrom)
 )
 
 // ResolutionSource classifies how a resolved relationship was determined.

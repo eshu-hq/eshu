@@ -1,5 +1,7 @@
 package cypher
 
+import "github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+
 // CanonicalRepoRelationshipParams holds the parameters for a typed repository
 // relationship upsert.
 type CanonicalRepoRelationshipParams struct {
@@ -309,15 +311,15 @@ func repoRelationshipConfidence(value float64) float64 {
 
 func canonicalTypedRepoRelationshipUpsertCypher(relationshipType string) string {
 	switch relationshipType {
-	case "DEPLOYS_FROM":
+	case string(edgetype.DeploysFrom):
 		return canonicalDeploysFromRepoRelationshipUpsertCypher
-	case "DISCOVERS_CONFIG_IN":
+	case string(edgetype.DiscoversConfigIn):
 		return canonicalDiscoversConfigInRepoRelationshipUpsertCypher
-	case "PROVISIONS_DEPENDENCY_FOR":
+	case string(edgetype.ProvisionsDependencyFor):
 		return canonicalProvisionsDependencyForRepoRelationshipUpsertCypher
-	case "USES_MODULE":
+	case string(edgetype.UsesModule):
 		return canonicalUsesModuleRepoRelationshipUpsertCypher
-	case "READS_CONFIG_FROM":
+	case string(edgetype.ReadsConfigFrom):
 		return canonicalReadsConfigFromRepoRelationshipUpsertCypher
 	default:
 		return canonicalRepoDependencyUpsertCypher
@@ -326,15 +328,15 @@ func canonicalTypedRepoRelationshipUpsertCypher(relationshipType string) string 
 
 func batchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType string) (string, bool) {
 	switch relationshipType {
-	case "DEPLOYS_FROM":
+	case string(edgetype.DeploysFrom):
 		return batchCanonicalDeploysFromRepoRelationshipUpsertCypher, true
-	case "DISCOVERS_CONFIG_IN":
+	case string(edgetype.DiscoversConfigIn):
 		return batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher, true
-	case "PROVISIONS_DEPENDENCY_FOR":
+	case string(edgetype.ProvisionsDependencyFor):
 		return batchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher, true
-	case "USES_MODULE":
+	case string(edgetype.UsesModule):
 		return batchCanonicalUsesModuleRepoRelationshipUpsertCypher, true
-	case "READS_CONFIG_FROM":
+	case string(edgetype.ReadsConfigFrom):
 		return batchCanonicalReadsConfigFromRepoRelationshipUpsertCypher, true
 	default:
 		return "", false

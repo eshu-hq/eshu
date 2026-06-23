@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // Closed relationship-type vocabulary for the SecurityGroup -> SecurityGroupRule
@@ -14,10 +15,10 @@ import (
 const (
 	// securityGroupAllowsIngressRelType is the static Cypher relationship type for
 	// an inbound rule edge.
-	securityGroupAllowsIngressRelType = "ALLOWS_INGRESS"
+	securityGroupAllowsIngressRelType = string(edgetype.AllowsIngress)
 	// securityGroupAllowsEgressRelType is the static Cypher relationship type for
 	// an outbound rule edge.
-	securityGroupAllowsEgressRelType = "ALLOWS_EGRESS"
+	securityGroupAllowsEgressRelType = string(edgetype.AllowsEgress)
 )
 
 // Closed target-label vocabulary for the SecurityGroupRule -[:TO]-> endpoint

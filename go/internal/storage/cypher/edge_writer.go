@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -293,7 +294,7 @@ func buildRowMap(
 		if repoID == "" {
 			return "", nil, false
 		}
-		if relationshipType == "RUNS_ON" {
+		if relationshipType == string(edgetype.RunsOn) {
 			platformID := payloadString(row.Payload, "platform_id")
 			if platformID == "" {
 				return "", nil, false
@@ -311,7 +312,7 @@ func buildRowMap(
 		if targetRepoID == "" {
 			return "", nil, false
 		}
-		if relationshipType == "" || relationshipType == "DEPENDS_ON" {
+		if relationshipType == "" || relationshipType == string(edgetype.DependsOn) {
 			rowMap := map[string]any{
 				"repo_id":         repoID,
 				"target_repo_id":  targetRepoID,
@@ -427,7 +428,7 @@ func buildDeployableUnitCorrelationRowMap(
 	}
 	relationshipType := payloadString(payload, "relationship_type")
 	if relationshipType == "" {
-		relationshipType = "CORRELATES_DEPLOYABLE_UNIT"
+		relationshipType = string(edgetype.CorrelatesDeployableUnit)
 	}
 	return batchCanonicalDeployableUnitCorrelationUpsertCypher, map[string]any{
 		"repo_id":             repoID,

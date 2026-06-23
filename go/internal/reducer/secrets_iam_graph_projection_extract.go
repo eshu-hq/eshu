@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 // SecretsIAMGraphEvidenceSource tags every reducer-owned Secrets/IAM graph node
@@ -14,11 +15,11 @@ const SecretsIAMGraphEvidenceSource = "reducer/secrets-iam-graph"
 // Static relationship tokens (ADR #1314 §6). Closed vocabulary; no value is ever
 // encoded into a relationship type.
 const (
-	secretsIAMRelUsesServiceAccount     = "SECRETS_IAM_USES_SERVICE_ACCOUNT"
-	secretsIAMRelAssumesIAMRole         = "SECRETS_IAM_ASSUMES_IAM_ROLE"
-	secretsIAMRelAuthenticatesVaultRole = "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE"
-	secretsIAMRelUsesVaultPolicy        = "SECRETS_IAM_USES_VAULT_POLICY"
-	secretsIAMRelGrantsSecretRead       = "SECRETS_IAM_GRANTS_SECRET_READ"
+	secretsIAMRelUsesServiceAccount     = string(edgetype.SecretsIamUsesServiceAccount)
+	secretsIAMRelAssumesIAMRole         = string(edgetype.SecretsIamAssumesIamRole)
+	secretsIAMRelAuthenticatesVaultRole = string(edgetype.SecretsIamAuthenticatesToVaultRole)
+	secretsIAMRelUsesVaultPolicy        = string(edgetype.SecretsIamUsesVaultPolicy)
+	secretsIAMRelGrantsSecretRead       = string(edgetype.SecretsIamGrantsSecretRead)
 )
 
 // Static node labels (ADR #1314 §5).

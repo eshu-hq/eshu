@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 )
 
 type workloadMaterializationReplayRequest struct {
@@ -159,7 +161,7 @@ func isRepoDependencyUpsertRow(row SharedProjectionIntentRow) bool {
 	if repoID == "" {
 		return false
 	}
-	if relationshipType := strings.TrimSpace(repoDependencyPayloadString(row, "relationship_type")); relationshipType == "RUNS_ON" {
+	if relationshipType := strings.TrimSpace(repoDependencyPayloadString(row, "relationship_type")); relationshipType == string(edgetype.RunsOn) {
 		return strings.TrimSpace(repoDependencyPayloadString(row, "platform_id")) != ""
 	}
 	return strings.TrimSpace(repoDependencyPayloadString(row, "target_repo_id")) != ""
