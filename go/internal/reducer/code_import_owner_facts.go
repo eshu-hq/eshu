@@ -6,18 +6,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// codeImportOwnershipFactKinds returns the cross-scope package-registry fact
-// kinds the code-import projection needs to resolve import coordinates to owning
-// repositories: package identity facts plus the persisted ownership and
-// publication correlation facts. The set is bounded by the active
-// package-registry generation, never the file corpus.
-func codeImportOwnershipFactKinds() []string {
-	return []string{
-		facts.PackageRegistryPackageFactKind,
-		packageOwnershipCorrelationFactKind,
-		packagePublicationCorrelationFactKind,
-	}
-}
+// The cross-scope fact kinds the code-import projection consumes
+// (package_registry.package, reducer_package_ownership_correlation,
+// reducer_package_publication_correlation) are selected by the Postgres
+// ListActivePackageOwnershipFacts query; the decoders below filter the returned
+// envelopes by kind so the Go and SQL sides stay in lockstep.
 
 // decodePackageOwnershipCorrelationDecisions rebuilds the exact/derived
 // ownership decisions from persisted reducer_package_ownership_correlation
