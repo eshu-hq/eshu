@@ -76,6 +76,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"budget_reason",
 		"stage",
 		"field_class",
+		"source_file_kind",
+		"bootstrap_phase",
 	}
 
 	got := MetricDimensionKeys()
@@ -242,6 +244,7 @@ func TestSpanNames(t *testing.T) {
 		"postgres.query",
 		"neo4j.execute",
 		"collector.snapshot_stage",
+		"bootstrap.collector_cycle",
 	}
 
 	got := SpanNames()

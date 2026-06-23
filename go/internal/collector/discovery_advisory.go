@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const discoveryAdvisorySchemaVersion = "discovery_advisory.v1"
@@ -62,10 +63,15 @@ type DiscoveryAdvisoryFile struct {
 	EntityTypes     map[string]int `json:"entity_types,omitempty"`
 }
 
-// DiscoveryAdvisoryEntityCount reports entity cardinality by type/language.
+// DiscoveryAdvisoryEntityCount reports entity cardinality by type/language and
+// source file kind. BySourceFileKind is keyed by the bounded telemetry
+// SourceFileKind* values (code, package_manifest, config, other) and lets
+// operators spot content_entity explosions from lockfiles or config files
+// without querying fact_records directly.
 type DiscoveryAdvisoryEntityCount struct {
-	ByType     map[string]int `json:"by_type,omitempty"`
-	ByLanguage map[string]int `json:"by_language,omitempty"`
+	ByType         map[string]int `json:"by_type,omitempty"`
+	ByLanguage     map[string]int `json:"by_language,omitempty"`
+	BySourceFileKind map[string]int `json:"by_source_file_kind,omitempty"`
 }
 
 // DiscoveryAdvisorySkipBreakdown mirrors discovery skip telemetry without
@@ -108,8 +114,9 @@ func buildDiscoveryAdvisoryReport(
 			SkippedFiles:      stats.TotalFilesSkipped(),
 		},
 		EntityCounts: DiscoveryAdvisoryEntityCount{
-			ByType:     map[string]int{},
-			ByLanguage: map[string]int{},
+			ByType:           map[string]int{},
+			ByLanguage:       map[string]int{},
+			BySourceFileKind: map[string]int{},
 		},
 		SkipBreakdown: DiscoveryAdvisorySkipBreakdown{
 			DirsByName:       cloneIntMap(stats.DirsSkippedByName),
@@ -137,6 +144,11 @@ func buildDiscoveryAdvisoryReport(
 		if entity.Language != "" {
 			report.EntityCounts.ByLanguage[entity.Language]++
 		}
+		// Track entities by bounded source file kind (code, package_manifest,
+		// config, other) so drainCollector can emit ContentEntityEmitted without
+		// scanning individual facts. This is the counter that would have surfaced
+		// the #3676 lockfile explosion instantly.
+		report.EntityCounts.BySourceFileKind[telemetry.ContentEntitySourceFileKind(entity.ArtifactType)]++
 
 		fileEntry := fileEntry(fileCounts, rel)
 		fileEntry.ContentEntities++

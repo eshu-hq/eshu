@@ -850,6 +850,18 @@ type Instruments struct {
 	// denormalized edges are stranded at the source.
 	CrossRepoActivationFenced metric.Int64Counter
 
+	// ContentEntityEmitted counts content_entity facts streamed during
+	// collection, broken down by source_file_kind (code, package_manifest,
+	// config, other). This is the single most valuable counter for surfacing
+	// lockfile/minified entity explosions without manual SQL.
+	ContentEntityEmitted metric.Int64Counter
+
+	// BootstrapPipelinePhaseDuration records the wall time of each named
+	// bootstrap pipeline phase (collection, projection, relationship_backfill,
+	// iac_reachability, config_state_drift) so operators can see the long
+	// pole in a full-corpus run from the metrics port without strace.
+	BootstrapPipelinePhaseDuration metric.Float64Histogram
+
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
 
@@ -3408,6 +3420,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CrossRepoActivationFenced counter: %w", err)
 	}
 
+	inst.ContentEntityEmitted, err = meter.Int64Counter(
+		"eshu_dp_content_entity_emitted_total",
+		metric.WithDescription("Total content_entity facts streamed during collection, broken down by source_file_kind (code, package_manifest, config, other). Use to detect lockfile or config entity explosions without manual SQL."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContentEntityEmitted counter: %w", err)
+	}
+
+	bootstrapPhaseBuckets := []float64{1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600}
+	inst.BootstrapPipelinePhaseDuration, err = meter.Float64Histogram(
+		"eshu_dp_bootstrap_pipeline_phase_seconds",
+		metric.WithDescription("Wall time of each named bootstrap pipeline phase (collection, projection, relationship_backfill, iac_reachability, config_state_drift). Use to find the long pole in a full-corpus run."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(bootstrapPhaseBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BootstrapPipelinePhaseDuration histogram: %w", err)
+	}
+
 	pipelineOverlapBuckets := []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}
 	inst.PipelineOverlapDuration, err = meter.Float64Histogram(
 		"eshu_dp_pipeline_overlap_seconds",
@@ -3968,6 +3999,93 @@ func AttrResourceScope(v string) attribute.KeyValue {
 // AttrFactKind returns a fact_kind attribute for metric recording.
 func AttrFactKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionFactKind, v)
+}
+
+// Bounded source_file_kind values for ContentEntityEmitted. Producers MUST
+// use exactly these constants; the metric must stay low-cardinality.
+const (
+	// SourceFileKindCode represents an ordinary source file parsed by the
+	// language engine (no artifact_type set by the parser).
+	SourceFileKindCode = "code"
+	// SourceFileKindPackageManifest represents a dependency manifest or
+	// lockfile (go.mod, package-lock.json, Cargo.lock, pyproject.toml, etc.).
+	// Parser sets artifact_type to a manifest or lockfile token.
+	SourceFileKindPackageManifest = "package_manifest"
+	// SourceFileKindConfig represents an infra or config artifact (Dockerfile,
+	// Terraform, Helm, ArgoCD, docker-compose, etc.). Parser sets
+	// artifact_type to a config family token.
+	SourceFileKindConfig = "config"
+	// SourceFileKindOther represents any other artifact_type value returned
+	// by the parser that does not map to code, manifest, or config.
+	SourceFileKindOther = "other"
+)
+
+// ContentEntitySourceFileKind maps a parser artifact_type string to one of
+// the bounded SourceFileKind* constants so the content_entity_emitted_total
+// metric stays low-cardinality. An empty artifact_type means ordinary source
+// code. Callers MUST use this function rather than passing artifact_type
+// directly as a metric label.
+func ContentEntitySourceFileKind(artifactType string) string {
+	if artifactType == "" {
+		return SourceFileKindCode
+	}
+	switch artifactType {
+	// Dependency manifests and lockfiles. The list covers the values emitted
+	// by the Go, Node, Python, Rust, JVM, and other package parsers.
+	case "package_manifest", "go_module", "go_sum", "npm_lockfile",
+		"yarn_lockfile", "pnpm_lockfile", "cargo_manifest", "cargo_lockfile",
+		"pyproject", "requirements", "pip_lockfile", "pipfile", "pipfile_lock",
+		"maven_pom", "gradle_build", "nuget", "nuget_lock",
+		"composer", "composer_lock", "mix_lock", "hex_manifest",
+		"pubspec", "pubspec_lock", "swift_package", "swift_package_resolved":
+		return SourceFileKindPackageManifest
+	// Config and infra artifacts. Covers Terraform, Dockerfile, Helm,
+	// ArgoCD, docker-compose, and generic config families.
+	case "config", "generic_config", "generic_config_template",
+		"dockerfile", "docker_compose",
+		"terraform", "terraform_template_text",
+		"helm_chart", "argocd", "kustomize",
+		"nginx_config", "nginx_config_template",
+		"apache_config", "apache_config_template",
+		"ansible", "ansible_playbook", "ansible_role",
+		"yaml_template", "github_actions_workflow",
+		"cloudformation_serverless", "cloudformation":
+		return SourceFileKindConfig
+	default:
+		return SourceFileKindOther
+	}
+}
+
+// AttrSourceFileKind returns a source_file_kind attribute for metric
+// recording. The value MUST be a SourceFileKind* constant.
+func AttrSourceFileKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionSourceFileKind, v)
+}
+
+// Bounded bootstrap_phase values for BootstrapPipelinePhaseDuration. Producers
+// MUST use exactly these constants.
+const (
+	// BootstrapPhaseCollection is the concurrent collector + fact-emission
+	// phase (drainCollector).
+	BootstrapPhaseCollection = "collection"
+	// BootstrapPhaseProjection is the source-local projector drain phase
+	// (drainProjectorPipelined).
+	BootstrapPhaseProjection = "projection"
+	// BootstrapPhaseRelationshipBackfill is the deferred relationship
+	// evidence backfill phase (BackfillAllRelationshipEvidence).
+	BootstrapPhaseRelationshipBackfill = "relationship_backfill"
+	// BootstrapPhaseIaCReachability is the IaC reachability materialization
+	// phase (MaterializeIaCReachability).
+	BootstrapPhaseIaCReachability = "iac_reachability"
+	// BootstrapPhaseConfigStateDrift is the config-state drift intent
+	// enqueue phase (EnqueueConfigStateDriftIntents).
+	BootstrapPhaseConfigStateDrift = "config_state_drift"
+)
+
+// AttrBootstrapPhase returns a bootstrap_phase attribute for metric recording.
+// The value MUST be a BootstrapPhase* constant.
+func AttrBootstrapPhase(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionBootstrapPhase, v)
 }
 
 // AttrStatusClass returns a status_class attribute for metric recording.

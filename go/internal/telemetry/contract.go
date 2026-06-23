@@ -90,7 +90,22 @@ const (
 	// request paths with identifiers are never used.
 	MetricDimensionRoute        = "route"
 	MetricDimensionFailureClass = "failure_class"
-	MetricDimensionFactKind     = "fact_kind"
+	MetricDimensionFactKind = "fact_kind"
+	// MetricDimensionSourceFileKind labels content-entity emission counters with
+	// a bounded classification of the originating source file:
+	//   "code"             — ordinary source file parsed by the language engine
+	//   "package_manifest" — dependency manifest or lockfile (go.mod, package-lock.json, Cargo.lock, etc.)
+	//   "config"           — infra / config artifact (Dockerfile, Terraform, Helm, etc.)
+	//   "other"            — any other artifact type returned by the parser
+	//
+	// This dimension lets operators distinguish a content_entity explosion caused
+	// by a lockfile parser from normal code-entity growth without manual SQL.
+	// Cardinality is bounded: producers MUST use the SourceFileKind* constants.
+	MetricDimensionSourceFileKind = "source_file_kind"
+	// MetricDimensionBootstrapPhase labels bootstrap pipeline phase duration
+	// histograms with a bounded phase name from the BootstrapPhase* set.
+	// Producers MUST use those constants; raw stage strings are not allowed.
+	MetricDimensionBootstrapPhase = "bootstrap_phase"
 	// MetricDimensionResourceScope labels Kubernetes live collection metrics
 	// with a bounded resource scope such as namespaces, pods, deployments, or
 	// services. It is a closed enum of resource families, never namespace or
