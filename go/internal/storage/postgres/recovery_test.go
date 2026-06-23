@@ -212,28 +212,8 @@ func TestRecoveryStoreReplayFailedWorkItemsByScopeAndClassFilter(t *testing.T) {
 	}
 }
 
-func TestRecoveryStoreReplayFailedWorkItemsWithLimit(t *testing.T) {
-	t.Parallel()
-
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"item-1"}, {"item-2"}, {"item-3"}, {"item-4"}}},
-		},
-	}
-
-	store := NewRecoveryStore(db)
-	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
-	result, err := store.ReplayFailedWorkItems(context.Background(), recovery.ReplayFilter{
-		Stage: recovery.StageProjector,
-		Limit: 2,
-	}, now)
-	if err != nil {
-		t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
-	}
-	if got, want := result.Replayed, 2; got != want {
-		t.Fatalf("result.Replayed = %d, want %d (limit should cap)", got, want)
-	}
-}
+// Bounded-limit replay behavior (the #3652 P3 drain cap) lives in
+// recovery_replay_limit_test.go.
 
 func TestRecoveryStoreReplayFailedWorkItemsReturnsEmptyOnNoMatches(t *testing.T) {
 	t.Parallel()

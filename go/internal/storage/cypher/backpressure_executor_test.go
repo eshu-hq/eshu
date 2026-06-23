@@ -165,6 +165,21 @@ func TestBackpressureExecutorZeroBoundIsPassthrough(t *testing.T) {
 	}
 }
 
+func TestBackpressureExecutorNilGateReportsDisabled(t *testing.T) {
+	probe := &concurrencyProbeExecutor{}
+	exec := NewBackpressureExecutorWithGate(probe, nil)
+
+	if got := exec.MaxInFlight(); got != 0 {
+		t.Fatalf("MaxInFlight() = %d, want 0 for nil gate", got)
+	}
+	if got := exec.InFlight(); got != 0 {
+		t.Fatalf("InFlight() = %d, want 0 for nil gate", got)
+	}
+	if err := exec.Execute(context.Background(), Statement{Cypher: "RETURN 1"}); err != nil {
+		t.Fatalf("Execute() with nil gate returned error: %v", err)
+	}
+}
+
 // TestBackpressureExecutorGroupRespectsBound proves grouped writes share the
 // same permit pool as single-statement writes; otherwise a busy ExecuteGroup
 // path could bypass the in-flight ceiling.
@@ -196,6 +211,30 @@ func TestBackpressureExecutorGroupRespectsBound(t *testing.T) {
 
 	if peak := probe.peakConcurrency(); peak > maxInFlight {
 		t.Fatalf("peak concurrent grouped writes = %d, want <= %d", peak, maxInFlight)
+	}
+}
+
+// TestBackpressureExecutorWithExecuteOnlyInnerDoesNotExposeGroup is the
+// regression for the P1 fix: when the inner executor is ExecuteOnlyExecutor,
+// the backpressure wrapper must not expose ExecuteGroup, so a caller that
+// type-asserts GroupExecutor falls through to sequential execution instead of
+// getting errInnerNoExecuteGroup.
+func TestBackpressureExecutorWithExecuteOnlyInnerDoesNotExposeGroup(t *testing.T) {
+	t.Parallel()
+
+	inner := ExecuteOnlyExecutor{Inner: &concurrencyProbeExecutor{}}
+	exec := NewBackpressureExecutor(inner, 4, nil)
+
+	// The wrapper itself DOES expose ExecuteGroup (it always has the method).
+	// The fix is in graphbackpressure.Wrap: it must return ExecuteOnlyBackpressureExecutor
+	// when inner lacks GroupExecutor, so type assertions see no ExecuteGroup.
+	wrapped := ExecuteOnlyBackpressureExecutor(exec)
+	if _, ok := wrapped.(GroupExecutor); ok {
+		t.Fatal("ExecuteOnlyBackpressureExecutor exposes GroupExecutor, want no GroupExecutor so sequential fallback works")
+	}
+	// Execute must still work through the wrapper.
+	if err := wrapped.Execute(context.Background(), Statement{Cypher: "RETURN 1"}); err != nil {
+		t.Fatalf("Execute() error = %v, want nil", err)
 	}
 }
 

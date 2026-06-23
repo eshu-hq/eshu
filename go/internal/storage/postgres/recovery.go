@@ -37,6 +37,47 @@ WITH replayed AS (
 SELECT work_item_id FROM replayed ORDER BY work_item_id
 `
 
+// replayFailedWorkItemsBoundedTemplate is the limited replay variant for the
+// dead-letter backlog drain (#3560, #3652 P3). It mutates at most $2 terminal
+// rows by selecting their primary keys in a bounded subquery first, so a
+// Limit=100 drain against thousands of retry_exhausted rows replays exactly 100
+// rows instead of resetting every matching row to pending and recreating the
+// write surge the drain exists to avoid.
+//
+// FOR UPDATE SKIP LOCKED locks only the chosen rows and skips rows another
+// concurrent drain already holds, so two drains never fight over the same rows
+// and the bound stays a true cap under concurrent execution rather than a
+// serialization point. ORDER BY work_item_id makes the selected set
+// deterministic across calls so repeated bounded drains make forward progress.
+//
+// The %s is the shared replay predicate. $1 is the replay timestamp; $2 is the
+// row limit; the predicate placeholders start at $3.
+const replayFailedWorkItemsBoundedTemplate = `
+WITH replayed AS (
+    UPDATE fact_work_items
+    SET status = 'pending',
+        attempt_count = GREATEST(attempt_count, 1),
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = $1,
+        next_attempt_at = NULL,
+        failure_class = NULL,
+        failure_message = NULL,
+        failure_details = NULL,
+        updated_at = $1
+    WHERE work_item_id IN (
+        SELECT work_item_id FROM fact_work_items
+        WHERE status IN ('dead_letter', 'failed')
+          %s
+        ORDER BY work_item_id
+        LIMIT $2
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING work_item_id
+)
+SELECT work_item_id FROM replayed ORDER BY work_item_id
+`
+
 // countDeadLetterBacklogTemplate counts the terminal rows a replay with the same
 // filter would touch, before any mutation. It shares the predicate builder with
 // the replay so the count reflects exactly the rows the drain is allowed to
@@ -170,11 +211,33 @@ func nonEmptyClasses(classes []string) []string {
 	return out
 }
 
+// buildReplayFailedWorkItemsQuery renders the replay SQL and its positional
+// args for one filter. When filter.Limit is positive it selects the bounded
+// template so the UPDATE mutates at most Limit rows via a LIMIT/FOR UPDATE SKIP
+// LOCKED subquery ($1 timestamp, $2 limit, predicate from $3). When Limit is
+// zero it uses the unbounded template ($1 timestamp, predicate from $2). The
+// bound lives in SQL, not the Go scan loop, so a drain never resets more rows to
+// pending than it reports (#3652 P3).
+func buildReplayFailedWorkItemsQuery(filter recovery.ReplayFilter, now time.Time) (string, []any) {
+	if filter.Limit > 0 {
+		predicate := buildReplayPredicate(filter, 3)
+		query := fmt.Sprintf(replayFailedWorkItemsBoundedTemplate, predicate.clause)
+		args := append([]any{now.UTC(), filter.Limit}, predicate.args...)
+		return query, args
+	}
+
+	predicate := buildReplayPredicate(filter, 2)
+	query := fmt.Sprintf(replayFailedWorkItemsTemplate, predicate.clause)
+	args := append([]any{now.UTC()}, predicate.args...)
+	return query, args
+}
+
 // ReplayFailedWorkItems resets terminal work items to pending for the given
 // stage and filter criteria. New Go runtime rows use dead_letter; legacy failed
 // rows remain replayable until they age out. When the filter carries
 // ExcludeFailureClasses (the drain path), those classes are excluded store-side
-// so a broad selector can never replay a manual-review row.
+// so a broad selector can never replay a manual-review row. A positive
+// filter.Limit bounds the mutation in SQL so only that many rows are replayed.
 func (s RecoveryStore) ReplayFailedWorkItems(
 	ctx context.Context,
 	filter recovery.ReplayFilter,
@@ -184,9 +247,7 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		return recovery.ReplayResult{}, fmt.Errorf("recovery store database is required")
 	}
 
-	predicate := buildReplayPredicate(filter, 2)
-	query := fmt.Sprintf(replayFailedWorkItemsTemplate, predicate.clause)
-	args := append([]any{now.UTC()}, predicate.args...)
+	query, args := buildReplayFailedWorkItemsQuery(filter, now)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -199,9 +260,6 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		var id string
 		if scanErr := rows.Scan(&id); scanErr != nil {
 			return recovery.ReplayResult{}, fmt.Errorf("replay failed work items: %w", scanErr)
-		}
-		if filter.Limit > 0 && len(workItemIDs) >= filter.Limit {
-			break
 		}
 		workItemIDs = append(workItemIDs, id)
 	}

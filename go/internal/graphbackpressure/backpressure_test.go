@@ -106,6 +106,41 @@ func TestWrapBoundsConcurrency(t *testing.T) {
 	}
 }
 
+// TestWrapExecuteOnlyInnerDoesNotExposeGroup is the end-to-end regression for
+// issue #3652 P1: when inner is ExecuteOnlyExecutor
+// (ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false), Wrap must return a value that
+// does NOT implement GroupExecutor so WriteSemanticEntities falls through to
+// sequential execution.
+func TestWrapExecuteOnlyInnerDoesNotExposeGroup(t *testing.T) {
+	t.Parallel()
+
+	inner := cypher.ExecuteOnlyExecutor{Inner: &countingExecutor{}}
+	wrapped := Wrap(inner, 4, nil)
+
+	if _, ok := wrapped.(cypher.GroupExecutor); ok {
+		t.Fatal("Wrap with ExecuteOnlyExecutor inner exposes GroupExecutor, want no GroupExecutor so sequential fallback works")
+	}
+	// Execute must still work.
+	if err := wrapped.Execute(context.Background(), cypher.Statement{Cypher: "RETURN 1"}); err != nil {
+		t.Fatalf("Execute() error = %v, want nil", err)
+	}
+}
+
+// TestWrapGroupExecutorInnerExposesGroup proves that when inner implements
+// GroupExecutor, Wrap returns a value that also exposes GroupExecutor.
+func TestWrapGroupExecutorInnerExposesGroup(t *testing.T) {
+	t.Parallel()
+
+	// concurrencyProbeExecutor (local blockingExecutor extended with ExecuteGroup)
+	// implements both Execute and ExecuteGroup.
+	inner := &groupCapableExecutor{}
+	wrapped := Wrap(inner, 4, nil)
+
+	if _, ok := wrapped.(cypher.GroupExecutor); !ok {
+		t.Fatal("Wrap with GroupExecutor inner does not expose GroupExecutor, want GroupExecutor preserved")
+	}
+}
+
 type countingExecutor struct {
 	calls int
 }
@@ -115,11 +150,30 @@ func (e *countingExecutor) Execute(context.Context, cypher.Statement) error {
 	return nil
 }
 
+// groupCapableExecutor is a no-op executor that also implements GroupExecutor,
+// used in tests that exercise the grouped-write code path.
+type groupCapableExecutor struct{}
+
+func (e *groupCapableExecutor) Execute(context.Context, cypher.Statement) error    { return nil }
+func (e *groupCapableExecutor) ExecuteGroup(context.Context, []cypher.Statement) error { return nil }
+
+// blockingExecutor blocks each call until release is closed. It implements
+// GroupExecutor so Wrap returns the *cypher.BackpressureExecutor type whose
+// InFlight() gauge the bound-proving test reads; this mirrors the real reducer
+// executor, which is group-capable.
 type blockingExecutor struct {
 	release chan struct{}
 }
 
 func (e *blockingExecutor) Execute(ctx context.Context, _ cypher.Statement) error {
+	return e.block(ctx)
+}
+
+func (e *blockingExecutor) ExecuteGroup(ctx context.Context, _ []cypher.Statement) error {
+	return e.block(ctx)
+}
+
+func (e *blockingExecutor) block(ctx context.Context) error {
 	select {
 	case <-e.release:
 		return nil
