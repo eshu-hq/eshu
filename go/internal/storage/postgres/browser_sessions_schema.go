@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     allowed_repository_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     external_provider_config_id TEXT NULL,
     external_subject_id_hash TEXT NULL,
+    external_group_hashes JSONB NOT NULL DEFAULT '[]'::jsonb,
     external_auth_validated_at TIMESTAMPTZ NULL,
     external_auth_stale_after TIMESTAMPTZ NULL,
     issued_at TIMESTAMPTZ NOT NULL,
@@ -36,6 +37,9 @@ ALTER TABLE browser_sessions
     ADD COLUMN IF NOT EXISTS external_subject_id_hash TEXT NULL,
     ADD COLUMN IF NOT EXISTS external_auth_validated_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS external_auth_stale_after TIMESTAMPTZ NULL;
+
+ALTER TABLE browser_sessions
+    ADD COLUMN IF NOT EXISTS external_group_hashes JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS browser_sessions_active_idx
     ON browser_sessions (
@@ -69,6 +73,7 @@ INSERT INTO browser_sessions (
     external_subject_id_hash,
     external_auth_validated_at,
     external_auth_stale_after,
+    external_group_hashes,
     issued_at,
     last_seen_at,
     idle_expires_at,
@@ -93,6 +98,7 @@ SELECT
     $13,
     $14,
     $15,
+    $22::jsonb,
     $16,
     $17,
     $18,
@@ -123,12 +129,55 @@ SET csrf_token_hash = EXCLUDED.csrf_token_hash,
     external_subject_id_hash = EXCLUDED.external_subject_id_hash,
     external_auth_validated_at = EXCLUDED.external_auth_validated_at,
     external_auth_stale_after = EXCLUDED.external_auth_stale_after,
+    external_group_hashes = EXCLUDED.external_group_hashes,
     issued_at = EXCLUDED.issued_at,
     last_seen_at = EXCLUDED.last_seen_at,
     idle_expires_at = EXCLUDED.idle_expires_at,
     absolute_expires_at = EXCLUDED.absolute_expires_at,
     revoked_at = EXCLUDED.revoked_at,
     updated_at = EXCLUDED.updated_at
+`
+
+const listStaleOIDCBrowserSessionsQuery = `
+SELECT
+    session_hash,
+    external_provider_config_id,
+    external_subject_id_hash,
+    tenant_id,
+    workspace_id,
+    policy_revision_hash,
+    role_ids,
+    all_scopes,
+    allowed_scope_ids,
+    allowed_repository_ids,
+    external_auth_validated_at,
+    external_auth_stale_after,
+    external_group_hashes
+FROM browser_sessions
+WHERE revoked_at IS NULL
+  AND subject_class = 'external_oidc_user'
+  AND external_provider_config_id IS NOT NULL
+  AND external_subject_id_hash IS NOT NULL
+  AND external_auth_stale_after IS NOT NULL
+  AND external_auth_stale_after <= $1
+ORDER BY external_auth_stale_after ASC
+LIMIT $2
+`
+
+const updateOIDCBrowserSessionAuthProofQuery = `
+UPDATE browser_sessions
+SET external_auth_validated_at = $2,
+    external_auth_stale_after = $3,
+    policy_revision_hash = $4,
+    role_ids = $5::jsonb,
+    all_scopes = $6,
+    allowed_scope_ids = $7::jsonb,
+    allowed_repository_ids = $8::jsonb,
+    updated_at = $9,
+    external_group_hashes = $10::jsonb
+WHERE session_hash = $1
+  AND revoked_at IS NULL
+  AND subject_class = 'external_oidc_user'
 `
 
 const revokeStaleOIDCBrowserSessionQuery = `

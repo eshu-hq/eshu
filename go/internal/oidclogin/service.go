@@ -67,11 +67,19 @@ type StateStore interface {
 }
 
 // GrantQuery asks a resolver to map hashed external groups to Eshu grants.
+//
+// GroupHashes drives login-time resolution from external group claims. RoleIDs
+// drives active-session refresh re-resolution from a session's already granted
+// roles, which lets the refresher detect revoked role targets, tombstoned or
+// expired mappings, and policy revision drift without re-querying the provider.
+// A resolver should treat the two as alternative inputs, preferring GroupHashes
+// when present.
 type GrantQuery struct {
 	ProviderConfigID string
 	TenantID         string
 	WorkspaceID      string
 	GroupHashes      []string
+	RoleIDs          []string
 	AsOf             time.Time
 }
 
@@ -294,10 +302,11 @@ func (s *Service) CompleteOIDCLogin(
 			AllowedScopeIDs:      append([]string(nil), grants.AllowedScopeIDs...),
 			AllowedRepositoryIDs: append([]string(nil), grants.AllowedRepositoryIDs...),
 		},
-		ProviderConfigID:  provider.ProviderConfigID,
-		ProviderSubjectID: subjectIDHash,
-		ProviderProofAt:   now,
-		ReturnToPath:      safeReturnPath(record.ReturnToPath),
+		ProviderConfigID:    provider.ProviderConfigID,
+		ProviderSubjectID:   subjectIDHash,
+		ProviderGroupHashes: append([]string(nil), groupHashes...),
+		ProviderProofAt:     now,
+		ReturnToPath:        safeReturnPath(record.ReturnToPath),
 	}, nil
 }
 

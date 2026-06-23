@@ -45,12 +45,18 @@ type OIDCLoginCompleteRequest struct {
 
 // OIDCLoginCompleteResponse carries the resolved Eshu auth context and optional
 // local path for post-login browser navigation.
+//
+// ProviderGroupHashes carries the hashed external group claims that mapped to
+// this session's grants at login. They are persisted hash-only so bounded
+// active-session refresh can re-resolve the group-to-role mappings and detect
+// removed or tombstoned mappings rather than trusting stale role IDs alone.
 type OIDCLoginCompleteResponse struct {
-	Auth              AuthContext
-	ProviderConfigID  string
-	ProviderSubjectID string
-	ProviderProofAt   time.Time
-	ReturnToPath      string
+	Auth                AuthContext
+	ProviderConfigID    string
+	ProviderSubjectID   string
+	ProviderGroupHashes []string
+	ProviderProofAt     time.Time
+	ReturnToPath        string
 }
 
 // DefaultOIDCSessionRefreshWindow bounds external IdP proof staleness for
@@ -113,6 +119,7 @@ func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request
 	response, ok := h.SessionIssuer.issueBrowserSessionWithExternalAuth(w, r, complete.Auth, 0, BrowserSessionExternalAuthProof{
 		ProviderConfigID: complete.ProviderConfigID,
 		SubjectIDHash:    complete.ProviderSubjectID,
+		GroupHashes:      append([]string(nil), complete.ProviderGroupHashes...),
 		ValidatedAt:      proofAt,
 		StaleAfter:       proofAt.Add(h.sessionRefreshWindow()),
 	})

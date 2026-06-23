@@ -105,6 +105,7 @@ func (a *postgresBrowserSessionAdapter) CreateBrowserSession(
 		AllowedRepositoryIDs:     append([]string(nil), record.AllowedRepositoryIDs...),
 		ExternalProviderConfigID: record.ExternalProviderConfigID,
 		ExternalSubjectIDHash:    record.ExternalSubjectIDHash,
+		ExternalGroupHashes:      append([]string(nil), record.ExternalGroupHashes...),
 		ExternalAuthValidatedAt:  record.ExternalAuthValidatedAt,
 		ExternalAuthStaleAfter:   record.ExternalAuthStaleAfter,
 		IssuedAt:                 record.IssuedAt,

@@ -122,6 +122,20 @@ sessions also carry hash-only provider proof metadata; when
 session and requires fresh provider reauthentication before returning another
 auth context.
 
+When `ESHU_AUTH_OIDC_SESSION_REFRESH_ENABLED` is `true`, the API also runs a
+bounded background active-session revocation refresh worker. On the cadence set
+by `ESHU_AUTH_OIDC_SESSION_REFRESH_INTERVAL`, it scans up to
+`ESHU_AUTH_OIDC_SESSION_REFRESH_BATCH_SIZE` stale OIDC sessions per pass and,
+per session, either extends the bounded proof window after re-confirming the
+Eshu-owned authorization snapshot or revokes the session. Disabled external
+subjects, tombstoned or expired role mappings, revoked role targets, and
+workspace policy-revision drift deny subsequent access within the window without
+waiting for the next request. Provider or store failures defer the decision
+rather than revoke, leaving the request-time stale check as the fail-closed
+backstop. The worker persists only hash-only identity and emits
+`eshu_auth_oidc_session_refresh_*` metrics for refresh passes, scanned sessions,
+revocations, extensions, and provider-unavailable decisions.
+
 Session cookies are server-managed:
 
 - `__Host-eshu_session` contains the raw session secret and is set with

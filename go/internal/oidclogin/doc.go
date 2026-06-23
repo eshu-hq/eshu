@@ -7,4 +7,13 @@
 // group-to-role mappings before returning an Eshu query AuthContext plus
 // hash-only provider proof metadata. Browser-session staleness enforcement is
 // intentionally outside this login package.
+//
+// The package also provides Refresher, a bounded active-session revocation
+// refresh engine. Each pass reads a bounded batch of OIDC-backed sessions whose
+// provider proof has reached its staleness window and, per session, either
+// extends the bounded proof window after re-confirming the Eshu-owned
+// authorization snapshot or revokes the session. Refresher re-resolves only
+// hash-only identity and Eshu-owned role grants; it never re-queries the
+// provider directly, since no raw provider token is persisted. External group
+// removal is enforced by forced reauthentication at the window boundary.
 package oidclogin

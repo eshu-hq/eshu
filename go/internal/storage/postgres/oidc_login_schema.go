@@ -215,6 +215,55 @@ ORDER BY mapping.role_id ASC
 LIMIT $6
 `
 
+const resolveOIDCActiveRolesQuery = `
+SELECT DISTINCT
+    role.role_id,
+    target.policy_revision_hash
+FROM identity_roles role
+JOIN identity_role_scope_targets target
+    ON target.tenant_id = role.tenant_id
+   AND target.role_id = role.role_id
+JOIN tenants ten ON ten.tenant_id = role.tenant_id
+JOIN workspaces ws
+    ON ws.tenant_id = target.tenant_id
+   AND ws.workspace_id = target.workspace_id
+JOIN identity_provider_configs provider
+    ON provider.provider_config_id = $3
+   AND provider.tenant_id = role.tenant_id
+WHERE role.tenant_id = $1
+  AND target.workspace_id = $2
+  AND role.role_id = ANY($5::text[])
+  AND target.effective_at <= $4
+  AND (target.expires_at IS NULL OR target.expires_at > $4)
+  AND target.status = 'active'
+  AND target.tombstoned_at IS NULL
+  AND role.status = 'active'
+  AND role.tombstoned_at IS NULL
+  AND provider.status = 'active'
+  AND provider.tombstoned_at IS NULL
+  AND ten.status = 'active'
+  AND ws.status = 'active'
+  AND ten.tombstoned_at IS NULL
+  AND ws.tombstoned_at IS NULL
+ORDER BY role.role_id ASC
+LIMIT $6
+`
+
+const externalSubjectActiveQuery = `
+SELECT TRUE
+FROM identity_external_subjects ext
+JOIN identity_users usr ON usr.user_id = ext.user_id
+WHERE ext.provider_config_id = $1
+  AND ext.external_subject_id_hash = $2
+  AND ext.status = 'active'
+  AND ext.disabled_at IS NULL
+  AND ext.tombstoned_at IS NULL
+  AND usr.status = 'active'
+  AND usr.disabled_at IS NULL
+  AND usr.tombstoned_at IS NULL
+LIMIT 1
+`
+
 const resolveOIDCRoleScopeTargetsQuery = `
 SELECT DISTINCT target.scope_id
 FROM identity_role_scope_targets target
