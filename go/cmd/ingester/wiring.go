@@ -121,7 +121,7 @@ func buildIngesterService(
 		return compositeRunner{}, fmt.Errorf("build ingester projector: %w", err)
 	}
 
-	return newCompositeRunner(collectorSvc, projectorSvc), nil
+	return newCompositeRunner(logger, collectorSvc, projectorSvc), nil
 }
 
 func buildIngesterCollectorService(

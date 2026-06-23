@@ -34,9 +34,19 @@
 - **Empty sharded batch participation** — `AfterEmptyBatchDrained` is enabled
   only when `ESHU_REPO_SHARD_COUNT > 1` so empty shards can enter the
   fleet-wide barrier. Do not enable it for unsharded ingesters.
-- **compositeRunner first-error cancel** — either service failing cancels the
-  other via the shared context. This is correct behavior; do not change it to
-  ignore collector or projector errors.
+- **compositeRunner retry-aware bounded drain** — superseding the former
+  "first-error cancel" invariant (see
+  `docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`).
+  A *transient* per-unit fault is owned by each service's own Run loop (durable
+  dead-letter replay) and must not escape to the composite runner: a retryable
+  collector commit failure is quarantined and the loop continues; the projector
+  routes transient failures through `WorkSink.Fail`. Only a *fatal* error
+  escapes a service's Run. When one does, the composite runner cancels the
+  shared context, waits a **bounded** `drainGrace` for the sibling to finish its
+  in-flight unit, aggregates **every** terminal error with `errors.Join` (no
+  sibling error is masked or dropped), and joins `errCompositeDrainTimeout` if a
+  sibling ignores cancellation. Do not reintroduce returning only the
+  first-arriving result, and do not drop sibling errors.
 - **Signal-driven shutdown** — `signal.NotifyContext(SIGINT, SIGTERM)` is the
   only supported shutdown path. Do not add alternate shutdown mechanisms.
 
@@ -129,8 +139,37 @@
 - `AfterBatchDrained` barrier and call order (fleet drain barrier before
   `BackfillAllRelationshipEvidence`, then `ReopenDeploymentMappingWorkItems`) —
   changing this order breaks the bootstrap phase contract in `CLAUDE.md`.
-- `compositeRunner` error propagation — silencing either service error hides
-  real failures from operators.
+- `compositeRunner` error propagation and the retry-vs-fatal boundary —
+  silencing either service error, returning only the first-arriving result, or
+  promoting a retryable per-unit fault into a fatal teardown all break the
+  failure-isolation contract in
+  `docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`.
+  The drain wait must stay bounded; an unbounded wait can hang ingester
+  teardown.
+
+## Concurrency evidence (issue #3501)
+
+No-Regression Evidence: `go build ./...` (exit 0);
+`go test ./cmd/ingester/... ./internal/runtime/... -count=1 -race` (369 passed);
+`go test ./internal/collector/ -count=1 -race` (381 passed). The composite
+runner change removes a serialized fail-fast teardown rather than adding one and
+touches no Cypher, graph write shape, worker count, batch size, lease, or queue
+ordering, so there is no throughput regression to measure; concurrency is
+preserved because the projector keeps running through a transient collector
+fault. Conflict domain: the shared cancel context and the result channel
+(buffered to `len(runners)` so sends never block and no goroutine leaks);
+coordination is by context cancellation and a single-reader channel, with no
+locks. `TestCompositeRunnerNoGoroutineLeak` and
+`TestCompositeRunnerBoundsDrainOnWedgedSibling` (both run under `-race`) prove
+no leak and bounded teardown.
+
+Observability Evidence: a retryable collector commit logs `WARN` with
+`failure_class=commit_retryable` and `retryable=true`; a composite fatal logs
+`ERROR` with `failure_class=composite_runner_fatal`, `runner_index`, and
+`drain_grace`; a bounded drain timeout logs `ERROR` with
+`failure_class=composite_runner_drain_timeout` and returns
+`errCompositeDrainTimeout`. These let an operator separate a retried generation,
+a fatal teardown, and a forced bounded drain without reading code.
 - The workspace PVC ownership model — moving workspace ownership to another
   runtime requires a coordinated deployment change and an ADR documenting
   the new ownership boundary.

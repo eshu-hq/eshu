@@ -194,10 +194,29 @@ func (s Service) Run(ctx context.Context) error {
 			observation = s.startCollectorObserve(ctx)
 		}
 		s.annotateCollectorObserve(observation, collected)
-		if err := s.commitWithTelemetry(observation.Context, collected, observation.StartedAt); err != nil {
-			err = s.recordGenerationDeadLetter(observation.Context, collected, "commit_failure", err)
-			s.endCollectorObserve(observation, err)
-			return err
+		if commitErr := s.commitWithTelemetry(observation.Context, collected, observation.StartedAt); commitErr != nil {
+			retryable := IsRetryable(commitErr)
+			storeErr := s.recordGenerationDeadLetterOnly(observation.Context, collected, "commit_failure", commitErr)
+			terminal := errors.Join(commitErr, storeErr)
+			s.endCollectorObserve(observation, terminal)
+			// A retryable commit failure is quarantined for durable replay and
+			// must not tear down the collector (and, through compositeRunner,
+			// the projector running alongside it). Continue polling so a
+			// transient fault in one generation cannot stop ingestion. A
+			// dead-letter store failure is fatal infrastructure breakage and
+			// still propagates regardless of the commit error's class.
+			//
+			// Require an actual durable quarantine: s.DeadLetters must be
+			// non-nil so there is a real replay record. Without a sink there is
+			// nothing to replay; silently continuing would drop the commit error.
+			if retryable && s.DeadLetters != nil && storeErr == nil {
+				s.logRetryableCommit(observation.Context, collected, commitErr)
+				if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
+					return nil
+				}
+				continue
+			}
+			return terminal
 		}
 		if err := s.completeGenerationDeadLetterReplay(observation.Context, collected); err != nil {
 			s.endCollectorObserve(observation, err)
@@ -260,14 +279,19 @@ func (s Service) endCollectorObserve(observation CollectorObservation, err error
 	observation.Span.End()
 }
 
-func (s Service) recordGenerationDeadLetter(
+// recordGenerationDeadLetterOnly quarantines a failed generation for durable
+// replay and returns only the dead-letter store error. It returns nil when no
+// dead-letter sink is configured or the record was written. The caller decides
+// whether the originating commit error is fatal or retryable; a non-nil return
+// here always signals fatal dead-letter infrastructure breakage.
+func (s Service) recordGenerationDeadLetterOnly(
 	ctx context.Context,
 	collected CollectedGeneration,
 	failureClass string,
 	cause error,
 ) error {
 	if s.DeadLetters == nil {
-		return cause
+		return nil
 	}
 
 	record := GenerationDeadLetter{
@@ -279,9 +303,33 @@ func (s Service) recordGenerationDeadLetter(
 		DeadLetteredAt:   time.Now().UTC(),
 	}
 	if err := s.DeadLetters.RecordGenerationDeadLetter(ctx, record); err != nil {
-		return errors.Join(cause, fmt.Errorf("record generation dead-letter: %w", err))
+		return fmt.Errorf("record generation dead-letter: %w", err)
 	}
-	return cause
+	return nil
+}
+
+// logRetryableCommit emits an operator-facing record that a transient commit
+// failure was quarantined for durable replay and that the collector kept
+// running instead of tearing down. It lets an operator distinguish a retried
+// generation from a fatal teardown at 3 AM.
+func (s Service) logRetryableCommit(ctx context.Context, collected CollectedGeneration, cause error) {
+	if s.Logger == nil {
+		return
+	}
+	scopeAttrs := telemetry.ScopeAttrs(
+		collected.Scope.ScopeID,
+		collected.Generation.GenerationID,
+		collected.Scope.SourceSystem,
+	)
+	logAttrs := make([]any, 0, len(scopeAttrs)+4)
+	for _, a := range scopeAttrs {
+		logAttrs = append(logAttrs, a)
+	}
+	logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseEmission))
+	logAttrs = append(logAttrs, telemetry.FailureClassAttr("commit_retryable"))
+	logAttrs = append(logAttrs, slog.Bool("retryable", true))
+	logAttrs = append(logAttrs, slog.String("error", cause.Error()))
+	s.Logger.WarnContext(ctx, "collector commit retryable; quarantined for replay, continuing", logAttrs...)
 }
 
 func (s Service) completeGenerationDeadLetterReplay(ctx context.Context, collected CollectedGeneration) error {
