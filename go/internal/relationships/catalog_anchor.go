@@ -16,6 +16,91 @@ import (
 // facts, so the captured provider suffix must be added as a separate anchor.
 var terraformModuleAliasPattern = regexp.MustCompile(`^terraform-modules?-(.+)$`)
 
+// CatalogRepoIDAnchors returns the repo_id-derived anchor tokens and raw values
+// needed for the deferred-backfill self-exclusion SQL predicate (issue #3659).
+//
+// Each catalog entry's first alias is its repo_id (put there by
+// repositoryCatalogEntryFromMap via uniqueCatalogAliases). Every Git
+// content/file payload carries its own "repo_id" field, so the full
+// CatalogPayloadAnchors set — which includes repo_id tokens — causes every
+// fact to self-match the LIKE ANY predicate, defeating the scope bounding that
+// #3655 claimed. The deferred SQL query must therefore separate:
+//
+//   - repoIDTokens: the longest catalogMatchTokens token from each entry's
+//     first alias (the repo_id). These feed the $2 LIKE ANY arm of the
+//     deferred query, which is gated by the $3 self-exclusion predicate.
+//   - repoIDValues: the raw lowercase repo_id strings. These feed $3 so the
+//     deferred query can express "matched $2 AND payload->>'repo_id' is NOT
+//     one of these values", excluding pure self-matches while still loading
+//     facts that reference ANOTHER repo's repo_id in their content.
+//
+// The deferred pass's non-repo_id anchors (name/slug tokens + ArgoCD markers)
+// come from CatalogPayloadAnchors applied to a catalog whose Aliases have the
+// repo_id first entry stripped — see backfillNonRepoIDAnchorTerms.
+//
+// Returns nil, nil when the catalog is empty or no entry has a usable first alias.
+func CatalogRepoIDAnchors(catalog []CatalogEntry) (repoIDTokens []string, repoIDValues []string) {
+	if len(catalog) == 0 {
+		return nil, nil
+	}
+
+	seenTokens := make(map[string]struct{})
+	seenValues := make(map[string]struct{})
+
+	for _, entry := range catalog {
+		if len(entry.Aliases) == 0 {
+			continue
+		}
+		// Aliases[0] is the repo_id (guaranteed by repositoryCatalogEntryFromMap).
+		repoID := strings.ToLower(strings.TrimSpace(entry.Aliases[0]))
+		if repoID == "" {
+			continue
+		}
+
+		// Collect the raw value for the self-exclusion list.
+		if _, ok := seenValues[repoID]; !ok {
+			seenValues[repoID] = struct{}{}
+			repoIDValues = append(repoIDValues, repoID)
+		}
+
+		// Derive the longest token (same logic as CatalogPayloadAnchors) for the
+		// LIKE ANY predicate arm.
+		tokens := catalogMatchTokens(repoID)
+		if len(tokens) == 0 {
+			continue
+		}
+		longest := tokens[0]
+		for _, t := range tokens {
+			if len(t) > len(longest) {
+				longest = t
+			}
+		}
+		if _, ok := seenTokens[longest]; !ok {
+			seenTokens[longest] = struct{}{}
+			repoIDTokens = append(repoIDTokens, longest)
+		}
+
+		// For terraform-module aliases that start with "terraform-modules?-"
+		// also emit the provider suffix (mirrors CatalogPayloadAnchors).
+		normalized := repoID
+		if match := terraformModuleAliasPattern.FindStringSubmatch(normalized); match != nil {
+			suffix := match[1]
+			if _, ok := seenTokens[suffix]; !ok {
+				seenTokens[suffix] = struct{}{}
+				repoIDTokens = append(repoIDTokens, suffix)
+			}
+		}
+	}
+
+	if len(repoIDTokens) == 0 && len(repoIDValues) == 0 {
+		return nil, nil
+	}
+
+	sort.Strings(repoIDTokens)
+	sort.Strings(repoIDValues)
+	return repoIDTokens, repoIDValues
+}
+
 // CatalogPayloadAnchors derives the set of lowercase payload-substring anchors
 // that a content-scoped SQL fact load must test so its result is a provable
 // superset of the facts the in-memory catalogMatcher would match against the
