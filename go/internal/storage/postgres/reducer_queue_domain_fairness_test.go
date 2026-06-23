@@ -256,25 +256,28 @@ func reducerDomainFairnessDSN() string {
 
 func openReducerFairnessDB(t *testing.T, ctx context.Context, dsn string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	return db
+}
 
+// openReducerFairnessDBWithSchema creates an isolated throwaway schema, applies
+// the reducer-queue DDL, and returns the owning handle plus the schema name.
+// The handle is capped at one connection so its session-local search_path stays
+// pinned to the new schema. The schema name lets concurrency proofs open
+// additional independent connections against the SAME schema (see
+// openReducerFairnessClaimerDB), which is required to exercise real concurrent
+// claim statements rather than serializing behind one pooled connection.
+func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
+	t.Helper()
 	schemaName := fmt.Sprintf("reducer_fairness_%d", time.Now().UnixNano())
+	db := openReducerFairnessSchemaConn(t, ctx, dsn, schemaName)
+
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		_ = db.Close()
 		t.Fatalf("create fairness schema: %v", err)
 	}
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-		_ = db.Close()
 	})
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
-		t.Fatalf("set search_path: %v", err)
-	}
 	for _, stmt := range []string{
 		scopeSchemaSQL,
 		scopeGenerationSchemaSQL,
@@ -284,6 +287,38 @@ func openReducerFairnessDB(t *testing.T, ctx context.Context, dsn string) *sql.D
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			t.Fatalf("apply fairness schema: %v", err)
 		}
+	}
+	return db, schemaName
+}
+
+// openReducerFairnessClaimerDB opens an independent single-connection handle
+// bound to an already-created fairness schema. Concurrency proofs give each
+// concurrent claimer its own handle so that N claimers hold N live Postgres
+// connections and their claim statements truly interleave at the database;
+// sharing one handle (which caps at a single pooled connection) would serialize
+// them and make a fence/atomicity proof vacuous.
+func openReducerFairnessClaimerDB(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
+	t.Helper()
+	return openReducerFairnessSchemaConn(t, ctx, dsn, schemaName)
+}
+
+// openReducerFairnessSchemaConn opens a pgx handle capped at one connection and
+// pins its session-local search_path to schemaName. The single-connection cap
+// is what keeps SET search_path durable for the handle: search_path is
+// connection-local, so a multi-connection pool would hand out fresh connections
+// that no longer see the schema's tables. Each handle still represents one live
+// connection, so distinct handles run concurrently.
+func openReducerFairnessSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+		t.Fatalf("set search_path: %v", err)
 	}
 	return db
 }

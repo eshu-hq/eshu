@@ -540,18 +540,31 @@ weakens the fence:
   re-claiming the acked item. This is the no-lost-write / ordering / idempotent-
   retry half of the proof.
 
-No-Regression Evidence: this change adds only proof tests; it does not alter the
-production claim SQL, conflict-key derivation, lease semantics, worker count,
-batch size, or any write path, so it cannot regress runtime behavior. Live run
-on the local Compose Postgres (`ESHU_POSTGRES_DSN=...localhost:15432/eshu`):
-`go test ./internal/storage/postgres/ -run
-'TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey|TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys|TestReducerClaimFencedSiblingBecomesClaimableAfterAck'
--count=1 -race -v` → all three PASS (0.48s / 0.14s / 0.55s, package 9.459s), no
-data race reported. Hermetic run without a DSN skips the three proofs and the
-full `go test ./internal/storage/postgres/... ./internal/reducer/...
-./internal/projector/... -count=1 -race` suite passes (3,554 tests). The proofs
-reuse the existing `reducer_queue_domain_fairness_test.go` schema/seed helpers,
-so they add no new DDL or fixtures.
+True-concurrency requirement: each concurrent claimer is given its OWN
+single-connection `*sql.DB` handle bound to the shared throwaway schema
+(`openReducerFairnessClaimerDB`), so N claimers hold N live Postgres connections
+and their `claimReducerWorkQuery` statements truly interleave at the database.
+An earlier revision shared one pooled handle capped at `MaxOpenConns(1)`, which
+serialized every claimer behind a single connection and never exercised the
+concurrent lock/commit interleavings the fence guards — a non-atomic conflict
+check could have passed vacuously. `search_path` is connection-local, so the
+per-claimer handles cannot simply raise the pool cap; each handle pins its own
+`SET search_path` on its single connection to the shared schema.
+
+No-Regression Evidence: this change adds only proof tests and their test-only
+connection helpers; it does not alter the production claim SQL, conflict-key
+derivation, lease semantics, worker count, batch size, or any write path, so it
+cannot regress runtime behavior. Hermetic run without a DSN: the three proofs
+SKIP cleanly (verified with `-v`), and `go test ./internal/storage/cypher
+./internal/storage/postgres -count=1` passes (1,595 tests); `go build ./...`,
+`go vet ./internal/storage/postgres/...`, and `golangci-lint run
+./internal/storage/postgres/... ./internal/storage/cypher/...` are all clean.
+The live `-race` proof run against a Postgres DSN has NOT been re-executed in
+this environment after the per-claimer-connection fix because no Postgres
+(`ESHU_POSTGRES_DSN` / `ESHU_REDUCER_FAIRNESS_PROOF_DSN`) or Docker daemon was
+available here; the proofs compile and skip, and require a live DSN to assert
+the fence. The proofs reuse the existing `reducer_queue_domain_fairness_test.go`
+schema/seed helpers, so they add no new DDL or fixtures.
 
 No-Observability-Change: #3558 adds no queue domain, conflict domain, graph
 write, metric instrument, metric label, span name, worker, lease, route, status
@@ -559,3 +572,38 @@ field, or log field. The claim path's existing instrumentation is unchanged;
 operators continue to diagnose conflict-fence contention through reducer claim
 spans/counters, `fact_work_items` status/`conflict_domain`/`conflict_key`
 columns, lease-owner/`claim_until` rows, and reducer queue status counts.
+
+## Graph MERGE Commit-Time Conflict Proof (#3558)
+
+The companion graph-layer proof lives in
+`go/internal/storage/cypher/retrying_executor_concurrency_proof_test.go`. It
+proves the second write-conflict layer #3558 targets: two canonical writers that
+MERGE the SAME shared `uid` (the Repository / Directory / Module class of node
+that multiple source-repo partitions legitimately write) are driven into a typed
+NornicDB commit-time UNIQUE conflict
+(`Neo.ClientError.Transaction.TransactionCommitFailed`) and converge through
+`RetryingExecutor.ExecuteGroup`: exactly one node is created (no duplicate), both
+writers' contributions land (no silent loss), both calls return nil (convergence
+via retry), and the `eshu_dp_neo4j_deadlock_retries_total` counter fires
+(operator-visible contention). The conflict domain is one shared canonical
+`uid`; the transaction scope is one `ExecuteGroup` call; the retry scope is
+`RetryingExecutor.runWithRetry`. A failing-first companion drives the SAME race
+through the bare group executor with NO retry layer and shows the loser's write
+is silently lost — proving the conflict is real and that the retry layer, not
+serialization, is what makes the system converge.
+
+No-Regression Evidence: test-only change; no production graph-write path,
+Cypher shape, batching, transaction scope, or retry classifier is modified.
+`go test ./internal/storage/cypher -run
+'RetryingExecutor|ConcurrentMergeConflict|BareGroupExecutorLoses' -race
+-count=1` passes (17 tests), and the full `go test ./internal/storage/cypher
+-count=1` package suite passes (583 tests). The proof asserts the production
+classifier (`isNornicDBCommitTimeUniqueConflictError`) by constructing the same
+typed `neo4jdriver.Neo4jError` the live binary surfaces, so it stays faithful to
+`retrying_executor.go` without touching it.
+
+Observability Evidence: the proof asserts the existing
+`eshu_dp_neo4j_deadlock_retries_total` retry counter (write-phase label) fires
+at least once under the concurrent MERGE conflict via a manual metric reader.
+The instrument and its label are unchanged; the test only reads it, so operators
+keep the same retry-visibility signal in production.

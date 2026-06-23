@@ -44,7 +44,7 @@ func TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	db := openReducerFairnessDB(t, ctx, dsn)
+	db, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
 
 	now := time.Date(2026, time.June, 22, 10, 0, 0, 0, time.UTC)
 	seedReducerFairnessScope(t, ctx, db, "scope-shared", now)
@@ -65,12 +65,16 @@ func TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey(t *testing.T) {
 	}
 
 	// Many claimers hammer the queue at once with a long lease so any item a
-	// claimer wins stays live for the duration of the race.
+	// claimer wins stays live for the duration of the race. Each claimer gets
+	// its OWN Postgres connection to the shared schema so their claim statements
+	// truly interleave at the database — sharing one pooled connection would
+	// serialize them and make this fence proof vacuous.
 	const claimers = 8
 	queues := make([]ReducerQueue, claimers)
 	for i := range queues {
+		claimerDB := openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)
 		queues[i] = ReducerQueue{
-			db:            SQLDB{DB: db},
+			db:            SQLDB{DB: claimerDB},
 			LeaseOwner:    fmt.Sprintf("conflict-claimer-%d", i),
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now.Add(2 * time.Hour) },
@@ -141,7 +145,7 @@ func TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys(t *testing.T
 	}
 
 	ctx := context.Background()
-	db := openReducerFairnessDB(t, ctx, dsn)
+	db, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
 
 	now := time.Date(2026, time.June, 22, 11, 0, 0, 0, time.UTC)
 	seedReducerFairnessScope(t, ctx, db, "scope-disjoint", now)
@@ -167,8 +171,11 @@ func TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys(t *testing.T
 		wg      sync.WaitGroup
 	)
 	for i := 0; i < claimers; i++ {
+		// Each claimer needs its own connection so the two disjoint-key claims
+		// run concurrently rather than serializing on a shared pooled connection.
+		claimerDB := openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)
 		q := ReducerQueue{
-			db:            SQLDB{DB: db},
+			db:            SQLDB{DB: claimerDB},
 			LeaseOwner:    fmt.Sprintf("disjoint-claimer-%d", i),
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now.Add(2 * time.Hour) },
