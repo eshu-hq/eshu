@@ -76,16 +76,19 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 			wantKey:    "scope-1",
 		},
 		{
+			// Platform-graph domains now use domain-partitioned hashed keys (#3672).
+			// The exact key value is covered by TestPlatformGraphConflictKeyPartitionsByDomain;
+			// here we only assert the conflict domain and the key format.
 			name:       "workload identity uses platform graph conflict family",
 			domain:     reducer.DomainWorkloadIdentity,
 			wantDomain: reducerConflictDomainPlatformGraph,
-			wantKey:    "scope-1",
+			wantKey:    reducerPlatformGraphConflictKey(reducer.DomainWorkloadIdentity, "scope-1"),
 		},
 		{
 			name:       "deployment mapping uses platform graph conflict family",
 			domain:     reducer.DomainDeploymentMapping,
 			wantDomain: reducerConflictDomainPlatformGraph,
-			wantKey:    "scope-1",
+			wantKey:    reducerPlatformGraphConflictKey(reducer.DomainDeploymentMapping, "scope-1"),
 		},
 		{
 			name:       "unknown future domains fall back to scope serialization",

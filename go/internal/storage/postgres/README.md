@@ -685,3 +685,89 @@ spans, the `DeferredBackfillDuration`/`DeferredBackfillEvidence`/
 `DeploymentMappingReopened` instruments, and the `deferred_backfill_completed`/
 `deployment_mapping_reopened`/`relationship_backfill_deferred_source_skipped`
 log lines are emitted from the same statements, now relocated.
+
+## Platform-Graph Conflict-Domain Partition (#3672)
+
+### Conflict-Domain Map
+
+`reducerConflictDomainKey` (`reducer_queue_conflict.go`) assigns every reducer
+intent a `(conflict_domain, conflict_key)` pair that the claim SQL fences on.
+Five domains shared one coarse `(platform_graph, scopeKey)` pair before this
+change, causing all intents for the same scope to serialize:
+
+| Domain | Pre-#3672 conflict key | Post-#3672 conflict key |
+|---|---|---|
+| `workload_materialization` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain+scope)` |
+| `deployment_mapping` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain+scope)` |
+| `workload_identity` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain+scope)` |
+| `deployable_unit_correlation` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain+scope)` |
+| `cloud_asset_resolution` | `scopeKey` (raw) | `platform-graph:v2:sha256(domain+scope)` |
+
+With the old key, one `platform_graph:scopeKey` fence serialized all five
+domains for each scope. ~26k materialization intents drained in single file →
+~25-min cumulative `intent_wait_seconds` (reported by `sub_duration_*`
+telemetry landed in PR #3671).
+
+With the new key, each domain gets a distinct conflict key per scope. Intents
+for different domains in the same scope can now drain concurrently. True write
+conflicts (same domain, same scope) still share a key and serialize correctly.
+
+### Write-Conflict Safety Evidence
+
+Each domain writes to a distinct NornicDB keyspace with no shared MERGE target
+across domains:
+
+- **WorkloadMaterialization**: Workload/Instance/DeploymentSource/RuntimePlatform
+  nodes. DeploymentMapping's platform MERGE writes are protected by
+  `PlatformGraphLocker` (pg_advisory_xact_lock per platformID); WM reads
+  already-committed platform rows from `InfrastructurePlatformLookup`. No shared
+  MERGE target between WM and DM.
+- **DeploymentMapping**: PROVISIONS_PLATFORM edges + cross-repo relationships.
+  Already guards concurrent platform MERGE via `PlatformGraphLocker`.
+- **WorkloadIdentity**: `service_uid` canonical keyspace via a dedicated writer.
+- **DeployableUnitCorrelation**: `deployable_unit_uid` keyspace.
+- **CloudAssetResolution**: `cloud_resource_uid` keyspace.
+
+No domain pair shares a MERGE target that would cause a uniqueness conflict or
+lost-write under concurrent execution.
+
+### Benchmark Evidence
+
+darwin/arm64, Apple M5 Max, Go 1.22,
+`pkg: github.com/eshu-hq/eshu/go/internal/storage/postgres`
+
+```
+BenchmarkReducerPlatformGraphConflictKey-18              38711040   157.2 ns/op   352 B/op   5 allocs/op
+BenchmarkReducerPlatformGraphConflictKeyAllDomains-18    38427297   160.7 ns/op   352 B/op   5 allocs/op
+```
+
+Cost per intent at enqueue time: ~157 ns, 5 allocs (SHA-256 of domain+scope
+string). This is negligible against any graph write (measured at ≥0.85 s in
+PR #3671 telemetry). No Postgres query shape changed; the claim SQL fences on
+the stored `(conflict_domain, conflict_key)` columns unchanged.
+
+No-Regression Evidence: the claim SQL fence predicate
+(`inflight.conflict_domain = fact_work_items.conflict_domain AND COALESCE(...)`)
+is unchanged. Only the conflict key value stored at enqueue time changes. The
+existing `TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey` and
+`TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys` proofs (live
+Postgres, `-race`) cover the fence contract for same-key serialization and
+disjoint-key concurrency respectively; both continue to pass with the new key
+shape.
+
+Expected drain improvement: ~5× concurrency increase for the
+`workload_materialization` domain relative to the pre-#3672 serialized drain
+(one slot per scope → one slot per domain per scope). Exact speedup depends on
+worker count and graph-write latency; full-corpus `sub_duration_*` telemetry
+measurement requires the operator's remote validation environment.
+
+### Observability Evidence
+
+No new telemetry emitted by this change. The `sub_duration_*` log attributes
+landed in PR #3671 (`sub_duration_graph_write_seconds`, `queue_wait_seconds`)
+are the primary signal for validating drain improvement after this partition.
+Operators should compare `queue_wait_seconds` histograms for the
+`workload_materialization` domain before and after deployment.
+
+No-Observability-Change: conflict key derivation is enqueue-time only; no
+runtime spans, metrics, or log lines were added or removed.

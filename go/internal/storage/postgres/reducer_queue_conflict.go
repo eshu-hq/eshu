@@ -19,6 +19,19 @@ const (
 
 	reducerConflictKeyPrefixResourceScope     = "resource-scope:v1:"
 	reducerConflictKeyPrefixCloudResourceNode = "cloud-resource-node:v1:"
+
+	// reducerConflictKeyPrefixPlatformGraph is the versioned prefix for all
+	// platform_graph conflict keys. The key encodes both the domain name and the
+	// scope so that different platform-graph domains for the same scope produce
+	// distinct conflict keys and can drain concurrently, while same-domain
+	// same-scope intents still share a key and serialize correctly.
+	//
+	// Version history:
+	//   v1 (pre-#3672): raw scopeKey — all 5 platform-graph domains shared one
+	//     coarse key per scope, serializing ~26k intents into a 25-min queue wait.
+	//   v2 (#3672): hashed domain+scope — non-conflicting domains drain concurrently;
+	//     true write conflicts (same domain, same scope) still serialize.
+	reducerConflictKeyPrefixPlatformGraph = "platform-graph:v2:"
 )
 
 type reducerResourceConflictStatus string
@@ -102,6 +115,30 @@ func blockedResourceConflictPolicy(domain reducer.Domain) reducerResourceConflic
 // intent. The key remains scope-scoped so newer generations cannot overtake
 // older work for the same repo, while the domain separates graph families that
 // do not share the same NornicDB write-hot spots.
+//
+// Platform-graph partition (#3672): the five platform-graph domains
+// (WorkloadMaterialization, DeploymentMapping, WorkloadIdentity,
+// DeployableUnitCorrelation, CloudAssetResolution) each write to separate
+// NornicDB keyspaces with no shared MERGE targets across domains, so they do
+// not need queue-level serialization against each other. Before this change all
+// five shared a single coarse (platform_graph, scopeKey) pair, causing ~26k
+// intents to drain serially (~25-min queue wait). The fix encodes both the
+// domain name and the scope into the conflict key so non-conflicting domains
+// drain concurrently; same-domain same-scope intents still share a key and
+// serialize correctly.
+//
+// Write-conflict safety for each domain pair:
+//   - WorkloadMaterialization ↔ DeploymentMapping: DM guards platform MERGE
+//     writes with pg_advisory_xact_lock (PlatformGraphLocker) per platformID.
+//     WM reads already-committed platform rows from InfrastructurePlatformLookup.
+//     No shared MERGE target; queue-level serialization between these two is
+//     unnecessary and was the primary source of the serialization bug.
+//   - WorkloadIdentity: writes to the service_uid canonical keyspace via a
+//     dedicated writer with its own idempotent MERGE path.
+//   - DeployableUnitCorrelation: writes deployable-unit correlation edges in the
+//     deployable_unit_uid keyspace; no shared MERGE target with WM, DM, or WI.
+//   - CloudAssetResolution: writes to the cloud_resource_uid keyspace via a
+//     dedicated writer; no shared MERGE target with any other platform-graph domain.
 func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 	scopeKey := strings.TrimSpace(intent.ScopeID)
 	if policy, ok := reducerResourceConflictPolicyFor(intent.Domain); ok {
@@ -124,10 +161,22 @@ func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 		reducer.DomainCloudAssetResolution,
 		reducer.DomainDeploymentMapping,
 		reducer.DomainWorkloadMaterialization:
-		return reducerConflictDomainPlatformGraph, scopeKey
+		return reducerConflictDomainPlatformGraph, reducerPlatformGraphConflictKey(intent.Domain, scopeKey)
 	default:
 		return reducerConflictDomainScope, scopeKey
 	}
+}
+
+// reducerPlatformGraphConflictKey returns a versioned hashed conflict key for
+// platform-graph domains. It encodes both the domain name and the scope so that
+// different domains for the same scope produce distinct conflict keys (enabling
+// concurrent drain) while the same domain and scope always produce the same key
+// (preserving same-scope serialization within a domain).
+func reducerPlatformGraphConflictKey(domain reducer.Domain, scopeKey string) string {
+	return reducerHashedConflictKey(
+		reducerConflictKeyPrefixPlatformGraph,
+		string(domain)+":"+strings.TrimSpace(scopeKey),
+	)
 }
 
 func reducerResourceConflictPolicyFor(domain reducer.Domain) (reducerResourceConflictPolicy, bool) {

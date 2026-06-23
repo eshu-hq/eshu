@@ -84,7 +84,10 @@ func TestReducerClaimBenchmarkSeedUsesProductionConflictColumns(t *testing.T) {
 		t.Fatalf("work insert conflict-domain arg = %v, want %v", got, want)
 	}
 	for _, want := range []string{
-		"WITH benchmark_rows AS",
+		// scope_conflict_keys CTE carries the Go-computed domain-partitioned hashed
+		// conflict keys (#3672) so the benchmark seed uses production conflict columns.
+		"WITH scope_conflict_keys",
+		"benchmark_rows AS",
 		"((series.i - 1) % $2) + 1 AS scope_ordinal",
 		"'scope-bench-' || benchmark_rows.scope_ordinal::text",
 		"domain, conflict_domain",
@@ -110,12 +113,15 @@ func reducerClaimBenchmarkWorkShape(rowNumber int) reducerClaimBenchmarkWorkFixt
 	}
 	scopeOrdinal := ((rowNumber - 1) % reducerClaimBenchmarkConflictScopeCount) + 1
 	scopeID := fmt.Sprintf("scope-bench-%d", scopeOrdinal)
+	// Platform-graph conflict keys are now domain-partitioned hashed keys (#3672).
+	// Use reducerPlatformGraphConflictKey so the benchmark seed stays aligned with
+	// production conflict key derivation.
 	return reducerClaimBenchmarkWorkFixture{
 		scopeID:        scopeID,
 		generationID:   fmt.Sprintf("generation-bench-%d", scopeOrdinal),
 		domain:         string(reducer.DomainWorkloadIdentity),
 		conflictDomain: reducerConflictDomainPlatformGraph,
-		conflictKey:    scopeID,
+		conflictKey:    reducerPlatformGraphConflictKey(reducer.DomainWorkloadIdentity, scopeID),
 	}
 }
 
@@ -337,8 +343,28 @@ SELECT
 FROM generate_series(1, $2) AS series(i)`, now, scopeCount); err != nil {
 		return fmt.Errorf("insert benchmark generation: %w", err)
 	}
+
+	// Build Go-side conflict key mapping for each scope ordinal so the benchmark
+	// seed uses the same domain-partitioned hashed key that reducerConflictDomainKey
+	// produces (#3672). SQL cannot compute the SHA-256 hash, so we pass the mapping
+	// as a VALUES list that the work-item insert can join on.
+	conflictKeys := make([]string, scopeCount)
+	for i := range scopeCount {
+		scopeID := fmt.Sprintf("scope-bench-%d", i+1)
+		conflictKeys[i] = reducerPlatformGraphConflictKey(reducer.DomainWorkloadIdentity, scopeID)
+	}
+
+	// Build a VALUES clause for the conflict-key lookup: (ordinal, key).
+	keyValues := make([]string, scopeCount)
+	for i, key := range conflictKeys {
+		keyValues[i] = fmt.Sprintf("(%d, '%s')", i+1, key)
+	}
+
 	if _, err := db.ExecContext(ctx, `
-WITH benchmark_rows AS (
+WITH scope_conflict_keys (scope_ordinal, conflict_key) AS (
+    VALUES `+strings.Join(keyValues, ", ")+`
+),
+benchmark_rows AS (
     SELECT series.i, ((series.i - 1) % $2) + 1 AS scope_ordinal
     FROM generate_series(1, $1) AS series(i)
 )
@@ -355,7 +381,7 @@ SELECT
     'reducer',
     $3,
     $4,
-    'scope-bench-' || benchmark_rows.scope_ordinal::text,
+    scope_conflict_keys.conflict_key,
     'pending',
     0,
     NULL,
@@ -374,7 +400,9 @@ SELECT
     ),
     $5,
     $5
-FROM benchmark_rows`, depth, scopeCount, string(reducer.DomainWorkloadIdentity), reducerConflictDomainPlatformGraph, now); err != nil {
+FROM benchmark_rows
+JOIN scope_conflict_keys ON scope_conflict_keys.scope_ordinal = benchmark_rows.scope_ordinal`,
+		depth, scopeCount, string(reducer.DomainWorkloadIdentity), reducerConflictDomainPlatformGraph, now); err != nil {
 		return fmt.Errorf("insert benchmark work items: %w", err)
 	}
 	return nil
