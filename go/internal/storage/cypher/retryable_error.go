@@ -30,6 +30,14 @@ func (e *neo4jRetryableError) Error() string   { return e.inner.Error() }
 func (e *neo4jRetryableError) Unwrap() error   { return e.inner }
 func (e *neo4jRetryableError) Retryable() bool { return true }
 
+// FailureClass reports the durable graph-write-timeout failure class so a
+// transient driver-retry graph write (deadlock budget exhausted, connectivity
+// loss) is recorded on the retrying row under the same class as a bounded
+// graph-write deadline. Producer write-timeout backpressure (#3560) scopes its
+// pressure signal to this class, which keeps a graph-write retry distinguishable
+// from a reducer readiness backlog that also persists as a retrying row.
+func (e *neo4jRetryableError) FailureClass() string { return GraphWriteTimeoutFailureClass }
+
 // WrapRetryableNeo4jError inspects err for known retryable Neo4j error codes
 // or driver-level retry exhaustion. If the error (or any wrapped error in the
 // chain) is a *neo4j.Neo4jError with a retryable code, or a

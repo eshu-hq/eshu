@@ -164,14 +164,24 @@ func (q ReducerQueue) failIntent(
 	now := q.now()
 
 	// retryable() consults both the canonical Retryable() authority and the
-	// non-counting readiness class. Probe the metadata fallback class first so a
-	// self-classified readiness failure keeps its non-counting retry behavior.
-	probeClass, _, _ := queueFailureMetadata(cause, "reducer_failed")
+	// non-counting readiness class. Probe with a sentinel fallback so a
+	// self-classifying cause is distinguishable from one that does not classify:
+	// queueFailureMetadata only overrides the fallback when the error implements
+	// FailureClass(), so a returned value other than the sentinel means the cause
+	// curated its own class.
+	const unclassifiedRetrySentinel = "reducer_failed"
+	probeClass, _, _ := queueFailureMetadata(cause, unclassifiedRetrySentinel)
 	willRetry := q.retryable(cause, probeClass, intent.AttemptCount)
 
 	if willRetry {
+		// Preserve the cause's self-classified failure class on the retrying row.
+		// Graph-write timeouts keep graph_write_timeout and readiness misses keep
+		// their *_not_ready / *_n class, so producer write-timeout backpressure
+		// (#3560) can scope its pressure signal to the graph-write class and never
+		// throttle on a readiness backlog. A cause that does not self-classify
+		// falls back to the generic reducer_retryable label.
 		retryFailureClass := "reducer_retryable"
-		if isNonCountingReducerRetryFailureClass(probeClass) {
+		if probeClass != unclassifiedRetrySentinel {
 			retryFailureClass = probeClass
 		}
 		_, failureMessage, failureDetails := queueFailureMetadata(cause, retryFailureClass)

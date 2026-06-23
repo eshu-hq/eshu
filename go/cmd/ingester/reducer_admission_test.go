@@ -199,9 +199,11 @@ func TestLoadReducerAdmissionConfigDefaultsToEnabledHighWaterMark(t *testing.T) 
 	}
 }
 
-func TestLoadReducerAdmissionConfigExplicitZeroDisablesDefault(t *testing.T) {
+func TestLoadReducerAdmissionConfigExplicitZeroDisablesTotalDepthGate(t *testing.T) {
 	t.Parallel()
 
+	// Explicit zero on the total-depth mark disables the total-depth gate, but
+	// the writer stays enabled because the graph-write pressure gate defaults on.
 	config, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
 		"ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK": "0",
 	}))
@@ -211,8 +213,26 @@ func TestLoadReducerAdmissionConfigExplicitZeroDisablesDefault(t *testing.T) {
 	if got := config.HighWaterMark; got != 0 {
 		t.Fatalf("HighWaterMark = %d, want explicit disabled value 0", got)
 	}
+	if !config.enabled() {
+		t.Fatal("writer disabled with total-depth gate off, want enabled via graph-write gate")
+	}
+	if !config.graphWritePressureEnabled() {
+		t.Fatal("graph-write pressure gate disabled, want enabled by default")
+	}
+}
+
+func TestLoadReducerAdmissionConfigBothGatesExplicitZeroDisablesWriter(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
+		"ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK":          "0",
+		"ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK": "0",
+	}))
+	if err != nil {
+		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+	}
 	if config.enabled() {
-		t.Fatal("explicit zero reducer admission config is enabled, want disabled")
+		t.Fatal("both gates explicit zero is enabled, want disabled")
 	}
 }
 
@@ -397,6 +417,21 @@ func (f *fakeReducerAdmissionDepthReader) QueueDepths(context.Context) (map[stri
 	return depth, nil
 }
 
+// ReducerGraphWriteTimeoutDepth maps the next depth map's retrying bucket to the
+// graph-write-timeout depth so the high-water-only tests (graph-write pressure
+// disabled, this method unused) and any pressure test that drives the retrying
+// bucket both observe consistent per-iteration depth. The gate calls exactly one
+// of QueueDepths / ReducerGraphWriteTimeoutDepth per loop iteration, so the
+// shared call cursor advances once per iteration either way.
+func (f *fakeReducerAdmissionDepthReader) ReducerGraphWriteTimeoutDepth(context.Context) (int64, error) {
+	if f.calls >= len(f.depths) {
+		return f.depths[len(f.depths)-1]["reducer"]["retrying"], nil
+	}
+	depth := f.depths[f.calls]["reducer"]["retrying"]
+	f.calls++
+	return depth, nil
+}
+
 type recordingReducerIntentWriter struct {
 	calls   int
 	intents []projector.ReducerIntent
@@ -431,6 +466,10 @@ func (f fixedReducerAdmissionDepthReader) QueueDepths(context.Context) (map[stri
 	return f.depth, nil
 }
 
+func (f fixedReducerAdmissionDepthReader) ReducerGraphWriteTimeoutDepth(context.Context) (int64, error) {
+	return f.depth["reducer"]["retrying"], nil
+}
+
 type alternatingReducerAdmissionDepthReader struct {
 	calls int
 	high  map[string]map[string]int64
@@ -443,4 +482,12 @@ func (f *alternatingReducerAdmissionDepthReader) QueueDepths(context.Context) (m
 		return f.high, nil
 	}
 	return f.low, nil
+}
+
+func (f *alternatingReducerAdmissionDepthReader) ReducerGraphWriteTimeoutDepth(context.Context) (int64, error) {
+	f.calls++
+	if f.calls%2 == 1 {
+		return f.high["reducer"]["retrying"], nil
+	}
+	return f.low["reducer"]["retrying"], nil
 }

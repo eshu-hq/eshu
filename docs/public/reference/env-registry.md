@@ -313,6 +313,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_GRAPH_ORPHAN_SWEEP_TTL` | duration | `168h` | Minimum age before a marked graph orphan can be deleted. |
 | `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` | int | `10000` | Ingester source-local reducer-intent admission threshold; defers while outstanding reducer queue depth is at or above this value. Set to 0 to disable. |
 | `ESHU_REDUCER_ADMISSION_POLL_INTERVAL` | duration | `1s` | Queue-depth recheck interval while reducer admission is deferring. |
+| `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK` | int | `500` | Ingester graph-write backpressure: defers source-local reducer-intent admission while retrying-state reducer depth (the durable signal of recurring graph-write timeouts) is at or above this value, so recoverable work is throttled instead of dead-lettered. Set to 0 to disable. |
+| `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` | int | `100` | Hysteresis floor for graph-write backpressure; admission resumes only after retrying-state reducer depth falls below this value. Must be less than ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | int | — | Work items claimed per cycle (default adaptive to workers and backend). |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | string | — | Single reducer claim domain. Deprecated; use `ESHU_REDUCER_CLAIM_DOMAINS`. |
 | `ESHU_REDUCER_CLAIM_DOMAINS` | string | — | Comma-separated reducer domains for multi-domain claims. |

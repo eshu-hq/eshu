@@ -4,7 +4,27 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
+
+// reducerGraphWriteTimeoutDepthQuery counts reducer work items that are retrying
+// specifically because a bounded graph write timed out. It scopes the count to
+// failure_class = graph_write_timeout so the producer write-backpressure gate
+// (#3560) reacts only to genuine graph-write pressure. Readiness-not-ready
+// retrying rows (secrets_iam_endpoint_not_ready and other *_n classes) and
+// generic reducer_retryable rows are deliberately excluded so a readiness
+// backlog never false-throttles unrelated reducer admission. It reuses the
+// active-generation CTE so superseded stale-generation rows do not inflate the
+// signal.
+const reducerGraphWriteTimeoutDepthQuery = `
+WITH ` + activeFactWorkItemsCTE + `
+SELECT COUNT(*) AS count
+FROM active_fact_work_items
+WHERE stage = 'reducer'
+  AND status = 'retrying'
+  AND failure_class = '` + cypher.GraphWriteTimeoutFailureClass + `'
+`
 
 const queueDepthQuery = `
 WITH ` + activeFactWorkItemsCTE + `
@@ -138,6 +158,35 @@ func (s *QueueObserverStore) addQueueDepthRows(
 	}
 
 	return nil
+}
+
+// ReducerGraphWriteTimeoutDepth returns the number of reducer work items that
+// are retrying because a bounded graph write timed out (failure_class =
+// graph_write_timeout). The producer write-backpressure gate consumes this
+// count so it defers admission only under genuine graph-write pressure, never on
+// readiness-not-ready backlogs that also persist as retrying rows (#3560).
+func (s *QueueObserverStore) ReducerGraphWriteTimeoutDepth(ctx context.Context) (int64, error) {
+	if s.queryer == nil {
+		return 0, fmt.Errorf("queue observer queryer is required")
+	}
+
+	rows, err := s.queryer.QueryContext(ctx, reducerGraphWriteTimeoutDepthQuery)
+	if err != nil {
+		return 0, fmt.Errorf("reducer graph-write-timeout depth: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var depth int64
+	if rows.Next() {
+		if err := rows.Scan(&depth); err != nil {
+			return 0, fmt.Errorf("reducer graph-write-timeout depth scan: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("reducer graph-write-timeout depth: %w", err)
+	}
+
+	return depth, nil
 }
 
 // QueueOldestAge returns the age in seconds of the oldest outstanding item

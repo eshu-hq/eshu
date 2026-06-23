@@ -197,3 +197,45 @@ func TestNeo4jRetryableErrorImplementsInterface(t *testing.T) {
 	// Verify Unwrap chain preserves the original
 	assert.True(t, errors.Is(wrapped, inner))
 }
+
+// TestNeo4jRetryableErrorSelfClassifiesAsGraphWriteTimeout proves the wrapped
+// transient graph-write error reports the graph-write-timeout failure class.
+// Producer write-timeout backpressure (#3560) scopes its pressure signal to the
+// graph_write_timeout class, so a transient driver-retry write (deadlock budget
+// exhausted, connectivity loss) must surface that class — and therefore be
+// distinguishable from a reducer readiness backlog — on the retrying row.
+func TestNeo4jRetryableErrorSelfClassifiesAsGraphWriteTimeout(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		inner error
+	}{
+		{"deadlock", newNeo4jError("Neo.TransientError.Transaction.DeadlockDetected", "deadlock")},
+		{"entity_not_found", newNeo4jError("Neo.ClientError.Statement.EntityNotFound", "node gone")},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			wrapped := WrapRetryableNeo4jError(tc.inner)
+			var classified interface{ FailureClass() string }
+			require.True(t, errors.As(wrapped, &classified))
+			assert.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
+		})
+	}
+}
+
+// TestGraphWriteTimeoutFailureClassStable proves the graph-write-timeout class is
+// the stable, exported string both the timeout error type and the transient
+// driver-retry wrapper report, so the backpressure depth query can scope to it
+// without catching readiness backlogs.
+func TestGraphWriteTimeoutFailureClassStable(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "graph_write_timeout", GraphWriteTimeoutFailureClass)
+
+	var timeoutErr error = GraphWriteTimeoutError{Operation: "x", Cause: errors.New("y")}
+	var classified interface{ FailureClass() string }
+	require.True(t, errors.As(timeoutErr, &classified))
+	assert.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
+}
