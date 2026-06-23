@@ -46,6 +46,22 @@ Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event
 table's safe hashes and structured logs for authorized drilldown.
 
+## Generation Liveness
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_active_generations` | observable gauge | Current active scope generation count by closed activation-age bucket `age_bucket` (`fresh`, `aging`, `stuck`). |
+| `eshu_dp_generation_liveness_recovered_total` | counter | Wedged active generations re-driven through projector re-enqueue by the liveness sweep. |
+| `eshu_dp_generation_liveness_superseded_total` | counter | Orphaned older active generations superseded by the liveness sweep. |
+| `eshu_dp_generation_liveness_failures_total` | counter | Generation liveness recovery sweep failures by bounded reason. |
+
+The `eshu_dp_active_generations{age_bucket="stuck"}` series is the operator alarm
+signal: a non-zero, non-draining `stuck` count means generations are activating
+but not completing. Read it against the recovered and superseded counters to
+separate self-healing from a backlog the sweep cannot clear; a rising
+`eshu_dp_generation_liveness_failures_total` means the sweep itself is failing,
+and the bounded failure reason lives in reducer logs.
+
 ## Graph Orphan Sweep
 
 | Metric | Type | Use |
