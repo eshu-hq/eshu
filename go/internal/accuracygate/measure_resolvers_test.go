@@ -1,6 +1,7 @@
 package accuracygate_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,26 +16,30 @@ import (
 )
 
 // resolverCoveredLanguages is the published cross-repo call-resolver coverage
-// set from issue #3487's matrix (go/internal/reducer/README.md). A dedicated
-// resolver requires the parser to emit receiver-type or structured-import
-// evidence; c, cpp, csharp, and scala are documented parser-capability gaps and
-// are intentionally excluded. The gate counts this published set so a silent
-// removal of a resolver drops coverage below the floor.
+// set from issue #3487's matrix (go/internal/reducer/README.md). It names the
+// languages the coverage measurement MUST exercise; c, cpp, csharp, and scala are
+// documented parser-capability gaps and are intentionally excluded. The set is
+// asserted against the reducer README in TestAccuracyResolverMatrixMatchesPublishedDoc
+// so it cannot drift from the documented coverage.
 //
-// This list is the published matrix, not a measurement, and is asserted against
-// the reducer README in TestAccuracyResolverMatrixMatchesPublishedDoc so it
-// cannot drift from the documented coverage.
+// This list is the documented scope, not the measurement. The gate's covered
+// count comes from measureResolvers running each language's resolver over a
+// per-language fixture and counting only languages whose resolver actually
+// produces the expected CALLS edge — so removing a resolver drops the measured
+// count below the floor even though this list is unchanged.
 func resolverCoveredLanguages() []string {
-	return []string{
-		"dart", "elixir", "go", "groovy", "haskell", "java", "javascript",
-		"jsx", "kotlin", "perl", "python", "rust", "swift", "tsx", "typescript",
+	languages := make([]string, 0, len(resolverCoverageFixtures()))
+	for _, fixture := range resolverCoverageFixtures() {
+		languages = append(languages, fixture.language)
 	}
+	return languages
 }
 
-// resolverCallFixture is a single-file caller->callee CALLS fixture. The callee
-// is defined in the same file so same-file scope resolution binds the edge
-// without needing per-language cross-repo evidence, letting the gate measure the
-// real reducer call-edge path across several languages deterministically.
+// resolverCallFixture is a single-file caller->callee CALLS fixture parsed by the
+// real engine. The callee is defined in the same file so same-file scope
+// resolution binds the edge without per-language cross-repo evidence, letting the
+// gate measure the real reducer call-edge path across several languages
+// deterministically for the precision/recall axis.
 type resolverCallFixture struct {
 	language     string
 	fileName     string
@@ -69,10 +74,14 @@ func resolverCallFixtures() []resolverCallFixture {
 //   - precision/recall of observed CALLS edges against the golden caller->callee
 //     edge, scored with the real reducer extraction and goldenaudit.ScoreAccuracy
 //     (the same scorer resolutionparity's harness uses), and
-//   - resolver language coverage from the published #3487 matrix.
+//   - resolver language coverage MEASURED per language: each documented resolver
+//     language is exercised with a fixture that drives its resolver, and a
+//     language is counted covered only when its resolver actually produces the
+//     expected CALLS edge.
 //
-// CoveredItems carries the resolver-covered language count so a dropped resolver
-// fails the gate even when the sampled edges still resolve.
+// CoveredItems carries the measured covered-language count, not a documented
+// constant, so removing any one resolver drops the count below the floor and
+// fails the gate even when the sampled precision/recall edges still resolve.
 func measureResolvers(t *testing.T, engine *parser.Engine) accuracygate.Metric {
 	t.Helper()
 
@@ -91,16 +100,143 @@ func measureResolvers(t *testing.T, engine *parser.Engine) accuracygate.Metric {
 		goldenaudit.Graph{Edges: expectedEdges},
 		goldenaudit.Graph{Edges: observedEdges},
 	)
-	metric := accuracygate.Metric{
+
+	covered := measureResolverCoverage(t)
+	for language, status := range covered {
+		labels["covered:"+language] = status
+	}
+
+	return accuracygate.Metric{
 		Precision:    result.Overall.Precision,
 		Recall:       result.Overall.Recall,
-		CoveredItems: len(resolverCoveredLanguages()),
+		CoveredItems: countCoveredResolvers(covered),
 		Labels:       labels,
 	}
-	for _, language := range resolverCoveredLanguages() {
-		labels["covered:"+language] = "resolver"
+}
+
+// measureResolverCoverage runs every documented resolver language's fixture
+// through the real reducer call-row extraction and returns, per language, whether
+// its resolver produced the expected CALLS edge. The returned status is "resolver"
+// for a covered language and "uncovered" otherwise, so the published report shows
+// exactly which resolver, if any, stopped firing.
+func measureResolverCoverage(t *testing.T) map[string]string {
+	t.Helper()
+
+	statuses := make(map[string]string)
+	for _, fixture := range resolverCoverageFixtures() {
+		_, rows := reducer.ExtractCodeCallRows(fixture.envelopes)
+		if resolverFixtureEdgeObserved(rows, fixture) {
+			statuses[fixture.language] = "resolver"
+			continue
+		}
+		statuses[fixture.language] = "uncovered"
 	}
-	return metric
+	return statuses
+}
+
+// measureResolverCoverageWithBrokenLanguage runs the coverage measurement but
+// strips the named language's resolver firing signal (the inferred receiver type
+// and imports the resolver keys on) from its caller envelope, so that resolver
+// can no longer bind. It models removing the resolver: the language drops to
+// "uncovered" and the measured count falls. Other languages are unchanged.
+func measureResolverCoverageWithBrokenLanguage(t *testing.T, language string) map[string]string {
+	t.Helper()
+
+	statuses := make(map[string]string)
+	for _, fixture := range resolverCoverageFixtures() {
+		envelopes := fixture.envelopes
+		if fixture.language == language {
+			envelopes = stripResolverSignal(envelopes)
+		}
+		_, rows := reducer.ExtractCodeCallRows(envelopes)
+		if resolverFixtureEdgeObserved(rows, fixture) {
+			statuses[fixture.language] = "resolver"
+			continue
+		}
+		statuses[fixture.language] = "uncovered"
+	}
+	return statuses
+}
+
+// stripResolverSignal removes the inferred receiver type, imports, and repository
+// imports_map that language-specific resolvers bind on, leaving a bare call name
+// that only the shared repo-unique-name fallback could match. It returns copies so
+// the shared fixture envelopes are not mutated.
+func stripResolverSignal(envelopes []facts.Envelope) []facts.Envelope {
+	stripped := make([]facts.Envelope, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		payload := make(map[string]any, len(envelope.Payload))
+		for key, value := range envelope.Payload {
+			payload[key] = value
+		}
+		delete(payload, "imports_map")
+		if parsed, ok := payload["parsed_file_data"].(map[string]any); ok {
+			next := make(map[string]any, len(parsed))
+			for key, value := range parsed {
+				next[key] = value
+			}
+			delete(next, "imports")
+			if calls, ok := next["function_calls"].([]any); ok {
+				next["function_calls"] = callsWithoutReceiverType(calls)
+			}
+			payload["parsed_file_data"] = next
+		}
+		stripped = append(stripped, facts.Envelope{FactKind: envelope.FactKind, Payload: payload})
+	}
+	return stripped
+}
+
+// callsWithoutReceiverType returns copies of the call items with the inferred
+// receiver type removed so receiver-typed resolvers cannot bind.
+func callsWithoutReceiverType(calls []any) []any {
+	out := make([]any, 0, len(calls))
+	for _, raw := range calls {
+		call, ok := raw.(map[string]any)
+		if !ok {
+			out = append(out, raw)
+			continue
+		}
+		next := make(map[string]any, len(call))
+		for key, value := range call {
+			next[key] = value
+		}
+		delete(next, "inferred_obj_type")
+		out = append(out, next)
+	}
+	return out
+}
+
+// countCoveredResolvers counts the languages whose resolver produced the expected
+// edge. This measured count is the gate's resolver CoveredItems.
+func countCoveredResolvers(statuses map[string]string) int {
+	covered := 0
+	for _, status := range statuses {
+		if status == "resolver" {
+			covered++
+		}
+	}
+	return covered
+}
+
+// resolverFixtureEdgeObserved reports whether the reducer call rows contain the
+// fixture's expected caller->callee CALLS edge, optionally requiring a specific
+// resolution method so a same-name fallback match does not count as resolver
+// coverage.
+func resolverFixtureEdgeObserved(rows []map[string]any, fixture resolverCoverageFixture) bool {
+	for _, row := range rows {
+		caller, _ := row["caller_entity_id"].(string)
+		callee, _ := row["callee_entity_id"].(string)
+		if caller != fixture.callerUID || callee != fixture.calleeUID {
+			continue
+		}
+		if fixture.resolutionMethod == "" {
+			return true
+		}
+		// resolution_method is stored as codeprovenance.Method (a string type),
+		// so compare through fmt.Sprint rather than a string type assertion.
+		return fmt.Sprint(row["resolution_method"]) == fixture.resolutionMethod
+	}
+	return false
 }
 
 // observeResolverEdges parses one fixture, assigns stable UIDs to the caller and

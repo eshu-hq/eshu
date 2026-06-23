@@ -142,6 +142,47 @@ func dimensionPasses(
 	return false, "dimension not evaluated"
 }
 
+// TestAccuracyGoldenGateDetectsResolverCoverageRegression proves the resolver
+// dimension's CoveredItems is MEASURED, not a documented constant. It runs the
+// real per-language extraction over the coverage fixtures, then removes one
+// resolver's firing signal from its fixture so that resolver no longer produces
+// its CALLS edge — exactly what removing the resolver would do. The measured
+// covered count must drop below the floor and the gate fail. A count derived from
+// a hard-coded README list would stay at the floor and pass.
+func TestAccuracyGoldenGateDetectsResolverCoverageRegression(t *testing.T) {
+	t.Parallel()
+
+	baseline, err := accuracygate.LoadBaseline(baselineFixturePath())
+	if err != nil {
+		t.Fatalf("LoadBaseline() error = %v", err)
+	}
+
+	// Healthy: every documented resolver fires, so the measured count clears the
+	// floor. This guards that the regression below is what drops coverage.
+	healthy := measureResolverCoverage(t)
+	if got := countCoveredResolvers(healthy); got < baseline.Thresholds[accuracygate.DimensionResolvers].MinCoveredItems {
+		t.Fatalf("healthy resolver coverage = %d, below floor %d", got, baseline.Thresholds[accuracygate.DimensionResolvers].MinCoveredItems)
+	}
+
+	// Drop one resolver's firing signal: a Kotlin call with no imported receiver
+	// type cannot bind through the Kotlin imported-receiver resolver, so its edge
+	// disappears — the same coverage loss removing the resolver would cause.
+	regressed := measureResolverCoverageWithBrokenLanguage(t, "kotlin")
+	covered := countCoveredResolvers(regressed)
+	floor := baseline.Thresholds[accuracygate.DimensionResolvers].MinCoveredItems
+	if covered >= floor {
+		t.Fatalf("broken kotlin resolver still covered=%d at/above floor %d", covered, floor)
+	}
+
+	metric := accuracygate.Metric{Precision: 1, Recall: 1, CoveredItems: covered}
+	result := accuracygate.Evaluate(baseline, accuracygate.Measurement{
+		Metrics: map[accuracygate.Dimension]accuracygate.Metric{accuracygate.DimensionResolvers: metric},
+	})
+	if result.Pass() {
+		t.Fatalf("resolver gate passed with a dropped resolver: covered=%d floor=%d", covered, floor)
+	}
+}
+
 // TestAccuracyResolverMatrixMatchesPublishedDoc keeps the gate's resolver
 // coverage set in lockstep with the published #3487 matrix in the reducer
 // README, so the coverage count the gate enforces cannot silently drift from the

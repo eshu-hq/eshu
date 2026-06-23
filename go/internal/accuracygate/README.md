@@ -14,20 +14,32 @@ per-language / per-evidence-kind metrics that are tracked over time in git:
 2. **Resolvers** — cross-repo call-edge precision/recall plus resolver language
    coverage (issue #3487). Measured: the `resolutionparity` source-derived
    call-graph observation path scored with `parser/goldenaudit.ScoreAccuracy`,
-   and the count of resolver-covered languages.
+   and a MEASURED covered-language count — each documented resolver language is
+   exercised with a per-language fixture and counted only when its resolver
+   actually produces the expected CALLS edge, so removing a resolver drops the
+   count below the floor.
 3. **Correlation** — admission-decision precision/recall against the golden
-   correlation suite (`admissionaudit`, relates to #3490). Measured: a confusion
-   matrix of expected vs observed admission states over the
-   `correlation_admission_golden` fixture.
+   correlation suite (`admissionaudit`, relates to #3490). Measured: the
+   observed admission state for each golden case is DERIVED by running the real
+   `correlation/admission.Evaluate` classifier plus a generation-freshness
+   comparison over a per-case input, then audited against the golden expectation
+   with `admissionaudit.Audit`. The observation is production behavior, not a
+   copy of the expected state, so a flipped admission decision or dropped graph
+   fact fails the gate.
 
 ## Ownership boundary
 
 This package owns only aggregation, scoring rollup, the baseline contract, the
 threshold gate, and the published metrics snapshot. It does not parse source,
-resolve calls, run the reducer, or query storage. The gate's test
-(`golden_gate_test.go`) imports the parser, resolutionparity, and admissionaudit
-harnesses, takes real measurements, and feeds them in — so the gate measures
-shipped behavior rather than re-asserting hand-written numbers (no tautology).
+resolve calls, run the reducer, or query storage. The gate's test imports the
+parser, the reducer call-row extraction, `resolutionparity`, the
+`correlation/admission` classifier, and `admissionaudit`, drives real production
+logic over golden inputs, and feeds the observed results in — so the gate
+measures shipped behavior rather than re-asserting hand-written numbers (no
+tautology). The correlation and resolver-coverage measurements specifically
+observe production output, not the golden expectation, and each has a regression
+proof (`TestAccuracyGoldenGateDetectsCorrelationRegression`,
+`TestAccuracyGoldenGateDetectsResolverCoverageRegression`).
 
 ## Exported surface
 
