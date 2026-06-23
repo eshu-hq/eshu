@@ -48,8 +48,11 @@ edge group by **dependency cluster**: a connected-components pass (union-find)
 over the undirected dependency graph assigns every repository in a component the
 same `group_key` (the lexicographically smallest repository id in the
 component), with `group_source=dependency_cluster`, `group_kind=cluster`, and
-`group_truth=derived`. Both projected edge sources — resolver/cross-repo and
-package-consumption — feed the clustering. The dependency cluster takes
+`group_truth=derived`. All projected edge sources — resolver/cross-repo,
+package-consumption (`projection/package-consumption`), and code-imports
+(`projection/code-imports`, repo→repo edges resolved from per-file external
+import sources correlated to package-registry ownership) — feed the clustering.
+The dependency cluster takes
 precedence over every other grouping source. Repositories that participate in no
 dependency edge fall through to the source-backed derivation: dependency rows
 group from the repository dependency flag; source repositories with a remote

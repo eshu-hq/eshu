@@ -179,6 +179,7 @@ remain available for exact scope/generation diagnosis.
 | --- | --- | --- |
 | `eshu_dp_package_source_correlations_total` | counter | Package source-correlation decisions by reducer domain and outcome. |
 | `eshu_dp_package_consumption_repo_edges_total` | counter | Repo-to-repo `DEPENDS_ON` edge intents derived from package consumption-to-owner correlations, by reducer `domain` (`repo_dependency`) and `outcome` (`projected` for emitted edges, `skipped_no_owner` for consumers whose packages resolve no owner and instead emit a refresh/retraction). |
+| `eshu_dp_code_import_repo_edges_total` | counter | Repo-to-repo `DEPENDS_ON` edge outcomes derived from per-file external import sources correlated to package-registry ownership (evidence_source `projection/code-imports`), by reducer `domain` (`repo_dependency`) and `outcome` (`considered`, `written`, and the conservative skip reasons `skipped_relative`, `skipped_unresolved`, `skipped_ambiguous`, `skipped_no_owner`, `skipped_self`). |
 | `eshu_dp_container_image_identity_decisions_total` | counter | Container image identity decisions by reducer domain and outcome. |
 | `eshu_dp_ci_cd_run_correlations_total` | counter | CI/CD run correlation decisions by reducer domain and outcome. |
 | `eshu_dp_service_catalog_correlations_total` | counter | Service catalog correlation decisions by reducer domain and outcome. |

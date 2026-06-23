@@ -178,6 +178,7 @@ when the reducer has a graph orphan observer.
 | `ScannerWorkerFactsEmitted` | `eshu_dp_scanner_worker_facts_emitted_total` |
 | `PackageSourceCorrelations` | `eshu_dp_package_source_correlations_total` |
 | `PackageConsumptionRepoEdges` | `eshu_dp_package_consumption_repo_edges_total` (labels: bounded `domain`, `outcome`) |
+| `CodeImportRepoEdges` | `eshu_dp_code_import_repo_edges_total` (labels: bounded `domain`, `outcome`) |
 | `ContainerImageIdentityDecisions` | `eshu_dp_container_image_identity_decisions_total` |
 | `CICDRunCorrelations` | `eshu_dp_ci_cd_run_correlations_total` |
 | `ServiceCatalogCorrelations` | `eshu_dp_service_catalog_correlations_total` |
