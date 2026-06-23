@@ -156,14 +156,25 @@ func BuildCodeImportRepoDependencyIntents(
 // reduces it to its first segment ("src"), which can collide with a real
 // owned npm package named "src" and fabricate a cross-repo DEPENDS_ON edge.
 //
-// Guard: if resolved_source contains a path separator ("/") and is not one
-// of the known external-specifier forms (relative "./…"/"../…", node
-// built-in "node:…", or a scoped package "@scope/name"), it is a
-// repo-relative baseUrl-resolved path and the raw source field is returned
-// instead so the normalizer works on the unresolved specifier.
+// Resolution semantics:
+//
+//   - resolved_source present and external: use it (the tsconfig parser proved a
+//     real external specifier).
+//   - resolved_source present but repo-relative (a baseUrl/paths-resolved
+//     intra-repo path such as "src/resources/jwt.ts"): DROP the import by
+//     returning "". The raw source field must NOT be used as a fallback here —
+//     it can itself be a repo-local alias with a separator (e.g. "resources/jwt")
+//     that normalizeNPMImportSource would wrongly reduce to a package name
+//     ("resources") and fabricate a DEPENDS_ON edge. Once resolution proves the
+//     import is intra-repo, no alias of it is an external dependency.
+//   - resolved_source absent (Go/Python, or a JS import the tsconfig parser left
+//     unresolved): use the raw external specifier.
 func codeImportEntrySource(entry map[string]any) string {
 	resolved := strings.TrimSpace(anyToString(entry["resolved_source"]))
-	if resolved != "" && !isRepoRelativeResolvedSource(resolved) {
+	if resolved != "" {
+		if isRepoRelativeResolvedSource(resolved) {
+			return ""
+		}
 		return resolved
 	}
 	return strings.TrimSpace(anyToString(entry["source"]))

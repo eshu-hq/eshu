@@ -355,16 +355,27 @@ func TestCodeImportEntrySourceRepoRelativeResolvedSourceDropped(t *testing.T) {
 		wantResult string
 	}{
 		{
-			name:       "baseUrl path src/components/Button falls back to source",
+			name:       "baseUrl path src/components/Button dropped (source is a bare alias)",
 			resolved:   "src/components/Button",
 			source:     "components/Button",
-			wantResult: "components/Button",
+			wantResult: "",
 		},
 		{
-			name:       "baseUrl path app/utils/helper falls back to source",
+			name:       "baseUrl path app/utils/helper dropped (source is a bare alias)",
 			resolved:   "app/utils/helper",
 			source:     "utils/helper",
-			wantResult: "utils/helper",
+			wantResult: "",
+		},
+		{
+			// Regression for #3651/#3658 review: the raw source can itself be a
+			// repo-local alias containing a "/" (parser emits source="resources/jwt",
+			// resolved_source="src/resources/jwt.ts"). Falling back to it would let
+			// normalizeNPMImportSource reduce it to "resources" and fabricate an edge,
+			// so the import must be dropped once resolution proves it intra-repo.
+			name:       "baseUrl alias resources/jwt dropped, not reduced to resources",
+			resolved:   "src/resources/jwt.ts",
+			source:     "resources/jwt",
+			wantResult: "",
 		},
 		{
 			name:       "external npm package resolved_source kept",
