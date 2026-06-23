@@ -181,3 +181,64 @@ func TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport(t *testing.T) {
 		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 0 (unresolved import)", len(intentWriter.rows))
 	}
 }
+
+// TestCodeImportRepoEdgeHandlerEmitsRefreshIntentWhenOwnerlessFullSnapshot
+// proves the handler calls BuildCodeImportRepoEdgeRefreshIntents and enqueues
+// the resulting retract-only intent when a full snapshot produces zero upserts
+// but at least one consumer repo appears in the file facts (issue #3651, P1).
+// Without this fix the stale projection/code-imports DEPENDS_ON edge from a
+// prior generation stays graph-visible forever.
+func TestCodeImportRepoEdgeHandlerEmitsRefreshIntentWhenOwnerlessFullSnapshot(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
+	// File facts present a consumer with an import, but the ownership facts
+	// resolve to no owner for any package in this scope.
+	loader := &stubCodeImportFactLoader{
+		fileFacts: []facts.Envelope{
+			makeCodeImportFileEnvelope("consumer-repo", "src/app.js", "javascript", []string{"vanished-pkg"}),
+		},
+		ownershipFacts: []facts.Envelope{
+			// ownership facts exist for a different package — none resolve vanished-pkg
+			packageRegistryPackageFact("npm://registry.npmjs.org/other-pkg", "npm", "other-pkg", "", observedAt),
+			codeImportOwnershipCorrelationFact("npm://registry.npmjs.org/other-pkg", "other-repo", "exact", observedAt),
+		},
+	}
+	intentWriter := &recordingRepoDependencyIntentWriter{}
+	handler := CodeImportRepoEdgeHandler{
+		FactLoader:                 loader,
+		OwnershipLoader:            loader,
+		RepoDependencyIntentWriter: intentWriter,
+		Now:                        func() time.Time { return observedAt },
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-refresh",
+		ScopeID:      "git:consumer-repo",
+		GenerationID: "gen-refresh",
+		Domain:       DomainCodeImportRepoEdge,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.Status != ResultStatusSucceeded {
+		t.Fatalf("Handle().Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	}
+	if len(intentWriter.rows) != 1 {
+		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 1 (refresh intent)", len(intentWriter.rows))
+	}
+	rows := intentWriter.rows[0]
+	if len(rows) != 1 {
+		t.Fatalf("enqueued intents = %d, want 1 refresh/retract intent", len(rows))
+	}
+	row := rows[0]
+	if got := anyToString(row.Payload["action"]); got != "retract" {
+		t.Errorf("action = %q, want retract", got)
+	}
+	if got := anyToString(row.Payload["evidence_source"]); got != codeImportEvidenceSource {
+		t.Errorf("evidence_source = %q, want %q", got, codeImportEvidenceSource)
+	}
+	if got := anyToString(row.Payload["repo_id"]); got != "consumer-repo" {
+		t.Errorf("repo_id = %q, want consumer-repo", got)
+	}
+}

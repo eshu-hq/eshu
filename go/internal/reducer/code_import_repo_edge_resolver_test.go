@@ -2,6 +2,9 @@ package reducer
 
 import (
 	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // TestNormalizeImportSourceNPM verifies that npm bare specifiers are normalized
@@ -334,4 +337,117 @@ func newAmbiguousCodeImportOwnerIndexForTest(ecosystem, name, repoA, repoB strin
 	// Seed byKey with one unrelated entry so empty() stays false.
 	byKey := map[string]string{"npm\x00sentinel": "repo-sentinel"}
 	return codeImportOwnerIndex{byKey: byKey, ambiguous: ambiguous}
+}
+
+// TestCodeImportEntrySourceRepoRelativeResolvedSourceDropped proves that when
+// resolved_source is a repo-relative baseUrl path (e.g. "src/components/Button"
+// from tsconfig baseUrl/paths resolution), codeImportEntrySource falls back to
+// the raw source field rather than returning the repo-relative path, so
+// normalizeNPMImportSource cannot reduce it to a bare segment like "src" and
+// fabricate a DEPENDS_ON edge against a package named "src" (issue #3651, P2).
+func TestCodeImportEntrySourceRepoRelativeResolvedSourceDropped(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		resolved   string
+		source     string
+		wantResult string
+	}{
+		{
+			name:       "baseUrl path src/components/Button falls back to source",
+			resolved:   "src/components/Button",
+			source:     "components/Button",
+			wantResult: "components/Button",
+		},
+		{
+			name:       "baseUrl path app/utils/helper falls back to source",
+			resolved:   "app/utils/helper",
+			source:     "utils/helper",
+			wantResult: "utils/helper",
+		},
+		{
+			name:       "external npm package resolved_source kept",
+			resolved:   "express",
+			source:     "express",
+			wantResult: "express",
+		},
+		{
+			name:       "relative resolved_source kept (normalizer drops it)",
+			resolved:   "./local",
+			source:     "./local",
+			wantResult: "./local",
+		},
+		{
+			name:       "scoped package @scope/name kept",
+			resolved:   "@scope/name",
+			source:     "@scope/name",
+			wantResult: "@scope/name",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entry := map[string]any{
+				"resolved_source": tc.resolved,
+				"source":          tc.source,
+			}
+			got := codeImportEntrySource(entry)
+			if got != tc.wantResult {
+				t.Errorf("codeImportEntrySource() = %q, want %q", got, tc.wantResult)
+			}
+		})
+	}
+}
+
+// TestBuildCodeImportRepoDependencyIntentsTsConfigBaseUrlDropped proves that a
+// TypeScript import whose resolved_source is a repo-relative baseUrl path
+// (e.g. "src/components/Button") does NOT produce a DEPENDS_ON edge even when
+// the package catalog has an owned package whose name matches the first segment
+// of that path (e.g. "src" owned by another repo). Without the fix,
+// normalizeNPMImportSource reduces "src/components/Button" to "src", the owner
+// lookup succeeds, and a fabricated cross-repo edge is emitted (issue #3651, P2).
+func TestBuildCodeImportRepoDependencyIntentsTsConfigBaseUrlDropped(t *testing.T) {
+	t.Parallel()
+
+	// Index maps bare name "src" to a real repo — the scenario that triggers fabrication.
+	owners := newCodeImportOwnerIndexForTest(map[ecoName]string{
+		{"npm", "src"}: "repo-src-pkg",
+	})
+
+	imports := []map[string]any{
+		{
+			"resolved_source": "src/components/Button", // tsconfig baseUrl-resolved repo-relative path
+			"source":          "components/Button",
+		},
+	}
+	envelope := facts.Envelope{
+		FactKind: factKindFile,
+		Payload: map[string]any{
+			"repo_id":          "consumer-repo",
+			"relative_path":    "src/App.tsx",
+			"language":         "typescript",
+			"parsed_file_data": map[string]any{"imports": imports},
+		},
+	}
+
+	input := CodeImportRepoDependencyInput{
+		ScopeID:       "scope-baseurl",
+		GenerationID:  "gen-baseurl",
+		SourceRunID:   "code_import_repo_dependency:scope-baseurl",
+		CreatedAt:     time.Now(),
+		FileEnvelopes: []facts.Envelope{envelope},
+		Owners:        owners,
+	}
+
+	intents := BuildCodeImportRepoDependencyIntents(input)
+	if len(intents) != 0 {
+		t.Fatalf(
+			"BuildCodeImportRepoDependencyIntents() = %d intents, want 0 (repo-relative resolved_source must not fabricate edge); target_repo_id=%v",
+			len(intents),
+			intents[0].Payload["target_repo_id"],
+		)
+	}
 }
