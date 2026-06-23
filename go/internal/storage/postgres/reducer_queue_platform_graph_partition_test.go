@@ -58,24 +58,31 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 		}
 	}
 
-	// Different domains for the same scope MUST produce different conflict keys
-	// so the queue can drain them concurrently (not serialize them).
-	pairs := []struct {
+	// The two Platform-node writers (WorkloadMaterialization, DeploymentMapping)
+	// both MERGE (p:Platform {id}); WorkloadMaterialization holds no advisory lock,
+	// so they MUST share one conflict key and stay serialized (#3672 review P1).
+	if keyWM != keyDM {
+		t.Errorf(
+			"workload_materialization key %q != deployment_mapping key %q; "+
+				"both MERGE the same (p:Platform {id}) node and must serialize via one shared key (#3672 P1)",
+			keyWM, keyDM,
+		)
+	}
+
+	// The three non-Platform-writing domains MUST get distinct keys from each
+	// other and from the Platform-node-writer pair, so they drain concurrently.
+	distinctPairs := []struct {
 		nameA, nameB string
 		keyA, keyB   string
 	}{
-		{"workload_materialization", "deployment_mapping", keyWM, keyDM},
-		{"workload_materialization", "workload_identity", keyWM, keyWI},
-		{"workload_materialization", "deployable_unit_correlation", keyWM, keyDUC},
-		{"workload_materialization", "cloud_asset_resolution", keyWM, keyCAR},
-		{"deployment_mapping", "workload_identity", keyDM, keyWI},
-		{"deployment_mapping", "deployable_unit_correlation", keyDM, keyDUC},
-		{"deployment_mapping", "cloud_asset_resolution", keyDM, keyCAR},
+		{"platform_node_writers", "workload_identity", keyWM, keyWI},
+		{"platform_node_writers", "deployable_unit_correlation", keyWM, keyDUC},
+		{"platform_node_writers", "cloud_asset_resolution", keyWM, keyCAR},
 		{"workload_identity", "deployable_unit_correlation", keyWI, keyDUC},
 		{"workload_identity", "cloud_asset_resolution", keyWI, keyCAR},
 		{"deployable_unit_correlation", "cloud_asset_resolution", keyDUC, keyCAR},
 	}
-	for _, pair := range pairs {
+	for _, pair := range distinctPairs {
 		if pair.keyA == pair.keyB {
 			t.Errorf(
 				"domains %q and %q share conflict key %q for scope %q; "+
@@ -83,6 +90,64 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 				pair.nameA, pair.nameB, pair.keyA, testScope,
 			)
 		}
+	}
+}
+
+// TestPlatformNodeWritersShareConflictKeyForSameScope is the #3672 review-P1
+// regression guard. WorkloadMaterialization and DeploymentMapping both run
+// MERGE (p:Platform {id: row.platform_id}) over the same platform_id namespace
+// (workload_materializer.go batchRuntimePlatformNodeUpsertCypher and
+// infrastructure_platform_materializer.go batchInfraPlatformUpsertCypher).
+// DeploymentMapping wraps its MERGE in the PlatformGraphLocker advisory lock;
+// WorkloadMaterialization does NOT. The queue conflict fence is therefore the
+// only mechanism keeping the two unprotected same-Platform-node MERGEs from
+// running concurrently. They MUST produce the IDENTICAL conflict key for a given
+// scope, or concurrent claim would race two writers on the same Platform node
+// (commit-time uniqueness conflict / retry / dead-letter).
+func TestPlatformNodeWritersShareConflictKeyForSameScope(t *testing.T) {
+	t.Parallel()
+
+	scopes := []string{
+		"scope:repo:acme:backend",
+		"scope:repo:acme:frontend",
+		" scope:with:whitespace ",
+	}
+	for _, scope := range scopes {
+		domWM, keyWM := reducerConflictDomainKey(projector.ReducerIntent{
+			ScopeID: scope,
+			Domain:  reducer.DomainWorkloadMaterialization,
+		})
+		domDM, keyDM := reducerConflictDomainKey(projector.ReducerIntent{
+			ScopeID: scope,
+			Domain:  reducer.DomainDeploymentMapping,
+		})
+		if domWM != reducerConflictDomainPlatformGraph || domDM != reducerConflictDomainPlatformGraph {
+			t.Fatalf("scope %q: conflict domains = %q/%q, want both %q",
+				scope, domWM, domDM, reducerConflictDomainPlatformGraph)
+		}
+		if keyWM != keyDM {
+			t.Fatalf(
+				"scope %q: workload_materialization key %q != deployment_mapping key %q; "+
+					"both MERGE the same (p:Platform {id}) node without a shared advisory lock, "+
+					"so they must share a conflict key to serialize (#3672 review P1)",
+				scope, keyWM, keyDM,
+			)
+		}
+	}
+
+	// And the shared key must differ across distinct scopes so unrelated scopes
+	// still drain concurrently.
+	_, keyA := reducerConflictDomainKey(projector.ReducerIntent{
+		ScopeID: "scope:repo:acme:backend",
+		Domain:  reducer.DomainWorkloadMaterialization,
+	})
+	_, keyB := reducerConflictDomainKey(projector.ReducerIntent{
+		ScopeID: "scope:repo:acme:frontend",
+		Domain:  reducer.DomainDeploymentMapping,
+	})
+	if keyA == keyB {
+		t.Fatalf("distinct scopes produced the same platform-node-writer key %q; "+
+			"distinct-scope concurrency would be lost", keyA)
 	}
 }
 
