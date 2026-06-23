@@ -320,6 +320,9 @@ type fakeLocalIdentityStore struct {
 	breakGlass      LocalIdentityBreakGlassWindow
 	breakGlassAuth  LocalIdentityAuthContext
 	breakGlassError error
+	createdAPIToken LocalIdentityAPITokenCreate
+	revokedAPIToken LocalIdentityAPITokenRevoke
+	rotatedAPIToken LocalIdentityAPITokenRotate
 }
 
 func (s *fakeLocalIdentityStore) BootstrapLocalIdentity(
@@ -385,4 +388,28 @@ func (s *fakeLocalIdentityStore) ResolveLocalIdentityBreakGlass(
 	_ LocalIdentityBreakGlassAttempt,
 ) (LocalIdentityAuthContext, error) {
 	return s.breakGlassAuth, s.breakGlassError
+}
+
+func (s *fakeLocalIdentityStore) CreateLocalIdentityAPIToken(
+	_ context.Context,
+	token LocalIdentityAPITokenCreate,
+) error {
+	s.createdAPIToken = token
+	return nil
+}
+
+func (s *fakeLocalIdentityStore) RevokeLocalIdentityAPIToken(
+	_ context.Context,
+	revoke LocalIdentityAPITokenRevoke,
+) error {
+	s.revokedAPIToken = revoke
+	return nil
+}
+
+func (s *fakeLocalIdentityStore) RotateLocalIdentityAPIToken(
+	_ context.Context,
+	rotate LocalIdentityAPITokenRotate,
+) error {
+	s.rotatedAPIToken = rotate
+	return nil
 }

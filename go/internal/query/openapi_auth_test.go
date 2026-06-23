@@ -108,6 +108,9 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		"/api/v0/auth/local/users/{user_id}/password",
 		"/api/v0/auth/local/users/{user_id}/mfa-reset",
 		"/api/v0/auth/local/users/{user_id}/disable",
+		"/api/v0/auth/local/api-tokens",
+		"/api/v0/auth/local/api-tokens/{token_id}/revoke",
+		"/api/v0/auth/local/api-tokens/{token_id}/rotate",
 		"/api/v0/auth/local/break-glass",
 		"/api/v0/auth/local/break-glass/session",
 	} {
@@ -134,6 +137,12 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		!strings.Contains(breakGlassDescription, "stores only a break-glass code hash") {
 		t.Fatalf("break-glass description missing safety contract: %v", breakGlass["description"])
 	}
+	apiTokens := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/local/api-tokens"), "post")
+	apiTokenDescription, ok := apiTokens["description"].(string)
+	if !ok || !strings.Contains(apiTokenDescription, "returned once") ||
+		!strings.Contains(apiTokenDescription, "storage persists only token_hash") {
+		t.Fatalf("api token description missing one-time/hash-only contract: %v", apiTokens["description"])
+	}
 
 	components := mustMapField(t, spec, "components")
 	schemas := mustMapField(t, components, "schemas")
@@ -141,6 +150,8 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		"LocalIdentityBootstrapRequest",
 		"LocalIdentityLoginRequest",
 		"LocalIdentitySessionResponse",
+		"LocalIdentityAPITokenCreateRequest",
+		"LocalIdentityAPITokenResponse",
 	} {
 		if _, ok := schemas[schema]; !ok {
 			t.Fatalf("schema %q missing", schema)

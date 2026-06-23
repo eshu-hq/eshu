@@ -188,6 +188,43 @@ func TestAuthMiddlewareWithBrowserSessionsHashesCSRFHeaderForUnsafeCookieRequest
 	}
 }
 
+func TestAuthMiddlewareWithBrowserSessionsAllowsLocalIdentityAPITokenLifecycleRoute(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeBrowserSessionResolver{
+		context: AuthContext{
+			Mode:        AuthModeBrowserSession,
+			TenantID:    "tenant_a",
+			WorkspaceID: "workspace_a",
+			AllScopes:   true,
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithBrowserSessionsAndScopedTokens("", nil, resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, ok := AuthContextFromContext(r.Context())
+		if !ok {
+			t.Fatal("AuthContextFromContext() ok = false, want true")
+		}
+		if auth.TenantID != "tenant_a" || auth.WorkspaceID != "workspace_a" || !auth.AllScopes {
+			t.Fatalf("auth context = %#v, want all-scope browser-session context", auth)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/api-tokens/token-old/revoke", nil)
+	req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+	req.Header.Set(BrowserSessionCSRFHeaderName, "csrf-secret")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if !resolver.requireCSRF {
+		t.Fatal("requireCSRF = false, want true")
+	}
+}
+
 func TestAuthMiddlewareWithBrowserSessionsKeepsBearerTokensSeparateFromCSRF(t *testing.T) {
 	t.Parallel()
 

@@ -18,6 +18,7 @@ var (
 	ErrLocalIdentityBootstrapCompleted    = errors.New("local identity bootstrap already completed")
 	ErrLocalIdentityBreakGlassUnavailable = errors.New("local identity break-glass recovery unavailable")
 	ErrLocalIdentityInvitationRequired    = errors.New("local identity invitation required")
+	ErrLocalIdentityAPITokenUnavailable   = errors.New("local identity api token unavailable")
 	ErrLocalIdentityTransactionRequired   = errors.New("local identity store transaction support is required")
 )
 
@@ -161,6 +162,40 @@ type LocalIdentityBreakGlassWindow struct {
 type LocalIdentityBreakGlassAttempt struct {
 	BreakGlassCodeHash string
 	Now                time.Time
+}
+
+// LocalIdentityAPITokenCreate stores one generated API token hash.
+type LocalIdentityAPITokenCreate struct {
+	TokenID            string
+	TokenHash          string
+	TokenClass         string
+	TenantID           string
+	WorkspaceID        string
+	UserID             string
+	ServicePrincipalID string
+	DisplayHandleHash  string
+	PolicyRevisionHash string
+	IssuedAt           time.Time
+	ExpiresAt          time.Time
+}
+
+// LocalIdentityAPITokenRevoke revokes one active generated API token.
+type LocalIdentityAPITokenRevoke struct {
+	TokenID     string
+	TenantID    string
+	WorkspaceID string
+	RevokedAt   time.Time
+}
+
+// LocalIdentityAPITokenRotate atomically revokes one token and inserts its replacement.
+type LocalIdentityAPITokenRotate struct {
+	OldTokenID      string
+	NewTokenID      string
+	NewTokenHash    string
+	TenantID        string
+	WorkspaceID     string
+	RotatedAt       time.Time
+	NewTokenExpires time.Time
 }
 
 type localIdentityCredentialRow struct {

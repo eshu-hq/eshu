@@ -218,3 +218,49 @@ func (a *postgresLocalIdentityAdapter) ResolveLocalIdentityBreakGlass(
 		AllScopes:          auth.AllScopes,
 	}, nil
 }
+
+func (a *postgresLocalIdentityAdapter) CreateLocalIdentityAPIToken(
+	ctx context.Context,
+	token query.LocalIdentityAPITokenCreate,
+) error {
+	return a.store.CreateLocalIdentityAPIToken(ctx, pgstatus.LocalIdentityAPITokenCreate{
+		TokenID:            token.TokenID,
+		TokenHash:          token.TokenHash,
+		TokenClass:         token.TokenClass,
+		TenantID:           token.TenantID,
+		WorkspaceID:        token.WorkspaceID,
+		UserID:             token.UserID,
+		ServicePrincipalID: token.ServicePrincipalID,
+		DisplayHandleHash:  token.DisplayHandleHash,
+		PolicyRevisionHash: token.PolicyRevisionHash,
+		IssuedAt:           token.IssuedAt,
+		ExpiresAt:          token.ExpiresAt,
+	})
+}
+
+func (a *postgresLocalIdentityAdapter) RevokeLocalIdentityAPIToken(
+	ctx context.Context,
+	revoke query.LocalIdentityAPITokenRevoke,
+) error {
+	return a.store.RevokeLocalIdentityAPIToken(ctx, pgstatus.LocalIdentityAPITokenRevoke{
+		TokenID:     revoke.TokenID,
+		TenantID:    revoke.TenantID,
+		WorkspaceID: revoke.WorkspaceID,
+		RevokedAt:   revoke.RevokedAt,
+	})
+}
+
+func (a *postgresLocalIdentityAdapter) RotateLocalIdentityAPIToken(
+	ctx context.Context,
+	rotate query.LocalIdentityAPITokenRotate,
+) error {
+	return a.store.RotateLocalIdentityAPIToken(ctx, pgstatus.LocalIdentityAPITokenRotate{
+		OldTokenID:      rotate.OldTokenID,
+		NewTokenID:      rotate.NewTokenID,
+		NewTokenHash:    rotate.NewTokenHash,
+		TenantID:        rotate.TenantID,
+		WorkspaceID:     rotate.WorkspaceID,
+		RotatedAt:       rotate.RotatedAt,
+		NewTokenExpires: rotate.NewTokenExpires,
+	})
+}

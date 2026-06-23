@@ -38,7 +38,7 @@ families, role names, grant families, and data-class names.
 | Surface | Current operator posture | Follow-up |
 | --- | --- | --- |
 | Shared API/MCP bearer token | Still available for local development, bootstrap, and compatibility. It is not a tenant boundary. | Move teams to scoped or identity-backed tokens before claiming isolation. |
-| Generated personal/service-principal tokens | API and MCP resolve hash-only `identity_token_metadata` rows through active identity subjects, role assignments, and repository/source-scope targets. Successful lookups update last-used metadata. | Token creation/rotation UX and audit event expansion continue through the user-management console work. |
+| Generated personal/service-principal tokens | API and MCP resolve hash-only `identity_token_metadata` rows through active identity subjects, role assignments, and repository/source-scope targets. All-scope admins can create, revoke, and rotate generated tokens through the local identity admin API; raw bearer values are returned once and only hashes are stored. Successful lookups update last-used metadata. | Console UX continues through the user-management console work. |
 | Scoped API/MCP tokens | `ESHU_SCOPED_TOKENS_FILE` maps bearer-token hashes to tenant, workspace, repository, and source-scope grants. The registry is hash-only, optional, and tried after generated identity tokens. | Keep for bootstrap, migration, and operator-managed team tokens. |
 | Browser sessions | `POST /api/v0/auth/browser-session` exchanges an explicit API credential for `__Host-eshu_session`; unsafe cookie-authenticated requests require `X-Eshu-CSRF`. | Full login/profile/admin console UX is tracked by #3462. |
 | Identity schema | Additive and dormant tables model users, provider configs, MFA handles, memberships, roles, grants, sessions, service principals, and token metadata with opaque IDs, hashes, and credential handles. | Local identity, OIDC, and SAML enforcement are tracked by #3455, #3457, and #3458. |
@@ -225,6 +225,23 @@ API tokens and dashboard sessions are different credentials.
   grants, expiry, rotation, status, and last-used metadata.
 - Scoped tokens remain operator-issued hash-only registry entries and are
   suitable for bootstrap, migration, and bounded team read access.
+
+Generated token lifecycle routes:
+
+- `POST /api/v0/auth/local/api-tokens` creates a personal or
+  service-principal token for an active subject in the caller's tenant and
+  workspace. The response returns `api_token` once; storage receives only the
+  SHA-256 hash.
+- `POST /api/v0/auth/local/api-tokens/{token_id}/revoke` immediately marks an
+  active generated token revoked in the caller's tenant and workspace.
+- `POST /api/v0/auth/local/api-tokens/{token_id}/rotate` atomically creates a
+  replacement token hash and revokes the old generated token.
+
+These routes require all-scopes admin authentication and emit
+`token_lifecycle` audit events. They never accept existing bearer values,
+return token hashes, or expose display labels after creation.
+Shared-operator callers whose auth context has no tenant/workspace must include
+`tenant_id` and `workspace_id` in create, revoke, and rotate request bodies.
 
 For scoped tokens, issue, rotate, and revoke through `ESHU_SCOPED_TOKENS_FILE`:
 

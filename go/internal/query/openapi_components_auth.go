@@ -60,6 +60,31 @@ const openAPIComponentsLocalIdentity = `
           "expires_at": {"type": "string", "format": "date-time"}
         }
       },
+      "LocalIdentityAPITokenCreateRequest": {
+        "type": "object",
+        "required": ["token_class"],
+        "properties": {
+          "token_class": {"type": "string", "enum": ["personal", "service_principal"]},
+          "tenant_id": {"type": "string"},
+          "workspace_id": {"type": "string"},
+          "user_id": {"type": "string"},
+          "service_principal_id": {"type": "string"},
+          "display_label": {"type": "string", "description": "Operator-facing label hashed before storage."},
+          "expires_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "LocalIdentityAPITokenResponse": {
+        "type": "object",
+        "required": ["status", "token_id", "api_token", "issued_at"],
+        "properties": {
+          "status": {"type": "string", "enum": ["created", "rotated"]},
+          "token_id": {"type": "string"},
+          "token_class": {"type": "string", "enum": ["personal", "service_principal"]},
+          "api_token": {"type": "string", "format": "password", "description": "One-time bearer value. The server persists only its hash."},
+          "issued_at": {"type": "string", "format": "date-time"},
+          "expires_at": {"type": "string", "format": "date-time"}
+        }
+      },
       "LocalIdentitySessionResponse": {
         "type": "object",
         "properties": {

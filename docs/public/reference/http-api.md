@@ -102,6 +102,9 @@ The Console browser flow uses these `/api/v0` routes:
 | `POST /api/v0/auth/local/users/{user_id}/password` | All-scopes admin route that resets a local password, revokes old credentials, and clears lockout state. |
 | `POST /api/v0/auth/local/users/{user_id}/mfa-reset` | All-scopes admin route that revokes active MFA factors and stores replacement recovery-code hashes. |
 | `POST /api/v0/auth/local/users/{user_id}/disable` | All-scopes admin route that disables the user and revokes local credentials, MFA factors, and browser sessions. |
+| `POST /api/v0/auth/local/api-tokens` | All-scopes admin route that creates a generated personal or service-principal API token. The `api_token` value is returned once and only its hash is persisted. Shared-operator callers must include `tenant_id` and `workspace_id`. |
+| `POST /api/v0/auth/local/api-tokens/{token_id}/revoke` | All-scopes admin route that immediately revokes an active generated API token in the current tenant/workspace. Shared-operator callers must include `tenant_id` and `workspace_id`. |
+| `POST /api/v0/auth/local/api-tokens/{token_id}/rotate` | All-scopes admin route that atomically creates a replacement generated API token and revokes the old token. Shared-operator callers must include `tenant_id` and `workspace_id`. |
 | `POST /api/v0/auth/local/break-glass` | Shared-operator route that enables one audited, time-boxed break-glass window. Disabled by default when no active window exists. |
 | `POST /api/v0/auth/local/break-glass/session` | Public recovery route that issues a browser session only for an active, unexpired break-glass code. |
 | `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | Returns public SAML service-provider metadata for a configured provider. |
@@ -145,6 +148,10 @@ Session cookies are server-managed:
   context. Public local login, invite acceptance, and break-glass session routes
   do not bypass storage checks; they succeed only with valid hash-matched
   credentials or active invitation/recovery windows.
+- Generated API-token lifecycle routes persist only token hashes, active subject
+  metadata, status, expiry, and last-used timestamps. Creation and rotation
+  responses return `api_token` exactly once; clients must store it immediately
+  because later reads expose neither raw token values nor token hashes.
 - OIDC-backed sessions carry `role_ids` in the returned auth context for UI
   display and audit correlation; repository and scope filtering still uses the
   resolved `allowed_scope_ids` and `allowed_repository_ids`.
