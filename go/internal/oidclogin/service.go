@@ -302,10 +302,11 @@ func (s *Service) CompleteOIDCLogin(
 			AllowedScopeIDs:      append([]string(nil), grants.AllowedScopeIDs...),
 			AllowedRepositoryIDs: append([]string(nil), grants.AllowedRepositoryIDs...),
 		},
-		ProviderConfigID:  provider.ProviderConfigID,
-		ProviderSubjectID: subjectIDHash,
-		ProviderProofAt:   now,
-		ReturnToPath:      safeReturnPath(record.ReturnToPath),
+		ProviderConfigID:    provider.ProviderConfigID,
+		ProviderSubjectID:   subjectIDHash,
+		ProviderGroupHashes: append([]string(nil), groupHashes...),
+		ProviderProofAt:     now,
+		ReturnToPath:        safeReturnPath(record.ReturnToPath),
 	}, nil
 }
 

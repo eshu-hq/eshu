@@ -173,7 +173,8 @@ SET external_auth_validated_at = $2,
     all_scopes = $6,
     allowed_scope_ids = $7::jsonb,
     allowed_repository_ids = $8::jsonb,
-    updated_at = $9
+    updated_at = $9,
+    external_group_hashes = $10::jsonb
 WHERE session_hash = $1
   AND revoked_at IS NULL
   AND subject_class = 'external_oidc_user'

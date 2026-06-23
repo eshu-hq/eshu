@@ -340,6 +340,9 @@ func validateBrowserSessionRecord(record BrowserSessionRecord) error {
 			record.ExternalAuthValidatedAt.IsZero() || record.ExternalAuthStaleAfter.IsZero() {
 			return errors.New("external auth provider, subject hash, validation, and stale timestamps must be set together")
 		}
+		if len(record.ExternalGroupHashes) == 0 {
+			return errors.New("external auth group hashes must be set")
+		}
 		if !record.ExternalAuthStaleAfter.After(record.ExternalAuthValidatedAt) {
 			return errors.New("external_auth_stale_after must be after external_auth_validated_at")
 		}

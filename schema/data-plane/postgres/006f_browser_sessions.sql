@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     allowed_repository_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     external_provider_config_id TEXT NULL,
     external_subject_id_hash TEXT NULL,
+    external_group_hashes JSONB NOT NULL DEFAULT '[]'::jsonb,
     external_auth_validated_at TIMESTAMPTZ NULL,
     external_auth_stale_after TIMESTAMPTZ NULL,
     issued_at TIMESTAMPTZ NOT NULL,
@@ -33,6 +34,9 @@ ALTER TABLE browser_sessions
     ADD COLUMN IF NOT EXISTS external_subject_id_hash TEXT NULL,
     ADD COLUMN IF NOT EXISTS external_auth_validated_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS external_auth_stale_after TIMESTAMPTZ NULL;
+
+ALTER TABLE browser_sessions
+    ADD COLUMN IF NOT EXISTS external_group_hashes JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS browser_sessions_active_idx
     ON browser_sessions (

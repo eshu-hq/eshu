@@ -158,6 +158,9 @@ func TestServiceCompleteValidatesNonceAndMapsGroupsThroughRoles(t *testing.T) {
 	if complete.ProviderSubjectID != SHA256Hash("okta-dev:external-subject") {
 		t.Fatalf("ProviderSubjectID = %q, want hashed provider subject", complete.ProviderSubjectID)
 	}
+	if got, want := complete.ProviderGroupHashes, []string{SHA256Hash("Eshu Developers")}; len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("ProviderGroupHashes = %#v, want hashed provider group", got)
+	}
 	if !complete.ProviderProofAt.Equal(now) {
 		t.Fatalf("ProviderProofAt = %v, want %v", complete.ProviderProofAt, now)
 	}

@@ -20,11 +20,13 @@ func TestRefresherRevokesSessionWhenGroupsNoLongerMapToGrants(t *testing.T) {
 			TenantID:                 "tenant_a",
 			WorkspaceID:              "workspace_a",
 			PolicyRevisionHash:       "sha256:policy",
+			ExternalGroupHashes:      []string{"sha256:group"},
 			RoleIDs:                  []string{"developer"},
 		}},
 	}
 	resolver := &fakeRefreshResolver{
-		// External group removed: subject no longer resolves to any grant.
+		// Group-role mapping removed/tombstoned: the stored group hashes no longer
+		// resolve to any grant even though the role rows may still be active.
 		ok: false,
 	}
 	refresher := NewRefresher(store, resolver, RefreshConfig{
@@ -208,6 +210,7 @@ func TestRefresherDoesNotRevokeOnProviderUnavailable(t *testing.T) {
 			TenantID:                 "tenant_a",
 			WorkspaceID:              "workspace_a",
 			PolicyRevisionHash:       "sha256:policy",
+			ExternalGroupHashes:      []string{"sha256:group"},
 			RoleIDs:                  []string{"developer"},
 		}},
 	}

@@ -284,6 +284,7 @@ func (a *postgresSessionRefreshStore) ListStaleSessions(
 			TenantID:                 record.TenantID,
 			WorkspaceID:              record.WorkspaceID,
 			PolicyRevisionHash:       record.PolicyRevisionHash,
+			ExternalGroupHashes:      append([]string(nil), record.ExternalGroupHashes...),
 			RoleIDs:                  append([]string(nil), record.RoleIDs...),
 			AllScopes:                record.AllScopes,
 			AllowedScopeIDs:          append([]string(nil), record.AllowedScopeIDs...),
@@ -312,6 +313,7 @@ func (a *postgresSessionRefreshStore) UpdateSessionAuthProof(
 		ExternalAuthValidatedAt: update.ExternalAuthValidatedAt,
 		ExternalAuthStaleAfter:  update.ExternalAuthStaleAfter,
 		PolicyRevisionHash:      update.PolicyRevisionHash,
+		ExternalGroupHashes:     append([]string(nil), update.ExternalGroupHashes...),
 		RoleIDs:                 append([]string(nil), update.RoleIDs...),
 		AllScopes:               update.AllScopes,
 		AllowedScopeIDs:         append([]string(nil), update.AllowedScopeIDs...),
@@ -330,6 +332,24 @@ func (r *postgresRoleGrantResolver) ResolveGroupGrants(
 	ctx context.Context,
 	grantQuery oidclogin.GrantQuery,
 ) (oidclogin.GrantResolution, bool, error) {
+	if len(grantQuery.GroupHashes) > 0 {
+		resolution, ok, err := r.store.ResolveGroupRoleGrants(ctx, pgstatus.OIDCGroupGrantQuery{
+			ProviderConfigID:    grantQuery.ProviderConfigID,
+			TenantID:            grantQuery.TenantID,
+			WorkspaceID:         grantQuery.WorkspaceID,
+			ExternalGroupHashes: append([]string(nil), grantQuery.GroupHashes...),
+			AsOf:                grantQuery.AsOf,
+		})
+		if err != nil || !ok {
+			return oidclogin.GrantResolution{}, ok, err
+		}
+		return oidclogin.GrantResolution{
+			RoleIDs:              append([]string(nil), resolution.RoleIDs...),
+			PolicyRevisionHash:   resolution.PolicyRevisionHash,
+			AllowedScopeIDs:      append([]string(nil), resolution.AllowedScopeIDs...),
+			AllowedRepositoryIDs: append([]string(nil), resolution.AllowedRepositoryIDs...),
+		}, true, nil
+	}
 	resolution, ok, err := r.store.ResolveActiveRoleGrants(ctx, pgstatus.OIDCRoleGrantQuery{
 		ProviderConfigID: grantQuery.ProviderConfigID,
 		TenantID:         grantQuery.TenantID,

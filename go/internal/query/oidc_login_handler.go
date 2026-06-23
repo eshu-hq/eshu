@@ -45,13 +45,18 @@ type OIDCLoginCompleteRequest struct {
 
 // OIDCLoginCompleteResponse carries the resolved Eshu auth context and optional
 // local path for post-login browser navigation.
+//
+// ProviderGroupHashes carries the hashed external group claims that mapped to
+// this session's grants at login. They are persisted hash-only so bounded
+// active-session refresh can re-resolve the group-to-role mappings and detect
+// removed or tombstoned mappings rather than trusting stale role IDs alone.
 type OIDCLoginCompleteResponse struct {
-	Auth              AuthContext
-	ProviderConfigID  string
-	ProviderSubjectID string
+	Auth                AuthContext
+	ProviderConfigID    string
+	ProviderSubjectID   string
 	ProviderGroupHashes []string
-	ProviderProofAt   time.Time
-	ReturnToPath      string
+	ProviderProofAt     time.Time
+	ReturnToPath        string
 }
 
 // DefaultOIDCSessionRefreshWindow bounds external IdP proof staleness for

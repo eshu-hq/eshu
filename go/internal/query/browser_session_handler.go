@@ -56,7 +56,7 @@ type BrowserSessionCreateRecord struct {
 type BrowserSessionExternalAuthProof struct {
 	ProviderConfigID string
 	SubjectIDHash    string
-	GroupHashes       []string
+	GroupHashes      []string
 	ValidatedAt      time.Time
 	StaleAfter       time.Time
 }

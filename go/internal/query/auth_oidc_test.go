@@ -59,7 +59,11 @@ func TestOIDCLoginHandlerCallbackIssuesHashOnlyBrowserSession(t *testing.T) {
 				AllowedScopeIDs:      []string{"scope_a"},
 				AllowedRepositoryIDs: []string{"repo_a"},
 			},
-			ReturnToPath: "/console",
+			ProviderConfigID:    "okta-dev",
+			ProviderSubjectID:   "sha256:subject",
+			ProviderGroupHashes: []string{"sha256:group"},
+			ProviderProofAt:     now.Add(-time.Minute),
+			ReturnToPath:        "/console",
 		},
 	}
 	handler := &OIDCLoginHandler{
@@ -127,9 +131,10 @@ func TestOIDCLoginHandlerCallbackMarksSessionForBoundedReauth(t *testing.T) {
 				RoleIDs:            []string{"developer"},
 				AllowedScopeIDs:    []string{"scope_a"},
 			},
-			ProviderConfigID:  "okta-dev",
-			ProviderSubjectID: "sha256:subject",
-			ProviderProofAt:   now.Add(-time.Minute),
+			ProviderConfigID:    "okta-dev",
+			ProviderSubjectID:   "sha256:subject",
+			ProviderGroupHashes: []string{"sha256:group"},
+			ProviderProofAt:     now.Add(-time.Minute),
 		},
 	}
 	handler := &OIDCLoginHandler{
@@ -163,6 +168,9 @@ func TestOIDCLoginHandlerCallbackMarksSessionForBoundedReauth(t *testing.T) {
 	}
 	if created.ExternalSubjectIDHash != "sha256:subject" {
 		t.Fatalf("external subject hash = %q, want sha256:subject", created.ExternalSubjectIDHash)
+	}
+	if got := created.ExternalGroupHashes; len(got) != 1 || got[0] != "sha256:group" {
+		t.Fatalf("external group hashes = %#v, want [sha256:group]", got)
 	}
 	if !created.ExternalAuthValidatedAt.Equal(now.Add(-time.Minute)) {
 		t.Fatalf("external auth validated at = %v, want %v", created.ExternalAuthValidatedAt, now.Add(-time.Minute))

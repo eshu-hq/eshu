@@ -27,6 +27,7 @@ func TestBrowserSessionStoreCreatesOIDCRefreshProofMetadata(t *testing.T) {
 		AllowedScopeIDs:          []string{"scope_a"},
 		ExternalProviderConfigID: "okta-dev",
 		ExternalSubjectIDHash:    "sha256:subject",
+		ExternalGroupHashes:      []string{"sha256:group"},
 		ExternalAuthValidatedAt:  now,
 		ExternalAuthStaleAfter:   now.Add(15 * time.Minute),
 		IssuedAt:                 now,
@@ -47,6 +48,7 @@ func TestBrowserSessionStoreCreatesOIDCRefreshProofMetadata(t *testing.T) {
 		"external_subject_id_hash",
 		"external_auth_validated_at",
 		"external_auth_stale_after",
+		"external_group_hashes",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("create query missing %q:\n%s", want, query)

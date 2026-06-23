@@ -41,6 +41,7 @@ type OIDCSessionAuthProofUpdate struct {
 	ExternalAuthValidatedAt time.Time
 	ExternalAuthStaleAfter  time.Time
 	PolicyRevisionHash      string
+	ExternalGroupHashes     []string
 	RoleIDs                 []string
 	AllScopes               bool
 	AllowedScopeIDs         []string
@@ -116,6 +117,10 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 	if err != nil {
 		return err
 	}
+	externalGroupHashes, err := marshalBrowserSessionStrings(update.ExternalGroupHashes)
+	if err != nil {
+		return err
+	}
 	if _, err := s.db.ExecContext(
 		ctx,
 		updateOIDCBrowserSessionAuthProofQuery,
@@ -128,6 +133,7 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 		allowedScopes,
 		allowedRepositories,
 		update.UpdatedAt,
+		externalGroupHashes,
 	); err != nil {
 		return fmt.Errorf("update oidc session auth proof: %w", err)
 	}
@@ -182,6 +188,7 @@ func scanStaleOIDCSession(rows Rows) (StaleOIDCSessionRecord, error) {
 func normalizeOIDCSessionAuthProofUpdate(update OIDCSessionAuthProofUpdate) OIDCSessionAuthProofUpdate {
 	update.SessionHash = strings.TrimSpace(update.SessionHash)
 	update.PolicyRevisionHash = strings.TrimSpace(update.PolicyRevisionHash)
+	update.ExternalGroupHashes = cleanBrowserSessionStrings(update.ExternalGroupHashes)
 	update.RoleIDs = cleanBrowserSessionStrings(update.RoleIDs)
 	update.AllowedScopeIDs = cleanBrowserSessionStrings(update.AllowedScopeIDs)
 	update.AllowedRepositoryIDs = cleanBrowserSessionStrings(update.AllowedRepositoryIDs)
@@ -194,6 +201,9 @@ func normalizeOIDCSessionAuthProofUpdate(update OIDCSessionAuthProofUpdate) OIDC
 func validateOIDCSessionAuthProofUpdate(update OIDCSessionAuthProofUpdate) error {
 	if blank(update.SessionHash) || blank(update.PolicyRevisionHash) {
 		return errors.New("oidc session refresh requires session hash and policy revision hash")
+	}
+	if len(update.ExternalGroupHashes) == 0 {
+		return errors.New("oidc session refresh requires external group hashes")
 	}
 	if update.ExternalAuthValidatedAt.IsZero() || update.ExternalAuthStaleAfter.IsZero() ||
 		update.UpdatedAt.IsZero() {
