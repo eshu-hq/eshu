@@ -172,6 +172,72 @@ publishes `GraphProjectionPhaseDeployableUnitCorrelation`. Rejected,
 ambiguous, endpoint-less, and stale candidates therefore remove prior
 deployable-unit truth without fabricating a replacement edge.
 
+## Cross-repo call resolver coverage (issue #3487)
+
+`DomainCodeCallMaterialization` resolves a parser-emitted call to a callee entity
+through the ordered dispatch in `code_call_materialization_resolution.go`. Beyond
+the language-agnostic stages (same-file scope, import binding, repo-unique name),
+some languages register a dedicated `before_repo_fallback` resolver
+(`code_call_language_*_resolver.go`) that uses parser-emitted receiver-type or
+import evidence to bind a confident cross-file/cross-repo edge before the broad
+repo-unique-name guess.
+
+A dedicated resolver requires the language's parser to emit the evidence the
+resolver consumes: a receiver type (`inferred_obj_type`) and a `class_context` on
+the declaration, or structured imports (`source` + `import_type`) that map a
+dotted package path to a repository file. Languages whose parser emits only a
+bare call `name` cannot be resolved past the shared repo-unique-name fallback
+without parser work, so they are documented as such rather than given a resolver
+that has nothing to bind.
+
+| Language | Dedicated resolver | Resolution strategy |
+| --- | --- | --- |
+| go | yes | package-qualified import binding, method-return chain, same-dir, cross-repo export |
+| typescript / tsx | yes | interface-implementer method type inference |
+| javascript / jsx | yes | receiver-type method inference (shared receiver-method index) |
+| swift | yes | receiver-type method inference (shared receiver-method index) |
+| java | yes | imported-receiver binding + type inference (shared JVM resolver) |
+| kotlin | yes | imported-receiver binding + type inference (shared JVM resolver, `import`/`alias`, `.kt`) |
+| dart | yes | import-call binding |
+| elixir | yes | alias-call binding |
+| groovy | yes | language-specific binding |
+| haskell | yes | qualified-import binding |
+| perl | yes | imported-receiver path binding |
+| python | yes | import-binding guard + repo fallback |
+| rust | yes | trait-method binding |
+| c | no | parser emits only bare call `name`/`full_name`; no receiver type. Resolves via shared repo-unique-name fallback only. |
+| cpp | no | parser emits only bare call `name`/`full_name`; no `inferred_obj_type` on calls. Shared fallback only. |
+| csharp | no | parser emits no `inferred_obj_type`; imports lack `source`/`import_type`. Shared fallback only. |
+| scala | no | parser emits no `inferred_obj_type`; imports lack `source`/`import_type`. Shared fallback only. |
+
+The four uncovered languages (c, cpp, csharp, scala) are a parser-capability gap,
+not a reducer gap: closing them requires the parsers to emit receiver-type
+inference and structured imports first. Until then their cross-repo calls fall
+back to the shared repo-unique-name match, which only binds when the called name
+is unique across the repository.
+
+The swift/javascript/jsx resolvers and the shared receiver-method index add one
+map insertion per indexed function during index construction and one O(1) map
+lookup per receiver-typed call before the repo-fallback stage; the dispatch order
+is otherwise unchanged.
+
+- No-Regression Evidence: `BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls`
+  (`go test ./internal/reducer/ -bench ... -benchmem`), Go 1.x on darwin/arm64,
+  large synthetic JavaScript code-call corpus exercising `ExtractCodeCallRows`
+  (full index build + resolution). Baseline at `b491df69` (pre-#3487):
+  ~9.9–11.8 ms/op, ~1.66 MB/op, 30206–30211 allocs/op. After this change:
+  ~11.2–12.0 ms/op median (5 samples), ~1.65 MB/op, 30207–30209 allocs/op.
+  Allocation count and bytes/op are flat (slightly lower); ns/op ranges overlap
+  within machine noise on a shared host. The added index is O(functions) to build
+  and O(1) per call, so there is no algorithmic regression.
+- Observability Evidence: resolution provenance is the operator-facing signal for
+  this path. The new swift/javascript/jsx resolvers record
+  `codeprovenance.MethodTypeInferred` on resolved edges (and leave the edge
+  unresolved, with no provenance, when the receiver type is ambiguous or absent),
+  so resolved-vs-unresolved cross-repo calls remain visible through the existing
+  `resolution_method` provenance on materialized code-call rows without adding a
+  new metric or span.
+
 ## Workload Signal Confidence Registry
 
 `ExtractWorkloadCandidates` (`candidate_loader.go`) scores whether a repository
