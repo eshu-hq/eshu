@@ -157,11 +157,23 @@ type groupCapableExecutor struct{}
 func (e *groupCapableExecutor) Execute(context.Context, cypher.Statement) error    { return nil }
 func (e *groupCapableExecutor) ExecuteGroup(context.Context, []cypher.Statement) error { return nil }
 
+// blockingExecutor blocks each call until release is closed. It implements
+// GroupExecutor so Wrap returns the *cypher.BackpressureExecutor type whose
+// InFlight() gauge the bound-proving test reads; this mirrors the real reducer
+// executor, which is group-capable.
 type blockingExecutor struct {
 	release chan struct{}
 }
 
 func (e *blockingExecutor) Execute(ctx context.Context, _ cypher.Statement) error {
+	return e.block(ctx)
+}
+
+func (e *blockingExecutor) ExecuteGroup(ctx context.Context, _ []cypher.Statement) error {
+	return e.block(ctx)
+}
+
+func (e *blockingExecutor) block(ctx context.Context) error {
 	select {
 	case <-e.release:
 		return nil
