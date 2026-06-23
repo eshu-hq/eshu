@@ -155,6 +155,26 @@ no new worker, queue, lease, or graph write. Backend: PostgreSQL via the existin
 reducer pool. Verified by `go test ./internal/storage/postgres ./cmd/reducer
 ./internal/telemetry -count=1` (and `-race` on the worker-gauge test).
 
+## Cross-repo activation fence counter
+
+The reducer publishes `eshu_dp_cross_repo_activation_fenced_total` (label
+`scope_id`), a counter incremented when a cross-repo resolution generation's
+activation (publish to the repo-dependency surface) is withheld because its
+durable graph-acceptance intents failed to commit. The handler commits the
+graph-acceptance intents before it activates the generation, and the
+repo-dependency projection lane additionally gates graph-projection authority on
+the relationship generation being active. Together these make activation the
+single fence that opens the graph and the Postgres relationship read-model
+surfaces at the same time, so neither surface can run ahead of the other.
+
+A non-zero rate means a partial failure left a generation un-published (no
+stranded denormalized edges were exposed); the reducer retry path converges the
+generation idempotently on a later cycle. Pair it with the `cross-repo
+activation fenced` warn log, which names the scope, generation, withheld intent
+count, and failure class. The #3559/#3616 reconciler
+(`eshu_dp_reconciliation_convergence_total`) remains as defense-in-depth for any
+residual drift.
+
 ## Graph orphan-node gauge
 
 The reducer publishes `eshu_dp_graph_orphan_nodes`, an observable gauge of

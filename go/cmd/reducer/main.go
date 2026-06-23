@@ -66,6 +66,7 @@ func buildReducerService(
 	}
 	presence := newEndpointPresenceWirings(getenv, secretsIAMGraphWriter != nil, database)
 	relationshipStore := postgres.NewRelationshipStore(database)
+	relationshipGenerationActive := postgres.NewRelationshipGenerationActiveLookup(relationshipStore)
 	factStore := postgres.NewFactStore(database)
 	admissionDecisionWriter := newAdmissionDecisionWriter(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)
@@ -443,12 +444,25 @@ func buildReducerService(
 			LeaseManager:                    intentStore,
 			EdgeWriter:                      edgeWriter,
 			WorkloadMaterializationReplayer: workQueue,
-			AcceptedGen:                     postgres.NewAcceptedGenerationLookup(database),
-			AcceptedGenPrefetch:             acceptedGenerationPrefetch,
-			Config:                          repoDependencyCfg,
-			Tracer:                          tracer,
-			Instruments:                     instruments,
-			Logger:                          logger,
+			// Gate repo-dependency graph-projection authority on the relationship
+			// generation being active (published). Acceptance rows are committed
+			// atomically with the projection intents, but the runner derives
+			// authority from those acceptance rows alone; without this gate the
+			// graph could project edges for a generation that activation has not
+			// yet published, running ahead of the Postgres relationship read
+			// models (which filter on relationship_generations.status = 'active').
+			AcceptedGen: reducer.GateAcceptedGenerationOnActive(
+				postgres.NewAcceptedGenerationLookup(database),
+				relationshipGenerationActive,
+			),
+			AcceptedGenPrefetch: reducer.GateAcceptedGenerationPrefetchOnActive(
+				acceptedGenerationPrefetch,
+				relationshipGenerationActive,
+			),
+			Config:      repoDependencyCfg,
+			Tracer:      tracer,
+			Instruments: instruments,
+			Logger:      logger,
 		},
 		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, logger),
 		GraphProjectionPhaseRepairer: &reducer.GraphProjectionPhaseRepairer{

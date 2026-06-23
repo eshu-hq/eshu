@@ -132,11 +132,10 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		return 0, fmt.Errorf("load evidence facts for resolution: %w", err)
 	}
 	if len(evidenceFacts) == 0 {
-		if h.Persister != nil {
-			if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
-				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
-			}
-		}
+		// Empty-evidence tombstone path. The retract intents that denormalize the
+		// (now-empty) generation MUST commit before the generation is activated,
+		// so a publish can never precede durable graph acceptance. See the main
+		// path (steps 4-6) for the same fence rationale.
 		retractRows := buildResolvedEdgeRetractionIntentRows(
 			scopeID,
 			nil,
@@ -145,6 +144,17 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			generationID,
 			time.Now().UTC(),
 		)
+		if len(retractRows) > 0 {
+			if err := h.IntentWriter.UpsertIntents(ctx, retractRows); err != nil {
+				h.recordActivationFenced(ctx, scopeID, generationID, len(retractRows), err)
+				return 0, fmt.Errorf("upsert cross-repo dependency retract intents: %w", err)
+			}
+		}
+		if h.Persister != nil {
+			if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
+			}
+		}
 		if len(retractRows) == 0 {
 			slog.InfoContext(ctx, "cross-repo resolution skipped: no evidence",
 				slog.String(telemetry.LogKeyScopeID, scopeID),
@@ -152,9 +162,6 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			)
 			h.recordDuration(ctx, start, scopeID)
 			return 0, nil
-		}
-		if err := h.IntentWriter.UpsertIntents(ctx, retractRows); err != nil {
-			return 0, fmt.Errorf("upsert cross-repo dependency retract intents: %w", err)
 		}
 		slog.InfoContext(ctx, "cross-repo resolution emitted retract intents: no evidence",
 			slog.String(telemetry.LogKeyScopeID, scopeID),
@@ -199,7 +206,12 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		slog.Int("resolved_count", len(resolved)),
 	)
 
-	// Step 4: Persist audit trail and activate generation for downstream queries.
+	// Step 4: Persist the resolution audit trail (candidates + resolved rows).
+	// Activation is deferred to step 6 so the generation cannot be published to
+	// the repo-dependency surface before its durable graph-edge acceptance
+	// intents (step 5) have committed. Candidates and resolved rows only become
+	// queryable once the generation is activated, so persisting them here is
+	// safe ahead of the fence.
 	if h.Persister != nil {
 		if err := h.Persister.UpsertCandidates(ctx, generationID, candidates); err != nil {
 			return 0, fmt.Errorf("persist candidates: %w", err)
@@ -207,14 +219,14 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		if err := h.Persister.UpsertResolved(ctx, generationID, resolved); err != nil {
 			return 0, fmt.Errorf("persist resolved: %w", err)
 		}
-		if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
-			return 0, fmt.Errorf("activate resolution generation: %w", err)
-		}
 	}
 
-	// Step 5: Convert resolved relationships to durable repo-dependency intents.
-	// The repo-owned projection runner reconstructs the full active snapshot for
-	// each source repository before touching canonical graph edges.
+	// Step 5: Convert resolved relationships to durable repo-dependency intents
+	// and commit them BEFORE activation. The repo-owned projection runner
+	// reconstructs the full active snapshot for each source repository before
+	// touching canonical graph edges. Committing acceptance first fences the
+	// publish: if this write fails, the generation stays un-activated, so the
+	// retry/reconciler path converges without stranding denormalized edges.
 	sourceRunID := crossRepoContributionSourceRunID(scopeID)
 	now := time.Now().UTC()
 	retractRows := buildResolvedEdgeRetractionIntentRows(
@@ -233,12 +245,24 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		now,
 	)
 	intentRows := append(retractRows, writeRows...)
+	if len(intentRows) > 0 {
+		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
+			h.recordActivationFenced(ctx, scopeID, generationID, len(intentRows), err)
+			return 0, fmt.Errorf("upsert cross-repo dependency intents: %w", err)
+		}
+	}
+
+	// Step 6: Activate (publish) the generation now that its graph-acceptance
+	// intents are durably committed. This ordering is the publish fence.
+	if h.Persister != nil {
+		if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+			return 0, fmt.Errorf("activate resolution generation: %w", err)
+		}
+	}
+
 	if len(intentRows) == 0 {
 		h.recordDuration(ctx, start, scopeID)
 		return 0, nil
-	}
-	if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
-		return 0, fmt.Errorf("upsert cross-repo dependency intents: %w", err)
 	}
 
 	if h.Instruments != nil {
@@ -328,6 +352,35 @@ func (h *CrossRepoRelationshipHandler) recordDuration(ctx context.Context, start
 	if h.Instruments != nil {
 		h.Instruments.CrossRepoResolutionDuration.Record(ctx,
 			time.Since(start).Seconds(),
+			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
+		)
+	}
+}
+
+// recordActivationFenced emits the operator-facing signal that a generation's
+// activation was withheld because its durable graph-acceptance intents failed
+// to commit. The generation is therefore left un-published so no stranded
+// denormalized edges (confidence/generation_id/resolved_id) leak to the
+// repo-dependency surface; the reducer retry path converges idempotently and
+// the #3559/#3616 reconciler remains as defense-in-depth. The warn log gives an
+// at-3-AM operator the scope, generation, withheld intent count, and failure
+// class without needing a dashboard.
+func (h *CrossRepoRelationshipHandler) recordActivationFenced(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	intentCount int,
+	cause error,
+) {
+	slog.WarnContext(ctx, "cross-repo activation fenced: graph acceptance not durable",
+		slog.String(telemetry.LogKeyScopeID, scopeID),
+		slog.String(telemetry.LogKeyGenerationID, generationID),
+		slog.Int("withheld_intent_count", intentCount),
+		slog.String("reason", "graph_acceptance_commit_failed"),
+		slog.Any("error", cause),
+	)
+	if h.Instruments != nil {
+		h.Instruments.CrossRepoActivationFenced.Add(ctx, 1,
 			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
 		)
 	}

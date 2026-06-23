@@ -165,6 +165,14 @@ SET status = 'active', activated_at = $1
 WHERE generation_id = $2 AND scope = $3
 `
 
+const relationshipGenerationActiveSQL = `
+SELECT 1
+FROM relationship_generations
+WHERE generation_id = $1
+  AND status = 'active'
+LIMIT 1
+`
+
 const activateResolutionGenerationSQL = `
 WITH deactivate AS (
     UPDATE relationship_generations

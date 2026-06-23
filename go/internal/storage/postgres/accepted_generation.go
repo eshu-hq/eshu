@@ -7,6 +7,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// RelationshipGenerationActiveChecker reports whether a relationship generation
+// is active (published) in Postgres. RelationshipStore satisfies it.
+type RelationshipGenerationActiveChecker interface {
+	IsGenerationActive(ctx context.Context, generationID string) (bool, error)
+}
+
+// NewRelationshipGenerationActiveLookup adapts a generation active-status
+// checker to the reducer authority gate. It backs the repo-dependency lane so an
+// accepted generation only grants graph-projection authority once the
+// relationship generation is activated, keeping the graph from running ahead of
+// the Postgres relationship read models.
+func NewRelationshipGenerationActiveLookup(
+	checker RelationshipGenerationActiveChecker,
+) reducer.RelationshipGenerationActiveLookup {
+	return func(generationID string) (bool, error) {
+		generationID = strings.TrimSpace(generationID)
+		if generationID == "" {
+			return false, nil
+		}
+		return checker.IsGenerationActive(context.Background(), generationID)
+	}
+}
+
 // NewAcceptedGenerationLookup creates an exact bounded-unit acceptance lookup
 // backed by shared_projection_acceptance.
 func NewAcceptedGenerationLookup(db ExecQueryer) reducer.AcceptedGenerationLookup {
