@@ -81,6 +81,7 @@ type Instruments struct {
 	DeltaBaselineFallbacks                    metric.Int64Counter
 	ReconciliationFullSnapshots               metric.Int64Counter
 	ReconciliationDriftRetractions            metric.Int64Counter
+	ReconciliationConvergence                 metric.Int64Counter
 	DocumentationEntityMentions               metric.Int64Counter
 	DocumentationClaimCandidates              metric.Int64Counter
 	DocumentationClaimsSuppressed             metric.Int64Counter
@@ -995,6 +996,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReconciliationDriftRetractions counter: %w", err)
+	}
+
+	inst.ReconciliationConvergence, err = meter.Int64Counter(
+		"eshu_dp_reconciliation_convergence_total",
+		metric.WithDescription("Total denormalized graph edges classified by a dual-write reconciliation pass, by domain and drift_kind (in_sync / stale_generation / orphan_resolved_id); non-in_sync values are stranded edges being converged back to Postgres truth"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReconciliationConvergence counter: %w", err)
 	}
 
 	inst.DocumentationEntityMentions, err = meter.Int64Counter(
