@@ -85,6 +85,18 @@ type Materialization struct {
 	Records        []Record
 	Entities       []EntityRecord
 	RepositoryRefs []RepositoryRef
+
+	// LockfileCapHits counts files where the lockfile variable cap
+	// (shape.MaxLockfileVariableEntities) was applied. An operator seeing this
+	// greater than zero knows that transitive lockfile entries were shed to keep
+	// content_entity volume manageable.
+	LockfileCapHits int
+
+	// FileEntityCapHits counts files where per-file entity materialization was
+	// skipped entirely because the projected entity count exceeded
+	// shape.MaxFileEntityCount. These are typically minified JS bundles or
+	// generated source files.
+	FileEntityCapHits int
 }
 
 // ScopeGenerationKey returns the durable scope-generation boundary.
