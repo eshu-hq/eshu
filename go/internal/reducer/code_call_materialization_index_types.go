@@ -16,6 +16,11 @@ type codeEntityIndex struct {
 	entityByStableSymbolKey          map[string]codeCallSymbolResolution
 	javaScriptAliasesByPath          map[string][]javaScriptStaticAliasSpan
 	typeScriptInterfaceMethodsByRepo map[string]map[string]map[string]string
+	// receiverMethodsByRepo maps repositoryID -> receiver type -> method name ->
+	// the single entity declaring that method on the type. It backs receiver-type
+	// inferred call resolution for languages without dotted-import-to-file
+	// mapping (Swift, JavaScript). Ambiguous methods are absent.
+	receiverMethodsByRepo map[string]map[string]map[string]string
 	// goExportByImportPath maps a Go package import path to the exported
 	// top-level functions defined for it across every repository in the
 	// generation. It anchors cross-repo package-export resolution: a key is the

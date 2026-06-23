@@ -34,6 +34,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	rustTraitMethodCandidates := make(map[string]map[string]map[string]struct{})
 	symbolCandidates := make(map[string]map[string]codeCallSymbolResolution)
 	typeScriptCandidates := newTypeScriptIndexCandidates()
+	receiverMethodCandidates := newReceiverMethodCandidates()
 	pythonClassBaseCandidates := make(map[string]map[string]map[string]pythonClassBaseCandidate)
 
 	for _, env := range envelopes {
@@ -120,6 +121,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				}
 				addGoMethodReturnTypeCandidate(goMethodReturnTypeCandidates, repositoryID, item)
 				typeScriptCandidates.addFunction(repositoryID, item, entityID)
+				receiverMethodCandidates.add(repositoryID, item, entityID)
 				addRustTraitMethodCandidate(rustTraitMethodCandidates, repositoryID, item, entityID)
 			}
 		}
@@ -242,6 +244,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	index.rustTraitMethodsByRepo = uniqueRustTraitMethodCandidates(rustTraitMethodCandidates)
 	index.pythonClassBasesByRepo = uniquePythonClassBasesByRepo(pythonClassBaseCandidates)
 	index.typeScriptInterfaceMethodsByRepo = typeScriptCandidates.uniqueMethods()
+	index.receiverMethodsByRepo = receiverMethodCandidates.unique()
 	index.entityByStableSymbolKey = uniqueCodeCallSymbolCandidates(symbolCandidates)
 	index.goExportByImportPath = buildGoCrossRepoExportIndex(envelopes)
 	return index

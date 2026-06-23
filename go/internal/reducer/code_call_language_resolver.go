@@ -70,6 +70,8 @@ func codeCallLanguageResolverBlocksRepoFallback(ctx codeCallResolveContext) bool
 		return haskellQualifiedImportTargetExists(ctx)
 	case "java":
 		return javaImportedReceiverBindingBlocksRepoFallback(ctx)
+	case "kotlin":
+		return kotlinImportedReceiverBindingBlocksRepoFallback(ctx)
 	default:
 		return false
 	}
