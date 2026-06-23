@@ -426,9 +426,53 @@ func backfillRelationshipEvidenceForNewRepositories(
 	if err != nil {
 		return fmt.Errorf("reload repository catalog for relationship backfill: %w", err)
 	}
-	activeFacts, err := loadLatestRelationshipFacts(ctx, queryer)
+
+	// Derive payload anchors from only the newly onboarded repositories' catalog
+	// aliases (issue #3570) and load just the latest-generation content, file, and
+	// gcp_cloud_relationship facts whose payload could reference one of them, plus
+	// the always-loaded ArgoCD-shaped facts. This replaces the O(all-repos)
+	// full-corpus fact load: the prior loadLatestRelationshipFacts shipped every
+	// repository's facts on every onboarding commit even though the scoped catalog
+	// could only match the onboarding delta. The anchor predicate is a provable
+	// superset of the facts DiscoverEvidence could match against newRepoCatalog, so
+	// no evidence is dropped. If no anchors exist (the new repos have no usable
+	// aliases) no fact can match, so the backfill short-circuits.
+	newRepoCatalog := repositoryScopedCatalog(refreshedCatalog, newRepoIDs)
+	anchors := backfillRelationshipAnchorTerms(newRepoCatalog)
+	if len(anchors) == 0 {
+		return nil
+	}
+	activeFacts, err := loadOnboardedRepoScopedRelationshipFacts(ctx, queryer, anchors)
 	if err != nil {
-		return fmt.Errorf("load latest facts for relationship backfill: %w", err)
+		return fmt.Errorf("load anchor-scoped facts for relationship backfill: %w", err)
+	}
+	if len(activeFacts) == 0 {
+		return nil
+	}
+
+	// Phase two of the scoped fact load (issue #3570): an ArgoCD ApplicationSet's
+	// synthesized deploy edges depend on git-generator config files that live in a
+	// DIFFERENT repository. discoverArgoCDDocumentEvidence reads those files from
+	// the content index, keyed by the config repo's id, to render the deploy
+	// repoURL from template parameters (team/service/path basename). The
+	// newly-onboarded deploy repo's alias appears in neither the ApplicationSet
+	// payload nor the config file, so phase one (alias anchors plus ArgoCD markers)
+	// loads the ApplicationSet but not its external config files, which would drop
+	// the edge. Resolve the config repos the loaded ApplicationSets target against
+	// the full catalog and load their generator-path files, then merge them so the
+	// content index DiscoverEvidence builds is complete. The phase-two load is
+	// bounded to the .yaml/.yml/.json files of the resolved config repos.
+	configRefs := relationships.ResolveArgoCDGeneratorConfigRepos(activeFacts, refreshedCatalog)
+	if len(configRefs) > 0 {
+		configRepoIDs := make([]string, 0, len(configRefs))
+		for _, ref := range configRefs {
+			configRepoIDs = append(configRepoIDs, ref.ConfigRepoID)
+		}
+		configFacts, err := loadArgoCDGeneratorConfigFacts(ctx, queryer, configRepoIDs)
+		if err != nil {
+			return fmt.Errorf("load argocd generator config facts for relationship backfill: %w", err)
+		}
+		activeFacts = mergeRelationshipFacts(activeFacts, configFacts)
 	}
 
 	// Scope the catalog matcher to only the repositories this generation
@@ -464,19 +508,32 @@ func backfillRelationshipEvidenceForNewRepositories(
 // backfillScopedCatalog returns the catalog entries the per-commit relationship
 // backfill must match against: every newly onboarded repository, plus the source
 // repositories of any supported gcp_cloud_relationship fact whose target is one
-// of those new repositories (issue #3500).
+// of those new repositories (issue #3500), plus the external config repositories
+// any loaded ArgoCD ApplicationSet's git generator targets (issue #3570).
 //
-// Content-derived evidence (Terraform, Helm, ArgoCD, ...) carries its source repo
-// in the fact envelope and only catalog-matches the target, so a new-repo-scoped
-// catalog suffices. GCP relationship facts are different:
-// discoverGCPCloudRelationshipEvidence first requires a unique catalog match for
-// the SOURCE resource and only then matches the target, so an
-// old-source -> new-target edge resolves to nothing unless the source repo's
-// catalog entry is present. This helper resolves GCP edges against the full
-// catalog (reusing the discovery matcher rules via ResolveGCPRelationshipRepoLinks),
-// then adds only the source entries that feed a new target. The scope therefore
-// stays bounded to the onboarding delta plus its inbound GCP sources, never the
-// whole fleet, preserving the scope-bounding performance win.
+// Most content-derived evidence (Terraform, Helm, Kustomize, ...) carries its
+// source repo in the fact envelope and only catalog-matches the target, so a
+// new-repo-scoped catalog suffices. Two relationship classes resolve an
+// intermediate repository against the catalog before the target and so need that
+// intermediate entry present even though it is not a new repo:
+//
+//   - GCP relationship facts: discoverGCPCloudRelationshipEvidence first requires
+//     a unique catalog match for the SOURCE resource and only then matches the
+//     target, so an old-source -> new-target edge resolves to nothing unless the
+//     source repo's catalog entry is present. ResolveGCPRelationshipRepoLinks
+//     adds only the source entries that feed a new target.
+//   - ArgoCD ApplicationSet deploy edges: discoverArgoCDDocumentEvidence first
+//     catalog-matches the git generator's config repoURL, then renders the deploy
+//     repoURL from that config repo's files; the deploy edge resolves to nothing
+//     unless the config repo's catalog entry is present.
+//     ResolveArgoCDGeneratorConfigRepos adds those config repo entries. Adding a
+//     config repo cannot create a spurious edge: the deploy target must still be a
+//     catalog entry (a new repo), and the config repo itself is excluded as a
+//     deploy target by discovery.
+//
+// The scope therefore stays bounded to the onboarding delta plus its inbound GCP
+// sources and ArgoCD config repos, never the whole fleet, preserving the
+// scope-bounding performance win.
 func backfillScopedCatalog(
 	catalog []relationships.CatalogEntry,
 	activeFacts []facts.Envelope,
@@ -495,6 +552,9 @@ func backfillScopedCatalog(
 			continue
 		}
 		scopeRepoIDs[link.SourceRepoID] = struct{}{}
+	}
+	for _, ref := range relationships.ResolveArgoCDGeneratorConfigRepos(activeFacts, catalog) {
+		scopeRepoIDs[ref.ConfigRepoID] = struct{}{}
 	}
 
 	return repositoryScopedCatalog(catalog, scopeRepoIDs)
