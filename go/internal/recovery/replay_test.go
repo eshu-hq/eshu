@@ -230,6 +230,7 @@ type fakeReplayStore struct {
 	replayFilter                    ReplayFilter
 	replayResult                    ReplayResult
 	replayErr                       error
+	replayCalled                    bool
 	refinalizeFilter                RefinalizeFilter
 	refinalizeResult                RefinalizeResult
 	refinalizeErr                   error
@@ -237,6 +238,10 @@ type fakeReplayStore struct {
 	collectorGenerationReplayAt     time.Time
 	collectorGenerationReplayResult CollectorGenerationReplayResult
 	collectorGenerationReplayErr    error
+	drainDepth                      int
+	drainDepthErr                   error
+	drainDepthCalled                bool
+	drainDepthFilter                ReplayFilter
 }
 
 func (f *fakeReplayStore) ReplayFailedWorkItems(
@@ -245,7 +250,17 @@ func (f *fakeReplayStore) ReplayFailedWorkItems(
 	_ time.Time,
 ) (ReplayResult, error) {
 	f.replayFilter = filter
+	f.replayCalled = true
 	return f.replayResult, f.replayErr
+}
+
+func (f *fakeReplayStore) CountDeadLetterBacklog(
+	_ context.Context,
+	filter ReplayFilter,
+) (int, error) {
+	f.drainDepthCalled = true
+	f.drainDepthFilter = filter
+	return f.drainDepth, f.drainDepthErr
 }
 
 func (f *fakeReplayStore) RefinalizeScopeProjections(

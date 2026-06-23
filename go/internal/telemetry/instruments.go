@@ -555,6 +555,20 @@ type Instruments struct {
 	// and source_system. Rising lease age before lease-TTL expiry is the 3 AM
 	// signal that a collector family is stalling under load (issue #2699).
 	WorkflowClaimLeaseAge metric.Float64Histogram
+	// GraphWriteBackpressureEngaged counts graph writes that had to block waiting
+	// for an in-flight permit because the write path was at its concurrency
+	// ceiling, labeled by operation. A non-zero rate is the 3 AM signal that the
+	// graph backend is slow enough that the BackpressureExecutor is slowing intake
+	// instead of letting concurrent writes time out and flood the dead-letter
+	// queue (issue #3560). Sustained engagement means the backend needs headroom
+	// or the ceiling needs tuning; zero means writes never contended for a permit.
+	GraphWriteBackpressureEngaged metric.Int64Counter
+	// GraphWriteBackpressureWaitDuration records, in seconds, how long a graph
+	// write blocked for an in-flight permit, labeled by operation. Only writes
+	// that actually waited are recorded, so the histogram count equals
+	// GraphWriteBackpressureEngaged and the distribution shows how hard
+	// backpressure is biting. Rising p95 wait is the precursor to write timeouts.
+	GraphWriteBackpressureWaitDuration metric.Float64Histogram
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
 	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
 	// The engine populates MatchCounts for RuleKindMatch rules only
@@ -2388,6 +2402,24 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkflowClaimLeaseAge histogram: %w", err)
+	}
+
+	inst.GraphWriteBackpressureEngaged, err = meter.Int64Counter(
+		"eshu_dp_graph_write_backpressure_engaged_total",
+		metric.WithDescription("Graph writes that blocked for an in-flight permit because the write path hit its concurrency ceiling, labeled by operation (issue #3560)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GraphWriteBackpressureEngaged counter: %w", err)
+	}
+
+	inst.GraphWriteBackpressureWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_graph_write_backpressure_wait_seconds",
+		metric.WithDescription("Time a graph write blocked waiting for an in-flight permit, labeled by operation (issue #3560)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(workflowClaimWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GraphWriteBackpressureWaitDuration histogram: %w", err)
 	}
 
 	tfstateSnapshotByteBuckets := []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600}

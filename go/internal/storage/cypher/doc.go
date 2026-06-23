@@ -4,7 +4,11 @@
 //
 // Writers in this package emit Statements that any supported graph backend
 // can run through the Executor seam (InstrumentedExecutor, RetryingExecutor,
-// TimeoutExecutor, ExecuteOnlyExecutor). Dialect-specific behavior must stay
+// TimeoutExecutor, BackpressureExecutor, ExecuteOnlyExecutor). The
+// BackpressureExecutor bounds concurrent writes to a configurable in-flight
+// ceiling so a slow backend slows intake instead of dead-lettering recoverable
+// work (issue #3560); it wraps the outermost retry/timeout layer so one permit
+// covers a whole write attempt. Dialect-specific behavior must stay
 // narrow and explicit: schema adapters, writer options, and the BuildCanonical*
 // statement builders own backend differences so callers do not need to branch
 // on ESHU_GRAPH_BACKEND. Writes must be idempotent and retry-safe; the

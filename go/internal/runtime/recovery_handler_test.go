@@ -319,6 +319,13 @@ func (f *fakeRecoveryStore) ReplayFailedWorkItems(
 	return f.replayResult, f.replayErr
 }
 
+func (f *fakeRecoveryStore) CountDeadLetterBacklog(
+	_ context.Context,
+	_ recovery.ReplayFilter,
+) (int, error) {
+	return 0, nil
+}
+
 func (f *fakeRecoveryStore) RefinalizeScopeProjections(
 	_ context.Context,
 	_ recovery.RefinalizeFilter,

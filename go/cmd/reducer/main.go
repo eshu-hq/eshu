@@ -8,6 +8,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -121,6 +122,15 @@ func buildReducerService(
 		graphBackend,
 		nornicDBCanonicalWriteTimeout(getenv),
 		nornicDBGroupedWrites,
+	)
+	// Bound concurrent canonical writes so a slow graph backend slows intake
+	// instead of dead-lettering recoverable work (issue #3560). The wrapper sits
+	// outside the retry/timeout layer so one permit covers a whole write attempt;
+	// a non-positive ESHU_GRAPH_WRITE_MAX_IN_FLIGHT leaves it a passthrough.
+	semanticEntityExecutor = graphbackpressure.Wrap(
+		semanticEntityExecutor,
+		graphbackpressure.MaxInFlight(getenv),
+		instruments,
 	)
 	semanticEntityWriter, err := semanticEntityWriterForGraphBackend(semanticEntityExecutor, neo4jBatchSize(getenv), graphBackend, getenv)
 	if err != nil {
