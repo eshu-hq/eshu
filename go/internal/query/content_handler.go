@@ -23,6 +23,11 @@ var (
 type ContentHandler struct {
 	Content ContentStore
 	Profile QueryProfile
+	// HybridRanker, when set, reorders bounded content-search results by fused
+	// BM25+vector relevance over the already-authorized lexical rows. It is gated
+	// on the semantic-search embedder being enabled; when nil the lexical
+	// content-index order is served unchanged.
+	HybridRanker ContentResultReranker
 }
 
 func (h *ContentHandler) profile() QueryProfile {
@@ -191,6 +196,8 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	results = h.rerankFileResults(r.Context(), req, results)
+
 	WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from bounded file content search"))
 }
 
@@ -222,6 +229,8 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	results = h.rerankEntityResults(r.Context(), req, results)
 
 	WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from bounded entity content search"))
 }
@@ -423,6 +432,37 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 	}
 	results, err := h.Content.SearchEntityContentAnyRepo(ctx, req.pattern(), probeLimit)
 	return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), err
+}
+
+// rerankFileResults applies the bounded hybrid re-rank to file-search rows when
+// a ranker is configured and the request resolved to a single repository scope.
+// The re-rank is fallback-safe: when no ranker is set, the scope is not a single
+// repo, or the ranker reports applied=false, the lexical content-index order is
+// returned unchanged with no search_backend marker.
+func (h *ContentHandler) rerankFileResults(ctx context.Context, req contentSearchRequest, results []FileContent) []FileContent {
+	if h.HybridRanker == nil || len(results) < 2 {
+		return results
+	}
+	repoID := req.repoID()
+	if repoID == "" {
+		return results
+	}
+	reranked, _ := h.HybridRanker.RerankFiles(ctx, repoID, req.pattern(), results)
+	return reranked
+}
+
+// rerankEntityResults applies the bounded hybrid re-rank to entity-search rows;
+// see rerankFileResults for the single-repo scope guard and fallback contract.
+func (h *ContentHandler) rerankEntityResults(ctx context.Context, req contentSearchRequest, results []EntityContent) []EntityContent {
+	if h.HybridRanker == nil || len(results) < 2 {
+		return results
+	}
+	repoID := req.repoID()
+	if repoID == "" {
+		return results
+	}
+	reranked, _ := h.HybridRanker.RerankEntities(ctx, repoID, req.pattern(), results)
+	return reranked
 }
 
 func writeContentSelectorError(w http.ResponseWriter, err error) {

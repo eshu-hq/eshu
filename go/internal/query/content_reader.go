@@ -38,6 +38,11 @@ type EntityContent struct {
 	Language     string         `json:"language,omitempty"`
 	SourceCache  string         `json:"source_cache,omitempty"`
 	Metadata     map[string]any `json:"metadata,omitempty"`
+	// SearchBackend is set to "hybrid" only on rows reordered by the bounded
+	// in-request BM25+vector re-rank; it is empty (and omitted on the wire) when
+	// the lexical content-index order was served, so the lexical truth basis
+	// stays authoritative.
+	SearchBackend string `json:"search_backend,omitempty"`
 }
 
 // GetFileContent returns one file by repo_id and relative_path.
