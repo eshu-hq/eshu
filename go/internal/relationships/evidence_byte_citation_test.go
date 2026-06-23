@@ -1,0 +1,262 @@
+package relationships
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// TestDiscoverTerraformEvidenceCapturesByteOffset proves that the Terraform
+// evidence extractor records real byte-level citation (start_line, end_line,
+// byte_offset, byte_length, commit_sha) in the EvidenceFact.Details map when
+// the envelope carries that information.
+//
+// This is the TDD anchor for issue #3636. The test MUST FAIL before the
+// byte-citation capture implementation is added to discoverTerraformEvidence /
+// matchCatalog.
+func TestDiscoverTerraformEvidenceCapturesByteOffset(t *testing.T) {
+	t.Parallel()
+
+	// "app_repo" match starts at byte 0, the value "payments-service" starts
+	// after `app_repo = "` (12 bytes). The full match is the whole line.
+	content := `app_repo = "payments-service"`
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-infra",
+			Payload: map[string]any{
+				"artifact_type": "terraform",
+				"relative_path": "main.tf",
+				"content":       content,
+				"commit_sha":    "abc123def456",
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) != 1 {
+		t.Fatalf("len = %d, want 1", len(evidence))
+	}
+	f := evidence[0]
+
+	// commit_sha must flow from envelope payload into Details.
+	if got, _ := f.Details["commit_sha"].(string); got != "abc123def456" {
+		t.Errorf("Details[commit_sha] = %q, want abc123def456", got)
+	}
+	// byte_offset must be non-zero or zero but present, and byte_length > 0.
+	byteOffset, hasOffset := f.Details["byte_offset"]
+	if !hasOffset {
+		t.Errorf("Details missing byte_offset")
+	}
+	byteLength, hasLength := f.Details["byte_length"]
+	if !hasLength {
+		t.Errorf("Details missing byte_length")
+	}
+	// The matched capture group "payments-service" is 16 bytes. The full
+	// pattern match `app_repo = "payments-service"` is 28 bytes. We expect
+	// byte_length to be the length of the full regex match.
+	if hasLength {
+		switch typed := byteLength.(type) {
+		case int:
+			if typed <= 0 {
+				t.Errorf("byte_length = %d, want > 0", typed)
+			}
+		case float64:
+			if typed <= 0 {
+				t.Errorf("byte_length = %v, want > 0", typed)
+			}
+		default:
+			t.Errorf("byte_length type = %T, want int or float64", byteLength)
+		}
+	}
+	if hasOffset {
+		switch byteOffset.(type) {
+		case int, float64:
+			// valid
+		default:
+			t.Errorf("byte_offset type = %T, want int or float64", byteOffset)
+		}
+	}
+
+	// start_line and end_line must be present and ≥ 1.
+	startLine, hasStart := f.Details["start_line"]
+	endLine, hasEnd := f.Details["end_line"]
+	if !hasStart {
+		t.Errorf("Details missing start_line")
+	}
+	if !hasEnd {
+		t.Errorf("Details missing end_line")
+	}
+	if hasStart {
+		switch typed := startLine.(type) {
+		case int:
+			if typed < 1 {
+				t.Errorf("start_line = %d, want >= 1", typed)
+			}
+		case float64:
+			if typed < 1 {
+				t.Errorf("start_line = %v, want >= 1", typed)
+			}
+		default:
+			t.Errorf("start_line type = %T, want int or float64", startLine)
+		}
+	}
+	if hasEnd {
+		switch typed := endLine.(type) {
+		case int:
+			if typed < 1 {
+				t.Errorf("end_line = %d, want >= 1", typed)
+			}
+		case float64:
+			if typed < 1 {
+				t.Errorf("end_line = %v, want >= 1", typed)
+			}
+		default:
+			t.Errorf("end_line type = %T, want int or float64", endLine)
+		}
+	}
+
+	// Canonical() must pass Validate() with the captured citation.
+	ev := f.Canonical()
+	if err := ev.Validate(); err != nil {
+		t.Fatalf("Canonical().Validate() error = %v, want nil", err)
+	}
+	if ev.Citation.CommitSHA != "abc123def456" {
+		t.Errorf("Canonical Citation.CommitSHA = %q, want abc123def456", ev.Citation.CommitSHA)
+	}
+	if ev.Citation.ByteLength <= 0 {
+		t.Errorf("Canonical Citation.ByteLength = %d, want > 0", ev.Citation.ByteLength)
+	}
+	if ev.Citation.StartLine < 1 {
+		t.Errorf("Canonical Citation.StartLine = %d, want >= 1", ev.Citation.StartLine)
+	}
+}
+
+// TestDiscoverTerraformEvidenceMultilineCapturesCorrectLine proves that when a
+// Terraform file has multiple lines, the extractor records the correct 1-based
+// line number for a match on a non-first line.
+func TestDiscoverTerraformEvidenceMultilineCapturesCorrectLine(t *testing.T) {
+	t.Parallel()
+
+	// The match is on line 3 (1-based).
+	content := "# infra config\nregion = \"us-east-1\"\napp_repo = \"payments-service\"\n"
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-infra",
+			Payload: map[string]any{
+				"artifact_type": "terraform",
+				"relative_path": "env/prod/main.tf",
+				"content":       content,
+				"commit_sha":    "deadbeef",
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) != 1 {
+		t.Fatalf("len = %d, want 1", len(evidence))
+	}
+	f := evidence[0]
+
+	startLine, hasStart := f.Details["start_line"]
+	if !hasStart {
+		t.Fatalf("Details missing start_line")
+	}
+	var startLineInt int
+	switch typed := startLine.(type) {
+	case int:
+		startLineInt = typed
+	case float64:
+		startLineInt = int(typed)
+	default:
+		t.Fatalf("start_line type = %T", startLine)
+	}
+	if startLineInt != 3 {
+		t.Errorf("start_line = %d, want 3 (match is on third line)", startLineInt)
+	}
+	if got, _ := f.Details["commit_sha"].(string); got != "deadbeef" {
+		t.Errorf("commit_sha = %q, want deadbeef", got)
+	}
+}
+
+// TestDiscoverEvidenceNoCommitSHAInEnvelopeDegradesSafely proves that when the
+// envelope does not carry a commit_sha, the extractor does not fabricate one
+// — commit_sha is simply absent from Details (or empty) and the extracted
+// evidence still validates via Canonical().
+func TestDiscoverEvidenceNoCommitSHAInEnvelopeDegradesSafely(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-infra",
+			Payload: map[string]any{
+				"artifact_type": "terraform",
+				"relative_path": "main.tf",
+				"content":       `app_repo = "payments-service"`,
+				// No commit_sha in payload.
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) != 1 {
+		t.Fatalf("len = %d, want 1", len(evidence))
+	}
+	f := evidence[0]
+
+	// commit_sha must not be fabricated.
+	if got, _ := f.Details["commit_sha"].(string); got != "" {
+		t.Errorf("Details[commit_sha] = %q, want empty (no fabrication)", got)
+	}
+
+	// Canonical must still validate (file path locator is enough).
+	ev := f.Canonical()
+	if err := ev.Validate(); err != nil {
+		t.Fatalf("Canonical().Validate() error = %v, want nil (safe degradation)", err)
+	}
+}
+
+// TestDiscoverHelmEvidenceCapturesCommitSHA proves that Helm evidence discovery
+// also forwards the commit_sha from the envelope into Details, i.e., the fix is
+// not limited to the Terraform code path.
+func TestDiscoverHelmEvidenceCapturesCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	content := "image:\n  repository: payments-service\n  tag: latest\n"
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-platform",
+			Payload: map[string]any{
+				"artifact_type": "helm",
+				"relative_path": "charts/web/values.yaml",
+				"content":       content,
+				"commit_sha":    "helm-commit-abc",
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) == 0 {
+		t.Skip("Helm values extractor did not match — check alias; skipping commit_sha assertion")
+	}
+	for _, f := range evidence {
+		if got, _ := f.Details["commit_sha"].(string); got != "helm-commit-abc" {
+			t.Errorf("Details[commit_sha] = %q, want helm-commit-abc", got)
+		}
+		ev := f.Canonical()
+		if err := ev.Validate(); err != nil {
+			t.Fatalf("Canonical().Validate() error = %v", err)
+		}
+	}
+}

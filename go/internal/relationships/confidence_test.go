@@ -238,7 +238,7 @@ func TestHelmEvidenceReadsConfidenceFromRegistry(t *testing.T) {
 				seen := make(map[evidenceKey]struct{})
 				content := "repository: payments-service\n"
 
-				evidence := discoverHelmEvidence("repo-infra", tc.fileName, content, matcher, seen)
+				evidence := discoverHelmEvidence("repo-infra", tc.fileName, content, "", matcher, seen)
 
 				got := requireEvidenceConfidence(t, evidence, tc.kind)
 				if got != tc.override {
