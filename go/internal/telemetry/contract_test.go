@@ -133,6 +133,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.sql_relationship_materialization",
 		"reducer.inheritance_materialization",
 		"reducer.cross_repo_resolution",
+		"reducer.code_import_repo_edge",
 		"shared_acceptance.lookup",
 		"shared_acceptance.upsert",
 		"query.relationship_evidence",
