@@ -193,6 +193,7 @@ func (h WorkloadMaterializationHandler) Handle(
 			Domain:          DomainWorkloadMaterialization,
 			Status:          ResultStatusSucceeded,
 			EvidenceSummary: "no workload candidates found",
+			SubDurations:    workloadMaterializationSubDurations(timing),
 		}, nil
 	}
 
@@ -364,7 +365,26 @@ func (h WorkloadMaterializationHandler) Handle(
 			materializeResult.EndpointsWritten,
 		),
 		CanonicalWrites: totalWrites,
+		SubDurations:    workloadMaterializationSubDurations(timing),
 	}, nil
+}
+
+// workloadMaterializationSubDurations converts the internal per-phase timing
+// struct into the Result.SubDurations map so the service layer can emit
+// per-phase log attributes alongside handler_duration_seconds. Keys use the
+// same names as the workload materialization log attributes without the
+// "_duration_seconds" suffix so callers can reconstruct attribute names
+// consistently.
+func workloadMaterializationSubDurations(t workloadMaterializationTiming) map[string]float64 {
+	return map[string]float64{
+		"load_inputs":      t.loadInputsDuration.Seconds(),
+		"build_projection": t.buildProjectionDuration.Seconds(),
+		"graph_write":      t.graphWriteDuration.Seconds(),
+		"dep_reconcile":    t.dependencyReconcile.Seconds(),
+		"dep_retract":      t.dependencyRetract.Seconds(),
+		"dep_write":        t.dependencyWrite.Seconds(),
+		"phase_publish":    t.phasePublishDuration.Seconds(),
+	}
 }
 
 func (h WorkloadMaterializationHandler) loadInfrastructurePlatforms(
