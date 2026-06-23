@@ -7,13 +7,14 @@ import (
 )
 
 const (
-	repositoryGroupSourceDependencyFlag = "repository_dependency_flag"
-	repositoryGroupSourceSlugNamespace  = "repo_slug_namespace"
-	repositoryGroupSourceRemoteOwner    = "remote_url_owner"
-	repositoryGroupSourceMissing        = "missing_evidence"
-	repositoryGroupTruthDerived         = "derived"
-	repositoryGroupTruthMissing         = "missing_evidence"
-	repositoryGroupMissingReason        = "repository_group_evidence_missing"
+	repositoryGroupSourceDependencyCluster = "dependency_cluster"
+	repositoryGroupSourceDependencyFlag    = "repository_dependency_flag"
+	repositoryGroupSourceSlugNamespace     = "repo_slug_namespace"
+	repositoryGroupSourceRemoteOwner       = "remote_url_owner"
+	repositoryGroupSourceMissing           = "missing_evidence"
+	repositoryGroupTruthDerived            = "derived"
+	repositoryGroupTruthMissing            = "missing_evidence"
+	repositoryGroupMissingReason           = "repository_group_evidence_missing"
 )
 
 type repositoryGroupEvidence struct {

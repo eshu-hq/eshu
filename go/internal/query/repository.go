@@ -137,6 +137,15 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 		rows = rows[:page.Limit]
 	}
 
+	// Dependency-cluster pre-pass: one bounded edge query over
+	// (:Repository)-[:DEPENDS_ON]->(:Repository), then connected-component
+	// grouping in Go. This is the primary grouping signal (issue #3504):
+	// repositories that depend on each other share a cluster key, and the
+	// per-row decoration below gives that cluster precedence over the
+	// source-backed slug/owner/flag derivation. Repositories in no dependency
+	// edge fall through to honest missing_evidence rather than a name heuristic.
+	clusters := loadRepositoryDependencyClusters(r.Context(), h.Neo4j, access)
+
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		repo := map[string]any{
@@ -149,7 +158,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			"has_remote":    BoolVal(row, "has_remote"),
 			"is_dependency": BoolVal(row, "is_dependency"),
 		}
-		repos = append(repos, decorateRepositoryGroupEvidence(repo))
+		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, clusters))
 	}
 
 	WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))

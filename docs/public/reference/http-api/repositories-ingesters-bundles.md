@@ -36,17 +36,26 @@ render repository groups without repository-name rules:
 - `group_key`: display label for the source-backed group, empty when no group
   evidence exists
 - `group_source`: source used for the grouping decision, currently
-  `repository_dependency_flag`, `repo_slug_namespace`, `remote_url_owner`, or
-  `missing_evidence`
+  `dependency_cluster`, `repository_dependency_flag`, `repo_slug_namespace`,
+  `remote_url_owner`, or `missing_evidence`
 - `group_truth`: per-row grouping truth such as `derived` or
   `missing_evidence`
-- `group_kind`: `source`, `dependency`, or `unknown`
+- `group_kind`: `cluster`, `source`, `dependency`, or `unknown`
 - `group_reason`: bounded explanation for the assignment or missing evidence
 
-Dependency rows group from the repository dependency flag. Source repositories
-with a remote slug group from the first slug namespace. Source repositories that
-lack a slug but have a git remote URL group from the org/owner segment of that
-remote (`remote_url_owner`). Rows without any of these carry
+Repositories that participate in a `(:Repository)-[:DEPENDS_ON]->(:Repository)`
+edge group by **dependency cluster**: a connected-components pass (union-find)
+over the undirected dependency graph assigns every repository in a component the
+same `group_key` (the lexicographically smallest repository id in the
+component), with `group_source=dependency_cluster`, `group_kind=cluster`, and
+`group_truth=derived`. Both projected edge sources — resolver/cross-repo and
+package-consumption — feed the clustering. The dependency cluster takes
+precedence over every other grouping source. Repositories that participate in no
+dependency edge fall through to the source-backed derivation: dependency rows
+group from the repository dependency flag; source repositories with a remote
+slug group from the first slug namespace; source repositories that lack a slug
+but have a git remote URL group from the org/owner segment of that remote
+(`remote_url_owner`). Rows without any of these carry
 `group_source=missing_evidence` and the inventory `partial_reasons` array
 includes `repository_group_evidence_missing` instead of forcing a heuristic
 group.
