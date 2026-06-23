@@ -131,6 +131,46 @@ SET csrf_token_hash = EXCLUDED.csrf_token_hash,
     updated_at = EXCLUDED.updated_at
 `
 
+const listStaleOIDCBrowserSessionsQuery = `
+SELECT
+    session_hash,
+    external_provider_config_id,
+    external_subject_id_hash,
+    tenant_id,
+    workspace_id,
+    policy_revision_hash,
+    role_ids,
+    all_scopes,
+    allowed_scope_ids,
+    allowed_repository_ids,
+    external_auth_validated_at,
+    external_auth_stale_after
+FROM browser_sessions
+WHERE revoked_at IS NULL
+  AND subject_class = 'external_oidc_user'
+  AND external_provider_config_id IS NOT NULL
+  AND external_subject_id_hash IS NOT NULL
+  AND external_auth_stale_after IS NOT NULL
+  AND external_auth_stale_after <= $1
+ORDER BY external_auth_stale_after ASC
+LIMIT $2
+`
+
+const updateOIDCBrowserSessionAuthProofQuery = `
+UPDATE browser_sessions
+SET external_auth_validated_at = $2,
+    external_auth_stale_after = $3,
+    policy_revision_hash = $4,
+    role_ids = $5::jsonb,
+    all_scopes = $6,
+    allowed_scope_ids = $7::jsonb,
+    allowed_repository_ids = $8::jsonb,
+    updated_at = $9
+WHERE session_hash = $1
+  AND revoked_at IS NULL
+  AND subject_class = 'external_oidc_user'
+`
+
 const revokeStaleOIDCBrowserSessionQuery = `
 UPDATE browser_sessions
 SET revoked_at = $2,
