@@ -56,6 +56,33 @@ func eshuSearchDocumentDomainDefinition() DomainDefinition {
 	}
 }
 
+// codeImportRepoEdgeDomainDefinition returns the additive definition for the
+// code-import repo-edge projection. It is additive (not part of
+// DefaultDomainDefinitions) because the handler requires an explicitly wired
+// FactLoader, package-ownership loader, and RepoDependencyIntentWriter;
+// registering it without them would silently drop every intent. The domain emits
+// no canonical fact of its own: it rides the shared repo-dependency projection
+// lane, so its canonical surface is the DEPENDS_ON edge that lane writes
+// (issue #3642).
+func codeImportRepoEdgeDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainCodeImportRepoEdge,
+		Summary: "project repo-to-repo DEPENDS_ON edges from per-file external import sources correlated to package-registry ownership",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: false,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "repo_dependency",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+			},
+		},
+	}
+}
+
 // packageSourceCorrelationDomainDefinition returns the additive definition for
 // the package source-correlation classifier. Source hints remain provenance-only
 // ownership and publication candidates, while Git manifest dependencies matched

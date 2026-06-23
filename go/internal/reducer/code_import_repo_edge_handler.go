@@ -24,6 +24,19 @@ type activePackageOwnershipFactLoader interface {
 	ListActivePackageOwnershipFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
+// codeImportOwnershipLoader reports whether the wired FactLoader can serve the
+// bounded cross-scope package-ownership facts the code-import projection needs.
+// The default reducer binary wires the Postgres FactStore, which satisfies the
+// interface; test doubles and fact-only profiles that do not implement it leave
+// the code-import domain unregistered so no intent is silently dropped.
+func codeImportOwnershipLoader(loader FactLoader) (activePackageOwnershipFactLoader, bool) {
+	if loader == nil {
+		return nil, false
+	}
+	owner, ok := loader.(activePackageOwnershipFactLoader)
+	return owner, ok
+}
+
 // CodeImportRepoEdgeHandler projects repo-to-repo DEPENDS_ON edges from per-file
 // external import sources correlated to package-registry ownership (issue
 // #3642). It runs in the git-repository scope so the per-file `file` facts that
