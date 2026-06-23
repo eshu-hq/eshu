@@ -101,6 +101,11 @@ type Service struct {
 	// bounded transactions. Nil disables automated cleanup.
 	GenerationRetentionRunner *GenerationRetentionRunner
 
+	// GenerationLivenessRunner re-drives active generations that wedge past the
+	// activation deadline and supersedes orphaned older actives. Nil disables
+	// generation lifecycle self-healing.
+	GenerationLivenessRunner *GenerationLivenessRunner
+
 	// GraphOrphanSweepRunner marks and deletes aged zero-relationship graph
 	// nodes in bounded batches. Nil disables automated cleanup.
 	GraphOrphanSweepRunner *GraphOrphanSweepRunner

@@ -40,7 +40,11 @@ const (
 	// MetricDimensionNodeLabel labels graph maintenance metrics with a closed
 	// Cypher label such as Repository, Platform, or EvidenceArtifact. Producers
 	// must never use raw node ids, names, paths, or provider locators here.
-	MetricDimensionNodeLabel  = "node_label"
+	MetricDimensionNodeLabel = "node_label"
+	// MetricDimensionAgeBucket labels active-generation gauges with a closed
+	// activation-age bucket (fresh, aging, stuck). Producers must never use raw
+	// scope ids, generation ids, or timestamps here.
+	MetricDimensionAgeBucket  = "age_bucket"
 	MetricDimensionEdgeType   = "edge_type"
 	MetricDimensionWritePhase = "write_phase"
 	MetricDimensionOutcome    = "outcome"

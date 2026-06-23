@@ -23,6 +23,36 @@ const openAPIPathsAdmin = `
         }
       }
     },
+    "/api/v0/admin/recover-generations": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Recover wedged generations",
+        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed. Durably re-enqueues projector work for the named scopes through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["scope_ids", "reason", "idempotency_key"],
+                "properties": {
+                  "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes whose wedged active generations should be re-driven."},
+                  "reason": {"type": "string", "description": "Why the recovery is safe."},
+                  "idempotency_key": {"type": "string", "description": "Makes the recovery safe under retries and concurrent delivery."}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Recovery request results (duplicate=true when an idempotent prior outcome is returned)"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"description": "Recovery requires an admin (all-scopes) token"},
+          "409": {"description": "Idempotency key already in progress or reused with different scope_ids"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/admin/shared-projection/tuning-report": {
       "get": {
         "tags": ["admin"],

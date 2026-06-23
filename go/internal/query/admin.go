@@ -182,6 +182,7 @@ func (h *AdminHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/refinalize", h.refinalize)
 	mux.HandleFunc("GET /api/v0/admin/shared-projection/tuning-report", h.tuningReport)
 	mux.HandleFunc("POST /api/v0/admin/reindex", h.reindex)
+	mux.HandleFunc("POST /api/v0/admin/recover-generations", h.recoverGenerations)
 
 	// Fact-inspection endpoints (from admin_facts.py)
 	mux.HandleFunc("POST /api/v0/admin/work-items/query", h.listWorkItems)
