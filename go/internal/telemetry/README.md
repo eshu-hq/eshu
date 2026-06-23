@@ -86,6 +86,9 @@ when the reducer has a graph orphan observer.
 | `GenerationRetentionRowsPruned` | `eshu_dp_generation_retention_rows_pruned_total` |
 | `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |
 | `GenerationRetentionSkipped` | `eshu_dp_generation_retention_skipped_total` |
+| `GenerationLivenessRecovered` | `eshu_dp_generation_liveness_recovered_total` |
+| `GenerationLivenessSuperseded` | `eshu_dp_generation_liveness_superseded_total` |
+| `GenerationLivenessFailures` | `eshu_dp_generation_liveness_failures_total` |
 | `DocumentationEntityMentions` | `eshu_dp_documentation_entity_mentions_extracted_total` |
 | `ReconciliationDriftRetractions` | `eshu_dp_reconciliation_drift_retractions_total` |
 | `DocumentationClaimCandidates` | `eshu_dp_documentation_claim_candidates_extracted_total` |
@@ -326,6 +329,7 @@ module prefixes across generations.
 | `WorkerPoolActive` | `eshu_dp_worker_pool_active` | `pool` |
 | `SharedAcceptanceRows` | `eshu_dp_shared_acceptance_rows` | none |
 | `GraphOrphanNodes` | `eshu_dp_graph_orphan_nodes` | `node_label` |
+| `ActiveGenerationsByAge` | `eshu_dp_active_generations` | `age_bucket` |
 | (via `RecordGOMEMLIMIT`) | `eshu_dp_gomemlimit_bytes` | none |
 
 ### Span name constants
