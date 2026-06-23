@@ -44,7 +44,11 @@ func TestScorePassesCompletePublishSafeEvidence(t *testing.T) {
 
 func TestScoreFailsMissingCitationsAndRequiredFollowUp(t *testing.T) {
 	evidence := completeEvidence()
+	// Genuinely uncited: no citation handles AND no truth provenance (empty
+	// truth_class), so the citation_coverage guardrail still fails it under the
+	// truth-provenance coverage class added in #3609.
 	evidence.Prompts[0].Results[0].CitationHandles = nil
+	evidence.Prompts[0].Results[0].TruthClass = ""
 	evidence.Prompts[0].Results[0].Truncated = true
 	evidence.Prompts[0].Results[0].NextCalls = nil
 

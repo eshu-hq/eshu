@@ -19,9 +19,18 @@ const (
 
 // Result is the bounded answer shape evaluated by guardrails.
 type Result struct {
-	AnswerSummary   string
-	Supported       bool
+	AnswerSummary string
+	Supported     bool
+	// CitationHandles are inlined evidence handles that cover the prose.
 	CitationHandles []string
+	// TruthProvenance reports whether the prose is backed by a classified
+	// packet's truth provenance (a non-empty truth_class). It is a recognized
+	// citation_coverage class on par with citation handles, mirroring the
+	// narration validator, which allows ProvenanceTruth whenever the packet's
+	// truth_class is non-empty. It does not weaken coverage for genuinely uncited
+	// prose: prose with no handles and no truth provenance is still blocked
+	// (issue #3609).
+	TruthProvenance bool
 	Limitations     []string
 	NextCalls       []string
 	Metadata        []string
@@ -45,10 +54,10 @@ var rawAddressPattern = regexp.MustCompile(`\b[0-9]{1,3}(?:\.[0-9]{1,3}){3}\b`)
 // safety rules. It performs no I/O and never calls providers.
 func ValidateResult(result Result) Verdict {
 	var findings []Finding
-	if result.Supported && strings.TrimSpace(result.AnswerSummary) != "" && !hasCitation(result.CitationHandles) {
+	if result.Supported && strings.TrimSpace(result.AnswerSummary) != "" && !hasCoverage(result) {
 		findings = append(findings, Finding{
 			Criterion: CriterionCitationCoverage,
-			Detail:    "supported published answer has no citation handles",
+			Detail:    "supported published answer has no citation handles or truth provenance",
 		})
 	}
 	if FirstUnsafeString(result.Strings()) != "" {
@@ -129,4 +138,14 @@ func hasCitation(handles []string) bool {
 		}
 	}
 	return false
+}
+
+// hasCoverage reports whether a supported published answer carries an accepted
+// citation_coverage class: inlined evidence handles OR truth provenance (a
+// classified packet's non-empty truth_class). Truth provenance is recognized on
+// par with citation handles, mirroring the narration validator's ProvenanceTruth
+// allowance. Prose with neither is uncovered and still fails the criterion
+// (issue #3609).
+func hasCoverage(result Result) bool {
+	return hasCitation(result.CitationHandles) || result.TruthProvenance
 }

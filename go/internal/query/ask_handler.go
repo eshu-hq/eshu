@@ -299,6 +299,10 @@ func applyAskRuntimeGuardrails(resp *askResponse, primarySupported bool) {
 		AnswerSummary:   resp.AnswerProse,
 		Supported:       primarySupported,
 		CitationHandles: askCitationHandleStrings(resp.EvidenceHandles),
+		// Prose backed by a classified packet's truth provenance (non-empty
+		// truth_class) satisfies citation coverage, mirroring the narration
+		// validator's ProvenanceTruth allowance (issue #3609).
+		TruthProvenance: strings.TrimSpace(resp.TruthClass) != "",
 		Limitations:     resp.Limitations,
 	})
 	if verdict.Valid {
