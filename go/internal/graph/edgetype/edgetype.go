@@ -1,0 +1,197 @@
+package edgetype
+
+// EdgeType is a Cypher graph relationship (edge) type. Its string value is the
+// exact relationship type emitted in Cypher and MUST remain byte-identical to
+// the historical literal it replaces.
+type EdgeType string
+
+// String returns the raw Cypher relationship type string.
+func (e EdgeType) String() string { return string(e) }
+
+const (
+	// Aliases is the "ALIASES" graph relationship type.
+	Aliases EdgeType = "ALIASES"
+	// AllowsEgress is the "ALLOWS_EGRESS" graph relationship type.
+	AllowsEgress EdgeType = "ALLOWS_EGRESS"
+	// AllowsIngress is the "ALLOWS_INGRESS" graph relationship type.
+	AllowsIngress EdgeType = "ALLOWS_INGRESS"
+	// Calls is the "CALLS" graph relationship type.
+	Calls EdgeType = "CALLS"
+	// CanAssume is the "CAN_ASSUME" graph relationship type.
+	CanAssume EdgeType = "CAN_ASSUME"
+	// CanEscalateTo is the "CAN_ESCALATE_TO" graph relationship type.
+	CanEscalateTo EdgeType = "CAN_ESCALATE_TO"
+	// CanPerform is the "CAN_PERFORM" graph relationship type.
+	CanPerform EdgeType = "CAN_PERFORM"
+	// Contains is the "CONTAINS" graph relationship type.
+	Contains EdgeType = "CONTAINS"
+	// CorrelatesDeployableUnit is the "CORRELATES_DEPLOYABLE_UNIT" graph relationship type.
+	CorrelatesDeployableUnit EdgeType = "CORRELATES_DEPLOYABLE_UNIT"
+	// DeclaresDependency is the "DECLARES_DEPENDENCY" graph relationship type.
+	DeclaresDependency EdgeType = "DECLARES_DEPENDENCY"
+	// Defines is the "DEFINES" graph relationship type.
+	Defines EdgeType = "DEFINES"
+	// DependsOn is the "DEPENDS_ON" graph relationship type.
+	DependsOn EdgeType = "DEPENDS_ON"
+	// DependsOnPackage is the "DEPENDS_ON_PACKAGE" graph relationship type.
+	DependsOnPackage EdgeType = "DEPENDS_ON_PACKAGE"
+	// DeploymentSource is the "DEPLOYMENT_SOURCE" graph relationship type.
+	DeploymentSource EdgeType = "DEPLOYMENT_SOURCE"
+	// DeploysFrom is the "DEPLOYS_FROM" graph relationship type.
+	DeploysFrom EdgeType = "DEPLOYS_FROM"
+	// DiscoversConfigIn is the "DISCOVERS_CONFIG_IN" graph relationship type.
+	DiscoversConfigIn EdgeType = "DISCOVERS_CONFIG_IN"
+	// Documents is the "DOCUMENTS" graph relationship type.
+	Documents EdgeType = "DOCUMENTS"
+	// EvidencesRepositoryRelationship is the "EVIDENCES_REPOSITORY_RELATIONSHIP" graph relationship type.
+	EvidencesRepositoryRelationship EdgeType = "EVIDENCES_REPOSITORY_RELATIONSHIP"
+	// Executes is the "EXECUTES" graph relationship type.
+	Executes EdgeType = "EXECUTES"
+	// ExecutesShell is the "EXECUTES_SHELL" graph relationship type.
+	ExecutesShell EdgeType = "EXECUTES_SHELL"
+	// Explains is the "EXPLAINS" graph relationship type.
+	Explains EdgeType = "EXPLAINS"
+	// ExposesEndpoint is the "EXPOSES_ENDPOINT" graph relationship type.
+	ExposesEndpoint EdgeType = "EXPOSES_ENDPOINT"
+	// GrantsAccessTo is the "GRANTS_ACCESS_TO" graph relationship type.
+	GrantsAccessTo EdgeType = "GRANTS_ACCESS_TO"
+	// HandlesRoute is the "HANDLES_ROUTE" graph relationship type.
+	HandlesRoute EdgeType = "HANDLES_ROUTE"
+	// HasAppliedRouting is the "HAS_APPLIED_ROUTING" graph relationship type.
+	HasAppliedRouting EdgeType = "HAS_APPLIED_ROUTING"
+	// HasColumn is the "HAS_COLUMN" graph relationship type.
+	HasColumn EdgeType = "HAS_COLUMN"
+	// HasDeploymentEvidence is the "HAS_DEPLOYMENT_EVIDENCE" graph relationship type.
+	HasDeploymentEvidence EdgeType = "HAS_DEPLOYMENT_EVIDENCE"
+	// HasIntendedRouting is the "HAS_INTENDED_ROUTING" graph relationship type.
+	HasIntendedRouting EdgeType = "HAS_INTENDED_ROUTING"
+	// HasLiveRouting is the "HAS_LIVE_ROUTING" graph relationship type.
+	HasLiveRouting EdgeType = "HAS_LIVE_ROUTING"
+	// HasParameter is the "HAS_PARAMETER" graph relationship type.
+	HasParameter EdgeType = "HAS_PARAMETER"
+	// HasRole is the "HAS_ROLE" graph relationship type.
+	HasRole EdgeType = "HAS_ROLE"
+	// HasTaintEvidence is the "HAS_TAINT_EVIDENCE" graph relationship type.
+	HasTaintEvidence EdgeType = "HAS_TAINT_EVIDENCE"
+	// HasVersion is the "HAS_VERSION" graph relationship type.
+	HasVersion EdgeType = "HAS_VERSION"
+	// Implements is the "IMPLEMENTS" graph relationship type.
+	Implements EdgeType = "IMPLEMENTS"
+	// Imports is the "IMPORTS" graph relationship type.
+	Imports EdgeType = "IMPORTS"
+	// Indexes is the "INDEXES" graph relationship type.
+	Indexes EdgeType = "INDEXES"
+	// Inherits is the "INHERITS" graph relationship type.
+	Inherits EdgeType = "INHERITS"
+	// InstanceOf is the "INSTANCE_OF" graph relationship type.
+	InstanceOf EdgeType = "INSTANCE_OF"
+	// Instantiates is the "INSTANTIATES" graph relationship type.
+	Instantiates EdgeType = "INSTANTIATES"
+	// InvokesCloudAction is the "INVOKES_CLOUD_ACTION" graph relationship type.
+	InvokesCloudAction EdgeType = "INVOKES_CLOUD_ACTION"
+	// LogsTo is the "LOGS_TO" graph relationship type.
+	LogsTo EdgeType = "LOGS_TO"
+	// MapsToTable is the "MAPS_TO_TABLE" graph relationship type.
+	MapsToTable EdgeType = "MAPS_TO_TABLE"
+	// Migrates is the "MIGRATES" graph relationship type.
+	Migrates EdgeType = "MIGRATES"
+	// Overrides is the "OVERRIDES" graph relationship type.
+	Overrides EdgeType = "OVERRIDES"
+	// ProvisionsDependencyFor is the "PROVISIONS_DEPENDENCY_FOR" graph relationship type.
+	ProvisionsDependencyFor EdgeType = "PROVISIONS_DEPENDENCY_FOR"
+	// ProvisionsPlatform is the "PROVISIONS_PLATFORM" graph relationship type.
+	ProvisionsPlatform EdgeType = "PROVISIONS_PLATFORM"
+	// QueriesTable is the "QUERIES_TABLE" graph relationship type.
+	QueriesTable EdgeType = "QUERIES_TABLE"
+	// ReadsConfigFrom is the "READS_CONFIG_FROM" graph relationship type.
+	ReadsConfigFrom EdgeType = "READS_CONFIG_FROM"
+	// ReadsFrom is the "READS_FROM" graph relationship type.
+	ReadsFrom EdgeType = "READS_FROM"
+	// References is the "REFERENCES" graph relationship type.
+	References EdgeType = "REFERENCES"
+	// ReferencesTable is the "REFERENCES_TABLE" graph relationship type.
+	ReferencesTable EdgeType = "REFERENCES_TABLE"
+	// RepoContains is the "REPO_CONTAINS" graph relationship type.
+	RepoContains EdgeType = "REPO_CONTAINS"
+	// RunsImage is the "RUNS_IMAGE" graph relationship type.
+	RunsImage EdgeType = "RUNS_IMAGE"
+	// RunsIn is the "RUNS_IN" graph relationship type.
+	RunsIn EdgeType = "RUNS_IN"
+	// RunsOn is the "RUNS_ON" graph relationship type.
+	RunsOn EdgeType = "RUNS_ON"
+	// SatisfiedBy is the "SATISFIED_BY" graph relationship type.
+	SatisfiedBy EdgeType = "SATISFIED_BY"
+	// SecretsIamAssumesIamRole is the "SECRETS_IAM_ASSUMES_IAM_ROLE" graph relationship type.
+	SecretsIamAssumesIamRole EdgeType = "SECRETS_IAM_ASSUMES_IAM_ROLE"
+	// SecretsIamAuthenticatesToVaultRole is the "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE" graph relationship type.
+	SecretsIamAuthenticatesToVaultRole EdgeType = "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE"
+	// SecretsIamGrantsSecretRead is the "SECRETS_IAM_GRANTS_SECRET_READ" graph relationship type.
+	SecretsIamGrantsSecretRead EdgeType = "SECRETS_IAM_GRANTS_SECRET_READ"
+	// SecretsIamUsesServiceAccount is the "SECRETS_IAM_USES_SERVICE_ACCOUNT" graph relationship type.
+	SecretsIamUsesServiceAccount EdgeType = "SECRETS_IAM_USES_SERVICE_ACCOUNT"
+	// SecretsIamUsesVaultPolicy is the "SECRETS_IAM_USES_VAULT_POLICY" graph relationship type.
+	SecretsIamUsesVaultPolicy EdgeType = "SECRETS_IAM_USES_VAULT_POLICY"
+	// TaintFlowsTo is the "TAINT_FLOWS_TO" graph relationship type.
+	TaintFlowsTo EdgeType = "TAINT_FLOWS_TO"
+	// TargetsEnvironment is the "TARGETS_ENVIRONMENT" graph relationship type.
+	TargetsEnvironment EdgeType = "TARGETS_ENVIRONMENT"
+	// To is the "TO" graph relationship type.
+	To EdgeType = "TO"
+	// Triggers is the "TRIGGERS" graph relationship type.
+	Triggers EdgeType = "TRIGGERS"
+	// TriggersOn is the "TRIGGERS_ON" graph relationship type.
+	TriggersOn EdgeType = "TRIGGERS_ON"
+	// Uses is the "USES" graph relationship type.
+	Uses EdgeType = "USES"
+	// UsesMetaclass is the "USES_METACLASS" graph relationship type.
+	UsesMetaclass EdgeType = "USES_METACLASS"
+	// UsesModule is the "USES_MODULE" graph relationship type.
+	UsesModule EdgeType = "USES_MODULE"
+	// UsesProfile is the "USES_PROFILE" graph relationship type.
+	UsesProfile EdgeType = "USES_PROFILE"
+)
+
+// registered lists every edge type known to the registry. Order is not
+// significant; All returns a defensive copy.
+var registered = []EdgeType{
+	Aliases, AllowsEgress, AllowsIngress, Calls,
+	CanAssume, CanEscalateTo, CanPerform, Contains,
+	CorrelatesDeployableUnit, DeclaresDependency, Defines, DependsOn,
+	DependsOnPackage, DeploymentSource, DeploysFrom, DiscoversConfigIn,
+	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
+	Explains, ExposesEndpoint, GrantsAccessTo, HandlesRoute,
+	HasAppliedRouting, HasColumn, HasDeploymentEvidence, HasIntendedRouting,
+	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
+	HasVersion, Implements, Imports, Indexes,
+	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
+	LogsTo, MapsToTable, Migrates, Overrides,
+	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,
+	ReadsFrom, References, ReferencesTable, RepoContains,
+	RunsImage, RunsIn, RunsOn, SatisfiedBy,
+	SecretsIamAssumesIamRole, SecretsIamAuthenticatesToVaultRole, SecretsIamGrantsSecretRead, SecretsIamUsesServiceAccount,
+	SecretsIamUsesVaultPolicy, TaintFlowsTo, TargetsEnvironment, To,
+	Triggers, TriggersOn, Uses, UsesMetaclass,
+	UsesModule, UsesProfile,
+}
+
+// set indexes registered edge-type strings for O(1) membership checks.
+var set = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(registered))
+	for _, e := range registered {
+		m[string(e)] = struct{}{}
+	}
+	return m
+}()
+
+// All returns a defensive copy of every registered edge type.
+func All() []EdgeType {
+	out := make([]EdgeType, len(registered))
+	copy(out, registered)
+	return out
+}
+
+// IsRegistered reports whether s is a known graph edge-type string.
+func IsRegistered(s string) bool {
+	_, ok := set[s]
+	return ok
+}
