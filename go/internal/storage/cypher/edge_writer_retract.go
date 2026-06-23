@@ -426,7 +426,7 @@ func repoEvidenceArtifactRowsFromIntent(
 			name = evidenceKind
 		}
 		artifactID := repoEvidenceArtifactID(resolvedID, evidenceKind, path, matchedValue)
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"artifact_id":           artifactID,
 			"name":                  name,
 			"repo_id":               repoID,
@@ -444,7 +444,20 @@ func repoEvidenceArtifactRowsFromIntent(
 			"matched_value":         matchedValue,
 			"confidence":            payloadFloat(artifact, "confidence"),
 			"evidence_source":       evidenceSource,
-		})
+		}
+		// Propagate byte-level citation fields when the artifact carries them so
+		// the EvidenceArtifact graph node exposes start_line/end_line/commit_sha
+		// to the query surface. Absent fields are omitted to avoid zero-noise.
+		if sl := payloadInt(artifact, "start_line"); sl > 0 {
+			row["start_line"] = sl
+		}
+		if el := payloadInt(artifact, "end_line"); el > 0 {
+			row["end_line"] = el
+		}
+		if sha := payloadString(artifact, "commit_sha"); sha != "" {
+			row["commit_sha"] = sha
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }

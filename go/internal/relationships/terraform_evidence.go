@@ -135,15 +135,21 @@ func normalizeTerraformEvidencePathLiteral(value, expression string) string {
 }
 
 // discoverTerraformEvidence applies Terraform regex patterns against file content.
+// discoverTerraformEvidence applies Terraform regex patterns against file content
+// and captures real byte-level citation (start_line, end_line, byte_offset,
+// byte_length) for each match alongside the commit_sha forwarded from the
+// envelope. Sub-helpers that do not produce regex match indices (module source,
+// schema) degrade safely: they omit line/byte offsets but still forward
+// commit_sha so Canonical() gets at least a version pin.
 func discoverTerraformEvidence(
-	sourceRepoID, filePath, content string,
+	sourceRepoID, filePath, content, commitSHA string,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
 	evidence = append(evidence, discoverTerraformModuleSourceEvidence(
-		sourceRepoID, filePath, content, matcher, seen,
+		sourceRepoID, filePath, content, commitSHA, matcher, seen,
 	)...)
 	evidence = append(evidence, discoverTerraformRuntimeServiceModuleEvidence(
 		sourceRepoID, filePath, content, matcher, seen,
@@ -157,8 +163,12 @@ func discoverTerraformEvidence(
 	)...)
 
 	for _, tp := range terraformPatterns {
-		matches := tp.Pattern.FindAllStringSubmatch(content, -1)
-		for _, match := range matches {
+		// FindAllStringIndex returns [start, end) byte pairs for the full
+		// match; we pair each index entry with the submatch to get the
+		// capture group value without a second regex pass.
+		allIdx := tp.Pattern.FindAllStringIndex(content, -1)
+		allMatch := tp.Pattern.FindAllStringSubmatch(content, -1)
+		for i, match := range allMatch {
 			if len(match) < 2 {
 				continue
 			}
@@ -166,10 +176,16 @@ func discoverTerraformEvidence(
 			if tp.EvidenceKind == EvidenceKindTerraformConfigPath && isTerraformIAMConfigReadCandidate(candidate, iamConfigReads) {
 				continue
 			}
+			var extra map[string]any
+			if i < len(allIdx) {
+				loc := allIdx[i]
+				extra = byteCitation(content, loc[0], loc[1])
+			}
+			extra = mergeCommitSHA(extra, commitSHA)
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, candidate, filePath,
 				tp.EvidenceKind, tp.RelationshipType, tp.Confidence, tp.Rationale,
-				"terraform", matcher, seen, nil,
+				"terraform", matcher, seen, extra,
 			)...)
 		}
 	}
@@ -296,13 +312,14 @@ func isTerraformArtifact(artifactType, filePath string) bool {
 }
 
 func discoverTerraformModuleSourceEvidence(
-	sourceRepoID, filePath, content string,
+	sourceRepoID, filePath, content, commitSHA string,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
 	for _, candidate := range extractRemoteTerraformModuleSources(filePath, content) {
+		extra := mergeCommitSHA(map[string]any{"source_ref": candidate}, commitSHA)
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID,
 			candidate,
@@ -314,7 +331,7 @@ func discoverTerraformModuleSourceEvidence(
 			"terraform-module-source",
 			matcher,
 			seen,
-			map[string]any{"source_ref": candidate},
+			extra,
 		)...)
 	}
 

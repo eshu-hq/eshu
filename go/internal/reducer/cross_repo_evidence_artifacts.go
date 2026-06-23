@@ -9,6 +9,9 @@ import (
 
 // resolvedRelationshipEvidenceArtifacts returns bounded graph-story summaries
 // from the resolver preview. Raw evidence details remain in Postgres.
+// Citation fields (start_line, end_line, commit_sha) are projected from the
+// evidence preview details when present so the graph EvidenceArtifact node
+// carries byte-level provenance for the query surface.
 func resolvedRelationshipEvidenceArtifacts(r relationships.ResolvedRelationship) []map[string]any {
 	items := evidencePreviewItems(r.Details["evidence_preview"])
 	if len(items) == 0 {
@@ -38,9 +41,39 @@ func resolvedRelationshipEvidenceArtifacts(r relationships.ResolvedRelationship)
 		if runtimeKind := firstArtifactString(details, "runtime_platform_kind", "platform_kind"); runtimeKind != "" {
 			artifact["runtime_platform_kind"] = runtimeKind
 		}
+		// Propagate byte-level citation fields when available. Absent fields are
+		// omitted so the graph node does not store zero-valued noise.
+		if sl := artifactPositiveInt(details, "start_line"); sl > 0 {
+			artifact["start_line"] = sl
+		}
+		if el := artifactPositiveInt(details, "end_line"); el > 0 {
+			artifact["end_line"] = el
+		}
+		if sha := firstArtifactString(details, "commit_sha"); sha != "" {
+			artifact["commit_sha"] = sha
+		}
 		artifacts = append(artifacts, artifact)
 	}
 	return artifacts
+}
+
+// artifactPositiveInt reads an integer-valued key from a details map and
+// returns it only when it is > 0. JSON round-tripping stores numbers as
+// float64 so both int and float64 are accepted.
+func artifactPositiveInt(details map[string]any, key string) int {
+	if details == nil {
+		return 0
+	}
+	switch typed := details[key].(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
+	}
 }
 
 func evidencePreviewItems(value any) []map[string]any {

@@ -69,6 +69,7 @@ func discoverFromEnvelopeWithIndex(
 	artifactType, _ := envelope.Payload["artifact_type"].(string)
 	parsedFileData, _ := envelope.Payload["parsed_file_data"].(map[string]any)
 	sourceRepoID, filePath, content := envelopeContentIdentity(envelope)
+	commitSHA := envelopeCommitSHA(envelope.Payload)
 
 	if filePath == "" {
 		return nil
@@ -101,15 +102,15 @@ func discoverFromEnvelopeWithIndex(
 		)...)
 	case isTerraformArtifact(artifactType, filePath):
 		evidence = append(evidence, discoverTerraformEvidence(
-			sourceRepoID, filePath, content, matcher, seen,
+			sourceRepoID, filePath, content, commitSHA, matcher, seen,
 		)...)
 	case isHelmArtifact(artifactType, filePath):
 		evidence = append(evidence, discoverHelmEvidence(
-			sourceRepoID, filePath, content, matcher, seen,
+			sourceRepoID, filePath, content, commitSHA, matcher, seen,
 		)...)
 	case isKustomizeArtifact(filePath):
 		evidence = append(evidence, discoverKustomizeEvidence(
-			sourceRepoID, filePath, content, matcher, seen,
+			sourceRepoID, filePath, content, commitSHA, matcher, seen,
 		)...)
 	case isArgoCDArtifact(artifactType, content):
 		evidence = append(evidence, discoverArgoCDEvidence(
@@ -155,8 +156,10 @@ func normalizeRepositoryIdentifier(value string) string {
 }
 
 // discoverHelmEvidence extracts DEPLOYS_FROM evidence from Helm chart content.
+// commitSHA is forwarded from the fact envelope's commit_sha payload field and
+// stored in Details so Canonical() can project a typed byte-level citation.
 func discoverHelmEvidence(
-	sourceRepoID, filePath, content string,
+	sourceRepoID, filePath, content, commitSHA string,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
@@ -173,12 +176,17 @@ func discoverHelmEvidence(
 	}
 	confidence := DefaultConfidenceRegistry.ConfidenceFor(evidenceKind)
 
+	// The YAML string scanner does not track byte positions; we pass only
+	// the commit_sha so Canonical() at least gets a version pin. Line/byte
+	// offsets remain zero (safe degradation) for this code path.
+	extra := mergeCommitSHA(nil, commitSHA)
+
 	var evidence []EvidenceFact
 	for _, candidate := range extractYAMLStringValues(content) {
 		evidence = append(evidence, matchCatalog(
 			sourceRepoID, candidate, filePath,
 			evidenceKind, RelDeploysFrom, confidence, rationale,
-			"helm", matcher, seen, nil,
+			"helm", matcher, seen, extra,
 		)...)
 	}
 
@@ -186,11 +194,15 @@ func discoverHelmEvidence(
 }
 
 // discoverKustomizeEvidence extracts DEPLOYS_FROM evidence from Kustomize overlays.
+// commitSHA is forwarded from the fact envelope's commit_sha payload field and
+// stored in Details so Canonical() can project a typed version pin.
 func discoverKustomizeEvidence(
-	sourceRepoID, filePath, content string,
+	sourceRepoID, filePath, content, commitSHA string,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
+	extra := mergeCommitSHA(nil, commitSHA)
+
 	var evidence []EvidenceFact
 	for _, document := range parseYAMLDocuments(content) {
 		evidence = append(evidence, discoverKustomizeDocumentEvidence(
@@ -202,7 +214,7 @@ func discoverKustomizeEvidence(
 			sourceRepoID, candidate, filePath,
 			EvidenceKindKustomizeResource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindKustomizeResource),
 			"Kustomize resources source deployment config from the target repository",
-			"kustomize", matcher, seen, nil,
+			"kustomize", matcher, seen, extra,
 		)...)
 	}
 
