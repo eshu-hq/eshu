@@ -608,6 +608,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/admin/recover-generations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/admin/refinalize",
       "readiness": "implemented"
     },
@@ -644,6 +649,21 @@
     {
       "category": "api_route",
       "name": "POST /api/v0/auth/browser-session",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/auth/local/api-tokens",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/auth/local/api-tokens/{token_id}/revoke",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "POST /api/v0/auth/local/api-tokens/{token_id}/rotate",
       "readiness": "implemented"
     },
     {
