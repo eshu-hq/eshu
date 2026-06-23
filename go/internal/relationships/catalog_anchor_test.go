@@ -174,17 +174,12 @@ func stringContains(haystack, needle string) bool {
 	return false
 }
 
-// TestCatalogRepoIDAnchorsReturnsRepoIDTokensAndValues proves the new
-// split-anchor function that drives the deferred-pass self-exclusion SQL
-// predicate (issue #3659). It must return:
-//
-//   - repoIDTokens: the longest catalogMatchTokens token derived from each
-//     entry's repo_id (Aliases[0]), lowercased and de-duplicated — these are
-//     the LIKE terms used in the $2 repo_id anchor arm of the deferred query.
-//   - repoIDValues: the raw lowercase repo_id values — these are the NOT LIKE
-//     exclusion list ($3) that prevents a fact from self-matching on its own
-//     repo_id.
-func TestCatalogRepoIDAnchorsReturnsRepoIDTokensAndValues(t *testing.T) {
+// TestCatalogRepoIDValuesReturnsFullRepoIDValues proves the function that drives
+// the $2 arm of the deferred-pass self-exclusion SQL predicate (issue #3659). It
+// returns each entry's FULL lowercase repo_id value (Aliases[0]), de-duplicated
+// and stable-sorted. Full values (not the longest token) are used because
+// cross-repo references name a repo by its full URL/path.
+func TestCatalogRepoIDValuesReturnsFullRepoIDValues(t *testing.T) {
 	t.Parallel()
 
 	catalog := []CatalogEntry{
@@ -195,21 +190,15 @@ func TestCatalogRepoIDAnchorsReturnsRepoIDTokensAndValues(t *testing.T) {
 		{RepoID: "repo-only", Aliases: []string{"repo-only"}},
 	}
 
-	tokens, values := CatalogRepoIDAnchors(catalog)
-
-	// tokens must be non-nil and contain lowercased longest-token from each repo_id
-	if len(tokens) == 0 {
-		t.Fatal("CatalogRepoIDAnchors tokens is empty, want repo_id-derived tokens")
-	}
+	values := CatalogRepoIDValues(catalog)
 	if len(values) == 0 {
-		t.Fatal("CatalogRepoIDAnchors values is empty, want raw repo_id values")
+		t.Fatal("CatalogRepoIDValues is empty, want full repo_id values")
 	}
 
-	// Every value must be a lowercased raw repo_id present in the catalog
 	wantValues := map[string]bool{
 		"github.com/org/payments": true,
-		"github.com/org/infra":   true,
-		"repo-only":              true,
+		"github.com/org/infra":    true,
+		"repo-only":               true,
 	}
 	for _, v := range values {
 		if !wantValues[v] {
@@ -221,14 +210,6 @@ func TestCatalogRepoIDAnchorsReturnsRepoIDTokensAndValues(t *testing.T) {
 		t.Errorf("missing repo_id values: %v", wantValues)
 	}
 
-	// tokens must be sorted and de-duplicated
-	for i := 1; i < len(tokens); i++ {
-		if tokens[i] <= tokens[i-1] {
-			t.Errorf("tokens not sorted/de-duped at index %d: %v", i, tokens)
-			break
-		}
-	}
-	// values must be sorted and de-duplicated
 	for i := 1; i < len(values); i++ {
 		if values[i] <= values[i-1] {
 			t.Errorf("values not sorted/de-duped at index %d: %v", i, values)
@@ -237,37 +218,32 @@ func TestCatalogRepoIDAnchorsReturnsRepoIDTokensAndValues(t *testing.T) {
 	}
 }
 
-// TestCatalogRepoIDAnchorsEmptyCatalog returns nil,nil for an empty catalog.
-func TestCatalogRepoIDAnchorsEmptyCatalog(t *testing.T) {
+// TestCatalogRepoIDValuesEmptyCatalog returns nil for an empty catalog.
+func TestCatalogRepoIDValuesEmptyCatalog(t *testing.T) {
 	t.Parallel()
 
-	tokens, values := CatalogRepoIDAnchors(nil)
-	if tokens != nil || values != nil {
-		t.Fatalf("CatalogRepoIDAnchors(nil) = %v, %v; want nil, nil", tokens, values)
+	if values := CatalogRepoIDValues(nil); values != nil {
+		t.Fatalf("CatalogRepoIDValues(nil) = %v; want nil", values)
 	}
 }
 
-// TestCatalogRepoIDAnchorsExcludesNonRepoIDAliases proves that the second and
-// subsequent aliases of each entry (name, slug) do NOT appear in the tokens or
-// values returned by CatalogRepoIDAnchors. Those are returned by
-// CatalogPayloadAnchors; duplicating them here would conflate the two arms of
-// the deferred SQL predicate.
-func TestCatalogRepoIDAnchorsExcludesNonRepoIDAliases(t *testing.T) {
+// TestCatalogRepoIDValuesExcludesNonRepoIDAliases proves the name/slug aliases
+// (Aliases[1:]) do NOT appear in the returned values. Those feed the $1 arm via
+// CatalogPayloadAnchors; conflating them would blur the two predicate arms.
+func TestCatalogRepoIDValuesExcludesNonRepoIDAliases(t *testing.T) {
 	t.Parallel()
 
 	catalog := []CatalogEntry{
 		{RepoID: "my-repo-id", Aliases: []string{"my-repo-id", "display-name", "the-slug"}},
 	}
-	tokens, values := CatalogRepoIDAnchors(catalog)
+	values := CatalogRepoIDValues(catalog)
 
 	for _, v := range values {
 		if v == "display-name" || v == "the-slug" {
-			t.Errorf("CatalogRepoIDAnchors values contains non-repo_id alias %q", v)
+			t.Errorf("CatalogRepoIDValues contains non-repo_id alias %q", v)
 		}
 	}
-	for _, tok := range tokens {
-		if tok == "display" || tok == "name" || tok == "slug" {
-			t.Errorf("CatalogRepoIDAnchors tokens contains token %q from non-repo_id alias", tok)
-		}
+	if len(values) != 1 || values[0] != "my-repo-id" {
+		t.Errorf("CatalogRepoIDValues = %v, want [my-repo-id]", values)
 	}
 }

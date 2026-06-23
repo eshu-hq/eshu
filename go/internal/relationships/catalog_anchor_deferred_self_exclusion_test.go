@@ -16,18 +16,17 @@ import (
 // A fact is selected iff:
 //
 //	lower(payload::text) LIKE ANY($1 non-repo_id anchors)
-//	OR (
-//	    lower(payload::text) LIKE ANY($2 repo_id anchors)
-//	    AND lower(payload->>'repo_id') NOT IN ($3 repo_id values)
-//	)
+//	OR replace(lower(payload::text), lower(payload->>'repo_id'), '') LIKE ANY($2 repo_id-value terms)
 //
 // nonRepoIDAnchors is CatalogPayloadAnchors over each entry's NON-first aliases
 // (name/slug) plus the ArgoCD markers — mirroring backfillNonRepoIDAnchorTerms.
-// repoIDTokens / repoIDValues are CatalogRepoIDAnchors over the full catalog.
+// repoIDValues is CatalogRepoIDValues over the full catalog (full repo_id
+// strings). The $2 arm strips the fact's OWN repo_id value before matching, so
+// it only fires on cross-repo repo_id references.
 func deferredSelfExclusionSim(
 	t *testing.T,
 	envelope facts.Envelope,
-	nonRepoIDAnchors, repoIDTokens, repoIDValues []string,
+	nonRepoIDAnchors, repoIDValues []string,
 ) bool {
 	t.Helper()
 	raw, err := json.Marshal(envelope.Payload)
@@ -36,31 +35,28 @@ func deferredSelfExclusionSim(
 	}
 	text := strings.ToLower(string(raw))
 
-	matchesAny := func(anchors []string) bool {
+	matchesAny := func(haystack string, anchors []string) bool {
 		for _, anchor := range anchors {
 			anchor = strings.ToLower(strings.TrimSpace(anchor))
-			if anchor != "" && strings.Contains(text, anchor) {
+			if anchor != "" && strings.Contains(haystack, anchor) {
 				return true
 			}
 		}
 		return false
 	}
 
-	if matchesAny(nonRepoIDAnchors) {
+	if matchesAny(text, nonRepoIDAnchors) {
 		return true
 	}
-	if !matchesAny(repoIDTokens) {
-		return false
-	}
-	// Self-exclusion: drop when the fact's own repo_id is in the exclusion set.
+	// $2 arm: strip the fact's own repo_id value, then test the full repo_id
+	// values. Only a cross-repo repo_id reference survives the strip.
 	ownRepoID, _ := envelope.Payload["repo_id"].(string)
 	ownRepoID = strings.ToLower(strings.TrimSpace(ownRepoID))
-	for _, value := range repoIDValues {
-		if ownRepoID == strings.ToLower(strings.TrimSpace(value)) {
-			return false
-		}
+	stripped := text
+	if ownRepoID != "" {
+		stripped = strings.ReplaceAll(text, ownRepoID, "")
 	}
-	return true
+	return matchesAny(stripped, repoIDValues)
 }
 
 // nonRepoIDAnchorsSim mirrors backfillNonRepoIDAnchorTerms in the postgres
@@ -89,11 +85,11 @@ func nonRepoIDAnchorsSim(catalog []CatalogEntry) []string {
 // catalog entry the source repo references. repo_id is Aliases[0]; the
 // human-facing name/slug follow.
 type representativeDeferredFixture struct {
-	name             string
-	envelope         facts.Envelope
-	sourceCatalog    CatalogEntry // the SOURCE repo's own catalog entry (self)
-	targetCatalog    CatalogEntry // the repo the fact references (cross-repo)
-	crossRepoByRepoID bool        // the reference is the target's repo_id (not name)
+	name              string
+	envelope          facts.Envelope
+	sourceCatalog     CatalogEntry // the SOURCE repo's own catalog entry (self)
+	targetCatalog     CatalogEntry // the repo the fact references (cross-repo)
+	crossRepoByRepoID bool         // the reference is the target's repo_id (not name)
 }
 
 // representativeDeferredFixtures returns fixtures whose payloads DO carry
@@ -142,15 +138,15 @@ func representativeDeferredFixtures() []representativeDeferredFixture {
 					"repo_id":       "repo-app",
 					"artifact_type": "github_actions_workflow",
 					"relative_path": ".github/workflows/ci.yaml",
-					// References the TARGET repo by its full repo_id URL, the
+					// References the TARGET repo by its repo_id (deploy-toolkit), the
 					// legitimate cross-repo repo_id reference the self-exclusion must
-					// NOT drop. The target repo_id's longest token (deploy-toolkit)
-					// is selective and appears verbatim in the workflow content.
-					"content": "jobs:\n  build:\n    uses: github.com/org/deploy-toolkit/.github/workflows/deploy.yaml@main\n",
+					// NOT drop. The repo_id is the verbatim org/deploy-toolkit ref the
+					// reusable-workflow extractor resolves to the target.
+					"content": "jobs:\n  build:\n    uses: org/deploy-toolkit/.github/workflows/deploy.yaml@main\n",
 				},
 			},
 			sourceCatalog:     CatalogEntry{RepoID: "repo-app", Aliases: []string{"repo-app", "edge-app"}},
-			targetCatalog:     CatalogEntry{RepoID: "github.com/org/deploy-toolkit", Aliases: []string{"github.com/org/deploy-toolkit", "deploy-toolkit"}},
+			targetCatalog:     CatalogEntry{RepoID: "deploy-toolkit", Aliases: []string{"deploy-toolkit"}},
 			crossRepoByRepoID: true,
 		},
 	}
@@ -202,11 +198,11 @@ func TestDeferredSelfExclusionTruthEquivalence(t *testing.T) {
 	addCatalog(CatalogEntry{RepoID: "repo-vault", Aliases: []string{"repo-vault", "secret-store"}})
 
 	nonRepoID := nonRepoIDAnchorsSim(fullCatalog)
-	repoIDTokens, repoIDValues := CatalogRepoIDAnchors(fullCatalog)
+	repoIDValues := CatalogRepoIDValues(fullCatalog)
 
 	var scopedLoad []facts.Envelope
 	for _, envelope := range fullCorpus {
-		if deferredSelfExclusionSim(t, envelope, nonRepoID, repoIDTokens, repoIDValues) {
+		if deferredSelfExclusionSim(t, envelope, nonRepoID, repoIDValues) {
 			scopedLoad = append(scopedLoad, envelope)
 		}
 	}
@@ -249,9 +245,9 @@ func TestDeferredSelfExclusionKeepsCrossRepoRepoIDReference(t *testing.T) {
 
 	catalog := []CatalogEntry{crossFixture.sourceCatalog, crossFixture.targetCatalog}
 	nonRepoID := nonRepoIDAnchorsSim(catalog)
-	repoIDTokens, repoIDValues := CatalogRepoIDAnchors(catalog)
+	repoIDValues := CatalogRepoIDValues(catalog)
 
-	if !deferredSelfExclusionSim(t, crossFixture.envelope, nonRepoID, repoIDTokens, repoIDValues) {
+	if !deferredSelfExclusionSim(t, crossFixture.envelope, nonRepoID, repoIDValues) {
 		t.Fatalf("cross-repo repo_id reference %q was dropped by the self-exclusion predicate", crossFixture.name)
 	}
 
@@ -293,9 +289,9 @@ func TestDeferredSelfExclusionExcludesPureSelfMatch(t *testing.T) {
 	}
 
 	nonRepoID := nonRepoIDAnchorsSim(catalog)
-	repoIDTokens, repoIDValues := CatalogRepoIDAnchors(catalog)
+	repoIDValues := CatalogRepoIDValues(catalog)
 
-	if deferredSelfExclusionSim(t, selfEnvelope, nonRepoID, repoIDTokens, repoIDValues) {
+	if deferredSelfExclusionSim(t, selfEnvelope, nonRepoID, repoIDValues) {
 		t.Fatal("pure self-match fact was loaded; the self-exclusion predicate is not bounding the load")
 	}
 

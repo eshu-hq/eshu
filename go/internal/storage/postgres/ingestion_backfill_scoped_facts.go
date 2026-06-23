@@ -78,34 +78,48 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 
 // listDeferredScopedRelationshipFactRecordsQuery is the self-exclusion variant
 // of listOnboardedRepoScopedRelationshipFactRecordsQuery used exclusively by the
-// corpus-wide deferred backfill (issue #3659). It accepts three parameters:
+// corpus-wide deferred backfill (issue #3659). It accepts two parameters:
 //
-//   $1 pq.StringArray — LIKE terms derived from non-repo_id aliases (name,
-//      slug tokens) and the unconditional ArgoCD over-select markers. A fact
-//      matching $1 is always loaded: it carries a cross-repo reference token
-//      that is NOT the fact's own repo_id, so loading it can produce evidence.
+//	$1 pq.StringArray — LIKE terms derived from non-repo_id aliases (name,
+//	   slug tokens) and the unconditional ArgoCD over-select markers. A fact
+//	   matching $1 carries a cross-repo reference that is NOT keyed on its own
+//	   repo_id, so loading it can produce evidence and it is always loaded.
 //
-//   $2 pq.StringArray — LIKE terms derived from repo_id aliases only. A fact
-//      matching $2 but not $1 may still be a legitimate cross-repo reference
-//      (another repository can reference repo A by its repo_id in manifests,
-//      go.mod, ArgoCD configs, etc.), so $2 matches are NOT wholesale excluded.
-//      Instead the $3 self-exclusion list below filters only pure self-matches.
+//	$2 pq.StringArray — LIKE terms wrapping each catalog entry's FULL lowercase
+//	   repo_id value. The arm tests these against the payload text AFTER the
+//	   fact's OWN repo_id value has been stripped out
+//	   (replace(lower(payload::text), lower(payload->>'repo_id'), '')). A fact
+//	   therefore matches $2 only when its content references ANOTHER repo's
+//	   repo_id verbatim — the legitimate cross-repo reference (go.mod,
+//	   manifests, ArgoCD/Argo configs that name a repo by its repo_id URL/path).
+//	   A fact whose only repo_id-shaped match is its own repo_id is dropped,
+//	   because removing the own repo_id value leaves no repo_id substring to
+//	   match. This is the defeat fix: every Git content/file payload carries its
+//	   own repo_id field, so without the strip the arm would self-match the
+//	   whole corpus.
 //
-//   $3 pq.StringArray — raw lowercased repo_id values. When a fact's only
-//      matching anchor is in $2 (repo_id tokens) AND its own
-//      lower(payload->>'repo_id') is one of these values, the fact is
-//      self-matching: the only reason it was selected is that its own repo_id
-//      token appeared in the anchor set. Such facts cannot produce cross-repo
-//      evidence (the in-memory catalogMatcher.match already skips self-matches
-//      on entry.RepoID == sourceRepoID), so excluding them at the SQL layer
-//      restores the scope bounding #3655 intended.
+// Why strip-then-match rather than a value-exclusion list: every ACTIVE repo's
+// own repo_id is in the catalog, so a predicate like
+// "payload->>'repo_id' != ALL(catalog_repo_ids)" would exclude EVERY active
+// repo's fact from the $2 arm — including legitimate cross-repo references —
+// breaking truth-equivalence. Stripping only the row's own repo_id value leaves
+// other repos' repo_id substrings intact, so cross-repo references survive while
+// pure self-matches are dropped.
 //
-// Correctness invariant (truth-equivalence): a fact that references repo B's
-// repo_id from repo A (A ≠ B) satisfies:
-//   - lower(payload::text) LIKE ANY($2) — matches B's repo_id token, AND
-//   - lower(payload->>'repo_id') = A's repo_id — NOT equal to B's repo_id.
-// So the fact is NOT excluded by the $3 predicate and IS loaded. No cross-repo
-// edge is dropped relative to a full-corpus load + in-memory self-match skip.
+// Why full repo_id values (not the longest token): repo_ids are referenced
+// across repos by their full URL/path (e.g. github.com/org/repo in go.mod), so
+// the full value is the substring that actually appears. Using the longest
+// single token instead would let a shared prefix token (github.com) match the
+// whole fleet, and stripping a token would corrupt overlapping tokens. The full
+// value both preserves the superset guarantee for real repo_id references and
+// keeps the strip self-exclusion precise.
+//
+// Correctness invariant (truth-equivalence): a fact in repo A that references
+// repo B's repo_id (A ≠ B) keeps B's value after A's value is stripped, so it
+// matches $2 and is loaded. A fact whose only repo_id match is its own (A) loses
+// it after the strip, so it is dropped — and the in-memory catalogMatcher would
+// have skipped that self-match anyway (entry.RepoID == sourceRepoID), so no
+// evidence the full-corpus load would have produced is dropped.
 //
 // The per-commit scoped query (listOnboardedRepoScopedRelationshipFactRecordsQuery)
 // uses a single-parameter LIKE ANY and does not need self-exclusion because its
@@ -155,10 +169,11 @@ WHERE latest.generation_id IS NOT NULL
   AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
   AND (
     lower(fact.payload::text) LIKE ANY($1)
-    OR (
-      lower(fact.payload::text) LIKE ANY($2)
-      AND lower(COALESCE(fact.payload->>'repo_id', '')) != ALL($3)
-    )
+    OR replace(
+         lower(fact.payload::text),
+         lower(COALESCE(NULLIF(fact.payload->>'repo_id', ''), '\x00')),
+         ''
+       ) LIKE ANY($2)
   )
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
 `
@@ -400,29 +415,26 @@ func loadDeferredAnchorScopedRelationshipFacts(
 	catalog []relationships.CatalogEntry,
 ) ([]facts.Envelope, error) {
 	nonRepoIDTerms := backfillNonRepoIDAnchorTerms(catalog)
-	repoIDTokens, repoIDValues := relationships.CatalogRepoIDAnchors(catalog)
+	repoIDValues := relationships.CatalogRepoIDValues(catalog)
 
 	// Short-circuit: if neither arm has anything to match, no fact can produce
 	// evidence and we avoid the query entirely.
-	if len(nonRepoIDTerms) == 0 && len(repoIDTokens) == 0 {
+	if len(nonRepoIDTerms) == 0 && len(repoIDValues) == 0 {
 		return nil, nil
 	}
 
 	nonRepoIDLike := buildPayloadAnchorLikeTerms(nonRepoIDTerms)
-	repoIDLike := buildPayloadAnchorLikeTerms(repoIDTokens)
+	// $2 wraps each FULL repo_id value as a substring LIKE term; the query strips
+	// the row's own repo_id before testing it, so only cross-repo references match.
+	repoIDLike := buildPayloadAnchorLikeTerms(repoIDValues)
 
-	// When only one arm has terms, use empty arrays for the other; the SQL
-	// query handles zero-length ANY/ALL arrays gracefully (ANY({}) is false,
-	// ALL({}) is vacuously true — which we want: if no repo_id tokens exist,
-	// the $3 exclusion is a no-op).
+	// Zero-length arrays are valid: LIKE ANY({}) is false, so an empty arm simply
+	// never contributes a match.
 	if nonRepoIDLike == nil {
 		nonRepoIDLike = []string{}
 	}
 	if repoIDLike == nil {
 		repoIDLike = []string{}
-	}
-	if repoIDValues == nil {
-		repoIDValues = []string{}
 	}
 
 	rows, err := queryer.QueryContext(
@@ -430,7 +442,6 @@ func loadDeferredAnchorScopedRelationshipFacts(
 		listDeferredScopedRelationshipFactRecordsQuery,
 		pq.StringArray(nonRepoIDLike),
 		pq.StringArray(repoIDLike),
-		pq.StringArray(repoIDValues),
 	)
 	if err != nil {
 		return nil, err

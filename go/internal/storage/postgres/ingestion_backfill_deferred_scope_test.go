@@ -97,12 +97,13 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 }
 
 // assertDeferredSelfExclusionArgs confirms the deferred query was parameterised
-// with three arguments: non-repo_id LIKE terms, repo_id LIKE terms, and the raw
-// repo_id values for the self-exclusion NOT LIKE predicate.
+// with two arguments: $1 non-repo_id LIKE terms and $2 full-repo_id-value LIKE
+// terms. The query strips each row's own repo_id before testing $2, so the
+// args carry no separate exclusion list.
 func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	t.Helper()
-	if len(args) != 3 {
-		t.Fatalf("deferred fact query args count = %d, want 3 (non-repo_id anchors, repo_id anchors, repo_id exclusion values)", len(args))
+	if len(args) != 2 {
+		t.Fatalf("deferred fact query args count = %d, want 2 (non-repo_id anchors, repo_id-value anchors)", len(args))
 	}
 	nonRepoIDTerms, ok := args[0].(pq.StringArray)
 	if !ok {
@@ -112,34 +113,21 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	if !ok {
 		t.Fatalf("deferred query arg[1] type = %T, want pq.StringArray", args[1])
 	}
-	repoIDValues, ok := args[2].(pq.StringArray)
-	if !ok {
-		t.Fatalf("deferred query arg[2] type = %T, want pq.StringArray", args[2])
-	}
 	// non-repo_id terms must be LIKE-wrapped
 	for _, term := range nonRepoIDTerms {
 		if !strings.HasPrefix(term, "%") || !strings.HasSuffix(term, "%") {
 			t.Fatalf("non-repo_id anchor term %q is not a wrapped LIKE term", term)
 		}
 	}
-	// repo_id terms must be LIKE-wrapped
+	// repo_id-value terms must be LIKE-wrapped
 	for _, term := range repoIDTerms {
 		if !strings.HasPrefix(term, "%") || !strings.HasSuffix(term, "%") {
-			t.Fatalf("repo_id anchor term %q is not a wrapped LIKE term", term)
+			t.Fatalf("repo_id-value anchor term %q is not a wrapped LIKE term", term)
 		}
 	}
-	// repo_id values must be plain (not LIKE-wrapped) — used in != ALL($3)
-	for _, val := range repoIDValues {
-		if strings.HasPrefix(val, "%") || strings.HasSuffix(val, "%") {
-			t.Fatalf("repo_id exclusion value %q must not be LIKE-wrapped", val)
-		}
-	}
-	// There must be at least one repo_id term and one exclusion value
+	// There must be at least one repo_id-value term so the self-exclusion arm is live.
 	if len(repoIDTerms) == 0 {
-		t.Fatal("deferred query repo_id anchor terms is empty; self-exclusion predicate is inoperative")
-	}
-	if len(repoIDValues) == 0 {
-		t.Fatal("deferred query repo_id exclusion values is empty; self-exclusion predicate is inoperative")
+		t.Fatal("deferred query repo_id-value anchor terms is empty; the cross-repo repo_id arm is inoperative")
 	}
 }
 
