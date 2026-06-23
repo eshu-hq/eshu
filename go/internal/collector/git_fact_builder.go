@@ -350,6 +350,7 @@ func streamFacts(
 	ch <- sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+	ch <- codeImportRepoEdgeFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 }
 
 func repositoryFactEnvelope(
