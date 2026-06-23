@@ -1076,3 +1076,34 @@ when it fails, and the response `truth.freshness` now carries `state`,
 (`GET /api/v0/status`) so an operator can see a lagging or building read model
 and its drilldown from the trace and the payload alone. No new env var, metric
 series, graph write, or queue consumer is added.
+
+## #3650 commit_sha in repository deployment-evidence read paths
+
+`queryRepoDeploymentEvidence` now returns `artifact.commit_sha` from both the
+outgoing and incoming `EvidenceArtifact` graph reads, and both read-model paths
+(`copyOptionalDeploymentEvidenceFields` for the graph rows,
+`deploymentEvidenceArtifactFromPreview` for the Postgres preview rows) copy the
+version pin into the repository deployment-evidence response. The reducer already
+`SET artifact.commit_sha` on the node; this closes the read side so the pin flows
+end to end. The field is omitted when absent (no fabricated citation).
+
+Accuracy Evidence: `go test ./internal/query -run
+'TestGraphDeploymentEvidenceReturnsCommitSHA|TestDeploymentEvidenceArtifactFromPreviewCommitSHA|TestDeploymentEvidenceArtifactFromPreviewNoCommitSHADegradesSafely|TestContentReaderDeploymentEvidenceHydratesCommitSHA'
+-count=1` pins the positive case (commit_sha surfaces on the artifact through the
+graph RETURN, the Postgres preview path, and the read-model SQL→scan path) and
+the negative/ambiguous case (commit_sha absent from details → field omitted, no
+fabrication). The full `./internal/query` suite (5287 tests across the four gate
+packages) confirms no confidence-semantics or sibling-field regression.
+
+Performance Evidence / No-Regression Evidence: the change adds one already-indexed
+node property (`artifact.commit_sha`) to the projection list of two existing
+`EvidenceArtifact` reads bounded by `repositoryDeploymentEvidenceArtifactLimit`
+(50 + 1). No new MATCH, traversal, hop, aggregate, sort, or round-trip is added —
+the queries keep their artifact-first boundary shape and per-direction LIMIT, so
+the cost is a constant per-row field read independent of corpus size. The
+read-model SQL is unchanged (commit_sha already rides the `details` JSON payload).
+
+Observability Evidence / No-Observability-Change: no new env var, metric series,
+span, graph write, or queue consumer is added; the existing repository-context
+query span and structured logs remain the diagnostic surface, and the new field
+is additive on the existing `deployment_evidence` response object.
