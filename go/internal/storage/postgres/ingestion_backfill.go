@@ -65,12 +65,16 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	// catalog instead of streaming every committed fact (issue #3569). The
 	// deferred backfill treats every repository as an eligible relationship
 	// target, so anchors derive from the whole catalog rather than an onboarding
-	// delta; the anchor predicate is the same provable superset the per-commit
-	// path relies on (loadAnchorScopedRelationshipFacts), so no evidence the
-	// full-corpus load would have produced is dropped. With no usable anchors no
-	// fact can resolve a catalog target, so the fact load short-circuits and the
-	// pass still publishes readiness for the active generations below.
-	activeFacts, err := loadAnchorScopedRelationshipFacts(ctx, s.db, catalog, catalog)
+	// delta. The dedicated deferred loader (issue #3659) splits the anchor set
+	// into non-repo_id terms ($1) and repo_id terms ($2 + $3 self-exclusion) so
+	// facts that only match because their own repo_id appears as an anchor are
+	// excluded at the SQL layer, while facts referencing ANOTHER repo's repo_id
+	// in their content are still loaded. No evidence the full-corpus load would
+	// have produced is dropped (truth-equivalence: the in-memory matcher already
+	// skips self-matches on entry.RepoID == sourceRepoID). With no usable anchors
+	// no fact can resolve a catalog target, so the fact load short-circuits and
+	// the pass still publishes readiness for the active generations below.
+	activeFacts, err := loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog)
 	if err != nil {
 		return fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}

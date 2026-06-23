@@ -562,51 +562,81 @@ pass. So deferred-pass *time* stayed O(all source facts) as the fleet grew, even
 though the discovered evidence is bounded by the facts that actually reference a
 catalog repository.
 
-`BackfillAllRelationshipEvidence` now calls the shared
-`loadAnchorScopedRelationshipFacts` two-phase loader with the **full** catalog as
-both the anchor source and the ArgoCD config-resolution catalog. Unlike the
-per-commit path (anchors over the onboarding delta), the deferred pass treats
-every repository as an eligible target, so anchors derive from
-`CatalogPayloadAnchors(fullCatalog)` unioned with `argoCDOverSelectAnchors`. The
-load runs `listOnboardedRepoScopedRelationshipFactRecordsQuery`
-(`lower(payload::text) LIKE ANY($1)`) plus the phase-two ArgoCD generator-config
-reload, exactly as the per-commit path does. `loadLatestRelationshipFacts` and
-its unbounded query are removed.
+`BackfillAllRelationshipEvidence` calls `loadDeferredAnchorScopedRelationshipFacts`
+with the **full** catalog. Unlike the per-commit path (anchors over the
+onboarding delta), the deferred pass treats every repository as an eligible
+target. `loadLatestRelationshipFacts` and its unbounded query are removed.
 
-Because the anchor predicate is the same **provable superset** of the facts
-`DiscoverEvidence` can match against a catalog (the matcher accepts an alias only
-when its tokens are a substring of the lowercased payload; private-registry
-provider suffixes and ArgoCD template synthesis are the two carve-outs handled by
-`CatalogPayloadAnchors` and `argoCDOverSelectAnchors` + phase two), scoping the
-deferred load to the full-catalog anchors yields **identical** relationship truth
-to the prior full-corpus load. The only facts excluded are those that match no
-catalog anchor at all — facts that reference no repository and therefore could
-form no edge.
+#### The self-repo_id defeat (#3659) and its fix
 
-Accuracy is pinned by `TestCorpusWideAnchorScopedLoadEqualsFullLoad`
-(`go/internal/relationships/catalog_anchor_superset_test.go`): discovery over the
-full-catalog anchor-scoped load equals discovery over the full corpus,
-edge-for-edge, on a mixed corpus whose orphan facts are genuinely excluded. The
-scope-bounding query selection is pinned by
-`TestBackfillAllRelationshipEvidenceUsesScopedFactQuery` and
+The first #3569 implementation called `loadAnchorScopedRelationshipFacts(catalog,
+catalog)`, whose anchors derive from `CatalogPayloadAnchors(fullCatalog)`. That
+set includes each repo's **repo_id** token (the repo_id is `Aliases[0]`), and
+every Git `content`/`file` payload carries its own `repo_id` field. So in the
+deferred pass — where the anchor catalog is the WHOLE catalog — the
+`lower(payload::text) LIKE ANY($1)` predicate matched every fact on its own
+source metadata, and the load stayed corpus-wide. The #3655 benchmark looked
+6x/11x faster only because its synthetic payloads omitted `repo_id`, so the
+self-match never fired.
+
+`repo_id` cannot simply be dropped from the anchors: a repo is also referenced by
+OTHER repos through its repo_id URL/path (go.mod, manifests, ArgoCD configs), so
+dropping it would break the superset guarantee and lose real cross-repo edges.
+
+The deferred pass therefore uses a dedicated query,
+`listDeferredScopedRelationshipFactRecordsQuery`, with two arms:
+
+- `$1` — non-repo_id anchors: `CatalogPayloadAnchors` over each entry's aliases
+  with the repo_id (`Aliases[0]`) stripped (`backfillNonRepoIDAnchorTerms`),
+  unioned with `argoCDOverSelectAnchors`. A fact matching `$1` carries a
+  cross-repo reference not keyed on its own repo_id.
+- `$2` — raw lowercase full repo_id values (`relationships.CatalogRepoIDValues`),
+  tested with `EXISTS (unnest($2))`, exact self-value exclusion, and literal
+  `strpos(lower(payload::text), value) > 0`. A fact matches only when it
+  references ANOTHER repo's repo_id verbatim; a pure self-match has no other
+  repo_id value and is excluded.
+
+A value-exclusion list (`payload->>'repo_id' != ALL(catalog_repo_ids)`) would NOT
+work: every active repo's own repo_id is in the catalog, so that predicate would
+exclude EVERY active repo's fact from the repo_id arm, dropping legitimate
+cross-repo references and breaking truth-equivalence. A blind
+`replace(payload, own_repo_id, '')` also breaks overlap cases such as
+`github.com/org/app` referencing `github.com/org/app-config`, because the
+target value is corrupted before matching. The self-aware `EXISTS` test compares
+whole repo_id values, so overlapping targets still match. Full values (not the
+longest token) are used because cross-repo references name a repo by its full
+URL/path, and a shared prefix token like `github.com` would over-select the
+fleet.
+
+Truth-equivalence holds because the in-memory `catalogMatcher.match` already skips
+self-matches (`entry.RepoID == sourceRepoID`), so the excluded pure-self facts
+produced no evidence in the full-corpus load either.
+
+Accuracy is pinned by `TestDeferredSelfExclusionTruthEquivalence`,
+`TestDeferredSelfExclusionKeepsCrossRepoRepoIDReference`, and
+`TestDeferredSelfExclusionExcludesPureSelfMatch`
+(`go/internal/relationships/catalog_anchor_deferred_self_exclusion_test.go`), all
+over representative fixtures whose payloads carry `repo_id`. The scope-bounding
+query selection is pinned by `TestBackfillDeferredPassExcludesSelfRepoIDMatch`,
+`TestBackfillAllRelationshipEvidenceUsesScopedFactQuery`, and
 `TestBackfillAllRelationshipEvidenceShortCircuitsWithoutAnchors`
 (`go/internal/storage/postgres/ingestion_backfill_deferred_scope_test.go`): the
-deferred backfill issues the parameterised anchor-scoped query (never the
+deferred backfill issues the self-exclusion query (never the per-commit or
 full-corpus query) and issues no fact query at all when the catalog has no usable
 anchors, while still publishing backward-evidence readiness.
 
-Benchmark Evidence: `BenchmarkDeferredBackfillDiscoveryFullFleet{1k,5k}` vs
-`BenchmarkDeferredBackfillDiscoveryScopedFleet{1k,5k}` in
-`go/internal/relationships/catalog_anchor_bench_test.go` on Apple M5 Max
+Performance Evidence: `BenchmarkDeferredBackfillDiscovery{Full,Scoped}Fleet{1k,5k}`
+in `go/internal/relationships/catalog_anchor_bench_test.go` on Apple M-series
 (`go test ./internal/relationships -run '^$' -bench BenchmarkDeferredBackfillDiscovery
--benchmem`, one edge-forming fact plus four orphan facts per fleet repo,
-whole-fleet catalog). At a 1000-repo fleet deferred discovery drops from
-`25082833 ns/op` (`42771906 B/op`, `383025 allocs/op`) to `4549356 ns/op`
-(`3721903 B/op`, `39899 allocs/op`) — about 5.5x faster, 11x less memory. At 5000
-repos it drops from `145086120 ns/op` (`211665884 B/op`, `1915095 allocs/op`) to
-`23943981 ns/op` (`19111233 B/op`, `200008 allocs/op`) — about 6x faster, 11x
-less memory. Both yield the same evidence set. The orphan facts the full corpus
-shipped and iterated no longer reach `DiscoverEvidence`.
+-benchmem`, one edge-forming fact plus four orphan facts per fleet repo, every
+payload carrying `repo_id`, whole-fleet catalog, scoped variant run through the
+#3659 self-exclusion predicate). At a 1000-repo fleet deferred discovery drops
+from `27748503 ns/op` (`44039593 B/op`, `399019 allocs/op`) to `6509206 ns/op`
+(`5105782 B/op`, `55916 allocs/op`) — about 4.3x faster, 8.6x fewer allocs. At
+5000 repos it drops from `122223287 ns/op` (`218460600 B/op`) to `31142259 ns/op`
+(`25836605 B/op`) — about 3.9x faster, 8.4x fewer bytes. These are lower than the
+unrepresentative #3655 numbers because the fixture now carries `repo_id`; both
+variants yield the same evidence set.
 
 No-Observability-Change: the deferred backfill emits no new metric, span, or log
 shape; the existing `relationship.backfill_deferred` span, the

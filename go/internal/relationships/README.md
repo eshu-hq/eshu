@@ -256,6 +256,41 @@ confidence and evidence count through the reducer/Postgres relationship
 evidence path. This package still emits no telemetry directly; diagnosis uses
 the existing reducer admission and relationship persistence signals.
 
+### Deferred backfill self-repo_id scope (issue #3659)
+
+`CatalogRepoIDValues` returns each catalog entry's full lowercase repo_id value
+to drive the `$2` arm of the deferred-backfill self-exclusion query in
+`internal/storage/postgres`. The defeat it fixes: every Git content/file payload
+carries its own `repo_id` field, and `CatalogPayloadAnchors` over the full
+catalog emits each repo's repo_id token, so the old deferred load self-matched
+every fact and stayed corpus-wide despite the `LIKE ANY` predicate. The deferred
+query now compares raw full repo_id values with exact self-value exclusion before
+literal substring matching, so a fact matches only when it references ANOTHER
+repo's repo_id verbatim. This avoids the old blind-replace overlap bug where a
+source repo_id that prefixes a target repo_id could corrupt the target before
+matching.
+
+Performance Evidence: `BenchmarkDeferredBackfillDiscovery{Full,Scoped}Fleet{1k,5k}`
+on Apple M-series (in-memory `DiscoverEvidence` over the representative fleet
+corpus whose payloads now carry `repo_id`): fleet 1k Full `27748503 ns/op`,
+`44039593 B/op`, `399019 allocs/op` -> Scoped `6509206 ns/op`, `5105782 B/op`,
+`55916 allocs/op` (4.3x faster, 8.6x fewer allocs); fleet 5k Full
+`122223287 ns/op`, `218460600 B/op` -> Scoped `31142259 ns/op`, `25836605 B/op`
+(3.9x faster, 8.4x fewer bytes). The prior #3655 benchmark reported 6x/11x only
+because its synthetic payloads omitted `repo_id`, so self-matches never fired;
+the corrected fixture carries `repo_id` and the scoped variant runs through the
+self-exclusion predicate. Both variants emit byte-identical evidence
+(`TestDeferredSelfExclusionTruthEquivalence`,
+`TestDeferredSelfExclusionKeepsCrossRepoRepoIDReference`,
+`TestDeferredSelfExclusionExcludesPureSelfMatch`).
+
+No-Observability-Change: the deferred backfill's operator signal is unchanged —
+the `deferred_backfill_completed evidence_facts=… readiness_rows=… duration_s=…`
+structured log and the `DeferredBackfillDuration` / `DeferredBackfillEvidence`
+instruments in `internal/storage/postgres` still fire with the same shape. The
+fix only narrows which source facts are loaded; it adds no new metric, span, or
+log and changes no emitted evidence.
+
 ## Operational notes
 
 - If relationship evidence is sparse for a repository, check that its
