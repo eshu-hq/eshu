@@ -112,6 +112,16 @@ func TestEvidenceHandlerBuildsCitationPacketFromFileAndEntityHandles(t *testing.
 	}
 
 	first := citations[0].(map[string]any)
+	if _, ok := first["confidence"]; !ok {
+		t.Fatalf("first citation missing confidence field; got keys %v", first)
+	}
+	provenance, ok := first["provenance"].(map[string]any)
+	if !ok {
+		t.Fatalf("first.provenance type = %T, want map", first["provenance"])
+	}
+	if got, want := provenance["basis"], "source_content"; got != want {
+		t.Fatalf("first.provenance.basis = %#v, want %#v", got, want)
+	}
 	if got, want := first["repo_id"], "repo-service"; got != want {
 		t.Fatalf("first.repo_id = %#v, want %#v", got, want)
 	}

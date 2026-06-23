@@ -71,6 +71,15 @@ packet, preserves distinct line ranges and reasons for the same file, and
 returns `coverage.truncated` when the caller should request another packet.
 It reads the Postgres content store and does not traverse the graph.
 
+Each hydrated citation carries the unified evidence contract (issue #3489): a
+`confidence` score (carried through from the handle's optional `confidence`), a
+byte-level citation (`start_line`/`end_line` plus `byte_offset`/`byte_length`
+into the source content, with `content_hash` and `commit_sha` pinning the cited
+bytes), and a typed `provenance` object (`basis`, `rationale`, `source`). This
+is the same `confidence + byte-level citation + provenance` shape defined by the
+canonical `truth.Evidence` record, so relationship evidence, citation packets,
+and documentation evidence all describe proof the same way.
+
 ## Documentation Truth
 
 Documentation updater services should use these routes instead of reading graph
