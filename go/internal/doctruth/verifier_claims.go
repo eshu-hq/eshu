@@ -11,6 +11,12 @@ type extractedClaim struct {
 	text       string
 	normalized string
 	line       int
+	// byteOffset is the byte position of the first byte of text in the source
+	// document. byteLength is len(text). Both are zero when the position cannot
+	// be determined (e.g. the text was not found at the expected position after
+	// a line split).
+	byteOffset int
+	byteLength int
 }
 
 // MarkdownClaimHints extracts conservative structured claim hints from
@@ -41,32 +47,59 @@ func MarkdownClaimHints(subjectText string, subjectKind string, content string) 
 
 func extractClaims(content string) []extractedClaim {
 	claims := []extractedClaim{}
+	// lineByteOffset tracks the byte position of the first byte of each line
+	// so that per-claim byte windows are document-absolute rather than
+	// line-relative. The +1 accounts for the '\n' separator consumed by Split.
+	lineByteOffset := 0
 	for lineNumber, line := range strings.Split(content, "\n") {
 		lineClaims := map[string]extractedClaim{}
-		for _, match := range backtickPattern.FindAllStringSubmatch(line, -1) {
-			addExtractedClaim(lineClaims, classifyClaim(match[1], lineNumber+1))
+		for _, match := range backtickPattern.FindAllStringSubmatchIndex(line, -1) {
+			// match[0]:match[1] is the full backtick span; match[2]:match[3] is
+			// the captured inner text used by classifyClaim.
+			inner := line[match[2]:match[3]]
+			claim := classifyClaim(inner, lineNumber+1)
+			if claim.claimType != "" {
+				// The byte window covers the claim's text field (the normalized
+				// snippet without surrounding backticks), located inside the line.
+				claimStart := strings.Index(line[match[0]:], claim.text)
+				if claimStart >= 0 {
+					claim.byteOffset = lineByteOffset + match[0] + claimStart
+					claim.byteLength = len(claim.text)
+				}
+			}
+			addExtractedClaim(lineClaims, claim)
 		}
 		for _, claim := range localPathClaimsFromMarkdownLinks(line, lineNumber+1) {
+			stampByteWindow(line, lineByteOffset, &claim)
 			addExtractedClaim(lineClaims, claim)
 		}
 		for _, claim := range containerImageClaimsFromLine(line, lineNumber+1) {
+			stampByteWindow(line, lineByteOffset, &claim)
 			addExtractedClaim(lineClaims, claim)
 		}
-		for _, match := range httpEndpointPattern.FindAllStringSubmatch(line, -1) {
-			addExtractedClaim(lineClaims, extractedClaim{
+		for _, match := range httpEndpointPattern.FindAllStringSubmatchIndex(line, -1) {
+			text := line[match[0]:match[1]]
+			claim := extractedClaim{
 				claimType:  ClaimTypeHTTPEndpoint,
-				text:       match[0],
-				normalized: endpointKey(match[1], match[2]),
+				text:       text,
+				normalized: endpointKey(line[match[2]:match[3]], line[match[4]:match[5]]),
 				line:       lineNumber + 1,
-			})
+				byteOffset: lineByteOffset + match[0],
+				byteLength: len(text),
+			}
+			addExtractedClaim(lineClaims, claim)
 		}
-		for _, match := range envVarPattern.FindAllString(line, -1) {
-			addExtractedClaim(lineClaims, extractedClaim{
+		for _, loc := range envVarPattern.FindAllStringIndex(line, -1) {
+			text := line[loc[0]:loc[1]]
+			claim := extractedClaim{
 				claimType:  ClaimTypeEnvironmentVariable,
-				text:       match,
-				normalized: match,
+				text:       text,
+				normalized: text,
 				line:       lineNumber + 1,
-			})
+				byteOffset: lineByteOffset + loc[0],
+				byteLength: len(text),
+			}
+			addExtractedClaim(lineClaims, claim)
 		}
 		keys := make([]string, 0, len(lineClaims))
 		for key := range lineClaims {
@@ -76,8 +109,26 @@ func extractClaims(content string) []extractedClaim {
 		for _, key := range keys {
 			claims = append(claims, lineClaims[key])
 		}
+		lineByteOffset += len(line) + 1 // +1 for the '\n' consumed by Split
 	}
 	return claims
+}
+
+// stampByteWindow sets byteOffset and byteLength on a claim whose text was
+// extracted without index tracking (local-path and container-image helpers).
+// It searches for the first occurrence of claim.text in the line and computes
+// the document-absolute offset from lineByteOffset. If the text is not found
+// the byte window is left at zero.
+func stampByteWindow(line string, lineByteOffset int, claim *extractedClaim) {
+	if claim.text == "" {
+		return
+	}
+	idx := strings.Index(line, claim.text)
+	if idx < 0 {
+		return
+	}
+	claim.byteOffset = lineByteOffset + idx
+	claim.byteLength = len(claim.text)
 }
 
 func classifyClaim(raw string, line int) extractedClaim {

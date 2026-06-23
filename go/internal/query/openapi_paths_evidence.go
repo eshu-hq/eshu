@@ -377,12 +377,14 @@ const openAPIPathsEvidence = `
                     "bounded_excerpt": {"type": "object"},
                     "linked_entities": {"type": "array", "items": {"type": "object"}},
                     "current_truth": {"type": "object"},
-                    "unified_evidence": {"type": "object", "description": "Canonical truth.Evidence projection of this finding (#3489): confidence, citation (entity_id + content_hash), and typed provenance, so documentation evidence describes proof with the same shape as relationship evidence and citation packets.", "properties": {
+                    "unified_evidence": {"type": "object", "description": "Canonical truth.Evidence projection of this finding (#3489, #3637): confidence, citation (entity_id + content_hash + byte_offset/byte_length when captured), and typed provenance, so documentation evidence describes proof with the same shape as relationship evidence and citation packets. byte_offset and byte_length are omitted when the byte window was not captured during extraction; callers must not fabricate a window when these fields are absent.", "properties": {
                       "kind": {"type": "string"},
                       "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                       "citation": {"type": "object", "properties": {
                         "entity_id": {"type": "string"},
-                        "content_hash": {"type": "string"}
+                        "content_hash": {"type": "string"},
+                        "byte_offset": {"type": "integer", "description": "Document-absolute byte offset of the first byte of the cited claim text. Present only when the byte window was captured during extraction; absent means the citation is valid via entity_id alone."},
+                        "byte_length": {"type": "integer", "description": "Byte length of the cited claim text window. Present only alongside byte_offset; a zero or absent value means the byte window was not captured."}
                       }},
                       "provenance": {"type": "object", "properties": {
                         "basis": {"type": "string", "enum": ["source_content", "graph_projection", "assertion", "derived"]},

@@ -6,6 +6,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 func findingPayload(finding VerificationFinding) map[string]any {
@@ -26,6 +27,11 @@ func findingPayload(finding VerificationFinding) map[string]any {
 		"summary":             finding.Summary,
 		"evidence_packet_id":  finding.EvidencePacketID,
 		"evidence_packet_url": "/api/v0/documentation/findings/" + finding.FindingID + "/evidence-packet",
+		// claim_byte_offset and claim_byte_length carry the document-absolute byte
+		// window captured during extraction (#3637). Both are zero/omitted when
+		// the byte position was not determined; callers must not fabricate a window.
+		"claim_byte_offset": finding.ClaimByteOffset,
+		"claim_byte_length": finding.ClaimByteLength,
 		"permissions":         visibilityPayload(),
 		"states": map[string]any{
 			"finding_state":       finding.Status,
@@ -171,4 +177,20 @@ func normalizeSnippet(raw string) string {
 
 func verificationSummaryText(claim extractedClaim, status string) string {
 	return claim.claimType + " claim " + status + ": " + claim.normalized
+}
+
+// canonicalEvidenceCitationMap serialises a truth.Citation into the
+// unified_evidence.citation payload map. byte_offset and byte_length are
+// included only when the citation carries a non-zero byte window so the packet
+// payload never fabricates a position that was not captured during extraction.
+func canonicalEvidenceCitationMap(c truth.Citation) map[string]any {
+	m := map[string]any{
+		"entity_id":    c.EntityID,
+		"content_hash": c.ContentHash,
+	}
+	if c.ByteLength > 0 {
+		m["byte_offset"] = c.ByteOffset
+		m["byte_length"] = c.ByteLength
+	}
+	return m
 }
