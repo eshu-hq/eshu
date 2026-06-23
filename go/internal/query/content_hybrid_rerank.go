@@ -237,10 +237,32 @@ func projectEntityContentDocuments(
 // repo-scoped file id from lexical file rows. It reuses
 // searchdocs.ProjectContentFile so the searchable text and file handle match the
 // persisted search-document index.
+//
+// When no row carries a non-empty Content body the function returns zero
+// projectable documents, causing RerankFiles to fall back to the lexical order
+// with no search_backend label. This guards against the production SQL paths
+// that intentionally omit file bodies from search results: projecting on path
+// and title alone would reorder results by path-hash noise and mislabel them
+// search_backend=hybrid instead of preserving the content_index truth basis.
 func projectFileContentDocuments(
 	repoID string,
 	rows []FileContent,
 ) (map[string]searchdocs.Document, []string) {
+	// Require at least one row with a populated body before building a hybrid
+	// index. The production file-search SQL paths return Content="" for every
+	// row; ranking on path/title/labels alone produces noise-ordered results
+	// that must never be labelled hybrid.
+	anyBody := false
+	for _, row := range rows {
+		if row.Content != "" {
+			anyBody = true
+			break
+		}
+	}
+	if !anyBody {
+		return nil, nil
+	}
+
 	docByID := make(map[string]searchdocs.Document, len(rows))
 	order := make([]string, 0, len(rows))
 	for _, row := range rows {
