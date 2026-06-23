@@ -17,11 +17,20 @@ provider proof metadata; browser-session replay, expiry, policy revision drift,
 and provider-proof stale-window enforcement live in `internal/query`,
 `cmd/api`, and `internal/storage/postgres`.
 
+This package also owns the bounded active-session revocation refresh engine
+(`Refresher`). It decides per stale session whether to extend the proof window
+or revoke, but it depends on `SessionRefreshStore`, `RoleGrantResolver`, and
+`ExternalSubjectLookup` ports implemented in `internal/storage/postgres` and
+wired (with cadence, batch bound, and telemetry) in `cmd/api`.
+
 ## Exported surface
 
 See `doc.go` for the package contract. The main exported types are `Service`,
 `Config`, `ProviderConfig`, `StateStore`, `GrantResolver`, `Connector`,
-`StaticGrantResolver`, and `LoadConfigFile`.
+`StaticGrantResolver`, and `LoadConfigFile`, plus the active-session refresh
+surface `Refresher`, `RefreshConfig`, `RefreshOutcome`, `SessionRefreshStore`,
+`RoleGrantResolver`, `ExternalSubjectLookup`, `StaleSession`, and
+`SessionAuthProofUpdate`.
 
 ## Dependencies
 
