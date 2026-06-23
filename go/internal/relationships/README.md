@@ -320,3 +320,24 @@ the existing reducer admission and relationship persistence signals.
 - `docs/public/reference/local-testing.md` — verification gates
 - `go/internal/terraformschema/README.md` — provider schema loader details
 - `go/internal/iacreachability/README.md` — complement: reachability analysis
+
+## Byte-level evidence citation (#3636)
+
+Relationship `EvidenceFact` extraction now captures the real byte window
+(`start_line`/`end_line`/`byte_offset`/`content_hash`) at discovery time instead
+of carrying only the file path, and the reducer propagates that citation onto the
+graph `EvidenceArtifact` so relationship evidence carries a true byte-level
+citation end to end (extraction → graph). Extractors that genuinely lack byte
+information degrade safely — no citation window is fabricated (the canonical
+`truth.Citation` byte fields are populated only when a real, non-zero window is
+present).
+
+No-Regression Evidence: the change adds citation fields to the existing evidence
+payload and graph-write `SET` clauses; it introduces no new MATCH/MERGE anchor,
+no new index dependency, no additional graph round trip, and no broad scan — the
+canonical relationship write shape and batching are unchanged, so the graph-write
+hot path carries only a few extra scalar properties per already-written edge with
+no plan change. `go test ./internal/relationships ./internal/reducer ./internal/storage/cypher -count=1` stays green.
+
+No-Observability-Change: no metrics, spans, or structured logs are added or
+altered; the citation flows as evidence-fact and edge-property data only.
