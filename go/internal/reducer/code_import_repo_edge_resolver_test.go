@@ -341,10 +341,11 @@ func newAmbiguousCodeImportOwnerIndexForTest(ecosystem, name, repoA, repoB strin
 
 // TestCodeImportEntrySourceRepoRelativeResolvedSourceDropped proves that when
 // resolved_source is a repo-relative baseUrl path (e.g. "src/components/Button"
-// from tsconfig baseUrl/paths resolution), codeImportEntrySource falls back to
-// the raw source field rather than returning the repo-relative path, so
-// normalizeNPMImportSource cannot reduce it to a bare segment like "src" and
-// fabricate a DEPENDS_ON edge against a package named "src" (issue #3651, P2).
+// from tsconfig baseUrl/paths resolution), codeImportEntrySource drops the
+// import rather than falling back to the raw source field, so
+// normalizeNPMImportSource cannot reduce either value to a bare segment like
+// "src" and fabricate a DEPENDS_ON edge against a package named "src" (issue
+// #3651, P2).
 func TestCodeImportEntrySourceRepoRelativeResolvedSourceDropped(t *testing.T) {
 	t.Parallel()
 
