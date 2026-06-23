@@ -64,6 +64,20 @@ func (m *WorkloadMaterializer) batchSize() int {
 
 // executeBatched splits rows into chunks and executes the given Cypher query with UNWIND.
 func (m *WorkloadMaterializer) executeBatched(ctx context.Context, cypher string, rows []map[string]any) error {
+	return m.executeBatchedWithParams(ctx, cypher, rows, nil)
+}
+
+// executeBatchedWithParams splits rows into chunks and executes the given Cypher
+// query with UNWIND, merging extra statement-scoped scalar parameters (such as a
+// materialization edge-confidence weight) into every chunk execution alongside
+// $rows. The extra parameters are constant for the whole batch, so the planner
+// treats them as fixed rather than as per-row data.
+func (m *WorkloadMaterializer) executeBatchedWithParams(
+	ctx context.Context,
+	cypher string,
+	rows []map[string]any,
+	extra map[string]any,
+) error {
 	batchSize := m.batchSize()
 	for i := 0; i < len(rows); i += batchSize {
 		end := i + batchSize
@@ -71,7 +85,11 @@ func (m *WorkloadMaterializer) executeBatched(ctx context.Context, cypher string
 			end = len(rows)
 		}
 		chunk := rows[i:end]
-		if err := m.executor.ExecuteCypher(ctx, cypher, map[string]any{"rows": chunk}); err != nil {
+		params := map[string]any{"rows": chunk}
+		for k, v := range extra {
+			params[k] = v
+		}
+		if err := m.executor.ExecuteCypher(ctx, cypher, params); err != nil {
 			return err
 		}
 	}
@@ -267,7 +285,9 @@ func (m *WorkloadMaterializer) MaterializeDependencies(
 				"evidence_source": EvidenceSourceWorkloads,
 			}
 		}
-		if err := m.executeBatched(ctx, batchRepoDependencyUpsertCypher, rows); err != nil {
+		if err := m.executeBatchedWithParams(ctx, batchRepoDependencyUpsertCypher, rows, map[string]any{
+			MaterializationConfidenceParam: RuntimeServiceDependencyEdgeConfidence,
+		}); err != nil {
 			return result, fmt.Errorf("write repo dependencies: %w", err)
 		}
 		result.RepoDependenciesWritten = len(repoDeps)
@@ -283,7 +303,9 @@ func (m *WorkloadMaterializer) MaterializeDependencies(
 				"evidence_source":    EvidenceSourceWorkloads,
 			}
 		}
-		if err := m.executeBatched(ctx, batchWorkloadDependencyUpsertCypher, rows); err != nil {
+		if err := m.executeBatchedWithParams(ctx, batchWorkloadDependencyUpsertCypher, rows, map[string]any{
+			MaterializationConfidenceParam: RuntimeServiceDependencyEdgeConfidence,
+		}); err != nil {
 			return result, fmt.Errorf("write workload dependencies: %w", err)
 		}
 		result.WorkloadDependenciesWritten = len(workloadDeps)
@@ -294,7 +316,7 @@ func (m *WorkloadMaterializer) MaterializeDependencies(
 
 func runtimePlatformConfidence(confidence float64) float64 {
 	if confidence <= 0 {
-		return 0.9
+		return DefaultRuntimePlatformEdgeConfidence
 	}
 	return confidence
 }
@@ -394,7 +416,7 @@ SET rel.confidence = row.platform_confidence,
 MATCH (source_repo:Repository {id: row.repo_id})
 MATCH (target_repo:Repository {id: row.target_repo_id})
 MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)
-SET rel.confidence = 0.9,
+SET rel.confidence = $edge_confidence,
     rel.reason = 'Runtime services list declares repository dependency',
     rel.evidence_source = row.evidence_source`
 
@@ -402,7 +424,7 @@ SET rel.confidence = 0.9,
 MATCH (source:Workload {id: row.workload_id})
 MATCH (target:Workload {id: row.target_workload_id})
 MERGE (source)-[rel:DEPENDS_ON]->(target)
-SET rel.confidence = 0.9,
+SET rel.confidence = $edge_confidence,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = row.evidence_source`
 
