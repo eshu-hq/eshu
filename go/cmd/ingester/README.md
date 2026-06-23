@@ -313,35 +313,43 @@ reported disabled 3.417 ns/op, manually enabled below high-water 49.25 ns/op,
 default-active below high-water 39.29 ns/op, and one no-op deferral 87.96
 ns/op; all four paths reported 0 allocs/op.
 
-No-Regression Evidence (graph-write backpressure, #3560): the retrying-depth gate
-adds a second admission condition without changing reducer worker counts, claim
-batch size, queue schema, graph writes, or transaction scope. When the gate is
-disabled (retrying high-water mark 0) or retrying depth is below the marks, the
-loop performs the same single bounded queue-depth read and one map lookup as the
-total-depth gate, then calls the unchanged `ReducerQueue.Enqueue`. Verified by
-`go test ./cmd/ingester -run 'Admission' -count=1 -race` (128 tests, no data
-races): the gate defers on a retrying spike with low total depth
-(`TestReducerAdmissionDefersOnGraphWritePressure`), holds through the high/low
-hysteresis gap (`TestReducerAdmissionGraphWritePressureHysteresis`), resumes on
-recovery, records the correct deferral reason
-(`TestReducerAdmissionGraphWritePressureRecordsReason`,
-`TestReducerAdmissionTotalDepthRecordsHighWaterReason`), loses no intents under
-16 concurrent producers
-(`TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState`), and the
-total-depth and disabled paths are unchanged. The existing benchmarks still
-cover the disabled and below-high-water fast paths.
+No-Regression Evidence (graph-write backpressure, #3560): the gate is failure-class
+scoped and adds a second admission condition without changing reducer worker
+counts, claim batch size, queue schema, graph writes, or transaction scope. When
+the gate is disabled (retrying high-water mark 0) or the graph-write-timeout depth
+is below the marks, the loop performs one bounded depth read and calls the
+unchanged `ReducerQueue.Enqueue`. Verified by `go test ./cmd/ingester
+./internal/storage/cypher ./internal/storage/postgres -count=1 -race`: a readiness
+backlog of 800 `*_not_ready` retrying rows with zero graph-write-timeout depth
+does NOT throttle (`TestReducerAdmissionReadinessBacklogDoesNotThrottle`), while a
+graph-write-timeout backlog above the high-water mark does
+(`TestReducerAdmissionGraphWriteTimeoutBacklogThrottles`), holds through the
+high/low hysteresis gap, resumes on recovery, records the `graph_write_timeout`
+failure class on the deferral
+(`TestReducerAdmissionGraphWritePressureRecordsFailureClass`), and loses no intents
+under 16 concurrent producers
+(`TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState`). The reducer
+queue preserves `graph_write_timeout` on the retrying row
+(`TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget`) while a
+readiness miss keeps its own class
+(`TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass`), and the scoped
+depth query excludes `reducer_retryable` and readiness classes
+(`TestReducerGraphWriteTimeoutDepthFiltersFailureClass`). The existing benchmarks
+still cover the disabled and below-high-water fast paths.
 
-Observability Evidence (graph-write backpressure, #3560): producer deferrals
-reuse the existing `eshu_dp_reducer_admission_deferrals_total` counter and now
-carry a `reason` attribute value — `graph_write_pressure` when retrying depth
-tripped the gate, `high_water` when total outstanding depth tripped the original
-gate — so an operator can distinguish "backend is timing out" from "queue is
-just deep". The deferral log was promoted from `Debug` to `Warn` and now names
-`reason`, `queue_depth`, `high_water_mark`, `retrying_high_water_mark`,
-`retrying_low_water_mark`, and `poll_interval`. No metric or counter name, span,
-status field, worker, queue domain, or runtime surface is added or removed;
-retrying-state depth remains exported by the existing
-`eshu_dp_queue_depth{queue="reducer",status="retrying"}` gauge.
+Observability Evidence (graph-write backpressure, #3560): producer deferrals reuse
+the existing `eshu_dp_reducer_admission_deferrals_total` counter and now carry a
+`reason` attribute value (`graph_write_pressure` when the scoped graph-write-timeout
+depth tripped the gate, `high_water` when total outstanding depth tripped the
+original gate) plus a `failure_class` attribute naming the class that drove a
+graph-write-pressure deferral (`graph_write_timeout`). This lets an operator
+confirm at 3 AM that graph writes are timing out rather than a readiness backlog
+piling up. The deferral log was promoted from `Debug` to `Warn` and names
+`reason`, `failure_class`, `queue_depth`, `high_water_mark`,
+`retrying_high_water_mark`, `retrying_low_water_mark`, and `poll_interval`. The
+graph-write-timeout retrying depth is exposed by
+`QueueObserverStore.ReducerGraphWriteTimeoutDepth`; no counter or span name,
+worker, queue domain, or runtime surface is removed.
 - The `local_lightweight` profile (ESHU_QUERY_PROFILE=local_lightweight or
   ESHU_DISABLE_NEO4J=true) skips canonical graph writes entirely; useful for
   laptop code-search workflows where the graph backend is not running.
