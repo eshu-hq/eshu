@@ -19,8 +19,10 @@ var elixirControlMacros = map[string]struct{}{
 }
 
 // elixirArmMacros are the call heads whose body is a list of `->` clauses
-// (stab_clause arms). Each real arm is a decision point; the catch-all arm
-// (`_ ->` or `true ->`) is the implicit else and is not counted.
+// (stab_clause arms). Each real arm is a decision point; the catch-all arm is
+// the implicit else and is not counted. The bare `_ ->` arm is always the
+// catch-all. A `true ->` arm is the catch-all only for `cond`; in `case` it is a
+// real boolean pattern that counts. See elixirIsCatchAllArm.
 var elixirArmMacros = map[string]struct{}{
 	"case": {},
 	"cond": {},
@@ -43,21 +45,63 @@ var elixirBooleanOperators = map[string]struct{}{
 // node-kind table; this dedicated pass reads each call's head identifier.
 //
 // Complexity is 1 plus one for each if/unless/for/while macro, one for each real
-// case/cond/with/try arm (the `_`/`true` catch-all arm is excluded), one for
-// each `when` guard, and one for each short-circuit boolean operator. The walk
-// stops at nested `fn` literals and nested definition calls so an inner clause
-// does not inflate the enclosing function.
+// case/cond/with/try arm (each macro's catch-all arm is excluded; see
+// elixirIsCatchAllArm), one for each `when` guard, and one for each
+// short-circuit boolean operator. The walk stops at nested `fn` literals and
+// nested definition calls so an inner clause does not inflate the enclosing
+// function.
+//
+// A multi-line definition keeps its body in a do_block; a one-line
+// `def ..., do: <body>` keeps it in an inline keyword list instead, so both
+// forms are counted.
 func elixirCyclomaticComplexity(defNode *tree_sitter.Node, source []byte) int {
 	if defNode == nil {
 		return 0
 	}
 	complexity := 1
 	body := elixirDefinitionBody(defNode)
-	if body == nil {
+	if body != nil {
+		complexity += elixirCountDecisions(body, source)
 		return complexity
 	}
-	complexity += elixirCountDecisions(body, source)
+	// A one-line `def ..., do: <body>` carries no do_block; its body lives in
+	// the inline keyword list (`do:`, and any `else:`/`catch:`/`rescue:`/
+	// `after:`) under the definition arguments. Count decisions there so common
+	// inline branching is not scored as a straight line.
+	for _, value := range elixirInlineKeywordBodies(defNode) {
+		value := value
+		complexity += elixirCountDecisions(&value, source)
+	}
 	return complexity
+}
+
+// elixirInlineKeywordBodies returns the value nodes of the inline keyword bodies
+// of a one-line definition: the `do:` body plus any `else:`/`catch:`/`rescue:`/
+// `after:` companions. These live as `pair` values inside the `keywords` node of
+// the definition's arguments. Returning only the pair values keeps the parameter
+// signature and any `when` guard out of the decision count.
+func elixirInlineKeywordBodies(defNode *tree_sitter.Node) []tree_sitter.Node {
+	arguments := elixirFirstChildOfKind(defNode, "arguments")
+	if arguments == nil {
+		return nil
+	}
+	keywords := elixirFirstChildOfKind(arguments, "keywords")
+	if keywords == nil {
+		return nil
+	}
+	var bodies []tree_sitter.Node
+	for _, pair := range elixirNamedChildren(keywords) {
+		pair := pair
+		if pair.Kind() != "pair" {
+			continue
+		}
+		children := elixirNamedChildren(&pair)
+		if len(children) < 2 {
+			continue
+		}
+		bodies = append(bodies, children[len(children)-1])
+	}
+	return bodies
 }
 
 // elixirDefinitionBody returns the do_block of a definition call, where the
@@ -92,7 +136,7 @@ func elixirCountDecisions(node *tree_sitter.Node, source []byte) int {
 			count++
 		}
 		if _, ok := elixirArmMacros[head]; ok {
-			count += elixirRealArmCount(node, source)
+			count += elixirRealArmCount(node, head, source)
 		}
 	case "binary_operator":
 		if elixirIsBooleanOperator(node, source) {
@@ -112,9 +156,9 @@ func elixirCountDecisions(node *tree_sitter.Node, source []byte) int {
 }
 
 // elixirRealArmCount returns how many `->` arms of a case/cond/with/try macro
-// are real decisions. The bare catch-all arm (`_ ->` or `true ->`) is the
-// implicit else and is excluded.
-func elixirRealArmCount(callNode *tree_sitter.Node, source []byte) int {
+// are real decisions, excluding that macro's catch-all arm. The head selects how
+// the catch-all is recognized: see elixirIsCatchAllArm.
+func elixirRealArmCount(callNode *tree_sitter.Node, head string, source []byte) int {
 	arms := 0
 	for _, block := range elixirNamedChildren(callNode) {
 		block := block
@@ -126,7 +170,7 @@ func elixirRealArmCount(callNode *tree_sitter.Node, source []byte) int {
 			if clause.Kind() != "stab_clause" {
 				continue
 			}
-			if elixirIsCatchAllArm(&clause, source) {
+			if elixirIsCatchAllArm(&clause, head, source) {
 				continue
 			}
 			arms++
@@ -135,10 +179,14 @@ func elixirRealArmCount(callNode *tree_sitter.Node, source []byte) int {
 	return arms
 }
 
-// elixirIsCatchAllArm reports whether a stab arm is the implicit else: a bare
-// `_` wildcard pattern or a literal `true` guard, neither of which tests a
-// condition under McCabe.
-func elixirIsCatchAllArm(clause *tree_sitter.Node, source []byte) bool {
+// elixirIsCatchAllArm reports whether a stab arm is the macro's implicit else.
+// A bare `_` wildcard is always the catch-all because it matches anything
+// without testing a condition. A `true` literal is the catch-all only for
+// `cond`, where every arm is a boolean condition and `true ->` is the
+// idiomatic terminal else. In `case` the scrutinee is matched against each
+// pattern, so boolean literal arms (`true ->`, `false ->`) are real patterns
+// that test a value and must count, e.g. `case flag do false -> ...; _ -> ...`.
+func elixirIsCatchAllArm(clause *tree_sitter.Node, head string, source []byte) bool {
 	for _, child := range elixirNamedChildren(clause) {
 		child := child
 		if child.Kind() != "arguments" {
@@ -152,7 +200,8 @@ func elixirIsCatchAllArm(clause *tree_sitter.Node, source []byte) bool {
 		case "identifier":
 			return strings.TrimSpace(shared.NodeText(&args[0], source)) == "_"
 		case "boolean":
-			return true
+			return head == "cond" &&
+				strings.TrimSpace(shared.NodeText(&args[0], source)) == "true"
 		}
 	}
 	return false

@@ -272,6 +272,17 @@ func TestCyclomaticComplexityPerLanguage(t *testing.T) {
 			want:         6,
 		},
 		{
+			name:     "elixir_inline_keyword_body",
+			fileName: "inline.ex",
+			// A one-line `def ..., do: <body>` puts its body under the
+			// definition arguments as a keyword list, not a do_block. The body
+			// here is a single `if`, so base 1 + if 1 = 2. The `else:` is part
+			// of the same `if` and does not add a second decision point.
+			source:       "def branchy(x), do: if x, do: 1, else: 0\n",
+			functionName: "branchy",
+			want:         2,
+		},
+		{
 			name:         "haskell_straight_line",
 			fileName:     "Straight.hs",
 			source:       "straight :: Int -> Int\nstraight x = x + 1\n",

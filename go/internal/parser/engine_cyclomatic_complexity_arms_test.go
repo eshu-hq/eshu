@@ -172,6 +172,25 @@ func TestCyclomaticComplexityCatchAndDefaultArms(t *testing.T) {
 			functionName: "run",
 			want:         2,
 		},
+		// Elixir case: boolean literal arms (`false`/`true`) are real patterns,
+		// not catch-alls. Only the bare `_` wildcard is the implicit else.
+		{
+			name:     "elixir_boolean_case_arms",
+			fileName: "bools.ex",
+			// base 1 + `false ->` 1 + `true ->` 1 = 3. The `_ ->` arm is the
+			// implicit else and is not counted.
+			source:       "def run(flag) do\n  case flag do\n    false -> 1\n    true -> 2\n    _ -> 3\n  end\nend\n",
+			functionName: "run",
+			want:         3,
+		},
+		{
+			name:     "elixir_only_wildcard_case",
+			fileName: "wild.ex",
+			// A case whose only arm is the bare `_` catch-all stays at base 1.
+			source:       "def run(flag) do\n  case flag do\n    _ -> 1\n  end\nend\n",
+			functionName: "run",
+			want:         1,
+		},
 	}
 
 	engine, err := DefaultEngine()
