@@ -82,9 +82,25 @@ func (o observer) ObserveBackpressureWait(ctx context.Context, operation string,
 // wrapper, no indirection, and preserves any type the inner executor exposes
 // (GroupExecutor, TimeoutExecutor). Callers can therefore wire Wrap
 // unconditionally and let the env knob decide whether the bound is active.
+//
+// When inner does NOT implement GroupExecutor (e.g. ExecuteOnlyExecutor with
+// ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false), Wrap returns an
+// ExecuteOnlyBackpressureExecutor that intentionally strips ExecuteGroup from
+// the returned type. This ensures callers that type-assert GroupExecutor take
+// the sequential fallback path instead of hitting errInnerNoExecuteGroup inside
+// BackpressureExecutor.ExecuteGroup.
 func Wrap(inner cypher.Executor, maxInFlight int, instruments *telemetry.Instruments) cypher.Executor {
 	if maxInFlight <= 0 {
 		return inner
 	}
-	return cypher.NewBackpressureExecutor(inner, maxInFlight, NewObserver(instruments))
+	bp := cypher.NewBackpressureExecutor(inner, maxInFlight, NewObserver(instruments))
+	// Only expose GroupExecutor if the inner executor supports it. When inner is
+	// ExecuteOnlyExecutor (ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false), the
+	// wrapper must not advertise ExecuteGroup or callers that type-assert
+	// GroupExecutor will hit errInnerNoExecuteGroup instead of falling through to
+	// sequential execution.
+	if _, ok := inner.(cypher.GroupExecutor); ok {
+		return bp // full interface: Executor + GroupExecutor
+	}
+	return cypher.ExecuteOnlyBackpressureExecutor(bp) // Executor only
 }

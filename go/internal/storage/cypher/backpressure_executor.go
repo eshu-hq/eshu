@@ -151,3 +151,26 @@ func (e *BackpressureExecutor) releaseFunc() func() {
 		<-e.permits
 	}
 }
+
+// executeOnlyBackpressureWrapper wraps BackpressureExecutor but intentionally
+// does not implement GroupExecutor. Use it when the inner executor does not
+// support grouped writes so callers that type-assert GroupExecutor fall through
+// to sequential execution rather than receiving errInnerNoExecuteGroup.
+type executeOnlyBackpressureWrapper struct {
+	bp *BackpressureExecutor
+}
+
+// Execute forwards the statement to the underlying BackpressureExecutor,
+// preserving the in-flight bound without exposing ExecuteGroup.
+func (w executeOnlyBackpressureWrapper) Execute(ctx context.Context, stmt Statement) error {
+	return w.bp.Execute(ctx, stmt)
+}
+
+// ExecuteOnlyBackpressureExecutor returns an Executor backed by bp that does
+// not expose GroupExecutor. Use when the inner executor is an
+// ExecuteOnlyExecutor (ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false) so
+// type assertions for GroupExecutor correctly fall through to sequential
+// execution rather than hitting errInnerNoExecuteGroup inside ExecuteGroup.
+func ExecuteOnlyBackpressureExecutor(bp *BackpressureExecutor) Executor {
+	return executeOnlyBackpressureWrapper{bp: bp}
+}
