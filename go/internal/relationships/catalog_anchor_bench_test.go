@@ -144,8 +144,8 @@ func buildDeferredFleetCorpus(fleetSize, orphanPerRepo int) (full []facts.Envelo
 }
 
 // deferredSelfExclusionMatchesBench mirrors the #3659 deferred SQL predicate for
-// the benchmark: $1 non-repo_id anchors OR ($2 full-repo_id-value match after the
-// fact's own repo_id is stripped from the payload text).
+// the benchmark: $1 non-repo_id anchors OR EXISTS a catalog repo_id value that is
+// NOT the fact's own repo_id and is a literal substring of the payload.
 func deferredSelfExclusionMatchesBench(envelope facts.Envelope, nonRepoIDAnchors, repoIDValues []string) bool {
 	raw, err := json.Marshal(envelope.Payload)
 	if err != nil {
@@ -159,12 +159,9 @@ func deferredSelfExclusionMatchesBench(envelope facts.Envelope, nonRepoIDAnchors
 	}
 	ownRepoID, _ := envelope.Payload["repo_id"].(string)
 	ownRepoID = strings.ToLower(strings.TrimSpace(ownRepoID))
-	stripped := text
-	if ownRepoID != "" {
-		stripped = strings.ReplaceAll(text, ownRepoID, "")
-	}
 	for _, value := range repoIDValues {
-		if value != "" && strings.Contains(stripped, strings.ToLower(value)) {
+		value = strings.ToLower(value)
+		if value != "" && value != ownRepoID && strings.Contains(text, value) {
 			return true
 		}
 	}

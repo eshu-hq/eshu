@@ -20,9 +20,9 @@ import (
 // Without the fix the deferred query is corpus-wide despite the LIKE ANY
 // predicate, because every fact's "repo_id" payload field self-matches the
 // repo_id anchor derived from the same repo's catalog entry. The test proves
-// the fix: the deferred pass issues the self-exclusion query variant (which
-// carries a third parameter — the repo_id values to exclude as self-match
-// candidates), not the per-commit scoped query that has no self-exclusion.
+// the fix: the deferred pass issues the self-exclusion query variant (with raw
+// repo_id values for exact self-exclusion), not the per-commit scoped query that
+// has no self-exclusion.
 func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 	t.Parallel()
 
@@ -97,9 +97,9 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 }
 
 // assertDeferredSelfExclusionArgs confirms the deferred query was parameterised
-// with two arguments: $1 non-repo_id LIKE terms and $2 full-repo_id-value LIKE
-// terms. The query strips each row's own repo_id before testing $2, so the
-// args carry no separate exclusion list.
+// with two arguments: $1 non-repo_id LIKE terms and $2 raw lowercase repo_id
+// values. The query uses the raw values for exact self-exclusion before literal
+// substring matching, so repo_id args must not be %-wrapped LIKE terms.
 func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	t.Helper()
 	if len(args) != 2 {
@@ -119,10 +119,14 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 			t.Fatalf("non-repo_id anchor term %q is not a wrapped LIKE term", term)
 		}
 	}
-	// repo_id-value terms must be LIKE-wrapped
+	// repo_id values must be raw literals, not LIKE-wrapped terms. Wrapping here
+	// would defeat the exact self-exclusion comparison in SQL.
 	for _, term := range repoIDTerms {
-		if !strings.HasPrefix(term, "%") || !strings.HasSuffix(term, "%") {
-			t.Fatalf("repo_id-value anchor term %q is not a wrapped LIKE term", term)
+		if strings.HasPrefix(term, "%") || strings.HasSuffix(term, "%") {
+			t.Fatalf("repo_id-value anchor term %q is LIKE-wrapped; want raw lowercase repo_id", term)
+		}
+		if term != strings.ToLower(term) {
+			t.Fatalf("repo_id-value anchor term %q is not lowercase", term)
 		}
 	}
 	// There must be at least one repo_id-value term so the self-exclusion arm is live.

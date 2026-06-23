@@ -590,19 +590,23 @@ The deferred pass therefore uses a dedicated query,
   with the repo_id (`Aliases[0]`) stripped (`backfillNonRepoIDAnchorTerms`),
   unioned with `argoCDOverSelectAnchors`. A fact matching `$1` carries a
   cross-repo reference not keyed on its own repo_id.
-- `$2` — full repo_id values (`relationships.CatalogRepoIDValues`), tested
-  against the payload text AFTER the row's OWN repo_id value is stripped:
-  `replace(lower(payload::text), lower(payload->>'repo_id'), '') LIKE ANY($2)`.
-  A fact matches only when it references ANOTHER repo's repo_id verbatim; a pure
-  self-match loses its only repo_id substring and is excluded.
+- `$2` — raw lowercase full repo_id values (`relationships.CatalogRepoIDValues`),
+  tested with `EXISTS (unnest($2))`, exact self-value exclusion, and literal
+  `strpos(lower(payload::text), value) > 0`. A fact matches only when it
+  references ANOTHER repo's repo_id verbatim; a pure self-match has no other
+  repo_id value and is excluded.
 
 A value-exclusion list (`payload->>'repo_id' != ALL(catalog_repo_ids)`) would NOT
 work: every active repo's own repo_id is in the catalog, so that predicate would
 exclude EVERY active repo's fact from the repo_id arm, dropping legitimate
-cross-repo references and breaking truth-equivalence. Stripping only the row's own
-value leaves other repos' repo_id substrings intact. Full values (not the longest
-token) are used because cross-repo references name a repo by its full URL/path,
-and a shared prefix token like `github.com` would over-select the fleet.
+cross-repo references and breaking truth-equivalence. A blind
+`replace(payload, own_repo_id, '')` also breaks overlap cases such as
+`github.com/org/app` referencing `github.com/org/app-config`, because the
+target value is corrupted before matching. The self-aware `EXISTS` test compares
+whole repo_id values, so overlapping targets still match. Full values (not the
+longest token) are used because cross-repo references name a repo by its full
+URL/path, and a shared prefix token like `github.com` would over-select the
+fleet.
 
 Truth-equivalence holds because the in-memory `catalogMatcher.match` already skips
 self-matches (`entry.RepoID == sourceRepoID`), so the excluded pure-self facts

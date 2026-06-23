@@ -264,8 +264,11 @@ to drive the `$2` arm of the deferred-backfill self-exclusion query in
 carries its own `repo_id` field, and `CatalogPayloadAnchors` over the full
 catalog emits each repo's repo_id token, so the old deferred load self-matched
 every fact and stayed corpus-wide despite the `LIKE ANY` predicate. The deferred
-query now strips the row's own repo_id value before testing the repo_id-value
-arm, so a fact matches only when it references ANOTHER repo's repo_id verbatim.
+query now compares raw full repo_id values with exact self-value exclusion before
+literal substring matching, so a fact matches only when it references ANOTHER
+repo's repo_id verbatim. This avoids the old blind-replace overlap bug where a
+source repo_id that prefixes a target repo_id could corrupt the target before
+matching.
 
 Performance Evidence: `BenchmarkDeferredBackfillDiscovery{Full,Scoped}Fleet{1k,5k}`
 on Apple M-series (in-memory `DiscoverEvidence` over the representative fleet

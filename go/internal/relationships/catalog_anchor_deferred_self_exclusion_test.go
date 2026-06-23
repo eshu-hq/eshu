@@ -16,13 +16,15 @@ import (
 // A fact is selected iff:
 //
 //	lower(payload::text) LIKE ANY($1 non-repo_id anchors)
-//	OR replace(lower(payload::text), lower(payload->>'repo_id'), '') LIKE ANY($2 repo_id-value terms)
+//	OR EXISTS rid IN $2 repo_id values: rid <> own_repo_id AND payload contains rid
 //
 // nonRepoIDAnchors is CatalogPayloadAnchors over each entry's NON-first aliases
 // (name/slug) plus the ArgoCD markers — mirroring backfillNonRepoIDAnchorTerms.
 // repoIDValues is CatalogRepoIDValues over the full catalog (full repo_id
-// strings). The $2 arm strips the fact's OWN repo_id value before matching, so
-// it only fires on cross-repo repo_id references.
+// strings). The $2 arm is the self-aware EXISTS test: it matches a catalog
+// repo_id that is NOT the row's own, so a target repo_id that merely CONTAINS
+// the source repo_id as a substring is still matched (no blind replace()
+// corruption that the prior implementation suffered).
 func deferredSelfExclusionSim(
 	t *testing.T,
 	envelope facts.Envelope,
@@ -35,28 +37,62 @@ func deferredSelfExclusionSim(
 	}
 	text := strings.ToLower(string(raw))
 
-	matchesAny := func(haystack string, anchors []string) bool {
-		for _, anchor := range anchors {
-			anchor = strings.ToLower(strings.TrimSpace(anchor))
-			if anchor != "" && strings.Contains(haystack, anchor) {
-				return true
-			}
+	for _, anchor := range nonRepoIDAnchors {
+		anchor = strings.ToLower(strings.TrimSpace(anchor))
+		if anchor != "" && strings.Contains(text, anchor) {
+			return true
 		}
-		return false
 	}
 
-	if matchesAny(text, nonRepoIDAnchors) {
-		return true
-	}
-	// $2 arm: strip the fact's own repo_id value, then test the full repo_id
-	// values. Only a cross-repo repo_id reference survives the strip.
+	// $2 arm: EXISTS a catalog repo_id value that is NOT the row's own and
+	// appears in the payload as a TOKEN-BOUNDARY-delimited substring (mirrors the
+	// SQL `~ (^|[^a-z0-9._-])value($|[^a-z0-9._-])` test). Boundary matching is
+	// required so repo_id "repo-fleet-1" does not spuriously match
+	// "repo-fleet-15", matching the in-memory catalogMatcher's whole-token
+	// semantics while still matching a distinct longer repo_id referenced verbatim.
 	ownRepoID, _ := envelope.Payload["repo_id"].(string)
 	ownRepoID = strings.ToLower(strings.TrimSpace(ownRepoID))
-	stripped := text
-	if ownRepoID != "" {
-		stripped = strings.ReplaceAll(text, ownRepoID, "")
+	for _, value := range repoIDValues {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" || value == ownRepoID {
+			continue
+		}
+		if containsRepoIDAtBoundary(text, value) {
+			return true
+		}
 	}
-	return matchesAny(stripped, repoIDValues)
+	return false
+}
+
+// isRepoIDTokenChar reports whether r is part of a catalog match token (mirrors
+// isCatalogTokenChar and the SQL [a-z0-9._-] boundary class).
+func isRepoIDTokenChar(r byte) bool {
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') ||
+		r == '.' || r == '_' || r == '-'
+}
+
+// containsRepoIDAtBoundary reports whether value occurs in text delimited by a
+// non-token char (or string start/end) on both sides — the Go mirror of the
+// boundary regex the deferred query uses for the repo_id arm.
+func containsRepoIDAtBoundary(text, value string) bool {
+	if value == "" {
+		return false
+	}
+	from := 0
+	for {
+		idx := strings.Index(text[from:], value)
+		if idx < 0 {
+			return false
+		}
+		start := from + idx
+		end := start + len(value)
+		leftOK := start == 0 || !isRepoIDTokenChar(text[start-1])
+		rightOK := end == len(text) || !isRepoIDTokenChar(text[end])
+		if leftOK && rightOK {
+			return true
+		}
+		from = start + 1
+	}
 }
 
 // nonRepoIDAnchorsSim mirrors backfillNonRepoIDAnchorTerms in the postgres
@@ -147,6 +183,21 @@ func representativeDeferredFixtures() []representativeDeferredFixture {
 			},
 			sourceCatalog:     CatalogEntry{RepoID: "repo-app", Aliases: []string{"repo-app", "edge-app"}},
 			targetCatalog:     CatalogEntry{RepoID: "deploy-toolkit", Aliases: []string{"deploy-toolkit"}},
+			crossRepoByRepoID: true,
+		},
+		{
+			name: "overlapping_repo_id_prefix_reference",
+			envelope: facts.Envelope{
+				ScopeID: "scope:app",
+				Payload: map[string]any{
+					"repo_id":       "github.com/org/app",
+					"artifact_type": "github_actions_workflow",
+					"relative_path": ".github/workflows/deploy.yaml",
+					"content":       "uses: github.com/org/app-config/.github/workflows/deploy.yaml@main",
+				},
+			},
+			sourceCatalog:     CatalogEntry{RepoID: "github.com/org/app", Aliases: []string{"github.com/org/app", "app"}},
+			targetCatalog:     CatalogEntry{RepoID: "github.com/org/app-config", Aliases: []string{"github.com/org/app-config"}},
 			crossRepoByRepoID: true,
 		},
 	}
@@ -300,5 +351,84 @@ func TestDeferredSelfExclusionExcludesPureSelfMatch(t *testing.T) {
 	evidence := DedupeEvidenceFacts(DiscoverEvidence([]facts.Envelope{selfEnvelope}, catalog))
 	if len(evidence) != 0 {
 		t.Fatalf("pure self-match fact produced evidence %v; self-exclusion would have dropped it", canonicalEvidence(evidence))
+	}
+}
+
+// TestDeferredSelfExclusionKeepsPrefixCollidingTargetRepoID is the regression
+// gate for the PR #3668 P2 bot finding: when a fact's OWN repo_id is a
+// PREFIX/substring of ANOTHER repo's repo_id, the deferred self-exclusion must
+// still load the fact when it references that longer repo_id by its full value.
+//
+// The earlier blind-replace implementation
+// (replace(payload, own_repo_id, "")) corrupted the target reference: stripping
+// "github.com/org/app" from "github.com/org/app-config" left "-config", so the
+// "%github.com/org/app-config%" term never matched and the cross-repo edge was
+// dropped — a truth-equivalence violation, because full-corpus DiscoverEvidence
+// only skips the EXACT self entry. The EXISTS(value <> own) test compares whole
+// repo_id values, so the longer repo_id is a distinct value and still matches.
+func TestDeferredSelfExclusionKeepsPrefixCollidingTargetRepoID(t *testing.T) {
+	t.Parallel()
+
+	// Source repo_id is a strict prefix of the target repo_id.
+	sourceRepoID := "github.com/org/app"
+	targetRepoID := "github.com/org/app-config"
+
+	// Source references the target ONLY by the target's full repo_id, not by any
+	// name/slug alias.
+	envelope := facts.Envelope{
+		ScopeID: "scope:app",
+		Payload: map[string]any{
+			"repo_id":       sourceRepoID,
+			"artifact_type": "terraform",
+			"relative_path": "main.tf",
+			"content":       `app_repo = "github.com/org/app-config"`,
+		},
+	}
+	catalog := []CatalogEntry{
+		// Target has only its repo_id alias, so the $1 (name/slug) arm cannot
+		// cover it — the load relies entirely on the $2 repo_id arm.
+		{RepoID: targetRepoID, Aliases: []string{targetRepoID}},
+		{RepoID: sourceRepoID, Aliases: []string{sourceRepoID, "edge-app"}},
+	}
+
+	nonRepoID := nonRepoIDAnchorsSim(catalog)
+	repoIDValues := CatalogRepoIDValues(catalog)
+
+	// The deferred predicate MUST load this fact — the target repo_id
+	// (github.com/org/app-config) is a distinct value from the source repo_id
+	// (github.com/org/app) and is a literal substring of the payload.
+	if !deferredSelfExclusionSim(t, envelope, nonRepoID, repoIDValues) {
+		t.Fatalf("prefix-colliding cross-repo reference %q -> %q was DROPPED by the self-exclusion predicate; the blind-replace truth-equivalence bug is present",
+			sourceRepoID, targetRepoID)
+	}
+
+	// Truth-equivalence: full-corpus discovery DOES match the edge, so the
+	// deferred load must not have dropped it.
+	fullEvidence := DedupeEvidenceFacts(DiscoverEvidence([]facts.Envelope{envelope}, catalog))
+	foundTarget := false
+	for _, fact := range fullEvidence {
+		if fact.TargetRepoID == targetRepoID && fact.SourceRepoID == sourceRepoID {
+			foundTarget = true
+			break
+		}
+	}
+	if !foundTarget {
+		t.Fatalf("full-corpus discovery did not produce the %s -> %s edge, fixture is not exercising the bug; evidence=%v",
+			sourceRepoID, targetRepoID, canonicalEvidence(fullEvidence))
+	}
+
+	// And the source fact's OWN repo_id (the prefix) must NOT be the reason it
+	// loads: a fact that references ONLY its own prefix repo_id is still excluded.
+	selfOnly := facts.Envelope{
+		ScopeID: "scope:app",
+		Payload: map[string]any{
+			"repo_id":       sourceRepoID,
+			"artifact_type": "terraform",
+			"relative_path": "main.tf",
+			"content":       `tags = { repo = "github.com/org/app" }`,
+		},
+	}
+	if deferredSelfExclusionSim(t, selfOnly, nonRepoID, repoIDValues) {
+		t.Fatal("a fact referencing only its own prefix repo_id was loaded; the self-exclusion is over-loading")
 	}
 }

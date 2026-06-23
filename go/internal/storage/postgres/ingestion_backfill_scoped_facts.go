@@ -85,39 +85,26 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 //	   matching $1 carries a cross-repo reference that is NOT keyed on its own
 //	   repo_id, so loading it can produce evidence and it is always loaded.
 //
-//	$2 pq.StringArray — LIKE terms wrapping each catalog entry's FULL lowercase
-//	   repo_id value. The arm tests these against the payload text AFTER the
-//	   fact's OWN repo_id value has been stripped out
-//	   (replace(lower(payload::text), lower(payload->>'repo_id'), '')). A fact
-//	   therefore matches $2 only when its content references ANOTHER repo's
-//	   repo_id verbatim — the legitimate cross-repo reference (go.mod,
-//	   manifests, ArgoCD/Argo configs that name a repo by its repo_id URL/path).
-//	   A fact whose only repo_id-shaped match is its own repo_id is dropped,
-//	   because removing the own repo_id value leaves no repo_id substring to
-//	   match. This is the defeat fix: every Git content/file payload carries its
-//	   own repo_id field, so without the strip the arm would self-match the
-//	   whole corpus.
+//	$2 pq.StringArray — raw lowercase repo_id values. The repo_id arm uses
+//	   EXISTS + strpos to load a fact only when its payload contains a catalog
+//	   repo_id value that is not the row's own repo_id.
 //
-// Why strip-then-match rather than a value-exclusion list: every ACTIVE repo's
-// own repo_id is in the catalog, so a predicate like
-// "payload->>'repo_id' != ALL(catalog_repo_ids)" would exclude EVERY active
-// repo's fact from the $2 arm — including legitimate cross-repo references —
-// breaking truth-equivalence. Stripping only the row's own repo_id value leaves
-// other repos' repo_id substrings intact, so cross-repo references survive while
-// pure self-matches are dropped.
+// Why EXISTS, not blind replace(): replace() corrupts overlap cases where the
+// own repo_id is a prefix of another repo's repo_id (for example app vs
+// app-config). EXISTS compares whole repo_id values, so the overlapping target
+// still matches.
 //
-// Why full repo_id values (not the longest token): repo_ids are referenced
-// across repos by their full URL/path (e.g. github.com/org/repo in go.mod), so
-// the full value is the substring that actually appears. Using the longest
-// single token instead would let a shared prefix token (github.com) match the
-// whole fleet, and stripping a token would corrupt overlapping tokens. The full
-// value both preserves the superset guarantee for real repo_id references and
-// keeps the strip self-exclusion precise.
+// Why not a value-exclusion list (payload->>'repo_id' != ALL($2)): every ACTIVE
+// repo's own repo_id is in the catalog, so that predicate would exclude EVERY
+// active repo's fact from the repo_id arm — including legitimate cross-repo
+// references — also breaking truth-equivalence. The EXISTS test excludes only
+// the row's exact self-value while keeping all OTHER repos' repo_id matches.
 //
 // Correctness invariant (truth-equivalence): a fact in repo A that references
-// repo B's repo_id (A ≠ B) keeps B's value after A's value is stripped, so it
-// matches $2 and is loaded. A fact whose only repo_id match is its own (A) loses
-// it after the strip, so it is dropped — and the in-memory catalogMatcher would
+// repo B's repo_id (A ≠ B, including B that contains A as a substring) has B's
+// value present and B <> A, so EXISTS is true and the fact is loaded. A fact
+// whose only repo_id match is its own (A) has no OTHER catalog repo_id present,
+// so EXISTS is false and it is dropped — and the in-memory catalogMatcher would
 // have skipped that self-match anyway (entry.RepoID == sourceRepoID), so no
 // evidence the full-corpus load would have produced is dropped.
 //
@@ -169,11 +156,16 @@ WHERE latest.generation_id IS NOT NULL
   AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
   AND (
     lower(fact.payload::text) LIKE ANY($1)
-    OR replace(
-         lower(fact.payload::text),
-         lower(COALESCE(NULLIF(fact.payload->>'repo_id', ''), '\x00')),
-         ''
-       ) LIKE ANY($2)
+    OR EXISTS (
+      SELECT 1
+      FROM unnest($2::text[]) AS catalog_repo_id(value)
+      WHERE catalog_repo_id.value <> lower(COALESCE(fact.payload->>'repo_id', ''))
+        AND lower(fact.payload::text) ~ (
+          '(^|[^a-z0-9._-])'
+          || regexp_replace(catalog_repo_id.value, '([.^$*+?()\[\]{}|\\-])', '\\\1', 'g')
+          || '($|[^a-z0-9._-])'
+        )
+    )
   )
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
 `
@@ -407,9 +399,12 @@ func backfillNonRepoIDAnchorTerms(catalog []relationships.CatalogEntry) []string
 // loadDeferredAnchorScopedRelationshipFacts is the deferred-backfill replacement
 // for loadAnchorScopedRelationshipFacts (issue #3659). It issues the
 // self-exclusion query variant (listDeferredScopedRelationshipFactRecordsQuery)
-// with three parameters so the DB excludes facts that only match because their
-// own repo_id appears as an anchor, while still loading facts that reference
-// ANOTHER repo's repo_id in their content.
+// with two parameters ($1 non-repo_id LIKE terms, $2 raw repo_id values) so the
+// DB excludes facts that only match because their own repo_id appears as an
+// anchor, while still loading facts that reference ANOTHER repo's repo_id in
+// their content. The repo_id arm is an EXISTS(unnest($2)) self-aware substring
+// test, so a target repo_id that merely contains the source repo_id as a
+// substring is still matched (no blind replace() corruption).
 //
 // Phase two (ArgoCD config-repo reload) is identical to the per-commit path.
 func loadDeferredAnchorScopedRelationshipFacts(
@@ -427,24 +422,28 @@ func loadDeferredAnchorScopedRelationshipFacts(
 	}
 
 	nonRepoIDLike := buildPayloadAnchorLikeTerms(nonRepoIDTerms)
-	// $2 wraps each FULL repo_id value as a substring LIKE term; the query strips
-	// the row's own repo_id before testing it, so only cross-repo references match.
-	repoIDLike := buildPayloadAnchorLikeTerms(repoIDValues)
+	repoIDRaw := make([]string, 0, len(repoIDValues))
+	for _, value := range repoIDValues {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value != "" {
+			repoIDRaw = append(repoIDRaw, value)
+		}
+	}
 
 	// Zero-length arrays are valid: LIKE ANY({}) is false, so an empty arm simply
 	// never contributes a match.
 	if nonRepoIDLike == nil {
 		nonRepoIDLike = []string{}
 	}
-	if repoIDLike == nil {
-		repoIDLike = []string{}
+	if repoIDRaw == nil {
+		repoIDRaw = []string{}
 	}
 
 	rows, err := queryer.QueryContext(
 		ctx,
 		listDeferredScopedRelationshipFactRecordsQuery,
 		pq.StringArray(nonRepoIDLike),
-		pq.StringArray(repoIDLike),
+		pq.StringArray(repoIDRaw),
 	)
 	if err != nil {
 		return nil, err
