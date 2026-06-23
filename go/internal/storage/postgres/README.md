@@ -497,21 +497,41 @@ resource names verbatim, so every needed token is a substring of
   `privateTerraformRegistryProvider`, where only the `<provider>` path segment
   appears in the payload, never the full alias. `CatalogPayloadAnchors` therefore
   also emits the captured `<provider>` suffix as an anchor.
-- **ArgoCD ApplicationSet template synthesis.** `discoverArgoCDDocumentEvidence`
-  renders candidate repoURLs by substituting template parameters harvested from a
-  *different* config repository's content and from `normalizePlatformToken`'d path
-  basenames, so the matched token need not appear in the ArgoCD fact's own
-  payload. ArgoCD-shaped facts are over-selected unconditionally via
-  `argoCDOverSelectAnchors` (`kind: Application`, `kind: ApplicationSet`,
-  `argocd_applications`, `argocd_applicationsets`, `"artifact_type":"argocd"`).
+- **ArgoCD ApplicationSet template synthesis (two-phase load).**
+  `discoverArgoCDDocumentEvidence` renders candidate repoURLs by substituting
+  template parameters harvested from a *different* config repository's content and
+  from `normalizePlatformToken`'d path basenames, so the matched token need not
+  appear in the ArgoCD fact's own payload. ArgoCD-shaped facts are over-selected
+  unconditionally via `argoCDOverSelectAnchors` (`kind: Application`,
+  `kind: ApplicationSet`, `argocd_applications`, `argocd_applicationsets`,
+  `"artifact_type":"argocd"`) — that is **phase one**. But an ApplicationSet's git
+  file generator targets an *external* config repo, and the deploy repoURL is
+  synthesized from that config file's params (e.g. `team` + `service`), so the
+  newly-onboarded deploy repo's alias appears in neither the ApplicationSet
+  payload nor the config file. Neither the alias anchors nor the ArgoCD markers
+  select that external config file, so phase one alone would drop the deploy edge.
+  **Phase two** repairs this: `ResolveArgoCDGeneratorConfigRepos` parses the loaded
+  ApplicationSets' generator repoURLs, resolves the config repos against the full
+  catalog, and `loadArgoCDGeneratorConfigFacts` reloads those repos' generator-path
+  (`.yaml`/`.yml`/`.json`) content/file facts, which `mergeRelationshipFacts` folds
+  into the scoped load so the content index `DiscoverEvidence` builds is complete.
+  `backfillScopedCatalog` additionally adds the config repos' catalog entries
+  because the deploy edge resolves the intermediate config repoURL against the
+  catalog before the target — the same intermediate-match pattern as GCP source
+  resolution. Adding a config repo cannot create a spurious edge: the deploy target
+  must still be a catalog entry (a new repo), and the config repo is excluded as a
+  deploy target by discovery.
 
 Over-selection is safe; under-selection would drop correlation truth. Accuracy is
 pinned by `TestCatalogPayloadAnchorsSelectsEveryExtractorFamily` (one matching
 fact per extractor family, including the private-registry module and the
-ApplicationSet, is selected) and the central
+ApplicationSet, is selected), the central
 `TestScopedFactLoadEqualsFullLoadForScopedCatalog` gate (discovery over the
 anchor-scoped load equals discovery over the full corpus, edge-for-edge, on a
-mixed corpus that genuinely excludes non-matching facts).
+mixed corpus that genuinely excludes non-matching facts), and
+`TestTwoPhaseScopedLoadIncludesExternalArgoCDConfig` (the two-phase load discovers
+the external-config-synthesized ApplicationSet deploy edge that a single marker-only
+phase drops, matching the full-corpus result edge-for-edge).
 
 Benchmark Evidence: `BenchmarkBackfillDiscoveryFullFleet{1k,5k}` vs
 `BenchmarkBackfillDiscoveryScopedFleet{1k,5k}` in
