@@ -359,8 +359,9 @@ func newRouterWithSemanticEmbedding(
 			HybridRanker: newCodeHybridRanker(semanticSearchEmbedding),
 		},
 		Content: &query.ContentHandler{
-			Content: contentReader,
-			Profile: queryProfile,
+			Content:      contentReader,
+			Profile:      queryProfile,
+			HybridRanker: newContentHybridRanker(semanticSearchEmbedding),
 		},
 		Infra: &query.InfraHandler{
 			Neo4j:      neo4jReader,

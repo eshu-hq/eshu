@@ -69,6 +69,19 @@ func newCodeHybridRanker(config searchembedruntime.Config) query.CodeResultReran
 	return query.NewCodeHybridRanker(true)
 }
 
+// newContentHybridRanker builds the optional search_entity_content /
+// search_file_content hybrid re-ranker. Like newCodeHybridRanker it is gated only
+// on whether semantic search is enabled and owns a process-local deterministic
+// embedder, so request source snippets never egress on the content-search path.
+// When semantic search is disabled the ranker is nil and the content-search
+// tools keep their lexical content order.
+func newContentHybridRanker(config searchembedruntime.Config) query.ContentResultReranker {
+	if !config.Enabled {
+		return nil
+	}
+	return query.NewContentHybridRanker(true)
+}
+
 func newSemanticSearchHybrid(
 	db *sql.DB,
 	config searchembedruntime.Config,

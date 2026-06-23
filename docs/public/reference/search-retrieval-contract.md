@@ -221,6 +221,41 @@ the hybrid pass changed the ranking, so an operator can confirm from the
 response envelope whether vector retrieval participated. The bounded request
 reuses the `searchretrieval` request-validation contract.
 
+### search_entity_content / search_file_content Hybrid Re-rank
+
+`go/internal/query.ContentHybridRanker` applies the same bounded lane to the
+`search_entity_content` (`POST /api/v0/content/entities/search`) and
+`search_file_content` (`POST /api/v0/content/files/search`) tools. It is the same
+re-rank design as `CodeHybridRanker`, not a new approach:
+
+- it owns the same process-local deterministic hash embedder and accepts no
+  provider embedder, so request-local `source_cache` / file content never
+  egresses;
+- it runs only after the lexical content path has retrieved and authorized a
+  bounded result set (capped by the request limit, default 50, hard cap 200), and
+  only when the request resolved to a single repository scope; it never widens
+  the candidate set, issues no extra graph or Postgres read, and builds a fresh
+  request-local `searchhybrid.Index` over only those rows;
+- it projects entity rows through `searchdocs.ProjectContentEntity` and file rows
+  through `searchdocs.ProjectContentFile`, so the searchable text, truth labels,
+  and graph handles match the persisted search-document lane;
+- it ranks repository-scoped `hybrid` mode (BM25 fused with vector cosine via
+  RRF) and reorders the existing rows by fused rank, tagging reordered rows with
+  `search_backend=hybrid`;
+- it preserves the lexical order and lexical `content_index` truth basis
+  unchanged when it cannot fuse a signal (no embedder / semantic search disabled,
+  fewer than two rows, no single-repo scope, or no projectable document), never
+  drops or adds a row, and never relabels a row as canonical truth.
+
+The content tools keep `source_backend=postgres_content_store`; this change adds
+only result ordering plus the per-row `search_backend=hybrid` marker on reordered
+rows, so the response envelope and wire contract are otherwise unchanged. The
+ranker is wired only when the runtime's semantic search is enabled; content-only
+deployments keep the lexical content order. `go test ./internal/query -run
+'SearchEntityContentResultsAreHybridReranked|SearchFileContentResultsAreHybridReranked|ContentHybridRerank'`
+proves a known fixture is reordered by hybrid relevance and that the lexical
+fallback edges preserve order, basis, and length.
+
 ## Persisted Postgres Search Index
 
 `go/internal/storage/postgres.EshuSearchIndexStore` serves the default public

@@ -228,7 +228,8 @@ const openAPIComponents = `  "components": {
           "content": {"type": "string"},
           "content_hash": {"type": "string"},
           "line_count": {"type": "integer"},
-          "language": {"type": "string"}
+          "language": {"type": "string"},
+          "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on search_file_content rows reordered by the bounded fused BM25+vector re-rank; absent when the lexical content-index order was served."}
         }
       },
       "EntityContent": {
@@ -243,6 +244,7 @@ const openAPIComponents = `  "components": {
           "end_line": {"type": "integer"},
           "language": {"type": "string"},
           "source_cache": {"type": "string"},
+          "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on search_entity_content rows reordered by the bounded fused BM25+vector re-rank; absent when the lexical content-index order was served."},
           "metadata": {
             "type": "object",
             "additionalProperties": true,

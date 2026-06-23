@@ -10,4 +10,9 @@ type FileContent struct {
 	LineCount    int    `json:"line_count"`
 	Language     string `json:"language,omitempty"`
 	ArtifactType string `json:"artifact_type,omitempty"`
+	// SearchBackend is set to "hybrid" only on rows reordered by the bounded
+	// in-request BM25+vector re-rank; it is empty (and omitted on the wire) when
+	// the lexical content-index order was served, so the lexical truth basis
+	// stays authoritative.
+	SearchBackend string `json:"search_backend,omitempty"`
 }
