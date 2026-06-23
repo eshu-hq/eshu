@@ -2395,6 +2395,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "code_import_repo_edge",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "code_interproc_evidence",
       "readiness": "implemented"
     },
