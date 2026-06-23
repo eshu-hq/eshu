@@ -70,3 +70,20 @@ commit so the new guarantee is reviewed and recorded.
 - [Local Testing](local-testing.md) — verification matrix entry for this gate.
 - [Cypher Performance](cypher-performance.md) — adjacent hot-path accuracy and
   performance contracts.
+
+## Performance Evidence
+
+- No-Regression Evidence: #3499 adds the `accuracygate` package plus a CI step
+  that scores already-shipped measurement harnesses (parser complexity, reducer
+  `ExtractCodeCallRows` resolvers, `admissionaudit` correlation) against a
+  checked-in baseline. Baseline: current reducer, parser, and admission runtime
+  behavior. After: byte-identical runtime behavior — no reducer domain, Cypher,
+  graph write, worker, lease, batch size, or concurrency knob changes; the gate
+  only reads existing output at test time. Backend/version: NornicDB and Neo4j
+  compatibility paths unchanged. Input shape: golden fixtures under the package
+  `testdata`. Terminal queue and row counts: unaffected — no queue or projection
+  path is touched. Safe because it adds an observational test gate, not a runtime
+  code path.
+- No-Observability-Change: no new or changed spans, metrics, metric labels,
+  logs, or status fields on any runtime path; the deterministic
+  `PublishedMetrics` snapshot is emitted only during the gate test run.
