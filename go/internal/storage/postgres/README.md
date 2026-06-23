@@ -614,3 +614,44 @@ shape; the existing `relationship.backfill_deferred` span, the
 `deferred_backfill_completed` log line still surface the path, now recording a
 bounded fact load. A shrinking `DeferredBackfillDuration` against a growing fleet
 is the operator-visible signal that the scope bound is in effect.
+
+### Backfill source-file split (#3673)
+
+`ingestion_backfill.go` had grown to 735 lines, over the repo's 500-line
+per-file limit. It is split along three cohesive seams with no behavior change:
+
+- `ingestion_backfill.go` — deferred batch/transaction maintenance machinery
+  (`BackfillAllRelationshipEvidence`, `writeDeferredBackfillInBatches`,
+  `writeDeferredBackfillBatch`, `RunDeferredRelationshipMaintenance`, the
+  deployment-mapping reopen pair), the active-generation/work-item loaders, and
+  the generation-precondition helpers.
+- `ingestion_backfill_per_commit.go` — the per-commit new-repository
+  relationship backfill (`backfillRelationshipEvidenceForNewRepositories`) and
+  its catalog/evidence scoping helpers (`backfillScopedCatalog`,
+  `repositoryScopedCatalog`, `filterEvidenceByTargetRepo`).
+- `ingestion_catalog_parse.go` — repository-catalog loading and payload parsing
+  (`loadRepositoryCatalog`, `catalogRepoIDs`, `repositoryCatalogEntryFromPayload`,
+  `repositoryCatalogEntryFromMap`, `catalogString`, `uniqueCatalogAliases`).
+
+Package `postgres` and every exported and unexported symbol are preserved
+verbatim; only the per-file import sets are narrowed. The exported surface is
+unchanged, so `doc.go`, `README.md` (other than this note), and `AGENTS.md` need
+no contract edits.
+
+No-Regression Evidence: pure mechanical move on PostgreSQL 16 (the package's
+test backend). Function bodies, the `deferredMaintenanceRepoBatchSize = 32`
+constant, lock-key derivation, batch sizing, and SQL queries are byte-identical
+to the prior single file, so the deferred-maintenance lock partitioning,
+per-batch transaction scope, idempotency, and scope-bounded discovery behavior
+documented above are unchanged. Verified with `go build ./...`,
+`go test ./internal/storage/postgres -count=1` (1065 tests pass, same terminal
+count as before the split), and `golangci-lint run ./internal/storage/postgres/...`
+(no issues). No benchmark is rerun because no instruction on any hot path
+changed; the #3569/#3500/#3570 benchmarks above still describe the same code.
+
+No-Observability-Change: the split moves code between files only. The
+`relationship.backfill_deferred` and `bootstrap.reopen_deployment_mapping`
+spans, the `DeferredBackfillDuration`/`DeferredBackfillEvidence`/
+`DeploymentMappingReopened` instruments, and the `deferred_backfill_completed`/
+`deployment_mapping_reopened`/`relationship_backfill_deferred_source_skipped`
+log lines are emitted from the same statements, now relocated.
