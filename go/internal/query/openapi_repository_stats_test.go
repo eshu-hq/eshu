@@ -55,4 +55,48 @@ func TestOpenAPIRepositoryDocumentsGroupEvidenceFields(t *testing.T) {
 			t.Fatalf("Repository schema missing %s", field)
 		}
 	}
+
+	// group_source must enumerate dependency_cluster so clients accept the new
+	// primary grouping value added by issue #3504.
+	groupSource := mustMapField(t, properties, "group_source")
+	groupSourceEnums := enumStrings(t, groupSource, "group_source")
+	for _, want := range []string{"dependency_cluster", "repository_dependency_flag", "repo_slug_namespace", "remote_url_owner", "missing_evidence"} {
+		if !containsString(groupSourceEnums, want) {
+			t.Errorf("group_source enum missing %q; got %v", want, groupSourceEnums)
+		}
+	}
+
+	// group_kind must enumerate cluster so clients accept the cluster value
+	// emitted when group_source is dependency_cluster.
+	groupKind := mustMapField(t, properties, "group_kind")
+	groupKindEnums := enumStrings(t, groupKind, "group_kind")
+	for _, want := range []string{"cluster", "source", "dependency", "unknown"} {
+		if !containsString(groupKindEnums, want) {
+			t.Errorf("group_kind enum missing %q; got %v", want, groupKindEnums)
+		}
+	}
+}
+
+// enumStrings extracts the JSON Schema "enum" array from a property map as a
+// slice of strings. It fails the test if the field is absent or not a []any of
+// strings.
+func enumStrings(t *testing.T, prop map[string]any, field string) []string {
+	t.Helper()
+	raw, ok := prop["enum"]
+	if !ok {
+		t.Fatalf("%s schema missing enum array", field)
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		t.Fatalf("%s enum is not an array, got %T", field, raw)
+	}
+	out := make([]string, 0, len(items))
+	for _, v := range items {
+		s, ok := v.(string)
+		if !ok {
+			t.Fatalf("%s enum item is not a string: %v (%T)", field, v, v)
+		}
+		out = append(out, s)
+	}
+	return out
 }

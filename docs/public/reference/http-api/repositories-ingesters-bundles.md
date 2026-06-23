@@ -60,20 +60,30 @@ but have a git remote URL group from the org/owner segment of that remote
 includes `repository_group_evidence_missing` instead of forcing a heuristic
 group.
 
-No-Regression Evidence: `go test ./internal/query -run 'TestRepositoryListExposesSourceBackedGroupEvidence|TestOpenAPIRepositoryDocumentsGroupEvidenceFields' -count=1`
+No-Regression Evidence: `go test ./internal/query -run 'TestRepositoryListExposesSourceBackedGroupEvidence|TestOpenAPIRepositoryDocumentsGroupEvidenceFields|TestListRepositoriesGroupsByDependencyCluster|TestListRepositoriesScopedDependencyClusterMembership|TestRepositoryDependencyCluster' -count=1`
 proves graph-backed repository rows expose grouping evidence, dependency rows
-stay distinguishable, missing evidence is explicit, and the OpenAPI schema
-documents the new fields. `npm run console:test -- --run
+stay distinguishable, missing evidence is explicit, the OpenAPI schema documents
+the new fields with correct enum values for `group_source` (including
+`dependency_cluster`) and `group_kind` (including `cluster`), and the
+end-to-end handler assigns the right cluster keys. `npm run console:test -- --run
 apps/console/src/api/repoCatalog.test.ts
 apps/console/src/pages/RepositoriesPage.test.tsx` proves the console loader and
 Repositories page consume the source-backed fields.
 
-No-Observability-Change: grouping is derived from repository fields already read
-by the bounded inventory route. It adds no graph traversal, Postgres read,
-collector call, queue work, runtime setting, metric label, or span. Operators
-continue to diagnose the route through the existing query truth envelope,
-request metrics, `result_limits`, `partial_reasons`, and repository query
-errors.
+Observability Evidence: the dependency-cluster edge pre-pass
+(`loadRepositoryDependencyClusters`) issues one bounded
+`MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) … LIMIT 50000` query per
+`GET /api/v0/repositories` call that reaches the graph backend. It is
+instrumented with the existing `startRepositoryQueryStage` / `Done` timer
+(operation=`repository_list`, stage=`dependency_cluster_edges`), which emits
+`repository_query.stage_started` and `repository_query.stage_completed` log
+events carrying `duration_seconds` and `cluster_count`. Operators can observe
+the pre-pass latency and result cardinality from structured logs or any log
+aggregator hooked to those events. On error the function returns an empty map
+and the handler continues with degraded (non-cluster) grouping rather than
+failing the request — the degraded path is visible through the per-row
+`group_source=missing_evidence` values in the response. No new metric label,
+queue work, collector call, Postgres read, or runtime knob is added.
 
 `GET /api/v0/repositories/by-language?language=typescript&limit=100&offset=0`
 returns `repository_count`, `file_count`, normalized language aliases, and a

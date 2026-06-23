@@ -144,7 +144,14 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 	// per-row decoration below gives that cluster precedence over the
 	// source-backed slug/owner/flag derivation. Repositories in no dependency
 	// edge fall through to honest missing_evidence rather than a name heuristic.
+	//
+	// The pre-pass is instrumented with the existing stage timer so operators
+	// can diagnose its duration and edge count from the
+	// repository_query.stage_started / repository_query.stage_completed log
+	// events (operation=repository_list, stage=dependency_cluster_edges).
+	clusterTimer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_list", "", "dependency_cluster_edges")
 	clusters := loadRepositoryDependencyClusters(r.Context(), h.Neo4j, access)
+	clusterTimer.Done(r.Context(), slog.Int("cluster_count", len(clusters)))
 
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
