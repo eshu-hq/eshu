@@ -54,7 +54,7 @@ func buildObservedReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
-	if err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner)); err != nil {
+	if err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), getenv); err != nil {
 		return reducer.Service{}, err
 	}
 	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)

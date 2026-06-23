@@ -50,6 +50,16 @@ type GraphOrphanObserver interface {
 	GraphOrphanNodeCounts(ctx context.Context) (map[string]int64, error)
 }
 
+// ActiveGenerationAgeObserver provides bounded active-generation counts keyed by
+// a closed activation-age bucket (fresh, aging, stuck). The stuck bucket is the
+// operator alarm signal that generations are wedging.
+type ActiveGenerationAgeObserver interface {
+	// ActiveGenerationsByAge returns current active generation counts keyed by a
+	// closed age bucket. Implementations must never key by raw scope or
+	// generation identifiers.
+	ActiveGenerationsByAge(ctx context.Context) (map[string]int64, error)
+}
+
 // AWSClaimConcurrencyObserver provides active AWS claim counts by account.
 type AWSClaimConcurrencyObserver interface {
 	// AWSClaimConcurrency returns active claim counts keyed by AWS account ID.
@@ -78,6 +88,9 @@ type Instruments struct {
 	GenerationRetentionRowsPruned             metric.Int64Counter
 	GenerationRetentionFailures               metric.Int64Counter
 	GenerationRetentionSkipped                metric.Int64Counter
+	GenerationLivenessRecovered               metric.Int64Counter
+	GenerationLivenessSuperseded              metric.Int64Counter
+	GenerationLivenessFailures                metric.Int64Counter
 	DeltaBaselineFallbacks                    metric.Int64Counter
 	ReconciliationFullSnapshots               metric.Int64Counter
 	ReconciliationDriftRetractions            metric.Int64Counter
@@ -814,12 +827,13 @@ type Instruments struct {
 	PipelineOverlapDuration metric.Float64Histogram
 
 	// Observable gauges for autoscaling signals
-	QueueDepth           metric.Int64ObservableGauge
-	QueueOldestAge       metric.Float64ObservableGauge
-	WorkerPoolActive     metric.Int64ObservableGauge
-	SharedAcceptanceRows metric.Int64ObservableGauge
-	GraphOrphanNodes     metric.Int64ObservableGauge
-	AWSClaimConcurrency  metric.Int64ObservableGauge
+	QueueDepth             metric.Int64ObservableGauge
+	QueueOldestAge         metric.Float64ObservableGauge
+	WorkerPoolActive       metric.Int64ObservableGauge
+	SharedAcceptanceRows   metric.Int64ObservableGauge
+	GraphOrphanNodes       metric.Int64ObservableGauge
+	AWSClaimConcurrency    metric.Int64ObservableGauge
+	ActiveGenerationsByAge metric.Int64ObservableGauge
 	// WorkflowFamilyQueueDepth reports outstanding claim-aware collector queue
 	// depth by collector_kind, source_system, and status (issue #2699/#2857).
 	WorkflowFamilyQueueDepth metric.Int64ObservableGauge
@@ -971,6 +985,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GenerationRetentionSkipped counter: %w", err)
+	}
+
+	inst.GenerationLivenessRecovered, err = meter.Int64Counter(
+		"eshu_dp_generation_liveness_recovered_total",
+		metric.WithDescription("Total wedged active generations re-driven through projector re-enqueue by the liveness sweep"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationLivenessRecovered counter: %w", err)
+	}
+
+	inst.GenerationLivenessSuperseded, err = meter.Int64Counter(
+		"eshu_dp_generation_liveness_superseded_total",
+		metric.WithDescription("Total orphaned older active generations superseded by the liveness sweep"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationLivenessSuperseded counter: %w", err)
+	}
+
+	inst.GenerationLivenessFailures, err = meter.Int64Counter(
+		"eshu_dp_generation_liveness_failures_total",
+		metric.WithDescription("Total generation liveness recovery sweep failures by bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationLivenessFailures counter: %w", err)
 	}
 
 	inst.DeltaBaselineFallbacks, err = meter.Int64Counter(
@@ -3472,6 +3510,45 @@ func RegisterGraphOrphanObservableGauge(inst *Instruments, meter metric.Meter, o
 	)
 	if err != nil {
 		return fmt.Errorf("register GraphOrphanNodes gauge: %w", err)
+	}
+	return nil
+}
+
+// RegisterActiveGenerationAgeObservableGauge registers the active-generation
+// age-bucket gauge. The callback runs read-only on the meter collection
+// goroutine and is a no-op when observer is nil so binaries without a liveness
+// store skip it. The "stuck" bucket doubles as the wedged-generation alarm
+// signal: a non-zero value means active generations are eligible for recovery.
+func RegisterActiveGenerationAgeObservableGauge(inst *Instruments, meter metric.Meter, observer ActiveGenerationAgeObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.ActiveGenerationsByAge, err = meter.Int64ObservableGauge(
+		"eshu_dp_active_generations",
+		metric.WithDescription("Current active scope generation count by closed activation-age bucket (fresh, aging, stuck)"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			counts, err := observer.ActiveGenerationsByAge(ctx)
+			if err != nil {
+				return err
+			}
+			for bucket, count := range counts {
+				o.Observe(count, metric.WithAttributes(
+					attribute.String(MetricDimensionAgeBucket, bucket),
+				))
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ActiveGenerationsByAge gauge: %w", err)
 	}
 	return nil
 }

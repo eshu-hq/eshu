@@ -58,6 +58,12 @@ const (
 	generationRetentionPolicyScopeEnv              = "ESHU_GENERATION_RETENTION_POLICY_SCOPE"
 	generationRetentionPolicyRevisionEnv           = "ESHU_GENERATION_RETENTION_POLICY_REVISION"
 
+	generationLivenessEnabledEnv            = "ESHU_GENERATION_LIVENESS_ENABLED"
+	generationLivenessPollIntervalEnv       = "ESHU_GENERATION_LIVENESS_POLL_INTERVAL"
+	generationLivenessActivationDeadlineEnv = "ESHU_GENERATION_LIVENESS_ACTIVATION_DEADLINE"
+	generationLivenessMaxRecoverAttemptsEnv = "ESHU_GENERATION_LIVENESS_MAX_RECOVER_ATTEMPTS"
+	generationLivenessBatchLimitEnv         = "ESHU_GENERATION_LIVENESS_BATCH_LIMIT"
+
 	graphOrphanSweepEnabledEnv      = "ESHU_GRAPH_ORPHAN_SWEEP_ENABLED"
 	graphOrphanSweepPollIntervalEnv = "ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL"
 	graphOrphanSweepTTLEnv          = "ESHU_GRAPH_ORPHAN_SWEEP_TTL"
@@ -89,16 +95,27 @@ const (
 	defaultGraphProjectionRepairRetryDelay   = time.Minute
 
 	defaultGenerationRetentionPollInterval = time.Hour
-	defaultGraphOrphanSweepPollInterval    = time.Hour
-	defaultGraphOrphanSweepTTL             = 7 * 24 * time.Hour
-	defaultGraphOrphanSweepBatchLimit      = 100
-	defaultGraphOrphanSweepCountLimit      = 10_000
-	defaultGraphOrphanSweepLeaseTTL        = 5 * time.Minute
+
+	defaultGenerationLivenessPollInterval       = 5 * time.Minute
+	defaultGenerationLivenessActivationDeadline = 30 * time.Minute
+	defaultGenerationLivenessMaxRecoverAttempts = 5
+	defaultGenerationLivenessBatchLimit         = 200
+
+	defaultGraphOrphanSweepPollInterval = time.Hour
+	defaultGraphOrphanSweepTTL          = 7 * 24 * time.Hour
+	defaultGraphOrphanSweepBatchLimit   = 100
+	defaultGraphOrphanSweepCountLimit   = 10_000
+	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
 )
 
 type generationRetentionConfig struct {
 	Enabled bool
 	Runner  reducer.GenerationRetentionRunnerConfig
+}
+
+type generationLivenessConfig struct {
+	Enabled bool
+	Runner  reducer.GenerationLivenessRunnerConfig
 }
 
 type graphOrphanSweepConfig struct {
@@ -326,6 +343,23 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 				BatchRowLimit:            loadPositiveIntOrDefault(getenv, generationRetentionBatchRowLimitEnv, defaults.BatchRowLimit),
 				PolicyScope:              loadStringOrDefault(getenv, generationRetentionPolicyScopeEnv, defaults.PolicyScope),
 				PolicyRevision:           loadStringOrDefault(getenv, generationRetentionPolicyRevisionEnv, defaults.PolicyRevision),
+			},
+		},
+	}
+}
+
+func loadGenerationLivenessConfig(getenv func(string) string) generationLivenessConfig {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	return generationLivenessConfig{
+		Enabled: loadBoolOrDefault(getenv, generationLivenessEnabledEnv, true),
+		Runner: reducer.GenerationLivenessRunnerConfig{
+			PollInterval: loadDurationOrDefault(getenv, generationLivenessPollIntervalEnv, defaultGenerationLivenessPollInterval),
+			Policy: reducer.GenerationLivenessPolicy{
+				ActivationDeadline: loadDurationOrDefault(getenv, generationLivenessActivationDeadlineEnv, defaultGenerationLivenessActivationDeadline),
+				MaxRecoverAttempts: loadPositiveIntOrDefault(getenv, generationLivenessMaxRecoverAttemptsEnv, defaultGenerationLivenessMaxRecoverAttempts),
+				BatchLimit:         loadPositiveIntOrDefault(getenv, generationLivenessBatchLimitEnv, defaultGenerationLivenessBatchLimit),
 			},
 		},
 	}

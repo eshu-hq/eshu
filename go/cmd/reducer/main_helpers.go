@@ -77,6 +77,7 @@ func registerReducerObservableGauges(
 	db *sql.DB,
 	activeWorkers *atomic.Int64,
 	graphOrphanObserver telemetry.GraphOrphanObserver,
+	getenv func(string) string,
 ) error {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
 	workerObserver := reducerWorkerObserver{active: activeWorkers}
@@ -95,6 +96,11 @@ func registerReducerObservableGauges(
 	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
 	if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, workflowFamilyQueueObserver); err != nil {
 		return fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
+	}
+
+	activeGenerationObserver := activeGenerationAgeObserverFor(postgres.SQLDB{DB: db}, loadGenerationLivenessConfig(getenv))
+	if err := telemetry.RegisterActiveGenerationAgeObservableGauge(instruments, meter, activeGenerationObserver); err != nil {
+		return fmt.Errorf("register active generation age observable gauge: %w", err)
 	}
 	return nil
 }

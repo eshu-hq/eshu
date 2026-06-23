@@ -37,6 +37,7 @@ func buildReducerService(
 	if err := validateGenerationRetentionConfig(getenv, generationRetentionCfg); err != nil {
 		return reducer.Service{}, err
 	}
+	generationLivenessCfg := loadGenerationLivenessConfig(getenv)
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
 	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger)
@@ -78,6 +79,11 @@ func buildReducerService(
 	if generationRetentionRunner != nil {
 		generationRetentionRunner.Instruments = instruments
 		generationRetentionRunner.Logger = logger
+	}
+	generationLivenessRunner := generationLivenessRunnerFor(database, generationLivenessCfg)
+	if generationLivenessRunner != nil {
+		generationLivenessRunner.Instruments = instruments
+		generationLivenessRunner.Logger = logger
 	}
 	graphOrphanSweepRunner := graphOrphanSweepRunnerFor(neo4jExec, graphReader, intentStore, graphOrphanSweepCfg)
 	if graphOrphanSweepRunner != nil {
@@ -455,6 +461,7 @@ func buildReducerService(
 			Logger:      logger,
 		},
 		GenerationRetentionRunner:       generationRetentionRunner,
+		GenerationLivenessRunner:        generationLivenessRunner,
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
 		SearchVectorBuildRunner:         searchVectorBuildRunner,

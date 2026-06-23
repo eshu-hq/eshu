@@ -578,6 +578,11 @@ console or API defect.
   projection through the durable Go work queue.
 - `POST /api/v0/admin/reindex` persists an asynchronous reindex request. The
   API process does not run the full reindex inline.
+- `POST /api/v0/admin/recover-generations` is the operator escape hatch for
+  generations that wedge `active` without advancing past
+  canonical-nodes-committed. It durably re-enqueues projector work for the named
+  scopes (re-driving reduce -> readiness -> projection over existing facts, no
+  re-clone) and records the action in the durable `admin_replay_requests` ledger.
 - `GET /api/v0/admin/shared-projection/tuning-report` returns the operator
   tuning report for shared-projection backlog behavior.
 - `POST /api/v0/admin/replay`
@@ -618,3 +623,77 @@ the durable queue.
 The CLI mirrors this: `eshu admin facts replay --reason "<why>" [--idempotency-key
 <key>] [--scope-id <id>] [--stage <stage>] [--failure-class <class>] [--force]`.
 A random idempotency key is generated when one is not supplied.
+
+### Wedged Generation Recovery
+
+A scope generation that reaches `active` but never advances past
+canonical-nodes-committed sits `active` indefinitely if no newer generation
+arrives to supersede it. Two mechanisms protect against this:
+
+- **Self-healing (reducer liveness sweep).** The reducer runs a lease-light,
+  periodic sweep (`GenerationLivenessRunner`) that flags `active` generations
+  whose `activated_at` is older than the activation deadline and that have no
+  newer same-scope generation, then durably re-enqueues projector work to
+  re-drive them. A bounded per-generation re-drive budget
+  (`liveness_recovery_attempts`, stored on the work item payload) prevents a
+  poison scope from looping forever. The sweep also supersedes orphaned older
+  `active` generations once a newer same-scope generation is authoritative.
+  Tune it with `ESHU_GENERATION_LIVENESS_*` (enabled, poll interval, activation
+  deadline, max recover attempts, batch limit). It is enabled by default.
+- **Operator escape hatch.** `POST /api/v0/admin/recover-generations` re-drives a
+  named set of wedged scopes on demand. Like replay it requires `scope_ids`, an
+  explicit `reason`, and an `idempotency_key`; requires an admin (all-scopes)
+  token; records the action in the durable `admin_replay_requests` ledger; and
+  returns the prior outcome (`duplicate=true`) for a repeated key. It re-enqueues
+  projector work over existing facts — no re-clone — so a wedged scope is driven
+  through canonical-nodes-committed -> completed -> projected.
+
+Observability for wedged generations:
+
+- `eshu_dp_active_generations` is a gauge of current active generations by
+  closed activation-age bucket (`fresh`, `aging`, `stuck`). A non-zero `stuck`
+  bucket is the wedged-generation alarm signal.
+- `eshu_dp_generation_liveness_recovered_total` and
+  `eshu_dp_generation_liveness_superseded_total` count what the sweep re-drove
+  and retired; `eshu_dp_generation_liveness_failures_total` counts sweep errors
+  by bounded reason.
+
+<!-- Evidence for issue #3478 generation-lifecycle recovery. -->
+
+No-Regression Evidence: The liveness sweep adds one new reducer side-runner that
+runs two bounded statements per poll (default 5m): a supersede UPDATE bounded by
+`LIMIT $2` over `scope_generations` partitioned by `scope_id` (using the existing
+`scope_generations_active_scope_idx`), and a wedged-detection re-enqueue bounded by
+`LIMIT $3` that re-uses the projector `fact_work_items` upsert (`ON CONFLICT
+(work_item_id) DO UPDATE`). No new hot-path Cypher or graph write is introduced;
+the re-drive re-uses the existing projector enqueue path. The conflict domain is
+`scope_id`; both statements are idempotent under concurrent reducer workers (a
+second sweep finds no remaining wedged/orphaned row) and bound the per-generation
+re-drive budget via `liveness_recovery_attempts` so a poison scope cannot loop. No
+worker-count, batch-size, or queue-default change. The active-by-age gauge reads a
+single bounded `GROUP BY age_bucket` aggregate over active rows per metrics scrape.
+Baseline: no liveness sweep existed (active generations wedged indefinitely:
+observed active=982 frozen). After: wedged actives are re-driven within the
+activation deadline (default 30m) under unit and race tests. Full before/after
+`scope_generations` counts require a live cluster and are recorded as the
+operational verification step below.
+
+Observability Evidence: New metrics `eshu_dp_active_generations` (gauge by
+fresh/aging/stuck age bucket; `stuck` is the wedged-generation alarm signal),
+`eshu_dp_generation_liveness_recovered_total`,
+`eshu_dp_generation_liveness_superseded_total`, and
+`eshu_dp_generation_liveness_failures_total` (by bounded reason), plus structured
+logs `generation liveness recovery cycle completed` / `... failed` with the
+`reduction` phase attribute. The `recover-generations` endpoint records a
+governance `admin_recovery_action` audit event and writes the
+`admin_replay_requests` ledger.
+
+Operational verification (requires a live cluster, not runnable here): capture
+`scope_generations` status counts (active/superseded/pending/completed) and
+`pending_projection.outstanding` before; enable the reducer (liveness on by
+default); confirm `eshu_dp_active_generations{age_bucket="stuck"}` drops and
+`eshu_dp_generation_liveness_recovered_total` rises as wedged actives advance to
+completed/projected; for a targeted scope, `POST /api/v0/admin/recover-generations`
+with `scope_ids`, `reason`, and `idempotency_key`, then confirm
+`admin_replay_requests` has the row and the scope drains through
+canonical-nodes-committed -> completed -> projected.
