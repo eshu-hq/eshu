@@ -58,15 +58,9 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 
-	// One shared in-flight permit pool bounds every reducer graph write under
-	// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT (#3560, #3652). rawNeo4jExec keeps the
-	// unbounded base so the semantic path can place the permit OUTSIDE its
-	// per-statement timeout (below); neo4jExec is the gate-wrapped base every
-	// other writer derives from, so handler edges, shared projection, canonical
-	// writers, secrets/IAM, and orphan sweep are bounded too. cypherExec is the
-	// gate-wrapped materializer path so workload and infrastructure-platform
-	// materializer writes share the same pool (#3652 P2). A non-positive knob
-	// yields a nil gate, so every wrap is a passthrough no-op.
+	// One shared permit pool bounds every reducer graph write (#3560, #3652; see
+	// reducerGraphWriteGate). rawNeo4jExec is the unbounded base for the semantic
+	// path's outside-the-timeout permit; neo4jExec and cypherExec are gate-wrapped.
 	graphWriteGate := newReducerGraphWriteGate(getenv, instruments)
 	rawNeo4jExec := neo4jExec
 	neo4jExec = graphWriteGate.boundExecutor(neo4jExec)
@@ -130,20 +124,13 @@ func buildReducerService(
 		graphWriters.codeInterprocEvidence,
 		logger,
 	)
-	// The semantic path adds a per-statement TimeoutExecutor
-	// (ESHU_CANONICAL_WRITE_TIMEOUT). Build it from the RAW executor so the
-	// timeout wraps the backend write only, then apply the shared permit gate as
-	// the OUTERMOST layer. This keeps permit-wait OUTSIDE the write timeout: a
-	// saturated pool delays a queued semantic write but never times it out, which
-	// is the whole point of the backpressure (#3652 P1). The gate is the same
-	// shared pool as every other writer, so the bound stays unified.
-	semanticEntityExecutor := graphWriteGate.boundExecutor(
-		semanticEntityExecutorForGraphBackend(
-			rawNeo4jExec,
-			graphBackend,
-			nornicDBCanonicalWriteTimeout(getenv),
-			nornicDBGroupedWrites,
-		),
+	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
+	// boundSemanticEntityExecutor.
+	semanticEntityExecutor := graphWriteGate.boundSemanticEntityExecutor(
+		rawNeo4jExec,
+		graphBackend,
+		nornicDBCanonicalWriteTimeout(getenv),
+		nornicDBGroupedWrites,
 	)
 	semanticEntityWriter, err := semanticEntityWriterForGraphBackend(semanticEntityExecutor, neo4jBatchSize(getenv), graphBackend, getenv)
 	if err != nil {

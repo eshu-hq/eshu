@@ -1,8 +1,11 @@
 package main
 
 import (
+	"time"
+
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -53,4 +56,28 @@ func (g reducerGraphWriteGate) boundExecutor(inner sourcecypher.Executor) source
 // unchanged.
 func (g reducerGraphWriteGate) boundCypherExecutor(inner reducer.CypherExecutor) reducer.CypherExecutor {
 	return graphbackpressure.WrapCypherExecutorWithGate(inner, g.gate)
+}
+
+// boundSemanticEntityExecutor composes the semantic write path so the shared
+// permit gate sits OUTSIDE the per-statement TimeoutExecutor
+// (ESHU_CANONICAL_WRITE_TIMEOUT). It builds the timeout/ExecuteOnly adapter from
+// rawExecutor (the unbounded base) so the timeout wraps the backend write only,
+// then applies the gate as the outermost layer. Permit-wait therefore stays
+// OUTSIDE the write timeout: a saturated pool delays a queued semantic write but
+// never times it out (#3652 P1). The gate is the same shared pool as every other
+// writer, so the bound stays unified.
+func (g reducerGraphWriteGate) boundSemanticEntityExecutor(
+	rawExecutor sourcecypher.Executor,
+	graphBackend runtimecfg.GraphBackend,
+	nornicDBTimeout time.Duration,
+	nornicDBGroupedWrites bool,
+) sourcecypher.Executor {
+	return g.boundExecutor(
+		semanticEntityExecutorForGraphBackend(
+			rawExecutor,
+			graphBackend,
+			nornicDBTimeout,
+			nornicDBGroupedWrites,
+		),
+	)
 }
