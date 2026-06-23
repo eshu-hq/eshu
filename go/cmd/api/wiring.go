@@ -172,6 +172,23 @@ func wireAPI(
 		return nil, nil, fmt.Errorf("configure oidc login: %w", err)
 	}
 	router.OIDCLogin = oidcLoginHandler
+	oidcSessionRefreshWorker, err := newOIDCSessionRefreshWorker(getenv, db, instruments, logger)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, fmt.Errorf("configure oidc session refresh: %w", err)
+	}
+	if oidcSessionRefreshWorker != nil {
+		go oidcSessionRefreshWorker.Run(ctx)
+		if logger != nil {
+			logger.Info(
+				"oidc session refresh worker started",
+				telemetry.EventAttr("auth.oidc.session_refresh.started"),
+			)
+		}
+	}
 	samlHandler, err := newSAMLHandler(db, instruments, getenv, browserSessionAdapter)
 	if err != nil {
 		_ = db.Close()
