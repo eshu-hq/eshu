@@ -45,6 +45,14 @@ matching resolvers; the package never walks the filesystem itself. It emits
 explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
 `unsupported_claim_type`.
 
+`VerificationFinding.Canonical(excerptHash)` projects one finding into the
+unified `truth.Evidence` record (issue #3489): it maps the finding truth level
+to a bounded confidence, cites the document via its identity plus the bounded
+excerpt content hash, and records derived provenance. Each evidence packet
+payload carries this as `unified_evidence` so documentation evidence describes
+proof with the same confidence + citation + provenance contract as relationship
+evidence and citation packets.
+
 ## Invariants
 
 - Claim candidates are document evidence only; they never become operational

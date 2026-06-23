@@ -377,6 +377,19 @@ const openAPIPathsEvidence = `
                     "bounded_excerpt": {"type": "object"},
                     "linked_entities": {"type": "array", "items": {"type": "object"}},
                     "current_truth": {"type": "object"},
+                    "unified_evidence": {"type": "object", "description": "Canonical truth.Evidence projection of this finding (#3489): confidence, citation (entity_id + content_hash), and typed provenance, so documentation evidence describes proof with the same shape as relationship evidence and citation packets.", "properties": {
+                      "kind": {"type": "string"},
+                      "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                      "citation": {"type": "object", "properties": {
+                        "entity_id": {"type": "string"},
+                        "content_hash": {"type": "string"}
+                      }},
+                      "provenance": {"type": "object", "properties": {
+                        "basis": {"type": "string", "enum": ["source_content", "graph_projection", "assertion", "derived"]},
+                        "rationale": {"type": "string"},
+                        "source": {"type": "string"}
+                      }}
+                    }},
                     "evidence_refs": {"type": "array", "items": {"type": "object"}},
                     "truth": {"type": "object"},
                     "permissions": {"type": "object"},
