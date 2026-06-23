@@ -205,7 +205,11 @@ func (s Service) Run(ctx context.Context) error {
 			// transient fault in one generation cannot stop ingestion. A
 			// dead-letter store failure is fatal infrastructure breakage and
 			// still propagates regardless of the commit error's class.
-			if retryable && storeErr == nil {
+			//
+			// Require an actual durable quarantine: s.DeadLetters must be
+			// non-nil so there is a real replay record. Without a sink there is
+			// nothing to replay; silently continuing would drop the commit error.
+			if retryable && s.DeadLetters != nil && storeErr == nil {
 				s.logRetryableCommit(observation.Context, collected, commitErr)
 				if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
 					return nil

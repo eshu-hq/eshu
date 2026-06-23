@@ -114,6 +114,44 @@ func TestServiceRunStillPropagatesNonRetryableCommitError(t *testing.T) {
 	}
 }
 
+// TestServiceRunRetryableCommitErrorIsFatalWithoutDeadLetterSink proves that
+// when Service has no DeadLetters sink, a retryable commit error is NOT
+// silently swallowed. Without a sink there is no durable quarantine record, so
+// the generation cannot be replayed; Run must return the commit error (fatal)
+// instead of continuing the loop.
+func TestServiceRunRetryableCommitErrorIsFatalWithoutDeadLetterSink(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generationValue, envelopes := testCollectedGeneration()
+	wantErr := retryableCommitError{msg: "transient commit failure no sink"}
+
+	service := Service{
+		Source: &stubSource{
+			collected: []CollectedGeneration{
+				FactsFromSlice(scopeValue, generationValue, envelopes),
+			},
+		},
+		Committer: &stubCommitter{
+			commit: func(
+				_ context.Context,
+				_ scope.IngestionScope,
+				_ scope.ScopeGeneration,
+				factStream <-chan facts.Envelope,
+			) error {
+				for range factStream {
+				}
+				return wantErr
+			},
+		},
+		// DeadLetters intentionally nil — no durable quarantine available.
+		PollInterval: time.Millisecond,
+	}
+
+	if err := service.Run(context.Background()); !errors.Is(err, wantErr) {
+		t.Fatalf("Run() error = %v, want wrapped %v (retryable must be fatal without dead-letter sink)", err, wantErr)
+	}
+}
+
 // TestIsRetryableCollectorError covers the retry classifier across the variants
 // the collector commit path can produce.
 func TestIsRetryableCollectorError(t *testing.T) {
