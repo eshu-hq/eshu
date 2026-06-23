@@ -46,7 +46,12 @@ and builds the canonical graph writer (`sourcecypher.NewCanonicalNodeWriter`
 backed by the adapter selected via `ESHU_GRAPH_BACKEND`). It then calls
 `buildIngesterService`, which assembles a `compositeRunner` through
 `newCompositeRunner` so `collector.Service` and `projector.Service` run
-concurrently. The first error from either service cancels the other.
+concurrently. Transient per-unit faults are owned by each service's own Run loop
+(durable dead-letter replay) and do not tear down the peer. Only a *fatal* error
+from either service cancels the other; the composite runner then waits a bounded
+drain grace for the sibling to finish its in-flight unit and joins every
+terminal error (see
+`docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`).
 
 `signal.NotifyContext` on `SIGINT` and `SIGTERM` propagates cancellation through
 `compositeRunner.Run`. `app.NewHostedWithStatusServer` mounts `/healthz`,
@@ -320,9 +325,14 @@ added or removed.
 
 ## Gotchas / invariants
 
-- `compositeRunner` cancels both services on the first error. A projector
-  shutdown logged alongside a collector shutdown does not mean both failed
-  independently; check which runner returned the first non-nil error.
+- `compositeRunner` isolates transient faults and only cancels the peer on a
+  *fatal* error, then drains the sibling within a bounded grace and joins every
+  terminal error with `errors.Join` (see
+  `docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`). A
+  projector shutdown logged alongside a collector shutdown does not mean both
+  failed independently; inspect the joined error and the
+  `composite_runner_fatal` / `composite_runner_drain_timeout` log fields to see
+  which runner failed and whether the drain was forced.
 - `IngestionStore.SkipRelationshipBackfill = true` suppresses per-commit
   backfill; `AfterBatchDrained` handles global relationship maintenance after
   each full drain instead (`wiring.go:195-222`).
