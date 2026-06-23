@@ -147,8 +147,10 @@ func TestCodeImportRepoEdgeHandlerNoOpWithoutWiring(t *testing.T) {
 	}
 }
 
-// TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport proves an import with no
-// matching owner produces no edge.
+// TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport proves that an import
+// with no matching owner produces no upsert edge, but does enqueue a
+// retract-only refresh intent so any stale projection/code-imports DEPENDS_ON
+// edge from a prior generation is cleaned up (P1 retract behaviour).
 func TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport(t *testing.T) {
 	t.Parallel()
 
@@ -177,8 +179,18 @@ func TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if len(intentWriter.rows) != 0 {
-		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 0 (unresolved import)", len(intentWriter.rows))
+	// One refresh/retract call is expected: the consumer is present with imports
+	// but resolves no owner, so the handler emits a retract-only intent to drop
+	// any stale code-import edge from a prior generation.
+	if len(intentWriter.rows) != 1 {
+		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 1 (refresh/retract for unresolved import)", len(intentWriter.rows))
+	}
+	rows := intentWriter.rows[0]
+	if len(rows) != 1 {
+		t.Fatalf("enqueued intents = %d, want 1 refresh/retract intent", len(rows))
+	}
+	if got := anyToString(rows[0].Payload["action"]); got != "retract" {
+		t.Errorf("action = %q, want retract", got)
 	}
 }
 
