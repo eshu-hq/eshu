@@ -233,15 +233,105 @@ func (idx codeImportOwnerIndex) empty() bool {
 // lookup returns the owning repository for one (ecosystem, coordinate). It
 // returns "" when no key matches or when every matching key is ambiguous.
 func (idx codeImportOwnerIndex) lookup(ecosystem, coordinate string) string {
+	repoID, _ := idx.lookupStatus(ecosystem, coordinate)
+	return repoID
+}
+
+// codeImportLookupStatus classifies one owner-lookup outcome so the handler can
+// emit a precise skip-reason counter.
+type codeImportLookupStatus int
+
+const (
+	// codeImportLookupNoOwner means no consumption key matched a registered owner.
+	codeImportLookupNoOwner codeImportLookupStatus = iota
+	// codeImportLookupResolved means exactly one owning repository matched.
+	codeImportLookupResolved
+	// codeImportLookupAmbiguous means a matching key was recorded ambiguous.
+	codeImportLookupAmbiguous
+)
+
+// lookupStatus returns the owning repository plus a status that distinguishes a
+// resolved owner, an ambiguous key (matched a key that mapped to two owners),
+// and no owner at all. Ambiguous takes precedence over no-owner so an ambiguous
+// import is never silently counted as unresolved.
+func (idx codeImportOwnerIndex) lookupStatus(ecosystem, coordinate string) (string, codeImportLookupStatus) {
+	sawAmbiguous := false
 	for _, key := range packageConsumptionKeys(ecosystem, coordinate) {
 		if _, bad := idx.ambiguous[key]; bad {
+			sawAmbiguous = true
 			continue
 		}
 		if repoID := idx.byKey[key]; repoID != "" {
-			return repoID
+			return repoID, codeImportLookupResolved
 		}
 	}
-	return ""
+	if sawAmbiguous {
+		return "", codeImportLookupAmbiguous
+	}
+	return "", codeImportLookupNoOwner
+}
+
+// codeImportEdgeCounts records the per-import outcome tally for one projection
+// run so the handler can emit operator counters and a structured log.
+type codeImportEdgeCounts struct {
+	considered        int
+	skippedRelative   int
+	skippedUnresolved int
+	skippedAmbiguous  int
+	skippedNoOwner    int
+	skippedSelf       int
+}
+
+// classifyCodeImportEdges tallies the per-import outcome over the same file
+// envelopes BuildCodeImportRepoDependencyIntents consumes, so the telemetry skip
+// reasons stay in lockstep with the edges actually built. "considered" counts
+// every non-empty import source seen; the skip buckets are mutually exclusive
+// per import. A resolved owner that is not a self-reference contributes to
+// neither skip bucket (it becomes an edge).
+func classifyCodeImportEdges(input CodeImportRepoDependencyInput) codeImportEdgeCounts {
+	var counts codeImportEdgeCounts
+	for _, envelope := range input.FileEnvelopes {
+		if envelope.FactKind != factKindFile {
+			continue
+		}
+		consumerRepoID := strings.TrimSpace(payloadStr(envelope.Payload, "repo_id"))
+		if consumerRepoID == "" {
+			continue
+		}
+		language := strings.TrimSpace(payloadStr(envelope.Payload, "language"))
+		fileData, ok := envelope.Payload["parsed_file_data"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, entry := range mapSlice(fileData["imports"]) {
+			source := codeImportEntrySource(entry)
+			if source == "" {
+				continue
+			}
+			counts.considered++
+			ecosystem, coordinate := normalizeImportSource(source, language)
+			if ecosystem == "" || coordinate == "" {
+				counts.skippedRelative++
+				continue
+			}
+			ownerRepoID, status := input.Owners.lookupStatus(ecosystem, coordinate)
+			switch status {
+			case codeImportLookupAmbiguous:
+				counts.skippedAmbiguous++
+			case codeImportLookupNoOwner:
+				if input.Owners.empty() {
+					counts.skippedUnresolved++
+				} else {
+					counts.skippedNoOwner++
+				}
+			case codeImportLookupResolved:
+				if ownerRepoID == consumerRepoID {
+					counts.skippedSelf++
+				}
+			}
+		}
+	}
+	return counts
 }
 
 // buildCodeImportOwnerIndex builds the (ecosystem, name) -> owning-repository

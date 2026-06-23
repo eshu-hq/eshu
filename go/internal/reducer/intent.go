@@ -66,6 +66,13 @@ const (
 	// DomainPackageSourceCorrelation classifies package-registry source hints
 	// against active repository remotes without promoting package ownership.
 	DomainPackageSourceCorrelation Domain = "package_source_correlation"
+	// DomainCodeImportRepoEdge projects repo-to-repo DEPENDS_ON edges from
+	// per-file external import sources correlated to package-registry ownership.
+	// It runs in the git-repository scope so the per-file import facts are
+	// scope-local, and resolves owners from cross-scope package-registry facts
+	// through the same (ecosystem, name) join the package-consumption path uses
+	// (issue #3642).
+	DomainCodeImportRepoEdge Domain = "code_import_repo_edge"
 	// DomainContainerImageIdentity joins Git, registry, and runtime image
 	// evidence into digest-keyed container image identity decisions.
 	DomainContainerImageIdentity Domain = "container_image_identity"
