@@ -8,6 +8,41 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
 
+const (
+	// MaxFileEntityCount is the maximum number of content entities emitted for a
+	// single file. Files whose parser output would exceed this limit have entity
+	// materialization skipped entirely: the content record (body, digest) is still
+	// written so full-file BM25 search works, but no per-entity rows are produced.
+	//
+	// The threshold is set to catch minified JavaScript (e.g. ckeditor.js → 24k
+	// entities) and pathological generated files (e.g. a single PHP class file →
+	// 53k entities) that inflate ingestion time and search-index volume without
+	// contributing useful symbol-level evidence. Real source files at repo scale
+	// stay well below 10,000 entities; this limit gives comfortable headroom.
+	//
+	// Observed on the full-corpus run (issue #3676):
+	//   ckeditor/ckeditor.js  → 24,720 entities (minified JS)
+	//   yacht.class.php       → 53,830 entities (generated PHP)
+	MaxFileEntityCount = 10_000
+
+	// MaxLockfileVariableEntities is the maximum number of Variable entities
+	// emitted for a single lockfile. When a lockfile's variables bucket exceeds
+	// this limit, only direct-dependency rows (dependency_depth == 1 or
+	// direct_dependency == true in entity Metadata) are retained, and the
+	// retained set is itself capped at MaxLockfileVariableEntities.
+	//
+	// Lockfile Variable entities feed the reducer's package consumption
+	// correlation (package_consumption_correlation.go). Direct dependencies are
+	// the primary signal for consumption decisions; transitive entries from a
+	// large lockfile add noise without changing the correlation outcome for most
+	// packages. Manifest facts (package.json, go.mod, etc.) already carry the
+	// human-declared version ranges.
+	//
+	// Observed on the full-corpus run (issue #3676):
+	//   package-lock.json     → 847,675 entities (single file, ~1M+ lockfile-tagged)
+	MaxLockfileVariableEntities = 500
+)
+
 // Input captures one normalized parser payload batch for content shaping.
 type Input struct {
 	RepoID       string
@@ -271,6 +306,9 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 	indexedItems := make([]indexedEntity, 0)
 	for _, bucket := range contentEntityBuckets {
 		items := file.EntityBuckets[bucket.bucket]
+		if bucket.bucket == "variables" {
+			items = capLockfileVariables(items)
+		}
 		for _, item := range items {
 			label := entityLabelForBucket(bucket.label, item)
 			indexedItems = append(indexedItems, indexedEntity{
@@ -278,6 +316,14 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 				item:  item,
 			})
 		}
+	}
+
+	// Skip entity materialization for files that would produce an unreasonably
+	// large number of entities. This catches minified JS and generated source
+	// files that contribute noise to BM25 indexing without symbol-level value.
+	// The content record (body, digest) is still written by the caller.
+	if len(indexedItems) > MaxFileEntityCount {
+		return nil, nil
 	}
 
 	sort.SliceStable(indexedItems, func(i, j int) bool {
@@ -319,6 +365,54 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 	}
 
 	return entities, nil
+}
+
+// capLockfileVariables reduces a lockfile variable slice to at most
+// MaxLockfileVariableEntities entries. When the input exceeds the cap, only
+// direct-dependency rows (those carrying dependency_depth == 1 or
+// direct_dependency == true in their Metadata) are kept. If the direct-dep
+// subset itself exceeds MaxLockfileVariableEntities, it is truncated to the
+// cap. When no entry carries a lockfile flag the slice is returned unchanged so
+// non-lockfile Variable buckets (Gradle, tsconfig, etc.) are never affected.
+func capLockfileVariables(items []Entity) []Entity {
+	if len(items) <= MaxLockfileVariableEntities {
+		return items
+	}
+
+	// Check whether any item carries lockfile=true metadata before applying the
+	// cap. Non-lockfile variable buckets must not be affected.
+	hasLockfile := false
+	for _, item := range items {
+		if v, _ := item.Metadata["lockfile"].(bool); v {
+			hasLockfile = true
+			break
+		}
+	}
+	if !hasLockfile {
+		return items
+	}
+
+	// Prefer direct dependencies (depth == 1) — these are the primary signal
+	// for package consumption correlation in the reducer.
+	direct := make([]Entity, 0, MaxLockfileVariableEntities)
+	for _, item := range items {
+		depth, _ := item.Metadata["dependency_depth"].(int)
+		isDirect, _ := item.Metadata["direct_dependency"].(bool)
+		if depth == 1 || isDirect {
+			direct = append(direct, item)
+			if len(direct) == MaxLockfileVariableEntities {
+				break
+			}
+		}
+	}
+	if len(direct) > 0 {
+		return direct
+	}
+
+	// Fallback: no entry carries direct_dependency metadata (e.g. lockfile v1
+	// without chain resolution). Keep the first MaxLockfileVariableEntities
+	// rows so at least some dependency evidence is preserved.
+	return items[:MaxLockfileVariableEntities]
 }
 
 func entityEndLine(items []indexedEntity, index int, body string, startLine int) int {
