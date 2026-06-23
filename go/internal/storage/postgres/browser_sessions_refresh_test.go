@@ -16,10 +16,10 @@ func TestBrowserSessionStoreListsStaleOIDCSessionsWithBoundedBatch(t *testing.T)
 			{rows: [][]any{
 				{"sha256:session1", "okta-dev", "sha256:subject1", "tenant_a", "workspace_a",
 					"sha256:policy", []byte(`["developer"]`), false, []byte(`["scope_a"]`), []byte(`[]`),
-					now.Add(-2 * time.Minute), now.Add(-time.Minute)},
+					now.Add(-2 * time.Minute), now.Add(-time.Minute), []byte(`["sha256:group1"]`)},
 				{"sha256:session2", "okta-dev", "sha256:subject2", "tenant_a", "workspace_a",
 					"sha256:policy", []byte(`["viewer"]`), false, []byte(`["scope_b"]`), []byte(`[]`),
-					now.Add(-3 * time.Minute), now.Add(-2 * time.Minute)},
+					now.Add(-3 * time.Minute), now.Add(-2 * time.Minute), []byte(`["sha256:group2"]`)},
 			}},
 		},
 	}
@@ -43,6 +43,7 @@ func TestBrowserSessionStoreListsStaleOIDCSessionsWithBoundedBatch(t *testing.T)
 		"external_subject_id_hash",
 		"subject_class = 'external_oidc_user'",
 		"revoked_at IS NULL",
+		"external_group_hashes",
 		"LIMIT",
 	} {
 		if !strings.Contains(query, want) {
@@ -52,6 +53,9 @@ func TestBrowserSessionStoreListsStaleOIDCSessionsWithBoundedBatch(t *testing.T)
 	// Verify results are unmarshalled correctly.
 	if sessions[0].SessionHash != "sha256:session1" || sessions[0].ExternalProviderConfigID != "okta-dev" {
 		t.Fatalf("first session = %#v, want sha256:session1 / okta-dev", sessions[0])
+	}
+	if got := sessions[0].ExternalGroupHashes; len(got) != 1 || got[0] != "sha256:group1" {
+		t.Fatalf("first session group hashes = %#v, want [sha256:group1]", got)
 	}
 	if sessions[1].SessionHash != "sha256:session2" {
 		t.Fatalf("second session hash = %q, want sha256:session2", sessions[1].SessionHash)

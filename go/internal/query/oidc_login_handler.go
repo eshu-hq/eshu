@@ -49,6 +49,7 @@ type OIDCLoginCompleteResponse struct {
 	Auth              AuthContext
 	ProviderConfigID  string
 	ProviderSubjectID string
+	ProviderGroupHashes []string
 	ProviderProofAt   time.Time
 	ReturnToPath      string
 }
@@ -113,6 +114,7 @@ func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request
 	response, ok := h.SessionIssuer.issueBrowserSessionWithExternalAuth(w, r, complete.Auth, 0, BrowserSessionExternalAuthProof{
 		ProviderConfigID: complete.ProviderConfigID,
 		SubjectIDHash:    complete.ProviderSubjectID,
+		GroupHashes:      append([]string(nil), complete.ProviderGroupHashes...),
 		ValidatedAt:      proofAt,
 		StaleAfter:       proofAt.Add(h.sessionRefreshWindow()),
 	})

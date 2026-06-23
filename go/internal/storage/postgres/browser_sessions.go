@@ -38,6 +38,7 @@ type BrowserSessionRecord struct {
 	AllowedRepositoryIDs     []string
 	ExternalProviderConfigID string
 	ExternalSubjectIDHash    string
+	ExternalGroupHashes      []string
 	ExternalAuthValidatedAt  time.Time
 	ExternalAuthStaleAfter   time.Time
 	IssuedAt                 time.Time
@@ -102,6 +103,10 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 	if err != nil {
 		return err
 	}
+	externalGroupHashes, err := marshalBrowserSessionStrings(record.ExternalGroupHashes)
+	if err != nil {
+		return err
+	}
 	result, err := s.db.ExecContext(
 		ctx,
 		createBrowserSessionQuery,
@@ -126,6 +131,7 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 		record.AbsoluteExpiresAt,
 		nullTime(record.RevokedAt),
 		record.UpdatedAt,
+		externalGroupHashes,
 	)
 	if err != nil {
 		return fmt.Errorf("create browser session: %w", err)
@@ -296,6 +302,7 @@ func normalizeBrowserSessionRecord(record BrowserSessionRecord) BrowserSessionRe
 	record.AllowedRepositoryIDs = cleanBrowserSessionStrings(record.AllowedRepositoryIDs)
 	record.ExternalProviderConfigID = strings.TrimSpace(record.ExternalProviderConfigID)
 	record.ExternalSubjectIDHash = strings.TrimSpace(record.ExternalSubjectIDHash)
+	record.ExternalGroupHashes = cleanBrowserSessionStrings(record.ExternalGroupHashes)
 	record.ExternalAuthValidatedAt = record.ExternalAuthValidatedAt.UTC()
 	record.ExternalAuthStaleAfter = record.ExternalAuthStaleAfter.UTC()
 	record.IssuedAt = record.IssuedAt.UTC()

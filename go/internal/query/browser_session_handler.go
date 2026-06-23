@@ -41,6 +41,7 @@ type BrowserSessionCreateRecord struct {
 	AllowedRepositoryIDs     []string
 	ExternalProviderConfigID string
 	ExternalSubjectIDHash    string
+	ExternalGroupHashes      []string
 	ExternalAuthValidatedAt  time.Time
 	ExternalAuthStaleAfter   time.Time
 	IssuedAt                 time.Time
@@ -55,6 +56,7 @@ type BrowserSessionCreateRecord struct {
 type BrowserSessionExternalAuthProof struct {
 	ProviderConfigID string
 	SubjectIDHash    string
+	GroupHashes       []string
 	ValidatedAt      time.Time
 	StaleAfter       time.Time
 }
@@ -168,6 +170,7 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 		AllowedRepositoryIDs:     append([]string(nil), auth.AllowedRepositoryIDs...),
 		ExternalProviderConfigID: strings.TrimSpace(externalAuth.ProviderConfigID),
 		ExternalSubjectIDHash:    strings.TrimSpace(externalAuth.SubjectIDHash),
+		ExternalGroupHashes:      append([]string(nil), externalAuth.GroupHashes...),
 		ExternalAuthValidatedAt:  externalAuth.ValidatedAt.UTC(),
 		ExternalAuthStaleAfter:   externalAuth.StaleAfter.UTC(),
 		IssuedAt:                 now,

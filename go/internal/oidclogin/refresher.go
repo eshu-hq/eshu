@@ -26,6 +26,7 @@ type StaleSession struct {
 	TenantID                 string
 	WorkspaceID              string
 	PolicyRevisionHash       string
+	ExternalGroupHashes      []string
 	RoleIDs                  []string
 	AllScopes                bool
 	AllowedScopeIDs          []string
@@ -41,6 +42,7 @@ type SessionAuthProofUpdate struct {
 	ExternalAuthValidatedAt time.Time
 	ExternalAuthStaleAfter  time.Time
 	PolicyRevisionHash      string
+	ExternalGroupHashes     []string
 	RoleIDs                 []string
 	AllScopes               bool
 	AllowedScopeIDs         []string
@@ -65,12 +67,11 @@ type SessionRefreshStore interface {
 }
 
 // RoleGrantResolver re-resolves whether a session's previously granted Eshu
-// roles still map to concrete grants under current, untombstoned, unexpired
-// policy. It is the Eshu-side invalidation hook for revoked role targets,
-// tombstoned mappings, expired mappings, and policy revision drift. Group
-// removal at the external provider is enforced by forced reauthentication at the
-// stale-window boundary, since Eshu deliberately persists no raw provider token
-// to re-query the IdP directly.
+// stored external group hashes still map to concrete grants under current,
+// untombstoned, unexpired policy. It is the Eshu-side invalidation hook for
+// provider group removal, tombstoned mappings, expired mappings, revoked role
+// targets, and policy revision drift. The refresher never reuses stale role IDs
+// alone to extend a provider proof.
 type RoleGrantResolver interface {
 	ResolveGroupGrants(ctx context.Context, query GrantQuery) (GrantResolution, bool, error)
 }
@@ -233,11 +234,15 @@ func (r *Refresher) evaluate(
 			return refreshDecision{action: refreshActionRevoke}, nil
 		}
 	}
+	groupHashes := sortedCopy(session.ExternalGroupHashes)
+	if len(groupHashes) == 0 {
+		return refreshDecision{action: refreshActionRevoke}, nil
+	}
 	resolution, ok, err := r.resolver.ResolveGroupGrants(ctx, GrantQuery{
 		ProviderConfigID: session.ExternalProviderConfigID,
 		TenantID:         session.TenantID,
 		WorkspaceID:      session.WorkspaceID,
-		RoleIDs:          append([]string(nil), session.RoleIDs...),
+		GroupHashes:      groupHashes,
 		AsOf:             now,
 	})
 	if err != nil {
@@ -262,6 +267,7 @@ func (r *Refresher) evaluate(
 			ExternalAuthValidatedAt: now,
 			ExternalAuthStaleAfter:  now.Add(r.window),
 			PolicyRevisionHash:      policyRevisionHash,
+			ExternalGroupHashes:     groupHashes,
 			RoleIDs:                 sortedCopy(resolution.RoleIDs),
 			AllScopes:               resolution.AllScopes,
 			AllowedScopeIDs:         sortedCopy(resolution.AllowedScopeIDs),

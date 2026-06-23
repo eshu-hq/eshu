@@ -14,9 +14,9 @@ import (
 //
 // It carries only the opaque identifiers a refresher needs to re-resolve
 // provider-driven grants: the session hash, the provider config id, the hashed
-// provider subject, the tenant/workspace boundary, and the last resolved grant
-// snapshot. It never carries raw provider tokens, raw group names, emails, or
-// private endpoints.
+// provider subject, the tenant/workspace boundary, the hashed external group
+// claims captured at login, and the last resolved grant snapshot. It never
+// carries raw provider tokens, raw group names, emails, or private endpoints.
 type StaleOIDCSessionRecord struct {
 	SessionHash              string
 	ExternalProviderConfigID string
@@ -28,6 +28,7 @@ type StaleOIDCSessionRecord struct {
 	AllScopes                bool
 	AllowedScopeIDs          []string
 	AllowedRepositoryIDs     []string
+	ExternalGroupHashes      []string
 	ExternalAuthValidatedAt  time.Time
 	ExternalAuthStaleAfter   time.Time
 }
@@ -135,7 +136,7 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 
 func scanStaleOIDCSession(rows Rows) (StaleOIDCSessionRecord, error) {
 	var record StaleOIDCSessionRecord
-	var roleIDBytes, allowedScopeBytes, allowedRepositoryBytes []byte
+	var roleIDBytes, allowedScopeBytes, allowedRepositoryBytes, groupHashBytes []byte
 	if err := rows.Scan(
 		&record.SessionHash,
 		&record.ExternalProviderConfigID,
@@ -149,6 +150,7 @@ func scanStaleOIDCSession(rows Rows) (StaleOIDCSessionRecord, error) {
 		&allowedRepositoryBytes,
 		&record.ExternalAuthValidatedAt,
 		&record.ExternalAuthStaleAfter,
+		&groupHashBytes,
 	); err != nil {
 		return StaleOIDCSessionRecord{}, err
 	}
@@ -164,9 +166,14 @@ func scanStaleOIDCSession(rows Rows) (StaleOIDCSessionRecord, error) {
 	if err != nil {
 		return StaleOIDCSessionRecord{}, err
 	}
+	groupHashes, err := unmarshalBrowserSessionStrings(groupHashBytes)
+	if err != nil {
+		return StaleOIDCSessionRecord{}, err
+	}
 	record.RoleIDs = roleIDs
 	record.AllowedScopeIDs = allowedScopeIDs
 	record.AllowedRepositoryIDs = allowedRepositoryIDs
+	record.ExternalGroupHashes = groupHashes
 	record.ExternalAuthValidatedAt = record.ExternalAuthValidatedAt.UTC()
 	record.ExternalAuthStaleAfter = record.ExternalAuthStaleAfter.UTC()
 	return record, nil

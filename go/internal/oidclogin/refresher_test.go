@@ -63,6 +63,7 @@ func TestRefresherPreservesSessionAndExtendsWindowWhenStillAuthorized(t *testing
 			TenantID:                 "tenant_a",
 			WorkspaceID:              "workspace_a",
 			PolicyRevisionHash:       "sha256:policy",
+			ExternalGroupHashes:      []string{"sha256:group"},
 			RoleIDs:                  []string{"developer"},
 		}},
 	}
@@ -105,6 +106,52 @@ func TestRefresherPreservesSessionAndExtendsWindowWhenStillAuthorized(t *testing
 	}
 	if len(store.revoked) != 0 {
 		t.Fatalf("revoked = %#v, want none", store.revoked)
+	}
+	if got := resolver.lastQuery.GroupHashes; len(got) != 1 || got[0] != "sha256:group" {
+		t.Fatalf("resolver group hashes = %#v, want stored group hash", got)
+	}
+	if got := store.updated[0].ExternalGroupHashes; len(got) != 1 || got[0] != "sha256:group" {
+		t.Fatalf("updated group hashes = %#v, want stored group hash", got)
+	}
+}
+
+func TestRefresherRevokesWhenStoredGroupHashesMissing(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 11, 15, 0, 0, time.UTC)
+	store := &fakeSessionRefreshStore{
+		stale: []StaleSession{{
+			SessionHash:              "sha256:session1",
+			ExternalProviderConfigID: "okta-dev",
+			ExternalSubjectIDHash:    "sha256:subject1",
+			TenantID:                 "tenant_a",
+			WorkspaceID:              "workspace_a",
+			PolicyRevisionHash:       "sha256:policy",
+			RoleIDs:                  []string{"developer"},
+		}},
+	}
+	resolver := &fakeRefreshResolver{
+		ok:         true,
+		resolution: GrantResolution{RoleIDs: []string{"developer"}, PolicyRevisionHash: "sha256:policy"},
+	}
+	refresher := NewRefresher(store, resolver, RefreshConfig{
+		BatchSize:     10,
+		Window:        15 * time.Minute,
+		SubjectLookup: alwaysActiveSubjectLookup{},
+	}, WithRefreshNow(func() time.Time { return now }))
+
+	outcome, err := refresher.RefreshOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RefreshOnce() error = %v", err)
+	}
+	if outcome.Revoked != 1 || outcome.Refreshed != 0 {
+		t.Fatalf("outcome = %#v, want revoke without refresh", outcome)
+	}
+	if len(store.revoked) != 1 || store.revoked[0] != "sha256:session1" {
+		t.Fatalf("revoked sessions = %#v, want [sha256:session1]", store.revoked)
+	}
+	if resolver.calls != 0 {
+		t.Fatalf("resolver calls = %d, want 0 because stale role ids alone are insufficient", resolver.calls)
 	}
 }
 
@@ -316,6 +363,7 @@ func (s *fakeSessionRefreshStore) UpdateSessionAuthProof(_ context.Context, upda
 type fakeRefreshResolver struct {
 	mu         sync.Mutex
 	calls      int
+	lastQuery  GrantQuery
 	ok         bool
 	resolution GrantResolution
 	err        error
@@ -323,11 +371,12 @@ type fakeRefreshResolver struct {
 
 func (r *fakeRefreshResolver) ResolveGroupGrants(
 	_ context.Context,
-	_ GrantQuery,
+	query GrantQuery,
 ) (GrantResolution, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++
+	r.lastQuery = query
 	if r.err != nil {
 		return GrantResolution{}, false, r.err
 	}
