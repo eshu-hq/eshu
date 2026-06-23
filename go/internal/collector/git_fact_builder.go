@@ -66,7 +66,7 @@ func buildStreamingGenerationWithContext(
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
-	followupFactCount := 8
+	followupFactCount := 9
 	if snapshot.Delta {
 		followupFactCount = 1
 	}
