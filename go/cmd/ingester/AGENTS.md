@@ -151,7 +151,7 @@
 
 No-Regression Evidence: `go build ./...` (exit 0);
 `go test ./cmd/ingester/... ./internal/runtime/... -count=1 -race` (369 passed);
-`go test ./internal/collector/ -count=1 -race` (379 passed). The composite
+`go test ./internal/collector/ -count=1 -race` (381 passed). The composite
 runner change removes a serialized fail-fast teardown rather than adding one and
 touches no Cypher, graph write shape, worker count, batch size, lease, or queue
 ordering, so there is no throughput regression to measure; concurrency is

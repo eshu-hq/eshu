@@ -135,7 +135,7 @@ Operator-facing signals added by this change (3 AM debuggability):
 
 No-Regression Evidence: `go build ./...` (exit 0);
 `go test ./cmd/ingester/... ./internal/runtime/... -count=1 -race` (369 passed);
-`go test ./internal/collector/ -count=1 -race` (379 passed). Focused regression
+`go test ./internal/collector/ -count=1 -race` (381 passed). Focused regression
 tests added first (TDD): `composite_runner_test.go` proves fatal errors are not
 masked, all terminal errors are joined, the surviving sibling drains within a
 bounded grace, a wedged sibling is bounded with `errCompositeDrainTimeout`,
