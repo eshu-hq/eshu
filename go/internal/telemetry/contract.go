@@ -368,6 +368,7 @@ const (
 	SpanSQLRelationshipMaterialization    = "reducer.sql_relationship_materialization"
 	SpanInheritanceMaterialization        = "reducer.inheritance_materialization"
 	SpanCrossRepoResolution               = "reducer.cross_repo_resolution"
+	SpanCodeImportRepoEdge                = "reducer.code_import_repo_edge"
 	SpanSharedAcceptanceLookup            = "shared_acceptance.lookup"
 	SpanSharedAcceptanceUpsert            = "shared_acceptance.upsert"
 	SpanQueryRelationshipEvidence         = "query.relationship_evidence"

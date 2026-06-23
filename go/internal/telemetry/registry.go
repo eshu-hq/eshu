@@ -99,6 +99,7 @@ var spanNames = []string{
 	SpanSQLRelationshipMaterialization,
 	SpanInheritanceMaterialization,
 	SpanCrossRepoResolution,
+	SpanCodeImportRepoEdge,
 	SpanSharedAcceptanceLookup,
 	SpanSharedAcceptanceUpsert,
 	SpanQueryRelationshipEvidence,

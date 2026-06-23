@@ -40,10 +40,10 @@ type repositoryDependencyEdge struct {
 // callers no predicate is added and the whole-graph DEPENDS_ON edge set is
 // eligible.
 //
-// Both evidence sources that project (:Repository)-[:DEPENDS_ON]->(:Repository)
-// — the resolver/cross-repo terraform edges and the projection/package-consumption
-// edges — are consumed uniformly because clustering keys on the edge type, not
-// its evidence_source.
+// Every evidence source that projects (:Repository)-[:DEPENDS_ON]->(:Repository)
+// — the resolver/cross-repo terraform edges, the projection/package-consumption
+// edges, and the projection/code-imports edges — is consumed uniformly because
+// clustering keys on the edge type, not its evidence_source.
 func repositoryDependencyClusterEdgeCypher(access repositoryAccessFilter) string {
 	where := ""
 	if access.scoped() {

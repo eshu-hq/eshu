@@ -44,6 +44,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, packageSource)
 	}
+	if ownershipLoader, ok := codeImportOwnershipLoader(handlers.FactLoader); ok &&
+		handlers.RepoDependencyIntentWriter != nil {
+		codeImport := codeImportRepoEdgeDomainDefinition()
+		codeImport.Handler = CodeImportRepoEdgeHandler{
+			FactLoader:                 handlers.FactLoader,
+			OwnershipLoader:            ownershipLoader,
+			RepoDependencyIntentWriter: handlers.RepoDependencyIntentWriter,
+			Instruments:                handlers.Instruments,
+			Tracer:                     handlers.Tracer,
+		}
+		definitions = append(definitions, codeImport)
+	}
 	if handlers.FactLoader != nil && handlers.ContainerImageIdentityWriter != nil {
 		imageIdentity := containerImageIdentityDomainDefinition()
 		imageIdentity.Handler = ContainerImageIdentityHandler{

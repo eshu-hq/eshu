@@ -173,6 +173,7 @@ domains driven by dedicated projection runners (`code_calls`, `repo_dependency`,
 | `DomainShellExecMaterialization` | Materialize canonical shell execution edges |
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints and package-version publication evidence without ownership promotion |
+| `DomainCodeImportRepoEdge` | Project repo→repo `DEPENDS_ON` edges from per-file external import sources correlated to package-registry ownership (`projection/code-imports`) |
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
 | `DomainMultiCloudRuntimeDrift` | Publish admitted provider-neutral runtime orphan, unmanaged, ambiguous, and unknown drift findings keyed on canonical `cloud_resource_uid` for AWS, GCP, and Azure |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |

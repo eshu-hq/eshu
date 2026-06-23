@@ -181,7 +181,14 @@ type Instruments struct {
 	// reducer domain and outcome (projected, skipped reason). It lets an
 	// operator confirm the package-consumption projection lane is producing
 	// edges and see why candidates were dropped (issue #3579).
-	PackageConsumptionRepoEdges     metric.Int64Counter
+	PackageConsumptionRepoEdges metric.Int64Counter
+	// CodeImportRepoEdges counts repo-to-repo DEPENDS_ON edge outcomes derived
+	// from per-file external import sources correlated to package-registry
+	// ownership, labeled by reducer domain and outcome (considered, written, and
+	// the skip reasons relative, unresolved, ambiguous, no_owner, self). It lets
+	// an operator confirm the code-import projection lane is producing edges and
+	// see why candidate imports were dropped (issue #3642).
+	CodeImportRepoEdges             metric.Int64Counter
 	ContainerImageIdentityDecisions metric.Int64Counter
 	CICDRunCorrelations             metric.Int64Counter
 	ServiceCatalogCorrelations      metric.Int64Counter
@@ -1704,6 +1711,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageConsumptionRepoEdges counter: %w", err)
+	}
+
+	inst.CodeImportRepoEdges, err = meter.Int64Counter(
+		"eshu_dp_code_import_repo_edges_total",
+		metric.WithDescription("Total repo-to-repo DEPENDS_ON edge outcomes derived from per-file external import sources correlated to package-registry ownership by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeImportRepoEdges counter: %w", err)
 	}
 
 	inst.ContainerImageIdentityDecisions, err = meter.Int64Counter(

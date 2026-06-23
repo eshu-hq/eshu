@@ -237,6 +237,36 @@ func inheritanceMaterializationFactEnvelope(
 	)
 }
 
+// codeImportRepoEdgeFactEnvelope builds the per-repository follow-up marker that
+// enqueues the code_import_repo_edge reducer domain for one git scope. The
+// domain projects repo-to-repo DEPENDS_ON edges from per-file external import
+// sources correlated to package-registry ownership (issue #3642). The stable key
+// is repo-scoped so re-emitting the same generation is idempotent.
+func codeImportRepoEdgeFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": "code_import_repo_edge",
+		"entity_key":     "repo:" + filepath.Base(repoPath),
+		"reason":         "repository snapshot emitted code-import repo-edge follow-up",
+		"repo_id":        repoID,
+	}
+
+	return factEnvelope(
+		"shared_followup",
+		scopeID,
+		generationID,
+		observedAt,
+		"shared_followup:"+repoID+":code_import_repo_edge",
+		payload,
+		repoPath,
+	)
+}
+
 func factEnvelope(
 	factKind string,
 	scopeID string,
