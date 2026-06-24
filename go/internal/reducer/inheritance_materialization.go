@@ -103,7 +103,7 @@ func (h InheritanceMaterializationHandler) Handle(
 	repoIDs, rows := ExtractInheritanceRows(envelopes)
 	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
-	if len(repoIDs) == 0 || len(contextByRepoID) == 0 {
+	if len(contextByRepoID) == 0 {
 		timing.totalDuration = time.Since(totalStarted)
 		// No projection context built from the loaded facts: the handler ran
 		// before its upstream repository/content facts existed — an ordering
@@ -112,9 +112,23 @@ func (h InheritanceMaterializationHandler) Handle(
 			IntentID:        intent.IntentID,
 			Domain:          DomainInheritanceMaterialization,
 			Status:          ResultStatusSucceeded,
-			EvidenceSummary: "no repositories available for inheritance materialization",
+			EvidenceSummary: "no projection context available for inheritance materialization",
 			SubDurations:    inheritanceMaterializationSubDurations(timing),
 			SubSignals:      materializationDiagnosticSignals(false, 0),
+		}, nil
+	}
+	if len(repoIDs) == 0 {
+		timing.totalDuration = time.Since(totalStarted)
+		// Projection context exists but the loaded facts carried no inheritance
+		// content entities: the input was ready and the work was genuinely empty
+		// (input_ready=1, written_rows=0), not an upstream ordering stall.
+		return Result{
+			IntentID:        intent.IntentID,
+			Domain:          DomainInheritanceMaterialization,
+			Status:          ResultStatusSucceeded,
+			EvidenceSummary: "no inheritance entities for inheritance materialization",
+			SubDurations:    inheritanceMaterializationSubDurations(timing),
+			SubSignals:      materializationDiagnosticSignals(true, 0),
 		}, nil
 	}
 

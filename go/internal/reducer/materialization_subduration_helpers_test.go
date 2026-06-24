@@ -66,6 +66,27 @@ func inheritanceWorkEnvelopes() []facts.Envelope {
 	}
 }
 
+// inheritanceContextOnlyEnvelopes returns ONLY a repository fact carrying
+// source_run_id so buildCodeCallProjectionContexts yields a non-empty
+// projection context, but NO inheritance Class content_entity rows, so
+// ExtractInheritanceRows returns empty repoIDs. This exercises the
+// context-present/no-entities branch: genuine empty work (input_ready=1,
+// written_rows=0), distinct from an ordering stall (no context at all).
+func inheritanceContextOnlyEnvelopes() []facts.Envelope {
+	return []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id":       "repo-im",
+				"source_run_id": "run-im",
+				"graph_id":      "repo-im",
+				"graph_kind":    "repository",
+				"name":          "im-test-repo",
+			},
+		},
+	}
+}
+
 // codeCallWorkEnvelopes returns a repository fact plus caller/callee file facts
 // producing at least one code-call edge, so the code_call Handle path emits
 // durable intent rows (refresh + edge).

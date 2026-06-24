@@ -3143,7 +3143,7 @@ encoding and the contract cannot drift.
 |--------|-------------|------------------------------------------|-----------------------------------------|
 | `deployment_mapping` | `platform_materialization.go` | `platform_write`, `load_facts`, `infra_extract`, `infra_graph_write`, `cross_repo_resolve`, `workload_replay`, `phase_publish`, `total` | 1.0 when request has entity keys; 0.0 only if absent (stall). Zero writes with input present = genuine empty work, not a stall. |
 | `workload_identity` | `workload_identity.go` | `graph_write`, `phase_publish`, `total` | 1.0 when request has entity keys; 0.0 if absent. Zero writes with input present = genuine empty work. |
-| `inheritance_materialization` | `inheritance_materialization.go` | `load_facts`, `build_intents`, `upsert_intents`, `total` | 1.0 when a projection context was built from facts; 0.0 when no repo context found (ordering stall). |
+| `inheritance_materialization` | `inheritance_materialization.go` | `load_facts`, `build_intents`, `upsert_intents`, `total` | 1.0 when a projection context was built from facts (even if no inheritance entities → genuine empty); 0.0 only when no repo context found (ordering stall). |
 | `code_call_materialization` | `code_call_materialization.go` | `load_facts`, `build_context`, `load_symbols`, `extract_rows`, `build_intents`, `upsert_intents`, `total` | 1.0 when a projection context was built; 0.0 when no context (ordering stall). |
 
 All four domains emit `sub_signal_input_ready` and `sub_signal_written_rows`.
@@ -3153,12 +3153,20 @@ All four domains emit `sub_signal_input_ready` and `sub_signal_written_rows`.
 - **deployment_mapping / workload_identity** (writer-based): all three states
   reachable — work-happened (`input_ready=1, written_rows>0`), genuine-empty
   (`input_ready=1, written_rows=0`), stall (`input_ready=0`).
-- **inheritance_materialization / code_call_materialization** (intent-emitting):
-  a present projection context always emits ≥1 whole-scope refresh intent per
-  repo, so genuine-empty (`input_ready=1, written_rows=0`) is **not reachable**
-  through `Handle`. Reachable states are work-happened (`input_ready=1,
-  written_rows>=1`) and stall (`input_ready=0, written_rows=0`). The handlers
-  still pass `materializationDiagnosticSignals(true, 0)` on the defensive
+- **inheritance_materialization** (intent-emitting): all three states reachable.
+  Genuine-empty (`input_ready=1, written_rows=0`) occurs when a projection
+  context exists but the loaded facts carry no inheritance content entities, so
+  `ExtractInheritanceRows` yields no repos and the handler returns at the
+  context-present/no-entities branch before emitting any refresh intent (codex
+  #3681). Work-happened (`input_ready=1, written_rows>=1`) and stall
+  (`input_ready=0, written_rows=0`, no context) round out the three states.
+- **code_call_materialization** (intent-emitting): a present projection context
+  always emits ≥1 whole-scope refresh intent per repo, so genuine-empty
+  (`input_ready=1, written_rows=0`) is **not reachable** through `Handle`.
+  Reachable states are work-happened (`input_ready=1, written_rows>=1`, where a
+  context with no code-call edges still yields one refresh intent) and stall
+  (`input_ready=0, written_rows=0`, no context). The handler still passes
+  `materializationDiagnosticSignals(true, 0)` on the defensive
   `len(intentRows)==0` branch so the signal stays correct if upstream behavior
   ever changes.
 
@@ -3212,7 +3220,8 @@ allocation of two float64 entries per intent. No Cypher, no graph writes, no
 worker counts, no batch sizes changed.
 
 Full reducer test suite (`go test ./internal/reducer/... -count=1`) stays green.
-9 TDD tests in `materialization_subduration_test.go` cover, per domain,
-work-happened / genuine-empty (writer-based only) / stall, asserting
-`input_ready` and reading `written_rows` from `SubSignals` (not
-`result.CanonicalWrites`) so a missing-key defect fails red.
+TDD tests in `materialization_subduration_test.go` cover, per domain,
+work-happened / genuine-empty (writer-based domains plus inheritance's
+context-present/no-entities case) / stall, asserting `input_ready` and reading
+`written_rows` from `SubSignals` (not `result.CanonicalWrites`) so a missing-key
+defect fails red.

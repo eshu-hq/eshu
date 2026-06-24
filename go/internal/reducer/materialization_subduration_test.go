@@ -158,6 +158,32 @@ func TestInheritanceMaterializationHandlerSubDurationsWorkHappened(t *testing.T)
 	assertWrittenRowsGreater(t, result, "inheritance_materialization", 0)
 }
 
+// TestInheritanceMaterializationHandlerSubDurationsContextPresentNoEntities
+// asserts the genuine-empty state: a repository fact with source_run_id builds a
+// projection context (input present) but the facts carry no inheritance Class
+// content_entity rows, so ExtractInheritanceRows returns empty repoIDs. This
+// reaches the context-present/no-entities branch → input_ready==1,
+// written_rows==0, succeeded — genuine empty work, NOT an ordering stall.
+func TestInheritanceMaterializationHandlerSubDurationsContextPresentNoEntities(t *testing.T) {
+	t.Parallel()
+
+	handler := InheritanceMaterializationHandler{
+		FactLoader:   &stubFactLoader{envelopes: inheritanceContextOnlyEnvelopes()},
+		IntentWriter: &recordingInheritanceIntentWriter{},
+	}
+
+	result := mustHandle(t, handler, inheritanceIntent("intent-im-context-only"))
+
+	if result.Status != ResultStatusSucceeded {
+		t.Fatalf("inheritance_materialization: Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	}
+	assertSubDurationsPresent(t, result, "inheritance_materialization", []string{
+		"load_facts", "total",
+	})
+	assertInputReady(t, result, "inheritance_materialization", 1.0)
+	assertWrittenRows(t, result, "inheritance_materialization", 0)
+}
+
 // TestInheritanceMaterializationHandlerSubDurationsStall asserts the stall
 // state: empty facts → no repository context → input_ready==0, written_rows==0.
 func TestInheritanceMaterializationHandlerSubDurationsStall(t *testing.T) {
