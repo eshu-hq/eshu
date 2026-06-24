@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+#
+# test-generate-operator-dashboard.sh — prove scripts/generate-operator-dashboard.sh
+# is hermetic, idempotent, and produces a Grafana dashboard JSON that
+# contains the headline eshu_dp_* panels from the X1 contract.
+# Mirrors the test-verify-* shape in this repo.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+generator="${repo_root}/scripts/generate-operator-dashboard.sh"
+expected_path="${repo_root}/docs/public/observability/dashboards/eshu-operator-overview.json"
+
+tmp_root="$(mktemp -d)"
+trap 'rm -rf "${tmp_root}"' EXIT
+
+PASS=0
+FAIL=0
+
+record_pass() { PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
+record_fail() { FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
+
+require_jq() {
+  if ! command -v jq >/dev/null 2>&1; then
+    printf 'skip - jq is not installed; cannot validate JSON\n' >&2
+    exit 0
+  fi
+}
+
+require_jq
+
+# Case 1: the generator runs and produces a well-formed JSON.
+out_path="${tmp_root}/case-1.json"
+ESHU_OPERATOR_DASHBOARD_REPO_ROOT="${repo_root}" \
+  ESHU_OPERATOR_DASHBOARD_OUTPUT_PATH="${out_path}" \
+  "${generator}" >/dev/null
+if jq -e . "${out_path}" >/dev/null 2>&1; then
+  record_pass "generator produces a well-formed JSON"
+else
+  record_fail "generator output is not valid JSON"
+fi
+
+# Case 2: the generator is idempotent — re-running with the same
+# inputs produces the same bytes. (Deterministic output is the load-
+# bearing property of the gate.)
+if cmp -s "${out_path}" "${expected_path}"; then
+  record_pass "generator output matches the committed artifact"
+else
+  record_fail "generator output diverges from the committed artifact"
+fi
+
+# Case 3: the committed artifact parses as Grafana dashboard JSON with
+# the expected top-level shape.
+if jq -e '
+  .title == "Eshu Operator Overview" and
+  .uid == "eshu-operator-overview" and
+  (.schemaVersion | type == "number") and
+  (.panels | type == "array") and
+  (.templating.list | type == "array")
+' "${expected_path}" >/dev/null 2>&1; then
+  record_pass "committed artifact has the expected top-level shape"
+else
+  record_fail "committed artifact top-level shape mismatch"
+fi
+
+# Case 4: every headline eshu_dp_* metric from the metric registry
+# appears in the dashboard's panels. This is the load-bearing link
+# between the X1 contract (eshu_dp_* families) and the operator
+# surface (the dashboard).
+metrics_lib="${repo_root}/scripts/lib/operator-dashboard-metrics.sh"
+if [ ! -f "${metrics_lib}" ]; then
+  record_fail "metric registry ${metrics_lib} is missing"
+else
+  missing=0
+  while IFS= read -r metric; do
+    [ -n "${metric}" ] || continue
+    if ! jq -e --arg m "${metric}" '[.panels[].targets[]?.expr // "" | test($m)] | any' "${expected_path}" >/dev/null 2>&1; then
+      missing=$((missing + 1))
+      printf '  missing panel expression referencing %s\n' "${metric}" >&2
+    fi
+  done < <(rg -o "eshu_dp_[a-zA-Z0-9_]+" "${metrics_lib}" | sort -u)
+  if [ "${missing}" -eq 0 ]; then
+    record_pass "every eshu_dp_* metric from the registry appears in the dashboard"
+  else
+    record_fail "${missing} eshu_dp_* metric(s) from the registry are not in any panel expression"
+  fi
+fi
+
+# Case 5: the "Is Eshu Healthy?" row is present with the alarm
+# single-stat. This is the 3 AM alarm row the spec requires.
+if jq -e '
+  [.panels[] | select(.type == "row") | .title] | index("Is Eshu Healthy?") != null
+' "${expected_path}" >/dev/null 2>&1; then
+  record_pass "dashboard has the 'Is Eshu Healthy?' row"
+else
+  record_fail "dashboard is missing the 'Is Eshu Healthy?' row"
+fi
+
+# Case 6: the headline templating variables (datasource, pool, queue,
+# route, scope_id) are present.
+if jq -e '
+  [.templating.list[].name] | contains(["datasource", "pool", "queue", "route", "scope_id"])
+' "${expected_path}" >/dev/null 2>&1; then
+  record_pass "dashboard exposes the headline templating variables"
+else
+  record_fail "dashboard is missing one or more headline templating variables"
+fi
+
+# Case 7: the file size is sane (between 5KB and 200KB).
+size=$(wc -c < "${expected_path}" | tr -d ' ')
+if [ "${size}" -gt 5000 ] && [ "${size}" -lt 200000 ]; then
+  record_pass "dashboard size is sane (${size} bytes)"
+else
+  record_fail "dashboard size is out of range: ${size} bytes"
+fi
+
+if [ "${FAIL}" -ne 0 ]; then
+  printf 'generate-operator-dashboard tests FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
+  exit 1
+fi
+
+printf 'generate-operator-dashboard tests passed: %d/%d\n' "${PASS}" "$((PASS + FAIL))"

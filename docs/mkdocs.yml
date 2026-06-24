@@ -285,6 +285,7 @@ nav:
       - Streaming And Memory: reference/telemetry/streaming-memory.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
+      - Operator Overview Dashboard: observability/dashboards/eshu-operator-overview.json
     - Services:
       - Bootstrap-Index: services/bootstrap-index.md
       - Ingester: services/ingester.md
