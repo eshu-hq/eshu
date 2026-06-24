@@ -146,6 +146,40 @@ func TestBuildParseSubtreePartitionsSpreadsHeavyFiles(t *testing.T) {
 	}
 }
 
+// TestBuildParseSubtreePartitionsSpreadsEmptyFiles proves the per-file weight
+// floor spreads a large group of empty files across workers by count. Without
+// the floor each empty file would weigh ~0 bytes, so the whole group would
+// collapse into a single partition (re-creating the count-clustering that
+// byte-balancing avoids); with the floor each empty file weighs
+// minParseFileWeightBytes, so the per-worker byte target splits them.
+func TestBuildParseSubtreePartitionsSpreadsEmptyFiles(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	const fileCount = 64
+	files := make([]string, 0, fileCount)
+	for i := 0; i < fileCount; i++ {
+		path := filepath.Join(repoRoot, "empties", fmt.Sprintf("mod_%02d.py", i))
+		writeSizedFile(t, path, 0)
+		files = append(files, path)
+	}
+
+	partitions := buildParseSubtreePartitions(repoRoot, files, 4)
+
+	if len(partitions) < 2 {
+		t.Fatalf("empty files collapsed into %d partition(s); want them spread across workers", len(partitions))
+	}
+	maxJobs := 0
+	for _, partition := range partitions {
+		if n := len(partition.jobs); n > maxJobs {
+			maxJobs = n
+		}
+	}
+	if maxJobs >= fileCount {
+		t.Fatalf("max partition holds %d/%d files; empty files clustered into one partition", maxJobs, fileCount)
+	}
+}
+
 // TestBuildParseSubtreePartitionsEdgeCases covers empty, single-file, and
 // all-same-size inputs.
 func TestBuildParseSubtreePartitionsEdgeCases(t *testing.T) {

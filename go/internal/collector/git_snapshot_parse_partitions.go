@@ -33,6 +33,13 @@ type parseSubtreePartition struct {
 // this default so balancing stays loss-free.
 const defaultParseFileSizeBytes int64 = 4096
 
+// minParseFileWeightBytes floors every file's parse weight so a large group of
+// empty or tiny files still spreads across workers by count instead of
+// collapsing into a single partition. Each file costs a fixed parse pass
+// regardless of byte size, so weighting tiny files at zero would re-create the
+// count-clustering this byte-balancing avoids.
+const minParseFileWeightBytes int64 = 512
+
 type parseFileJobSized struct {
 	job  parseFileJob
 	size int64
@@ -134,12 +141,7 @@ func parseFileSizeBytes(filePath string) int64 {
 	if err != nil || info.Size() < 0 {
 		return defaultParseFileSizeBytes
 	}
-	if info.Size() == 0 {
-		// Empty files still cost a parse pass; weight them at one byte so a
-		// large group of empty files still spreads across workers.
-		return 1
-	}
-	return info.Size()
+	return max(info.Size(), minParseFileWeightBytes)
 }
 
 func parseSubtreePartitionTargetBytes(totalBytes int64, workerCount int) int64 {

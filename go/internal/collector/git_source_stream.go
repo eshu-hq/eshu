@@ -124,8 +124,9 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	largeCh := make(chan SelectedRepository, len(resolved))
 
 	// Discovery goroutine: classify once per repo and route to the
-	// appropriate lane. Classification (isLargeRepository) is a fast
-	// file-count pre-scan that bails immediately on large repos.
+	// appropriate lane. Classification reuses the file count already walked in
+	// resolveRepositories (aligned 1:1 with resolved), so no early-bail pre-scan
+	// re-walks the tree here.
 	go func() {
 		defer close(smallCh)
 		defer close(largeCh)
