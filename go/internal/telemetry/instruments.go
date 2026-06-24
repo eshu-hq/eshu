@@ -4141,6 +4141,11 @@ const (
 	// BootstrapPhaseIaCReachability is the IaC reachability materialization
 	// phase (MaterializeIaCReachability).
 	BootstrapPhaseIaCReachability = "iac_reachability"
+	// BootstrapPhaseDeploymentReopen is the deployment_mapping work-item reopen
+	// phase (ReopenDeploymentMappingWorkItems). It runs after IaC reachability
+	// and before config-state drift; without its own phase it would be an
+	// unaccounted gap that could not be flagged as a long pole.
+	BootstrapPhaseDeploymentReopen = "deployment_reopen"
 	// BootstrapPhaseConfigStateDrift is the config-state drift intent
 	// enqueue phase (EnqueueConfigStateDriftIntents).
 	BootstrapPhaseConfigStateDrift = "config_state_drift"

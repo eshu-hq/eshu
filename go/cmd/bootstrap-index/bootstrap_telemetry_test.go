@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -132,6 +133,7 @@ func TestRunPipelinedEmitsBootstrapPhaseTimings(t *testing.T) {
 		telemetry.BootstrapPhaseRelationshipBackfill,
 		telemetry.BootstrapPhaseProjection,
 		telemetry.BootstrapPhaseIaCReachability,
+		telemetry.BootstrapPhaseDeploymentReopen,
 		telemetry.BootstrapPhaseConfigStateDrift,
 	}
 	for _, phase := range wantPhases {
@@ -201,6 +203,117 @@ func TestRunPipelinedRecordsPhaseDurationOnError(t *testing.T) {
 	}
 }
 
+// TestRunPipelinedProjectionPhaseExcludesBackfillWait proves the #3678 P2#1
+// fix: the projection phase duration is measured from projector start to
+// projector completion and must NOT fold in the relationship-backfill wait that
+// runs after the projector finishes. A slow backfill is injected; the recorded
+// projection duration must stay well below the backfill duration.
+func TestRunPipelinedProjectionPhaseExcludesBackfillWait(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("bootstrap-index-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	// Empty queue: the projector enters drain mode and completes after the fixed
+	// drain wait (maxEmptyPolls * pollInterval ~= 2.5s in drainProjectorPipelined).
+	// The injected backfill delay is chosen LARGER than that drain so the bug is
+	// observable: under the old time.Since-after-backfill code, the projection
+	// phase would be recorded at the post-backfill receive point and thus include
+	// the (longer) backfill wait; under the fix it equals the projector's own
+	// completion time.
+	source := &fakeSource{generations: nil}
+	ws := &concurrentWorkSource{items: nil}
+	sink := &concurrentWorkSink{}
+
+	// Backfill runs concurrently with the projector drain and is made the long
+	// pole so old vs new projection timing diverge measurably.
+	const backfillDelay = 4 * time.Second
+	const projectionUpperBound = 3.5 // seconds; > ~2.5s drain, < backfillDelay
+	committer := &fakeCommitter{backfillDelay: backfillDelay}
+	cd := collectorDeps{source: source, committer: committer}
+	pd := projectorDeps{
+		workSource: ws,
+		factStore:  &fakeFactStore{},
+		runner:     &fakeProjectionRunner{},
+		workSink:   sink,
+	}
+
+	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err != nil {
+		t.Fatalf("runPipelined() error = %v, want nil", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	projectionSeconds := bootstrapPhaseDurationSeconds(t, rm, telemetry.BootstrapPhaseProjection)
+	backfillSeconds := bootstrapPhaseDurationSeconds(t, rm, telemetry.BootstrapPhaseRelationshipBackfill)
+
+	// The injected backfill delay must show up in the backfill phase.
+	if backfillSeconds < backfillDelay.Seconds()*0.8 {
+		t.Errorf("relationship_backfill = %.3fs, want >= ~%.3fs (delay not attributed to backfill)",
+			backfillSeconds, backfillDelay.Seconds())
+	}
+	// The projection phase must reflect ONLY the projector's own wall time, not
+	// the longer backfill wait. Old bug: projection >= backfillDelay (~4s).
+	// Fixed: projection ~= drain time (~2.5s) < projectionUpperBound.
+	if projectionSeconds >= projectionUpperBound {
+		t.Errorf("projection = %.3fs, want < %.1fs: backfill wait leaked into projection (P2#1 regression)",
+			projectionSeconds, projectionUpperBound)
+	}
+}
+
+// TestRunPipelinedRecordsDeploymentReopenPhaseOnError proves the #3678 P2#2
+// fix: ReopenDeploymentMappingWorkItems now runs inside its own bounded
+// deployment_reopen phase, recorded even when it errors, so the reopen step is
+// independently identifiable as a long pole instead of an unaccounted gap.
+func TestRunPipelinedRecordsDeploymentReopenPhaseOnError(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("bootstrap-index-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	source := &fakeSource{generations: nil}
+	ws := &concurrentWorkSource{items: nil}
+	sink := &concurrentWorkSink{}
+
+	committer := &fakeCommitter{reopenErr: errInjected("injected reopen failure")}
+	cd := collectorDeps{source: source, committer: committer}
+	pd := projectorDeps{
+		workSource: ws,
+		factStore:  &fakeFactStore{},
+		runner:     &fakeProjectionRunner{},
+		workSink:   sink,
+	}
+
+	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err == nil {
+		t.Fatal("runPipelined() error = nil, want injected reopen failure")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	if !bootstrapPhaseRecorded(t, rm, telemetry.BootstrapPhaseDeploymentReopen) {
+		t.Error("deployment_reopen phase duration not recorded on error path (P2#2 regression)")
+	}
+	// config_state_drift runs after reopen, so a reopen failure must NOT have
+	// recorded it (the failing reopen short-circuits the pipeline).
+	if bootstrapPhaseRecorded(t, rm, telemetry.BootstrapPhaseConfigStateDrift) {
+		t.Error("config_state_drift recorded despite reopen failure; ordering is wrong")
+	}
+}
+
 var errInjectedIaCFailure = errInjected("injected iac reachability failure")
 
 type errInjected string
@@ -261,6 +374,35 @@ func bootstrapPhaseRecorded(t *testing.T, rm metricdata.ResourceMetrics, phase s
 		}
 	}
 	return false
+}
+
+// bootstrapPhaseDurationSeconds returns the recorded histogram Sum (total
+// seconds) for the named phase. A single Record per run means Sum equals that
+// run's measured duration, which lets a test assert relative phase magnitudes.
+func bootstrapPhaseDurationSeconds(t *testing.T, rm metricdata.ResourceMetrics, phase string) float64 {
+	t.Helper()
+	const name = "eshu_dp_bootstrap_pipeline_phase_seconds"
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != name {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("%s data type = %T, want Histogram[float64]", name, m.Data)
+			}
+			for _, p := range hist.DataPoints {
+				if metricPointHasAttrs(p.Attributes, map[string]string{
+					telemetry.MetricDimensionBootstrapPhase: phase,
+					telemetry.MetricDimensionCollectorKind:  "bootstrap-index",
+				}) {
+					return p.Sum
+				}
+			}
+		}
+	}
+	t.Fatalf("metric %s for phase %q not found", name, phase)
+	return 0
 }
 
 // metricPointHasAttrs reports whether every want key/value pair is present in

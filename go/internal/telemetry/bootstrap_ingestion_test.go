@@ -178,12 +178,13 @@ func TestBootstrapPipelinePhaseDurationHistogramRecords(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Record all 5 named phases
+	// Record all named phases
 	phases := []string{
 		BootstrapPhaseCollection,
 		BootstrapPhaseProjection,
 		BootstrapPhaseRelationshipBackfill,
 		BootstrapPhaseIaCReachability,
+		BootstrapPhaseDeploymentReopen,
 		BootstrapPhaseConfigStateDrift,
 	}
 	for _, phase := range phases {

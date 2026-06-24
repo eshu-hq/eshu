@@ -383,6 +383,10 @@ type fakeCommitter struct {
 	iacErr            error
 	reopenErr         error
 	driftEnqueueErr   error
+	// backfillDelay, when set, makes BackfillAllRelationshipEvidence block for
+	// the given duration. Used to prove the projection phase duration excludes
+	// the backfill wait (#3678 P2#1).
+	backfillDelay time.Duration
 }
 
 func (f *fakeCommitter) CommitScopeGeneration(
@@ -403,6 +407,9 @@ func (f *fakeCommitter) BackfillAllRelationshipEvidence(
 	_ trace.Tracer,
 	_ *telemetry.Instruments,
 ) error {
+	if f.backfillDelay > 0 {
+		time.Sleep(f.backfillDelay)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, "backfill")

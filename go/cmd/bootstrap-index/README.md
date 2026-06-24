@@ -238,10 +238,15 @@ mirroring the reducer, which admits consumption on `config_kind` `dependency`
 only — so a high-volume go.sum content_entity explosion surfaces under `code`,
 not `package_manifest`. `bootstrap_phase`
 is one of `collection`, `relationship_backfill`, `projection`,
-`iac_reachability`, `config_state_drift`, and is recorded even when a phase
-fails so the long pole is visible on the error path. The
-`collector_kind=bootstrap-index` label is shared with the per-collector layer so
-per-stage and per-collector metrics join cleanly. Both the metric label space
+`iac_reachability`, `deployment_reopen`, `config_state_drift`, and is recorded
+even when a phase fails so the long pole is visible on the error path. The
+`projection` phase is measured from the projector goroutine's start to its own
+captured completion time (it runs concurrently with collection and backfill), so
+its duration reflects only projector wall time and never folds in the backfill
+wait. The `deployment_reopen` phase wraps `ReopenDeploymentMappingWorkItems` so
+that ordered step is independently identifiable rather than an unaccounted gap.
+The `collector_kind=bootstrap-index` label is shared with the per-collector layer
+so per-stage and per-collector metrics join cleanly. Both the metric label space
 and the per-repo `entity_kind_<kind>` log fields iterate the bounded
 `telemetry.SourceFileKinds()` set, so the dimension space is statically bounded.
 
@@ -300,7 +305,16 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
     counter emits per bounded `source_file_kind` faithfully to the advisory it is
     handed (it does not re-derive classification — that is covered above).
   - Phase timing: `TestRunPipelinedEmitsBootstrapPhaseTimings` drives the real
-    `runPipelined` and asserts each `bootstrap_phase` records its histogram point.
+    `runPipelined` and asserts each of the six `bootstrap_phase` values records
+    its histogram point.
+  - Phase-timing accuracy:
+    `TestRunPipelinedProjectionPhaseExcludesBackfillWait` injects a slow backfill
+    and asserts the `projection` duration reflects only projector wall time, not
+    the backfill wait (confirmed failing under the prior `time.Since`-after-
+    backfill code, which recorded ~4s instead of ~2.5s).
+    `TestRunPipelinedRecordsDeploymentReopenPhaseOnError` asserts the new
+    `deployment_reopen` phase records even when reopen fails, and that the later
+    `config_state_drift` phase does not record on that error path.
 
   Full gate: `go test ./internal/telemetry ./internal/collector ./internal/parser
   ./cmd/bootstrap-index -count=1`.

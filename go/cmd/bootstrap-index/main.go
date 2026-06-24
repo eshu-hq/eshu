@@ -249,13 +249,12 @@ func runPipelined(
 
 	errc := make(chan error, 2)
 
-	// recordPhase records one named bootstrap pipeline phase duration as both a
-	// metric (BootstrapPipelinePhaseDuration) and a structured log line so
+	// recordPhaseDuration records one named bootstrap pipeline phase duration as
+	// both a metric (BootstrapPipelinePhaseDuration) and a structured log line so
 	// operators can read the long pole from logs or the metrics port without
 	// strace (#3678). The collector_kind label aligns with the per-collector
 	// telemetry convention so the two layers join cleanly.
-	recordPhase := func(phase string, start time.Time) {
-		d := time.Since(start).Seconds()
+	recordPhaseDuration := func(phase string, d float64) {
 		if instruments != nil {
 			instruments.BootstrapPipelinePhaseDuration.Record(ctx, d, metric.WithAttributes(
 				telemetry.AttrBootstrapPhase(phase),
@@ -270,6 +269,25 @@ func runPipelined(
 			)
 		}
 	}
+	// recordPhase records a phase that ends now (sequential post-collection work).
+	recordPhase := func(phase string, start time.Time) {
+		recordPhaseDuration(phase, time.Since(start).Seconds())
+	}
+	// recordPhaseAt records a phase whose end is a captured timestamp rather than
+	// "now". Required for the concurrent projection phase: the projector runs in
+	// parallel with collection and backfill, so its true wall time is
+	// (projector completion - projectionStart), not time.Since at the point where
+	// runPipelined happens to receive the projector's result. Using time.Since
+	// here would wrongly fold the backfill wait into the projection duration and
+	// defeat the long-pole diagnostic.
+	recordPhaseAt := func(phase string, start, end time.Time) {
+		recordPhaseDuration(phase, end.Sub(start).Seconds())
+	}
+
+	// projectorCompletedAt carries the projector goroutine's actual completion
+	// timestamp out to the projection-phase recorder, independent of when
+	// runPipelined receives the projector's error from errc.
+	projectorCompletedAt := make(chan time.Time, 1)
 
 	// Start collector goroutine
 	collectionStart := time.Now()
@@ -284,6 +302,9 @@ func runPipelined(
 	projectionStart := time.Now()
 	go func() {
 		err := drainProjectorPipelined(ctx, pd, workers, collectorDone, tracer, instruments, logger)
+		// Capture the projector's true completion time before publishing the
+		// error, so the projection phase duration excludes any later backfill wait.
+		projectorCompletedAt <- time.Now()
 		errc <- err
 	}()
 
@@ -323,7 +344,11 @@ func runPipelined(
 	// Otherwise deployment_mapping items emitted after the reopen pass starts
 	// could miss reopening and remain soft-gated.
 	projectorErr := <-errc
-	recordPhase(telemetry.BootstrapPhaseProjection, projectionStart)
+	// Record projection wall time from its own start to its own completion. The
+	// projector ran concurrently with collection and the backfill above, so its
+	// completion timestamp (captured inside the goroutine) is the only accurate
+	// end point; time.Since here would include the backfill wait.
+	recordPhaseAt(telemetry.BootstrapPhaseProjection, projectionStart, <-projectorCompletedAt)
 	if projectorErr != nil {
 		return projectorErr
 	}
@@ -348,7 +373,13 @@ func runPipelined(
 	// in-flight items may succeed between now and the reopen pass — those
 	// stragglers are NOT automatically replayed today and require manual admin
 	// replay or a future automated straggler-replay mechanism.
+	//
+	// This step gets its own bounded phase so it is independently identifiable as
+	// a potential long pole; without it the reopen time would be an unaccounted
+	// gap between iac_reachability and config_state_drift.
+	reopenStart := time.Now()
 	if err := cd.committer.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseDeploymentReopen, reopenStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "reopen deployment_mapping work items failed",
 				slog.String("error", err.Error()),
@@ -357,6 +388,7 @@ func runPipelined(
 		}
 		return fmt.Errorf("reopen deployment_mapping fatal: %w", err)
 	}
+	recordPhase(telemetry.BootstrapPhaseDeploymentReopen, reopenStart)
 
 	// Phase 3.5: enqueue config_state_drift intents for every state_snapshot
 	// scope that has an active generation. The drift handler consumes both
