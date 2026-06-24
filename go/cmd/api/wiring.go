@@ -349,10 +349,11 @@ func newRouterWithSemanticEmbedding(
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
 	}
 	router := &query.APIRouter{
-		LocalIdentity:   newLocalIdentityHandler(db, instruments, governanceAudit),
-		BrowserSessions: newBrowserSessionHandler(db, instruments),
-		SessionList:     newBrowserSessionListHandler(db, instruments),
-		Profile:         newProfileHandler(db, instruments, governanceAudit),
+		LocalIdentity:      newLocalIdentityHandler(db, instruments, governanceAudit),
+		BrowserSessions:    newBrowserSessionHandler(db, instruments),
+		SessionList:        newBrowserSessionListHandler(db, instruments),
+		AdminIdentityReads: newAdminIdentityReadHandler(db, instruments, governanceAudit),
+		Profile:            newProfileHandler(db, instruments, governanceAudit),
 		Repositories: &query.RepositoryHandler{
 			Neo4j:                      neo4jReader,
 			Content:                    contentReader,

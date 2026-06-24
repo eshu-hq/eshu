@@ -96,4 +96,15 @@ const openAPIComponentsLocalIdentity = `
           "locked_until": {"type": "string", "format": "date-time"}
         }
       },
+      "AdminAuditCountList": {
+        "type": "array",
+        "description": "Low-cardinality aggregate counts. Each entry is a name and an integer count; never an individual event identifier.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "count": {"type": "integer"}
+          }
+        }
+      },
 `

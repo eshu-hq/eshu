@@ -126,6 +126,7 @@ func OpenAPISpec() string {
 			openAPIPathsSemanticEvidence+
 			openAPIPathsAuth+
 			openAPIPathsAuthTokens+
+			openAPIPathsAuthAdminReads+
 			openAPIPathsAsk+
 			openAPIPathsStatusAndCompare+
 			openAPIComponents,

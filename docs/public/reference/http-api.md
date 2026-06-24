@@ -105,6 +105,14 @@ The Console browser flow uses these `/api/v0` routes:
 | `POST /api/v0/auth/local/api-tokens` | All-scopes admin route that creates a generated personal or service-principal API token. The `api_token` value is returned once and only its hash is persisted. Shared-operator callers must include `tenant_id` and `workspace_id`. |
 | `POST /api/v0/auth/local/api-tokens/{token_id}/revoke` | All-scopes admin route that immediately revokes an active generated API token in the current tenant/workspace. Shared-operator callers must include `tenant_id` and `workspace_id`. |
 | `POST /api/v0/auth/local/api-tokens/{token_id}/rotate` | All-scopes admin route that atomically creates a replacement generated API token and revokes the old token. Shared-operator callers must include `tenant_id` and `workspace_id`. |
+| `GET /api/v0/auth/local/invitations` | All-scopes admin read that lists invitations within the caller's own tenant/workspace (invite id, role, status, lifecycle timestamps). Never returns the invite code, invitee handle, or inviter identity. |
+| `GET /api/v0/auth/admin/role-assignments` | All-scopes admin read that lists membership-role assignments in the caller's tenant/workspace, optionally filtered by `user_id`. |
+| `GET /api/v0/auth/admin/roles` | All-scopes admin read that lists the caller's tenant roles and the capability grants each role confers. Never returns role key hashes or hashed scope selectors. |
+| `GET /api/v0/auth/admin/idp-providers` | All-scopes admin read that lists the caller's tenant identity providers (config id, kind, status only). Never returns issuer/metadata/entity/client hashes or credential handles. |
+| `GET /api/v0/auth/admin/idp-group-mappings` | All-scopes admin read that lists the caller's tenant/workspace external group→role mappings via an opaque mapping reference. Never returns the external group hash. |
+| `GET /api/v0/auth/admin/api-tokens` | All-scopes admin read that lists every user's generated API tokens in the caller's tenant/workspace (token id, class, owner, status, timestamps). Never returns the token hash. |
+| `GET /api/v0/auth/admin/audit/events` | All-scopes admin read that lists governance audit events filtered by `event_type`, `decision`, `reason_code`, `occurred_after`/`occurred_before`, and bounded `limit`. Returns audit-safe fields only. |
+| `GET /api/v0/auth/admin/audit/summary` | All-scopes admin read that returns aggregate-only governance audit counts. |
 | `POST /api/v0/auth/local/break-glass` | Shared-operator route that enables one audited, time-boxed break-glass window. Disabled by default when no active window exists. |
 | `POST /api/v0/auth/local/break-glass/session` | Public recovery route that issues a browser session only for an active, unexpired break-glass code. |
 | `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | Returns public SAML service-provider metadata for a configured provider. |

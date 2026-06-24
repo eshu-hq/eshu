@@ -227,6 +227,47 @@ const openAPIPathsAuth = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
+      },
+      "get": {
+        "tags": ["auth"],
+        "summary": "List the tenant's invitations",
+        "description": "All-scopes admin route that lists invitations within the caller's own tenant/workspace: invite id, role id, status, and lifecycle timestamps. Never returns the invite code, invitee handle, or inviter identity (all stored only as hashes).",
+        "operationId": "listAdminInvitations",
+        "responses": {
+          "200": {
+            "description": "The tenant's invitations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invitations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "invite_id": {"type": "string"},
+                          "role_id": {"type": "string"},
+                          "status": {"type": "string"},
+                          "expires_at": {"type": "string", "format": "date-time"},
+                          "accepted_at": {"type": "string", "format": "date-time"},
+                          "revoked_at": {"type": "string", "format": "date-time"},
+                          "created_at": {"type": "string", "format": "date-time"},
+                          "updated_at": {"type": "string", "format": "date-time"},
+                          "tenant_id": {"type": "string"},
+                          "workspace_id": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
       }
     },
     "/api/v0/auth/local/invitations/accept": {
