@@ -269,6 +269,11 @@ func (a *adminGovernanceAuditReader) SummarizeAuditEvents(
 	return a.store.Summary(ctx)
 }
 
+// SummarizeAuditEventsForTenant returns aggregate audit counts scoped to a
+// single tenant. It bypasses the in-memory summary cache (a.summary) because
+// the cache is not keyed by tenant; a direct DB hit is intentional here and is
+// served efficiently by the governance_audit_events_tenant_idx partial index
+// added in the #3717 schema migration.
 func (a *adminGovernanceAuditReader) SummarizeAuditEventsForTenant(
 	ctx context.Context,
 	tenantID string,
