@@ -967,6 +967,36 @@ per-statement latency/error spans and metrics are inherited without per-call
 wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths so an
 operator sees a server-side signal instead of a silent empty/"none" result.
 
+## Admin identity read queries (#3462 Slice C)
+
+`ListAdminInvitations`, `ListAdminRoleAssignments`, `ListAdminRoles` (plus its
+companion grant read), `ListAdminIdPProviders`, `ListAdminIdPGroupMappings`, and
+`ListAdminAPITokens` are new metadata-only list reads that back the console admin
+UX (`GET /api/v0/auth/local/invitations`, `/api/v0/auth/admin/role-assignments`,
+`/roles`, `/idp-providers`, `/idp-group-mappings`, `/api-tokens`). They are not
+on the ingestion/reducer hot path; each is a single admin-dashboard-triggered
+read scoped strictly to the caller's own tenant (and workspace where the table
+carries one), resolved from the all-scope `AuthContext`, never cross-tenant.
+
+No-Regression Evidence: all are net-new SELECTs that add no predicate to any
+existing query and modify no existing index or write path, so there is no prior
+baseline to regress. Backend PostgreSQL 16. Input shape: exactly one
+`tenant_id` (and `workspace_id`) per call — never a scan over tenants. Every
+query filters on `tenant_id` first and is bounded `LIMIT 500`, so the terminal
+row count per call is at most 500 rows. `ListAdminRoles` issues exactly two
+bounded reads (roles, then grants for the same tenant) stitched in memory — a
+fixed 2-query cost, not an N+1 over roles. The group-mapping row reference is an
+in-SQL `md5()` digest over the composite key, computed per returned row only. No
+unbounded fan-out, no cross-tenant scan.
+
+Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
+per-statement latency/error spans and metrics are inherited without per-call
+wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths so an
+operator sees a server-side signal instead of a silent empty result. No query
+selects a hashed secret, invite code, credential handle, or external group hash;
+the SQL-security tests in `identity_admin_reads_test.go` assert the safe-column
+contract per query.
+
 ## Browser-session permission-catalog persistence (#3684)
 
 `browser_sessions` gains three additive columns —
