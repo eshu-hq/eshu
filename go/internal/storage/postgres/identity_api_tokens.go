@@ -243,15 +243,41 @@ func (s *ScopedAPITokenStore) resolveIdentityAPITokenPermissions(
 	roles []string,
 	asOf time.Time,
 ) ([]string, []string, error) {
-	if len(roles) == 0 {
+	return s.ResolvePermissionGrantsForRoles(ctx, subject.tenantID, roles, asOf)
+}
+
+// ResolvePermissionGrantsForRoles resolves the distinct permission features and
+// data classes granted to a set of role IDs within one tenant as of the given
+// time, using the same active-grant filtering as scoped-token resolution. It is
+// the single source of truth for deriving a caller's permission grants from
+// roles, so scoped tokens and browser sessions authorize identically.
+//
+// An empty role set returns empty grants. Unknown or inactive roles contribute
+// nothing because the underlying query joins active, non-tombstoned grants and
+// roles only. Results are deduplicated and trimmed.
+func (s *ScopedAPITokenStore) ResolvePermissionGrantsForRoles(
+	ctx context.Context,
+	tenantID string,
+	roles []string,
+	asOf time.Time,
+) ([]string, []string, error) {
+	if s.db == nil {
+		return nil, nil, errors.New("scoped API token store database is required")
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	roles = cleanBrowserSessionStrings(roles)
+	if tenantID == "" || len(roles) == 0 {
 		return nil, nil, nil
+	}
+	if asOf.IsZero() {
+		return nil, nil, errors.New("permission grant resolution as_of is required")
 	}
 	rows, err := s.db.QueryContext(
 		ctx,
 		resolveIdentityAPITokenPermissionsQuery,
-		subject.tenantID,
+		tenantID,
 		roles,
-		asOf,
+		asOf.UTC(),
 		maxOIDCGrantLimit,
 	)
 	if err != nil {
