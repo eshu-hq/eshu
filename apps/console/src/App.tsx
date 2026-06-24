@@ -32,7 +32,8 @@ import {
   TriangleAlert,
   Workflow,
   Waves,
-  Waypoints
+  Waypoints,
+  User
 } from "lucide-react";
 import { EshuApiClient } from "./api/client";
 import type { BrowserSessionResponse } from "./api/client";
@@ -118,7 +119,8 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/collector-readiness", label: "Collector Readiness", icon: ShieldCheck, count: (m) => nonZero(m.collectorReadiness?.length ?? 0) },
       { to: "/surface-inventory", label: "Surface Inventory", icon: Layers },
       { to: "/operations", label: "Operations", icon: ServerCog },
-      { to: "/freshness-causality", label: "Freshness", icon: Activity }
+      { to: "/freshness-causality", label: "Freshness", icon: Activity },
+      { to: "/profile", label: "Profile", icon: User }
     ]
   }
 ];
