@@ -1425,6 +1425,11 @@
     },
     {
       "category": "command",
+      "name": "skillgen",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "webhook-listener",
       "readiness": "implemented"
     },
