@@ -13,13 +13,24 @@ type SAMLExternalSubjectResolutionRequest struct {
 
 // SAMLExternalSubjectAuthContext is the durable authorization context resolved
 // from identity provider, subject, membership, role, and grant state.
+//
+// RoleIDs, PermissionCatalogEnforced, AllowedPermissionFeatures, and
+// AllowedPermissionDataClasses carry the same permission-catalog snapshot a
+// scoped token for the same roles would carry, so a SAML cookie session
+// enforces identically to a local or OIDC session for the same roles. They
+// are populated only for non-all-scope (non-admin) sessions; all-scope sessions
+// keep PermissionCatalogEnforced=false and remain fail-open.
 type SAMLExternalSubjectAuthContext struct {
-	TenantID           string
-	WorkspaceID        string
-	SubjectIDHash      string
-	SubjectClass       string
-	PolicyRevisionHash string
-	AllScopes          bool
+	TenantID                     string
+	WorkspaceID                  string
+	SubjectIDHash                string
+	SubjectClass                 string
+	PolicyRevisionHash           string
+	AllScopes                    bool
+	RoleIDs                      []string
+	PermissionCatalogEnforced    bool
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
 }
 
 // SAMLExternalSubjectResolutionResult distinguishes unmapped subjects from

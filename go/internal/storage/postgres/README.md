@@ -130,8 +130,12 @@ High-signal invariants for this package:
   timestamps. It never stores raw RelayState, SAMLResponse, assertions, NameID,
   group values, certificates, or IdP metadata XML. SAML external-subject
   resolution uses hash-only provider, subject, and group-claim inputs and
-  requires active provider, user, tenant/workspace membership, admin role, and
-  all-scope role grant rows before returning an all-scope session context.
+  requires active provider, user, tenant/workspace membership, and role rows.
+  Admin sessions (owner/tenant_admin role) return AllScopes=true fail-open.
+  Non-admin sessions return PermissionCatalogEnforced=true with a
+  permission-catalog snapshot derived from active role grants. Resolution does
+  not require an active grant row; a user with an active role but zero grants
+  still resolves with an empty catalog snapshot (issue #3712).
 - Repository ref readbacks stay bounded by the `repository_refs` primary key
   `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
   fresh ref set carried by the current materialization so content-only
@@ -195,6 +199,20 @@ No-Regression Evidence: `go test ./internal/storage/postgres -run
 'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBarrier|ShardDrainBarrier)|TestBootstrapDefinitionsIncludeDeferredMaintenanceBarrier'
 -count=1` covers the per-repo shared source-commit barrier and per-repo deferred
 maintenance barrier, the multi-shard drain rendezvous, and bootstrap DDL.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestResolveSAMLExternalSubject' -count=1` covers the #3712 SAML resolution
+fix. Read path only: one `resolveSAMLExternalSubjectQuery` (Postgres GROUP BY +
+BOOL_OR on mr.role_id, no rg JOIN, ORDER BY effective_at DESC + workspace_id
+ASC, LIMIT 1) plus one `resolveLocalIdentityRolesQuery` on the non-admin path.
+No new hot Cypher, no worker, no lease, no queue. Admin-role determination is
+now membership-based (`mr.role_id IN ('owner','tenant_admin')`) matching local
+and OIDC paths; non-admin subjects get `PermissionCatalogEnforced=true` with a
+catalog snapshot from `resolvePermissionGrantsForRoles`. Resolution does not
+require an active grant row (rg JOIN removed); grant absence yields an empty
+catalog snapshot, not a login denial. Observability: fail-closed `slog.ErrorContext`
+on role/grant resolution errors so an operator can distinguish a
+permission-catalog outage from any other login failure.
 
 ### Deferred maintenance lock partitioning (issue #3482)
 
