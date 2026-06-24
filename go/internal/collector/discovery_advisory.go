@@ -69,8 +69,8 @@ type DiscoveryAdvisoryFile struct {
 // operators spot content_entity explosions from lockfiles or config files
 // without querying fact_records directly.
 type DiscoveryAdvisoryEntityCount struct {
-	ByType         map[string]int `json:"by_type,omitempty"`
-	ByLanguage     map[string]int `json:"by_language,omitempty"`
+	ByType           map[string]int `json:"by_type,omitempty"`
+	ByLanguage       map[string]int `json:"by_language,omitempty"`
 	BySourceFileKind map[string]int `json:"by_source_file_kind,omitempty"`
 }
 

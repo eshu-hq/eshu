@@ -90,7 +90,7 @@ const (
 	// request paths with identifiers are never used.
 	MetricDimensionRoute        = "route"
 	MetricDimensionFailureClass = "failure_class"
-	MetricDimensionFactKind = "fact_kind"
+	MetricDimensionFactKind     = "fact_kind"
 	// MetricDimensionSourceFileKind labels content-entity emission counters with
 	// a bounded classification of the originating source file:
 	//   "code"             — ordinary source file parsed by the language engine

@@ -208,15 +208,32 @@ endpoint.
 
 | Signal | Name or key | Where |
 | --- | --- | --- |
-| Span | `telemetry.SpanCollectorObserve` | `main.go:448` — one collect + commit cycle |
-| Span | `telemetry.SpanProjectorRun` | `main.go:657` — one claim + project + ack cycle |
-| Metric | `eshu_dp_facts_emitted_total` | `instruments.FactsEmitted` (`main.go:438`) |
-| Metric | `eshu_dp_facts_committed_total` | `instruments.FactsCommitted` (`main.go:481`) |
-| Metric | `eshu_dp_collector_observe_duration_seconds` | `instruments.CollectorObserveDuration` (`main.go:483`) |
-| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector` (`main.go:646`) |
-| Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` (`main.go:797`) |
-| Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` (`main.go:800`) |
-| Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` (`main.go:115`) |
+| Span | `telemetry.SpanCollectorObserve` | `main.go` — one collect + commit cycle |
+| Span | `telemetry.SpanProjectorRun` | `main.go` — one claim + project + ack cycle |
+| Metric | `eshu_dp_facts_emitted_total` | `instruments.FactsEmitted`, `collector_kind=bootstrap-index` |
+| Metric | `eshu_dp_facts_committed_total` | `instruments.FactsCommitted` |
+| Metric | `eshu_dp_collector_observe_duration_seconds` | `instruments.CollectorObserveDuration`, `collector_kind=bootstrap-index` |
+| Metric | `eshu_dp_content_entity_emitted_total` | `instruments.ContentEntityEmitted`, `source_file_kind` × `collector_kind=bootstrap-index` — per-file-kind content-entity volume (#3678) |
+| Metric | `eshu_dp_bootstrap_pipeline_phase_seconds` | `instruments.BootstrapPipelinePhaseDuration`, `bootstrap_phase` × `collector_kind=bootstrap-index` — per-phase wall time (#3678) |
+| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector` |
+| Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` |
+| Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` |
+| Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` |
+
+`source_file_kind` is one of the bounded values `code`, `package_manifest`,
+`config`, `other` (classified from the parser's `artifact_type` by
+`telemetry.ContentEntitySourceFileKind`). `bootstrap_phase` is one of
+`collection`, `relationship_backfill`, `projection`, `iac_reachability`,
+`config_state_drift`. The `collector_kind=bootstrap-index` label is shared with
+the per-collector layer so per-stage and per-collector metrics join cleanly.
+
+During collection, `drainCollector` also logs a `bootstrap collection progress`
+line every 10 repos (`scopes_done`, `total_facts_emitted`,
+`total_entities_emitted`, `elapsed_seconds`) and a per-repo `bootstrap scope
+collected` line carrying `content_entity_count` plus `entity_kind_<kind>`
+breakdown, so a long full-corpus run shows continuous progress in logs without
+strace or SQL forensics. Each post-collection phase emits a `bootstrap phase
+complete` log line with `bootstrap_phase` and `phase_duration_seconds`.
 
 Enable OTEL export by setting OTEL_EXPORTER_OTLP_ENDPOINT. When unset, a
 noop exporter is used and only local structured logs flow.
@@ -232,6 +249,33 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `projection_failure` | Phase 1 — projection worker |
 | `lease_heartbeat_failure` | Phase 1 — heartbeat goroutine |
 | `status=superseded` | Phase 1 — stale projector generation replaced by newer same-scope work |
+
+### Evidence (#3678 per-stage timing + per-file-kind content volume)
+
+- Observability Evidence: Added `eshu_dp_content_entity_emitted_total`
+  (`source_file_kind` × `collector_kind`) and
+  `eshu_dp_bootstrap_pipeline_phase_seconds` (`bootstrap_phase` ×
+  `collector_kind`) instruments, plus per-repo `content_entity_count` /
+  `entity_kind_<kind>` log attributes, a `bootstrap collection progress` log
+  every 10 repos, and a `bootstrap phase complete` log per post-collection
+  phase. Verified end to end against an in-memory OTEL `ManualReader`:
+  `go test ./internal/telemetry ./internal/collector ./cmd/bootstrap-index
+  -count=1` (582 tests pass). `TestDrainCollectorEmitsContentEntityCounterByFileKind`
+  drives the real `drainCollector` loop and asserts the counter increments per
+  bounded `source_file_kind`; `TestRunPipelinedEmitsBootstrapPhaseTimings`
+  asserts each phase records its histogram point. The
+  `collector_kind=bootstrap-index` label is shared with the per-collector layer
+  so the two telemetry layers join without relabeling.
+- No-Regression Evidence: The new counters and histogram add one map iteration
+  over the already-built `DiscoveryAdvisory.EntityCounts.BySourceFileKind`
+  (bounded to 4 keys) per repo and five `Histogram.Record` calls per run. No new
+  graph reads, Cypher, locks, queue claims, or per-fact scans are introduced;
+  the per-file-kind classification reuses data the discovery advisory already
+  computes while iterating entities. Collection, projection, and commit paths
+  are byte-for-byte unchanged except for the added emission. The progress log is
+  rate-limited to one line per 10 repos. Baseline behavior (facts emitted,
+  projections completed, queue drain) is unchanged and covered by the existing
+  `cmd/bootstrap-index` pipeline tests, which continue to pass.
 
 ## Configuration
 
