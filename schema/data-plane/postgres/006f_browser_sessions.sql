@@ -8,8 +8,11 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
     policy_revision_hash TEXT NOT NULL,
     role_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     all_scopes BOOLEAN NOT NULL DEFAULT false,
+    permission_catalog_enforced BOOLEAN NOT NULL DEFAULT false,
     allowed_scope_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     allowed_repository_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    allowed_permission_features JSONB NOT NULL DEFAULT '[]'::jsonb,
+    allowed_permission_data_classes JSONB NOT NULL DEFAULT '[]'::jsonb,
     external_provider_config_id TEXT NULL,
     external_subject_id_hash TEXT NULL,
     external_group_hashes JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -37,6 +40,11 @@ ALTER TABLE browser_sessions
 
 ALTER TABLE browser_sessions
     ADD COLUMN IF NOT EXISTS external_group_hashes JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE browser_sessions
+    ADD COLUMN IF NOT EXISTS permission_catalog_enforced BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS allowed_permission_features JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS allowed_permission_data_classes JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS browser_sessions_active_idx
     ON browser_sessions (

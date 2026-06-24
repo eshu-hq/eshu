@@ -25,28 +25,31 @@ type BrowserSessionStore struct {
 
 // BrowserSessionRecord is the durable server-managed dashboard session state.
 type BrowserSessionRecord struct {
-	SessionHash              string
-	CSRFTokenHash            string
-	TenantID                 string
-	WorkspaceID              string
-	SubjectIDHash            string
-	SubjectClass             string
-	PolicyRevisionHash       string
-	RoleIDs                  []string
-	AllScopes                bool
-	AllowedScopeIDs          []string
-	AllowedRepositoryIDs     []string
-	ExternalProviderConfigID string
-	ExternalSubjectIDHash    string
-	ExternalGroupHashes      []string
-	ExternalAuthValidatedAt  time.Time
-	ExternalAuthStaleAfter   time.Time
-	IssuedAt                 time.Time
-	LastSeenAt               time.Time
-	IdleExpiresAt            time.Time
-	AbsoluteExpiresAt        time.Time
-	RevokedAt                time.Time
-	UpdatedAt                time.Time
+	SessionHash                  string
+	CSRFTokenHash                string
+	TenantID                     string
+	WorkspaceID                  string
+	SubjectIDHash                string
+	SubjectClass                 string
+	PolicyRevisionHash           string
+	RoleIDs                      []string
+	AllScopes                    bool
+	PermissionCatalogEnforced    bool
+	AllowedScopeIDs              []string
+	AllowedRepositoryIDs         []string
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
+	ExternalProviderConfigID     string
+	ExternalSubjectIDHash        string
+	ExternalGroupHashes          []string
+	ExternalAuthValidatedAt      time.Time
+	ExternalAuthStaleAfter       time.Time
+	IssuedAt                     time.Time
+	LastSeenAt                   time.Time
+	IdleExpiresAt                time.Time
+	AbsoluteExpiresAt            time.Time
+	RevokedAt                    time.Time
+	UpdatedAt                    time.Time
 }
 
 // NewBrowserSessionStore constructs a Postgres-backed browser session store.
@@ -107,6 +110,14 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 	if err != nil {
 		return err
 	}
+	allowedPermissionFeatures, err := marshalBrowserSessionStrings(record.AllowedPermissionFeatures)
+	if err != nil {
+		return err
+	}
+	allowedPermissionDataClasses, err := marshalBrowserSessionStrings(record.AllowedPermissionDataClasses)
+	if err != nil {
+		return err
+	}
 	result, err := s.db.ExecContext(
 		ctx,
 		createBrowserSessionQuery,
@@ -132,6 +143,9 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 		nullTime(record.RevokedAt),
 		record.UpdatedAt,
 		externalGroupHashes,
+		record.PermissionCatalogEnforced,
+		allowedPermissionFeatures,
+		allowedPermissionDataClasses,
 	)
 	if err != nil {
 		return fmt.Errorf("create browser session: %w", err)
@@ -300,6 +314,8 @@ func normalizeBrowserSessionRecord(record BrowserSessionRecord) BrowserSessionRe
 	record.RoleIDs = cleanBrowserSessionStrings(record.RoleIDs)
 	record.AllowedScopeIDs = cleanBrowserSessionStrings(record.AllowedScopeIDs)
 	record.AllowedRepositoryIDs = cleanBrowserSessionStrings(record.AllowedRepositoryIDs)
+	record.AllowedPermissionFeatures = cleanBrowserSessionStrings(record.AllowedPermissionFeatures)
+	record.AllowedPermissionDataClasses = cleanBrowserSessionStrings(record.AllowedPermissionDataClasses)
 	record.ExternalProviderConfigID = strings.TrimSpace(record.ExternalProviderConfigID)
 	record.ExternalSubjectIDHash = strings.TrimSpace(record.ExternalSubjectIDHash)
 	record.ExternalGroupHashes = cleanBrowserSessionStrings(record.ExternalGroupHashes)
@@ -353,6 +369,7 @@ func validateBrowserSessionRecord(record BrowserSessionRecord) error {
 func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
 	var record BrowserSessionRecord
 	var roleIDBytes, allowedScopeBytes, allowedRepositoryBytes []byte
+	var allowedPermissionFeatureBytes, allowedPermissionDataClassBytes []byte
 	var revokedAt sql.NullTime
 	var csrfOK bool
 	if err := rows.Scan(
@@ -365,8 +382,11 @@ func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
 		&record.PolicyRevisionHash,
 		&roleIDBytes,
 		&record.AllScopes,
+		&record.PermissionCatalogEnforced,
 		&allowedScopeBytes,
 		&allowedRepositoryBytes,
+		&allowedPermissionFeatureBytes,
+		&allowedPermissionDataClassBytes,
 		&record.IssuedAt,
 		&record.LastSeenAt,
 		&record.IdleExpiresAt,
@@ -388,9 +408,19 @@ func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
 	if err != nil {
 		return BrowserSessionRecord{}, false, err
 	}
+	allowedPermissionFeatures, err := unmarshalBrowserSessionStrings(allowedPermissionFeatureBytes)
+	if err != nil {
+		return BrowserSessionRecord{}, false, err
+	}
+	allowedPermissionDataClasses, err := unmarshalBrowserSessionStrings(allowedPermissionDataClassBytes)
+	if err != nil {
+		return BrowserSessionRecord{}, false, err
+	}
 	record.RoleIDs = roleIDs
 	record.AllowedScopeIDs = allowedScopeIDs
 	record.AllowedRepositoryIDs = allowedRepositoryIDs
+	record.AllowedPermissionFeatures = allowedPermissionFeatures
+	record.AllowedPermissionDataClasses = allowedPermissionDataClasses
 	record.RevokedAt = timeFromNull(revokedAt)
 	return normalizeBrowserSessionRecord(record), csrfOK, nil
 }

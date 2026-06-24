@@ -35,6 +35,12 @@ func TestBootstrapDefinitionsIncludeBrowserSessions(t *testing.T) {
 		"ALTER TABLE browser_sessions",
 		"ADD COLUMN IF NOT EXISTS role_ids JSONB NOT NULL DEFAULT '[]'::jsonb",
 		"ADD COLUMN IF NOT EXISTS external_auth_stale_after TIMESTAMPTZ NULL",
+		"permission_catalog_enforced BOOLEAN NOT NULL DEFAULT false",
+		"allowed_permission_features JSONB NOT NULL DEFAULT '[]'::jsonb",
+		"allowed_permission_data_classes JSONB NOT NULL DEFAULT '[]'::jsonb",
+		"ADD COLUMN IF NOT EXISTS permission_catalog_enforced BOOLEAN NOT NULL DEFAULT false",
+		"ADD COLUMN IF NOT EXISTS allowed_permission_features JSONB NOT NULL DEFAULT '[]'::jsonb",
+		"ADD COLUMN IF NOT EXISTS allowed_permission_data_classes JSONB NOT NULL DEFAULT '[]'::jsonb",
 		"FOREIGN KEY (tenant_id, workspace_id)",
 		"REFERENCES workspaces(tenant_id, workspace_id) ON DELETE CASCADE",
 		"browser_sessions_active_idx",
@@ -66,21 +72,24 @@ func TestBrowserSessionStoreCreatesHashOnlyRecord(t *testing.T) {
 	store := NewBrowserSessionStore(db)
 
 	err := store.CreateSession(context.Background(), BrowserSessionRecord{
-		SessionHash:          "sha256:session",
-		CSRFTokenHash:        "sha256:csrf",
-		TenantID:             "tenant_a",
-		WorkspaceID:          "workspace_a",
-		SubjectIDHash:        "sha256:subject",
-		SubjectClass:         "human",
-		PolicyRevisionHash:   "sha256:policy",
-		AllScopes:            false,
-		AllowedScopeIDs:      []string{"scope_a", "scope_b"},
-		AllowedRepositoryIDs: []string{"repo_a"},
-		IssuedAt:             now,
-		LastSeenAt:           now,
-		IdleExpiresAt:        now.Add(30 * time.Minute),
-		AbsoluteExpiresAt:    now.Add(12 * time.Hour),
-		UpdatedAt:            now,
+		SessionHash:                  "sha256:session",
+		CSRFTokenHash:                "sha256:csrf",
+		TenantID:                     "tenant_a",
+		WorkspaceID:                  "workspace_a",
+		SubjectIDHash:                "sha256:subject",
+		SubjectClass:                 "human",
+		PolicyRevisionHash:           "sha256:policy",
+		AllScopes:                    false,
+		PermissionCatalogEnforced:    true,
+		AllowedScopeIDs:              []string{"scope_a", "scope_b"},
+		AllowedRepositoryIDs:         []string{"repo_a"},
+		AllowedPermissionFeatures:    []string{"ask_search", "repository_content"},
+		AllowedPermissionDataClasses: []string{"source_content"},
+		IssuedAt:                     now,
+		LastSeenAt:                   now,
+		IdleExpiresAt:                now.Add(30 * time.Minute),
+		AbsoluteExpiresAt:            now.Add(12 * time.Hour),
+		UpdatedAt:                    now,
 	})
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
@@ -94,9 +103,33 @@ func TestBrowserSessionStoreCreatesHashOnlyRecord(t *testing.T) {
 	if !strings.Contains(db.execs[0].query, "ON CONFLICT (session_hash) DO UPDATE") {
 		t.Fatalf("create query missing conflict clause:\n%s", db.execs[0].query)
 	}
+	for _, want := range []string{
+		"permission_catalog_enforced",
+		"allowed_permission_features",
+		"allowed_permission_data_classes",
+	} {
+		if !strings.Contains(db.execs[0].query, want) {
+			t.Fatalf("create query missing %q:\n%s", want, db.execs[0].query)
+		}
+	}
 	if fakeExecArgsContain(db.execs[0].args, "session-secret") ||
 		fakeExecArgsContain(db.execs[0].args, "csrf-secret") {
 		t.Fatalf("create args leaked raw secret: %#v", db.execs[0].args)
+	}
+	if !fakeExecArgsContain(db.execs[0].args, `["ask_search","repository_content"]`) {
+		t.Fatalf("create args missing persisted permission features: %#v", db.execs[0].args)
+	}
+	if !fakeExecArgsContain(db.execs[0].args, `["source_content"]`) {
+		t.Fatalf("create args missing persisted permission data classes: %#v", db.execs[0].args)
+	}
+	enforcedPersisted := false
+	for _, arg := range db.execs[0].args {
+		if value, ok := arg.(bool); ok && value {
+			enforcedPersisted = true
+		}
+	}
+	if !enforcedPersisted {
+		t.Fatalf("create args missing persisted permission_catalog_enforced=true: %#v", db.execs[0].args)
 	}
 }
 
@@ -181,10 +214,13 @@ func TestBrowserSessionStoreResolvesOnlyActiveUnrevokedSession(t *testing.T) {
 				"sha256:subject",
 				"human",
 				"sha256:policy",
-				[]byte(`[]`),
+				[]byte(`["role_reader"]`),
 				false,
+				true,
 				[]byte(`["scope_a","scope_b"]`),
 				[]byte(`["repo_a"]`),
+				[]byte(`["ask_search","repository_content"]`),
+				[]byte(`["source_content"]`),
 				now.Add(-time.Hour),
 				now.Add(-time.Minute),
 				now.Add(29 * time.Minute),
@@ -216,6 +252,15 @@ func TestBrowserSessionStoreResolvesOnlyActiveUnrevokedSession(t *testing.T) {
 	}
 	if got, want := session.AllowedScopeIDs, []string{"scope_a", "scope_b"}; !sameStrings(got, want) {
 		t.Fatalf("allowed scopes = %#v, want %#v", got, want)
+	}
+	if !session.PermissionCatalogEnforced {
+		t.Fatalf("PermissionCatalogEnforced = false, want true (round-trip from row)")
+	}
+	if got, want := session.AllowedPermissionFeatures, []string{"ask_search", "repository_content"}; !sameStrings(got, want) {
+		t.Fatalf("allowed permission features = %#v, want %#v", got, want)
+	}
+	if got, want := session.AllowedPermissionDataClasses, []string{"source_content"}; !sameStrings(got, want) {
+		t.Fatalf("allowed permission data classes = %#v, want %#v", got, want)
 	}
 	query := db.queries[0].query
 	for _, want := range []string{
@@ -263,6 +308,9 @@ func TestBrowserSessionStoreRejectsCSRFMismatch(t *testing.T) {
 				"sha256:policy",
 				[]byte(`[]`),
 				false,
+				false,
+				[]byte(`[]`),
+				[]byte(`[]`),
 				[]byte(`[]`),
 				[]byte(`[]`),
 				now.Add(-time.Hour),
@@ -333,6 +381,9 @@ func TestBrowserSessionStoreSwitchesActiveWorkspaceByHash(t *testing.T) {
 				"sha256:policy_b",
 				[]byte(`[]`),
 				true,
+				false,
+				[]byte(`[]`),
+				[]byte(`[]`),
 				[]byte(`[]`),
 				[]byte(`[]`),
 				now.Add(-time.Hour),
