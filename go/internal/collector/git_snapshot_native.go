@@ -255,15 +255,11 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("content_file_count", len(materialization.Records)),
 		slog.Int("content_entity_count", len(materialization.Entities)),
-		// lockfile_cap_hit_count: number of files where the lockfile variable cap
-		// (MaxLockfileVariableEntities) shed transitive dependency entries.
-		// Non-zero values on the full corpus identify the repositories driving
-		// content_entity volume from lockfile fan-out (#3676).
-		slog.Int("lockfile_cap_hit_count", materialization.LockfileCapHits),
 		// file_entity_cap_hit_count: number of files skipped for entity
 		// materialization because the projected entity count exceeded
 		// MaxFileEntityCount. These are typically minified JS bundles or generated
-		// source files with pathological symbol density.
+		// source files with pathological symbol density. When non-zero, the writer
+		// retracts any stale content_entities for those paths via PurgeEntities.
 		slog.Int("file_entity_cap_hit_count", materialization.FileEntityCapHits),
 	)
 

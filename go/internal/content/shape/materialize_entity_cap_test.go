@@ -92,6 +92,70 @@ func TestMaterializePerFileEntityCapPreservesNormalFiles(t *testing.T) {
 	}
 }
 
+// TestMaterializeFileEntityCapHitsCounter verifies that Materialize increments
+// FileEntityCapHits exactly once per file that exceeds MaxFileEntityCount, and
+// leaves the counter at zero when no file hits the cap.
+func TestMaterializeFileEntityCapHitsCounter(t *testing.T) {
+	t.Parallel()
+
+	// Build an oversized entity slice (triggers cap) and a normal one (does not).
+	oversized := make([]Entity, 0, MaxFileEntityCount+1)
+	for i := 0; i < MaxFileEntityCount+1; i++ {
+		oversized = append(oversized, Entity{Name: "fn" + itoa(i), LineNumber: i + 1})
+	}
+	normal := make([]Entity, 0, 5)
+	for i := 0; i < 5; i++ {
+		normal = append(normal, Entity{Name: "fn" + itoa(i), LineNumber: i + 1})
+	}
+
+	t.Run("one oversized file increments counter to 1", func(t *testing.T) {
+		t.Parallel()
+		got, err := Materialize(Input{
+			RepoID:       "repository:r_capcount01",
+			SourceSystem: "git",
+			Files: []File{
+				{
+					Path:          "huge.js",
+					Language:      "javascript",
+					EntityBuckets: map[string][]Entity{"functions": oversized},
+				},
+				{
+					Path:          "small.go",
+					Language:      "go",
+					EntityBuckets: map[string][]Entity{"functions": normal},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Materialize() error = %v, want nil", err)
+		}
+		if got, want := got.FileEntityCapHits, 1; got != want {
+			t.Fatalf("FileEntityCapHits = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("no oversized file leaves counter at 0", func(t *testing.T) {
+		t.Parallel()
+		got, err := Materialize(Input{
+			RepoID:       "repository:r_capcount02",
+			SourceSystem: "git",
+			Files: []File{
+				{
+					Path:          "small.go",
+					Language:      "go",
+					EntityBuckets: map[string][]Entity{"functions": normal},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Materialize() error = %v, want nil", err)
+		}
+		if got, want := got.FileEntityCapHits, 0; got != want {
+			t.Fatalf("FileEntityCapHits = %d, want %d (no cap must leave counter at zero)", got, want)
+		}
+	})
+}
+
 // TestMaterializeMinifiedJSFileSkippedByEntityCap verifies that a file whose
 // name contains ".min." and which produces excess entities is correctly handled
 // by the per-file entity cap.

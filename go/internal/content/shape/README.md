@@ -104,38 +104,46 @@ around the `Materialize` call.
 
 ## Performance Evidence: entity-cap debloat (#3676)
 
-**Change summary.** Two caps were introduced in `Materialize` to prevent
-content-entity explosion on large lockfiles and minified/generated files:
+**Change summary.** A per-file entity cap was introduced in `Materialize` to
+prevent content-entity explosion on minified and generated files. Transitive
+lockfile dependency entries are fully preserved.
 
-- `MaxLockfileVariableEntities = 500` — when a lockfile's `variables` bucket
-  exceeds 500 entries the direct-dependency entries (those whose name does not
-  contain `/` nested path segments) are kept and the rest are dropped. In
-  practice a `package-lock.json` from a medium-sized frontend project carries
-  roughly 847,000 `Variable` entities after recursive resolution; after the
-  direct-dep filter the count falls to roughly 500. The content body for the
-  file is still written for BM25 full-text search; only the per-entity rows
-  are capped.
 - `MaxFileEntityCount = 10_000` — when any single file's total entity count
   across all buckets exceeds 10,000 the entity records for that file are
   skipped entirely and the content body is still written. Representative
   examples: `ckeditor.js` produced 24,720 entities; `yacht.class.php` produced
   53,830 entities. Both now skip entity extraction while the file body remains
-  available for search.
+  available for BM25 full-text search.
 
-No-Regression Evidence: both caps operate as a bounded pre-scan over entity
+- **Transitive lockfile dependency entries are preserved.** The lockfile
+  variable cap was removed because transitive entries
+  (`dependency_depth` ≥ 2, `direct_dependency=false`) feed the reducer's
+  `PackageConsumptionDecision` for supply-chain impact analysis and security
+  alerts. Silently dropping them destroys dependency truth at scale. The real
+  source of lockfile entity explosion is 4× corpus nesting (#3677), not a
+  shape-layer concern.
+
+- **Stale entity retraction via `PurgeEntities`.** When the per-file entity cap
+  fires for a path, `content.Record.PurgeEntities` is set to `true`. The
+  content writer runs a path-scoped `DELETE FROM content_entities` for that
+  `repo_id + relative_path` before upserting the content file row, so
+  previously-indexed entity rows are not left queryable as orphans after
+  re-indexing an oversized file.
+
+No-Regression Evidence: the cap operates as a bounded pre-scan over entity
 slices that are already resident in memory by the time `Materialize` is called;
-there is no additional IO, no Cypher, and no Postgres interaction. The lockfile
-filter is O(n) over the variable bucket; the file-level cap is O(1) (a length
-check before bucket iteration). Downstream fact volume is reduced, so net
-wall-clock ingestion time improves for repositories with large lockfiles or
-generated files. A full-corpus re-measurement against the pre-cap baseline is
-pending and will be added to this note when available.
+there is no additional IO, no Cypher, and no Postgres interaction beyond the
+retraction delete. The file-level cap is O(1) (a length check before sorting).
+Downstream fact volume is reduced for minified/generated files, so net
+wall-clock ingestion time improves. A full-corpus re-measurement against the
+pre-cap baseline is pending and will be added to this note when available.
 
-Observability Evidence: `lockfile_cap_hit_count` and `file_entity_cap_hit_count`
-are emitted as structured fields on the `materialize snapshot-stage` slog line
-in `go/internal/collector/git_snapshot_native.go`. An operator can filter for
-`lockfile_cap_hit_count>0` or `file_entity_cap_hit_count>0` to identify which
-repositories and files are hitting the caps during a sync run. No new metrics
-or spans are required because the caps are a content-shaping guard, not a
-separate pipeline stage; existing ingester duration and outcome metrics cover
+Observability Evidence: `file_entity_cap_hit_count` is emitted as a structured
+field on the `materialize snapshot-stage` slog line in
+`go/internal/collector/git_snapshot_native.go`. An operator can filter for
+`file_entity_cap_hit_count>0` to identify which repositories and files are
+hitting the cap during a sync run. When `PurgeEntities` fires, the content
+writer logs the path-scoped entity delete at the `prepare_files` stage. No new
+metrics or spans are required because the cap is a content-shaping guard, not
+a separate pipeline stage; existing ingester duration and outcome metrics cover
 the call site.
