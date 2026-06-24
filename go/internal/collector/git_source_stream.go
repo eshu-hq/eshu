@@ -32,8 +32,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	}
 	if len(batch.Repositories) == 0 {
 		if s.Logger != nil {
-			s.Logger.DebugContext(
-				ctx, "collector stream: no repositories discovered",
+			s.Logger.DebugContext(ctx, "collector stream: no repositories discovered",
 				slog.String("collector_kind", "git"),
 				slog.String("component", s.componentName()),
 				telemetry.PhaseAttr(telemetry.PhaseDiscovery),
@@ -85,8 +84,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	var streamSpan trace.Span
 	streamCtx := ctx
 	if s.Tracer != nil {
-		streamCtx, streamSpan = s.Tracer.Start(
-			ctx, telemetry.SpanCollectorStream,
+		streamCtx, streamSpan = s.Tracer.Start(ctx, telemetry.SpanCollectorStream,
 			trace.WithAttributes(
 				attribute.String("component", s.componentName()),
 				attribute.Int("repository_count", len(resolved)),
@@ -97,8 +95,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 
 	streamStart := time.Now()
 	if s.Logger != nil {
-		s.Logger.InfoContext(
-			streamCtx, "collector stream started",
+		s.Logger.InfoContext(streamCtx, "collector stream started",
 			slog.String("collector_kind", "git"),
 			slog.String("component", s.componentName()),
 			slog.Int("repository_count", len(resolved)),
@@ -144,8 +141,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 				if large {
 					tier = "large"
 				}
-				s.Instruments.LargeRepoClassifications.Add(
-					workerCtx, 1,
+				s.Instruments.LargeRepoClassifications.Add(workerCtx, 1,
 					metric.WithAttributes(attribute.String(telemetry.MetricDimensionRepoSizeTier, tier)),
 				)
 			}
@@ -154,8 +150,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 			if large {
 				ch = largeCh
 				if s.Logger != nil {
-					s.Logger.InfoContext(
-						workerCtx, "large repository queued",
+					s.Logger.InfoContext(workerCtx, "large repository queued",
 						slog.String("repo_path", repo.RepoPath),
 					)
 				}
@@ -169,155 +164,75 @@ func (s *GitSource) startStream(ctx context.Context) error {
 		}
 	}()
 
-	// Snapshot workers with two-lane select: prefer small repos so they
-	// always flow at full parallelism even when large repos hold the
-	// semaphore. Large repos are processed when no small work is available.
+	// Snapshot workers run in two roles. The first min(largeMaxConcurrent,
+	// workers) workers PREFER the large lane so up to that many giant repos
+	// always START in the first scheduling window, regardless of how the
+	// classifier front-loads the small lane. The remaining workers prefer the
+	// small lane so small repos still flow at full parallelism.
+	//
+	// Why a dedicated large lane: largest-first ordering only guarantees
+	// enqueue order. If every worker prefers small work, a classifier that
+	// fills the small lane before workers run keeps each worker taking smalls
+	// while the giants sit in the large lane until the small lane drains, so
+	// the giant-repo overlap was scheduler-timing-dependent. Dedicating up to
+	// largeMaxConcurrent workers to the large lane makes the early giant start
+	// deterministic while the semaphore still bounds concurrent giant parses.
 	//
 	// Key design: the large-repo semaphore is acquired inside the select
-	// statement, NOT inside processRepo. This guarantees a worker never
-	// blocks waiting for the semaphore while small repos are available.
-	// When the semaphore is full, the largeSem case simply doesn't fire
-	// and the worker falls through to smallCh or blocks.
+	// statement, NOT inside processRepo. Every acquire (`largeSem <- struct{}{}`)
+	// has exactly one matching release (`<-largeSem`) on every path: a processed
+	// giant releases via the afterSnapshot callback in processLargeRepo; a
+	// no-large-ready, large-closed, or ctx-cancelled path releases inline before
+	// returning.
 	var wg sync.WaitGroup
 	var errOnce sync.Once
 	var firstErr error
 	var completed atomic.Int64
 
-	// drainLarge is a helper for drain loops where the small channel is
-	// closed and only large repos remain. Each repo acquires the semaphore
-	// before processing and releases it via the afterSnapshot callback.
-	drainLarge := func(workerID int) {
-		for repo := range largeCh {
-			if workerCtx.Err() != nil {
-				return
-			}
-			semWaitStart := time.Now()
-			select {
-			case largeSem <- struct{}{}:
-			case <-workerCtx.Done():
-				return
-			}
-			if s.Instruments != nil {
-				s.Instruments.LargeRepoSemaphoreWait.Record(
-					workerCtx,
-					time.Since(semWaitStart).Seconds(),
-				)
-			}
-			if s.Logger != nil {
-				s.Logger.InfoContext(
-					workerCtx, "large repo semaphore acquired",
-					slog.String("repo_path", repo.RepoPath),
-					slog.Int("worker_id", workerID),
-					slog.Float64("wait_seconds", time.Since(semWaitStart).Seconds()),
-				)
-			}
-			s.processRepo(workerCtx, repo,
-				func() { <-largeSem },
-				sourceRunID, observedAt, workerID,
-				&errOnce, &firstErr, cancel, &completed)
-		}
+	sched := &snapshotScheduler{
+		source:      s,
+		smallCh:     smallCh,
+		largeCh:     largeCh,
+		largeSem:    largeSem,
+		workerCtx:   workerCtx,
+		cancel:      cancel,
+		sourceRunID: sourceRunID,
+		observedAt:  observedAt,
+		errOnce:     &errOnce,
+		firstErr:    &firstErr,
+		completed:   &completed,
+	}
+
+	largePreferring := largeMaxConcurrent
+	if largePreferring > workers {
+		largePreferring = workers
+	}
+	// Reserve at least one small-preferring worker when workers > 1 so small
+	// repos are not starved until largeCh closes. When workers == 1 the lone
+	// worker is small-preferring and still opportunistically drains large repos
+	// via the runSmallPreferring select (it can win the semaphore when no small
+	// repo is immediately available).
+	if largePreferring >= workers && workers > 1 {
+		largePreferring = workers - 1
 	}
 
 	for i := 0; i < workers; i++ {
 		workerID := i + 1
+		// The first largePreferring workers prefer the large lane so up to
+		// LargeRepoMaxConcurrent giant repos start in the first scheduling window
+		// regardless of how the classifier front-loads the small lane (issue
+		// #3839); the rest prefer the small lane to keep small repos flowing.
+		// largePreferring is always < workers (enforced above), so at least one
+		// worker here takes the small-preferring path.
+		preferLarge := i < largePreferring
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for {
-				if workerCtx.Err() != nil {
-					return
-				}
-
-				// Priority: always try small repos first (non-blocking).
-				select {
-				case repo, ok := <-smallCh:
-					if !ok {
-						drainLarge(workerID)
-						return
-					}
-					s.processRepo(workerCtx, repo, nil,
-						sourceRunID, observedAt, workerID,
-						&errOnce, &firstErr, cancel, &completed)
-					continue
-				default:
-				}
-
-				// No small repo immediately available. Try to acquire the
-				// large-repo semaphore alongside checking for small repos.
-				// A worker NEVER blocks waiting for the semaphore — if it's
-				// full, the largeSem case doesn't fire and the worker handles
-				// small repos or waits for either channel.
-				select {
-				case repo, ok := <-smallCh:
-					if !ok {
-						drainLarge(workerID)
-						return
-					}
-					s.processRepo(workerCtx, repo, nil,
-						sourceRunID, observedAt, workerID,
-						&errOnce, &firstErr, cancel, &completed)
-				case largeSem <- struct{}{}:
-					// Acquired semaphore — pull a large repo.
-					semAcquiredAt := time.Now()
-					select {
-					case repo, ok := <-largeCh:
-						if !ok {
-							<-largeSem
-							// Large channel closed, drain remaining small repos.
-							for repo := range smallCh {
-								if workerCtx.Err() != nil {
-									return
-								}
-								s.processRepo(workerCtx, repo, nil,
-									sourceRunID, observedAt, workerID,
-									&errOnce, &firstErr, cancel, &completed)
-							}
-							return
-						}
-						if s.Instruments != nil {
-							s.Instruments.LargeRepoSemaphoreWait.Record(workerCtx, 0)
-						}
-						if s.Logger != nil {
-							s.Logger.InfoContext(
-								workerCtx, "large repo semaphore acquired",
-								slog.String("repo_path", repo.RepoPath),
-								slog.Int("worker_id", workerID),
-								slog.Float64("wait_seconds", 0),
-							)
-						}
-						// Process large repo; afterSnapshot releases semaphore
-						// so it's freed before the (potentially slow) stream send.
-						s.processRepo(workerCtx, repo,
-							func() {
-								<-largeSem
-								if s.Logger != nil {
-									s.Logger.InfoContext(
-										workerCtx, "large repo semaphore released",
-										slog.Int("worker_id", workerID),
-										slog.Float64("held_seconds", time.Since(semAcquiredAt).Seconds()),
-									)
-								}
-							},
-							sourceRunID, observedAt, workerID,
-							&errOnce, &firstErr, cancel, &completed)
-					case repo, ok := <-smallCh:
-						// Got a small repo while waiting for large — release sem.
-						<-largeSem
-						if !ok {
-							drainLarge(workerID)
-							return
-						}
-						s.processRepo(workerCtx, repo, nil,
-							sourceRunID, observedAt, workerID,
-							&errOnce, &firstErr, cancel, &completed)
-					case <-workerCtx.Done():
-						<-largeSem
-						return
-					}
-				case <-workerCtx.Done():
-					return
-				}
+			if preferLarge {
+				sched.runLargePreferring(workerID)
+				return
 			}
+			sched.runSmallPreferring(workerID)
 		}()
 	}
 
@@ -334,8 +249,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 
 		// Record stream-level metrics
 		if s.Instruments != nil {
-			s.Instruments.CollectorObserveDuration.Record(
-				ctx, streamDuration,
+			s.Instruments.CollectorObserveDuration.Record(ctx, streamDuration,
 				metric.WithAttributes(
 					telemetry.AttrCollectorKind("git"),
 					attribute.String("component", s.componentName()),
@@ -368,8 +282,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 				telemetry.PhaseAttr(telemetry.PhaseEmission),
 			}
 			if firstErr != nil {
-				logAttrs = append(
-					logAttrs,
+				logAttrs = append(logAttrs,
 					slog.String("error", firstErr.Error()),
 					telemetry.FailureClassAttr("stream_snapshot_failure"),
 				)
