@@ -166,15 +166,16 @@ func (a *postgresBrowserSessionAdapter) ResolveBrowserSession(
 
 func authContextFromBrowserSessionRecord(record pgstatus.BrowserSessionRecord) query.AuthContext {
 	return query.AuthContext{
-		Mode:                 query.AuthModeBrowserSession,
-		TenantID:             record.TenantID,
-		WorkspaceID:          record.WorkspaceID,
-		SubjectClass:         record.SubjectClass,
-		SubjectIDHash:        record.SubjectIDHash,
-		PolicyRevisionHash:   record.PolicyRevisionHash,
-		RoleIDs:              append([]string(nil), record.RoleIDs...),
-		AllScopes:            record.AllScopes,
-		AllowedScopeIDs:      append([]string(nil), record.AllowedScopeIDs...),
-		AllowedRepositoryIDs: append([]string(nil), record.AllowedRepositoryIDs...),
+		Mode:                     query.AuthModeBrowserSession,
+		TenantID:                 record.TenantID,
+		WorkspaceID:              record.WorkspaceID,
+		SubjectClass:             record.SubjectClass,
+		SubjectIDHash:            record.SubjectIDHash,
+		PolicyRevisionHash:       record.PolicyRevisionHash,
+		RoleIDs:                  append([]string(nil), record.RoleIDs...),
+		AllScopes:                record.AllScopes,
+		AllowedScopeIDs:          append([]string(nil), record.AllowedScopeIDs...),
+		AllowedRepositoryIDs:     append([]string(nil), record.AllowedRepositoryIDs...),
+		ExternalProviderConfigID: record.ExternalProviderConfigID,
 	}
 }

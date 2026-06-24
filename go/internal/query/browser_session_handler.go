@@ -93,6 +93,9 @@ type BrowserSessionAuthResponse struct {
 	AllowedRepositoryIDs      []string `json:"allowed_repository_ids,omitempty"`
 	PermissionCatalogEnforced bool     `json:"permission_catalog_enforced"`
 	AllowedPermissionFeatures []string `json:"allowed_permission_features,omitempty"`
+	// ExternalProviderConfigID is the stored OIDC/SAML provider config ID for
+	// sessions established via an external IdP. Omitted for local sessions.
+	ExternalProviderConfigID string `json:"external_provider_config_id,omitempty"`
 }
 
 // Mount registers browser session routes.
@@ -402,5 +405,6 @@ func browserSessionAuthResponse(auth AuthContext) BrowserSessionAuthResponse {
 		AllowedRepositoryIDs:      append([]string(nil), auth.AllowedRepositoryIDs...),
 		PermissionCatalogEnforced: auth.PermissionCatalogEnforced,
 		AllowedPermissionFeatures: append([]string(nil), auth.AllowedPermissionFeatures...),
+		ExternalProviderConfigID:  auth.ExternalProviderConfigID,
 	}
 }

@@ -76,6 +76,10 @@ type AuthContext struct {
 	AllScopes                    bool
 	AllowedScopeIDs              []string
 	AllowedRepositoryIDs         []string
+	// ExternalProviderConfigID is the stored OIDC/SAML config ID for sessions
+	// that were established via an external identity provider. Empty for local
+	// password sessions.
+	ExternalProviderConfigID string
 }
 
 // ScopedTokenResolver resolves a presented bearer credential into an auth
@@ -353,6 +357,7 @@ func normalizeAuthContext(auth AuthContext) AuthContext {
 	auth.AllowedPermissionDataClasses = cleanedAuthStrings(auth.AllowedPermissionDataClasses)
 	auth.AllowedScopeIDs = cleanedAuthStrings(auth.AllowedScopeIDs)
 	auth.AllowedRepositoryIDs = cleanedAuthStrings(auth.AllowedRepositoryIDs)
+	auth.ExternalProviderConfigID = strings.TrimSpace(auth.ExternalProviderConfigID)
 	return auth
 }
 
