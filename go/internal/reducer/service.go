@@ -387,6 +387,13 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 		for k, v := range result.SubDurations {
 			logAttrs = append(logAttrs, slog.Float64("sub_duration_"+k+"_seconds", v))
 		}
+		// Emit non-duration diagnostic signals (counts and flags such as
+		// input_ready and written_rows) under a separate sub_signal_<key> prefix
+		// with NO _seconds suffix, so an operator never misreads a row count or a
+		// boolean flag as a wall-time measurement.
+		for k, v := range result.SubSignals {
+			logAttrs = append(logAttrs, slog.Float64("sub_signal_"+k, v))
+		}
 		logAttrs = append(logAttrs, slog.Int("worker_id", workerID))
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseReduction))
 		switch status {

@@ -207,13 +207,41 @@ func (h PlatformMaterializationHandler) Handle(
 		timing,
 	)
 
+	// input_ready reflects INPUT PRESENCE, not write count: the platform writer
+	// runs unconditionally, so canonicalWrites==0 is genuine empty work, not an
+	// ordering stall. A deployment_mapping intent always carries the entity keys
+	// it must materialize (validated in platformMaterializationWriteFromIntent),
+	// so input is present whenever the request has entity keys.
+	inputReady := len(request.EntityKeys) > 0
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDeploymentMapping,
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: canonicalWrites,
+		SubDurations:    platformMaterializationSubDurations(timing),
+		SubSignals:      materializationDiagnosticSignals(inputReady, canonicalWrites),
 	}, nil
+}
+
+// platformMaterializationSubDurations converts the internal per-phase timing
+// struct into the Result.SubDurations map so the service layer emits
+// sub_duration_<key>_seconds log attributes alongside handler_duration_seconds.
+// Keys follow the workload_materialization naming convention so operators can
+// compare sub-phase timing across domains in the same structured-log stream.
+// Non-duration diagnostic signals (input_ready, written_rows) are carried
+// separately in Result.SubSignals so the _seconds suffix stays honest.
+func platformMaterializationSubDurations(t platformMaterializationTiming) map[string]float64 {
+	return map[string]float64{
+		"platform_write":     t.platformWriteDuration.Seconds(),
+		"load_facts":         t.factLoadDuration.Seconds(),
+		"infra_extract":      t.infrastructureExtract.Seconds(),
+		"infra_graph_write":  t.infrastructureGraphWrite.Seconds(),
+		"cross_repo_resolve": t.crossRepoResolutionDuration.Seconds(),
+		"workload_replay":    t.workloadReplayDuration.Seconds(),
+		"phase_publish":      t.phasePublishDuration.Seconds(),
+		"total":              t.totalDuration.Seconds(),
+	}
 }
 
 func (h PlatformMaterializationHandler) materializeInfrastructurePlatforms(
