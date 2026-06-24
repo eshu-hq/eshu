@@ -30,7 +30,10 @@ jobs:
         run: scripts/test-verify-skill-roundtrip.sh
 
       - name: Verify skillgen roundtrip gate
-        run: scripts/verify-skill-roundtrip.sh 2>&1 | tee /tmp/skill-roundtrip.log
+        shell: bash
+        run: |
+          set -o pipefail
+          scripts/verify-skill-roundtrip.sh 2>&1 | tee /tmp/skill-roundtrip.log
 
       - name: Upload drift report on failure
         if: failure()
