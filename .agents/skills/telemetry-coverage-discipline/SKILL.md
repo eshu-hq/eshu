@@ -1,4 +1,23 @@
-# Skill: telemetry-coverage-discipline
+---
+name: telemetry-coverage-discipline
+description: |
+  Use when a change touches `go/internal/telemetry/instruments.go`,
+  `go/internal/telemetry/contract.go` or any `contract_*.go`, the contract
+  doc at `docs/public/observability/telemetry-coverage.md`, the public
+  operator reference at `docs/public/reference/telemetry/index.md`, the
+  static-analysis verifier `scripts/verify-telemetry-coverage.sh`, the CI
+  workflow `.github/workflows/verify-telemetry-coverage.yml`, the operator
+  dashboard `docs/public/observability/dashboards/eshu-operator-overview.json`,
+  or when adding a new `eshu_dp_*` metric or a new pipeline stage. Also
+  activate when investigating an operator report of "the metric we expect
+  isn't there". Captures the Epic X discipline: the four-artifact
+  contract (X1 doc + X2 verifier + X3 CI gate + X4 dashboard), the
+  `No-Observability-Change:` marker discipline, the contributor runbook,
+  and a pointer to the "Limitations Of The X2 Gate" section so future
+  maintainers know what the verifier does and does not catch.
+---
+
+# telemetry-coverage-discipline
 
 Use this skill whenever a change touches `go/internal/telemetry/instruments.go`,
 `go/internal/telemetry/contract.go` or any `contract_*.go`, the X1 contract doc

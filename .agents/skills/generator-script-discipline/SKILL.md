@@ -1,4 +1,19 @@
-# Skill: generator-script-discipline
+---
+name: generator-script-discipline
+description: |
+  Use when a change adds a shell script that produces a generated artifact
+  and commits it to the repo: a JSON schema, a Grafana dashboard, a
+  verifier-generated file, a manifest, a fixture catalogue, a typed-API
+  definition, or any other file whose committed form is a function of
+  source-of-truth data plus a deterministic transformation. Activate for
+  new scripts under `scripts/` that emit files under `docs/`,
+  `go/internal/*/data/`, `deploy/`, or any checked-in artifact directory.
+  Captures the three-file pattern (slim `generate-*.sh` + `lib/` chunks +
+  `test-generate-*.sh` mirror), idempotency as a first-class test case,
+  and the 500-line cap pre-planned rather than retrofitted.
+---
+
+# generator-script-discipline
 
 Use this skill whenever a change adds a shell script that produces a
 generated artifact and commits it to the repo: a JSON schema, a
@@ -58,14 +73,23 @@ its first check:
 ```bash
 # Case 1: generator is idempotent — re-running with the same inputs
 # produces the same bytes. (Deterministic output is the load-bearing
-# property of the gate.)
-md5_before=$(md5 -q "${output_path}")
-"${generator}" >/dev/null
-md5_after=$(md5 -q "${output_path}")
-if [ "$md5_before" != "$md5_after" ]; then
-  record_fail "generator output is not deterministic"
+# property of the gate.) Use the byte-comparison form below, which is
+# portable across macOS and the GHA ubuntu-latest runner.
+if cmp -s "${output_path}" "${output_path}.bak"; then
+  record_pass "generator is idempotent on a clean re-run"
+else
+  record_fail "generator output is not byte-for-byte deterministic"
 fi
 ```
+
+The byte-comparison form matches the convention used by
+`scripts/test-verify-telemetry-coverage.sh` and
+`scripts/test-generate-operator-dashboard.sh`. Capture the expected
+output once with `cp "${output_path}" "${output_path}.bak"` before
+running the second pass; if the second pass produces the same bytes,
+the generator is deterministic. Do not use `md5 -q` (macOS-only) or
+`md5sum` (Linux-only) — `cmp -s` works on both and is the repo
+convention.
 
 This catches timestamp embedding, hostname leaks, unkeyed `map`
 iteration in templating languages, and any other non-determinism that
