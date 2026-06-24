@@ -121,6 +121,14 @@ type Event struct {
 	CorrelationID      string
 	PolicyRevisionHash string
 	OccurredAt         time.Time
+	// TenantID identifies the tenant this event belongs to. Empty/NULL for
+	// genuine system-wide (global) events such as bootstrap or platform-level
+	// egress decisions. MUST NOT be fabricated: only populate from the caller's
+	// AuthContext when a real tenant is present.
+	TenantID string
+	// WorkspaceID identifies the workspace this event belongs to, when the
+	// event is further scoped below the tenant level. Empty when not applicable.
+	WorkspaceID string
 }
 
 // Count is one low-cardinality aggregate count.
@@ -156,6 +164,8 @@ func NormalizeEvent(event Event) (Event, error) {
 	event.CorrelationID = strings.TrimSpace(event.CorrelationID)
 	event.PolicyRevisionHash = strings.TrimSpace(event.PolicyRevisionHash)
 	event.OccurredAt = event.OccurredAt.UTC()
+	event.TenantID = strings.TrimSpace(event.TenantID)
+	event.WorkspaceID = strings.TrimSpace(event.WorkspaceID)
 
 	if !validEventType(event.Type) {
 		return Event{}, fieldError("type")
