@@ -560,9 +560,15 @@ serializing at the end. The file count walked for ordering is reused for the
 existing small/large lane classification, so no second tree walk is added.
 
 - Performance Evidence (measured, full-corpus 895-repository run, PostgreSQL 18 +
-  NornicDB): the giant repos are now dispatched in the first batch (verified by
-  the order of the `large repository queued` log) and parse concurrently with the
-  small-repo bulk instead of serializing at the tail. The clean, attributable
+  NornicDB): the giant repos are enqueued first (verified by the order of the
+  `large repository queued` log) and parsed concurrently with the small-repo bulk
+  rather than serializing at the tail. The ordering guarantees enqueue order, not
+  start order: the worker loop prefers the small lane, so the largest-first
+  *start* overlap is best-effort and scheduler/backpressure-dependent (in this run
+  the large-repo semaphore waits were ~90-100 s, not the full small-bulk, so the
+  overlap held). Making early giant start guaranteed regardless of classifier
+  timing is tracked as a follow-up (issue #3839); the byte-balanced parse win
+  below is independent of scheduling and already guaranteed. The clean, attributable
   metric is the parse stage (the collection work this change targets, unconfounded
   by the downstream projection consumer): the worst single-repository parse
   dropped from ~1012 s to ~238 s and the total parse stage from ~1586 s to ~675 s
