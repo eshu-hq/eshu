@@ -41,14 +41,24 @@ type IngestionStore struct {
 	// repository count. Zero uses deferredMaintenanceRepoBatchSize. It exists so
 	// tests can force multiple independent batch transactions deterministically.
 	maintenanceBatchSize int
-	catalogCache         *repositoryCatalogCache
+	// maintenanceWorkers overrides the number of deferred-maintenance batch
+	// transactions processed concurrently. Zero or one keeps the pass serial
+	// (one in-flight batch transaction), the safe default for deployments pinned
+	// to ESHU_POSTGRES_MAX_OPEN_CONNS=1. NewIngestionStore seeds it from
+	// deferredBackfillWorkerCount; tests set it directly.
+	maintenanceWorkers int
+	catalogCache       *repositoryCatalogCache
 }
 
 // NewIngestionStore constructs a transactional storage boundary for projection
 // input. It installs a shared repository catalog cache so per-commit catalog
 // reloads stay O(1) across the lifetime of the store (issue #3481).
 func NewIngestionStore(db ExecQueryer) IngestionStore {
-	store := IngestionStore{db: db, catalogCache: newRepositoryCatalogCache()}
+	store := IngestionStore{
+		db:                 db,
+		catalogCache:       newRepositoryCatalogCache(),
+		maintenanceWorkers: deferredBackfillWorkerCount(),
+	}
 	if beginner, ok := db.(Beginner); ok {
 		store.beginner = beginner
 	}

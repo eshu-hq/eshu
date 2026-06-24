@@ -117,6 +117,16 @@ ORDER BY scope_id`
 		}
 	}
 
+	// Tiebreak: two generations at the identical ingested_at must resolve to the
+	// higher generation_id (gen-tie-b) in both forms, proving the
+	// generation_id DESC secondary sort key is honored deterministically.
+	if rewrite["scope-tie"] != "gen-tie-b" {
+		t.Fatalf("scope-tie rewrite chose %q, want gen-tie-b (generation_id DESC tiebreak)", rewrite["scope-tie"])
+	}
+	if legacy["scope-tie"] != "gen-tie-b" {
+		t.Fatalf("scope-tie legacy chose %q, want gen-tie-b (generation_id DESC tiebreak)", legacy["scope-tie"])
+	}
+
 	// Plan assertion: the rewrite must not produce a correlated SubPlan; the
 	// legacy form must (it is the planner-misestimated node). A SubPlan in the
 	// rewrite would mean the per-scope correlated evaluation crept back in.
@@ -130,12 +140,15 @@ ORDER BY scope_id`
 	}
 }
 
-// seedLatestGenerationProof inserts the three precedence cases:
+// seedLatestGenerationProof inserts the four precedence cases:
 //   - scope-active: active_generation_id pinned to an OLDER generation; the
 //     pointer must win over the newest-by-ingested-time generation.
 //   - scope-fallback: no active pointer, two generations; the newest by
 //     (ingested_at DESC, generation_id DESC) must win.
 //   - scope-single: one generation, no active pointer; that generation is chosen.
+//   - scope-tie: no active pointer, two generations at the IDENTICAL ingested_at;
+//     the generation_id DESC tiebreak must pick gen-tie-b deterministically, and
+//     the legacy correlated form and the DISTINCT ON rewrite must agree on it.
 func seedLatestGenerationProof(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	base := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
@@ -146,6 +159,7 @@ func seedLatestGenerationProof(t *testing.T, ctx context.Context, db *sql.DB) {
 		{"scope-active", sql.NullString{String: "gen-active-old", Valid: true}},
 		{"scope-fallback", sql.NullString{}},
 		{"scope-single", sql.NullString{}},
+		{"scope-tie", sql.NullString{}},
 	}
 	for _, s := range scopes {
 		if _, err := db.ExecContext(ctx,
@@ -154,6 +168,7 @@ func seedLatestGenerationProof(t *testing.T, ctx context.Context, db *sql.DB) {
 			t.Fatalf("seed scope %q: %v", s.scopeID, err)
 		}
 	}
+	tieAt := base.Add(2 * time.Hour)
 	gens := []struct {
 		genID      string
 		scopeID    string
@@ -166,6 +181,9 @@ func seedLatestGenerationProof(t *testing.T, ctx context.Context, db *sql.DB) {
 		{"gen-fallback-old", "scope-fallback", base},
 		{"gen-fallback-new", "scope-fallback", base.Add(time.Hour)},
 		{"gen-single", "scope-single", base},
+		// tie: identical ingested_at; generation_id DESC must pick gen-tie-b.
+		{"gen-tie-a", "scope-tie", tieAt},
+		{"gen-tie-b", "scope-tie", tieAt},
 	}
 	for _, g := range gens {
 		if _, err := db.ExecContext(ctx,

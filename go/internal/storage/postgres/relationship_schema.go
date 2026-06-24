@@ -186,12 +186,22 @@ VALUES ($1, $2, 'active', $3, $4)
 ON CONFLICT (generation_id) DO UPDATE SET status = 'active', activated_at = $4
 `
 
-const insertEvidenceFactSQL = `
+// insertEvidenceFactBatchPrefix and insertEvidenceFactBatchSuffix wrap the
+// dynamically generated per-row placeholder tuples of a multi-row evidence
+// INSERT into relationship_evidence_facts (issue #3704). The column order is
+// (evidence_id, generation_id, evidence_kind, relationship_type, source_repo_id,
+// target_repo_id, source_entity_id, target_entity_id, confidence, rationale,
+// details, observed_at), and the suffix keeps `ON CONFLICT (evidence_id) DO
+// NOTHING` so a batched insert is idempotent and writes the identical rows the
+// prior per-row path did.
+const insertEvidenceFactBatchPrefix = `
 INSERT INTO relationship_evidence_facts (
     evidence_id, generation_id, evidence_kind, relationship_type,
     source_repo_id, target_repo_id, source_entity_id, target_entity_id,
     confidence, rationale, details, observed_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+) VALUES `
+
+const insertEvidenceFactBatchSuffix = `
 ON CONFLICT (evidence_id) DO NOTHING
 `
 

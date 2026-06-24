@@ -14,9 +14,8 @@ package postgres
 // computed the fallback with a per-scope correlated subquery
 // (`SELECT generation_id ... WHERE candidate.scope_id = generation.scope_id
 // ORDER BY ... LIMIT 1`) evaluated once per GROUP BY group. The planner could not
-// estimate that correlated subplan's cardinality (it estimated thousands of rows
-// against a ~3.5M-row fact join), so the corpus-wide relationship backfill became
-// a single CPU-bound serial query. DISTINCT ON collapses the same selection into
+// estimate that correlated subplan's cardinality, so the plan carried a
+// misestimated per-scope SubPlan. DISTINCT ON collapses the same selection into
 // one ordered pass over scope_generations: ORDER BY
 // (scope_id, ingested_at DESC, generation_id DESC) makes the first row per scope
 // the newest generation, and COALESCE(active_generation_id, that newest id)
@@ -27,6 +26,15 @@ package postgres
 // The `scope_generations_scope_latest_lookup_idx` index
 // (scope_id, ingested_at DESC, generation_id DESC) lets Postgres satisfy the
 // per-scope DISTINCT ON ordering without sorting the whole table.
+//
+// Scope of the win: this rewrite eliminates the planner-misestimated correlated
+// subplan and restores a flat, parallelizable plan shape; it is a query-shape
+// cleanup, NOT the fix for the multi-minute backfill long pole. Live measurement
+// showed both query forms already execute sub-second over the corpus. The actual
+// long pole is the serial client-side per-fact processing, addressed by the
+// concurrent per-repository batch writes (writeDeferredBackfillInBatches in
+// ingestion_backfill.go) and the multi-row evidence INSERT batching
+// (UpsertEvidenceFacts in relationship_store.go).
 const latestGenerationCTE = `WITH latest_generations AS (
     SELECT DISTINCT ON (generation.scope_id)
         generation.scope_id,

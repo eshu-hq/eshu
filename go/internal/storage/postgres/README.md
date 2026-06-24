@@ -686,7 +686,73 @@ spans, the `DeferredBackfillDuration`/`DeferredBackfillEvidence`/
 `deployment_mapping_reopened`/`relationship_backfill_deferred_source_skipped`
 log lines are emitted from the same statements, now relocated.
 
-### Latest-generation CTE: DISTINCT ON rewrite + per-batch telemetry (#3704)
+### Deferred relationship-evidence backfill long pole (#3704)
+
+This change has three parts. The **concurrency fix** is the actual long-pole
+reduction; the **CTE rewrite** and **per-batch telemetry** are supporting
+cleanups. Be precise about which is which.
+
+Long-pole diagnosis: on the de-nested 896-repo / ~3.5M-fact corpus the
+`relationship_backfill` phase ran 30+ min, one core at 100%, bootstrap-index
+blocked on a pgx read. The cause is **serial client-side per-fact processing**,
+not the SQL plan. Live `EXPLAIN ANALYZE` on the corpus showed both the old
+correlated-subquery CTE form and the new DISTINCT ON form execute in ~476 ms — the
+query was never the wall-time bottleneck. The wall time was the single goroutine
+that (1) streamed and scanned the fact result set, ran `DiscoverEvidence`, then
+(2) wrote the discovered evidence one round-trip per row and processed the
+per-repository write batches strictly one at a time.
+
+#### Concurrency fix (the long-pole reduction)
+
+Two serial client costs were removed:
+
+1. **Per-row evidence INSERT → multi-row batched INSERT.**
+   `RelationshipStore.UpsertEvidenceFacts` (`relationship_store.go`) issued one
+   `INSERT ... ON CONFLICT (evidence_id) DO NOTHING` round-trip per evidence row.
+   It now groups rows into multi-row INSERT statements of `evidenceInsertBatchRows`
+   (500, matching the FactStore batch size, 500×12 = 6000 bound params, well under
+   PostgreSQL's 65535 limit). The per-row `evidence_id` digest and column binding
+   are unchanged, so the persisted rows are byte-identical; only the round-trip
+   count drops from N to ⌈N/500⌉.
+
+2. **Serial per-repository batches → bounded concurrent worker pool.**
+   `writeDeferredBackfillInBatches` partitioned the corpus into independent
+   per-repository batch transactions but processed them strictly serially. It now
+   dispatches the batches across a bounded pool
+   (`runDeferredBackfillBatches`), worker count from `deferredBackfillWorkerCount`
+   (`ESHU_DEFERRED_BACKFILL_CONCURRENCY`, default `min(NumCPU, 4)`, hard cap 8).
+
+Concurrency-safety argument (conflict domain = one repository's advisory-lock
+partition):
+
+- **Disjoint partitions.** The repository list is sorted, and batches are
+  contiguous non-overlapping slices, so no two concurrent batches request the same
+  per-repository advisory lock. Each batch also sorts its own lock keys, so neither
+  intra-batch nor inter-batch acquisition can form a lock-order cycle: no deadlock.
+- **Per-batch transaction scope.** Each batch runs in its own transaction and does
+  everything (lock acquire, active-generation reload, evidence + readiness writes)
+  on that one transaction's connection. No batch acquires a second connection while
+  holding its transaction, so W concurrent batches hold exactly W connections; a
+  worker count above the pool size throttles on `Begin` rather than deadlocking,
+  and at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` the pass self-serializes.
+- **Idempotent writes.** Evidence inserts are `ON CONFLICT (evidence_id) DO
+  NOTHING` and readiness upserts are generation-keyed, so a retried or partially
+  failed pass converges to the same rows.
+- **Bounded shared state.** The only shared mutable state during the concurrent
+  phase is the readiness counter and a first-error latch, both mutex-guarded; the
+  `evidenceBySourceRepo` map is built before fan-out and only read concurrently.
+- **Peak lock bound.** The #3482 invariant (no fleet-wide lock set) is preserved:
+  peak simultaneously-held repository locks is now `workers × batchSize` (e.g.
+  4×32 = 128), still bounded and far below the fleet, never the whole corpus.
+
+Why `DiscoverEvidence` is NOT parallelized: it builds a single global content
+index across every loaded fact because cross-repo evidence (a fact in repo A
+referencing repo B) needs repo B's content in the index. Partitioning that pass by
+scope would drop cross-repo edges — a correctness regression on graph truth. It
+stays a single in-memory pass by design; the concurrency is applied to the
+independent write batches, where it is safe.
+
+#### CTE rewrite (supporting cleanup, not the long-pole fix)
 
 Every relationship-fact loader and the active-repository-generation lookup share
 a `WITH latest_generations AS (...)` CTE that resolves each scope's active
@@ -694,10 +760,11 @@ generation. The pre-#3704 form computed the fallback (scopes without an
 `active_generation_id` pointer) with a **per-scope correlated subquery**
 (`SELECT generation_id ... WHERE candidate.scope_id = generation.scope_id ORDER BY
 ingested_at DESC, generation_id DESC LIMIT 1`) evaluated once per GROUP BY group.
-At corpus scale the planner could not estimate that correlated subplan's
-cardinality, and the corpus-wide deferred relationship backfill
-(`BackfillAllRelationshipEvidence`) became a single CPU-bound serial query — the
-backfill long pole (one core at 100%, bootstrap-index blocked on the pgx read).
+The planner could not estimate that correlated subplan's cardinality, leaving a
+misestimated per-scope SubPlan in the plan. This rewrite eliminates that subplan
+and restores a flat, parallelizable plan shape. It is a query-shape cleanup: live
+measurement showed both forms already run sub-second, so it is not the wall-time
+fix.
 
 The CTE is now the single shared `latestGenerationCTE` constant
 (`latest_generation_cte.go`), rewritten to one `DISTINCT ON (scope_id)` pass:
@@ -717,45 +784,60 @@ so the per-scope newest row is an index read, not a full sort; the prior
 `scope_generations_scope_idx` could not serve it because `status` sits between
 `scope_id` and `ingested_at`.
 
-Accuracy (truth-equivalence): the rewritten CTE must select the byte-identical
+Accuracy (truth-equivalence): the rewritten CTE selects the byte-identical
 `(scope_id, generation_id)` set the correlated form selected, so no graph truth
-changes. The active-pointer-wins, fallback-to-newest, and single-generation cases
-are pinned by `TestLatestGenerationCTETruthEquivalenceAndPlan`
+changes, and the batched evidence INSERT preserves the per-row `evidence_id`
+identity. The active-pointer-wins, fallback-to-newest, single-generation, and
+identical-`ingested_at` tie cases are pinned by
+`TestLatestGenerationCTETruthEquivalenceAndPlan`
 (`latest_generation_cte_integration_test.go`, gated on
-`ESHU_LATEST_GENERATION_PROOF_DSN`). String-shape gates that run everywhere live
-in `ingestion_latest_generation_cte_test.go`
+`ESHU_LATEST_GENERATION_PROOF_DSN`; the tie case asserts both forms pick the
+higher `generation_id`). String-shape gates that run everywhere live in
+`ingestion_latest_generation_cte_test.go`
 (`TestLatestGenerationCTEHasNoCorrelatedSubquery`,
 `TestLatestGenerationCTEPreservesActiveGenerationPreference`,
-`TestScopeGenerationsLatestLookupIndexExists`).
+`TestScopeGenerationsLatestLookupIndexExists`). The batched evidence write is
+pinned by `TestUpsertEvidenceFactsBatchesInserts`. Concurrency safety is pinned
+by `TestWriteDeferredBackfillInBatchesRunsConcurrently` (fan-out bounded by the
+worker count, every batch commits), `TestConcurrentBackfillBatchesBoundPeakHeldLocks`
+(peak held locks stay within `workers × batchSize`, all locks released, the
+advisory-lock manager would hang on a lock-order deadlock), and
+`TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne` (worker count 1 keeps
+the pass single-flight for `ESHU_POSTGRES_MAX_OPEN_CONNS=1`). All run under `-race`.
 
-Performance Evidence: PostgreSQL 18, fixture of 2000 scopes × 3 generations
-(6000 generation rows, half with an active pointer), `ANALYZE`d, with
-`scope_generations_scope_latest_lookup_idx` present. `EXPLAIN` of the legacy
-correlated form yields total cost `21654.36` with two correlated `SubPlan` nodes
-(`Group` node cost `21594.66`, each SubPlan an Index Only Scan evaluated per
-group). `EXPLAIN` of the DISTINCT ON rewrite yields total cost `372.85` — a
-single `Unique` over one Merge Left Join + Index Only Scan, **no SubPlan** —
-about a 58x planner-cost reduction at that scale, and the correlated subplan the
-planner mis-estimated is removed. The integration test also asserts the rewrite
-plan contains no `SubPlan` node. This addresses the structural long pole the
-#3569/#3659 anchor-scoping already removed the per-fact-volume part of; the
-remaining lever was this shared CTE's correlated subquery, present on every
-live latest-generation read. Before: 34-min serial single query over ~3.5M facts
-with the correlated CTE. After: the correlated subplan is gone on every embedding
-query and the per-scope newest-generation lookup is an index read. End-to-end
-wall-time on the de-nested 896-repo / ~3.5M-fact corpus is measured by the
-operator's remote validation stack (no local corpus of that size).
+Benchmark Evidence (concurrency, the long-pole fix): `BenchmarkDeferredBackfill{Serial,Concurrent4,Concurrent8}`
+in `ingestion_backfill_bench_test.go`, 256 repositories at batch size 8 (32
+batches) with a 50 µs per-statement round-trip stand-in, darwin/arm64. Serial
+(1 worker) `40,976,430 ns/op`; 4 workers `10,295,819 ns/op` (3.98x faster); 8
+workers `5,238,341 ns/op` (7.82x faster) — near-linear in worker count, as
+expected for round-trip-bound batch writes. End-to-end wall-time on the de-nested
+896-repo / ~3.5M-fact corpus is measured by the operator's remote validation
+stack (no local corpus of that size); the structural argument is serial → W-way
+concurrent across the independent per-repository batches plus N → ⌈N/500⌉
+evidence-write round-trips.
+
+Performance Evidence (CTE plan shape, supporting cleanup): PostgreSQL 18, fixture
+of 2000 scopes × 3 generations (6000 generation rows, half with an active
+pointer), `ANALYZE`d, with `scope_generations_scope_latest_lookup_idx` present.
+`EXPLAIN` of the legacy correlated form yields total cost `21654.36` with two
+correlated `SubPlan` nodes (`Group` node cost `21594.66`). `EXPLAIN` of the
+DISTINCT ON rewrite yields total cost `372.85` — a single `Unique` over one Merge
+Left Join + Index Only Scan, **no SubPlan** — about a 58x planner-cost reduction
+at that scale. Note: live `EXPLAIN ANALYZE` on the real corpus showed both forms
+already execute in ~476 ms, so this plan-cost reduction is a query-shape cleanup,
+not the wall-time long-pole fix — the concurrency change above is that fix.
 
 Observability Evidence: the deferred backfill previously logged nothing until the
-whole pass returned, hiding intra-pass progress. `writeDeferredBackfillInBatches`
-now records `eshu_dp_deferred_backfill_batch_duration_seconds` (histogram) and
+whole pass returned, hiding intra-pass progress. `runDeferredBackfillBatches`
+records `eshu_dp_deferred_backfill_batch_duration_seconds` (histogram) and
 `eshu_dp_deferred_backfill_batches_completed_total` (counter) per committed
 per-repository batch, and emits a `deferred_backfill_batch_committed batch=N
-total_batches=M repos=R readiness_rows=P duration_s=D` log line per batch. A
-rising `…batches_completed_total` during a pass is the operator-visible progress
-signal for the backfill long pole; the existing `relationship.backfill_deferred`
-span and `DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments still
-record the whole-pass totals. New instruments are registered in
+total_batches=M repos=R readiness_rows=P duration_s=D workers=W` log line per
+batch. A rising `…batches_completed_total` during a pass is the operator-visible
+progress signal for the backfill long pole, and the `workers=W` attribute shows
+the active concurrency; the existing `relationship.backfill_deferred` span and
+`DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments still record the
+whole-pass totals. New instruments are registered in
 `internal/telemetry/instruments.go`.
 
 ## Platform-Graph Conflict-Domain Partition (#3672)

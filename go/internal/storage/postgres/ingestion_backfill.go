@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -140,38 +144,149 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		batchSize = deferredMaintenanceRepoBatchSize
 	}
 
-	totalBatches := (len(repoIDs) + batchSize - 1) / batchSize
-	readinessRows := 0
-	batchIndex := 0
+	// Partition the sorted repository list into disjoint per-batch slices. Because
+	// the list is sorted and the slices are contiguous and non-overlapping, no two
+	// batches request the same repository advisory lock, so concurrent batches
+	// cannot deadlock on lock ordering (each batch also sorts its own keys). Each
+	// batch transaction holds exactly one pooled connection for its lifetime and
+	// never acquires a second, so running W batches concurrently can at most block
+	// on Begin when the pool is smaller than W; it cannot deadlock. At
+	// ESHU_POSTGRES_MAX_OPEN_CONNS=1 the pool self-serializes the batches.
+	bounds := make([][2]int, 0, (len(repoIDs)+batchSize-1)/batchSize)
 	for start := 0; start < len(repoIDs); start += batchSize {
 		end := start + batchSize
 		if end > len(repoIDs) {
 			end = len(repoIDs)
 		}
-		batchIndex++
-		batchStart := time.Now()
-		published, err := s.writeDeferredBackfillBatch(ctx, repoIDs[start:end], evidenceBySourceRepo)
-		if err != nil {
-			return readinessRows, err
-		}
-		readinessRows += published
-
-		// Per-batch progress signal: each batch commits independently, so emitting
-		// duration and a completion count here lets an operator watch the backfill
-		// advance batch-by-batch instead of seeing nothing until the whole pass
-		// returns (the gap that hid the issue #3704 long pole).
-		batchDuration := time.Since(batchStart).Seconds()
-		if instruments != nil {
-			instruments.DeferredBackfillBatchDuration.Record(ctx, batchDuration)
-			instruments.DeferredBackfillBatchesCompleted.Add(ctx, 1)
-		}
-		log.Printf(
-			"deferred_backfill_batch_committed batch=%d total_batches=%d repos=%d readiness_rows=%d duration_s=%.2f",
-			batchIndex, totalBatches, end-start, published, batchDuration,
-		)
+		bounds = append(bounds, [2]int{start, end})
 	}
-	return readinessRows, nil
+
+	workers := s.maintenanceWorkers
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > len(bounds) {
+		workers = len(bounds)
+	}
+
+	return s.runDeferredBackfillBatches(ctx, repoIDs, bounds, workers, evidenceBySourceRepo, instruments)
 }
+
+// runDeferredBackfillBatches executes the partitioned per-repository batches with
+// a bounded worker pool and accumulates the published readiness rows. The batches
+// are independent (disjoint repository sets, idempotent ON CONFLICT writes,
+// per-batch transaction scope), so the only shared mutable state is the readiness
+// counter and the first-error latch, both guarded. The first failing batch cancels
+// the remaining work through ctx so a partial pass stops promptly; the deferred
+// maintenance pass is idempotent and re-runs converge.
+func (s IngestionStore) runDeferredBackfillBatches(
+	ctx context.Context,
+	repoIDs []string,
+	bounds [][2]int,
+	workers int,
+	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+	instruments *telemetry.Instruments,
+) (int, error) {
+	totalBatches := len(bounds)
+	groupCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		mu        sync.Mutex
+		readiness int
+		firstErr  error
+	)
+	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
+
+	for i := range bounds {
+		mu.Lock()
+		stop := firstErr != nil
+		mu.Unlock()
+		if stop || groupCtx.Err() != nil {
+			break
+		}
+
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(batchIndex int, lo, hi int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			batchStart := time.Now()
+			published, err := s.writeDeferredBackfillBatch(groupCtx, repoIDs[lo:hi], evidenceBySourceRepo)
+			batchDuration := time.Since(batchStart).Seconds()
+
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+					cancel()
+				}
+				return
+			}
+			readiness += published
+			// Per-batch progress signal: each batch commits independently, so
+			// emitting duration and a completion count here lets an operator watch
+			// the backfill advance batch-by-batch instead of seeing nothing until
+			// the whole pass returns (the gap that hid the issue #3704 long pole).
+			if instruments != nil {
+				instruments.DeferredBackfillBatchDuration.Record(ctx, batchDuration)
+				instruments.DeferredBackfillBatchesCompleted.Add(ctx, 1)
+			}
+			log.Printf(
+				"deferred_backfill_batch_committed batch=%d total_batches=%d repos=%d readiness_rows=%d duration_s=%.2f workers=%d",
+				batchIndex+1, totalBatches, hi-lo, published, batchDuration, workers,
+			)
+		}(i, bounds[i][0], bounds[i][1])
+	}
+
+	wg.Wait()
+
+	if firstErr != nil {
+		return readiness, firstErr
+	}
+	return readiness, nil
+}
+
+// deferredBackfillWorkerCount returns the number of deferred-maintenance batch
+// transactions processed concurrently. ESHU_DEFERRED_BACKFILL_CONCURRENCY
+// overrides; an unset or invalid value derives from NumCPU clamped to
+// deferredBackfillAutoCapWorkers so a high-core host does not over-subscribe the
+// shared Postgres pool when the env is unset. The hard cap is
+// deferredBackfillMaxWorkers. Batches each hold one pooled connection and never
+// nest a second acquisition, so a worker count above the pool size throttles on
+// Begin rather than deadlocking; at ESHU_POSTGRES_MAX_OPEN_CONNS=1 the pass runs
+// effectively serial.
+func deferredBackfillWorkerCount() int {
+	if raw := strings.TrimSpace(os.Getenv("ESHU_DEFERRED_BACKFILL_CONCURRENCY")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			if n > deferredBackfillMaxWorkers {
+				return deferredBackfillMaxWorkers
+			}
+			return n
+		}
+	}
+	n := runtime.NumCPU()
+	if n > deferredBackfillAutoCapWorkers {
+		n = deferredBackfillAutoCapWorkers
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+const (
+	// deferredBackfillAutoCapWorkers clamps the CPU-derived default worker count
+	// so an unset env on a high-core host does not saturate the 30-connection
+	// Postgres pool shared with collectors, status reads, and heartbeats.
+	deferredBackfillAutoCapWorkers = 4
+	// deferredBackfillMaxWorkers is the hard ceiling an operator can opt up to via
+	// ESHU_DEFERRED_BACKFILL_CONCURRENCY, matching the content-writer batch cap.
+	deferredBackfillMaxWorkers = 8
+)
 
 // writeDeferredBackfillBatch processes one bounded batch of source repositories
 // in its own transaction. It acquires the batch's exclusive maintenance locks in

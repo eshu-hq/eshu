@@ -455,6 +455,12 @@ func TestWholeCorpusMaintenanceNeverHoldsFleetWideLockSet(t *testing.T) {
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC) }
 	store.maintenanceBatchSize = 2
+	// Pin a single worker so this test isolates the per-batch lock-release
+	// property (#3482): one batch acquires and releases its locks before the next
+	// begins, so peak-held equals the batch size. The concurrent-batch peak bound
+	// (workers x batch size) is proven separately in
+	// TestConcurrentBackfillBatchesBoundPeakHeldLocks.
+	store.maintenanceWorkers = 1
 
 	if err := store.RunDeferredRelationshipMaintenance(context.Background(), nil, nil); err != nil {
 		t.Fatalf("RunDeferredRelationshipMaintenance() error = %v, want nil", err)
@@ -471,6 +477,57 @@ func TestWholeCorpusMaintenanceNeverHoldsFleetWideLockSet(t *testing.T) {
 	// transaction => at least 3 independent transactions.
 	if db.beginCount < 3 {
 		t.Fatalf("begin count = %d, want >= 3 (independent per-batch + reopen transactions)", db.beginCount)
+	}
+}
+
+// TestConcurrentBackfillBatchesBoundPeakHeldLocks is the #3704 concurrency-safety
+// proof. With several disjoint per-repository batches and a worker pool above one,
+// the batches run concurrently (peak held locks exceed a single batch's size) but
+// the peak stays bounded by workers x batch size — never the fleet-wide lock set.
+// All exclusive locks are released by the end (no leak), and every batch commits.
+// The advisoryLockManager enforces real exclusive-lock semantics, so a lock-order
+// deadlock between concurrent batches would hang this test rather than pass.
+func TestConcurrentBackfillBatchesBoundPeakHeldLocks(t *testing.T) {
+	t.Parallel()
+
+	const repoCount = 8
+	catalogRows := make([][]any, 0, repoCount)
+	activeGens := make([][]any, 0, repoCount)
+	for i := 0; i < repoCount; i++ {
+		id := "repo-" + string(rune('a'+i))
+		catalogRows = append(catalogRows, []any{[]byte(`{"repo_id":"` + id + `","name":"` + id + `"}`)})
+		activeGens = append(activeGens, []any{id, "scope-" + id, "gen-" + id})
+	}
+	db := &lockAwareMaintenanceDB{
+		mgr: newAdvisoryLockManager(),
+		snapshotRows: []*queueFakeRows{
+			{rows: catalogRows},
+			{rows: [][]any{}},  // latest facts: none.
+			{rows: activeGens}, // active generations snapshot.
+		},
+		batchActiveGens:  activeGens,
+		succeededWorkIDs: [][]any{},
+	}
+
+	store := NewIngestionStore(db)
+	store.Now = func() time.Time { return time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC) }
+	store.maintenanceBatchSize = 2 // 8 repos / 2 => 4 batches
+	store.maintenanceWorkers = 4
+
+	if err := store.BackfillAllRelationshipEvidence(context.Background(), nil, nil); err != nil {
+		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want nil", err)
+	}
+
+	if db.peakHeld <= store.maintenanceBatchSize {
+		t.Fatalf("peak simultaneous repo locks = %d, want > batch size %d (batches did not run concurrently)",
+			db.peakHeld, store.maintenanceBatchSize)
+	}
+	maxBound := store.maintenanceWorkers * store.maintenanceBatchSize
+	if db.peakHeld > maxBound {
+		t.Fatalf("peak simultaneous repo locks = %d, exceeds workers*batch bound %d", db.peakHeld, maxBound)
+	}
+	if db.heldExclusive != 0 {
+		t.Fatalf("residual held exclusive locks = %d, want 0 (locks leaked across concurrent batches)", db.heldExclusive)
 	}
 }
 
