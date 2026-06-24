@@ -1159,10 +1159,23 @@ The planner never selects it on the partitioned path (with-index 4,607 ms ==
 without-index 4,599 ms for the largest scope), while it cost 631 MB of storage and
 a 114.6 s build over the 294,991 queried-kind rows, plus per-insert GIN
 write-amplification on every `content`/`file`/`gcp_cloud_relationship` insert —
-net-negative once the per-scope partition already bounds the scan. Caveat:
-measured locally at 294,991 queried-kind facts; full-corpus wall-time is pending
-the remote host, but the planner's choice of the scope-generation index over a
-payload index is structural — the per-scope bound applies at any scale.
+net-negative once the per-scope partition already bounds the scan.
+
+Full-corpus measurement (896 repositories, 3,501,443 `fact_records`, 207,003
+loaded queried-kind facts, PostgreSQL 18 + NornicDB): the deferred relationship
+backfill completed in 882 s (~14.7 min) — the fact-LOAD fanned out across 896
+`(scope_id, generation_id)` partitions on 8 workers, and the write phase committed
+28 batches of 32 repositories at ~0.24 s/batch (~7 s total, negligible). That is
+down from the pre-#3710 ~36 min+ single-scan long pole (~2.4× wall-clock). The
+fan-out's gain is capped by a few giant-repository scopes whose `$2` self-exclusion
+(facts × the 896-entry catalog) runs for minutes — the slowest single per-scope
+query measured ~8 min — so wall-time approaches the slowest scope rather than
+total ÷ workers. That giant-repository `$2` tail is the dominant residual and is
+tracked by issue #3711; a sub-linear fix would precompute cross-repo reference keys
+at ingest so `$2` no longer rescans `facts × catalog` per scope. The earlier local
+measurement (294,991 queried-kind facts) understated the `$2` cost because it used
+a 3-entry catalog; the planner's choice of the scope-generation index over a
+payload index held at full scale, confirming the index removal.
 
 Truth-equivalence (no evidence added or dropped relative to the regex/full-corpus
 load) is proven by the `internal/relationships` gates
