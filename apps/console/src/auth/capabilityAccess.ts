@@ -13,6 +13,12 @@
 //   identity_admin, roles_grants, tokens, repository_content, service_runtime,
 //   cloud_iac, secrets_iam, supply_chain, docs_semantic, ask_search,
 //   operations_status, audit_export, admin_recovery
+//
+// NOTE (#3684): browser-session (cookie) callers do not yet persist
+// permission_catalog_enforced / allowed_permission_features, so cookie sessions
+// currently fail open here (all nav shown). This gate activates for the console
+// once session-backed feature persistence lands in #3684. The signal is already
+// honored for scoped Bearer-token callers today.
 import type { BrowserSessionAuth } from "../api/client";
 
 // ALWAYS_ALLOWED routes are shown regardless of permission families. They are
