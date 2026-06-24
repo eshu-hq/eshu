@@ -245,3 +245,90 @@ func TestNativeRepositorySelectorFilesystem_BasenameCollisionWarning(t *testing.
 		t.Errorf("expected basename collision warning log, got:\n%s", logBuf.String())
 	}
 }
+
+// makeCollidingRepo creates a .git-backed repo with one file under root/rel.
+func makeCollidingRepo(t *testing.T, root, rel string) {
+	t.Helper()
+	dir := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestNativeRepositorySelectorFilesystem_BasenameCollisionOnlyOnChange verifies
+// that the collision diagnostic fires on the first run and on a changed corpus,
+// but stays silent on an unchanged re-poll. This guards against steady-state
+// log/metric spam: syncFilesystemRepositories returns an empty batch for an
+// unchanged corpus (manifest match), and the report is gated on a non-empty
+// sync, so re-polling the same corpus must NOT re-fire the warning or counter.
+func TestNativeRepositorySelectorFilesystem_BasenameCollisionOnlyOnChange(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	// reposDir is shared across calls so the fixture manifest persists between
+	// polls, exactly as it does under steady-state Service.Run.
+	reposDir := t.TempDir()
+
+	// Initial corpus: a basename collision (service-a and repos/service-a).
+	makeCollidingRepo(t, filesystemRoot, "service-a")
+	makeCollidingRepo(t, filesystemRoot, "service-b")
+	makeCollidingRepo(t, filesystemRoot, "repos/service-a")
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	inst, reader := newCollisionTestInstruments(t)
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+		Logger:      logger,
+		Instruments: inst,
+	}
+
+	const warning = "repository basename collision detected (possible accidental corpus nesting)"
+
+	// Call 1 (first run): corpus is new → sync returns a non-empty batch → fire.
+	if _, err := selector.SelectRepositories(context.Background()); err != nil {
+		t.Fatalf("SelectRepositories call 1: %v", err)
+	}
+	if got := strings.Count(logBuf.String(), warning); got != 1 {
+		t.Fatalf("after first run: warning count = %d, want 1\n%s", got, logBuf.String())
+	}
+	if got := collectBasenameCollisionTotal(t, reader); got != 1 {
+		t.Fatalf("after first run: counter = %d, want 1 (one surplus path)", got)
+	}
+
+	// Call 2 (unchanged re-poll): manifest matches → sync returns empty → silent.
+	if _, err := selector.SelectRepositories(context.Background()); err != nil {
+		t.Fatalf("SelectRepositories call 2: %v", err)
+	}
+	if got := strings.Count(logBuf.String(), warning); got != 1 {
+		t.Fatalf("after unchanged re-poll: warning count = %d, want 1 (no re-fire)\n%s", got, logBuf.String())
+	}
+	if got := collectBasenameCollisionTotal(t, reader); got != 1 {
+		t.Fatalf("after unchanged re-poll: counter = %d, want 1 (no re-fire)", got)
+	}
+
+	// Mutate the corpus so the manifest changes: add a third colliding path.
+	makeCollidingRepo(t, filesystemRoot, "deeper/nest/service-a")
+
+	// Call 3 (changed corpus): manifest differs → sync returns non-empty → fire.
+	if _, err := selector.SelectRepositories(context.Background()); err != nil {
+		t.Fatalf("SelectRepositories call 3: %v", err)
+	}
+	if got := strings.Count(logBuf.String(), warning); got != 2 {
+		t.Fatalf("after changed corpus: warning count = %d, want 2 (re-fired once)\n%s", got, logBuf.String())
+	}
+	// Counter is cumulative: 1 (first run) + 2 (two surplus paths now) = 3.
+	if got := collectBasenameCollisionTotal(t, reader); got != 3 {
+		t.Fatalf("after changed corpus: counter = %d, want 3 (1 + 2 surplus)", got)
+	}
+}
