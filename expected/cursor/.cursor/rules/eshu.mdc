@@ -1,0 +1,230 @@
+---
+description: |
+  A recipient can run eshu evidence bundle validate against a redacted
+  evidence_bundle.v1. The bundle is share-safe; reproduce handles point at
+  bounded CLI/API/MCP calls the recipient can run against their own
+  instance. Profiles are local_lightweight, local_authoritative,
+  local_full_stack, or production. A profile row marked unsupported MUST
+  return `unsupported_capability`. Truth ceilings live in
+  specs/capability-matrix.v1.yaml and go/internal/query/contract.go. Every
+  fragment's default rendering works in local_lightweight and
+  local_authoritative profiles without a configured LLM provider. LLM
+  augmentation is policy-gated. llm:no-provider is a first-class status,
+  not an error. Eshu's operating order is fixed: accuracy, then
+  performance, then concurrency. An agent MUST prove correctness before
+  proving speed. The active collector set is whatever is enabled in the
+  active runtime profile. Per-collector MCP tools are enumerated from the
+  live capability catalog, not from a static prose list. The fragment
+  renders differently per deployment. Intake never writes graph state. The
+  reducer is the only writer of canonical graph truth. MCP tool calls
+  route through dispatchTool into the shared HTTP query handlers. Queue
+  claims are leased, retryable, supersedable, and dead-letterable.
+  API/MCP/CLI responses carry a `truth` envelope with `exact`, `derived`,
+  or `fallback` levels. High-authority capabilities MUST return
+  `unsupported_capability` rather than silently downgrading.
+globs: 
+alwaysApply: true
+---
+
+<!-- eshu:byte-citation docs/internal/agent-guide.md#14-22 -->
+<!-- eshu:byte-citation docs/public/architecture.md#24-26 -->
+<!-- eshu:byte-citation docs/public/reference/capability-conformance-spec.md#29-49 -->
+<!-- eshu:byte-citation docs/public/reference/evidence-bundle.md#1-49 -->
+<!-- eshu:byte-citation docs/public/reference/truth-label-protocol.md#10-21 -->
+<!-- eshu:byte-citation go/internal/capabilitycatalog/catalog.go#1-80 -->
+<!-- eshu:byte-citation go/internal/semanticqueue/README.md#10 -->
+
+# Eshu Agent Rule (eshu)
+
+This rule is auto-generated from `skill-fragments/`. Do not edit it by hand; run `go run ./cmd/skillgen gen` to regenerate.
+
+## Bundle Reproduction
+
+# Eshu Bundle Reproduction
+
+An `evidence_bundle.v1` is the portable Eshu evidence unit. It is
+designed to be share-safe, deterministic, and reproducible.
+
+A recipient can run `eshu evidence bundle validate` against a
+redacted `evidence_bundle.v1` to confirm the bundle shape, the
+provenance chain, and the cited fragments.
+
+The bundle is share-safe by construction:
+
+- No private endpoints, credentials, raw prompts, or local paths
+  appear in the bundle.
+- Provenance is the durable fact row, not the collection
+  environment.
+- Reproduce handles point at bounded CLI/API/MCP calls the
+  recipient can run against their own instance.
+
+A bundle that fails `validate` is not shareable. Treat a bundle
+that ships private material as a wire-contract bug.
+
+## Capability Profiles
+
+# Eshu Capability Profiles
+
+Every Eshu runtime runs under exactly one capability profile. The
+profile determines which capabilities are supported, what their
+authoritative truth level is, and which MCP/API surface is exposed.
+
+The four profiles are:
+
+- `local_lightweight` — code-only discovery, in-memory graph, no
+  collector fan-out. Used for fast local iteration.
+- `local_authoritative` — code plus local relationships (Terraform,
+  Helm, Kustomize, Argo). Used for local-host deployment tracing.
+- `local_full_stack` — code plus relationships plus a live graph
+  backend (NornicDB default; Neo4j compatibility only when it
+  satisfies the shared Cypher/Bolt contract). Used for full local
+  proof runs.
+- `production` — the deployed Eshu service. Same surface as
+  `local_full_stack` plus collector queues, Postgres, and the
+  hosted status surface.
+
+A profile row marked `unsupported` MUST return
+`unsupported_capability` from MCP and API surfaces. The truth ceiling
+for a capability (the maximum `truth` level the profile can return)
+lives in `specs/capability-matrix.v1.yaml` and is enforced by
+`go/internal/query/contract.go`.
+
+## Local First
+
+# Eshu Local-First
+
+Eshu works without an LLM provider key.
+
+Every fragment's default rendering MUST work in `local_lightweight`
+and `local_authoritative` profiles without a configured LLM provider.
+The deterministic query, graph, and CLI surfaces are the primary
+interface. LLM augmentation is policy-gated and never the only path
+to a correct answer.
+
+The semantic queue recognizes the following planner labels:
+
+- `llm:no-provider` — no LLM provider is configured for this run.
+  This is a first-class status, not an error.
+- `llm:policy-denied` — the active policy denied LLM augmentation
+  for this chunk.
+- `llm:budget-denied` — the configured budget exhausted before the
+  chunk was processed.
+- `llm:unsafe` — the guard preflight classified the chunk as unsafe
+  for LLM augmentation.
+- `llm:unchanged` — the chunk was processed but produced no change.
+- `llm:changed` — the chunk was processed and produced a change.
+- `deleted-source` — the source record was deleted between attempts.
+
+These labels are deterministic, status-row safe, and low-cardinality
+for telemetry.
+
+## Operating Standard
+
+# Eshu Operating Standard
+
+For runtime work the order is fixed.
+
+1. **Accuracy** — persisted facts, graph truth, API/MCP/CLI truth, and
+   fixture intent agree. The graph, the query, and the deployment tell
+   the same story.
+2. **Performance** — the correct path has a before/after or
+   no-regression measurement on the same input shape. The cost of the
+   happy path is measured, not assumed.
+3. **Concurrency** — idempotency, retry boundaries, claim ordering,
+   transaction scope, conflict keys, and dead-letter behavior hold
+   under intended worker counts. The path is safe under contention.
+
+If any one of the three fails, the work is not done.
+
+## Per Collector Matrix
+
+# Eshu Per-Collector Matrix
+
+The active collector set is whatever is enabled in the active runtime
+profile. Per-collector MCP tools are enumerated from the live
+capability catalog (`go/internal/capabilitycatalog/catalog.go`), not
+from a static prose list.
+
+This means the same fragment renders differently per deployment:
+
+- A code-only deployment lists code-only collectors.
+- A full-stack deployment with Terraform plus AWS plus Kubernetes
+  lists the cloud and platform collectors too.
+- A specialized security deployment may list only the security
+  collectors.
+
+The active collector set on the deployment where this skill was
+rendered is enumerated by the generator in the
+`Active Collectors on This Deployment` section that follows the
+rendered fragment body.
+
+### Active Collectors on This Deployment
+
+The active collector set on this deployment is enumerated below. Disabling a collector hides its MCP surface from the generated skill.
+
+- aws (enabled)
+- documentation (enabled)
+- git (enabled)
+- grafana (enabled)
+- jira (enabled)
+- loki (enabled)
+- oci_registry (enabled)
+- package_registry (enabled)
+- pagerduty (enabled)
+- prometheus_mimir (enabled)
+- sbom_attestation (enabled)
+- scanner_worker (enabled)
+- security_alert (enabled)
+- tempo (enabled)
+- terraform_state (enabled)
+- vulnerability_intelligence (enabled)
+- webhook (enabled)
+
+## Reducer Invariant
+
+# Eshu Reducer Invariant
+
+Eshu's intake services observe source truth and enqueue work. The
+resolution engine (the reducer) is the only writer of canonical graph
+state.
+
+This is the single most important rule for the agent surface. It
+means:
+
+- An intake service (collector, ingester, projector) MUST NOT write
+  to the shared graph. It only emits facts and enqueues work.
+- The reducer owns the canonical graph truth. It applies a
+  deterministic, idempotent projection from facts to graph nodes and
+  edges.
+- MCP tool calls MUST route through `dispatchTool` into the shared
+  HTTP query handlers (`go/internal/mcp/dispatch.go:15`). The
+  reducer's queue claims are leased, retryable, supersedable, and
+  dead-letterable (`go/internal/storage/postgres/AGENTS.md:49-78`).
+
+If a write appears in the wrong seam, the result is a non-idempotent
+graph mutation that races with reducer projection. Treat that as a
+P0 bug.
+
+## Truth Labels
+
+# Eshu Truth Labels
+
+Every API, MCP, and CLI response that returns Eshu-claimed data MUST
+carry a `truth` envelope. The envelope distinguishes a result that came
+from persisted facts at full fidelity from a result that was computed
+on the fly or that fell back to a degraded source.
+
+The three valid levels are:
+
+- `exact` — the answer is the persisted fact row, returned byte-for-byte
+  from the source of truth.
+- `derived` — the answer was computed from one or more persisted facts
+  through a bounded query, projection, or materialization step.
+- `fallback` — the answer was served from a partial, cached, or
+  downgraded source because the high-authority source was unavailable.
+
+A high-authority capability that is unsupported in the active runtime
+profile MUST return `unsupported_capability` rather than emit a
+silently downgraded `fallback` result. Silent downgrade of a
+high-authority claim is a wire-contract bug.
+
