@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"go.opentelemetry.io/otel"
 
@@ -263,4 +264,46 @@ func (a *postgresLocalIdentityAdapter) RotateLocalIdentityAPIToken(
 		RotatedAt:       rotate.RotatedAt,
 		NewTokenExpires: rotate.NewTokenExpires,
 	})
+}
+
+// ListAPITokensBySubject returns metadata-only token rows owned by the subject.
+// It never exposes token_hash values.
+func (a *postgresLocalIdentityAdapter) ListAPITokensBySubject(
+	ctx context.Context,
+	subjectIDHash string,
+	asOf time.Time,
+) ([]query.LocalIdentityAPITokenListItem, error) {
+	items, err := a.store.ListAPITokensBySubject(ctx, subjectIDHash, asOf)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]query.LocalIdentityAPITokenListItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, query.LocalIdentityAPITokenListItem{
+			TokenID:      item.TokenID,
+			TokenClass:   item.TokenClass,
+			DisplayLabel: item.DisplayHandleHash,
+			IssuedAt:     item.IssuedAt,
+			ExpiresAt:    item.ExpiresAt,
+			RevokedAt:    item.RevokedAt,
+		})
+	}
+	return out, nil
+}
+
+// GetLocalIdentityMFAStatus returns the safe MFA state for the subject.
+// It never exposes credential handles or recovery hashes.
+func (a *postgresLocalIdentityAdapter) GetLocalIdentityMFAStatus(
+	ctx context.Context,
+	subjectIDHash string,
+	asOf time.Time,
+) (query.LocalIdentityMFAStatus, error) {
+	status, err := a.store.GetLocalIdentityMFAStatus(ctx, subjectIDHash, asOf)
+	if err != nil {
+		return query.LocalIdentityMFAStatus{}, err
+	}
+	return query.LocalIdentityMFAStatus{
+		HasActiveMFA: status.HasActiveMFA,
+		FactorKind:   status.FactorKind,
+	}, nil
 }

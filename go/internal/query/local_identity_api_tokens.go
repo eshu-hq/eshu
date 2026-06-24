@@ -82,9 +82,56 @@ type localIdentityAPITokenResponse struct {
 }
 
 func (h *LocalIdentityHandler) mountAPITokenRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v0/auth/local/api-tokens", h.handleListAPITokens)
 	mux.HandleFunc("POST /api/v0/auth/local/api-tokens", h.handleCreateAPIToken)
 	mux.HandleFunc("POST /api/v0/auth/local/api-tokens/{token_id}/revoke", h.handleRevokeAPIToken)
 	mux.HandleFunc("POST /api/v0/auth/local/api-tokens/{token_id}/rotate", h.handleRotateAPIToken)
+}
+
+func (h *LocalIdentityHandler) handleListAPITokens(w http.ResponseWriter, r *http.Request) {
+	auth, ok := AuthContextFromContext(r.Context())
+	if !ok {
+		unauthorizedResponse(w, r)
+		return
+	}
+	auth = normalizeAuthContext(auth)
+	if auth.SubjectIDHash == "" {
+		unauthorizedResponse(w, r)
+		return
+	}
+	now := h.now()
+	items, err := h.Store.ListAPITokensBySubject(r.Context(), auth.SubjectIDHash, now)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "failed to list api tokens")
+		return
+	}
+	type tokenJSON struct {
+		TokenID      string     `json:"token_id"`
+		TokenClass   string     `json:"token_class,omitempty"`
+		DisplayLabel string     `json:"display_label,omitempty"`
+		IssuedAt     time.Time  `json:"issued_at"`
+		ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+		RevokedAt    *time.Time `json:"revoked_at,omitempty"`
+	}
+	out := make([]tokenJSON, 0, len(items))
+	for _, item := range items {
+		t := tokenJSON{
+			TokenID:      item.TokenID,
+			TokenClass:   item.TokenClass,
+			DisplayLabel: item.DisplayLabel,
+			IssuedAt:     item.IssuedAt,
+		}
+		if !item.ExpiresAt.IsZero() {
+			v := item.ExpiresAt
+			t.ExpiresAt = &v
+		}
+		if !item.RevokedAt.IsZero() {
+			v := item.RevokedAt
+			t.RevokedAt = &v
+		}
+		out = append(out, t)
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"tokens": out})
 }
 
 func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *http.Request) {

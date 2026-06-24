@@ -149,7 +149,7 @@ func TestBrowserSessionListHandlerNeverReturnsSessionHashOrCSRF(t *testing.T) {
 
 	body := rec.Body.String()
 	for _, forbidden := range []string{"session_hash", "csrf_token", "csrf_token_hash", "token_hash"} {
-		if containsStr(body, forbidden) {
+		if bodyContains(body, forbidden) {
 			t.Errorf("response body contains forbidden field %q: %s", forbidden, body)
 		}
 	}
@@ -234,7 +234,7 @@ func TestLocalIdentityAPITokenListHandlerReturnsMedataOnly(t *testing.T) {
 	body := rec.Body.String()
 	// Must never expose token_hash or raw token value.
 	for _, forbidden := range []string{"token_hash", "api_token"} {
-		if containsStr(body, forbidden) {
+		if bodyContains(body, forbidden) {
 			t.Errorf("token list response exposes forbidden field %q: %s", forbidden, body)
 		}
 	}
@@ -377,7 +377,7 @@ func TestProfileHandlerNeverExposesMFACredentialOrHash(t *testing.T) {
 		"session_hash",
 		"token_hash",
 	} {
-		if containsStr(body, forbidden) {
+		if bodyContains(body, forbidden) {
 			t.Errorf("profile response exposes forbidden field %q: %s", forbidden, body)
 		}
 	}
@@ -445,7 +445,7 @@ func TestBrowserSessionCurrentResponseIncludesExternalProviderConfigID(t *testin
 
 func fixedNow() time.Time { return time.Date(2026, 6, 24, 10, 0, 0, 0, time.UTC) }
 
-func containsStr(s, sub string) bool {
+func bodyContains(s, sub string) bool {
 	return len(sub) > 0 && len(s) >= len(sub) && (s == sub ||
 		func() bool {
 			for i := 0; i <= len(s)-len(sub); i++ {
