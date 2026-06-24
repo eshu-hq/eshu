@@ -189,6 +189,26 @@ func (s ClaimedService) claimNext(
 }
 
 func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkItem, claim workflow.Claim) error {
+	// Per-collector run duration: record on every return path so the operator
+	// can see the long pole per collector_kind without joining claim-state tables.
+	// startedAt and runOutcome are call-local; concurrent workers never share them.
+	runStartedAt := s.now()
+	runOutcome := telemetry.CollectorRunOutcomeFailTerminal // pessimistic default; overwritten below
+
+	// collector.claimed_run wraps the whole claim-to-ack cycle for every
+	// collector family so a trace correlates with the per-collector
+	// eshu_dp_workflow_claim_run_duration_seconds metric. The span attributes
+	// mirror the metric labels (collector_kind, source_system, outcome). The
+	// outcome is set in the End closure so it reflects the final return path.
+	var runSpan trace.Span
+	if s.Tracer != nil {
+		ctx, runSpan = s.Tracer.Start(ctx, telemetry.SpanCollectorClaimedRun)
+		runSpan.SetAttributes(
+			telemetry.AttrCollectorKind(string(s.CollectorKind)),
+			telemetry.AttrSourceSystem(item.SourceSystem),
+		)
+	}
+
 	if s.Tracer != nil && s.CollectorKind == scope.CollectorTerraformState {
 		var span trace.Span
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateClaimProcess)
@@ -196,13 +216,12 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	}
 	s.recordWorkflowClaimWait(ctx, item)
 
-	// Per-collector run duration: record on every return path so the operator
-	// can see the long pole per collector_kind without joining claim-state tables.
-	// startedAt and runOutcome are call-local; concurrent workers never share them.
-	runStartedAt := s.now()
-	runOutcome := telemetry.CollectorRunOutcomeFailTerminal // pessimistic default; overwritten below
 	defer func() {
 		s.recordClaimRunDuration(ctx, item, runStartedAt, runOutcome)
+		if runSpan != nil {
+			runSpan.SetAttributes(telemetry.AttrOutcome(runOutcome))
+			runSpan.End()
+		}
 	}()
 
 	mutation := s.claimMutation(item, claim)

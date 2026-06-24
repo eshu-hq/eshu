@@ -253,3 +253,56 @@ write, query, worker, or queue behavior changes. Backend: NornicDB (Bolt) /
 Postgres read path unchanged. Verified by
 `go test ./internal/telemetry ./internal/query ./cmd/api ./cmd/mcp-server
 -count=1`.
+
+## Per-Collector Run Metrics
+
+Every collector — git source, discovery, parser, terraform-state, sbom,
+package-registry, documentation/media/ocr, the live cloud and ticketing
+collectors, and so on — runs under the shared claimed-service worker harness
+(`ClaimedService.processClaimed`). Two metrics are recorded once at that single
+dispatch chokepoint, so one instrumentation point covers all collector families
+without touching individual collector packages:
+
+- `eshu_dp_workflow_claim_run_duration_seconds` — histogram of one claim's
+  wall time from heartbeat to complete/fail. Labels: `collector_kind`,
+  `source_system`, and `outcome` (a bounded enum: `success`, `unchanged`,
+  `released`, `fail_retryable`, `fail_terminal`). Recorded on every return path,
+  so failed and released claims are timed too. To find the per-collector long
+  pole: `sum by (collector_kind)` of the `_sum` series over the `_count` series
+  is the mean run duration per collector family.
+- `eshu_dp_workflow_claim_facts_emitted_total` — counter of facts committed
+  per run, from `CollectedGeneration.FactCount`. Labels: `collector_kind`,
+  `source_system`. Recorded on the success path only.
+
+Both labels are bounded: `collector_kind` is a fixed `scope.CollectorKind`
+constant and `source_system` is a small fixed set, so cardinality stays bounded
+— no repo, scope, generation, or instance identifiers are ever used as labels.
+The matching trace span is `collector.claimed_run`, carrying the same
+`collector_kind`, `source_system`, and `outcome` attributes so a trace
+correlates with the duration histogram.
+
+These share the `collector_kind` label with the per-stage
+`eshu_dp_bootstrap_pipeline_phase_seconds` and `eshu_dp_content_entity_emitted_total`
+metrics, so the per-collector and per-stage layers join cleanly: an operator
+can attribute corpus-run wall time to a collector family, then to a pipeline
+phase and a source-file kind, from metrics alone.
+
+Observability Evidence: during the prior full-corpus sign-off the time spent
+per collector could only be reconstructed with strace and DB forensics. With
+these metrics an operator reads the per-collector long pole
+(`eshu_dp_workflow_claim_run_duration_seconds`) and per-collector fact volume
+(`eshu_dp_workflow_claim_facts_emitted_total`) directly from the metrics port,
+and the `collector.claimed_run` span gives the correlated per-claim trace.
+Verified by metric and span assertions in
+`go/internal/collector/claimed_service_run_metrics_test.go` covering all five
+outcomes and the span attributes.
+
+No-Regression Evidence: the timing wrapper is a `time.Now` diff around work
+`processClaimed` already performs; the fact counter reads an integer
+(`CollectedGeneration.FactCount`) already populated at the seam. No extra IO,
+graph write, query, worker, or queue behavior changes. The OTEL
+`Float64Histogram.Record` and `Int64Counter.Add` calls are concurrency-safe;
+the timing and outcome values are call-local, so the N concurrent claimed-service
+workers share no mutable state through the recording path. Verified by
+`go test ./internal/collector ./internal/telemetry -count=1` and the
+claimed-service `-race` suite.

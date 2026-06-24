@@ -8,6 +8,8 @@ import (
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -338,6 +340,72 @@ func TestClaimedServiceRunMetricsSafeWithNilInstruments(t *testing.T) {
 
 	if err := svc.Run(ctx); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
+	}
+}
+
+// TestClaimedServiceStartsClaimedRunSpan proves processClaimed actually starts
+// the collector.claimed_run span (registered in the telemetry contract) and sets
+// the collector_kind, source_system, and outcome attributes mirroring the
+// per-collector duration metric labels, so a trace correlates with
+// eshu_dp_workflow_claim_run_duration_seconds.
+func TestClaimedServiceStartsClaimedRunSpan(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 20, 12, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.SourceSystem = "git"
+	claim := testWorkflowClaim(item.WorkItemID, now)
+
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+	t.Cleanup(func() {
+		if err := tracerProvider.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	store := &stubClaimStore{item: item, claim: claim, found: true}
+	store.heartbeat = func(context.Context, workflow.ClaimMutation) error {
+		cancel()
+		return nil
+	}
+
+	svc := testClaimedService(now, claim, scope.CollectorGit, store, &stubClaimedSource{
+		collected: successCollectedGeneration(t, now),
+		ok:        true,
+	}, &stubClaimedCommitter{})
+	svc.Tracer = tracerProvider.Tracer(telemetry.DefaultSignalName)
+
+	if err := svc.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	var runSpan sdktrace.ReadOnlySpan
+	for _, span := range spanRecorder.Ended() {
+		if span.Name() == telemetry.SpanCollectorClaimedRun {
+			runSpan = span
+			break
+		}
+	}
+	if runSpan == nil {
+		t.Fatalf("span %q not started; want one ended span", telemetry.SpanCollectorClaimedRun)
+	}
+
+	attrs := map[string]string{}
+	for _, attr := range runSpan.Attributes() {
+		attrs[string(attr.Key)] = attr.Value.AsString()
+	}
+	if got := attrs["collector_kind"]; got != string(scope.CollectorGit) {
+		t.Fatalf("span collector_kind = %q, want %q", got, scope.CollectorGit)
+	}
+	if got := attrs["source_system"]; got != "git" {
+		t.Fatalf("span source_system = %q, want %q", got, "git")
+	}
+	if got := attrs["outcome"]; got != telemetry.CollectorRunOutcomeSuccess {
+		t.Fatalf("span outcome = %q, want %q", got, telemetry.CollectorRunOutcomeSuccess)
 	}
 }
 
