@@ -145,9 +145,14 @@ func TestAdminMutationsNilDatabase(t *testing.T) {
 // adminMutationFakeDB is a programmable ExecQueryer+Beginner that records the
 // statements it executes and returns canned rows, so the store's validation and
 // idempotency branching can be proven without a real Postgres.
+//
+// Concurrency note: this fake drives SQL-shape and idempotency assertions only.
+// Real concurrent write correctness (ON CONFLICT PK convergence, 23503 FK race)
+// is bounded by the package's fake-DB convention; it is not exercised here.
 type adminMutationFakeDB struct {
 	roleActive     bool
 	providerActive bool
+	memberActive   bool // controls activeMembershipExists result
 
 	// invitation state for the revoke read-then-write path.
 	inviteFound    bool
@@ -201,6 +206,11 @@ func (db *adminMutationFakeDB) QueryContext(_ context.Context, query string, arg
 	switch {
 	case strings.Contains(query, "FROM identity_roles"):
 		if db.roleActive {
+			return &scalarRows{data: [][]any{{1}}}, nil
+		}
+		return &scalarRows{}, nil
+	case strings.Contains(query, "FROM identity_tenant_memberships"):
+		if db.memberActive {
 			return &scalarRows{data: [][]any{{1}}}, nil
 		}
 		return &scalarRows{}, nil
@@ -315,7 +325,7 @@ func (r *scalarRows) Close() error { return nil }
 func TestGrantAdminRoleAssignmentRejectsUnknownRole(t *testing.T) {
 	t.Parallel()
 
-	db := &adminMutationFakeDB{roleActive: false}
+	db := &adminMutationFakeDB{roleActive: false, memberActive: true}
 	store := NewIdentitySubjectStore(db)
 	result, err := store.GrantAdminRoleAssignment(context.Background(), AdminRoleAssignmentGrant{
 		TenantID: "tenant_a", WorkspaceID: "workspace_a", UserID: "u1", RoleID: "ghost", EffectiveAt: time.Now(),
@@ -333,12 +343,43 @@ func TestGrantAdminRoleAssignmentRejectsUnknownRole(t *testing.T) {
 	}
 }
 
+// TestGrantAdminRoleAssignmentRejectsMissingMembership proves that granting a
+// role to a user with no active tenant membership returns UserValid=false before
+// any INSERT, preventing a 23503 FK violation from surfacing as a 500.
+// The idempotency mechanism for grant is ON CONFLICT (tenant_id, workspace_id,
+// user_id, role_id) — the full PK — which makes a concurrent double grant
+// converge on one row rather than duplicating or failing on the active index.
+func TestGrantAdminRoleAssignmentRejectsMissingMembership(t *testing.T) {
+	t.Parallel()
+
+	db := &adminMutationFakeDB{roleActive: true, memberActive: false}
+	store := NewIdentitySubjectStore(db)
+	result, err := store.GrantAdminRoleAssignment(context.Background(), AdminRoleAssignmentGrant{
+		TenantID: "tenant_a", WorkspaceID: "workspace_a", UserID: "u_no_membership", RoleID: "developer", EffectiveAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("GrantAdminRoleAssignment() error = %v", err)
+	}
+	if !result.RoleValid {
+		t.Fatal("RoleValid = false, want true (role exists; membership is the issue)")
+	}
+	if result.UserValid {
+		t.Fatal("UserValid = true, want false for a user with no active membership")
+	}
+	// No INSERT must be issued: the precheck must short-circuit before any write.
+	for _, q := range db.queryQueries {
+		if strings.Contains(q, "INSERT INTO identity_membership_roles") {
+			t.Fatal("INSERT issued despite missing membership — FK violation path not blocked")
+		}
+	}
+}
+
 // TestGrantAdminRoleAssignmentIdempotent proves a repeated grant reports
 // Changed=false (xmax!=0 on conflict) without erroring.
 func TestGrantAdminRoleAssignmentIdempotent(t *testing.T) {
 	t.Parallel()
 
-	db := &adminMutationFakeDB{roleActive: true, upsertInserted: false, upsertStatus: "active"}
+	db := &adminMutationFakeDB{roleActive: true, memberActive: true, upsertInserted: false, upsertStatus: "active"}
 	store := NewIdentitySubjectStore(db)
 	result, err := store.GrantAdminRoleAssignment(context.Background(), AdminRoleAssignmentGrant{
 		TenantID: "tenant_a", WorkspaceID: "workspace_a", UserID: "u1", RoleID: "developer", EffectiveAt: time.Now(),
@@ -346,8 +387,8 @@ func TestGrantAdminRoleAssignmentIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GrantAdminRoleAssignment() error = %v", err)
 	}
-	if !result.RoleValid || result.Changed {
-		t.Fatalf("re-grant = %+v, want RoleValid=true Changed=false", result)
+	if !result.RoleValid || !result.UserValid || result.Changed {
+		t.Fatalf("re-grant = %+v, want RoleValid=true UserValid=true Changed=false", result)
 	}
 }
 

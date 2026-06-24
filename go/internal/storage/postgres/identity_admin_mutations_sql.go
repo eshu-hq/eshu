@@ -55,6 +55,22 @@ WHERE tenant_id = $1
 LIMIT 1
 `
 
+// selectActiveMembershipExistsQuery reports whether the user has an active
+// (non-disabled, non-tombstoned) tenant/workspace membership. Granting a role to
+// a non-member fails the identity_membership_roles foreign key; this precheck
+// turns that foreseeable bad-input into an explicit 4xx instead of a 500.
+const selectActiveMembershipExistsQuery = `
+SELECT 1
+FROM identity_tenant_memberships
+WHERE tenant_id = $1
+  AND workspace_id = $2
+  AND user_id = $3
+  AND status = 'active'
+  AND tombstoned_at IS NULL
+  AND disabled_at IS NULL
+LIMIT 1
+`
+
 // selectActiveProviderExistsQuery reports whether a provider config exists and is
 // active in the tenant. A group mapping that references an unknown or tombstoned
 // provider must be rejected rather than fabricating a row.

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // AdminInvitationRevoke soft-revokes one invitation in the caller's
@@ -50,11 +52,14 @@ type AdminRoleAssignmentRevoke struct {
 }
 
 // AdminRoleAssignmentResult reports the outcome of a grant or revoke. RoleValid
-// is false when the role does not exist or is not active in the tenant. Changed
-// is true when this call altered an active-row count (a fresh grant or an actual
+// is false when the role does not exist or is not active in the tenant.
+// UserValid is false when the user has no active tenant membership and the grant
+// cannot be written (FK constraint on identity_tenant_memberships). Changed is
+// true when this call altered an active-row count (a fresh grant or an actual
 // revoke); a repeated grant/revoke reports Changed=false.
 type AdminRoleAssignmentResult struct {
 	RoleValid bool
+	UserValid bool
 	Changed   bool
 	Status    string
 }
@@ -179,9 +184,11 @@ func (s *IdentitySubjectStore) RevokeAdminInvitation(
 
 // GrantAdminRoleAssignment idempotently activates a membership-role row scoped
 // strictly to the supplied tenant and workspace. It validates the role exists
-// and is active in the tenant before granting; an unknown or tombstoned role
-// returns RoleValid=false without writing. A concurrent double grant converges
-// on one row via the primary-key conflict target.
+// and is active in the tenant, and that the user has an active tenant
+// membership, before granting. An unknown/tombstoned role returns
+// RoleValid=false; a user with no active membership returns UserValid=false;
+// both return without writing. A concurrent double grant converges on one row
+// via the primary-key conflict target.
 func (s *IdentitySubjectStore) GrantAdminRoleAssignment(
 	ctx context.Context,
 	grant AdminRoleAssignmentGrant,
@@ -208,6 +215,20 @@ func (s *IdentitySubjectStore) GrantAdminRoleAssignment(
 		return AdminRoleAssignmentResult{RoleValid: false}, nil
 	}
 
+	// Membership precheck: identity_membership_roles has a FK to
+	// identity_tenant_memberships(tenant_id, workspace_id, user_id). Granting a
+	// role to a user with no membership row would FK-fail (23503) → 500. A
+	// precheck converts that to a meaningful UserValid=false → 400 caller error
+	// without writing. Belt-and-suspenders: a 23503 from the INSERT (race between
+	// precheck and membership deletion) is also classified as UserValid=false.
+	memberActive, err := s.activeMembershipExists(ctx, grant.TenantID, grant.WorkspaceID, grant.UserID)
+	if err != nil {
+		return AdminRoleAssignmentResult{}, err
+	}
+	if !memberActive {
+		return AdminRoleAssignmentResult{RoleValid: true, UserValid: false}, nil
+	}
+
 	var status string
 	var inserted bool
 	grantRows, err := s.db.QueryContext(
@@ -222,12 +243,19 @@ func (s *IdentitySubjectStore) GrantAdminRoleAssignment(
 		grant.EffectiveAt.UTC(),
 	)
 	if err != nil {
+		// Belt-and-suspenders: classify FK violation (23503) as UserValid=false so
+		// a membership deleted between precheck and INSERT still surfaces as a 400
+		// rather than a 500.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return AdminRoleAssignmentResult{RoleValid: true, UserValid: false}, nil
+		}
 		return AdminRoleAssignmentResult{}, fmt.Errorf("grant admin role assignment: %w", err)
 	}
 	if err := scanStatusInserted(grantRows, &status, &inserted); err != nil {
 		return AdminRoleAssignmentResult{}, fmt.Errorf("grant admin role assignment: %w", err)
 	}
-	return AdminRoleAssignmentResult{RoleValid: true, Changed: inserted, Status: status}, nil
+	return AdminRoleAssignmentResult{RoleValid: true, UserValid: true, Changed: inserted, Status: status}, nil
 }
 
 // RevokeAdminRoleAssignment tombstones one active membership-role row scoped
@@ -378,6 +406,24 @@ func (s *IdentitySubjectStore) DeleteAdminIdPGroupMapping(
 		return AdminIdPGroupMappingDeleteResult{}, fmt.Errorf("delete admin idp group mapping: %w", err)
 	}
 	return AdminIdPGroupMappingDeleteResult{Found: deleted, Deleted: deleted}, nil
+}
+
+// activeMembershipExists reports whether a user has an active, non-disabled,
+// non-tombstoned tenant/workspace membership. identity_membership_roles has a
+// FK to identity_tenant_memberships(tenant_id,workspace_id,user_id); this
+// precheck converts a foreseeable FK violation into a UserValid=false 4xx
+// instead of a server error.
+func (s *IdentitySubjectStore) activeMembershipExists(ctx context.Context, tenantID, workspaceID, userID string) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, selectActiveMembershipExistsQuery, tenantID, workspaceID, userID)
+	if err != nil {
+		return false, fmt.Errorf("select active membership: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	exists := rows.Next()
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("select active membership: %w", err)
+	}
+	return exists, nil
 }
 
 // activeRoleExists reports whether a role is active and not tombstoned in the

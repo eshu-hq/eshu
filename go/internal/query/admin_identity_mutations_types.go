@@ -53,9 +53,14 @@ type AdminRoleAssignmentRevokeRequest struct {
 
 // AdminRoleAssignmentMutationResult reports whether an active assignment row was
 // affected. RoleValid is false when the role does not exist (or is not active)
-// in the tenant, which the handler maps to a 4xx rather than fabricating a row.
+// in the tenant. UserValid is false when the user has no active tenant
+// membership; identity_membership_roles FKs to identity_tenant_memberships so a
+// grant to a non-member would fail at the DB otherwise. Both false cases map to
+// 4xx. Changed reflects whether a fresh row was inserted (not reactivation); on
+// reactivation Changed is false and Status carries the effective state.
 type AdminRoleAssignmentMutationResult struct {
 	RoleValid bool
+	UserValid bool
 	Changed   bool
 	Status    string
 }

@@ -94,6 +94,7 @@ func (a *postgresAdminIdentityMutationAdapter) GrantAdminRoleAssignment(
 	}
 	return query.AdminRoleAssignmentMutationResult{
 		RoleValid: result.RoleValid,
+		UserValid: result.UserValid,
 		Changed:   result.Changed,
 		Status:    result.Status,
 	}, nil

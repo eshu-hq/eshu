@@ -88,6 +88,8 @@ func (h *AdminIdentityMutationHandler) handleRevokeInvitation(w http.ResponseWri
 	if !h.storeReady(w) {
 		return
 	}
+	// EventTypeRoleGrantChange covers invitation revocation: no
+	// invitation-specific event type exists in the governance audit catalog.
 	const eventType = governanceaudit.EventTypeRoleGrantChange
 	tenantID, workspaceID, ok := h.adminScope(w, r, eventType)
 	if !ok {
@@ -179,7 +181,14 @@ func (h *AdminIdentityMutationHandler) handleGrantRoleAssignment(w http.Response
 		WriteError(w, http.StatusBadRequest, "role does not exist or is not active in the tenant")
 		return
 	}
+	if !result.UserValid {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "role_assignment_unknown_user", "")
+		WriteError(w, http.StatusBadRequest, "user does not have an active tenant membership")
+		return
+	}
 	h.audit(r, eventType, governanceaudit.DecisionAllowed, "role_assignment_granted", "")
+	// changed reflects a fresh row insertion; reactivation of a previously revoked
+	// assignment reports changed=false. Read status for the effective assignment state.
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"user_id": userID,
 		"role_id": roleID,
@@ -306,6 +315,8 @@ func (h *AdminIdentityMutationHandler) handleCreateIdPGroupMapping(w http.Respon
 		return
 	}
 	h.audit(r, eventType, governanceaudit.DecisionAllowed, "idp_group_mapping_created", "")
+	// created reflects a fresh row insertion; reactivation of a previously
+	// revoked mapping reports created=false. Read status for the effective state.
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"mapping_ref":        result.MappingRef,
 		"provider_config_id": providerConfigID,
@@ -384,7 +395,16 @@ func (h *AdminIdentityMutationHandler) audit(
 		PolicyRevisionHash: auth.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
 	}
-	_ = h.Audit.Append(r.Context(), []governanceaudit.Event{event})
+	// Do not fail the request on audit write failure: governance audit is
+	// best-effort for the caller path. Log the error so an operator sees the gap.
+	if err := h.Audit.Append(r.Context(), []governanceaudit.Event{event}); err != nil {
+		slog.ErrorContext(r.Context(), "governance audit append failed",
+			"err", err,
+			"event_type", string(eventType),
+			"decision", string(decision),
+			"reason_code", reasonCode,
+		)
+	}
 }
 
 // adminRoleAssignmentRequest is the JSON body for the grant and revoke

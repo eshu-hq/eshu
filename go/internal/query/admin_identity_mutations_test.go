@@ -293,7 +293,7 @@ func TestGrantRoleAssignmentValidatesRole(t *testing.T) {
 func TestGrantRoleAssignmentScopesAndAudits(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeAdminMutationStore{grantResult: AdminRoleAssignmentMutationResult{RoleValid: true, Changed: true, Status: "active"}}
+	store := &fakeAdminMutationStore{grantResult: AdminRoleAssignmentMutationResult{RoleValid: true, UserValid: true, Changed: true, Status: "active"}}
 	audit := &recordingAuditAppender{}
 	mux := newMutationMux(store, audit)
 
@@ -345,6 +345,34 @@ func TestGrantRoleAssignmentRequiresFields(t *testing.T) {
 	}
 	if store.gotGrant.TenantID != "" {
 		t.Fatalf("store called with missing fields")
+	}
+}
+
+// TestGrantRoleAssignmentRejectsUnknownUser verifies that a grant to a user with
+// no active tenant membership returns 400 role_assignment_unknown_user rather
+// than propagating a database FK violation as a 500. The store signals this via
+// UserValid=false; the handler must never write a row for a non-member.
+func TestGrantRoleAssignmentRejectsUnknownUser(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAdminMutationStore{grantResult: AdminRoleAssignmentMutationResult{
+		RoleValid: true,
+		UserValid: false,
+	}}
+	audit := &recordingAuditAppender{}
+	mux := newMutationMux(store, audit)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, mutationRequest(http.MethodPost, "/api/v0/auth/admin/role-assignments", `{"user_id":"u_no_membership","role_id":"developer"}`, allScopeAdminAuth("tenant_a", "workspace_a")))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("non-member grant status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if !audit.hasReason("role_assignment_unknown_user") {
+		t.Fatalf("non-member grant did not audit role_assignment_unknown_user: %#v", audit.events)
+	}
+	// Store was called (role is valid), but result was never written.
+	if store.gotGrant.TenantID != "tenant_a" {
+		t.Fatalf("grant not scoped to tenant_a: %q", store.gotGrant.TenantID)
 	}
 }
 
