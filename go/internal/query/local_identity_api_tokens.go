@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -106,24 +107,26 @@ func (h *LocalIdentityHandler) handleListAPITokens(w http.ResponseWriter, r *htt
 	now := h.now()
 	items, err := h.Store.ListAPITokensBySubject(r.Context(), auth.SubjectIDHash, now)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "list api tokens by subject failed", "err", err)
 		WriteError(w, http.StatusInternalServerError, "failed to list api tokens")
 		return
 	}
+	// display_label is intentionally absent: the only value stored is
+	// SHA-256(display_label) which is a hash, not a human label. Rendering it
+	// as "Label" is misleading. Issue #3703 tracks persisting a real label.
 	type tokenJSON struct {
-		TokenID      string     `json:"token_id"`
-		TokenClass   string     `json:"token_class,omitempty"`
-		DisplayLabel string     `json:"display_label,omitempty"`
-		IssuedAt     time.Time  `json:"issued_at"`
-		ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-		RevokedAt    *time.Time `json:"revoked_at,omitempty"`
+		TokenID    string     `json:"token_id"`
+		TokenClass string     `json:"token_class,omitempty"`
+		IssuedAt   time.Time  `json:"issued_at"`
+		ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+		RevokedAt  *time.Time `json:"revoked_at,omitempty"`
 	}
 	out := make([]tokenJSON, 0, len(items))
 	for _, item := range items {
 		t := tokenJSON{
-			TokenID:      item.TokenID,
-			TokenClass:   item.TokenClass,
-			DisplayLabel: item.DisplayLabel,
-			IssuedAt:     item.IssuedAt,
+			TokenID:    item.TokenID,
+			TokenClass: item.TokenClass,
+			IssuedAt:   item.IssuedAt,
 		}
 		if !item.ExpiresAt.IsZero() {
 			v := item.ExpiresAt

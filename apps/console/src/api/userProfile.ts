@@ -42,7 +42,8 @@ export async function loadProfile(client: EshuApiClient): Promise<ProfileResult>
   try {
     const data = await client.getJson<ProfileData>("/api/v0/auth/profile");
     return { data, provenance: "live" };
-  } catch {
+  } catch (err) {
+    console.error("[userProfile] loadProfile failed", err);
     return { data: null, provenance: "unavailable" };
   }
 }
@@ -79,7 +80,8 @@ export async function loadSessions(client: EshuApiClient): Promise<SessionsResul
   try {
     const resp = await client.getJson<SessionsWireResponse>("/api/v0/auth/sessions");
     return { sessions: resp.sessions ?? [], provenance: "live" };
-  } catch {
+  } catch (err) {
+    console.error("[userProfile] loadSessions failed", err);
     return { sessions: [], provenance: "unavailable" };
   }
 }
@@ -90,10 +92,11 @@ export async function loadSessions(client: EshuApiClient): Promise<SessionsResul
 
 // APITokenItem is the view model for one row from
 // GET /api/v0/auth/local/api-tokens. It never includes token_hash.
+// display_label is intentionally absent: only SHA-256(display_label) is stored
+// server-side; rendering a hash as a "Label" is misleading. See issue #3703.
 export interface APITokenItem {
   readonly token_id: string;
   readonly token_class?: string;
-  readonly display_label?: string;
   readonly issued_at: string;
   readonly expires_at?: string;
   readonly revoked_at?: string;
@@ -114,7 +117,8 @@ export async function loadTokens(client: EshuApiClient): Promise<TokensResult> {
   try {
     const resp = await client.getJson<TokensWireResponse>("/api/v0/auth/local/api-tokens");
     return { tokens: resp.tokens ?? [], provenance: "live" };
-  } catch {
+  } catch (err) {
+    console.error("[userProfile] loadTokens failed", err);
     return { tokens: [], provenance: "unavailable" };
   }
 }

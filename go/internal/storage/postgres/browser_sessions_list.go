@@ -40,10 +40,9 @@ SELECT
     tenant_id,
     workspace_id,
     revoked_at,
-    (session_hash = $3) AS current
+    (session_hash = $2) AS current
 FROM browser_sessions
 WHERE subject_id_hash = $1
-  AND issued_at <= $2
 ORDER BY issued_at DESC
 LIMIT 200
 `
@@ -69,7 +68,7 @@ func (s *BrowserSessionStore) ListSessionsBySubject(
 	if asOf.IsZero() {
 		return nil, errors.New("as_of is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, asOf.UTC(), sessionHash)
+	rows, err := s.db.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, sessionHash)
 	if err != nil {
 		return nil, fmt.Errorf("list browser sessions by subject: %w", err)
 	}

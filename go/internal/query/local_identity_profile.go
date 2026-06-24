@@ -6,17 +6,17 @@ import (
 )
 
 // LocalIdentityAPITokenListItem is the metadata-only view of one API token
-// that is safe to return to the owning subject. It never includes token_hash
-// or any raw credential value.
+// that is safe to return to the owning subject. It never includes token_hash,
+// display_handle_hash, or any raw credential value.
+// display_handle_hash is omitted intentionally — it is SHA-256(display_label)
+// and presenting a hash as a human label is misleading. See issue #3703 for
+// persisting a real non-secret display label.
 type LocalIdentityAPITokenListItem struct {
 	TokenID    string
 	TokenClass string
-	// DisplayLabel is the display_handle_hash value stored at creation time.
-	// The raw label is not stored server-side; this field exposes the hash.
-	DisplayLabel string
-	IssuedAt     time.Time
-	ExpiresAt    time.Time
-	RevokedAt    time.Time
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+	RevokedAt  time.Time
 }
 
 // LocalIdentityMFAStatus is the safe-to-expose MFA state for one identity.

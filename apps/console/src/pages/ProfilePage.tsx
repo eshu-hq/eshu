@@ -238,7 +238,6 @@ function TokensSection({
           <tr>
             <th>ID</th>
             <th>Class</th>
-            <th>Label</th>
             <th>Issued</th>
             <th>Expires</th>
             <th>Status</th>
@@ -249,7 +248,6 @@ function TokensSection({
             <tr key={t.token_id}>
               <td>{t.token_id}</td>
               <td>{t.token_class ?? "—"}</td>
-              <td>{t.display_label ?? "—"}</td>
               <td>{fmt(t.issued_at)}</td>
               <td>{fmt(t.expires_at)}</td>
               <td>

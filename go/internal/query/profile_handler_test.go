@@ -301,11 +301,10 @@ func TestLocalIdentityAPITokenListHandlerReturnsMedataOnly(t *testing.T) {
 		tokensBySubject: map[string][]LocalIdentityAPITokenListItem{
 			"subject-hash-a": {
 				{
-					TokenID:      "tok-001",
-					TokenClass:   "personal",
-					DisplayLabel: "abc123hash",
-					IssuedAt:     now.Add(-24 * time.Hour),
-					ExpiresAt:    now.Add(24 * time.Hour),
+					TokenID:    "tok-001",
+					TokenClass: "personal",
+					IssuedAt:   now.Add(-24 * time.Hour),
+					ExpiresAt:  now.Add(24 * time.Hour),
 				},
 			},
 		},
@@ -330,7 +329,7 @@ func TestLocalIdentityAPITokenListHandlerReturnsMedataOnly(t *testing.T) {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, forbidden := range []string{"token_hash", "api_token"} {
+	for _, forbidden := range []string{"token_hash", "api_token", "display_label", "display_handle_hash"} {
 		if bodyContains(body, forbidden) {
 			t.Errorf("token list response exposes forbidden field %q: %s", forbidden, body)
 		}

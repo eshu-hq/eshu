@@ -19,6 +19,10 @@ type LocalIdentityMFAStatus struct {
 
 // getLocalIdentityMFAStatusQuery returns whether the subject has an active MFA
 // factor and its kind. It never selects credential handles or recovery hashes.
+// getLocalIdentityMFAStatusQuery returns whether the subject has an active MFA
+// factor at or before asOf ($2) and its kind. Both branches use the same
+// created_at <= $2 boundary so has_active_mfa and factor_kind are consistent.
+// It never selects credential handles or recovery hashes.
 const getLocalIdentityMFAStatusQuery = `
 SELECT
     EXISTS (
@@ -28,6 +32,7 @@ SELECT
         WHERE u.subject_id_hash = $1
           AND f.status = 'active'
           AND f.revoked_at IS NULL
+          AND f.created_at <= $2
     ) AS has_active_mfa,
     COALESCE((
         SELECT f.factor_kind
@@ -58,7 +63,7 @@ func (s *IdentitySubjectStore) GetLocalIdentityMFAStatus(
 		return LocalIdentityMFAStatus{}, errors.New("subject_id_hash is required")
 	}
 	if asOf.IsZero() {
-		asOf = time.Now().UTC()
+		return LocalIdentityMFAStatus{}, errors.New("as_of is required")
 	}
 	rows, err := s.db.QueryContext(ctx, getLocalIdentityMFAStatusQuery, subjectIDHash, asOf.UTC())
 	if err != nil {

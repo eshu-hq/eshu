@@ -38,7 +38,6 @@ const openAPIPathsAuthTokens = `
                         "properties": {
                           "token_id": {"type": "string"},
                           "token_class": {"type": "string"},
-                          "display_label": {"type": "string"},
                           "issued_at": {"type": "string", "format": "date-time"},
                           "expires_at": {"type": "string", "format": "date-time"},
                           "revoked_at": {"type": "string", "format": "date-time"}

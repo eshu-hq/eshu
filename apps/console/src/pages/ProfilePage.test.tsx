@@ -45,7 +45,6 @@ const tokensFixture = {
     {
       token_id: "tok-001",
       token_class: "personal",
-      display_label: "dev-laptop",
       issued_at: NOW,
       expires_at: NOW
     }
@@ -144,13 +143,15 @@ describe("ProfilePage", () => {
     expect(screen.getByText("current")).toBeInTheDocument();
   });
 
-  it("renders tokens table with token_id and display_label", async () => {
+  it("renders tokens table with token_id but no Label column (hash-as-label removed)", async () => {
     render(<ProfilePage client={happyClient()} />);
     await waitFor(() =>
       expect(screen.getByRole("table", { name: "API tokens" })).toBeInTheDocument()
     );
     expect(screen.getByText("tok-001")).toBeInTheDocument();
-    expect(screen.getByText("dev-laptop")).toBeInTheDocument();
+    // "Label" column was removed: SHA-256(display_label) must not be presented
+    // as a human label. See issue #3703.
+    expect(screen.queryByText("Label")).not.toBeInTheDocument();
   });
 
   it("renders unavailable state for all sections when all endpoints fail", async () => {

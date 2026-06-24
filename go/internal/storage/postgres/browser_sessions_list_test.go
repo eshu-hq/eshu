@@ -60,13 +60,16 @@ func TestBrowserSessionStoreListSessionsBySubjectQueryIncludesRequiredClauses(t 
 	}
 
 	if !strings.Contains(q, "$1") {
-		t.Error("listBrowserSessionsBySubjectQuery must accept subject_id_hash parameter")
+		t.Error("listBrowserSessionsBySubjectQuery must accept subject_id_hash parameter ($1)")
 	}
+	// $2 is the session hash used for the current-session boolean comparison.
+	// There is no asOf upper bound on issued_at — "list my own rows" must not
+	// hide a just-issued session under clock skew.
 	if !strings.Contains(q, "$2") {
-		t.Error("listBrowserSessionsBySubjectQuery must accept asOf parameter")
+		t.Error("listBrowserSessionsBySubjectQuery must accept sessionHash parameter ($2) for current-session comparison")
 	}
-	if !strings.Contains(q, "$3") {
-		t.Error("listBrowserSessionsBySubjectQuery must accept sessionHash parameter ($3) for current-session comparison")
+	if strings.Contains(q, "$3") {
+		t.Error("listBrowserSessionsBySubjectQuery must not use $3 (only $1 subject + $2 sessionHash)")
 	}
 }
 

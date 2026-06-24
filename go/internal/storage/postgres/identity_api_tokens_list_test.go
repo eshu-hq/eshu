@@ -18,7 +18,6 @@ func TestIdentitySubjectStoreListAPITokensBySubjectQuerySecurity(t *testing.T) {
 	for _, want := range []string{
 		"token_id",
 		"token_class",
-		"display_handle_hash",
 		"issued_at",
 		"expires_at",
 		"revoked_at",
@@ -28,10 +27,13 @@ func TestIdentitySubjectStoreListAPITokensBySubjectQuerySecurity(t *testing.T) {
 		}
 	}
 
-	// Security: raw token hash must NOT appear in the list response query.
+	// Security: raw token hash and display_handle_hash must NOT appear in the
+	// list response query. display_handle_hash is SHA-256(display_label) — a
+	// hash rendered as a "label" is misleading and was removed (see #3703).
 	for _, forbidden := range []string{
 		"token_hash",
 		"password_hash",
+		"display_handle_hash",
 	} {
 		if strings.Contains(q, forbidden) {
 			t.Errorf("listLocalIdentityAPITokensBySubjectQuery must not expose %q", forbidden)
@@ -57,7 +59,7 @@ func TestIdentitySubjectStoreListAPITokensBySubjectNilDatabase(t *testing.T) {
 }
 
 // TestIdentitySubjectStoreListAPITokensBySubjectRejectsBlankInputs verifies that
-// blank subject hash is rejected before touching the database.
+// blank subject hash or zero asOf are rejected before touching the database.
 func TestIdentitySubjectStoreListAPITokensBySubjectRejectsBlankInputs(t *testing.T) {
 	t.Parallel()
 
@@ -67,5 +69,8 @@ func TestIdentitySubjectStoreListAPITokensBySubjectRejectsBlankInputs(t *testing
 
 	if _, err := store.ListAPITokensBySubject(nil, "", now); err == nil { //nolint:staticcheck
 		t.Fatal("expected error for blank subject hash")
+	}
+	if _, err := store.ListAPITokensBySubject(nil, "subject-hash", time.Time{}); err == nil { //nolint:staticcheck
+		t.Fatal("expected error for zero asOf")
 	}
 }

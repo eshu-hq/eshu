@@ -11,25 +11,26 @@ import (
 
 // IdentityAPITokenListItem is the metadata-only view of one API token that is
 // safe to return to the owning subject. It never includes token_hash.
+// display_handle_hash is intentionally omitted: it is SHA-256(display_label)
+// and presenting a hash as a "label" is misleading. A follow-up issue (#3703)
+// will persist a real non-secret display label.
 type IdentityAPITokenListItem struct {
-	TokenID          string
-	TokenClass       string
-	// DisplayHandleHash is the SHA-256 hash of the display label the caller set
-	// at creation time. The raw label is not stored; callers see the hash only.
-	DisplayHandleHash string
-	IssuedAt         time.Time
-	ExpiresAt        time.Time
-	RevokedAt        time.Time
+	TokenID    string
+	TokenClass string
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+	RevokedAt  time.Time
 }
 
 // listLocalIdentityAPITokensBySubjectQuery selects metadata-only columns for
 // tokens owned by a personal user (via identity_users subject_id_hash) or
 // service principals owned by that user. It never selects token_hash.
+// There is no issued_at upper bound — "list my own rows" must not hide a
+// just-issued token under clock skew.
 const listLocalIdentityAPITokensBySubjectQuery = `
 SELECT
     tok.token_id,
     tok.token_class,
-    COALESCE(tok.display_handle_hash, ''),
     tok.issued_at,
     tok.expires_at,
     tok.revoked_at
@@ -44,8 +45,7 @@ LEFT JOIN identity_service_principals sp
    AND sp.owner_user_id IN (
        SELECT user_id FROM identity_users WHERE subject_id_hash = $1
    )
-WHERE tok.issued_at <= $2
-  AND (
+WHERE (
       (tok.token_class = 'personal' AND u.user_id IS NOT NULL)
       OR (tok.token_class = 'service_principal' AND sp.service_principal_id IS NOT NULL)
   )
@@ -68,9 +68,9 @@ func (s *IdentitySubjectStore) ListAPITokensBySubject(
 		return nil, errors.New("subject_id_hash is required")
 	}
 	if asOf.IsZero() {
-		asOf = time.Now().UTC()
+		return nil, errors.New("as_of is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listLocalIdentityAPITokensBySubjectQuery, subjectIDHash, asOf.UTC())
+	rows, err := s.db.QueryContext(ctx, listLocalIdentityAPITokensBySubjectQuery, subjectIDHash)
 	if err != nil {
 		return nil, fmt.Errorf("list api tokens by subject: %w", err)
 	}
@@ -84,7 +84,6 @@ func (s *IdentitySubjectStore) ListAPITokensBySubject(
 		if err := rows.Scan(
 			&item.TokenID,
 			&item.TokenClass,
-			&item.DisplayHandleHash,
 			&item.IssuedAt,
 			&expiresAt,
 			&revokedAt,

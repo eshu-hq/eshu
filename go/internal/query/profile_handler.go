@@ -1,6 +1,7 @@
 package query
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -57,6 +58,7 @@ func (h *ProfileHandler) handleProfile(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			// Do not emit has_active_mfa:false on store error — that would be a
 			// false security assertion. Return 500 so the caller retries.
+			slog.ErrorContext(r.Context(), "get local identity mfa status failed", "err", err)
 			WriteError(w, http.StatusInternalServerError, "failed to fetch mfa status")
 			return
 		}
