@@ -75,13 +75,34 @@ func (s NativeRepositorySelector) SelectRepositories(
 		// actually changed. syncFilesystemRepositories returns no paths for an
 		// unchanged corpus (manifest match, git_selection_filesystem.go:29-32),
 		// so gating on len(repoPaths) keeps the warning and metric silent on
-		// steady-state re-polls instead of re-firing every interval. The report
-		// inspects the full discovered repositoryIDs because the collision is a
-		// property of the discovered set, not of the managed checkout paths.
-		// This is a heuristic for likely accidental corpus nesting (e.g.
-		// repos/repos/… copies — issue #3677), not a true-duplication check.
-		if len(repoPaths) > 0 {
-			reportRepositoryBasenameCollisions(ctx, repositoryIDs, s.Logger, s.Instruments)
+		// steady-state re-polls instead of re-firing every interval.
+		//
+		// Two correctness properties drive how the report is invoked:
+		//
+		// 1. Completeness — it inspects the full pre-shard selection.RepositoryIDs,
+		//    NOT the post-shard repositoryIDs subset. Basename collisions are a
+		//    property of the DISCOVERED set: when sharding is active a colliding
+		//    pair (e.g. "svc-beta" and "repos/svc-beta") may hash into different
+		//    shard buckets, so no individual shard's post-shard subset shows a
+		//    collision and the diagnostic would be permanently silent even though
+		//    the corpus is inflated (issue #3700, regression on #3688).
+		//
+		// 2. Single-emit — it runs only on the index-0 shard. Because every shard
+		//    instance inspects the same global pre-shard set, letting all N shards
+		//    report would multiply one real collision into N duplicate WARN lines
+		//    and an N× metric reading, breaking any alert threshold tuned to the
+		//    true surplus count. Pinning to shard index 0 makes the global signal
+		//    fire exactly once per changed batch. Shard index 0 always exists for
+		//    any shard count >= 1, and at the unsharded default (count <= 1) the
+		//    index is 0, so single-instance behavior is unchanged.
+		//
+		// Caveat: the report still rides shard 0's own changed-batch gate
+		// (len(repoPaths) > 0). At repo-scale corpora shard 0 always holds repos,
+		// so this is reliable; only a pathologically tiny corpus whose hash never
+		// lands on shard 0 could defer the signal, and such a corpus is not the
+		// accidental-nesting case this diagnostic targets.
+		if s.Config.RepoShardIndex == 0 && len(repoPaths) > 0 {
+			reportRepositoryBasenameCollisions(ctx, selection.RepositoryIDs, s.Logger, s.Instruments)
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
