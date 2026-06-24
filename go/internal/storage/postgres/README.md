@@ -1184,7 +1184,12 @@ Observability Evidence: the per-scope fan-out emits aggregate signals.
 `eshu_dp_deferred_backfill_partition_load_duration_seconds` (histogram, per-scope
 load wall time — a long tail isolates the dominating scope), and emits a
 `deferred_backfill_fact_load_completed partitions=… workers=… loaded_facts=…` log
-line. New instruments are registered in `internal/telemetry/instruments.go`. The
+line. The `relationship.backfill_deferred` span now also carries `partition_count`
+and `worker_count` attributes, so the fan-out shape is readable off the trace
+without correlating the log, and records a `partition_load_failed` event naming the
+`scope_id` of the partition that aborts a pass — so a failed backfill names the
+offending scope on the trace, not only in the returned error string (issue #3710
+follow-up). New instruments are registered in `internal/telemetry/instruments.go`. The
 per-scope queries still run on the existing `InstrumentedDB`-wrapped pool, so
 per-statement latency/error spans and `eshu_dp_postgres_query_duration_seconds` are
 inherited without per-call wiring, and the pass still records
