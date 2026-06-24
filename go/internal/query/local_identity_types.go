@@ -101,13 +101,22 @@ const (
 )
 
 // LocalIdentityAuthContext is the query-layer auth context returned by storage.
+//
+// RoleIDs and the permission-catalog fields carry the same enforcement snapshot
+// a scoped token for the same roles would carry. They are populated only for
+// non-all-scope logins; all-scope (admin) logins keep PermissionCatalogEnforced
+// false and remain fail-open.
 type LocalIdentityAuthContext struct {
-	TenantID           string
-	WorkspaceID        string
-	SubjectIDHash      string
-	SubjectClass       string
-	PolicyRevisionHash string
-	AllScopes          bool
+	TenantID                     string
+	WorkspaceID                  string
+	SubjectIDHash                string
+	SubjectClass                 string
+	PolicyRevisionHash           string
+	AllScopes                    bool
+	RoleIDs                      []string
+	PermissionCatalogEnforced    bool
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
 }
 
 // LocalIdentityAuthenticationResult is the hash-safe local login result.

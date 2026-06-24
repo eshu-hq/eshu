@@ -19,6 +19,8 @@ func TestOIDCLoginStoreResolvesActiveRoleGrantsForRefresh(t *testing.T) {
 			{rows: [][]any{{"scope_a"}}},
 			// Repository targets.
 			{rows: [][]any{{"repo_a", "scope_a"}}},
+			// Permission grants.
+			{rows: [][]any{{"ask_search", "ask_reasoning"}}},
 		},
 	}
 	store := NewOIDCLoginStore(db)
@@ -45,8 +47,11 @@ func TestOIDCLoginStoreResolvesActiveRoleGrantsForRefresh(t *testing.T) {
 	if got := resolution.AllowedScopeIDs; len(got) != 1 || got[0] != "scope_a" {
 		t.Fatalf("AllowedScopeIDs = %#v, want [scope_a]", got)
 	}
-	if len(db.queries) != 3 {
-		t.Fatalf("query count = %d, want 3", len(db.queries))
+	if got, want := resolution.AllowedPermissionFeatures, []string{"ask_search"}; !equalStringSlices(got, want) {
+		t.Fatalf("AllowedPermissionFeatures = %#v, want %#v", got, want)
+	}
+	if len(db.queries) != 4 {
+		t.Fatalf("query count = %d, want 4", len(db.queries))
 	}
 	roleQuery := db.queries[0].query
 	for _, want := range []string{

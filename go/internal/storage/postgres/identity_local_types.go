@@ -99,13 +99,23 @@ const (
 )
 
 // LocalIdentityAuthContext is the authorization context returned after login.
+//
+// RoleIDs, PermissionCatalogEnforced, AllowedPermissionFeatures, and
+// AllowedPermissionDataClasses carry the same permission-catalog snapshot a
+// scoped token for the same roles would carry, so a cookie session enforces
+// identically. They are populated only for non-all-scope (non-admin) logins;
+// all-scope sessions keep PermissionCatalogEnforced=false and remain fail-open.
 type LocalIdentityAuthContext struct {
-	TenantID           string
-	WorkspaceID        string
-	SubjectIDHash      string
-	SubjectClass       string
-	PolicyRevisionHash string
-	AllScopes          bool
+	TenantID                     string
+	WorkspaceID                  string
+	SubjectIDHash                string
+	SubjectClass                 string
+	PolicyRevisionHash           string
+	AllScopes                    bool
+	RoleIDs                      []string
+	PermissionCatalogEnforced    bool
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
 }
 
 // LocalIdentityAuthenticationResult is the hash-safe login result.

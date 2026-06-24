@@ -154,6 +154,7 @@ func TestOIDCLoginStoreResolvesGroupsThroughRolesToGrants(t *testing.T) {
 			{rows: [][]any{{"developer", "sha256:policy"}}},
 			{rows: [][]any{{"scope_a"}, {"scope_b"}}},
 			{rows: [][]any{{"repo_a", "scope_a"}}},
+			{rows: [][]any{{"ask_search", "ask_reasoning"}, {"repository_content", "source_content"}}},
 		},
 	}
 	store := NewOIDCLoginStore(db)
@@ -180,11 +181,20 @@ func TestOIDCLoginStoreResolvesGroupsThroughRolesToGrants(t *testing.T) {
 	if got := resolution.AllowedRepositoryIDs; len(got) != 1 || got[0] != "repo_a" {
 		t.Fatalf("AllowedRepositoryIDs = %#v, want [repo_a]", got)
 	}
+	if got, want := resolution.AllowedPermissionFeatures, []string{"ask_search", "repository_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("AllowedPermissionFeatures = %#v, want %#v", got, want)
+	}
+	if got, want := resolution.AllowedPermissionDataClasses, []string{"ask_reasoning", "source_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("AllowedPermissionDataClasses = %#v, want %#v", got, want)
+	}
 	if resolution.PolicyRevisionHash != "sha256:policy" {
 		t.Fatalf("PolicyRevisionHash = %q, want sha256:policy", resolution.PolicyRevisionHash)
 	}
-	if len(db.queries) != 3 {
-		t.Fatalf("query count = %d, want 3", len(db.queries))
+	if len(db.queries) != 4 {
+		t.Fatalf("query count = %d, want 4", len(db.queries))
+	}
+	if !strings.Contains(db.queries[3].query, "FROM identity_role_grants grant") {
+		t.Fatalf("permission query missing identity_role_grants:\n%s", db.queries[3].query)
 	}
 	if strings.Contains(db.queries[0].query, "group_name") ||
 		!strings.Contains(db.queries[0].query, "external_group_hash = ANY($5::text[])") {

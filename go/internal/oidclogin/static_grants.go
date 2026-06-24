@@ -69,6 +69,10 @@ func (r StaticGrantResolver) ResolveGroupGrants(
 	if resolution.PolicyRevisionHash == "" {
 		return GrantResolution{}, false, errors.New("role grant policy revision is required")
 	}
+	// A file-backed RoleGrant carries only scopes/repositories, never a
+	// permission-catalog snapshot. Leave PermissionCatalogEnforced false so the
+	// issued session is bounded by the operator-declared scopes/repositories
+	// without 403ing every catalog-gated route against an empty feature set.
 	return resolution, true, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -47,11 +48,17 @@ type OIDCGroupGrantQuery struct {
 }
 
 // OIDCGroupGrantResolution is the concrete authorization snapshot for a login.
+//
+// AllowedPermissionFeatures and AllowedPermissionDataClasses carry the same
+// permission-catalog grants a scoped token for the resolved roles would carry,
+// so an OIDC cookie session enforces identically.
 type OIDCGroupGrantResolution struct {
-	RoleIDs              []string
-	PolicyRevisionHash   string
-	AllowedScopeIDs      []string
-	AllowedRepositoryIDs []string
+	RoleIDs                      []string
+	PolicyRevisionHash           string
+	AllowedScopeIDs              []string
+	AllowedRepositoryIDs         []string
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
 }
 
 // NewOIDCLoginStore constructs a Postgres OIDC login store.
@@ -185,11 +192,20 @@ func (s *OIDCLoginStore) ResolveGroupRoleGrants(
 	if err != nil {
 		return OIDCGroupGrantResolution{}, false, err
 	}
+	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, query.TenantID, roles, query.AsOf)
+	if err != nil {
+		// Fails closed (login denied). Log distinctly for operator triage.
+		slog.ErrorContext(ctx, "oidc session permission grant resolution failed; login denied",
+			"subject_class", "external_oidc_user", "tenant_id", query.TenantID, "role_count", len(roles), "error", err)
+		return OIDCGroupGrantResolution{}, false, err
+	}
 	return OIDCGroupGrantResolution{
-		RoleIDs:              roles,
-		PolicyRevisionHash:   policyRevisionHash,
-		AllowedScopeIDs:      scopes,
-		AllowedRepositoryIDs: repos,
+		RoleIDs:                      roles,
+		PolicyRevisionHash:           policyRevisionHash,
+		AllowedScopeIDs:              scopes,
+		AllowedRepositoryIDs:         repos,
+		AllowedPermissionFeatures:    features,
+		AllowedPermissionDataClasses: dataClasses,
 	}, true, nil
 }
 

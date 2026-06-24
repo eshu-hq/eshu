@@ -359,6 +359,70 @@ func TestScopedAPITokenStoreResolveIdentityTokenRejectsBlankHash(t *testing.T) {
 	}
 }
 
+func TestScopedAPITokenStoreResolvePermissionGrantsForRoles(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{"ask_search", "ask_reasoning"},
+				{"ask_search", "documentation_semantic"},
+				{"repository_content", "source_content"},
+			}},
+		},
+	}
+	store := NewScopedAPITokenStore(db)
+
+	features, dataClasses, err := store.ResolvePermissionGrantsForRoles(
+		context.Background(),
+		"tenant_a",
+		[]string{"role_reader", "role_reader", " "},
+		now,
+	)
+	if err != nil {
+		t.Fatalf("ResolvePermissionGrantsForRoles() error = %v", err)
+	}
+	if got, want := features, []string{"ask_search", "repository_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("features = %#v, want %#v", got, want)
+	}
+	if got, want := dataClasses, []string{"ask_reasoning", "documentation_semantic", "source_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("dataClasses = %#v, want %#v", got, want)
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.queries[0].query, "FROM identity_role_grants grant") {
+		t.Fatalf("permission query missing identity_role_grants:\n%s", db.queries[0].query)
+	}
+}
+
+func TestScopedAPITokenStoreResolvePermissionGrantsForRolesEmptyInputs(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewScopedAPITokenStore(db)
+
+	features, dataClasses, err := store.ResolvePermissionGrantsForRoles(context.Background(), "tenant_a", nil, now)
+	if err != nil {
+		t.Fatalf("ResolvePermissionGrantsForRoles() empty roles error = %v", err)
+	}
+	if len(features) != 0 || len(dataClasses) != 0 {
+		t.Fatalf("empty roles grants = %#v / %#v, want empty", features, dataClasses)
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("empty roles query count = %d, want 0", len(db.queries))
+	}
+
+	if _, _, err := store.ResolvePermissionGrantsForRoles(context.Background(), "", []string{"role_reader"}, now); err != nil {
+		t.Fatalf("ResolvePermissionGrantsForRoles() blank tenant error = %v", err)
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("blank tenant query count = %d, want 0", len(db.queries))
+	}
+}
+
 func TestScopedAPITokenStoreMarksIdentityTokenUsedHashOnly(t *testing.T) {
 	t.Parallel()
 

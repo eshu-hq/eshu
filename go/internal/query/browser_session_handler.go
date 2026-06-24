@@ -28,27 +28,30 @@ type BrowserSessionStore interface {
 // BrowserSessionCreateRecord is the hash-only session row requested by the
 // HTTP handler.
 type BrowserSessionCreateRecord struct {
-	SessionHash              string
-	CSRFTokenHash            string
-	TenantID                 string
-	WorkspaceID              string
-	SubjectIDHash            string
-	SubjectClass             string
-	PolicyRevisionHash       string
-	RoleIDs                  []string
-	AllScopes                bool
-	AllowedScopeIDs          []string
-	AllowedRepositoryIDs     []string
-	ExternalProviderConfigID string
-	ExternalSubjectIDHash    string
-	ExternalGroupHashes      []string
-	ExternalAuthValidatedAt  time.Time
-	ExternalAuthStaleAfter   time.Time
-	IssuedAt                 time.Time
-	LastSeenAt               time.Time
-	IdleExpiresAt            time.Time
-	AbsoluteExpiresAt        time.Time
-	UpdatedAt                time.Time
+	SessionHash                  string
+	CSRFTokenHash                string
+	TenantID                     string
+	WorkspaceID                  string
+	SubjectIDHash                string
+	SubjectClass                 string
+	PolicyRevisionHash           string
+	RoleIDs                      []string
+	AllScopes                    bool
+	PermissionCatalogEnforced    bool
+	AllowedScopeIDs              []string
+	AllowedRepositoryIDs         []string
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
+	ExternalProviderConfigID     string
+	ExternalSubjectIDHash        string
+	ExternalGroupHashes          []string
+	ExternalAuthValidatedAt      time.Time
+	ExternalAuthStaleAfter       time.Time
+	IssuedAt                     time.Time
+	LastSeenAt                   time.Time
+	IdleExpiresAt                time.Time
+	AbsoluteExpiresAt            time.Time
+	UpdatedAt                    time.Time
 }
 
 // BrowserSessionExternalAuthProof carries hash-only external IdP proof metadata
@@ -162,27 +165,30 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 		idleExpiresAt = absoluteExpiresAt
 	}
 	record := BrowserSessionCreateRecord{
-		SessionHash:              BrowserSessionSecretHash(sessionSecret),
-		CSRFTokenHash:            BrowserSessionSecretHash(csrfSecret),
-		TenantID:                 auth.TenantID,
-		WorkspaceID:              auth.WorkspaceID,
-		SubjectIDHash:            auth.SubjectIDHash,
-		SubjectClass:             auth.SubjectClass,
-		PolicyRevisionHash:       auth.PolicyRevisionHash,
-		RoleIDs:                  append([]string(nil), auth.RoleIDs...),
-		AllScopes:                auth.AllScopes,
-		AllowedScopeIDs:          append([]string(nil), auth.AllowedScopeIDs...),
-		AllowedRepositoryIDs:     append([]string(nil), auth.AllowedRepositoryIDs...),
-		ExternalProviderConfigID: strings.TrimSpace(externalAuth.ProviderConfigID),
-		ExternalSubjectIDHash:    strings.TrimSpace(externalAuth.SubjectIDHash),
-		ExternalGroupHashes:      append([]string(nil), externalAuth.GroupHashes...),
-		ExternalAuthValidatedAt:  externalAuth.ValidatedAt.UTC(),
-		ExternalAuthStaleAfter:   externalAuth.StaleAfter.UTC(),
-		IssuedAt:                 now,
-		LastSeenAt:               now,
-		IdleExpiresAt:            idleExpiresAt,
-		AbsoluteExpiresAt:        absoluteExpiresAt,
-		UpdatedAt:                now,
+		SessionHash:                  BrowserSessionSecretHash(sessionSecret),
+		CSRFTokenHash:                BrowserSessionSecretHash(csrfSecret),
+		TenantID:                     auth.TenantID,
+		WorkspaceID:                  auth.WorkspaceID,
+		SubjectIDHash:                auth.SubjectIDHash,
+		SubjectClass:                 auth.SubjectClass,
+		PolicyRevisionHash:           auth.PolicyRevisionHash,
+		RoleIDs:                      append([]string(nil), auth.RoleIDs...),
+		AllScopes:                    auth.AllScopes,
+		PermissionCatalogEnforced:    auth.PermissionCatalogEnforced,
+		AllowedScopeIDs:              append([]string(nil), auth.AllowedScopeIDs...),
+		AllowedRepositoryIDs:         append([]string(nil), auth.AllowedRepositoryIDs...),
+		AllowedPermissionFeatures:    append([]string(nil), auth.AllowedPermissionFeatures...),
+		AllowedPermissionDataClasses: append([]string(nil), auth.AllowedPermissionDataClasses...),
+		ExternalProviderConfigID:     strings.TrimSpace(externalAuth.ProviderConfigID),
+		ExternalSubjectIDHash:        strings.TrimSpace(externalAuth.SubjectIDHash),
+		ExternalGroupHashes:          append([]string(nil), externalAuth.GroupHashes...),
+		ExternalAuthValidatedAt:      externalAuth.ValidatedAt.UTC(),
+		ExternalAuthStaleAfter:       externalAuth.StaleAfter.UTC(),
+		IssuedAt:                     now,
+		LastSeenAt:                   now,
+		IdleExpiresAt:                idleExpiresAt,
+		AbsoluteExpiresAt:            absoluteExpiresAt,
+		UpdatedAt:                    now,
 	}
 	if record.SessionHash == "" || record.CSRFTokenHash == "" {
 		WriteError(w, http.StatusInternalServerError, "failed to create browser session")

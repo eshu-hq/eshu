@@ -84,12 +84,27 @@ type GrantQuery struct {
 }
 
 // GrantResolution is the Eshu-owned role and concrete grant result.
+//
+// AllowedPermissionFeatures and AllowedPermissionDataClasses carry the
+// permission-catalog grants for the resolved roles so the issued cookie session
+// enforces identically to a scoped token for the same roles.
+//
+// PermissionCatalogEnforced is the resolver's explicit declaration that the
+// issued session must be gated by the permission catalog. Only a resolver that
+// supplies a real catalog snapshot may set it: the database resolver sets it for
+// scoped (non-admin) roles, while the file-backed static resolver leaves it
+// false because it carries no catalog snapshot. Enforcement must be declared,
+// not inferred from AllScopes or from an empty feature set, since a legitimate
+// database role may grant zero features and still require enforcement.
 type GrantResolution struct {
-	RoleIDs              []string
-	PolicyRevisionHash   string
-	AllScopes            bool
-	AllowedScopeIDs      []string
-	AllowedRepositoryIDs []string
+	RoleIDs                      []string
+	PolicyRevisionHash           string
+	AllScopes                    bool
+	PermissionCatalogEnforced    bool
+	AllowedScopeIDs              []string
+	AllowedRepositoryIDs         []string
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
 }
 
 // GrantResolver resolves external groups through Eshu-owned role mappings.
@@ -291,16 +306,19 @@ func (s *Service) CompleteOIDCLogin(
 	subjectIDHash := SHA256Hash(provider.ProviderConfigID + ":" + strings.TrimSpace(claims.Subject))
 	return query.OIDCLoginCompleteResponse{
 		Auth: query.AuthContext{
-			Mode:                 query.AuthModeScoped,
-			TenantID:             record.TenantID,
-			WorkspaceID:          record.WorkspaceID,
-			SubjectClass:         oidcSubjectClass,
-			SubjectIDHash:        subjectIDHash,
-			PolicyRevisionHash:   grants.PolicyRevisionHash,
-			RoleIDs:              append([]string(nil), grants.RoleIDs...),
-			AllScopes:            grants.AllScopes,
-			AllowedScopeIDs:      append([]string(nil), grants.AllowedScopeIDs...),
-			AllowedRepositoryIDs: append([]string(nil), grants.AllowedRepositoryIDs...),
+			Mode:                         query.AuthModeScoped,
+			TenantID:                     record.TenantID,
+			WorkspaceID:                  record.WorkspaceID,
+			SubjectClass:                 oidcSubjectClass,
+			SubjectIDHash:                subjectIDHash,
+			PolicyRevisionHash:           grants.PolicyRevisionHash,
+			RoleIDs:                      append([]string(nil), grants.RoleIDs...),
+			AllScopes:                    grants.AllScopes,
+			PermissionCatalogEnforced:    grants.PermissionCatalogEnforced,
+			AllowedScopeIDs:              append([]string(nil), grants.AllowedScopeIDs...),
+			AllowedRepositoryIDs:         append([]string(nil), grants.AllowedRepositoryIDs...),
+			AllowedPermissionFeatures:    append([]string(nil), grants.AllowedPermissionFeatures...),
+			AllowedPermissionDataClasses: append([]string(nil), grants.AllowedPermissionDataClasses...),
 		},
 		ProviderConfigID:    provider.ProviderConfigID,
 		ProviderSubjectID:   subjectIDHash,

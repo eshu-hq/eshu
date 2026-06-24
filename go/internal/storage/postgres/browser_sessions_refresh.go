@@ -37,16 +37,18 @@ type StaleOIDCSessionRecord struct {
 // and bounded proof window written back to one OIDC-backed browser session when
 // active-session refresh re-confirms the external subject is still authorized.
 type OIDCSessionAuthProofUpdate struct {
-	SessionHash             string
-	ExternalAuthValidatedAt time.Time
-	ExternalAuthStaleAfter  time.Time
-	PolicyRevisionHash      string
-	ExternalGroupHashes     []string
-	RoleIDs                 []string
-	AllScopes               bool
-	AllowedScopeIDs         []string
-	AllowedRepositoryIDs    []string
-	UpdatedAt               time.Time
+	SessionHash                  string
+	ExternalAuthValidatedAt      time.Time
+	ExternalAuthStaleAfter       time.Time
+	PolicyRevisionHash           string
+	ExternalGroupHashes          []string
+	RoleIDs                      []string
+	AllScopes                    bool
+	AllowedScopeIDs              []string
+	AllowedRepositoryIDs         []string
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
+	UpdatedAt                    time.Time
 }
 
 // ListStaleOIDCSessions returns up to limit active OIDC-backed browser sessions
@@ -121,6 +123,14 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 	if err != nil {
 		return err
 	}
+	allowedPermissionFeatures, err := marshalBrowserSessionStrings(update.AllowedPermissionFeatures)
+	if err != nil {
+		return err
+	}
+	allowedPermissionDataClasses, err := marshalBrowserSessionStrings(update.AllowedPermissionDataClasses)
+	if err != nil {
+		return err
+	}
 	if _, err := s.db.ExecContext(
 		ctx,
 		updateOIDCBrowserSessionAuthProofQuery,
@@ -134,6 +144,8 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 		allowedRepositories,
 		update.UpdatedAt,
 		externalGroupHashes,
+		allowedPermissionFeatures,
+		allowedPermissionDataClasses,
 	); err != nil {
 		return fmt.Errorf("update oidc session auth proof: %w", err)
 	}
