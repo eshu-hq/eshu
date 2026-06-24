@@ -18,6 +18,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/auth/local/api-tokens",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/auth/oidc/callback",
       "readiness": "implemented"
     },
@@ -28,12 +33,22 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/auth/profile",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/auth/saml/providers/{provider_id}/login",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
       "name": "GET /api/v0/auth/saml/providers/{provider_id}/metadata",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/sessions",
       "readiness": "implemented"
     },
     {
@@ -1531,6 +1546,11 @@
     {
       "category": "console_page",
       "name": "OperationsPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "ProfilePage",
       "readiness": "implemented"
     },
     {

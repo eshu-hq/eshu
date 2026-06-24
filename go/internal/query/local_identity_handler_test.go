@@ -413,3 +413,19 @@ func (s *fakeLocalIdentityStore) RotateLocalIdentityAPIToken(
 	s.rotatedAPIToken = rotate
 	return nil
 }
+
+func (s *fakeLocalIdentityStore) ListAPITokensBySubject(
+	_ context.Context,
+	_ string,
+	_ time.Time,
+) ([]LocalIdentityAPITokenListItem, error) {
+	return nil, nil
+}
+
+func (s *fakeLocalIdentityStore) GetLocalIdentityMFAStatus(
+	_ context.Context,
+	_ string,
+	_ time.Time,
+) (LocalIdentityMFAStatus, error) {
+	return LocalIdentityMFAStatus{}, nil
+}

@@ -30,6 +30,7 @@ import { CatalogPage } from "./pages/CatalogPage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { CapabilityMatrixPage } from "./pages/CapabilityMatrixPage";
 import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { IacPage } from "./pages/IacPage";
 import { ReplatformingPage } from "./pages/ReplatformingPage";
 import { FindingsPage } from "./pages/FindingsPage";
@@ -112,6 +113,7 @@ export function AppRoutes({
       <Route path="/collector-readiness" element={<CollectorReadinessPage rows={model.collectorReadiness} provenance={model.provenance.collectorReadiness ?? "empty"} />} />
       <Route path="/operations" element={<OperationsPage model={model} />} />
       <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
+      <Route path="/profile" element={<ProfilePage client={client} />} />
       <Route
         path="/workspace/:entityKind/:entityId"
         element={

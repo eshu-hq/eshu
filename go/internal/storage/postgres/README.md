@@ -943,3 +943,26 @@ Operators should compare `queue_wait_seconds` histograms for the
 
 No-Observability-Change: conflict key derivation is enqueue-time only; no
 runtime spans, metrics, or log lines were added or removed.
+
+## Identity profile read queries (#3462 Slice B)
+
+`ListSessionsBySubject`, `ListAPITokensBySubject`, and
+`GetLocalIdentityMFAStatus` are new metadata-only point reads that back the
+console profile page (`GET /api/v0/auth/profile`, `/sessions`,
+`/local/api-tokens`). They are not on the ingestion/reducer hot path; each is a
+single dashboard-triggered read for the authenticated caller's own rows.
+
+No-Regression Evidence: all three are net-new SELECTs that add no predicate to
+any existing query and modify no existing index or write path, so there is no
+prior baseline to regress. Backend PostgreSQL 16. Input shape: exactly one
+`subject_id_hash` per call (never a scan over subjects). Each query filters on
+the indexed `subject_id_hash`, and the two list reads are bounded `LIMIT 200`,
+so the terminal row count per call is at most 200 rows (MFA returns a single
+status row). The `(session_hash = $2) AS current` boolean is an equality on the
+`browser_sessions` primary key, matching at most one row. No unbounded fan-out,
+no cross-subject scan, no N+1.
+
+Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
+per-statement latency/error spans and metrics are inherited without per-call
+wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths so an
+operator sees a server-side signal instead of a silent empty/"none" result.

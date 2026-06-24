@@ -12,9 +12,9 @@ import (
 const localIdentitySecretBytes = 32
 
 // LocalIdentityHandler serves production local identity bootstrap, login, MFA,
-// invitation, disablement, and break-glass routes.
+// invitation, disablement, break-glass, and profile read routes.
 type LocalIdentityHandler struct {
-	Store           LocalIdentityStore
+	Store           LocalIdentityProfileLister
 	Sessions        BrowserSessionStore
 	Audit           GovernanceAuditAppender
 	NewSecret       func() (string, error)

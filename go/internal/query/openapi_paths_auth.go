@@ -447,4 +447,93 @@ const openAPIPathsAuth = `
         }
       }
     },
+    "/api/v0/auth/profile": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Read the caller's identity profile",
+        "description": "Returns the authenticated caller's own profile: identity provider config id (absent for local identity), active tenant/workspace, role ids, permitted permission features, MFA status, and memberships. Cookie- or bearer-authenticated; never returns secrets, credential handles, or other subjects' data.",
+        "operationId": "getAuthProfile",
+        "responses": {
+          "200": {
+            "description": "Caller profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "external_provider_config_id": {"type": "string"},
+                    "active_tenant_id": {"type": "string"},
+                    "active_workspace_id": {"type": "string"},
+                    "role_ids": {"type": "array", "items": {"type": "string"}},
+                    "allowed_permission_features": {"type": "array", "items": {"type": "string"}},
+                    "permission_catalog_enforced": {"type": "boolean"},
+                    "mfa": {
+                      "type": "object",
+                      "properties": {
+                        "has_active_mfa": {"type": "boolean"},
+                        "factor_kind": {"type": "string"}
+                      }
+                    },
+                    "memberships": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tenant_id": {"type": "string"},
+                          "workspace_id": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/sessions": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "List the caller's own browser sessions",
+        "description": "Returns metadata for the authenticated caller's own active browser sessions: issued/last-seen/expiry timestamps, tenant/workspace, and which row is the current session. Never returns the session hash or secret, and never returns other subjects' sessions.",
+        "operationId": "listAuthSessions",
+        "responses": {
+          "200": {
+            "description": "The caller's browser sessions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "issued_at": {"type": "string", "format": "date-time"},
+                          "last_seen_at": {"type": "string", "format": "date-time"},
+                          "idle_expires_at": {"type": "string", "format": "date-time"},
+                          "absolute_expires_at": {"type": "string", "format": "date-time"},
+                          "tenant_id": {"type": "string"},
+                          "workspace_id": {"type": "string"},
+                          "current": {"type": "boolean"},
+                          "revoked_at": {"type": "string", "format": "date-time"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
 `

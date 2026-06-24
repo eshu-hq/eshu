@@ -17,6 +17,42 @@ const openAPIPathsAuthTokens = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
+      },
+      "get": {
+        "tags": ["auth"],
+        "summary": "List the caller's generated API tokens",
+        "description": "Returns metadata for the authenticated caller's own personal and service-principal generated API tokens: token id, class, and issued/expires/revoked timestamps. Never returns the token hash or raw bearer value, and never returns other subjects' tokens.",
+        "operationId": "listLocalIdentityAPITokens",
+        "responses": {
+          "200": {
+            "description": "The caller's generated API tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "token_id": {"type": "string"},
+                          "token_class": {"type": "string"},
+                          "issued_at": {"type": "string", "format": "date-time"},
+                          "expires_at": {"type": "string", "format": "date-time"},
+                          "revoked_at": {"type": "string", "format": "date-time"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
       }
     },
     "/api/v0/auth/local/api-tokens/{token_id}/revoke": {

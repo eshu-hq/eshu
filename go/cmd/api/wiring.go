@@ -351,6 +351,8 @@ func newRouterWithSemanticEmbedding(
 	router := &query.APIRouter{
 		LocalIdentity:   newLocalIdentityHandler(db, instruments, governanceAudit),
 		BrowserSessions: newBrowserSessionHandler(db, instruments),
+		SessionList:     newBrowserSessionListHandler(db, instruments),
+		Profile:         newProfileHandler(db, instruments, governanceAudit),
 		Repositories: &query.RepositoryHandler{
 			Neo4j:                      neo4jReader,
 			Content:                    contentReader,
