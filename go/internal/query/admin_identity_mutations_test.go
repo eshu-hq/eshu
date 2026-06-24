@@ -551,9 +551,10 @@ func TestDeleteIdPGroupMappingIdempotentNoop(t *testing.T) {
 
 // TestAdminMutationAuditEventCarriesTenantID verifies that a successful
 // mutation from a tenant admin (AllScopes + TenantID) produces an audit event
-// with TenantID set to the caller's tenant (#3717). This ensures the tenant
-// admin can read their own mutation events via the tenant-scoped audit read
-// endpoint. A bare shared-operator (no TenantID) produces a global/NULL event.
+// with TenantID and WorkspaceID set to the caller's tenant/workspace (#3717).
+// This ensures the tenant admin can read their own mutation events via the
+// tenant-scoped audit read endpoint. A bare shared-operator (no TenantID)
+// produces a global/NULL event.
 func TestAdminMutationAuditEventCarriesTenantID(t *testing.T) {
 	t.Parallel()
 
