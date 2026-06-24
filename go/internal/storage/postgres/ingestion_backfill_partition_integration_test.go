@@ -16,9 +16,9 @@ import (
 // deferredPartitionProofSchemaSQL is the minimal scope/generation/fact table set
 // the deferred backfill's per-scope fact load selects over. It mirrors the
 // production columns the latestGenerationCTE and
-// listDeferredScopedRelationshipFactRecordsQuery reference, plus the trigram GIN
-// index the load depends on, so the partition-source proof exercises the same
-// access path the data plane would.
+// listDeferredScopedRelationshipFactRecordsQuery reference, plus the
+// fact_records_scope_generation_idx the per-scope partition load is bound by, so
+// the partition-source proof exercises the same access path the data plane would.
 const deferredPartitionProofSchemaSQL = `
 CREATE TABLE ingestion_scopes (
     scope_id TEXT PRIMARY KEY,
@@ -84,9 +84,6 @@ func TestDeferredBackfillPartitionSourceCoversAllScopes(t *testing.T) {
 	provisionDeferredPartitionSchema(t, db)
 	adapter := SQLDB{DB: db}
 
-	if err := EnsureBackfillPayloadTrigramIndex(ctx, adapter); err != nil {
-		t.Fatalf("ensure trigram index: %v", err)
-	}
 	seedDeferredPartitionFixture(t, ctx, db)
 
 	// The catalog the deferred backfill resolves targets against. Two collapsing
@@ -179,9 +176,9 @@ func provisionDeferredPartitionSchema(t *testing.T, db *sql.DB) {
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 	})
-	// Keep public on the search_path so the pg_trgm gin_trgm_ops operator class
-	// (installed in public) resolves when the trigram GIN index is built in the
-	// proof schema, matching the production search_path.
+	// Keep public on the search_path so any shared extensions/operator classes
+	// installed there resolve from the proof schema, matching the production
+	// search_path.
 	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}

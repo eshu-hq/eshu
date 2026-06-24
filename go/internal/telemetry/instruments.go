@@ -857,7 +857,6 @@ type Instruments struct {
 	DeferredBackfillBatchDuration          metric.Float64Histogram
 	DeferredBackfillBatchesCompleted       metric.Int64Counter
 	DeferredBackfillEvidence               metric.Int64Counter
-	DeferredBackfillIndexBuildDuration     metric.Float64Histogram
 	DeferredBackfillPartitions             metric.Int64Counter
 	DeferredBackfillPartitionWorkers       metric.Int64Histogram
 	DeferredBackfillPartitionLoadDuration  metric.Float64Histogram
@@ -3428,16 +3427,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillEvidence counter: %w", err)
-	}
-
-	inst.DeferredBackfillIndexBuildDuration, err = meter.Float64Histogram(
-		"eshu_dp_deferred_backfill_index_build_duration_seconds",
-		metric.WithDescription("Wall time of EnsureBackfillPayloadTrigramIndex at the deferred backfill entry point. The first build over a large corpus is the one-time stall; on installs that already have the index it is a cheap catalog lookup."),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(backfillBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register DeferredBackfillIndexBuildDuration histogram: %w", err)
 	}
 
 	inst.DeferredBackfillPartitions, err = meter.Int64Counter(

@@ -1,45 +1,6 @@
 package postgres
 
-const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL + backfillPayloadTrigramIndexSQL
-
-// backfillPayloadTrigramIndexSQL creates the pg_trgm GIN index on
-// lower(payload::text) that the deferred relationship backfill's per-scope fact
-// load depends on (issue #3710). The $1 LIKE ANY arm of
-// listDeferredScopedRelationshipFactRecordsQuery is a leading+trailing wildcard
-// substring match; without this index it is a per-row jsonb->text sequential
-// scan (the pass long pole), with it the planner is expected to drive a Bitmap
-// Index Scan for that arm (plan shape pending the remote EXPLAIN ANALYZE). The
-// extension and index are created idempotently so the statement is safe to issue
-// both at bootstrap (folded into factRecordSchemaSQL) and on every backfill pass
-// (EnsureBackfillPayloadTrigramIndex); the one-time build is plain (not
-// CONCURRENTLY) because the same DDL runs inside the bootstrap schema-apply path,
-// where CONCURRENTLY is forbidden in a transaction block. On a fresh install the
-// index is built at bootstrap; on an upgrade of an already-populated install the
-// index did not exist at original bootstrap, so the first build runs in the
-// deferred-maintenance path (RunDeferredRelationshipMaintenance ->
-// BackfillAllRelationshipEvidence) and a plain CREATE INDEX holds a SHARE lock that
-// blocks fact_records writes for the build duration (one-time). The
-// DeferredBackfillIndexBuildDuration metric makes that stall observable. Once the
-// index exists the statement is a cheap catalog lookup on every later pass.
-//
-// The index is PARTIAL — restricted to the fact kinds the deferred query reads
-// (content, file, gcp_cloud_relationship). The query's
-// `fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')` predicate
-// implies the partial index's WHERE predicate, so the planner still uses the index
-// for the deferred load, while every other fact kind's payload (the majority of
-// the corpus) is excluded from the index. That bounds the index's size and, more
-// importantly, its write-amplification: only inserts of those three kinds pay the
-// GIN maintenance cost, mirroring the partial-index precedent already used for the
-// fact_kind = 'file'/'repository' indexes in this file. The CREATE EXTENSION guard
-// makes this block self-contained and order-independent within the fact_records
-// schema; the content store (contentStoreBaseSchemaSQL) also requires pg_trgm, so
-// the guard is a no-op once either has run. This const is mirrored verbatim at the
-// end of schema/data-plane/postgres/003_fact_records.sql.
-const backfillPayloadTrigramIndexSQL = `CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS fact_records_payload_trgm_idx
-    ON fact_records USING gin (lower(payload::text) gin_trgm_ops)
-    WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship');
-`
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL
 
 const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (

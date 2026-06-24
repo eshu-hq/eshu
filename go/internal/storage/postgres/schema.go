@@ -414,18 +414,3 @@ func EnsureContentSearchIndexes(ctx context.Context, exec Executor) error {
 	}
 	return nil
 }
-
-// EnsureBackfillPayloadTrigramIndex creates the pg_trgm GIN index on
-// lower(payload::text) used by the deferred relationship backfill's per-scope
-// fact load (issue #3710). It is idempotent (CREATE EXTENSION/INDEX IF NOT
-// EXISTS), so the deferred backfill can call it on every pass: after the first
-// build the call is a cheap catalog lookup.
-func EnsureBackfillPayloadTrigramIndex(ctx context.Context, exec Executor) error {
-	if exec == nil {
-		return fmt.Errorf("executor is required")
-	}
-	if _, err := exec.ExecContext(ctx, backfillPayloadTrigramIndexSQL); err != nil {
-		return fmt.Errorf("ensure backfill payload trigram index: %w", err)
-	}
-	return nil
-}

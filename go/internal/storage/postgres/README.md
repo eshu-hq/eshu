@@ -1039,7 +1039,7 @@ are inherited without per-call wiring; permission-denied outcomes continue to
 surface through the existing `permission_catalog` enforcement envelope at the
 query layer.
 
-## Deferred backfill fact-load index + per-scope fan-out (#3710)
+## Deferred backfill fact-load per-scope fan-out (#3710)
 
 The deferred relationship-evidence backfill's fact-LOAD step
 (`loadDeferredAnchorScopedRelationshipFacts`, now in
@@ -1047,33 +1047,16 @@ The deferred relationship-evidence backfill's fact-LOAD step
 prior `listDeferredScopedRelationshipFactRecordsQuery` issued one corpus-wide scan
 that evaluated the #3659 self-exclusion arm per row against the whole catalog — an
 O(facts × catalog) sequential scan over every latest-generation content/file/gcp
-fact. Four changes remove it:
+fact. Two changes remove it:
 
-1. A PARTIAL `pg_trgm` GIN index on `lower(payload::text)`
-   (`fact_records_payload_trgm_idx`, defined once in `schema_fact_records.go` as
-   `backfillPayloadTrigramIndexSQL`, mirrored verbatim in
-   `schema/data-plane/postgres/003_fact_records.sql`, and ensured idempotently at
-   the backfill entry point via `EnsureBackfillPayloadTrigramIndex`). The index is
-   restricted to `WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship')`
-   — exactly the kinds the deferred query reads — so it does not index every other
-   fact kind's payload and only those three kinds' inserts pay the GIN maintenance
-   cost. The deferred query's `fact_kind IN (...)` predicate implies the partial
-   index's WHERE predicate, so the planner still uses the index.
-2. The candidate set is built inside a `WITH matched_facts AS MATERIALIZED (...)`
-   CTE so the planner narrows on the payload-text predicate first — letting the
-   `$1 LIKE ANY` constant-pattern arm drive a Bitmap Index Scan — instead of
-   pushing it to a per-row Filter on the inner side of a Nested Loop. The trigram
-   GIN index accelerates ONLY this `$1` arm: its patterns are constant
-   `%anchor%` literals the index can probe. It does NOT accelerate the `$2`
-   correlated self-exclusion arm (`lower(payload::text) LIKE '%' || value || '%'`),
-   whose pattern is built per row from a catalog value and is not an indexable
-   constant; that arm is bounded instead by the per-scope `(scope_id,
-   generation_id)` partition, which caps it to one scope's facts.
-3. The load is partitioned per `(scope_id, generation_id)` (`$3`/`$4`) and fanned
+1. The load is partitioned per `(scope_id, generation_id)` (`$3`/`$4`) and fanned
    out across the deferred-maintenance worker pool, so the monolithic scan becomes
    many partition-bounded per-scope scans that run concurrently and never contend
-   (partitions are disjoint).
-4. The partition SOURCE is `loadActiveScopeGenerationPartitions`
+   (partitions are disjoint). The planner bounds each per-scope query by
+   `fact_records_scope_generation_idx` and applies the `$1` LIKE ANY and `$2`
+   self-exclusion arms as filters on that already-bounded set; no payload index is
+   used.
+2. The partition SOURCE is `loadActiveScopeGenerationPartitions`
    (`SELECT scope_id, generation_id FROM latest_generations`), NOT
    `loadActiveRepositoryGenerations`. The latter filters `fact_kind = 'repository'`
    and keys `DISTINCT ON (repo_id)` over a `COALESCE(repo_id, graph_id, name)`
@@ -1090,46 +1073,48 @@ fact. Four changes remove it:
    labels or fans out on it — the partition query bounds each per-scope load by
    `$3`/`$4` alone.
 
+The candidate set is built inside a `WITH matched_facts AS MATERIALIZED (...)` CTE
+so the per-scope-bounded candidate set is computed once before the
+`latest_generations` join, rather than re-derived on the inner side of a Nested
+Loop. MATERIALIZED is a plan-shape choice, not an index enabler: both arms remain
+filters on the scope-generation-bounded candidate set.
+
 The #3668 self-exclusion `$2` arm changed from a per-row boundary regex
 (`~ '(^|[^a-z0-9._-])value($|[^a-z0-9._-])'`) to a plain substring
 `lower(payload::text) LIKE '%' || value || '%'`, retaining `cat.value <>
 own_repo_id`. The `$2` value's LIKE metacharacters (`\ % _`) are escaped inline
 with `ESCAPE '\'` (the same convention `$1` uses), so a repo_id containing one of
 those characters (or a trailing backslash) cannot become an accidental wildcard or
-a malformed escape. The regex was un-indexable; the LIKE form is a provable
-SUPERSET of the regex result that the in-memory `catalogMatcher`
-(`relationships.DiscoverEvidence` → `catalogMatcher.match`) refines to the
-identical evidence set via boundary-safe whole-token matching plus the self-match
-drop (`entry.RepoID == sourceRepoID`).
+a malformed escape. The LIKE form is a provable SUPERSET of the regex result that
+the in-memory `catalogMatcher` (`relationships.DiscoverEvidence` →
+`catalogMatcher.match`) refines to the identical evidence set via boundary-safe
+whole-token matching plus the self-match drop (`entry.RepoID == sourceRepoID`).
+The LIKE form replaced the regex to widen the SQL result to a matcher-refinable
+superset, not to enable an index.
 
-Performance Evidence (PROJECTED — NOT YET MEASURED on the seeded corpus; real
-`EXPLAIN ANALYZE` plus before/after wall-time numbers are pending the operator's
-remote full-corpus run): query shape
-`listDeferredScopedRelationshipFactRecordsQuery` (MATERIALIZED CTE + per-scope
-`$3`/`$4` partition over `fact_records`), backend PostgreSQL 18, input shape a
-~3.5M-fact corpus (latest-generation content/file/gcp facts across the fleet).
-Before (structural): a single O(facts × catalog) sequential scan with the per-row
-self-exclusion regex over the whole latest-generation fact set. After (structural):
-the trgm GIN index is expected to drive a Bitmap Index Scan for the `$1` arm inside
-the MATERIALIZED CTE, and each `(scope_id, generation_id)` partition scans only its
-own facts via `fact_records_scope_generation_idx`, with the per-scope queries
-fanned out across the deferred-maintenance worker pool. The expected one-time index
-build cost is the GIN build over the three partial-index fact kinds, idempotent on
-every later pass. On a fresh install it is paid at the data-plane bootstrap backfill
-point; on an upgrade of an already-populated install the first build instead runs in
-the deferred-maintenance path and holds a SHARE lock that blocks `fact_records`
-writes for the build duration (one-time), surfaced by the
-`DeferredBackfillIndexBuildDuration` metric. These
-are PROJECTED plan-shape and cost expectations; the timing figures and the
-MATERIALIZED-plan / Bitmap-Index-Scan claims are placeholders until the remote
-`EXPLAIN ANALYZE` and corpus wall-time are captured.
+Performance Evidence (measured, `EXPLAIN ANALYZE`): backend PostgreSQL 18
+(`postgres:18-alpine`), local measurement. `fact_records` holds 7,345,641 rows
+(12 GB); 294,991 of them are in the queried kinds (147,496 `file` + 147,495
+`content` + 0 `gcp_cloud_relationship`), spread across 1,093 scopes, with the
+largest scope partition at 22,744 facts. The OLD corpus-wide single scan (no
+per-scope partition) over the latest-generation content/file/gcp facts measured
+65,770 ms: a nested loop over the 1,093 scopes whose `$2` EXISTS SubPlan ran once
+per candidate fact. The NEW per-scope query bounds each run to one `(scope_id,
+generation_id)` via `fact_records_scope_generation_idx`; the largest scope
+(22,744 facts) measured 4,607 ms, and the worker fan-out runs these disjoint
+per-scope scans concurrently (~8 workers), parallelizing the total. The residual
+cost is the `$2` self-exclusion correlated EXISTS (once per fact, un-indexable);
+the `$1` LIKE ANY is a cheap filter on the bounded set.
 
-No-Regression Evidence (write path, PENDING measurement): the partial trigram GIN
-index adds write amplification to `content`, `file`, and `gcp_cloud_relationship`
-fact inserts (the GIN maintenance on `lower(payload::text)`). The partial WHERE
-predicate keeps every other fact kind off the index, so non-matching inserts are
-unaffected. The ingest write no-regression for those three kinds is to be measured
-on the operator's remote full-corpus run (placeholder — not yet captured locally).
+A partial `pg_trgm` GIN index on `lower(payload::text)` was evaluated and REMOVED.
+The planner never selects it on the partitioned path (with-index 4,607 ms ==
+without-index 4,599 ms for the largest scope), while it cost 631 MB of storage and
+a 114.6 s build over the 294,991 queried-kind rows, plus per-insert GIN
+write-amplification on every `content`/`file`/`gcp_cloud_relationship` insert —
+net-negative once the per-scope partition already bounds the scan. Caveat:
+measured locally at 294,991 queried-kind facts; full-corpus wall-time is pending
+the remote host, but the planner's choice of the scope-generation index over a
+payload index is structural — the per-scope bound applies at any scale.
 
 Truth-equivalence (no evidence added or dropped relative to the regex/full-corpus
 load) is proven by the `internal/relationships` gates
@@ -1144,12 +1129,8 @@ load, cross-scope references survive) is proven on real Postgres by
 `ESHU_DEFERRED_PARTITION_PROOF_DSN`), which fails against the rejected
 per-repository partition source and passes against the scope-generation source.
 
-Observability Evidence: the fan-out and the index build now emit aggregate
-signals. `BackfillAllRelationshipEvidence` records
-`eshu_dp_deferred_backfill_index_build_duration_seconds` (histogram) around
-`EnsureBackfillPayloadTrigramIndex` and logs `deferred_backfill_index_ensured
-duration_s=…`, so an operator sees the one-time first-build stall versus the
-cheap idempotent re-check. The per-scope fan-out records
+Observability Evidence: the per-scope fan-out emits aggregate signals.
+`BackfillAllRelationshipEvidence` records
 `eshu_dp_deferred_backfill_partitions_total` (counter, partitions per pass),
 `eshu_dp_deferred_backfill_partition_workers` (histogram, worker saturation), and
 `eshu_dp_deferred_backfill_partition_load_duration_seconds` (histogram, per-scope

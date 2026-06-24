@@ -122,11 +122,11 @@ func deferredLikeSupersetSim(
 
 // TestDeferredLikeSupersetMatcherRefinesToBoundaryEvidence is the issue #3710
 // truth-equivalence gate. The deferred fact-LOAD SQL was changed from a
-// per-row boundary regex to a plain LIKE substring on the repo_id ($2) arm so the
-// pg_trgm GIN index can drive a Bitmap Index Scan. LIKE selects a strict superset
-// of the regex form, so correctness now depends entirely on the in-memory
-// catalogMatcher (catalog_matcher.go) refining that superset back to the boundary-
-// safe whole-token evidence set.
+// per-row boundary regex to a plain LIKE substring on the repo_id ($2) arm. The
+// LIKE form is a filter on the per-scope-bounded candidate set, not an indexed
+// probe; it selects a strict superset of the regex form, so correctness now
+// depends entirely on the in-memory catalogMatcher (catalog_matcher.go) refining
+// that superset back to the boundary-safe whole-token evidence set.
 //
 // The gate proves, over every #3668 case plus a substring-but-not-boundary case:
 //

@@ -476,7 +476,3 @@ CREATE INDEX IF NOT EXISTS fact_records_service_catalog_operational_link_url_idx
 CREATE INDEX IF NOT EXISTS fact_records_kubernetes_correlation_image_lookup_idx ON fact_records ((payload->>'source_digest'), (payload->>'image_ref'), (payload->>'outcome'), fact_id ASC) WHERE fact_kind = 'reducer_kubernetes_correlation' AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_work_item_external_link_url_idx ON fact_records ((payload->>'url'), (payload->>'work_item_key'), fact_id ASC) WHERE fact_kind = 'work_item.external_link' AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_work_item_record_key_idx ON fact_records ((payload->>'work_item_key'), fact_id ASC) WHERE fact_kind = 'work_item.record' AND is_tombstone = FALSE;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS fact_records_payload_trgm_idx
-    ON fact_records USING gin (lower(payload::text) gin_trgm_ops)
-    WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship');

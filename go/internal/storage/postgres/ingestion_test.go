@@ -304,14 +304,7 @@ func (f *fakeTransactionalDB) Begin(context.Context) (Transaction, error) {
 	return f.tx, nil
 }
 
-func (f *fakeTransactionalDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
-	// The deferred backfill ensures the pg_trgm payload index once on the outer db
-	// before the per-scope fact load fans out (issue #3710). The statement is
-	// idempotent (CREATE EXTENSION/INDEX IF NOT EXISTS), so the fake accepts it as a
-	// no-op; any other exec on the outer db is still an unexpected-path violation.
-	if query == backfillPayloadTrigramIndexSQL {
-		return fakeResult{}, nil
-	}
+func (f *fakeTransactionalDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, errors.New("unexpected ExecContext on outer db")
 }
 

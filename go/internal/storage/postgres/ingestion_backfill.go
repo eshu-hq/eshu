@@ -61,23 +61,6 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 		return fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}
 
-	// Ensure the trigram GIN index on lower(payload::text) exists before the fact
-	// load (issue #3710). The index is what lets the per-scope $1 LIKE ANY arm
-	// drive a Bitmap Index Scan instead of a per-row payload scan. The build is
-	// idempotent (CREATE INDEX IF NOT EXISTS) and one-time at the data-plane
-	// bootstrap point; on installs that already have it the call is a cheap
-	// catalog lookup. It runs outside the per-scope query fan-out so the
-	// concurrent reads below see a ready index.
-	indexBuildStart := time.Now()
-	if err := EnsureBackfillPayloadTrigramIndex(ctx, s.db); err != nil {
-		return fmt.Errorf("ensure backfill payload trigram index: %w", err)
-	}
-	indexBuildDuration := time.Since(indexBuildStart).Seconds()
-	if instruments != nil {
-		instruments.DeferredBackfillIndexBuildDuration.Record(ctx, indexBuildDuration)
-	}
-	log.Printf("deferred_backfill_index_ensured duration_s=%.2f", indexBuildDuration)
-
 	// Scope the corpus-wide source-fact load to the content anchors of the full
 	// catalog instead of streaming every committed fact (issue #3569), and
 	// partition the load per (scope_id, generation_id) so it fans out across the

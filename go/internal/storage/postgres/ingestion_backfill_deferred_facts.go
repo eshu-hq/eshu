@@ -63,9 +63,9 @@ import (
 //
 // Performance shape (issue #3710). The query is bound to one (scope_id,
 // generation_id) partition via $3/$4 and selects from fact_records inside a
-// `WITH matched_facts AS MATERIALIZED (...)` CTE. Two plan expectations drove this
-// shape (PROJECTED — the EXPLAIN ANALYZE artifact and corpus wall-time are pending
-// the operator's remote full-corpus run, not yet measured locally):
+// `WITH matched_facts AS MATERIALIZED (...)` CTE. Two plan properties drove this
+// shape (measured locally on a 7.3M-row fact_records under PostgreSQL 18; see the
+// package README #3710 Performance Evidence for the EXPLAIN ANALYZE numbers):
 //
 //  1. Per-scope partition. The original query scanned every latest-generation
 //     content/file/gcp fact once and evaluated the per-row self-exclusion arm
@@ -73,17 +73,17 @@ import (
 //     full corpus. The scope_generation predicate ($3/$4) bounds each run to one
 //     scope's facts via fact_records_scope_generation_idx, turning the monolithic
 //     scan into many small ones the caller fans out across the
-//     deferred-maintenance worker pool.
+//     deferred-maintenance worker pool. The planner bounds each per-scope query by
+//     fact_records_scope_generation_idx and applies $1/$2 as filters on that
+//     already-bounded set; no payload index is used.
 //
-//  2. MATERIALIZED candidate set. Without MATERIALIZED the planner is expected to
-//     join fact_records to latest_generations as a Nested Loop and push the
-//     payload-text predicate to the inner side as a per-row Filter, which ignores
-//     the trigram GIN index on lower(payload::text)
-//     (fact_records_payload_trgm_idx). MATERIALIZED forces Postgres to build the
-//     predicate-narrowed candidate set first — letting the $1 LIKE ANY
-//     constant-pattern arm drive a Bitmap Index Scan — then join the small result
-//     to the latest-generation set. The trigram index accelerates only the $1 arm;
-//     the $2 correlated arm is bounded by the per-scope partition, not the index.
+//  2. MATERIALIZED candidate set. MATERIALIZED forces Postgres to build the
+//     per-scope-bounded candidate set once, then join that small result to the
+//     latest-generation set, rather than re-deriving it on the inner side of a
+//     Nested Loop. The $1 LIKE ANY constant-pattern arm is then a cheap filter on
+//     the bounded candidate set, and the $2 self-exclusion arm — a per-fact
+//     correlated EXISTS that is un-indexable — runs once per candidate fact, also
+//     bounded by the per-scope partition.
 //
 // Self-exclusion arm ($2). The repo_id arm keeps the exact #3659 self-exclusion
 // (catalog_repo_id.value <> the row's own repo_id) so a fact is never loaded
@@ -94,10 +94,11 @@ import (
 // match), and the in-memory catalogMatcher (relationships.DiscoverEvidence ->
 // catalogMatcher.match) re-applies the boundary-safe token matching and the
 // self-match drop (entry.RepoID == sourceRepoID), so the final
-// relationship-evidence set is identical (truth-equivalence). The regex was
-// un-indexable; the LIKE form is indexable for the $1 constant-pattern arm. The
-// per-scope speed comparison is pending the remote EXPLAIN ANALYZE; both forms
-// feed the same matcher.
+// relationship-evidence set is identical (truth-equivalence). The LIKE form
+// replaced the regex to widen the SQL result to a matcher-refinable superset, not
+// to enable an index: both arms are filters on the per-scope-bounded candidate set
+// (fact_records_scope_generation_idx) and no payload index participates. Both
+// forms feed the same matcher.
 const listDeferredScopedRelationshipFactRecordsQuery = latestGenerationCTE + `,
 matched_facts AS MATERIALIZED (
     SELECT
