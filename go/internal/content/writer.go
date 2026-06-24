@@ -17,6 +17,12 @@ type Record struct {
 	Digest   string
 	Deleted  bool
 	Metadata map[string]string
+
+	// PurgeEntities requests removal of any existing content_entities for this
+	// path while keeping the content body. Set when per-file entity
+	// materialization was skipped for an oversized file so stale symbols are
+	// not left queryable.
+	PurgeEntities bool
 }
 
 // Clone returns a copy-safe record value.
@@ -85,6 +91,12 @@ type Materialization struct {
 	Records        []Record
 	Entities       []EntityRecord
 	RepositoryRefs []RepositoryRef
+
+	// FileEntityCapHits counts files where per-file entity materialization was
+	// skipped entirely because the projected entity count exceeded
+	// shape.MaxFileEntityCount. These are typically minified JS bundles or
+	// generated source files.
+	FileEntityCapHits int
 }
 
 // ScopeGenerationKey returns the durable scope-generation boundary.

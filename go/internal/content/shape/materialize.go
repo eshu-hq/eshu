@@ -8,6 +8,24 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
 
+const (
+	// MaxFileEntityCount is the maximum number of content entities emitted for a
+	// single file. Files whose parser output would exceed this limit have entity
+	// materialization skipped entirely: the content record (body, digest) is still
+	// written so full-file BM25 search works, but no per-entity rows are produced.
+	//
+	// The threshold is set to catch minified JavaScript (e.g. ckeditor.js → 24k
+	// entities) and pathological generated files (e.g. a single PHP class file →
+	// 53k entities) that inflate ingestion time and search-index volume without
+	// contributing useful symbol-level evidence. Real source files at repo scale
+	// stay well below 10,000 entities; this limit gives comfortable headroom.
+	//
+	// Observed on the full-corpus run (issue #3676):
+	//   ckeditor/ckeditor.js  → 24,720 entities (minified JS)
+	//   yacht.class.php       → 53,830 entities (generated PHP)
+	MaxFileEntityCount = 10_000
+)
+
 // Input captures one normalized parser payload batch for content shaping.
 type Input struct {
 	RepoID       string
@@ -215,21 +233,29 @@ func Materialize(input Input) (content.Materialization, error) {
 	}
 
 	for _, file := range input.Files {
-		record, entities, err := materializeFile(repoID, file)
+		record, entities, fileEntityCapHit, err := materializeFile(repoID, file)
 		if err != nil {
 			return content.Materialization{}, err
 		}
 		materialization.Records = append(materialization.Records, record)
 		materialization.Entities = append(materialization.Entities, entities...)
+		if fileEntityCapHit {
+			materialization.FileEntityCapHits++
+		}
 	}
 
 	return materialization, nil
 }
 
-func materializeFile(repoID string, file File) (content.Record, []content.EntityRecord, error) {
+// materializeFile returns the content record plus entities for one parsed file,
+// along with fileEntityCapHit which is true when the per-file entity count cap
+// was applied and entity materialization was skipped entirely. When the cap
+// fires, PurgeEntities is set on the record so the writer retracts any stale
+// content_entities rows left from a prior indexing run.
+func materializeFile(repoID string, file File) (content.Record, []content.EntityRecord, bool, error) {
 	path := strings.TrimSpace(file.Path)
 	if path == "" {
-		return content.Record{}, nil, fmt.Errorf("content file path is required")
+		return content.Record{}, nil, false, fmt.Errorf("content file path is required")
 	}
 
 	record := content.Record{
@@ -240,12 +266,15 @@ func materializeFile(repoID string, file File) (content.Record, []content.Entity
 		Metadata: normalizeFileMetadata(file),
 	}
 
-	entities, err := materializeEntities(repoID, path, file)
+	entities, fileEntityCapHit, err := materializeEntities(repoID, path, file)
 	if err != nil {
-		return content.Record{}, nil, err
+		return content.Record{}, nil, false, err
+	}
+	if fileEntityCapHit {
+		record.PurgeEntities = true
 	}
 
-	return record, entities, nil
+	return record, entities, fileEntityCapHit, nil
 }
 
 func normalizeFileMetadata(file File) map[string]string {
@@ -267,7 +296,13 @@ func normalizeFileMetadata(file File) map[string]string {
 	return metadata
 }
 
-func materializeEntities(repoID string, path string, file File) ([]content.EntityRecord, error) {
+// materializeEntities returns entities and a fileEntityCapHit flag.
+// fileEntityCapHit is true when the per-file entity cap fired and entity
+// materialization was skipped entirely (returned slice is nil). Transitive
+// lockfile variable entries are always preserved; the lockfile variable cap
+// was removed because transitive entries feed the reducer's
+// PackageConsumptionDecision for supply-chain impact and security alerts.
+func materializeEntities(repoID string, path string, file File) ([]content.EntityRecord, bool, error) {
 	indexedItems := make([]indexedEntity, 0)
 	for _, bucket := range contentEntityBuckets {
 		items := file.EntityBuckets[bucket.bucket]
@@ -278,6 +313,14 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 				item:  item,
 			})
 		}
+	}
+
+	// Skip entity materialization for files that would produce an unreasonably
+	// large number of entities. This catches minified JS and generated source
+	// files that contribute noise to BM25 indexing without symbol-level value.
+	// The content record (body, digest) is still written by the caller.
+	if len(indexedItems) > MaxFileEntityCount {
+		return nil, true, nil
 	}
 
 	sort.SliceStable(indexedItems, func(i, j int) bool {
@@ -318,7 +361,7 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 		})
 	}
 
-	return entities, nil
+	return entities, false, nil
 }
 
 func entityEndLine(items []indexedEntity, index int, body string, startLine int) int {

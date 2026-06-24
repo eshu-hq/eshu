@@ -198,6 +198,12 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			return content.Result{}, fmt.Errorf("iac_relevant metadata for %q: %w", record.Path, err)
 		}
 
+		if record.PurgeEntities {
+			if _, err := w.db.ExecContext(ctx, deleteContentEntityQuery, cloned.RepoID, record.Path); err != nil {
+				return content.Result{}, fmt.Errorf("purge content_entities for %q: %w", record.Path, err)
+			}
+		}
+
 		fileUpserts = append(fileUpserts, preparedFileRow{
 			repoID:          cloned.RepoID,
 			path:            record.Path,
