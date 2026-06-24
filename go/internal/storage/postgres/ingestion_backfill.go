@@ -93,7 +93,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 		totalEvidence++
 	}
 
-	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo)
+	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, instruments)
 	if err != nil {
 		return err
 	}
@@ -119,6 +119,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 func (s IngestionStore) writeDeferredBackfillInBatches(
 	ctx context.Context,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+	instruments *telemetry.Instruments,
 ) (int, error) {
 	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
 	if err != nil {
@@ -139,19 +140,32 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		batchSize = deferredMaintenanceRepoBatchSize
 	}
 
-	readinessRows := 0
+	// Partition the sorted repository list into disjoint per-batch slices. Because
+	// the list is sorted and the slices are contiguous and non-overlapping, no two
+	// batches request the same repository advisory lock, so concurrent batches
+	// cannot deadlock on lock ordering (each batch also sorts its own keys). Each
+	// batch transaction holds exactly one pooled connection for its lifetime and
+	// never acquires a second, so running W batches concurrently can at most block
+	// on Begin when the pool is smaller than W; it cannot deadlock. At
+	// ESHU_POSTGRES_MAX_OPEN_CONNS=1 the pool self-serializes the batches.
+	bounds := make([][2]int, 0, (len(repoIDs)+batchSize-1)/batchSize)
 	for start := 0; start < len(repoIDs); start += batchSize {
 		end := start + batchSize
 		if end > len(repoIDs) {
 			end = len(repoIDs)
 		}
-		published, err := s.writeDeferredBackfillBatch(ctx, repoIDs[start:end], evidenceBySourceRepo)
-		if err != nil {
-			return readinessRows, err
-		}
-		readinessRows += published
+		bounds = append(bounds, [2]int{start, end})
 	}
-	return readinessRows, nil
+
+	workers := s.maintenanceWorkers
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > len(bounds) {
+		workers = len(bounds)
+	}
+
+	return s.runDeferredBackfillBatches(ctx, repoIDs, bounds, workers, evidenceBySourceRepo, instruments)
 }
 
 // writeDeferredBackfillBatch processes one bounded batch of source repositories

@@ -7,25 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-const resolveRepoActiveGenerationsQuery = `
-WITH latest_generations AS (
-    SELECT
-        generation.scope_id,
-        COALESCE(
-            scope.active_generation_id,
-            (
-                SELECT generation_id
-                FROM scope_generations AS candidate
-                WHERE candidate.scope_id = generation.scope_id
-                ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
-                LIMIT 1
-            )
-        ) AS generation_id
-    FROM scope_generations AS generation
-    LEFT JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
-    GROUP BY generation.scope_id, scope.active_generation_id
-)
+const resolveRepoActiveGenerationsQuery = latestGenerationCTE + `
 SELECT DISTINCT ON (repo_id)
     repo_id,
     fact.scope_id,

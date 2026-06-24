@@ -172,7 +172,13 @@ func (s *RelationshipStore) IsGenerationActive(
 	return true, rows.Err()
 }
 
-// UpsertEvidenceFacts persists evidence facts for a generation.
+// UpsertEvidenceFacts persists evidence facts for a generation in bounded
+// multi-row INSERT batches. Each batch is one idempotent
+// `INSERT ... ON CONFLICT (evidence_id) DO NOTHING` statement, so re-running the
+// backfill converges to the same rows and the per-row round-trips that made the
+// corpus-wide backfill the client-side long pole (issue #3704) are gone. Row
+// identity (evidence_id) is unchanged, so the persisted evidence is byte-identical
+// to the prior per-row path.
 func (s *RelationshipStore) UpsertEvidenceFacts(
 	ctx context.Context,
 	generationID string,
@@ -187,39 +193,13 @@ func (s *RelationshipStore) UpsertEvidenceFacts(
 	}
 
 	now := time.Now().UTC()
-	for _, f := range facts {
-		detailsJSON, err := json.Marshal(f.Details)
-		if err != nil {
-			return fmt.Errorf("marshal evidence details: %w", err)
+	for start := 0; start < len(facts); start += evidenceInsertBatchRows {
+		end := start + evidenceInsertBatchRows
+		if end > len(facts) {
+			end = len(facts)
 		}
-		evidenceID := relationshipDigest(
-			"evidence",
-			generationID,
-			string(f.EvidenceKind),
-			string(f.RelationshipType),
-			f.SourceRepoID,
-			f.TargetRepoID,
-			f.SourceEntityID,
-			f.TargetEntityID,
-			fmt.Sprintf("%.12g", f.Confidence),
-			f.Rationale,
-			string(detailsJSON),
-		)
-		if _, err := s.db.ExecContext(ctx, insertEvidenceFactSQL,
-			evidenceID,
-			generationID,
-			string(f.EvidenceKind),
-			string(f.RelationshipType),
-			emptyToNil(f.SourceRepoID),
-			emptyToNil(f.TargetRepoID),
-			emptyToNil(f.SourceEntityID),
-			emptyToNil(f.TargetEntityID),
-			f.Confidence,
-			f.Rationale,
-			detailsJSON,
-			now,
-		); err != nil {
-			return fmt.Errorf("insert evidence fact: %w", err)
+		if err := s.insertEvidenceFactBatch(ctx, generationID, facts[start:end], now); err != nil {
+			return err
 		}
 	}
 	return nil

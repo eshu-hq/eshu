@@ -29,25 +29,7 @@ import (
 // file argocdGeneratorPathMatches could select has one of them. repo_id ANY($1)
 // bounds the load to the resolved config repos, and the latest-generation join
 // matches the other relationship-fact loaders.
-const listArgoCDGeneratorConfigFactRecordsQuery = `
-WITH latest_generations AS (
-    SELECT
-        generation.scope_id,
-        COALESCE(
-            scope.active_generation_id,
-            (
-                SELECT generation_id
-                FROM scope_generations AS candidate
-                WHERE candidate.scope_id = generation.scope_id
-                ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
-                LIMIT 1
-            )
-        ) AS generation_id
-    FROM scope_generations AS generation
-    LEFT JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
-    GROUP BY generation.scope_id, scope.active_generation_id
-)
+const listArgoCDGeneratorConfigFactRecordsQuery = latestGenerationCTE + `
 SELECT
     fact.fact_id,
     fact.scope_id,

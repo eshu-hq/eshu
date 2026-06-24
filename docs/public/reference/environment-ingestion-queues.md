@@ -66,6 +66,7 @@ queue, or graph-write evidence.
 | `ESHU_PROJECTOR_RETRY_DELAY` | `30s` | ingester/projector retry policy | Delay between projector retries. |
 | `ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION` | unset | projector runtime | Test/fault-injection retry hook for one scope generation. |
 | `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | bootstrap-index | Bootstrap projection worker count. |
+| `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 4)`, hard cap `8` | bootstrap-index / ingester deferred maintenance | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill. Each batch holds one pooled connection for its transaction and never nests a second, so a value above the connection pool throttles on `Begin` rather than deadlocking. Set to `1` when `ESHU_POSTGRES_MAX_OPEN_CONNS=1` (single-connection pool) so the pass runs serially; raise toward the cap on large corpora with a roomy pool to shorten the backfill long pole. |
 | `ESHU_REDUCER_WORKERS` | Neo4j: `min(NumCPU, 4)`; NornicDB: `NumCPU` | reducer | Reducer intent worker count. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Neo4j: `workers*4` capped `4..64`; NornicDB: `workers` | reducer | Number of reducer intents claimed per poll. |
 | `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | unset; local owner sets discovered repo count | reducer | Gates NornicDB/local-authoritative semantic entity claims until source-local projectors drain. |

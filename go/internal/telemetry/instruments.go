@@ -854,6 +854,8 @@ type Instruments struct {
 
 	// Deferred bootstrap backfill and reopen metrics
 	DeferredBackfillDuration               metric.Float64Histogram
+	DeferredBackfillBatchDuration          metric.Float64Histogram
+	DeferredBackfillBatchesCompleted       metric.Int64Counter
 	DeferredBackfillEvidence               metric.Int64Counter
 	DeploymentMappingReopened              metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
@@ -3396,6 +3398,24 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillDuration histogram: %w", err)
+	}
+
+	inst.DeferredBackfillBatchDuration, err = meter.Float64Histogram(
+		"eshu_dp_deferred_backfill_batch_duration_seconds",
+		metric.WithDescription("Wall time of each per-repository-batch transaction inside the deferred backward evidence backfill. Lets an operator watch batch-by-batch backfill progress instead of waiting for the whole pass to return."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(backfillBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillBatchDuration histogram: %w", err)
+	}
+
+	inst.DeferredBackfillBatchesCompleted, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_batches_completed_total",
+		metric.WithDescription("Total committed per-repository batches in the deferred backward evidence backfill. Rising during a pass is the operator-visible progress signal for the backfill long pole."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillBatchesCompleted counter: %w", err)
 	}
 
 	inst.DeferredBackfillEvidence, err = meter.Int64Counter(

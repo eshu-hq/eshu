@@ -28,6 +28,15 @@ ALTER TABLE scope_generations
 CREATE INDEX IF NOT EXISTS scope_generations_scope_idx
     ON scope_generations (scope_id, status, ingested_at DESC);
 
+-- Backs the latest-generation DISTINCT ON (issue #3704): the relationship
+-- backfill and active-generation lookups pick each scope's newest generation by
+-- ORDER BY (scope_id, ingested_at DESC, generation_id DESC). The status-leading
+-- scope_generations_scope_idx cannot serve that ordering without a sort because
+-- status sits between scope_id and ingested_at; this index leads straight into
+-- the DISTINCT ON sort key so the per-scope newest row is an index read.
+CREATE INDEX IF NOT EXISTS scope_generations_scope_latest_lookup_idx
+    ON scope_generations (scope_id, ingested_at DESC, generation_id DESC);
+
 CREATE INDEX IF NOT EXISTS scope_generations_active_pending_activity_idx
     ON scope_generations (GREATEST(observed_at, ingested_at, COALESCE(activated_at, observed_at)) DESC)
     WHERE status IN ('pending', 'active');

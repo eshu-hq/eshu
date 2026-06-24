@@ -30,25 +30,7 @@ import (
 // Unlike the full-corpus query, this one's row count scales with the onboarding
 // delta's alias surface rather than the fleet size, so per-commit backfill no
 // longer ships and iterates every repository's facts.
-const listOnboardedRepoScopedRelationshipFactRecordsQuery = `
-WITH latest_generations AS (
-    SELECT
-        generation.scope_id,
-        COALESCE(
-            scope.active_generation_id,
-            (
-                SELECT generation_id
-                FROM scope_generations AS candidate
-                WHERE candidate.scope_id = generation.scope_id
-                ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
-                LIMIT 1
-            )
-        ) AS generation_id
-    FROM scope_generations AS generation
-    LEFT JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
-    GROUP BY generation.scope_id, scope.active_generation_id
-)
+const listOnboardedRepoScopedRelationshipFactRecordsQuery = latestGenerationCTE + `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -112,25 +94,7 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 // uses a single-parameter LIKE ANY and does not need self-exclusion because its
 // anchorCatalog is the onboarding delta (new repos only): a new repo's own
 // facts are not in the corpus yet, so its repo_id cannot self-match.
-const listDeferredScopedRelationshipFactRecordsQuery = `
-WITH latest_generations AS (
-    SELECT
-        generation.scope_id,
-        COALESCE(
-            scope.active_generation_id,
-            (
-                SELECT generation_id
-                FROM scope_generations AS candidate
-                WHERE candidate.scope_id = generation.scope_id
-                ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
-                LIMIT 1
-            )
-        ) AS generation_id
-    FROM scope_generations AS generation
-    LEFT JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
-    GROUP BY generation.scope_id, scope.active_generation_id
-)
+const listDeferredScopedRelationshipFactRecordsQuery = latestGenerationCTE + `
 SELECT
     fact.fact_id,
     fact.scope_id,
