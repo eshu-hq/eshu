@@ -19,7 +19,7 @@ func TestResolveSAMLExternalSubjectAdminStaysAllScopeFailOpen(t *testing.T) {
 				"sha256:user-subject",
 				"sha256:policy",
 				"user_owner",
-				true, // has_all_scope_role
+				true, // has_admin_role: user holds owner/tenant_admin membership role
 			}},
 		}},
 	}
@@ -64,24 +64,25 @@ func TestResolveSAMLExternalSubjectAdminStaysAllScopeFailOpen(t *testing.T) {
 		"JOIN identity_users u",
 		"JOIN identity_tenant_memberships m",
 		"JOIN identity_membership_roles mr",
-		"JOIN identity_roles r",
-		"JOIN identity_role_grants rg",
 		"JOIN tenants t",
 		"JOIN workspaces w",
 		"pc.provider_kind = 'external_saml'",
 		"es.group_claims_hash = $3",
-		"AS has_all_scope_role",
+		"AS has_admin_role",
+		"mr.role_id IN ('owner', 'tenant_admin')",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("durable SAML resolution query missing %q:\n%s", want, query)
 		}
 	}
 	for _, banned := range []string{
-		"mr.role_id IN ('owner', 'tenant_admin')\n  AND mr.status",
-		"AND rg.scope_class = 'all'",
+		"JOIN identity_role_grants rg",
+		"JOIN identity_roles r\n",
+		"AS has_all_scope_role",
+		"rg.scope_class",
 	} {
 		if strings.Contains(query, banned) {
-			t.Fatalf("durable SAML resolution query must not hard-filter the resolution gate to admin-only/all-scope grants: found %q:\n%s", banned, query)
+			t.Fatalf("durable SAML resolution query must not join grants or use scope_class for admin detection: found %q:\n%s", banned, query)
 		}
 	}
 	for _, leaked := range []string{"saml-admins", "user@example.test", "raw-name-id"} {
@@ -102,7 +103,7 @@ func TestResolveSAMLExternalSubjectNonAdminEnforcesCatalog(t *testing.T) {
 			"sha256:member-subject",
 			"sha256:policy",
 			"user_member",
-			false, // has_all_scope_role
+			false, // has_admin_role: no owner/tenant_admin membership role
 		}}},
 		{rows: [][]any{{"role_reader"}}},
 		{rows: [][]any{
@@ -145,6 +146,62 @@ func TestResolveSAMLExternalSubjectNonAdminEnforcesCatalog(t *testing.T) {
 	}
 }
 
+// TestResolveSAMLExternalSubjectNonAdminWithAllScopeGrantStillEnforcesCatalog
+// is the exact Codex P1 priv-esc scenario: a user holds a non-admin membership
+// role (e.g. "role_reader") whose grant carries scope_class='all' (tenant-wide
+// for a specific feature). scope_class='all' on a grant means the grant applies
+// across the whole tenant for that feature — it does NOT mean admin. The
+// resolution query derives admin status from mr.role_id IN ('owner','tenant_admin'),
+// not from grant scope. The user must resolve with PermissionCatalogEnforced=true
+// and AllScopes=false, never AllScopes=true.
+func TestResolveSAMLExternalSubjectNonAdminWithAllScopeGrantStillEnforcesCatalog(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 18, 15, 0, 0, time.UTC)
+	// has_admin_role=false: role_reader is not owner/tenant_admin even if its
+	// grant carries scope_class='all'.
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{{
+			"tenant_saml",
+			"workspace_saml",
+			"sha256:reader-subject",
+			"sha256:policy",
+			"user_reader",
+			false, // has_admin_role: role_reader is NOT an admin role
+		}}},
+		{rows: [][]any{{"role_reader"}}},
+		{rows: [][]any{
+			{"ask_search", "ask_reasoning"},
+		}},
+	}}
+	store := NewIdentitySubjectStore(db)
+
+	result, err := store.ResolveSAMLExternalSubject(context.Background(), SAMLExternalSubjectResolutionRequest{
+		ProviderConfigID:      "provider_saml",
+		ExternalSubjectIDHash: "sha256:reader-external",
+		GroupClaimsHash:       "sha256:reader-groups",
+		Now:                   now,
+	})
+	if err != nil {
+		t.Fatalf("ResolveSAMLExternalSubject() error = %v", err)
+	}
+	if !result.Resolved || !result.KnownSubject {
+		t.Fatalf("ResolveSAMLExternalSubject() result = %#v, want resolved known subject", result)
+	}
+	auth := result.Auth
+	// Core priv-esc assertion: scope_class='all' on a grant must NOT elevate
+	// a non-admin role to AllScopes. Admin is determined solely by role membership.
+	if auth.AllScopes {
+		t.Fatalf("non-admin role with tenant-wide grant: AllScopes = true, want false (scope_class='all' is NOT admin)")
+	}
+	if !auth.PermissionCatalogEnforced {
+		t.Fatalf("non-admin role with tenant-wide grant: PermissionCatalogEnforced = false, want true")
+	}
+	if got, want := auth.RoleIDs, []string{"role_reader"}; !equalStringSlices(got, want) {
+		t.Fatalf("RoleIDs = %#v, want %#v", got, want)
+	}
+}
+
 // TestResolveSAMLExternalSubjectParityWithScopedTokenForSameRole proves that a
 // resolved non-admin SAML session authorizes identically to a scoped token for
 // the same role: same allowed features, same data classes, catalog enforced,
@@ -166,7 +223,7 @@ func TestResolveSAMLExternalSubjectParityWithScopedTokenForSameRole(t *testing.T
 			"sha256:member-subject",
 			"sha256:policy",
 			"user_member",
-			false, // has_all_scope_role
+			false, // has_admin_role: no owner/tenant_admin membership role
 		}}},
 		{rows: [][]any{{"role_reader"}}},
 		{rows: append([][]any(nil), grantRows...)},

@@ -111,14 +111,14 @@ func resolveActiveSAMLExternalSubject(
 	}
 	var auth SAMLExternalSubjectAuthContext
 	var userID string
-	var hasAllScopeRole bool
+	var hasAdminRole bool
 	if err := rows.Scan(
 		&auth.TenantID,
 		&auth.WorkspaceID,
 		&auth.SubjectIDHash,
 		&auth.PolicyRevisionHash,
 		&userID,
-		&hasAllScopeRole,
+		&hasAdminRole,
 	); err != nil {
 		return SAMLExternalSubjectAuthContext{}, false, fmt.Errorf("resolve saml external subject: %w", err)
 	}
@@ -126,9 +126,9 @@ func resolveActiveSAMLExternalSubject(
 		return SAMLExternalSubjectAuthContext{}, false, fmt.Errorf("resolve saml external subject: %w", err)
 	}
 	auth.SubjectClass = samlExternalSubjectClass
-	// All-scope (admin/owner) sessions stay fail-open exactly as local and
-	// OIDC sessions do: no enforcement snapshot is attached.
-	if hasAllScopeRole {
+	// Admin sessions (owner/tenant_admin role) stay fail-open exactly as
+	// local and OIDC sessions do: no enforcement snapshot is attached.
+	if hasAdminRole {
 		auth.AllScopes = true
 		return auth, true, nil
 	}
