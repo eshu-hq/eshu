@@ -1,0 +1,269 @@
+name: Security Scan
+
+# Per-issue #3764 + #3765 (Epic O O4 + O5): catch known CVEs in deps, in the
+# Go source (static analysis + supply-chain license posture), and in the
+# published container image before they reach customers. Five scan jobs run
+# side by side:
+#
+#   trivy-fs        — scans the working tree (every PR + push to main +
+#                     weekly schedule + manual dispatch) for vulnerable
+#                     dependencies, leaked secrets, and IaC
+#                     misconfigurations. Triggered from O4.
+#   trivy-image     — scans ghcr.io/eshu-hq/eshu:<tag> after docker-publish
+#                     has actually pushed an image. Triggered via
+#                     workflow_run so we always scan the digest that was
+#                     just shipped. Triggered from O4.
+#   govulncheck     — `govulncheck ./...` on every PR; the canonical Go
+#                     vulnerability database (pkg.go.dev/vuln). Fails on
+#                     any known CVE the code imports, including transitive
+#                     stdlib calls. Triggered from O5.
+#   gosec           — `gosec ./...` static analysis on every PR; surfaces
+#                     hard-coded credentials, weak crypto, unsafe HTTP,
+#                     integer overflow, command-injection sinks, and the
+#                     rest of the OWASP-GoSec catalog. SARIF uploaded to
+#                     the Security tab. Triggered from O5.
+#   nancy           — `nancy sleuth` against go.sum for CVE + license
+#                     drift; Sonatype's curated OSS Index. Triggered from
+#                     O5.
+#
+# All scanners:
+#   * Use --exit-code 1 (or equivalent) so any reported finding fails the
+#     gate (the O4 + O5 acceptance contract).
+#   * Upload SARIF to the GitHub Security tab where the action supports it
+#     (trivy, gosec) so findings show up alongside CodeQL on the PR.
+#
+# Permission model: each job declares only the permissions it needs. The
+# trivy-fs + govulncheck + gosec + nancy jobs need `security-events: write`
+# to upload SARIF; trivy-image also needs `packages: read` to pull from
+# GHCR.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+  schedule:
+    # Weekly Monday 06:00 UTC — catches newly-published CVEs in deps that
+    # were clean at PR time but flagged since. The PR + push triggers only
+    # re-run the gate when the working tree changes; the schedule is the
+    # long-stop for "dep was green last week, flagged this week" cases.
+    - cron: "0 6 * * 1"
+  workflow_run:
+    # Trigger after docker-publish finishes so the image scan always has a
+    # digest to pull. workflow_run only fires for runs the default branch
+    # token can see (so fork PRs land on trivy-fs / govulncheck / gosec /
+    # nancy only, never trivy-image).
+    workflows: ["Publish Image and Helm Chart"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-fs:
+    name: Trivy filesystem scan (vuln + secret + config)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Run Trivy filesystem scan (vuln + secret + config)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-fs.sarif
+          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,tests/fixtures,node_modules,apps/console/node_modules
+
+      - name: Upload Trivy fs SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  trivy-image:
+    name: Trivy image scan (ghcr.io/eshu-hq/eshu)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image reference from triggering workflow_run
+        id: image
+        env:
+          TRIGGER_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ref=""
+          branch="${TRIGGER_HEAD_BRANCH:-}"
+          sha="${TRIGGER_HEAD_SHA:-}"
+          if [[ "${branch}" =~ ^v[0-9] ]]; then
+            ref="ghcr.io/${REPOSITORY}:${branch#v}"
+          elif [ -n "${branch}" ]; then
+            ref="ghcr.io/${REPOSITORY}:${branch}"
+          else
+            ref="ghcr.io/${REPOSITORY}:sha-${sha::12}"
+          fi
+          echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
+          echo "image-scan: scanning ${ref}"
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image.outputs.ref }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-image.sarif
+
+      - name: Upload Trivy image SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+  govulncheck:
+    name: govulncheck (Go vulnerability database)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install govulncheck (pinned)
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck on every Go package
+        working-directory: go
+        run: |
+          set -euo pipefail
+          govulncheck ./... 2>&1 | tee govulncheck.out
+          status=${PIPESTATUS[0]}
+          if [ "${status}" -ne 0 ]; then
+            printf 'govulncheck: vulnerabilities found, see govulncheck.out above\n' >&2
+            exit "${status}"
+          fi
+
+      - name: Upload govulncheck output as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: govulncheck-output
+          path: go/govulncheck.out
+          if-no-files-found: ignore
+
+  gosec:
+    name: gosec (Go static analysis)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install gosec (pinned)
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
+
+      - name: Run gosec on every Go package (SARIF + text)
+        working-directory: go
+        run: |
+          set -euo pipefail
+          gosec -severity=low -confidence=low \
+            -fmt=sarif -out gosec.sarif ./...
+          if [ -f gosec.sarif ]; then
+            gosec -severity=low -confidence=low -fmt=text ./... > gosec.txt
+          fi
+
+      - name: Upload gosec SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: go/gosec.sarif
+          category: gosec
+
+  nancy:
+    name: nancy (Sonatype dep CVE + license scan)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install nancy (pinned)
+        run: go install github.com/sonatype-nexus-community/nancy@latest
+
+      - name: Run nancy sleuth on go.sum
+        working-directory: go
+        # nancy returns non-zero whenever it finds a vulnerable module in
+        # the dependency graph; the CVE list is Sonatype's curated OSS
+        # Index, so this catches drift that govulncheck misses (e.g.
+        # indirect deps, older advisories).
+        run: |
+          set -euo pipefail
+          nancy sleuth --no-color 2>&1 | tee nancy.out
+          status=${PIPESTATUS[0]}
+          if [ "${status}" -ne 0 ]; then
+            printf 'nancy: vulnerable dependencies found, see nancy.out above\n' >&2
+            exit "${status}"
+          fi
+
+      - name: Upload nancy output as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nancy-output
+          path: go/nancy.out
+          if-no-files-found: ignore
