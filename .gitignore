@@ -128,3 +128,10 @@ okta-saml-live-proof*.md
 
 # Stray compiled cmd binaries from a bare `go build ./cmd/<name>` (build to a tmp dir instead)
 /go/capability-inventory
+/go/skillgen
+
+# Per-deployment override for the skillgen generator. The default
+# capability set is all-collectors-enabled; contributors can drop a
+# capabilities.local.yaml at the skill-fragments/ root to disable a
+# subset for their local render. Never commit it.
+skill-fragments/capabilities.local.yaml
