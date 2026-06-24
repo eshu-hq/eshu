@@ -173,7 +173,7 @@ jobs:
         working-directory: go
         run: |
           set -euo pipefail
-          govulncheck -show ./... 2>&1 | tee govulncheck.out
+          govulncheck ./... 2>&1 | tee govulncheck.out
           status=${PIPESTATUS[0]}
           if [ "${status}" -ne 0 ]; then
             printf 'govulncheck: vulnerabilities found, see govulncheck.out above\n' >&2
@@ -213,9 +213,9 @@ jobs:
         run: |
           set -euo pipefail
           gosec -severity=low -confidence=low \
-            -fmt=sarif -out gosec.sarif ./... || true
+            -fmt=sarif -out gosec.sarif ./...
           if [ -f gosec.sarif ]; then
-            gosec -severity=low -confidence=low -fmt=text ./... > gosec.txt || true
+            gosec -severity=low -confidence=low -fmt=text ./... > gosec.txt
           fi
 
       - name: Upload gosec SARIF to GitHub Security tab
@@ -243,7 +243,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install nancy (pinned)
-        run: go install github.com/sonatypecommunity/nancy@latest
+        run: go install github.com/sonatype-nexus-community/nancy@latest
 
       - name: Run nancy sleuth on go.sum
         working-directory: go
