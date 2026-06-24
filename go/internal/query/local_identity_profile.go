@@ -9,7 +9,7 @@ import (
 // that is safe to return to the owning subject. It never includes token_hash,
 // display_handle_hash, or any raw credential value.
 // display_handle_hash is omitted intentionally — it is SHA-256(display_label)
-// and presenting a hash as a human label is misleading. See issue #3703 for
+// and presenting a hash as a human label is misleading. See issue #3708 for
 // persisting a real non-secret display label.
 type LocalIdentityAPITokenListItem struct {
 	TokenID    string

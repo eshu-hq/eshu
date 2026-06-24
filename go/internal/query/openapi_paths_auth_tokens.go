@@ -21,7 +21,7 @@ const openAPIPathsAuthTokens = `
       "get": {
         "tags": ["auth"],
         "summary": "List the caller's generated API tokens",
-        "description": "Returns metadata for the authenticated caller's own personal and service-principal generated API tokens: token id, class, display label, and issued/expires/revoked timestamps. Never returns the token hash or raw bearer value, and never returns other subjects' tokens.",
+        "description": "Returns metadata for the authenticated caller's own personal and service-principal generated API tokens: token id, class, and issued/expires/revoked timestamps. Never returns the token hash or raw bearer value, and never returns other subjects' tokens.",
         "operationId": "listLocalIdentityAPITokens",
         "responses": {
           "200": {

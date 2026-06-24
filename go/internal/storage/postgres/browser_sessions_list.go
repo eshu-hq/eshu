@@ -21,13 +21,13 @@ type BrowserSessionListItem struct {
 	TenantID          string
 	WorkspaceID       string
 	// Current is true when this row matches the caller's active session.
-	// Computed by SQL: (session_hash = $3) AS current.
+	// Computed by SQL: (session_hash = $2) AS current.
 	Current   bool
 	RevokedAt time.Time
 }
 
 // listBrowserSessionsBySubjectQuery returns metadata-only session rows for a
-// given subject hash. The third parameter ($3) is the caller's session hash
+// given subject hash. The second parameter ($2) is the caller's session hash
 // used only to compute the "current" boolean — it is never SELECTed into the
 // result set. No session_hash, csrf_token_hash, or external identity values
 // appear in the output columns.
@@ -52,6 +52,10 @@ LIMIT 200
 // cookie value, used only to mark the matching row as current — it is never
 // included in the returned items. Pass an empty string when no session cookie
 // is available; no row will be marked current.
+// asOf is retained for signature parity with the other identity list stores
+// (and possible future snapshot semantics); the current query lists all of the
+// caller's own sessions and does not bound by issue time, so asOf is validated
+// non-zero but not used as a predicate.
 func (s *BrowserSessionStore) ListSessionsBySubject(
 	ctx context.Context,
 	subjectIDHash string,
