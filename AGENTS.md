@@ -62,6 +62,16 @@ fixture corpora or offline tooling.
   concurrent agents stashing in different worktrees corrupt each other's
   uncommitted work. To compare against a clean tree use `git diff`,
   `git show <ref>:<path>`, or a throwaway worktree.
+- MUST run any command that mutates a tracked file (regenerators,
+  formatters, `go mod tidy`, `go run ./cmd/... -mode generate`, etc.)
+  inside a worktree, even for diagnostic or investigative purposes. The
+  main checkout must remain a clean fast-forward of `origin/main`
+  between merges. A dirty main checkout confuses the next agent and
+  makes the user's own uncommitted work look like the agent's. If a
+  diagnostic mutation has already leaked into the main checkout, stop,
+  run `git restore <file>` against the uncommitted change, fetch, and
+  re-apply the equivalent regeneration inside a worktree if the result
+  is still needed.
 - MUST follow Effective Go for Go, Google Python style for Python fixtures or
   tools, strict typing for TypeScript, HashiCorp Terraform practices, and Helm
   chart best practices.

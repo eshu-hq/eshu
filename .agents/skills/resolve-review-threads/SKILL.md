@@ -29,6 +29,12 @@ classification rules around it.
 - Right after `git push` for a fix that addresses one or more review comments.
 - When a PR shows many open threads on the conversation tab but the agent
   knows recent commits addressed several of them.
+- **Load this skill proactively when opening a PR.** Codex and human
+  review comments often arrive within minutes of opening; the
+  classification rules and the "MUST NOT auto-resolve unchanged" rule
+  affect how the agent should respond to the first codex P2. Loading
+  the skill after the comments arrive is too late — the agent will
+  have already half-applied the wrong response.
 - When a reviewer asks "are the open threads still real?" — this skill answers
   with evidence.
 
