@@ -218,7 +218,8 @@ func upsertGraphProjectionPhaseStateBatch(ctx context.Context, db ExecQueryer, b
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8,
 		)
-		args = append(args,
+		args = append(
+			args,
 			strings.TrimSpace(row.Key.ScopeID),
 			strings.TrimSpace(row.Key.AcceptanceUnitID),
 			strings.TrimSpace(row.Key.SourceRunID),

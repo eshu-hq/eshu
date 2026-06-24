@@ -105,13 +105,13 @@ func TestRepositoryRemoteOwner(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"https://github.com/acme-corp/widget":     "acme-corp",
-		"git@github.com:acme-corp/widget.git":     "acme-corp",
-		"ssh://git@example.org/team/repo":         "team",
-		"https://gitlab.com/group/sub/deep-repo":  "group",
-		"":                                        "",
-		"not-a-url":                               "",
-		"https://github.com/single":               "",
+		"https://github.com/acme-corp/widget":    "acme-corp",
+		"git@github.com:acme-corp/widget.git":    "acme-corp",
+		"ssh://git@example.org/team/repo":        "team",
+		"https://gitlab.com/group/sub/deep-repo": "group",
+		"":                                       "",
+		"not-a-url":                              "",
+		"https://github.com/single":              "",
 	}
 	for remote, want := range cases {
 		if got := repositoryRemoteOwner(remote); got != want {

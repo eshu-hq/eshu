@@ -18,7 +18,8 @@ func (cr *ContentReader) documentationSourceOnlySummary(
 	if cr == nil || cr.db == nil || !documentationTargetScopeFromFindingFilter(filter).hasSelector() {
 		return documentationTargetCoverage{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "count_documentation_source_only_facts"),
@@ -102,7 +103,8 @@ func buildDocumentationSourceOnlySQL(filter documentationFindingFilter) (string,
 		filter.AllowedRepositoryIDs,
 		filter.AllowedScopeIDs,
 	)
-	return fmt.Sprintf(`
+	return fmt.Sprintf(
+		`
 SELECT
     COUNT(*) AS documentation_source_only_count,
     COUNT(*) FILTER (WHERE fact.fact_kind = '%s') AS documentation_source_fact_count,

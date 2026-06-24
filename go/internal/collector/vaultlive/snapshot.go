@@ -188,7 +188,8 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 	}
 
 	if s.Logger != nil {
-		s.Logger.InfoContext(ctx, "vault live snapshot completed",
+		s.Logger.InfoContext(
+			ctx, "vault live snapshot completed",
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),

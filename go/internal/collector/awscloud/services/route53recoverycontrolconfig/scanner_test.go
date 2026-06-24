@@ -60,7 +60,8 @@ func fullSnapshot() Snapshot {
 
 func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 	envelopes, err := (Scanner{Client: fakeClient{snapshot: fullSnapshot()}}).Scan(
-		context.Background(), testBoundary())
+		context.Background(), testBoundary(),
+	)
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
@@ -99,7 +100,8 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 
 	// control panel -> cluster, keyed by the cluster ARN the cluster node publishes.
 	panelInCluster := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster)
+		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
+	)
 	assertEdgeTarget(t, panelInCluster, awscloud.ResourceTypeRoute53RecoveryControlConfigCluster, testClusterARN)
 	if got, want := panelInCluster.Payload["source_resource_id"], testPanelARN; got != want {
 		t.Fatalf("panel->cluster source_resource_id = %#v, want %q", got, want)
@@ -110,16 +112,19 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 
 	// routing control -> control panel.
 	controlInPanel := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel)
+		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel,
+	)
 	assertEdgeTarget(
-		t, controlInPanel, awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel, testPanelARN)
+		t, controlInPanel, awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel, testPanelARN,
+	)
 	if got, want := controlInPanel.Payload["source_resource_id"], testControlARN; got != want {
 		t.Fatalf("control->panel source_resource_id = %#v, want %q", got, want)
 	}
 
 	// safety rule -> control panel.
 	ruleInPanel := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel)
+		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel,
+	)
 	assertEdgeTarget(t, ruleInPanel, awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel, testPanelARN)
 	if got, want := ruleInPanel.Payload["source_resource_id"], testRuleARN; got != want {
 		t.Fatalf("rule->panel source_resource_id = %#v, want %q", got, want)
@@ -238,7 +243,8 @@ func TestScannerGovCloudClusterUsesReportedARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	panelInCluster := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster)
+		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
+	)
 	if got := panelInCluster.Payload["target_resource_id"]; got != govClusterARN {
 		t.Fatalf("GovCloud panel->cluster target_resource_id = %#v, want %q", got, govClusterARN)
 	}

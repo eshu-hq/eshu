@@ -400,7 +400,8 @@ func logSecurityGroupCidrMaterializationCompleted(
 	ctx context.Context,
 	timing securityGroupCidrMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "security group cidr materialization completed",
+	slog.InfoContext(
+		ctx, "security group cidr materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

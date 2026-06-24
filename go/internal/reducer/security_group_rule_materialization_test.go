@@ -163,7 +163,8 @@ func TestSecurityGroupRuleMaterializationUnresolvedAnchorWritesNoNode(t *testing
 	t.Parallel()
 
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 	writer := &recordingSecurityGroupRuleNodeWriter{}
 	publisher := &recordingPhasePublisher{}
 	handler := SecurityGroupRuleMaterializationHandler{

@@ -32,7 +32,7 @@ func findingPayload(finding VerificationFinding) map[string]any {
 		// the byte position was not determined; callers must not fabricate a window.
 		"claim_byte_offset": finding.ClaimByteOffset,
 		"claim_byte_length": finding.ClaimByteLength,
-		"permissions":         visibilityPayload(),
+		"permissions":       visibilityPayload(),
 		"states": map[string]any{
 			"finding_state":       finding.Status,
 			"freshness_state":     finding.FreshnessState,

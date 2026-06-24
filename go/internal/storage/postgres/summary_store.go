@@ -276,7 +276,8 @@ func (s FunctionSummaryStore) upsertBatch(ctx context.Context, functions []summa
 			placeholders = append(placeholders, fmt.Sprintf("$%d", base+i))
 		}
 		values = append(values, "("+strings.Join(placeholders, ", ")+")")
-		args = append(args,
+		args = append(
+			args,
 			string(fn.ID),
 			effects,
 			fn.Version,

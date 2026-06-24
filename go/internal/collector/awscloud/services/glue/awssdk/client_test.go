@@ -16,12 +16,12 @@ func TestClientListDatabasesReadsSafeDatabaseAndTableMetadata(t *testing.T) {
 	client := &fakeGlueAPI{
 		databasePages: []*awsglue.GetDatabasesOutput{{
 			DatabaseList: []awsgluetypes.Database{{
-				Name:         aws.String("analytics"),
-				CatalogId:    aws.String("123456789012"),
-				Description:  aws.String("analytics db"),
-				LocationUri:  aws.String("s3://analytics-warehouse/"),
-				CreateTime:   aws.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
-				Parameters:   map[string]string{"classification": "warehouse"},
+				Name:        aws.String("analytics"),
+				CatalogId:   aws.String("123456789012"),
+				Description: aws.String("analytics db"),
+				LocationUri: aws.String("s3://analytics-warehouse/"),
+				CreateTime:  aws.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
+				Parameters:  map[string]string{"classification": "warehouse"},
 			}},
 		}},
 		tablePages: []*awsglue.GetTablesOutput{{
@@ -162,11 +162,11 @@ func TestClientListJobsAndTriggersMapSafeMetadata(t *testing.T) {
 	client := &fakeGlueAPI{
 		jobPages: []*awsglue.GetJobsOutput{{
 			Jobs: []awsgluetypes.Job{{
-				Name:        aws.String("orders-etl"),
-				Description: aws.String("orders ETL"),
-				Role:        aws.String("arn:aws:iam::123456789012:role/glue-orders-etl"),
-				GlueVersion: aws.String("4.0"),
-				WorkerType:  awsgluetypes.WorkerTypeG1x,
+				Name:            aws.String("orders-etl"),
+				Description:     aws.String("orders ETL"),
+				Role:            aws.String("arn:aws:iam::123456789012:role/glue-orders-etl"),
+				GlueVersion:     aws.String("4.0"),
+				WorkerType:      awsgluetypes.WorkerTypeG1x,
 				NumberOfWorkers: aws.Int32(10),
 				Command: &awsgluetypes.JobCommand{
 					Name:           aws.String("glueetl"),
@@ -174,7 +174,7 @@ func TestClientListJobsAndTriggersMapSafeMetadata(t *testing.T) {
 					PythonVersion:  aws.String("3"),
 				},
 				DefaultArguments: map[string]string{
-					"--TempDir":              "s3://temp/",
+					"--TempDir":             "s3://temp/",
 					"--connection-password": "shouldNeverEscape",
 				},
 			}},
@@ -389,23 +389,23 @@ func testBoundary() awscloud.Boundary {
 }
 
 type fakeGlueAPI struct {
-	databasePages   []*awsglue.GetDatabasesOutput
-	databaseCalls   int
-	tablePages      []*awsglue.GetTablesOutput
-	tableCalls      int
-	crawlerPages    []*awsglue.GetCrawlersOutput
-	crawlerCalls    int
-	jobPages        []*awsglue.GetJobsOutput
-	jobCalls        int
-	triggerPages    []*awsglue.GetTriggersOutput
-	triggerCalls    int
-	workflowNamePages []*awsglue.ListWorkflowsOutput
-	workflowNameCalls int
-	workflowDescribe map[string]*awsglue.GetWorkflowOutput
+	databasePages                 []*awsglue.GetDatabasesOutput
+	databaseCalls                 int
+	tablePages                    []*awsglue.GetTablesOutput
+	tableCalls                    int
+	crawlerPages                  []*awsglue.GetCrawlersOutput
+	crawlerCalls                  int
+	jobPages                      []*awsglue.GetJobsOutput
+	jobCalls                      int
+	triggerPages                  []*awsglue.GetTriggersOutput
+	triggerCalls                  int
+	workflowNamePages             []*awsglue.ListWorkflowsOutput
+	workflowNameCalls             int
+	workflowDescribe              map[string]*awsglue.GetWorkflowOutput
 	workflowDescribeIncludesGraph bool
-	connectionPages         []*awsglue.GetConnectionsOutput
-	connectionCalls         int
-	connectionsHidePassword bool
+	connectionPages               []*awsglue.GetConnectionsOutput
+	connectionCalls               int
+	connectionsHidePassword       bool
 }
 
 func (f *fakeGlueAPI) GetDatabases(

@@ -136,8 +136,10 @@ func mixDependencyScope(options string) string {
 	}
 }
 
-var mixDependencyOrganizationPattern = regexp.MustCompile(`organization:\s*(?::([A-Za-z0-9_]+)|"([^"]+)")`)
-var mixDependencyHexPackagePattern = regexp.MustCompile(`hex:\s*(?::([A-Za-z0-9_]+)|"([^"]+)")`)
+var (
+	mixDependencyOrganizationPattern = regexp.MustCompile(`organization:\s*(?::([A-Za-z0-9_]+)|"([^"]+)")`)
+	mixDependencyHexPackagePattern   = regexp.MustCompile(`hex:\s*(?::([A-Za-z0-9_]+)|"([^"]+)")`)
+)
 
 func mixDependencyHexPackageName(appName string, options string) string {
 	match := mixDependencyHexPackagePattern.FindStringSubmatch(options)

@@ -61,7 +61,8 @@ func BuildRun(filesByRepo map[string][]iacreachability.File, truths []GroundTrut
 		})
 
 		baselineAnswer := BaselineReachability(filesByRepo, row.ArtifactName, definers[truth.Artifact])
-		predictions = append(predictions,
+		predictions = append(
+			predictions,
 			Prediction{QuestionID: truth.ID, Strategy: StrategyBaseline, Answer: baselineAnswer},
 			Prediction{QuestionID: truth.ID, Strategy: StrategyEshu, Answer: string(row.Reachability)},
 		)

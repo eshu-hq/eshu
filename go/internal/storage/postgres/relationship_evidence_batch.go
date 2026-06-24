@@ -66,7 +66,8 @@ func (s *RelationshipStore) insertEvidenceFactBatch(
 		}
 		base := i * evidenceInsertColumns
 		sb.WriteString(evidenceRowPlaceholders(base))
-		args = append(args,
+		args = append(
+			args,
 			evidenceID,
 			generationID,
 			string(f.EvidenceKind),

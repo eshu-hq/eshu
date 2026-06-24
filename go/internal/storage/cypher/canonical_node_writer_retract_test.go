@@ -73,7 +73,6 @@ func TestCanonicalNodeWriterDoesNotRefreshFileEntityEdgesPerFile(t *testing.T) {
 			t.Fatalf("retract still emits per-file entity refresh after entity retraction owns stale edge cleanup: %s", stmt.Cypher)
 		}
 	}
-
 }
 
 func TestCanonicalNodeWriterRefreshesOnlyStaleEntityContainmentEdges(t *testing.T) {

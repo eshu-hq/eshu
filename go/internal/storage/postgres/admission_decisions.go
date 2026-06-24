@@ -255,7 +255,8 @@ func (s *AdmissionDecisionStore) UpsertDecision(ctx context.Context, d Admission
 	if d.FreshnessObservedAt != nil {
 		observedAt = *d.FreshnessObservedAt
 	}
-	_, err = s.db.ExecContext(ctx, upsertAdmissionDecisionSQL,
+	_, err = s.db.ExecContext(
+		ctx, upsertAdmissionDecisionSQL,
 		d.DecisionID,
 		d.Domain,
 		string(d.State),
@@ -297,7 +298,8 @@ func (s *AdmissionDecisionStore) InsertEvidence(ctx context.Context, rows []Admi
 		if err != nil {
 			return err
 		}
-		if _, err := s.db.ExecContext(ctx, upsertAdmissionDecisionEvidenceSQL,
+		if _, err := s.db.ExecContext(
+			ctx, upsertAdmissionDecisionEvidenceSQL,
 			row.EvidenceID,
 			row.DecisionID,
 			row.SourceHandle,
@@ -321,7 +323,8 @@ func (s *AdmissionDecisionStore) ListDecisions(ctx context.Context, f AdmissionD
 	if f.State != nil {
 		state = string(*f.State)
 	}
-	rows, err := s.db.QueryContext(ctx, listAdmissionDecisionsSQL,
+	rows, err := s.db.QueryContext(
+		ctx, listAdmissionDecisionsSQL,
 		f.Domain,
 		f.ScopeID,
 		f.GenerationID,

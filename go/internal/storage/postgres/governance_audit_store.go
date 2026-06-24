@@ -273,7 +273,8 @@ func (s GovernanceAuditStore) appendBatch(
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
 			offset+7, offset+8, offset+9, offset+10, offset+11, offset+12, offset+13,
 		)
-		args = append(args,
+		args = append(
+			args,
 			governanceAuditEventID(event),
 			string(event.Type),
 			string(event.ActorClass),

@@ -52,23 +52,28 @@ const (
 )
 
 func init() {
-	insertMetricDimensionsAfter(MetricDimensionSource,
+	insertMetricDimensionsAfter(
+		MetricDimensionSource,
 		MetricDimensionSourceClass,
 	)
-	insertMetricDimensionsAfter(MetricDimensionProvider,
+	insertMetricDimensionsAfter(
+		MetricDimensionProvider,
 		MetricDimensionProviderKind,
 		MetricDimensionProviderProfileClass,
 	)
-	insertMetricDimensionsAfter(MetricDimensionPrincipalKind,
+	insertMetricDimensionsAfter(
+		MetricDimensionPrincipalKind,
 		MetricDimensionBudgetState,
 		MetricDimensionBudgetReason,
 	)
-	insertSpanNamesAfter(SpanReducerBatchClaim,
+	insertSpanNamesAfter(
+		SpanReducerBatchClaim,
 		SpanSemanticExtractionQueueApply,
 		SpanSemanticExtractionQueueClaim,
 		SpanSemanticExtractionQueueComplete,
 	)
-	logKeys = append(logKeys,
+	logKeys = append(
+		logKeys,
 		LogKeySemanticExtractionStatus,
 		LogKeySemanticExtractionSourceClass,
 		LogKeySemanticExtractionProviderKind,

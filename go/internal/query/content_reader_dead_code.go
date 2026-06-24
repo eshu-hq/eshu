@@ -28,7 +28,8 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 		return map[string]deadCodeIncomingEdge{}, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "dead_code_incoming_entity_ids"),
@@ -121,7 +122,8 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 		return map[string]deadCodeIncomingEdge{}, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "code_reachability_incoming_entity_ids"),
@@ -186,7 +188,8 @@ func (cr *ContentReader) CodeReachabilityCoverage(
 		return codeReachabilityCoverage{}, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "code_reachability_coverage"),

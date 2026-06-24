@@ -51,7 +51,8 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 		return Result{}, fmt.Errorf("rationale materialization intent writer is required")
 	}
 
-	slog.InfoContext(ctx, "rationale materialization started",
+	slog.InfoContext(
+		ctx, "rationale materialization started",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
@@ -87,7 +88,8 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 		}
 	}
 
-	slog.InfoContext(ctx, "rationale materialization completed",
+	slog.InfoContext(
+		ctx, "rationale materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.Int("intent_count", len(intentRows)),

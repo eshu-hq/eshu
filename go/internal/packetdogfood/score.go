@@ -133,23 +133,31 @@ func scoreFamilyCoverage(benchmark Benchmark) Criterion {
 		}
 	}
 	if len(missing) > 0 {
-		return Criterion{Name: "family_coverage", Status: CriterionFail,
-			Detail: "missing required families: " + strings.Join(missing, ", ")}
+		return Criterion{
+			Name: "family_coverage", Status: CriterionFail,
+			Detail: "missing required families: " + strings.Join(missing, ", "),
+		}
 	}
-	return Criterion{Name: "family_coverage", Status: CriterionPass,
-		Detail: "covers supply-chain impact, deployable drift, and service context"}
+	return Criterion{
+		Name: "family_coverage", Status: CriterionPass,
+		Detail: "covers supply-chain impact, deployable drift, and service context",
+	}
 }
 
 func scoreCorrectness(benchmark Benchmark) Criterion {
 	for _, task := range benchmark.Tasks {
 		packet, _ := packetResult(task)
 		if !packet.FoundAnswer {
-			return Criterion{Name: "answer_correctness", Status: CriterionFail,
-				Detail: fmt.Sprintf("packet did not find the answer for task %q", task.Name)}
+			return Criterion{
+				Name: "answer_correctness", Status: CriterionFail,
+				Detail: fmt.Sprintf("packet did not find the answer for task %q", task.Name),
+			}
 		}
 	}
-	return Criterion{Name: "answer_correctness", Status: CriterionPass,
-		Detail: "packet found the correct answer on every task"}
+	return Criterion{
+		Name: "answer_correctness", Status: CriterionPass,
+		Detail: "packet found the correct answer on every task",
+	}
 }
 
 func scoreAnswerTime(benchmark Benchmark) Criterion {
@@ -157,12 +165,16 @@ func scoreAnswerTime(benchmark Benchmark) Criterion {
 		packet, _ := packetResult(task)
 		best := bestBaselineAnswerTime(task)
 		if packet.AnswerTimeMS > best {
-			return Criterion{Name: "answer_time", Status: CriterionFail,
-				Detail: fmt.Sprintf("task %q: packet %dms slower than best baseline %dms", task.Name, packet.AnswerTimeMS, best)}
+			return Criterion{
+				Name: "answer_time", Status: CriterionFail,
+				Detail: fmt.Sprintf("task %q: packet %dms slower than best baseline %dms", task.Name, packet.AnswerTimeMS, best),
+			}
 		}
 	}
-	return Criterion{Name: "answer_time", Status: CriterionPass,
-		Detail: "packet reached the first answer at least as fast as the best baseline on every task"}
+	return Criterion{
+		Name: "answer_time", Status: CriterionPass,
+		Detail: "packet reached the first answer at least as fast as the best baseline on every task",
+	}
 }
 
 func scoreTokenEfficiency(benchmark Benchmark) Criterion {
@@ -170,12 +182,16 @@ func scoreTokenEfficiency(benchmark Benchmark) Criterion {
 		packet, _ := packetResult(task)
 		best := bestBaselineTokenBudget(task)
 		if packet.TokenBudget > best {
-			return Criterion{Name: "token_efficiency", Status: CriterionFail,
-				Detail: fmt.Sprintf("task %q: packet %d tokens over best baseline %d", task.Name, packet.TokenBudget, best)}
+			return Criterion{
+				Name: "token_efficiency", Status: CriterionFail,
+				Detail: fmt.Sprintf("task %q: packet %d tokens over best baseline %d", task.Name, packet.TokenBudget, best),
+			}
 		}
 	}
-	return Criterion{Name: "token_efficiency", Status: CriterionPass,
-		Detail: "packet stayed within the best baseline token budget on every task"}
+	return Criterion{
+		Name: "token_efficiency", Status: CriterionPass,
+		Detail: "packet stayed within the best baseline token budget on every task",
+	}
 }
 
 // scoreMissingEvidenceClarity requires the packet to name missing evidence on
@@ -186,19 +202,25 @@ func scoreMissingEvidenceClarity(benchmark Benchmark) Criterion {
 	for _, task := range benchmark.Tasks {
 		packet, _ := packetResult(task)
 		if !packet.MissingEvidenceNamed {
-			return Criterion{Name: "missing_evidence_clarity", Status: CriterionFail,
-				Detail: fmt.Sprintf("packet did not name missing evidence for task %q", task.Name)}
+			return Criterion{
+				Name: "missing_evidence_clarity", Status: CriterionFail,
+				Detail: fmt.Sprintf("packet did not name missing evidence for task %q", task.Name),
+			}
 		}
 		if !anyBaselineNamedMissing(task) {
 			differentiated = true
 		}
 	}
 	if !differentiated {
-		return Criterion{Name: "missing_evidence_clarity", Status: CriterionFail,
-			Detail: "no task where the packet named a gap that every baseline missed"}
+		return Criterion{
+			Name: "missing_evidence_clarity", Status: CriterionFail,
+			Detail: "no task where the packet named a gap that every baseline missed",
+		}
 	}
-	return Criterion{Name: "missing_evidence_clarity", Status: CriterionPass,
-		Detail: "packet named missing evidence on every task, including gaps the baselines missed"}
+	return Criterion{
+		Name: "missing_evidence_clarity", Status: CriterionPass,
+		Detail: "packet named missing evidence on every task, including gaps the baselines missed",
+	}
 }
 
 func packetResult(task Task) (ApproachResult, bool) {

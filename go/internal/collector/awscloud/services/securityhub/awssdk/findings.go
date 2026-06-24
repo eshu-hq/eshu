@@ -166,8 +166,7 @@ func applyComplianceCounts(
 		}
 		for controlIndex := range standards[standardIndex].Controls {
 			controlID := standards[standardIndex].Controls[controlIndex].ID
-			standards[standardIndex].Controls[controlIndex].ComplianceCounts =
-				cloneInt64Map(counts[standardControlKey(standardID, controlID)])
+			standards[standardIndex].Controls[controlIndex].ComplianceCounts = cloneInt64Map(counts[standardControlKey(standardID, controlID)])
 		}
 	}
 }

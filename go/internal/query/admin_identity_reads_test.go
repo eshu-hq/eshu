@@ -20,11 +20,11 @@ type fakeAdminIdentityReadStore struct {
 	gotWorkspaceID string
 	gotUserID      string
 
-	invitations    map[string][]AdminInvitationListItem
-	assignments    map[string][]AdminRoleAssignmentListItem
-	roles          map[string][]AdminRoleListItem
-	providers      map[string][]AdminIdPProviderListItem
-	groupMappings  map[string][]AdminIdPGroupMappingListItem
+	invitations     map[string][]AdminInvitationListItem
+	assignments     map[string][]AdminRoleAssignmentListItem
+	roles           map[string][]AdminRoleListItem
+	providers       map[string][]AdminIdPProviderListItem
+	groupMappings   map[string][]AdminIdPGroupMappingListItem
 	apiTokens       map[string][]AdminAPITokenListItem
 	forceListError  error
 	grantsTruncated bool

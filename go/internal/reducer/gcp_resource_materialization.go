@@ -299,7 +299,8 @@ func logGCPResourceMaterializationCompleted(
 	ctx context.Context,
 	timing gcpResourceMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "gcp resource materialization completed",
+	slog.InfoContext(
+		ctx, "gcp resource materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

@@ -20,7 +20,8 @@ const (
 func init() {
 	for idx, name := range spanNames {
 		if name == SpanQueryPackageRegistryCorrelations {
-			spanNames = slices.Insert(spanNames, idx+1,
+			spanNames = slices.Insert(
+				spanNames, idx+1,
 				SpanQueryCICDRunCorrelations,
 				SpanQueryCICDRunCorrelationAggregate,
 			)
@@ -30,7 +31,8 @@ func init() {
 	}
 	for idx, name := range spanNames {
 		if name == SpanQueryPackageRegistryDependencies {
-			spanNames = slices.Insert(spanNames, idx+1,
+			spanNames = slices.Insert(
+				spanNames, idx+1,
 				SpanQueryCICDRunCorrelations,
 				SpanQueryCICDRunCorrelationAggregate,
 			)
@@ -38,7 +40,8 @@ func init() {
 			return
 		}
 	}
-	spanNames = append(spanNames,
+	spanNames = append(
+		spanNames,
 		SpanQueryCICDRunCorrelations,
 		SpanQueryCICDRunCorrelationAggregate,
 	)
@@ -51,7 +54,8 @@ func insertCICDRunSourceSpans() {
 	}
 	for idx, name := range spanNames {
 		if name == SpanAWSCollectorClaimProcess {
-			spanNames = slices.Insert(spanNames, idx,
+			spanNames = slices.Insert(
+				spanNames, idx,
 				SpanCICDRunObserve,
 				SpanCICDRunFetch,
 			)

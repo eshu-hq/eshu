@@ -38,12 +38,14 @@ func (s *RelationshipStore) UpsertAssertions(
 
 	now := time.Now().UTC()
 	for _, a := range assertions {
-		assertionID := relationshipDigest("assertion",
+		assertionID := relationshipDigest(
+			"assertion",
 			string(a.RelationshipType), a.SourceRepoID, a.TargetRepoID,
 		)
 		srcEntityID := coalesceNullable(a.SourceEntityID, a.SourceRepoID)
 		tgtEntityID := coalesceNullable(a.TargetEntityID, a.TargetRepoID)
-		if _, err := s.db.ExecContext(ctx, upsertAssertionSQL,
+		if _, err := s.db.ExecContext(
+			ctx, upsertAssertionSQL,
 			assertionID,
 			a.SourceRepoID,
 			a.TargetRepoID,
@@ -110,7 +112,8 @@ func (s *RelationshipStore) CreateGeneration(
 ) (string, error) {
 	now := time.Now().UTC()
 	genID := relationshipDigest("generation", scopeID, runID, fmt.Sprintf("%d", now.UnixNano()))
-	if _, err := s.db.ExecContext(ctx, createGenerationSQL,
+	if _, err := s.db.ExecContext(
+		ctx, createGenerationSQL,
 		genID, scopeID, emptyToNil(runID), now,
 	); err != nil {
 		return "", fmt.Errorf("create generation: %w", err)
@@ -141,7 +144,8 @@ func (s *RelationshipStore) ActivateResolutionGeneration(
 	scopeID string,
 ) error {
 	now := time.Now().UTC()
-	_, err := s.db.ExecContext(ctx, activateResolutionGenerationSQL,
+	_, err := s.db.ExecContext(
+		ctx, activateResolutionGenerationSQL,
 		generationID, scopeID, now, now,
 	)
 	if err != nil {
@@ -257,7 +261,8 @@ func (s *RelationshipStore) UpsertCandidates(
 	}
 
 	for i, c := range candidates {
-		candidateID := relationshipDigest("candidate", generationID,
+		candidateID := relationshipDigest(
+			"candidate", generationID,
 			c.SourceEntityID, c.TargetEntityID,
 			string(c.RelationshipType), fmt.Sprintf("%d", i),
 		)
@@ -265,7 +270,8 @@ func (s *RelationshipStore) UpsertCandidates(
 		if err != nil {
 			return fmt.Errorf("marshal candidate details: %w", err)
 		}
-		if _, err := s.db.ExecContext(ctx, insertCandidateSQL,
+		if _, err := s.db.ExecContext(
+			ctx, insertCandidateSQL,
 			candidateID,
 			generationID,
 			emptyToNil(c.SourceRepoID),
@@ -300,7 +306,8 @@ func (s *RelationshipStore) UpsertResolved(
 		if err != nil {
 			return fmt.Errorf("marshal resolved details: %w", err)
 		}
-		if _, err := s.db.ExecContext(ctx, insertResolvedSQL,
+		if _, err := s.db.ExecContext(
+			ctx, insertResolvedSQL,
 			resolvedID,
 			generationID,
 			emptyToNil(r.SourceRepoID),

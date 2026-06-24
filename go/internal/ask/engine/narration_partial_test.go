@@ -207,7 +207,8 @@ func TestBuildNarrationSystemPromptUnsupportedReason(t *testing.T) {
 	t.Parallel()
 
 	prompt := buildNarrationSystemPrompt(
-		partialPacketWithUnsupportedReason("ref1", "reached max reasoning iterations"), nil)
+		partialPacketWithUnsupportedReason("ref1", "reached max reasoning iterations"), nil,
+	)
 	if !strings.Contains(prompt, `provenance kind "unsupported_reason"`) {
 		t.Errorf("unsupported-reason packet prompt must instruct `provenance kind \"unsupported_reason\"`; got:\n%s", prompt)
 	}

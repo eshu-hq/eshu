@@ -169,7 +169,8 @@ func (h webhookHandler) logIncidentFreshnessStoreError(
 	if h.Logger == nil {
 		return
 	}
-	h.Logger.ErrorContext(ctx, "incident freshness trigger persistence failed",
+	h.Logger.ErrorContext(
+		ctx, "incident freshness trigger persistence failed",
 		slog.String("provider", string(trigger.Provider)),
 		slog.String("event_kind", trigger.EventKind),
 		slog.String("error", err.Error()),

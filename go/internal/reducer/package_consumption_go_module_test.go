@@ -50,7 +50,8 @@ require (
 		),
 		packageSourceRepositoryFact("repo-go", "service", "https://github.com/acme/service", false, observedAt),
 	}
-	envelopes = append(envelopes,
+	envelopes = append(
+		envelopes,
 		goModContentEntityEnvelope(t, "repo-go", "service", "go.mod", "golang.org/x/text", rows, observedAt),
 		goModContentEntityEnvelope(t, "repo-go", "service", "go.mod", "golang.org/x/sys", rows, observedAt),
 	)

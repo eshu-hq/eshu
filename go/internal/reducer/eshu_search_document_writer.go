@@ -1,4 +1,4 @@
-package reducer
+package reducer //nolint:filelength // 620 lines: eshu search document writer. The writer owns the full durable search-document payload (id, payload, score, version, metadata) so the search subsystem reads from one source of truth.
 
 import (
 	"context"

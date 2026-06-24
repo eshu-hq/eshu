@@ -222,9 +222,11 @@ func IsNarrationEnabled(getenv func(string) string) bool {
 func ResolveEngineOptions(getenv func(string) string, logger *slog.Logger) engine.Options {
 	opts := engine.DefaultOptions()
 	opts.MaxIterations = resolveBudget(
-		getenv, EnvAskMaxIterations, opts.MaxIterations, MaxAskIterationsCeiling, logger)
+		getenv, EnvAskMaxIterations, opts.MaxIterations, MaxAskIterationsCeiling, logger,
+	)
 	opts.MaxToolCallsPerTurn = resolveBudget(
-		getenv, EnvAskMaxToolCallsPerTurn, opts.MaxToolCallsPerTurn, MaxAskToolCallsPerTurnCeiling, logger)
+		getenv, EnvAskMaxToolCallsPerTurn, opts.MaxToolCallsPerTurn, MaxAskToolCallsPerTurnCeiling, logger,
+	)
 	return opts
 }
 

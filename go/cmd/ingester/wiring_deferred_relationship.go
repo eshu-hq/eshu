@@ -21,7 +21,8 @@ func ingesterDeferredRelationshipMaintenance(
 	return func(ctx context.Context) error {
 		if err := committer.RunDeferredRelationshipMaintenanceAfterShardDrain(ctx, barrierConfig, tracer, instruments); err != nil {
 			if logger != nil {
-				logger.ErrorContext(ctx, "deferred relationship maintenance failed",
+				logger.ErrorContext(
+					ctx, "deferred relationship maintenance failed",
 					slog.String("error", err.Error()),
 					telemetry.FailureClassAttr("deferred_relationship_maintenance_failure"),
 				)

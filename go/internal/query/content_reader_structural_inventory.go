@@ -19,7 +19,8 @@ func (cr *ContentReader) InspectStructuralInventory(
 		return nil, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "inspect_structural_inventory"),
@@ -92,7 +93,8 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 		return nil, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "count_structural_inventory_by_file"),

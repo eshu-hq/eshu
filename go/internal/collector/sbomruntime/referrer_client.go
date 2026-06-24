@@ -61,7 +61,8 @@ func (f ECRReferrerClientFactory) ReferrerClient(ctx context.Context, target Tar
 		return nil, err
 	}
 	if f.Logger != nil {
-		f.Logger.InfoContext(ctx, "ecr oci_referrer auth via GetAuthorizationToken exchange",
+		f.Logger.InfoContext(
+			ctx, "ecr oci_referrer auth via GetAuthorizationToken exchange",
 			slog.String("provider", ecrProvider),
 			slog.String("scope_id", strings.TrimSpace(target.ScopeID)),
 			slog.String("repository", strings.TrimSpace(target.Repository)),

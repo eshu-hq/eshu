@@ -27,7 +27,8 @@ func domainEndpointTypes(configs []awsapigatewayv2types.DomainNameConfiguration)
 func domainCertificateARNs(configs []awsapigatewayv2types.DomainNameConfiguration) []string {
 	values := make([]string, 0, len(configs)*2)
 	for _, config := range configs {
-		values = append(values,
+		values = append(
+			values,
 			aws.ToString(config.CertificateArn),
 			aws.ToString(config.OwnershipVerificationCertificateArn),
 		)

@@ -20,7 +20,8 @@ const (
 func init() {
 	for idx, name := range spanNames {
 		if name == SpanQueryPackageRegistryDependencies {
-			spanNames = slices.Insert(spanNames, idx+1,
+			spanNames = slices.Insert(
+				spanNames, idx+1,
 				SpanQueryPackageRegistryCorrelations,
 				SpanQueryPackageRegistryDependencyChains,
 				SpanQueryPackageRegistryAggregate,
@@ -28,7 +29,8 @@ func init() {
 			return
 		}
 	}
-	spanNames = append(spanNames,
+	spanNames = append(
+		spanNames,
 		SpanQueryPackageRegistryCorrelations,
 		SpanQueryPackageRegistryDependencyChains,
 		SpanQueryPackageRegistryAggregate,

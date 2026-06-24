@@ -247,5 +247,7 @@ func timeOrZero(value *time.Time) time.Time {
 }
 
 // Compile-time assertions.
-var _ acmpcaservice.Client = (*Client)(nil)
-var _ apiClient = (*awsacmpca.Client)(nil)
+var (
+	_ acmpcaservice.Client = (*Client)(nil)
+	_ apiClient            = (*awsacmpca.Client)(nil)
+)

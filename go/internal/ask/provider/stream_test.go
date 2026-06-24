@@ -21,13 +21,15 @@ func openAIStreamBody(tokens []string, toolID, toolName, toolArgsJSON string) st
 	}
 	if toolID != "" && toolName != "" {
 		// First chunk: tool call start with id and name.
-		fmt.Fprintf(&b,
+		fmt.Fprintf(
+			&b,
 			"data: {\"choices\":[{\"delta\":{\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":%q,\"type\":\"function\",\"function\":{\"name\":%q,\"arguments\":\"\"}}]},\"finish_reason\":null}],\"usage\":null}\n\n",
 			toolID, toolName,
 		)
 		// Second chunk: arguments delta.
 		escaped := strings.ReplaceAll(toolArgsJSON, `"`, `\"`)
-		fmt.Fprintf(&b,
+		fmt.Fprintf(
+			&b,
 			"data: {\"choices\":[{\"delta\":{\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"\",\"type\":\"function\",\"function\":{\"name\":\"\",\"arguments\":\"%s\"}}]},\"finish_reason\":null}],\"usage\":null}\n\n",
 			escaped,
 		)
@@ -237,7 +239,8 @@ func anthropicStreamBody(tokens []string, toolID, toolName, toolArgsJSON string)
 		b.WriteString("event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
 		for _, tok := range tokens {
 			escaped := strings.ReplaceAll(tok, `"`, `\"`)
-			fmt.Fprintf(&b,
+			fmt.Fprintf(
+				&b,
 				"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"%s\"}}\n\n",
 				escaped,
 			)
@@ -247,13 +250,15 @@ func anthropicStreamBody(tokens []string, toolID, toolName, toolArgsJSON string)
 
 	if toolID != "" && toolName != "" {
 		// tool_use block start
-		fmt.Fprintf(&b,
+		fmt.Fprintf(
+			&b,
 			"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":%q,\"name\":%q,\"input\":{}}}\n\n",
 			toolID, toolName,
 		)
 		// input_json_delta
 		escaped := strings.ReplaceAll(toolArgsJSON, `"`, `\"`)
-		fmt.Fprintf(&b,
+		fmt.Fprintf(
+			&b,
 			"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"%s\"}}\n\n",
 			escaped,
 		)

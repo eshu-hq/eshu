@@ -367,7 +367,8 @@ func goTypeNameFromNode(node *tree_sitter.Node, source []byte) string {
 			return goNormalizeTypeName(nodeText(node, source))
 		}
 	}
-	typeNode := firstNamedDescendant(node,
+	typeNode := firstNamedDescendant(
+		node,
 		"type_identifier",
 		"qualified_type",
 		"generic_type",

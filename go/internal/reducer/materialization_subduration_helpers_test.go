@@ -167,7 +167,8 @@ func codeCallContextOnlyEnvelopes() []facts.Envelope {
 // mustHandle runs a handler and fails the test on error, returning the Result.
 func mustHandle(t *testing.T, handler interface {
 	Handle(context.Context, Intent) (Result, error)
-}, intent Intent) Result {
+}, intent Intent,
+) Result {
 	t.Helper()
 	result, err := handler.Handle(context.Background(), intent)
 	if err != nil {

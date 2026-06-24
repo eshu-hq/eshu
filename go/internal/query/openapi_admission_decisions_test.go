@@ -29,9 +29,12 @@ func TestOpenAPISpecIncludesAdmissionDecisions(t *testing.T) {
 	if _, ok := responses["501"]; !ok {
 		t.Fatalf("responses missing 501 unsupported-capability response: %#v", responses)
 	}
-	schema := mustMapField(t,
-		mustMapField(t,
-			mustMapField(t,
+	schema := mustMapField(
+		t,
+		mustMapField(
+			t,
+			mustMapField(
+				t,
 				mustMapField(t, responses["200"].(map[string]any), "content"),
 				"application/json",
 			),

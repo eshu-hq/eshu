@@ -59,12 +59,14 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveDigestAnchors(t *testing.T) {
 	seenLabels := make(map[string]bool)
 	_, err := fetchOCIImageRegistryTruth(t.Context(), fakeWorkloadGraphReader{
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-			assertContainsAll(t, cypher,
+			assertContainsAll(
+				t, cypher,
 				"image.digest IN $digests",
 				"MATCH (repo:OciRegistryRepository)",
 				"WHERE repo.uid = image.repository_id",
 			)
-			assertNotContains(t, cypher,
+			assertNotContains(
+				t, cypher,
 				"CALL {",
 				"PUBLISHES_MANIFEST",
 				"PUBLISHES_INDEX",
@@ -174,14 +176,16 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveTagAnchor(t *testing.T) {
 			if !strings.Contains(cypher, "ContainerImageTagObservation") {
 				return nil, nil
 			}
-			assertContainsAll(t, cypher,
+			assertContainsAll(
+				t, cypher,
 				"MATCH (tag:ContainerImageTagObservation)",
 				"tag.image_ref IN $image_refs",
 				"MATCH (repo:OciRegistryRepository)",
 				"WHERE repo.uid = tag.repository_id",
 				"image.digest = tag.resolved_digest",
 			)
-			assertNotContains(t, cypher,
+			assertNotContains(
+				t, cypher,
 				"CALL {",
 				"OBSERVED_TAG",
 				"tag.reference IN $image_refs",

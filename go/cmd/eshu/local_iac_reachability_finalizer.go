@@ -12,8 +12,10 @@ import (
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-const localIaCReachabilityFinalizerPollInterval = 2 * time.Second
-const localIaCReachabilityMaterializationTimeout = 10 * time.Minute
+const (
+	localIaCReachabilityFinalizerPollInterval  = 2 * time.Second
+	localIaCReachabilityMaterializationTimeout = 10 * time.Minute
+)
 
 var queryLocalIaCReachabilityDrainState = queryLocalContentSearchIndexDrainState
 

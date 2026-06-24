@@ -47,7 +47,8 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		return result
 	}
 	if logger != nil {
-		logger.Warn("mcp tool response over budget",
+		logger.Warn(
+			"mcp tool response over budget",
 			"tool", toolName,
 			"response_bytes", size,
 			"budget_bytes", budget,

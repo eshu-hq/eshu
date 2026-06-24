@@ -129,7 +129,8 @@ func walkBlockAttributes(
 			if prefix != "" {
 				duplicatePrefix = prefix + "." + nested.Type
 			}
-			slog.Default().LogAttrs(context.Background(), slog.LevelDebug,
+			slog.Default().LogAttrs(
+				context.Background(), slog.LevelDebug,
 				"drift parser walk truncated multi-element repeated block",
 				slog.String(telemetry.LogKeyDriftMultiElementPrefix, duplicatePrefix),
 				slog.String(telemetry.LogKeyDriftMultiElementSource, "parser_walk"),

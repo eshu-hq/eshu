@@ -123,7 +123,8 @@ func entityMapGenericResolverQueries(from string, limit int) []entityMapResolver
 	if canonicalID := canonicalWorkloadIDCandidate(from); canonicalID != from {
 		queries = append(queries, entityMapNodeResolverQuery("Workload", "id", canonicalID, "id", 1, limit))
 	}
-	queries = append(queries,
+	queries = append(
+		queries,
 		entityMapNodeResolverQuery("Workload", "name", from, "id", 2, limit),
 		entityMapNodeResolverQuery("Repository", "id", from, "id", 3, limit),
 		entityMapNodeResolverQuery("Repository", "name", from, "id", 4, limit),

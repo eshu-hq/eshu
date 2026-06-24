@@ -99,7 +99,8 @@ func TestBuildServiceStoryTargetSupportSourceOnlySQLStaysAggregateOnly(t *testin
 
 	query, args := buildServiceStoryTargetSupportSourceOnlySQL(serviceStoryTargetSupportFactKinds())
 
-	assertSupportSQLContainsAll(t, query,
+	assertSupportSQLContainsAll(
+		t, query,
 		"COUNT(*) AS support_source_only_count",
 		"COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'work_item.%') AS work_item_source_only_count",
 		"COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'incident_routing.%') AS incident_routing_source_only_count",

@@ -129,7 +129,6 @@ func (h *AskHandler) handleAskSSE(w http.ResponseWriter, r *http.Request) {
 			// a new event type visible to SSE clients with no additional truth value.
 		}
 	})
-
 	if err != nil {
 		if errors.Is(err, ErrNoStreaming) {
 			// Adapter does not support streaming: fall back to synchronous Ask.

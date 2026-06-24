@@ -227,7 +227,8 @@ func (s *Source) logScan(
 	if s.Logger == nil {
 		return
 	}
-	s.Logger.InfoContext(ctx, "azure scope scan completed",
+	s.Logger.InfoContext(
+		ctx, "azure scope scan completed",
 		telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 		slog.String("scope_kind", target.ScopeKind),
 		slog.String("source_lane", target.SourceLane),

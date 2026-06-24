@@ -100,7 +100,8 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycleFailure(ctx co
 	for _, attr := range telemetry.DomainAttrs(string(DomainRepoDependency), "") {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.Float64("duration_seconds", duration),
 		slog.Bool("retryable", IsRetryable(err)),
 		slog.String("error", err.Error()),

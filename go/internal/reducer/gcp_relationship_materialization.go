@@ -93,7 +93,8 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerGCPRelationshipMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerGCPRelationshipMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -327,7 +328,8 @@ func logGCPRelationshipMaterializationCompleted(
 	ctx context.Context,
 	timing gcpRelationshipMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "gcp relationship materialization completed",
+	slog.InfoContext(
+		ctx, "gcp relationship materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

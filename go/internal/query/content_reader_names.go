@@ -38,7 +38,8 @@ func (cr *ContentReader) SearchFileReferenceAnyRepo(
 	value string,
 	limit int,
 ) ([]FileContent, bool, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_file_reference_any_repo"),
@@ -141,7 +142,8 @@ func (cr *ContentReader) searchFileContentAnyRepo(
 		operation = "search_file_content_any_repo_exact_case"
 		operator = "LIKE"
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", operation),
@@ -202,7 +204,8 @@ func (cr *ContentReader) SearchEntitiesByNameAnyRepo(
 	name string,
 	limit int,
 ) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_entities_by_name_any_repo"),
@@ -285,7 +288,8 @@ func (cr *ContentReader) SearchEntityContentAnyRepo(
 	pattern string,
 	limit int,
 ) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_entity_content_any_repo"),

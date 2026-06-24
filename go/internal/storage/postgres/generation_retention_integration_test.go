@@ -63,7 +63,8 @@ func TestGenerationRetentionStoreLargeFixtureIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	t.Logf("Performance Evidence: pruned_generations=%d fact_rows=%d work_rows=%d duration=%s wall_time=%s",
+	t.Logf(
+		"Performance Evidence: pruned_generations=%d fact_rows=%d work_rows=%d duration=%s wall_time=%s",
 		result.GenerationsPruned,
 		result.RowsPruned["fact_records"],
 		result.RowsPruned["fact_work_items"],
@@ -94,7 +95,8 @@ func TestGenerationRetentionStoreLargeFixtureIntegration(t *testing.T) {
 	if retainedWindowFacts != 500 {
 		t.Fatalf("retained-window fact_records = %d, want 500", retainedWindowFacts)
 	}
-	t.Logf("No-Regression Evidence: active_fact_read_before=%s active_fact_read_after=%s retained_window_fact_read=%s active_fact_rows=%d retained_window_fact_rows=%d",
+	t.Logf(
+		"No-Regression Evidence: active_fact_read_before=%s active_fact_read_after=%s retained_window_fact_read=%s active_fact_rows=%d retained_window_fact_rows=%d",
 		beforeActiveRead,
 		afterActiveRead,
 		retainedWindowRead,

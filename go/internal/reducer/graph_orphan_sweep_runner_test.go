@@ -37,7 +37,6 @@ func TestGraphOrphanSweepRunnerDrainsUntilNoDeletedNodes(t *testing.T) {
 	}
 
 	err := runner.Run(ctx)
-
 	if err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
@@ -67,7 +66,6 @@ func TestGraphOrphanSweepRunnerSkipsWhenLeaseUnavailable(t *testing.T) {
 	}
 
 	result, err := runner.RunOnce(context.Background())
-
 	if err != nil {
 		t.Fatalf("RunOnce() error = %v, want nil", err)
 	}
@@ -97,7 +95,6 @@ func TestGraphOrphanSweepRunnerClaimsAndReleasesLease(t *testing.T) {
 	}
 
 	result, err := runner.RunOnce(context.Background())
-
 	if err != nil {
 		t.Fatalf("RunOnce() error = %v, want nil", err)
 	}

@@ -206,7 +206,8 @@ func entityMapDirectTraversalCypher(selected entityMapCandidate, spec entityMapT
 	if spec.direction == "incoming" {
 		edge = fmt.Sprintf("(start:%s {%s: $from_id})<-[rel:%s]-(entity)", selected.AnchorLabel, selected.AnchorProperty, strings.Join(spec.relationships, "|"))
 	}
-	return fmt.Sprintf(`MATCH %s
+	return fmt.Sprintf(
+		`MATCH %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
 RETURN %s,
@@ -224,7 +225,8 @@ func entityMapVariableTraversalCypher(selected entityMapCandidate, spec entityMa
 	if spec.direction == "incoming" {
 		edge = fmt.Sprintf("(start:%s {%s: $from_id})<-[%s]-(entity)", selected.AnchorLabel, selected.AnchorProperty, relationshipPattern)
 	}
-	return fmt.Sprintf(`MATCH path = %s
+	return fmt.Sprintf(
+		`MATCH path = %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
 RETURN %s,

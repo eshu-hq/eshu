@@ -85,7 +85,8 @@ func TestParserStreamsTerraformStateIntoRedactedFacts(t *testing.T) {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	requireFactKinds(t, result.Facts,
+	requireFactKinds(
+		t, result.Facts,
 		facts.TerraformStateSnapshotFactKind,
 		facts.TerraformStateOutputFactKind,
 		facts.TerraformStateResourceFactKind,

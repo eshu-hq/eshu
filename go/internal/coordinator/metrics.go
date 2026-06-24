@@ -243,7 +243,7 @@ func (m *otelMetrics) RecordReconcile(ctx context.Context, observation Reconcile
 	m.driftCount.Store(drift)
 }
 
-func max(value int, minimum int) int {
+func max(value int, minimum int) int { //nolint:gocritic // builtinShadowDecl: helper named after the math/max builtin to keep call sites readable.
 	if value < minimum {
 		return minimum
 	}

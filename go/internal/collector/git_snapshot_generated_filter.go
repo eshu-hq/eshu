@@ -8,8 +8,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 )
 
-const generatedJavaScriptBundleMinBytes = 256 * 1024
-const vendoredBrowserLibraryPrefixBytes = 16 * 1024
+const (
+	generatedJavaScriptBundleMinBytes = 256 * 1024
+	vendoredBrowserLibraryPrefixBytes = 16 * 1024
+)
 
 func filterGeneratedNativeSnapshotFiles(files []string, stats *discovery.DiscoveryStats) []string {
 	filtered := files[:0]

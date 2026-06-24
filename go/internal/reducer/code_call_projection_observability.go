@@ -32,7 +32,8 @@ func (r *CodeCallProjectionRunner) recordCodeCallCycle(
 		for _, attr := range telemetry.AcceptanceAttrs(key.ScopeID, key.AcceptanceUnitID, key.SourceRunID, generationID) {
 			logAttrs = append(logAttrs, attr)
 		}
-		logAttrs = append(logAttrs,
+		logAttrs = append(
+			logAttrs,
 			slog.Int("written_rows", writtenRows),
 			slog.Int("written_groups", writtenGroups),
 			slog.Float64("duration_seconds", duration),
@@ -107,7 +108,8 @@ func (r *CodeCallProjectionRunner) recordCodeCallCycleFailure(ctx context.Contex
 	for _, attr := range telemetry.DomainAttrs(string(DomainCodeCalls), "") {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.Float64("duration_seconds", duration),
 		slog.Bool("retryable", IsRetryable(err)),
 		slog.String("error", err.Error()),

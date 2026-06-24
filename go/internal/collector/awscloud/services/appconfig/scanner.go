@@ -112,7 +112,8 @@ func environmentEnvelopes(
 		environmentInApplicationRelationship(boundary, envARN, appARN),
 	}
 	for _, monitor := range environment.Monitors {
-		relationships = append(relationships,
+		relationships = append(
+			relationships,
 			environmentMonitorsAlarmRelationship(boundary, envARN, monitor),
 			environmentMonitorRoleRelationship(boundary, envARN, monitor),
 		)

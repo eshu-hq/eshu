@@ -86,26 +86,26 @@ type ClusterSubnetGroup struct {
 // metadata only; it never persists snapshot contents, query results, or table
 // data.
 type ClusterSnapshot struct {
-	ARN                              string
-	Identifier                       string
-	ClusterIdentifier                string
-	SnapshotType                     string
-	Status                           string
-	NodeType                         string
-	NumberOfNodes                    int32
-	DBName                           string
-	VPCID                            string
-	Encrypted                        bool
-	KMSKeyID                         string
-	SnapshotCreateTime               time.Time
-	ClusterCreateTime                time.Time
-	SnapshotRetentionStartTime       time.Time
-	ManualSnapshotRetentionPeriod    int32
-	EngineFullVersion                string
-	AvailabilityZone                 string
-	SourceRegion                     string
-	Tags                             map[string]string
-	RestorableNodeTypes              []string
+	ARN                           string
+	Identifier                    string
+	ClusterIdentifier             string
+	SnapshotType                  string
+	Status                        string
+	NodeType                      string
+	NumberOfNodes                 int32
+	DBName                        string
+	VPCID                         string
+	Encrypted                     bool
+	KMSKeyID                      string
+	SnapshotCreateTime            time.Time
+	ClusterCreateTime             time.Time
+	SnapshotRetentionStartTime    time.Time
+	ManualSnapshotRetentionPeriod int32
+	EngineFullVersion             string
+	AvailabilityZone              string
+	SourceRegion                  string
+	Tags                          map[string]string
+	RestorableNodeTypes           []string
 }
 
 // ScheduledAction is the scanner-owned Redshift scheduled action metadata
@@ -113,53 +113,53 @@ type ClusterSnapshot struct {
 // cluster identifier when the action targets one; mutation payload fields are
 // not persisted.
 type ScheduledAction struct {
-	Name                  string
-	Schedule              string
-	IAMRoleARN            string
-	Description           string
-	State                 string
-	StartTime             time.Time
-	EndTime               time.Time
-	NextInvocationTime    time.Time
-	TargetActionName      string
+	Name                    string
+	Schedule                string
+	IAMRoleARN              string
+	Description             string
+	State                   string
+	StartTime               time.Time
+	EndTime                 time.Time
+	NextInvocationTime      time.Time
+	TargetActionName        string
 	TargetClusterIdentifier string
 }
 
 // ServerlessNamespace is the scanner-owned Redshift Serverless namespace
 // metadata model.
 type ServerlessNamespace struct {
-	ARN              string
-	Name             string
-	NamespaceID      string
-	Status           string
-	DBName           string
-	DefaultIAMRole   string
-	IAMRoleARNs      []string
-	KMSKeyID         string
-	LogExports       []string
-	CreationDate     time.Time
-	Tags             map[string]string
+	ARN            string
+	Name           string
+	NamespaceID    string
+	Status         string
+	DBName         string
+	DefaultIAMRole string
+	IAMRoleARNs    []string
+	KMSKeyID       string
+	LogExports     []string
+	CreationDate   time.Time
+	Tags           map[string]string
 }
 
 // ServerlessWorkgroup is the scanner-owned Redshift Serverless workgroup
 // metadata model.
 type ServerlessWorkgroup struct {
-	ARN                    string
-	Name                   string
-	WorkgroupID            string
-	NamespaceName          string
-	Status                 string
-	BaseCapacity           int32
-	MaxCapacity            int32
-	EnhancedVPCRouting     bool
-	PubliclyAccessible     bool
-	ConfigParameters       []ServerlessConfigParameter
-	SubnetIDs              []string
-	SecurityGroupIDs       []string
-	EndpointAddress        string
-	EndpointPort           int32
-	CreationDate           time.Time
-	Tags                   map[string]string
+	ARN                string
+	Name               string
+	WorkgroupID        string
+	NamespaceName      string
+	Status             string
+	BaseCapacity       int32
+	MaxCapacity        int32
+	EnhancedVPCRouting bool
+	PubliclyAccessible bool
+	ConfigParameters   []ServerlessConfigParameter
+	SubnetIDs          []string
+	SecurityGroupIDs   []string
+	EndpointAddress    string
+	EndpointPort       int32
+	CreationDate       time.Time
+	Tags               map[string]string
 }
 
 // ServerlessConfigParameter captures a non-secret Redshift Serverless

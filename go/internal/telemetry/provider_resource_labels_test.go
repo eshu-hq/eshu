@@ -60,12 +60,14 @@ func TestPrometheusExposesServiceLabelsOnMetrics(t *testing.T) {
 	counterLines := metricLinesContaining(body, "eshu_dp_resource_labels_probe")
 	require.NotEmpty(t, counterLines, "counter never reached the /metrics output")
 
-	require.True(t,
+	require.True(
+		t,
 		anyLineContains(counterLines, `service_name="test-service"`),
 		"service_name label missing from data-plane counter; dashboards filtering by {service_name=~\"$service\"} will return empty data.\n  counter lines: %v",
 		counterLines,
 	)
-	require.True(t,
+	require.True(
+		t,
 		anyLineContains(counterLines, `service_namespace="eshu"`),
 		"service_namespace label missing from data-plane counter; dashboards filtering by {service_namespace=~\"$namespace\"} will return empty data.\n  counter lines: %v",
 		counterLines,

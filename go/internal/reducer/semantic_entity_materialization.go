@@ -195,7 +195,8 @@ func logSemanticEntityMaterializationCompleted(
 	ctx context.Context,
 	timing semanticEntityMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "semantic entity materialization completed",
+	slog.InfoContext(
+		ctx, "semantic entity materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

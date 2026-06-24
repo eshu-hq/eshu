@@ -76,7 +76,8 @@ func main() {
 		addr = ":8080"
 	}
 
-	handler := otelhttp.NewHandler(mux, "eshu-api",
+	handler := otelhttp.NewHandler(
+		mux, "eshu-api",
 		otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
 	)
 

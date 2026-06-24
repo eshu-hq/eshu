@@ -10,8 +10,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const preChangeImpactCapability = "platform_impact.pre_change"
-const developerChangePlanCapability = "platform_impact.developer_change_plan"
+const (
+	preChangeImpactCapability     = "platform_impact.pre_change"
+	developerChangePlanCapability = "platform_impact.developer_change_plan"
+)
 
 type preChangeImpactRequest struct {
 	RepoID          string                `json:"repo_id"`

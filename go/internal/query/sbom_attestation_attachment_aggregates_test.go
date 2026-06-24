@@ -481,4 +481,3 @@ func TestSBOMAttestationAttachmentAggregateInventoryNullsNextOffsetAtCeiling(t *
 		t.Fatalf("next_offset = %d, want null when offset+limit exceeds documented max", *body.NextOffset)
 	}
 }
-

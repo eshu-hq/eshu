@@ -18,11 +18,11 @@ import (
 )
 
 const (
-	listWorkGroupsLimit        int32 = 50
-	listDataCatalogsLimit      int32 = 50
+	listWorkGroupsLimit         int32 = 50
+	listDataCatalogsLimit       int32 = 50
 	listPreparedStatementsLimit int32 = 100
-	listNamedQueriesLimit      int32 = 50
-	batchGetNamedQueriesLimit        = 50
+	listNamedQueriesLimit       int32 = 50
+	batchGetNamedQueriesLimit         = 50
 )
 
 // apiClient is the bounded subset of the AWS Athena SDK consumed by the

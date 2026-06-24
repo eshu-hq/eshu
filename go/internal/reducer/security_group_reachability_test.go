@@ -113,7 +113,8 @@ func TestExtractSecurityGroupReachabilityResolvesCIDREndpoint(t *testing.T) {
 
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
 
@@ -165,7 +166,8 @@ func TestExtractSecurityGroupReachabilityEgressUsesAllowsEgress(t *testing.T) {
 
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "egress", "tcp", int32(443), int32(443), "cidr_ipv4", "0.0.0.0/0"))
+		"sg-0abc", "egress", "tcp", int32(443), int32(443), "cidr_ipv4", "0.0.0.0/0",
+	))
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
 	if len(result.SGRuleEdges) != 1 {
@@ -188,7 +190,8 @@ func TestExtractSecurityGroupReachabilityReferencedSGEndpoint(t *testing.T) {
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	referenced := securityGroupAnchorEnvelope("sg-0def") // the referenced group is itself a scanned resource
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(5432), int32(5432), "referenced_security_group", "sg-0def"))
+		"sg-0abc", "ingress", "tcp", int32(5432), int32(5432), "referenced_security_group", "sg-0def",
+	))
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor, referenced}, []facts.Envelope{rule})
 	if len(result.RuleEndpointEdges) != 1 {
@@ -211,7 +214,8 @@ func TestExtractSecurityGroupReachabilityPrefixListEndpoint(t *testing.T) {
 
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(80), int32(80), "prefix_list", "pl-1234"))
+		"sg-0abc", "ingress", "tcp", int32(80), int32(80), "prefix_list", "pl-1234",
+	))
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
 	if len(result.RuleEndpointEdges) != 1 {
@@ -234,7 +238,8 @@ func TestExtractSecurityGroupReachabilityUnresolvedAnchorSkips(t *testing.T) {
 
 	// No anchor resource for sg-0abc in the resource facts.
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 
 	result := ExtractSecurityGroupReachability(nil, []facts.Envelope{rule})
 	if len(result.RuleNodes) != 0 || len(result.SGRuleEdges) != 0 || len(result.RuleEndpointEdges) != 0 {
@@ -254,7 +259,8 @@ func TestExtractSecurityGroupReachabilityReferencedSGEndpointUnresolvedSkips(t *
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	// sg-0def is referenced but never scanned, so the endpoint cannot resolve.
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(5432), int32(5432), "referenced_security_group", "sg-0def"))
+		"sg-0abc", "ingress", "tcp", int32(5432), int32(5432), "referenced_security_group", "sg-0def",
+	))
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
 	if len(result.RuleNodes) != 0 || len(result.SGRuleEdges) != 0 || len(result.RuleEndpointEdges) != 0 {
@@ -272,7 +278,8 @@ func TestExtractSecurityGroupReachabilityUnknownSourceSkips(t *testing.T) {
 
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "-1", nil, nil, "unknown", ""))
+		"sg-0abc", "ingress", "-1", nil, nil, "unknown", "",
+	))
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
 	if len(result.RuleNodes) != 0 || len(result.RuleEndpointEdges) != 0 {
@@ -291,9 +298,11 @@ func TestExtractSecurityGroupReachabilityPerPortDistinctness(t *testing.T) {
 
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	rule22 := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 	rule443 := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(443), int32(443), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(443), int32(443), "cidr_ipv4", "10.0.0.0/8",
+	))
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule22, rule443})
 	if len(result.RuleNodes) != 2 {
@@ -330,7 +339,8 @@ func TestExtractSecurityGroupReachabilityTombstoneSkips(t *testing.T) {
 
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 	rule.IsTombstone = true
 
 	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})

@@ -31,7 +31,8 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 	// Create span if tracer is available
 	if db.Tracer != nil {
 		var span trace.Span
-		ctx, span = db.Tracer.Start(ctx, "postgres.exec",
+		ctx, span = db.Tracer.Start(
+			ctx, "postgres.exec",
 			trace.WithAttributes(
 				attribute.String("db.system", "postgresql"),
 				attribute.String("db.operation", "exec"),
@@ -42,7 +43,6 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 
 		// Execute the query
 		result, err := db.Inner.ExecContext(ctx, query, args...)
-
 		// Record error in span if present
 		if err != nil {
 			span.RecordError(err)
@@ -52,7 +52,8 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 		// Record duration metric if instruments are available
 		if db.Instruments != nil {
 			duration := time.Since(start).Seconds()
-			db.Instruments.PostgresQueryDuration.Record(ctx, duration,
+			db.Instruments.PostgresQueryDuration.Record(
+				ctx, duration,
 				metric.WithAttributes(
 					attribute.String("operation", "write"),
 					attribute.String("store", db.StoreName),
@@ -68,7 +69,8 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 
 	if db.Instruments != nil {
 		duration := time.Since(start).Seconds()
-		db.Instruments.PostgresQueryDuration.Record(ctx, duration,
+		db.Instruments.PostgresQueryDuration.Record(
+			ctx, duration,
 			metric.WithAttributes(
 				attribute.String("operation", "write"),
 				attribute.String("store", db.StoreName),
@@ -86,7 +88,8 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 	// Create span if tracer is available
 	if db.Tracer != nil {
 		var span trace.Span
-		ctx, span = db.Tracer.Start(ctx, "postgres.query",
+		ctx, span = db.Tracer.Start(
+			ctx, "postgres.query",
 			trace.WithAttributes(
 				attribute.String("db.system", "postgresql"),
 				attribute.String("db.operation", "query"),
@@ -97,7 +100,6 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 
 		// Execute the query
 		rows, err := db.Inner.QueryContext(ctx, query, args...)
-
 		// Record error in span if present
 		if err != nil {
 			span.RecordError(err)
@@ -107,7 +109,8 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 		// Record duration metric if instruments are available
 		if db.Instruments != nil {
 			duration := time.Since(start).Seconds()
-			db.Instruments.PostgresQueryDuration.Record(ctx, duration,
+			db.Instruments.PostgresQueryDuration.Record(
+				ctx, duration,
 				metric.WithAttributes(
 					attribute.String("operation", "read"),
 					attribute.String("store", db.StoreName),
@@ -123,7 +126,8 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 
 	if db.Instruments != nil {
 		duration := time.Since(start).Seconds()
-		db.Instruments.PostgresQueryDuration.Record(ctx, duration,
+		db.Instruments.PostgresQueryDuration.Record(
+			ctx, duration,
 			metric.WithAttributes(
 				attribute.String("operation", "read"),
 				attribute.String("store", db.StoreName),

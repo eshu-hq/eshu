@@ -67,7 +67,8 @@ func (l PackageRegistryIdentityLocker) WithPackageRegistryIdentityLocks(
 	}
 	wait := time.Since(start)
 	if wait >= packageRegistryIdentitySlowLockWait {
-		slog.InfoContext(ctx, "package registry identity advisory locks acquired",
+		slog.InfoContext(
+			ctx, "package registry identity advisory locks acquired",
 			"package_uid_count", len(lockIDs),
 			"lock_key_sample", sampleKey,
 			"wait_s", wait.Seconds(),

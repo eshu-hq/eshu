@@ -33,7 +33,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		boundary.ServiceKind = awscloud.ServiceRoute53RecoveryControlConfig
 	default:
 		return nil, fmt.Errorf(
-			"route53recoverycontrolconfig scanner received service_kind %q", boundary.ServiceKind)
+			"route53recoverycontrolconfig scanner received service_kind %q", boundary.ServiceKind,
+		)
 	}
 
 	snapshot, err := s.Client.Snapshot(ctx)
@@ -97,7 +98,8 @@ func controlPanelEnvelopes(boundary awscloud.Boundary, panel ControlPanel) ([]fa
 		}
 		envelopes = append(envelopes, resource)
 		if err := appendRelationship(
-			&envelopes, routingControlInControlPanelRelationship(boundary, control)); err != nil {
+			&envelopes, routingControlInControlPanelRelationship(boundary, control),
+		); err != nil {
 			return nil, err
 		}
 	}
@@ -108,7 +110,8 @@ func controlPanelEnvelopes(boundary awscloud.Boundary, panel ControlPanel) ([]fa
 		}
 		envelopes = append(envelopes, resource)
 		if err := appendRelationship(
-			&envelopes, safetyRuleInControlPanelRelationship(boundary, rule)); err != nil {
+			&envelopes, safetyRuleInControlPanelRelationship(boundary, rule),
+		); err != nil {
 			return nil, err
 		}
 	}

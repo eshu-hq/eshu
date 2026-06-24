@@ -108,7 +108,8 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerObservabilityCoverageMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerObservabilityCoverageMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -326,7 +327,8 @@ func logObservabilityCoverageMaterializationCompleted(
 	ctx context.Context,
 	timing observabilityCoverageMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "observability coverage materialization completed",
+	slog.InfoContext(
+		ctx, "observability coverage materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

@@ -62,12 +62,14 @@ func goResolverCoverageFixture() resolverCoverageFixture {
 		resolutionMethod: "scope_unique_name",
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-go"}},
-			fileEnvelope("repo-go", "pkg/caller.go", "pkg/caller.go",
+			fileEnvelope(
+				"repo-go", "pkg/caller.go", "pkg/caller.go",
 				[]any{fnLang("Caller", "uid:go-caller", 3, 5, "go")},
 				nil,
 				[]any{call(map[string]any{"name": "callee", "full_name": "callee", "line_number": 4, "lang": "go"})},
 			),
-			fileEnvelope("repo-go", "pkg/callee.go", "pkg/callee.go",
+			fileEnvelope(
+				"repo-go", "pkg/callee.go", "pkg/callee.go",
 				[]any{fnLang("callee", "uid:go-callee", 1, 2, "go")},
 				nil,
 				nil,
@@ -87,12 +89,14 @@ func pythonResolverCoverageFixture() resolverCoverageFixture {
 		resolutionMethod: methodTypeInferred,
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-python"}},
-			fileEnvelope("repo-python", "pkg/caller.py", "pkg/caller.py",
+			fileEnvelope(
+				"repo-python", "pkg/caller.py", "pkg/caller.py",
 				[]any{fnLang("caller", "uid:py-caller", 4, 6, "python")},
 				nil,
 				[]any{call(map[string]any{"name": "run", "full_name": "Service.run", "line_number": 5, "lang": "python"})},
 			),
-			fileEnvelopeWithClasses("repo-python", "pkg/service.py", "pkg/service.py",
+			fileEnvelopeWithClasses(
+				"repo-python", "pkg/service.py", "pkg/service.py",
 				[]any{pyMethod("run", "uid:py-run", "Service", 2, 4)},
 				[]any{map[string]any{"name": "Service", "uid": "uid:py-service", "lang": "python", "line_number": 1, "end_line": 4}},
 				nil,
@@ -137,7 +141,8 @@ func typescriptResolverCoverageFixture(lang string) resolverCoverageFixture {
 		resolutionMethod: methodTypeInferred,
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": repoID}},
-			fileEnvelope(repoID, "src/caller."+tsExt(lang), "src/caller."+tsExt(lang),
+			fileEnvelope(
+				repoID, "src/caller."+tsExt(lang), "src/caller."+tsExt(lang),
 				[]any{fnLang("run", callerUID, 1, 4, lang)},
 				nil,
 				[]any{call(map[string]any{
@@ -177,7 +182,8 @@ func javascriptResolverCoverageFixture(lang string) resolverCoverageFixture {
 		resolutionMethod: methodTypeInferred,
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": repoID}},
-			fileEnvelope(repoID, "src/caller."+ext, "src/caller."+ext,
+			fileEnvelope(
+				repoID, "src/caller."+ext, "src/caller."+ext,
 				[]any{fnLang("run", callerUID, 1, 5, lang)},
 				nil,
 				[]any{call(map[string]any{
@@ -188,7 +194,8 @@ func javascriptResolverCoverageFixture(lang string) resolverCoverageFixture {
 					"lang":              lang,
 				})},
 			),
-			fileEnvelope(repoID, "src/worker."+ext, "src/worker."+ext,
+			fileEnvelope(
+				repoID, "src/worker."+ext, "src/worker."+ext,
 				[]any{fnImpl("invoke", calleeUID, "Worker", lang, 2, 4)},
 				nil,
 				nil,
@@ -206,7 +213,8 @@ func swiftResolverCoverageFixture() resolverCoverageFixture {
 		resolutionMethod: methodTypeInferred,
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-swift"}},
-			fileEnvelope("repo-swift", "Sources/Caller.swift", "Sources/Caller.swift",
+			fileEnvelope(
+				"repo-swift", "Sources/Caller.swift", "Sources/Caller.swift",
 				[]any{fn("run", "uid:swift-caller", 1, 5)},
 				nil,
 				[]any{call(map[string]any{
@@ -217,7 +225,8 @@ func swiftResolverCoverageFixture() resolverCoverageFixture {
 					"lang":              "swift",
 				})},
 			),
-			fileEnvelope("repo-swift", "Sources/Logger.swift", "Sources/Logger.swift",
+			fileEnvelope(
+				"repo-swift", "Sources/Logger.swift", "Sources/Logger.swift",
 				[]any{fnImpl("info", "uid:swift-info", "Logger", "swift", 2, 4)},
 				nil,
 				nil,
@@ -235,7 +244,8 @@ func javaResolverCoverageFixture() resolverCoverageFixture {
 		resolutionMethod: methodTypeInferred,
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-java"}},
-			fileEnvelope("repo-java", "src/main/java/example/Worker.java", "src/main/java/example/Worker.java",
+			fileEnvelope(
+				"repo-java", "src/main/java/example/Worker.java", "src/main/java/example/Worker.java",
 				[]any{fn("run", "uid:java-caller", 1, 5)},
 				nil,
 				[]any{call(map[string]any{
@@ -247,7 +257,8 @@ func javaResolverCoverageFixture() resolverCoverageFixture {
 					"lang":              "java",
 				})},
 			),
-			fileEnvelope("repo-java", "src/main/java/example/Service.java", "src/main/java/example/Service.java",
+			fileEnvelope(
+				"repo-java", "src/main/java/example/Service.java", "src/main/java/example/Service.java",
 				[]any{fnClassParams("process", "uid:java-process", "Service", []any{"Task"}, 1, 3)},
 				nil,
 				nil,
@@ -271,7 +282,8 @@ func kotlinResolverCoverageFixture() resolverCoverageFixture {
 					"Service": {"src/main/kotlin/com/example/lib/Service.kt"},
 				},
 			}},
-			fileEnvelopeWithImports("repo-kotlin", "src/main/kotlin/example/Caller.kt", "src/main/kotlin/example/Caller.kt",
+			fileEnvelopeWithImports(
+				"repo-kotlin", "src/main/kotlin/example/Caller.kt", "src/main/kotlin/example/Caller.kt",
 				[]any{fn("run", "uid:kotlin-caller", 4, 7)},
 				[]any{map[string]any{
 					"name":        "com.example.lib.Service",
@@ -290,7 +302,8 @@ func kotlinResolverCoverageFixture() resolverCoverageFixture {
 					"lang":              "kotlin",
 				})},
 			),
-			fileEnvelope("repo-kotlin", "src/main/kotlin/com/example/lib/Service.kt", "src/main/kotlin/com/example/lib/Service.kt",
+			fileEnvelope(
+				"repo-kotlin", "src/main/kotlin/com/example/lib/Service.kt", "src/main/kotlin/com/example/lib/Service.kt",
 				[]any{fnClassParams("query", "uid:kotlin-query", "Service", []any{"Task"}, 2, 4)},
 				nil,
 				nil,

@@ -209,10 +209,10 @@ func TestNornicDBPhaseGroupExecutorEntityPhaseConcurrencyPropagatesFirstError(t 
 // failingGroupChunkExecutor returns an error on the Nth ExecuteGroup call.
 // Thread-safe: parallel workers may call ExecuteGroup concurrently.
 type failingGroupChunkExecutor struct {
-	mu       sync.Mutex
-	count    int
-	failAt   int
-	err      error
+	mu     sync.Mutex
+	count  int
+	failAt int
+	err    error
 }
 
 func newFailingGroupChunkExecutor(failAt int, err error) *failingGroupChunkExecutor {

@@ -50,7 +50,8 @@ func NewProviders(ctx context.Context, b Bootstrap, opts ...ProviderOption) (*Pr
 
 	// Create resource with plain attributes to avoid semconv schema URL
 	// conflicts between default detectors and explicit semconv versions.
-	res := resource.NewWithAttributes("",
+	res := resource.NewWithAttributes(
+		"",
 		attribute.String("service.name", b.ServiceName),
 		attribute.String("service.namespace", b.ServiceNamespace),
 	)

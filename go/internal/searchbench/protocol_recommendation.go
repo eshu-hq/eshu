@@ -27,13 +27,16 @@ func ValidateProtocolRecommendation(recommendation ProtocolRecommendation) error
 	if strings.TrimSpace(recommendation.Rationale) == "" {
 		problems = append(problems, "rationale is required")
 	}
-	problems = append(problems,
+	problems = append(
+		problems,
 		validateProtocolAssessment("migration_risk", recommendation.MigrationRisk)...,
 	)
-	problems = append(problems,
+	problems = append(
+		problems,
 		validateProtocolAssessment("security_risk", recommendation.SecurityRisk)...,
 	)
-	problems = append(problems,
+	problems = append(
+		problems,
 		validateProtocolAssessment("operator_burden", recommendation.OperatorBurden)...,
 	)
 	if strings.TrimSpace(recommendation.FallbackBehavior) == "" {

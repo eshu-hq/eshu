@@ -171,7 +171,8 @@ type ResolvedRelationship struct {
 // relationship in a generation. The ordinal preserves the current storage
 // contract while still giving graph edges a stable pointer back to Postgres.
 func ResolvedRelationshipID(generationID string, r ResolvedRelationship, ordinal int) string {
-	return relationshipDigest("resolved", generationID,
+	return relationshipDigest(
+		"resolved", generationID,
 		r.SourceEntityID, r.TargetEntityID,
 		string(r.RelationshipType), fmt.Sprintf("%d", ordinal),
 	)

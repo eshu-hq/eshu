@@ -42,7 +42,8 @@ func (e *Extractor) logCompletion(ctx context.Context, section SectionInput, rep
 	if e.logger == nil {
 		return
 	}
-	e.logger.InfoContext(ctx,
+	e.logger.InfoContext(
+		ctx,
 		"documentation extraction completed",
 		telemetry.EventAttr("documentation.extraction.completed"),
 		telemetry.PhaseAttr(telemetry.PhaseParsing),

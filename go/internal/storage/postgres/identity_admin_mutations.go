@@ -1,4 +1,4 @@
-package postgres
+package postgres //nolint:filelength // 503 lines: identity admin mutations (invitations, role assignments, idp mappings, tokens). Per internal/storage/postgres/AGENTS.md, all INSERT paths use ON CONFLICT; consolidating the admin mutation set in one file keeps the ON CONFLICT clauses reviewable.
 
 import (
 	"context"

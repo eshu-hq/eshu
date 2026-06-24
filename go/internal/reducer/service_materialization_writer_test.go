@@ -371,6 +371,6 @@ func (r fakeServiceMaterializationRow) Scan(dest ...any) error {
 	if r.noRows {
 		return sql.ErrNoRows
 	}
-	*(dest[0].(*sql.NullString)) = sql.NullString{String: r.value, Valid: true}
+	*dest[0].(*sql.NullString) = sql.NullString{String: r.value, Valid: true}
 	return nil
 }

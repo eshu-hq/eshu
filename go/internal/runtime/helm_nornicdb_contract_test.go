@@ -68,7 +68,8 @@ func TestHelmBundledNornicDBBindsServiceReachableAddress(t *testing.T) {
 func TestHelmBundledNornicDBRejectsInvalidBindAddressShape(t *testing.T) {
 	t.Parallel()
 
-	output := renderHelmChartFailure(t,
+	output := renderHelmChartFailure(
+		t,
 		"--set", "nornicdb.enabled=true",
 		"--set", "schemaBootstrap.useHelmHooks=false",
 		"--set", "nornicdb.bindAddress=123",

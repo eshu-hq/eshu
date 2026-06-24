@@ -226,6 +226,6 @@ func writeUnderscore(builder *strings.Builder, lastUnderscore *bool) {
 	if builder.Len() == 0 || *lastUnderscore {
 		return
 	}
-	builder.WriteRune('_')
+	builder.WriteRune('_') //nolint:gocritic // preferWriteByte: rune form keeps the rest of the marker-construction code path uniform (every other separator is a single ASCII rune via WriteRune).
 	*lastUnderscore = true
 }

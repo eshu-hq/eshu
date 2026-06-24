@@ -107,7 +107,8 @@ func flattenStateAttributes(
 		if len(typed) >= 1 {
 			if obj, isMap := typed[0].(map[string]any); isMap {
 				if len(typed) > 1 && logger != nil {
-					logger.LogAttrs(ctx, slog.LevelDebug,
+					logger.LogAttrs(
+						ctx, slog.LevelDebug,
 						"drift state flatten truncated multi-element repeated block",
 						slog.String(telemetry.LogKeyDriftMultiElementPrefix, prefix),
 						slog.Int(telemetry.LogKeyDriftMultiElementCount, len(typed)),

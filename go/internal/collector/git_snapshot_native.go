@@ -147,7 +147,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	))
 	logTerraformStateCandidateDiscovery(ctx, s, repoPath, len(tfstateCandidates))
 	s.logDiscoveryStats(ctx, repoPath, discoveryStats)
-	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageDiscovery, discoveryStartedAt,
+	s.recordSnapshotStage(
+		ctx, repoPath, telemetry.SnapshotStageDiscovery, discoveryStartedAt,
 		slog.Int("file_count", len(fileSet.Files)),
 		slog.Int("file_target_count", len(repository.FileTargets)),
 	)
@@ -192,7 +193,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan repository imports for %q: %w", repoPath, err)
 	}
 	snapshot.ImportsMap = importsMap
-	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStagePreScan, preScanStartedAt,
+	s.recordSnapshotStage(
+		ctx, repoPath, telemetry.SnapshotStagePreScan, preScanStartedAt,
 		slog.Int("file_count", len(preScanFileSet.Files)),
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
@@ -202,7 +204,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}
-	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageGoPackageSemanticPreScan, goPackageSemanticPreScanStartedAt,
+	s.recordSnapshotStage(
+		ctx, repoPath, telemetry.SnapshotStageGoPackageSemanticPreScan, goPackageSemanticPreScanStartedAt,
 		slog.Int("file_count", len(preScanFileSet.Files)),
 		slog.Int("go_package_target_count", len(goPackageTargets)),
 	)
@@ -233,7 +236,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("build parsed repository files for %q: %w", repoPath, err)
 	}
-	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageParse, parseStartedAt,
+	s.recordSnapshotStage(
+		ctx, repoPath, telemetry.SnapshotStageParse, parseStartedAt,
 		slog.Int("file_count", len(parserFileSet.Files)),
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("skipped_file_count", len(parserFileSet.Files)-len(parsedFiles)),
@@ -251,7 +255,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("materialize repository content: %w", err)
 	}
-	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageMaterialize, materializeStartedAt,
+	s.recordSnapshotStage(
+		ctx, repoPath, telemetry.SnapshotStageMaterialize, materializeStartedAt,
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("content_file_count", len(materialization.Records)),
 		slog.Int("content_entity_count", len(materialization.Entities)),
@@ -274,7 +279,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// emitted even when no findings were produced, letting the reducer retract
 	// stale evidence when a generation's finding set goes empty (#2919).
 	snapshot.DataflowScanned = s.EmitDataflow
-	s.recordSnapshotStage(ctx, repoPath, telemetry.SnapshotStageValueFlowEvidence, valueFlowStartedAt,
+	s.recordSnapshotStage(
+		ctx, repoPath, telemetry.SnapshotStageValueFlowEvidence, valueFlowStartedAt,
 		slog.Int("parsed_file_count", len(parsedFiles)),
 		slog.Int("taint_evidence_count", len(snapshot.TaintEvidence)),
 		slog.Int("interproc_taint_evidence_count", len(snapshot.InterprocTaintEvidence)),
@@ -327,7 +333,8 @@ func (s NativeRepositorySnapshotter) recordSnapshotStage(
 	duration := endedAt.Sub(startedAt)
 
 	if s.Instruments != nil {
-		s.Instruments.CollectorSnapshotStageDuration.Record(ctx, duration.Seconds(),
+		s.Instruments.CollectorSnapshotStageDuration.Record(
+			ctx, duration.Seconds(),
 			metric.WithAttributes(
 				telemetry.AttrCollectorKind("git"),
 				telemetry.AttrStage(stage),
@@ -336,7 +343,8 @@ func (s NativeRepositorySnapshotter) recordSnapshotStage(
 	}
 
 	if s.Tracer != nil {
-		_, span := s.Tracer.Start(ctx, telemetry.SpanCollectorSnapshotStage,
+		_, span := s.Tracer.Start(
+			ctx, telemetry.SpanCollectorSnapshotStage,
 			trace.WithTimestamp(startedAt),
 			trace.WithAttributes(
 				telemetry.AttrCollectorKind("git"),

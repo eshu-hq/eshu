@@ -37,7 +37,8 @@ func (i *InstrumentedExecutor) Execute(ctx context.Context, statement Statement)
 	// Start span if tracer is available
 	var span trace.Span
 	if i.Tracer != nil {
-		ctx, span = i.Tracer.Start(ctx, "neo4j.execute",
+		ctx, span = i.Tracer.Start(
+			ctx, "neo4j.execute",
 			trace.WithAttributes(
 				attribute.String("db.system", "neo4j"),
 				attribute.String("db.operation", string(statement.Operation)),
@@ -79,7 +80,8 @@ func (i *InstrumentedExecutor) ExecuteGroup(ctx context.Context, stmts []Stateme
 
 	var span trace.Span
 	if i.Tracer != nil {
-		ctx, span = i.Tracer.Start(ctx, "neo4j.execute_group",
+		ctx, span = i.Tracer.Start(
+			ctx, "neo4j.execute_group",
 			trace.WithAttributes(
 				attribute.String("db.system", "neo4j"),
 				attribute.Int("db.statement_count", len(stmts)),

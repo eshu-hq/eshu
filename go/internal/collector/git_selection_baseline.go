@@ -38,7 +38,8 @@ func syncExistingRepository(
 	baselineSHA, err := baseline.resolveScopeBaseline(ctx, config, repoPath)
 	if err != nil {
 		if logger != nil {
-			logger.WarnContext(ctx, "git_delta_baseline_lookup_failed",
+			logger.WarnContext(
+				ctx, "git_delta_baseline_lookup_failed",
 				slog.String("repo_path", repoPath),
 				slog.String("error", err.Error()),
 			)

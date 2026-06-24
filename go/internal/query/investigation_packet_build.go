@@ -84,7 +84,8 @@ func NewInvestigationEvidencePacket(in InvestigationPacketInput) (InvestigationE
 	if len(in.SemanticObservations) > 0 && !in.AllowSemantic {
 		return InvestigationEvidencePacket{}, fmt.Errorf(
 			"investigation packet: %d semantic observations supplied without AllowSemantic; "+
-				"no-provider builds must stay deterministic", len(in.SemanticObservations))
+				"no-provider builds must stay deterministic", len(in.SemanticObservations),
+		)
 	}
 
 	// Validate referential integrity against the full, pre-truncation fact set so

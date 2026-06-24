@@ -154,7 +154,8 @@ func (e *countingExecutor) Execute(context.Context, cypher.Statement) error {
 // used in tests that exercise the grouped-write code path.
 type groupCapableExecutor struct{}
 
-func (e *groupCapableExecutor) Execute(context.Context, cypher.Statement) error    { return nil }
+func (e *groupCapableExecutor) Execute(context.Context, cypher.Statement) error { return nil }
+
 func (e *groupCapableExecutor) ExecuteGroup(context.Context, []cypher.Statement) error { return nil }
 
 // blockingExecutor blocks each call until release is closed. It implements

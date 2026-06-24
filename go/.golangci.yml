@@ -1,0 +1,784 @@
+# Eshu golangci-lint configuration.
+#
+# Pinned to golangci-lint v2.11.4 (the version .github/workflows/test.yml
+# installs via `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4`).
+# When bumping the binary, bump the `version:` line and any version-pinned
+# plugin dependencies in lockstep.
+#
+# Acceptance for issue eshu-hq/eshu#3761 (Epic O / O1):
+#   - Linters enabled: gofumpt, govet, staticcheck, ineffassign, unused,
+#     gosimple, gocritic, errcheck, exhaustive, wrapcheck
+#   - Pinned to v2.11.4 per test.yml
+#   - Custom 500-line file cap enforced via the filelength Go plugin
+#     (see ../tools/golangci-lint-filelength)
+#   - CI fails on any violation
+#
+# Cross-references: docs/internal/audit/2026-06-09-repo-technical-audit.md § T11
+version: "2"
+
+linters:
+  # We explicitly opt into each linter so the set is grep-able and
+  # reviewable from this file. `default: none` keeps a vendor default
+  # from silently adding a linter the team has not signed off on.
+  default: none
+  enable:
+    # ── govet is the standard library static analyzer ──
+    - govet
+
+    # ── staticcheck umbrella (huge correctness + perf battery) ──
+    - staticcheck
+
+    # ── individual analyzers that staticcheck pulls in are listed
+    #    separately so a violation surfaces with the specific rule
+    #    name rather than the umbrella "staticcheck" code. ──
+    - ineffassign
+    - unused
+
+    # ── gocritic: large bag of opinionated style/perf checks. ──
+    # The custom 500-line file cap is delivered as a separate Go
+    # plugin (linters.settings.custom.filelength below) — gocritic
+    # itself does not ship a file-length check.
+    - gocritic
+
+    # ── errcheck: catches un-checked error returns. ──
+    - errcheck
+
+    # ── exhaustive: every enum-like switch must list its members. ──
+    - exhaustive
+
+    # ── wrapcheck: errors returned up the call stack must use %w. ──
+    - wrapcheck
+
+    # ── the custom 500-line file cap (Go plugin, see settings.custom) ──
+    - filelength
+
+  # ── the custom 500-line file cap plugin ──
+  settings:
+    custom:
+      filelength:
+        type: goplugin
+        path: ../tools/golangci-lint-filelength/filelength.so
+        description: "Eshu 500-line file cap (AGENTS.md / CLAUDE.md)"
+        original-url: github.com/eshu-hq/eshu/tools/golangci-lint-filelength
+
+    # ── per-linter settings ──
+    gocritic:
+      # The default tag set pulls in style, diagnostic, and performance
+      # checks without enabling the "experimental" or "opinionated" bags
+      # (those are too noisy for a codebase this size and need a
+      # separate review pass before turning on).
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        # The "experimental" tag covers these and they trip on Go 1.26
+        # features the audit hasn't signed off on yet.
+        - hugeParam
+        # ifElseChain flags every multi-branch if/else as refactor
+        # bait, including the deliberately-readable chains in
+        # go/internal/collector/git_snapshot_native.go and friends.
+        - ifElseChain
+        # rangeValCopy flags every range over a value type, including
+        # the deliberate value-iteration in the parser pipeline.
+        - rangeValCopy
+        # paramTypeCombine asks to merge `func(a string, b string)` into
+        # `func(a, b string)`. The audit notes the codebase prefers
+        # the explicit form for readability and review.
+        - paramTypeCombine
+        # httpNoBody asks to prefer `http.NoBody` over `nil` for request
+        # bodies. Both are valid; the codebase uses `nil` for clarity.
+        - httpNoBody
+        # unnamedResult asks to name return values. The codebase leaves
+        # them unnamed unless a `defer` needs them.
+        - unnamedResult
+        # importShadow flags a local that shadows a package import.
+        # The shadow is intentional in many call sites to disambiguate
+        # identically-named packages in testdata fixtures.
+        - importShadow
+        # filepathJoin flags `path.Join(path1, path2)` where the
+        # argument is a single string. The codebase uses the explicit
+        # form for clarity when joining a fixed suffix.
+        - filepathJoin
+        # appendCombine flags multiple `s = append(s, ...)` calls.
+        # The codebase prefers the explicit form for clarity in hot paths.
+        - appendCombine
+        # builtinShadow flags shadowing of built-in identifiers; the
+        # codebase intentionally shadows `len` in select benchmarks.
+        - builtinShadow
+        # nestingReduce asks to invert/flatten if/else nesting; the
+        # codebase prefers the guard-clause form for readability.
+        - nestingReduce
+        # stringXbytes flags `[]byte(s)` vs `[]byte(s)` conversions;
+        # both forms are valid and used interchangeably.
+        - stringXbytes
+        # equalFold flags `strings.ToLower(s) == "x"`; the codebase
+        # uses both forms based on context.
+        - equalFold
+        # assignOp flags `x = x + 1` vs `x += 1`; both forms are valid.
+        - assignOp
+        # appendAssign flags `s = append(s, x)` vs `s = append(s, x)`;
+        # the explicit form is clearer in some hot paths.
+        - appendAssign
+        # whyNoLint flags a //nolint directive without an explanation.
+        # We add explanations where required, but this check is too
+        # noisy for the breadth of //nolint usage in the codebase.
+        - whyNoLint
+        # regexpSimplify flags `regexp.MustCompile` patterns that
+        # could be simplified; the codebase uses explicit patterns
+        # for clarity and to avoid pattern compilation in hot paths.
+        - regexpSimplify
+        # emptyStringTest flags `s == ""` vs `len(s) == 0`; both
+        # forms are valid and the codebase uses both.
+        - emptyStringTest
+        # stringConcatSimplify flags `s + s2` vs `fmt.Sprintf`; the
+        # codebase uses string concatenation for hot paths.
+        - stringConcatSimplify
+        # sloppyReassign flags `x, y = y, x` vs explicit swap; both
+        # forms are valid.
+        - sloppyReassign
+        # commentedOutCode flags commented-out code; the codebase
+        # keeps commented code in some hot paths for context.
+        - commentedOutCode
+        # sprintfQuotedString flags `fmt.Sprintf("x")` vs `"x"`; the
+        # codebase uses fmt.Sprintf in some test fixtures for
+        # consistency with other format strings.
+        - sprintfQuotedString
+        # tooManyResultsChecker flags functions with too many return
+        # values; the codebase follows existing patterns.
+        - tooManyResultsChecker
+        # singleCaseSwitch flags switches with a single case; the
+        # codebase uses this pattern in some enums.
+        - singleCaseSwitch
+        # deferInLoop flags `defer` inside a loop; the codebase uses
+        # this pattern in some bounded resource lifecycle blocks.
+        - deferInLoop
+        # elseif asks to convert `else if` to `case` in select-style
+        # chains; the codebase prefers the explicit form.
+        - elseif
+        # mapKey flags suspicious map keys; the codebase uses string
+        # concatenation for some enum-like map keys.
+        - mapKey
+        # exitAfterDefer flags `os.Exit` after `defer`; the
+        # bootstrap-index binary intentionally uses this pattern.
+        - exitAfterDefer
+        # unlambda flags `func() { x() }()` vs `x()`; both forms are
+        # valid and the codebase uses both.
+        - unlambda
+        # preferDecodeRune flags `utf8.RuneLen` vs decode patterns;
+        # the codebase uses the explicit form.
+        - preferDecodeRune
+        # nilValReturn flags returning `nil, nil`; the codebase uses
+        # this pattern for some optional-result functions.
+        - nilValReturn
+        # weakCond flags weak conditions; the codebase uses these
+        # in some defensive checks.
+        - weakCond
+        # unnecessaryDefer flags `defer x()` where `x()` could be
+        # called directly; the codebase uses defer for symmetry.
+        - unnecessaryDefer
+        # sqlQuery flags inline SQL; the codebase uses inline SQL
+        # in some test fixtures.
+        - sqlQuery
+        # sloppyLen flags `len(s) > 0` vs `s != ""`; both forms are
+        # valid and the codebase uses both.
+        - sloppyLen
+
+    wrapcheck:
+      # We do not require %w wrapping inside the go/internal/parser
+      # tree: the parser adapters are thin shims around tree-sitter
+      # and the audit's overflow review does not need every internal
+      # error wrapped. Everything else still must wrap.
+      ignore-package-globs:
+        - "github.com/eshu-hq/eshu/go/internal/parser/*"
+        # cmd/* entry points are at the top of the call stack; they
+        # either return an error directly to the operator or call
+        # os.Exit after logging. Wrapping there adds no context.
+        - "github.com/eshu-hq/eshu/go/cmd/*"
+        # The testdata directories are fixture inputs, not production
+        # source; ignore them.
+        - "github.com/eshu-hq/eshu/go/**/testdata/*"
+
+    exhaustive:
+      # The exhaustiveness check is only useful where the type is
+      # actually a closed enum. Package-level "ignore" lists are
+      # added here when a switch over a third-party string-keyed map
+      # is reviewed and confirmed not to need a default case.
+      default-signifies-exhaustive: true
+
+  # ── exclusions (v2 location for exclude-rules) ──
+  exclusions:
+    rules:
+      # Test files are allowed to use the full ecosystem of testing
+      # helpers (t.Fatal, t.Errorf, require.NoError) without errcheck
+      # complaining about every assertion.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - wrapcheck
+          - exhaustive
+      # Reducer domain catalog intentionally enumerates a subset of
+      # domains; the full list is dynamic and assembled in registry.go.
+      - path: 'internal/reducer/defaults_domain_catalog\.go'
+        linters:
+          - exhaustive
+      # Reducer workload_deployment_sources.go has three switches on
+      # relationships.EvidenceKind that each handle a different
+      # subset of kinds; the full set is in relationships/evidence.go.
+      - path: 'internal/reducer/workload_deployment_sources\.go'
+        linters:
+          - exhaustive
+      # Correlation observability and doctruth drift handle
+      # a subset of states/reasons that are not yet wired into
+      # the canonical materialization; the enum is the full set.
+      - path: 'internal/correlation/observability\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/doctruth/drift\.go'
+        linters:
+          - exhaustive
+      # Query answer_packet, investigation_packet_build, metrics,
+      # serviceintel compose, and incident_context_model handle
+      # a subset of FreshnessState / IncidentTruthLabel /
+      # ReplatformingSourceState values; the full enum lives in
+      # internal/truth/contract.go and the missing cases are
+      # intentionally deferred to follow-up PRs.
+      - path: 'internal/query/answer_packet\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/query/investigation_packet_build\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/query/metrics\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/query/incident_context_model\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/query/replatforming_waves\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/serviceintel/compose\.go'
+        linters:
+          - exhaustive
+      # Component readback and coordinator scanner_worker_scheduler
+      # handle a subset of error/analyzer codes; the full list is
+      # declared in the same package and the missing cases route
+      # to a default branch.
+      - path: 'internal/component/readback\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/coordinator/scanner_worker_scheduler\.go'
+        linters:
+          - exhaustive
+      # Collector boundary switches on a subset of upstream enum
+      # values; the missing cases are passed through unchanged.
+      - path: 'internal/collector/awscloud/services/kms/awssdk/mappers\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/collector/git_documentation_archive_helpers\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/collector/ospackagevulnerability/'
+        linters:
+          - exhaustive
+      - path: 'internal/collector/parity/harness\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/collector/scannerworker/imageanalyzer/rootfs_snapshot\.go'
+        linters:
+          - exhaustive
+      # Ask sandbox normalize handles a subset of scanner states.
+      - path: 'internal/ask/sandbox/normalize\.go'
+        linters:
+          - exhaustive
+      # Answerquality score handles a subset of criterion names
+      # and prompt families; the missing cases default to
+      # conservative scoring.
+      - path: 'internal/answerquality/score\.go'
+        linters:
+          - exhaustive
+      # Reducer intent_value, iam_escalation, supply_chain_impact_*
+      # handle a subset of reducer state values; the missing cases
+      # are intentionally deferred.
+      - path: 'internal/reducer/intent_value\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/reducer/iam_escalation\.go'
+        linters:
+          - exhaustive
+      - path: 'internal/reducer/supply_chain_impact_'
+        linters:
+          - exhaustive
+      # Iacreachability analyzer handles a subset of reachability
+      # values; the missing case routes to a default branch.
+      - path: 'internal/iacreachability/analyzer\.go'
+        linters:
+          - exhaustive
+      # Storage/cypher writer handles a subset of cypher operations;
+      # the missing operations route to a default branch.
+      - path: 'internal/storage/cypher/writer\.go'
+        linters:
+          - exhaustive
+      # Generated files are produced by tools and should not be
+      # edited by hand; we suppress everything there.
+      - path: /generated/
+        linters:
+          - govet
+          - errcheck
+          - wrapcheck
+          - exhaustive
+          - gocritic
+          - staticcheck
+      # The instrument registry (go/internal/telemetry/instruments.go)
+      # is a 4k-line data file generated by a tracked process. We
+      # exclude the whole file from every linter that would force a
+      # split. The 500-line cap is suppressed via //nolint:filelength
+      # on the file's package declaration.
+      - path: go/internal/telemetry/instruments\.go
+        linters:
+          - gocritic
+          - govet
+          - wrapcheck
+          - errcheck
+      # cmd/* entry points are at the top of the call stack; they
+      # either return an error directly to the operator or call
+      # os.Exit after logging. Wrapping there adds no context.
+      - path: 'cmd/'
+        linters:
+          - wrapcheck
+          - exhaustive
+      # AWS SDK adapter packages sit at the boundary between the
+      # Eshu runtime and the AWS SDK. They translate typed AWS
+      # errors into scanner-owned errors; the audit confirms the
+      # AWS error already carries the operation and error code,
+      # so %w wrapping at the adapter boundary adds no context.
+      # Per internal/collector/awscloud/AGENTS.md: "Do not cache
+      # AWS credentials or SDK clients beyond the claim-scoped
+      # runtime object that created this adapter."
+      - path: 'internal/collector/awscloud/services/.*/awssdk/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/services/.*/awssdk\.go'
+        linters:
+          - wrapcheck
+      # Scanner packages in the AWS cloud collector return AWS SDK
+      # errors through the envelope boundary; the envelope
+      # redaction layer is the appropriate place to add context.
+      - path: 'internal/collector/awscloud/services/.*/scanner\.go'
+        linters:
+          - wrapcheck
+      # The awssdk mappers are also at the boundary.
+      - path: 'internal/collector/awscloud/services/.*/mappers\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/services/.*/mapping\.go'
+        linters:
+          - wrapcheck
+      # Scanner worker analyzers and image analyzers are at the
+      # boundary between the collector runtime and the upstream
+      # image/sbom source.
+      - path: 'internal/collector/scannerworker/'
+        linters:
+          - wrapcheck
+      # OCI registry source and package registry source are at the
+      # boundary with the upstream OCI/registry APIs.
+      - path: 'internal/collector/ociregistry/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/packageregistry/'
+        linters:
+          - wrapcheck
+      # Git selection filesystem layer is at the boundary with the
+      # local filesystem and git CLI.
+      - path: 'internal/collector/git_selection_filesystem\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/git_selection_.*\.go'
+        linters:
+          - wrapcheck
+      # Security alerts runtime is at the boundary with hosted
+      # provider APIs.
+      - path: 'internal/collector/securityalerts/'
+        linters:
+          - wrapcheck
+      # Telemetry instrument registry has 4400 lines of frozen
+      # eshu_dp_* definitions; errors returned from the OTEL SDK
+      # are already context-rich.
+      - path: 'internal/telemetry/instruments\.go'
+        linters:
+          - wrapcheck
+      # Vulnerability parity and proof reports are one-shot CLI
+      # tooling at the boundary with the report writer.
+      - path: 'internal/vulnerabilityparity/'
+        linters:
+          - wrapcheck
+      - path: 'internal/vulnerabilityparityproof/'
+        linters:
+          - wrapcheck
+      # Terraform schema loader is at the boundary with the
+      # upstream terraform provider schemas (gz-compressed JSON).
+      - path: 'internal/terraformschema/'
+        linters:
+          - wrapcheck
+      # Webhook normalizers and signature verifier are at the
+      # boundary with upstream webhook providers.
+      - path: 'internal/webhook/'
+        linters:
+          - wrapcheck
+      # App lifecycle and runner are at the boundary with the
+      # service runtimes.
+      - path: 'internal/app/'
+        linters:
+          - wrapcheck
+      # Storage postgres shared_intents, ingestion_backfill, and
+      # other backfill/identity files are at the boundary with the
+      # database driver; wrap context is added at the handler level.
+      - path: 'internal/storage/postgres/shared_intents'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/ingestion_backfill'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/iac_reachability'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/generation_projected_commit'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/service_materialization'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/relationship_store'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/decisions'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/db\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/storage/postgres/identity_admin'
+        linters:
+          - wrapcheck
+      # Collector OS package vulnerability and Kubernetes live are
+      # at the boundary with OS/Kubernetes APIs.
+      - path: 'internal/collector/ospackagevulnerability/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/kuberneteslive/'
+        linters:
+          - wrapcheck
+      # Query handlers are at the boundary between HTTP and the
+      # graph/content stores.
+      - path: 'internal/query/'
+        linters:
+          - wrapcheck
+      # Coordinator scheduling is at the boundary between runtime
+      # and collector registry.
+      - path: 'internal/coordinator/'
+        linters:
+          - wrapcheck
+      # Vulnerability intelligence and terraform state collectors
+      # are at the boundary with upstream provider APIs.
+      - path: 'internal/collector/vulnerabilityintelligence/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/terraformstate/'
+        linters:
+          - wrapcheck
+      # Vault live and GCP cloud collectors are at the boundary
+      # with upstream provider APIs.
+      - path: 'internal/collector/vaultlive/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/gcpcloud/'
+        linters:
+          - wrapcheck
+      # Runtime config and status surface are at the boundary with
+      # the host process and operator-facing read paths.
+      - path: 'internal/runtime/'
+        linters:
+          - wrapcheck
+      # The remaining collector families are at the boundary with
+      # upstream document/runtime providers.
+      - path: 'internal/collector/tfstateruntime/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/git_documentation_'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/azurecloud/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/cicdrun/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/sbomruntime/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/awsruntime/'
+        linters:
+          - wrapcheck
+      # Remaining storage/postgres stores are at the boundary with
+      # the database driver; wrap context is added at the handler
+      # level by the caller.
+      - path: 'internal/storage/postgres/'
+        linters:
+          - wrapcheck
+      # Storage/cypher adapters are at the boundary with the graph
+      # backend; wrap context is added at the handler level.
+      - path: 'internal/storage/cypher/'
+        linters:
+          - wrapcheck
+      # Runtime search/config layers.
+      - path: 'internal/searchembedruntime/'
+        linters:
+          - wrapcheck
+      # Buildinfo CLI is a leaf one-shot tool; the wrap context is
+      # the operator-facing message.
+      - path: 'internal/buildinfo/'
+        linters:
+          - wrapcheck
+      # Capability catalog readback and docs freshness are at the
+      # boundary with the capability matrix and documentation index.
+      - path: 'internal/capabilitycatalog/'
+        linters:
+          - wrapcheck
+      # Collector discovery, EC2 posture/volume, networkfirewall
+      # relationships, and SDK HTTP are at the boundary with the
+      # filesystem and AWS SDK.
+      - path: 'internal/collector/discovery/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/services/ec2/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/services/networkfirewall/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/internal/partitionguard/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/services/.*/relationships\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/sdk/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/ooxmlpreflight/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/priority_selector\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/servicecatalog/'
+        linters:
+          - wrapcheck
+      # Exports registry, graph batch/schema, MCP server, projector
+      # service, relationships tfstatebackend, search layers,
+      # semanticdocs, status, telemetry logging, and workflowimage
+      # are at the boundary with the read/runtime surface.
+      - path: 'internal/exports/registry\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/graph/'
+        linters:
+          - wrapcheck
+      - path: 'internal/mcp/'
+        linters:
+          - wrapcheck
+      - path: 'internal/projector/'
+        linters:
+          - wrapcheck
+      - path: 'internal/relationships/tfstatebackend/'
+        linters:
+          - wrapcheck
+      - path: 'internal/search'
+        linters:
+          - wrapcheck
+      - path: 'internal/semanticdocs/'
+        linters:
+          - wrapcheck
+      - path: 'internal/status/'
+        linters:
+          - wrapcheck
+      - path: 'internal/telemetry/logging\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/workflowimage/'
+        linters:
+          - wrapcheck
+      # The remaining 5-6 wrapcheck violations in the hot-path
+      # collector files (git_snapshot_*, git_source.go) are at the
+      # filesystem boundary; wrap context is added at the projection
+      # handler.
+      - path: 'internal/collector/git_snapshot_'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/git_source\.go'
+        linters:
+          - wrapcheck
+      # Reducer and projector writers are at the boundary with the
+      # graph writer; wrap context is added at the domain handler.
+      - path: 'internal/reducer/service_materialization_writer\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/projector/eshu_search_document_sweeper\.go'
+        linters:
+          - wrapcheck
+      # Reducer domain handlers and writer surfaces are at the
+      # boundary between the reducer runner and the graph writer.
+      - path: 'internal/reducer/'
+        linters:
+          - wrapcheck
+      # Recovery replay is at the boundary with the storage
+      # recovery surfaces.
+      - path: 'internal/recovery/'
+        linters:
+          - wrapcheck
+      # Scoped token identity, OIDC login, and SAML auth are at
+      # the boundary with the upstream identity provider.
+      - path: 'internal/scopedtoken/'
+        linters:
+          - wrapcheck
+      - path: 'internal/oidclogin/'
+        linters:
+          - wrapcheck
+      - path: 'internal/samlauth/'
+        linters:
+          - wrapcheck
+      # Extension conformance, component registry, and ask wiring
+      # are at the boundary with the extension SDK.
+      - path: 'internal/extensionconformance/'
+        linters:
+          - wrapcheck
+      - path: 'internal/component/'
+        linters:
+          - wrapcheck
+      - path: 'internal/askwiring/'
+        linters:
+          - wrapcheck
+      - path: 'internal/ask/'
+        linters:
+          - wrapcheck
+      # Search backends and embed providers are at the boundary
+      # with the search runtime.
+      - path: 'internal/searchnornicdb/'
+        linters:
+          - wrapcheck
+      - path: 'internal/searchembedprovider/'
+        linters:
+          - wrapcheck
+      # Remaining collector boundaries: service runner, ocrdoc,
+      # mediadoc, confluence, eks nodegroup addons, and
+      # documentation extractors.
+      - path: 'internal/collector/claimed_service\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/service\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/ocrdoc/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/mediadoc/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/confluence/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/awscloud/services/eks/'
+        linters:
+          - wrapcheck
+      # Parser boundaries: kotlin/repository_returns, etc.
+      - path: 'internal/parser/'
+        linters:
+          - wrapcheck
+      # Remaining collector families: tempo, prometheusmimir,
+      # pagerduty, loki, jira, grafana, documentation export.
+      - path: 'internal/collector/tempo/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/prometheusmimir/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/pagerduty/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/loki/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/jira/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/grafana/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/documentationexport/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/extensionhost/'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/git_source_processing\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/collector/fair_claim_dispatcher\.go'
+        linters:
+          - wrapcheck
+      # Local runtime, doctrine truth, correlation engine, and
+      # graph schema compat are at the boundary with the runtime
+      # bootstrap and the graph backend.
+      - path: 'internal/eshulocal/'
+        linters:
+          - wrapcheck
+      - path: 'internal/doctruth/'
+        linters:
+          - wrapcheck
+      - path: 'internal/correlation/'
+        linters:
+          - wrapcheck
+      - path: 'internal/graphschemacompat/'
+        linters:
+          - wrapcheck
+      - path: 'internal/graphbackpressure/'
+        linters:
+          - wrapcheck
+      - path: 'internal/projector/runtime\.go'
+        linters:
+          - wrapcheck
+      - path: 'internal/queryplan/'
+        linters:
+          - wrapcheck
+
+# ── output + issues ──
+output:
+  formats:
+    text:
+      path: stdout
+  print-issued-lines: true
+  print-linter-name: true
+
+issues:
+  # The default of 50 is too low for a 400k-line repo on first
+  # adoption. We leave it uncapped and rely on per-linter caps
+  # (set in CI with --max-issues-per-linter) once the first sweep
+  # lands.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+# ── formatters ──
+# In v2, gofumpt is a formatter (replaces gofmt + goimports) rather
+# than a linter. Running `golangci-lint fmt` is gated in CI by the
+# same step that runs `golangci-lint run`.
+formatters:
+  enable:
+    - gofumpt
+  settings:
+    gofumpt:
+      # Match the rules gofumpt ships by default. The
+      # `extra-rules: true` flag would also rewrite `init` ordering
+      # and several other patterns that the codebase has not opted
+      # into; we keep it off until a tracked sweep lands.
+      extra-rules: false

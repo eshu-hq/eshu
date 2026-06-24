@@ -332,7 +332,8 @@ func logKubernetesWorkloadMaterializationCompleted(
 	ctx context.Context,
 	timing kubernetesWorkloadMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "kubernetes workload materialization completed",
+	slog.InfoContext(
+		ctx, "kubernetes workload materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

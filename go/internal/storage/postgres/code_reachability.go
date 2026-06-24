@@ -220,7 +220,8 @@ func upsertCodeReachabilityBatch(ctx context.Context, db ExecQueryer, rows []red
 			placeholders = append(placeholders, fmt.Sprintf("$%d", base+i))
 		}
 		values = append(values, "("+strings.Join(placeholders, ", ")+")")
-		args = append(args,
+		args = append(
+			args,
 			row.ScopeID,
 			row.GenerationID,
 			row.RepositoryID,

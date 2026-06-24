@@ -60,7 +60,7 @@ func TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes(t *test
 	if !strings.Contains(sbomIndexes.SQL, scanIdx) {
 		t.Fatalf("sbom attachment index SQL missing active-scan index %q:\n%s", scanIdx, sbomIndexes.SQL)
 	}
-	scanSQL := sbomIndexes.SQL[strings.Index(sbomIndexes.SQL, scanIdx):]
+	scanSQL := sbomIndexes.SQL[strings.Index(sbomIndexes.SQL, scanIdx):] //nolint:gocritic // offBy1: the previous t.Fatalf guards the Index() != -1 case for scanIdx.
 	for _, want := range []string{
 		"(\n        scope_id,\n        generation_id,\n        fact_id ASC\n    )",
 		"WHERE fact_kind = 'reducer_sbom_attestation_attachment'",

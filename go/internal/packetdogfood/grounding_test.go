@@ -104,10 +104,12 @@ func buildSupplyChainPacket(t *testing.T) query.InvestigationEvidencePacket {
 func buildDeployableUnitPacket(t *testing.T) query.InvestigationEvidencePacket {
 	t.Helper()
 	decisions := []query.AdmissionDecisionResult{
-		{DecisionID: "d1", Domain: "deployable_unit_correlation", State: "admitted", ScopeID: "s1", GenerationID: "g1",
+		{
+			DecisionID: "d1", Domain: "deployable_unit_correlation", State: "admitted", ScopeID: "s1", GenerationID: "g1",
 			AnchorKind: "repository", AnchorID: "repo-1", CandidateKind: "deployable_unit", CandidateID: "workload:checkout",
 			SourceHandles:  []query.AdmissionDecisionSourceHandle{{Kind: "deployment_config", ID: "fact-deploy-1", ScopeID: "s1"}},
-			CanonicalWrite: query.AdmissionDecisionCanonicalWrite{Eligible: true, Written: true, TargetKind: "CORRELATES_DEPLOYABLE_UNIT", TargetID: "workload:checkout"}},
+			CanonicalWrite: query.AdmissionDecisionCanonicalWrite{Eligible: true, Written: true, TargetKind: "CORRELATES_DEPLOYABLE_UNIT", TargetID: "workload:checkout"},
+		},
 	}
 	packet, err := query.BuildDeployableUnitPacket(decisions, map[string]string{"scope_id": "s1", "generation_id": "g1"}, freshGraphTruth(), nil)
 	if err != nil {
@@ -119,9 +121,11 @@ func buildDeployableUnitPacket(t *testing.T) query.InvestigationEvidencePacket {
 func buildDriftPacket(t *testing.T) query.InvestigationEvidencePacket {
 	t.Helper()
 	findings := []query.CloudRuntimeDriftFindingView{
-		{FactID: "fact-drift-1", Provider: "aws", ScopeID: "acct-1", GenerationID: "g9", CloudResourceUID: "aws:s3:bucket-a",
+		{
+			FactID: "fact-drift-1", Provider: "aws", ScopeID: "acct-1", GenerationID: "g9", CloudResourceUID: "aws:s3:bucket-a",
 			FindingKind: "orphaned_cloud_resource", ManagementStatus: "terraform_state_only", SourceState: "orphaned",
-			MatchedTerraformStateAddress: "aws_s3_bucket.a"},
+			MatchedTerraformStateAddress: "aws_s3_bucket.a",
+		},
 	}
 	truth := freshGraphTruth()
 	truth.Basis = query.TruthBasisRuntimeState

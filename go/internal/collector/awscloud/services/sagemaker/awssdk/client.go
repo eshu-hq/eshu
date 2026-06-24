@@ -165,6 +165,4 @@ func isThrottleError(err error) bool {
 		code == "TooManyRequestsException"
 }
 
-var (
-	_ apiClient = (*awssagemaker.Client)(nil)
-)
+var _ apiClient = (*awssagemaker.Client)(nil)

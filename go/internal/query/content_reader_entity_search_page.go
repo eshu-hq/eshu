@@ -51,7 +51,8 @@ func (cr *ContentReader) searchEntityContentScoped(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", operation),

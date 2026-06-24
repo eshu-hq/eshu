@@ -434,7 +434,8 @@ func (a *DeploymentDriftAnalyzer) logCompletion(ctx context.Context, report drif
 	if a.logger == nil {
 		return
 	}
-	a.logger.InfoContext(ctx,
+	a.logger.InfoContext(
+		ctx,
 		"documentation drift generation completed",
 		telemetry.EventAttr("documentation.drift.completed"),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),

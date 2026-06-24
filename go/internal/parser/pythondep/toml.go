@@ -17,15 +17,15 @@ const LangTOML = "python_toml"
 // those manifests use will surface as malformed entries through the
 // dependency-table consumers.
 type tomlSection struct {
-	Header     string         // canonical "a.b.c" header; "" means top-level.
-	IsArray    bool           // true for [[name]] array entries.
-	Index      int            // 0-based index within an array-of-tables block.
-	StartLine  int            // 1-based file line for diagnostics.
-	Keys       []string       // declared key order.
-	RawValues  map[string]string
-	Values     map[string]tomlValue
-	Subtables  []*tomlSection // child tables that scope under this entry.
-	Parent     *tomlSection
+	Header    string   // canonical "a.b.c" header; "" means top-level.
+	IsArray   bool     // true for [[name]] array entries.
+	Index     int      // 0-based index within an array-of-tables block.
+	StartLine int      // 1-based file line for diagnostics.
+	Keys      []string // declared key order.
+	RawValues map[string]string
+	Values    map[string]tomlValue
+	Subtables []*tomlSection // child tables that scope under this entry.
+	Parent    *tomlSection
 }
 
 // tomlValue is the parsed value attached to one key. Either Scalar (a TOML

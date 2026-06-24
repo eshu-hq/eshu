@@ -132,7 +132,8 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 	phasePublishDuration := time.Since(phasePublishStart)
 
 	h.recordRuleNodes(ctx, len(reach.RuleNodes))
-	slog.InfoContext(ctx, "security group rule materialization completed",
+	slog.InfoContext(
+		ctx, "security group rule materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),

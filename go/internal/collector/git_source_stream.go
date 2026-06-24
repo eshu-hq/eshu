@@ -32,7 +32,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	}
 	if len(batch.Repositories) == 0 {
 		if s.Logger != nil {
-			s.Logger.DebugContext(ctx, "collector stream: no repositories discovered",
+			s.Logger.DebugContext(
+				ctx, "collector stream: no repositories discovered",
 				slog.String("collector_kind", "git"),
 				slog.String("component", s.componentName()),
 				telemetry.PhaseAttr(telemetry.PhaseDiscovery),
@@ -84,7 +85,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	var streamSpan trace.Span
 	streamCtx := ctx
 	if s.Tracer != nil {
-		streamCtx, streamSpan = s.Tracer.Start(ctx, telemetry.SpanCollectorStream,
+		streamCtx, streamSpan = s.Tracer.Start(
+			ctx, telemetry.SpanCollectorStream,
 			trace.WithAttributes(
 				attribute.String("component", s.componentName()),
 				attribute.Int("repository_count", len(resolved)),
@@ -95,7 +97,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 
 	streamStart := time.Now()
 	if s.Logger != nil {
-		s.Logger.InfoContext(streamCtx, "collector stream started",
+		s.Logger.InfoContext(
+			streamCtx, "collector stream started",
 			slog.String("collector_kind", "git"),
 			slog.String("component", s.componentName()),
 			slog.Int("repository_count", len(resolved)),
@@ -141,7 +144,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 				if large {
 					tier = "large"
 				}
-				s.Instruments.LargeRepoClassifications.Add(workerCtx, 1,
+				s.Instruments.LargeRepoClassifications.Add(
+					workerCtx, 1,
 					metric.WithAttributes(attribute.String(telemetry.MetricDimensionRepoSizeTier, tier)),
 				)
 			}
@@ -150,7 +154,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 			if large {
 				ch = largeCh
 				if s.Logger != nil {
-					s.Logger.InfoContext(workerCtx, "large repository queued",
+					s.Logger.InfoContext(
+						workerCtx, "large repository queued",
 						slog.String("repo_path", repo.RepoPath),
 					)
 				}
@@ -193,12 +198,14 @@ func (s *GitSource) startStream(ctx context.Context) error {
 				return
 			}
 			if s.Instruments != nil {
-				s.Instruments.LargeRepoSemaphoreWait.Record(workerCtx,
+				s.Instruments.LargeRepoSemaphoreWait.Record(
+					workerCtx,
 					time.Since(semWaitStart).Seconds(),
 				)
 			}
 			if s.Logger != nil {
-				s.Logger.InfoContext(workerCtx, "large repo semaphore acquired",
+				s.Logger.InfoContext(
+					workerCtx, "large repo semaphore acquired",
 					slog.String("repo_path", repo.RepoPath),
 					slog.Int("worker_id", workerID),
 					slog.Float64("wait_seconds", time.Since(semWaitStart).Seconds()),
@@ -271,7 +278,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 							s.Instruments.LargeRepoSemaphoreWait.Record(workerCtx, 0)
 						}
 						if s.Logger != nil {
-							s.Logger.InfoContext(workerCtx, "large repo semaphore acquired",
+							s.Logger.InfoContext(
+								workerCtx, "large repo semaphore acquired",
 								slog.String("repo_path", repo.RepoPath),
 								slog.Int("worker_id", workerID),
 								slog.Float64("wait_seconds", 0),
@@ -283,7 +291,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 							func() {
 								<-largeSem
 								if s.Logger != nil {
-									s.Logger.InfoContext(workerCtx, "large repo semaphore released",
+									s.Logger.InfoContext(
+										workerCtx, "large repo semaphore released",
 										slog.Int("worker_id", workerID),
 										slog.Float64("held_seconds", time.Since(semAcquiredAt).Seconds()),
 									)
@@ -325,7 +334,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 
 		// Record stream-level metrics
 		if s.Instruments != nil {
-			s.Instruments.CollectorObserveDuration.Record(ctx, streamDuration,
+			s.Instruments.CollectorObserveDuration.Record(
+				ctx, streamDuration,
 				metric.WithAttributes(
 					telemetry.AttrCollectorKind("git"),
 					attribute.String("component", s.componentName()),
@@ -358,7 +368,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 				telemetry.PhaseAttr(telemetry.PhaseEmission),
 			}
 			if firstErr != nil {
-				logAttrs = append(logAttrs,
+				logAttrs = append(
+					logAttrs,
 					slog.String("error", firstErr.Error()),
 					telemetry.FailureClassAttr("stream_snapshot_failure"),
 				)

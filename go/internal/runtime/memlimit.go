@@ -39,7 +39,8 @@ func ConfigureMemoryLimit(logger *slog.Logger) int64 {
 	// If set, the runtime already applied it — just log and return.
 	if envLimit := os.Getenv("GOMEMLIMIT"); envLimit != "" {
 		if logger != nil {
-			logger.Info("memory limit from GOMEMLIMIT env var",
+			logger.Info(
+				"memory limit from GOMEMLIMIT env var",
 				slog.String("value", envLimit),
 				slog.String("source", "env"),
 			)
@@ -51,7 +52,8 @@ func ConfigureMemoryLimit(logger *slog.Logger) int64 {
 	containerLimit := readCgroupMemoryLimit()
 	if containerLimit <= 0 {
 		if logger != nil {
-			logger.Info("no container memory limit detected, GOMEMLIMIT unchanged",
+			logger.Info(
+				"no container memory limit detected, GOMEMLIMIT unchanged",
 				slog.String("source", "default"),
 			)
 		}
@@ -65,7 +67,8 @@ func ConfigureMemoryLimit(logger *slog.Logger) int64 {
 
 	previous := debug.SetMemoryLimit(limit)
 	if logger != nil {
-		logger.Info("GOMEMLIMIT configured from container memory",
+		logger.Info(
+			"GOMEMLIMIT configured from container memory",
 			slog.Int64("container_memory_bytes", containerLimit),
 			slog.String("container_memory_human", formatBytes(containerLimit)),
 			slog.Float64("ratio", DefaultMemLimitRatio),
@@ -95,14 +98,16 @@ func configureMADVDONTNEED(logger *slog.Logger) {
 	}
 	if err := os.Setenv("GODEBUG", godebug); err != nil {
 		if logger != nil {
-			logger.Error("failed to configure GODEBUG for immediate RSS release",
+			logger.Error(
+				"failed to configure GODEBUG for immediate RSS release",
 				slog.Any("error", err),
 			)
 		}
 		return
 	}
 	if logger != nil {
-		logger.Info("GODEBUG configured for immediate RSS release",
+		logger.Info(
+			"GODEBUG configured for immediate RSS release",
 			slog.String("godebug", godebug),
 		)
 	}

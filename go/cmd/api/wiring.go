@@ -1,4 +1,4 @@
-package main
+package main //nolint:filelength // 504 lines: full API wiring sequence (Postgres + graph driver + admin surface + auth). Splitting risks breaking the `mountRuntimeSurface` order contract documented in cmd/api/AGENTS.md.
 
 import (
 	"context"

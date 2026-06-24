@@ -170,6 +170,8 @@ func (c awsStatusCommitter) now() time.Time {
 	return time.Now().UTC()
 }
 
-var _ collector.Committer = awsStatusCommitter{}
-var _ collector.ClaimedCommitter = awsStatusCommitter{}
-var _ collector.StreamErrorClaimedCommitter = awsStatusCommitter{}
+var (
+	_ collector.Committer                   = awsStatusCommitter{}
+	_ collector.ClaimedCommitter            = awsStatusCommitter{}
+	_ collector.StreamErrorClaimedCommitter = awsStatusCommitter{}
+)

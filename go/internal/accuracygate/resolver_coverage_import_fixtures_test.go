@@ -22,12 +22,14 @@ func dartResolverCoverageFixture() resolverCoverageFixture {
 				"repo_id":     "repo-dart",
 				"imports_map": map[string][]string{"helper": {calleePath}},
 			}},
-			fileEnvelopeWithImports("repo-dart", "lib/service.dart", "/repo/lib/service.dart",
+			fileEnvelopeWithImports(
+				"repo-dart", "lib/service.dart", "/repo/lib/service.dart",
 				[]any{fn("run", "uid:dart-caller", 4, 6)},
 				[]any{map[string]any{"name": "src/helper.dart", "lang": "dart"}},
 				[]any{call(map[string]any{"name": "helper", "full_name": "helper", "line_number": 5, "lang": "dart"})},
 			),
-			fileEnvelope("repo-dart", "lib/src/helper.dart", calleePath,
+			fileEnvelope(
+				"repo-dart", "lib/src/helper.dart", calleePath,
 				[]any{fn("helper", "uid:dart-helper", 2, 3)},
 				nil,
 				nil,
@@ -49,12 +51,14 @@ func elixirResolverCoverageFixture() resolverCoverageFixture {
 				"repo_id":     "repo-elixir",
 				"imports_map": map[string][]string{"Demo.Basic": {calleePath}},
 			}},
-			fileEnvelopeWithImports("repo-elixir", "lib/worker.ex", "/repo/lib/worker.ex",
+			fileEnvelopeWithImports(
+				"repo-elixir", "lib/worker.ex", "/repo/lib/worker.ex",
 				[]any{fnClass("caller", "uid:elixir-caller", "Demo.Worker", 5, 7)},
 				[]any{map[string]any{"name": "Demo.Basic", "alias": "Basic", "lang": "elixir", "import_type": "alias"}},
 				[]any{call(map[string]any{"name": "greet", "full_name": "Basic.greet", "inferred_obj_type": "Basic", "line_number": 6, "lang": "elixir"})},
 			),
-			fileEnvelope("repo-elixir", "lib/basic.ex", calleePath,
+			fileEnvelope(
+				"repo-elixir", "lib/basic.ex", calleePath,
 				[]any{fnClass("greet", "uid:elixir-greet", "Demo.Basic", 2, 4)},
 				nil,
 				nil,
@@ -72,7 +76,8 @@ func groovyResolverCoverageFixture() resolverCoverageFixture {
 		resolutionMethod: methodTypeInferred,
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-groovy"}},
-			fileEnvelope("repo-groovy", "vars/deployPipeline.groovy", "vars/deployPipeline.groovy",
+			fileEnvelope(
+				"repo-groovy", "vars/deployPipeline.groovy", "vars/deployPipeline.groovy",
 				[]any{fn("call", "uid:groovy-call", 2, 4)},
 				nil,
 				[]any{call(map[string]any{
@@ -83,7 +88,8 @@ func groovyResolverCoverageFixture() resolverCoverageFixture {
 					"lang":              "groovy",
 				})},
 			),
-			fileEnvelope("repo-groovy", "src/org/example/DeployHelper.groovy", "src/org/example/DeployHelper.groovy",
+			fileEnvelope(
+				"repo-groovy", "src/org/example/DeployHelper.groovy", "src/org/example/DeployHelper.groovy",
 				[]any{fnClass("deployApp", "uid:groovy-deploy", "DeployHelper", 2, 4)},
 				nil,
 				nil,
@@ -105,12 +111,14 @@ func haskellResolverCoverageFixture() resolverCoverageFixture {
 				"repo_id":     "repo-haskell",
 				"imports_map": map[string][]string{"Data.Text": {calleePath}},
 			}},
-			fileEnvelopeWithImports("repo-haskell", "app/Main.hs", "/repo/app/Main.hs",
+			fileEnvelopeWithImports(
+				"repo-haskell", "app/Main.hs", "/repo/app/Main.hs",
 				[]any{fn("caller", "uid:haskell-caller", 5, 7)},
 				[]any{map[string]any{"name": "Data.Text", "alias": "T", "lang": "haskell"}},
 				[]any{call(map[string]any{"name": "pack", "full_name": "T.pack", "line_number": 6, "lang": "haskell"})},
 			),
-			fileEnvelope("repo-haskell", "src/Data/Text.hs", calleePath,
+			fileEnvelope(
+				"repo-haskell", "src/Data/Text.hs", calleePath,
 				[]any{fn("pack", "uid:haskell-pack", 2, 3)},
 				nil,
 				nil,
@@ -132,12 +140,14 @@ func perlResolverCoverageFixture() resolverCoverageFixture {
 				"repo_id":     "repo-perl",
 				"imports_map": map[string][]string{"App::Util": {calleePath}},
 			}},
-			fileEnvelopeWithImports("repo-perl", "bin/worker.pl", "/repo/bin/worker.pl",
+			fileEnvelopeWithImports(
+				"repo-perl", "bin/worker.pl", "/repo/bin/worker.pl",
 				[]any{fnClass("run", "uid:perl-caller", "Worker", 4, 7)},
 				[]any{map[string]any{"name": "App::Util", "lang": "perl"}},
 				[]any{call(map[string]any{"name": "App::Util::execute", "full_name": "App::Util::execute", "line_number": 5, "lang": "perl"})},
 			),
-			fileEnvelope("repo-perl", "lib/App/Util.pm", calleePath,
+			fileEnvelope(
+				"repo-perl", "lib/App/Util.pm", calleePath,
 				[]any{fnClass("execute", "uid:perl-execute", "Util", 3, 5)},
 				nil,
 				nil,
@@ -157,7 +167,8 @@ func rustResolverCoverageFixture() resolverCoverageFixture {
 		resolutionMethod: methodTypeInferred,
 		envelopes: []facts.Envelope{
 			{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-rust"}},
-			fileEnvelope("repo-rust", "src/lib.rs", "src/lib.rs",
+			fileEnvelope(
+				"repo-rust", "src/lib.rs", "src/lib.rs",
 				[]any{
 					map[string]any{"uid": "uid:rust-area", "name": "area", "line_number": 2, "end_line": 2, "lang": "rust", "trait_context": "Area"},
 					map[string]any{"uid": "uid:rust-draw-area", "name": "area", "line_number": 6, "end_line": 6, "lang": "rust", "trait_context": "Draw"},

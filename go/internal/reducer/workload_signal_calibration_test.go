@@ -89,92 +89,160 @@ var workloadGoldenGate = []WorkloadSignalKind{
 var workloadGoldenSet = []workloadGoldenCase{
 	// ----- WorkloadTierOrchestratedRuntime -----
 	// k8s_resource (prior 0.98; neg 0.8624)
-	{ID: "k8s-pos-1", Kind: SignalK8sResource, Label: wgPositive, GoldenConfidence: 0.98,
-		Rationale: "repo contains Deployment/Service/HPA manifests defining a runtime workload"},
-	{ID: "k8s-pos-2", Kind: SignalK8sResource, Label: wgPositive, GoldenConfidence: 0.98,
-		Rationale: "repo contains StatefulSet and PVC manifests — an orchestrated persistent workload"},
-	{ID: "k8s-pos-3", Kind: SignalK8sResource, Label: wgPositive, GoldenConfidence: 0.98,
-		Rationale: "repo contains CronJob manifest — a scheduled Kubernetes workload"},
-	{ID: "k8s-neg-1", Kind: SignalK8sResource, Label: wgNegative, GoldenConfidence: 0.8624,
-		Rationale: "repo contains only a Namespace and ClusterRoleBinding — infra scaffolding, no app workload"},
+	{
+		ID: "k8s-pos-1", Kind: SignalK8sResource, Label: wgPositive, GoldenConfidence: 0.98,
+		Rationale: "repo contains Deployment/Service/HPA manifests defining a runtime workload",
+	},
+	{
+		ID: "k8s-pos-2", Kind: SignalK8sResource, Label: wgPositive, GoldenConfidence: 0.98,
+		Rationale: "repo contains StatefulSet and PVC manifests — an orchestrated persistent workload",
+	},
+	{
+		ID: "k8s-pos-3", Kind: SignalK8sResource, Label: wgPositive, GoldenConfidence: 0.98,
+		Rationale: "repo contains CronJob manifest — a scheduled Kubernetes workload",
+	},
+	{
+		ID: "k8s-neg-1", Kind: SignalK8sResource, Label: wgNegative, GoldenConfidence: 0.8624,
+		Rationale: "repo contains only a Namespace and ClusterRoleBinding — infra scaffolding, no app workload",
+	},
 
 	// argocd_application (prior 0.95; neg 0.836)
-	{ID: "argocd-pos-1", Kind: SignalArgoCDApplication, Label: wgPositive, GoldenConfidence: 0.95,
-		Rationale: "repo is the gitops config repo containing Application CRs for live cluster deployments"},
-	{ID: "argocd-pos-2", Kind: SignalArgoCDApplication, Label: wgPositive, GoldenConfidence: 0.95,
-		Rationale: "repo defines ApplicationSet generators that enumerate real application repos"},
-	{ID: "argocd-neg-1", Kind: SignalArgoCDApplication, Label: wgNegative, GoldenConfidence: 0.836,
-		Rationale: "repo contains an Application manifest for an archived or disabled app — not actively deployed"},
+	{
+		ID: "argocd-pos-1", Kind: SignalArgoCDApplication, Label: wgPositive, GoldenConfidence: 0.95,
+		Rationale: "repo is the gitops config repo containing Application CRs for live cluster deployments",
+	},
+	{
+		ID: "argocd-pos-2", Kind: SignalArgoCDApplication, Label: wgPositive, GoldenConfidence: 0.95,
+		Rationale: "repo defines ApplicationSet generators that enumerate real application repos",
+	},
+	{
+		ID: "argocd-neg-1", Kind: SignalArgoCDApplication, Label: wgNegative, GoldenConfidence: 0.836,
+		Rationale: "repo contains an Application manifest for an archived or disabled app — not actively deployed",
+	},
 
 	// ----- WorkloadTierPackagedRuntime -----
 	// helm_chart (prior 0.92; neg 0.8096; ambiguous 0.736)
-	{ID: "helm-pos-1", Kind: SignalHelmChart, Label: wgPositive, GoldenConfidence: 0.92,
-		Rationale: "repo is the Helm chart source for a production service (Chart.yaml + templates/)"},
-	{ID: "helm-pos-2", Kind: SignalHelmChart, Label: wgPositive, GoldenConfidence: 0.92,
-		Rationale: "repo contains a library chart and an application chart — the app chart is a workload"},
-	{ID: "helm-neg-1", Kind: SignalHelmChart, Label: wgNegative, GoldenConfidence: 0.8096,
-		Rationale: "repo contains Chart.yaml for a deprecated chart that was never deployed to production"},
-	{ID: "helm-ambiguous-1", Kind: SignalHelmChart, Label: wgAmbiguous, GoldenConfidence: 0.736,
-		Rationale: "repo has Chart.yaml but only test fixtures — no live deployment evidence"},
+	{
+		ID: "helm-pos-1", Kind: SignalHelmChart, Label: wgPositive, GoldenConfidence: 0.92,
+		Rationale: "repo is the Helm chart source for a production service (Chart.yaml + templates/)",
+	},
+	{
+		ID: "helm-pos-2", Kind: SignalHelmChart, Label: wgPositive, GoldenConfidence: 0.92,
+		Rationale: "repo contains a library chart and an application chart — the app chart is a workload",
+	},
+	{
+		ID: "helm-neg-1", Kind: SignalHelmChart, Label: wgNegative, GoldenConfidence: 0.8096,
+		Rationale: "repo contains Chart.yaml for a deprecated chart that was never deployed to production",
+	},
+	{
+		ID: "helm-ambiguous-1", Kind: SignalHelmChart, Label: wgAmbiguous, GoldenConfidence: 0.736,
+		Rationale: "repo has Chart.yaml but only test fixtures — no live deployment evidence",
+	},
 
 	// ----- WorkloadTierLocalRuntime -----
 	// dockerfile_runtime (prior 0.88; neg 0.7744; ambiguous 0.704)
-	{ID: "dockerfile-pos-1", Kind: SignalDockerfileRuntime, Label: wgPositive, GoldenConfidence: 0.88,
-		Rationale: "repo has a multi-stage Dockerfile that builds and runs the application"},
-	{ID: "dockerfile-pos-2", Kind: SignalDockerfileRuntime, Label: wgPositive, GoldenConfidence: 0.88,
-		Rationale: "repo has a Dockerfile with an ENTRYPOINT/CMD — explicitly runnable image"},
-	{ID: "dockerfile-neg-1", Kind: SignalDockerfileRuntime, Label: wgNegative, GoldenConfidence: 0.7744,
-		Rationale: "repo has a Dockerfile only for CI tooling (builds a tool image, not a service)"},
-	{ID: "dockerfile-ambiguous-1", Kind: SignalDockerfileRuntime, Label: wgAmbiguous, GoldenConfidence: 0.704,
-		Rationale: "repo has a Dockerfile in a tools/ subdirectory — purpose unclear without more context"},
+	{
+		ID: "dockerfile-pos-1", Kind: SignalDockerfileRuntime, Label: wgPositive, GoldenConfidence: 0.88,
+		Rationale: "repo has a multi-stage Dockerfile that builds and runs the application",
+	},
+	{
+		ID: "dockerfile-pos-2", Kind: SignalDockerfileRuntime, Label: wgPositive, GoldenConfidence: 0.88,
+		Rationale: "repo has a Dockerfile with an ENTRYPOINT/CMD — explicitly runnable image",
+	},
+	{
+		ID: "dockerfile-neg-1", Kind: SignalDockerfileRuntime, Label: wgNegative, GoldenConfidence: 0.7744,
+		Rationale: "repo has a Dockerfile only for CI tooling (builds a tool image, not a service)",
+	},
+	{
+		ID: "dockerfile-ambiguous-1", Kind: SignalDockerfileRuntime, Label: wgAmbiguous, GoldenConfidence: 0.704,
+		Rationale: "repo has a Dockerfile in a tools/ subdirectory — purpose unclear without more context",
+	},
 
 	// docker_compose_runtime (prior 0.78; neg 0.6864; ambiguous 0.624)
-	{ID: "compose-pos-1", Kind: SignalDockerComposeRuntime, Label: wgPositive, GoldenConfidence: 0.78,
-		Rationale: "repo defines a multi-service docker-compose.yml for a local-dev topology it owns"},
-	{ID: "compose-pos-2", Kind: SignalDockerComposeRuntime, Label: wgPositive, GoldenConfidence: 0.78,
-		Rationale: "repo has a docker-compose.yml with a service definition pointing at its own Dockerfile"},
-	{ID: "compose-neg-1", Kind: SignalDockerComposeRuntime, Label: wgNegative, GoldenConfidence: 0.6864,
-		Rationale: "repo has a docker-compose.yml that references only third-party images (postgres, redis) — infra-only"},
-	{ID: "compose-ambiguous-1", Kind: SignalDockerComposeRuntime, Label: wgAmbiguous, GoldenConfidence: 0.624,
-		Rationale: "repo has a docker-compose.yml for integration testing; no owned service image"},
+	{
+		ID: "compose-pos-1", Kind: SignalDockerComposeRuntime, Label: wgPositive, GoldenConfidence: 0.78,
+		Rationale: "repo defines a multi-service docker-compose.yml for a local-dev topology it owns",
+	},
+	{
+		ID: "compose-pos-2", Kind: SignalDockerComposeRuntime, Label: wgPositive, GoldenConfidence: 0.78,
+		Rationale: "repo has a docker-compose.yml with a service definition pointing at its own Dockerfile",
+	},
+	{
+		ID: "compose-neg-1", Kind: SignalDockerComposeRuntime, Label: wgNegative, GoldenConfidence: 0.6864,
+		Rationale: "repo has a docker-compose.yml that references only third-party images (postgres, redis) — infra-only",
+	},
+	{
+		ID: "compose-ambiguous-1", Kind: SignalDockerComposeRuntime, Label: wgAmbiguous, GoldenConfidence: 0.624,
+		Rationale: "repo has a docker-compose.yml for integration testing; no owned service image",
+	},
 
 	// ----- WorkloadTierTemplate -----
 	// cloudformation_template (prior 0.58; neg 0.5104; ambiguous 0.464)
-	{ID: "cfn-pos-1", Kind: SignalCloudFormationTemplate, Label: wgPositive, GoldenConfidence: 0.58,
-		Rationale: "repo owns a CloudFormation stack that provisions its own Lambda functions and API Gateway"},
-	{ID: "cfn-pos-2", Kind: SignalCloudFormationTemplate, Label: wgPositive, GoldenConfidence: 0.58,
-		Rationale: "repo has a SAM template.yaml defining Lambda functions owned by this repo"},
-	{ID: "cfn-neg-1", Kind: SignalCloudFormationTemplate, Label: wgNegative, GoldenConfidence: 0.5104,
-		Rationale: "repo has a CloudFormation template for shared VPC infrastructure — no application workload"},
-	{ID: "cfn-neg-2", Kind: SignalCloudFormationTemplate, Label: wgNegative, GoldenConfidence: 0.5104,
-		Rationale: "repo has a CloudFormation template from a third-party provider integration — not repo-owned workload"},
-	{ID: "cfn-ambiguous-1", Kind: SignalCloudFormationTemplate, Label: wgAmbiguous, GoldenConfidence: 0.464,
-		Rationale: "repo has a CloudFormation template for an SQS queue; the workload consuming it lives elsewhere"},
+	{
+		ID: "cfn-pos-1", Kind: SignalCloudFormationTemplate, Label: wgPositive, GoldenConfidence: 0.58,
+		Rationale: "repo owns a CloudFormation stack that provisions its own Lambda functions and API Gateway",
+	},
+	{
+		ID: "cfn-pos-2", Kind: SignalCloudFormationTemplate, Label: wgPositive, GoldenConfidence: 0.58,
+		Rationale: "repo has a SAM template.yaml defining Lambda functions owned by this repo",
+	},
+	{
+		ID: "cfn-neg-1", Kind: SignalCloudFormationTemplate, Label: wgNegative, GoldenConfidence: 0.5104,
+		Rationale: "repo has a CloudFormation template for shared VPC infrastructure — no application workload",
+	},
+	{
+		ID: "cfn-neg-2", Kind: SignalCloudFormationTemplate, Label: wgNegative, GoldenConfidence: 0.5104,
+		Rationale: "repo has a CloudFormation template from a third-party provider integration — not repo-owned workload",
+	},
+	{
+		ID: "cfn-ambiguous-1", Kind: SignalCloudFormationTemplate, Label: wgAmbiguous, GoldenConfidence: 0.464,
+		Rationale: "repo has a CloudFormation template for an SQS queue; the workload consuming it lives elsewhere",
+	},
 
 	// ----- WorkloadTierCIProvenance -----
 	// github_actions_workflow (prior 0.45; neg 0.396; ambiguous 0.36)
-	{ID: "gha-wf-pos-1", Kind: SignalGitHubActionsWorkflow, Label: wgPositive, GoldenConfidence: 0.45,
-		Rationale: "repo has a .github/workflows/deploy.yml — implies it is the deploy automation owner"},
-	{ID: "gha-wf-pos-2", Kind: SignalGitHubActionsWorkflow, Label: wgPositive, GoldenConfidence: 0.45,
-		Rationale: "repo has release.yml and publish.yml workflows — clearly owns a publishable workload"},
-	{ID: "gha-wf-neg-1", Kind: SignalGitHubActionsWorkflow, Label: wgNegative, GoldenConfidence: 0.396,
-		Rationale: "repo has only a lint.yml workflow — a utility library with no deployment artifact"},
-	{ID: "gha-wf-neg-2", Kind: SignalGitHubActionsWorkflow, Label: wgNegative, GoldenConfidence: 0.396,
-		Rationale: "repo has a dependency-update.yml workflow only — no deployment; pure automation consumer"},
-	{ID: "gha-wf-ambiguous-1", Kind: SignalGitHubActionsWorkflow, Label: wgAmbiguous, GoldenConfidence: 0.36,
-		Rationale: "repo has a test.yml workflow; workload status depends on Dockerfile or k8s manifests"},
+	{
+		ID: "gha-wf-pos-1", Kind: SignalGitHubActionsWorkflow, Label: wgPositive, GoldenConfidence: 0.45,
+		Rationale: "repo has a .github/workflows/deploy.yml — implies it is the deploy automation owner",
+	},
+	{
+		ID: "gha-wf-pos-2", Kind: SignalGitHubActionsWorkflow, Label: wgPositive, GoldenConfidence: 0.45,
+		Rationale: "repo has release.yml and publish.yml workflows — clearly owns a publishable workload",
+	},
+	{
+		ID: "gha-wf-neg-1", Kind: SignalGitHubActionsWorkflow, Label: wgNegative, GoldenConfidence: 0.396,
+		Rationale: "repo has only a lint.yml workflow — a utility library with no deployment artifact",
+	},
+	{
+		ID: "gha-wf-neg-2", Kind: SignalGitHubActionsWorkflow, Label: wgNegative, GoldenConfidence: 0.396,
+		Rationale: "repo has a dependency-update.yml workflow only — no deployment; pure automation consumer",
+	},
+	{
+		ID: "gha-wf-ambiguous-1", Kind: SignalGitHubActionsWorkflow, Label: wgAmbiguous, GoldenConfidence: 0.36,
+		Rationale: "repo has a test.yml workflow; workload status depends on Dockerfile or k8s manifests",
+	},
 
 	// jenkins_pipeline (prior 0.42; neg 0.3696; ambiguous 0.336)
-	{ID: "jenkins-pos-1", Kind: SignalJenkinsPipeline, Label: wgPositive, GoldenConfidence: 0.42,
-		Rationale: "repo has a Jenkinsfile with a deploy stage that pushes to a cluster — deployment evidence"},
-	{ID: "jenkins-pos-2", Kind: SignalJenkinsPipeline, Label: wgPositive, GoldenConfidence: 0.42,
-		Rationale: "repo has a Jenkinsfile with a stage that builds and publishes a Docker image for deployment"},
-	{ID: "jenkins-neg-1", Kind: SignalJenkinsPipeline, Label: wgNegative, GoldenConfidence: 0.3696,
-		Rationale: "repo has a Jenkinsfile that only runs unit tests — CI-only, no deploy artifact"},
-	{ID: "jenkins-neg-2", Kind: SignalJenkinsPipeline, Label: wgNegative, GoldenConfidence: 0.3696,
-		Rationale: "repo has a Jenkinsfile that triggers downstream jobs only — pipeline orchestrator, not workload owner"},
-	{ID: "jenkins-ambiguous-1", Kind: SignalJenkinsPipeline, Label: wgAmbiguous, GoldenConfidence: 0.336,
-		Rationale: "repo has a Jenkinsfile with a build stage but no explicit deploy stage; unclear"},
+	{
+		ID: "jenkins-pos-1", Kind: SignalJenkinsPipeline, Label: wgPositive, GoldenConfidence: 0.42,
+		Rationale: "repo has a Jenkinsfile with a deploy stage that pushes to a cluster — deployment evidence",
+	},
+	{
+		ID: "jenkins-pos-2", Kind: SignalJenkinsPipeline, Label: wgPositive, GoldenConfidence: 0.42,
+		Rationale: "repo has a Jenkinsfile with a stage that builds and publishes a Docker image for deployment",
+	},
+	{
+		ID: "jenkins-neg-1", Kind: SignalJenkinsPipeline, Label: wgNegative, GoldenConfidence: 0.3696,
+		Rationale: "repo has a Jenkinsfile that only runs unit tests — CI-only, no deploy artifact",
+	},
+	{
+		ID: "jenkins-neg-2", Kind: SignalJenkinsPipeline, Label: wgNegative, GoldenConfidence: 0.3696,
+		Rationale: "repo has a Jenkinsfile that triggers downstream jobs only — pipeline orchestrator, not workload owner",
+	},
+	{
+		ID: "jenkins-ambiguous-1", Kind: SignalJenkinsPipeline, Label: wgAmbiguous, GoldenConfidence: 0.336,
+		Rationale: "repo has a Jenkinsfile with a build stage but no explicit deploy stage; unclear",
+	},
 }
 
 // workloadCalibrationResult is the per-kind calibration outcome.

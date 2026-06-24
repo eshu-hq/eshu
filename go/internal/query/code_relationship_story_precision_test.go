@@ -69,15 +69,23 @@ func TestRelationshipStoryConfidenceTier(t *testing.T) {
 	t.Parallel()
 
 	rows := []map[string]any{
-		{"direction": "incoming", "type": "CALLS", "source_id": "hi", "target_id": "t",
-			"confidence": 0.99, "resolution_method": "scip"},
-		{"direction": "incoming", "type": "CALLS", "source_id": "med", "target_id": "t",
-			"confidence": 0.80, "resolution_method": "type_inferred"},
-		{"direction": "incoming", "type": "CALLS", "source_id": "lo", "target_id": "t",
-			"confidence": 0.50, "resolution_method": "repo_unique_name"},
+		{
+			"direction": "incoming", "type": "CALLS", "source_id": "hi", "target_id": "t",
+			"confidence": 0.99, "resolution_method": "scip",
+		},
+		{
+			"direction": "incoming", "type": "CALLS", "source_id": "med", "target_id": "t",
+			"confidence": 0.80, "resolution_method": "type_inferred",
+		},
+		{
+			"direction": "incoming", "type": "CALLS", "source_id": "lo", "target_id": "t",
+			"confidence": 0.50, "resolution_method": "repo_unique_name",
+		},
 		// Correlation edge with confidence → heuristic, not canonical code truth.
-		{"direction": "incoming", "type": "CALLS", "source_id": "heur", "target_id": "t",
-			"confidence": 0.60, "confidence_basis": "evidence_constant"},
+		{
+			"direction": "incoming", "type": "CALLS", "source_id": "heur", "target_id": "t",
+			"confidence": 0.60, "confidence_basis": "evidence_constant",
+		},
 		// Legacy edge with no recorded provenance → unsupported tier, no upgrade.
 		{"direction": "incoming", "type": "CALLS", "source_id": "none", "target_id": "t"},
 	}

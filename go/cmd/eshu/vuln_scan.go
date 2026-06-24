@@ -212,13 +212,15 @@ func applyVulnScanScope(result *vulnScanRepoResult) error {
 		if failErr != nil {
 			result.ReadinessState = state
 			if len(missing) > 0 {
-				result.Warnings = append(result.Warnings,
+				result.Warnings = append(
+					result.Warnings,
 					fmt.Sprintf("broad mode fail-closed: %s", strings.Join(missing, ", ")),
 				)
 			}
 			return failErr
 		}
-		result.Warnings = append(result.Warnings,
+		result.Warnings = append(
+			result.Warnings,
 			"broad mode skipped advisory freshness fail-closed guard; package-registry metadata still must be fresh when observed dependencies require it",
 		)
 		return nil
@@ -228,7 +230,8 @@ func applyVulnScanScope(result *vulnScanRepoResult) error {
 	}
 	result.ReadinessState = state
 	if len(missing) > 0 {
-		result.Warnings = append(result.Warnings,
+		result.Warnings = append(
+			result.Warnings,
 			fmt.Sprintf("vuln-scan fail-closed: %s", strings.Join(missing, ", ")),
 		)
 	}

@@ -209,7 +209,8 @@ func logEC2InstanceNodeMaterializationCompleted(
 	ctx context.Context,
 	timing ec2InstanceNodeMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "ec2 instance node materialization completed",
+	slog.InfoContext(
+		ctx, "ec2 instance node materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

@@ -50,8 +50,10 @@ type changeImpactError struct {
 	Details    map[string]any `json:"details,omitempty"`
 }
 
-var changeImpactFetch = fetchChangeImpact
-var changePlanFetch = fetchChangePlan
+var (
+	changeImpactFetch = fetchChangeImpact
+	changePlanFetch   = fetchChangePlan
+)
 
 func init() {
 	rootCmd.AddCommand(newChangeCommand())

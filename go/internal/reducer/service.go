@@ -460,7 +460,8 @@ func (s Service) startHeartbeat(ctx context.Context, intent Intent, workerID int
 						for _, a := range domainAttrs {
 							logAttrs = append(logAttrs, a)
 						}
-						logAttrs = append(logAttrs,
+						logAttrs = append(
+							logAttrs,
 							slog.String("queue", "reducer"),
 							slog.String("intent_id", intent.IntentID),
 							slog.Int("worker_id", workerID),

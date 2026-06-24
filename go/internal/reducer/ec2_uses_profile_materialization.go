@@ -146,7 +146,8 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerEC2UsesProfileMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerEC2UsesProfileMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -415,7 +416,8 @@ func logEC2UsesProfileMaterializationCompleted(
 	ctx context.Context,
 	timing ec2UsesProfileMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "ec2 uses-profile materialization completed",
+	slog.InfoContext(
+		ctx, "ec2 uses-profile materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

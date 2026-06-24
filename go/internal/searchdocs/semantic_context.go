@@ -42,7 +42,8 @@ func ProjectSemanticContext(input SemanticContext) (Document, Decision) {
 		semanticContextSourceIDs(id, input.SourceIDs),
 	)
 	doc.ContextText = boundedContext(input.ContextText)
-	doc.GraphHandles = appendNonEmptyHandles(doc.GraphHandles,
+	doc.GraphHandles = appendNonEmptyHandles(
+		doc.GraphHandles,
 		GraphHandle{Kind: "semantic_context", ID: id},
 		GraphHandle{Kind: "service", ID: clean(input.ServiceID)},
 		GraphHandle{Kind: "workload", ID: clean(input.WorkloadID)},

@@ -17,12 +17,12 @@ const PackageManager = "pypi"
 // malformed) MUST use one of the *_dependency siblings below so the reducer
 // cannot mis-admit them.
 const (
-	configKindDependency  = "dependency"
-	configKindVCS         = "vcs_dependency"
-	configKindPath        = "path_dependency"
-	configKindURL         = "url_dependency"
-	configKindEditable    = "editable_dependency"
-	configKindMalformed = "malformed_dependency"
+	configKindDependency = "dependency"
+	configKindVCS        = "vcs_dependency"
+	configKindPath       = "path_dependency"
+	configKindURL        = "url_dependency"
+	configKindEditable   = "editable_dependency"
+	configKindMalformed  = "malformed_dependency"
 )
 
 func basePayload(path string, lang string) map[string]any {

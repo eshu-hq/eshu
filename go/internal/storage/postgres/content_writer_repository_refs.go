@@ -86,11 +86,13 @@ func (w ContentWriter) upsertRepositoryRefs(
 			values.WriteString(", ")
 		}
 		offset := i * columnsPerRepositoryRef
-		fmt.Fprintf(&values,
+		fmt.Fprintf(
+			&values,
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7,
 		)
-		args = append(args,
+		args = append(
+			args,
 			row.repoID,
 			row.kind,
 			row.name,

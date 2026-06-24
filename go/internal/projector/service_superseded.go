@@ -29,7 +29,8 @@ func (s Service) recordSupersededWork(
 	for _, attr := range scopeAttrs {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("queue", "projector"),
 		slog.String("status", "superseded"),
 		slog.Int("fact_count", factCount),

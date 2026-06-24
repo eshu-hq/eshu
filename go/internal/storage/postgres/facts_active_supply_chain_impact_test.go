@@ -216,7 +216,7 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 	if !strings.Contains(facts.SQL, scopeBoundIdx) {
 		t.Fatalf("Bootstrap SQL missing scope-bound impact active-scan index %q:\n%s", scopeBoundIdx, facts.SQL)
 	}
-	impactScanSQL := facts.SQL[strings.Index(facts.SQL, scopeBoundIdx):]
+	impactScanSQL := facts.SQL[strings.Index(facts.SQL, scopeBoundIdx):] //nolint:gocritic // offBy1: the previous t.Fatalf guards the Index() != -1 case for scopeBoundIdx.
 	for _, want := range []string{
 		"(\n        scope_id,\n        generation_id,\n        fact_id ASC\n    )",
 		"WHERE fact_kind = 'reducer_supply_chain_impact_finding'",
@@ -317,7 +317,7 @@ func TestBootstrapDefinitionsIncludeAdvisoryCatalogActiveScanIndexes(t *testing.
 		if !strings.Contains(facts.SQL, create) {
 			t.Fatalf("Bootstrap SQL missing advisory catalog active-scan index %q", c.index)
 		}
-		idxSQL := facts.SQL[strings.Index(facts.SQL, create):]
+		idxSQL := facts.SQL[strings.Index(facts.SQL, create):] //nolint:gocritic // offBy1: the previous t.Fatalf guards the Index() != -1 case for `create`.
 		for _, want := range []string{
 			"(\n        scope_id,\n        generation_id,\n        fact_id ASC\n    )",
 			c.factKnd,

@@ -95,7 +95,8 @@ func CanonicalPlatformID(input CanonicalPlatformInput) string {
 		return ""
 	}
 
-	return fmt.Sprintf("platform:%s:%s:%s:%s:%s",
+	return fmt.Sprintf(
+		"platform:%s:%s:%s:%s:%s",
 		orNone(kind),
 		orNone(provider),
 		orNone(discriminator),

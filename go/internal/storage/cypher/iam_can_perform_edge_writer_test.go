@@ -86,7 +86,7 @@ func TestIAMCanPerformEdgeWriterKeepsActionsOutOfMergeKey(t *testing.T) {
 		t.Fatalf("WriteIAMCanPerformEdges returned error: %v", err)
 	}
 	cypher := executor.groupCalls[0][0].Cypher
-	mergeLine, _, _ := strings.Cut(cypher[strings.Index(cypher, "MERGE"):], "\n")
+	mergeLine, _, _ := strings.Cut(cypher[strings.Index(cypher, "MERGE"):], "\n") //nolint:gocritic // offBy1: the test fixture builds Cypher with at least one MERGE clause, so Index() != -1.
 	if strings.Contains(mergeLine, "action") {
 		t.Fatalf("actions must NOT be in the MERGE key (property-keyed MERGE perf trap):\n%s", mergeLine)
 	}

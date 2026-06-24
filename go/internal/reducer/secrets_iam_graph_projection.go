@@ -100,7 +100,8 @@ func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent Int
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerSecretsIAMGraphProjection,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerSecretsIAMGraphProjection,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -240,7 +241,8 @@ func (h SecretsIAMGraphProjectionHandler) logCompleted(
 	ctx context.Context, intent Intent, nodeCount, edgeCount int, tally SecretsIAMGraphTally, skipRetract bool,
 	load, extract, retract, write, total time.Duration,
 ) {
-	slog.InfoContext(ctx, "secrets/iam graph projection completed",
+	slog.InfoContext(
+		ctx, "secrets/iam graph projection completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.Int("node_count", nodeCount),

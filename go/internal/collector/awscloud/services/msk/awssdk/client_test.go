@@ -224,11 +224,11 @@ func TestClientListReplicatorsDescribesEachForRoleClustersAndPatternCounts(t *te
 	api := &fakeKafkaAPI{
 		replicatorPages: []*awskafka.ListReplicatorsOutput{{
 			Replicators: []awskafkatypes.ReplicatorSummary{{
-				ReplicatorArn:  aws.String(replicatorARN),
-				ReplicatorName: aws.String("cross-region"),
+				ReplicatorArn:   aws.String(replicatorARN),
+				ReplicatorName:  aws.String("cross-region"),
 				ReplicatorState: awskafkatypes.ReplicatorStateRunning,
-				CreationTime:   aws.Time(time.Date(2026, 5, 14, 17, 0, 0, 0, time.UTC)),
-				CurrentVersion: aws.String("REPLICATOR-1"),
+				CreationTime:    aws.Time(time.Date(2026, 5, 14, 17, 0, 0, 0, time.UTC)),
+				CurrentVersion:  aws.String("REPLICATOR-1"),
 			}},
 		}},
 		describeReplicatorOutput: &awskafka.DescribeReplicatorOutput{

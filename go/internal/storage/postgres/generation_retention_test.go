@@ -378,7 +378,8 @@ func generationRetentionExecResults(
 	for i := 0; i < eventCount; i++ {
 		results = append(results, fakeRowsAffected{})
 	}
-	results = append(results,
+	results = append(
+		results,
 		fakeRowsAffected{n: sharedProjectionIntents},
 		fakeRowsAffected{n: contentReferences},
 		fakeRowsAffected{n: contentEntities},

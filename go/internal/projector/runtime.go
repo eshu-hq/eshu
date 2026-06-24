@@ -106,7 +106,8 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 			attribute.String("stage", "build_projection"),
 		))
 	}
-	r.logRuntimeStage(ctx, scopeValue, generation.GenerationID, "build_projection", buildStart,
+	r.logRuntimeStage(
+		ctx, scopeValue, generation.GenerationID, "build_projection", buildStart,
 		"fact_count", len(inputFacts),
 		"content_record_count", len(projection.contentMaterialization.Records),
 		"content_entity_count", len(projection.contentMaterialization.Entities),
@@ -172,7 +173,8 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 				telemetry.AttrScopeID(scopeValue.ScopeID),
 			))
 		}
-		r.logRuntimeStage(ctx, scopeValue, generation.GenerationID, "intent_enqueue", enqueueStart,
+		r.logRuntimeStage(
+			ctx, scopeValue, generation.GenerationID, "intent_enqueue", enqueueStart,
 			"reducer_intent_count", len(projection.reducerIntents),
 			"enqueued_count", intentResult.Count,
 		)

@@ -268,7 +268,8 @@ func (h TerraformConfigStateDriftHandler) emitTelemetry(
 		}
 
 		if h.Logger != nil {
-			h.Logger.LogAttrs(ctx, slog.LevelInfo, "drift candidate admitted",
+			h.Logger.LogAttrs(
+				ctx, slog.LevelInfo, "drift candidate admitted",
 				slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 				slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -299,7 +300,8 @@ func (h TerraformConfigStateDriftHandler) logRejection(ctx context.Context, inte
 	if h.Logger == nil {
 		return
 	}
-	h.Logger.LogAttrs(ctx, slog.LevelWarn, "drift candidate rejected",
+	h.Logger.LogAttrs(
+		ctx, slog.LevelWarn, "drift candidate rejected",
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),

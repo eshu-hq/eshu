@@ -94,7 +94,7 @@ func TestUnsafeReplayFailureClassListSorted(t *testing.T) {
 	// The base non-retryable/quarantine classes and the manual_review triage
 	// classes must all be present in the SQL exclusion list.
 	want := map[string]bool{
-		string(projector.FailureClassInputInvalid):    false,
+		string(projector.FailureClassInputInvalid):     false,
 		string(semanticqueue.StatusUnsafePayload):      false,
 		string(projector.TriageClassProjectionBug):     false,
 		string(projector.TriageClassResourceExhausted): false,

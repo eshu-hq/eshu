@@ -93,7 +93,8 @@ func (h EC2BlockDeviceKMSPostureMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerEC2BlockDeviceKMSPostureMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerEC2BlockDeviceKMSPostureMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -310,7 +311,8 @@ func logEC2BlockDeviceKMSPostureMaterializationCompleted(
 	ctx context.Context,
 	timing ec2BlockDeviceKMSPostureTiming,
 ) {
-	slog.InfoContext(ctx, "ec2 block-device KMS posture materialization completed",
+	slog.InfoContext(
+		ctx, "ec2 block-device KMS posture materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

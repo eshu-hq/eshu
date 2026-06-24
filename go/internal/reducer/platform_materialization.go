@@ -290,7 +290,8 @@ func logPlatformMaterializationCompleted(
 	workloadReplayCount int,
 	timing platformMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "deployment mapping materialization completed",
+	slog.InfoContext(
+		ctx, "deployment mapping materialization completed",
 		slog.String("scope_id", intent.ScopeID),
 		slog.String("generation_id", intent.GenerationID),
 		slog.String("domain", string(DomainDeploymentMapping)),

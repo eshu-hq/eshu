@@ -14,7 +14,8 @@ import (
 
 func TestComponentInitCollectorScaffoldsValidPackage(t *testing.T) {
 	outDir := filepath.Join(t.TempDir(), "demo-component")
-	output := executeRootCommand(t,
+	output := executeRootCommand(
+		t,
 		"component", "init", "collector",
 		"--id", "dev.example.collector.demo",
 		"--publisher", "example",
@@ -43,19 +44,22 @@ func TestComponentInitCollectorScaffoldsValidPackage(t *testing.T) {
 	if _, err := component.LoadManifest(manifestPath); err != nil {
 		t.Fatalf("generated manifest did not validate: %v", err)
 	}
-	assertFileContains(t, manifestPath,
+	assertFileContains(
+		t, manifestPath,
 		"collector-sdk/v1alpha1",
 		"dev.example.demo_observation",
 		"sourceConfidence:",
 		"observed",
 		"metricsPrefix: eshu_dp_dev_example_demo_observation_",
 	)
-	assertFileContains(t, filepath.Join(outDir, "collector.go"),
+	assertFileContains(
+		t, filepath.Join(outDir, "collector.go"),
 		`collector.Fact{`,
 		`Kind:             factKindDemoObservation`,
 		`SourceConfidence: collector.SourceConfidenceObserved`,
 	)
-	assertFileContains(t, filepath.Join(outDir, "collector_test.go"),
+	assertFileContains(
+		t, filepath.Join(outDir, "collector_test.go"),
 		"ValidateResult",
 		"manifest.yaml",
 		"source confidence",
@@ -72,7 +76,8 @@ func TestComponentInitCollectorScaffoldsValidPackage(t *testing.T) {
 
 func TestComponentInitCollectorJSONOutput(t *testing.T) {
 	outDir := filepath.Join(t.TempDir(), "demo-component")
-	output := executeRootCommand(t,
+	output := executeRootCommand(
+		t,
 		"component", "init", "collector",
 		"--id", "dev.example.collector.demo",
 		"--publisher", "example",
@@ -100,7 +105,8 @@ func TestComponentInitCollectorJSONOutput(t *testing.T) {
 }
 
 func TestComponentInitCollectorRequiresIDFlagName(t *testing.T) {
-	_, err := executeRootCommandError(t,
+	_, err := executeRootCommandError(
+		t,
 		"component", "init", "collector",
 		"--publisher", "example",
 		"--fact-kind", "dev.example.demo_observation",
@@ -115,7 +121,8 @@ func TestComponentInitCollectorRequiresIDFlagName(t *testing.T) {
 }
 
 func TestComponentInitCollectorRejectsNonNamespacedFactKind(t *testing.T) {
-	_, err := executeRootCommandError(t,
+	_, err := executeRootCommandError(
+		t,
 		"component", "init", "collector",
 		"--id", "dev.example.collector.demo",
 		"--publisher", "example",
@@ -132,7 +139,8 @@ func TestComponentInitCollectorRejectsNonNamespacedFactKind(t *testing.T) {
 
 func TestComponentInitCollectorRejectsExistingOutputDirectory(t *testing.T) {
 	outDir := t.TempDir()
-	_, err := executeRootCommandError(t,
+	_, err := executeRootCommandError(
+		t,
 		"component", "init", "collector",
 		"--id", "dev.example.collector.demo",
 		"--publisher", "example",
@@ -149,7 +157,8 @@ func TestComponentInitCollectorRejectsExistingOutputDirectory(t *testing.T) {
 
 func TestComponentInitCollectorRejectsUnsafeIdentifiers(t *testing.T) {
 	outDir := filepath.Join(t.TempDir(), "bad-component")
-	_, err := executeRootCommandError(t,
+	_, err := executeRootCommandError(
+		t,
 		"component", "init", "collector",
 		"--id", "Dev.Example/collector",
 		"--publisher", "example",

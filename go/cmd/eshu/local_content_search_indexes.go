@@ -13,8 +13,10 @@ import (
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-const deferredContentSearchIndexPollInterval = 2 * time.Second
-const deferredContentSearchIndexBuildTimeout = 10 * time.Minute
+const (
+	deferredContentSearchIndexPollInterval = 2 * time.Second
+	deferredContentSearchIndexBuildTimeout = 10 * time.Minute
+)
 
 type localContentSearchIndexDB interface {
 	pgstorage.Executor

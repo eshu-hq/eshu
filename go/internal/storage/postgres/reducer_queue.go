@@ -207,12 +207,14 @@ func (q ReducerQueue) enqueueReducerBatch(
 		}
 		conflictDomain, conflictKey := reducerConflictDomainKey(intent)
 		offset := i * columnsPerReducerEnqueue
-		fmt.Fprintf(&values,
+		fmt.Fprintf(
+			&values,
 			"($%d, $%d, $%d, 'reducer', $%d, 'pending', $%d, $%d, 0, NULL, NULL, $%d, NULL, NULL, NULL, NULL, NULL, $%d::jsonb, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+7, offset+7,
 		)
 
-		args = append(args,
+		args = append(
+			args,
 			reducerWorkItemID(intent),
 			intent.ScopeID,
 			intent.GenerationID,

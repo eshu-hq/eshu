@@ -412,7 +412,8 @@ func (h *AdminIdentityMutationHandler) audit(
 	// Do not fail the request on audit write failure: governance audit is
 	// best-effort for the caller path. Log the error so an operator sees the gap.
 	if err := h.Audit.Append(r.Context(), []governanceaudit.Event{event}); err != nil {
-		slog.ErrorContext(r.Context(), "governance audit append failed",
+		slog.ErrorContext(
+			r.Context(), "governance audit append failed",
 			"err", err,
 			"event_type", string(eventType),
 			"decision", string(decision),

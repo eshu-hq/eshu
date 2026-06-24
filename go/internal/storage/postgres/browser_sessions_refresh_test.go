@@ -14,12 +14,16 @@ func TestBrowserSessionStoreListsStaleOIDCSessionsWithBoundedBatch(t *testing.T)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{"sha256:session1", "okta-dev", "sha256:subject1", "tenant_a", "workspace_a",
+				{
+					"sha256:session1", "okta-dev", "sha256:subject1", "tenant_a", "workspace_a",
 					"sha256:policy", []byte(`["developer"]`), false, []byte(`["scope_a"]`), []byte(`[]`),
-					now.Add(-2 * time.Minute), now.Add(-time.Minute), []byte(`["sha256:group1"]`)},
-				{"sha256:session2", "okta-dev", "sha256:subject2", "tenant_a", "workspace_a",
+					now.Add(-2 * time.Minute), now.Add(-time.Minute), []byte(`["sha256:group1"]`),
+				},
+				{
+					"sha256:session2", "okta-dev", "sha256:subject2", "tenant_a", "workspace_a",
 					"sha256:policy", []byte(`["viewer"]`), false, []byte(`["scope_b"]`), []byte(`[]`),
-					now.Add(-3 * time.Minute), now.Add(-2 * time.Minute), []byte(`["sha256:group2"]`)},
+					now.Add(-3 * time.Minute), now.Add(-2 * time.Minute), []byte(`["sha256:group2"]`),
+				},
 			}},
 		},
 	}

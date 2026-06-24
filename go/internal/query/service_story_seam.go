@@ -91,7 +91,8 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 			return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story supply chain evidence", err)
 		}
 		imagePackage := serviceStorySupplyChainImagePackage(workloadCtx)
-		timer.Done(ctx,
+		timer.Done(
+			ctx,
 			slog.Int("image_ref_count", len(StringSliceVal(imagePackage, "candidate_image_refs"))),
 			slog.Int("evidence_count", len(mapSliceValue(imagePackage, "evidence"))),
 			slog.Int("missing_count", len(StringSliceVal(imagePackage, "missing_evidence"))),

@@ -166,7 +166,8 @@ func (r *GenerationLivenessRunner) recordResult(ctx context.Context, result Gene
 	if result.Recovered == 0 && result.Superseded == 0 {
 		return
 	}
-	r.Logger.InfoContext(ctx,
+	r.Logger.InfoContext(
+		ctx,
 		"generation liveness recovery cycle completed",
 		slog.Int("generations_recovered", result.Recovered),
 		slog.Int("generations_superseded", result.Superseded),
@@ -181,7 +182,8 @@ func (r *GenerationLivenessRunner) recordFailure(ctx context.Context, err error)
 		))
 	}
 	if r.Logger != nil {
-		r.Logger.ErrorContext(ctx,
+		r.Logger.ErrorContext(
+			ctx,
 			"generation liveness recovery cycle failed",
 			slog.String("error", err.Error()),
 			telemetry.FailureClassAttr("generation_liveness_error"),

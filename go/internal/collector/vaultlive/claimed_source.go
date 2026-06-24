@@ -167,7 +167,8 @@ func (s *ClaimedSource) collectClaimedTarget(
 	}
 	s.recordClaimedTelemetry(ctx, scopeValue, observedAt, envelopes)
 	if s.logger != nil {
-		s.logger.InfoContext(ctx, "vault live claimed snapshot completed",
+		s.logger.InfoContext(
+			ctx, "vault live claimed snapshot completed",
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),

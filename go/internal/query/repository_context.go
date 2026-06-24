@@ -41,7 +41,8 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "summary_counts")
 	counts := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelSummary)
-	timer.Done(ctx,
+	timer.Done(
+		ctx,
 		slog.Int("file_count", counts.fileCount),
 		slog.Int("workload_count", counts.workloadCount),
 		slog.Int("platform_count", counts.platformCount),

@@ -54,7 +54,8 @@ func (s NativeRepositorySnapshotter) logSCIPProcessSlotAcquired(ctx context.Cont
 	if strings.TrimSpace(language) == "" {
 		language = scipSnapshotLanguageUnknown
 	}
-	s.Logger.DebugContext(ctx, "SCIP process slot acquired",
+	s.Logger.DebugContext(
+		ctx, "SCIP process slot acquired",
 		slog.String("language", language),
 		slog.Float64("wait_seconds", wait.Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseParsing),

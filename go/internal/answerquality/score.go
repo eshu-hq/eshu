@@ -75,7 +75,8 @@ func aggregatePublishSafety(evidence Evidence, scores []PromptScore) CriterionSc
 
 func scorePrompt(prompt PromptResult) PromptScore {
 	score := PromptScore{ID: prompt.ID, Family: prompt.Family, Pass: true}
-	score.Criteria = append(score.Criteria,
+	score.Criteria = append(
+		score.Criteria,
 		scoreUsefulness(prompt),
 		scoreTruthHonesty(prompt),
 		scoreCitationCoverage(prompt),
@@ -326,7 +327,8 @@ func promptStrings(prompt PromptResult) []string {
 	values = append(values, prompt.RequiredNextCalls...)
 	values = append(values, prompt.AcceptableLimitations...)
 	for _, result := range prompt.Results {
-		values = append(values,
+		values = append(
+			values,
 			string(result.Surface),
 			result.AnswerSummary,
 			result.TruthClass,

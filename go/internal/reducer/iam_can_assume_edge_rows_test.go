@@ -106,7 +106,8 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsExternalServiceAndWildcard(t *testing.T
 
 	resources := []facts.Envelope{iamRoleEnvelope(acct, roleARN)}
 	perms := []facts.Envelope{
-		trustPermissionFact(acct, roleARN,
+		trustPermissionFact(
+			acct, roleARN,
 			"*",                              // wildcard principal
 			"ec2.amazonaws.com",              // AWS service principal
 			"123456789012",                   // bare account id

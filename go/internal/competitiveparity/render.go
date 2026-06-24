@@ -39,7 +39,8 @@ func RenderMarkdown(report Report) string {
 		fmt.Fprintf(&b, "- Peer baseline: %s\n", surface.PeerBaseline)
 		fmt.Fprintf(&b, "- Presence: %s\n", passLabel(surface.PresencePass))
 		fmt.Fprintf(&b, "- Quality: %s\n", passLabel(surface.QualityPass))
-		fmt.Fprintf(&b, "- Quality score: %d/%d dimensions passed (%d/%d signals)\n",
+		fmt.Fprintf(
+			&b, "- Quality score: %d/%d dimensions passed (%d/%d signals)\n",
 			surface.QualityScore.Passed,
 			len(surface.Quality),
 			surface.QualityScore.Score,
@@ -66,7 +67,8 @@ func RenderMarkdown(report Report) string {
 		if len(surface.Quality) > 0 {
 			fmt.Fprintf(&b, "\n| Quality dimension | Score | Status | Missing signals |\n| --- | --- | --- | --- |\n")
 			for _, quality := range surface.Quality {
-				fmt.Fprintf(&b, "| `%s` | %d/%d | %s | %s |\n",
+				fmt.Fprintf(
+					&b, "| `%s` | %d/%d | %s | %s |\n",
 					quality.Dimension,
 					quality.Score,
 					quality.MaxScore,

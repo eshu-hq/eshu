@@ -1,4 +1,4 @@
-package main
+package main //nolint:filelength // 504 lines: full webhook handler set (provider routes, body limits, normalization, OTEL). Per cmd/webhook-listener/AGENTS.md, handler.go owns the provider route behavior; splitting across files would scatter the per-provider test coverage that handler_test.go already exercises.
 
 import (
 	"context"
@@ -279,7 +279,8 @@ func (h webhookHandler) storeAndWrite(
 		result.Reason = webhookReasonStore
 		h.finishWebhookStore(storeCtx, span, startedAt, trigger.Provider, result)
 		if h.Logger != nil {
-			h.Logger.ErrorContext(r.Context(), "webhook trigger persistence failed",
+			h.Logger.ErrorContext(
+				r.Context(), "webhook trigger persistence failed",
 				slog.String("provider", string(trigger.Provider)),
 				slog.String("event_kind", string(trigger.EventKind)),
 				slog.String("decision", string(trigger.Decision)),
@@ -334,7 +335,8 @@ func (h webhookHandler) startWebhookRequest(
 	if h.Tracer == nil {
 		return ctx, nil, startedAt
 	}
-	ctx, span := h.Tracer.Start(ctx, telemetry.SpanWebhookHandle,
+	ctx, span := h.Tracer.Start(
+		ctx, telemetry.SpanWebhookHandle,
 		trace.WithAttributes(telemetry.AttrProvider(providerValue(provider))),
 	)
 	return ctx, span, startedAt
@@ -353,7 +355,8 @@ func (h webhookHandler) finishWebhookRequest(
 		telemetry.AttrReason(fallbackValue(result.Reason)),
 	}
 	if span != nil {
-		span.SetAttributes(append(attrs,
+		span.SetAttributes(append(
+			attrs,
 			telemetry.AttrEventKind(eventKindValue(result.EventKind)),
 			telemetry.AttrDecision(decisionValue(result.Decision)),
 			telemetry.AttrStatus(statusValue(result.Status)),
@@ -378,7 +381,8 @@ func (h webhookHandler) logWebhookRequest(
 	if h.Logger == nil {
 		return
 	}
-	h.Logger.InfoContext(ctx, "webhook request handled",
+	h.Logger.InfoContext(
+		ctx, "webhook request handled",
 		slog.String("provider", providerValue(provider)),
 		slog.String("outcome", fallbackValue(result.Outcome)),
 		slog.String("reason", fallbackValue(result.Reason)),
@@ -396,7 +400,8 @@ func (h webhookHandler) startWebhookStore(
 	if h.Tracer == nil {
 		return ctx, nil, startedAt
 	}
-	ctx, span := h.Tracer.Start(ctx, telemetry.SpanWebhookStore,
+	ctx, span := h.Tracer.Start(
+		ctx, telemetry.SpanWebhookStore,
 		trace.WithAttributes(
 			telemetry.AttrProvider(providerValue(trigger.Provider)),
 			telemetry.AttrEventKind(eventKindValue(trigger.EventKind)),

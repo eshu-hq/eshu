@@ -113,7 +113,8 @@ func (w *gitProgressWriter) logProgressLine(line string) {
 	}
 	w.logged = true
 	w.lastLog = now
-	w.logger.InfoContext(w.ctx, "git repository sync progress",
+	w.logger.InfoContext(
+		w.ctx, "git repository sync progress",
 		append(w.event.eventAttrs(now), slog.String("message", message))...,
 	)
 }
@@ -143,7 +144,8 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 	if logger == nil {
 		return
 	}
-	attrs := append(event.eventAttrs(time.Now()),
+	attrs := append(
+		event.eventAttrs(time.Now()),
 		slog.String("error", sanitizeGitProgressMessage(err.Error())),
 		telemetry.FailureClassAttr("git_sync_failure"),
 	)

@@ -171,7 +171,8 @@ func (r *GenerationRetentionRunner) recordResult(ctx context.Context, result Gen
 	if r.Logger == nil {
 		return
 	}
-	r.Logger.InfoContext(ctx,
+	r.Logger.InfoContext(
+		ctx,
 		"generation retention cycle completed",
 		slog.Int("generations_pruned", result.GenerationsPruned),
 		slog.Int64("rows_pruned_total", generationRetentionRowsPrunedTotal(result.RowsPruned)),
@@ -190,7 +191,8 @@ func (r *GenerationRetentionRunner) recordFailure(ctx context.Context, err error
 		))
 	}
 	if r.Logger != nil {
-		r.Logger.ErrorContext(ctx,
+		r.Logger.ErrorContext(
+			ctx,
 			"generation retention cycle failed",
 			slog.String("error", err.Error()),
 			telemetry.FailureClassAttr("generation_retention_error"),

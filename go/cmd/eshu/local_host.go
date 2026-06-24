@@ -21,18 +21,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-const localHostShutdownTimeout = 5 * time.Second
-const deferContentSearchIndexesEnv = "ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES"
-const reducerExpectedSourceLocalProjectorsEnv = "ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS"
-const localHostProgressModeEnv = "ESHU_LOCAL_PROGRESS_MODE"
-const localHostLogModeEnv = "ESHU_LOCAL_LOG_MODE"
-const localHostLogDirEnv = "ESHU_LOCAL_LOG_DIR"
-const localHostProgressModeAuto = "auto"
-const localHostProgressModePlain = "plain"
-const localHostProgressModeQuiet = "quiet"
-const localHostLogModeFile = "file"
-const localHostLogModeTerminal = "terminal"
-const localHostLogModeQuiet = "quiet"
+const (
+	localHostShutdownTimeout                = 5 * time.Second
+	deferContentSearchIndexesEnv            = "ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES"
+	reducerExpectedSourceLocalProjectorsEnv = "ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS"
+	localHostProgressModeEnv                = "ESHU_LOCAL_PROGRESS_MODE"
+	localHostLogModeEnv                     = "ESHU_LOCAL_LOG_MODE"
+	localHostLogDirEnv                      = "ESHU_LOCAL_LOG_DIR"
+	localHostProgressModeAuto               = "auto"
+	localHostProgressModePlain              = "plain"
+	localHostProgressModeQuiet              = "quiet"
+	localHostLogModeFile                    = "file"
+	localHostLogModeTerminal                = "terminal"
+	localHostLogModeQuiet                   = "quiet"
+)
 
 var (
 	localHostBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {

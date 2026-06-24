@@ -18,7 +18,8 @@ func awsRelationshipBenchCorpus(resourceCount int) (resources, relationships []f
 	for i := 0; i < resourceCount; i++ {
 		fnARN := fmt.Sprintf("arn:aws:lambda:us-east-1:111122223333:function:fn-%d", i)
 		keyARN := fmt.Sprintf("arn:aws:kms:us-east-1:111122223333:key/key-%d", i)
-		resources = append(resources,
+		resources = append(
+			resources,
 			facts.Envelope{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{
 				"account_id": "111122223333", "region": "us-east-1",
 				"resource_type": "aws_lambda_function", "resource_id": fnARN, "arn": fnARN,
@@ -28,7 +29,8 @@ func awsRelationshipBenchCorpus(resourceCount int) (resources, relationships []f
 				"resource_type": "aws_kms_key", "resource_id": keyARN, "arn": keyARN,
 			}},
 		)
-		relationships = append(relationships,
+		relationships = append(
+			relationships,
 			facts.Envelope{FactKind: facts.AWSRelationshipFactKind, Payload: map[string]any{
 				"account_id": "111122223333", "region": "us-east-1",
 				"relationship_type":  "USES_KMS_KEY",

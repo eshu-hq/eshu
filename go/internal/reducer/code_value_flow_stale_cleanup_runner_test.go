@@ -32,7 +32,6 @@ func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T)
 	}
 
 	result, err := runner.RunOnce(context.Background())
-
 	if err != nil {
 		t.Fatalf("RunOnce() error = %v, want nil", err)
 	}
@@ -93,7 +92,6 @@ func TestCodeValueFlowStaleCleanupRunnerSkipsWhenLeaseUnavailable(t *testing.T) 
 	}
 
 	result, err := runner.RunOnce(context.Background())
-
 	if err != nil {
 		t.Fatalf("RunOnce() error = %v, want nil", err)
 	}

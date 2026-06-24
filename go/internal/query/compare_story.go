@@ -295,7 +295,8 @@ func environmentCompareLimitations(leftSnap, rightSnap map[string]any, leftTrunc
 		})
 	}
 	if compareStringVal(leftSnap, "status") == "present" && compareStringVal(rightSnap, "status") == "present" {
-		limitations = append(limitations,
+		limitations = append(
+			limitations,
 			map[string]any{
 				"kind":   "configuration_diff_not_materialized",
 				"reason": "this response compares materialized cloud resources; config key/value drift is not materialized in this contract yet",
@@ -381,7 +382,8 @@ func environmentCompareStoryText(workload map[string]any, req compareEnvironment
 	}
 	switch summary["comparison"] {
 	case "different":
-		return fmt.Sprintf("%s differs between %s and %s: %d shared resources, %d dedicated to %s, and %d dedicated to %s.",
+		return fmt.Sprintf(
+			"%s differs between %s and %s: %d shared resources, %d dedicated to %s, and %d dedicated to %s.",
 			workloadName,
 			req.Left,
 			req.Right,

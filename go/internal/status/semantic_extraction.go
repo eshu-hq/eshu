@@ -331,7 +331,8 @@ func semanticExtractionObservabilityText(status SemanticExtractionStatus) string
 		)
 	}
 	if semanticExtractionAuditHasValues(status.Audit) {
-		parts = append(parts,
+		parts = append(
+			parts,
 			fmt.Sprintf(
 				"semantic_audit_actor_classes=%s",
 				formatNamedTotals(toCountMap(status.Audit.ActorClassCounts)),

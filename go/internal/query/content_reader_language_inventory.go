@@ -20,7 +20,8 @@ func (cr *ContentReader) CountRepositoriesByLanguage(
 	if cr == nil || cr.db == nil || len(languages) == 0 {
 		return RepositoryLanguageAggregate{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "count_repositories_by_language"),
@@ -66,7 +67,8 @@ func (cr *ContentReader) ListRepositoriesByLanguage(
 	if offset < 0 {
 		offset = 0
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_repositories_by_language"),
@@ -186,7 +188,8 @@ func (cr *ContentReader) RepositoryLanguageInventory(
 	if offset < 0 {
 		offset = 0
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "repository_language_inventory"),

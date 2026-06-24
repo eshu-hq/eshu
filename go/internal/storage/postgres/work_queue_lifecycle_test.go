@@ -56,6 +56,7 @@ func TestReducerQueueFailClassifiesGraphWriteTimeoutAfterAttemptBudget(t *testin
 		t.Fatalf("failure details = %v, want %v", got, want)
 	}
 }
+
 func TestReducerQueueAckAndFailUpdateClaimedWork(t *testing.T) {
 	t.Parallel()
 

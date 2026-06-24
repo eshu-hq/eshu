@@ -30,7 +30,8 @@ func (r Runtime) logRuntimeStage(
 	for _, attr := range scopeAttrs {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("stage", stage),
 		slog.Float64("duration_seconds", time.Since(start).Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),

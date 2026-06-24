@@ -104,7 +104,8 @@ func recordPackageRegistryIdentityLock(
 	if lease.wait < packageRegistryIdentitySlowLockWait {
 		return
 	}
-	slog.InfoContext(ctx, "canonical package registry identity lock acquired",
+	slog.InfoContext(
+		ctx, "canonical package registry identity lock acquired",
 		"scope_id", mat.ScopeID,
 		"repo_id", mat.RepoID,
 		"generation_id", mat.GenerationID,

@@ -220,7 +220,8 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	readModelSummary := loadRepositoryReadModelSummary(r.Context(), h.Content, repoID)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "graph_summary")
 	storySummary := queryRepositoryStoryGraphSummary(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID}, row, contentCoverage, readModelSummary)
-	timer.Done(r.Context(),
+	timer.Done(
+		r.Context(),
 		slog.Int("file_count", storySummary.fileCount),
 		slog.Int("workload_count", len(storySummary.workloadNames)),
 		slog.Int("platform_count", len(storySummary.platformTypes)),

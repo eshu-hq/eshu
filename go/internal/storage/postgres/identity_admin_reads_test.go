@@ -35,7 +35,7 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 			params: []string{"$1", "$2"},
 		},
 		{
-			name: "role_assignments",
+			name:  "role_assignments",
 			query: listAdminRoleAssignmentsQuery,
 			// tombstoned_at IS NULL required: identity_membership_roles has tombstoned_at
 			// independent of status.

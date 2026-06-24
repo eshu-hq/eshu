@@ -1,4 +1,4 @@
-package main
+package main //nolint:filelength // 1123 lines: four-phase bootstrap orchestrator. The phase ordering is a correctness invariant (see cmd/bootstrap-index/AGENTS.md § Phase-ordering invariant and CLAUDE.md § Facts-First Bootstrap Ordering). Tracked for split in audit § T8; the split must preserve the runPipelined call order.
 
 import (
 	"context"
@@ -70,12 +70,14 @@ type projectorDeps struct {
 	heartbeatInterval time.Duration
 }
 
-type openBootstrapDBFn func(context.Context, func(string) string) (bootstrapDB, error)
-type applyBootstrapFn func(context.Context, bootstrapDB) error
-type openGraphFn func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
-type buildCollectorFn func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error)
-type buildProjectorFn func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error)
-type discoveryAdvisorySink func(collector.DiscoveryAdvisoryReport) error
+type (
+	openBootstrapDBFn     func(context.Context, func(string) string) (bootstrapDB, error)
+	applyBootstrapFn      func(context.Context, bootstrapDB) error
+	openGraphFn           func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
+	buildCollectorFn      func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error)
+	buildProjectorFn      func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error)
+	discoveryAdvisorySink func(collector.DiscoveryAdvisoryReport) error
+)
 
 func main() {
 	if handled, err := printBootstrapIndexVersionFlag(os.Args[1:], os.Stdout); handled {
@@ -197,7 +199,8 @@ func run(
 	}
 
 	workers := projectionWorkerCount(getenv)
-	logger.Info("starting pipelined bootstrap",
+	logger.Info(
+		"starting pipelined bootstrap",
 		slog.Int("projection_workers", workers),
 		telemetry.PhaseAttr(telemetry.PhaseEmission),
 	)
@@ -262,7 +265,8 @@ func runPipelined(
 			))
 		}
 		if logger != nil {
-			logger.InfoContext(ctx, "bootstrap phase complete",
+			logger.InfoContext(
+				ctx, "bootstrap phase complete",
 				slog.String("bootstrap_phase", phase),
 				slog.Float64("phase_duration_seconds", d),
 				telemetry.PhaseAttr(telemetry.PhaseEmission),
@@ -329,7 +333,8 @@ func runPipelined(
 	if err := cd.committer.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseRelationshipBackfill, backfillStart)
 		if logger != nil {
-			logger.ErrorContext(ctx, "deferred relationship backfill failed",
+			logger.ErrorContext(
+				ctx, "deferred relationship backfill failed",
 				slog.String("error", err.Error()),
 				telemetry.FailureClassAttr("backfill_deferred_failure"),
 			)
@@ -357,7 +362,8 @@ func runPipelined(
 	if err := cd.committer.MaterializeIaCReachability(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseIaCReachability, iacStart)
 		if logger != nil {
-			logger.ErrorContext(ctx, "iac reachability materialization failed",
+			logger.ErrorContext(
+				ctx, "iac reachability materialization failed",
 				slog.String("error", err.Error()),
 				telemetry.FailureClassAttr("iac_reachability_materialization_failure"),
 			)
@@ -381,7 +387,8 @@ func runPipelined(
 	if err := cd.committer.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseDeploymentReopen, reopenStart)
 		if logger != nil {
-			logger.ErrorContext(ctx, "reopen deployment_mapping work items failed",
+			logger.ErrorContext(
+				ctx, "reopen deployment_mapping work items failed",
 				slog.String("error", err.Error()),
 				telemetry.FailureClassAttr("reopen_deployment_mapping_failure"),
 			)
@@ -399,7 +406,8 @@ func runPipelined(
 	if err := cd.committer.EnqueueConfigStateDriftIntents(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseConfigStateDrift, driftStart)
 		if logger != nil {
-			logger.ErrorContext(ctx, "enqueue config_state_drift intents failed",
+			logger.ErrorContext(
+				ctx, "enqueue config_state_drift intents failed",
 				slog.String("error", err.Error()),
 				telemetry.FailureClassAttr("enqueue_config_state_drift_failure"),
 			)
@@ -410,7 +418,8 @@ func runPipelined(
 
 	totalDuration := time.Since(pipelineStart).Seconds()
 	if logger != nil {
-		logger.InfoContext(ctx, "bootstrap pipeline complete",
+		logger.InfoContext(
+			ctx, "bootstrap pipeline complete",
 			slog.Float64("total_seconds", totalDuration),
 			slog.Float64("overlap_seconds", overlapDuration),
 			telemetry.PhaseAttr(telemetry.PhaseProjection),
@@ -554,7 +563,8 @@ func drainCollector(
 		var span trace.Span
 		cycleCtx := ctx
 		if tracer != nil {
-			cycleCtx, span = tracer.Start(ctx, telemetry.SpanCollectorObserve,
+			cycleCtx, span = tracer.Start(
+				ctx, telemetry.SpanCollectorObserve,
 				trace.WithAttributes(attribute.String("component", "bootstrap-index")),
 			)
 		}
@@ -572,7 +582,8 @@ func drainCollector(
 				span.End()
 			}
 			if logger != nil {
-				logger.InfoContext(ctx, "bootstrap collection complete",
+				logger.InfoContext(
+					ctx, "bootstrap collection complete",
 					slog.Int("scopes_collected", total),
 					slog.Int64("total_facts_emitted", totalFacts),
 					slog.Int64("total_entities_emitted", totalEntities),
@@ -602,7 +613,8 @@ func drainCollector(
 				span.End()
 			}
 			if logger != nil {
-				logger.ErrorContext(ctx, "bootstrap collector commit failed",
+				logger.ErrorContext(
+					ctx, "bootstrap collector commit failed",
 					slog.String("scope_id", collected.Scope.ScopeID),
 					slog.Int("fact_count", factCount),
 					slog.String("error", err.Error()),
@@ -684,7 +696,8 @@ func drainCollector(
 			// Periodic progress: every bootstrapProgressInterval repos emit a
 			// summary so a 70-min run does not look silent.
 			if total%bootstrapProgressInterval == 0 {
-				logger.InfoContext(ctx, "bootstrap collection progress",
+				logger.InfoContext(
+					ctx, "bootstrap collection progress",
 					slog.Int("scopes_done", total),
 					slog.Int64("total_facts_emitted", totalFacts),
 					slog.Int64("total_entities_emitted", totalEntities),
@@ -806,7 +819,8 @@ func drainProjector(
 
 	totalCompleted := completed.Load()
 	if logger != nil {
-		logger.InfoContext(ctx, "bootstrap projection complete",
+		logger.InfoContext(
+			ctx, "bootstrap projection complete",
 			slog.Int64("items_projected", totalCompleted),
 			slog.Int("workers", workers),
 			slog.Float64("total_duration_seconds", time.Since(overallStart).Seconds()),
@@ -855,7 +869,8 @@ func drainProjectorWorkItem(
 	itemCtx := ctx
 	var span trace.Span
 	if tracer != nil {
-		itemCtx, span = tracer.Start(ctx, telemetry.SpanProjectorRun,
+		itemCtx, span = tracer.Start(
+			ctx, telemetry.SpanProjectorRun,
 			trace.WithAttributes(
 				attribute.String("scope_id", work.Scope.ScopeID),
 				attribute.String("generation_id", work.Generation.GenerationID),
@@ -964,7 +979,8 @@ func startBootstrapProjectorHeartbeat(
 						for _, attr := range scopeAttrs {
 							logAttrs = append(logAttrs, attr)
 						}
-						logAttrs = append(logAttrs,
+						logAttrs = append(
+							logAttrs,
 							slog.Int("worker_id", workerID),
 							slog.Duration("heartbeat_interval", interval),
 							telemetry.PhaseAttr(telemetry.PhaseProjection),
@@ -1033,7 +1049,8 @@ func recordBootstrapProjectionResult(
 		for _, a := range scopeAttrs {
 			logAttrs = append(logAttrs, a)
 		}
-		logAttrs = append(logAttrs,
+		logAttrs = append(
+			logAttrs,
 			slog.Int("worker_id", workerID),
 			slog.String("status", status),
 			slog.Int("fact_count", factCount),
@@ -1079,7 +1096,8 @@ func drainProjectorSequential(
 		if err != nil {
 			if errors.Is(err, errProjectorDrained) {
 				if logger != nil {
-					logger.InfoContext(ctx, "bootstrap projection complete",
+					logger.InfoContext(
+						ctx, "bootstrap projection complete",
 						slog.Int64("items_projected", completed.Load()),
 						slog.Int("workers", 1),
 						slog.Float64("total_duration_seconds", time.Since(overallStart).Seconds()),

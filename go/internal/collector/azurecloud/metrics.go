@@ -153,7 +153,8 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 
 func (m otelMetrics) RecordAPICall(ctx context.Context, boundary Boundary, operation, statusClass string) {
 	m.apiCalls.Add(ctx, 1, metric.WithAttributes(
-		append(boundaryAttrs(boundary),
+		append(
+			boundaryAttrs(boundary),
 			telemetry.AttrOperation(operation),
 			telemetry.AttrStatusClass(statusClass),
 		)...,

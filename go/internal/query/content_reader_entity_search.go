@@ -16,7 +16,8 @@ func (cr *ContentReader) SearchEntitiesByLanguageAndType(
 	repoID, language, entityType, query string,
 	limit int,
 ) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_entities_by_language_and_type"),

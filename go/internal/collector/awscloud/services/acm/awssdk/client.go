@@ -209,5 +209,7 @@ func cloneStrings(input []string) []string {
 }
 
 // Compile-time assertions.
-var _ acmservice.Client = (*Client)(nil)
-var _ apiClient = (*awsacm.Client)(nil)
+var (
+	_ acmservice.Client = (*Client)(nil)
+	_ apiClient         = (*awsacm.Client)(nil)
+)

@@ -107,7 +107,8 @@ func runDeadCodeWithContentIncoming(
 func TestDeadCodeWeakIncomingEdgeKeepsResultAsAmbiguous(t *testing.T) {
 	t.Parallel()
 
-	results := runDeadCodeWithContentIncoming(t,
+	results := runDeadCodeWithContentIncoming(
+		t,
 		[]map[string]any{deadCodeScanRow("weak-helper", "weakHelper")},
 		map[string]EntityContent{"weak-helper": goDeadCodeEntity("weak-helper", "weakHelper")},
 		map[string]deadCodeIncomingEdge{
@@ -145,7 +146,8 @@ func TestDeadCodeStrongIncomingEdgeFiltersResult(t *testing.T) {
 		method := method
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
-			results := runDeadCodeWithContentIncoming(t,
+			results := runDeadCodeWithContentIncoming(
+				t,
 				[]map[string]any{deadCodeScanRow("live-helper", "liveHelper")},
 				map[string]EntityContent{"live-helper": goDeadCodeEntity("live-helper", "liveHelper")},
 				map[string]deadCodeIncomingEdge{
@@ -162,7 +164,8 @@ func TestDeadCodeStrongIncomingEdgeFiltersResult(t *testing.T) {
 func TestDeadCodeNoIncomingEdgeKeepsResultAsUnused(t *testing.T) {
 	t.Parallel()
 
-	results := runDeadCodeWithContentIncoming(t,
+	results := runDeadCodeWithContentIncoming(
+		t,
 		[]map[string]any{deadCodeScanRow("dead-helper", "deadHelper")},
 		map[string]EntityContent{"dead-helper": goDeadCodeEntity("dead-helper", "deadHelper")},
 		map[string]deadCodeIncomingEdge{},
@@ -186,7 +189,8 @@ func TestDeadCodeUnspecifiedIncomingMethodTreatedStrong(t *testing.T) {
 
 	// An edge with an empty/unrecorded resolution_method resolves to
 	// LegacyConfidence (strong); the entity must be filtered out, not demoted.
-	results := runDeadCodeWithContentIncoming(t,
+	results := runDeadCodeWithContentIncoming(
+		t,
 		[]map[string]any{deadCodeScanRow("legacy-helper", "legacyHelper")},
 		map[string]EntityContent{"legacy-helper": goDeadCodeEntity("legacy-helper", "legacyHelper")},
 		map[string]deadCodeIncomingEdge{

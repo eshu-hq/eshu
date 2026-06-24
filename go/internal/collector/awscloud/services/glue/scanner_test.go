@@ -475,11 +475,14 @@ type fakeClient struct {
 	connections []Connection
 }
 
-func (c fakeClient) ListDatabases(context.Context) ([]Database, error)     { return c.databases, nil }
-func (c fakeClient) ListCrawlers(context.Context) ([]Crawler, error)       { return c.crawlers, nil }
-func (c fakeClient) ListJobs(context.Context) ([]Job, error)               { return c.jobs, nil }
-func (c fakeClient) ListTriggers(context.Context) ([]Trigger, error)       { return c.triggers, nil }
-func (c fakeClient) ListWorkflows(context.Context) ([]Workflow, error)     { return c.workflows, nil }
+func (c fakeClient) ListDatabases(context.Context) ([]Database, error) { return c.databases, nil }
+
+func (c fakeClient) ListCrawlers(context.Context) ([]Crawler, error) { return c.crawlers, nil }
+func (c fakeClient) ListJobs(context.Context) ([]Job, error)         { return c.jobs, nil }
+func (c fakeClient) ListTriggers(context.Context) ([]Trigger, error) { return c.triggers, nil }
+
+func (c fakeClient) ListWorkflows(context.Context) ([]Workflow, error) { return c.workflows, nil }
+
 func (c fakeClient) ListConnections(context.Context) ([]Connection, error) { return c.connections, nil }
 
 func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType string) facts.Envelope {

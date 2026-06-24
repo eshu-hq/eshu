@@ -23,7 +23,8 @@ func (s Service) recordWorkStage(ctx context.Context, work ScopeGenerationWork, 
 	for _, attr := range scopeAttrs {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("queue", "projector"),
 		slog.String("stage", stage),
 		slog.Int("fact_count", factCount),
@@ -56,7 +57,8 @@ func (s Service) recordProjectionResult(ctx context.Context, work ScopeGeneratio
 	for _, attr := range scopeAttrs {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("queue", "projector"),
 		slog.String("status", status),
 		slog.Int("fact_count", factCount),
@@ -95,7 +97,8 @@ func (s Service) recordProjectionShutdownCanceled(ctx context.Context, work Scop
 	for _, attr := range scopeAttrs {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("queue", "projector"),
 		slog.String("status", "shutdown_canceled"),
 		slog.Int("fact_count", factCount),

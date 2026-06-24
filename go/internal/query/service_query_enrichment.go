@@ -65,7 +65,8 @@ func enrichServiceQueryContextWithOptions(
 
 	timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "service_evidence_content")
 	evidence, err := loadServiceQueryEvidence(ctx, content, repoID, serviceName)
-	timer.Done(ctx,
+	timer.Done(
+		ctx,
 		slog.Int("hostname_count", len(evidence.Hostnames)),
 		slog.Int("environment_count", len(evidence.Environments)),
 	)
@@ -168,7 +169,8 @@ func enrichServiceQueryContextWithOptions(
 		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "uncorrelated_cloud_resource_candidates")
 			cloudCandidates, cloudCandidatesTruncated, err := loadUncorrelatedCloudResourceCandidatesBounded(ctx, graph, serviceName, serviceStoryItemLimit)
-			timer.Done(ctx,
+			timer.Done(
+				ctx,
 				slog.Int("row_count", len(cloudCandidates)),
 				slog.Bool("truncated", cloudCandidatesTruncated),
 			)
@@ -191,7 +193,8 @@ func enrichServiceQueryContextWithOptions(
 		// unproven posture rather than implying protection.
 		timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "ingress_posture")
 		ingressPosture, err := loadServiceIngressPosture(ctx, graph, mapSliceValue(workloadContext, "cloud_resources"))
-		timer.Done(ctx,
+		timer.Done(
+			ctx,
 			slog.String("waf_coverage", StringVal(ingressPosture, "waf_coverage")),
 			slog.String("tls_termination", StringVal(ingressPosture, "tls_termination")),
 			slog.Int("edge_count", IntVal(ingressPosture, "edge_count")),

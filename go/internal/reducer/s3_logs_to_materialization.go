@@ -111,7 +111,8 @@ func (h S3LogsToMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerS3LogsToMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerS3LogsToMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -356,7 +357,8 @@ func logS3LogsToMaterializationCompleted(
 	ctx context.Context,
 	timing s3LogsToMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "s3 logs-to materialization completed",
+	slog.InfoContext(
+		ctx, "s3 logs-to materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

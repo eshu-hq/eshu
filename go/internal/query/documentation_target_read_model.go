@@ -374,7 +374,8 @@ func (cr *ContentReader) documentationTargetFacts(
 	if cr == nil || cr.db == nil || !documentationTargetScopeFromFindingFilter(filter).hasSelector() {
 		return nil, false, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_documentation_target_facts"),

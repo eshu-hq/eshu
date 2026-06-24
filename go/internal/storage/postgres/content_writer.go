@@ -137,7 +137,8 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			return content.Result{}, err
 		}
 		result.RepositoryRefCount = len(repositoryRefRows)
-		w.logStage(ctx, cloned, "prepare_repository_refs", refPrepareStart,
+		w.logStage(
+			ctx, cloned, "prepare_repository_refs", refPrepareStart,
 			"row_count", len(repositoryRefRows),
 		)
 
@@ -145,7 +146,8 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		if err := w.upsertRepositoryRefs(ctx, cloned.RepoID, repositoryRefRows, indexedAt); err != nil {
 			return content.Result{}, err
 		}
-		w.logStage(ctx, cloned, "upsert_repository_refs", refUpsertStart,
+		w.logStage(
+			ctx, cloned, "upsert_repository_refs", refUpsertStart,
 			"row_count", len(repositoryRefRows),
 		)
 	}
@@ -217,7 +219,8 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			iacRelevant:     iacRelevant,
 		})
 	}
-	w.logStage(ctx, cloned, "prepare_files", filePrepareStart,
+	w.logStage(
+		ctx, cloned, "prepare_files", filePrepareStart,
 		"row_count", len(fileUpserts),
 		"deleted_count", result.DeletedCount,
 	)
@@ -227,7 +230,8 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	if err := w.upsertContentFileBatches(ctx, fileUpserts, indexedAt); err != nil {
 		return content.Result{}, err
 	}
-	w.logStage(ctx, cloned, "upsert_files", fileUpsertStart,
+	w.logStage(
+		ctx, cloned, "upsert_files", fileUpsertStart,
 		"row_count", len(fileUpserts),
 		"batch_count", contentBatchCount(len(fileUpserts), contentFileBatchSize),
 	)
@@ -306,7 +310,8 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	// "later in input wins" outcome the prior serial path achieved via
 	// row-level lock contention.
 	entityUpserts = deduplicateEntityRows(entityUpserts)
-	w.logStage(ctx, cloned, "prepare_entities", entityPrepareStart,
+	w.logStage(
+		ctx, cloned, "prepare_entities", entityPrepareStart,
 		"row_count", len(entityUpserts),
 		"deleted_count", result.DeletedCount,
 	)
@@ -316,7 +321,8 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	if err := w.upsertContentEntityBatches(ctx, entityUpserts, indexedAt); err != nil {
 		return content.Result{}, err
 	}
-	w.logStage(ctx, cloned, "upsert_entities", entityUpsertStart,
+	w.logStage(
+		ctx, cloned, "upsert_entities", entityUpsertStart,
 		"row_count", len(entityUpserts),
 		"batch_count", contentBatchCount(len(entityUpserts), w.effectiveEntityBatchSize()),
 		"batch_concurrency", w.effectiveBatchConcurrency(),

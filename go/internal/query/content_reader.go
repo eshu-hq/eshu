@@ -47,7 +47,8 @@ type EntityContent struct {
 
 // GetFileContent returns one file by repo_id and relative_path.
 func (cr *ContentReader) GetFileContent(ctx context.Context, repoID, relativePath string) (*FileContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "get_file_content"),
@@ -79,7 +80,8 @@ func (cr *ContentReader) GetFileContent(ctx context.Context, repoID, relativePat
 
 // GetFileLines returns a line range from one file.
 func (cr *ContentReader) GetFileLines(ctx context.Context, repoID, relativePath string, startLine, endLine int) (*FileContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "get_file_lines"),
@@ -117,7 +119,8 @@ func (cr *ContentReader) GetFileLines(ctx context.Context, repoID, relativePath 
 
 // SearchFileContent searches file content using trigram matching.
 func (cr *ContentReader) SearchFileContent(ctx context.Context, repoID, pattern string, limit int) ([]FileContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_file_content"),
@@ -165,7 +168,8 @@ func (cr *ContentReader) SearchFileContent(ctx context.Context, repoID, pattern 
 
 // SearchEntityContent searches entity source cache using trigram matching.
 func (cr *ContentReader) SearchEntityContent(ctx context.Context, repoID, pattern string, limit int) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_entity_content"),
@@ -226,7 +230,8 @@ func (cr *ContentReader) SearchEntitiesByName(
 	name string,
 	limit int,
 ) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_entities_by_name"),
@@ -298,7 +303,8 @@ func (cr *ContentReader) SearchEntitiesReferencingComponent(
 	componentName string,
 	limit int,
 ) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_entities_referencing_component"),
@@ -362,7 +368,8 @@ func (cr *ContentReader) SearchEntitiesReferencingComponent(
 
 // ListRepoFiles returns all indexed files for one repository.
 func (cr *ContentReader) ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_repo_files"),
@@ -409,7 +416,8 @@ func (cr *ContentReader) ListRepoFiles(ctx context.Context, repoID string, limit
 
 // ListRepoEntities returns all indexed entities for one repository.
 func (cr *ContentReader) ListRepoEntities(ctx context.Context, repoID string, limit int) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_repo_entities"),

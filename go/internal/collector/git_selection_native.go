@@ -51,7 +51,8 @@ func (s NativeRepositorySelector) SelectRepositories(
 	}
 	repositoryIDs := filterRepositoryIDsByShard(selection.RepositoryIDs, s.Config)
 	if s.Config.RepoShardCount > 1 && s.Logger != nil {
-		s.Logger.InfoContext(ctx, "collector repository shard selected",
+		s.Logger.InfoContext(
+			ctx, "collector repository shard selected",
 			slog.String("collector_kind", "git"),
 			slog.Int("repo_shard_count", s.Config.RepoShardCount),
 			slog.Int("repo_shard_index", s.Config.RepoShardIndex),

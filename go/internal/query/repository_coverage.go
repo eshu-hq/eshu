@@ -7,9 +7,11 @@ import (
 	"time"
 )
 
-const repositoryGraphCoverageStatsTimeout = 2 * time.Second
-const repositoryCoverageContentFilesTable = "content_files"
-const repositoryCoverageContentEntitiesTable = "content_entities"
+const (
+	repositoryGraphCoverageStatsTimeout    = 2 * time.Second
+	repositoryCoverageContentFilesTable    = "content_files"
+	repositoryCoverageContentEntitiesTable = "content_entities"
+)
 
 func (h *RepositoryHandler) resolveCoverageRepositoryID(ctx context.Context, selector string) (string, error) {
 	return h.resolveRepositorySelector(ctx, selector)

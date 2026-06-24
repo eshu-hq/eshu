@@ -195,7 +195,8 @@ func validateSAMLReplayKeyRecord(record SAMLReplayKeyRecord) error {
 
 func samlRowsAffected(result interface {
 	RowsAffected() (int64, error)
-}) (bool, error) {
+},
+) (bool, error) {
 	affected, err := result.RowsAffected()
 	if err != nil {
 		return false, fmt.Errorf("read saml rows affected: %w", err)

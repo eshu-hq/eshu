@@ -33,7 +33,8 @@ func javaScriptHapiHandlerDirs(repoRoot string, path string, siblingParser *java
 
 	candidates := []string{}
 	for _, serviceRoot := range serviceRoots {
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			filepath.Join(serviceRoot, "server", "init", "plugins", "spec.js"),
 			filepath.Join(serviceRoot, "server", "init", "plugins", "spec.ts"),
 			filepath.Join(serviceRoot, "server", "init", "plugins", "specs.js"),

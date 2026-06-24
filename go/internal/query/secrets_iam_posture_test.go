@@ -216,17 +216,20 @@ func TestSecretsIAMPostureStoresRejectNilDBAndUnboundedScope(t *testing.T) {
 	t.Parallel()
 
 	if _, err := (PostgresSecretsIAMPrivilegePostureObservationStore{}).ListSecretsIAMPrivilegePostureObservations(
-		context.Background(), SecretsIAMPrivilegePostureObservationFilter{ScopeID: "s", Limit: 10}); err == nil ||
+		context.Background(), SecretsIAMPrivilegePostureObservationFilter{ScopeID: "s", Limit: 10},
+	); err == nil ||
 		!strings.Contains(err.Error(), "database is required") {
 		t.Fatalf("privilege posture nil-DB error = %v", err)
 	}
 	if _, err := (PostgresSecretsIAMSecretAccessPathStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}).ListSecretsIAMSecretAccessPaths(
-		context.Background(), SecretsIAMSecretAccessPathFilter{Limit: 10}); err == nil ||
+		context.Background(), SecretsIAMSecretAccessPathFilter{Limit: 10},
+	); err == nil ||
 		!strings.Contains(err.Error(), "is required") {
 		t.Fatalf("secret access path unbounded-scope error = %v", err)
 	}
 	if _, err := (PostgresSecretsIAMPostureGapStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}).ListSecretsIAMPostureGaps(
-		context.Background(), SecretsIAMPostureGapFilter{Limit: 10}); err == nil ||
+		context.Background(), SecretsIAMPostureGapFilter{Limit: 10},
+	); err == nil ||
 		!strings.Contains(err.Error(), "is required") {
 		t.Fatalf("posture gap unbounded-scope error = %v", err)
 	}

@@ -224,7 +224,7 @@ func TestRepositoryDocumentationStandardsAreEnforced(t *testing.T) {
 	// adding a package cannot skip the docs.
 	goDir := filepath.Join(root, "go")
 	containerDirs := map[string]struct{}{
-		filepath.Join(goDir):                                           {},
+		filepath.Join(goDir):                                           {}, //nolint:gocritic // badCall: each map key is a distinct path; the linter flags single-arg filepath.Join as suspicious, but here each call joins a different suffix.
 		filepath.Join(goDir, "cmd"):                                    {},
 		filepath.Join(goDir, "internal"):                               {},
 		filepath.Join(goDir, "internal", "storage"):                    {},
@@ -319,7 +319,8 @@ func TestInstallLocalBinariesUsesFirstGOPATHEntry(t *testing.T) {
 	}
 
 	cmd := exec.Command("bash", "-c", `source "$SCRIPT"; unset GOBIN; resolve_install_dir`)
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(
+		os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"SCRIPT="+filepath.Join(root, "scripts", "install-local-binaries.sh"),
 		"FAKE_GOPATH_FIRST="+firstGoPath,

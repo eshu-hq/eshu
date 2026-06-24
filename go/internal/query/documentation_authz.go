@@ -65,7 +65,8 @@ func appendDocumentationAuthorizationClause(
 		fmt.Sprintf("%s.payload->'source'->>'repository_id' IN (%s)", factAlias, inList),
 	}
 	for _, placeholder := range placeholders {
-		predicates = append(predicates,
+		predicates = append(
+			predicates,
 			documentationAuthJSONRefPredicate(factAlias, "candidate_refs", "kind", "id", placeholder),
 			documentationAuthJSONRefPredicate(factAlias, "evidence_refs", "kind", "id", placeholder),
 			documentationAuthJSONRefPredicate(factAlias, "linked_entities", "entity_type", "entity_id", placeholder),

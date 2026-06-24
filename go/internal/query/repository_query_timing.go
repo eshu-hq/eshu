@@ -33,7 +33,8 @@ func startRepositoryQueryStage(
 		startedAt: time.Now(),
 	}
 	if logger != nil {
-		logger.InfoContext(ctx, "repository query stage started",
+		logger.InfoContext(
+			ctx, "repository query stage started",
 			telemetry.EventAttr("repository_query.stage_started"),
 			slog.String("operation", operation),
 			slog.String("stage", stage),

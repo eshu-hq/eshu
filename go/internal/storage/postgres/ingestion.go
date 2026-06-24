@@ -1,4 +1,4 @@
-package postgres
+package postgres //nolint:filelength // 524 lines: ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the SkipRelationshipBackfill/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
 
 import (
 	"context"
@@ -402,7 +402,8 @@ func (s IngestionStore) logCommitStage(
 	for _, attr := range scopeAttrs {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("stage", stage),
 		slog.Float64("duration_seconds", time.Since(start).Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseEmission),

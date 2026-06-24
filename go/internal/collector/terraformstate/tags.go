@@ -9,10 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
-const nonScalarTagValueReason = "non_scalar_tag_value"
-const nullTagMapReason = "null_tag_map"
-const malformedTagMapReason = "malformed_tag_map"
-const unsupportedTagMapShapeReason = "unsupported_tag_map_shape"
+const (
+	nonScalarTagValueReason      = "non_scalar_tag_value"
+	nullTagMapReason             = "null_tag_map"
+	malformedTagMapReason        = "malformed_tag_map"
+	unsupportedTagMapShapeReason = "unsupported_tag_map_shape"
+)
 
 type tagValue struct {
 	Key    string

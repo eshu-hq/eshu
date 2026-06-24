@@ -123,8 +123,7 @@ func TestLiveJFrogPackageTargetIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotIdentity, gotNamespace, gotScopePath, err :=
-				liveJFrogPackageTargetIdentity(tt.ecosystem, tt.namespace, tt.packageName)
+			gotIdentity, gotNamespace, gotScopePath, err := liveJFrogPackageTargetIdentity(tt.ecosystem, tt.namespace, tt.packageName)
 			if err != nil {
 				t.Fatalf("liveJFrogPackageTargetIdentity() error = %v", err)
 			}

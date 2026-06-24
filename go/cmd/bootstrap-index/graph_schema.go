@@ -55,7 +55,8 @@ func ensureBootstrapGraphSchemaWithOpener(
 	}
 
 	if logger != nil {
-		logger.InfoContext(ctx, "graph schema marker missing; applying bootstrap-index graph schema",
+		logger.InfoContext(
+			ctx, "graph schema marker missing; applying bootstrap-index graph schema",
 			slog.String("graph_backend", string(backend)),
 		)
 	}
@@ -71,7 +72,8 @@ func ensureBootstrapGraphSchemaWithOpener(
 		return err
 	}
 	if logger != nil {
-		logger.InfoContext(ctx, "bootstrap-index graph schema marked applied",
+		logger.InfoContext(
+			ctx, "bootstrap-index graph schema marked applied",
 			slog.String("graph_backend", string(backend)),
 			slog.String("schema_fingerprint", app.Fingerprint),
 			slog.Int("statement_count", app.StatementCount),

@@ -145,12 +145,14 @@ func (s *schemaExecutionState) execute(
 
 	err := executeSchemaStatement(ctx, executor, cypher)
 	duration := time.Since(start)
-	doneAttrs := append(attrs,
+	doneAttrs := append(
+		attrs,
 		"duration_ms", float64(duration.Microseconds())/1000,
 	)
 	if err != nil {
 		s.logger.Warn("graph schema statement failed",
-			append(doneAttrs,
+			append(
+				doneAttrs,
 				"failure_class", schemaFailureClass(err),
 				"error", err,
 			)...)

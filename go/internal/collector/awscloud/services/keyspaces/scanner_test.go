@@ -140,7 +140,8 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 		t.Fatalf("table-uses-kms target_arn = %#v, want %q", got, want)
 	}
 
-	relguard.AssertObservations(t,
+	relguard.AssertObservations(
+		t,
 		*tableKeyspaceRelationship(testBoundary(), client.snapshot.Tables[0]),
 		*tableKMSRelationship(testBoundary(), client.snapshot.Tables[0]),
 	)

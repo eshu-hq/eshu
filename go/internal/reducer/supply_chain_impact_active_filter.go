@@ -155,17 +155,20 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			repositoryIDs = append(repositoryIDs, ociRepositoryID(envelope.Payload))
 			imageRefs = append(imageRefs, ociRegistryImageRef(envelope.Payload, payloadStr(envelope.Payload, "source_tag")))
 		case facts.OCIImageTagObservationFactKind:
-			digests = append(digests,
+			digests = append(
+				digests,
 				payloadStr(envelope.Payload, "resolved_digest"),
 				payloadStr(envelope.Payload, "digest"),
 			)
 			repositoryIDs = append(repositoryIDs, ociRepositoryID(envelope.Payload))
-			imageRefs = append(imageRefs,
+			imageRefs = append(
+				imageRefs,
 				payloadStr(envelope.Payload, "image_ref"),
 				ociRegistryImageRef(envelope.Payload, payloadStr(envelope.Payload, "tag")),
 			)
 		case facts.OCIImageReferrerFactKind:
-			digests = append(digests,
+			digests = append(
+				digests,
 				payloadStr(envelope.Payload, "subject_digest"),
 				payloadStr(envelope.Payload, "referrer_digest"),
 			)

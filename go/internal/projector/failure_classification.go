@@ -47,8 +47,10 @@ type FailureClassification struct {
 	RetryAfterSeconds int
 }
 
-const neo4jTransientCodePrefix = "Neo.TransientError."
-const neo4jTransientRetrySeconds = 15
+const (
+	neo4jTransientCodePrefix   = "Neo.TransientError."
+	neo4jTransientRetrySeconds = 15
+)
 
 // StageError wraps one error with the projection stage that raised it.
 type StageError struct {

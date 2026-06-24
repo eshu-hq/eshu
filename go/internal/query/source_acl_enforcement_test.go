@@ -294,7 +294,8 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 			rows:    [][]driver.Value{{packet(facts.SourceACLStateDenied)}},
 		}})
 		got, err := NewContentReader(db).documentationEvidencePacketWithFilter(
-			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:denied"})
+			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:denied"},
+		)
 		if err != nil {
 			t.Fatalf("error = %v", err)
 		}
@@ -313,7 +314,8 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 			rows:    [][]driver.Value{{packet(facts.SourceACLStatePartial)}},
 		}})
 		got, err := NewContentReader(db).documentationEvidencePacketWithFilter(
-			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:partial"})
+			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:partial"},
+		)
 		if err != nil {
 			t.Fatalf("error = %v", err)
 		}
@@ -338,7 +340,8 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 			rows:    [][]driver.Value{{packet(facts.SourceACLStateStale)}},
 		}})
 		got, err := NewContentReader(db).documentationEvidencePacketWithFilter(
-			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:stale"})
+			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:stale"},
+		)
 		if err != nil {
 			t.Fatalf("error = %v", err)
 		}

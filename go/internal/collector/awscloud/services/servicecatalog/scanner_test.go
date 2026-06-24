@@ -343,12 +343,15 @@ func TestScanOmitsNonRolePrincipalEdge(t *testing.T) {
 func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 	allowed := map[string]map[string]struct{}{
 		awscloud.ResourceTypeServiceCatalogPortfolio: keySet(
-			"portfolio_id", "display_name", "provider_name", "description", "created_time"),
+			"portfolio_id", "display_name", "provider_name", "description", "created_time",
+		),
 		awscloud.ResourceTypeServiceCatalogProduct: keySet(
-			"product_id", "product_type", "owner", "distributor", "status", "created_time"),
+			"product_id", "product_type", "owner", "distributor", "status", "created_time",
+		),
 		awscloud.ResourceTypeServiceCatalogProvisionedProduct: keySet(
 			"provisioned_product_id", "status", "provisioned_product_type", "product_id",
-			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time"),
+			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time",
+		),
 	}
 	for _, envelope := range scanFixture(t, sampleClient()) {
 		if envelope.FactKind != facts.AWSResourceFactKind {
@@ -378,12 +381,15 @@ func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 func TestScanEmitsEveryDocumentedAttribute(t *testing.T) {
 	documented := map[string][]string{
 		awscloud.ResourceTypeServiceCatalogPortfolio: {
-			"portfolio_id", "display_name", "provider_name", "description", "created_time"},
+			"portfolio_id", "display_name", "provider_name", "description", "created_time",
+		},
 		awscloud.ResourceTypeServiceCatalogProduct: {
-			"product_id", "product_type", "owner", "distributor", "status", "created_time"},
+			"product_id", "product_type", "owner", "distributor", "status", "created_time",
+		},
 		awscloud.ResourceTypeServiceCatalogProvisionedProduct: {
 			"provisioned_product_id", "status", "provisioned_product_type", "product_id",
-			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time"},
+			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time",
+		},
 	}
 	seen := make(map[string]map[string]struct{}, len(documented))
 	for _, envelope := range scanFixture(t, sampleClient()) {

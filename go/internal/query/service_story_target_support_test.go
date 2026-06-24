@@ -303,7 +303,8 @@ func TestBuildServiceStoryTargetSupportSQLIsTargetScopedAndBounded(t *testing.T)
 		Limit:      serviceStoryTargetSupportLimit,
 	})
 
-	assertSupportSQLContainsAll(t, query,
+	assertSupportSQLContainsAll(
+		t, query,
 		"FROM fact_records AS fact",
 		"fact.fact_kind = ANY($1::text[])",
 		"fact.is_tombstone = FALSE",

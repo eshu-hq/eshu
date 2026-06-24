@@ -10,8 +10,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const preflightProviderAccessFlag = "--preflight-provider-access"
-const preflightServiceName = "collector-security-alerts-preflight"
+const (
+	preflightProviderAccessFlag = "--preflight-provider-access"
+	preflightServiceName        = "collector-security-alerts-preflight"
+)
 
 type providerAccessPreflightTelemetry struct {
 	tracer      trace.Tracer

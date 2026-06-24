@@ -16,8 +16,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
-const defaultHTTPTimeout = 30 * time.Second
-const maxBlobReadBytes int64 = 1 << 20
+const (
+	defaultHTTPTimeout       = 30 * time.Second
+	maxBlobReadBytes   int64 = 1 << 20
+)
 
 // ClientConfig configures the OCI Distribution HTTP client.
 type ClientConfig struct {

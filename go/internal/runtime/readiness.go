@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // defaultDependencyReadinessTimeout bounds a single dependency readiness probe.

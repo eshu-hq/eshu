@@ -125,7 +125,8 @@ func logTerraformStateCandidateDiscovery(
 	if s.Logger == nil || count == 0 {
 		return
 	}
-	s.Logger.InfoContext(ctx, "terraform state candidates discovered",
+	s.Logger.InfoContext(
+		ctx, "terraform state candidates discovered",
 		"collector_kind", "git",
 		"repo_path", filepath.Base(repoPath),
 		"candidate_source", terraformStateCandidateSource,

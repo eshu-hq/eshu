@@ -179,7 +179,8 @@ func (r *GraphProjectionPhaseRepairer) RunOnce(ctx context.Context, now time.Tim
 			}
 			if r.Logger != nil {
 				logAttrs := repairLogAttrs(repair)
-				logAttrs = append(logAttrs,
+				logAttrs = append(
+					logAttrs,
 					slog.String("error", err.Error()),
 					slog.Time("next_attempt_at", nextAttemptAt),
 					telemetry.FailureClassAttr("graph_projection_repair_publish_failed"),
@@ -196,7 +197,8 @@ func (r *GraphProjectionPhaseRepairer) RunOnce(ctx context.Context, now time.Tim
 		repairedCount++
 		if r.Logger != nil {
 			logAttrs := repairLogAttrs(repair)
-			logAttrs = append(logAttrs,
+			logAttrs = append(
+				logAttrs,
 				telemetry.PhaseAttr(telemetry.PhaseShared),
 			)
 			r.Logger.InfoContext(ctx, "graph projection readiness repaired", logAttrs...)
@@ -287,7 +289,8 @@ func repairLogAttrs(repair GraphProjectionPhaseRepair) []any {
 	) {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("keyspace", string(repair.Key.Keyspace)),
 		slog.String("graph_projection_phase", string(repair.Phase)),
 	)

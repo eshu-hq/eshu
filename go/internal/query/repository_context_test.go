@@ -826,7 +826,6 @@ func TestGetRepositoryContextIncludesTerraformAndTerragruntInfrastructureFromCon
 	if !ok || len(shellCommands) != 1 || shellCommands[0] != "./scripts/deploy.sh" {
 		t.Fatalf("controller_artifacts[0].shell_commands = %#v, want [./scripts/deploy.sh]", controllerArtifact["shell_commands"])
 	}
-
 }
 
 func TestGetRepositoryContextReturnsNotFoundForMissingRepo(t *testing.T) {

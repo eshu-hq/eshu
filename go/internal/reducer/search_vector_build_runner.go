@@ -224,7 +224,8 @@ func (r *SearchVectorBuildRunner) logResult(ctx context.Context, result SearchVe
 	if r.Logger == nil {
 		return
 	}
-	r.Logger.InfoContext(ctx, "search vector build sweep completed",
+	r.Logger.InfoContext(
+		ctx, "search vector build sweep completed",
 		slog.Int("pending_scopes", result.PendingScopes),
 		slog.Int("built_scopes", result.BuiltScopes),
 		slog.Int("document_count", result.DocumentCount),
@@ -244,7 +245,8 @@ func (r *SearchVectorBuildRunner) logFailure(ctx context.Context, err error) {
 	if r.Logger == nil {
 		return
 	}
-	r.Logger.ErrorContext(ctx, "search vector build sweep failed",
+	r.Logger.ErrorContext(
+		ctx, "search vector build sweep failed",
 		slog.String("error", err.Error()),
 		slog.String("failure_class", "search_vector_build_error"),
 		slog.String("phase", "reduction"),

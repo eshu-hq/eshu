@@ -8,8 +8,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
-	"github.com/eshu-hq/eshu/go/internal/redact"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations/runtimebind"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // TestOrganizationsRuntimeBindRegisters confirms importing the binding

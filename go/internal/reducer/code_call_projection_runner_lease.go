@@ -85,7 +85,8 @@ func (r *CodeCallProjectionRunner) logLeaseHeartbeatFailure(ctx context.Context,
 	for _, attr := range telemetry.DomainAttrs(string(DomainCodeCalls), "") {
 		logAttrs = append(logAttrs, attr)
 	}
-	logAttrs = append(logAttrs,
+	logAttrs = append(
+		logAttrs,
 		slog.String("queue", "code_calls"),
 		slog.Duration("heartbeat_interval", r.leaseHeartbeatInterval()),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
