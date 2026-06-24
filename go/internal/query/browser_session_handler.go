@@ -81,16 +81,18 @@ type BrowserSessionResponse struct {
 
 // BrowserSessionAuthResponse is the public JSON view of a request auth context.
 type BrowserSessionAuthResponse struct {
-	Mode                 AuthMode `json:"mode"`
-	TenantID             string   `json:"tenant_id,omitempty"`
-	WorkspaceID          string   `json:"workspace_id,omitempty"`
-	SubjectClass         string   `json:"subject_class,omitempty"`
-	SubjectIDHash        string   `json:"subject_id_hash,omitempty"`
-	PolicyRevisionHash   string   `json:"policy_revision_hash,omitempty"`
-	RoleIDs              []string `json:"role_ids,omitempty"`
-	AllScopes            bool     `json:"all_scopes"`
-	AllowedScopeIDs      []string `json:"allowed_scope_ids,omitempty"`
-	AllowedRepositoryIDs []string `json:"allowed_repository_ids,omitempty"`
+	Mode                      AuthMode `json:"mode"`
+	TenantID                  string   `json:"tenant_id,omitempty"`
+	WorkspaceID               string   `json:"workspace_id,omitempty"`
+	SubjectClass              string   `json:"subject_class,omitempty"`
+	SubjectIDHash             string   `json:"subject_id_hash,omitempty"`
+	PolicyRevisionHash        string   `json:"policy_revision_hash,omitempty"`
+	RoleIDs                   []string `json:"role_ids,omitempty"`
+	AllScopes                 bool     `json:"all_scopes"`
+	AllowedScopeIDs           []string `json:"allowed_scope_ids,omitempty"`
+	AllowedRepositoryIDs      []string `json:"allowed_repository_ids,omitempty"`
+	PermissionCatalogEnforced bool     `json:"permission_catalog_enforced"`
+	AllowedPermissionFeatures []string `json:"allowed_permission_features,omitempty"`
 }
 
 // Mount registers browser session routes.
@@ -388,15 +390,17 @@ func writeBrowserSessionCookies(
 func browserSessionAuthResponse(auth AuthContext) BrowserSessionAuthResponse {
 	auth = normalizeBrowserSessionAuthContext(auth)
 	return BrowserSessionAuthResponse{
-		Mode:                 auth.Mode,
-		TenantID:             auth.TenantID,
-		WorkspaceID:          auth.WorkspaceID,
-		SubjectClass:         auth.SubjectClass,
-		SubjectIDHash:        auth.SubjectIDHash,
-		PolicyRevisionHash:   auth.PolicyRevisionHash,
-		RoleIDs:              append([]string(nil), auth.RoleIDs...),
-		AllScopes:            auth.AllScopes,
-		AllowedScopeIDs:      append([]string(nil), auth.AllowedScopeIDs...),
-		AllowedRepositoryIDs: append([]string(nil), auth.AllowedRepositoryIDs...),
+		Mode:                      auth.Mode,
+		TenantID:                  auth.TenantID,
+		WorkspaceID:               auth.WorkspaceID,
+		SubjectClass:              auth.SubjectClass,
+		SubjectIDHash:             auth.SubjectIDHash,
+		PolicyRevisionHash:        auth.PolicyRevisionHash,
+		RoleIDs:                   append([]string(nil), auth.RoleIDs...),
+		AllScopes:                 auth.AllScopes,
+		AllowedScopeIDs:           append([]string(nil), auth.AllowedScopeIDs...),
+		AllowedRepositoryIDs:      append([]string(nil), auth.AllowedRepositoryIDs...),
+		PermissionCatalogEnforced: auth.PermissionCatalogEnforced,
+		AllowedPermissionFeatures: append([]string(nil), auth.AllowedPermissionFeatures...),
 	}
 }

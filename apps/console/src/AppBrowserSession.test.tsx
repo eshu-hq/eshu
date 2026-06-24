@@ -1,4 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+// AppBrowserSession.test.tsx — integration tests for the production session-auth
+// flow. The primary login path is now LoginPage (local credentials) rather than
+// pasting an API credential into the SourcePopover.
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import { App } from "./App";
@@ -9,27 +12,43 @@ describe("App browser session auth", () => {
     vi.unstubAllGlobals();
   });
 
-  it("exchanges an entered credential for a browser session before loading live data", async () => {
-    window.localStorage.setItem(
-      "eshu.console.environment",
-      JSON.stringify({ mode: "demo", apiBaseUrl: "", recentApiBaseUrls: [] })
-    );
-    const observed: { readonly path: string; readonly method: string; readonly authorization: string | null }[] = [];
+  it("shows the LoginPage when no session exists and boots after successful login", async () => {
+    // No saved env — default private mode with no session cookie.
+    const observed: { readonly path: string; readonly method: string }[] = [];
+    // Track how many times the session endpoint has been called so the first
+    // call returns 401 (no session) and subsequent calls return 200 (logged in).
+    let sessionCallCount = 0;
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = new URL(new Request(input).url).pathname;
-      const headers = new Headers(init?.headers);
       const method = init?.method ?? "GET";
-      observed.push({ path, method, authorization: headers.get("Authorization") });
-      if (path === "/eshu-api/api/v0/auth/browser-session") {
+      observed.push({ path, method });
+      if (path === "/eshu-api/api/v0/auth/browser-session" && method === "GET") {
+        sessionCallCount++;
+        if (sessionCallCount === 1) {
+          // Initial probe — no session yet.
+          return Response.json({ error: { code: "unauthenticated", message: "no session" } }, { status: 401 });
+        }
+        // Post-login boot: session cookie is present.
         return Response.json({
           auth: {
             mode: "browser_session",
             tenant_id: "tenant_a",
             workspace_id: "workspace_a",
-            all_scopes: false
+            all_scopes: true
+          }
+        });
+      }
+      // Local login → server sets a session cookie and returns auth.
+      if (path === "/eshu-api/api/v0/auth/local/login" && method === "POST") {
+        return Response.json({
+          auth: {
+            mode: "browser_session",
+            tenant_id: "tenant_a",
+            workspace_id: "workspace_a",
+            all_scopes: true
           },
           csrf_token: "csrf-secret"
-        }, { status: 201 });
+        });
       }
       if (path === "/eshu-api/api/v0/index-status") {
         return Response.json({ status: "ready", repository_count: 1, queue: {} });
@@ -49,64 +68,70 @@ describe("App browser session auth", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Demo fixtures" }));
-    fireEvent.change(screen.getByPlaceholderText("API credential"), {
-      target: { value: "scoped-login-token" }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    // LoginPage must appear when session probe returns 401.
+    expect(await screen.findByLabelText(/login/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
 
+    // Fill in credentials and submit.
+    fireEvent.change(screen.getByLabelText(/login/i), { target: { value: "admin@example.com" } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "s3cr3t" } });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    // After login the app boots and shows "Live".
     expect(await screen.findByText("Live")).toBeInTheDocument();
-    const sessionCall = observed.find((call) => call.path === "/eshu-api/api/v0/auth/browser-session");
-    expect(sessionCall).toMatchObject({
-      method: "POST",
-      authorization: "Bearer scoped-login-token"
-    });
-    const liveReadCalls = observed.filter((call) =>
-      call.path !== "/eshu-api/api/v0/auth/browser-session"
-    );
-    expect(liveReadCalls.length).toBeGreaterThan(0);
-    expect(liveReadCalls.every((call) => call.authorization === null)).toBe(true);
+
+    // Confirm the login POST was made with the right field names.
+    const loginCall = observed.find((c) => c.path === "/eshu-api/api/v0/auth/local/login");
+    expect(loginCall).toBeDefined();
+    expect(loginCall?.method).toBe("POST");
   });
 
-  it("falls back to bearer live reads when a shared key cannot create a browser session", async () => {
+  it("boots with an existing session cookie without showing the login page", async () => {
+    // Saved private env — session cookie present from a previous login.
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(new Request(input).url).pathname;
+      const method = init?.method ?? "GET";
+      if (path === "/eshu-api/api/v0/auth/browser-session" && method === "GET") {
+        return Response.json({
+          auth: { mode: "browser_session", all_scopes: true }
+        });
+      }
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    // No login page — goes straight to connected state.
+    expect(await screen.findByText("Live")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/login/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("SourcePopover no longer contains an API credential password input", async () => {
+    // Verify the production-mode removal of the API key paste field.
     window.localStorage.setItem(
       "eshu.console.environment",
       JSON.stringify({ mode: "demo", apiBaseUrl: "", recentApiBaseUrls: [] })
     );
-    const observed: { readonly path: string; readonly method: string; readonly authorization: string | null }[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = new URL(new Request(input).url).pathname;
-      const headers = new Headers(init?.headers);
-      const method = init?.method ?? "GET";
-      const authorization = headers.get("Authorization");
-      observed.push({ path, method, authorization });
-      if (path === "/eshu-api/api/v0/auth/browser-session") {
-        return Response.json({
-          error: {
-            code: "invalid_request",
-            message: "tenant_id and workspace_id are required to create a browser session"
-          }
-        }, { status: 400 });
-      }
-      if (authorization !== "Bearer shared-api-key") {
-        return Response.json({
-          error: {
-            code: "unauthenticated",
-            message: "authentication is required"
-          }
-        }, { status: 401 });
-      }
-      if (path === "/eshu-api/api/v0/index-status") {
-        return Response.json({ status: "ready", repository_count: 1, queue: {} });
-      }
-      if (path === "/eshu-api/api/v0/ecosystem/overview") {
-        return Response.json({ data: { repo_count: 1 } });
-      }
-      if (path === "/eshu-api/api/v0/catalog") {
-        return Response.json({ data: { services: [] } });
-      }
-      return Response.json({ data: {} });
-    }));
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ data: {} })));
 
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
@@ -114,22 +139,11 @@ describe("App browser session auth", () => {
       </MemoryRouter>
     );
 
+    // Open the source popover from demo mode.
     fireEvent.click(await screen.findByRole("button", { name: "Demo fixtures" }));
-    fireEvent.change(screen.getByPlaceholderText("API credential"), {
-      target: { value: "shared-api-key" }
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(await screen.findByText("Live")).toBeInTheDocument();
-    const sessionCall = observed.find((call) => call.path === "/eshu-api/api/v0/auth/browser-session");
-    expect(sessionCall).toMatchObject({
-      method: "POST",
-      authorization: "Bearer shared-api-key"
-    });
-    const liveReadCalls = observed.filter((call) =>
-      call.path !== "/eshu-api/api/v0/auth/browser-session"
-    );
-    expect(liveReadCalls.length).toBeGreaterThan(0);
-    expect(liveReadCalls.every((call) => call.authorization === "Bearer shared-api-key")).toBe(true);
+    // API credential password field must not exist.
+    expect(screen.queryByPlaceholderText("API credential")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/api credential/i)).not.toBeInTheDocument();
   });
 });

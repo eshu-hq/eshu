@@ -75,19 +75,34 @@ var (
 	consoleRoutePagePattern      = regexp.MustCompile(`<([A-Za-z0-9_]+Page)(?:\s|/|>)`)
 )
 
+// consoleRouterFiles lists the console source files that together hold the
+// router's page imports and <Route> table. The shell (App.tsx) and the extracted
+// routes table (appRoutes.tsx) are read as one logical router so that splitting
+// the routes out of App.tsx to honor the file-size limit does not drop console
+// page surfaces from the inventory.
+var consoleRouterFiles = []string{"App.tsx", "appRoutes.tsx"}
+
 // enumerateConsolePages returns the routed console page component names from the
 // console router. The tracking unit is a routed page, not any Page.tsx file in
 // the pages directory; orphan, prototype, and test-only page components must not
-// be reported as production console surfaces.
+// be reported as production console surfaces. Imports and <Route> elements are
+// read across every consoleRouterFiles entry, so the router may be split across
+// the App shell and an extracted routes table without losing surfaces.
 func enumerateConsolePages(root string) ([]string, error) {
-	appPath := filepath.Join(root, "apps", "console", "src", "App.tsx")
-	body, err := os.ReadFile(appPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+	var combined strings.Builder
+	for _, name := range consoleRouterFiles {
+		routerPath := filepath.Join(root, "apps", "console", "src", name)
+		fileBody, err := os.ReadFile(routerPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("read console router %s: %w", routerPath, err)
 		}
-		return nil, fmt.Errorf("read console router %s: %w", appPath, err)
+		combined.Write(fileBody)
+		combined.WriteByte('\n')
 	}
+	body := combined.String()
 	imports := map[string]string{}
 	for _, match := range consolePageImportPattern.FindAllStringSubmatch(string(body), -1) {
 		if match[1] == match[2] {

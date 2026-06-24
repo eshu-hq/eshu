@@ -176,6 +176,50 @@ func TestEnumerateConsolePagesIncludesOnlyRoutedPages(t *testing.T) {
 	}
 }
 
+// TestEnumerateConsolePagesAcrossSplitRouter verifies that page imports and
+// <Route> elements moved out of App.tsx into the extracted appRoutes.tsx table
+// (done to honor the file-size limit) are still detected. Regression guard for
+// the surface-inventory drift caused by splitting the console router.
+func TestEnumerateConsolePagesAcrossSplitRouter(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	pagesDir := filepath.Join(root, "apps", "console", "src", "pages")
+	if err := os.MkdirAll(pagesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// App.tsx keeps the login/shell page; the routes table lives in appRoutes.tsx.
+	writeTestFile(t, filepath.Join(root, "apps", "console", "src", "App.tsx"), `
+		import { LoginPage } from "./pages/LoginPage";
+		export function App(): React.JSX.Element {
+			return <Routes><Route path="/login" element={<LoginPage />} /></Routes>;
+		}
+	`)
+	writeTestFile(t, filepath.Join(root, "apps", "console", "src", "appRoutes.tsx"), `
+		import { DashboardPage } from "./pages/DashboardPage";
+		import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
+		export function AppRoutes(): React.JSX.Element {
+			return (
+				<Routes>
+					<Route path="/dashboard" element={<DashboardPage />} />
+					<Route path="/surface-inventory" element={<SurfaceInventoryPage />} />
+				</Routes>
+			);
+		}
+	`)
+	writeTestFile(t, filepath.Join(pagesDir, "LoginPage.tsx"), "export function LoginPage(): React.JSX.Element { return <div />; }")
+	writeTestFile(t, filepath.Join(pagesDir, "DashboardPage.tsx"), "export function DashboardPage(): React.JSX.Element { return <div />; }")
+	writeTestFile(t, filepath.Join(pagesDir, "SurfaceInventoryPage.tsx"), "export function SurfaceInventoryPage(): React.JSX.Element { return <div />; }")
+
+	pages, err := enumerateConsolePages(root)
+	if err != nil {
+		t.Fatalf("enumerateConsolePages: %v", err)
+	}
+	if got, want := strings.Join(pages, ","), "DashboardPage,LoginPage,SurfaceInventoryPage"; got != want {
+		t.Fatalf("pages = %q, want %q", got, want)
+	}
+}
+
 // TestSurfaceInventoryGateCatchesSilentDrift is the CI fixture required by
 // #3145: a command/collector/API/MCP surface added or removed in code without
 // regenerating the committed artifact must fail the gate. It exercises both the

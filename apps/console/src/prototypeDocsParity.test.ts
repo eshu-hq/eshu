@@ -229,10 +229,13 @@ describe("prototype documentation parity", () => {
 
   it("keeps prototype topbar search wired to live-style repository routing", () => {
     const liveApp = repoFile("apps/console/src/App.tsx");
+    // Repository-loading logic was extracted to appBoot.ts to keep App.tsx under 500 lines.
+    const liveAppBoot = repoFile("apps/console/src/appBoot.ts");
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
 
     expect(liveApp).toContain("repositorySearchTarget");
-    expect(liveApp).toContain("loadRepositories(next)");
+    // loadRepositories lives in appBoot.ts after extraction from App.tsx (issue #3462).
+    expect(liveAppBoot).toContain("loadRepositories(nextClient)");
     expect(liveApp).toContain("navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`)");
     expect(liveApp).toContain("onKeyDown={submitSearchKey}");
     expect(liveApp).toContain("onClick={submitSearchButton}");

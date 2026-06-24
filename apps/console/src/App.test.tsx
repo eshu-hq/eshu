@@ -184,6 +184,9 @@ describe("App shell", () => {
   it("routes service workspaces through the Service Atlas support surface", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/auth/browser-session") {
+        return Response.json({ auth: { mode: "browser_session", all_scopes: true } });
+      }
       if (path === "/eshu-api/api/v0/index-status") {
         return Response.json({ repository_count: 1, status: "ready" });
       }
@@ -253,6 +256,9 @@ describe("App shell", () => {
     let catalogCalls = 0;
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/auth/browser-session") {
+        return Response.json({ auth: { mode: "browser_session", all_scopes: true } });
+      }
       if (path === "/eshu-api/api/v0/catalog") {
         catalogCalls += 1;
         return Response.json({
@@ -295,6 +301,9 @@ describe("App shell", () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const request = new Request(input);
       const path = new URL(request.url).pathname;
+      if (path === "/eshu-api/api/v0/auth/browser-session") {
+        return Response.json({ auth: { mode: "browser_session", all_scopes: true } });
+      }
       if (path === "/eshu-api/api/v0/index-status") {
         return Response.json({ status: "ready", repository_count: 1, queue: {} });
       }
@@ -343,6 +352,9 @@ describe("App shell", () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const request = new Request(input);
       const path = new URL(request.url).pathname;
+      if (path === "/eshu-api/api/v0/auth/browser-session") {
+        return Response.json({ auth: { mode: "browser_session", all_scopes: true } });
+      }
       if (path === "/eshu-api/api/v0/index-status") {
         return Response.json({ status: "ready", repository_count: 1, queue: {} });
       }
@@ -398,6 +410,9 @@ describe("App shell", () => {
     );
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/auth/browser-session") {
+        return Response.json({ auth: { mode: "browser_session", all_scopes: true } });
+      }
       if (path === "/eshu-api/api/v0/index-status") {
         return Response.json({ status: "ready", repository_count: 1, queue: {} });
       }
@@ -455,6 +470,9 @@ describe("App shell", () => {
     );
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/auth/browser-session") {
+        return Response.json({ auth: { mode: "browser_session", all_scopes: true } });
+      }
       if (path === "/eshu-api/api/v0/index-status") {
         return Response.json({ status: "ready", repository_count: 1, queue: {} });
       }

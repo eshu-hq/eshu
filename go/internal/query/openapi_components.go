@@ -428,7 +428,9 @@ const openAPIComponents = `  "components": {
           "role_ids": {"type": "array", "items": {"type": "string"}},
           "all_scopes": {"type": "boolean"},
           "allowed_scope_ids": {"type": "array", "items": {"type": "string"}},
-          "allowed_repository_ids": {"type": "array", "items": {"type": "string"}}
+          "allowed_repository_ids": {"type": "array", "items": {"type": "string"}},
+          "permission_catalog_enforced": {"type": "boolean"},
+          "allowed_permission_features": {"type": "array", "items": {"type": "string"}}
         }
       },
       "BrowserSessionResponse": {
