@@ -62,6 +62,11 @@ func (s NativeRepositorySelector) SelectRepositories(
 
 	switch s.Config.SourceMode {
 	case "filesystem":
+		// Emit a duplicate-identity diagnostic before syncing so accidental
+		// corpus nesting (e.g. repos/repos/… copies — issue #3677) is visible
+		// from metrics and logs on the first run rather than only post-hoc.
+		reportDuplicateRepoIdentities(ctx, repositoryIDs, s.Logger, s.Instruments)
+
 		syncFilesystemFn := s.SyncFilesystem
 		if syncFilesystemFn == nil {
 			syncFilesystemFn = syncFilesystemRepositories

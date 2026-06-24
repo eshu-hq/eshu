@@ -599,6 +599,34 @@ claim/execute spans for the value-flow evidence domains.
   exposes `/admin/status`, hosted readiness, and
   `eshu_runtime_collector_generation_*` count/age gauges.
 
+## Duplicate-repository diagnostic (issue #3677)
+
+`NativeRepositorySelector` emits an observability signal after filesystem-mode
+discovery when the same repository basename identity appears at more than one
+discovered path. This catches accidental corpus nesting (e.g. the 4× inflation
+caused by `repos/repos/repos/…` recursive copies) on the very first run,
+without changing which repos are indexed.
+
+Observability Evidence: `eshu_dp_duplicate_repository_identity_total` is a
+plain counter (no path or identity labels; those are unbounded) that advances
+by the number of duplicate-path occurrences detected in one cycle.  A non-zero
+value signals accidental corpus duplication. Read the accompanying structured
+warning log (`"duplicate repository identity detected"`, with fields `identity`,
+`duplicate_count`, and `path_sample`) to see which basename is duplicated and a
+bounded sample (up to 5) of the offending paths. Together, the metric fires an
+alert and the log provides the investigation anchor an operator needs to clean
+the corpus without DB forensics.
+
+No-Regression Evidence: `reportDuplicateRepoIdentities` runs O(n) over the
+already-discovered `repositoryIDs` slice (a single-pass `map[string][]string`
+group, no filesystem I/O, no git exec, no extra directory walk beyond what
+`discoverRepoRoots` already performed). It is called once per selector cycle
+for filesystem mode only, adds negligible wall time, and does not alter
+selection or indexing behaviour. Verified by
+`go test ./internal/collector -run 'TestReportDuplicateRepoIdentities|TestNativeRepositorySelectorFilesystem_DuplicateRepoWarning' -count=1`
+(6 tests: dup-fires, no-dup-silent, nil-safe, empty-silent, counter-matches-dup-count,
+and the end-to-end selector integration test).
+
 ## Extension points
 
 - `RepositorySelector` — replace `NativeRepositorySelector` with any

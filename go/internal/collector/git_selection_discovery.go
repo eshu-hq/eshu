@@ -1,11 +1,15 @@
 package collector
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // GitHubRepositoryRecord is one GitHub discovery candidate for repository selection.
@@ -280,4 +284,89 @@ func repoIDFromManagedPath(reposDir string, repoPath string) string {
 		return ""
 	}
 	return filepath.ToSlash(filepath.Clean(rel))
+}
+
+// duplicatePathSampleLimit caps the number of duplicate paths reported in a
+// single warning log entry to keep the log line bounded.
+const duplicatePathSampleLimit = 5
+
+// reportDuplicateRepoIdentities inspects the discovered repository IDs from
+// one collector cycle and emits a structured warning log and metric when the
+// same repository identity appears at more than one distinct path. This is a
+// pure observability call — it does not change which repositories are indexed.
+//
+// Identity is the last path segment (basename) of each repoID. This is a
+// stable proxy for the git origin remote URL that is cheap to compute without
+// reading .git/config on every discovered root. When the corpus is clean, all
+// basenames are unique. When the corpus has been accidentally nested or
+// duplicated (e.g. repos/repos/repos/… copies as in issue #3677), the same
+// basename appears at multiple depths and the counter advances, making the
+// 4× inflation immediately visible from metrics and logs rather than requiring
+// post-hoc database forensics.
+//
+// Metric: eshu_dp_duplicate_repository_identity_total — incremented by the
+// number of non-first occurrences of each duplicated identity (i.e. the total
+// number of surplus paths). No path or identity labels are attached; those
+// details are in the structured log.
+//
+// Log: "duplicate repository identity detected" at WARN level, with fields:
+//
+//	identity          — the duplicated basename
+//	duplicate_count   — total paths that share this identity
+//	path_sample       — up to duplicatePathSampleLimit paths (bounded)
+//	total_path_count  — full count when the sample is truncated
+func reportDuplicateRepoIdentities(
+	ctx context.Context,
+	repoIDs []string,
+	logger *slog.Logger,
+	inst *telemetry.Instruments,
+) {
+	if len(repoIDs) == 0 {
+		return
+	}
+
+	// Group repoIDs by their basename identity.
+	byIdentity := make(map[string][]string, len(repoIDs))
+	for _, id := range repoIDs {
+		if id == "" {
+			continue
+		}
+		basename := filepath.Base(id)
+		if basename == "" || basename == "." {
+			continue
+		}
+		byIdentity[basename] = append(byIdentity[basename], id)
+	}
+
+	var totalDuplicates int64
+	for identity, paths := range byIdentity {
+		if len(paths) <= 1 {
+			continue
+		}
+		// Each path beyond the first is a duplicate.
+		duplicateCount := int64(len(paths) - 1)
+		totalDuplicates += duplicateCount
+
+		if logger != nil {
+			sample := paths
+			truncated := false
+			if len(sample) > duplicatePathSampleLimit {
+				sample = sample[:duplicatePathSampleLimit]
+				truncated = true
+			}
+			attrs := []any{
+				slog.String("identity", identity),
+				slog.Int("duplicate_count", len(paths)),
+				slog.Any("path_sample", sample),
+			}
+			if truncated {
+				attrs = append(attrs, slog.Int("total_path_count", len(paths)))
+			}
+			logger.WarnContext(ctx, "duplicate repository identity detected", attrs...)
+		}
+	}
+
+	if totalDuplicates > 0 && inst != nil {
+		inst.DuplicateRepositoryIdentity.Add(ctx, totalDuplicates)
+	}
 }

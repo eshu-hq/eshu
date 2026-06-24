@@ -798,6 +798,23 @@ type Instruments struct {
 	// Discovery skip counters — per-name breakdown of what discovery prunes
 	DiscoveryDirsSkipped  metric.Int64Counter
 	DiscoveryFilesSkipped metric.Int64Counter
+	// DuplicateRepositoryIdentity counts discovered repository paths whose
+	// basename identity (the last path segment, used as a stable proxy for the
+	// git origin remote URL which is not read during enumeration) matches at
+	// least one other discovered path in the same collector cycle. Each
+	// duplicate path increments the counter by one, so the total equals the
+	// number of non-first occurrences of a given identity across all discovered
+	// roots.
+	//
+	// A non-zero value is the 3 AM signal that the on-disk corpus has
+	// accidental nesting or duplication (e.g. repos/repos/… recursive copies).
+	// Labels are intentionally absent: paths and identity strings are
+	// unbounded and must never appear as metric labels. Use the accompanying
+	// structured warning log (key "duplicate repository identity detected") to
+	// see the affected identity, duplicate count, and a bounded sample of paths.
+	//
+	// Owned by collector.reportDuplicateRepoIdentities (issue #3677).
+	DuplicateRepositoryIdentity metric.Int64Counter
 
 	// Size-tiered scheduling metrics
 	LargeRepoClassifications metric.Int64Counter
@@ -3134,6 +3151,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DiscoveryFilesSkipped counter: %w", err)
+	}
+
+	inst.DuplicateRepositoryIdentity, err = meter.Int64Counter(
+		"eshu_dp_duplicate_repository_identity_total",
+		metric.WithDescription("Number of discovered repository paths whose basename identity matches another discovered path in the same collector cycle; non-zero means the on-disk corpus has accidental nesting or duplication"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DuplicateRepositoryIdentity counter: %w", err)
 	}
 
 	inst.LargeRepoClassifications, err = meter.Int64Counter(
