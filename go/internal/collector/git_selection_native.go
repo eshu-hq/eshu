@@ -17,7 +17,7 @@ type NativeRepositorySelector struct {
 	Config            RepoSyncConfig
 	Now               func() time.Time
 	DiscoverSelection func(context.Context, RepoSyncConfig, string) (RepositorySelection, error)
-	SyncFilesystem    func(context.Context, RepoSyncConfig, []string) ([]string, error)
+	SyncFilesystem    func(context.Context, RepoSyncConfig, []string) ([]string, bool, error)
 	SyncGit           func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error)
 	Logger            *slog.Logger
 	// BaselineResolver supplies the last-projected commit per scope so git delta
@@ -66,22 +66,43 @@ func (s NativeRepositorySelector) SelectRepositories(
 		if syncFilesystemFn == nil {
 			syncFilesystemFn = syncFilesystemRepositories
 		}
-		repoPaths, err := syncFilesystemFn(ctx, s.Config, repositoryIDs)
+		repoPaths, corpusChanged, err := syncFilesystemFn(ctx, s.Config, repositoryIDs)
 		if err != nil {
 			return SelectionBatch{}, err
 		}
-		// Emit the basename-collision diagnostic only when the sync produced a
-		// non-empty batch — i.e. on the first run or whenever the on-disk corpus
-		// actually changed. syncFilesystemRepositories returns no paths for an
-		// unchanged corpus (manifest match, git_selection_filesystem.go:29-32),
-		// so gating on len(repoPaths) keeps the warning and metric silent on
-		// steady-state re-polls instead of re-firing every interval. The report
-		// inspects the full discovered repositoryIDs because the collision is a
-		// property of the discovered set, not of the managed checkout paths.
-		// This is a heuristic for likely accidental corpus nesting (e.g.
-		// repos/repos/… copies — issue #3677), not a true-duplication check.
-		if len(repoPaths) > 0 {
-			reportRepositoryBasenameCollisions(ctx, repositoryIDs, s.Logger, s.Instruments)
+		// Emit the basename-collision diagnostic on a real corpus change only.
+		// Three independent correctness properties drive the gate:
+		//
+		// 1. Completeness — the report inspects the full pre-shard
+		//    selection.RepositoryIDs, NOT the post-shard repositoryIDs subset.
+		//    Basename collisions are a property of the DISCOVERED set: with
+		//    sharding active a colliding pair (e.g. "worker" and "repos/worker")
+		//    may hash into shard buckets that no single shard's post-shard subset
+		//    holds together, so a per-shard check is permanently silent even
+		//    though the corpus is inflated (issue #3700, regression on #3688).
+		//
+		// 2. Single-emit — only the index-0 shard reports. Every shard instance
+		//    inspects the same global pre-shard set, so letting all N shards report
+		//    would multiply one real collision into N duplicate WARN lines and an
+		//    N× metric reading, breaking alert thresholds tuned to the true surplus.
+		//    Shard index 0 exists for any shard count >= 1, and at the unsharded
+		//    default (count <= 1) the index is 0, so single-instance behaviour is
+		//    unchanged.
+		//
+		// 3. Changed-batch anti-spam, decoupled from ownership — the report fires
+		//    on corpusChanged, the FULL-corpus changed signal (FilesystemRoot
+		//    fingerprint vs stored manifest), NOT on len(repoPaths). repoPaths is
+		//    the index-0 shard's OWN materialized subset, which is empty whenever
+		//    the colliding repos all hash to other shards. Gating the emitter on
+		//    its own subset would silence the diagnostic exactly in the inflated-
+		//    corpus case it targets (issue #3700 P2). corpusChanged is identical on
+		//    every shard because the fingerprint covers the whole root, so the
+		//    designated emitter fires regardless of which repos it owns, and stays
+		//    silent on an unchanged re-poll (corpusChanged == false). At the
+		//    unsharded default this is equivalent to the old len(repoPaths) > 0
+		//    gate, since shard 0 then owns the full set.
+		if s.Config.RepoShardIndex == 0 && corpusChanged {
+			reportRepositoryBasenameCollisions(ctx, selection.RepositoryIDs, s.Logger, s.Instruments)
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
