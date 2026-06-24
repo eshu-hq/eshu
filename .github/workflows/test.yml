@@ -66,6 +66,11 @@ jobs:
           scripts/test-verify-collector-entrypoints-generated.sh
           scripts/verify-collector-entrypoints-generated.sh
 
+      - name: Verify skillgen roundtrip
+        run: |
+          scripts/test-verify-skill-roundtrip.sh
+          scripts/verify-skill-roundtrip.sh
+
       - name: Verify vulnerability parity fixtures
         run: scripts/verify_vulnerability_parity_fixtures.sh
 
