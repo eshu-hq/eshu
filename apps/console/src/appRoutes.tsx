@@ -31,6 +31,7 @@ import { ImagesPage } from "./pages/ImagesPage";
 import { CapabilityMatrixPage } from "./pages/CapabilityMatrixPage";
 import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { AdminPage } from "./pages/AdminPage";
 import { IacPage } from "./pages/IacPage";
 import { ReplatformingPage } from "./pages/ReplatformingPage";
 import { FindingsPage } from "./pages/FindingsPage";
@@ -114,6 +115,7 @@ export function AppRoutes({
       <Route path="/operations" element={<OperationsPage model={model} />} />
       <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
       <Route path="/profile" element={<ProfilePage client={client} />} />
+      <Route path="/admin" element={<AdminPage client={client} />} />
       <Route
         path="/workspace/:entityKind/:entityId"
         element={

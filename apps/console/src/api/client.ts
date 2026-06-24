@@ -144,6 +144,30 @@ export class EshuApiClient {
     );
   }
 
+  // postNoContent issues a POST whose successful response carries no body
+  // (HTTP 204), e.g. the admin token-revoke route. parseJson cannot be used for
+  // these because response.json() throws on an empty body; this mirrors
+  // delete() and only inspects response.ok, surfacing a typed EshuApiHttpError
+  // on any non-2xx status so the caller can map it to "unavailable".
+  async postNoContent(path: string, body: unknown): Promise<void> {
+    return this.withTimeout((signal) =>
+      this.fetcher(this.url(path), {
+        body: JSON.stringify(body),
+        credentials: "same-origin",
+        headers: {
+          ...this.headers("POST"),
+          "Content-Type": "application/json"
+        },
+        method: "POST",
+        signal
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw await this.httpError(response);
+        }
+      })
+    );
+  }
+
   async delete(path: string): Promise<void> {
     return this.withTimeout((signal) =>
       this.fetcher(this.url(path), {

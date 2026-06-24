@@ -33,7 +33,8 @@ import {
   Workflow,
   Waves,
   Waypoints,
-  User
+  User,
+  UserCog
 } from "lucide-react";
 import { EshuApiClient } from "./api/client";
 import type { BrowserSessionResponse } from "./api/client";
@@ -120,7 +121,8 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/surface-inventory", label: "Surface Inventory", icon: Layers },
       { to: "/operations", label: "Operations", icon: ServerCog },
       { to: "/freshness-causality", label: "Freshness", icon: Activity },
-      { to: "/profile", label: "Profile", icon: User }
+      { to: "/profile", label: "Profile", icon: User },
+      { to: "/admin", label: "Admin", icon: UserCog }
     ]
   }
 ];

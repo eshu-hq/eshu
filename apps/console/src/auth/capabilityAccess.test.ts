@@ -82,6 +82,26 @@ describe("buildAllowedNavSet", () => {
     expect(allowed.has("/dashboard")).toBe(true);
   });
 
+  it("hides /admin when identity_admin is not granted (#3703)", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["ask_search"]
+    });
+    const allowed = buildAllowedNavSet(auth);
+    expect(allowed.has("/admin")).toBe(false);
+  });
+
+  it("shows /admin when identity_admin is granted (#3703)", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["identity_admin"]
+    });
+    const allowed = buildAllowedNavSet(auth);
+    expect(allowed.has("/admin")).toBe(true);
+  });
+
   it("supply_chain family grants sbom, vulnerabilities, images, dependencies, findings, ci-cd", () => {
     const auth = makeAuth({
       all_scopes: false,
@@ -135,5 +155,14 @@ describe("canAccessNav", () => {
       allowed_permission_features: ["supply_chain"]
     });
     expect(canAccessNav("/sbom", auth)).toBe(true);
+  });
+
+  it("returns false for /admin when identity_admin not granted (#3703)", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["ask_search"]
+    });
+    expect(canAccessNav("/admin", auth)).toBe(false);
   });
 });

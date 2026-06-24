@@ -1505,6 +1505,11 @@
     },
     {
       "category": "console_page",
+      "name": "AdminPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
       "name": "AskPage",
       "readiness": "implemented"
     },
