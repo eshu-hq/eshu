@@ -591,8 +591,12 @@ The deferred pass therefore uses a dedicated query,
   unioned with `argoCDOverSelectAnchors`. A fact matching `$1` carries a
   cross-repo reference not keyed on its own repo_id.
 - `$2` — raw lowercase full repo_id values (`relationships.CatalogRepoIDValues`),
-  tested with `EXISTS (unnest($2))`, exact self-value exclusion, and literal
-  `strpos(lower(payload::text), value) > 0`. A fact matches only when it
+  tested with `EXISTS (unnest($2))`, exact self-value exclusion
+  (`catalog_repo_id.value <> own repo_id`), and a literal substring
+  `lower(payload::text) LIKE '%' || value || '%' ESCAPE '\'` whose value has its
+  LIKE metacharacters (`\ % _`) escaped inline so a repo_id containing one cannot
+  become an accidental wildcard. The value stays raw in `$2` so the exact
+  self-exclusion comparison is a whole-string match. A fact matches only when it
   references ANOTHER repo's repo_id verbatim; a pure self-match has no other
   repo_id value and is excluded.
 
@@ -773,8 +777,9 @@ per scope the newest generation, and `COALESCE(active_generation_id, that newest
 id)` reproduces the original precedence exactly. `active_generation_id` is a
 column of `ingestion_scopes` (one row per scope) so it is constant across a
 scope's generation rows; the COALESCE yields the identical value the correlated
-form selected. All six embedding queries
+form selected. All seven embedding queries
 (`listLatestRelationshipFactRecordsQuery`, `activeRepositoryGenerationsQuery`,
+`activeScopeGenerationPartitionsQuery`,
 `listOnboardedRepoScopedRelationshipFactRecordsQuery`,
 `listDeferredScopedRelationshipFactRecordsQuery`, `resolveRepoActiveGenerationsQuery`,
 `listArgoCDGeneratorConfigFactRecordsQuery`) reference the one constant, so they
@@ -1081,3 +1086,107 @@ new metric, span, or log shape. The reads run on the existing
 are inherited without per-call wiring; permission-denied outcomes continue to
 surface through the existing `permission_catalog` enforcement envelope at the
 query layer.
+
+## Deferred backfill fact-load per-scope fan-out (#3710)
+
+The deferred relationship-evidence backfill's fact-LOAD step
+(`loadDeferredAnchorScopedRelationshipFacts`, now in
+`ingestion_backfill_scoped_load.go`) was the dominant long pole of the pass. The
+prior `listDeferredScopedRelationshipFactRecordsQuery` issued one corpus-wide scan
+that evaluated the #3659 self-exclusion arm per row against the whole catalog — an
+O(facts × catalog) sequential scan over every latest-generation content/file/gcp
+fact. Two changes remove it:
+
+1. The load is partitioned per `(scope_id, generation_id)` (`$3`/`$4`) and fanned
+   out across the deferred-maintenance worker pool, so the monolithic scan becomes
+   many partition-bounded per-scope scans that run concurrently and never contend
+   (partitions are disjoint). The planner bounds each per-scope query by
+   `fact_records_scope_generation_idx` and applies the `$1` LIKE ANY and `$2`
+   self-exclusion arms as filters on that already-bounded set; no payload index is
+   used.
+2. The partition SOURCE is `loadActiveScopeGenerationPartitions`
+   (`SELECT scope_id, generation_id FROM latest_generations`), NOT
+   `loadActiveRepositoryGenerations`. The latter filters `fact_kind = 'repository'`
+   and keys `DISTINCT ON (repo_id)` over a `COALESCE(repo_id, graph_id, name)`
+   value, so it covers only git scopes and collapses any two scopes whose COALESCE
+   collides. Partitioning on that set would (a) drop EVERY `gcp_cloud_relationship`
+   fact, because those facts live in cloud scopes (for example
+   `gcp:project:…:relationship:global`) that carry no `repository` fact and so
+   never appear in the repository-generation map — the gcp arm of the deferred
+   query would be dead — and (b) lose one of any two scopes that collapse to the
+   same derived repo_id. The scope-generation source covers EVERY scope the
+   deferred query already joins to through `latest_generations`, keyed on the
+   `(scope_id, generation_id)` pair, so the loaded fact set is the superset the
+   single corpus scan produced. `repo_id` is not carried because nothing downstream
+   labels or fans out on it — the partition query bounds each per-scope load by
+   `$3`/`$4` alone.
+
+The candidate set is built inside a `WITH matched_facts AS MATERIALIZED (...)` CTE
+so the per-scope-bounded candidate set is computed once before the
+`latest_generations` join, rather than re-derived on the inner side of a Nested
+Loop. MATERIALIZED is a plan-shape choice, not an index enabler: both arms remain
+filters on the scope-generation-bounded candidate set.
+
+The #3668 self-exclusion `$2` arm changed from a per-row boundary regex
+(`~ '(^|[^a-z0-9._-])value($|[^a-z0-9._-])'`) to a plain substring
+`lower(payload::text) LIKE '%' || value || '%'`, retaining `cat.value <>
+own_repo_id`. The `$2` value's LIKE metacharacters (`\ % _`) are escaped inline
+with `ESCAPE '\'` (the same convention `$1` uses), so a repo_id containing one of
+those characters (or a trailing backslash) cannot become an accidental wildcard or
+a malformed escape. The LIKE form is a provable SUPERSET of the regex result that
+the in-memory `catalogMatcher` (`relationships.DiscoverEvidence` →
+`catalogMatcher.match`) refines to the identical evidence set via boundary-safe
+whole-token matching plus the self-match drop (`entry.RepoID == sourceRepoID`).
+The LIKE form replaced the regex to widen the SQL result to a matcher-refinable
+superset, not to enable an index.
+
+Performance Evidence (measured, `EXPLAIN ANALYZE`): backend PostgreSQL 18
+(`postgres:18-alpine`), local measurement. `fact_records` holds 7,345,641 rows
+(12 GB); 294,991 of them are in the queried kinds (147,496 `file` + 147,495
+`content` + 0 `gcp_cloud_relationship`), spread across 1,093 scopes, with the
+largest scope partition at 22,744 facts. The OLD corpus-wide single scan (no
+per-scope partition) over the latest-generation content/file/gcp facts measured
+65,770 ms: a nested loop over the 1,093 scopes whose `$2` EXISTS SubPlan ran once
+per candidate fact. The NEW per-scope query bounds each run to one `(scope_id,
+generation_id)` via `fact_records_scope_generation_idx`; the largest scope
+(22,744 facts) measured 4,607 ms, and the worker fan-out runs these disjoint
+per-scope scans concurrently (~8 workers), parallelizing the total. The residual
+cost is the `$2` self-exclusion correlated EXISTS (once per fact, un-indexable);
+the `$1` LIKE ANY is a cheap filter on the bounded set.
+
+A partial `pg_trgm` GIN index on `lower(payload::text)` was evaluated and REMOVED.
+The planner never selects it on the partitioned path (with-index 4,607 ms ==
+without-index 4,599 ms for the largest scope), while it cost 631 MB of storage and
+a 114.6 s build over the 294,991 queried-kind rows, plus per-insert GIN
+write-amplification on every `content`/`file`/`gcp_cloud_relationship` insert —
+net-negative once the per-scope partition already bounds the scan. Caveat:
+measured locally at 294,991 queried-kind facts; full-corpus wall-time is pending
+the remote host, but the planner's choice of the scope-generation index over a
+payload index is structural — the per-scope bound applies at any scale.
+
+Truth-equivalence (no evidence added or dropped relative to the regex/full-corpus
+load) is proven by the `internal/relationships` gates
+`TestDeferredLikeSupersetMatcherRefinesToBoundaryEvidence` (LIKE-superset →
+matcher refinement over every #3668 case plus the substring-but-not-boundary
+over-select), `TestDeferredSelfExclusionTruthEquivalence`, and
+`TestDeferredSelfExclusionKeepsPrefixCollidingTargetRepoID`. The partition-source
+coverage (gcp cloud-scope facts survive, two scopes collapsing to one repo_id both
+load, cross-scope references survive) is proven on real Postgres by
+`TestDeferredBackfillPartitionSourceCoversAllScopes`
+(`ingestion_backfill_partition_integration_test.go`, gated on
+`ESHU_DEFERRED_PARTITION_PROOF_DSN`), which fails against the rejected
+per-repository partition source and passes against the scope-generation source.
+
+Observability Evidence: the per-scope fan-out emits aggregate signals.
+`BackfillAllRelationshipEvidence` records
+`eshu_dp_deferred_backfill_partitions_total` (counter, partitions per pass),
+`eshu_dp_deferred_backfill_partition_workers` (histogram, worker saturation), and
+`eshu_dp_deferred_backfill_partition_load_duration_seconds` (histogram, per-scope
+load wall time — a long tail isolates the dominating scope), and emits a
+`deferred_backfill_fact_load_completed partitions=… workers=… loaded_facts=…` log
+line. New instruments are registered in `internal/telemetry/instruments.go`. The
+per-scope queries still run on the existing `InstrumentedDB`-wrapped pool, so
+per-statement latency/error spans and `eshu_dp_postgres_query_duration_seconds` are
+inherited without per-call wiring, and the pass still records
+`DeferredBackfillDuration`/`DeferredBackfillEvidence` and the
+`deferred_backfill_completed` summary log.

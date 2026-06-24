@@ -79,7 +79,7 @@ func benchmarkDeferredBackfill(b *testing.B, workers int) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		if _, err := store.writeDeferredBackfillInBatches(context.Background(), evidence, nil); err != nil {
+		if _, err := store.writeDeferredBackfillInBatches(context.Background(), evidence, nil, nil); err != nil {
 			b.Fatalf("writeDeferredBackfillInBatches() error = %v", err)
 		}
 	}

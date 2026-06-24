@@ -9,14 +9,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// deferredSelfExclusionSim reproduces the SQL predicate of
-// listDeferredScopedRelationshipFactRecordsQuery (issue #3659) in pure Go so the
-// truth-equivalence and real-scoping gates can run without a live Postgres.
+// deferredSelfExclusionSim reproduces the ORIGINAL #3659 boundary-regex SQL
+// predicate of listDeferredScopedRelationshipFactRecordsQuery in pure Go. It is
+// retained as the reference for the regex form so the LIKE-superset proof
+// (TestDeferredLikeSupersetMatcherRefinesToBoundaryEvidence) can show the new
+// LIKE form selects a strict superset of what the regex form selected.
 //
 // A fact is selected iff:
 //
 //	lower(payload::text) LIKE ANY($1 non-repo_id anchors)
 //	OR EXISTS rid IN $2 repo_id values: rid <> own_repo_id AND payload contains rid
+//	  at a token boundary
 //
 // nonRepoIDAnchors is CatalogPayloadAnchors over each entry's NON-first aliases
 // (name/slug) plus the ArgoCD markers — mirroring backfillNonRepoIDAnchorTerms.
@@ -25,6 +28,10 @@ import (
 // repo_id that is NOT the row's own, so a target repo_id that merely CONTAINS
 // the source repo_id as a substring is still matched (no blind replace()
 // corruption that the prior implementation suffered).
+//
+// NOTE: production SQL now uses the LIKE-substring form modeled by
+// deferredLikeSupersetSim (issue #3710). This regex sim stays as the narrower
+// reference set; the matcher refines both forms to the identical evidence.
 func deferredSelfExclusionSim(
 	t *testing.T,
 	envelope facts.Envelope,

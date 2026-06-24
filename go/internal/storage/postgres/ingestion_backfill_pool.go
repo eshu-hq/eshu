@@ -27,6 +27,7 @@ func (s IngestionStore) runDeferredBackfillBatches(
 	bounds [][2]int,
 	workers int,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+	snapshotGenerations map[string]string,
 	instruments *telemetry.Instruments,
 ) (int, error) {
 	totalBatches := len(bounds)
@@ -56,7 +57,7 @@ func (s IngestionStore) runDeferredBackfillBatches(
 			defer func() { <-sem }()
 
 			batchStart := time.Now()
-			published, err := s.writeDeferredBackfillBatch(groupCtx, repoIDs[lo:hi], evidenceBySourceRepo)
+			published, err := s.writeDeferredBackfillBatch(groupCtx, repoIDs[lo:hi], evidenceBySourceRepo, snapshotGenerations)
 			batchDuration := time.Since(batchStart).Seconds()
 
 			mu.Lock()

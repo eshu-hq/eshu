@@ -304,7 +304,7 @@ func (f *fakeTransactionalDB) Begin(context.Context) (Transaction, error) {
 	return f.tx, nil
 }
 
-func (f *fakeTransactionalDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (f *fakeTransactionalDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, errors.New("unexpected ExecContext on outer db")
 }
 

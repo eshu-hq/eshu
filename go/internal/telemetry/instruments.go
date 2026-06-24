@@ -857,6 +857,9 @@ type Instruments struct {
 	DeferredBackfillBatchDuration          metric.Float64Histogram
 	DeferredBackfillBatchesCompleted       metric.Int64Counter
 	DeferredBackfillEvidence               metric.Int64Counter
+	DeferredBackfillPartitions             metric.Int64Counter
+	DeferredBackfillPartitionWorkers       metric.Int64Histogram
+	DeferredBackfillPartitionLoadDuration  metric.Float64Histogram
 	DeploymentMappingReopened              metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter
@@ -3424,6 +3427,33 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillEvidence counter: %w", err)
+	}
+
+	inst.DeferredBackfillPartitions, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_partitions_total",
+		metric.WithDescription("Total (scope_id, generation_id) partitions the deferred backfill's per-scope fact load fanned out over. The per-pass increment sizes the fan-out width."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillPartitions counter: %w", err)
+	}
+
+	inst.DeferredBackfillPartitionWorkers, err = meter.Int64Histogram(
+		"eshu_dp_deferred_backfill_partition_workers",
+		metric.WithDescription("Worker-pool saturation (concurrent worker count) used for the deferred backfill's per-scope fact-load fan-out. Lets an operator confirm the load ran concurrently and was not throttled to one."),
+		metric.WithExplicitBucketBoundaries(1, 2, 4, 8, 16, 32),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillPartitionWorkers histogram: %w", err)
+	}
+
+	inst.DeferredBackfillPartitionLoadDuration, err = meter.Float64Histogram(
+		"eshu_dp_deferred_backfill_partition_load_duration_seconds",
+		metric.WithDescription("Wall time of each per-scope (scope_id, generation_id) deferred fact-load query. A long tail isolates the scope whose fact load dominates the pass."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(backfillBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillPartitionLoadDuration histogram: %w", err)
 	}
 
 	inst.DeploymentMappingReopened, err = meter.Int64Counter(

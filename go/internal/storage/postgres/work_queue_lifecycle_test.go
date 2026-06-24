@@ -121,6 +121,15 @@ type fakeExecQueryer struct {
 	execResults    []sql.Result
 	queries        []fakeQueryCall
 	queryResponses []queueFakeRows
+
+	// deferredFactsByScope, when non-nil, routes the per-scope deferred backfill
+	// fact query (listDeferredScopedRelationshipFactRecordsQuery, issue #3710) to a
+	// scope-keyed response instead of the FIFO queryResponses queue. The key is the
+	// query's $3 scope_id argument. This keeps deferred-backfill fixtures
+	// deterministic now that the load fans out one query per (scope, generation)
+	// partition concurrently, so the FIFO order is no longer fixed. A scope absent
+	// from the map yields zero rows.
+	deferredFactsByScope map[string][][]any
 }
 
 type fakeExecCall struct {
@@ -162,6 +171,15 @@ func (f *fakeExecQueryer) QueryContext(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
+
+	// Route the per-scope deferred backfill fact query to a scope-keyed response
+	// when configured, independent of FIFO order (issue #3710). args[2] is the $3
+	// scope_id parameter.
+	if f.deferredFactsByScope != nil && query == listDeferredScopedRelationshipFactRecordsQuery {
+		scopeID, _ := scopeIDFromDeferredFactArgs(args)
+		return &queueFakeRows{rows: f.deferredFactsByScope[scopeID]}, nil
+	}
+
 	if len(f.queryResponses) == 0 {
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil
@@ -181,6 +199,19 @@ func (f *fakeExecQueryer) QueryContext(
 	}
 
 	return &rows, nil
+}
+
+// scopeIDFromDeferredFactArgs extracts the $3 scope_id argument from a
+// listDeferredScopedRelationshipFactRecordsQuery call so the fake can route the
+// per-scope deferred fact load to a scope-keyed response (issue #3710). The query
+// parameter order is $1 LIKE terms, $2 repo_id values, $3 scope_id, $4
+// generation_id.
+func scopeIDFromDeferredFactArgs(args []any) (string, bool) {
+	if len(args) < 3 {
+		return "", false
+	}
+	scopeID, ok := args[2].(string)
+	return scopeID, ok
 }
 
 func isWorkflowCoordinatorStatusQuery(query string) bool {

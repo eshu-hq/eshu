@@ -126,7 +126,7 @@ type lockAwareMaintenanceDB struct {
 	concurrencyBarrier func()
 }
 
-func (db *lockAwareMaintenanceDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (db *lockAwareMaintenanceDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, stubErr("unexpected exec on outer db")
 }
 

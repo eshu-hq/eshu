@@ -62,19 +62,22 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	}
 
 	// Scope the corpus-wide source-fact load to the content anchors of the full
-	// catalog instead of streaming every committed fact (issue #3569). The
-	// deferred backfill treats every repository as an eligible relationship
-	// target, so anchors derive from the whole catalog rather than an onboarding
-	// delta. The dedicated deferred loader (issue #3659) splits the anchor set
-	// into non-repo_id terms ($1) and repo_id terms ($2 + $3 self-exclusion) so
-	// facts that only match because their own repo_id appears as an anchor are
-	// excluded at the SQL layer, while facts referencing ANOTHER repo's repo_id
-	// in their content are still loaded. No evidence the full-corpus load would
-	// have produced is dropped (truth-equivalence: the in-memory matcher already
-	// skips self-matches on entry.RepoID == sourceRepoID). With no usable anchors
-	// no fact can resolve a catalog target, so the fact load short-circuits and
-	// the pass still publishes readiness for the active generations below.
-	activeFacts, err := loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog)
+	// catalog instead of streaming every committed fact (issue #3569), and
+	// partition the load per (scope_id, generation_id) so it fans out across the
+	// deferred-maintenance worker pool (issue #3710). The deferred backfill treats
+	// every repository as an eligible relationship target, so anchors derive from
+	// the whole catalog rather than an onboarding delta. The dedicated deferred
+	// loader (issue #3659) splits the anchor set into non-repo_id terms ($1) and
+	// repo_id terms ($2 self-exclusion) so facts that only match because their own
+	// repo_id appears as an anchor are excluded at the SQL layer, while facts
+	// referencing ANOTHER repo's repo_id in their content are still loaded. No
+	// evidence the full-corpus load would have produced is dropped
+	// (truth-equivalence: the in-memory matcher already skips self-matches on
+	// entry.RepoID == sourceRepoID and re-applies boundary-safe token matching).
+	// With no usable anchors no fact can resolve a catalog target, so the fact
+	// load short-circuits and the pass still publishes readiness for the active
+	// generations below.
+	activeFacts, snapshotGenerations, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog, instruments)
 	if err != nil {
 		return fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}
@@ -93,7 +96,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 		totalEvidence++
 	}
 
-	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, instruments)
+	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, snapshotGenerations, instruments)
 	if err != nil {
 		return err
 	}
@@ -119,6 +122,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 func (s IngestionStore) writeDeferredBackfillInBatches(
 	ctx context.Context,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+	snapshotGenerations map[string]string,
 	instruments *telemetry.Instruments,
 ) (int, error) {
 	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
@@ -165,7 +169,7 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		workers = len(bounds)
 	}
 
-	return s.runDeferredBackfillBatches(ctx, repoIDs, bounds, workers, evidenceBySourceRepo, instruments)
+	return s.runDeferredBackfillBatches(ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments)
 }
 
 // writeDeferredBackfillBatch processes one bounded batch of source repositories
@@ -179,6 +183,7 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 	ctx context.Context,
 	batchRepoIDs []string,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+	snapshotGenerations map[string]string,
 ) (int, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
@@ -216,6 +221,29 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 				"missing_active_generation",
 			)
 			continue
+		}
+		// Generation-consistency guard (issue #3725): when a fact load ran
+		// (snapshotGenerations is non-nil), skip any repository whose active
+		// generation under the batch lock differs from the generation the fact
+		// load queried for that scope — or whose scope was absent from the
+		// snapshot. Publishing readiness here would mark the new generation
+		// backward-evidence-committed even though its facts were never loaded
+		// (the per-scope query rejected the stale generation), reopening
+		// deployment mapping with missing relationship evidence. The next periodic
+		// RunDeferredRelationshipMaintenance pass re-snapshots and processes the
+		// advanced generation. A nil snapshot (no anchors/no partitions) disables
+		// the guard so the legacy publish-for-every-active-repository contract
+		// holds when no fact load occurred.
+		if snapshotGenerations != nil {
+			snapshotGen, inSnapshot := snapshotGenerations[repoGeneration.ScopeID]
+			if !inSnapshot || snapshotGen != repoGeneration.GenerationID {
+				log.Printf(
+					"relationship_backfill_deferred_source_skipped=true source_repo_id=%q reason=%q",
+					repoID,
+					"generation_advanced_since_snapshot",
+				)
+				continue
+			}
 		}
 		if repoEvidence := evidenceBySourceRepo[repoID]; len(repoEvidence) > 0 {
 			if err := relationshipStore.UpsertEvidenceFacts(ctx, repoGeneration.GenerationID, repoEvidence); err != nil {
