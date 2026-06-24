@@ -98,7 +98,7 @@ type AdminAPITokenListItem struct {
 }
 
 // AdminAuditQuery bounds an admin audit-event read. OperatorAuthorized is set by
-// the handler only after the shared-operator gate passes; the underlying store
+// the handler only after the authorization gate passes; the underlying store
 // refuses to return detailed events when it is false.
 type AdminAuditQuery struct {
 	OperatorAuthorized bool
@@ -112,6 +112,11 @@ type AdminAuditQuery struct {
 	// admin read surface always sets this true so a bounded page shows the
 	// newest events, not the oldest.
 	OrderDesc bool
+	// TenantID constrains the query to events belonging to this tenant. When
+	// set the store applies a tenant_id = $N predicate and global/NULL-tenant
+	// events are excluded. Leave empty for a shared-operator query that should
+	// see all events regardless of tenant.
+	TenantID string
 }
 
 // AdminIdentityReadStore is the read surface the admin console backend uses for
@@ -141,6 +146,11 @@ type AdminIdentityReadStore interface {
 type AdminGovernanceAuditReader interface {
 	// ListAuditEvents returns audit-safe events matching the bounded query.
 	ListAuditEvents(ctx context.Context, query AdminAuditQuery) ([]governanceaudit.Event, error)
-	// SummarizeAuditEvents returns aggregate-only audit counts.
+	// SummarizeAuditEvents returns aggregate-only audit counts for all tenants.
+	// Called by the shared operator; not called for tenant-scoped reads.
 	SummarizeAuditEvents(ctx context.Context) (governanceaudit.Summary, error)
+	// SummarizeAuditEventsForTenant returns aggregate-only audit counts scoped
+	// to a single tenant. Global/NULL-tenant events are excluded. Called by the
+	// tenant-admin summary path.
+	SummarizeAuditEventsForTenant(ctx context.Context, tenantID string) (governanceaudit.Summary, error)
 }

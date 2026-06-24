@@ -256,6 +256,7 @@ func (a *adminGovernanceAuditReader) ListAuditEvents(
 		OccurredBefore:     q.OccurredBefore,
 		Limit:              q.Limit,
 		OrderDesc:          q.OrderDesc,
+		TenantID:           q.TenantID,
 	})
 }
 
@@ -266,4 +267,11 @@ func (a *adminGovernanceAuditReader) SummarizeAuditEvents(
 		return a.summary.Summary(ctx)
 	}
 	return a.store.Summary(ctx)
+}
+
+func (a *adminGovernanceAuditReader) SummarizeAuditEventsForTenant(
+	ctx context.Context,
+	tenantID string,
+) (governanceaudit.Summary, error) {
+	return a.store.SummaryForTenant(ctx, tenantID)
 }

@@ -80,14 +80,7 @@ func (h *AdminIdentityReadHandler) adminScope(w http.ResponseWriter, r *http.Req
 
 // sharedOperatorScope verifies the caller holds the global shared-operator
 // AuthMode (AuthModeShared). It writes 403 and returns false for any other
-// auth mode, including all-scope browser sessions with a tenant.
-//
-// The audit endpoints (/audit/events, /audit/summary) expose GLOBAL,
-// cross-tenant data because governance_audit_events has no tenant_id column.
-// A tenant admin (AllScopes + tenant) must NOT reach these — only a shared
-// operator holds the authority to see the full audit stream.
-//
-// Per-tenant audit (adding tenant_id to the table) is tracked in #3717.
+// auth mode. Used by non-audit endpoints that still require global authority.
 func (h *AdminIdentityReadHandler) sharedOperatorScope(w http.ResponseWriter, r *http.Request) bool {
 	auth, ok := AuthContextFromContext(r.Context())
 	if !ok || normalizeAuthContext(auth).Mode != AuthModeShared {
@@ -95,6 +88,35 @@ func (h *AdminIdentityReadHandler) sharedOperatorScope(w http.ResponseWriter, r 
 		return false
 	}
 	return true
+}
+
+// auditScope resolves the audit caller's authorization and tenant scope.
+//
+// Two caller classes are permitted:
+//   - Shared operator (AuthModeShared): tenantID is returned empty, meaning
+//     the caller sees all events across all tenants.
+//   - Tenant admin (AllScopes=true + non-empty TenantID): tenantID is returned
+//     as the caller's own tenant; they see only their tenant's events.
+//
+// Any other caller (unauthenticated, scoped without AllScopes, tenant session
+// without TenantID) gets 403 and ok=false.
+func (h *AdminIdentityReadHandler) auditScope(w http.ResponseWriter, r *http.Request) (tenantID string, ok bool) {
+	auth, found := AuthContextFromContext(r.Context())
+	if !found {
+		WriteError(w, http.StatusForbidden, "authentication is required for audit access")
+		return "", false
+	}
+	auth = normalizeAuthContext(auth)
+	// Shared operator: global view, no tenant filter.
+	if auth.Mode == AuthModeShared {
+		return "", true
+	}
+	// Tenant admin: must have AllScopes and a concrete tenant.
+	if auth.AllScopes && auth.TenantID != "" {
+		return auth.TenantID, true
+	}
+	WriteError(w, http.StatusForbidden, "shared operator or all-scope tenant admin authentication is required for audit access")
+	return "", false
 }
 
 // storeReady reports whether the read store is wired, writing 503 when not.
@@ -326,10 +348,8 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 		WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
 		return
 	}
-	// Audit data is GLOBAL (governance_audit_events has no tenant_id column).
-	// Only a shared operator may read it; a tenant admin (AllScopes + tenant)
-	// must not see cross-tenant audit volumes. See #3717 for per-tenant audit.
-	if !h.sharedOperatorScope(w, r) {
+	tenantID, ok := h.auditScope(w, r)
+	if !ok {
 		return
 	}
 	limit, err := parseAdminAuditLimit(r.URL.Query().Get("limit"))
@@ -349,6 +369,9 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 		// The underlying store defaults to ASC (chronological replay order);
 		// DESC is only used on the admin read path.
 		OrderDesc: true,
+		// TenantID is empty for shared-operator (sees all) and set for tenant
+		// admins (sees only their own tenant's events).
+		TenantID: tenantID,
 	}
 	events, err := h.Audit.ListAuditEvents(r.Context(), query)
 	if err != nil {
@@ -374,13 +397,19 @@ func (h *AdminIdentityReadHandler) handleAuditSummary(w http.ResponseWriter, r *
 		WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
 		return
 	}
-	// Audit data is GLOBAL (governance_audit_events has no tenant_id column).
-	// Only a shared operator may read it; a tenant admin (AllScopes + tenant)
-	// must not see cross-tenant audit volumes. See #3717 for per-tenant audit.
-	if !h.sharedOperatorScope(w, r) {
+	tenantID, ok := h.auditScope(w, r)
+	if !ok {
 		return
 	}
-	summary, err := h.Audit.SummarizeAuditEvents(r.Context())
+	var summary governanceaudit.Summary
+	var err error
+	if tenantID != "" {
+		// Tenant admin: scoped summary — global/NULL-tenant events excluded.
+		summary, err = h.Audit.SummarizeAuditEventsForTenant(r.Context(), tenantID)
+	} else {
+		// Shared operator: global summary across all tenants.
+		summary, err = h.Audit.SummarizeAuditEvents(r.Context())
+	}
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin audit summary failed", "err", err)
 		WriteError(w, http.StatusInternalServerError, "failed to summarize audit events")

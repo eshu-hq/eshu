@@ -89,6 +89,10 @@ func (f *fakeAdminAuditReader) SummarizeAuditEvents(_ context.Context) (governan
 	return f.summary, nil
 }
 
+func (f *fakeAdminAuditReader) SummarizeAuditEventsForTenant(_ context.Context, _ string) (governanceaudit.Summary, error) {
+	return f.summary, nil
+}
+
 func adminRequest(t *testing.T, method, target string, auth AuthContext) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(method, target, nil)
@@ -319,16 +323,17 @@ func TestAdminAuditEventsSetsOperatorAuthorizedAndFilters(t *testing.T) {
 	}
 }
 
-// TestAdminAuditEventsRequireSharedOperator verifies the audit endpoints require
-// AuthModeShared. Both a non-admin scoped caller and a tenant admin (AllScopes +
-// tenant, the browser-session pattern) must be rejected with 403.
+// TestAdminAuditEventsGating verifies audit endpoint access control (#3717).
 //
-// Background: governance_audit_events has no tenant_id column, so the data is
-// GLOBAL. A tenant admin in tenant_a would see tenant_b's audit volumes and
-// decisions if allowed. Only a shared operator (AuthModeShared bearer token)
-// holds the authority to read the full cross-tenant audit stream.
-// Per-tenant audit is tracked in #3717.
-func TestAdminAuditEventsRequireSharedOperator(t *testing.T) {
+// Allowed callers:
+//   - Shared operator (AuthModeShared): sees all events, no tenant filter.
+//   - Tenant admin (AllScopes=true + TenantID set): sees own-tenant events only.
+//
+// Denied callers:
+//   - Unauthenticated (no auth context).
+//   - Scoped token without AllScopes.
+//   - AllScopes caller with no TenantID and not AuthModeShared.
+func TestAdminAuditEventsGating(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeAdminAuditReader{}
@@ -338,7 +343,7 @@ func TestAdminAuditEventsRequireSharedOperator(t *testing.T) {
 
 	auditPaths := []string{"/api/v0/auth/admin/audit/events", "/api/v0/auth/admin/audit/summary"}
 
-	// Scoped (non-admin) caller: must be denied.
+	// Scoped (non-admin) caller without AllScopes: must be denied.
 	scopedAuth := AuthContext{Mode: AuthModeScoped, TenantID: "tenant_a", AllScopes: false}
 	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
@@ -348,25 +353,28 @@ func TestAdminAuditEventsRequireSharedOperator(t *testing.T) {
 		}
 	}
 
-	// Tenant admin (AllScopes + tenant, browser-session mode): must also be denied.
-	// This is the key cross-tenant data-leak scenario.
+	// AllScopes with no TenantID and not AuthModeShared: must be denied.
+	tenantlessAdmin := AuthContext{Mode: AuthModeBrowserSession, TenantID: "", AllScopes: true}
+	for _, path := range auditPaths {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, tenantlessAdmin))
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("GET %s as tenantless AllScopes = %d, want 403", path, rec.Code)
+		}
+	}
+
+	// Tenant admin (AllScopes + TenantID): must be allowed (scoped to own tenant).
 	tenantAdmin := AuthContext{Mode: AuthModeBrowserSession, TenantID: "tenant_a", WorkspaceID: "workspace_a", AllScopes: true}
 	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, tenantAdmin))
-		if rec.Code != http.StatusForbidden {
-			t.Errorf("GET %s as tenant-admin (AllScopes+tenant) = %d, want 403: "+
-				"tenant admin must not access global audit data", path, rec.Code)
+		if rec.Code == http.StatusForbidden {
+			t.Errorf("GET %s as tenant-admin (AllScopes+tenant) = 403, want 200: "+
+				"tenant admin must reach their own tenant's audit data (#3717)", path)
 		}
 	}
 
-	// No denied caller may reach the audit store. Assert this BEFORE the allowed
-	// shared-operator call below, which legitimately queries the store.
-	if reader.gotQuery.OperatorAuthorized {
-		t.Fatal("audit store was queried with OperatorAuthorized despite denied callers")
-	}
-
-	// Shared operator: must be allowed.
+	// Shared operator: must be allowed and must not have a tenant filter applied.
 	sharedOp := AuthContext{Mode: AuthModeShared, AllScopes: true}
 	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
@@ -395,9 +403,8 @@ func TestAdminIdentityReadsNilStoreReturns503(t *testing.T) {
 }
 
 // adminReadPaths returns the tenant-admin identity read paths (all-scope +
-// tenant gate). The audit paths are excluded because they use the
-// shared-operator gate (AuthModeShared), not the tenant-admin gate; they are
-// tested separately in TestAdminAuditEventsRequireSharedOperator.
+// tenant gate). The audit paths use a separate combined gate (shared-operator
+// OR tenant admin) and are tested separately in TestAdminAuditEventsGating.
 func adminReadPaths() []string {
 	return []string{
 		"/api/v0/auth/local/invitations",
