@@ -83,7 +83,7 @@ S3 must verify the citation still resolves to live content.
 | `truth-labels` | The wire-level truth contract. | API/MCP/CLI responses MUST carry a `truth` envelope; `exact` / `derived` / `fallback` are the only valid levels; high-authority capabilities MUST return `unsupported_capability` rather than silently downgrading. | [`docs/public/reference/truth-label-protocol.md:10-21`](../../docs/public/reference/truth-label-protocol.md) (levels) and `:108-127` (error codes) | `docs/public/reference/truth-label-protocol.md#10-21` |
 | `capability-profiles` | What Eshu may claim in each runtime profile. | Profiles are `local_lightweight`, `local_authoritative`, `local_full_stack`, `production`; a profile row marked unsupported MUST return `unsupported_capability`; truth ceilings live in `specs/capability-matrix.v1.yaml` plus `go/internal/query/contract.go`. | [`docs/public/reference/capability-conformance-spec.md:29-49`](../../docs/public/reference/capability-conformance-spec.md) and `:53-62` (truth ceilings) | `docs/public/reference/capability-conformance-spec.md#29-49` |
 | `reducer-invariant` | Intake never writes graph state; use MCP `dispatch_*.go` tools. | Intake services observe source truth and enqueue work; the resolution engine (reducer) is the only writer of canonical graph state. MCP tool calls MUST route through `dispatchTool` into the shared HTTP query handlers (`go/internal/mcp/dispatch.go:15`); queue claims are leased, retryable, supersedable, and dead-letterable. | [`docs/public/architecture.md:24-26`](../../docs/public/architecture.md) (the canonical invariant), [`go/internal/mcp/dispatch.go:15-21`](../../go/internal/mcp/dispatch.go) (`dispatchTool` routes to internal HTTP), [`go/internal/storage/postgres/AGENTS.md:49-78`](../../go/internal/storage/postgres/AGENTS.md) (ack atomicity, lease fencing, claim ordering) | `docs/public/architecture.md#24-26` |
-| `local-first` | Eshu works without an LLM provider key. | Every fragment's default rendering MUST work in `local_lightweight` and `local_authoritative` profiles without a configured LLM provider; LLM augmentation is policy-gated; `llm:no-provider` is a first-class status, not an error. | [`docs/internal/agent-guide.md:120-146`](../../docs/internal/agent-guide.md) (Performance And Evidence section that anchors deterministic defaults), [`go/internal/semanticqueue/README.md:10`](../../go/internal/semanticqueue/README.md) (no-provider, policy-denied, budget-denied, unsafe, unchanged, changed as planner labels), [`docs/internal/design/3140-investigation-evidence-packet-v2.md:18,59-63`](../../docs/internal/design/3140-investigation-evidence-packet-v2.md) (no-provider deterministic contract) | `docs/internal/agent-guide.md#120-146` |
+| `local-first` | Eshu works without an LLM provider key. | Every fragment's default rendering MUST work in `local_lightweight` and `local_authoritative` profiles without a configured LLM provider; LLM augmentation is policy-gated; `llm:no-provider` is a first-class status, not an error. | [`docs/internal/agent-guide.md:120-146`](../../docs/internal/agent-guide.md) (Performance And Evidence section that anchors deterministic defaults), [`go/internal/semanticqueue/README.md:10`](../../go/internal/semanticqueue/README.md) (no-provider, policy-denied, budget-denied, unsafe, unchanged, changed as planner labels), [`docs/internal/design/3140-investigation-evidence-packet-v2.md:18,59-63`](../../docs/internal/design/3140-investigation-evidence-packet-v2.md) (no-provider deterministic contract) | `go/internal/semanticqueue/README.md#10` |
 | `bundle-reproduction` | How to load, verify, and reproduce an `evidence_bundle.v1`. | A recipient can run `eshu evidence bundle validate` against a redacted `evidence_bundle.v1`; the bundle is share-safe (no private endpoints, credentials, raw prompts, or local paths); reproduce handles point at bounded CLI/API/MCP calls the recipient can run against their own instance. | [`docs/public/reference/evidence-bundle.md:1-49`](../../docs/public/reference/evidence-bundle.md) (full artifact shape), and [#3307](https://github.com/eshu-hq/eshu/issues/3307) | `docs/public/reference/evidence-bundle.md#1-49` |
 | `per-collector-matrix` | Enumerate the active collector set and each collector's MCP surface, capability-aware. | The active collector set is whatever is enabled in the active runtime profile; per-collector MCP tools must be enumerated from the live capability catalog, not from a static prose list. The same fragment renders differently for a code-only deployment versus a full-stack deployment with Terraform + AWS + K8s. | [`#1825`](https://github.com/eshu-hq/eshu/issues/1825) (component inventory), [`go/internal/capabilitycatalog/catalog.go`](../../go/internal/capabilitycatalog/catalog.go) (canonical catalog source), [`docs/internal/agent-guide.md:41-56`](../../docs/internal/agent-guide.md) (collector ownership table) | `go/internal/capabilitycatalog/catalog.go#1-80` |
 
@@ -142,8 +142,12 @@ If any one of the three fails, the work is not done.
 The generator reads the frontmatter, copies the body into the host
 adapter output, and stamps the `byte_citation` into a stable comment
 block at the top of the emitted skill. S3 then re-resolves the citation
-against the current `main` and fails the gate when the cited range no
-longer contains the rule.
+against the checked-out merge tree and fails the gate when the cited
+range no longer contains the rule (see [Byte-Citation Anchor
+Convention](#byte-citation-anchor-convention) for the merge-tree
+semantics — the gate MUST NOT resolve against ambient `main`, or it
+will block the rule-rewrite-and-citation-update pattern this design is
+meant to support).
 
 ## Byte-Citation Anchor Convention
 
@@ -156,11 +160,22 @@ prose. S2 must:
    line per citation, formatted:
    `<!-- eshu:byte-citation path#start-end -->`.
 3. Preserve the block through regeneration. S3 must verify the citation
-   points at live content on `main` at PR time.
+   points at live content **against the checked-out PR/merge tree**, not
+   against `main`. Resolving against `main` would block the very update
+   pattern this design is meant to support: a PR that simultaneously
+   rewrites the canonical rule and updates the fragment's
+   `byte_citation` would resolve the old path/range against the old
+   tree and fail before the PR can land. S3 must read the citation from
+   the merge ref, not from a separate `git fetch origin main`.
+
+S3 may optionally compute a base-vs-PR diff of the cited range and
+report it as a non-blocking diagnostic (so a maintainer sees "this
+fragment moved its rule by N lines in this PR") but the citation MUST
+be evaluated against the PR/merge tree, not against the base.
 
 S3 must reject a citation when:
 
-- The cited file no longer exists at the cited path.
+- The cited file no longer exists at the cited path in the merge tree.
 - The cited line range no longer contains the rule the fragment encodes
   (S3 keeps a small heuristic: the line range must contain at least one
   of the fragment's rule-bearing sentences, normalized).
@@ -169,7 +184,8 @@ S3 must reject a citation when:
 
 The anchor is the **drift detector**. If a refactor moves the rule, the
 citation breaks and S3 forces a maintainer to either update the citation
-or revert the move.
+or revert the move. The gate's input is the merge tree, never the
+ambient `main`.
 
 ## Three-Target-Host Matrix
 
