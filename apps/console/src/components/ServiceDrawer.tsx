@@ -1,14 +1,15 @@
 // components/ServiceDrawer.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
-import type { ConsoleModel, GraphModel, Severity } from "../console/types";
-import { SEVERITY_COLOR } from "../console/types";
-import { loadServiceSpotlight, spotlightFromRow } from "../api/eshuService";
-import type { ServiceSpotlight } from "../api/eshuService";
-import { loadBlastGraph, loadEntityGraph } from "../api/eshuGraph";
+
 import { TruthChip, FreshDot, Badge } from "./atoms";
 import { GraphCanvas } from "./GraphCanvas";
+import type { EshuApiClient } from "../api/client";
+import { loadBlastGraph, loadEntityGraph } from "../api/eshuGraph";
+import { loadServiceSpotlight, spotlightFromRow } from "../api/eshuService";
+import type { ServiceSpotlight } from "../api/eshuService";
+import type { ConsoleModel, GraphModel, Severity } from "../console/types";
+import { SEVERITY_COLOR } from "../console/types";
 
 type DrillKind = "blast" | "callers" | "findings";
 

@@ -5,6 +5,7 @@
 // evidence. Complements the entity-first Graph Explorer with an edge-first view.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
 import {
   loadRelationshipEdges,
@@ -12,9 +13,9 @@ import {
   type RelationshipEdges,
   type RelationshipVerbTile
 } from "../api/relationshipsCatalog";
+import { Panel, StatTile } from "../components/atoms";
 import type { ConsoleModel, GraphLayer } from "../console/types";
 import { LAYER_COLOR, fmt } from "../console/types";
-import { Panel, StatTile } from "../components/atoms";
 import "./relationshipsPage.css";
 
 const LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];

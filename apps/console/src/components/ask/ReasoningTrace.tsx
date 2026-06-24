@@ -1,9 +1,10 @@
 // ReasoningTrace.tsx — the live "steps" timeline of the agent loop.
 import { Check, Sparkles, TriangleAlert } from "lucide-react";
-import { Panel } from "../atoms";
+
 import type { AskTraceStep } from "../../api/askEshu";
-import { truthClassMeta } from "./truthClass";
+import { Panel } from "../atoms";
 import { cx } from "./cx";
+import { truthClassMeta } from "./truthClass";
 
 /** A calm timeline of tool calls with supported/partial indicators. */
 export function ReasoningTrace({
@@ -91,8 +92,26 @@ function argSummary(args: Record<string, unknown>): string {
       if (value === null || value === undefined || value === "") {
         return "";
       }
-      return typeof value === "object" ? JSON.stringify(value) : String(value);
+      return typeof value === "object" ? JSON.stringify(value) : StringPrimitive(value);
     })
     .filter((part) => part.length > 0)
     .join(" · ");
+}
+
+// StringPrimitive narrows an `unknown` to a string for primitive values
+// (string/number/boolean/bigint/symbol). Objects and arrays must be
+// JSON.stringify'd upstream — falling through to String() would produce
+// "[object Object]" / "1,2,3" respectively.
+function StringPrimitive(value: unknown): string {
+  switch (typeof value) {
+    case "string":
+    case "number":
+    case "boolean":
+    case "bigint":
+      return String(value);
+    case "symbol":
+      return value.description ?? "";
+    default:
+      return "";
+  }
 }

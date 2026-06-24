@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadImages } from "./imageInventory";
+
 import type { EshuApiClient } from "./client";
+import { loadImages } from "./imageInventory";
 
 // The image inventory loader must:
 // - read GET /api/v0/images with limit/offset and optional exact-match filters

@@ -1,5 +1,5 @@
-import { normalizeVisualizationPacket, type VisualizationPacket } from "../api/answerVisualization";
 import { visualizationEvidencePanelData } from "./visualizationEvidencePanel";
+import { normalizeVisualizationPacket, type VisualizationPacket } from "../api/answerVisualization";
 
 function packetFrom(): VisualizationPacket {
   const packet = normalizeVisualizationPacket(

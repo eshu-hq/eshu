@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+
 import { DeploymentGraphView } from "./DeploymentGraphView";
 import type { DeploymentGraph } from "../api/mockData";
 

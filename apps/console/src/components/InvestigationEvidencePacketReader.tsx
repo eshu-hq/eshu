@@ -1,5 +1,5 @@
-import type { InvestigationEvidencePacket } from "../api/investigationPacket";
 import { Badge } from "./atoms";
+import type { InvestigationEvidencePacket } from "../api/investigationPacket";
 import "./answerRenderer.css";
 
 interface InvestigationEvidencePacketReaderProps {

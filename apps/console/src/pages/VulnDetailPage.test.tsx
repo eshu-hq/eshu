@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+
+import { VulnDetailPage } from "./VulnDetailPage";
 import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel } from "../console/types";
-import { VulnDetailPage } from "./VulnDetailPage";
 
 function modelWithVulnerability(): ConsoleModel {
   return {

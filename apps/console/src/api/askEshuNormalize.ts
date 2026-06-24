@@ -81,7 +81,7 @@ export function normalizeTraceStep(raw: unknown): AskTraceStep {
 
 /** Preserve a raw evidence handle as a bounded, indexable record. */
 export function normalizeEvidenceHandle(raw: unknown): AskEvidenceHandle {
-  return asRecord(raw) as AskEvidenceHandle;
+  return asRecord(raw);
 }
 
 /** Coerce an SSE `error` event payload into a bounded AskError. */

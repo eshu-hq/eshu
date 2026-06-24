@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
+
+import { DeployableUnitPacketPanel, packetFormFromSearch } from "./DeployableUnitPacketPanel";
+import type { ChangeSurfaceInvestigation } from "../api/changeSurface";
 import type { EshuApiClient } from "../api/client";
 import { demoDefaults } from "../api/demoClient";
+import type { EshuTruth } from "../api/envelope";
 import { loadImpactReview } from "../api/impactReview";
 import type {
   DeploymentTraceEntity,
@@ -9,14 +13,11 @@ import type {
   ImpactSection,
   ImpactTargetKind
 } from "../api/impactReviewTypes";
-import type { ChangeSurfaceInvestigation } from "../api/changeSurface";
-import type { EshuTruth } from "../api/envelope";
+import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
+import { GraphCanvas } from "../components/GraphCanvas";
+import { defaultServiceName } from "../console/defaultEntity";
 import type { ConsoleModel, GraphNode } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
-import { defaultServiceName } from "../console/defaultEntity";
-import { GraphCanvas } from "../components/GraphCanvas";
-import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
-import { DeployableUnitPacketPanel, packetFormFromSearch } from "./DeployableUnitPacketPanel";
 import "./impactPage.css";
 
 interface ImpactFormState {

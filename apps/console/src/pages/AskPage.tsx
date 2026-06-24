@@ -6,9 +6,9 @@
 // appear live; it falls back to a synchronous request and supports cancel. The
 // page leads with the truth label and evidence, stays useful when narration is
 // off (evidence-only), and presents the disabled/scoped/demo states cleanly.
-import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
-import type { SourceState } from "../components/SourceControls";
+import { useEffect, useRef, useState } from "react";
+
 import {
   askEshu,
   askNarrationStatus,
@@ -18,10 +18,11 @@ import {
   type AskNarrationProbe,
   type AskTraceStep
 } from "../api/askEshu";
+import { AnswerView } from "../components/ask/AnswerView";
 import { AskInput } from "../components/ask/AskInput";
 import { ReasoningTrace } from "../components/ask/ReasoningTrace";
-import { AnswerView } from "../components/ask/AnswerView";
 import { AskErrorView, DemoState, DisabledState } from "../components/ask/states";
+import type { SourceState } from "../components/SourceControls";
 import "./askPage.css";
 
 type Phase = "idle" | "streaming" | "done" | "error";

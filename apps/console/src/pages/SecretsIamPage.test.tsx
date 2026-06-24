@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+
+import { SecretsIamPage } from "./SecretsIamPage";
 import type { EshuApiClient } from "../api/client";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
-import { SecretsIamPage } from "./SecretsIamPage";
 
 describe("SecretsIamPage", () => {
   it("loads a deep-linked posture review with truth, buckets, and drilldowns", async () => {

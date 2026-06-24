@@ -1,15 +1,16 @@
 import { Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { useMemo, useState } from "react";
-import type {
-  DeploymentGraph,
-  DeploymentGraphNode
-} from "../api/mockData";
+
 import {
   labelLines,
   labelYOffset,
   layoutGraph,
   type LayoutLink
 } from "./deploymentGraphLayout";
+import type {
+  DeploymentGraph,
+  DeploymentGraphNode
+} from "../api/mockData";
 
 interface DeploymentGraphViewProps {
   readonly ariaLabel?: string;

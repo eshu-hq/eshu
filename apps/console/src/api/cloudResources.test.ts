@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadCloudResources } from "./cloudResources";
+
 import type { EshuApiClient } from "./client";
+import { loadCloudResources } from "./cloudResources";
 
 // The cloud-resource adapter must:
 // - map the real GET /api/v0/cloud/resources envelope into typed rows

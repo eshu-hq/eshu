@@ -1,11 +1,6 @@
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { ServiceSpotlight } from "../api/serviceSpotlight";
-import {
-  RelationshipInspector,
-  RelationshipSelectionSummary,
-  type SelectedGraphItem
-} from "./ServiceRelationshipInspector";
+
 import {
   applyDraggedPositions,
   buildGraphModel,
@@ -22,6 +17,12 @@ import {
   type LayoutNode,
   type Point
 } from "./serviceRelationshipGraphModel";
+import {
+  RelationshipInspector,
+  RelationshipSelectionSummary,
+  type SelectedGraphItem
+} from "./ServiceRelationshipInspector";
+import type { ServiceSpotlight } from "../api/serviceSpotlight";
 
 interface ViewportTransform {
   readonly scale: number;

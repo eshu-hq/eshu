@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { DeadCodePage } from "./DeadCodePage";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
-import { DeadCodePage } from "./DeadCodePage";
 
 describe("DeadCodePage repository scoping", () => {
   it("counts unresolved repositories by canonical id instead of display label", () => {

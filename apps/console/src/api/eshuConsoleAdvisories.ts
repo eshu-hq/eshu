@@ -47,10 +47,10 @@ interface AdvisoryCatalogResponse {
 // derives a severity band when the source omits a label.
 export function mapAdvisoryRow(raw: Record<string, unknown>): AdvisoryRow {
   const cvss = Number(raw.cvss_score ?? 0);
-  const cveId = String(raw.cve_id ?? "");
-  const ghsaId = String(raw.ghsa_id ?? "");
-  const id = String(raw.advisory_key ?? raw.canonical_id ?? cveId ?? ghsaId ?? "");
-  const label = raw.severity_label ? String(raw.severity_label) : severityFromCvss(cvss);
+  const cveId = stringField(raw.cve_id);
+  const ghsaId = stringField(raw.ghsa_id);
+  const id = stringField(raw.advisory_key) || stringField(raw.canonical_id) || cveId || ghsaId;
+  const label = raw.severity_label ? stringField(raw.severity_label) : severityFromCvss(cvss);
   return {
     id,
     cveId,
@@ -60,8 +60,15 @@ export function mapAdvisoryRow(raw: Record<string, unknown>): AdvisoryRow {
     kev: Boolean(raw.kev),
     ecosystems: Array.isArray(raw.ecosystems) ? (raw.ecosystems as string[]) : [],
     packageIds: Array.isArray(raw.package_ids) ? (raw.package_ids as string[]) : [],
-    publishedAt: String(raw.published_at ?? "")
+    publishedAt: stringField(raw.published_at)
   };
+}
+
+// stringField narrows an `unknown` API value to a string. Anything that is
+// not a string (including objects, which would otherwise stringify to
+// "[object Object]") is treated as missing.
+function stringField(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 // fetchAdvisoryCatalogPage reads one bounded page of the browsable CVE

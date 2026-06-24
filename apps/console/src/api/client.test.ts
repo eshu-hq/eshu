@@ -1,6 +1,7 @@
+import { expect, it, vi } from "vitest";
+
 import { EshuApiClient, EshuApiHttpError } from "./client";
 import { inspectionRequest } from "../test/inspectionRequest";
-import { expect, it, vi } from "vitest";
 
 describe("EshuApiClient", () => {
   it("requests canonical envelope responses from the configured base URL", async () => {
@@ -249,7 +250,11 @@ describe("EshuApiClient", () => {
     const fetcher = (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
       new Promise((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => {
-          reject(init.signal?.reason ?? new DOMException("aborted", "AbortError"));
+          // Normalize the abort reason to a real Error — AbortSignal.reason
+          // is typed `any` by the DOM lib, so narrow through `unknown` to
+          // keep the unsafe-* rules quiet and the rejection type checked.
+          const reason: unknown = init.signal?.reason;
+          reject(reason instanceof Error ? reason : new DOMException("aborted", "AbortError"));
         });
       });
 

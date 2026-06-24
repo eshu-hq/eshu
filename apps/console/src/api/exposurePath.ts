@@ -9,8 +9,8 @@
 // path: when the backend reports an unresolved finding (e.g. an unmaterialized
 // bridge edge) the loader preserves the empty path set and the honest coverage
 // reason so the view can say "no proven path" instead of implying one exists.
-import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 
 // ExposureRank is the honest exposure ranking of a source handler. It mirrors the
 // Go ExposureRank vocabulary; an unknown wire value falls back to "internal" (the

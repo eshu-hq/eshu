@@ -45,6 +45,15 @@ export type LocalLoginResult =
   | { readonly status: "disabled" }
   | { readonly status: "invalid" };
 
+// LocalLoginRawResponse is the union of shapes the backend can return on
+// POST /api/v0/auth/local/login for any 2xx status. Status 202 carries only
+// the status marker; status 200 carries the full BrowserSessionResponse under
+// `session`. Keeping the union narrow (instead of `any`) keeps downstream
+// access typed and ESLint happy.
+export type LocalLoginRawResponse =
+  | { readonly status: "mfa_required" }
+  | ({ readonly status: "ok" } & BrowserSessionResponse);
+
 // loginLocal POSTs credentials to /api/v0/auth/local/login and returns a
 // discriminated LocalLoginResult. Non-auth errors (5xx, network) are rethrown.
 // Exact backend field names from go/internal/query/local_identity_requests.go:
@@ -63,14 +72,15 @@ export async function loginLocal(
   try {
     // postJson resolves for 2xx. 202 (mfa_required) is 2xx, so it resolves
     // with the body {status:"mfa_required"} — not a BrowserSessionResponse.
-    // We cast to `any` here because the 202 body has a different shape.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = await client.postJson<any>("/api/v0/auth/local/login", body);
-    if (raw?.status === "mfa_required") {
+    // The narrow `LocalLoginRawResponse` keeps the status field typed while
+    // letting us cast to BrowserSessionResponse in the success branch.
+    const raw = await client.postJson<LocalLoginRawResponse>("/api/v0/auth/local/login", body);
+    if (raw.status === "mfa_required") {
       return { status: "mfa_required" };
     }
-    // 200 authenticated — body is LocalIdentitySessionResponse with auth present.
-    return { status: "ok", session: raw as BrowserSessionResponse };
+    // 200 authenticated — body is the BrowserSessionResponse itself; wrap it
+    // for the discriminated result.
+    return { status: "ok", session: raw };
   } catch (e) {
     if (e instanceof EshuApiHttpError) {
       if (e.status === 423) {

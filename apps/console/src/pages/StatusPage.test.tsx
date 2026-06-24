@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EshuApiClient } from "../api/client";
+
 import { StatusPage } from "./StatusPage";
+import type { EshuApiClient } from "../api/client";
 
 // The page joins three bounded status reads. The mock client answers each by
 // path so the rendered hero %, the per-collector state badges + progress bars,

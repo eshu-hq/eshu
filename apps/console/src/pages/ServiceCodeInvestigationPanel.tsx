@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import { EshuApiClient } from "../api/client";
 import {
   loadCodeTopicInvestigation,
@@ -147,7 +148,15 @@ function argumentSummary(argumentsValue: Record<string, unknown>): string {
 
 function stringArgument(argumentsValue: Record<string, unknown>, key: string): string {
   const value = argumentsValue[key];
-  return value === undefined || value === null ? "" : String(value);
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return JSON.stringify(value);
+  // Remaining possibilities: number | boolean | bigint | symbol. Each one
+  // stringifies cleanly without falling into the "[object Object]" trap.
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" || typeof value === "symbol") {
+    return String(value);
+  }
+  return "";
 }
 
 function humanToolLabel(tool: string): string {

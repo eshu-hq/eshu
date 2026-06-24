@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
 import type { EshuTruth } from "../api/envelope";
 import {
@@ -15,9 +16,9 @@ import {
   type SecretsIamSkippedSection,
   type SecretsIamTrustChains
 } from "../api/secretsIam";
+import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
-import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import "./secretsIamPage.css";
 
 interface FormState {

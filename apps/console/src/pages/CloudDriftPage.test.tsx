@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import type { EshuApiClient } from "../api/client";
+
 import { CloudDriftPage } from "./CloudDriftPage";
+import type { EshuApiClient } from "../api/client";
 
 function envelope(data: unknown, capability = "cloud_runtime_drift.readback.list") {
   return {

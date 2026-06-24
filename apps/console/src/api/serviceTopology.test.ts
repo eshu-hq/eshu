@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ServiceTrafficPath } from "./serviceTrafficPath";
-import { buildServiceTopology, loadTopologyServices } from "./serviceTopology";
-import type { ServiceRow } from "./eshuConsoleLive";
+
 import type { EshuApiClient } from "./client";
+import type { ServiceRow } from "./eshuConsoleLive";
+import { buildServiceTopology, loadTopologyServices } from "./serviceTopology";
+import type { ServiceTrafficPath } from "./serviceTrafficPath";
 
 const service: ServiceRow = {
   freshness: "fresh",

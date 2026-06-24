@@ -1,18 +1,19 @@
 // pages/DashboardPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
-import type { RepoListItem } from "../api/repoCatalog";
 import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
+import type { RepoListItem } from "../api/repoCatalog";
 import {
   loadSourceBackedSuggestedQuestions,
   type SuggestedQuestion
 } from "../api/suggestedQuestions";
-import type { ConsoleModel, GraphLayer, GraphModel, GraphNode, RelationshipRow, ServiceRow } from "../console/types";
-import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { SuggestedQuestions } from "../components/SuggestedQuestions";
+import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
+import type { ConsoleModel, GraphLayer, GraphModel, GraphNode, RelationshipRow, ServiceRow } from "../console/types";
 import "./dashboardLive.css";
 
 const LANDING_LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];

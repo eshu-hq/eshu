@@ -5,6 +5,7 @@
 // anchored request per provider) and renders covered-vs-gap rollups plus a
 // coverage table. No fabricated rows - honest empty/error states.
 import { useEffect, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
 import { loadObservabilityCoverage, OBSERVABILITY_PROVIDERS } from "../api/eshuObservability";
 import type { CoverageRow, ObservabilitySnapshot } from "../api/eshuObservability";

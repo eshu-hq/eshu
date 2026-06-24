@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+
+import type { AnswerNextCall } from "../api/answerPacket";
+import type { VisualizationEdge, VisualizationNode } from "../api/answerVisualization";
 import type { EshuApiClient } from "../api/client";
 import {
   loadServiceEvidenceGraph,
   type ServiceEvidenceGraphResult
 } from "../api/serviceEvidenceGraph";
-import type { VisualizationEdge, VisualizationNode } from "../api/answerVisualization";
-import type { AnswerNextCall } from "../api/answerPacket";
-import type { ConsoleModel } from "../console/types";
-import { uiFresh, uiTruth } from "../console/types";
-import { defaultServiceName } from "../console/defaultEntity";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
-import { GraphCanvas } from "../components/GraphCanvas";
 import type { EvidenceSelection } from "../components/EvidenceDrawer";
 import { EvidencePanel } from "../components/EvidencePanel";
+import { GraphCanvas } from "../components/GraphCanvas";
 import { visualizationEvidencePanelData } from "../components/visualizationEvidencePanel";
+import { defaultServiceName } from "../console/defaultEntity";
+import type { ConsoleModel } from "../console/types";
+import { uiFresh, uiTruth } from "../console/types";
 import "./serviceEvidenceGraph.css";
 
 type Selection = EvidenceSelection;

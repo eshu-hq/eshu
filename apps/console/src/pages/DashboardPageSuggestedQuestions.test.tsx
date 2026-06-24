@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { DashboardPage } from "./DashboardPage";
 import type { EshuApiClient } from "../api/client";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
 import type { ConsoleModel } from "../console/types";
-import { DashboardPage } from "./DashboardPage";
 
 describe("DashboardPage suggested questions", () => {
   it("renders source-backed suggestions as query route links", async () => {

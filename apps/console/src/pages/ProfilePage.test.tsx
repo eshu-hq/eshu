@@ -6,8 +6,9 @@
 //   - NEVER renders session_hash, token_hash, csrf, or credential handles
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import type { EshuApiClient } from "../api/client";
+
 import { ProfilePage } from "./ProfilePage";
+import type { EshuApiClient } from "../api/client";
 
 // ---------------------------------------------------------------------------
 // Test fixtures

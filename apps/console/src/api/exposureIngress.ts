@@ -10,8 +10,8 @@
 // the handler-trace view already uses. WAF/TLS posture is three-valued
 // (protected/unprotected/unproven and terminated/not_terminated/unproven) so an
 // observed-negative is never confused with missing evidence.
-import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 
 // IngressTruth is the per-hop truth level. It mirrors the repo's evidence
 // vocabulary: "observed" for scanned cloud state, "derived" for assembled links,

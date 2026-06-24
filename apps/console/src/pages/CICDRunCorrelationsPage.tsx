@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
-import { demoDefaults } from "../api/demoClient";
+
 import {
   loadCICDRunCorrelationReview,
   type CICDReviewSection,
@@ -11,10 +10,12 @@ import {
   type CICDRunCorrelationReview,
   type CICDRunCorrelationRow
 } from "../api/cicdRunCorrelations";
+import type { EshuApiClient } from "../api/client";
+import { demoDefaults } from "../api/demoClient";
 import type { EshuTruth } from "../api/envelope";
+import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
-import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import "./cicdRunCorrelationsPage.css";
 
 interface FormState {

@@ -5,6 +5,7 @@
 // anything the advisory omits renders as "—".
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
 import {
   loadSupplyChainImpactPacket,
@@ -13,11 +14,11 @@ import {
 } from "../api/investigationPacket";
 import { affectedFromModel, affectedServicesGraph, detailFromModelRow, loadVulnerabilityDetail } from "../api/vulnerability";
 import type { VulnDetail } from "../api/vulnerability";
-import type { ConsoleModel, Severity } from "../console/types";
-import { SEVERITY_COLOR } from "../console/types";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
+import { SEVERITY_COLOR } from "../console/types";
+import type { ConsoleModel, Severity } from "../console/types";
 
 const sevColor = (s: string): string => SEVERITY_COLOR[(s as Severity) in SEVERITY_COLOR ? (s as Severity) : "medium"];
 

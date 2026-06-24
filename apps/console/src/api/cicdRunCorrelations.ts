@@ -1,5 +1,3 @@
-import type { EshuApiClient } from "./client";
-import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import type {
   CICDCountWire,
   CICDEvidenceBlockWire,
@@ -10,6 +8,8 @@ import type {
   CICDRunCorrelationWire,
   CICDStaticWorkflowArtifactsWire
 } from "./cicdRunCorrelationsWireTypes";
+import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 
 export type CICDRunCorrelationInventoryGroup = "environment" | "outcome" | "provider" | "repository_id";
 

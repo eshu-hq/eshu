@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { vi } from "vitest";
+
+import { ServiceReportPage } from "./ServiceReportPage";
 import { EshuApiHttpError, type EshuApiClient } from "../api/client";
 import type { EshuEnvelope } from "../api/envelope";
 import type { ServiceInvestigationResponse } from "../api/serviceInvestigation";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
-import { ServiceReportPage } from "./ServiceReportPage";
 
 function liveModel() {
   return modelFromSnapshot(emptySnapshot("live"));

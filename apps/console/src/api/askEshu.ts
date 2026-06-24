@@ -12,12 +12,6 @@
 // fields below. See docs/public/reference/http-api.md and
 // go/internal/query/openapi_paths_ask.go (the source of truth for the shape).
 
-import type { EshuFetcher } from "./client";
-import {
-  browserSessionCSRFCookieName,
-  browserSessionCSRFHeaderName,
-  eshuEnvelopeAccept
-} from "./client";
 import {
   narrationData,
   narrationProviderConfigured,
@@ -26,6 +20,12 @@ import {
   normalizeStreamError,
   normalizeTraceStep
 } from "./askEshuNormalize";
+import type { EshuFetcher } from "./client";
+import {
+  browserSessionCSRFCookieName,
+  browserSessionCSRFHeaderName,
+  eshuEnvelopeAccept
+} from "./client";
 
 /** Requested answer format. `auto` lets the engine infer from the question. */
 export type AskFormat = "auto" | "markdown" | "mermaid" | "json" | "yaml" | "csv";

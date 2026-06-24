@@ -1,8 +1,8 @@
 // appBoot.ts — extracted boot-phase helpers for App.tsx.
 // Keeps App.tsx under 500 lines by isolating session-aware boot logic here.
+import { loadCurrentSession } from "./api/authSession";
 import type { BrowserSessionResponse } from "./api/client";
 import { EshuApiClient } from "./api/client";
-import { loadCurrentSession } from "./api/authSession";
 import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
 import { loadRepositories, type RepoListItem } from "./api/repoCatalog";
 import { saveConsoleEnvironment } from "./config/environment";

@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { CodeGraphPage } from "./CodeGraphPage";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
-import { CodeGraphPage } from "./CodeGraphPage";
 
 describe("CodeGraphPage repository scoping", () => {
   it("does not group different repositories that share an unresolved display label", () => {

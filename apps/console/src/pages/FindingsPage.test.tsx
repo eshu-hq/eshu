@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
 import { FindingsPage } from "./FindingsPage";
 import { demoModel } from "../console/demoModel";
 import { emptyConsoleModel } from "../console/liveModel";

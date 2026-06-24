@@ -3,12 +3,13 @@
 // (GET /api/v0/supply-chain/impact/findings). This is admitted impact truth, as
 // opposed to the broader known-intelligence catalog.
 import { Link } from "react-router-dom";
-import type { ConsoleModel, GraphModel, Severity, VulnRow } from "../console/types";
-import { SEVERITY_COLOR } from "../console/types";
+
+import { AsyncStateGuard } from "../components/AsyncStateGuard";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { Donut } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
-import { AsyncStateGuard } from "../components/AsyncStateGuard";
+import type { ConsoleModel, GraphModel, Severity, VulnRow } from "../console/types";
+import { SEVERITY_COLOR } from "../console/types";
 import "./supplyChainImpactPath.css";
 
 type ImpactImage = ConsoleModel["images"][number];

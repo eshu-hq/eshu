@@ -1,5 +1,4 @@
 import { EshuApiClient, type EshuFetcher } from "./client";
-import type { EshuEnvelope, EshuTruth } from "./envelope";
 import {
   blastRadius,
   changeSurface,
@@ -23,6 +22,7 @@ import {
   sbomInventory,
   unmanagedFindings
 } from "./demoFixtures";
+import type { EshuEnvelope, EshuTruth } from "./envelope";
 export { demoApiBaseUrl, demoDefaults, demoRepositories } from "./demoFixtures";
 
 interface DemoResult {

@@ -8,6 +8,7 @@
 // foundation_only, and the other lanes get distinct, non-ready styling so the
 // page never implies readiness a surface does not have.
 import { useEffect, useMemo, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
 import { loadSurfaceInventory } from "../api/surfaceInventory";
 import type { SurfaceRow } from "../api/surfaceInventory";

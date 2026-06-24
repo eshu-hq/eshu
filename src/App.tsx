@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -9,15 +8,16 @@ import {
   MessageCircle,
   Network,
   Route,
-  SearchX,
   ShieldCheck,
   Terminal,
   Workflow,
   X
 } from "lucide-react";
-import { SourceRuntimeGraph } from "./SourceRuntimeGraph";
+import { useState } from "react";
+
 import { siteContent } from "./siteContent";
 import type { CommandDemo, CleanupMode, PersonaDemo } from "./siteContent";
+import { SourceRuntimeGraph } from "./SourceRuntimeGraph";
 
 const capabilityIcons = [
   MessageCircle,

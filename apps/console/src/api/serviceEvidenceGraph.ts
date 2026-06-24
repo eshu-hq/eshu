@@ -1,7 +1,3 @@
-import { EshuApiHttpError, type EshuApiClient } from "./client";
-import type { EshuError, EshuTruth } from "./envelope";
-import type { GraphLayer, GraphModel, GraphNode } from "../console/types";
-import { uiTruth } from "../console/types";
 import {
   emptyAnswerGraph,
   normalizeVisualizationPacket,
@@ -9,6 +5,10 @@ import {
   type VisualizationDeriveResponseWire,
   type VisualizationPacket
 } from "./answerVisualization";
+import { EshuApiHttpError, type EshuApiClient } from "./client";
+import type { EshuError, EshuTruth } from "./envelope";
+import type { GraphEdge, GraphModel, GraphNode } from "../console/types";
+import { uiTruth } from "../console/types";
 
 // ServiceEvidenceGraphResult is the bounded, source-backed view the console
 // renders for a single service. The packet is null whenever the story or derive
@@ -118,8 +118,8 @@ export function serviceStoryGraph(packet: VisualizationPacket | null): GraphMode
   const nodeIds = new Set(nodes.map((node) => node.id));
   const edges = packet.edges
     .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-    .map((edge) => ({
-      layer: "code" satisfies GraphLayer as GraphLayer,
+    .map((edge): GraphEdge => ({
+      layer: "code",
       s: edge.source,
       t: edge.target,
       verb: edge.relationship || "RELATED"

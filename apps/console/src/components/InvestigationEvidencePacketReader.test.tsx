@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { InvestigationEvidencePacket } from "../api/investigationPacket";
+
 import { InvestigationEvidencePacketReader } from "./InvestigationEvidencePacketReader";
+import type { InvestigationEvidencePacket } from "../api/investigationPacket";
 
 describe("InvestigationEvidencePacketReader", () => {
   it("renders packet layers, bounds, redaction, and reproduce handles", () => {

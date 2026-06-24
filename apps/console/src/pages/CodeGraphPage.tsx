@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+
+import { RelationshipTruthPanel } from "./RelationshipTruthPanel";
 import type { EshuApiClient } from "../api/client";
 import { loadCodeImportCycles } from "../api/codeImports";
 import type { CodeImportCycleRow } from "../api/codeImports";
@@ -8,11 +10,10 @@ import { EshuEnvelopeError } from "../api/envelope";
 import { codeRelationshipsToGraph, codeRelationshipStoryToGraph, mergeGraphSourceMetadata } from "../api/eshuGraph";
 import type { CodeRelationshipsResponse, CodeRelationshipStoryCoverage, CodeRelationshipStoryResponse } from "../api/eshuGraph";
 import { loadRepositoryNameMap } from "../api/repoCatalog";
+import { Badge, Panel, StatTile } from "../components/atoms";
+import { GraphCanvas } from "../components/GraphCanvas";
 import type { ConsoleModel, FindingRow, GraphModel, GraphNode } from "../console/types";
 import { fmt } from "../console/types";
-import { GraphCanvas } from "../components/GraphCanvas";
-import { Badge, Panel, StatTile } from "../components/atoms";
-import { RelationshipTruthPanel } from "./RelationshipTruthPanel";
 
 interface ImportCycleState {
   readonly status: "idle" | "loading" | "ready" | "error";

@@ -10,13 +10,13 @@
 // The /admin route and nav link are gated behind the identity_admin permission
 // family in auth/capabilityAccess.ts (fail-open until #3684 persists features).
 import type { EshuApiClient } from "../api/client";
-import { AdminInvitationsPanel } from "./admin/AdminInvitationsPanel";
 import { AdminAssignmentsPanel } from "./admin/AdminAssignmentsPanel";
-import { AdminRolesPanel } from "./admin/AdminRolesPanel";
-import { AdminProvidersPanel } from "./admin/AdminProvidersPanel";
-import { AdminIdPGroupMappingsPanel } from "./admin/AdminIdPGroupMappingsPanel";
-import { AdminTokensPanel } from "./admin/AdminTokensPanel";
 import { AdminAuditPanel } from "./admin/AdminAuditPanel";
+import { AdminIdPGroupMappingsPanel } from "./admin/AdminIdPGroupMappingsPanel";
+import { AdminInvitationsPanel } from "./admin/AdminInvitationsPanel";
+import { AdminProvidersPanel } from "./admin/AdminProvidersPanel";
+import { AdminRolesPanel } from "./admin/AdminRolesPanel";
+import { AdminTokensPanel } from "./admin/AdminTokensPanel";
 import "./liveInventory.css";
 import "./adminPage.css";
 

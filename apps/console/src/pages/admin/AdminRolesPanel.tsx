@@ -5,11 +5,12 @@
 // policy revision hash, or hashed scope selector. On a load error the panel
 // renders "unavailable" rather than fabricated rows.
 import { useEffect, useState } from "react";
-import type { EshuApiClient } from "../../api/client";
+
+import { dash, truncatedNote } from "./adminFormat";
 import { loadRoles } from "../../api/adminConsole";
 import type { RoleItem } from "../../api/adminConsole";
+import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
-import { dash, truncatedNote } from "./adminFormat";
 
 export function AdminRolesPanel({
   client

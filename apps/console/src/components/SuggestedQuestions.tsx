@@ -1,4 +1,5 @@
 import { Link, useInRouterContext } from "react-router-dom";
+
 import type { SuggestedQuestion } from "../api/suggestedQuestions";
 import "./SuggestedQuestions.css";
 

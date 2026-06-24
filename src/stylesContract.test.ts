@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
+
 import { siteContent } from "./siteContent";
 
 describe("global styles contract", () => {

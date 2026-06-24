@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import type { EshuApiClient } from "../api/client";
+
 import { CapabilityMatrixPage } from "./CapabilityMatrixPage";
+import type { EshuApiClient } from "../api/client";
 
 // CapabilityMatrixPage renders the reconciled capability catalog. It must:
 // - show a loading state until the first page resolves

@@ -4,10 +4,11 @@
 // bounded fields the console understands (kind + a human label derived from the
 // handle). Handles are informational here; the console does not fabricate
 // navigation targets from an unknown ref shape.
-import { useState } from "react";
 import { ChevronRight, ShieldCheck } from "lucide-react";
-import type { AskEvidenceHandle } from "../../api/askEshu";
+import { useState } from "react";
+
 import { cx } from "./cx";
+import type { AskEvidenceHandle } from "../../api/askEshu";
 
 /** A collapsible list of evidence handles backing the answer. */
 export function EvidenceList({ handles }: { readonly handles: readonly AskEvidenceHandle[] }): React.JSX.Element | null {

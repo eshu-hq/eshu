@@ -79,6 +79,7 @@ site-dist/
 # `npm run site:review`. Durable locally, never committed (binary screenshots).
 site-review-artifacts/
 *.tsbuildinfo
+.eslintcache
 .mcp.json
 .vercel/
 mcp.json

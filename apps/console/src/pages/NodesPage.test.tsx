@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
+
 import { NodesPage } from "./NodesPage";
+import type { EshuApiClient } from "../api/client";
 
 // NodesPage renders the browsable graph-entity explorer backed by
 // GET /api/v0/graph/entities. It must:

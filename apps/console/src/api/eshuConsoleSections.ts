@@ -9,10 +9,7 @@
 import type { EshuApiClient } from "./client";
 import { deadCodeRowsFromResponse, type DeadCodeResponse } from "./deadCode";
 import { EshuEnvelopeError, type EshuTruth, type FreshnessState } from "./envelope";
-import { loadDependencies } from "./eshuDependencies";
 import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
-import { iacResourceRowsFromResponse } from "./iacResources";
-import { imageRowsFromResponse } from "./imageInventory";
 import type {
   AdvisoryRow,
   ArgoCDAppRow,
@@ -28,6 +25,9 @@ import type {
   ServiceRow,
   VulnRow
 } from "./eshuConsoleLive";
+import { loadDependencies } from "./eshuDependencies";
+import { iacResourceRowsFromResponse } from "./iacResources";
+import { imageRowsFromResponse } from "./imageInventory";
 
 // SectionContext carries the cross-section mutable state the snapshot threads
 // through every loader: the per-key truth capture and the catalog-derived
@@ -124,6 +124,14 @@ function serviceLabel(id: string, repoNames: ReadonlyMap<string, string>): strin
   const mapped = repoNames.get(trimmed);
   if (mapped) return mapped;
   return trimmed.replace(/^(?:repository|workload|service)[:_]/i, "");
+}
+
+// asString narrows an `unknown` API value to a string. Anything that is not
+// a string (including objects, which would otherwise stringify to
+// "[object Object]") is treated as missing and the caller falls through to
+// the next candidate or the final fallback.
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 // emptyRuntime is the unknown-status baseline the runtime section degrades to
@@ -233,9 +241,9 @@ export async function loadIngesters(client: EshuApiClient): Promise<readonly Ing
     const data = await client.getJson<IngesterStatus>("/api/v0/status/ingesters");
     for (const [i, g] of (data?.ingesters ?? []).entries()) {
       rows.push({
-        id: String(g.name ?? g.id ?? g.ingester ?? `ingester-${i}`),
-        kind: String(g.runtime_family ?? g.kind ?? g.name ?? g.ingester ?? "ingester"),
-        state: String(g.health ?? g.state ?? g.status ?? "healthy"),
+        id: asString(g.name) || asString(g.id) || asString(g.ingester) || `ingester-${i}`,
+        kind: asString(g.runtime_family) || asString(g.kind) || asString(g.name) || asString(g.ingester) || "ingester",
+        state: asString(g.health) || asString(g.state) || asString(g.status) || "healthy",
         facts: Number(g.fact_count ?? g.facts ?? 0),
         freshness: (g.freshness as FreshnessState) ?? "fresh"
       });
@@ -284,14 +292,14 @@ export async function loadVulnerabilities(client: EshuApiClient, ctx: SectionCon
     } catch { continue; }
     if (env.error) throw new EshuEnvelopeError(env.error);
     for (const v of (env.data?.findings ?? env.data?.results ?? [])) {
-      const id = String(v.advisory_id ?? v.cve_id ?? v.id ?? `adv-${rows.length}`);
+      const id = asString(v.advisory_id) || asString(v.cve_id) || asString(v.id) || `adv-${rows.length}`;
       if (seen.has(id)) continue;
       seen.add(id);
       const cvss = Number(v.cvss ?? v.cvss_score ?? 0);
-      const sev = (v.severity ? String(v.severity) : severityFromCvss(cvss)).toLowerCase();
+      const sev = (v.severity ? asString(v.severity) : severityFromCvss(cvss)).toLowerCase();
       rows.push({
         id,
-        package: String(v.package ?? v.package_name ?? v.subject ?? "—"),
+        package: asString(v.package) || asString(v.package_name) || asString(v.subject) || "—",
         severity: sev,
         cvss,
         kev: Boolean(v.kev ?? v.known_exploited),
@@ -299,8 +307,8 @@ export async function loadVulnerabilities(client: EshuApiClient, ctx: SectionCon
         // affected_services is already human-readable; service_id/repository_id
         // are raw graph ids, so resolve them to catalog names before display.
         services: (v.affected_services as string[]) ?? (
-          v.service_id ? [serviceLabel(String(v.service_id), ctx.repoNames)]
-            : v.repository_id ? [serviceLabel(String(v.repository_id), ctx.repoNames)] : []
+          v.service_id ? [serviceLabel(asString(v.service_id), ctx.repoNames)]
+            : v.repository_id ? [serviceLabel(asString(v.repository_id), ctx.repoNames)] : []
         )
       });
     }

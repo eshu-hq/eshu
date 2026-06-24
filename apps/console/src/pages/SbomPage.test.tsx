@@ -1,5 +1,6 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+
 import { SbomPage } from "./SbomPage";
 import type { EshuApiClient } from "../api/client";
 

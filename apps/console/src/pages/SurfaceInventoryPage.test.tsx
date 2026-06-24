@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import type { EshuApiClient } from "../api/client";
+
 import { SurfaceInventoryPage } from "./SurfaceInventoryPage";
+import type { EshuApiClient } from "../api/client";
 
 // SurfaceInventoryPage renders the surface inventory readiness catalog. It must:
 // - show a loading state until the first page resolves

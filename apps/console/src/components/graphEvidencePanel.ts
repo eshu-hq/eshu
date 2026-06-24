@@ -1,5 +1,5 @@
-import type { GraphEdge, GraphNode } from "../console/types";
 import type { EvidencePanelData, EvidencePanelFact, EvidencePanelSection } from "./EvidencePanel";
+import type { GraphEdge, GraphNode } from "../console/types";
 
 // graphNodeEvidencePanelData maps a GraphModel node into the packet-agnostic
 // EvidencePanelData contract so the Graph Explorer can reveal a node's identity,

@@ -101,7 +101,10 @@ export interface TerraformImportPlanCandidate {
   readonly refusalReasons: readonly string[];
   readonly region: string;
   readonly safetyOutcome: string;
-  readonly status: "ready" | "refused" | string;
+  // Status is the backend-reported string union plus an open string fallback
+  // for forward compatibility; narrowed unions ("ready" / "refused") would be
+  // redundant because `string` already covers every literal.
+  readonly status: string;
   readonly suggestedResourceAddress: string;
   readonly terraformResourceType: string;
   readonly warnings: readonly string[];

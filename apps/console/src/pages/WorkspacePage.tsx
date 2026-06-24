@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+
+import { ServiceSpotlightPanel } from "./ServiceSpotlightPanel";
 import { EshuApiClient } from "../api/client";
-import { loadWorkspaceStory } from "../api/repository";
 import type { WorkspaceStory } from "../api/mockData";
+import { loadWorkspaceStory } from "../api/repository";
 import { loadConsoleEnvironment } from "../config/environment";
 import { EvidenceGrid } from "../grid/EvidenceGrid";
 import { DeploymentGraphView } from "../visualization/DeploymentGraphView";
-import { ServiceSpotlightPanel } from "./ServiceSpotlightPanel";
 
 export function WorkspacePage(): React.JSX.Element {
   const { entityId, entityKind } = useParams();

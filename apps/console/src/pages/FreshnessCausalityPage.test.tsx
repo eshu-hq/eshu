@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import type { EshuApiClient } from "../api/client";
+
 import { FreshnessCausalityPage } from "./FreshnessCausalityPage";
+import type { EshuApiClient } from "../api/client";
 
 // FreshnessCausalityPage renders the freshness causality read model and must
 // show fresh, building, stale, and tenant-scoped (permission-hidden) states

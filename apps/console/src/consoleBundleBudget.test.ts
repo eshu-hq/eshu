@@ -6,7 +6,9 @@
 // lets us assert behavior without running a real Vite build.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
+
 import {
   classifyAsset,
   evaluateBundleBudget
@@ -22,7 +24,7 @@ function readRootPackageJson(): PackageJson {
   if (typeof parsed !== "object" || parsed === null) {
     throw new Error("root package.json must contain an object");
   }
-  return parsed as PackageJson;
+  return parsed;
 }
 
 describe("classifyAsset", () => {

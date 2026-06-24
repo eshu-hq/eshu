@@ -1,6 +1,6 @@
 import { EshuApiClient } from "./client";
-import { inspectionRequest } from "../test/inspectionRequest";
 import { loadIncidentContext } from "./incidentContext";
+import { inspectionRequest } from "../test/inspectionRequest";
 
 describe("incident context adapter", () => {
   it("loads a bounded incident context packet with truth metadata", async () => {

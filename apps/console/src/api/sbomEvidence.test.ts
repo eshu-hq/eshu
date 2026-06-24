@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadSbomSummary, loadSbomInventory, loadSbomSubjectDetail } from "./sbomEvidence";
+
 import type { EshuApiClient } from "./client";
+import { loadSbomSummary, loadSbomInventory, loadSbomSubjectDetail } from "./sbomEvidence";
 
 // The SBOM loaders surface the existing reducer-owned supply-chain read models
 // (count + inventory + per-subject list). They must read the real response

@@ -300,8 +300,8 @@ function pipelineState(value: string | undefined): StatusPipelineState {
 function ingesterVolumes(ingesters: IngesterWire | null): ReadonlyMap<string, number> {
   const volumes = new Map<string, number>();
   for (const g of ingesters?.ingesters ?? []) {
-    const id = String(g.name ?? g.id ?? g.ingester ?? "");
-    const kind = String(g.runtime_family ?? g.kind ?? "");
+    const id = stringOrFallback(g.name, g.id, g.ingester, "");
+    const kind = stringOrFallback(g.runtime_family, g.kind, "", "");
     const facts = Number(g.fact_count ?? g.facts ?? 0);
     if (!Number.isFinite(facts) || facts <= 0) continue;
     if (id) volumes.set(id, facts);
@@ -399,4 +399,15 @@ function clean(value: string | null | undefined): string {
 
 function finite(value: number | undefined): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+// stringOrFallback narrows an `unknown` API field to a string. Anything that
+// is not a string (including objects, which would otherwise stringify to
+// "[object Object]") is treated as missing and the next candidate is tried.
+// The final fallback is returned when none of the candidates are strings.
+function stringOrFallback(...candidates: ReadonlyArray<unknown>): string {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") return candidate;
+  }
+  return "";
 }

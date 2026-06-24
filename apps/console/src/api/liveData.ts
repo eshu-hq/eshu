@@ -442,7 +442,7 @@ async function mapLimited<TItem, TResult>(
     while (nextIndex < items.length) {
       const index = nextIndex;
       nextIndex += 1;
-      results[index] = await mapper(items[index] as TItem);
+      results[index] = await mapper(items[index]);
     }
   }));
   return results;

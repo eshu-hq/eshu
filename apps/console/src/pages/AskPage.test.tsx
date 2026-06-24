@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
 import { AskPage } from "./AskPage";
 import type { SourceState } from "../components/SourceControls";
 
@@ -34,8 +35,17 @@ function sseResponse(chunks: readonly string[]): Response {
 function stubFetch(handler: (url: string, init?: RequestInit) => Response): void {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(String(input), init))
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(urlFromRequestInfo(input), init))
   );
+}
+
+// urlFromRequestInfo normalizes the heterogeneous fetch input (string | Request
+// | URL) to a URL string for the test handler. Request bodies and headers are
+// not relevant to these tests, only the URL.
+function urlFromRequestInfo(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
 }
 
 afterEach(() => {

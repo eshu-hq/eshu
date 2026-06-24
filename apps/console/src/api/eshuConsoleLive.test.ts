@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+
+import type { EshuApiClient } from "./client";
 import { loadConsoleSnapshot } from "./eshuConsoleLive";
 import { dependenciesPath, loadDependencies } from "./eshuDependencies";
-import type { EshuApiClient } from "./client";
 
 // The console adapter must match the real API response shapes:
 // - ecosystem/overview is enveloped and uses repo_count (not repository_count)

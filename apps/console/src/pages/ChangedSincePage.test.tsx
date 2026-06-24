@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+
+import { ChangedSincePage } from "./ChangedSincePage";
 import type { EshuApiClient } from "../api/client";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
-import { ChangedSincePage } from "./ChangedSincePage";
 
 function modelWithRepo(repo: string) {
   return modelFromSnapshot({

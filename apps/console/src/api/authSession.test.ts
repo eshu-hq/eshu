@@ -8,8 +8,7 @@
 //   401 → EshuApiHttpError(401)                  → LocalLoginResult{status:"invalid"}
 //   5xx → EshuApiHttpError(5xx) re-thrown
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EshuApiClient, BrowserSessionResponse } from "./client";
-import { EshuApiHttpError } from "./client";
+
 import type { LocalLoginResult } from "./authSession";
 import {
   loadCurrentSession,
@@ -18,6 +17,8 @@ import {
   beginSamlLogin,
   logout
 } from "./authSession";
+import type { EshuApiClient, BrowserSessionResponse } from "./client";
+import { EshuApiHttpError } from "./client";
 
 const mockSession: BrowserSessionResponse = {
   auth: {

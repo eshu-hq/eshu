@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadEntityStoryGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph, deploymentStoryToGraph, recommendedModeForKind } from "./eshuGraph";
+
 import { EshuApiHttpError } from "./client";
 import type { EshuApiClient } from "./client";
+import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadEntityStoryGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph, deploymentStoryToGraph, recommendedModeForKind } from "./eshuGraph";
 
 describe("eshuGraph", () => {
   it("loadBlastGraph posts target + target_type and maps the affected list", async () => {

@@ -4,12 +4,13 @@
 // that set client-side so the operator can scan by type, name, provider, and
 // module without re-querying. Truth and freshness come from the section envelope.
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
 import { loadIacResourcesPage } from "../api/iacResources";
 import type { IacResourceCursor, IacResourceKind, IacResourcePage } from "../api/iacResources";
+import { Panel, StatTile, TruthChip, FreshDot, Badge } from "../components/atoms";
 import type { ConsoleModel, IacResourceRow } from "../console/types";
 import { uiTruth, uiFresh } from "../console/types";
-import { Panel, StatTile, TruthChip, FreshDot, Badge } from "../components/atoms";
 import "./liveInventory.css";
 
 const PAGE_SIZE = 25;

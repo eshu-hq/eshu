@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { ServiceSpotlight } from "../api/serviceSpotlight";
+
 import { ServiceRelationshipWorkbench } from "./ServiceRelationshipWorkbench";
+import type { ServiceSpotlight } from "../api/serviceSpotlight";
 
 describe("ServiceRelationshipWorkbench", () => {
   it("renders an interactive relationship graph with semantic drilldowns", () => {

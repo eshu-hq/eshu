@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+
+import { normalizeVisualizationPacket } from "./answerVisualization";
 import { EshuApiHttpError, type EshuApiClient } from "./client";
 import type { EshuEnvelope } from "./envelope";
 import {
   loadServiceEvidenceGraph,
   serviceStoryGraph
 } from "./serviceEvidenceGraph";
-import { normalizeVisualizationPacket } from "./answerVisualization";
 
 function storyEnvelope(): EshuEnvelope<Record<string, unknown>> {
   return {
@@ -23,7 +24,7 @@ function storyEnvelope(): EshuEnvelope<Record<string, unknown>> {
 
 function packetEnvelope(packet: unknown): EshuEnvelope<Record<string, unknown>> {
   return {
-    data: { visualization_packet: packet } as Record<string, unknown>,
+    data: { visualization_packet: packet },
     error: null,
     truth: { capability: "visualization.derive", freshness: { state: "fresh" }, level: "exact", profile: "local_authoritative" }
   };

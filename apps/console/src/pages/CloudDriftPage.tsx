@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
-import { loadCloudRuntimeDriftPacket, type InvestigationPacketResult } from "../api/investigationPacket";
 import {
   loadAwsRuntimeDriftFindings,
   loadCloudRuntimeDriftFindings,
@@ -19,6 +19,7 @@ import {
   type UnmanagedCloudResourceFinding,
   type UnmanagedCloudResourcesPage
 } from "../api/cloudDrift";
+import { loadCloudRuntimeDriftPacket, type InvestigationPacketResult } from "../api/investigationPacket";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
 import { uiFresh, uiTruth } from "../console/types";

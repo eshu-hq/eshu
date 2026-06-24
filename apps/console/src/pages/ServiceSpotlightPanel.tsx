@@ -1,10 +1,5 @@
 import { useMemo, useState } from "react";
-import type {
-  ServiceEndpoint,
-  ServiceHostname,
-  ServiceDeploymentLane,
-  ServiceSpotlight
-} from "../api/serviceSpotlight";
+
 import { ServiceEvidenceRail, ServiceTrustStrip } from "./ServiceAtlasEvidence";
 import { ServiceChangeSurfacePanel } from "./ServiceChangeSurfacePanel";
 import { ServiceCodeInvestigationPanel } from "./ServiceCodeInvestigationPanel";
@@ -14,6 +9,12 @@ import { ServiceRelationshipExplorer } from "./ServiceRelationshipExplorer";
 import { ServiceRelationshipWorkbench } from "./ServiceRelationshipWorkbench";
 import { ServiceSupportEvidencePanel } from "./ServiceSupportEvidencePanel";
 import { ServiceTrafficPathPanel } from "./ServiceTrafficPathPanel";
+import type {
+  ServiceEndpoint,
+  ServiceHostname,
+  ServiceDeploymentLane,
+  ServiceSpotlight
+} from "../api/serviceSpotlight";
 
 type ServiceAtlasTab = "map" | "traffic" | "impact" | "api";
 

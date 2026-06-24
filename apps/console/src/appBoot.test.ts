@@ -17,9 +17,9 @@ vi.mock("./console/liveModel", () => ({
   modelFromSnapshot: vi.fn(() => ({}))
 }));
 
-import { bootFromKey } from "./appBoot";
 import { loadCurrentSession } from "./api/authSession";
 import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
+import { bootFromKey } from "./appBoot";
 import { saveConsoleEnvironment } from "./config/environment";
 
 describe("bootFromKey", () => {

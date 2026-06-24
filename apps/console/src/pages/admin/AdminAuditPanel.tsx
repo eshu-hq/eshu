@@ -7,15 +7,16 @@
 // "unavailable". Renders only audit-safe fields (event type, classes, decision,
 // reason, timestamps, correlation id) — never actor, scope, or policy hashes.
 import { useEffect, useState } from "react";
-import type { EshuApiClient } from "../../api/client";
+
+import { fmt, dash } from "./adminFormat";
 import { loadAuditEvents, loadAuditSummary } from "../../api/adminConsole";
 import type {
   AuditEventItem,
   AuditSummaryData,
   AdminAuditProvenance
 } from "../../api/adminConsole";
+import type { EshuApiClient } from "../../api/client";
 import { Panel } from "../../components/atoms";
-import { fmt, dash } from "./adminFormat";
 
 // OPERATOR_SCOPE_NOTE is shown when the audit routes return 403 for a tenant
 // admin. The audit surface is global-operator-only; tenant scoping is tracked

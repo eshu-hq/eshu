@@ -2,8 +2,6 @@
 // Private mode renders only the Eshu API. Demo mode is an explicit prospect
 // fixture source, not a failed-live fallback. main.tsx wraps this in
 // <BrowserRouter>.
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
@@ -36,22 +34,25 @@ import {
   User,
   UserCog
 } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+
+import { logout } from "./api/authSession";
 import { EshuApiClient } from "./api/client";
 import type { BrowserSessionResponse } from "./api/client";
 import { createDemoApiClient, demoApiBaseUrl, demoRepositories } from "./api/demoClient";
 import type { RepoListItem } from "./api/repoCatalog";
+import { bootFromKey, bootFromSession } from "./appBoot";
+import { AppRoutes } from "./appRoutes";
+import { buildAllowedNavSet } from "./auth/capabilityAccess";
+import { ServiceDrawer } from "./components/ServiceDrawer";
+import { ConnectionState, SourcePopover, type SourceState } from "./components/SourceControls";
 import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environment";
 import { demoModel } from "./console/demoModel";
 import { emptyConsoleModel } from "./console/liveModel";
-import { bootFromKey, bootFromSession } from "./appBoot";
-import { buildAllowedNavSet } from "./auth/capabilityAccess";
-import { logout } from "./api/authSession";
-import { LoginPage } from "./pages/LoginPage";
 import type { ConsoleModel } from "./console/types";
 import { fmt } from "./console/types";
-import { AppRoutes } from "./appRoutes";
-import { ServiceDrawer } from "./components/ServiceDrawer";
-import { ConnectionState, SourcePopover, type SourceState } from "./components/SourceControls";
+import { LoginPage } from "./pages/LoginPage";
 import "./styles.css";
 import "./appShell.css";
 

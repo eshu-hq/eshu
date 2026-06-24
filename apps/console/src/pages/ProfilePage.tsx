@@ -5,6 +5,7 @@
 // and MFA credential handles are never surfaced. An error on any section
 // renders "—" / unavailable rather than fabricated data.
 import { useEffect, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
 import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
 import type {

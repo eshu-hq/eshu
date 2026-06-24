@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
+
 import { RepoSourcePage } from "./RepoSourcePage";
+import type { EshuApiClient } from "../api/client";
 
 describe("RepoSourcePage", () => {
   it("opens the requested source file from the path query parameter", async () => {

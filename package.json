@@ -15,7 +15,11 @@
     "console:bundle-budget": "node scripts/console-bundle-budget.mjs",
     "console:e2e": "bash scripts/run-console-live-e2e.sh",
     "console:e2e:typecheck": "tsc -p apps/console/e2e/tsconfig.json",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@types/d3": "^7.4.3",
@@ -27,15 +31,25 @@
     "react-router-dom": "^7.18.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^5.2.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-react": "^7.37.3",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
     "jsdom": "^25.0.1",
     "playwright": "^1.60.0",
+    "prettier": "^3.4.2",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.20.0",
     "vite": "^7.3.5",
     "vitest": "^3.2.6"
   },

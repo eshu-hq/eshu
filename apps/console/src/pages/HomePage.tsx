@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import { EshuApiClient } from "../api/client";
 import { loadSearchCandidates } from "../api/liveData";
 import type { SearchCandidate } from "../api/mockData";

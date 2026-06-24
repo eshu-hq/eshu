@@ -1,10 +1,11 @@
 import { useState } from "react";
-import type { ServiceSpotlight } from "../api/serviceSpotlight";
+
 import {
   technologyLabel,
   type RelationshipEdge,
   type RelationshipNode
 } from "./serviceRelationshipGraphModel";
+import type { ServiceSpotlight } from "../api/serviceSpotlight";
 
 export interface SelectedGraphItem {
   readonly edge?: RelationshipEdge;

@@ -5,10 +5,11 @@
 // vulnerability-intelligence catalog (GET /api/v0/supply-chain/advisories).
 // Catalog rows are known intelligence only and do not imply service impact.
 import { useState } from "react";
-import type { ConsoleModel } from "../console/types";
-import type { EshuApiClient } from "../api/client";
-import { ReachableAdvisories } from "./VulnerabilitiesReachable";
+
 import { AdvisoryCatalog } from "./VulnerabilitiesCatalog";
+import { ReachableAdvisories } from "./VulnerabilitiesReachable";
+import type { EshuApiClient } from "../api/client";
+import type { ConsoleModel } from "../console/types";
 
 type Tab = "reachable" | "catalog";
 

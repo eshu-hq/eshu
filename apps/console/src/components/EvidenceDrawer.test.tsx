@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
-import { normalizeVisualizationPacket, type VisualizationPacket } from "../api/answerVisualization";
+
 import { EvidenceDrawer } from "./EvidenceDrawer";
+import { normalizeVisualizationPacket, type VisualizationPacket } from "../api/answerVisualization";
 
 function packetFrom(overrides: Record<string, unknown> = {}): VisualizationPacket {
   const packet = normalizeVisualizationPacket(

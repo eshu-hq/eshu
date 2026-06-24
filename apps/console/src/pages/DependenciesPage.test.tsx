@@ -1,7 +1,8 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
+
 import { DependenciesPage } from "./DependenciesPage";
+import type { EshuApiClient } from "../api/client";
 
 function renderWithRouter(ui: React.ReactElement, initialEntries: string[] = ["/dependencies"]) {
   return render(ui, { wrapper: ({ children }) => <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter> });

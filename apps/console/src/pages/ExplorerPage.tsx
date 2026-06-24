@@ -1,15 +1,16 @@
 // pages/ExplorerPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
-import type { ConsoleModel, GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
-import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
 import { loadEntityGraph, loadEntityStoryGraph, resolveEntityHandle } from "../api/eshuGraph";
-import { defaultServiceName } from "../console/defaultEntity";
 import { Panel, TruthChip } from "../components/atoms";
-import { GraphCanvas } from "../components/GraphCanvas";
 import { EvidencePanel, type EvidencePanelData } from "../components/EvidencePanel";
+import { GraphCanvas } from "../components/GraphCanvas";
 import { graphEdgeEvidencePanelData, graphNodeEvidencePanelData } from "../components/graphEvidencePanel";
+import { defaultServiceName } from "../console/defaultEntity";
+import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
+import type { ConsoleModel, GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
 
 const LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
 

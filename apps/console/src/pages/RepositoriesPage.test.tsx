@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { RepositoriesPage } from "./RepositoriesPage";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
-import { RepositoriesPage } from "./RepositoriesPage";
 
 describe("RepositoriesPage", () => {
   it("renders source-backed repository groups over the live repository list", async () => {

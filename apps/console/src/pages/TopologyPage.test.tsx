@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
 import { TopologyPage } from "./TopologyPage";
 import type { EshuApiClient } from "../api/client";
-import type { ConsoleModel } from "../console/types";
 import { emptyConsoleModel } from "../console/liveModel";
+import type { ConsoleModel } from "../console/types";
 
 function modelWithServices(): ConsoleModel {
   return {

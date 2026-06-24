@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
 import {
   buildServiceTopology,
@@ -9,9 +10,9 @@ import {
   type TopologyKind,
   type TopologyNode
 } from "../api/serviceTopology";
+import { Badge, Panel, StatTile } from "../components/atoms";
 import type { ConsoleModel, ServiceRow } from "../console/types";
 import { LAYER_COLOR } from "../console/types";
-import { Badge, Panel, StatTile } from "../components/atoms";
 import "./topology.css";
 
 const KIND_COLOR: Record<TopologyKind, string> = {

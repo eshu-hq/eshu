@@ -1,5 +1,5 @@
-import type { GraphEdge, GraphNode } from "../console/types";
 import { graphEdgeEvidencePanelData, graphNodeEvidencePanelData } from "./graphEvidencePanel";
+import type { GraphEdge, GraphNode } from "../console/types";
 
 const node: GraphNode = {
   id: "svc:payments",

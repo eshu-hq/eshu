@@ -1,7 +1,8 @@
 // TruthBadge.tsx — the confidence chip that leads every answer.
 import type { CSSProperties } from "react";
-import { truthClassMeta } from "./truthClass";
+
 import { cx } from "./cx";
+import { truthClassMeta } from "./truthClass";
 
 /** A truth-class chip with label, confidence text and a hover/focus tooltip. */
 export function TruthBadge({

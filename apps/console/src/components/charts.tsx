@@ -1,6 +1,7 @@
 // components/charts.tsx
 // SVG data-viz primitives (dark theme, CSS-var driven). Framework-only deps.
 import { useId, useRef, useState } from "react";
+
 import { fmt } from "../console/types";
 
 function smoothPath(points: readonly (readonly [number, number])[]): string {

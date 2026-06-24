@@ -1,7 +1,8 @@
-import { StrictMode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
+
 import { App } from "./App";
 
 describe("App shell", () => {

@@ -16,8 +16,8 @@
 // shared-operator only, so a tenant admin receives HTTP 403. That is a scope
 // signal, NOT a failure, so the audit loaders surface provenance "forbidden"
 // distinctly from "unavailable" (a real error). See #3717.
-import type { EshuApiClient } from "./client";
 import type { AdminProvenance } from "./adminConsoleTypes";
+import type { EshuApiClient } from "./client";
 
 // Re-export the shared provenance types and the audit loaders so consumers can
 // import the entire admin-console surface from this one module. The audit

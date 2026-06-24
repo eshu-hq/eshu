@@ -1,3 +1,4 @@
+import { Badge, FreshDot, TruthChip } from "./atoms";
 import type {
   AnswerCompanion,
   AnswerEvidenceHandle,
@@ -11,7 +12,6 @@ import {
 import type { VisualizationPacket } from "../api/answerVisualization";
 import type { EshuTruth } from "../api/envelope";
 import { uiFresh, uiTruth } from "../console/types";
-import { Badge, FreshDot, TruthChip } from "./atoms";
 
 interface EvidencePacketReaderProps {
   readonly answer: AnswerCompanion;

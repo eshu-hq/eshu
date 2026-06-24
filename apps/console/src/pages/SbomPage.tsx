@@ -6,6 +6,7 @@
 // endpoints the API already exposes. Browse subjects on the left, drill into
 // one subject on the right for its attachments, components, and missing hops.
 import { useEffect, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
 import {
   loadSbomSummary, loadSbomInventory, loadSbomSubjectDetail

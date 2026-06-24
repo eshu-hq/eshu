@@ -12,6 +12,8 @@
 // three-valued posture (protected/unprotected/unproven) returned by the backend.
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
+
+import { ExposurePathAdvanced } from "./ExposurePathAdvanced";
 import type { EshuApiClient } from "../api/client";
 import {
   loadExposureIngress,
@@ -23,7 +25,6 @@ import {
 } from "../api/exposureIngress";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { uiFresh, uiTruth } from "../console/types";
-import { ExposurePathAdvanced } from "./ExposurePathAdvanced";
 import "./exposurePathPage.css";
 
 type BadgeTone = "neutral" | "teal" | "ember" | "crit" | "warn" | "violet";
