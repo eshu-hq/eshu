@@ -33,6 +33,12 @@ type scopeGenerationPartition struct {
 // two scopes collapse. The set is exactly the latest_generations the deferred
 // query joins against, so every content/file/gcp_cloud_relationship fact the prior
 // single corpus scan covered is reachable through some partition.
+//
+// The partition set is a start-of-pass snapshot (a single read, not a serializable
+// transaction). A generation that activates after the snapshot but before the
+// per-scope queries run is picked up on the next deferred pass, since readiness is
+// republished each pass; this matches the visibility window of the prior single
+// corpus scan and is not a regression.
 func loadActiveScopeGenerationPartitions(
 	ctx context.Context,
 	queryer Queryer,

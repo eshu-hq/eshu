@@ -13,9 +13,14 @@ const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordRea
 // both at bootstrap (folded into factRecordSchemaSQL) and on every backfill pass
 // (EnsureBackfillPayloadTrigramIndex); the one-time build is plain (not
 // CONCURRENTLY) because the same DDL runs inside the bootstrap schema-apply path,
-// where CONCURRENTLY is forbidden in a transaction block. The first-build cost is
-// therefore a one-time data-plane bootstrap stall, not a steady-state cost: on
-// installs that already have the index the statement is a cheap catalog lookup.
+// where CONCURRENTLY is forbidden in a transaction block. On a fresh install the
+// index is built at bootstrap; on an upgrade of an already-populated install the
+// index did not exist at original bootstrap, so the first build runs in the
+// deferred-maintenance path (RunDeferredRelationshipMaintenance ->
+// BackfillAllRelationshipEvidence) and a plain CREATE INDEX holds a SHARE lock that
+// blocks fact_records writes for the build duration (one-time). The
+// DeferredBackfillIndexBuildDuration metric makes that stall observable. Once the
+// index exists the statement is a cheap catalog lookup on every later pass.
 //
 // The index is PARTIAL — restricted to the fact kinds the deferred query reads
 // (content, file, gcp_cloud_relationship). The query's

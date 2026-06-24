@@ -3,20 +3,75 @@ package relationships
 import (
 	"encoding/json"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// likeMetacharEscape mirrors the production $2 escape chain the deferred query
+// applies to each catalog repo_id value before the LIKE substring test:
+//
+//	replace(replace(replace(value, '\', '\\'), '%', '\%'), '_', '\_')
+//
+// (ingestion_backfill_deferred_facts.go). Combined with `ESCAPE '\'`, it forces
+// the LIKE metacharacters `%` and `_` and the escape char `\` in a repo_id to be
+// matched as LITERALS instead of wildcards, so a repo_id like "repo_app" matches
+// only the literal "repo_app" — never the wildcard expansion "repoXapp".
+func likeMetacharEscape(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `%`, `\%`)
+	value = strings.ReplaceAll(value, `_`, `\_`)
+	return value
+}
+
+// likeMatchEscaped evaluates the production `text LIKE '%' || pattern || '%'
+// ESCAPE '\'` predicate where pattern is an already-escaped repo_id value. It
+// models true SQL LIKE semantics by compiling the bracketed pattern to a regexp:
+// an UNescaped `%` becomes `.*`, an UNescaped `_` becomes `.`, and a `\`-prefixed
+// metacharacter (`\%`, `\_`, `\\`) becomes that literal. Modeling the wildcards
+// faithfully is what makes the escape load-bearing in the proof below: feed it an
+// UNescaped repo_id and `repo_app` widens to match `repoxapp`; feed it the
+// likeMetacharEscape output and it collapses back to a literal substring test.
+func likeMatchEscaped(text, escapedPattern string) bool {
+	return compileLikePattern(escapedPattern).FindStringIndex(text) != nil
+}
+
+// compileLikePattern translates a `\`-escaped LIKE pattern, bracketed by the two
+// implicit `%` substring wildcards, into a regexp under SQL `ESCAPE '\'` rules:
+// `\x` is the literal x, a bare `%` is `.*`, a bare `_` is `.`, and every other
+// char is quoted. `(?s)` lets `.` span the newlines a JSON payload blob may carry.
+func compileLikePattern(escapedPattern string) *regexp.Regexp {
+	var b strings.Builder
+	b.WriteString("(?s)") // substring match: no anchors, '%' brackets are implicit
+	for i := 0; i < len(escapedPattern); i++ {
+		c := escapedPattern[i]
+		if c == '\\' && i+1 < len(escapedPattern) {
+			b.WriteString(regexp.QuoteMeta(string(escapedPattern[i+1])))
+			i++
+			continue
+		}
+		switch c {
+		case '%':
+			b.WriteString(".*")
+		case '_':
+			b.WriteString(".")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(c)))
+		}
+	}
+	return regexp.MustCompile(b.String())
+}
+
 // deferredLikeSupersetSim reproduces the issue #3710 LIKE-substring SQL predicate
 // of listDeferredScopedRelationshipFactRecordsQuery in pure Go. It is the
-// production form: the $2 repo_id arm is a plain substring test
-// (lower(payload::text) LIKE '%' || value || '%') with NO token-boundary
-// constraint, so it selects a strict SUPERSET of the boundary-regex sim
-// (deferredSelfExclusionSim). The only refinement that turns that superset back
-// into correct evidence is the in-memory catalogMatcher, exercised here through
-// DiscoverEvidence.
+// production form: the $2 repo_id arm is a substring test against the
+// metacharacter-ESCAPED value (lower(payload::text) LIKE '%' || escape(value) ||
+// '%' ESCAPE '\') with NO token-boundary constraint, so it selects a strict
+// SUPERSET of the boundary-regex sim (deferredSelfExclusionSim). The only
+// refinement that turns that superset back into correct evidence is the in-memory
+// catalogMatcher, exercised here through DiscoverEvidence.
 //
 // A fact is selected iff:
 //
@@ -24,7 +79,9 @@ import (
 //	OR EXISTS rid IN $2 repo_id values: rid <> own_repo_id AND payload CONTAINS rid
 //
 // The $1 arm is unchanged from the regex sim; only the $2 arm widens from a
-// boundary-delimited match to a plain substring match.
+// boundary-delimited match to a plain (escaped) substring match. The escape keeps
+// a repo_id's own `%`/`_`/`\` literal, so the substring widening is purely the
+// loss of token boundaries — never a wildcard expansion of metacharacters.
 func deferredLikeSupersetSim(
 	t *testing.T,
 	envelope facts.Envelope,
@@ -45,9 +102,10 @@ func deferredLikeSupersetSim(
 	}
 
 	// $2 arm: EXISTS a catalog repo_id value that is NOT the row's own and appears
-	// anywhere in the payload as a plain substring (mirrors the production SQL
-	// `lower(payload::text) LIKE '%' || value || '%'`). No boundary check: this is
-	// the deliberate over-select the matcher refines.
+	// anywhere in the payload as an escaped LIKE substring (mirrors the production
+	// SQL `lower(payload::text) LIKE '%' || escape(value) || '%' ESCAPE '\'`). No
+	// boundary check: this is the deliberate over-select the matcher refines. The
+	// escape chain keeps the value's own `%`/`_`/`\` literal.
 	ownRepoID, _ := envelope.Payload["repo_id"].(string)
 	ownRepoID = strings.ToLower(strings.TrimSpace(ownRepoID))
 	for _, value := range repoIDValues {
@@ -55,7 +113,7 @@ func deferredLikeSupersetSim(
 		if value == "" || value == ownRepoID {
 			continue
 		}
-		if strings.Contains(text, value) {
+		if likeMatchEscaped(text, likeMetacharEscape(value)) {
 			return true
 		}
 	}
@@ -200,6 +258,33 @@ func TestDeferredLikeSupersetMatcherRefinesToBoundaryEvidence(t *testing.T) {
 			regexSelected: false,
 			substringOnly: true,
 		},
+		{
+			// THE metacharacter case (issue #3710): the target repo_id "repo_app"
+			// carries a LIKE wildcard char (`_`). Production escapes it to
+			// "repo\_app" ESCAPE '\', so the substring match is on the LITERAL
+			// "repo_app". The source fact references it verbatim as a whole token, so
+			// the escaped LIKE selects it, the boundary regex selects it (`_` is a
+			// token char), and the matcher refines to a real cross-repo edge. This
+			// proves a metachar repo_id is NOT wrongly DROPPED. The companion
+			// no-wildcard-expansion assertion (below the loop) proves it is NOT
+			// wrongly WIDENED to "repoXapp".
+			name: "metachar_repo_id_underscore_literal",
+			envelope: facts.Envelope{
+				ScopeID: "scope:src",
+				Payload: map[string]any{
+					"repo_id":       "repo-src",
+					"artifact_type": "terraform",
+					"relative_path": "main.tf",
+					"content":       `dependency = "repo_app"`,
+				},
+			},
+			catalog: []CatalogEntry{
+				{RepoID: "repo-src", Aliases: []string{"repo-src", "edge-src"}},
+				{RepoID: "repo_app", Aliases: []string{"repo_app"}},
+			},
+			likeSelected:  true,
+			regexSelected: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -252,4 +337,56 @@ func TestDeferredLikeSupersetMatcherRefinesToBoundaryEvidence(t *testing.T) {
 			}
 		})
 	}
+
+	// No-wildcard-expansion proof (issue #3710). The metachar case above shows an
+	// escaped repo_id matches its literal; this asserts the escape is load-bearing
+	// — the `%`/`_`/`\` in a repo_id are matched literally, never as wildcards. A
+	// raw (unescaped) LIKE for "repo_app" would treat `_` as a single-char wildcard
+	// and select a payload containing "repoxapp"; the production escape must reject
+	// it. Likewise "repo%svc" must match only the literal, not the `%`-spanning
+	// "repo-anything-svc", and a backslash repo_id must match its own literal.
+	metacharProofs := []struct {
+		name        string
+		repoID      string
+		payloadText string
+		wantMatch   bool
+	}{
+		{"underscore_literal_hit", "repo_app", `dependency = "repo_app"`, true},
+		{"underscore_no_wildcard_expand", "repo_app", `dependency = "repoxapp"`, false},
+		{"percent_literal_hit", "repo%svc", `dependency = "repo%svc"`, true},
+		{"percent_no_wildcard_expand", "repo%svc", `dependency = "repo-anything-svc"`, false},
+		{"backslash_literal_hit", `repo\svc`, `dependency = "repo\svc"`, true},
+	}
+	for _, mp := range metacharProofs {
+		t.Run("escape/"+mp.name, func(t *testing.T) {
+			t.Parallel()
+			text := strings.ToLower(mp.payloadText)
+			escaped := likeMetacharEscape(strings.ToLower(mp.repoID))
+			if got := likeMatchEscaped(text, escaped); got != mp.wantMatch {
+				t.Fatalf("escaped LIKE for repo_id %q over %q = %v, want %v (escape pattern %q)",
+					mp.repoID, mp.payloadText, got, mp.wantMatch, escaped)
+			}
+			// Cross-check that the bug this escape prevents is real: a raw, UNescaped
+			// LIKE pattern would treat `_`/`%` as wildcards. Model that with a regexp
+			// translation and confirm it DOES match the would-be over-select, proving
+			// the escape is the only thing keeping the match literal.
+			if !mp.wantMatch {
+				if !rawLikeWouldMatch(strings.ToLower(mp.repoID), text) {
+					t.Fatalf("raw unescaped LIKE for %q did not over-match %q; the metachar case is not exercising wildcard expansion",
+						mp.repoID, mp.payloadText)
+				}
+			}
+		})
+	}
+}
+
+// rawLikeWouldMatch models the BUGGY unescaped `text LIKE '%' || value || '%'`
+// where the value's own `%`/`_` act as SQL wildcards. It feeds the UNescaped value
+// straight to the same LIKE compiler the production sim uses post-escape, so the
+// only difference from likeMatchEscaped(text, likeMetacharEscape(value)) is the
+// missing escape pass. It exists to prove, by contrast, that the production escape
+// chain is load-bearing: the raw form over-matches exactly the payloads the
+// escaped form correctly rejects.
+func rawLikeWouldMatch(value, text string) bool {
+	return likeMatchEscaped(text, value)
 }

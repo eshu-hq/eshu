@@ -1114,8 +1114,12 @@ the trgm GIN index is expected to drive a Bitmap Index Scan for the `$1` arm ins
 the MATERIALIZED CTE, and each `(scope_id, generation_id)` partition scans only its
 own facts via `fact_records_scope_generation_idx`, with the per-scope queries
 fanned out across the deferred-maintenance worker pool. The expected one-time index
-build cost is the GIN build over the three partial-index fact kinds, paid once at
-the data-plane bootstrap backfill point and idempotent on every later pass. These
+build cost is the GIN build over the three partial-index fact kinds, idempotent on
+every later pass. On a fresh install it is paid at the data-plane bootstrap backfill
+point; on an upgrade of an already-populated install the first build instead runs in
+the deferred-maintenance path and holds a SHARE lock that blocks `fact_records`
+writes for the build duration (one-time), surfaced by the
+`DeferredBackfillIndexBuildDuration` metric. These
 are PROJECTED plan-shape and cost expectations; the timing figures and the
 MATERIALIZED-plan / Bitmap-Index-Scan claims are placeholders until the remote
 `EXPLAIN ANALYZE` and corpus wall-time are captured.
