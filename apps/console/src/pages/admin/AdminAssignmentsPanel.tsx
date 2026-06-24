@@ -4,7 +4,12 @@
 // On a load error the panel renders "unavailable" rather than fabricated rows.
 // Mutations are confirm-then-call, disable while in flight, surface
 // success/failure explicitly, and refetch on success.
-import { useCallback, useEffect, useState } from "react";
+//
+// Stale-load guard: every useEffect load sets `cancelled = true` in its cleanup.
+// A refreshKey counter re-triggers the effect after a mutation; client changes
+// also re-trigger because client is in the dependency array. Any in-flight load
+// from a prior client or prior key checks `cancelled` before committing state.
+import { useEffect, useState, useCallback } from "react";
 import type { EshuApiClient } from "../../api/client";
 import {
   loadRoleAssignments,
@@ -35,24 +40,27 @@ export function AdminAssignmentsPanel({
   const [grantUser, setGrantUser] = useState("");
   const [grantRole, setGrantRole] = useState("");
   const [grantWorkspace, setGrantWorkspace] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
     if (!client) {
       setUnavailable(true);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const r = await loadRoleAssignments(client);
-    setItems(r.assignments);
-    setTruncated(r.truncated);
-    setUnavailable(r.provenance === "unavailable");
-    setLoading(false);
-  }, [client]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void loadRoleAssignments(client).then((r) => {
+      if (cancelled) return;
+      setItems(r.assignments);
+      setTruncated(r.truncated);
+      setUnavailable(r.provenance === "unavailable");
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, refreshKey]);
 
   const onGrant = useCallback(async () => {
     if (!client || grantUser.length === 0 || grantRole.length === 0) return;
@@ -70,11 +78,11 @@ export function AdminAssignmentsPanel({
       setGrantUser("");
       setGrantRole("");
       setGrantWorkspace("");
-      await refresh();
+      setRefreshKey((k) => k + 1);
     } else {
       setNotice(`Failed to grant ${grantRole} to ${grantUser}.`);
     }
-  }, [client, grantUser, grantRole, grantWorkspace, refresh]);
+  }, [client, grantUser, grantRole, grantWorkspace]);
 
   const onRevoke = useCallback(
     async (item: RoleAssignmentItem) => {
@@ -90,12 +98,12 @@ export function AdminAssignmentsPanel({
       setBusy(false);
       if (ok) {
         setNotice(`Revoked ${item.role_id} from ${item.user_id}.`);
-        await refresh();
+        setRefreshKey((k) => k + 1);
       } else {
         setNotice(`Failed to revoke ${item.role_id} from ${item.user_id}.`);
       }
     },
-    [client, refresh]
+    [client]
   );
 
   const grantForm = (

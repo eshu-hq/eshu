@@ -28,6 +28,74 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
+// Stale-client / unmount guard — load resolved after client swap must not commit
+// ---------------------------------------------------------------------------
+
+describe("stale-load guard", () => {
+  it("AdminInvitationsPanel: load resolved after client change does not commit stale rows", async () => {
+    // First client resolves slowly; second client resolves immediately with different data.
+    let resolveFirst!: (v: unknown) => void;
+    const slowGetJson = vi.fn(
+      () => new Promise((res) => { resolveFirst = res; })
+    );
+    const fastGetJson = vi.fn(async () => ({
+      invitations: [{ invite_id: "inv-new", role_id: "admin", status: "pending" }]
+    }));
+
+    const client1 = { getJson: slowGetJson } as unknown as EshuApiClient;
+    const client2 = { getJson: fastGetJson } as unknown as EshuApiClient;
+
+    const { rerender } = render(<AdminInvitationsPanel client={client1} />);
+    // Swap to client2 before client1 resolves.
+    rerender(<AdminInvitationsPanel client={client2} />);
+    // Let client2 settle.
+    expect(await screen.findByText("inv-new")).toBeInTheDocument();
+
+    // Now resolve the stale client1 load with old data.
+    resolveFirst({ invitations: [{ invite_id: "inv-old", role_id: "viewer", status: "pending" }] });
+
+    // Stale data must never appear.
+    await waitFor(() => expect(screen.queryByText("inv-old")).not.toBeInTheDocument());
+    expect(screen.getByText("inv-new")).toBeInTheDocument();
+  });
+
+  it("AdminTokensPanel: load resolved after unmount does not commit rows", async () => {
+    let resolveLoad!: (v: unknown) => void;
+    const slowGetJson = vi.fn(
+      () => new Promise((res) => { resolveLoad = res; })
+    );
+    const client = { getJson: slowGetJson } as unknown as EshuApiClient;
+    const { unmount } = render(<AdminTokensPanel client={client} />);
+    unmount();
+    // Resolve after unmount — must not throw or commit state.
+    resolveLoad({ tokens: [{ token_id: "t-stale", token_class: "personal", status: "active", issued_at: NOW }] });
+    // No assertion needed beyond not throwing; but also confirm no stale DOM.
+    expect(document.body.innerHTML).not.toContain("t-stale");
+  });
+
+  it("AdminAssignmentsPanel: load resolved after client change does not commit stale rows", async () => {
+    let resolveFirst!: (v: unknown) => void;
+    const slowGetJson = vi.fn(
+      () => new Promise((res) => { resolveFirst = res; })
+    );
+    const fastGetJson = vi.fn(async () => ({
+      role_assignments: [{ user_id: "u-new", role_id: "admin", status: "active" }]
+    }));
+
+    const client1 = { getJson: slowGetJson } as unknown as EshuApiClient;
+    const client2 = { getJson: fastGetJson } as unknown as EshuApiClient;
+
+    const { rerender } = render(<AdminAssignmentsPanel client={client1} />);
+    rerender(<AdminAssignmentsPanel client={client2} />);
+    expect(await screen.findByText("u-new")).toBeInTheDocument();
+
+    resolveFirst({ role_assignments: [{ user_id: "u-old", role_id: "viewer", status: "active" }] });
+    await waitFor(() => expect(screen.queryByText("u-old")).not.toBeInTheDocument());
+    expect(screen.getByText("u-new")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Invitations
 // ---------------------------------------------------------------------------
 

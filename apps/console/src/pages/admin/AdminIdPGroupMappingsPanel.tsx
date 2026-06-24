@@ -7,7 +7,12 @@
 // submit and never retained or rendered back. On a load error the panel renders
 // "unavailable" rather than fabricated rows. Mutations are confirm-then-call,
 // disable while in flight, surface success/failure, and refetch on success.
-import { useCallback, useEffect, useState } from "react";
+//
+// Stale-load guard: every useEffect load sets `cancelled = true` in its cleanup.
+// A refreshKey counter re-triggers the effect after a mutation; client changes
+// also re-trigger because client is in the dependency array. Any in-flight load
+// from a prior client or prior key checks `cancelled` before committing state.
+import { useEffect, useState, useCallback } from "react";
 import type { EshuApiClient } from "../../api/client";
 import {
   loadIdPGroupMappings,
@@ -39,24 +44,27 @@ export function AdminIdPGroupMappingsPanel({
   const [externalGroup, setExternalGroup] = useState("");
   const [role, setRole] = useState("");
   const [workspace, setWorkspace] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
     if (!client) {
       setUnavailable(true);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const r = await loadIdPGroupMappings(client);
-    setItems(r.mappings);
-    setTruncated(r.truncated);
-    setUnavailable(r.provenance === "unavailable");
-    setLoading(false);
-  }, [client]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void loadIdPGroupMappings(client).then((r) => {
+      if (cancelled) return;
+      setItems(r.mappings);
+      setTruncated(r.truncated);
+      setUnavailable(r.provenance === "unavailable");
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, refreshKey]);
 
   const onCreate = useCallback(async () => {
     if (
@@ -84,11 +92,11 @@ export function AdminIdPGroupMappingsPanel({
       setExternalGroup("");
       setRole("");
       setWorkspace("");
-      await refresh();
+      setRefreshKey((k) => k + 1);
     } else {
       setNotice(`Failed to create mapping for ${provider} → ${role}.`);
     }
-  }, [client, provider, externalGroup, role, workspace, refresh]);
+  }, [client, provider, externalGroup, role, workspace]);
 
   const onDelete = useCallback(
     async (mappingRef: string) => {
@@ -100,12 +108,12 @@ export function AdminIdPGroupMappingsPanel({
       setBusy(false);
       if (ok) {
         setNotice(`Mapping ${mappingRef} deleted.`);
-        await refresh();
+        setRefreshKey((k) => k + 1);
       } else {
         setNotice(`Failed to delete mapping ${mappingRef}.`);
       }
     },
-    [client, refresh]
+    [client]
   );
 
   const createForm = (

@@ -5,7 +5,12 @@
 // error the panel renders "unavailable" rather than fabricated rows. Each
 // mutation is confirm-then-call, disables its button while in flight, surfaces
 // success/failure explicitly, and refetches the list on success.
-import { useCallback, useEffect, useState } from "react";
+//
+// Stale-load guard: every useEffect load sets `cancelled = true` in its cleanup.
+// A refreshKey counter re-triggers the effect after a mutation; client changes
+// also re-trigger because client is in the dependency array. Any in-flight load
+// from a prior client or prior key checks `cancelled` before committing state.
+import { useEffect, useState, useCallback } from "react";
 import type { EshuApiClient } from "../../api/client";
 import { loadInvitations, revokeInvitation } from "../../api/adminConsole";
 import type { InvitationItem } from "../../api/adminConsole";
@@ -30,24 +35,27 @@ export function AdminInvitationsPanel({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
     if (!client) {
       setUnavailable(true);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const r = await loadInvitations(client);
-    setItems(r.invitations);
-    setTruncated(r.truncated);
-    setUnavailable(r.provenance === "unavailable");
-    setLoading(false);
-  }, [client]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void loadInvitations(client).then((r) => {
+      if (cancelled) return;
+      setItems(r.invitations);
+      setTruncated(r.truncated);
+      setUnavailable(r.provenance === "unavailable");
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, refreshKey]);
 
   const onRevoke = useCallback(
     async (inviteId: string) => {
@@ -59,12 +67,12 @@ export function AdminInvitationsPanel({
       setBusyId(null);
       if (ok) {
         setNotice(`Invitation ${inviteId} revoked.`);
-        await refresh();
+        setRefreshKey((k) => k + 1);
       } else {
         setNotice(`Failed to revoke invitation ${inviteId}.`);
       }
     },
-    [client, refresh]
+    [client]
   );
 
   if (loading) {

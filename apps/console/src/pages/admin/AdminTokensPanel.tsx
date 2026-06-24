@@ -5,7 +5,12 @@
 // label hash. On a load error the panel renders "unavailable" rather than
 // fabricated rows. Revoke is confirm-then-call, disables while in flight,
 // surfaces success/failure, and refetches on success.
-import { useCallback, useEffect, useState } from "react";
+//
+// Stale-load guard: every useEffect load sets `cancelled = true` in its cleanup.
+// A refreshKey counter re-triggers the effect after a mutation; client changes
+// also re-trigger because client is in the dependency array. Any in-flight load
+// from a prior client or prior key checks `cancelled` before committing state.
+import { useEffect, useState, useCallback } from "react";
 import type { EshuApiClient } from "../../api/client";
 import { loadApiTokens, revokeApiToken } from "../../api/adminConsole";
 import type { AdminAPITokenItem } from "../../api/adminConsole";
@@ -29,24 +34,27 @@ export function AdminTokensPanel({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
     if (!client) {
       setUnavailable(true);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const r = await loadApiTokens(client);
-    setItems(r.tokens);
-    setTruncated(r.truncated);
-    setUnavailable(r.provenance === "unavailable");
-    setLoading(false);
-  }, [client]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void loadApiTokens(client).then((r) => {
+      if (cancelled) return;
+      setItems(r.tokens);
+      setTruncated(r.truncated);
+      setUnavailable(r.provenance === "unavailable");
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, refreshKey]);
 
   const onRevoke = useCallback(
     async (tokenId: string) => {
@@ -58,12 +66,12 @@ export function AdminTokensPanel({
       setBusyId(null);
       if (ok) {
         setNotice(`Token ${tokenId} revoked.`);
-        await refresh();
+        setRefreshKey((k) => k + 1);
       } else {
         setNotice(`Failed to revoke token ${tokenId}.`);
       }
     },
-    [client, refresh]
+    [client]
   );
 
   if (loading) {
