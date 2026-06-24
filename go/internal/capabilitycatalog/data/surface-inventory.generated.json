@@ -13,12 +13,52 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/auth/admin/api-tokens",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/admin/audit/events",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/admin/audit/summary",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/admin/idp-group-mappings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/admin/idp-providers",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/admin/role-assignments",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/admin/roles",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/auth/browser-session",
       "readiness": "implemented"
     },
     {
       "category": "api_route",
       "name": "GET /api/v0/auth/local/api-tokens",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/local/invitations",
       "readiness": "implemented"
     },
     {
@@ -1421,6 +1461,11 @@
     {
       "category": "command",
       "name": "search-bench",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "skillgen",
       "readiness": "implemented"
     },
     {

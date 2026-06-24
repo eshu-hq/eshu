@@ -17,8 +17,16 @@ package catalog
 func plannerExcludedSurfaces() map[string]struct{} {
 	return map[string]struct{}{
 		"DELETE /api/v0/auth/browser-session":        {}, // revokes the caller's browser session
+		"GET /api/v0/auth/admin/api-tokens":          {}, // lists the tenant's generated API token metadata (admin)
+		"GET /api/v0/auth/admin/audit/events":        {}, // lists the tenant's governance audit events (admin)
+		"GET /api/v0/auth/admin/audit/summary":       {}, // aggregate governance audit counts (admin)
+		"GET /api/v0/auth/admin/idp-group-mappings":  {}, // lists the tenant's IdP group->role mappings (admin)
+		"GET /api/v0/auth/admin/idp-providers":       {}, // lists the tenant's configured IdP providers (admin)
+		"GET /api/v0/auth/admin/role-assignments":    {}, // lists the tenant's membership-role assignments (admin)
+		"GET /api/v0/auth/admin/roles":               {}, // lists the tenant's roles and grants (admin)
 		"GET /api/v0/auth/browser-session":           {}, // reads caller-local session metadata only
 		"GET /api/v0/auth/local/api-tokens":          {}, // lists the caller's own API token metadata
+		"GET /api/v0/auth/local/invitations":         {}, // lists the tenant's invitations metadata (admin)
 		"GET /api/v0/auth/profile":                   {}, // reads the caller's own identity profile
 		"GET /api/v0/auth/sessions":                  {}, // lists the caller's own browser sessions
 		"PATCH /api/v0/auth/browser-session/context": {}, // switches the caller's tenant/workspace context
