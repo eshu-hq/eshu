@@ -37,6 +37,21 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 	// self-match and the load would be corpus-wide. With the fix, only the fact
 	// that references the OTHER repo's name/slug alias is loaded.
 	inner := &fakeExecQueryer{
+		// Deferred scoped fact query result (self-exclusion variant), routed by
+		// scope (issue #3710): only the infra fact that references "app-repo" in
+		// content is returned for scope-infra; the fact that would have self-matched
+		// "repo-infra" in its own payload is excluded by the SQL self-exclusion arm.
+		deferredFactsByScope: map[string][][]any{
+			"scope-infra": {
+				contentFactRow(
+					"fact-cross",
+					"scope-infra",
+					"gen-infra",
+					"content",
+					`{"repo_id":"repo-infra","artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"app-repo\""}`,
+				),
+			},
+		},
 		queryResponses: []queueFakeRows{
 			// catalog: two repos, each with repo_id as first alias
 			{
@@ -45,22 +60,9 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
 				},
 			},
-			// Deferred scoped fact query result (self-exclusion variant): only the
-			// infra fact that references "app-repo" in content is returned; the
-			// fact that would have self-matched "repo-infra" in its own payload is
-			// excluded by the self-exclusion predicate at the SQL layer.
-			{
-				rows: [][]any{
-					contentFactRow(
-						"fact-cross",
-						"scope-infra",
-						"gen-infra",
-						"content",
-						`{"repo_id":"repo-infra","artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"app-repo\""}`,
-					),
-				},
-			},
-			// active repository generations snapshot
+			// active repository generations snapshot (fact-load partitioning)
+			{rows: activeGens},
+			// active repository generations snapshot (write phase)
 			{rows: activeGens},
 			// batch transaction re-load of active generations under the lock
 			{rows: activeGens},
@@ -75,8 +77,8 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 	}
 
 	// The deferred pass must use the self-exclusion query variant, which carries
-	// THREE parameters ($1 non-repo_id anchors, $2 repo_id anchors, $3 self
-	// repo_id values to exclude), NOT the per-commit scoped query (one parameter).
+	// four parameters ($1 non-repo_id anchors, $2 self-excluded repo_id values, $3
+	// scope_id, $4 generation_id), NOT the per-commit scoped query (one parameter).
 	usedDeferredQuery := false
 	usedPerCommitQuery := false
 	for _, q := range inner.queries {
@@ -97,13 +99,15 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 }
 
 // assertDeferredSelfExclusionArgs confirms the deferred query was parameterised
-// with two arguments: $1 non-repo_id LIKE terms and $2 raw lowercase repo_id
-// values. The query uses the raw values for exact self-exclusion before literal
-// substring matching, so repo_id args must not be %-wrapped LIKE terms.
+// with four arguments: $1 non-repo_id LIKE terms, $2 raw lowercase repo_id values
+// for exact self-exclusion, $3 scope_id partition, and $4 generation_id partition
+// (issue #3710). The query uses the raw repo_id values for exact self-exclusion
+// before literal substring matching, so repo_id args must not be %-wrapped LIKE
+// terms.
 func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	t.Helper()
-	if len(args) != 2 {
-		t.Fatalf("deferred fact query args count = %d, want 2 (non-repo_id anchors, repo_id-value anchors)", len(args))
+	if len(args) != 4 {
+		t.Fatalf("deferred fact query args count = %d, want 4 (non-repo_id anchors, repo_id values, scope_id, generation_id)", len(args))
 	}
 	nonRepoIDTerms, ok := args[0].(pq.StringArray)
 	if !ok {
@@ -112,6 +116,12 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	repoIDTerms, ok := args[1].(pq.StringArray)
 	if !ok {
 		t.Fatalf("deferred query arg[1] type = %T, want pq.StringArray", args[1])
+	}
+	if _, ok := args[2].(string); !ok {
+		t.Fatalf("deferred query arg[2] (scope_id) type = %T, want string", args[2])
+	}
+	if _, ok := args[3].(string); !ok {
+		t.Fatalf("deferred query arg[3] (generation_id) type = %T, want string", args[3])
 	}
 	// non-repo_id terms must be LIKE-wrapped
 	for _, term := range nonRepoIDTerms {
@@ -149,6 +159,29 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 		{"repo-app", "scope-app", "gen-app"},
 	}
 	inner := &fakeExecQueryer{
+		// anchor-scoped relationship facts (issue #3569), per-scope routed (#3710)
+		deferredFactsByScope: map[string][][]any{
+			"scope-infra": {
+				{
+					"fact-1",
+					"scope-infra",
+					"gen-infra",
+					"content",
+					"content:1",
+					"content.v1",
+					"git",
+					int64(0),
+					"unknown",
+					"git",
+					"source-fact-1",
+					"",
+					"",
+					now,
+					false,
+					[]byte(`{"repo_id":"repo-infra","artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"app-repo\""}`),
+				},
+			},
+		},
 		queryResponses: []queueFakeRows{
 			// catalog
 			{
@@ -157,30 +190,9 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
 				},
 			},
-			// anchor-scoped relationship facts (issue #3569)
-			{
-				rows: [][]any{
-					{
-						"fact-1",
-						"scope-infra",
-						"gen-infra",
-						"content",
-						"content:1",
-						"content.v1",
-						"git",
-						int64(0),
-						"unknown",
-						"git",
-						"source-fact-1",
-						"",
-						"",
-						now,
-						false,
-						[]byte(`{"repo_id":"repo-infra","artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"app-repo\""}`),
-					},
-				},
-			},
-			// active repository generations snapshot
+			// active repository generations snapshot (fact-load partitioning)
+			{rows: activeGens},
+			// active repository generations snapshot (write phase)
 			{rows: activeGens},
 			// batch transaction re-load of active generations under the lock
 			{rows: activeGens},
@@ -256,7 +268,8 @@ func TestBackfillAllRelationshipEvidenceShortCircuitsWithoutAnchors(t *testing.T
 
 	for _, q := range inner.queries {
 		if q.query == listOnboardedRepoScopedRelationshipFactRecordsQuery ||
-			q.query == listLatestRelationshipFactRecordsQuery {
+			q.query == listLatestRelationshipFactRecordsQuery ||
+			q.query == listDeferredScopedRelationshipFactRecordsQuery {
 			t.Fatalf("deferred backfill issued a fact query with no usable anchors: %s", q.query)
 		}
 	}

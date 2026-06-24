@@ -1033,3 +1033,63 @@ new metric, span, or log shape. The reads run on the existing
 are inherited without per-call wiring; permission-denied outcomes continue to
 surface through the existing `permission_catalog` enforcement envelope at the
 query layer.
+
+## Deferred backfill fact-load index + per-scope fan-out (#3710)
+
+The deferred relationship-evidence backfill's fact-LOAD step
+(`loadDeferredAnchorScopedRelationshipFacts`, now in
+`ingestion_backfill_scoped_load.go`) was the dominant long pole of the pass. The
+prior `listDeferredScopedRelationshipFactRecordsQuery` issued one corpus-wide scan
+that evaluated the #3659 self-exclusion arm per row against the whole catalog — an
+O(facts × catalog) sequential scan over every latest-generation content/file/gcp
+fact. Three changes remove it:
+
+1. A `pg_trgm` GIN index on `lower(payload::text)` (`fact_records_payload_trgm_idx`,
+   defined once in `schema_fact_records.go` as `backfillPayloadTrigramIndexSQL`,
+   mirrored verbatim in `schema/data-plane/postgres/003_fact_records.sql`, and
+   ensured idempotently at the backfill entry point via
+   `EnsureBackfillPayloadTrigramIndex`).
+2. The candidate set is built inside a `WITH matched_facts AS MATERIALIZED (...)`
+   CTE so the planner narrows on the payload-text predicate first — letting the
+   `$1 LIKE ANY` arm drive a Bitmap Index Scan — instead of pushing it to a
+   per-row Filter on the inner side of a Nested Loop.
+3. The load is partitioned per `(scope_id, generation_id)` (`$3`/`$4`) and fanned
+   out across the deferred-maintenance worker pool, so the monolithic scan becomes
+   many index-bounded per-scope scans that run concurrently and never contend
+   (partitions are disjoint).
+
+The #3668 self-exclusion `$2` arm changed from a per-row boundary regex
+(`~ '(^|[^a-z0-9._-])value($|[^a-z0-9._-])'`) to a plain substring
+`lower(payload::text) LIKE '%' || value || '%'`, retaining `cat.value <>
+own_repo_id`. The regex was un-indexable; the LIKE form is a provable SUPERSET of
+the regex result that the in-memory `catalogMatcher`
+(`relationships.DiscoverEvidence` → `catalogMatcher.match`) refines to the
+identical evidence set via boundary-safe whole-token matching plus the self-match
+drop (`entry.RepoID == sourceRepoID`).
+
+Performance Evidence: query shape
+`listDeferredScopedRelationshipFactRecordsQuery` (MATERIALIZED CTE + per-scope
+`$3`/`$4` partition over `fact_records`), backend PostgreSQL 18, input shape a
+~3.5M-fact corpus (latest-generation content/file/gcp facts across the fleet).
+Before: a single O(facts × catalog) sequential scan with the per-row self-exclusion
+regex, measured at ~20min+ to drain the corpus-wide fact load (the pass long pole).
+After: the trgm GIN index drives a Bitmap Index Scan inside the MATERIALIZED CTE
+and each `(scope_id, generation_id)` partition scans only its own facts via
+`fact_records_scope_generation_idx`, with the per-scope queries fanned out across
+the deferred-maintenance worker pool; the one-time index build is ~38s / ~536MB at
+3.5M facts, paid once at the data-plane bootstrap backfill point and idempotent on
+every later pass. Truth-equivalence (no evidence added or dropped relative to the
+regex/full-corpus load) is proven by the `internal/relationships` gates
+`TestDeferredLikeSupersetMatcherRefinesToBoundaryEvidence` (LIKE-superset →
+matcher refinement over every #3668 case plus the substring-but-not-boundary
+over-select), `TestDeferredSelfExclusionTruthEquivalence`, and
+`TestDeferredSelfExclusionKeepsPrefixCollidingTargetRepoID`.
+
+Observability Evidence: the per-scope fact-load queries run on the existing
+`InstrumentedDB`-wrapped pool, so per-statement latency/error spans and metrics
+are inherited without per-call wiring; the pass still records
+`DeferredBackfillDuration` and `DeferredBackfillEvidence` and emits the
+`deferred_backfill_completed evidence_facts=… readiness_rows=… duration_s=…
+batch_size=…` summary log, so an operator sees the end-to-end backfill timing and
+evidence yield on the same signals as before — now reflecting the index-bounded,
+fanned-out load.

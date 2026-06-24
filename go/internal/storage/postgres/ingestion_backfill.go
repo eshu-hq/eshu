@@ -61,20 +61,34 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 		return fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}
 
+	// Ensure the trigram GIN index on lower(payload::text) exists before the fact
+	// load (issue #3710). The index is what lets the per-scope $1 LIKE ANY arm
+	// drive a Bitmap Index Scan instead of a per-row payload scan. The build is
+	// idempotent (CREATE INDEX IF NOT EXISTS) and one-time at the data-plane
+	// bootstrap point; on installs that already have it the call is a cheap
+	// catalog lookup. It runs outside the per-scope query fan-out so the
+	// concurrent reads below see a ready index.
+	if err := EnsureBackfillPayloadTrigramIndex(ctx, s.db); err != nil {
+		return fmt.Errorf("ensure backfill payload trigram index: %w", err)
+	}
+
 	// Scope the corpus-wide source-fact load to the content anchors of the full
-	// catalog instead of streaming every committed fact (issue #3569). The
-	// deferred backfill treats every repository as an eligible relationship
-	// target, so anchors derive from the whole catalog rather than an onboarding
-	// delta. The dedicated deferred loader (issue #3659) splits the anchor set
-	// into non-repo_id terms ($1) and repo_id terms ($2 + $3 self-exclusion) so
-	// facts that only match because their own repo_id appears as an anchor are
-	// excluded at the SQL layer, while facts referencing ANOTHER repo's repo_id
-	// in their content are still loaded. No evidence the full-corpus load would
-	// have produced is dropped (truth-equivalence: the in-memory matcher already
-	// skips self-matches on entry.RepoID == sourceRepoID). With no usable anchors
-	// no fact can resolve a catalog target, so the fact load short-circuits and
-	// the pass still publishes readiness for the active generations below.
-	activeFacts, err := loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog)
+	// catalog instead of streaming every committed fact (issue #3569), and
+	// partition the load per (scope_id, generation_id) so it fans out across the
+	// deferred-maintenance worker pool (issue #3710). The deferred backfill treats
+	// every repository as an eligible relationship target, so anchors derive from
+	// the whole catalog rather than an onboarding delta. The dedicated deferred
+	// loader (issue #3659) splits the anchor set into non-repo_id terms ($1) and
+	// repo_id terms ($2 self-exclusion) so facts that only match because their own
+	// repo_id appears as an anchor are excluded at the SQL layer, while facts
+	// referencing ANOTHER repo's repo_id in their content are still loaded. No
+	// evidence the full-corpus load would have produced is dropped
+	// (truth-equivalence: the in-memory matcher already skips self-matches on
+	// entry.RepoID == sourceRepoID and re-applies boundary-safe token matching).
+	// With no usable anchors no fact can resolve a catalog target, so the fact
+	// load short-circuits and the pass still publishes readiness for the active
+	// generations below.
+	activeFacts, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog)
 	if err != nil {
 		return fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}

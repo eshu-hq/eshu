@@ -242,107 +242,6 @@ CREATE INDEX IF NOT EXISTS eshu_search_index_terms_lookup_idx
     ON eshu_search_index_terms (scope_id, generation_id, term_key);
 `
 
-const contentStoreBaseSchemaSQL = `
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
-CREATE TABLE IF NOT EXISTS content_files (
-    repo_id TEXT NOT NULL,
-    relative_path TEXT NOT NULL,
-    commit_sha TEXT NULL,
-    content TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    line_count INTEGER NOT NULL,
-    language TEXT NULL,
-    indexed_at TIMESTAMPTZ NOT NULL,
-    artifact_type TEXT NULL,
-    template_dialect TEXT NULL,
-    iac_relevant BOOLEAN NULL,
-    PRIMARY KEY (repo_id, relative_path)
-);
-
-CREATE TABLE IF NOT EXISTS content_entities (
-    entity_id TEXT PRIMARY KEY,
-    repo_id TEXT NOT NULL,
-    relative_path TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_name TEXT NOT NULL,
-    start_line INTEGER NOT NULL,
-    end_line INTEGER NOT NULL,
-    start_byte INTEGER NULL,
-    end_byte INTEGER NULL,
-    language TEXT NULL,
-    source_cache TEXT NOT NULL,
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    indexed_at TIMESTAMPTZ NOT NULL,
-    artifact_type TEXT NULL,
-    template_dialect TEXT NULL,
-    iac_relevant BOOLEAN NULL
-);
-
-CREATE TABLE IF NOT EXISTS content_file_references (
-    repo_id TEXT NOT NULL,
-    relative_path TEXT NOT NULL,
-    reference_kind TEXT NOT NULL,
-    reference_value TEXT NOT NULL,
-    indexed_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (repo_id, relative_path, reference_kind, reference_value)
-);
-
-CREATE TABLE IF NOT EXISTS repository_refs (
-    repo_id TEXT NOT NULL,
-    ref_kind TEXT NOT NULL,
-    name TEXT NOT NULL,
-    head_sha TEXT NOT NULL,
-    is_default BOOLEAN NOT NULL DEFAULT FALSE,
-    observed_at TIMESTAMPTZ NOT NULL,
-    indexed_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (repo_id, ref_kind, name)
-);
-
-CREATE INDEX IF NOT EXISTS content_files_repo_path_idx
-    ON content_files (repo_id, relative_path);
-CREATE INDEX IF NOT EXISTS content_entities_repo_idx
-    ON content_entities (repo_id);
-CREATE INDEX IF NOT EXISTS content_entities_type_idx
-    ON content_entities (entity_type);
-CREATE INDEX IF NOT EXISTS content_entities_path_idx
-    ON content_entities (relative_path);
-CREATE INDEX IF NOT EXISTS content_file_references_lookup_idx
-    ON content_file_references (reference_kind, reference_value, repo_id);
-CREATE INDEX IF NOT EXISTS content_file_references_repo_path_idx
-    ON content_file_references (repo_id, relative_path);
-CREATE INDEX IF NOT EXISTS repository_refs_repo_idx
-    ON repository_refs (repo_id, ref_kind, name);
-CREATE INDEX IF NOT EXISTS repository_refs_repo_default_idx
-    ON repository_refs (repo_id, is_default, name);
-`
-
-const contentStoreSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
-    ON content_files USING gin (content gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx
-    ON content_entities USING gin (source_cache gin_trgm_ops);
-`
-
-const contentStoreFilterIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_artifact_type_idx
-    ON content_files (artifact_type);
-CREATE INDEX IF NOT EXISTS content_files_template_dialect_idx
-    ON content_files (template_dialect);
-CREATE INDEX IF NOT EXISTS content_files_iac_relevant_idx
-    ON content_files (iac_relevant);
-CREATE INDEX IF NOT EXISTS content_files_language_repo_idx
-    ON content_files (language, repo_id);
-CREATE INDEX IF NOT EXISTS content_entities_artifact_type_idx
-    ON content_entities (artifact_type);
-CREATE INDEX IF NOT EXISTS content_entities_template_dialect_idx
-    ON content_entities (template_dialect);
-CREATE INDEX IF NOT EXISTS content_entities_iac_relevant_idx
-    ON content_entities (iac_relevant);
-`
-
-const contentStoreSchemaSQL = contentStoreBaseSchemaSQL + contentStoreSearchIndexSchemaSQL + contentStoreFilterIndexSchemaSQL
-
-const contentStoreSchemaWithoutSearchIndexesSQL = contentStoreBaseSchemaSQL + contentStoreFilterIndexSchemaSQL
-
 const workItemSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_work_items (
     work_item_id TEXT PRIMARY KEY,
@@ -512,6 +411,21 @@ func EnsureContentSearchIndexes(ctx context.Context, exec Executor) error {
 	}
 	if _, err := exec.ExecContext(ctx, contentStoreSearchIndexSchemaSQL); err != nil {
 		return fmt.Errorf("ensure content search indexes: %w", err)
+	}
+	return nil
+}
+
+// EnsureBackfillPayloadTrigramIndex creates the pg_trgm GIN index on
+// lower(payload::text) used by the deferred relationship backfill's per-scope
+// fact load (issue #3710). It is idempotent (CREATE EXTENSION/INDEX IF NOT
+// EXISTS), so the deferred backfill can call it on every pass: after the first
+// build the call is a cheap catalog lookup.
+func EnsureBackfillPayloadTrigramIndex(ctx context.Context, exec Executor) error {
+	if exec == nil {
+		return fmt.Errorf("executor is required")
+	}
+	if _, err := exec.ExecContext(ctx, backfillPayloadTrigramIndexSQL); err != nil {
+		return fmt.Errorf("ensure backfill payload trigram index: %w", err)
 	}
 	return nil
 }

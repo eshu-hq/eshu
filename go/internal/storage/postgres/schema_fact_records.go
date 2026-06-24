@@ -1,6 +1,26 @@
 package postgres
 
-const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + documentationFactRecordReadIndexesSQL + factRecordReadIndexesSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL + backfillPayloadTrigramIndexSQL
+
+// backfillPayloadTrigramIndexSQL creates the pg_trgm GIN index on
+// lower(payload::text) that the deferred relationship backfill's per-scope fact
+// load depends on (issue #3710). The $1 LIKE ANY arm of
+// listDeferredScopedRelationshipFactRecordsQuery is a leading+trailing wildcard
+// substring match; without this index it is a per-row jsonb->text sequential
+// scan (the measured ~20min+ long pole), with it the planner drives a Bitmap
+// Index Scan. The extension and index are created idempotently so the statement
+// is safe to issue both at bootstrap (folded into factRecordSchemaSQL) and on
+// every backfill pass (EnsureBackfillPayloadTrigramIndex); the one-time build
+// cost (~38s / ~536MB at 3.5M facts in local measurement) is paid once at the
+// data-plane bootstrap backfill point. The CREATE EXTENSION guard makes this
+// block self-contained and order-independent within the fact_records schema; the
+// content store (contentStoreBaseSchemaSQL) also requires pg_trgm, so the guard
+// is a no-op once either has run. This const is mirrored verbatim at the end of
+// schema/data-plane/postgres/003_fact_records.sql.
+const backfillPayloadTrigramIndexSQL = `CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS fact_records_payload_trgm_idx
+    ON fact_records USING gin (lower(payload::text) gin_trgm_ops);
+`
 
 const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (
