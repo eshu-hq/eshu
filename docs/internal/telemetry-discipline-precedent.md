@@ -124,8 +124,11 @@ minutes.
 
 1. **Read the contract.** `docs/public/observability/telemetry-coverage.md`
    shows every reducer / projector / collector / parser stage mapped to a
-   metric or `No-Observability-Change:` marker. If a stage you care about is
-   missing, that is a gap, and the X2 verifier would have caught it on main.
+   metric or `No-Observability-Change:` marker. Read it as a maintainer
+   would: scan the row you care about and confirm the metric name and
+   `file:line` dispatcher are still accurate. The X2 verifier does not
+   catch every drift (see Limitations below); the human audit is part of
+   the discipline.
 2. **Run the verifier.** `bash scripts/test-verify-telemetry-coverage.sh`
    runs the test mirror (8 cases) and `scripts/verify-telemetry-coverage.sh`
    (with `ESHU_TELEMETRY_COVERAGE_BASE=origin/main`) runs the gate. Both pass
@@ -141,6 +144,52 @@ minutes.
 5. **Read the policy.** This file is the link from the historical incidents
    to the prevention. If you change the contract, change this file and the
    X1 doc together.
+
+## Limitations Of The X2 Gate
+
+The verifier is a static-analysis script; it catches a specific class of
+drift, not all drift. Maintainers and contributors must understand what
+the gate does and does not see.
+
+The verifier catches:
+
+- A metric name referenced in the X1 doc that is not registered in
+  `go/internal/telemetry/instruments.go`.
+- An `eshu_dp_*` metric registered in `go/internal/telemetry/instruments.go`
+  that is not mentioned anywhere in the X1 doc.
+- A *new* `*.go` file added since the base ref under a stage-owner
+  directory (`go/internal/collector/`, `go/internal/reducer/`,
+  `go/internal/projector/`, `go/internal/correlation/`,
+  `go/internal/content/shape/`, or `go/cmd/collector-*/`) where the X1
+  doc has no row that names the file's dispatcher with a real signal
+  (an `eshu_dp_*` metric or a `No-Observability-Change:` marker).
+
+The verifier does not catch:
+
+- A new pipeline stage added *inside* an existing Go file. The new-stage
+  check is `git diff --diff-filter=A`, which is file-level: an existing
+  file that gains a new function or a new metric emission will not
+  trigger the new-stage check, and a stale X1 row will not be flagged.
+  Reviewers must catch these by reading the diff and confirming the X1
+  row was updated.
+- A pre-existing gap from before the verifier was added. The verifier
+  compares the *current* X1 doc against the *current*
+  `go/internal/telemetry/instruments.go`. It does not surface drift that
+  was already on `main` when the X2 PR landed. A periodic human audit of
+  the X1 doc is still required to catch this class.
+- A label cardinality explosion, a missing dimension, a wrong unit suffix,
+  or any semantic change to a metric that does not change its name. The
+  verifier compares names; everything else is out of scope.
+- A telemetry contract that lives outside `go/internal/telemetry/` (for
+  example, an instrument registered from a third-party SDK with a
+  different naming convention). Such surfaces are not part of Eshu's
+  first-party contract and are out of scope for this discipline.
+
+The X2 verifier is the load-bearing piece for the most common drift class
+(metric name drift on a PR), but it is not a substitute for the human
+audit. A maintainer reviewing a PR that touches reducers, collectors,
+parsers, or queues must still read the diff and confirm the X1 doc and
+the code agree.
 
 ## Cross-References
 
