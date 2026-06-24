@@ -252,10 +252,11 @@ func TestNativeRepositorySnapshotterLogsSnapshotStageTimings(t *testing.T) {
 		`"pre_scan_workers":2`,
 		`"go_package_target_count":0`,
 		`"parse_workers":2`,
-		// Byte-aware partition balancing keeps two tiny root files (well under
-		// one worker's byte target) in a single partition instead of splitting
-		// them by count; the parse output is unchanged.
-		`"parse_partition_count":1`,
+		// Byte-aware partition balancing weights each file at minParseFileWeightBytes
+		// (the per-file floor), so the two tiny root files together exceed one
+		// worker's byte target and spread across the two parse workers (one
+		// partition each); the parse output is unchanged.
+		`"parse_partition_count":2`,
 		`"language_parse_summary":`,
 		`"language":"hcl"`,
 		`"language":"python"`,
