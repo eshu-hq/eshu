@@ -69,6 +69,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedAuthAdminReadRoute(r) {
 		return true
 	}
+	if scopedAuthAdminMutationRoute(r) {
+		return true
+	}
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
@@ -254,6 +257,62 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// scopedAuthAdminMutationRoute reports whether the request targets one of the
+// tenant-admin identity mutation endpoints (#3703 PR-2). These unsafe-method
+// (POST/DELETE) routes derive the tenant/workspace strictly from AuthContext and
+// write only within the caller's own tenant. The handler additionally requires
+// all-scope admin auth, so a non-admin browser-session or scoped-token caller
+// that reaches here is still denied by adminScope. Admins drive the console with
+// cookie sessions, which the auth middleware treats as tenant-filter eligible
+// only for routes in this allowlist, so these routes must be listed for the
+// admin console to mutate.
+//
+// CSRF: these are unsafe methods. The browser-session auth middleware enforces
+// CSRF for any non-GET/HEAD/OPTIONS/TRACE method before the request reaches the
+// handler (browserSessionRequiresCSRF), so listing a mutation here does not relax
+// CSRF — a cookie-session caller without a valid X-Eshu-CSRF header is rejected
+// with 403 ahead of the handler. Scoped bearer tokens are not subject to CSRF
+// and are still gated by the all-scope admin requirement in the handler.
+func scopedAuthAdminMutationRoute(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodPost:
+		switch r.URL.Path {
+		case "/api/v0/auth/admin/role-assignments",
+			"/api/v0/auth/admin/role-assignments/revoke",
+			"/api/v0/auth/admin/idp-group-mappings":
+			return true
+		}
+		return scopedInvitationRevokeRoute(r.URL.Path)
+	case http.MethodDelete:
+		return scopedIdPGroupMappingDeleteRoute(r.URL.Path)
+	default:
+		return false
+	}
+}
+
+// scopedInvitationRevokeRoute matches POST /api/v0/auth/local/invitations/{invite_id}/revoke.
+func scopedInvitationRevokeRoute(path string) bool {
+	const (
+		prefix = "/api/v0/auth/local/invitations/"
+		suffix = "/revoke"
+	)
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	inviteID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+	return inviteID != "" && !strings.Contains(inviteID, "/")
+}
+
+// scopedIdPGroupMappingDeleteRoute matches DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}.
+func scopedIdPGroupMappingDeleteRoute(path string) bool {
+	const prefix = "/api/v0/auth/admin/idp-group-mappings/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	mappingRef := strings.TrimPrefix(path, prefix)
+	return mappingRef != "" && !strings.Contains(mappingRef, "/")
 }
 
 func scopedBrowserSessionAuthRoute(r *http.Request) bool {

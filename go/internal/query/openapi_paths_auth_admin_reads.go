@@ -46,6 +46,50 @@ const openAPIPathsAuthAdminReads = `
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
+      },
+      "post": {
+        "tags": ["auth"],
+        "summary": "Grant a membership-role assignment",
+        "description": "All-scopes admin route that idempotently activates a membership-role assignment for a user within the caller's own tenant/workspace. The role must exist and be active in the tenant. A repeated grant converges on one row. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
+        "operationId": "grantAdminRoleAssignment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["user_id", "role_id"],
+                "properties": {
+                  "user_id": {"type": "string"},
+                  "role_id": {"type": "string"},
+                  "workspace_id": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The granted assignment's state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {"type": "string"},
+                    "role_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "changed": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
       }
     },
     "/api/v0/auth/admin/roles": {
@@ -169,6 +213,52 @@ const openAPIPathsAuthAdminReads = `
               }
             }
           },
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      },
+      "post": {
+        "tags": ["auth"],
+        "summary": "Create an IdP group to role mapping",
+        "description": "All-scopes admin route that idempotently activates an external group to role mapping within the caller's own tenant/workspace. The provider config and role must exist and be active in the tenant. The raw external_group name is hashed server-side with the same hash the OIDC login path uses to read mappings and is never stored or returned; only the opaque mapping_ref (an md5 over the composite key) is returned. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
+        "operationId": "createAdminIdPGroupMapping",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["provider_config_id", "external_group", "role_id"],
+                "properties": {
+                  "provider_config_id": {"type": "string"},
+                  "external_group": {"type": "string", "description": "Raw external group name; hashed server-side and never stored or returned in clear."},
+                  "role_id": {"type": "string"},
+                  "workspace_id": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created or activated mapping, addressed by its opaque mapping_ref.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mapping_ref": {"type": "string"},
+                    "provider_config_id": {"type": "string"},
+                    "role_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "created": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
