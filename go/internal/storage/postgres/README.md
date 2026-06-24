@@ -1177,6 +1177,20 @@ measurement (294,991 queried-kind facts) understated the `$2` cost because it us
 a 3-entry catalog; the planner's choice of the scope-generation index over a
 payload index held at full scale, confirming the index removal.
 
+Run identity (per the `eshu-diagnostic-rigor` evidence ladder): Eshu commit
+`d42b80c7` (the #3710 branch tip the binary was built from, merged to `main` as
+`a4f531d5` via PR #3725); graph backend NornicDB image `eshu-nornicdb-telemetry`
+(image ID `sha256:d85daef3b4b1`) on Bolt with auth disabled; store
+`postgres:18-alpine` (image ID `sha256:99d320a6265d`) on a clean volume with the
+data-plane schema applied via `eshu-bootstrap-data-plane` before indexing; the
+filesystem corpus held 896 repositories; `pprof` was enabled and OTEL exporters
+were set to `none`. Terminal
+state of the bootstrap-index pipeline: collection 896/896 repositories, projection
+896/896 (`bootstrap projection complete`, 1,245 s), deferred relationship backfill
+896 readiness rows committed (`deferred_backfill_completed`), 0 failed/0
+dead-lettered on the backfill path. The 8,715 evidence facts and 207,003 loaded
+queried-kind facts above are from this run.
+
 Truth-equivalence (no evidence added or dropped relative to the regex/full-corpus
 load) is proven by the `internal/relationships` gates
 `TestDeferredLikeSupersetMatcherRefinesToBoundaryEvidence` (LIKE-superset →
