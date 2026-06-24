@@ -104,13 +104,20 @@ func (h WorkloadIdentityHandler) Handle(
 		)
 	}
 
+	// input_ready reflects INPUT PRESENCE, not write count: the identity writer
+	// runs unconditionally, so CanonicalWrites==0 is genuine empty work, not an
+	// ordering stall. A workload_identity intent always carries the entity keys
+	// it must reconcile (validated in workloadIdentityWriteFromIntent), so input
+	// is present whenever the request has entity keys.
+	inputReady := len(request.EntityKeys) > 0
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainWorkloadIdentity,
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubDurations:    workloadIdentitySubDurations(timing, writeResult.CanonicalWrites),
+		SubDurations:    workloadIdentitySubDurations(timing),
+		SubSignals:      materializationDiagnosticSignals(inputReady, writeResult.CanonicalWrites),
 	}, nil
 }
 
@@ -118,20 +125,13 @@ func (h WorkloadIdentityHandler) Handle(
 // Result.SubDurations map so the service layer emits sub_duration_<key>_seconds
 // log attributes alongside handler_duration_seconds. Keys follow the
 // workload_materialization naming convention for cross-domain log correlation.
-//
-// input_ready is 1.0 when graph writes were produced and 0.0 when
-// CanonicalWrites is zero (upstream data may not be ready yet — ordering
-// stall), so an operator can distinguish a stall from a genuine no-op.
-func workloadIdentitySubDurations(t workloadIdentityTiming, canonicalWrites int) map[string]float64 {
-	inputReady := 1.0
-	if canonicalWrites == 0 {
-		inputReady = 0.0
-	}
+// Non-duration diagnostic signals (input_ready, written_rows) are carried
+// separately in Result.SubSignals so the _seconds suffix stays honest.
+func workloadIdentitySubDurations(t workloadIdentityTiming) map[string]float64 {
 	return map[string]float64{
 		"graph_write":   t.graphWriteDuration.Seconds(),
 		"phase_publish": t.phasePublishDuration.Seconds(),
 		"total":         t.totalDuration.Seconds(),
-		"input_ready":   inputReady,
 	}
 }
 

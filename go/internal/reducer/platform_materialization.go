@@ -207,13 +207,20 @@ func (h PlatformMaterializationHandler) Handle(
 		timing,
 	)
 
+	// input_ready reflects INPUT PRESENCE, not write count: the platform writer
+	// runs unconditionally, so canonicalWrites==0 is genuine empty work, not an
+	// ordering stall. A deployment_mapping intent always carries the entity keys
+	// it must materialize (validated in platformMaterializationWriteFromIntent),
+	// so input is present whenever the request has entity keys.
+	inputReady := len(request.EntityKeys) > 0
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDeploymentMapping,
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: canonicalWrites,
-		SubDurations:    platformMaterializationSubDurations(timing, canonicalWrites),
+		SubDurations:    platformMaterializationSubDurations(timing),
+		SubSignals:      materializationDiagnosticSignals(inputReady, canonicalWrites),
 	}, nil
 }
 
@@ -222,16 +229,9 @@ func (h PlatformMaterializationHandler) Handle(
 // sub_duration_<key>_seconds log attributes alongside handler_duration_seconds.
 // Keys follow the workload_materialization naming convention so operators can
 // compare sub-phase timing across domains in the same structured-log stream.
-//
-// The input_ready key encodes whether the handler performed real graph writes
-// (1.0) or produced zero rows (0.0), letting an operator distinguish an
-// upstream ordering stall (input_ready=0, written_rows=0) from a genuine
-// no-op (input_ready=1, written_rows=0 after filtering).
-func platformMaterializationSubDurations(t platformMaterializationTiming, canonicalWrites int) map[string]float64 {
-	inputReady := 1.0
-	if canonicalWrites == 0 {
-		inputReady = 0.0
-	}
+// Non-duration diagnostic signals (input_ready, written_rows) are carried
+// separately in Result.SubSignals so the _seconds suffix stays honest.
+func platformMaterializationSubDurations(t platformMaterializationTiming) map[string]float64 {
 	return map[string]float64{
 		"platform_write":     t.platformWriteDuration.Seconds(),
 		"load_facts":         t.factLoadDuration.Seconds(),
@@ -240,7 +240,7 @@ func platformMaterializationSubDurations(t platformMaterializationTiming, canoni
 		"cross_repo_resolve": t.crossRepoResolutionDuration.Seconds(),
 		"workload_replay":    t.workloadReplayDuration.Seconds(),
 		"phase_publish":      t.phasePublishDuration.Seconds(),
-		"input_ready":        inputReady,
+		"total":              t.totalDuration.Seconds(),
 	}
 }
 

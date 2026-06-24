@@ -1,21 +1,33 @@
 package reducer
 
 // materialization_subduration_test.go provides TDD-first unit tests asserting
-// that each long-pole materialization domain handler populates the expected
-// Result.SubDurations keys and the written_rows / input_ready diagnostic
-// signals introduced in issue #3624.
+// that each long-pole materialization domain handler (issue #3624) populates:
+//  1. Result.SubDurations — non-nil per-phase wall-time map with the expected
+//     phase keys (durations only; emitted as sub_duration_<key>_seconds).
+//  2. Result.SubSignals — non-nil diagnostic map carrying input_ready and
+//     written_rows (counts/flags only; emitted as sub_signal_<key>, no
+//     _seconds suffix).
 //
-// Each test follows three invariants from the issue spec:
-//  1. SubDurations is non-nil (handler adopted sub-timing).
-//  2. Specific phase keys are present (even when their value is zero for an
-//     empty-work intent — absence means "not instrumented", zero means "ran
-//     but had nothing to do").
-//  3. The written_rows signal can be derived from Result.CanonicalWrites and
-//     the input_ready signal is reflected in SubDurations["input_ready"] being
-//     present (1.0 = ready, 0.0 = stall / ordering wait).
+// Per the issue's diagnostic contract, each domain is covered in three states:
+//   - work-happened : input_ready==1.0 AND written_rows>0
+//   - genuine-empty : input_ready==1.0 AND written_rows==0
+//   - stall         : input_ready==0.0 (upstream data not ready)
 //
-// Tests are intentionally small and dependency-light so they pass without a
-// live graph backend.
+// Genuine-empty (input present, zero rows) is only reachable on the
+// writer-based domains (deployment_mapping, workload_identity): their writers
+// run unconditionally and may return zero canonical writes. The two
+// intent-emitting domains (inheritance_materialization, code_call_materialization)
+// always emit at least one whole-scope refresh intent per repository once a
+// projection context exists, so for them a present context implies
+// written_rows>=1; their genuine-empty state is not reachable through Handle
+// and is documented rather than asserted. The handlers still pass
+// materializationDiagnosticSignals(true, 0) on the defensive
+// len(intentRows)==0 branch so the signal stays correct if upstream behavior
+// ever changes.
+//
+// assertWrittenRows reads Result.SubSignals["written_rows"] (NOT
+// result.CanonicalWrites) so the missing-key defect the review flagged cannot
+// pass green again.
 
 import (
 	"context"
@@ -29,10 +41,10 @@ import (
 // deployment_mapping (PlatformMaterializationHandler)
 // ---------------------------------------------------------------------------
 
-// TestPlatformMaterializationHandlerPopulatesSubDurations asserts that
-// Handle populates Result.SubDurations with the required phase keys so the
-// service layer can emit sub_duration_<key>_seconds log attributes.
-func TestPlatformMaterializationHandlerPopulatesSubDurations(t *testing.T) {
+// TestPlatformMaterializationHandlerSubDurationsWorkHappened asserts the
+// work-happened state: input present (request has entity keys) and the writer
+// reported canonical writes → input_ready==1, written_rows>0.
+func TestPlatformMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 	t.Parallel()
 
 	handler := PlatformMaterializationHandler{
@@ -44,35 +56,19 @@ func TestPlatformMaterializationHandlerPopulatesSubDurations(t *testing.T) {
 		},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-pm-subdur-1",
-		ScopeID:         "scope-pm-1",
-		GenerationID:    "gen-pm-1",
-		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
-		Cause:           "test",
-		EntityKeys:      []string{"platform:k8s:prod", "repo:svc-a"},
-		RelatedScopeIDs: []string{"scope-pm-1"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
+	result := mustHandle(t, handler, platformIntent("intent-pm-work", []string{"platform:k8s:prod", "repo:svc-a"}))
 
 	assertSubDurationsPresent(t, result, "deployment_mapping", []string{
-		"platform_write",
-		"phase_publish",
+		"platform_write", "phase_publish", "total",
 	})
-	assertInputReadyPresent(t, result, "deployment_mapping")
+	assertInputReady(t, result, "deployment_mapping", 1.0)
 	assertWrittenRows(t, result, "deployment_mapping", 3)
 }
 
-// TestPlatformMaterializationHandlerSubDurationsEmptyWork asserts that
-// SubDurations is still populated (non-nil) when CanonicalWrites is zero,
-// so operators can distinguish "no work" from "not instrumented".
-func TestPlatformMaterializationHandlerSubDurationsEmptyWork(t *testing.T) {
+// TestPlatformMaterializationHandlerSubDurationsGenuineEmpty asserts the
+// genuine-empty state: input present but the writer reported zero writes →
+// input_ready==1, written_rows==0 (NOT a stall).
+func TestPlatformMaterializationHandlerSubDurationsGenuineEmpty(t *testing.T) {
 	t.Parallel()
 
 	handler := PlatformMaterializationHandler{
@@ -84,26 +80,9 @@ func TestPlatformMaterializationHandlerSubDurationsEmptyWork(t *testing.T) {
 		},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-pm-empty-1",
-		ScopeID:         "scope-pm-empty",
-		GenerationID:    "gen-pm-empty",
-		SourceSystem:    "git",
-		Domain:          DomainDeploymentMapping,
-		Cause:           "test-empty",
-		EntityKeys:      []string{"platform:k8s:dev"},
-		RelatedScopeIDs: []string{"scope-pm-empty"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
+	result := mustHandle(t, handler, platformIntent("intent-pm-empty", []string{"platform:k8s:dev"}))
 
-	if result.SubDurations == nil {
-		t.Fatal("deployment_mapping: SubDurations must not be nil even for zero-write intent")
-	}
+	assertInputReady(t, result, "deployment_mapping", 1.0)
 	assertWrittenRows(t, result, "deployment_mapping", 0)
 }
 
@@ -111,9 +90,9 @@ func TestPlatformMaterializationHandlerSubDurationsEmptyWork(t *testing.T) {
 // workload_identity (WorkloadIdentityHandler)
 // ---------------------------------------------------------------------------
 
-// TestWorkloadIdentityHandlerPopulatesSubDurations asserts that Handle
-// populates Result.SubDurations with phase keys when work was done.
-func TestWorkloadIdentityHandlerPopulatesSubDurations(t *testing.T) {
+// TestWorkloadIdentityHandlerSubDurationsWorkHappened asserts the
+// work-happened state: input present and writer reported writes.
+func TestWorkloadIdentityHandlerSubDurationsWorkHappened(t *testing.T) {
 	t.Parallel()
 
 	handler := WorkloadIdentityHandler{
@@ -127,34 +106,19 @@ func TestWorkloadIdentityHandlerPopulatesSubDurations(t *testing.T) {
 		},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-wi-subdur-1",
-		ScopeID:         "scope-wi-1",
-		GenerationID:    "gen-wi-1",
-		SourceSystem:    "git",
-		Domain:          DomainWorkloadIdentity,
-		Cause:           "test",
-		EntityKeys:      []string{"workload:svc-a", "repo:svc-a"},
-		RelatedScopeIDs: []string{"scope-wi-2"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
+	result := mustHandle(t, handler, workloadIdentityIntent("intent-wi-work", []string{"workload:svc-a", "repo:svc-a"}))
 
 	assertSubDurationsPresent(t, result, "workload_identity", []string{
-		"graph_write",
-		"phase_publish",
+		"graph_write", "phase_publish", "total",
 	})
-	assertInputReadyPresent(t, result, "workload_identity")
+	assertInputReady(t, result, "workload_identity", 1.0)
 	assertWrittenRows(t, result, "workload_identity", 5)
 }
 
-// TestWorkloadIdentityHandlerSubDurationsEmptyWork asserts SubDurations is
-// non-nil even when CanonicalWrites is 0.
-func TestWorkloadIdentityHandlerSubDurationsEmptyWork(t *testing.T) {
+// TestWorkloadIdentityHandlerSubDurationsGenuineEmpty asserts the genuine-empty
+// state: input present, writer reported zero writes → input_ready==1,
+// written_rows==0.
+func TestWorkloadIdentityHandlerSubDurationsGenuineEmpty(t *testing.T) {
 	t.Parallel()
 
 	handler := WorkloadIdentityHandler{
@@ -167,26 +131,9 @@ func TestWorkloadIdentityHandlerSubDurationsEmptyWork(t *testing.T) {
 		},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-wi-empty-1",
-		ScopeID:         "scope-wi-empty",
-		GenerationID:    "gen-wi-empty",
-		SourceSystem:    "git",
-		Domain:          DomainWorkloadIdentity,
-		Cause:           "test-empty",
-		EntityKeys:      []string{"workload:svc-b"},
-		RelatedScopeIDs: []string{"scope-wi-empty"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
+	result := mustHandle(t, handler, workloadIdentityIntent("intent-wi-empty", []string{"workload:svc-b"}))
 
-	if result.SubDurations == nil {
-		t.Fatal("workload_identity: SubDurations must not be nil even for zero-write intent")
-	}
+	assertInputReady(t, result, "workload_identity", 1.0)
 	assertWrittenRows(t, result, "workload_identity", 0)
 }
 
@@ -194,126 +141,93 @@ func TestWorkloadIdentityHandlerSubDurationsEmptyWork(t *testing.T) {
 // inheritance_materialization (InheritanceMaterializationHandler)
 // ---------------------------------------------------------------------------
 
-// TestInheritanceMaterializationHandlerPopulatesSubDurations asserts that
-// Handle populates SubDurations when intent rows are emitted.
-func TestInheritanceMaterializationHandlerPopulatesSubDurations(t *testing.T) {
+// TestInheritanceMaterializationHandlerSubDurationsWorkHappened asserts the
+// work-happened state using a real fact set (repository + parent/child content
+// entities) that produces durable intent rows.
+func TestInheritanceMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 	t.Parallel()
 
 	handler := InheritanceMaterializationHandler{
-		FactLoader:   &stubFactLoader{envelopes: inheritanceTestEnvelopes()},
+		FactLoader:   &stubFactLoader{envelopes: inheritanceWorkEnvelopes()},
 		IntentWriter: &recordingInheritanceIntentWriter{},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-im-subdur-1",
-		ScopeID:         "scope-im-1",
-		GenerationID:    "gen-im-1",
-		SourceSystem:    "git",
-		Domain:          DomainInheritanceMaterialization,
-		Cause:           "test",
-		EntityKeys:      []string{"repo:myrepo"},
-		RelatedScopeIDs: []string{"scope-im-1"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
+	result := mustHandle(t, handler, inheritanceIntent("intent-im-work"))
 
 	assertSubDurationsPresent(t, result, "inheritance_materialization", []string{
-		"load_facts",
-		"build_intents",
-		"upsert_intents",
+		"load_facts", "build_intents", "upsert_intents", "total",
 	})
-	assertInputReadyPresent(t, result, "inheritance_materialization")
+	assertInputReady(t, result, "inheritance_materialization", 1.0)
+	assertWrittenRowsGreater(t, result, "inheritance_materialization", 0)
 }
 
-// TestInheritanceMaterializationHandlerSubDurationsNoInputReady asserts that
-// when no repositories are found in facts (ordering stall), SubDurations is
-// non-nil and input_ready is 0.0.
-func TestInheritanceMaterializationHandlerSubDurationsNoInputReady(t *testing.T) {
+// TestInheritanceMaterializationHandlerSubDurationsStall asserts the stall
+// state: empty facts → no repository context → input_ready==0, written_rows==0.
+func TestInheritanceMaterializationHandlerSubDurationsStall(t *testing.T) {
 	t.Parallel()
 
-	// Empty fact set → no repos → input not ready (ordering stall).
 	handler := InheritanceMaterializationHandler{
 		FactLoader:   &stubFactLoader{envelopes: nil},
 		IntentWriter: &recordingInheritanceIntentWriter{},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-im-empty-1",
-		ScopeID:         "scope-im-empty",
-		GenerationID:    "gen-im-empty",
-		SourceSystem:    "git",
-		Domain:          DomainInheritanceMaterialization,
-		Cause:           "test-empty",
-		EntityKeys:      []string{"repo:empty"},
-		RelatedScopeIDs: []string{"scope-im-empty"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
+	result := mustHandle(t, handler, inheritanceIntent("intent-im-stall"))
 
-	if result.SubDurations == nil {
-		t.Fatal("inheritance_materialization: SubDurations must not be nil for empty-input intent")
-	}
-	// input_ready=0 when no repos found in facts (upstream data not ready).
-	got, ok := result.SubDurations["input_ready"]
-	if !ok {
-		t.Fatal("inheritance_materialization: SubDurations missing \"input_ready\" key for empty-input intent")
-	}
-	if got != 0.0 {
-		t.Fatalf("inheritance_materialization: input_ready = %v, want 0.0 (upstream stall)", got)
-	}
+	assertSubDurationsPresent(t, result, "inheritance_materialization", []string{
+		"load_facts", "total",
+	})
+	assertInputReady(t, result, "inheritance_materialization", 0.0)
+	assertWrittenRows(t, result, "inheritance_materialization", 0)
 }
 
 // ---------------------------------------------------------------------------
 // code_call_materialization (CodeCallMaterializationHandler)
 // ---------------------------------------------------------------------------
 
-// TestCodeCallMaterializationHandlerPopulatesSubDurations asserts that Handle
-// populates SubDurations with phase keys when intent rows are emitted.
-func TestCodeCallMaterializationHandlerPopulatesSubDurations(t *testing.T) {
+// TestCodeCallMaterializationHandlerSubDurationsWorkHappened asserts the
+// work-happened state using a real fact set that produces intent rows.
+func TestCodeCallMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 	t.Parallel()
 
 	handler := CodeCallMaterializationHandler{
-		FactLoader:   &stubFactLoader{envelopes: codeCallTestEnvelopes()},
+		FactLoader:   &stubFactLoader{envelopes: codeCallWorkEnvelopes()},
 		IntentWriter: &recordingCodeCallIntentWriter{},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-ccm-subdur-1",
-		ScopeID:         "scope-ccm-1",
-		GenerationID:    "gen-ccm-1",
-		SourceSystem:    "git",
-		Domain:          DomainCodeCallMaterialization,
-		Cause:           "test",
-		EntityKeys:      []string{"repo:myrepo"},
-		RelatedScopeIDs: []string{"scope-ccm-1"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
+	result := mustHandle(t, handler, codeCallIntent("intent-ccm-work"))
 
 	assertSubDurationsPresent(t, result, "code_call_materialization", []string{
-		"load_facts",
-		"build_context",
-		"upsert_intents",
+		"load_facts", "build_context", "extract_rows", "build_intents", "upsert_intents", "total",
 	})
-	assertInputReadyPresent(t, result, "code_call_materialization")
+	assertInputReady(t, result, "code_call_materialization", 1.0)
+	assertWrittenRowsGreater(t, result, "code_call_materialization", 0)
 }
 
-// TestCodeCallMaterializationHandlerSubDurationsNoInputReady asserts that
-// when no repo context is available (empty facts), SubDurations is non-nil
-// and input_ready is 0.0.
-func TestCodeCallMaterializationHandlerSubDurationsNoInputReady(t *testing.T) {
+// TestCodeCallMaterializationHandlerSubDurationsContextOnlyRefresh asserts the
+// input-present path with no code-call edges: a repository fact with
+// source_run_id builds a projection context, which always emits exactly one
+// whole-scope refresh intent per repo. So input_ready==1 and written_rows==1
+// (the refresh). This is why the genuine-empty (input present, zero rows) state
+// is NOT reachable for the intent-emitting domains — a present context always
+// yields a refresh intent.
+func TestCodeCallMaterializationHandlerSubDurationsContextOnlyRefresh(t *testing.T) {
+	t.Parallel()
+
+	handler := CodeCallMaterializationHandler{
+		FactLoader:   &stubFactLoader{envelopes: codeCallContextOnlyEnvelopes()},
+		IntentWriter: &recordingCodeCallIntentWriter{},
+	}
+
+	result := mustHandle(t, handler, codeCallIntent("intent-ccm-context-only"))
+
+	assertInputReady(t, result, "code_call_materialization", 1.0)
+	// One repo with context → exactly one refresh intent, zero edge intents.
+	assertWrittenRows(t, result, "code_call_materialization", 1)
+}
+
+// TestCodeCallMaterializationHandlerSubDurationsStall asserts the stall state:
+// empty facts → no projection context → input_ready==0, written_rows==0.
+func TestCodeCallMaterializationHandlerSubDurationsStall(t *testing.T) {
 	t.Parallel()
 
 	handler := CodeCallMaterializationHandler{
@@ -321,41 +235,237 @@ func TestCodeCallMaterializationHandlerSubDurationsNoInputReady(t *testing.T) {
 		IntentWriter: &recordingCodeCallIntentWriter{},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-ccm-empty-1",
-		ScopeID:         "scope-ccm-empty",
-		GenerationID:    "gen-ccm-empty",
+	result := mustHandle(t, handler, codeCallIntent("intent-ccm-stall"))
+
+	assertSubDurationsPresent(t, result, "code_call_materialization", []string{
+		"load_facts", "build_context", "total",
+	})
+	assertInputReady(t, result, "code_call_materialization", 0.0)
+	assertWrittenRows(t, result, "code_call_materialization", 0)
+}
+
+// ---------------------------------------------------------------------------
+// intent constructors
+// ---------------------------------------------------------------------------
+
+func fixedTestTime() time.Time {
+	return time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+}
+
+func platformIntent(id string, entityKeys []string) Intent {
+	now := fixedTestTime()
+	return Intent{
+		IntentID:        id,
+		ScopeID:         "scope-pm",
+		GenerationID:    "gen-pm",
+		SourceSystem:    "git",
+		Domain:          DomainDeploymentMapping,
+		Cause:           "test",
+		EntityKeys:      entityKeys,
+		RelatedScopeIDs: []string{"scope-pm"},
+		EnqueuedAt:      now,
+		AvailableAt:     now,
+		Status:          IntentStatusClaimed,
+	}
+}
+
+func workloadIdentityIntent(id string, entityKeys []string) Intent {
+	now := fixedTestTime()
+	return Intent{
+		IntentID:        id,
+		ScopeID:         "scope-wi",
+		GenerationID:    "gen-wi",
+		SourceSystem:    "git",
+		Domain:          DomainWorkloadIdentity,
+		Cause:           "test",
+		EntityKeys:      entityKeys,
+		RelatedScopeIDs: []string{"scope-wi-2"},
+		EnqueuedAt:      now,
+		AvailableAt:     now,
+		Status:          IntentStatusClaimed,
+	}
+}
+
+func inheritanceIntent(id string) Intent {
+	now := fixedTestTime()
+	return Intent{
+		IntentID:        id,
+		ScopeID:         "scope-im",
+		GenerationID:    "gen-im",
+		SourceSystem:    "git",
+		Domain:          DomainInheritanceMaterialization,
+		Cause:           "test",
+		EntityKeys:      []string{"repo:myrepo"},
+		RelatedScopeIDs: []string{"scope-im"},
+		EnqueuedAt:      now,
+		AvailableAt:     now,
+		Status:          IntentStatusClaimed,
+	}
+}
+
+func codeCallIntent(id string) Intent {
+	now := fixedTestTime()
+	return Intent{
+		IntentID:        id,
+		ScopeID:         "scope-ccm",
+		GenerationID:    "gen-ccm",
 		SourceSystem:    "git",
 		Domain:          DomainCodeCallMaterialization,
-		Cause:           "test-empty",
-		EntityKeys:      []string{"repo:empty"},
-		RelatedScopeIDs: []string{"scope-ccm-empty"},
-		EnqueuedAt:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		AvailableAt:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		Cause:           "test",
+		EntityKeys:      []string{"repo:myrepo"},
+		RelatedScopeIDs: []string{"scope-ccm"},
+		EnqueuedAt:      now,
+		AvailableAt:     now,
 		Status:          IntentStatusClaimed,
-	})
-	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
-	}
-
-	if result.SubDurations == nil {
-		t.Fatal("code_call_materialization: SubDurations must not be nil for empty-input intent")
-	}
-	got, ok := result.SubDurations["input_ready"]
-	if !ok {
-		t.Fatal("code_call_materialization: SubDurations missing \"input_ready\" key for empty-input intent")
-	}
-	if got != 0.0 {
-		t.Fatalf("code_call_materialization: input_ready = %v, want 0.0 (upstream stall)", got)
 	}
 }
 
 // ---------------------------------------------------------------------------
-// helpers
+// real fact builders (work-happened / genuine-empty / stall)
 // ---------------------------------------------------------------------------
 
-// assertSubDurationsPresent fails the test if SubDurations is nil or any of
-// the required keys is absent.
+// inheritanceWorkEnvelopes returns a repository fact plus a parent/child class
+// pair (child declares the parent as a base) so the inheritance Handle path
+// builds a projection context AND emits durable intent rows. The repository
+// fact carries source_run_id so buildCodeCallProjectionContexts (shared with
+// the inheritance handler) yields a non-empty context.
+func inheritanceWorkEnvelopes() []facts.Envelope {
+	return []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id":       "repo-1",
+				"source_run_id": "run-1",
+				"graph_id":      "repo-1",
+				"graph_kind":    "repository",
+				"name":          "repo-1",
+			},
+		},
+		{
+			FactKind: "content_entity",
+			Payload: map[string]any{
+				"repo_id":     "repo-1",
+				"entity_id":   "content-entity:e_parent",
+				"entity_type": "Class",
+				"entity_name": "ParentClass",
+				"file_path":   "/src/parent.py",
+				"path":        "/src/parent.py",
+				"language":    "python",
+				"start_line":  1,
+				"end_line":    30,
+			},
+		},
+		{
+			FactKind: "content_entity",
+			Payload: map[string]any{
+				"repo_id":     "repo-1",
+				"entity_id":   "content-entity:e_child",
+				"entity_type": "Class",
+				"entity_name": "ChildClass",
+				"file_path":   "/src/child.py",
+				"path":        "/src/child.py",
+				"language":    "python",
+				"start_line":  10,
+				"end_line":    50,
+				"entity_metadata": map[string]any{
+					"bases": []any{"ParentClass"},
+				},
+			},
+		},
+	}
+}
+
+// codeCallWorkEnvelopes returns a repository fact plus caller/callee file facts
+// producing at least one code-call edge, so the code_call Handle path emits
+// durable intent rows (refresh + edge).
+func codeCallWorkEnvelopes() []facts.Envelope {
+	return []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id":       "repo-a",
+				"source_run_id": "run-a",
+				"graph_id":      "repo-a",
+				"graph_kind":    "repository",
+				"name":          "repo-a",
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-a",
+				"relative_path": "caller.py",
+				"parsed_file_data": map[string]any{
+					"path": "caller.py",
+					"functions": []any{
+						map[string]any{"name": "handle", "line_number": 3, "uid": "entity:handle"},
+					},
+					"function_calls_scip": []any{
+						map[string]any{
+							"caller_file":   "caller.py",
+							"caller_line":   3,
+							"caller_symbol": "pkg/caller#handle().",
+							"callee_file":   "callee.py",
+							"callee_line":   1,
+							"callee_symbol": "pkg/callee#callee().",
+						},
+					},
+				},
+			},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-a",
+				"relative_path": "callee.py",
+				"parsed_file_data": map[string]any{
+					"path": "callee.py",
+					"functions": []any{
+						map[string]any{"name": "callee", "line_number": 1, "uid": "entity:callee"},
+					},
+				},
+			},
+		},
+	}
+}
+
+// codeCallContextOnlyEnvelopes returns ONLY a repository fact with
+// source_run_id: a projection context is built (input present) but there are no
+// file/edge facts, so extraction yields zero edges and zero intent rows. This
+// exercises the genuine-empty path (input_ready=1, written_rows=0).
+func codeCallContextOnlyEnvelopes() []facts.Envelope {
+	return []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id":       "repo-ccm",
+				"source_run_id": "run-ccm",
+				"graph_id":      "repo-ccm",
+				"graph_kind":    "repository",
+				"name":          "ccm-test-repo",
+			},
+		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// assertion + driver helpers
+// ---------------------------------------------------------------------------
+
+// mustHandle runs a handler and fails the test on error, returning the Result.
+func mustHandle(t *testing.T, handler interface {
+	Handle(context.Context, Intent) (Result, error)
+}, intent Intent) Result {
+	t.Helper()
+	result, err := handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("Handle() unexpected error: %v", err)
+	}
+	return result
+}
+
+// assertSubDurationsPresent fails if SubDurations is nil or any required key is
+// absent. These are duration phases only.
 func assertSubDurationsPresent(t *testing.T, result Result, domain string, keys []string) {
 	t.Helper()
 	if result.SubDurations == nil {
@@ -363,71 +473,62 @@ func assertSubDurationsPresent(t *testing.T, result Result, domain string, keys 
 	}
 	for _, k := range keys {
 		if _, ok := result.SubDurations[k]; !ok {
-			t.Fatalf("%s: SubDurations missing key %q; got keys: %v", domain, k, subDurationKeys(result.SubDurations))
+			t.Fatalf("%s: SubDurations missing key %q; got keys: %v", domain, k, mapKeys(result.SubDurations))
 		}
 	}
 }
 
-// assertInputReadyPresent fails if SubDurations lacks the "input_ready" key.
-// It does NOT check the value — callers that need a specific value assert it
-// separately.
-func assertInputReadyPresent(t *testing.T, result Result, domain string) {
+// assertInputReady fails if SubSignals is nil, lacks "input_ready", or its value
+// differs from want.
+func assertInputReady(t *testing.T, result Result, domain string, want float64) {
 	t.Helper()
-	if result.SubDurations == nil {
-		t.Fatalf("%s: SubDurations must not be nil when checking input_ready", domain)
+	if result.SubSignals == nil {
+		t.Fatalf("%s: SubSignals must not be nil", domain)
 	}
-	if _, ok := result.SubDurations["input_ready"]; !ok {
-		t.Fatalf("%s: SubDurations missing \"input_ready\" key; got keys: %v", domain, subDurationKeys(result.SubDurations))
+	got, ok := result.SubSignals[diagnosticSignalInputReady]
+	if !ok {
+		t.Fatalf("%s: SubSignals missing %q; got keys: %v", domain, diagnosticSignalInputReady, mapKeys(result.SubSignals))
+	}
+	if got != want {
+		t.Fatalf("%s: input_ready = %v, want %v", domain, got, want)
 	}
 }
 
-// assertWrittenRows fails if result.CanonicalWrites does not match want.
+// assertWrittenRows fails if SubSignals["written_rows"] != want. It reads the
+// SIGNAL, not result.CanonicalWrites, so a missing written_rows key fails.
 func assertWrittenRows(t *testing.T, result Result, domain string, want int) {
 	t.Helper()
-	if result.CanonicalWrites != want {
-		t.Fatalf("%s: CanonicalWrites = %d, want %d", domain, result.CanonicalWrites, want)
+	if result.SubSignals == nil {
+		t.Fatalf("%s: SubSignals must not be nil", domain)
+	}
+	got, ok := result.SubSignals[diagnosticSignalWrittenRows]
+	if !ok {
+		t.Fatalf("%s: SubSignals missing %q; got keys: %v", domain, diagnosticSignalWrittenRows, mapKeys(result.SubSignals))
+	}
+	if got != float64(want) {
+		t.Fatalf("%s: written_rows = %v, want %d", domain, got, want)
 	}
 }
 
-func subDurationKeys(m map[string]float64) []string {
+// assertWrittenRowsGreater fails if SubSignals["written_rows"] <= threshold.
+func assertWrittenRowsGreater(t *testing.T, result Result, domain string, threshold int) {
+	t.Helper()
+	if result.SubSignals == nil {
+		t.Fatalf("%s: SubSignals must not be nil", domain)
+	}
+	got, ok := result.SubSignals[diagnosticSignalWrittenRows]
+	if !ok {
+		t.Fatalf("%s: SubSignals missing %q; got keys: %v", domain, diagnosticSignalWrittenRows, mapKeys(result.SubSignals))
+	}
+	if got <= float64(threshold) {
+		t.Fatalf("%s: written_rows = %v, want > %d", domain, got, threshold)
+	}
+}
+
+func mapKeys(m map[string]float64) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
 	return keys
-}
-
-// ---------------------------------------------------------------------------
-// stub helpers for inheritance / code-call tests
-// ---------------------------------------------------------------------------
-
-// inheritanceTestEnvelopes returns a minimal fact set that produces at least
-// one inheritance intent row so the "work happened" path is exercised.
-func inheritanceTestEnvelopes() []facts.Envelope {
-	// An inheritance test only needs content_entity facts carrying bases.
-	// These are too tightly coupled to internal parsing; use an empty set so
-	// the "no repos" early-return path runs.  The SubDurations-present
-	// invariant is tested via the empty path; the work-happened path is
-	// covered by the existing inheritance_materialization_test.go tests which
-	// exercise ExtractInheritanceRows directly.
-	return nil
-}
-
-// codeCallTestEnvelopes returns a minimal fact set for CodeCallMaterialization
-// that exercises the empty-context early-return path.
-func codeCallTestEnvelopes() []facts.Envelope {
-	// Use a repository-only fact with no file data so buildCodeCallProjectionContexts
-	// returns an empty map (input_ready = 0).  Full code-call extraction is
-	// covered by the existing code_call_materialization_test.go suite.
-	return []facts.Envelope{
-		{
-			FactID:   "fact-repo-ccm",
-			FactKind: "repository",
-			Payload: map[string]any{
-				"graph_id": "repo-ccm",
-				"name":     "ccm-test-repo",
-			},
-			ObservedAt: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		},
-	}
 }

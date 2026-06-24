@@ -92,6 +92,9 @@ func (h CodeCallMaterializationHandler) Handle(
 			contextDuration: contextDuration,
 			totalDuration:   totalDuration,
 		})
+		// No projection context built from the loaded facts: the handler ran
+		// before its upstream repository/file facts existed — an ordering stall,
+		// signaled by input_ready=0.
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainCodeCallMaterialization,
@@ -101,7 +104,8 @@ func (h CodeCallMaterializationHandler) Handle(
 				loadDuration:    loadDuration,
 				contextDuration: contextDuration,
 				totalDuration:   totalDuration,
-			}, 0, false),
+			}),
+			SubSignals: materializationDiagnosticSignals(false, 0),
 		}, nil
 	}
 
@@ -183,6 +187,8 @@ func (h CodeCallMaterializationHandler) Handle(
 			intentBuildDuration: intentBuildDuration,
 			totalDuration:       totalDuration,
 		})
+		// Projection context was built (input present) but extraction produced no
+		// edges: genuine empty work, signaled by input_ready=1 and written_rows=0.
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainCodeCallMaterialization,
@@ -195,7 +201,8 @@ func (h CodeCallMaterializationHandler) Handle(
 				extractDuration:     extractDuration,
 				intentBuildDuration: intentBuildDuration,
 				totalDuration:       totalDuration,
-			}, 0, true),
+			}),
+			SubSignals: materializationDiagnosticSignals(true, 0),
 		}, nil
 	}
 
@@ -247,25 +254,19 @@ func (h CodeCallMaterializationHandler) Handle(
 			len(contextByRepoID),
 		),
 		CanonicalWrites: len(intentRows),
-		SubDurations:    codeCallMaterializationSubDurations(successTiming, len(intentRows), true),
+		SubDurations:    codeCallMaterializationSubDurations(successTiming),
+		// Projection context was built (input present) and intents were emitted.
+		SubSignals: materializationDiagnosticSignals(true, len(intentRows)),
 	}, nil
 }
 
 // codeCallMaterializationSubDurations converts per-phase timing into the
 // Result.SubDurations map so the service layer emits sub_duration_<key>_seconds
 // log attributes. Keys follow the workload_materialization naming convention
-// for cross-domain log correlation.
-//
-// inputReady is false when no repository context was found in the fact load
-// (upstream data not ready — ordering stall). writtenRows is the count of
-// durable intent rows emitted, enabling operators to distinguish a stall
-// (inputReady=false, writtenRows=0) from genuine empty work after extraction
-// (inputReady=true, writtenRows=0).
-func codeCallMaterializationSubDurations(t codeCallMaterializationTiming, writtenRows int, inputReady bool) map[string]float64 {
-	ready := 0.0
-	if inputReady {
-		ready = 1.0
-	}
+// for cross-domain log correlation. The non-duration diagnostic signals
+// (input_ready, written_rows) are carried separately in Result.SubSignals so
+// the _seconds suffix stays honest.
+func codeCallMaterializationSubDurations(t codeCallMaterializationTiming) map[string]float64 {
 	return map[string]float64{
 		"load_facts":     t.loadDuration.Seconds(),
 		"build_context":  t.contextDuration.Seconds(),
@@ -274,8 +275,6 @@ func codeCallMaterializationSubDurations(t codeCallMaterializationTiming, writte
 		"build_intents":  t.intentBuildDuration.Seconds(),
 		"upsert_intents": t.upsertDuration.Seconds(),
 		"total":          t.totalDuration.Seconds(),
-		"written_rows":   float64(writtenRows),
-		"input_ready":    ready,
 	}
 }
 

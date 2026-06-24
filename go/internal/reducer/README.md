@@ -3112,71 +3112,107 @@ highest-pending materialization domains identified in issue #3624 (~26k total
 intents, ~3,255 pending per domain). No graph write shapes, worker counts,
 batch sizes, or conflict keys were changed.
 
+### Two emission channels: durations vs. signals
+
+Per-phase **wall-times** live in `Result.SubDurations` and are emitted by the
+service layer (`recordReducerResult` in `service.go`) as
+`sub_duration_<key>_seconds`. Non-duration **diagnostic signals** (counts and
+flags) live in a separate `Result.SubSignals` map and are emitted as
+`sub_signal_<key>` with **no** `_seconds` suffix. Splitting the channels keeps
+the suffix honest: `written_rows=42` renders as `sub_signal_written_rows=42`,
+never `sub_duration_written_rows_seconds=42` (which an operator could misread as
+42 seconds).
+
+The two signals are produced by a single shared helper,
+`materializationDiagnosticSignals(inputReady bool, writtenRows int)` in
+`materialization_diagnostics.go`, so every domain sets both keys with identical
+encoding and the contract cannot drift.
+
+- `input_ready` — **input presence**, not write count. `1.0` when the handler's
+  upstream input was present; `0.0` on an ordering stall (the handler ran before
+  its inputs existed). For the writer-based domains input presence means the
+  request carried entity keys (the writer runs unconditionally, so zero writes
+  is genuine empty work, NOT a stall). For the fact-loading domains it means a
+  non-empty projection context was built from the loaded facts.
+- `written_rows` — count of canonical writes (writer-based domains) or durable
+  intent rows (intent-emitting domains) produced this run.
+
 ### Domains Instrumented
 
-| Domain | Handler file | SubDurations keys added | input_ready signal |
-|--------|-------------|-------------------------|--------------------|
-| `deployment_mapping` | `platform_materialization.go` | `platform_write`, `load_facts`, `infra_extract`, `infra_graph_write`, `cross_repo_resolve`, `workload_replay`, `phase_publish`, `input_ready` | 0.0 when CanonicalWrites=0 (upstream ordering stall), 1.0 otherwise |
-| `workload_identity` | `workload_identity.go` | `graph_write`, `phase_publish`, `total`, `input_ready` | 0.0 when CanonicalWrites=0, 1.0 otherwise |
-| `inheritance_materialization` | `inheritance_materialization.go` | `load_facts`, `build_intents`, `upsert_intents`, `total`, `written_rows`, `input_ready` | 0.0 when no repo context found in facts (ordering stall), 1.0 when handler reached build phase |
-| `code_call_materialization` | `code_call_materialization.go` | `load_facts`, `build_context`, `load_symbols`, `extract_rows`, `build_intents`, `upsert_intents`, `total`, `written_rows`, `input_ready` | 0.0 when no repo context built from facts (ordering stall), 1.0 when upsert path reached |
+| Domain | Handler file | SubDurations (`sub_duration_*_seconds`) | input_ready (`sub_signal_input_ready`) |
+|--------|-------------|------------------------------------------|-----------------------------------------|
+| `deployment_mapping` | `platform_materialization.go` | `platform_write`, `load_facts`, `infra_extract`, `infra_graph_write`, `cross_repo_resolve`, `workload_replay`, `phase_publish`, `total` | 1.0 when request has entity keys; 0.0 only if absent (stall). Zero writes with input present = genuine empty work, not a stall. |
+| `workload_identity` | `workload_identity.go` | `graph_write`, `phase_publish`, `total` | 1.0 when request has entity keys; 0.0 if absent. Zero writes with input present = genuine empty work. |
+| `inheritance_materialization` | `inheritance_materialization.go` | `load_facts`, `build_intents`, `upsert_intents`, `total` | 1.0 when a projection context was built from facts; 0.0 when no repo context found (ordering stall). |
+| `code_call_materialization` | `code_call_materialization.go` | `load_facts`, `build_context`, `load_symbols`, `extract_rows`, `build_intents`, `upsert_intents`, `total` | 1.0 when a projection context was built; 0.0 when no context (ordering stall). |
+
+All four domains emit `sub_signal_input_ready` and `sub_signal_written_rows`.
+
+### Reachable diagnostic states
+
+- **deployment_mapping / workload_identity** (writer-based): all three states
+  reachable — work-happened (`input_ready=1, written_rows>0`), genuine-empty
+  (`input_ready=1, written_rows=0`), stall (`input_ready=0`).
+- **inheritance_materialization / code_call_materialization** (intent-emitting):
+  a present projection context always emits ≥1 whole-scope refresh intent per
+  repo, so genuine-empty (`input_ready=1, written_rows=0`) is **not reachable**
+  through `Handle`. Reachable states are work-happened (`input_ready=1,
+  written_rows>=1`) and stall (`input_ready=0, written_rows=0`). The handlers
+  still pass `materializationDiagnosticSignals(true, 0)` on the defensive
+  `len(intentRows)==0` branch so the signal stays correct if upstream behavior
+  ever changes.
 
 ### Deferred Domains (follow-up PR)
 
-The four remaining long-pole domains from issue #3624 are deferred to a
-follow-up PR to keep this change focused and reviewable:
+The remaining long-pole domains from issue #3624 are deferred to a follow-up PR
+to keep this change focused and reviewable:
 - `sql_relationship_materialization`
 - `shell_exec_materialization`
 - `deployable_unit_correlation`
-- `workload_materialization` (already has SubDurations; needs `input_ready` + `written_rows` backfill)
+- `workload_materialization` (already has SubDurations; needs `SubSignals`
+  input_ready + written_rows backfill)
 
 ### Operator Diagnostic Pattern
 
-To diagnose an ordering stall vs. genuine empty work at 3 AM, query the
-structured reducer log for a domain:
+To diagnose an ordering stall vs. genuine empty work at 3 AM, read the
+`reducer execution succeeded` log line for a domain:
 
 ```
-sub_duration_input_ready_seconds=0  → upstream data not ready (ordering stall)
-sub_duration_written_rows_seconds=0 + input_ready=1 → data ready, genuinely no rows after extraction
-sub_duration_load_facts_seconds=N   → fact load wall time (may indicate large fact set)
-sub_duration_graph_write_seconds=N  → graph write wall time (may indicate backend contention)
-sub_duration_phase_publish_seconds=N → phase-gate publication cost
+sub_signal_input_ready=0                       → upstream data not ready (ordering stall)
+sub_signal_input_ready=1 + sub_signal_written_rows=0 → input present, genuinely no rows (NOT a stall)
+sub_signal_input_ready=1 + sub_signal_written_rows=N → normal work, N rows produced
+sub_duration_load_facts_seconds=N              → fact load wall time (may indicate large fact set)
+sub_duration_graph_write_seconds=N             → graph write wall time (may indicate backend contention)
+sub_duration_phase_publish_seconds=N           → phase-gate publication cost
+sub_duration_total_seconds=N                   → end-to-end handler wall time
 ```
 
 All attributes appear on the `reducer execution succeeded` log line emitted by
 `recordReducerResult` in `service.go`, alongside `handler_duration_seconds` and
-`queue_wait_seconds`. Keys are named `sub_duration_<key>_seconds` uniformly.
+`queue_wait_seconds`. Duration keys are `sub_duration_<key>_seconds`; signal
+keys are `sub_signal_<key>` (no `_seconds`).
 
 ### Observability Evidence
 
-New keys added per domain (all emitted via `Result.SubDurations` → service layer
-`sub_duration_<key>_seconds` log attributes — no new Cypher, no graph writes
-changed):
+New attributes added per domain (all emitted via `Result.SubDurations` /
+`Result.SubSignals` → service layer log attributes — no new Cypher, no graph
+writes changed):
 
-- **deployment_mapping**: `sub_duration_platform_write_seconds`, `sub_duration_load_facts_seconds`,
-  `sub_duration_infra_extract_seconds`, `sub_duration_infra_graph_write_seconds`,
-  `sub_duration_cross_repo_resolve_seconds`, `sub_duration_workload_replay_seconds`,
-  `sub_duration_phase_publish_seconds`, `sub_duration_input_ready_seconds`
-- **workload_identity**: `sub_duration_graph_write_seconds`, `sub_duration_phase_publish_seconds`,
-  `sub_duration_total_seconds`, `sub_duration_input_ready_seconds`
-- **inheritance_materialization**: `sub_duration_load_facts_seconds`,
-  `sub_duration_build_intents_seconds`, `sub_duration_upsert_intents_seconds`,
-  `sub_duration_total_seconds`, `sub_duration_written_rows_seconds`,
-  `sub_duration_input_ready_seconds`
-- **code_call_materialization**: `sub_duration_load_facts_seconds`,
-  `sub_duration_build_context_seconds`, `sub_duration_load_symbols_seconds`,
-  `sub_duration_extract_rows_seconds`, `sub_duration_build_intents_seconds`,
-  `sub_duration_upsert_intents_seconds`, `sub_duration_total_seconds`,
-  `sub_duration_written_rows_seconds`, `sub_duration_input_ready_seconds`
+- **deployment_mapping**: durations `sub_duration_{platform_write,load_facts,infra_extract,infra_graph_write,cross_repo_resolve,workload_replay,phase_publish,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
+- **workload_identity**: durations `sub_duration_{graph_write,phase_publish,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
+- **inheritance_materialization**: durations `sub_duration_{load_facts,build_intents,upsert_intents,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
+- **code_call_materialization**: durations `sub_duration_{load_facts,build_context,load_symbols,extract_rows,build_intents,upsert_intents,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
 
 ### No-Regression Evidence
 
 Timing wrappers are `time.Now()` diffs around existing work — same pattern as
 `workload_materialization_subduration_bench_test.go` which measured ~190 ns/op /
-2 allocs/op for the map construction step. No Cypher, no graph writes, no worker
-counts, no batch sizes changed.
+2 allocs/op for the map construction step. The added `SubSignals` map is one
+allocation of two float64 entries per intent. No Cypher, no graph writes, no
+worker counts, no batch sizes changed.
 
-Full reducer test suite (`go test ./internal/reducer/... -count=1`): **2416 tests
-passed** (darwin/arm64, Go toolchain in worktree). Existing tests for all four
-domains remain green. 8 new TDD tests added in
-`materialization_subduration_test.go` (red before green confirmed).
+Full reducer test suite (`go test ./internal/reducer/... -count=1`) stays green.
+9 TDD tests in `materialization_subduration_test.go` cover, per domain,
+work-happened / genuine-empty (writer-based only) / stall, asserting
+`input_ready` and reading `written_rows` from `SubSignals` (not
+`result.CanonicalWrites`) so a missing-key defect fails red.

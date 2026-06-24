@@ -105,12 +105,16 @@ func (h InheritanceMaterializationHandler) Handle(
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
 	if len(repoIDs) == 0 || len(contextByRepoID) == 0 {
 		timing.totalDuration = time.Since(totalStarted)
+		// No projection context built from the loaded facts: the handler ran
+		// before its upstream repository/content facts existed — an ordering
+		// stall, signaled by input_ready=0.
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainInheritanceMaterialization,
 			Status:          ResultStatusSucceeded,
 			EvidenceSummary: "no repositories available for inheritance materialization",
-			SubDurations:    inheritanceMaterializationSubDurations(timing, 0, false),
+			SubDurations:    inheritanceMaterializationSubDurations(timing),
+			SubSignals:      materializationDiagnosticSignals(false, 0),
 		}, nil
 	}
 
@@ -154,32 +158,25 @@ func (h InheritanceMaterializationHandler) Handle(
 			len(repoIDs),
 		),
 		CanonicalWrites: len(intentRows),
-		SubDurations:    inheritanceMaterializationSubDurations(timing, len(intentRows), true),
+		SubDurations:    inheritanceMaterializationSubDurations(timing),
+		// Projection context was built (input present), so input_ready=1. The
+		// refresh-intent emission always yields >=1 row per repo with context,
+		// so written_rows tracks the durable intent count.
+		SubSignals: materializationDiagnosticSignals(true, len(intentRows)),
 	}, nil
 }
 
 // inheritanceMaterializationSubDurations converts per-phase timing into the
 // Result.SubDurations map so the service layer emits sub_duration_<key>_seconds
-// log attributes. Keys follow the workload_materialization convention.
-//
-// inputReady is false when no repository context was found in the fact load
-// (upstream data not ready — ordering stall), and true when the handler
-// reached the intent-build and upsert phases. writtenRows is the count of
-// durable intent rows emitted, enabling operators to distinguish a stall
-// (inputReady=false, writtenRows=0) from genuine empty work
-// (inputReady=true, writtenRows=0 after extraction).
-func inheritanceMaterializationSubDurations(t inheritanceMaterializationTiming, writtenRows int, inputReady bool) map[string]float64 {
-	ready := 0.0
-	if inputReady {
-		ready = 1.0
-	}
+// log attributes. Keys follow the workload_materialization convention. The
+// non-duration diagnostic signals (input_ready, written_rows) are carried
+// separately in Result.SubSignals so the _seconds suffix stays honest.
+func inheritanceMaterializationSubDurations(t inheritanceMaterializationTiming) map[string]float64 {
 	return map[string]float64{
 		"load_facts":     t.loadFactsDuration.Seconds(),
 		"build_intents":  t.buildIntentsDuration.Seconds(),
 		"upsert_intents": t.upsertDuration.Seconds(),
 		"total":          t.totalDuration.Seconds(),
-		"written_rows":   float64(writtenRows),
-		"input_ready":    ready,
 	}
 }
 

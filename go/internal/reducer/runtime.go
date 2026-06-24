@@ -25,6 +25,15 @@ type Result struct {
 	// non-nil map so the log line can distinguish "zero work" from
 	// "not instrumented".
 	SubDurations map[string]float64
+	// SubSignals holds optional non-duration diagnostic signals (counts and
+	// flags) that the service layer emits as sub_signal_<key> with NO _seconds
+	// suffix. It carries values that are not wall-times — currently
+	// "input_ready" (1.0 input present / 0.0 ordering stall) and "written_rows"
+	// (canonical or durable intent rows produced). Routing these through a
+	// separate field keeps the _seconds suffix honest for SubDurations so an
+	// operator never misreads a row count as a duration. Nil or empty means the
+	// handler did not populate signals; missing keys are omitted, not zeroed.
+	SubSignals map[string]float64
 }
 
 // RunReport summarizes one bounded reducer drain.
