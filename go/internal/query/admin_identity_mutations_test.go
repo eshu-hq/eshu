@@ -585,6 +585,11 @@ func TestAdminMutationAuditEventCarriesTenantID(t *testing.T) {
 				"tenant admin mutation events must carry TenantID so tenant-scoped audit reads return them",
 				ev.TenantID, "tenant_a")
 		}
+		if ev.WorkspaceID != "workspace_a" {
+			t.Fatalf("mutation audit event WorkspaceID = %q, want %q: "+
+				"tenant admin mutation events must carry WorkspaceID for full tenant-scoped event identity",
+				ev.WorkspaceID, "workspace_a")
+		}
 	}
 
 	// A bare shared-operator with no TenantID must produce a global/NULL event.
