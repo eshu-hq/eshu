@@ -30,12 +30,12 @@ func TestComputeServiceChangedSinceDeltaClassifiesVulnerabilitiesFamily(t *testi
 		// classification in classification order. The deployment, runtime,
 		// dependencies, docs, and incidents families have zero counts here, so they
 		// consume no sample reads.
-		{rows: [][]any{{"ownership:svc-a:team-a"}}},                                  // ownership unchanged
-		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-1:npm:left-pad"}}},               // vulnerabilities added
-		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-2:npm:right-pad"}}},              // vulnerabilities updated
-		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-3:pypi:requests"}}},              // vulnerabilities unchanged
-		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-4:go:golang.org/x/net"}}},        // vulnerabilities retired
-		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-5:maven:org.apache.logging"}}},   // vulnerabilities superseded
+		{rows: [][]any{{"ownership:svc-a:team-a"}}},                                // ownership unchanged
+		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-1:npm:left-pad"}}},             // vulnerabilities added
+		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-2:npm:right-pad"}}},            // vulnerabilities updated
+		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-3:pypi:requests"}}},            // vulnerabilities unchanged
+		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-4:go:golang.org/x/net"}}},      // vulnerabilities retired
+		{rows: [][]any{{"vulnerabilities:svc-a:GHSA-5:maven:org.apache.logging"}}}, // vulnerabilities superseded
 	}}
 	store := NewStatusStore(queryer)
 
