@@ -123,7 +123,9 @@ describe("loginLocal", () => {
 
   it("returns {status:'mfa_required'} when backend sends 202 body (resolves, not throws)", async () => {
     const client = makeClient({
-      postJson: vi.fn(async () => ({ status: "mfa_required" }))
+      // Cast to the generic postJson signature: this mock resolves the raw 202
+      // body, but EshuApiClient["postJson"] is generic <TData>.
+      postJson: vi.fn(async () => ({ status: "mfa_required" })) as unknown as EshuApiClient["postJson"]
     });
     const result = await loginLocal(client, { login: "u", password: "p" });
     expect(result).toEqual<LocalLoginResult>({ status: "mfa_required" });

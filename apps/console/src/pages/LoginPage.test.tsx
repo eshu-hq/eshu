@@ -145,7 +145,9 @@ describe("LoginPage", () => {
   it("shows MFA field after 202 mfa_required response (not a thrown error)", async () => {
     // Backend returns HTTP 202 with {status:"mfa_required"} — resolves, not throws.
     const client = makeClient({
-      postJson: vi.fn(async () => ({ status: "mfa_required" }))
+      // Cast to the generic postJson signature: this mock resolves the raw 202
+      // body, but EshuApiClient["postJson"] is generic <TData>.
+      postJson: vi.fn(async () => ({ status: "mfa_required" })) as unknown as EshuApiClient["postJson"]
     });
     renderLogin(client);
 
