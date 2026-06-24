@@ -384,6 +384,7 @@ func governanceAuditEventID(event governanceaudit.Event) string {
 		event.ServicePrincipalID, string(event.ScopeClass), event.ScopeIDHash,
 		string(event.Decision), event.ReasonCode, event.CorrelationID,
 		event.PolicyRevisionHash, event.OccurredAt.UTC().Format(time.RFC3339Nano),
+		event.TenantID, event.WorkspaceID,
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return "sha256:" + hex.EncodeToString(sum[:])
