@@ -966,3 +966,40 @@ Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
 per-statement latency/error spans and metrics are inherited without per-call
 wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths so an
 operator sees a server-side signal instead of a silent empty/"none" result.
+
+## Browser-session permission-catalog persistence (#3684)
+
+`browser_sessions` gains three additive columns —
+`permission_catalog_enforced` (bool), `allowed_permission_features` (jsonb), and
+`allowed_permission_data_classes` (jsonb) — so a cookie session carries the same
+permission-catalog grant snapshot a scoped token for the same roles would carry,
+and the server enforces both identically. Session issuance derives the snapshot
+through the shared `resolvePermissionGrantsForRoles` helper (the same
+`identity_role_grants` SELECT scoped-token resolution already uses), keyed by
+`(tenant_id, role_ids, as_of)`. Local login also resolves the user's active
+membership roles via `resolveLocalIdentityRolesQuery` before deriving grants.
+Only non-all-scope sessions are issued enforced; all-scope (admin) sessions keep
+`permission_catalog_enforced=false` and stay fail-open.
+
+No-Regression Evidence: the three columns are additive
+`ADD COLUMN IF NOT EXISTS ... DEFAULT` migrations on PostgreSQL 16; existing rows
+default to `enforced=false` / empty arrays, so prior sessions keep today's
+fail-open behavior with no backfill. The new reads are bounded: the per-login
+role and permission-grant SELECTs filter on indexed
+`(tenant_id, workspace_id, user_id)` / `(tenant_id, role_id)` with active,
+non-tombstoned, time-bounded predicates and a `LIMIT` (`maxOIDCGrantLimit`), and
+run once per login or once per bounded OIDC refresh pass — never on the
+ingestion/reducer hot path and never as a cross-subject scan. The grant SELECT is
+the exact query scoped-token resolution already runs, so it adds no new query
+shape or index to that path. The session resolve/switch SELECT projections and
+the create INSERT add three columns to existing single-row-by-primary-key
+statements, adding no predicate, join, or fan-out. Terminal row counts are
+unchanged: one session row per resolve/switch/insert, and at most
+`maxOIDCGrantLimit` grant rows per login.
+
+No-Observability-Change: the new columns and per-login grant resolution add no
+new metric, span, or log shape. The reads run on the existing
+`InstrumentedDB`-wrapped pool, so per-statement latency/error spans and metrics
+are inherited without per-call wiring; permission-denied outcomes continue to
+surface through the existing `permission_catalog` enforcement envelope at the
+query layer.
