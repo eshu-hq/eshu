@@ -309,16 +309,18 @@ func (a *postgresSessionRefreshStore) UpdateSessionAuthProof(
 	update oidclogin.SessionAuthProofUpdate,
 ) error {
 	return a.store.UpdateOIDCSessionAuthProof(ctx, pgstatus.OIDCSessionAuthProofUpdate{
-		SessionHash:             update.SessionHash,
-		ExternalAuthValidatedAt: update.ExternalAuthValidatedAt,
-		ExternalAuthStaleAfter:  update.ExternalAuthStaleAfter,
-		PolicyRevisionHash:      update.PolicyRevisionHash,
-		ExternalGroupHashes:     append([]string(nil), update.ExternalGroupHashes...),
-		RoleIDs:                 append([]string(nil), update.RoleIDs...),
-		AllScopes:               update.AllScopes,
-		AllowedScopeIDs:         append([]string(nil), update.AllowedScopeIDs...),
-		AllowedRepositoryIDs:    append([]string(nil), update.AllowedRepositoryIDs...),
-		UpdatedAt:               update.UpdatedAt,
+		SessionHash:                  update.SessionHash,
+		ExternalAuthValidatedAt:      update.ExternalAuthValidatedAt,
+		ExternalAuthStaleAfter:       update.ExternalAuthStaleAfter,
+		PolicyRevisionHash:           update.PolicyRevisionHash,
+		ExternalGroupHashes:          append([]string(nil), update.ExternalGroupHashes...),
+		RoleIDs:                      append([]string(nil), update.RoleIDs...),
+		AllScopes:                    update.AllScopes,
+		AllowedScopeIDs:              append([]string(nil), update.AllowedScopeIDs...),
+		AllowedRepositoryIDs:         append([]string(nil), update.AllowedRepositoryIDs...),
+		AllowedPermissionFeatures:    append([]string(nil), update.AllowedPermissionFeatures...),
+		AllowedPermissionDataClasses: append([]string(nil), update.AllowedPermissionDataClasses...),
+		UpdatedAt:                    update.UpdatedAt,
 	})
 }
 
@@ -344,10 +346,12 @@ func (r *postgresRoleGrantResolver) ResolveGroupGrants(
 			return oidclogin.GrantResolution{}, ok, err
 		}
 		return oidclogin.GrantResolution{
-			RoleIDs:              append([]string(nil), resolution.RoleIDs...),
-			PolicyRevisionHash:   resolution.PolicyRevisionHash,
-			AllowedScopeIDs:      append([]string(nil), resolution.AllowedScopeIDs...),
-			AllowedRepositoryIDs: append([]string(nil), resolution.AllowedRepositoryIDs...),
+			RoleIDs:                      append([]string(nil), resolution.RoleIDs...),
+			PolicyRevisionHash:           resolution.PolicyRevisionHash,
+			AllowedScopeIDs:              append([]string(nil), resolution.AllowedScopeIDs...),
+			AllowedRepositoryIDs:         append([]string(nil), resolution.AllowedRepositoryIDs...),
+			AllowedPermissionFeatures:    append([]string(nil), resolution.AllowedPermissionFeatures...),
+			AllowedPermissionDataClasses: append([]string(nil), resolution.AllowedPermissionDataClasses...),
 		}, true, nil
 	}
 	resolution, ok, err := r.store.ResolveActiveRoleGrants(ctx, pgstatus.OIDCRoleGrantQuery{

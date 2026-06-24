@@ -56,11 +56,17 @@ func (s *OIDCLoginStore) ResolveActiveRoleGrants(
 	if err != nil {
 		return OIDCGroupGrantResolution{}, false, err
 	}
+	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, query.TenantID, roles, query.AsOf)
+	if err != nil {
+		return OIDCGroupGrantResolution{}, false, err
+	}
 	return OIDCGroupGrantResolution{
-		RoleIDs:              roles,
-		PolicyRevisionHash:   policyRevisionHash,
-		AllowedScopeIDs:      scopes,
-		AllowedRepositoryIDs: repos,
+		RoleIDs:                      roles,
+		PolicyRevisionHash:           policyRevisionHash,
+		AllowedScopeIDs:              scopes,
+		AllowedRepositoryIDs:         repos,
+		AllowedPermissionFeatures:    features,
+		AllowedPermissionDataClasses: dataClasses,
 	}, true, nil
 }
 

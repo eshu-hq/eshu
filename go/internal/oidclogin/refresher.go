@@ -38,16 +38,18 @@ type StaleSession struct {
 // SessionAuthProofUpdate is the new hash-only authorization snapshot and bounded
 // proof window written back to one session when refresh re-confirms it.
 type SessionAuthProofUpdate struct {
-	SessionHash             string
-	ExternalAuthValidatedAt time.Time
-	ExternalAuthStaleAfter  time.Time
-	PolicyRevisionHash      string
-	ExternalGroupHashes     []string
-	RoleIDs                 []string
-	AllScopes               bool
-	AllowedScopeIDs         []string
-	AllowedRepositoryIDs    []string
-	UpdatedAt               time.Time
+	SessionHash                  string
+	ExternalAuthValidatedAt      time.Time
+	ExternalAuthStaleAfter       time.Time
+	PolicyRevisionHash           string
+	ExternalGroupHashes          []string
+	RoleIDs                      []string
+	AllScopes                    bool
+	AllowedScopeIDs              []string
+	AllowedRepositoryIDs         []string
+	AllowedPermissionFeatures    []string
+	AllowedPermissionDataClasses []string
+	UpdatedAt                    time.Time
 }
 
 // SessionRefreshStore is the bounded read/write surface the refresher needs over
@@ -263,16 +265,18 @@ func (r *Refresher) evaluate(
 	return refreshDecision{
 		action: refreshActionExtend,
 		update: SessionAuthProofUpdate{
-			SessionHash:             session.SessionHash,
-			ExternalAuthValidatedAt: now,
-			ExternalAuthStaleAfter:  now.Add(r.window),
-			PolicyRevisionHash:      policyRevisionHash,
-			ExternalGroupHashes:     groupHashes,
-			RoleIDs:                 sortedCopy(resolution.RoleIDs),
-			AllScopes:               resolution.AllScopes,
-			AllowedScopeIDs:         sortedCopy(resolution.AllowedScopeIDs),
-			AllowedRepositoryIDs:    sortedCopy(resolution.AllowedRepositoryIDs),
-			UpdatedAt:               now,
+			SessionHash:                  session.SessionHash,
+			ExternalAuthValidatedAt:      now,
+			ExternalAuthStaleAfter:       now.Add(r.window),
+			PolicyRevisionHash:           policyRevisionHash,
+			ExternalGroupHashes:          groupHashes,
+			RoleIDs:                      sortedCopy(resolution.RoleIDs),
+			AllScopes:                    resolution.AllScopes,
+			AllowedScopeIDs:              sortedCopy(resolution.AllowedScopeIDs),
+			AllowedRepositoryIDs:         sortedCopy(resolution.AllowedRepositoryIDs),
+			AllowedPermissionFeatures:    sortedCopy(resolution.AllowedPermissionFeatures),
+			AllowedPermissionDataClasses: sortedCopy(resolution.AllowedPermissionDataClasses),
+			UpdatedAt:                    now,
 		},
 	}, nil
 }

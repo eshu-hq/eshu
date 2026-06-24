@@ -180,10 +180,12 @@ func (a *postgresOIDCStoreAdapter) ResolveGroupGrants(
 		return oidclogin.GrantResolution{}, ok, err
 	}
 	return oidclogin.GrantResolution{
-		RoleIDs:              append([]string(nil), resolution.RoleIDs...),
-		PolicyRevisionHash:   resolution.PolicyRevisionHash,
-		AllowedScopeIDs:      append([]string(nil), resolution.AllowedScopeIDs...),
-		AllowedRepositoryIDs: append([]string(nil), resolution.AllowedRepositoryIDs...),
+		RoleIDs:                      append([]string(nil), resolution.RoleIDs...),
+		PolicyRevisionHash:           resolution.PolicyRevisionHash,
+		AllowedScopeIDs:              append([]string(nil), resolution.AllowedScopeIDs...),
+		AllowedRepositoryIDs:         append([]string(nil), resolution.AllowedRepositoryIDs...),
+		AllowedPermissionFeatures:    append([]string(nil), resolution.AllowedPermissionFeatures...),
+		AllowedPermissionDataClasses: append([]string(nil), resolution.AllowedPermissionDataClasses...),
 	}, true, nil
 }
 
