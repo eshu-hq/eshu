@@ -592,6 +592,44 @@ existing small/large lane classification, so no second tree walk is added.
   log. No new instrument or pipeline stage is introduced; `repo_size_tier` is an
   already-registered telemetry dimension.
 
+### Dedicated large-lane scheduler (issue #3839)
+
+The #3711 largest-first ordering guaranteed enqueue order but not start order:
+if the classifier fully drained smallCh before any worker ran, a small-preferring
+worker could grab all small repos first and delay giant start by the full
+small-repo bulk. Issue #3839 hardens this to a scheduling guarantee.
+
+The first `min(LargeRepoMaxConcurrent, workers)` workers (minus one reserved
+small-lane worker when the cap meets the worker count) run `runLargePreferring`:
+each reserves a semaphore slot and then block-selects the large lane, so a giant
+starts the instant it is enqueued regardless of how many smalls are buffered in
+smallCh. The remaining workers run `runSmallPreferring` (the original loop),
+ensuring small repos drain even when largeCh is empty or slow.
+
+- Performance Evidence: the #3839 dedicated-large-lane scheduler makes the
+  largest-first early-giant-start **guaranteed** rather than
+  scheduler-timing-dependent. The first `min(LargeRepoMaxConcurrent, workers)`
+  workers (minus one reserved small-lane worker when the cap meets the worker
+  count) run a large-preferring loop that reserves a semaphore slot then
+  block-prefers the large lane, so a giant starts the instant it is enqueued.
+  No new wall-time claim beyond #3711's measured full-corpus giant-repo parse
+  result (1012 s → 238 s); this change hardens the overlap. Proven
+  deterministically by `TestSchedulerRolePrefersGiantOverFrontLoadedSmallLane`
+  (giant-first vs small-first, scheduler-level, free of the startup race) and
+  the cap/leak/error/small-reserve invariant tests in
+  `git_source_scheduler_invariant_test.go`. Focused proof: `go test
+  ./internal/collector -run
+  'Test(SchedulerRolePrefersGiantOverFrontLoadedSmallLane|SchedulerSemaphoreCapNotExceeded|SchedulerNoSemaphoreLeakOnCtxCancel|SchedulerSemaphoreReleasedOnSnapshotError|SchedulerSmallWorkerReservedWhenCapEqualsWorkers)'
+  -count=1 -race`.
+- No-Observability-Change: no new metric or span is added. The existing
+  `eshu_dp_large_repo_semaphore_wait_seconds` histogram and
+  `eshu_dp_large_repo_classifications_total` counter (emitted via
+  `git_source_stream.go` and `git_source_scheduler.go`) let an operator see
+  giant start order and concurrency; the `large repo semaphore acquired` /
+  `large repo semaphore released` structured logs record per-giant wait and hold
+  duration. These existing signals cover the change surface without new
+  instruments.
+
 ### Size-aware parse-partition balancing (issue #3711)
 
 Within a single repository, parse work was partitioned by file *count*: a
@@ -823,6 +861,54 @@ stays silent — the #3700 P2 regression).
   freshness. Provider-scoped repository IDs select the right clone host; GitHub
   token and GitHub App auth remain GitHub-specific, while SSH is the
   provider-neutral private-repo path.
+
+### Dedicated large-lane scheduler (issue #3839)
+
+The `### Giant-repo collection scheduling (issue #3711)` section above noted that
+largest-first ordering guarantees enqueue order but not start order: when the
+classifier fills the small lane before any worker runs, a worker loop that prefers
+the small lane can drain all small repos before it sees the large lane, making the
+giant-repo overlap scheduler-timing-dependent.
+
+This change adds a dedicated large-lane scheduler in `git_source_scheduler.go`.
+`min(LargeRepoMaxConcurrent, workers)` workers are flagged as large-preferring and
+block on `largeCh` in the first select arm, so a giant repo starts the instant it
+is enqueued regardless of how many small repos are queued ahead.
+
+P2 fix (small-repo starvation when `ESHU_SNAPSHOT_WORKERS <= ESHU_LARGE_REPO_MAX_CONCURRENT`):
+when `largePreferring >= workers && workers > 1`, all workers become large-preferring
+and starve `smallCh` until `largeCh` closes. The fix in `git_source_stream.go` clamps
+`largePreferring` to `workers - 1` so at least one small-preferring worker remains.
+When `workers == 1` the lone worker takes the small-preferring path and still
+opportunistically drains large repos via its select fallback.
+
+- Performance Evidence: The #3839 dedicated-large-lane scheduler makes early giant
+  start deterministic: a large-preferring worker holds a semaphore slot and blocks
+  on `largeCh` before the discovery goroutine runs, so a giant repo starts the
+  instant it is classified regardless of small-repo queue depth or classifier
+  timing. The existing full-corpus measurement (895 repos, #3711 section above)
+  showed the giant-repo semaphore wait was ~90-100 s under best-effort scheduling;
+  with dedicated workers the wait is bounded to the time for the first giant to
+  finish parsing (semaphore capacity = `LargeRepoMaxConcurrent`, default 2), not
+  the entire small-repo bulk. No new full-corpus run was required: the correctness
+  and determinism proof is the test suite — `TestGiantRepoStartsBeforeSmallRepos`
+  (`git_source_giant_start_test.go`) proves a giant reaches `processRepo` before
+  any small repo under -race with 5 repeated runs; `TestSchedulerSmallWorkerReservedWhenCapEqualsWorkers`
+  proves the P2 fix: with workers=2 and semCap=2, the small repo completes without
+  waiting for `largeCh` to close. The no-regression suite
+  (`TestSchedulerWorkerExitsOnCancelNoLeak`, `TestSchedulerFirstErrorWins`) proves
+  no goroutine leaks and correct error propagation under -race.
+  Gate: `go test ./internal/collector/ -run
+  'TestGiantRepoStartsBeforeSmallRepos|TestSchedulerSmallWorkerReservedWhenCapEqualsWorkers|TestSchedulerWorkerExitsOnCancelNoLeak|TestSchedulerFirstErrorWins'
+  -count=5 -race -timeout 120s`.
+
+- Observability Evidence: The existing `eshu_dp_large_repo_semaphore_wait_seconds`
+  histogram (recorded in `git_source_scheduler.go` `processLargeRepo`) and
+  `eshu_dp_large_repo_classifications_total` counter (recorded in the discovery
+  goroutine in `git_source_stream.go`) let an operator observe giant start order
+  and peak concurrency. The semaphore wait histogram shows how long each giant
+  waited for a slot; the classification counter shows how many repos entered each
+  size tier. No new metric, span, status field, or label was added by this change.
 
 ## Related docs
 

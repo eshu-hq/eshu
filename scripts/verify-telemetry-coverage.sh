@@ -161,7 +161,7 @@ if [ -s "$all_rows_tmp" ]; then
     else
       signal=0
     fi
-    printf '%s %s\n' "$file_path" "$signal" >>"$doc_row_signals_tmp"
+    printf ' %s %s\n' "$file_path" "$signal" >>"$doc_row_signals_tmp"
   done <"$all_rows_tmp"
 fi
 
