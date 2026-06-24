@@ -231,7 +231,12 @@ detected from a dependency entity's metadata (`entity_type` `Variable` plus
 `persistedArtifactType` (`terraform_hcl`, `dockerfile`, `docker_compose`,
 `github_actions_workflow`, `helm_helper_tpl`, `go_template_yaml`, `jinja_yaml`,
 the `ansible_*` family, nginx/apache/generic config, and Jinja/text templates);
-`code` is the no-artifact-type, no-manifest-metadata default. `bootstrap_phase`
+`code` is the no-artifact-type, no-manifest-metadata default. Dependency
+*checksum* rows (go.sum, `config_kind` `dependency_checksum`) and the
+vcs/path/url/unsupported dependency variants route to `code`/`other` by design —
+mirroring the reducer, which admits consumption on `config_kind` `dependency`
+only — so a high-volume go.sum content_entity explosion surfaces under `code`,
+not `package_manifest`. `bootstrap_phase`
 is one of `collection`, `relationship_backfill`, `projection`,
 `iac_reachability`, `config_state_drift`, and is recorded even when a phase
 fails so the long pole is visible on the error path. The
