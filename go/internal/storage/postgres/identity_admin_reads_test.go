@@ -150,7 +150,7 @@ func TestAdminIdentityReadsNilDatabase(t *testing.T) {
 	if _, err := store.ListAdminRoleAssignments(nil, "tenant", "workspace", ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminRoleAssignments: expected error for nil database")
 	}
-	if _, err := store.ListAdminRoles(nil, "tenant"); err == nil { //nolint:staticcheck
+	if _, _, err := store.ListAdminRoles(nil, "tenant"); err == nil { //nolint:staticcheck
 		t.Error("ListAdminRoles: expected error for nil database")
 	}
 	if _, err := store.ListAdminIdPProviders(nil, "tenant"); err == nil { //nolint:staticcheck
@@ -226,7 +226,7 @@ func TestAdminIdentityReadsRejectBlankTenant(t *testing.T) {
 	if _, err := store.ListAdminRoleAssignments(nil, "", "workspace", ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminRoleAssignments: expected error for blank tenant")
 	}
-	if _, err := store.ListAdminRoles(nil, ""); err == nil { //nolint:staticcheck
+	if _, _, err := store.ListAdminRoles(nil, ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminRoles: expected error for blank tenant")
 	}
 	if _, err := store.ListAdminIdPProviders(nil, ""); err == nil { //nolint:staticcheck

@@ -255,29 +255,34 @@ LIMIT 500
 // joined with the grants that role confers. Roles and grants are read in two
 // bounded queries and stitched in memory so an admin sees what each role grants
 // without exposing hashed scope selectors.
+// ListAdminRoles returns the tenant's roles with their grants, plus a
+// grantsTruncated flag that is true when the bounded grants query hit its cap
+// (so some roles may show an incomplete grant set). The handler ORs this into
+// the response "truncated" signal.
 func (s *IdentitySubjectStore) ListAdminRoles(
 	ctx context.Context,
 	tenantID string,
-) ([]AdminRoleListItem, error) {
+) ([]AdminRoleListItem, bool, error) {
 	if s.db == nil {
-		return nil, errors.New("identity subject store database is required")
+		return nil, false, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
-		return nil, errors.New("tenant_id is required")
+		return nil, false, errors.New("tenant_id is required")
 	}
 	roles, order, err := s.scanAdminRoles(ctx, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if err := s.attachAdminRoleGrants(ctx, tenantID, roles); err != nil {
-		return nil, err
+	grantsTruncated, err := s.attachAdminRoleGrants(ctx, tenantID, roles)
+	if err != nil {
+		return nil, false, err
 	}
 	items := make([]AdminRoleListItem, 0, len(order))
 	for _, roleID := range order {
 		items = append(items, *roles[roleID])
 	}
-	return items, nil
+	return items, grantsTruncated, nil
 }
 
 // scanAdminRoles reads the tenant's roles and returns them keyed by role_id plus
@@ -311,18 +316,21 @@ func (s *IdentitySubjectStore) scanAdminRoles(
 
 // attachAdminRoleGrants reads the tenant's role grants and appends each grant to
 // the role it belongs to. Grants for unknown roles (none, given the foreign key)
-// are ignored.
+// are ignored. It returns true when the bounded grants query (LIMIT 500 in
+// listAdminRoleGrantsQuery) returned exactly its cap — meaning grants past the
+// cap were dropped tenant-wide and some roles may show an incomplete grant set.
 func (s *IdentitySubjectStore) attachAdminRoleGrants(
 	ctx context.Context,
 	tenantID string,
 	roles map[string]*AdminRoleListItem,
-) error {
+) (bool, error) {
 	rows, err := s.db.QueryContext(ctx, listAdminRoleGrantsQuery, tenantID)
 	if err != nil {
-		return fmt.Errorf("list admin role grants: %w", err)
+		return false, fmt.Errorf("list admin role grants: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
+	grantCount := 0
 	for rows.Next() {
 		var roleID string
 		var grant AdminRoleGrantListItem
@@ -335,14 +343,16 @@ func (s *IdentitySubjectStore) attachAdminRoleGrants(
 			&grant.ScopeClass,
 			&grant.Status,
 		); err != nil {
-			return fmt.Errorf("scan admin role grant item: %w", err)
+			return false, fmt.Errorf("scan admin role grant item: %w", err)
 		}
+		grantCount++
 		if role, ok := roles[roleID]; ok {
 			role.Grants = append(role.Grants, grant)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("list admin role grants: %w", err)
+		return false, fmt.Errorf("list admin role grants: %w", err)
 	}
-	return nil
+	// 500 == the LIMIT in listAdminRoleGrantsQuery.
+	return grantCount == 500, nil
 }

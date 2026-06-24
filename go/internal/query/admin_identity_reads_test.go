@@ -25,8 +25,9 @@ type fakeAdminIdentityReadStore struct {
 	roles          map[string][]AdminRoleListItem
 	providers      map[string][]AdminIdPProviderListItem
 	groupMappings  map[string][]AdminIdPGroupMappingListItem
-	apiTokens      map[string][]AdminAPITokenListItem
-	forceListError error
+	apiTokens       map[string][]AdminAPITokenListItem
+	forceListError  error
+	grantsTruncated bool
 }
 
 func (f *fakeAdminIdentityReadStore) ListAdminInvitations(_ context.Context, tenantID, workspaceID string) ([]AdminInvitationListItem, error) {
@@ -42,9 +43,12 @@ func (f *fakeAdminIdentityReadStore) ListAdminRoleAssignments(_ context.Context,
 	return f.assignments[tenantID], nil
 }
 
-func (f *fakeAdminIdentityReadStore) ListAdminRoles(_ context.Context, tenantID string) ([]AdminRoleListItem, error) {
+func (f *fakeAdminIdentityReadStore) ListAdminRoles(_ context.Context, tenantID string) ([]AdminRoleListItem, bool, error) {
 	f.gotTenantID = tenantID
-	return f.roles[tenantID], nil
+	if f.forceListError != nil {
+		return nil, false, f.forceListError
+	}
+	return f.roles[tenantID], f.grantsTruncated, nil
 }
 
 func (f *fakeAdminIdentityReadStore) ListAdminIdPProviders(_ context.Context, tenantID string) ([]AdminIdPProviderListItem, error) {
@@ -399,5 +403,72 @@ func adminReadPaths() []string {
 		"/api/v0/auth/admin/idp-providers",
 		"/api/v0/auth/admin/idp-group-mappings",
 		"/api/v0/auth/admin/api-tokens",
+	}
+}
+
+// TestAdminAuditEventsTruncatedReflectsEffectiveLimit verifies the audit
+// "truncated" flag reflects the EFFECTIVE limit applied (the caller's limit or
+// the default), not just the hard max — a page filled to the requested limit
+// must report truncated so a client never treats it as complete.
+func TestAdminAuditEventsTruncatedReflectsEffectiveLimit(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeAdminAuditReader{events: []governanceaudit.Event{
+		{Type: governanceaudit.EventTypeTokenLifecycle, Decision: governanceaudit.DecisionAllowed, OccurredAt: time.Date(2026, 6, 24, 1, 0, 0, 0, time.UTC)},
+		{Type: governanceaudit.EventTypeTokenLifecycle, Decision: governanceaudit.DecisionAllowed, OccurredAt: time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)},
+	}}
+	handler := &AdminIdentityReadHandler{Audit: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, "/api/v0/auth/admin/audit/events?limit=2", AuthContext{Mode: AuthModeShared, AllScopes: true}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if reader.gotQuery.Limit != 2 {
+		t.Fatalf("store limit = %d, want 2 (effective limit threaded)", reader.gotQuery.Limit)
+	}
+	var decoded struct {
+		Truncated bool `json:"truncated"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !decoded.Truncated {
+		t.Fatal("truncated = false, want true: a full page at the effective limit must report truncated")
+	}
+}
+
+// TestAdminRolesTruncatedWhenGrantsCapped verifies the roles response reports
+// truncated when the bounded grants read hit its cap, even if few roles are
+// returned — otherwise an admin sees an incomplete grant set presented as
+// complete.
+func TestAdminRolesTruncatedWhenGrantsCapped(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAdminIdentityReadStore{
+		roles: map[string][]AdminRoleListItem{
+			"tenant_a": {{RoleID: "developer", Status: "active", BuiltIn: true}},
+		},
+		grantsTruncated: true,
+	}
+	handler := &AdminIdentityReadHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, "/api/v0/auth/admin/roles", allScopeAdminAuth("tenant_a", "workspace_a")))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var decoded struct {
+		Truncated bool `json:"truncated"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !decoded.Truncated {
+		t.Fatal("truncated = false, want true: grants hit their cap so the grant set is incomplete")
 	}
 }

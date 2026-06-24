@@ -121,8 +121,10 @@ type AdminIdentityReadStore interface {
 	// ListAdminRoleAssignments returns membership-role assignments in the
 	// tenant/workspace, optionally filtered by userID (blank lists all).
 	ListAdminRoleAssignments(ctx context.Context, tenantID, workspaceID, userID string) ([]AdminRoleAssignmentListItem, error)
-	// ListAdminRoles returns the tenant's roles and the grants each confers.
-	ListAdminRoles(ctx context.Context, tenantID string) ([]AdminRoleListItem, error)
+	// ListAdminRoles returns the tenant's roles and the grants each confers,
+	// plus true when the bounded grants read hit its cap (some roles may show an
+	// incomplete grant set).
+	ListAdminRoles(ctx context.Context, tenantID string) ([]AdminRoleListItem, bool, error)
 	// ListAdminIdPProviders returns the tenant's configured identity providers.
 	ListAdminIdPProviders(ctx context.Context, tenantID string) ([]AdminIdPProviderListItem, error)
 	// ListAdminIdPGroupMappings returns the tenant/workspace group->role mappings.

@@ -110,10 +110,10 @@ func (a *postgresAdminIdentityReadAdapter) ListAdminRoleAssignments(
 func (a *postgresAdminIdentityReadAdapter) ListAdminRoles(
 	ctx context.Context,
 	tenantID string,
-) ([]query.AdminRoleListItem, error) {
-	items, err := a.store.ListAdminRoles(ctx, tenantID)
+) ([]query.AdminRoleListItem, bool, error) {
+	items, grantsTruncated, err := a.store.ListAdminRoles(ctx, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	out := make([]query.AdminRoleListItem, 0, len(items))
 	for _, item := range items {
@@ -135,7 +135,7 @@ func (a *postgresAdminIdentityReadAdapter) ListAdminRoles(
 			Grants:  grants,
 		})
 	}
-	return out, nil
+	return out, grantsTruncated, nil
 }
 
 func (a *postgresAdminIdentityReadAdapter) ListAdminIdPProviders(

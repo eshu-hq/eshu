@@ -16,6 +16,12 @@ import (
 // this keeps a hostile or buggy client from requesting an unbounded page.
 const maxAdminAuditEventLimit = 500
 
+// defaultAdminAuditEventLimit is the effective page size when the caller omits
+// limit. It mirrors defaultGovernanceAuditLimit in
+// internal/storage/postgres/governance_audit_store.go so the handler can report
+// truncation against the limit the store actually applies.
+const defaultAdminAuditEventLimit = 100
+
 // adminIdentityListLimit is the LIMIT applied by every tenant-scoped admin
 // identity read query (invitations, role assignments, roles, role grants,
 // IdP providers, IdP group mappings, API tokens). It must stay in sync with
@@ -176,7 +182,7 @@ func (h *AdminIdentityReadHandler) handleListRoles(w http.ResponseWriter, r *htt
 	if !ok {
 		return
 	}
-	items, err := h.Store.ListAdminRoles(r.Context(), tenantID)
+	items, grantsTruncated, err := h.Store.ListAdminRoles(r.Context(), tenantID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list roles failed", "err", err)
 		WriteError(w, http.StatusInternalServerError, "failed to list roles")
@@ -203,8 +209,10 @@ func (h *AdminIdentityReadHandler) handleListRoles(w http.ResponseWriter, r *htt
 		})
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"roles":     out,
-		"truncated": len(items) == adminIdentityListLimit,
+		"roles": out,
+		// truncated when either the roles page hit its cap OR the grants read hit
+		// its cap (in which case some roles show an incomplete grant set).
+		"truncated": len(items) == adminIdentityListLimit || grantsTruncated,
 	})
 }
 
@@ -350,8 +358,11 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 		out = append(out, adminAuditEventJSON(event))
 	}
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"events":    out,
-		"truncated": len(events) == maxAdminAuditEventLimit,
+		"events": out,
+		// truncated reflects the EFFECTIVE limit applied (caller's limit, the
+		// default, or the cap) — not just the hard max — so a full page is never
+		// reported as complete.
+		"truncated": len(events) == limit,
 	})
 }
 
@@ -450,7 +461,9 @@ func parseAdminAuditTime(raw string) time.Time {
 func parseAdminAuditLimit(raw string) (int, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return 0, nil
+		// Resolve the effective default the store applies so the handler can
+		// report truncation honestly against the real page size.
+		return defaultAdminAuditEventLimit, nil
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil {
