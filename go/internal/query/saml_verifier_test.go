@@ -105,10 +105,14 @@ func TestVerifySAMLResponsePopulatesPostFormSoCrewjamReadsResponse(t *testing.T)
 	}
 
 	var ire *saml.InvalidResponseError
-	if errors.As(err, &ire) && ire.PrivateErr != nil {
-		if strings.Contains(ire.PrivateErr.Error(), "no root") {
-			t.Fatalf("VerifySAMLResponse() returned crewjam decode error %q; PostForm was not populated before ParseResponse", ire.PrivateErr.Error())
-		}
+	if !errors.As(err, &ire) {
+		t.Fatalf("want *saml.InvalidResponseError, got %T: %v", err, err)
+	}
+	if ire.PrivateErr == nil {
+		t.Fatalf("want non-nil PrivateErr describing signature/validation failure")
+	}
+	if strings.Contains(ire.PrivateErr.Error(), "no root") {
+		t.Fatalf("PostForm not populated before ParseResponse: %v", ire.PrivateErr)
 	}
 }
 
