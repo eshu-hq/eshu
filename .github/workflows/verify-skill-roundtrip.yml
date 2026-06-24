@@ -1,0 +1,41 @@
+name: Verify Skill Roundtrip
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify skillgen roundtrip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Verify skillgen roundtrip test mirror
+        run: scripts/test-verify-skill-roundtrip.sh
+
+      - name: Verify skillgen roundtrip gate
+        run: scripts/verify-skill-roundtrip.sh 2>&1 | tee /tmp/skill-roundtrip.log
+
+      - name: Upload drift report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-roundtrip-drift-report
+          path: /tmp/skill-roundtrip.log
+          if-no-files-found: warn
