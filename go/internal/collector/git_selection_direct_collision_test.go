@@ -184,3 +184,94 @@ func TestNativeRepositorySelectorFilesystemDirect_ShardedCollisionSingleEmit(t *
 			"(one per colliding basename, fired once from shard 0)", aggregateWarnings)
 	}
 }
+
+// TestNativeRepositorySelectorFilesystemDirect_CollisionFiresWhenShardZeroEmpty
+// is the regression test for issue #3700 P2 (Codex review on PR #3706).
+//
+// The single-emit gate pins the basename-collision report to the index-0 shard.
+// If that emission also required the index-0 shard to OWN a changed repo (the old
+// len(repoPaths) > 0 gate), the diagnostic would be silenced whenever every
+// colliding repo hashes to a NON-zero shard: shard 0 has an empty subset and
+// skips, while the shard that holds the collision is barred from emitting.
+//
+// Corpus: both "worker" and "repos/worker" hash to shard 1 with count=2 (verified
+// via repositoryShardForID), so shard 0 owns nothing and shard 1 owns the whole
+// collision. The diagnostic must still fire exactly once — from shard 0 — because
+// the emit gate keys on the full-corpus changed signal (corpusChanged), not on
+// the index-0 shard's own materialized paths. The re-poll must stay silent.
+func TestNativeRepositorySelectorFilesystemDirect_CollisionFiresWhenShardZeroEmpty(t *testing.T) {
+	t.Parallel()
+
+	const shardCount = 2
+	// Assert the whole colliding pair hashes to a single non-zero shard so the
+	// test exercises the empty-shard-0 path; otherwise it proves nothing.
+	flatShard := repositoryShardForID("worker", shardCount)
+	nestedShard := repositoryShardForID("repos/worker", shardCount)
+	if flatShard == 0 || nestedShard == 0 || flatShard != nestedShard {
+		t.Fatalf("test corpus requires 'worker' and 'repos/worker' to both hash to the "+
+			"same NON-zero shard with count=%d; got worker→%d repos/worker→%d — "+
+			"choose a different corpus", shardCount, flatShard, nestedShard)
+	}
+
+	filesystemRoot := t.TempDir()
+	makeCollidingRepo(t, filesystemRoot, "worker")
+	makeCollidingRepo(t, filesystemRoot, "repos/worker") // basename worker → collision
+
+	const warning = "repository basename collision detected (possible accidental corpus nesting)"
+
+	// reposDir is per-shard and shared across that shard's polls so the manifest
+	// persists between calls, exactly as under steady-state Service.Run.
+	reposDirByShard := []string{t.TempDir(), t.TempDir()}
+
+	runShard := func(idx int) (int64, int, int) {
+		var logBuf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		inst, reader := newCollisionTestInstruments(t)
+		selector := NativeRepositorySelector{
+			Config: RepoSyncConfig{
+				ReposDir:         reposDirByShard[idx],
+				SourceMode:       "filesystem",
+				FilesystemRoot:   filesystemRoot,
+				FilesystemDirect: true,
+				RepoLimit:        4000,
+				GitAuthMethod:    "none",
+				RepoShardCount:   shardCount,
+				RepoShardIndex:   idx,
+			},
+			Logger:      logger,
+			Instruments: inst,
+		}
+		batch, err := selector.SelectRepositories(context.Background())
+		if err != nil {
+			t.Fatalf("shard %d: SelectRepositories: %v", idx, err)
+		}
+		return collectBasenameCollisionTotal(t, reader), strings.Count(logBuf.String(), warning), len(batch.Repositories)
+	}
+
+	// First poll across both shards.
+	c0, w0, indexed0 := runShard(0)
+	c1, w1, indexed1 := runShard(1)
+
+	if indexed0 != 0 {
+		t.Fatalf("precondition: shard 0 indexed %d repos, want 0 (corpus hashes to shard 1)", indexed0)
+	}
+	if indexed1 != 2 {
+		t.Fatalf("precondition: shard 1 indexed %d repos, want 2 (owns the collision)", indexed1)
+	}
+	// Shard 0 owns nothing but must still fire the global collision once.
+	if c0 != 1 || w0 != 1 {
+		t.Errorf("shard 0 (empty subset): counter=%d warnings=%d, want 1,1 "+
+			"(must fire on full-corpus changed signal, not its own paths)", c0, w0)
+	}
+	// Shard 1 owns the collision but must stay silent (single-emit on shard 0).
+	if c1 != 0 || w1 != 0 {
+		t.Errorf("shard 1 (owns collision): counter=%d warnings=%d, want 0,0 (single-emit on shard 0)", c1, w1)
+	}
+
+	// Unchanged re-poll on shard 0: manifest matches → corpusChanged false → silent.
+	// runShard uses a fresh reader/logger per call, so a silent poll reports 0,0.
+	c0b, w0b, _ := runShard(0)
+	if c0b != 0 || w0b != 0 {
+		t.Errorf("shard 0 re-poll: counter=%d warnings=%d, want 0,0 (no re-fire on unchanged corpus)", c0b, w0b)
+	}
+}

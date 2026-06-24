@@ -13,70 +13,83 @@ import (
 	"strings"
 )
 
+// syncFilesystemRepositories materializes the selected filesystem repositories
+// for one collector cycle and reports whether the on-disk corpus changed.
+//
+// The returned bool is the full-corpus changed signal: it is true whenever the
+// FilesystemRoot fingerprint differs from the stored manifest (a new or mutated
+// corpus) and false on an unchanged re-poll. The signal is a property of the
+// whole FilesystemRoot, NOT of the per-shard repositoryIDs subset — fingerprint
+// is computed over the entire root, so every shard observes the same value. This
+// lets the basename-collision diagnostic fire on the designated emitter shard
+// even when that shard owns none of the changed repositoryIDs (issue #3700 P2).
+//
+// selectedPaths is the per-shard set of materialized repo paths and may be empty
+// for a shard that owns no repositoryIDs even when changed is true.
 func syncFilesystemRepositories(
 	ctx context.Context,
 	config RepoSyncConfig,
 	repositoryIDs []string,
-) ([]string, error) {
+) (selectedPaths []string, changed bool, err error) {
 	if strings.TrimSpace(config.FilesystemRoot) == "" {
-		return nil, fmt.Errorf("filesystem source mode requires ESHU_FILESYSTEM_ROOT")
+		return nil, false, fmt.Errorf("filesystem source mode requires ESHU_FILESYSTEM_ROOT")
 	}
 	currentManifest, err := fingerprintTree(config.FilesystemRoot)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	manifestPath := filepath.Join(config.ReposDir, ".eshu-fixture-manifest")
 	previousManifest, err := os.ReadFile(manifestPath)
 	if err == nil && strings.TrimSpace(string(previousManifest)) == currentManifest {
-		return nil, nil
+		return nil, false, nil
 	}
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("read filesystem manifest: %w", err)
+		return nil, false, fmt.Errorf("read filesystem manifest: %w", err)
 	}
 
 	if err := os.MkdirAll(config.ReposDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
+		return nil, false, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
 	if config.FilesystemDirect {
 		selectedPaths := make([]string, 0, len(repositoryIDs))
 		for _, repoID := range repositoryIDs {
 			if err := ctx.Err(); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			sourcePath, _, err := filesystemRepoPaths(config, repoID)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			selectedPaths = append(selectedPaths, sourcePath)
 		}
 		if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o644); err != nil {
-			return nil, fmt.Errorf("write filesystem manifest: %w", err)
+			return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
 		}
-		return selectedPaths, nil
+		return selectedPaths, true, nil
 	}
 	if err := cleanManagedWorkspace(config.ReposDir); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	selectedPaths := make([]string, 0, len(repositoryIDs))
+	selectedPaths = make([]string, 0, len(repositoryIDs))
 	for _, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		sourcePath, targetPath, err := filesystemRepoPaths(config, repoID)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if err := copyRepositoryTree(sourcePath, targetPath); err != nil {
-			return nil, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
+			return nil, false, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
 		}
 		selectedPaths = append(selectedPaths, targetPath)
 	}
 
 	if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o644); err != nil {
-		return nil, fmt.Errorf("write filesystem manifest: %w", err)
+		return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
 	}
-	return selectedPaths, nil
+	return selectedPaths, true, nil
 }
 
 func filesystemRepoPaths(
