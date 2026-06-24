@@ -15,9 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// newDupTestInstruments returns an Instruments backed by an in-memory SDK reader
-// so tests can assert counter values without a real OTEL backend.
-func newDupTestInstruments(t *testing.T) (*telemetry.Instruments, *sdkmetric.ManualReader) {
+// newCollisionTestInstruments returns an Instruments backed by an in-memory SDK
+// reader so tests can assert counter values without a real OTEL backend.
+func newCollisionTestInstruments(t *testing.T) (*telemetry.Instruments, *sdkmetric.ManualReader) {
 	t.Helper()
 	reader := sdkmetric.NewManualReader()
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -29,9 +29,9 @@ func newDupTestInstruments(t *testing.T) (*telemetry.Instruments, *sdkmetric.Man
 	return inst, reader
 }
 
-// collectDupRepoTotal returns the current value of
-// eshu_dp_duplicate_repository_identity_total from the reader.
-func collectDupRepoTotal(t *testing.T, reader *sdkmetric.ManualReader) int64 {
+// collectBasenameCollisionTotal returns the current value of
+// eshu_dp_repository_basename_collision_total from the reader.
+func collectBasenameCollisionTotal(t *testing.T, reader *sdkmetric.ManualReader) int64 {
 	t.Helper()
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {
@@ -39,7 +39,7 @@ func collectDupRepoTotal(t *testing.T, reader *sdkmetric.ManualReader) int64 {
 	}
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
-			if m.Name != "eshu_dp_duplicate_repository_identity_total" {
+			if m.Name != "eshu_dp_repository_basename_collision_total" {
 				continue
 			}
 			data, ok := m.Data.(metricdata.Sum[int64])
@@ -56,17 +56,17 @@ func collectDupRepoTotal(t *testing.T, reader *sdkmetric.ManualReader) int64 {
 	return 0
 }
 
-// TestReportDuplicateRepoIdentities_DuplicatesFire verifies that when the same
-// basename appears at multiple distinct paths, the warning log is emitted and
-// the counter advances.
-func TestReportDuplicateRepoIdentities_DuplicatesFire(t *testing.T) {
+// TestReportRepositoryBasenameCollisions_CollisionsFire verifies that when the
+// same basename appears at multiple distinct paths, the warning log is emitted
+// and the counter advances.
+func TestReportRepositoryBasenameCollisions_CollisionsFire(t *testing.T) {
 	t.Parallel()
 
 	// Build a rooted corpus that mimics repos/repos nesting:
 	//   root/
 	//     repos/service-a/   (.git)
 	//     repos/service-b/   (.git)
-	//     repos/repos/service-a/  (.git)  ← same basename = duplicate
+	//     repos/repos/service-a/  (.git)  ← same basename = collision
 	root := t.TempDir()
 	repoIDs := []string{
 		"repos/service-a",
@@ -82,29 +82,32 @@ func TestReportDuplicateRepoIdentities_DuplicatesFire(t *testing.T) {
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	inst, reader := newDupTestInstruments(t)
+	inst, reader := newCollisionTestInstruments(t)
 
-	reportDuplicateRepoIdentities(context.Background(), repoIDs, logger, inst)
+	reportRepositoryBasenameCollisions(context.Background(), repoIDs, logger, inst)
 
-	// Counter must be > 0 (at least the duplicate count incremented).
-	if got := collectDupRepoTotal(t, reader); got == 0 {
-		t.Errorf("eshu_dp_duplicate_repository_identity_total = 0, want > 0 for duplicate corpus")
+	// Counter must be > 0 (at least the surplus collision incremented).
+	if got := collectBasenameCollisionTotal(t, reader); got == 0 {
+		t.Errorf("eshu_dp_repository_basename_collision_total = 0, want > 0 for colliding corpus")
 	}
 
-	// Structured warning must mention the duplicated basename.
+	// Structured warning must mention the colliding basename and the new fields.
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "duplicate repository identity detected") {
-		t.Errorf("expected duplicate warning log, got:\n%s", logOutput)
+	if !strings.Contains(logOutput, "repository basename collision detected (possible accidental corpus nesting)") {
+		t.Errorf("expected basename collision warning log, got:\n%s", logOutput)
 	}
 	if !strings.Contains(logOutput, "service-a") {
 		t.Errorf("expected log to mention 'service-a', got:\n%s", logOutput)
 	}
+	if !strings.Contains(logOutput, "surplus_count") {
+		t.Errorf("expected log to carry surplus_count field, got:\n%s", logOutput)
+	}
 }
 
-// TestReportDuplicateRepoIdentities_NoDuplicatesSilent verifies that when all
-// discovered repo IDs have distinct basenames, no warning is emitted and the
+// TestReportRepositoryBasenameCollisions_NoCollisionsSilent verifies that when
+// all discovered repo IDs have distinct basenames, no warning is emitted and the
 // counter stays at zero.
-func TestReportDuplicateRepoIdentities_NoDuplicatesSilent(t *testing.T) {
+func TestReportRepositoryBasenameCollisions_NoCollisionsSilent(t *testing.T) {
 	t.Parallel()
 
 	repoIDs := []string{
@@ -115,22 +118,22 @@ func TestReportDuplicateRepoIdentities_NoDuplicatesSilent(t *testing.T) {
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	inst, reader := newDupTestInstruments(t)
+	inst, reader := newCollisionTestInstruments(t)
 
-	reportDuplicateRepoIdentities(context.Background(), repoIDs, logger, inst)
+	reportRepositoryBasenameCollisions(context.Background(), repoIDs, logger, inst)
 
-	if got := collectDupRepoTotal(t, reader); got != 0 {
-		t.Errorf("eshu_dp_duplicate_repository_identity_total = %d, want 0 for unique corpus", got)
+	if got := collectBasenameCollisionTotal(t, reader); got != 0 {
+		t.Errorf("eshu_dp_repository_basename_collision_total = %d, want 0 for unique corpus", got)
 	}
 	logOutput := logBuf.String()
-	if strings.Contains(logOutput, "duplicate repository identity") {
-		t.Errorf("unexpected duplicate warning in logs:\n%s", logOutput)
+	if strings.Contains(logOutput, "repository basename collision") {
+		t.Errorf("unexpected basename collision warning in logs:\n%s", logOutput)
 	}
 }
 
-// TestReportDuplicateRepoIdentities_NilSafe verifies that nil logger and nil
-// instruments do not panic.
-func TestReportDuplicateRepoIdentities_NilSafe(t *testing.T) {
+// TestReportRepositoryBasenameCollisions_NilSafe verifies that nil logger and
+// nil instruments do not panic.
+func TestReportRepositoryBasenameCollisions_NilSafe(t *testing.T) {
 	t.Parallel()
 
 	repoIDs := []string{
@@ -138,35 +141,35 @@ func TestReportDuplicateRepoIdentities_NilSafe(t *testing.T) {
 		"nested/org/service-a",
 	}
 	// Must not panic with nil logger + nil instruments.
-	reportDuplicateRepoIdentities(context.Background(), repoIDs, nil, nil)
+	reportRepositoryBasenameCollisions(context.Background(), repoIDs, nil, nil)
 }
 
-// TestReportDuplicateRepoIdentities_EmptySilent verifies that an empty slice
-// produces no warning and no counter increment.
-func TestReportDuplicateRepoIdentities_EmptySilent(t *testing.T) {
+// TestReportRepositoryBasenameCollisions_EmptySilent verifies that an empty
+// slice produces no warning and no counter increment.
+func TestReportRepositoryBasenameCollisions_EmptySilent(t *testing.T) {
 	t.Parallel()
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	inst, reader := newDupTestInstruments(t)
+	inst, reader := newCollisionTestInstruments(t)
 
-	reportDuplicateRepoIdentities(context.Background(), nil, logger, inst)
+	reportRepositoryBasenameCollisions(context.Background(), nil, logger, inst)
 
-	if got := collectDupRepoTotal(t, reader); got != 0 {
-		t.Errorf("eshu_dp_duplicate_repository_identity_total = %d, want 0 for empty input", got)
+	if got := collectBasenameCollisionTotal(t, reader); got != 0 {
+		t.Errorf("eshu_dp_repository_basename_collision_total = %d, want 0 for empty input", got)
 	}
 	if logBuf.Len() > 0 {
 		t.Errorf("unexpected log output for empty input:\n%s", logBuf.String())
 	}
 }
 
-// TestReportDuplicateRepoIdentities_CounterMatchesDuplicateCount verifies
-// that the counter value equals the number of duplicate-identity repos
-// (i.e. repos at paths where the same basename was already seen).
-func TestReportDuplicateRepoIdentities_CounterMatchesDuplicateCount(t *testing.T) {
+// TestReportRepositoryBasenameCollisions_CounterMatchesSurplusCount verifies
+// that the counter value equals the number of surplus (non-first) paths sharing
+// a basename — and that the logged surplus_count reconciles with that delta.
+func TestReportRepositoryBasenameCollisions_CounterMatchesSurplusCount(t *testing.T) {
 	t.Parallel()
 
-	// Three repos with the same basename → 2 are duplicates of the first.
+	// Three repos with the same basename → 2 are surplus collisions of the first.
 	repoIDs := []string{
 		"layer1/svc",
 		"layer2/svc",
@@ -175,30 +178,36 @@ func TestReportDuplicateRepoIdentities_CounterMatchesDuplicateCount(t *testing.T
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	inst, reader := newDupTestInstruments(t)
+	inst, reader := newCollisionTestInstruments(t)
 
-	reportDuplicateRepoIdentities(context.Background(), repoIDs, logger, inst)
+	reportRepositoryBasenameCollisions(context.Background(), repoIDs, logger, inst)
 
-	// 2 duplicate paths (the second and third "svc") should increment the counter by 2.
-	if got := collectDupRepoTotal(t, reader); got != 2 {
-		t.Errorf("eshu_dp_duplicate_repository_identity_total = %d, want 2", got)
+	// 2 surplus paths (the second and third "svc") increment the counter by 2.
+	if got := collectBasenameCollisionTotal(t, reader); got != 2 {
+		t.Errorf("eshu_dp_repository_basename_collision_total = %d, want 2", got)
+	}
+	// The log surplus_count must reconcile with the metric delta (2).
+	if !strings.Contains(logBuf.String(), "surplus_count=2") {
+		t.Errorf("expected surplus_count=2 in log to reconcile with metric, got:\n%s", logBuf.String())
 	}
 }
 
-// TestNativeRepositorySelectorFilesystem_DuplicateRepoWarning is an integration
-// test that builds a real filesystem corpus with a nested repos/repos/ duplication,
-// runs SelectRepositories, and confirms the duplicate warning log fires.
-func TestNativeRepositorySelectorFilesystem_DuplicateRepoWarning(t *testing.T) {
+// TestNativeRepositorySelectorFilesystem_BasenameCollisionWarning is an
+// integration test that builds a real filesystem corpus where two distinct
+// paths share a basename (service-a and repos/service-a — exactly the
+// accidental-nesting heuristic case), runs SelectRepositories, and confirms the
+// collision warning log fires.
+func TestNativeRepositorySelectorFilesystem_BasenameCollisionWarning(t *testing.T) {
 	t.Parallel()
 
 	filesystemRoot := t.TempDir()
 	reposDir := t.TempDir()
 
-	// Create two real repos and one duplicate at nested depth.
+	// Create two real repos and one that collides on basename at nested depth.
 	for _, rel := range []string{
 		"service-a",
 		"service-b",
-		"repos/service-a", // same basename as service-a → duplicate
+		"repos/service-a", // same basename as service-a → collision
 	} {
 		dir := filepath.Join(filesystemRoot, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
@@ -211,7 +220,7 @@ func TestNativeRepositorySelectorFilesystem_DuplicateRepoWarning(t *testing.T) {
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	inst, reader := newDupTestInstruments(t)
+	inst, reader := newCollisionTestInstruments(t)
 
 	selector := NativeRepositorySelector{
 		Config: RepoSyncConfig{
@@ -229,10 +238,10 @@ func TestNativeRepositorySelectorFilesystem_DuplicateRepoWarning(t *testing.T) {
 		t.Fatalf("SelectRepositories: %v", err)
 	}
 
-	if got := collectDupRepoTotal(t, reader); got == 0 {
-		t.Error("eshu_dp_duplicate_repository_identity_total = 0, want > 0")
+	if got := collectBasenameCollisionTotal(t, reader); got == 0 {
+		t.Error("eshu_dp_repository_basename_collision_total = 0, want > 0")
 	}
-	if !strings.Contains(logBuf.String(), "duplicate repository identity detected") {
-		t.Errorf("expected duplicate warning log, got:\n%s", logBuf.String())
+	if !strings.Contains(logBuf.String(), "repository basename collision detected (possible accidental corpus nesting)") {
+		t.Errorf("expected basename collision warning log, got:\n%s", logBuf.String())
 	}
 }

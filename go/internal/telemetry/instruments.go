@@ -798,23 +798,25 @@ type Instruments struct {
 	// Discovery skip counters — per-name breakdown of what discovery prunes
 	DiscoveryDirsSkipped  metric.Int64Counter
 	DiscoveryFilesSkipped metric.Int64Counter
-	// DuplicateRepositoryIdentity counts discovered repository paths whose
-	// basename identity (the last path segment, used as a stable proxy for the
-	// git origin remote URL which is not read during enumeration) matches at
-	// least one other discovered path in the same collector cycle. Each
-	// duplicate path increments the counter by one, so the total equals the
-	// number of non-first occurrences of a given identity across all discovered
-	// roots.
+	// RepositoryBasenameCollision counts discovered repository paths whose
+	// basename (the last path segment) matches at least one other discovered
+	// path in the same collector cycle. Each colliding path beyond the first
+	// increments the counter by one, so the total equals the number of surplus
+	// (non-first) occurrences of a given basename across all discovered roots.
 	//
-	// A non-zero value is the 3 AM signal that the on-disk corpus has
-	// accidental nesting or duplication (e.g. repos/repos/… recursive copies).
-	// Labels are intentionally absent: paths and identity strings are
+	// Basename is a cheap, label-free signal for LIKELY accidental corpus
+	// nesting (e.g. repos/repos/… recursive copies — issue #3677); it is NOT a
+	// true repository identity. Distinct repositories can share a basename
+	// (org-a/utils and org-b/utils, or monorepo common/ directories), so a
+	// non-zero value warrants inspecting the logged paths before concluding
+	// duplication. Labels are intentionally absent: paths and basenames are
 	// unbounded and must never appear as metric labels. Use the accompanying
-	// structured warning log (key "duplicate repository identity detected") to
-	// see the affected identity, duplicate count, and a bounded sample of paths.
+	// structured warning log (key "repository basename collision detected
+	// (possible accidental corpus nesting)") to see the colliding basename, the
+	// surplus count, and a bounded sample of paths.
 	//
-	// Owned by collector.reportDuplicateRepoIdentities (issue #3677).
-	DuplicateRepositoryIdentity metric.Int64Counter
+	// Owned by collector.reportRepositoryBasenameCollisions (issue #3677).
+	RepositoryBasenameCollision metric.Int64Counter
 
 	// Size-tiered scheduling metrics
 	LargeRepoClassifications metric.Int64Counter
@@ -3153,12 +3155,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register DiscoveryFilesSkipped counter: %w", err)
 	}
 
-	inst.DuplicateRepositoryIdentity, err = meter.Int64Counter(
-		"eshu_dp_duplicate_repository_identity_total",
-		metric.WithDescription("Number of discovered repository paths whose basename identity matches another discovered path in the same collector cycle; non-zero means the on-disk corpus has accidental nesting or duplication"),
+	inst.RepositoryBasenameCollision, err = meter.Int64Counter(
+		"eshu_dp_repository_basename_collision_total",
+		metric.WithDescription("Number of discovered repository paths whose basename collides with another discovered path in the same collector cycle; a heuristic — non-zero is a likely signal of accidental corpus nesting, not proof of duplication"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register DuplicateRepositoryIdentity counter: %w", err)
+		return nil, fmt.Errorf("register RepositoryBasenameCollision counter: %w", err)
 	}
 
 	inst.LargeRepoClassifications, err = meter.Int64Counter(

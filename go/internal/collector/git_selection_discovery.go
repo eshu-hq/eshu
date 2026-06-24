@@ -286,36 +286,40 @@ func repoIDFromManagedPath(reposDir string, repoPath string) string {
 	return filepath.ToSlash(filepath.Clean(rel))
 }
 
-// duplicatePathSampleLimit caps the number of duplicate paths reported in a
-// single warning log entry to keep the log line bounded.
-const duplicatePathSampleLimit = 5
+// basenameCollisionPathSampleLimit caps the number of colliding paths reported
+// in a single warning log entry to keep the log line bounded.
+const basenameCollisionPathSampleLimit = 5
 
-// reportDuplicateRepoIdentities inspects the discovered repository IDs from
-// one collector cycle and emits a structured warning log and metric when the
-// same repository identity appears at more than one distinct path. This is a
-// pure observability call — it does not change which repositories are indexed.
+// reportRepositoryBasenameCollisions inspects the discovered repository IDs
+// from one collector cycle and emits a structured warning log and metric when
+// the same repository basename appears at more than one distinct path. This is
+// a pure observability call — it does not change which repositories are indexed.
 //
-// Identity is the last path segment (basename) of each repoID. This is a
-// stable proxy for the git origin remote URL that is cheap to compute without
-// reading .git/config on every discovered root. When the corpus is clean, all
-// basenames are unique. When the corpus has been accidentally nested or
-// duplicated (e.g. repos/repos/repos/… copies as in issue #3677), the same
+// The signal is a HEURISTIC for accidental corpus nesting, not a true
+// repository-identity check. Identity here is only the last path segment
+// (basename) of each repoID — a cheap, label-free signal computed without
+// reading .git/config on every discovered root. Distinct repositories can
+// legitimately share a basename (org-a/utils and org-b/utils, or monorepo
+// common/ directories), so a collision is a prompt to inspect the logged paths,
+// not proof of duplication. The motivating case is accidental nesting or
+// recursive copies (e.g. repos/repos/repos/… as in issue #3677): there the same
 // basename appears at multiple depths and the counter advances, making the
-// 4× inflation immediately visible from metrics and logs rather than requiring
-// post-hoc database forensics.
+// 4× inflation visible from metrics and logs rather than requiring post-hoc
+// database forensics.
 //
-// Metric: eshu_dp_duplicate_repository_identity_total — incremented by the
-// number of non-first occurrences of each duplicated identity (i.e. the total
-// number of surplus paths). No path or identity labels are attached; those
-// details are in the structured log.
+// Metric: eshu_dp_repository_basename_collision_total — incremented by the
+// number of surplus (non-first) occurrences of each colliding basename. No path
+// or basename labels are attached; those details are in the structured log.
 //
-// Log: "duplicate repository identity detected" at WARN level, with fields:
+// Log: "repository basename collision detected (possible accidental corpus
+// nesting)" at WARN level, with fields:
 //
-//	identity          — the duplicated basename
-//	duplicate_count   — total paths that share this identity
-//	path_sample       — up to duplicatePathSampleLimit paths (bounded)
+//	identity          — the colliding basename
+//	path_count        — total paths that share this basename
+//	surplus_count     — paths beyond the first (matches the metric delta)
+//	path_sample       — up to basenameCollisionPathSampleLimit paths (bounded)
 //	total_path_count  — full count when the sample is truncated
-func reportDuplicateRepoIdentities(
+func reportRepositoryBasenameCollisions(
 	ctx context.Context,
 	repoIDs []string,
 	logger *slog.Logger,
@@ -325,8 +329,8 @@ func reportDuplicateRepoIdentities(
 		return
 	}
 
-	// Group repoIDs by their basename identity.
-	byIdentity := make(map[string][]string, len(repoIDs))
+	// Group repoIDs by their basename.
+	byBasename := make(map[string][]string, len(repoIDs))
 	for _, id := range repoIDs {
 		if id == "" {
 			continue
@@ -335,38 +339,39 @@ func reportDuplicateRepoIdentities(
 		if basename == "" || basename == "." {
 			continue
 		}
-		byIdentity[basename] = append(byIdentity[basename], id)
+		byBasename[basename] = append(byBasename[basename], id)
 	}
 
-	var totalDuplicates int64
-	for identity, paths := range byIdentity {
+	var totalSurplus int64
+	for basename, paths := range byBasename {
 		if len(paths) <= 1 {
 			continue
 		}
-		// Each path beyond the first is a duplicate.
-		duplicateCount := int64(len(paths) - 1)
-		totalDuplicates += duplicateCount
+		// Each path beyond the first is a surplus collision.
+		surplus := int64(len(paths) - 1)
+		totalSurplus += surplus
 
 		if logger != nil {
 			sample := paths
 			truncated := false
-			if len(sample) > duplicatePathSampleLimit {
-				sample = sample[:duplicatePathSampleLimit]
+			if len(sample) > basenameCollisionPathSampleLimit {
+				sample = sample[:basenameCollisionPathSampleLimit]
 				truncated = true
 			}
 			attrs := []any{
-				slog.String("identity", identity),
-				slog.Int("duplicate_count", len(paths)),
+				slog.String("identity", basename),
+				slog.Int("path_count", len(paths)),
+				slog.Int("surplus_count", len(paths)-1),
 				slog.Any("path_sample", sample),
 			}
 			if truncated {
 				attrs = append(attrs, slog.Int("total_path_count", len(paths)))
 			}
-			logger.WarnContext(ctx, "duplicate repository identity detected", attrs...)
+			logger.WarnContext(ctx, "repository basename collision detected (possible accidental corpus nesting)", attrs...)
 		}
 	}
 
-	if totalDuplicates > 0 && inst != nil {
-		inst.DuplicateRepositoryIdentity.Add(ctx, totalDuplicates)
+	if totalSurplus > 0 && inst != nil {
+		inst.RepositoryBasenameCollision.Add(ctx, totalSurplus)
 	}
 }
