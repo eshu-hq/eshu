@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -197,6 +200,17 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 		instruments.DeferredBackfillPartitionWorkers.Record(ctx, int64(workers))
 	}
 
+	// Record the fan-out shape on the active relationship.backfill_deferred span
+	// (issue #3710) so an operator reads partition cardinality and worker
+	// saturation off the trace, not only the deferred_backfill_fact_load_completed
+	// log. SpanFromContext returns a no-op span when no tracer started the pass, so
+	// SetAttributes is safe whether or not the caller passed a tracer.
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(
+		attribute.Int("partition_count", len(partitions)),
+		attribute.Int("worker_count", workers),
+	)
+
 	groupCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -243,6 +257,14 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 					firstErr = fmt.Errorf(
 						"load deferred scoped facts for scope %q: %w", part.ScopeID, err,
 					)
+					// Name the partition that aborted the pass on the span (issue
+					// #3710) so an operator sees which scope failed from the trace, not
+					// only the returned error string. Recorded once for the causal
+					// failure; cancellation cascades on the remaining partitions do not
+					// overwrite firstErr and so add no follow-on events.
+					span.AddEvent("partition_load_failed", trace.WithAttributes(
+						attribute.String("scope_id", part.ScopeID),
+					))
 					cancel()
 				}
 				mu.Unlock()
