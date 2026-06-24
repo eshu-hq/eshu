@@ -138,7 +138,9 @@ describe("LoginPage", () => {
   it("disables the submit button while a login request is in flight", async () => {
     let resolve!: (v: BrowserSessionResponse) => void;
     const client = makeClient({
-      postJson: vi.fn(() => new Promise<BrowserSessionResponse>((r) => { resolve = r; }))
+      // Cast to the generic postJson signature: the in-flight promise resolves a
+      // BrowserSessionResponse but EshuApiClient["postJson"] is generic <TData>.
+      postJson: vi.fn(() => new Promise<BrowserSessionResponse>((r) => { resolve = r; })) as unknown as EshuApiClient["postJson"]
     });
     renderLogin(client);
 
