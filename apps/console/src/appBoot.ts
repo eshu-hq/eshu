@@ -40,7 +40,7 @@ export async function bootFromSession(baseUrl: string): Promise<BootResult | nul
 // bootFromKey attempts to exchange an API key for a browser session, then load
 // live data. Falls back to bearer reads when the key cannot create a session
 // (status 400 — shared key without tenant context). Used from SourcePopover.
-export async function bootFromKey(base: string, key: string): Promise<BootResult> {
+export async function bootFromKey(base: string, key: string): Promise<BootResult | null> {
   const { EshuApiHttpError } = await import("./api/client");
   let nextClient = new EshuApiClient({ baseUrl: base, apiKey: key });
   let session: BrowserSessionResponse | null = null;
@@ -59,6 +59,14 @@ export async function bootFromKey(base: string, key: string): Promise<BootResult
   } else {
     // No key — try to use an existing cookie session.
     session = await loadCurrentSession(nextClient);
+    if (session === null) {
+      // No key and no existing session for this base. Do not read data
+      // unauthenticated (those reads 401 and would strand the user in an error
+      // state). Persist the selected base and signal no-session so the caller
+      // routes to local login for this deployment. (#3685 P2)
+      saveConsoleEnvironment({ mode: "private", apiBaseUrl: base, apiKey: "", recentApiBaseUrls: [base] });
+      return null;
+    }
   }
   const [snap, repoRows] = await Promise.all([
     loadConsoleSnapshot(nextClient),

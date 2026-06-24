@@ -174,6 +174,18 @@ export function App(): React.JSX.Element {
     setModel(emptyConsoleModel("loading"));
     try {
       const result = await bootFromKey(base, key);
+      if (result === null) {
+        // No API key and no existing session for this base: route to local
+        // login for the selected base instead of reading data unauthenticated
+        // (those reads 401 -> error and would strand the user). (#3685 P2)
+        setClient(undefined);
+        setRepositories([]);
+        setSession(null);
+        setModel(emptyConsoleModel("unavailable"));
+        setSource({ base, key: "", mode: "private", status: "needs-connection", msg: "" });
+        setOpen(false);
+        return;
+      }
       setClient(result.client);
       setModel(result.model);
       setRepositories(result.repositories);
