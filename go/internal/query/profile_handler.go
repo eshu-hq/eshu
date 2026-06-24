@@ -54,12 +54,14 @@ func (h *ProfileHandler) handleProfile(w http.ResponseWriter, r *http.Request) {
 	var mfa mfaJSON
 	if h.LocalIdentityStore != nil && auth.TenantID != "" {
 		status, err := h.LocalIdentityStore.GetLocalIdentityMFAStatus(r.Context(), auth.SubjectIDHash, now)
-		if err == nil {
-			mfa.HasActiveMFA = status.HasActiveMFA
-			mfa.FactorKind = status.FactorKind
+		if err != nil {
+			// Do not emit has_active_mfa:false on store error — that would be a
+			// false security assertion. Return 500 so the caller retries.
+			WriteError(w, http.StatusInternalServerError, "failed to fetch mfa status")
+			return
 		}
-		// On error leave mfa at zero value — profile is best-effort for MFA
-		// visibility and must not block the rest of the response.
+		mfa.HasActiveMFA = status.HasActiveMFA
+		mfa.FactorKind = status.FactorKind
 	}
 
 	// Memberships: return only the active tenant/workspace from the session.

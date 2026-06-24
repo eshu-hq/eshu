@@ -2,14 +2,15 @@ package query
 
 import (
 	"context"
-	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 )
 
 // BrowserSessionListItem is the metadata-only view of one browser session that
 // is safe to return to the owning subject. It never includes session_hash,
-// csrf_token_hash, or external auth secrets.
+// csrf_token_hash, or external auth secrets. Current is set by the store via
+// SQL boolean comparison — no raw hash value is ever selected into this type.
 type BrowserSessionListItem struct {
 	IssuedAt          time.Time
 	LastSeenAt        time.Time
@@ -17,19 +18,21 @@ type BrowserSessionListItem struct {
 	AbsoluteExpiresAt time.Time
 	TenantID          string
 	WorkspaceID       string
-	// Current is true when this row is the caller's active session.
+	// Current is true when this row matches the caller's active session.
+	// Computed by the store: (session_hash = callerHash) AS current.
 	Current   bool
 	RevokedAt time.Time
 }
 
 // BrowserSessionLister is the read surface for listing a subject's own browser
-// sessions. It is separate from BrowserSessionStore so that implementations
-// that only provide the write surface do not need to implement list.
+// sessions. sessionHash is the SHA-256 hash of the caller's cookie value, used
+// only to flag the matching row as current — it is never included in the result.
 type BrowserSessionLister interface {
-	// ListSessionsBySubject returns metadata-only session rows for the given
-	// subject_id_hash ordered by issued_at descending. The result never includes
-	// session_hash, csrf_token_hash, or external identity secrets.
-	ListSessionsBySubject(ctx context.Context, subjectIDHash string, asOf time.Time) ([]BrowserSessionListItem, error)
+	// ListSessionsBySubject returns metadata-only rows for the subject. The
+	// sessionHash parameter is used server-side to compute the Current boolean;
+	// it is never selected or returned in the results. Pass "" when no session
+	// cookie is available; no row will be marked current.
+	ListSessionsBySubject(ctx context.Context, subjectIDHash string, asOf time.Time, sessionHash string) ([]BrowserSessionListItem, error)
 }
 
 // BrowserSessionListHandler serves GET /api/v0/auth/sessions, returning
@@ -52,6 +55,10 @@ func (h *BrowserSessionListHandler) now() time.Time {
 }
 
 func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r *http.Request) {
+	if h.Store == nil {
+		WriteError(w, http.StatusServiceUnavailable, "session store unavailable")
+		return
+	}
 	auth, ok := AuthContextFromContext(r.Context())
 	if !ok {
 		unauthorizedResponse(w, r)
@@ -63,15 +70,17 @@ func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r 
 		return
 	}
 
+	// Hash the caller's cookie so the store can mark the matching row as
+	// current. The raw cookie value is never forwarded to the store.
+	sessionHash, _ := browserSessionHashFromCookie(r)
+
 	now := h.now()
-	items, err := h.Store.ListSessionsBySubject(r.Context(), auth.SubjectIDHash, now)
+	items, err := h.Store.ListSessionsBySubject(r.Context(), auth.SubjectIDHash, now, sessionHash)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "list browser sessions failed", "err", err)
 		WriteError(w, http.StatusInternalServerError, "failed to list browser sessions")
 		return
 	}
-
-	// Mark the current session by comparing the cookie hash.
-	currentHash, hasCookie := browserSessionHashFromCookie(r)
 
 	type sessionJSON struct {
 		IssuedAt          time.Time  `json:"issued_at"`
@@ -95,14 +104,6 @@ func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r 
 			WorkspaceID:       item.WorkspaceID,
 			Current:           item.Current,
 		}
-		// The store cannot know which row is current (it has no session_hash).
-		// If the caller presented a valid cookie, mark the row whose issued_at
-		// matches the current session. We use the presence of the cookie and
-		// whether the store returned exactly one item with matching context as
-		// the signal; the real mark is set when the current hash resolves.
-		if hasCookie && currentHash != "" && item.Current {
-			s.Current = true
-		}
 		if !item.RevokedAt.IsZero() {
 			t := item.RevokedAt
 			s.RevokedAt = &t
@@ -110,7 +111,5 @@ func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r 
 		out = append(out, s)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]any{"sessions": out})
+	WriteJSON(w, http.StatusOK, map[string]any{"sessions": out})
 }

@@ -11,7 +11,8 @@ import (
 
 // BrowserSessionListItem is the metadata-only view of one browser session that
 // is safe to return to the owning subject. It never includes session_hash,
-// csrf_token_hash, or external auth secrets.
+// csrf_token_hash, or external auth secrets. Current is computed server-side
+// via SQL boolean comparison — the raw session hash is never selected.
 type BrowserSessionListItem struct {
 	IssuedAt          time.Time
 	LastSeenAt        time.Time
@@ -19,14 +20,17 @@ type BrowserSessionListItem struct {
 	AbsoluteExpiresAt time.Time
 	TenantID          string
 	WorkspaceID       string
-	// Current is true when this row is the caller's active session.
+	// Current is true when this row matches the caller's active session.
+	// Computed by SQL: (session_hash = $3) AS current.
 	Current   bool
 	RevokedAt time.Time
 }
 
 // listBrowserSessionsBySubjectQuery returns metadata-only session rows for a
-// given subject hash ordered by issued_at descending. It never selects
-// session_hash, csrf_token_hash, or external identity secrets.
+// given subject hash. The third parameter ($3) is the caller's session hash
+// used only to compute the "current" boolean — it is never SELECTed into the
+// result set. No session_hash, csrf_token_hash, or external identity values
+// appear in the output columns.
 const listBrowserSessionsBySubjectQuery = `
 SELECT
     issued_at,
@@ -35,7 +39,8 @@ SELECT
     absolute_expires_at,
     tenant_id,
     workspace_id,
-    revoked_at
+    revoked_at,
+    (session_hash = $3) AS current
 FROM browser_sessions
 WHERE subject_id_hash = $1
   AND issued_at <= $2
@@ -44,12 +49,15 @@ LIMIT 200
 `
 
 // ListSessionsBySubject returns metadata-only browser session rows for the
-// given subject_id_hash. The caller is responsible for marking which row is
-// the current session using the session cookie hash.
+// given subject_id_hash. sessionHash is the SHA-256 hash of the caller's
+// cookie value, used only to mark the matching row as current — it is never
+// included in the returned items. Pass an empty string when no session cookie
+// is available; no row will be marked current.
 func (s *BrowserSessionStore) ListSessionsBySubject(
 	ctx context.Context,
 	subjectIDHash string,
 	asOf time.Time,
+	sessionHash string,
 ) ([]BrowserSessionListItem, error) {
 	if s.db == nil {
 		return nil, errors.New("browser session store database is required")
@@ -61,7 +69,7 @@ func (s *BrowserSessionStore) ListSessionsBySubject(
 	if asOf.IsZero() {
 		return nil, errors.New("as_of is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, asOf.UTC())
+	rows, err := s.db.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, asOf.UTC(), sessionHash)
 	if err != nil {
 		return nil, fmt.Errorf("list browser sessions by subject: %w", err)
 	}
@@ -79,6 +87,7 @@ func (s *BrowserSessionStore) ListSessionsBySubject(
 			&item.TenantID,
 			&item.WorkspaceID,
 			&revokedAt,
+			&item.Current,
 		); err != nil {
 			return nil, fmt.Errorf("scan browser session list item: %w", err)
 		}

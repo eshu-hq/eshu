@@ -99,6 +99,10 @@ func (h *LocalIdentityHandler) handleListAPITokens(w http.ResponseWriter, r *htt
 		unauthorizedResponse(w, r)
 		return
 	}
+	if h.Store == nil {
+		WriteError(w, http.StatusServiceUnavailable, "identity store unavailable")
+		return
+	}
 	now := h.now()
 	items, err := h.Store.ListAPITokensBySubject(r.Context(), auth.SubjectIDHash, now)
 	if err != nil {
