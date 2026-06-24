@@ -26,11 +26,18 @@ func TestAdminMutationQueriesAreTenantScopedAndIdempotent(t *testing.T) {
 	}
 	cases := []sqlCase{
 		{
-			name:  "revoke invitation is active-guarded and tenant scoped",
+			name:  "revoke invitation is active-guarded, expiry-guarded, and tenant scoped",
 			query: revokeAdminInvitationQuery,
-			// status='active' + revoked_at IS NULL + accepted_at IS NULL makes a
-			// repeated revoke a zero-row no-op; tenant_id/workspace_id scope it.
-			mustHave:  []string{"UPDATE identity_invitations", "tenant_id = $2", "workspace_id = $3", "status = 'active'", "revoked_at IS NULL", "accepted_at IS NULL"},
+			// status='active' + revoked_at IS NULL + accepted_at IS NULL + expiry guard
+			// make a repeated or expired-invitation revoke a zero-row no-op;
+			// tenant_id/workspace_id scope it. The expiry guard prevents overwriting
+			// the expired state with revoked (belt-and-suspenders alongside the
+			// application-layer check after SELECT...FOR UPDATE).
+			mustHave: []string{
+				"UPDATE identity_invitations", "tenant_id = $2", "workspace_id = $3",
+				"status = 'active'", "revoked_at IS NULL", "accepted_at IS NULL",
+				"expires_at IS NULL OR expires_at > $4",
+			},
 			forbidden: []string{"invite_code", "invite_code_hash", "invitee_handle_hash"},
 		},
 		{
@@ -159,6 +166,7 @@ type adminMutationFakeDB struct {
 	inviteStatus   string
 	inviteRevoked  bool
 	inviteAccepted bool
+	inviteExpired  bool // simulates an active invitation whose expires_at is in the past
 
 	upsertInserted bool
 	upsertStatus   string
@@ -223,14 +231,18 @@ func (db *adminMutationFakeDB) QueryContext(_ context.Context, query string, arg
 		if !db.inviteFound {
 			return &scalarRows{}, nil
 		}
-		var revoked, accepted any
+		var revoked, accepted, expires any
 		if db.inviteRevoked {
 			revoked = time.Now().UTC()
 		}
 		if db.inviteAccepted {
 			accepted = time.Now().UTC()
 		}
-		return &scalarRows{data: [][]any{{db.inviteStatus, revoked, accepted, time.Now().UTC()}}}, nil
+		if db.inviteExpired {
+			// One hour in the past — clearly expired relative to any RevokedAt.
+			expires = time.Now().UTC().Add(-time.Hour)
+		}
+		return &scalarRows{data: [][]any{{db.inviteStatus, revoked, accepted, expires}}}, nil
 	case strings.Contains(query, "INSERT INTO identity_membership_roles"):
 		return &scalarRows{data: [][]any{{db.upsertStatus, db.upsertInserted}}}, nil
 	case strings.Contains(query, "INSERT INTO identity_provider_group_role_mappings"):
@@ -479,6 +491,35 @@ func TestRevokeAdminInvitationIdempotent(t *testing.T) {
 	}
 	if !res.Found || !res.Revoked || res.Status != "revoked" {
 		t.Fatalf("active revoke = %+v, want Found=true Revoked=true status=revoked", res)
+	}
+}
+
+// TestRevokeAdminInvitationExpiredIsNoop proves that revoking an active
+// invitation whose expires_at is in the past is a no-op: the store must NOT
+// issue an UPDATE (which would overwrite the expired state with revoked and
+// lose the distinction in admin reads), and must return Found=true, Revoked=false.
+func TestRevokeAdminInvitationExpiredIsNoop(t *testing.T) {
+	t.Parallel()
+
+	// Active status but expires_at is one hour in the past.
+	db := &adminMutationFakeDB{inviteFound: true, inviteStatus: "active", inviteExpired: true}
+	res, err := NewIdentitySubjectStore(db).RevokeAdminInvitation(context.Background(), AdminInvitationRevoke{
+		InviteID: "inv_expired", TenantID: "tenant_a", WorkspaceID: "workspace_a", RevokedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("RevokeAdminInvitation() error = %v", err)
+	}
+	if !res.Found {
+		t.Fatal("Found = false, want true — expired invitation exists in tenant")
+	}
+	if res.Revoked {
+		t.Fatal("Revoked = true, want false — expired invitation must be a no-op, not overwritten with revoked")
+	}
+	// No UPDATE must be issued: the precheck must short-circuit before the write.
+	for _, q := range db.execQueries {
+		if strings.Contains(q, "UPDATE identity_invitations") {
+			t.Fatal("UPDATE issued against an expired invitation — expired state must not be overwritten")
+		}
 	}
 }
 

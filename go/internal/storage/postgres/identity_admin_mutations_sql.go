@@ -24,10 +24,13 @@ FOR UPDATE
 `
 
 // revokeAdminInvitationQuery soft-revokes one invitation only when it is still
-// active (status='active', not yet revoked or accepted). It is a no-op against
-// any other state, so a double revoke affects zero rows without error. The
-// tenant/workspace predicate guarantees an admin can only revoke within their
-// own tenant.
+// active (status='active', not yet revoked, accepted, or expired). The
+// application layer guards the expired case after the SELECT...FOR UPDATE
+// read; this clause duplicates that guard at the SQL layer so a concurrent
+// expiry that slips between the read and write cannot overwrite expired state
+// with revoked. A double revoke or an already-expired invite affects zero rows
+// without error. $4 is the revoked_at timestamp; it is also used as the
+// expiry comparison so a row that expired exactly at revoke time is not revoked.
 const revokeAdminInvitationQuery = `
 UPDATE identity_invitations
 SET status = 'revoked',
@@ -40,6 +43,7 @@ WHERE invite_id = $1
   AND revoked_at IS NULL
   AND accepted_at IS NULL
   AND tombstoned_at IS NULL
+  AND (expires_at IS NULL OR expires_at > $4)
 `
 
 // selectActiveRoleExistsQuery reports whether a role exists and is active in the

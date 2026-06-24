@@ -137,8 +137,7 @@ func (s *IdentitySubjectStore) RevokeAdminInvitation(
 	}()
 
 	var status string
-	var revokedAt, acceptedAt sql.NullTime
-	var expiresAt time.Time
+	var revokedAt, acceptedAt, expiresAt sql.NullTime
 	statusRows, err := tx.QueryContext(ctx, selectAdminInvitationStatusQuery, revoke.InviteID, revoke.TenantID, revoke.WorkspaceID)
 	if err != nil {
 		return AdminInvitationRevokeResult{}, fmt.Errorf("select admin invitation status: %w", err)
@@ -156,8 +155,12 @@ func (s *IdentitySubjectStore) RevokeAdminInvitation(
 	}
 
 	// Already terminal (revoked, accepted, expired, or any non-active status):
-	// idempotent no-op. Report the existing status without writing.
-	if status != "active" || revokedAt.Valid || acceptedAt.Valid {
+	// idempotent no-op. Report the existing status without writing. An active
+	// invitation whose expires_at is in the past is also treated as expired:
+	// revoking it would overwrite the expired state with revoked, which is
+	// inconsistent with admin read results and the idempotency contract.
+	expired := expiresAt.Valid && !expiresAt.Time.After(revoke.RevokedAt.UTC())
+	if status != "active" || revokedAt.Valid || acceptedAt.Valid || expired {
 		if err := tx.Commit(); err != nil {
 			return AdminInvitationRevokeResult{}, fmt.Errorf("commit admin invitation revoke: %w", err)
 		}
@@ -457,7 +460,8 @@ func (s *IdentitySubjectStore) activeProviderExists(ctx context.Context, provide
 }
 
 // scanSingleInvitationStatus scans the optional single invitation-status row.
-func scanSingleInvitationStatus(rows Rows, status *string, revokedAt, acceptedAt *sql.NullTime, expiresAt *time.Time) (bool, error) {
+// All time columns are NULLABLE so they are scanned as sql.NullTime.
+func scanSingleInvitationStatus(rows Rows, status *string, revokedAt, acceptedAt, expiresAt *sql.NullTime) (bool, error) {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		return false, rows.Err()
