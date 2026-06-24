@@ -179,3 +179,50 @@ func authContextFromBrowserSessionRecord(record pgstatus.BrowserSessionRecord) q
 		ExternalProviderConfigID: record.ExternalProviderConfigID,
 	}
 }
+
+// ListSessionsBySubject delegates to the postgres store, mapping postgres
+// BrowserSessionListItem to the query-layer type. It never exposes
+// session_hash, csrf_token_hash, or external identity secrets.
+func (a *postgresBrowserSessionAdapter) ListSessionsBySubject(
+	ctx context.Context,
+	subjectIDHash string,
+	asOf time.Time,
+) ([]query.BrowserSessionListItem, error) {
+	items, err := a.store.ListSessionsBySubject(ctx, subjectIDHash, asOf)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]query.BrowserSessionListItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, query.BrowserSessionListItem{
+			IssuedAt:          item.IssuedAt,
+			LastSeenAt:        item.LastSeenAt,
+			IdleExpiresAt:     item.IdleExpiresAt,
+			AbsoluteExpiresAt: item.AbsoluteExpiresAt,
+			TenantID:          item.TenantID,
+			WorkspaceID:       item.WorkspaceID,
+			Current:           item.Current,
+			RevokedAt:         item.RevokedAt,
+		})
+	}
+	return out, nil
+}
+
+// newBrowserSessionListHandler builds a BrowserSessionListHandler backed by
+// the postgres store when a database connection is available.
+func newBrowserSessionListHandler(db *sql.DB, instruments *telemetry.Instruments) *query.BrowserSessionListHandler {
+	adapter := newPostgresBrowserSessionAdapter(db, instruments)
+	if adapter == nil {
+		return &query.BrowserSessionListHandler{}
+	}
+	return &query.BrowserSessionListHandler{Store: adapter}
+}
+
+// newProfileHandler builds a ProfileHandler backed by the local identity store.
+func newProfileHandler(db *sql.DB, instruments *telemetry.Instruments, governanceAudit query.GovernanceAuditSummaryReader) *query.ProfileHandler {
+	store := newPostgresLocalIdentityAdapter(db, instruments)
+	if store == nil {
+		return &query.ProfileHandler{}
+	}
+	return &query.ProfileHandler{LocalIdentityStore: store}
+}
