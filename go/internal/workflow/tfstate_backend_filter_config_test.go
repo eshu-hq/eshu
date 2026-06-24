@@ -22,7 +22,7 @@ func TestValidateTerraformStateCollectorConfigurationAcceptsBackendFilterWithout
 			"backend_filters": [{
 				"target_scope_id": "platform-qa-aws",
 				"backend_kind": "s3",
-				"bucket": "example-ops-qa-terraform-state",
+				"bucket": "example-platform-qa-terraform-state",
 				"key": "services/api/terraform.tfstate",
 				"region": "us-east-1"
 			}]
@@ -50,7 +50,7 @@ func TestValidateTerraformStateCollectorConfigurationRejectsUntrimmedBackendFilt
 			"backend_filters": [{
 				"target_scope_id": "platform-qa-aws",
 				"backend_kind": "s3",
-				"bucket": "example-ops-qa-terraform-state",
+				"bucket": "example-platform-qa-terraform-state",
 				"key": "/services/api/terraform.tfstate",
 				"region": "us-east-1"
 			}]
