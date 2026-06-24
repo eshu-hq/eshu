@@ -283,6 +283,8 @@ nav:
       - Cross-Service Correlation: reference/telemetry/cross-service-correlation.md
       - Shared-Write Operations: reference/telemetry/shared-write-operations.md
       - Streaming And Memory: reference/telemetry/streaming-memory.md
+    - Observability:
+      - Telemetry Coverage Contract: observability/telemetry-coverage.md
     - Services:
       - Bootstrap-Index: services/bootstrap-index.md
       - Ingester: services/ingester.md

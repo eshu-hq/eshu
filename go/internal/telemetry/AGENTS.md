@@ -13,6 +13,9 @@
    Prometheus wiring
 6. `docs/public/reference/telemetry/index.md` — operator-facing tuning and
    signal-selection guidance
+7. `docs/public/observability/telemetry-coverage.md` — telemetry coverage
+   contract. Every stage in the data plane maps to a row; new stages fail
+   X2 without a corresponding entry. Cite this doc when adding a new stage.
 
 ## Invariants this package enforces
 
