@@ -148,6 +148,9 @@ func resolveActiveSAMLExternalSubject(
 			"subject_class", samlExternalSubjectClass, "tenant_id", auth.TenantID, "role_count", len(roles), "error", err)
 		return SAMLExternalSubjectAuthContext{}, false, err
 	}
+	// RoleIDs may include roles whose grants are entirely expired; the
+	// authoritative enforcement surface is AllowedPermissionFeatures and
+	// AllowedPermissionDataClasses, not RoleIDs.
 	auth.RoleIDs = roles
 	auth.PermissionCatalogEnforced = true
 	auth.AllowedPermissionFeatures = features
@@ -179,7 +182,7 @@ func resolveSAMLExternalSubjectRoles(
 		tenantID,
 		workspaceID,
 		userID,
-		asOf,
+		asOf.UTC(), // normalize to UTC so the active window matches the resolution query
 		maxOIDCGrantLimit,
 	)
 	if err != nil {

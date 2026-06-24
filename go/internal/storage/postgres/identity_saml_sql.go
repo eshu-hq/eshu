@@ -72,6 +72,7 @@ WHERE es.provider_config_id = $1
   AND rg.effective_at <= $4
   AND (rg.expires_at IS NULL OR rg.expires_at > $4)
 GROUP BY m.tenant_id, m.workspace_id, u.subject_id_hash, m.policy_revision_hash, u.user_id
+ORDER BY MAX(m.effective_at) DESC
 LIMIT 1
 `
 
