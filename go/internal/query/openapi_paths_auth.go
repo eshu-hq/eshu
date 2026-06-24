@@ -480,8 +480,7 @@ const openAPIPathsAuth = `
                         "type": "object",
                         "properties": {
                           "tenant_id": {"type": "string"},
-                          "workspace_id": {"type": "string"},
-                          "role_ids": {"type": "array", "items": {"type": "string"}}
+                          "workspace_id": {"type": "string"}
                         }
                       }
                     }
