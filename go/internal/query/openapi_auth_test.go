@@ -87,9 +87,50 @@ func TestOpenAPIIncludesBrowserSessionRoutes(t *testing.T) {
 	if _, ok := sessionAuthProperties["role_ids"]; !ok {
 		t.Fatal("BrowserSessionAuth role_ids schema missing")
 	}
+	if _, ok := sessionAuthProperties["permission_catalog_enforced"]; !ok {
+		t.Fatal("BrowserSessionAuth permission_catalog_enforced schema missing")
+	}
+	if _, ok := sessionAuthProperties["allowed_permission_features"]; !ok {
+		t.Fatal("BrowserSessionAuth allowed_permission_features schema missing")
+	}
 	responses := mustMapField(t, components, "responses")
 	if _, ok := responses["Unauthorized"]; !ok {
 		t.Fatal("Unauthorized response component missing")
+	}
+}
+
+func TestBrowserSessionAuthResponseSerializesPermissionCatalogFields(t *testing.T) {
+	auth := AuthContext{
+		Mode:                      AuthModeBrowserSession,
+		TenantID:                  "tenant_a",
+		WorkspaceID:               "ws_a",
+		AllScopes:                 false,
+		PermissionCatalogEnforced: true,
+		AllowedPermissionFeatures: []string{"ask_search", "repository_content"},
+	}
+	resp := browserSessionAuthResponse(auth)
+	if !resp.PermissionCatalogEnforced {
+		t.Fatal("expected PermissionCatalogEnforced=true")
+	}
+	if len(resp.AllowedPermissionFeatures) != 2 {
+		t.Fatalf("expected 2 AllowedPermissionFeatures, got %d", len(resp.AllowedPermissionFeatures))
+	}
+	if resp.AllowedPermissionFeatures[0] != "ask_search" || resp.AllowedPermissionFeatures[1] != "repository_content" {
+		t.Fatalf("unexpected AllowedPermissionFeatures: %v", resp.AllowedPermissionFeatures)
+	}
+
+	// Verify the response with all_scopes=true produces permission_catalog_enforced=false (zero value).
+	allScopesAuth := AuthContext{
+		Mode:                      AuthModeBrowserSession,
+		AllScopes:                 true,
+		PermissionCatalogEnforced: false,
+	}
+	allScopesResp := browserSessionAuthResponse(allScopesAuth)
+	if allScopesResp.PermissionCatalogEnforced {
+		t.Fatal("expected PermissionCatalogEnforced=false for all_scopes session")
+	}
+	if len(allScopesResp.AllowedPermissionFeatures) != 0 {
+		t.Fatalf("expected empty AllowedPermissionFeatures for all_scopes session, got %v", allScopesResp.AllowedPermissionFeatures)
 	}
 }
 
