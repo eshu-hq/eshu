@@ -19,6 +19,7 @@ Use this route map instead of reading every telemetry page front to back.
 | --- | --- |
 | Which runtime is unhealthy or behind? | [Runtime Signals](runtime-signals.md) |
 | Which metric names should I graph? | [Metrics](metrics.md) |
+| Which headline panels should I import into Grafana? | The `eshu-operator-overview.json` dashboard under `docs/public/observability/dashboards/` (also linked in the Observability nav, top of this page) |
 | Which collector or ingestion counter changed? | [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) |
 | Which reducer, graph, storage, or correlation metric changed? | [Reducer And Storage Metrics](metrics-reducer-storage.md) |
 | Where did time go for one request, scope, or graph write? | [Traces](traces.md) |
