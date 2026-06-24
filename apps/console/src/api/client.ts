@@ -154,6 +154,10 @@ export class EshuApiClient {
     );
   }
 
+  async getBrowserSession(): Promise<BrowserSessionResponse> {
+    return this.getJson<BrowserSessionResponse>("/api/v0/auth/browser-session");
+  }
+
   async createBrowserSession(): Promise<BrowserSessionResponse> {
     return this.postJson<BrowserSessionResponse>("/api/v0/auth/browser-session", {});
   }

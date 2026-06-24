@@ -2,8 +2,8 @@
 // Private mode renders only the Eshu API. Demo mode is an explicit prospect
 // fixture source, not a failed-live fallback. main.tsx wraps this in
 // <BrowserRouter>.
-import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
@@ -34,64 +34,24 @@ import {
   Waves,
   Waypoints
 } from "lucide-react";
-import { EshuApiClient, EshuApiHttpError } from "./api/client";
-import { createDemoApiClient, demoApiBaseUrl, demoDefaults, demoRepositories } from "./api/demoClient";
-import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
-import { loadRepositories, type RepoListItem } from "./api/repoCatalog";
+import { EshuApiClient } from "./api/client";
+import type { BrowserSessionResponse } from "./api/client";
+import { createDemoApiClient, demoApiBaseUrl, demoRepositories } from "./api/demoClient";
+import type { RepoListItem } from "./api/repoCatalog";
 import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environment";
 import { demoModel } from "./console/demoModel";
-import { emptyConsoleModel, modelFromSnapshot } from "./console/liveModel";
+import { emptyConsoleModel } from "./console/liveModel";
+import { bootFromKey, bootFromSession } from "./appBoot";
+import { buildAllowedNavSet } from "./auth/capabilityAccess";
+import type { CapabilityRow } from "./api/capabilityCatalog";
+import { LoginPage } from "./pages/LoginPage";
 import type { ConsoleModel } from "./console/types";
 import { fmt } from "./console/types";
-import { DashboardPage } from "./pages/DashboardPage";
-import { StatusPage } from "./pages/StatusPage";
-import { AskPage } from "./pages/AskPage";
-import { CatalogPage } from "./pages/CatalogPage";
-import { FindingsPage } from "./pages/FindingsPage";
-import { OperationsPage } from "./pages/OperationsPage";
-import { CollectorReadinessPage } from "./pages/CollectorReadinessPage";
-import { IncidentContextPage } from "./pages/IncidentContextPage";
-import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
-import { VulnDetailPage } from "./pages/VulnDetailPage";
-import { SbomPage } from "./pages/SbomPage";
-import { ObservabilityPage } from "./pages/ObservabilityPage";
-import { DependenciesPage } from "./pages/DependenciesPage";
-import { ExplorerPage } from "./pages/ExplorerPage";
-import { RelationshipsPage } from "./pages/RelationshipsPage";
-import { ServiceEvidenceGraphPage } from "./pages/ServiceEvidenceGraphPage";
-import { ServiceReportPage } from "./pages/ServiceReportPage";
-import { NodesPage } from "./pages/NodesPage";
-import { IacPage } from "./pages/IacPage";
-import { ReplatformingPage } from "./pages/ReplatformingPage";
-import { RepositoriesPage } from "./pages/RepositoriesPage";
-import { RepoSourcePage } from "./pages/RepoSourcePage";
-import { ImagesPage } from "./pages/ImagesPage";
-import { CapabilityMatrixPage } from "./pages/CapabilityMatrixPage";
-import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
-import { FreshnessCausalityPage } from "./pages/FreshnessCausalityPage";
-import { CloudPage } from "./pages/CloudPage";
-import { CloudDriftPage } from "./pages/CloudDriftPage";
-import { SecretsIamPage } from "./pages/SecretsIamPage";
-import { TopologyPage } from "./pages/TopologyPage";
-import { DeadCodePage } from "./pages/DeadCodePage";
-import { CodeGraphPage } from "./pages/CodeGraphPage";
-import { ImpactPage } from "./pages/ImpactPage";
-import { ExposurePathPage } from "./pages/ExposurePathPage";
-import { CICDRunCorrelationsPage } from "./pages/CICDRunCorrelationsPage";
-import { ChangedSincePage } from "./pages/ChangedSincePage";
+import { AppRoutes } from "./appRoutes";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import { ConnectionState, SourcePopover, type SourceState } from "./components/SourceControls";
 import "./styles.css";
 import "./appShell.css";
-
-// WorkspacePage pulls the d3 force-simulation relationship/deployment views,
-// the heaviest non-diagram dependency in the console. It is a deep-link leaf
-// route (/workspace/:entityKind/:entityId), not part of the dashboard-first
-// path, so it is code-split via React.lazy to keep d3 out of the main entry
-// chunk. Suspense shows a lightweight loading state while the chunk downloads.
-const WorkspacePage = lazy(() =>
-  import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage }))
-);
 
 type NavItem = {
   readonly to: string;
@@ -182,10 +142,18 @@ export function App(): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [client, setClient] = useState<EshuApiClient | undefined>(() => hasDemoEnv ? createDemoApiClient() : undefined);
   const [repositories, setRepositories] = useState<readonly RepoListItem[]>(() => hasDemoEnv ? demoRepositories : []);
+  const [session, setSession] = useState<BrowserSessionResponse | null>(null);
+  const [capRows] = useState<readonly CapabilityRow[]>([]);
   const [drawer, setDrawer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  // showLogin: private mode with no session and not yet connecting
+  const showLogin = !hasDemoEnv && source.status === "needs-connection";
   const visibleModel = verifiedOnly ? verifiedConsoleModel(model) : model;
+  // Capability-gated nav: UX-only (server enforces). Fail-open when no session.
+  const allowedNav = session !== null
+    ? buildAllowedNavSet(session.auth, capRows)
+    : null;
   const searchInputRef = useRef<HTMLInputElement>(null);
   // Boot guard: React StrictMode runs effects twice in development, which would
   // otherwise fire two concurrent boot connects whose in-flight fetches abort
@@ -207,25 +175,11 @@ export function App(): React.JSX.Element {
     setSource((s) => ({ ...s, base, key, mode: "private", status: "connecting", msg: "" }));
     setModel(emptyConsoleModel("loading"));
     try {
-      let next = new EshuApiClient({ baseUrl: base, apiKey: key });
-      if (key.trim().length > 0) {
-        try {
-          await next.createBrowserSession();
-          next = new EshuApiClient({ baseUrl: base });
-        } catch (e) {
-          if (!(e instanceof EshuApiHttpError && e.status === 400)) {
-            throw e;
-          }
-        }
-      }
-      const [snap, repoRows] = await Promise.all([
-        loadConsoleSnapshot(next),
-        loadRepositories(next).catch((): readonly RepoListItem[] => [])
-      ]);
-      saveConsoleEnvironment({ mode: "private", apiBaseUrl: base, apiKey: "", recentApiBaseUrls: [base] });
-      setClient(next);
-      setModel(modelFromSnapshot(snap));
-      setRepositories(repoRows);
+      const result = await bootFromKey(base, key);
+      setClient(result.client);
+      setModel(result.model);
+      setRepositories(result.repositories);
+      setSession(result.session);
       setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
       setOpen(false);
     } catch (e) {
@@ -233,9 +187,33 @@ export function App(): React.JSX.Element {
       // "—" / "API not available" rather than invented data.
       setClient(undefined);
       setRepositories([]);
+      setSession(null);
       setModel(emptyConsoleModel("unavailable"));
       setSource({ base, key, mode: "private", status: "error", msg: e instanceof Error ? e.message : "unreachable" });
     }
+  }
+
+  function handleLoginSuccess(resp: BrowserSessionResponse): void {
+    setSession(resp);
+    // After login, boot with cookie session from the current base URL.
+    const base = source.base;
+    setSource((s) => ({ ...s, status: "connecting", msg: "" }));
+    setModel(emptyConsoleModel("loading"));
+    bootFromSession(base).then((result) => {
+      if (result !== null) {
+        setClient(result.client);
+        setModel(result.model);
+        setRepositories(result.repositories);
+        setSession(result.session);
+        setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
+      } else {
+        setModel(emptyConsoleModel("unavailable"));
+        setSource((s) => ({ ...s, status: "error", msg: "Session established but data unavailable" }));
+      }
+    }).catch((e: unknown) => {
+      setModel(emptyConsoleModel("unavailable"));
+      setSource((s) => ({ ...s, status: "error", msg: e instanceof Error ? e.message : "unreachable" }));
+    });
   }
   const openService = (name: string): void => setDrawer(name);
 
@@ -264,15 +242,29 @@ export function App(): React.JSX.Element {
   }
 
   // Boot straight into private data when a saved private environment exists.
-  // With no saved environment, stay in "needs-connection" until the operator
-  // connects. The bootedRef guard makes this StrictMode-safe: the discarded
-  // first dev run does not launch a second boot connect that would abort the
-  // surviving run's in-flight fetches and blank out sections like Catalog
-  // (issue #1727).
+  // Tries session-first (cookie): if a browser session cookie exists, no key
+  // is needed. Falls back to connect() with saved key (dev/legacy path).
+  // The bootedRef guard makes this StrictMode-safe (issue #1727).
   useEffect(() => {
     if (hasSavedEnv && !bootedRef.current) {
       bootedRef.current = true;
-      void connect(env.apiBaseUrl, env.apiKey || "");
+      const base = env.apiBaseUrl;
+      setSource((s) => ({ ...s, status: "connecting", msg: "" }));
+      bootFromSession(base).then((result) => {
+        if (result !== null) {
+          setClient(result.client);
+          setModel(result.model);
+          setRepositories(result.repositories);
+          setSession(result.session);
+          setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
+        } else {
+          // No active session — show login page.
+          setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
+        }
+      }).catch(() => {
+        // Session probe failed (API unreachable) — fall back to key-based connect.
+        void connect(base, env.apiKey || "");
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -317,7 +309,7 @@ export function App(): React.JSX.Element {
         {NAV_GROUPS.map((group) => (
           <div className="nav-section" key={group.label}>
             <div className="nav-group-label">{group.label}</div>
-            {group.items.map((n) => {
+            {group.items.filter((n) => allowedNav === null || allowedNav.has(n.to)).map((n) => {
               const Icon = n.icon;
               const count = n.count?.(visibleModel) ?? null;
               return (
@@ -381,64 +373,10 @@ export function App(): React.JSX.Element {
         {source.status === "error" ? (
           <div className="prov-banner warn">Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? ` · ${source.msg}` : ""}. <button className="link-btn" onClick={() => setOpen(true)}>Edit data source</button></div>
         ) : null}
-        {source.status === "connected" ? (
-          <Routes>
-            <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} repositories={repositories} />} />
-            <Route path="/status" element={<StatusPage client={client} />} />
-            <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} repositories={repositories} />} />
-            <Route path="/ask" element={<AskPage source={source} />} />
-            <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
-            <Route path="/exposure" element={<ExposurePathPage client={client} />} />
-            <Route path="/changed-since" element={<ChangedSincePage client={client} model={visibleModel} />} />
-            <Route path="/explorer" element={<ExplorerPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/relationships" element={<RelationshipsPage model={visibleModel} client={client} />} />
-            <Route path="/service-story" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/service-report" element={<ServiceReportPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/service-report/:serviceName" element={<ServiceReportPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/nodes" element={<NodesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/code-graph" element={<CodeGraphPage model={visibleModel} client={client} />} />
-            <Route path="/repositories" element={<RepositoriesPage client={client} model={visibleModel} />} />
-            <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
-            <Route path="/cloud" element={<CloudPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/ci-cd/run-correlations" element={<CICDRunCorrelationsPage client={client} model={visibleModel} />} />
-            <Route path="/cloud-drift" element={<CloudDriftPage client={client} demoDefaults={source.mode === "demo" ? demoDefaults.cloudDrift : undefined} />} />
-            <Route path="/secrets-iam" element={<SecretsIamPage model={visibleModel} client={client} />} />
-            <Route path="/topology" element={<TopologyPage client={client} model={visibleModel} onOpenService={openService} />} />
-            <Route path="/incidents" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/incidents/:incidentId/context" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
-            <Route path="/catalog" element={<CatalogPage model={visibleModel} onOpenService={openService} />} />
-            <Route path="/images" element={<ImagesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/capabilities" element={<CapabilityMatrixPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/surface-inventory" element={<SurfaceInventoryPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/iac" element={<IacPage model={visibleModel} client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/replatforming" element={<ReplatformingPage model={visibleModel} client={client} />} />
-            <Route path="/findings" element={<FindingsPage model={visibleModel} />} />
-            <Route path="/dead-code" element={<DeadCodePage client={client} model={visibleModel} />} />
-            <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={visibleModel} client={client} />} />
-            <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={visibleModel} client={client} />} />
-            <Route path="/sbom" element={<SbomPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/dependencies" element={<DependenciesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
-            <Route path="/observability" element={<ObservabilityPage client={client} />} />
-            <Route path="/collector-readiness" element={<CollectorReadinessPage rows={visibleModel.collectorReadiness} provenance={visibleModel.provenance.collectorReadiness ?? "empty"} />} />
-            <Route path="/operations" element={<OperationsPage model={visibleModel} />} />
-            <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
-            <Route
-              path="/workspace/:entityKind/:entityId"
-              element={
-                <Suspense
-                  fallback={
-                    <section className="page-shell">
-                      <h1>Loading workspace</h1>
-                      <p>Loading live data.</p>
-                    </section>
-                  }
-                >
-                  <WorkspacePage />
-                </Suspense>
-              }
-            />
-          </Routes>
+        {showLogin ? (
+          <LoginPage client={new EshuApiClient({ baseUrl: source.base })} onSuccess={handleLoginSuccess} baseUrl={source.base} />
+        ) : source.status === "connected" ? (
+          <AppRoutes model={visibleModel} client={client} source={source} repositories={repositories} onOpenService={openService} />
         ) : (
           <ConnectionState status={source.status} onConnect={() => setOpen(true)} />
         )}
