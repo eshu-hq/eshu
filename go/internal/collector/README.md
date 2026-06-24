@@ -559,17 +559,25 @@ heaviest repos start before the small-repo bulk and overlap with it instead of
 serializing at the end. The file count walked for ordering is reused for the
 existing small/large lane classification, so no second tree walk is added.
 
-- Performance Evidence (projected, pending e2e): baseline is the full-corpus
-  per-stage breakdown above where the giant-repo parse (~1012 s) ran as a serial
-  tail in discovery order; after this change the same giant repos are dispatched
-  first and overlap the small-repo bulk, so the expected improvement is the
-  collapse of most of the giant-repo serial tail into overlapped wall-time. The
-  ordering walk reuses the existing classification file-count walk, adding no new
-  per-repo walk. Focused proof of the ordering and the preserved repo set:
-  `go test ./internal/collector -run
+- Performance Evidence (measured, full-corpus 895-repository run, PostgreSQL 18 +
+  NornicDB): the giant repos are now dispatched in the first batch (verified by
+  the order of the `large repository queued` log) and parse concurrently with the
+  small-repo bulk instead of serializing at the tail. The clean, attributable
+  metric is the parse stage (the collection work this change targets, unconfounded
+  by the downstream projection consumer): the worst single-repository parse
+  dropped from ~1012 s to ~238 s and the total parse stage from ~1586 s to ~675 s
+  versus the pre-change run, combining this ordering change with the byte-balanced
+  partitioning below. Two giant repositories parse at a time under the existing
+  large-repo semaphore (`large_repo_max_concurrent`, default 2), so giants 3+ wait
+  ~90-100 s for a slot — a pre-existing cap, not introduced here. Caveat: the
+  end-to-end collector-stream wall-time is pipelined against projection
+  backpressure and so is dominated by the projection consumer's wall-time (which
+  varied ~17% run-to-run from NornicDB write timing, a phase this change does not
+  touch); the per-stage parse durations above are the isolated collection metric.
+  Focused proof of the ordering and the preserved repo set: `go test
+  ./internal/collector -run
   'Test(ResolveRepositoriesSortsLargestFirst|ResolveRepositoriesStableForEqualCounts|IsLargeRepositoryReturnsExactCount)'
-  -count=1`. The projected wall-time win is to be confirmed by the remote
-  full-corpus e2e run.
+  -count=1`.
 - Observability Evidence: the per-repo `eshu_dp_repo_snapshot_duration_seconds`
   histogram now carries the bounded `repo_size_tier` (`small`/`large`)
   dimension so an operator can slice giant-repo cost by size without the
@@ -595,19 +603,24 @@ dropped. The partitions cover the exact same file set (same indexes, no drop, no
 duplicate), so the parse result is byte-identical — only the worker distribution
 changes.
 
-- Performance Evidence (projected, pending e2e): baseline is the count-based
-  partitioning where one giant repository's parse ran ~1012 s with heavy files
-  clustered in a few partitions; after this change the same heavy files are
-  spread by byte weight across parse workers, so the expected improvement is a
-  lower max-partition parse time for heavy-file-skewed repositories within the
-  fixed `ESHU_PARSE_WORKERS` budget. Correctness and balance proof:
+- Performance Evidence (measured, full-corpus 895-repository run): baseline is the
+  count-based partitioning where one giant repository's parse ran ~1012 s with
+  heavy files clustered in a few partitions; with byte-balanced partitioning the
+  same repository's worst parse stage dropped to ~238 s and the total parse stage
+  across the corpus fell from ~1586 s to ~675 s, within the fixed
+  `ESHU_PARSE_WORKERS` budget. The ~238 s residual is the giant repository's
+  irreducible parse — a partition cannot split below a single file, so one
+  multi-megabyte authored file still parses on one worker (files already skipped
+  as minified/generated/vendored under #3679 are excluded; these are kept,
+  authored files). `materialize` (~458 s total, serial, untouched here) is now
+  co-equal with the parse residual and is the next collection target. Correctness
+  and balance proof:
   `go test ./internal/collector -run
   'Test(BuildParseSubtreePartitionsCoversExactFileSet|BuildParseSubtreePartitionsSpreadsHeavyFiles|BuildParseSubtreePartitionsEdgeCases|BuildParseSubtreePartitionsSplitsStableSubtrees|PartitionedConcurrentParseMatchesSequentialComposition)'
   -count=1` proves the union of partitions equals the input file set exactly,
   heavy files spread instead of clustering, the empty/single/all-same-size edge
   cases hold, and the concurrent parse output still matches the sequential
-  composition byte-for-byte. The projected wall-time win is to be confirmed by
-  the remote full-corpus e2e run.
+  composition byte-for-byte.
 - No-Observability-Change: parse-partition balancing changes only how files are
   grouped across the existing parse workers. The existing
   `eshu_dp_file_parse_duration_seconds`, `eshu_dp_files_parsed_total`, and the
