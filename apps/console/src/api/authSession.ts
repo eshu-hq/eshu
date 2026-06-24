@@ -28,15 +28,31 @@ export interface LoginLocalOptions {
   readonly mfaCode?: string;
 }
 
-// loginLocal POSTs credentials to /api/v0/auth/local/login.
-// Exact backend field names confirmed from go/internal/query/local_identity_requests.go:
+// LocalLoginResult is a discriminated union of every possible local-login
+// outcome. The backend always returns a JSON body even on 4xx (confirmed from
+// go/internal/query/local_identity_handler_helpers.go:writeLocalIdentityUnauthenticated).
+// HTTP status codes map as follows:
+//   200 → { status: "ok", session }    — full BrowserSessionResponse in body
+//   202 → { status: "mfa_required" }   — password accepted, MFA proof needed
+//   423 → { status: "locked", lockedUntil? } — EshuApiHttpError status=423
+//   403 → { status: "disabled" }       — EshuApiHttpError status=403
+//   401 → { status: "invalid" }        — EshuApiHttpError status=401
+// Any other error (5xx, network, timeout) is rethrown — never swallowed.
+export type LocalLoginResult =
+  | { readonly status: "ok"; readonly session: BrowserSessionResponse }
+  | { readonly status: "mfa_required" }
+  | { readonly status: "locked"; readonly lockedUntil?: string }
+  | { readonly status: "disabled" }
+  | { readonly status: "invalid" };
+
+// loginLocal POSTs credentials to /api/v0/auth/local/login and returns a
+// discriminated LocalLoginResult. Non-auth errors (5xx, network) are rethrown.
+// Exact backend field names from go/internal/query/local_identity_requests.go:
 //   login_id, password, recovery_code
-// Throws EshuApiHttpError on any backend error (401, 403, etc.) — callers must
-// surface errors explicitly.
 export async function loginLocal(
   client: EshuApiClient,
   opts: LoginLocalOptions
-): Promise<BrowserSessionResponse> {
+): Promise<LocalLoginResult> {
   const body: Record<string, string> = {
     login_id: opts.login,
     password: opts.password
@@ -44,7 +60,36 @@ export async function loginLocal(
   if (opts.mfaCode !== undefined && opts.mfaCode.trim().length > 0) {
     body["recovery_code"] = opts.mfaCode.trim();
   }
-  return client.postJson<BrowserSessionResponse>("/api/v0/auth/local/login", body);
+  try {
+    // postJson resolves for 2xx. 202 (mfa_required) is 2xx, so it resolves
+    // with the body {status:"mfa_required"} — not a BrowserSessionResponse.
+    // We cast to `any` here because the 202 body has a different shape.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await client.postJson<any>("/api/v0/auth/local/login", body);
+    if (raw?.status === "mfa_required") {
+      return { status: "mfa_required" };
+    }
+    // 200 authenticated — body is LocalIdentitySessionResponse with auth present.
+    return { status: "ok", session: raw as BrowserSessionResponse };
+  } catch (e) {
+    if (e instanceof EshuApiHttpError) {
+      if (e.status === 423) {
+        // Body carries locked_until as ISO string but postJson threw — we cannot
+        // read the response body here. Callers display generic locked message.
+        return { status: "locked" };
+      }
+      if (e.status === 403) {
+        return { status: "disabled" };
+      }
+      if (e.status === 401) {
+        return { status: "invalid" };
+      }
+      // Any other HTTP error (5xx, 503, etc.) is not an auth outcome — rethrow.
+      throw e;
+    }
+    // Network/timeout errors — rethrow.
+    throw e;
+  }
 }
 
 // OidcLoginOptions selects the provider and optional workspace context.
@@ -60,6 +105,8 @@ export interface OidcLoginOptions {
 // beginOidcLogin builds the OIDC login redirect URL and optionally performs
 // the redirect via redirectFn (defaults to location.assign). Returns the URL
 // so tests can verify it without triggering navigation.
+// NOTE: No provider-discovery endpoint exists in Slice A (#3682). The UI
+// hides OIDC/SAML buttons until provider discovery is wired up.
 export function beginOidcLogin(
   baseUrl: string,
   opts: OidcLoginOptions,
@@ -80,6 +127,8 @@ export function beginOidcLogin(
 
 // SamlLoginOptions selects the SAML provider by ID.
 // Path param: provider_id (from GET /api/v0/auth/saml/providers/{provider_id}/login)
+// NOTE: No provider-discovery endpoint exists in Slice A (#3682). The UI
+// hides OIDC/SAML buttons until provider discovery is wired up.
 export interface SamlLoginOptions {
   readonly providerId: string;
   readonly returnTo: string;

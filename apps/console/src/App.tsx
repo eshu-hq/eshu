@@ -43,7 +43,7 @@ import { demoModel } from "./console/demoModel";
 import { emptyConsoleModel } from "./console/liveModel";
 import { bootFromKey, bootFromSession } from "./appBoot";
 import { buildAllowedNavSet } from "./auth/capabilityAccess";
-import type { CapabilityRow } from "./api/capabilityCatalog";
+import { logout } from "./api/authSession";
 import { LoginPage } from "./pages/LoginPage";
 import type { ConsoleModel } from "./console/types";
 import { fmt } from "./console/types";
@@ -143,17 +143,15 @@ export function App(): React.JSX.Element {
   const [client, setClient] = useState<EshuApiClient | undefined>(() => hasDemoEnv ? createDemoApiClient() : undefined);
   const [repositories, setRepositories] = useState<readonly RepoListItem[]>(() => hasDemoEnv ? demoRepositories : []);
   const [session, setSession] = useState<BrowserSessionResponse | null>(null);
-  const [capRows] = useState<readonly CapabilityRow[]>([]);
   const [drawer, setDrawer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   // showLogin: private mode with no session and not yet connecting
   const showLogin = !hasDemoEnv && source.status === "needs-connection";
   const visibleModel = verifiedOnly ? verifiedConsoleModel(model) : model;
-  // Capability-gated nav: UX-only (server enforces). Fail-open when no session.
-  const allowedNav = session !== null
-    ? buildAllowedNavSet(session.auth, capRows)
-    : null;
+  // Capability-gated nav: UX-only (server enforces). buildAllowedNavSet is
+  // fail-open when session is null or catalog is not enforced.
+  const allowedNav = buildAllowedNavSet(session?.auth);
   const searchInputRef = useRef<HTMLInputElement>(null);
   // Boot guard: React StrictMode runs effects twice in development, which would
   // otherwise fire two concurrent boot connects whose in-flight fetches abort
@@ -215,6 +213,20 @@ export function App(): React.JSX.Element {
       setSource((s) => ({ ...s, status: "error", msg: e instanceof Error ? e.message : "unreachable" }));
     });
   }
+  function handleLogout(): void {
+    if (client === undefined) return;
+    logout(client).then(() => {
+      setSession(null);
+      setClient(undefined);
+      setModel(emptyConsoleModel());
+      setRepositories([]);
+      setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
+    }).catch(() => {
+      // Surface the failure — a silent logout leaves the user half-authenticated.
+      setSource((s) => ({ ...s, msg: "Logout failed — you may still be signed in." }));
+    });
+  }
+
   const openService = (name: string): void => setDrawer(name);
 
   function runSearch(rawQuery: string): void {
@@ -309,7 +321,7 @@ export function App(): React.JSX.Element {
         {NAV_GROUPS.map((group) => (
           <div className="nav-section" key={group.label}>
             <div className="nav-group-label">{group.label}</div>
-            {group.items.filter((n) => allowedNav === null || allowedNav.has(n.to)).map((n) => {
+            {group.items.filter((n) => allowedNav.has(n.to)).map((n) => {
               const Icon = n.icon;
               const count = n.count?.(visibleModel) ?? null;
               return (
@@ -357,6 +369,17 @@ export function App(): React.JSX.Element {
             <ShieldCheck aria-hidden />
           </button>
           <span className="topbar-signal" title="No local notifications"><Bell aria-hidden /></span>
+          {session !== null ? (
+            <button
+              className="topbar-btn"
+              type="button"
+              title="Sign out"
+              aria-label="Sign out"
+              onClick={handleLogout}
+            >
+              Sign out
+            </button>
+          ) : null}
           <div className="source-wrap">
             <button className={`source-pill src-${source.status}`} onClick={() => setOpen((o) => !o)}>
               <i />{pill}

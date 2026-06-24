@@ -1,27 +1,24 @@
 // LoginPage.tsx — production login surface.
 // No API-key input. Supports local login (login_id + password + optional MFA
-// recovery code), OIDC provider redirect, and SAML provider redirect.
+// recovery code). OIDC/SAML redirect buttons are hidden in Slice A pending
+// provider-discovery endpoint (#3682). The helpers and tests remain in place.
 // On successful local login, calls onSuccess(session) — caller navigates.
 import { useState, type FormEvent } from "react";
 import type { BrowserSessionResponse } from "../api/client";
-import { EshuApiHttpError } from "../api/client";
 import type { EshuApiClient } from "../api/client";
-import { loginLocal, beginOidcLogin } from "../api/authSession";
+import { loginLocal } from "../api/authSession";
 
 export interface LoginPageProps {
   readonly client: EshuApiClient;
-  // onSuccess is called with the session after a successful login.
+  // onSuccess is called with the session after a successful local login.
   readonly onSuccess: (session: BrowserSessionResponse) => void;
-  // baseUrl is used for OIDC/SAML redirect URLs. Defaults to /eshu-api/.
+  // baseUrl is kept for future OIDC/SAML redirect URLs (#3682).
   readonly baseUrl?: string;
 }
 
 type LoginPhase = "credentials" | "mfa";
 
-// MFA_REQUIRED_CODE is the backend error code that signals MFA is needed.
-const MFA_REQUIRED_CODE = "mfa_required";
-
-export function LoginPage({ client, onSuccess, baseUrl = "/eshu-api/" }: LoginPageProps): React.JSX.Element {
+export function LoginPage({ client, onSuccess }: LoginPageProps): React.JSX.Element {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
@@ -34,39 +31,38 @@ export function LoginPage({ client, onSuccess, baseUrl = "/eshu-api/" }: LoginPa
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const session = await loginLocal(client, {
+      const result = await loginLocal(client, {
         login: login.trim(),
         password,
         mfaCode: phase === "mfa" ? mfaCode.trim() : undefined
       });
-      onSuccess(session);
-    } catch (err) {
-      if (err instanceof EshuApiHttpError) {
-        const code = err.error?.code ?? "";
-        if (code === MFA_REQUIRED_CODE) {
+      switch (result.status) {
+        case "ok":
+          onSuccess(result.session);
+          break;
+        case "mfa_required":
           setPhase("mfa");
           setErrorMsg("Enter your recovery code to continue.");
-        } else if (err.status === 401) {
-          setErrorMsg("Login failed. Check your login ID and password.");
-        } else {
-          setErrorMsg(err.message);
-        }
-      } else if (err instanceof Error) {
-        setErrorMsg(err.message);
-      } else {
-        setErrorMsg("An unexpected error occurred.");
+          break;
+        case "locked":
+          setErrorMsg(
+            result.lockedUntil
+              ? `Account locked until ${new Date(result.lockedUntil).toLocaleString()}.`
+              : "Account is temporarily locked. Try again later."
+          );
+          break;
+        case "disabled":
+          setErrorMsg("Account disabled — contact an admin.");
+          break;
+        case "invalid":
+          setErrorMsg("Incorrect login or password.");
+          break;
       }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function handleOidcSignIn(): void {
-    beginOidcLogin(
-      baseUrl,
-      { providerConfigId: "", returnTo: "/" },
-      (url) => { globalThis.location.assign(url); }
-    );
   }
 
   return (
@@ -130,18 +126,8 @@ export function LoginPage({ client, onSuccess, baseUrl = "/eshu-api/" }: LoginPa
             {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
-        <div className="login-divider"><span>or</span></div>
-
-        <div className="login-sso">
-          <button
-            className="btn-ghost login-oidc"
-            type="button"
-            onClick={handleOidcSignIn}
-          >
-            Continue with OIDC
-          </button>
-        </div>
+        {/* OIDC and SAML sign-in buttons are hidden in Slice A pending
+            provider-discovery endpoint implementation (#3682). */}
       </div>
     </div>
   );

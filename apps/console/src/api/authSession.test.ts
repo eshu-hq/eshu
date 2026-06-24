@@ -1,8 +1,16 @@
 // authSession.test.ts — TDD tests for authSession helpers.
-// These run before implementation exists; all must initially fail.
+// loginLocal returns a discriminated LocalLoginResult union. The backend always
+// returns a JSON body (go/internal/query/local_identity_handler_helpers.go):
+//   200 → {status:"authenticated", auth:{...}}  → LocalLoginResult{status:"ok"}
+//   202 → {status:"mfa_required"}               → LocalLoginResult{status:"mfa_required"}  (resolves, NOT throws)
+//   423 → EshuApiHttpError(423)                  → LocalLoginResult{status:"locked"}
+//   403 → EshuApiHttpError(403)                  → LocalLoginResult{status:"disabled"}
+//   401 → EshuApiHttpError(401)                  → LocalLoginResult{status:"invalid"}
+//   5xx → EshuApiHttpError(5xx) re-thrown
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EshuApiClient, BrowserSessionResponse } from "./client";
 import { EshuApiHttpError } from "./client";
+import type { LocalLoginResult } from "./authSession";
 import {
   loadCurrentSession,
   loginLocal,
@@ -20,10 +28,22 @@ const mockSession: BrowserSessionResponse = {
   }
 };
 
+// Raw LocalIdentitySessionResponse returned by the backend on 200.
+const mockSessionRaw = {
+  status: "authenticated",
+  auth: {
+    mode: "browser_session",
+    tenant_id: "tenant_a",
+    workspace_id: "ws_a",
+    all_scopes: true
+  },
+  csrf_token: "csrf-tok"
+};
+
 function makeClient(overrides: Partial<EshuApiClient> = {}): EshuApiClient {
   return {
     getBrowserSession: vi.fn(async () => mockSession),
-    postJson: vi.fn(async () => mockSession),
+    postJson: vi.fn(async () => mockSessionRaw),
     logoutBrowserSession: vi.fn(async () => undefined),
     createBrowserSession: vi.fn(async () => mockSession),
     ...overrides
@@ -84,12 +104,67 @@ describe("loginLocal", () => {
 
   it("POSTs login_id and password to /api/v0/auth/local/login", async () => {
     const client = makeClient();
-    const result = await loginLocal(client, { login: "user@example.com", password: "s3cr3t" });
-    expect(result).toEqual(mockSession);
+    await loginLocal(client, { login: "user@example.com", password: "s3cr3t" });
     expect(client.postJson).toHaveBeenCalledWith(
       "/api/v0/auth/local/login",
       { login_id: "user@example.com", password: "s3cr3t" }
     );
+  });
+
+  it("returns {status:'ok', session} on 200 authenticated response", async () => {
+    const client = makeClient();
+    const result = await loginLocal(client, { login: "u", password: "p" });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      // The session wraps the raw response which has auth nested inside
+      expect(result.session).toBeDefined();
+    }
+  });
+
+  it("returns {status:'mfa_required'} when backend sends 202 body (resolves, not throws)", async () => {
+    const client = makeClient({
+      postJson: vi.fn(async () => ({ status: "mfa_required" }))
+    });
+    const result = await loginLocal(client, { login: "u", password: "p" });
+    expect(result).toEqual<LocalLoginResult>({ status: "mfa_required" });
+  });
+
+  it("returns {status:'invalid'} on 401", async () => {
+    const client = makeClient({
+      postJson: vi.fn(async () => { throw new EshuApiHttpError(401); })
+    });
+    const result = await loginLocal(client, { login: "u", password: "p" });
+    expect(result).toEqual<LocalLoginResult>({ status: "invalid" });
+  });
+
+  it("returns {status:'disabled'} on 403", async () => {
+    const client = makeClient({
+      postJson: vi.fn(async () => { throw new EshuApiHttpError(403); })
+    });
+    const result = await loginLocal(client, { login: "u", password: "p" });
+    expect(result).toEqual<LocalLoginResult>({ status: "disabled" });
+  });
+
+  it("returns {status:'locked'} on 423", async () => {
+    const client = makeClient({
+      postJson: vi.fn(async () => { throw new EshuApiHttpError(423); })
+    });
+    const result = await loginLocal(client, { login: "u", password: "p" });
+    expect(result).toEqual<LocalLoginResult>({ status: "locked" });
+  });
+
+  it("rethrows 5xx errors — never swallows non-auth HTTP errors", async () => {
+    const client = makeClient({
+      postJson: vi.fn(async () => { throw new EshuApiHttpError(500); })
+    });
+    await expect(loginLocal(client, { login: "u", password: "p" })).rejects.toThrow(EshuApiHttpError);
+  });
+
+  it("rethrows network/timeout errors", async () => {
+    const client = makeClient({
+      postJson: vi.fn(async () => { throw new Error("fetch failed"); })
+    });
+    await expect(loginLocal(client, { login: "u", password: "p" })).rejects.toThrow("fetch failed");
   });
 
   it("includes recovery_code when mfaCode is provided", async () => {
@@ -106,13 +181,6 @@ describe("loginLocal", () => {
     await loginLocal(client, { login: "user@example.com", password: "s3cr3t" });
     const body = (client.postJson as ReturnType<typeof vi.fn>).mock.calls[0][1] as Record<string, unknown>;
     expect(body).not.toHaveProperty("recovery_code");
-  });
-
-  it("propagates errors from the backend", async () => {
-    const client = makeClient({
-      postJson: vi.fn(async () => { throw new EshuApiHttpError(401); })
-    });
-    await expect(loginLocal(client, { login: "u", password: "p" })).rejects.toThrow(EshuApiHttpError);
   });
 });
 

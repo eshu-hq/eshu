@@ -1,117 +1,116 @@
-// capabilityAccess.ts — nav visibility gating based on session capabilities.
+// capabilityAccess.ts — nav visibility gating based on session permission families.
 //
 // Design intent: nav gating is UX-only. The server enforces authorization on
 // every request. This module only hides nav items to avoid confusing users who
-// lack a scope — it never creates a security boundary in the browser.
+// lack access — it never creates a security boundary in the browser.
 //
-// Fail-open policy: if the capability catalog is unavailable or empty, ALL nav
-// items are shown. Hiding nav based on a fetch error would be incorrect: we
-// cannot distinguish "no capabilities" from "catalog fetch failed." An empty
-// catalog is treated as "we don't know → show everything; server will deny."
-// This is documented explicitly so future maintainers do not change the
-// fail-open behavior without understanding the security model.
+// Fail-open policy: when auth is absent, all_scopes is true, or the server
+// has not enabled the permission catalog (permission_catalog_enforced=false),
+// ALL nav items are shown. The server will deny unauthorized requests; we must
+// not hide nav based on a state we cannot verify client-side.
+//
+// Real permission families from go/internal/capabilitycatalog/authz.go:
+//   identity_admin, roles_grants, tokens, repository_content, service_runtime,
+//   cloud_iac, secrets_iam, supply_chain, docs_semantic, ask_search,
+//   operations_status, audit_export, admin_recovery
 import type { BrowserSessionAuth } from "../api/client";
-import type { CapabilityRow } from "../api/capabilityCatalog";
 
-// ALWAYS_ALLOWED routes are shown regardless of scopes. They are either
-// structural (login, home) or universally available (status, dashboard).
+// ALWAYS_ALLOWED routes are shown regardless of permission families. They are
+// structural (home) or universally accessible (status, dashboard).
 const ALWAYS_ALLOWED_ROUTES: ReadonlySet<string> = new Set([
   "/",
-  "/status",
-  "/dashboard"
+  "/dashboard",
+  "/status"
 ]);
 
-// NAV_ROUTE_TO_CAPABILITY maps each nav route to the capability key that gates
-// it. Routes NOT in this map are fail-open (shown when catalog is present but
-// no mapping exists).
-const NAV_ROUTE_TO_CAPABILITY: ReadonlyMap<string, string> = new Map([
-  ["/ask", "platform_graph.ask"],
-  ["/impact", "platform_impact.impact_review"],
-  ["/exposure", "platform_impact.exposure_path"],
-  ["/changed-since", "platform_graph.changed_since"],
-  ["/explorer", "platform_graph.graph_explorer"],
-  ["/relationships", "platform_graph.relationships"],
-  ["/service-story", "platform_graph.service_story"],
-  ["/service-report", "platform_graph.service_report"],
-  ["/nodes", "platform_graph.nodes"],
-  ["/repositories", "platform_inventory.repository_list"],
-  ["/catalog", "platform_inventory.service_catalog"],
-  ["/findings", "platform_inventory.findings"],
-  ["/images", "supply_chain.container_image_list"],
-  ["/iac", "platform_inventory.iac_resources"],
-  ["/replatforming", "platform_inventory.replatforming"],
-  ["/vulnerabilities", "supply_chain.vulnerability_list"],
-  ["/dead-code", "code_intelligence.dead_code"],
-  ["/code-graph", "code_intelligence.code_graph"],
-  ["/topology", "platform_graph.topology"],
-  ["/cloud", "platform_inventory.cloud_resources"],
-  ["/secrets-iam", "platform_inventory.secrets_iam"],
-  ["/incidents", "platform_graph.incident_context"],
-  ["/ci-cd/run-correlations", "supply_chain.ci_cd_run_correlations"],
-  ["/cloud-drift", "platform_inventory.cloud_drift"],
-  ["/observability", "platform_graph.observability"],
-  ["/sbom", "supply_chain.sbom_attestations"],
-  ["/dependencies", "supply_chain.dependency_list"],
-  ["/capabilities", "platform_meta.capability_catalog"],
-  ["/collector-readiness", "platform_meta.collector_readiness"],
-  ["/surface-inventory", "platform_meta.surface_inventory"],
-  ["/operations", "platform_meta.operations"],
-  ["/freshness-causality", "platform_meta.freshness_causality"]
+// NAV_ROUTE_TO_FAMILY maps each nav route to the real permission family that
+// gates it. Routes NOT in this map are ALWAYS_ALLOWED (fail-open). Family
+// names are the canonical strings from go/internal/capabilitycatalog/authz.go.
+const NAV_ROUTE_TO_FAMILY: ReadonlyMap<string, string> = new Map([
+  // ask_search: natural language search over the graph
+  ["/ask", "ask_search"],
+  // repository_content: source code, file trees, code graph, dead code
+  ["/repositories", "repository_content"],
+  ["/code-graph", "repository_content"],
+  ["/dead-code", "repository_content"],
+  ["/nodes", "repository_content"],
+  ["/relationships", "repository_content"],
+  ["/explorer", "repository_content"],
+  // service_runtime: catalog, service story/report, incident context
+  ["/catalog", "service_runtime"],
+  ["/service-story", "service_runtime"],
+  ["/service-report", "service_runtime"],
+  ["/impact", "service_runtime"],
+  ["/exposure", "service_runtime"],
+  ["/changed-since", "service_runtime"],
+  ["/incidents", "service_runtime"],
+  ["/topology", "service_runtime"],
+  // cloud_iac: IaC resources, cloud resources, cloud drift, replatforming
+  ["/iac", "cloud_iac"],
+  ["/cloud", "cloud_iac"],
+  ["/cloud-drift", "cloud_iac"],
+  ["/replatforming", "cloud_iac"],
+  // secrets_iam: secrets and IAM surface
+  ["/secrets-iam", "secrets_iam"],
+  // supply_chain: SBOM, vulnerabilities, images, dependencies, CI/CD
+  ["/sbom", "supply_chain"],
+  ["/vulnerabilities", "supply_chain"],
+  ["/images", "supply_chain"],
+  ["/dependencies", "supply_chain"],
+  ["/ci-cd/run-correlations", "supply_chain"],
+  ["/findings", "supply_chain"],
+  // docs_semantic: documentation surface
+  ["/surface-inventory", "docs_semantic"],
+  // operations_status: observability, operations, freshness
+  ["/observability", "operations_status"],
+  ["/operations", "operations_status"],
+  ["/freshness-causality", "operations_status"],
+  // admin_recovery: capability catalog, collector readiness
+  ["/capabilities", "admin_recovery"],
+  ["/collector-readiness", "admin_recovery"]
 ]);
 
 // buildAllowedNavSet returns the set of route prefixes the current session may
-// see. Called once per render cycle when session or catalog changes.
+// see. Fail-open in every ambiguous case so users never lose access due to a
+// missing catalog or auth field.
 export function buildAllowedNavSet(
-  auth: BrowserSessionAuth,
-  catalogRows: readonly CapabilityRow[]
+  auth: BrowserSessionAuth | null | undefined
 ): ReadonlySet<string> {
-  // Seed with always-allowed routes.
+  const allRoutes = new Set<string>([
+    ...ALWAYS_ALLOWED_ROUTES,
+    ...NAV_ROUTE_TO_FAMILY.keys()
+  ]);
+
+  // No session, all_scopes, or catalog not enforced → show everything.
+  if (
+    auth == null ||
+    auth.all_scopes ||
+    !auth.permission_catalog_enforced
+  ) {
+    return allRoutes;
+  }
+
+  // Catalog is enforced: filter by allowed permission families.
+  const allowedFamilies = new Set<string>(auth.allowed_permission_features ?? []);
   const allowed = new Set<string>(ALWAYS_ALLOWED_ROUTES);
 
-  // all_scopes sessions see every nav item unconditionally.
-  if (auth.all_scopes) {
-    for (const route of NAV_ROUTE_TO_CAPABILITY.keys()) {
+  for (const [route, family] of NAV_ROUTE_TO_FAMILY) {
+    if (allowedFamilies.has(family)) {
       allowed.add(route);
     }
-    return allowed;
-  }
-
-  // Fail-open: if catalog is empty we cannot distinguish "no capabilities
-  // configured" from "catalog fetch failed." Show everything; server enforces.
-  if (catalogRows.length === 0) {
-    for (const route of NAV_ROUTE_TO_CAPABILITY.keys()) {
-      allowed.add(route);
-    }
-    return allowed;
-  }
-
-  // Build a set of capability keys the session is allowed to use.
-  const allowedScopes = new Set<string>(auth.allowed_scope_ids ?? []);
-
-  for (const [route, capKey] of NAV_ROUTE_TO_CAPABILITY) {
-    const row = catalogRows.find((r) => r.capability === capKey);
-    if (row === undefined) {
-      // No catalog entry for this route → fail-open (show it).
-      allowed.add(route);
-    } else if (allowedScopes.has(capKey)) {
-      allowed.add(route);
-    }
-    // else: catalog has the entry but session lacks the scope → hide (UX only).
+    // else: family not granted → hide route (UX only; server enforces).
   }
 
   return allowed;
 }
 
 // canAccessNav returns true when the given nav route should be shown for the
-// current session and catalog state. Fail-open for unmapped routes.
+// current session. Fail-open for routes not in the mapping.
 export function canAccessNav(
   route: string,
-  auth: BrowserSessionAuth,
-  catalogRows: readonly CapabilityRow[]
+  auth: BrowserSessionAuth | null | undefined
 ): boolean {
-  const allowed = buildAllowedNavSet(auth, catalogRows);
-  if (allowed.has(route)) return true;
-  // Fail-open for routes not in the mapping (no catalog entry to deny on).
-  if (!NAV_ROUTE_TO_CAPABILITY.has(route)) return true;
-  return false;
+  if (ALWAYS_ALLOWED_ROUTES.has(route)) return true;
+  if (!NAV_ROUTE_TO_FAMILY.has(route)) return true; // unmapped → fail-open
+  return buildAllowedNavSet(auth).has(route);
 }

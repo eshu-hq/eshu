@@ -1,7 +1,10 @@
 // capabilityAccess.test.ts — TDD tests for nav capability gating.
+// Uses real permission family names from go/internal/capabilitycatalog/authz.go:
+//   identity_admin, roles_grants, tokens, repository_content, service_runtime,
+//   cloud_iac, secrets_iam, supply_chain, docs_semantic, ask_search,
+//   operations_status, audit_export, admin_recovery
 import { describe, expect, it } from "vitest";
 import type { BrowserSessionAuth } from "../api/client";
-import type { CapabilityRow } from "../api/capabilityCatalog";
 import { canAccessNav, buildAllowedNavSet } from "./capabilityAccess";
 
 function makeAuth(overrides: Partial<BrowserSessionAuth> = {}): BrowserSessionAuth {
@@ -12,103 +15,125 @@ function makeAuth(overrides: Partial<BrowserSessionAuth> = {}): BrowserSessionAu
   };
 }
 
-function makeCapRow(
-  capability: string,
-  opts: Partial<CapabilityRow> = {}
-): CapabilityRow {
-  return {
-    capability,
-    displayName: capability,
-    ownerPackage: "",
-    maturity: "general_availability",
-    derivedMaturity: "general_availability",
-    maturityReason: "",
-    surfaces: [],
-    proofSignals: [],
-    knownGaps: [],
-    linkedIssues: [],
-    console: true,
-    ...opts
-  };
-}
-
 describe("buildAllowedNavSet", () => {
   it("allows all nav items when all_scopes is true", () => {
     const auth = makeAuth({ all_scopes: true });
-    const rows: readonly CapabilityRow[] = [];
-    const allowed = buildAllowedNavSet(auth, rows);
-    // all_scopes=true: every nav route should be visible
+    const allowed = buildAllowedNavSet(auth);
     expect(allowed.size).toBeGreaterThan(0);
     expect(allowed.has("/dashboard")).toBe(true);
     expect(allowed.has("/catalog")).toBe(true);
     expect(allowed.has("/capabilities")).toBe(true);
+    expect(allowed.has("/ask")).toBe(true);
   });
 
-  it("allows all nav items when catalog is empty (fail-open)", () => {
-    const auth = makeAuth({ all_scopes: false, allowed_scope_ids: [] });
-    const rows: readonly CapabilityRow[] = [];
-    const allowed = buildAllowedNavSet(auth, rows);
-    // fail-open: empty catalog means show everything since server enforces
+  it("allows all nav items when permission_catalog_enforced is false (fail-open)", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: false,
+      allowed_permission_features: []
+    });
+    const allowed = buildAllowedNavSet(auth);
     expect(allowed.has("/dashboard")).toBe(true);
     expect(allowed.has("/catalog")).toBe(true);
+    expect(allowed.has("/ask")).toBe(true);
   });
 
-  it("allows routes mapped to capabilities the user has scope for", () => {
-    const auth = makeAuth({
-      all_scopes: false,
-      allowed_scope_ids: ["platform_inventory.service_catalog"]
-    });
-    const rows: readonly CapabilityRow[] = [
-      makeCapRow("platform_inventory.service_catalog")
-    ];
-    const allowed = buildAllowedNavSet(auth, rows);
+  it("allows all nav items when auth is null (fail-open)", () => {
+    const allowed = buildAllowedNavSet(null);
+    expect(allowed.has("/dashboard")).toBe(true);
     expect(allowed.has("/catalog")).toBe(true);
+    expect(allowed.has("/ask")).toBe(true);
   });
 
-  it("hides routes whose capability is not in allowed_scope_ids", () => {
+  it("allows routes mapped to permission families the session has", () => {
     const auth = makeAuth({
       all_scopes: false,
-      allowed_scope_ids: ["platform_inventory.service_catalog"]
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["ask_search", "service_runtime"]
     });
-    // Provide a non-empty catalog so we don't fail-open
-    const rows: readonly CapabilityRow[] = [
-      makeCapRow("platform_inventory.service_catalog"),
-      makeCapRow("supply_chain.sbom_attestations")
-    ];
-    const allowed = buildAllowedNavSet(auth, rows);
-    expect(allowed.has("/catalog")).toBe(true);
-    // /sbom maps to supply_chain.sbom_attestations which is not in allowed_scope_ids
-    expect(allowed.has("/sbom")).toBe(false);
+    const allowed = buildAllowedNavSet(auth);
+    expect(allowed.has("/ask")).toBe(true);       // ask_search
+    expect(allowed.has("/catalog")).toBe(true);   // service_runtime
+    expect(allowed.has("/impact")).toBe(true);    // service_runtime
+  });
+
+  it("hides routes whose permission family is not granted", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["ask_search"]
+    });
+    const allowed = buildAllowedNavSet(auth);
+    expect(allowed.has("/ask")).toBe(true);      // ask_search ✓
+    expect(allowed.has("/sbom")).toBe(false);    // supply_chain ✗
+    expect(allowed.has("/iac")).toBe(false);     // cloud_iac ✗
+    expect(allowed.has("/secrets-iam")).toBe(false); // secrets_iam ✗
   });
 
   it("always allows core navigation (/, /status, /dashboard) regardless of scopes", () => {
     const auth = makeAuth({
       all_scopes: false,
-      allowed_scope_ids: []
+      permission_catalog_enforced: true,
+      allowed_permission_features: []
     });
-    // non-empty catalog to avoid fail-open
-    const rows: readonly CapabilityRow[] = [
-      makeCapRow("platform_inventory.service_catalog")
-    ];
-    const allowed = buildAllowedNavSet(auth, rows);
+    const allowed = buildAllowedNavSet(auth);
     expect(allowed.has("/")).toBe(true);
     expect(allowed.has("/status")).toBe(true);
     expect(allowed.has("/dashboard")).toBe(true);
   });
+
+  it("supply_chain family grants sbom, vulnerabilities, images, dependencies, findings, ci-cd", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["supply_chain"]
+    });
+    const allowed = buildAllowedNavSet(auth);
+    expect(allowed.has("/sbom")).toBe(true);
+    expect(allowed.has("/vulnerabilities")).toBe(true);
+    expect(allowed.has("/images")).toBe(true);
+    expect(allowed.has("/dependencies")).toBe(true);
+    expect(allowed.has("/findings")).toBe(true);
+    expect(allowed.has("/ci-cd/run-correlations")).toBe(true);
+  });
 });
 
 describe("canAccessNav", () => {
-  it("returns true for allowed route", () => {
-    const auth = makeAuth({ all_scopes: true });
-    expect(canAccessNav("/dashboard", auth, [])).toBe(true);
+  it("returns true for always-allowed route regardless of auth", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: []
+    });
+    expect(canAccessNav("/dashboard", auth)).toBe(true);
+    expect(canAccessNav("/status", auth)).toBe(true);
+    expect(canAccessNav("/", auth)).toBe(true);
   });
 
   it("returns true for unknown route (fail-open)", () => {
-    const auth = makeAuth({ all_scopes: false, allowed_scope_ids: [] });
-    // non-empty catalog — but route has no mapping → fail-open
-    const rows: readonly CapabilityRow[] = [
-      makeCapRow("platform_inventory.service_catalog")
-    ];
-    expect(canAccessNav("/some-unknown-route", auth, rows)).toBe(true);
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: []
+    });
+    expect(canAccessNav("/some-unknown-route", auth)).toBe(true);
+  });
+
+  it("returns false for mapped route when family not granted", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["ask_search"]
+    });
+    expect(canAccessNav("/sbom", auth)).toBe(false);
+  });
+
+  it("returns true for mapped route when family is granted", () => {
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["supply_chain"]
+    });
+    expect(canAccessNav("/sbom", auth)).toBe(true);
   });
 });

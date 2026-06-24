@@ -52,6 +52,11 @@ export interface BrowserSessionAuth {
   readonly all_scopes: boolean;
   readonly allowed_scope_ids?: readonly string[];
   readonly allowed_repository_ids?: readonly string[];
+  // permission_catalog_enforced and allowed_permission_features are populated
+  // when the server has a capability catalog in force. Used for UX-only nav
+  // gating (server still enforces on every request).
+  readonly permission_catalog_enforced?: boolean;
+  readonly allowed_permission_features?: readonly string[];
 }
 
 export interface BrowserSessionResponse {
