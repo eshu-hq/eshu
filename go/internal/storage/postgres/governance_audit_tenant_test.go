@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package postgres
 
 // Tenant-isolation tests for governance_audit_events.tenant_id (issue #3717).
