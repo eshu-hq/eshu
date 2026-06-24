@@ -24,23 +24,6 @@ const (
 	//   ckeditor/ckeditor.js  → 24,720 entities (minified JS)
 	//   yacht.class.php       → 53,830 entities (generated PHP)
 	MaxFileEntityCount = 10_000
-
-	// MaxLockfileVariableEntities is the maximum number of Variable entities
-	// emitted for a single lockfile. When a lockfile's variables bucket exceeds
-	// this limit, only direct-dependency rows (dependency_depth == 1 or
-	// direct_dependency == true in entity Metadata) are retained, and the
-	// retained set is itself capped at MaxLockfileVariableEntities.
-	//
-	// Lockfile Variable entities feed the reducer's package consumption
-	// correlation (package_consumption_correlation.go). Direct dependencies are
-	// the primary signal for consumption decisions; transitive entries from a
-	// large lockfile add noise without changing the correlation outcome for most
-	// packages. Manifest facts (package.json, go.mod, etc.) already carry the
-	// human-declared version ranges.
-	//
-	// Observed on the full-corpus run (issue #3676):
-	//   package-lock.json     → 847,675 entities (single file, ~1M+ lockfile-tagged)
-	MaxLockfileVariableEntities = 500
 )
 
 // Input captures one normalized parser payload batch for content shaping.
@@ -250,21 +233,29 @@ func Materialize(input Input) (content.Materialization, error) {
 	}
 
 	for _, file := range input.Files {
-		record, entities, err := materializeFile(repoID, file)
+		record, entities, fileEntityCapHit, err := materializeFile(repoID, file)
 		if err != nil {
 			return content.Materialization{}, err
 		}
 		materialization.Records = append(materialization.Records, record)
 		materialization.Entities = append(materialization.Entities, entities...)
+		if fileEntityCapHit {
+			materialization.FileEntityCapHits++
+		}
 	}
 
 	return materialization, nil
 }
 
-func materializeFile(repoID string, file File) (content.Record, []content.EntityRecord, error) {
+// materializeFile returns the content record plus entities for one parsed file,
+// along with fileEntityCapHit which is true when the per-file entity count cap
+// was applied and entity materialization was skipped entirely. When the cap
+// fires, PurgeEntities is set on the record so the writer retracts any stale
+// content_entities rows left from a prior indexing run.
+func materializeFile(repoID string, file File) (content.Record, []content.EntityRecord, bool, error) {
 	path := strings.TrimSpace(file.Path)
 	if path == "" {
-		return content.Record{}, nil, fmt.Errorf("content file path is required")
+		return content.Record{}, nil, false, fmt.Errorf("content file path is required")
 	}
 
 	record := content.Record{
@@ -275,12 +266,15 @@ func materializeFile(repoID string, file File) (content.Record, []content.Entity
 		Metadata: normalizeFileMetadata(file),
 	}
 
-	entities, err := materializeEntities(repoID, path, file)
+	entities, fileEntityCapHit, err := materializeEntities(repoID, path, file)
 	if err != nil {
-		return content.Record{}, nil, err
+		return content.Record{}, nil, false, err
+	}
+	if fileEntityCapHit {
+		record.PurgeEntities = true
 	}
 
-	return record, entities, nil
+	return record, entities, fileEntityCapHit, nil
 }
 
 func normalizeFileMetadata(file File) map[string]string {
@@ -302,13 +296,16 @@ func normalizeFileMetadata(file File) map[string]string {
 	return metadata
 }
 
-func materializeEntities(repoID string, path string, file File) ([]content.EntityRecord, error) {
+// materializeEntities returns entities and a fileEntityCapHit flag.
+// fileEntityCapHit is true when the per-file entity cap fired and entity
+// materialization was skipped entirely (returned slice is nil). Transitive
+// lockfile variable entries are always preserved; the lockfile variable cap
+// was removed because transitive entries feed the reducer's
+// PackageConsumptionDecision for supply-chain impact and security alerts.
+func materializeEntities(repoID string, path string, file File) ([]content.EntityRecord, bool, error) {
 	indexedItems := make([]indexedEntity, 0)
 	for _, bucket := range contentEntityBuckets {
 		items := file.EntityBuckets[bucket.bucket]
-		if bucket.bucket == "variables" {
-			items = capLockfileVariables(items)
-		}
 		for _, item := range items {
 			label := entityLabelForBucket(bucket.label, item)
 			indexedItems = append(indexedItems, indexedEntity{
@@ -323,7 +320,7 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 	// files that contribute noise to BM25 indexing without symbol-level value.
 	// The content record (body, digest) is still written by the caller.
 	if len(indexedItems) > MaxFileEntityCount {
-		return nil, nil
+		return nil, true, nil
 	}
 
 	sort.SliceStable(indexedItems, func(i, j int) bool {
@@ -364,55 +361,7 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 		})
 	}
 
-	return entities, nil
-}
-
-// capLockfileVariables reduces a lockfile variable slice to at most
-// MaxLockfileVariableEntities entries. When the input exceeds the cap, only
-// direct-dependency rows (those carrying dependency_depth == 1 or
-// direct_dependency == true in their Metadata) are kept. If the direct-dep
-// subset itself exceeds MaxLockfileVariableEntities, it is truncated to the
-// cap. When no entry carries a lockfile flag the slice is returned unchanged so
-// non-lockfile Variable buckets (Gradle, tsconfig, etc.) are never affected.
-func capLockfileVariables(items []Entity) []Entity {
-	if len(items) <= MaxLockfileVariableEntities {
-		return items
-	}
-
-	// Check whether any item carries lockfile=true metadata before applying the
-	// cap. Non-lockfile variable buckets must not be affected.
-	hasLockfile := false
-	for _, item := range items {
-		if v, _ := item.Metadata["lockfile"].(bool); v {
-			hasLockfile = true
-			break
-		}
-	}
-	if !hasLockfile {
-		return items
-	}
-
-	// Prefer direct dependencies (depth == 1) — these are the primary signal
-	// for package consumption correlation in the reducer.
-	direct := make([]Entity, 0, MaxLockfileVariableEntities)
-	for _, item := range items {
-		depth, _ := item.Metadata["dependency_depth"].(int)
-		isDirect, _ := item.Metadata["direct_dependency"].(bool)
-		if depth == 1 || isDirect {
-			direct = append(direct, item)
-			if len(direct) == MaxLockfileVariableEntities {
-				break
-			}
-		}
-	}
-	if len(direct) > 0 {
-		return direct
-	}
-
-	// Fallback: no entry carries direct_dependency metadata (e.g. lockfile v1
-	// without chain resolution). Keep the first MaxLockfileVariableEntities
-	// rows so at least some dependency evidence is preserved.
-	return items[:MaxLockfileVariableEntities]
+	return entities, false, nil
 }
 
 func entityEndLine(items []indexedEntity, index int, body string, startLine int) int {

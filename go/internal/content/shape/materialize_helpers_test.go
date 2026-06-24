@@ -1,5 +1,29 @@
 package shape
 
+// itoa is a minimal int-to-string helper for test files that need to generate
+// unique entity names without importing strconv or fmt.
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	buf := [20]byte{}
+	pos := len(buf)
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	for n > 0 {
+		pos--
+		buf[pos] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		pos--
+		buf[pos] = '-'
+	}
+	return string(buf[pos:])
+}
+
 type EntityRecordExpectation struct {
 	entityType  string
 	entityName  string
