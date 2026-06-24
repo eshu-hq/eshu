@@ -100,6 +100,14 @@ Telemetry names are frozen in the Go package:
 - pipeline phases and logger helpers: `go/internal/telemetry/logging.go`
 - package-level maintainer contract: `go/internal/telemetry/README.md`
 
+For the machine-enforced enumeration of every reducer / collector / parser /
+queue / graph-write / MCP-API / span / log-key stage and the metric or
+`No-Observability-Change:` marker it must emit, see
+[Telemetry Coverage Contract](../../observability/telemetry-coverage.md).
+That contract is the source of truth that the CI coverage script (X2) diffs
+against when a new pipeline stage lands without a corresponding metric or
+marker.
+
 When adding a signal, update the code contract first, then update the focused
 public telemetry page that operators use for that signal.
 The incident context read route uses `query.incident_context` with stable
