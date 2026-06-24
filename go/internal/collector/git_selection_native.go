@@ -70,6 +70,19 @@ func (s NativeRepositorySelector) SelectRepositories(
 		if err != nil {
 			return SelectionBatch{}, err
 		}
+		// Emit the basename-collision diagnostic only when the sync produced a
+		// non-empty batch — i.e. on the first run or whenever the on-disk corpus
+		// actually changed. syncFilesystemRepositories returns no paths for an
+		// unchanged corpus (manifest match, git_selection_filesystem.go:29-32),
+		// so gating on len(repoPaths) keeps the warning and metric silent on
+		// steady-state re-polls instead of re-firing every interval. The report
+		// inspects the full discovered repositoryIDs because the collision is a
+		// property of the discovered set, not of the managed checkout paths.
+		// This is a heuristic for likely accidental corpus nesting (e.g.
+		// repos/repos/… copies — issue #3677), not a true-duplication check.
+		if len(repoPaths) > 0 {
+			reportRepositoryBasenameCollisions(ctx, repositoryIDs, s.Logger, s.Instruments)
+		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
 			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil),

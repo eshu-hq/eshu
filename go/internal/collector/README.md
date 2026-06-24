@@ -599,6 +599,52 @@ claim/execute spans for the value-flow evidence domains.
   exposes `/admin/status`, hosted readiness, and
   `eshu_runtime_collector_generation_*` count/age gauges.
 
+## Repository basename-collision diagnostic (issue #3677)
+
+`NativeRepositorySelector` emits an observability signal after filesystem-mode
+discovery when the same repository basename appears at more than one discovered
+path. This is a HEURISTIC for likely accidental corpus nesting (e.g. the 4×
+inflation caused by `repos/repos/repos/…` recursive copies), not a true
+duplication check: distinct repositories can legitimately share a basename
+(`org-a/utils` and `org-b/utils`, or monorepo `common/` directories). The signal
+does not change which repos are indexed.
+
+The report fires only on a changed batch: it runs after
+`syncFilesystemRepositories`, which returns an empty path set for an unchanged
+corpus (fixture-manifest match,
+[`git_selection_filesystem.go`](git_selection_filesystem.go) lines 29-32). The
+report is gated on a non-empty sync, so it fires on the first run and whenever
+the on-disk corpus changes, and stays silent on steady-state re-polls under
+`Service.Run` — no per-interval log or metric spam for an unchanged corpus.
+
+Observability Evidence: `eshu_dp_repository_basename_collision_total` is a
+plain counter (no path or basename labels; those are unbounded) that advances
+by the number of surplus (non-first) colliding paths detected in one cycle. A
+non-zero value is a LIKELY signal of accidental corpus nesting and warrants
+inspecting the logged paths before concluding duplication. Read the accompanying
+structured warning log (`"repository basename collision detected (possible
+accidental corpus nesting)"`, with fields `identity`, `path_count`,
+`surplus_count`, and `path_sample`) to see which basename collides and a bounded
+sample (up to 5) of the offending paths. `surplus_count` (= `path_count` − 1)
+reconciles the log with the metric delta. Together, the metric fires an alert
+and the log provides the investigation anchor an operator needs to triage the
+corpus without DB forensics.
+
+No-Regression Evidence: `reportRepositoryBasenameCollisions` runs O(n) over the
+already-discovered `repositoryIDs` slice (a single-pass `map[string][]string`
+group, no filesystem I/O, no git exec, no extra directory walk beyond what
+`discoverRepoRoots` already performed). It runs only on a changed batch in
+filesystem mode (gated on a non-empty sync), adds negligible wall time, and does
+not alter selection or indexing behaviour. The changed-batch gate is stateless
+(it reads only the sync result), so it is safe under the single `Service.Run`
+polling goroutine without added synchronisation. Verified by
+`go test ./internal/collector -run 'TestReportRepositoryBasenameCollisions|TestNativeRepositorySelectorFilesystem_BasenameCollision' -count=1`
+(7 tests: collisions-fire, no-collisions-silent, nil-safe, empty-silent,
+counter-matches-surplus-count, the end-to-end collision integration test, and
+`TestNativeRepositorySelectorFilesystem_BasenameCollisionOnlyOnChange` which
+asserts the report fires on first run, stays silent on an unchanged re-poll, and
+re-fires when the corpus changes).
+
 ## Extension points
 
 - `RepositorySelector` — replace `NativeRepositorySelector` with any
