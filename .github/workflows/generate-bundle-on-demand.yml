@@ -19,6 +19,12 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # workflow_dispatch only; each request bundles a unique repo_url and the
+  # inner `eshu index` runs up to 30m. Without queueing, GitHub Actions
+  # replaces older pending runs and silently drops user requests.
+  # `cancel-in-progress` evaluates false here (no pull_request trigger), so
+  # queued runs are preserved, not cancelled.
+  queue: max
 
 permissions:
   contents: write  # Required to create/update releases
