@@ -997,6 +997,54 @@ selects a hashed secret, invite code, credential handle, or external group hash;
 the SQL-security tests in `identity_admin_reads_test.go` assert the safe-column
 contract per query.
 
+## Admin identity mutation queries (#3703 PR-2)
+
+`RevokeAdminInvitation`, `GrantAdminRoleAssignment`, `RevokeAdminRoleAssignment`,
+`CreateAdminIdPGroupMapping`, and `DeleteAdminIdPGroupMapping` are new
+metadata-only writes that back the console admin mutation surface
+(`POST /api/v0/auth/local/invitations/{invite_id}/revoke`,
+`POST /api/v0/auth/admin/role-assignments`,
+`POST /api/v0/auth/admin/role-assignments/revoke`,
+`POST /api/v0/auth/admin/idp-group-mappings`,
+`DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}`). They are not on
+the ingestion/reducer hot path; each is a single admin-dashboard-triggered write
+scoped strictly to the caller's own tenant (and workspace where the table
+carries one), resolved from the all-scope `AuthContext`, never cross-tenant. The
+external group name is supplied to the store only as its precomputed hash (the
+same `sha256:`-prefixed digest the OIDC login path uses to read mappings); the
+raw group name never reaches this layer.
+
+No-Regression Evidence: all are net-new statements that add no predicate to any
+existing query and modify no existing index or write path, so there is no prior
+baseline to regress. Backend PostgreSQL 16. Input shape: exactly one
+`tenant_id` (and `workspace_id`) per call — never a scan over tenants. Each
+write is idempotent under concurrent retry by construction, not by serialization:
+the two grant/create paths upsert with `ON CONFLICT` on the table's full primary
+key (`(tenant_id, workspace_id, user_id, role_id)` for membership roles;
+`(provider_config_id, external_group_hash, tenant_id, workspace_id, role_id)` for
+group mappings), so a double grant/create converges on one row rather than
+violating the active partial index; the three revoke/delete paths are
+terminal-state-guarded `UPDATE`s (`status = 'active' AND ... IS NULL`) that affect
+zero rows on a repeat without erroring. The invitation revoke runs a row-locked
+(`FOR UPDATE`) read-then-write in one transaction so a concurrent revoke
+serializes on that single row only, not the table. Grant and create validate the
+referenced role/provider is active in the tenant with a bounded
+`SELECT 1 ... LIMIT 1` before writing, so an unknown or tombstoned role/provider
+is rejected rather than fabricating a row. The delete resolves the opaque
+`mapping_ref` with an in-SQL `md5()` digest match anchored to the caller's
+tenant/workspace; no cross-tenant scan and no unbounded fan-out.
+
+Observability Evidence: the statements run on the `InstrumentedDB`-wrapped pool,
+so per-statement latency/error spans and metrics are inherited without per-call
+wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths and
+emit a governance audit event for every allowed and denied mutation
+(`EventTypeRoleGrantChange` for invitation/role-assignment changes,
+`EventTypeIDPConfigChange` for group-mapping changes), which an operator reads
+back through the PR-1 audit endpoints. No statement selects or writes a hashed
+secret, invite code, credential handle, or raw external group name; the
+SQL-security tests in `identity_admin_mutations_test.go` assert the
+parameterized, tenant-scoped, idempotent, no-secret contract per statement.
+
 ## Browser-session permission-catalog persistence (#3684)
 
 `browser_sessions` gains three additive columns —
