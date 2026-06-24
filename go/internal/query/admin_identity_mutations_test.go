@@ -548,3 +548,61 @@ func TestDeleteIdPGroupMappingIdempotentNoop(t *testing.T) {
 		t.Fatalf("idempotent no-op did not audit idp_group_mapping_delete_noop")
 	}
 }
+
+// TestAdminMutationAuditEventCarriesTenantID verifies that a successful
+// mutation from a tenant admin (AllScopes + TenantID) produces an audit event
+// with TenantID and WorkspaceID set to the caller's tenant/workspace (#3717).
+// This ensures the tenant admin can read their own mutation events via the
+// tenant-scoped audit read endpoint. A bare shared-operator (no TenantID)
+// produces a global/NULL event.
+func TestAdminMutationAuditEventCarriesTenantID(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAdminMutationStore{
+		grantResult: AdminRoleAssignmentMutationResult{
+			RoleValid: true, UserValid: true, Changed: true, Status: "active",
+		},
+	}
+	audit := &recordingAuditAppender{}
+	mux := newMutationMux(store, audit)
+
+	tenantAdminAuth := allScopeAdminAuth("tenant_a", "workspace_a")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, mutationRequest(
+		http.MethodPost, "/api/v0/auth/admin/role-assignments",
+		`{"user_id":"user_1","role_id":"developer"}`,
+		tenantAdminAuth,
+	))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if len(audit.events) == 0 {
+		t.Fatal("no audit events recorded for tenant-admin mutation")
+	}
+	for _, ev := range audit.events {
+		if ev.TenantID != "tenant_a" {
+			t.Fatalf("mutation audit event TenantID = %q, want %q: "+
+				"tenant admin mutation events must carry TenantID so tenant-scoped audit reads return them",
+				ev.TenantID, "tenant_a")
+		}
+	}
+
+	// A bare shared-operator with no TenantID must produce a global/NULL event.
+	sharedAudit := &recordingAuditAppender{}
+	sharedMux := newMutationMux(store, sharedAudit)
+	// AuthModeShared + no TenantID → rejected by adminScope (admin_tenant_required),
+	// but a denial event is still emitted — and it must carry empty TenantID.
+	sharedAuth := AuthContext{Mode: AuthModeShared, AllScopes: true, TenantID: ""}
+	sharedRec := httptest.NewRecorder()
+	sharedMux.ServeHTTP(sharedRec, mutationRequest(
+		http.MethodPost, "/api/v0/auth/admin/role-assignments",
+		`{"user_id":"user_1","role_id":"developer"}`,
+		sharedAuth,
+	))
+	for _, ev := range sharedAudit.events {
+		if ev.TenantID != "" {
+			t.Fatalf("shared-operator (no tenant) mutation audit event TenantID = %q, want empty (global event)",
+				ev.TenantID)
+		}
+	}
+}

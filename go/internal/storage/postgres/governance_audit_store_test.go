@@ -138,6 +138,8 @@ func TestGovernanceAuditStoreListAppliesBoundsAndOrdering(t *testing.T) {
 			sql.NullString{String: "corr:read-denied-1", Valid: true},
 			sql.NullString{String: "sha256:cccccccccccccccc", Valid: true},
 			now,
+			sql.NullString{}, // tenant_id
+			sql.NullString{}, // workspace_id
 		}}}},
 	}
 	store := NewGovernanceAuditStore(db)
