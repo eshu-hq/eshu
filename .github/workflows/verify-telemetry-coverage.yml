@@ -1,0 +1,65 @@
+name: Verify Telemetry Coverage
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-verify:
+    name: Verify telemetry coverage test mirror
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run test mirror
+        run: scripts/test-verify-telemetry-coverage.sh
+
+  verify:
+    name: Verify telemetry coverage gate
+    runs-on: ubuntu-latest
+    needs: test-verify
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Verify telemetry coverage gate
+        shell: bash
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -o pipefail
+          scripts/verify-telemetry-coverage.sh 2>&1 | tee /tmp/telemetry-coverage.log
+
+      - name: Upload drift report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: telemetry-coverage-drift-report
+          path: /tmp/telemetry-coverage.log
+          if-no-files-found: warn
