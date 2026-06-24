@@ -51,9 +51,9 @@ const FailureClassAttemptBudgetExhausted = "attempt_budget_exhausted"
 // FailureClassAttemptBudgetExhausted. MaxAttempts == 0 preserves the legacy
 // unbounded behavior for callers that have not yet wired a budget.
 type ClaimedService struct {
-	ControlStore        ClaimControlStore
-	ClaimDispatcher     ClaimDispatcher
-	Source              ClaimedSource
+	ControlStore    ClaimControlStore
+	ClaimDispatcher ClaimDispatcher
+	Source          ClaimedSource
 	// SourceResolver resolves the claim-aware source adapter for one dispatched
 	// claim target (collector kind and instance id). When a ClaimDispatcher
 	// selects targets across multiple collector families and instances, the
@@ -196,6 +196,15 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	}
 	s.recordWorkflowClaimWait(ctx, item)
 
+	// Per-collector run duration: record on every return path so the operator
+	// can see the long pole per collector_kind without joining claim-state tables.
+	// startedAt and runOutcome are call-local; concurrent workers never share them.
+	runStartedAt := s.now()
+	runOutcome := telemetry.CollectorRunOutcomeFailTerminal // pessimistic default; overwritten below
+	defer func() {
+		s.recordClaimRunDuration(ctx, item, runStartedAt, runOutcome)
+	}()
+
 	mutation := s.claimMutation(item, claim)
 	if err := s.ControlStore.HeartbeatClaim(ctx, mutation); err != nil {
 		return fmt.Errorf("heartbeat claimed %s work item: %w", s.claimedKindLabel(), err)
@@ -208,11 +217,14 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	collected, ok, err := s.Source.NextClaimed(ctx, item)
 	if err != nil {
 		if isTerminalFailure(err) {
+			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 			return s.failTerminal(ctx, mutation, "collect_failure", err)
 		}
 		if s.attemptBudgetExhausted(item) {
+			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
 		}
+		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, mutation, item, "collect_failure", err)
 	}
 	if !ok {
@@ -220,11 +232,13 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		if err := s.ControlStore.ReleaseClaim(ctx, mutation); err != nil {
 			return fmt.Errorf("release claimed %s work item: %w", s.claimedKindLabel(), err)
 		}
+		runOutcome = telemetry.CollectorRunOutcomeReleased
 		return nil
 	}
 	if collected.Unchanged {
 		completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
 		if err != nil {
+			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 			if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
 				return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 			}
@@ -237,6 +251,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		if err := s.ControlStore.CompleteClaim(ctx, completeMutation); err != nil {
 			return fmt.Errorf("complete unchanged claimed %s work item: %w", s.claimedKindLabel(), err)
 		}
+		runOutcome = telemetry.CollectorRunOutcomeUnchanged
 		return s.completeGenerationDeadLetterReplay(ctx, collected)
 	}
 	if err := validateClaimedGeneration(item, collected); err != nil {
@@ -244,6 +259,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		if cleanupErr := cleanupCollectedFactStream(collected); cleanupErr != nil {
 			err = errors.Join(err, cleanupErr)
 		}
+		runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
 			return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 		}
@@ -258,15 +274,21 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		// FailClaimTerminal so the same orphaned-row loop issue #612 was
 		// opened to break cannot resurface through the commit path.
 		if isTerminalFailure(err) {
+			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 			return s.failTerminal(ctx, mutation, "commit_failure", err)
 		}
 		if s.attemptBudgetExhausted(item) {
+			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
 		}
+		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, mutation, item, "commit_failure", err)
 	}
+	// Successful commit: record per-collector fact volume before completing.
+	s.recordClaimFactsEmitted(ctx, item, collected)
 	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
 	if err != nil {
+		runOutcome = telemetry.CollectorRunOutcomeFailTerminal
 		if failErr := s.ControlStore.FailClaimTerminal(ctx, withFailure(mutation, "identity_mismatch", err)); failErr != nil {
 			return fmt.Errorf("terminal-fail mismatched %s claim: %w", s.claimedKindLabel(), failErr)
 		}
@@ -279,6 +301,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	if err := s.ControlStore.CompleteClaim(ctx, completeMutation); err != nil {
 		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
+	runOutcome = telemetry.CollectorRunOutcomeSuccess
 	return s.completeGenerationDeadLetterReplay(ctx, collected)
 }
 

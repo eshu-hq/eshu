@@ -688,3 +688,61 @@ re-fires when the corpus changes).
 
 See `docs/public/architecture.md`, `docs/public/deployment/service-runtimes.md`,
 `docs/public/reference/local-testing.md`, `docs/public/reference/telemetry/index.md`, `go/internal/collector/discovery/README.md`, and `go/internal/parser/README.md`.
+
+## Per-collector run telemetry (issue #3680)
+
+### Observability Evidence
+
+`ClaimedService.processClaimed` in `claimed_service.go` is the single chokepoint
+where every collector's claimed work begins and ends. Two new instruments are
+recorded there:
+
+**`eshu_dp_workflow_claim_run_duration_seconds`** (Float64Histogram)
+- Labels: `collector_kind` (bounded `scope.CollectorKind` constant, e.g. `git`,
+  `terraform_state`, `discovery`), `source_system` (e.g. `git`), `outcome`
+  (bounded: `success`, `unchanged`, `released`, `fail_retryable`, `fail_terminal`).
+- Recorded via `defer` at the top of `processClaimed` so every return path
+  (success, unchanged, released, retryable fail, terminal fail) emits a data point.
+- **To find the per-collector long pole:** `topk(5, sum by (collector_kind) of
+  rate(eshu_dp_workflow_claim_run_duration_seconds_sum[5m]) / sum by
+  (collector_kind) of
+  rate(eshu_dp_workflow_claim_run_duration_seconds_count[5m]))` gives mean run
+  duration per collector family. For a corpus run, `max_over_time` on the
+  histogram p95 shows the worst single run.
+- **Joins #3678's per-stage metrics:** both use `collector_kind` as the shared
+  label so `eshu_dp_workflow_claim_run_duration_seconds` (per-collector wall
+  time) and `eshu_dp_bootstrap_pipeline_phase_seconds` (per-phase wall time)
+  compose cleanly.
+
+**`eshu_dp_workflow_claim_facts_emitted_total`** (Int64Counter)
+- Labels: `collector_kind`, `source_system`.
+- Recorded only on the success path, using `CollectedGeneration.FactCount`
+  already populated by every collector — no extra IO introduced.
+- **To find volume per collector:** `sum by (collector_kind) of
+  rate(eshu_dp_workflow_claim_facts_emitted_total[5m])` gives facts/second
+  per collector. A collector with high run duration and low fact count is
+  spending time on IO, not emission.
+- Joins `eshu_dp_content_entity_emitted_total` (from #3678, labeled
+  `source_file_kind`) for a per-collector AND per-file-kind volume breakdown.
+
+Both metrics are surfaced on the existing metrics port (no new endpoint).
+
+### No-Regression Evidence
+
+- The timing wrapper (`runStartedAt := s.now()` + `defer recordClaimRunDuration`)
+  wraps only existing work already performed by `processClaimed`. No extra IO,
+  network, or storage operations are introduced.
+- `CollectedGeneration.FactCount` is an integer already populated before the
+  seam is reached; `recordClaimFactsEmitted` reads it with a single `int64()`
+  cast.
+- Concurrency safety: `metric.Float64Histogram.Record` and
+  `metric.Int64Counter.Add` are safe for concurrent callers per the OTEL Go SDK
+  specification. `runStartedAt` and `runOutcome` are stack-local to each
+  `processClaimed` call frame; N concurrent workers never share them.
+- No behavior changes: all existing claim, heartbeat, commit, complete, fail,
+  and release paths are preserved. The `runOutcome` assignments shadow the
+  pessimistic default (`fail_terminal`) with the correct outcome on each arm;
+  if a future arm is added without an explicit assignment it falls back to
+  `fail_terminal`, which is conservative rather than incorrect.
+- Tests verify all five outcome values under race detection
+  (`go test -race ./internal/collector`): 80 tests passed, 0 races detected.

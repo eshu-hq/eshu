@@ -244,6 +244,7 @@ func TestSpanNames(t *testing.T) {
 		"postgres.query",
 		"neo4j.execute",
 		"bootstrap.collector_cycle",
+		"collector.claimed_run",
 		"collector.snapshot_stage",
 	}
 
