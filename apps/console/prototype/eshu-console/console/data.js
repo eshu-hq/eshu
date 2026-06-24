@@ -27,7 +27,7 @@
     return out;
   }
 
-  const ENV = ["acme-prod", "acme-qa", "ops-qa"];
+  const ENV = ["acme-prod", "acme-qa", "platform-qa"];
 
   const lang = {
     ts: { label: "TypeScript", color: "#3b82f6" },
@@ -61,7 +61,7 @@
   // collectors framed against the real acme stack
   const collectors = [
     { kind: "git", instance: "git-multi-host", status: "degraded", facts: 142880, scopes: 34, lastRun: "1m ago", latencyMs: 410, freshness: "lagging", cadence: "webhook + 10m poll", note: "34 repos across Bitbucket, GitHub Enterprise & github.com" },
-    { kind: "kubernetes", instance: "eks-observer", status: "healthy", facts: 61240, scopes: 3, lastRun: "40s ago", latencyMs: 360, freshness: "fresh", cadence: "watch", note: "acme-prod, acme-qa, ops-qa · ArgoCD-synced workloads" },
+    { kind: "kubernetes", instance: "eks-observer", status: "healthy", facts: 61240, scopes: 3, lastRun: "40s ago", latencyMs: 360, freshness: "fresh", cadence: "watch", note: "acme-prod, acme-qa, platform-qa · ArgoCD-synced workloads" },
     { kind: "aws", instance: "aws-acme", status: "healthy", facts: 88410, scopes: 2, lastRun: "3m ago", latencyMs: 1720, freshness: "fresh", cadence: "30m claim", note: "IRSA, SecretsManager, Route53, API Gateway, ElastiCache, ACM" },
     { kind: "terraform_state", instance: "tfstate-acme", status: "healthy", facts: 33120, scopes: 12, lastRun: "8m ago", latencyMs: 940, freshness: "fresh", cadence: "on-apply + 1h", note: "helm-charts/shared + terraform-stack-* + iac-eks-*" },
     { kind: "oci_registry", instance: "ecr-acme", status: "healthy", facts: 18760, scopes: 41, lastRun: "2m ago", latencyMs: 520, freshness: "fresh", cadence: "5m poll", note: "ECR · node-api-base:1.0.0 + 40 service images" },

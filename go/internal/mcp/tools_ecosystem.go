@@ -56,7 +56,7 @@ func ecosystemTools() []ToolDefinition {
 					},
 					"environment": map[string]any{
 						"type":        "string",
-						"description": "Optional environment scope such as ops-qa or prod.",
+						"description": "Optional environment scope such as platform-qa or prod.",
 					},
 					"limit": map[string]any{
 						"type":        "integer",

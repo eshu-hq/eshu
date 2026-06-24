@@ -329,7 +329,7 @@ func TestResolveRouteMapsDeploymentConfigInfluenceToBoundedBody(t *testing.T) {
 	route, err := resolveRoute("investigate_deployment_config", map[string]any{
 		"service_name": "eshu-hqgraph-resolution-engine",
 		"workload_id":  "workload:eshu-hqgraph-resolution-engine",
-		"environment":  "ops-qa",
+		"environment":  "platform-qa",
 		"limit":        float64(25),
 	})
 	if err != nil {
@@ -348,7 +348,7 @@ func TestResolveRouteMapsDeploymentConfigInfluenceToBoundedBody(t *testing.T) {
 	for key, want := range map[string]any{
 		"service_name": "eshu-hqgraph-resolution-engine",
 		"workload_id":  "workload:eshu-hqgraph-resolution-engine",
-		"environment":  "ops-qa",
+		"environment":  "platform-qa",
 		"limit":        25,
 	} {
 		if got := body[key]; got != want {

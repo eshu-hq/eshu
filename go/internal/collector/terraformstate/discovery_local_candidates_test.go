@@ -112,7 +112,7 @@ func TestDiscoveryPreservesApprovedGitLocalCandidateWithBackendFilter(t *testing
 			BackendFilters: []DiscoveryBackendFilter{{
 				TargetScopeID: "aws-prod",
 				BackendKind:   BackendS3,
-				Bucket:        "bg-ops-prod-terraform-state",
+				Bucket:        "example-platform-prod-terraform-state",
 				Region:        "us-east-1",
 			}},
 			LocalStateCandidates: LocalStateCandidatePolicy{

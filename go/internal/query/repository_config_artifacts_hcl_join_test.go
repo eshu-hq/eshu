@@ -37,9 +37,9 @@ func TestBuildRepositoryConfigArtifactsExtractsSlashJoinedRepoRootAssets(t *test
 
 	got := buildRepositoryConfigArtifacts("terragrunt-deployment", []FileContent{
 		{
-			RelativePath: "accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
+			RelativePath: "accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
 			Content: `locals {
-  account_name = "bg-dev"
+  account_name = "example-dev"
   account_vars = yamldecode(file(join("/", [get_repo_root(), "accounts/${local.account_name}/account.yaml"])))
 }
 `,
@@ -53,7 +53,7 @@ func TestBuildRepositoryConfigArtifactsExtractsSlashJoinedRepoRootAssets(t *test
 	if len(configPaths) != 1 {
 		t.Fatalf("len(config_paths) = %d, want 1", len(configPaths))
 	}
-	if got, want := configPaths[0]["path"], "accounts/bg-dev/account.yaml"; got != want {
+	if got, want := configPaths[0]["path"], "accounts/example-dev/account.yaml"; got != want {
 		t.Fatalf("config_paths[0].path = %#v, want %#v", got, want)
 	}
 	if got, want := configPaths[0]["evidence_kind"], "local_config_asset"; got != want {

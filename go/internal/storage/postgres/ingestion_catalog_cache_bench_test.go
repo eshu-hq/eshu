@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// catalogBenchRepoCount models the live ops-qa fleet scale that triggered issue
+// catalogBenchRepoCount models the live platform-qa fleet scale that triggered issue
 // #3481 (≈907 repos). The catalog SELECT is unbounded, so per-commit reloads
 // scan all of these rows on every commit.
 const catalogBenchRepoCount = 1_000

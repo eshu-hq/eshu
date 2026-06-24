@@ -188,7 +188,7 @@ func TestBuildRepositoryStoryResponsePreservesTerragruntNestedConfigStory(t *tes
 
 	configArtifacts := buildRepositoryConfigArtifacts("terragrunt-deployment", []FileContent{
 		{
-			RelativePath: "accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
+			RelativePath: "accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
 			Content: `include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -242,11 +242,11 @@ locals {
 	}
 
 	wantLines := []string{
-		"Config provenance includes accounts/bg-dev/account.yaml from terragrunt-deployment via local_config_asset in accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
-		"Config provenance includes accounts/bg-dev/us-east-1/region.yaml from terragrunt-deployment via local_config_asset in accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
-		"Config provenance includes env.hcl from terragrunt-deployment via terragrunt_find_in_parent_folders in accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
-		"Config provenance includes env.hcl from terragrunt-deployment via terragrunt_read_config in accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
-		"Config provenance includes root.hcl from terragrunt-deployment via terragrunt_include_path in accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
+		"Config provenance includes accounts/example-dev/account.yaml from terragrunt-deployment via local_config_asset in accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
+		"Config provenance includes accounts/example-dev/us-east-1/region.yaml from terragrunt-deployment via local_config_asset in accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
+		"Config provenance includes env.hcl from terragrunt-deployment via terragrunt_find_in_parent_folders in accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
+		"Config provenance includes env.hcl from terragrunt-deployment via terragrunt_read_config in accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
+		"Config provenance includes root.hcl from terragrunt-deployment via terragrunt_include_path in accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl.",
 	}
 	for _, want := range wantLines {
 		if !containsExactLine(directStory, want) {

@@ -57,7 +57,7 @@ func TestTempoWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	if items[0].ScopeID == items[1].ScopeID {
 		t.Fatalf("ScopeID collision = %q, want distinct per-target scopes", items[0].ScopeID)
 	}
-	for _, want := range []string{"tempo:source:ops-prod", "tempo:source:bg-qa"} {
+	for _, want := range []string{"tempo:source:platform-prod", "tempo:source:example-qa"} {
 		if !strings.Contains(run.RequestedScopeSet, want) {
 			t.Fatalf("RequestedScopeSet = %q, want target %q", run.RequestedScopeSet, want)
 		}
@@ -94,10 +94,10 @@ func TestTempoWorkPlannerSkipsDisabledTargets(t *testing.T) {
 	if got, want := len(items), 1; got != want {
 		t.Fatalf("len(items) = %d, want %d", got, want)
 	}
-	if got, want := items[0].ScopeID, "tempo:source:ops-prod"; got != want {
+	if got, want := items[0].ScopeID, "tempo:source:platform-prod"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
-	if strings.Contains(run.RequestedScopeSet, "tempo:source:bg-qa") {
+	if strings.Contains(run.RequestedScopeSet, "tempo:source:example-qa") {
 		t.Fatalf("RequestedScopeSet = %q, must not include disabled targets", run.RequestedScopeSet)
 	}
 }
@@ -204,15 +204,15 @@ func TestTempoWorkPlannerPlanKeyDeterministic(t *testing.T) {
 func testTempoConfigWithTwoEnabledTargets() string {
 	return `{
 		"targets": [{
-			"scope_id": "tempo:source:ops-prod",
-			"instance_id": "ops-prod",
-			"base_url": "https://tempo.ops-prod.example.com",
+			"scope_id": "tempo:source:platform-prod",
+			"instance_id": "platform-prod",
+			"base_url": "https://tempo.platform-prod.example.com",
 			"token_env": "TEMPO_API_TOKEN",
 			"enabled": true
 		}, {
-			"scope_id": "tempo:source:bg-qa",
-			"instance_id": "bg-qa",
-			"base_url": "https://tempo.bg-qa.example.com",
+			"scope_id": "tempo:source:example-qa",
+			"instance_id": "example-qa",
+			"base_url": "https://tempo.example-qa.example.com",
 			"token_env": "TEMPO_API_TOKEN",
 			"enabled": true
 		}]
@@ -222,15 +222,15 @@ func testTempoConfigWithTwoEnabledTargets() string {
 func testTempoConfigWithOneDisabledTarget() string {
 	return `{
 		"targets": [{
-			"scope_id": "tempo:source:ops-prod",
-			"instance_id": "ops-prod",
-			"base_url": "https://tempo.ops-prod.example.com",
+			"scope_id": "tempo:source:platform-prod",
+			"instance_id": "platform-prod",
+			"base_url": "https://tempo.platform-prod.example.com",
 			"token_env": "TEMPO_API_TOKEN",
 			"enabled": true
 		}, {
-			"scope_id": "tempo:source:bg-qa",
-			"instance_id": "bg-qa",
-			"base_url": "https://tempo.bg-qa.example.com",
+			"scope_id": "tempo:source:example-qa",
+			"instance_id": "example-qa",
+			"base_url": "https://tempo.example-qa.example.com",
 			"token_env": "TEMPO_API_TOKEN",
 			"enabled": false
 		}]

@@ -324,7 +324,7 @@ func TestRelationshipStoreGetResolvedRelationshipsForRepos(t *testing.T) {
 	if err := store.UpsertResolved(ctx, "gen-delivery", []relationships.ResolvedRelationship{
 		{
 			SourceRepoID:     "repo-api",
-			TargetRepoID:     "repo-delivery",
+			TargetRepoID:     "repo-payments",
 			RelationshipType: relationships.RelDeploysFrom,
 			Confidence:       0.96,
 			EvidenceCount:    1,
@@ -345,7 +345,7 @@ func TestRelationshipStoreGetResolvedRelationshipsForRepos(t *testing.T) {
 	if !hasResolvedRelationship(result, "repo-infra", "repo-api", relationships.RelProvisionsDependencyFor) {
 		t.Fatalf("missing incoming provisioning relationship: %#v", result)
 	}
-	if !hasResolvedRelationship(result, "repo-api", "repo-delivery", relationships.RelDeploysFrom) {
+	if !hasResolvedRelationship(result, "repo-api", "repo-payments", relationships.RelDeploysFrom) {
 		t.Fatalf("missing outgoing deploys-from relationship: %#v", result)
 	}
 }

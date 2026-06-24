@@ -492,14 +492,14 @@ func TestBuildProjectionRowsInfersKubernetesPlatformFromDeploymentSourceEvidence
 		{
 			RepoID:           "repo-service",
 			RepoName:         "service-api",
-			DeploymentRepoID: "repo-delivery",
+			DeploymentRepoID: "repo-payments",
 			Classification:   "service",
 			Confidence:       0.96,
 			Provenance:       []string{"dockerfile_runtime", "argocd_applicationset_deploy_source"},
 		},
 	}
 	deploymentEnvs := map[string][]string{
-		"repo-delivery": {"bg-prod", "bg-qa"},
+		"repo-payments": {"example-prod", "example-qa"},
 	}
 
 	result := BuildProjectionRows(candidates, deploymentEnvs)
@@ -524,7 +524,7 @@ func TestBuildProjectionRowsAddsProvisionedInfrastructurePlatforms(t *testing.T)
 		{
 			RepoID:              "repo-service",
 			RepoName:            "service-api",
-			DeploymentRepoID:    "repo-delivery",
+			DeploymentRepoID:    "repo-payments",
 			ProvisioningRepoIDs: []string{"repo-infra"},
 			ProvisioningEvidenceKinds: map[string][]string{
 				"repo-infra": {TerraformPlatformEvidenceKind("ecs", "service")},
@@ -535,7 +535,7 @@ func TestBuildProjectionRowsAddsProvisionedInfrastructurePlatforms(t *testing.T)
 		},
 	}
 	deploymentEnvs := map[string][]string{
-		"repo-delivery": {"prod"},
+		"repo-payments": {"prod"},
 		"repo-infra":    {"prod", "qa"},
 	}
 	infraPlatforms := map[string][]InfrastructurePlatformRow{

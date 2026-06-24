@@ -832,7 +832,7 @@ writer and graph-write spans.
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
-`eshu-remote-e2e-bg-qa` timed out the collector fact evidence read under a
+`eshu-remote-e2e-example-qa` timed out the collector fact evidence read under a
 15-second client budget with 3,551,004 `fact_records` rows. The fix changes
 `ReadStatusSnapshot` from a per-fact `workflow_work_items` lateral lookup to
 an active-scope fact pre-aggregation plus one workflow identity lookup per

@@ -103,7 +103,7 @@ aggregate repository and file counts for indexed language buckets. This is the
 fast "what languages exist?" surface for MCP and API callers; it avoids fetching
 every repository and then calling repository coverage one by one.
 
-Performance Evidence: ops-qa baseline before this read model required 797
+Performance Evidence: platform-qa baseline before this read model required 797
 `get_repository_coverage` fan-out calls for a full language count. A direct
 aggregate over 99,552 `content_files` rows took 94.472 ms before the
 `content_files(language, repo_id)` index, so the new API path keeps language
@@ -316,7 +316,7 @@ source-to-image provenance, use the container image source bridge routes under
 Performance Evidence: the handler's exact Cypher shape (a bounded
 `(:ContainerImage)` label scan with `limit+1`, `SKIP $offset`, and deterministic
 `ORDER BY img.digest, img.uid`) was measured against the warm local Compose
-NornicDB backend (`nornic` database, `~/bg-repos` corpus, 10 `ContainerImage`
+NornicDB backend (`nornic` database, `~/example-repos` corpus, 10 `ContainerImage`
 nodes) over the Bolt-HTTP tx endpoint: warm priming 3.2 ms, then 0.82 ms,
 0.71 ms, 1.02 ms across three runs returning the full 10-row inventory. See
 `go/internal/query/evidence-notes.md` for the full evidence record.

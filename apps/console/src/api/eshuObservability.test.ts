@@ -24,12 +24,12 @@ describe("eshuObservability", () => {
         }
         if (path.includes("provider=loki")) {
           return { correlations: [
-            { correlation_id: "l1", provider: "loki", coverage_signal: "log", observability_object_ref: "ops-prod", coverage_status: "covered", resource_class: "log_source", source_kind: "loki", freshness_state: "current" }
+            { correlation_id: "l1", provider: "loki", coverage_signal: "log", observability_object_ref: "platform-prod", coverage_status: "covered", resource_class: "log_source", source_kind: "loki", freshness_state: "current" }
           ] };
         }
         if (path.includes("provider=tempo")) {
           return { correlations: [
-            { correlation_id: "t1", provider: "tempo", coverage_signal: "trace", observability_object_ref: "ops-prod", coverage_status: "covered" }
+            { correlation_id: "t1", provider: "tempo", coverage_signal: "trace", observability_object_ref: "platform-prod", coverage_status: "covered" }
           ] };
         }
         // prometheus

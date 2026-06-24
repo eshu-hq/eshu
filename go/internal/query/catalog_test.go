@@ -113,7 +113,7 @@ func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T
 	rows := catalogGraphRows{
 		base: []map[string]any{
 			{"id": "workload:svc-catalog", "name": "svc-catalog", "kind": "service"},
-			{"id": "workload:svc-rates", "name": "svc-rates", "kind": "service"},
+			{"id": "workload:svc-pricing", "name": "svc-pricing", "kind": "service"},
 			{"id": "workload:svc-empty", "name": "svc-empty", "kind": "service"},
 		},
 		instance: []map[string]any{
@@ -123,9 +123,9 @@ func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T
 		evidence: []map[string]any{
 			// Instance-less service: environments only from TARGETS_ENVIRONMENT
 			// deployment evidence, emitted as scalar per-edge rows.
-			{"id": "workload:svc-rates", "environment": "bg-qa"},
-			{"id": "workload:svc-rates", "environment": "bg-prod"},
-			{"id": "workload:svc-rates", "environment": "bg-qa"},
+			{"id": "workload:svc-pricing", "environment": "example-qa"},
+			{"id": "workload:svc-pricing", "environment": "example-prod"},
+			{"id": "workload:svc-pricing", "environment": "example-qa"},
 		},
 	}
 
@@ -155,7 +155,7 @@ func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T
 	}
 
 	assertEnvironmentSet(t, "svc-catalog", byName["svc-catalog"], []string{"prod", "qa"})
-	assertEnvironmentSet(t, "svc-rates", byName["svc-rates"], []string{"bg-prod", "bg-qa"})
+	assertEnvironmentSet(t, "svc-pricing", byName["svc-pricing"], []string{"example-prod", "example-qa"})
 	if envs, ok := byName["svc-empty"]; !ok {
 		t.Fatalf("svc-empty service missing from response")
 	} else if len(envs) != 0 {

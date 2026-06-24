@@ -46,7 +46,7 @@ func TestValidateTerraformStateCollectorConfigurationRejectsS3BackendFilterWitho
 			"graph": true,
 			"backend_filters": [{
 				"backend_kind": "s3",
-				"bucket": "bg-ops-qa-terraform-state",
+				"bucket": "example-platform-qa-terraform-state",
 				"region": "us-east-1"
 			}]
 		}

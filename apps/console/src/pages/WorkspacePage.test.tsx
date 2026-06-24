@@ -230,7 +230,7 @@ describe("WorkspacePage", () => {
               source_repositories: ["terraform-stack-node10"]
             },
             {
-              environments: ["dev", "prod", "qa", "ops-prod", "ops-test"],
+              environments: ["dev", "prod", "qa", "platform-prod", "ops-test"],
               lane_type: "k8s_gitops",
               relationship_types: ["DEPLOYS_FROM"],
               resolved_ids: ["rel:k8s"],

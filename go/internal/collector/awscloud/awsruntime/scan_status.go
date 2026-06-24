@@ -46,7 +46,7 @@ const (
 // ClaimedService runner stops looping the claim through the retryable queue.
 // Issue #612: an orphaned aws_scan_status row used to block every future
 // generation for the same per-target slot, and the retry loop drove
-// workflow_claims.failed_retryable into the millions on ops-qa.
+// workflow_claims.failed_retryable into the millions on platform-qa.
 type scanStatusStaleFenceError struct {
 	err error
 }
