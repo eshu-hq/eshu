@@ -411,6 +411,10 @@ func (h *AdminIdentityMutationHandler) audit(
 		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
 		PolicyRevisionHash: auth.PolicyRevisionHash,
 		OccurredAt:         time.Now().UTC(),
+		// TenantID is populated from the normalized auth context so tenant-admin
+		// callers see their own mutation events in tenant-scoped audit reads.
+		// AuthModeShared callers have an empty TenantID → NULL (correct global event).
+		TenantID: auth.TenantID,
 	}
 	// Do not fail the request on audit write failure: governance audit is
 	// best-effort for the caller path. Log the error so an operator sees the gap.
