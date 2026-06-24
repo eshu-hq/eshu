@@ -116,35 +116,53 @@ func (s IngestionStore) loadDeferredAnchorScopedRelationshipFacts(
 	queryer Queryer,
 	catalog []relationships.CatalogEntry,
 	instruments *telemetry.Instruments,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, map[string]string, error) {
 	if queryer == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	params, ok := buildDeferredScopedFactQueryParams(catalog)
 	if !ok {
 		// No anchor and no repo_id value: no content/file/gcp fact can resolve a
-		// catalog target, so skip the fact load entirely.
-		return nil, nil
+		// catalog target, so skip the fact load entirely. A nil snapshot disables
+		// the write-phase generation guard so readiness still publishes for every
+		// active repository (the legacy no-anchor contract).
+		return nil, nil, nil
 	}
 
 	partitions, err := loadActiveScopeGenerationPartitions(ctx, queryer)
 	if err != nil {
-		return nil, fmt.Errorf("load scope-generation partitions for deferred fact load: %w", err)
+		return nil, nil, fmt.Errorf("load scope-generation partitions for deferred fact load: %w", err)
 	}
 	if len(partitions) == 0 {
-		return nil, nil
+		return nil, nil, nil
+	}
+
+	// snapshotGenerations records the (scope_id -> generation_id) pairs this load
+	// queried. The write phase compares it against the generations re-read under
+	// the repo lock and skips publishing readiness for any scope whose generation
+	// advanced after this snapshot (issue #3725): without it, a per-scope query
+	// whose generation moved between this partition read and its own execution
+	// loads nothing, yet readiness would still be published for the new generation
+	// with no relationship evidence and no guaranteed repair pass.
+	snapshotGenerations := make(map[string]string, len(partitions))
+	for _, partition := range partitions {
+		snapshotGenerations[partition.ScopeID] = partition.GenerationID
 	}
 
 	loaded, err := s.loadDeferredScopedFactsAcrossPartitions(ctx, queryer, params, partitions, instruments)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(loaded) == 0 {
-		return nil, nil
+		return nil, snapshotGenerations, nil
 	}
 
-	return s.appendArgoCDGeneratorConfigFacts(ctx, queryer, catalog, loaded)
+	merged, err := s.appendArgoCDGeneratorConfigFacts(ctx, queryer, catalog, loaded)
+	if err != nil {
+		return nil, nil, err
+	}
+	return merged, snapshotGenerations, nil
 }
 
 // loadDeferredScopedFactsAcrossPartitions fans the per-scope fact load out across

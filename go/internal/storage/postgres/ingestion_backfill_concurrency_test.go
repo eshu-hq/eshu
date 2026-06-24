@@ -105,6 +105,7 @@ func TestWriteDeferredBackfillInBatchesRunsConcurrently(t *testing.T) {
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("writeDeferredBackfillInBatches() error = %v, want nil", err)
@@ -151,6 +152,7 @@ func TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne(t *testing.T) {
 	if _, err := store.writeDeferredBackfillInBatches(
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
+		nil,
 		nil,
 	); err != nil {
 		t.Fatalf("writeDeferredBackfillInBatches() error = %v, want nil", err)
