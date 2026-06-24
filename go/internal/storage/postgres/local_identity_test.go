@@ -237,6 +237,114 @@ func TestAuthenticateLocalIdentityPreservesPasswordWhitespace(t *testing.T) {
 	}
 }
 
+func TestAuthenticateLocalIdentityNonAdminResolvesPermissionGrants(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 13, 0, 0, 0, time.UTC)
+	password := "correct-password"
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{{
+			"user_member",
+			"tenant_local",
+			"workspace_local",
+			"sha256:member-subject",
+			mustBcryptHash(t, password),
+			"active",
+			sql.NullTime{},
+			sql.NullTime{},
+			int64(0),
+			false, // has_admin_role
+			false, // has_active_mfa
+			"sha256:policy",
+		}}},
+		{rows: [][]any{{"role_reader"}}},
+		{rows: [][]any{
+			{"ask_search", "ask_reasoning"},
+			{"repository_content", "source_content"},
+		}},
+	}}
+	store := NewIdentitySubjectStore(db)
+
+	result, err := store.AuthenticateLocalIdentity(context.Background(), LocalIdentityAuthenticationAttempt{
+		SubjectIDHash: "sha256:member-subject",
+		Password:      password,
+		Now:           now,
+	})
+	if err != nil {
+		t.Fatalf("AuthenticateLocalIdentity() error = %v", err)
+	}
+	if result.Status != LocalIdentityAuthAuthenticated {
+		t.Fatalf("auth result = %#v, want authenticated", result)
+	}
+	if result.Auth.AllScopes {
+		t.Fatalf("non-admin auth AllScopes = true, want false")
+	}
+	if !result.Auth.PermissionCatalogEnforced {
+		t.Fatalf("non-admin auth PermissionCatalogEnforced = false, want true")
+	}
+	if got, want := result.Auth.RoleIDs, []string{"role_reader"}; !equalStringSlices(got, want) {
+		t.Fatalf("RoleIDs = %#v, want %#v", got, want)
+	}
+	if got, want := result.Auth.AllowedPermissionFeatures, []string{"ask_search", "repository_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("AllowedPermissionFeatures = %#v, want %#v", got, want)
+	}
+	if got, want := result.Auth.AllowedPermissionDataClasses, []string{"ask_reasoning", "source_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("AllowedPermissionDataClasses = %#v, want %#v", got, want)
+	}
+	if !fakeQueriesContain(db.queries, "FROM identity_membership_roles role_assignment") {
+		t.Fatalf("auth queries missing local role resolution: %#v", db.queries)
+	}
+	if !fakeQueriesContain(db.queries, "FROM identity_role_grants grant") {
+		t.Fatalf("auth queries missing permission-grant resolution: %#v", db.queries)
+	}
+}
+
+func TestAuthenticateLocalIdentityAdminStaysFailOpen(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 13, 30, 0, 0, time.UTC)
+	password := "correct-password"
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{{
+			"user_owner",
+			"tenant_local",
+			"workspace_local",
+			"sha256:owner-subject",
+			mustBcryptHash(t, password),
+			"active",
+			sql.NullTime{},
+			sql.NullTime{},
+			int64(0),
+			true, // has_admin_role
+			true, // has_active_mfa
+			"sha256:policy",
+		}}},
+	}}
+	store := NewIdentitySubjectStore(db)
+
+	result, err := store.AuthenticateLocalIdentity(context.Background(), LocalIdentityAuthenticationAttempt{
+		SubjectIDHash:       "sha256:owner-subject",
+		Password:            password,
+		MFARecoveryCodeHash: "sha256:recovery-a",
+		Now:                 now,
+	})
+	if err != nil {
+		t.Fatalf("AuthenticateLocalIdentity() error = %v", err)
+	}
+	if !result.Auth.AllScopes {
+		t.Fatalf("admin auth AllScopes = false, want true")
+	}
+	if result.Auth.PermissionCatalogEnforced {
+		t.Fatalf("admin auth PermissionCatalogEnforced = true, want false (must stay fail-open)")
+	}
+	if len(result.Auth.AllowedPermissionFeatures) != 0 || len(result.Auth.AllowedPermissionDataClasses) != 0 {
+		t.Fatalf("admin auth carries permission grants = %#v/%#v, want empty", result.Auth.AllowedPermissionFeatures, result.Auth.AllowedPermissionDataClasses)
+	}
+	if fakeQueriesContain(db.queries, "FROM identity_membership_roles role_assignment") {
+		t.Fatalf("admin auth must not resolve roles for enforcement: %#v", db.queries)
+	}
+}
+
 func TestAuthenticateLocalIdentityLocksAfterFailedPassword(t *testing.T) {
 	t.Parallel()
 
@@ -398,7 +506,14 @@ func localIdentityAuthDB(t *testing.T, password string, row []any) *fakeExecQuer
 	if row[4] == "" {
 		row[4] = mustBcryptHash(t, password)
 	}
-	return &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{row}}}}
+	// Non-admin logins resolve role IDs and then permission grants after the
+	// credential select. Admin logins short-circuit before those queries, so the
+	// trailing empty responses are simply unused for the admin case.
+	return &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{row}},
+		{rows: [][]any{}},
+		{rows: [][]any{}},
+	}}
 }
 
 func mustBcryptHash(t *testing.T, password string) string {
@@ -408,6 +523,15 @@ func mustBcryptHash(t *testing.T, password string) string {
 		t.Fatalf("GenerateFromPassword() error = %v", err)
 	}
 	return string(hash)
+}
+
+func fakeQueriesContain(queries []fakeQueryCall, want string) bool {
+	for _, q := range queries {
+		if strings.Contains(q.query, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func fakeExecsContainQuery(execs []fakeExecCall, want string) bool {

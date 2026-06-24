@@ -264,6 +264,25 @@ func (s *ScopedAPITokenStore) ResolvePermissionGrantsForRoles(
 	if s.db == nil {
 		return nil, nil, errors.New("scoped API token store database is required")
 	}
+	return resolvePermissionGrantsForRoles(ctx, s.db, tenantID, roles, asOf)
+}
+
+// resolvePermissionGrantsForRoles is the package-level source of truth for
+// deriving the distinct permission features and data classes granted to a role
+// set within one tenant as of a point in time. Both scoped-token resolution and
+// browser-session issuance call it so the two authorize identically. An empty
+// role set or blank tenant returns empty grants without querying. Results are
+// deduplicated and trimmed.
+func resolvePermissionGrantsForRoles(
+	ctx context.Context,
+	db Queryer,
+	tenantID string,
+	roles []string,
+	asOf time.Time,
+) ([]string, []string, error) {
+	if db == nil {
+		return nil, nil, errors.New("permission grant resolution database is required")
+	}
 	tenantID = strings.TrimSpace(tenantID)
 	roles = cleanBrowserSessionStrings(roles)
 	if tenantID == "" || len(roles) == 0 {
@@ -272,7 +291,7 @@ func (s *ScopedAPITokenStore) ResolvePermissionGrantsForRoles(
 	if asOf.IsZero() {
 		return nil, nil, errors.New("permission grant resolution as_of is required")
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := db.QueryContext(
 		ctx,
 		resolveIdentityAPITokenPermissionsQuery,
 		tenantID,

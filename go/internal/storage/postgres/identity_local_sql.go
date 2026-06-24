@@ -265,6 +265,39 @@ DELETE FROM identity_local_auth_attempts
 WHERE user_id = $1
 `
 
+// resolveLocalIdentityRolesQuery lists the active membership role IDs granted to
+// one local user within a tenant/workspace as of a point in time. It applies the
+// same active-membership, active-assignment, and active-role predicates as the
+// personal-API-token role query so a local cookie session and a scoped token for
+// the same user resolve to the same role set.
+const resolveLocalIdentityRolesQuery = `
+SELECT DISTINCT role_assignment.role_id
+FROM identity_membership_roles role_assignment
+JOIN identity_tenant_memberships membership
+    ON membership.tenant_id = role_assignment.tenant_id
+   AND membership.workspace_id = role_assignment.workspace_id
+   AND membership.user_id = role_assignment.user_id
+JOIN identity_roles role
+    ON role.tenant_id = role_assignment.tenant_id
+   AND role.role_id = role_assignment.role_id
+WHERE role_assignment.tenant_id = $1
+  AND role_assignment.workspace_id = $2
+  AND role_assignment.user_id = $3
+  AND role_assignment.status = 'active'
+  AND role_assignment.tombstoned_at IS NULL
+  AND role_assignment.effective_at <= $4
+  AND (role_assignment.expires_at IS NULL OR role_assignment.expires_at > $4)
+  AND membership.status = 'active'
+  AND membership.disabled_at IS NULL
+  AND membership.tombstoned_at IS NULL
+  AND membership.effective_at <= $4
+  AND (membership.expires_at IS NULL OR membership.expires_at > $4)
+  AND role.status = 'active'
+  AND role.tombstoned_at IS NULL
+ORDER BY role_assignment.role_id ASC
+LIMIT $5
+`
+
 const consumeLocalIdentityRecoveryCodeQuery = `
 UPDATE identity_mfa_recovery_codes
 SET status = 'used',

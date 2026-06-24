@@ -173,18 +173,81 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if _, err := s.db.ExecContext(ctx, clearLocalIdentityFailedAttemptsQuery, row.UserID); err != nil {
 		return LocalIdentityAuthenticationResult{}, fmt.Errorf("clear local identity failed attempts: %w", err)
 	}
+	auth := LocalIdentityAuthContext{
+		TenantID:           row.TenantID,
+		WorkspaceID:        row.WorkspaceID,
+		SubjectIDHash:      row.SubjectIDHash,
+		SubjectClass:       "local_user",
+		PolicyRevisionHash: row.PolicyRevisionHash,
+		AllScopes:          row.HasAdminRole,
+	}
+	// All-scope (admin/owner) sessions stay fail-open exactly as before: no
+	// enforcement snapshot is attached. Only non-admin sessions carry the
+	// permission-catalog grant snapshot so the catalog enforces them.
+	if !auth.AllScopes {
+		roles, err := s.resolveLocalIdentityRoles(ctx, row.TenantID, row.WorkspaceID, row.UserID, attempt.Now)
+		if err != nil {
+			return LocalIdentityAuthenticationResult{}, err
+		}
+		features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, row.TenantID, roles, attempt.Now)
+		if err != nil {
+			return LocalIdentityAuthenticationResult{}, err
+		}
+		auth.RoleIDs = roles
+		auth.PermissionCatalogEnforced = true
+		auth.AllowedPermissionFeatures = features
+		auth.AllowedPermissionDataClasses = dataClasses
+	}
 	return LocalIdentityAuthenticationResult{
 		Status:        LocalIdentityAuthAuthenticated,
 		Authenticated: true,
-		Auth: LocalIdentityAuthContext{
-			TenantID:           row.TenantID,
-			WorkspaceID:        row.WorkspaceID,
-			SubjectIDHash:      row.SubjectIDHash,
-			SubjectClass:       "local_user",
-			PolicyRevisionHash: row.PolicyRevisionHash,
-			AllScopes:          row.HasAdminRole,
-		},
+		Auth:          auth,
 	}, nil
+}
+
+// resolveLocalIdentityRoles returns the active membership role IDs for one local
+// user within a tenant/workspace as of the given time.
+func (s *IdentitySubjectStore) resolveLocalIdentityRoles(
+	ctx context.Context,
+	tenantID string,
+	workspaceID string,
+	userID string,
+	asOf time.Time,
+) ([]string, error) {
+	tenantID = strings.TrimSpace(tenantID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	userID = strings.TrimSpace(userID)
+	if tenantID == "" || workspaceID == "" || userID == "" {
+		return nil, nil
+	}
+	if asOf.IsZero() {
+		asOf = time.Now()
+	}
+	rows, err := s.db.QueryContext(
+		ctx,
+		resolveLocalIdentityRolesQuery,
+		tenantID,
+		workspaceID,
+		userID,
+		asOf.UTC(),
+		maxOIDCGrantLimit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve local identity roles: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	roles := make([]string, 0)
+	for rows.Next() {
+		var roleID string
+		if err := rows.Scan(&roleID); err != nil {
+			return nil, fmt.Errorf("resolve local identity roles: %w", err)
+		}
+		roles = append(roles, roleID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("resolve local identity roles: %w", err)
+	}
+	return cleanBrowserSessionStrings(roles), nil
 }
 
 // ResolveLocalIdentityBreakGlass returns an auth context only for a live,
