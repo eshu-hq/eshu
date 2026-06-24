@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // Evidence-state classification for relationship-story answers (issue #3158).

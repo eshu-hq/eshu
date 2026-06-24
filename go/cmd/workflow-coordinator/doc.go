@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the eshu-workflow-coordinator binary, the long-running
 // runtime that reconciles declarative collector instance state and, in
 // active mode, plans supported collector work, hands off webhook freshness

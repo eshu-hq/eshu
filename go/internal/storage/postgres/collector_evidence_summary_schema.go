@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package postgres
 
 // Reducer-owned materialized read model for the collector-readiness surface

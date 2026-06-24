@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command collector-azure-cloud runs the Azure cloud collector runtime in either
 // fixture or claimed-live mode.
 //

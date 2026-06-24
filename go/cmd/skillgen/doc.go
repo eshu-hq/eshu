@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command skillgen generates and verifies the per-host skill-file
 // roundtrip baseline that the Eshu skillgen epic ships.
 //

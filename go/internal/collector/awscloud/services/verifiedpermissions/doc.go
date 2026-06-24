@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package verifiedpermissions maps Amazon Verified Permissions policy store,
 // policy, and identity source metadata into AWS cloud collector facts.
 //

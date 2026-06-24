@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query //nolint:filelength // 585 lines of OpenAPI path fragments for auth-protected routes. Per internal/query/AGENTS.md, each openapi_paths_*.go file is a single string literal that contributes to the assembled OpenAPI spec; splitting the string across files breaks the per-fragment review boundary.
 
 // 580 lines of OpenAPI path fragments for auth-protected routes. Per

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package jfrog adapts JFrog Artifactory Docker/OCI repository settings to
 // the provider-neutral OCI Distribution client.
 //

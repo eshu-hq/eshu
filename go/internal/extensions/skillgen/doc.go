@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package skillgen owns the source-of-truth skill fragment loader, the
 // byte-citation preservation contract, the per-host adapter registry, and
 // the deterministic render pipeline that produces the roundtrip baseline

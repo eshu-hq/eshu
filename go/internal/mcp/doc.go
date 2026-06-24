@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package mcp implements the Model Context Protocol tool surface for Eshu.
 //
 // MCP tools dispatch into the same HTTP query handlers that power the public

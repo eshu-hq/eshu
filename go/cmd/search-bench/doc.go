@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command search-bench runs the design-430 search-lane benchmark over a live
 // Eshu content corpus.
 //

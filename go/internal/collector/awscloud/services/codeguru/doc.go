@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package codeguru maps Amazon CodeGuru Reviewer repository associations and
 // CodeGuru Profiler profiling groups into AWS cloud collector facts.
 //

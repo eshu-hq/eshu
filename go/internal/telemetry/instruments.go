@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package telemetry provides pre-registered OTEL metric instruments for the
 // Go data plane.
 package telemetry //nolint:filelength // data registry; ~4400 lines of frozen eshu_dp_* instrument definitions. Tracked in audit § T11 and issue eshu-hq/eshu#3761. Splitting is a separate, non-trivial work item because the contract is reviewed as a single table.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package imagebuilder maps EC2 Image Builder pipeline, recipe, container
 // recipe, infrastructure configuration, and distribution configuration metadata
 // into AWS cloud collector facts.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main
 
 // CLI incremental-freshness parity tests (issue #1804, parent #1797).

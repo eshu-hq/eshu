@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ociregistry normalizes OCI container registry evidence before it
 // enters the durable fact envelope.
 //

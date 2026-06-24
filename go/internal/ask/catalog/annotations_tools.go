@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package catalog
 
 // askToolAnnotations returns the curated backend/cost annotations for implemented MCP tools.

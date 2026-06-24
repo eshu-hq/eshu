@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package sandbox
 
 // costgate.go — pre-execution SQL query-plan cost check for the ask/sandbox.

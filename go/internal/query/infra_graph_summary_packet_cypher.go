@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // graphSummaryHotEntitiesCypher ranks the most-connected functions in a repo by

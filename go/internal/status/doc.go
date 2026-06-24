@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package status owns the shared reporting shape for Eshu pipeline state,
 // backlog, generation lifecycle, and request-lifecycle health.
 //

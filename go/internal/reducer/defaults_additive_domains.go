@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package reducer //nolint:filelength // 550 lines: additive domain wiring for the runtime. Per internal/reducer/AGENTS.md, additive domains use a helper so the runtime cannot register a domain that has no durable publication path; the file owns the full per-domain wiring surface.
 
 import "github.com/eshu-hq/eshu/go/internal/truth"

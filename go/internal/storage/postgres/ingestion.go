@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package postgres //nolint:filelength // 524 lines: ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the SkipRelationshipBackfill/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
 
 import (

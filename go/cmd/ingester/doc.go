@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the eshu-ingester binary, the long-running runtime that
 // owns repository sync, parsing, fact emission, and source-local projection
 // into the configured graph backend.

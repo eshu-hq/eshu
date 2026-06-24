@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the eshu-webhook-listener binary, the public webhook intake
 // runtime for GitHub, GitLab, Bitbucket, AWS freshness triggers, PagerDuty, and
 // Jira.

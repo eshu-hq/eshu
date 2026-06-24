@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package runtimebind self-registers the Amazon OpenSearch Serverless
 // metadata-only scanner with the AWS collector runtime.
 //

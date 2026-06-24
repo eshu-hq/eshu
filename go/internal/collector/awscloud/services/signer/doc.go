@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package signer maps AWS Signer (code-signing) signing-profile and
 // signing-platform metadata into AWS cloud collector facts.
 //

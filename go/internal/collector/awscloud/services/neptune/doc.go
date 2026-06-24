@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package neptune emits metadata-only Amazon Neptune resource and relationship
 // facts for the AWS cloud collector.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // error_handling.go - Demonstrates Go error handling patterns
 package main
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package provider defines tool-calling adapters over semantic profiles.
 //
 // The package serves two provider families:

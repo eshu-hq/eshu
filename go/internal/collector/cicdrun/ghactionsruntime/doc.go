@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ghactionsruntime collects bounded GitHub Actions run metadata for
 // the CI/CD run collector family.
 //

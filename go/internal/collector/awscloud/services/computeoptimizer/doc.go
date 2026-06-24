@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package computeoptimizer maps AWS Compute Optimizer recommendation metadata
 // into AWS cloud collector facts.
 //

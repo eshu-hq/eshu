@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts the AWS SDK for Go v2 Route 53 Resolver client to the
 // route53resolver scanner contract.
 //

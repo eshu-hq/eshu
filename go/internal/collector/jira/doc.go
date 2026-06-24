@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package jira contains the claim-driven Jira work-item evidence collector.
 //
 // The collector emits source facts only: work item records, Jira changelog

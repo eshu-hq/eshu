@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package rules
 
 // HelmRulePack returns the first-party correlation rules for Helm config.

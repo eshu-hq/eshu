@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main //nolint:filelength // 524 lines: env-var loaders, worker count formulas, and the NornicDB-vs-Neo4j branch table. The branches are the deliberate, narrow seam called out in cmd/reducer/AGENTS.md § Anti-patterns.
 
 import (

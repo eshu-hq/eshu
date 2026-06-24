@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package admissionaudit compares reducer admission decisions, graph facts, and
 // API/MCP readback against independent product-truth fixture intent.
 //

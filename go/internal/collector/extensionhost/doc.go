@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package extensionhost runs out-of-tree collector SDK extensions through the
 // same claim-aware collector intake used by first-party hosted collectors.
 //

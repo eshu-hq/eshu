@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package secretsiam builds redaction-safe secrets/IAM posture source facts.
 //
 // The package owns envelope construction for the secrets_iam_posture collector

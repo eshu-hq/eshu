@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package gcpruntime wires the fixture-driven gcpcloud parser, normalizer,
 // redactor, and generation accumulator into a collector.Source for the GCP
 // Cloud Asset Inventory collector runtime.

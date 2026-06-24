@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package sbomdocument parses fixture-backed CycloneDX and SPDX JSON
 // documents into Eshu's reported-confidence SBOM source facts.
 //

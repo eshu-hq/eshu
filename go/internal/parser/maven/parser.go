@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package maven parses Maven POM (pom.xml) manifests into the parent parser
 // payload contract so the supply-chain impact reducer can correlate
 // repository-declared Maven dependencies to package-registry identity.

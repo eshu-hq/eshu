@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package cfg
 
 // Limits bounds control-flow-graph and reaching-definition computation so a

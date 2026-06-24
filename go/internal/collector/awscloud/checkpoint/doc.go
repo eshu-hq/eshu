@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package checkpoint defines the durable AWS pagination checkpoint contract.
 //
 // Checkpoints are scoped to one workflow-owned AWS service claim and one

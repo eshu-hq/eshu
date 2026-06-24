@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package outposts maps AWS Outposts outpost, site, and asset metadata into AWS
 // cloud collector facts.
 //

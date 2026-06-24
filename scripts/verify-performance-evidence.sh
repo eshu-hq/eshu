@@ -112,6 +112,59 @@ is_runtime_config_by_content() {
   return 1
 }
 
+# Pre-fetch the full diff once so comment-only checks are O(1) hash lookups
+# instead of one git invocation per file. Empty if the diff is unavailable.
+_perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base"...HEAD 2>/dev/null || true)"
+
+# Map of changed files whose diff contains at least one non-comment,
+# non-whitespace added/removed line. Files absent from the map had no
+# diff at all; files mapped to 0 had only comments/blanks; files mapped
+# to 1 had real code changes.
+declare -A _perf_code_change_map=()
+if [ -n "${_perf_diff_cache}" ]; then
+  _perf_cur=""
+  while IFS= read -r line; do
+    case "${line}" in
+      "+++ b/"*)
+        _perf_cur="${line#+++ b/}"
+        # Deleted files show /dev/null; rename targets show new path.
+        if [ "${_perf_cur}" != "/dev/null" ] && [ "${_perf_cur}" != "b/dev/null" ]; then
+          _perf_code_change_map["${_perf_cur}"]=0
+        else
+          _perf_cur=""
+        fi
+        ;;
+      "+"*|"-")
+        [ -z "${_perf_cur}" ] && continue
+        _perf_payload="${line:1}"
+        # Comment or blank: Go line (//), block markers (/* * */), shell/
+        # YAML (#), or empty. Anything else flips the file to code-change.
+        case "${_perf_payload}" in
+          "//"*|"/"*"|"*"*"|"#"*|"") continue ;;
+        esac
+        _perf_code_change_map["${_perf_cur}"]=1
+        ;;
+    esac
+  done <<< "${_perf_diff_cache}"
+  unset _perf_cur _perf_payload
+fi
+
+# True when every added/removed line in the diff for `path` is a comment
+# or whitespace-only line. Used to suppress false positives when a hot-path
+# file gets touched by a comment-only rollout (for example, adding an SPDX
+# header to every .go file) where there is no actual runtime change. A
+# file with any non-comment code change returns false so the gate still
+# fires.
+#
+# Recognises Go line comments (//), block-comment markers (/* * */), shell
+# and YAML comments (#), and blank lines. New/deleted/renamed files
+# default to false (gate fires) — we cannot tell comment-only intent from
+# those cheaply, and defaulting to "gate fires" is the safe side.
+is_comment_only_change() {
+  local path="$1"
+  [ "${_perf_code_change_map[${path}]:-1}" = "0" ]
+}
+
 is_evidence_file() {
   local path="$1"
   case "$path" in
@@ -136,11 +189,20 @@ if [ "${#changed_files[@]}" -gt 0 ]; then
 
     if is_go_runtime_file "$file" \
       && { is_hot_path_by_location "$file" || is_hot_path_by_content "$file"; }; then
+      # Hot-path file. If the only changes are comments or whitespace
+      # (e.g. an SPDX-header rollout), the gate does not apply because
+      # no runtime behaviour changed.
+      if is_comment_only_change "$file"; then
+        continue
+      fi
       hot_files+=("$file")
       continue
     fi
 
     if is_runtime_config_file "$file" && is_runtime_config_by_content "$file"; then
+      if is_comment_only_change "$file"; then
+        continue
+      fi
       hot_files+=("$file")
     fi
   done

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package postgres
 
 const incidentFactRecordReadIndexesSQL = `CREATE INDEX IF NOT EXISTS fact_records_incident_context_record_lookup_idx ON fact_records (source_system, (payload->>'provider_incident_id'), scope_id, observed_at DESC, fact_id ASC) WHERE fact_kind = 'incident.record' AND is_tombstone = FALSE;

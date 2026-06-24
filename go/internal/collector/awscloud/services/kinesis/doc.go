@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package kinesis maps Amazon Kinesis metadata into AWS cloud collector facts.
 //
 // The package covers three Kinesis sub-services under one service_kind:

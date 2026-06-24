@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package answerguardrail provides pure output guardrails for publishable
 // answer text.
 //

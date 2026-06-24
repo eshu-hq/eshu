@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package mcp
 
 // Small assertion helpers for the replatforming parity proof. They read the

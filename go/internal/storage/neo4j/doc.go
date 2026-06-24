@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package neo4j is reserved for Neo4j-specific graph storage adapters.
 //
 // Backend-neutral Cypher write contracts and planners live in

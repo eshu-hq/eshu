@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts AWS SDK CloudTrail responses into the
 // scanner-owned metadata records consumed by
 // internal/collector/awscloud/services/cloudtrail.

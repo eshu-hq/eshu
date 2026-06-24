@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package telemetry owns Eshu's frozen Go data-plane OpenTelemetry contract:
 // metric instruments, span names, structured log keys, and shared runtime
 // attributes.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package query implements the Go read-path query layer for the platform
 // context graph API. It provides Neo4j graph reads, Postgres content store
 // reads, and HTTP handlers that replace the former Python query package.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package pythondep parses Python package-manager manifests and lockfiles into
 // the parser engine's content_entity dependency rows so the supply-chain
 // reducer can match PyPI vulnerability advisories against repository

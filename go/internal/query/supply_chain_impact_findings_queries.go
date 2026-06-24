@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 const supplyChainImpactFindingFactKind = "reducer_supply_chain_impact_finding"

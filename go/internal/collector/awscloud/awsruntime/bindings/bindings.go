@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package bindings imports every AWS service runtimebind so the production
 // scanner registry is populated through init side effects.
 //

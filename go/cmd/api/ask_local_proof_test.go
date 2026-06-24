@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main
 
 // This file is the CI-runnable local proof for Ask Eshu (issue #3332). It drives

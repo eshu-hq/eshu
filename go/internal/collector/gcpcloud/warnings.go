@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package gcpcloud
 
 // WarningKind enumerates the bounded GCP collection warning kinds. Each value is

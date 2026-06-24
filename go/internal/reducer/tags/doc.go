@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package tags defines the reducer-owned tag normalization seam and the
 // readiness publication helpers it shares with the phase publisher.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package scopedtoken resolves hosted per-team bearer tokens into bounded
 // authorization contexts for the Eshu API and MCP read surface.
 //

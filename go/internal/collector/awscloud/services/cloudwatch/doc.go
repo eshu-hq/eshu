@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cloudwatch emits Amazon CloudWatch metadata-only facts for one
 // claimed AWS boundary. It covers metric alarms, composite alarms, dashboards
 // (identity only), Contributor Insights rules (identity only), and metric

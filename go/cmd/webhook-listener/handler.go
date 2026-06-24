@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main //nolint:filelength // 504 lines: full webhook handler set (provider routes, body limits, normalization, OTEL). Per cmd/webhook-listener/AGENTS.md, handler.go owns the provider route behavior; splitting across files would scatter the per-provider test coverage that handler_test.go already exercises.
 
 import (

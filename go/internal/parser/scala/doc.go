@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package scala extracts Scala source facts for the parent parser engine.
 //
 // Parse returns classes, objects, traits, functions, variables, imports, calls,

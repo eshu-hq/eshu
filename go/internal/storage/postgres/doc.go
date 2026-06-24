@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package postgres owns Eshu's relational persistence: facts, queue state,
 // content store, source-backed repository refs, status, recovery data,
 // projection and admission decisions, webhook refresh triggers, incident

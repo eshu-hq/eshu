@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package azureruntime wires the Azure cloud collector into the shared collector
 // runtime. It implements collector.Source for one or more declarative Azure
 // scope targets (tenant, subscription, or management group), reads Resource

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package projector owns source-local projection stages that turn committed
 // facts into canonical graph writes, repository-scoped content rows,
 // source-backed repository ref metadata, and readiness for shared,

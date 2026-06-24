@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package perl parses Perl source evidence for the parent parser engine.
 //
 // Parse reads one Perl source file through a static tree-sitter grammar and

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package semanticpolicy evaluates hosted semantic extraction policy.
 //
 // The package is a pure contract layer: it parses source allowlists and

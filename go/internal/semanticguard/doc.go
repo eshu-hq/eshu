@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package semanticguard evaluates deterministic security gates for semantic extraction.
 //
 // The package is pure model logic: callers pass an already-evaluated provider

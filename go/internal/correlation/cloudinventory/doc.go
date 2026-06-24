@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cloudinventory resolves provider cloud-inventory raw identity into
 // the shared canonical cloud_resource_uid keyspace.
 //

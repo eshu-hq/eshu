@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package elb emits Classic (v1) Elastic Load Balancer resource and
 // relationship facts for the AWS cloud collector. Classic load balancers carry
 // no AWS-assigned ARN, so the scanner synthesizes a partition-aware ARN from the

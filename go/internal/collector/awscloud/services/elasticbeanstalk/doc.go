@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package elasticbeanstalk maps AWS Elastic Beanstalk observations into AWS
 // cloud fact envelopes.
 //

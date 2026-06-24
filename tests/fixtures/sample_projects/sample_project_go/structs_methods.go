@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // structs_methods.go - Demonstrates Go structs and methods
 package main
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package catalog is Ask Eshu's self-knowledge of every implemented API route
 // and MCP tool it can call to answer a question.
 //

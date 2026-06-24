@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query //nolint:filelength // 502 lines: scoped-token route allowlist. Per internal/query/AGENTS.md, this file is the per-issue allowlist gate; consolidating the per-route entries in one file is the intent so reviewers can audit the full allowlist in one diff.
 
 import (

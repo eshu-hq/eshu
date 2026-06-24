@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts AWS SDK for Go v2 SQS calls into scanner-owned queue
 // metadata.
 //

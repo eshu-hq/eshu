@@ -1,4 +1,7 @@
-package reducer
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package reducer //nolint:filelength // 501 lines: code-call canonicalization and evidence-tracking index. Tracked for split in audit § T8.
 
 import (
 	"fmt"

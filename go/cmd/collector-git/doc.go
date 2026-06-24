@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the collector-git binary, the local verification runtime
 // for native Go repository selection, sync, snapshot collection, content
 // shaping, and fact commit into Postgres.

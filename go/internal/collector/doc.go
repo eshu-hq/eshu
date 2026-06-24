@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package collector owns source observation, repository selection, snapshot
 // capture, parser input shaping, and fact streaming for Eshu indexing runs.
 //

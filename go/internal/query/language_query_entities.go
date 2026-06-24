@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // graphBackedEntityTypes maps the user-facing entity type name to the Neo4j

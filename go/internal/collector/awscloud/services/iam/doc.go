@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package iam scans AWS IAM source truth into AWS cloud fact observations.
 //
 // It emits IAM roles, users, managed policies, instance profiles, trust

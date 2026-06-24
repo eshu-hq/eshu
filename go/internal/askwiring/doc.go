@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package askwiring builds the Ask Eshu engine and returns a wired
 // [query.AskHandler] for use by both the API server and the MCP server.
 //

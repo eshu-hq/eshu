@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the eshu-api binary, which serves the Eshu HTTP query and
 // admin surface backed by the configured graph backend and Postgres content
 // store. `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` explicitly

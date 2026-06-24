@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package tfconfigstate carries the helper Go for the Terraform
 // config-vs-state drift correlation pack. The package implements the five
 // drift classifiers, the attribute allowlist, and the cross-scope candidate

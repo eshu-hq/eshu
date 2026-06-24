@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package facts defines the durable fact models and queue contracts that Eshu
 // writes before graph projection.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package searchhybrid is a pure-Go hybrid retrieval backend over the curated
 // design-430 search-document lane.
 //

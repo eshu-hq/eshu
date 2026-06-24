@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package dsl defines the cross-source DSL evaluator seam for the reducer
 // and the readiness-publication helpers it shares with the phase publisher.
 //

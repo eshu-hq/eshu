@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package redshift emits metadata-only Amazon Redshift resource and
 // relationship facts for the AWS cloud collector. It covers both provisioned
 // Redshift and Redshift Serverless control planes.

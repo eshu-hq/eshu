@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package samlauth validates SAML service-provider inputs for Eshu-owned login.
 //
 // The package wraps maintained SAML metadata and service-provider primitives

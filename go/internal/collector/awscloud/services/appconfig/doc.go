@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package appconfig maps AWS AppConfig application, environment, configuration
 // profile, and deployment strategy metadata into AWS cloud collector facts.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package correlation aggregates the correlation evaluation entry points and
 // operator-facing summary helpers used by the reducer.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package jsdataflow lowers a TypeScript or JavaScript function into a
 // control-flow graph and resolves reaching definitions over it, reusing the
 // language-neutral internal/parser/cfg engine. It is the TS/JS counterpart of the

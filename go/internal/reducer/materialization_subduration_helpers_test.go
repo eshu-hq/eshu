@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package reducer
 
 // materialization_subduration_helpers_test.go holds the real fact builders and

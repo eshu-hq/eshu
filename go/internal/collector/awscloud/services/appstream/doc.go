@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package appstream maps Amazon AppStream 2.0 fleet, stack, image builder, and
 // image metadata into AWS cloud collector facts.
 //

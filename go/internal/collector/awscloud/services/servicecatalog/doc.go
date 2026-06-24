@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package servicecatalog maps AWS Service Catalog portfolio, product, and
 // provisioned-product metadata into AWS cloud collector facts.
 //

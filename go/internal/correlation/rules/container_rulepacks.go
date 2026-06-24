@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package rules
 
 // ContainerRulePacks returns the first-party rule packs for the initial

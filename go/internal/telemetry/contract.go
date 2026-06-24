@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package telemetry defines the frozen Go data-plane observability contract.
 package telemetry //nolint:filelength // 685-line contract doc: SpanNames/LogKeys/MetricDimensionKeys tables are referenced as a single frozen table by the X2 verifier and dashboards. Splitting breaks the table → row parity guarantee.
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package repositoryidentity derives canonical repository identity from the
 // remote URL and local path of a checked-out repo.
 //

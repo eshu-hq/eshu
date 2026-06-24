@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package codeprovenance holds the closed resolution-provenance vocabulary for
 // code relationship edges defined by ADR #2222.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package vaultlive is the live HashiCorp Vault source lane for the
 // secrets/IAM posture collector family (issue #25).
 //

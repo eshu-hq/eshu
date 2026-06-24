@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package graph schema.go provides Neo4j schema initialization.
 //
 // EnsureSchema creates all node constraints, performance indexes, and

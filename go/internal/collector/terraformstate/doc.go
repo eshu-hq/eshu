@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package terraformstate reads Terraform state snapshots into redacted facts.
 //
 // The package owns exact state discovery primitives, read-only source

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package searchbenchrun is the live execution layer for the design-430 search
 // benchmark gate.
 //

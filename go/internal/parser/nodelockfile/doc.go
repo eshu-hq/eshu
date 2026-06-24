@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package nodelockfile parses Node/TypeScript package-manager lockfiles
 // (yarn.lock classic, yarn.lock Berry, pnpm-lock.yaml) into
 // content_entity dependency rows compatible with the npm ecosystem identity

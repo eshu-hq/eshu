@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package searchrerank reorders already-retrieved, in-scope search results
 // around code-to-cloud graph anchors (service story, deployment unit,
 // environment, incident, package, owner) without issuing any graph read or

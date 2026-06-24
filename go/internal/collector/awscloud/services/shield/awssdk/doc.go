@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts AWS SDK for Go v2 Shield Advanced APIs into the
 // metadata-only shield scanner port.
 //

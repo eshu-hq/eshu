@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package sbomdocument
 
 // spdxDocument is the slice of the SPDX 2.x JSON shape Eshu projects into

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package dart parses Dart source evidence for the parent parser engine.
 //
 // Parse reads one Dart source file through shared.ReadSource and emits the

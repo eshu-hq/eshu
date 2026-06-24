@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package serviceintelhttp is the HTTP adapter that serves the service
 // intelligence report route, GET /api/v0/services/{service_name}/intelligence-report.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package searchembed provides local embedding implementations for Eshu search.
 //
 // The package owns deterministic, no-network embedders that satisfy the

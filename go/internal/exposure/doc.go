@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package exposure holds the curated, closed-vocabulary catalogs and (in later
 // slices) the bounded path tracer for Eshu's code-to-cloud reachability taint
 // capability (epic #2704, Level 1).

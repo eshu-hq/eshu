@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package mcp
 
 func queryPlaybookRoute(toolName string, args map[string]any) (*route, bool) {

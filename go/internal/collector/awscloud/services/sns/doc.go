@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package sns maps Amazon SNS topic metadata into AWS cloud collector facts.
 //
 // The scanner emits reported-confidence topic resources and subscription

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package truth defines the canonical truth contracts shared across Eshu:
 // the layered materialization contract and the unified evidence record.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package telemetry
 
 // Metric dimension keys and bounded label values for the live Vault collector

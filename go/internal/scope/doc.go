@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package scope defines durable identity and generation lifecycle for source
 // scopes ingested by Eshu collectors.
 //

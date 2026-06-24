@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package content defines the source-local content write contract and the
 // canonical content-entity identifier used by Postgres-backed writers.
 //

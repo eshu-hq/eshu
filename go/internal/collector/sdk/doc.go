@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package sdk provides shared first-party collector helper contracts.
 //
 // The package owns low-level collector-kernel behavior that is common across

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package java parses Java source and metadata files behind the parent parser
 // dispatch package.
 //

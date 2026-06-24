@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts the AWS SDK v2 X-Ray client into the scanner-owned
 // Client interface defined by the parent xray package.
 //

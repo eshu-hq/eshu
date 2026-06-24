@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package collector defines the public Eshu collector extension SDK contracts.
 //
 // The SDK is intentionally independent from Eshu internal Go packages. It

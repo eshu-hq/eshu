@@ -66,6 +66,11 @@ jobs:
           scripts/test-verify-package-docs.sh
           scripts/verify-package-docs.sh
 
+      - name: Verify Go license headers
+        run: |
+          scripts/test-verify-license-header.sh
+          scripts/verify-license-header.sh
+
       - name: Verify generated collector entrypoints
         run: |
           scripts/test-verify-collector-entrypoints-generated.sh

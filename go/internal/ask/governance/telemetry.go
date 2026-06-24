@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package governance
 
 // AskOutcome is a bounded low-cardinality label for the result of an Ask Eshu

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package packetdogfood scores the investigation evidence packet dogfood
 // benchmark: whether Eshu's portable v2 evidence packets produce a faster and
 // more trustworthy first useful answer than raw repository search or an existing

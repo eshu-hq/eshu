@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Tests for the filelength custom linter. The tests exercise the
 // `skip` predicate and the `countLines` helper directly (so they
 // run in the normal `go test` flow without needing the

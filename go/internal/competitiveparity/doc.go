@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package competitiveparity validates that shipped Eshu capability surfaces
 // remain reachable and documented against a peer-inspired parity checklist.
 //

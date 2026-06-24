@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package gradle parses Gradle build scripts (build.gradle Groovy DSL and
 // build.gradle.kts Kotlin DSL) into the parent parser payload contract so the
 // supply-chain impact reducer can correlate repository-declared Gradle

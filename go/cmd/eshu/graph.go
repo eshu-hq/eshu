@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main //nolint:filelength // 571 lines: graph subcommand tree, status output, and start/stop. The `graphCmd` var and its init()-registered children are wired in this file by design (see cmd/eshu/AGENTS.md).
 
 import (

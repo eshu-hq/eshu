@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package cloudruntime
 
 // FindingKind identifies one AWS runtime-vs-declaration finding.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package dbtsql extracts bounded column lineage from compiled dbt SQL.
 //
 // ExtractCompiledModelLineage parses select projections, CTEs, relation

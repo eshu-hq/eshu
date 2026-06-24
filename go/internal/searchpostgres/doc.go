@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package searchpostgres adapts Postgres content search to the internal
 // retrieval benchmark port.
 //

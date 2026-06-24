@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package php parses PHP source evidence for the parent parser engine using the
 // tree-sitter PHP grammar.
 //

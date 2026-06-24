@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // openAPIPathsAsk documents the POST /api/v0/ask endpoint. The endpoint is

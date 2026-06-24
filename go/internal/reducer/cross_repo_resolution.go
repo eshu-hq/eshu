@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package reducer //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating the cross-repo identifier hydration and resolution graph reads in one file keeps the deterministic ordering and dedup rules reviewable.
 
 import (

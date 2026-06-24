@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package exports //nolint:filelength // 548 lines: SARIF v2.1.0 reference writer. Per internal/exports/AGENTS.md, the SARIF writer owns the full wire contract (rules, results, locations, partialFingerprints, properties) so the golden fixtures lock a single byte-stable file.
 
 import (

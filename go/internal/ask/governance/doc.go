@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package governance implements the governed-narration posture resolver and
 // audit-safe observability vocabulary for Ask Eshu.
 //

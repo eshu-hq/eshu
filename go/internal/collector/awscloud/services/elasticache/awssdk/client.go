@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package awssdk //nolint:filelength // 527 lines: ElastiCache SDK pagination, KMS + subnet resolution caching, and per-call telemetry. The per-service awssdk client intentionally owns the full surface so scanner.go can stay a thin fact selector.
 
 import (

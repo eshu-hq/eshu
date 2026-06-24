@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 func packageRegistryPackagesCypher(packageID, ecosystem, name string, limit int) (string, map[string]any) {

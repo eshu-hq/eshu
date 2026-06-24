@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the admin-status binary, which renders the shared
 // Eshu status report from Postgres for local CLI inspection.
 //

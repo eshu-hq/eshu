@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package componentindex validates the static community extension index.
 //
 // The package treats index membership as advisory metadata. It checks reviewed

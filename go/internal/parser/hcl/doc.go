@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package hcl extracts Terraform and Terragrunt parser payloads for the parent
 // parser engine.
 //

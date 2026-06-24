@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package relationships
 
 // confidence_calibration_corpus_test.go holds the labeled golden corpus and the

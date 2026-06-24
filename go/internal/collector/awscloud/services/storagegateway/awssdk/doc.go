@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts the AWS SDK for Go v2 Storage Gateway client into the
 // metadata-only Storage Gateway scanner interface.
 //

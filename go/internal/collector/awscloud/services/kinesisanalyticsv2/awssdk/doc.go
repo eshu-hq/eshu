@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts the AWS SDK for Go v2 Managed Service for Apache Flink
 // (Kinesis Data Analytics v2) client into the metadata-only kinesisanalyticsv2
 // scanner interface.

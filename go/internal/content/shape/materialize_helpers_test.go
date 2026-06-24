@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package shape
 
 // itoa is a minimal int-to-string helper for test files that need to generate

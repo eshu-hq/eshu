@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package wafv2 maps AWS WAFv2 metadata into AWS cloud collector facts.
 //
 // The package owns scanner-level normalization only. It never calls the AWS

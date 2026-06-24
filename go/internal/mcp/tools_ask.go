@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package mcp
 
 // askTools returns the MCP tool definition for the Ask Eshu natural-language

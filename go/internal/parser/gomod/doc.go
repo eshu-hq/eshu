@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package gomod parses Go module manifests (`go.mod`) and module-checksum
 // files (`go.sum`) into repository dependency facts.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package haskell parses Haskell source evidence for the parent parser engine.
 //
 // Parse reads one Haskell source file and emits the parser payload buckets for

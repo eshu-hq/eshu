@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package pagerduty normalizes PagerDuty incident context and optional live
 // PagerDuty configuration validation into durable source facts.
 //

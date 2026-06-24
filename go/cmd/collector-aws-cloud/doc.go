@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command collector-aws-cloud runs the AWS cloud collector.
 //
 // The -mode flag selects the runtime. The default, claimed-live, runs the

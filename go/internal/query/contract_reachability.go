@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // Per-ecosystem reachability capabilities (issue #3021). These mirror the

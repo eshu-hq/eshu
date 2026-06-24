@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package appsync emits metadata-only AWS AppSync facts for GraphQL APIs, data
 // sources, resolvers, pipeline functions, schema metadata, and API key
 // metadata.

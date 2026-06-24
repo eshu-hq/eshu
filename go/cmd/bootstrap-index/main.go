@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main //nolint:filelength // 1123 lines: four-phase bootstrap orchestrator. The phase ordering is a correctness invariant (see cmd/bootstrap-index/AGENTS.md § Phase-ordering invariant and CLAUDE.md § Facts-First Bootstrap Ordering). Tracked for split in audit § T8; the split must preserve the runPipelined call order.
 
 import (

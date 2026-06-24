@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package capabilitycatalog
 
 // Profile is a runtime profile id. The catalog mirrors the profile vocabulary

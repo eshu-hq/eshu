@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package rolesanywhere maps AWS IAM Roles Anywhere trust anchor, profile, and
 // certificate-revocation-list (CRL) metadata into AWS cloud collector facts.
 //
