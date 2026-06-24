@@ -676,14 +676,14 @@ func TestBuildRepositoryConfigArtifactsExtractsTerragruntServiceLevelFileAssetsF
 
 	got := buildRepositoryConfigArtifacts("terragrunt-deployment", []FileContent{
 		{
-			RelativePath: "accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
+			RelativePath: "accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
 			Content: `include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
 locals {
   path_parts   = split("/", path_relative_to_include("root"))
-  account_name = local.path_parts[1]  # bg-dev
+  account_name = local.path_parts[1]  # example-dev
   region_name  = local.path_parts[2]  # us-east-1
   vpc_name     = local.path_parts[3]  # dev.network-us-east-1
 
@@ -709,9 +709,9 @@ locals {
 	}
 
 	wantCounts := map[string]int{
-		"accounts/bg-dev/account.yaml":                             1,
-		"accounts/bg-dev/us-east-1/region.yaml":                    1,
-		"accounts/bg-dev/us-east-1/dev.network-us-east-1/vpc.yaml": 1,
+		"accounts/example-dev/account.yaml":                             1,
+		"accounts/example-dev/us-east-1/region.yaml":                    1,
+		"accounts/example-dev/us-east-1/dev.network-us-east-1/vpc.yaml": 1,
 		"root.hcl": 2,
 	}
 	for wantPath, wantCount := range wantCounts {
@@ -726,7 +726,7 @@ func TestBuildRepositoryConfigArtifactsExtractsTerragruntServiceLevelFileAssetsF
 
 	got := buildRepositoryConfigArtifacts("terragrunt-deployment", []FileContent{
 		{
-			RelativePath: "accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
+			RelativePath: "accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
 			Content: `include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -759,9 +759,9 @@ locals {
 	}
 
 	wantCounts := map[string]int{
-		"accounts/bg-dev/account.yaml":                             1,
-		"accounts/bg-dev/us-east-1/region.yaml":                    1,
-		"accounts/bg-dev/us-east-1/dev.network-us-east-1/vpc.yaml": 1,
+		"accounts/example-dev/account.yaml":                             1,
+		"accounts/example-dev/us-east-1/region.yaml":                    1,
+		"accounts/example-dev/us-east-1/dev.network-us-east-1/vpc.yaml": 1,
 		"root.hcl": 2,
 	}
 	for wantPath, wantCount := range wantCounts {
@@ -776,7 +776,7 @@ func TestBuildRepositoryConfigArtifactsDoesNotPromoteTerragruntRemoteStateKeyAsC
 
 	got := buildRepositoryConfigArtifacts("terragrunt-deployment", []FileContent{
 		{
-			RelativePath: "accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
+			RelativePath: "accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl",
 			Content: `include "root" {
   path = find_in_parent_folders("root.hcl")
 }

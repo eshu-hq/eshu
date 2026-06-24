@@ -657,14 +657,14 @@ func TestWorkloadMaterializationHandlerUsesPreCorrelatedInputLoader(t *testing.T
 				RepoName:         "precorrelated-service",
 				ResourceKinds:    []string{"deployment"},
 				Namespaces:       []string{"production"},
-				DeploymentRepoID: "repo-delivery",
+				DeploymentRepoID: "repo-payments",
 				Classification:   "service",
 				Confidence:       0.97,
 				Provenance:       []string{"argocd_application_source"},
 			},
 		},
 		deploymentEnvironments: map[string][]string{
-			"repo-delivery": {"production"},
+			"repo-payments": {"production"},
 		},
 	}
 	factLoader := &stubFactLoader{}
@@ -703,8 +703,8 @@ func TestWorkloadMaterializationHandlerUsesPreCorrelatedInputLoader(t *testing.T
 	if factLoader.calls != 0 {
 		t.Fatalf("FactLoader calls = %d, want 0 when pre-correlated inputs are provided", factLoader.calls)
 	}
-	if !recordedCallContainsParam(executor.calls, "deployment_repo_id", "repo-delivery") {
-		t.Fatal("missing deployment_repo_id row for repo-delivery")
+	if !recordedCallContainsParam(executor.calls, "deployment_repo_id", "repo-payments") {
+		t.Fatal("missing deployment_repo_id row for repo-payments")
 	}
 }
 

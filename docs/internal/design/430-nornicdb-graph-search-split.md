@@ -22,7 +22,7 @@ timestamps, hashes, internal ids, queue/projection bookkeeping, and provider
 fact details that are useful for graph truth but noisy or unsafe as search
 documents.
 
-Issue #430 was opened after an ops-qa EKS rollout where the canonical graph lane
+Issue #430 was opened after a platform-qa EKS rollout where the canonical graph lane
 paid search-index startup cost even though Eshu was not using vector retrieval:
 
 - embeddings were disabled;

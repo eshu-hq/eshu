@@ -42,7 +42,7 @@ describe("ServiceSpotlightPanel", () => {
     expect(screen.getByRole("button", { name: "Config dependencies" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reset view" })).toBeInTheDocument();
 
-    expect(screen.getAllByText("dev, prod, qa, ops-prod, ops-test").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("dev, prod, qa, platform-prod, ops-test").length).toBeGreaterThan(0);
     expect(screen.getAllByText("7 items").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DEPLOYS_FROM").length).toBeGreaterThan(0);
     expect(screen.queryByText("Lane evidence")).not.toBeInTheDocument();
@@ -359,7 +359,7 @@ const spotlight: ServiceSpotlight = {
   deploymentGraph: { links: [], nodes: [] },
   lanes: [
     {
-      environments: ["dev", "prod", "qa", "ops-prod", "ops-test"],
+      environments: ["dev", "prod", "qa", "platform-prod", "ops-test"],
       evidenceCount: 7,
       label: "Kubernetes",
       relationshipTypes: ["DEPLOYS_FROM"],

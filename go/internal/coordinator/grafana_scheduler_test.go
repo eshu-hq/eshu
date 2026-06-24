@@ -53,7 +53,7 @@ func TestGrafanaWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 			t.Fatalf("ScopeID must not be blank for item %+v", item)
 		}
 	}
-	for _, want := range []string{"grafana:instance:ops-prod", "grafana:instance:ops-stage"} {
+	for _, want := range []string{"grafana:instance:platform-prod", "grafana:instance:platform-stage"} {
 		if !strings.Contains(run.RequestedScopeSet, want) {
 			t.Fatalf("RequestedScopeSet = %q, want target %q", run.RequestedScopeSet, want)
 		}
@@ -127,10 +127,10 @@ func TestGrafanaWorkPlannerSkipsDisabledTargets(t *testing.T) {
 	if got, want := len(items), 1; got != want {
 		t.Fatalf("len(items) = %d, want %d (disabled target skipped)", got, want)
 	}
-	if got, want := items[0].ScopeID, "grafana:instance:ops-prod"; got != want {
+	if got, want := items[0].ScopeID, "grafana:instance:platform-prod"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
-	if strings.Contains(run.RequestedScopeSet, "grafana:instance:ops-stage") {
+	if strings.Contains(run.RequestedScopeSet, "grafana:instance:platform-stage") {
 		t.Fatalf("RequestedScopeSet = %q, must not include disabled target", run.RequestedScopeSet)
 	}
 }
@@ -155,7 +155,7 @@ func TestGrafanaWorkPlannerFiltersByScopeIDs(t *testing.T) {
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
-		ScopeIDs:   []string{"grafana:instance:ops-stage"},
+		ScopeIDs:   []string{"grafana:instance:platform-stage"},
 	})
 	if err != nil {
 		t.Fatalf("PlanGrafanaWork() error = %v, want nil", err)
@@ -163,7 +163,7 @@ func TestGrafanaWorkPlannerFiltersByScopeIDs(t *testing.T) {
 	if got, want := len(items), 1; got != want {
 		t.Fatalf("len(items) = %d, want %d", got, want)
 	}
-	if got, want := items[0].ScopeID, "grafana:instance:ops-stage"; got != want {
+	if got, want := items[0].ScopeID, "grafana:instance:platform-stage"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
 }
@@ -271,18 +271,18 @@ func testGrafanaConfigWithTwoEnabledTargets() string {
 	return `{
 		"targets": [{
 			"provider": "grafana",
-			"scope_id": "grafana:instance:ops-prod",
-			"instance_id": "ops-prod",
-			"base_url": "https://ops-prod.grafana.net",
+			"scope_id": "grafana:instance:platform-prod",
+			"instance_id": "platform-prod",
+			"base_url": "https://platform-prod.grafana.net",
 			"token_env": "GRAFANA_TOKEN",
 			"resource_limit": 200,
 			"stale_after": "24h",
 			"enabled": true
 		}, {
 			"provider": "grafana",
-			"scope_id": "grafana:instance:ops-stage",
-			"instance_id": "ops-stage",
-			"base_url": "https://ops-stage.grafana.net",
+			"scope_id": "grafana:instance:platform-stage",
+			"instance_id": "platform-stage",
+			"base_url": "https://platform-stage.grafana.net",
 			"token_env": "GRAFANA_TOKEN",
 			"resource_limit": 200,
 			"stale_after": "24h",
@@ -295,16 +295,16 @@ func testGrafanaConfigWithDisabledTarget() string {
 	return `{
 		"targets": [{
 			"provider": "grafana",
-			"scope_id": "grafana:instance:ops-prod",
-			"instance_id": "ops-prod",
-			"base_url": "https://ops-prod.grafana.net",
+			"scope_id": "grafana:instance:platform-prod",
+			"instance_id": "platform-prod",
+			"base_url": "https://platform-prod.grafana.net",
 			"token_env": "GRAFANA_TOKEN",
 			"enabled": true
 		}, {
 			"provider": "grafana",
-			"scope_id": "grafana:instance:ops-stage",
-			"instance_id": "ops-stage",
-			"base_url": "https://ops-stage.grafana.net",
+			"scope_id": "grafana:instance:platform-stage",
+			"instance_id": "platform-stage",
+			"base_url": "https://platform-stage.grafana.net",
 			"token_env": "GRAFANA_TOKEN",
 			"enabled": false
 		}]

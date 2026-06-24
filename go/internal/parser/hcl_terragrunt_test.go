@@ -121,7 +121,7 @@ func TestParseTerragruntConfigExtractsParentDirJoinedHelperPaths(t *testing.T) {
 }
 
 func TestParseTerragruntConfigExtractsServiceLevelAssetsFromNamedPathRelativeToInclude(t *testing.T) {
-	filePath := filepath.FromSlash("accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl")
+	filePath := filepath.FromSlash("accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl")
 	source := []byte(`include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -140,13 +140,13 @@ locals {
 
 	config := parseTerragruntConfigForTest(t, filePath, source)
 
-	if got, want := config["local_config_asset_paths"], "accounts/bg-dev/account.yaml,accounts/bg-dev/us-east-1/dev.network-us-east-1/vpc.yaml,accounts/bg-dev/us-east-1/region.yaml"; got != want {
+	if got, want := config["local_config_asset_paths"], "accounts/example-dev/account.yaml,accounts/example-dev/us-east-1/dev.network-us-east-1/vpc.yaml,accounts/example-dev/us-east-1/region.yaml"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
 	}
 }
 
 func TestParseTerragruntConfigExtractsServiceLevelAssetsFromUnnamedPathRelativeToInclude(t *testing.T) {
-	filePath := filepath.FromSlash("accounts/bg-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl")
+	filePath := filepath.FromSlash("accounts/example-dev/us-east-1/dev.network-us-east-1/services/terragrunt.hcl")
 	source := []byte(`include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -165,7 +165,7 @@ locals {
 
 	config := parseTerragruntConfigForTest(t, filePath, source)
 
-	if got, want := config["local_config_asset_paths"], "accounts/bg-dev/account.yaml,accounts/bg-dev/us-east-1/dev.network-us-east-1/vpc.yaml,accounts/bg-dev/us-east-1/region.yaml"; got != want {
+	if got, want := config["local_config_asset_paths"], "accounts/example-dev/account.yaml,accounts/example-dev/us-east-1/dev.network-us-east-1/vpc.yaml,accounts/example-dev/us-east-1/region.yaml"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
 	}
 }

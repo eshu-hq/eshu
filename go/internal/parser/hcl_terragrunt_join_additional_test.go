@@ -29,14 +29,14 @@ func TestParseTerragruntConfigResolvesLocalInterpolationsInJoinedHelperPaths(t *
 	repoRoot := t.TempDir()
 	filePath := filepath.Join(repoRoot, "terragrunt.hcl")
 	source := []byte(`locals {
-  account_name = "bg-dev"
+  account_name = "example-dev"
   account_vars = yamldecode(file(join("/", [get_repo_root(), "accounts/${local.account_name}/account.yaml"])))
 }
 `)
 
 	config := parseTerragruntConfigForTest(t, filePath, source)
 
-	if got, want := config["local_config_asset_paths"], "accounts/bg-dev/account.yaml"; got != want {
+	if got, want := config["local_config_asset_paths"], "accounts/example-dev/account.yaml"; got != want {
 		t.Fatalf("local_config_asset_paths = %#v, want %#v", got, want)
 	}
 }

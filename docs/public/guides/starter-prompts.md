@@ -87,7 +87,7 @@ Good additions: audience, environment, output shape, and citation requirements.
 
 ## Useful Follow-Ups
 
-- "Now narrow that to `ops-qa`."
+- "Now narrow that to `platform-qa`."
 - "Show only the repos and files involved."
 - "Explain the highest-confidence dependency path."
 - "What is shared versus dedicated in that dependency set?"

@@ -61,7 +61,7 @@ func TestPrometheusMimirWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 		seenScopes[item.ScopeID] = struct{}{}
 		seenFairness[item.FairnessKey] = struct{}{}
 	}
-	for _, want := range []string{"prometheus:source:ops-prod", "mimir:source:bg-qa"} {
+	for _, want := range []string{"prometheus:source:platform-prod", "mimir:source:example-qa"} {
 		if _, ok := seenScopes[want]; !ok {
 			t.Fatalf("planned scopes = %v, want target %q", seenScopes, want)
 		}
@@ -76,7 +76,7 @@ func TestPrometheusMimirWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	if strings.Contains(run.RequestedScopeSet, "PROM_TOKEN") || strings.Contains(run.RequestedScopeSet, "MIMIR_TOKEN") {
 		t.Fatalf("RequestedScopeSet = %q, must not expose credential env names", run.RequestedScopeSet)
 	}
-	if !strings.Contains(run.RequestedScopeSet, "ops-prod") || !strings.Contains(run.RequestedScopeSet, "bg-qa") {
+	if !strings.Contains(run.RequestedScopeSet, "platform-prod") || !strings.Contains(run.RequestedScopeSet, "example-qa") {
 		t.Fatalf("RequestedScopeSet = %q, want enabled target metadata", run.RequestedScopeSet)
 	}
 }
@@ -101,7 +101,7 @@ func TestPrometheusMimirWorkPlannerScopeIDFilter(t *testing.T) {
 		Instance:   instance,
 		ObservedAt: observedAt,
 		PlanKey:    "schedule-20260605T150000Z",
-		ScopeIDs:   []string{"mimir:source:bg-qa"},
+		ScopeIDs:   []string{"mimir:source:example-qa"},
 	})
 	if err != nil {
 		t.Fatalf("PlanPrometheusMimirWork() error = %v, want nil", err)
@@ -109,7 +109,7 @@ func TestPrometheusMimirWorkPlannerScopeIDFilter(t *testing.T) {
 	if got, want := len(items), 1; got != want {
 		t.Fatalf("len(items) = %d, want %d", got, want)
 	}
-	if got, want := items[0].ScopeID, "mimir:source:bg-qa"; got != want {
+	if got, want := items[0].ScopeID, "mimir:source:example-qa"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
 }
@@ -227,17 +227,17 @@ func testPrometheusMimirConfigWithTwoEnabledAndOneDisabled() string {
 	return `{
 		"targets": [{
 			"provider": "prometheus",
-			"scope_id": "prometheus:source:ops-prod",
-			"instance_id": "ops-prod",
-			"base_url": "https://ops-prod.example",
+			"scope_id": "prometheus:source:platform-prod",
+			"instance_id": "platform-prod",
+			"base_url": "https://platform-prod.example",
 			"token_env": "PROM_TOKEN",
 			"resource_limit": 100,
 			"enabled": true
 		}, {
 			"provider": "mimir",
-			"scope_id": "mimir:source:bg-qa",
-			"instance_id": "bg-qa",
-			"base_url": "https://bg-qa.example",
+			"scope_id": "mimir:source:example-qa",
+			"instance_id": "example-qa",
+			"base_url": "https://example-qa.example",
 			"token_env": "MIMIR_TOKEN",
 			"tenant_id": "team-a",
 			"resource_limit": 100,

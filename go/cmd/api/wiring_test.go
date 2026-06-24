@@ -295,7 +295,7 @@ func TestMetricsTimeSeriesSourceFromEnvUsesPrometheusMimirCollectorConfig(t *tes
 			"targets": [{
 				"provider": "mimir",
 				"scope_id": "mimir:tenant:prod",
-				"instance_id": "ops-prod",
+				"instance_id": "platform-prod",
 				"base_url": %q,
 				"path_prefix": "/prometheus",
 				"token_env": "MIMIR_TOKEN",

@@ -17,7 +17,7 @@ func TestTerraformStateBackendFactReaderReturnsFilteredS3CandidatesAcrossRepos(t
 				"helm-charts",
 				[]byte(`[{
 					"backend_kind":"s3",
-					"bucket":"bg-ops-qa-terraform-state",
+					"bucket":"example-platform-qa-terraform-state",
 					"bucket_is_literal":true,
 					"key":"helm-charts/terraform.tfstate",
 					"key_is_literal":true,
@@ -30,9 +30,9 @@ func TestTerraformStateBackendFactReaderReturnsFilteredS3CandidatesAcrossRepos(t
 				"/repos/iac-terragrunt-core-infra",
 				[]byte(`[{
 					"backend_kind":"s3",
-					"bucket":"bg-ops-qa-terraform-state",
+					"bucket":"example-platform-qa-terraform-state",
 					"bucket_is_literal":true,
-					"key":"ops-qa/us-east-1/ops-qa.network-us-east-1/services/ops-qa-eks/terraform.tfstate",
+					"key":"platform-qa/us-east-1/platform-qa.network-us-east-1/services/platform-qa-eks/terraform.tfstate",
 					"key_is_literal":true,
 					"region":"us-east-1",
 					"region_is_literal":true
@@ -46,9 +46,9 @@ func TestTerraformStateBackendFactReaderReturnsFilteredS3CandidatesAcrossRepos(t
 		context.Background(),
 		terraformstate.DiscoveryQuery{
 			BackendFilters: []terraformstate.DiscoveryBackendFilter{{
-				TargetScopeID: "ops-qa-aws",
+				TargetScopeID: "platform-qa-aws",
 				BackendKind:   terraformstate.BackendS3,
-				Bucket:        "bg-ops-qa-terraform-state",
+				Bucket:        "example-platform-qa-terraform-state",
 				Region:        "us-east-1",
 			}},
 		},
@@ -61,11 +61,11 @@ func TestTerraformStateBackendFactReaderReturnsFilteredS3CandidatesAcrossRepos(t
 		t.Fatalf("len(candidates) = %d, want %d", got, want)
 	}
 	for _, candidate := range candidates {
-		if got, want := candidate.TargetScopeID, "ops-qa-aws"; got != want {
+		if got, want := candidate.TargetScopeID, "platform-qa-aws"; got != want {
 			t.Fatalf("TargetScopeID = %q, want %q", got, want)
 		}
-		if !strings.HasPrefix(candidate.State.Locator, "s3://bg-ops-qa-terraform-state/") {
-			t.Fatalf("Locator = %q, want ops-qa bucket", candidate.State.Locator)
+		if !strings.HasPrefix(candidate.State.Locator, "s3://example-platform-qa-terraform-state/") {
+			t.Fatalf("Locator = %q, want platform-qa bucket", candidate.State.Locator)
 		}
 	}
 	if got, want := len(db.queries), 2; got != want {
@@ -75,7 +75,7 @@ func TestTerraformStateBackendFactReaderReturnsFilteredS3CandidatesAcrossRepos(t
 		t.Fatalf("filtered query should not require repo scope: %s", db.queries[0].query)
 	}
 	filterArg := db.queries[0].args[0]
-	for _, want := range []string{`"backend_kind":"s3"`, `"bucket":"bg-ops-qa-terraform-state"`, `"region":"us-east-1"`} {
+	for _, want := range []string{`"backend_kind":"s3"`, `"bucket":"example-platform-qa-terraform-state"`, `"region":"us-east-1"`} {
 		if !strings.Contains(filterArg.(string), want) {
 			t.Fatalf("filter arg = %#v, want JSON containing %q", filterArg, want)
 		}
@@ -152,18 +152,18 @@ func TestTerraformStateBackendFactReaderUnionsRepoScopedAndFilteredS3Candidates(
 				[]byte(`[
 					{
 						"backend_kind":"s3",
-						"bucket":"bg-ops-qa-terraform-state",
+						"bucket":"example-platform-qa-terraform-state",
 						"bucket_is_literal":true,
-						"key":"ops-qa/terraform.tfstate",
+						"key":"platform-qa/terraform.tfstate",
 						"key_is_literal":true,
 						"region":"us-east-1",
 						"region_is_literal":true
 					},
 					{
 						"backend_kind":"s3",
-						"bucket":"bg-ops-prod-terraform-state",
+						"bucket":"example-platform-prod-terraform-state",
 						"bucket_is_literal":true,
-						"key":"ops-prod/terraform.tfstate",
+						"key":"platform-prod/terraform.tfstate",
 						"key_is_literal":true,
 						"region":"us-east-1",
 						"region_is_literal":true
@@ -175,7 +175,7 @@ func TestTerraformStateBackendFactReaderUnionsRepoScopedAndFilteredS3Candidates(
 				"helm-charts",
 				[]byte(`[{
 					"backend_kind":"s3",
-					"bucket":"bg-ops-qa-terraform-state",
+					"bucket":"example-platform-qa-terraform-state",
 					"bucket_is_literal":true,
 					"key":"helm-charts/terraform.tfstate",
 					"key_is_literal":true,
@@ -193,9 +193,9 @@ func TestTerraformStateBackendFactReaderUnionsRepoScopedAndFilteredS3Candidates(
 		terraformstate.DiscoveryQuery{
 			RepoIDs: []string{"repo-infra"},
 			BackendFilters: []terraformstate.DiscoveryBackendFilter{{
-				TargetScopeID: "ops-qa-aws",
+				TargetScopeID: "platform-qa-aws",
 				BackendKind:   terraformstate.BackendS3,
-				Bucket:        "bg-ops-qa-terraform-state",
+				Bucket:        "example-platform-qa-terraform-state",
 				Region:        "us-east-1",
 			}},
 		},
@@ -211,21 +211,21 @@ func TestTerraformStateBackendFactReaderUnionsRepoScopedAndFilteredS3Candidates(
 	for _, candidate := range candidates {
 		locators[candidate.State.Locator] = candidate
 	}
-	if _, ok := locators["s3://bg-ops-prod-terraform-state/ops-prod/terraform.tfstate"]; !ok {
+	if _, ok := locators["s3://example-platform-prod-terraform-state/platform-prod/terraform.tfstate"]; !ok {
 		t.Fatalf("repo-scoped prod locator missing from hybrid union: %#v", locators)
 	}
-	repoScopedFiltered, ok := locators["s3://bg-ops-qa-terraform-state/ops-qa/terraform.tfstate"]
+	repoScopedFiltered, ok := locators["s3://example-platform-qa-terraform-state/platform-qa/terraform.tfstate"]
 	if !ok {
 		t.Fatalf("repo-scoped filtered locator missing from hybrid union: %#v", locators)
 	}
-	if got, want := repoScopedFiltered.TargetScopeID, "ops-qa-aws"; got != want {
+	if got, want := repoScopedFiltered.TargetScopeID, "platform-qa-aws"; got != want {
 		t.Fatalf("repo-scoped filtered TargetScopeID = %q, want %q", got, want)
 	}
-	filtered, ok := locators["s3://bg-ops-qa-terraform-state/helm-charts/terraform.tfstate"]
+	filtered, ok := locators["s3://example-platform-qa-terraform-state/helm-charts/terraform.tfstate"]
 	if !ok {
 		t.Fatalf("filtered global locator missing from hybrid union: %#v", locators)
 	}
-	if got, want := filtered.TargetScopeID, "ops-qa-aws"; got != want {
+	if got, want := filtered.TargetScopeID, "platform-qa-aws"; got != want {
 		t.Fatalf("filtered TargetScopeID = %q, want %q", got, want)
 	}
 	if got, want := len(db.queries), 4; got != want {
@@ -250,12 +250,12 @@ func TestTerraformStateBackendFactReaderBatchesMultipleBackendFilters(t *testing
 			BackendFilters: []terraformstate.DiscoveryBackendFilter{
 				{
 					BackendKind: terraformstate.BackendS3,
-					Bucket:      "bg-ops-qa-terraform-state",
+					Bucket:      "example-platform-qa-terraform-state",
 					Region:      "us-east-1",
 				},
 				{
 					BackendKind: terraformstate.BackendS3,
-					Bucket:      "bg-ops-prod-terraform-state",
+					Bucket:      "example-platform-prod-terraform-state",
 					Region:      "us-east-1",
 				},
 			},

@@ -201,7 +201,7 @@ spec:
 func TestParseHelmValuesPrometheusMimirOtelAndYACEMetricRoutes(t *testing.T) {
 	t.Parallel()
 
-	filePath := writeYAMLTestFile(t, filepath.Join("environments", "ops-prod", "values.yaml"), `
+	filePath := writeYAMLTestFile(t, filepath.Join("environments", "platform-prod", "values.yaml"), `
 prometheus:
   prometheusSpec:
     serviceMonitorSelector:

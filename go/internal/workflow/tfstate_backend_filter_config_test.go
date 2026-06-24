@@ -10,7 +10,7 @@ func TestValidateTerraformStateCollectorConfigurationAcceptsBackendFilterWithout
 
 	err := ValidateTerraformStateCollectorConfiguration(`{
 		"target_scopes": [{
-			"target_scope_id": "ops-qa-aws",
+			"target_scope_id": "platform-qa-aws",
 			"provider": "aws",
 			"deployment_mode": "account_local",
 			"credential_mode": "local_workload_identity",
@@ -20,9 +20,9 @@ func TestValidateTerraformStateCollectorConfigurationAcceptsBackendFilterWithout
 		"discovery": {
 			"graph": true,
 			"backend_filters": [{
-				"target_scope_id": "ops-qa-aws",
+				"target_scope_id": "platform-qa-aws",
 				"backend_kind": "s3",
-				"bucket": "bg-ops-qa-terraform-state",
+				"bucket": "example-ops-qa-terraform-state",
 				"key": "services/api/terraform.tfstate",
 				"region": "us-east-1"
 			}]
@@ -38,7 +38,7 @@ func TestValidateTerraformStateCollectorConfigurationRejectsUntrimmedBackendFilt
 
 	err := ValidateTerraformStateCollectorConfiguration(`{
 		"target_scopes": [{
-			"target_scope_id": "ops-qa-aws",
+			"target_scope_id": "platform-qa-aws",
 			"provider": "aws",
 			"deployment_mode": "account_local",
 			"credential_mode": "local_workload_identity",
@@ -48,9 +48,9 @@ func TestValidateTerraformStateCollectorConfigurationRejectsUntrimmedBackendFilt
 		"discovery": {
 			"graph": true,
 			"backend_filters": [{
-				"target_scope_id": "ops-qa-aws",
+				"target_scope_id": "platform-qa-aws",
 				"backend_kind": "s3",
-				"bucket": "bg-ops-qa-terraform-state",
+				"bucket": "example-ops-qa-terraform-state",
 				"key": "/services/api/terraform.tfstate",
 				"region": "us-east-1"
 			}]

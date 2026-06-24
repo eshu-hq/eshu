@@ -374,7 +374,7 @@ disappears because workloads or platforms are not yet materialized.
 
 No-Regression Evidence: query shape changed from one chained-aggregation
 statement to four independent single-label count scans (NornicDB v1.1.3, local
-Docker Compose, `~/bg-repos` corpus: 33 Repository, 21 Workload, 7 Platform, 92
+Docker Compose, `~/example-repos` corpus: 33 Repository, 21 Workload, 7 Platform, 92
 WorkloadInstance nodes). Each scan is the same bounded label count as the
 original; the change adds three extra round-trips on a low-frequency overview
 read and removes none of the original scan work, so there is no scan-cost
@@ -403,7 +403,7 @@ Repository->Repository), so the list never fabricates a deploying-workload
 column.
 
 Performance Evidence: measured the exact handler Cypher shape against the warm
-local Compose backend (NornicDB, `nornic` database, `~/bg-repos` corpus,
+local Compose backend (NornicDB, `nornic` database, `~/example-repos` corpus,
 10 `ContainerImage` nodes) over the Bolt-HTTP tx endpoint with `limit+1=51`,
 `offset=0`, and empty filters. Warm priming call: 3.2 ms; three measured runs:
 0.82 ms, 0.71 ms, 1.02 ms wall time. The bounded label scan returns the full

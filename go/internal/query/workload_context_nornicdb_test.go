@@ -19,12 +19,12 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				if !strings.Contains(cypher, "RETURN w.id as id, w.name as name, w.kind as kind") {
 					t.Fatalf("unexpected RunSingle cypher: %q", cypher)
 				}
-				if got, want := params["service_name"], "svc-dataflow"; got != want {
+				if got, want := params["service_name"], "svc-orders"; got != want {
 					t.Fatalf("params[service_name] = %#v, want %#v", got, want)
 				}
 				return map[string]any{
-					"id":   "workload:svc-dataflow",
-					"name": "svc-dataflow",
+					"id":   "workload:svc-orders",
+					"name": "svc-orders",
 					"kind": "service",
 				}, nil
 			},
@@ -39,7 +39,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				case strings.Contains(cypher, "MATCH (r:Repository)-[:DEFINES]->(w)"):
 					return []map[string]any{{
 						"repo_id":   "repository:datax",
-						"repo_name": "svc-dataflow",
+						"repo_name": "svc-orders",
 					}}, nil
 				case strings.Contains(cypher, "<-[rel:PROVISIONS_DEPENDENCY_FOR]-"):
 					return nil, nil
@@ -48,30 +48,30 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 						t.Fatalf("cypher = %q, want exact instance id batch lookup", cypher)
 					}
 					wantIDs := []string{
-						"workload-instance:svc-dataflow:bg-prod",
-						"workload-instance:svc-dataflow:ops-qa",
+						"workload-instance:svc-orders:example-prod",
+						"workload-instance:svc-orders:platform-qa",
 					}
 					if got := StringSliceVal(params, "instance_ids"); !reflect.DeepEqual(got, wantIDs) {
 						t.Fatalf("params[instance_ids] = %#v, want %#v", got, wantIDs)
 					}
 					return []map[string]any{
 						{
-							"instance_id":         "workload-instance:svc-dataflow:bg-prod",
-							"platform_name":       "bg-prod",
+							"instance_id":         "workload-instance:svc-orders:example-prod",
+							"platform_name":       "example-prod",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": 0.95,
 							"platform_reason":     "resolved_deployment_evidence",
 						},
 						{
-							"instance_id":         "workload-instance:svc-dataflow:bg-prod",
+							"instance_id":         "workload-instance:svc-orders:example-prod",
 							"platform_name":       "ecs-prod",
 							"platform_kind":       "ecs",
 							"platform_confidence": 0.91,
 							"platform_reason":     "terraform_service_evidence",
 						},
 						{
-							"instance_id":         "workload-instance:svc-dataflow:ops-qa",
-							"platform_name":       "ops-qa",
+							"instance_id":         "workload-instance:svc-orders:platform-qa",
+							"platform_name":       "platform-qa",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": 0.95,
 							"platform_reason":     "resolved_deployment_evidence",
@@ -80,14 +80,14 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				case strings.Contains(cypher, "WHERE i.workload_id = $workload_id"):
 					return []map[string]any{
 						{
-							"instance_id":                "workload-instance:svc-dataflow:bg-prod",
-							"environment":                "bg-prod",
+							"instance_id":                "workload-instance:svc-orders:example-prod",
+							"environment":                "example-prod",
 							"materialization_confidence": 0.91,
 							"materialization_provenance": []any{"helm_values_reference"},
 						},
 						{
-							"instance_id":                "workload-instance:svc-dataflow:ops-qa",
-							"environment":                "ops-qa",
+							"instance_id":                "workload-instance:svc-orders:platform-qa",
+							"environment":                "platform-qa",
 							"materialization_confidence": 0.91,
 							"materialization_provenance": []any{"kustomize_resource_reference"},
 						},
@@ -109,13 +109,13 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 	ctx, err := handler.fetchWorkloadContext(
 		context.Background(),
 		"w.name = $service_name OR w.id = $service_name",
-		map[string]any{"service_name": "svc-dataflow"},
+		map[string]any{"service_name": "svc-orders"},
 	)
 	if err != nil {
 		t.Fatalf("fetchWorkloadContext() error = %v", err)
 	}
 
-	if got, want := ctx["repo_name"], "svc-dataflow"; got != want {
+	if got, want := ctx["repo_name"], "svc-orders"; got != want {
 		t.Fatalf("repo_name = %#v, want %#v", got, want)
 	}
 	instances, ok := ctx["instances"].([]map[string]any)
@@ -125,10 +125,10 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 	if got, want := len(instances), 2; got != want {
 		t.Fatalf("len(instances) = %d, want %d", got, want)
 	}
-	if got, want := instances[0]["environment"], "bg-prod"; got != want {
+	if got, want := instances[0]["environment"], "example-prod"; got != want {
 		t.Fatalf("instances[0].environment = %#v, want %#v", got, want)
 	}
-	if got, want := instances[0]["platform_name"], "bg-prod"; got != want {
+	if got, want := instances[0]["platform_name"], "example-prod"; got != want {
 		t.Fatalf("instances[0].platform_name = %#v, want %#v", got, want)
 	}
 	bgProdPlatforms := mapSliceValue(instances[0], "platforms")
@@ -143,8 +143,8 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 		t.Fatalf("deployment_overview.platform_count = %#v, want %#v", got, want)
 	}
 	story := buildWorkloadStory(ctx)
-	if !strings.Contains(story, "bg-prod on bg-prod (kubernetes), ecs-prod (ecs)") {
-		t.Fatalf("story = %q, want both platform targets for bg-prod", story)
+	if !strings.Contains(story, "example-prod on example-prod (kubernetes), ecs-prod (ecs)") {
+		t.Fatalf("story = %q, want both platform targets for example-prod", story)
 	}
 }
 
@@ -177,16 +177,16 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 						t.Fatalf("cypher = %q, want exact instance id batch lookup", cypher)
 					}
 					wantIDs := []string{
-						"workload-instance:sample-service:bg-prod",
-						"workload-instance:sample-service:ops-qa",
+						"workload-instance:sample-service:example-prod",
+						"workload-instance:sample-service:platform-qa",
 					}
 					if got := StringSliceVal(params, "instance_ids"); !reflect.DeepEqual(got, wantIDs) {
 						t.Fatalf("params[instance_ids] = %#v, want %#v", got, wantIDs)
 					}
 					return []map[string]any{
 						{
-							"instance_id":         "workload-instance:sample-service:bg-prod",
-							"platform_name":       "bg-prod",
+							"instance_id":         "workload-instance:sample-service:example-prod",
+							"platform_name":       "example-prod",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": nil,
 							"platform_reason":     nil,
@@ -196,15 +196,15 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 							},
 						},
 						{
-							"instance_id":         "workload-instance:sample-service:bg-prod",
+							"instance_id":         "workload-instance:sample-service:example-prod",
 							"platform_name":       "shared-runtime-cluster",
 							"platform_kind":       "ecs",
 							"platform_confidence": 0.99,
 							"platform_reason":     "Workload instance runs on inferred platform",
 						},
 						{
-							"instance_id":         "workload-instance:sample-service:ops-qa",
-							"platform_name":       "ops-qa",
+							"instance_id":         "workload-instance:sample-service:platform-qa",
+							"platform_name":       "platform-qa",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": 0.99,
 							"platform_reason":     "Workload instance runs on inferred platform",
@@ -216,14 +216,14 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 					}
 					return []map[string]any{
 						{
-							"instance_id":                "workload-instance:sample-service:bg-prod",
-							"environment":                "bg-prod",
+							"instance_id":                "workload-instance:sample-service:example-prod",
+							"environment":                "example-prod",
 							"materialization_confidence": 0.96,
 							"materialization_provenance": []any{"terraform_ecs_service"},
 						},
 						{
-							"instance_id":                "workload-instance:sample-service:ops-qa",
-							"environment":                "ops-qa",
+							"instance_id":                "workload-instance:sample-service:platform-qa",
+							"environment":                "platform-qa",
 							"materialization_confidence": 0.96,
 							"materialization_provenance": []any{"terraform_ecs_service"},
 						},
@@ -270,26 +270,26 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 	}
 	bgProdPlatforms := mapSliceValue(instances[0], "platforms")
 	if got, want := len(bgProdPlatforms), 2; got != want {
-		t.Fatalf("len(bg-prod platforms) = %d, want %d", got, want)
+		t.Fatalf("len(example-prod platforms) = %d, want %d", got, want)
 	}
-	if got, want := instances[0]["platform_name"], "bg-prod"; got != want {
-		t.Fatalf("bg-prod platform_name = %#v, want %#v", got, want)
+	if got, want := instances[0]["platform_name"], "example-prod"; got != want {
+		t.Fatalf("example-prod platform_name = %#v, want %#v", got, want)
 	}
 	if got, want := instances[0]["platform_confidence"], 0.99; got != want {
-		t.Fatalf("bg-prod platform_confidence = %#v, want %#v", got, want)
+		t.Fatalf("example-prod platform_confidence = %#v, want %#v", got, want)
 	}
 	if got, want := instances[0]["platform_reason"], "Workload instance runs on inferred platform"; got != want {
-		t.Fatalf("bg-prod platform_reason = %#v, want %#v", got, want)
+		t.Fatalf("example-prod platform_reason = %#v, want %#v", got, want)
 	}
 	opsQAPlatforms := mapSliceValue(instances[1], "platforms")
 	if got, want := len(opsQAPlatforms), 1; got != want {
-		t.Fatalf("len(ops-qa platforms) = %d, want %d", got, want)
+		t.Fatalf("len(platform-qa platforms) = %d, want %d", got, want)
 	}
-	if got, want := instances[1]["platform_name"], "ops-qa"; got != want {
-		t.Fatalf("ops-qa platform_name = %#v, want %#v", got, want)
+	if got, want := instances[1]["platform_name"], "platform-qa"; got != want {
+		t.Fatalf("platform-qa platform_name = %#v, want %#v", got, want)
 	}
 	if got, want := instances[1]["platform_kind"], "kubernetes"; got != want {
-		t.Fatalf("ops-qa platform_kind = %#v, want %#v", got, want)
+		t.Fatalf("platform-qa platform_kind = %#v, want %#v", got, want)
 	}
 }
 
@@ -362,23 +362,23 @@ func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
 				}
 				gotIDs := StringSliceVal(params, "instance_ids")
 				wantIDs := []string{
-					"workload-instance:sample-service:bg-prod",
-					"workload-instance:sample-service:ops-qa",
+					"workload-instance:sample-service:example-prod",
+					"workload-instance:sample-service:platform-qa",
 				}
 				if !reflect.DeepEqual(gotIDs, wantIDs) {
 					t.Fatalf("params[instance_ids] = %#v, want %#v", gotIDs, wantIDs)
 				}
 				return []map[string]any{
 					{
-						"instance_id":         "workload-instance:sample-service:bg-prod",
-						"platform_name":       "bg-prod",
+						"instance_id":         "workload-instance:sample-service:example-prod",
+						"platform_name":       "example-prod",
 						"platform_kind":       "kubernetes",
 						"platform_confidence": 0.99,
 						"platform_reason":     "resolved_deployment_evidence",
 					},
 					{
-						"instance_id":         "workload-instance:sample-service:ops-qa",
-						"platform_name":       "ops-qa",
+						"instance_id":         "workload-instance:sample-service:platform-qa",
+						"platform_name":       "platform-qa",
 						"platform_kind":       "kubernetes",
 						"platform_confidence": 0.98,
 						"platform_reason":     "resolved_deployment_evidence",
@@ -389,8 +389,8 @@ func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
 	}
 
 	rows, err := handler.fetchWorkloadPlatformRows(context.Background(), []map[string]any{
-		{"instance_id": "workload-instance:sample-service:bg-prod"},
-		{"instance_id": "workload-instance:sample-service:ops-qa"},
+		{"instance_id": "workload-instance:sample-service:example-prod"},
+		{"instance_id": "workload-instance:sample-service:platform-qa"},
 	})
 	if err != nil {
 		t.Fatalf("fetchWorkloadPlatformRows() error = %v, want nil", err)

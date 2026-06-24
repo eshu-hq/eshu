@@ -24,12 +24,12 @@ func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testin
 				{
 					"source_repo_id":   "repo-gitops",
 					"source_repo_name": "platform-gitops",
-					"path":             "clusters/ops-qa/eshu/values.yaml",
+					"path":             "clusters/platform-qa/eshu/values.yaml",
 					"artifact_family":  "helm",
 					"evidence_kind":    "helm_values_reference",
 					"matched_alias":    "image.tag",
 					"matched_value":    "ghcr.io/eshu-hq/eshu:1.2.3",
-					"environment":      "ops-qa",
+					"environment":      "platform-qa",
 					"start_line":       17,
 					"end_line":         18,
 					"resolved_id":      "rel-image",
@@ -42,7 +42,7 @@ func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testin
 					"evidence_kind":    "kubernetes_resource_limit",
 					"matched_alias":    "resources.limits.cpu",
 					"matched_value":    "500m",
-					"environment":      "ops-qa",
+					"environment":      "platform-qa",
 					"start_line":       44,
 					"end_line":         47,
 					"resolved_id":      "rel-limit",
@@ -50,12 +50,12 @@ func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testin
 				{
 					"source_repo_id":   "repo-gitops",
 					"source_repo_name": "platform-gitops",
-					"path":             "clusters/ops-qa/eshu/env.yaml",
+					"path":             "clusters/platform-qa/eshu/env.yaml",
 					"artifact_family":  "argocd",
 					"evidence_kind":    "runtime_config_reference",
 					"matched_alias":    "env.ESHU_REDUCER_WORKERS",
 					"matched_value":    "8",
-					"environment":      "ops-qa",
+					"environment":      "platform-qa",
 				},
 			},
 		},
@@ -70,7 +70,7 @@ func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testin
 
 	resp := buildDeploymentConfigInfluenceResponse(deploymentConfigInfluenceRequest{
 		ServiceName: "eshu-hqgraph-resolution-engine",
-		Environment: "ops-qa",
+		Environment: "platform-qa",
 		Limit:       10,
 	}, workloadContext)
 

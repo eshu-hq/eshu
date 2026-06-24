@@ -43,7 +43,7 @@ func TestLokiWorkPlannerPlansOneClaimPerEnabledTarget(t *testing.T) {
 	if got, want := len(items), 2; got != want {
 		t.Fatalf("len(items) = %d, want %d", got, want)
 	}
-	for _, want := range []string{"loki:source:ops-prod", "loki:source:bg-qa"} {
+	for _, want := range []string{"loki:source:platform-prod", "loki:source:example-qa"} {
 		if !strings.Contains(run.RequestedScopeSet, want) {
 			t.Fatalf("RequestedScopeSet = %q, want enabled target %q", run.RequestedScopeSet, want)
 		}
@@ -228,7 +228,7 @@ func TestLokiWorkPlannerScopeIDsFilterAndTriggerOverride(t *testing.T) {
 		ObservedAt:  observedAt,
 		PlanKey:     "schedule-20260605T150000Z",
 		TriggerKind: workflow.TriggerKindBootstrap,
-		ScopeIDs:    []string{"loki:source:bg-qa"},
+		ScopeIDs:    []string{"loki:source:example-qa"},
 	})
 	if err != nil {
 		t.Fatalf("PlanLokiWork() error = %v, want nil", err)
@@ -241,7 +241,7 @@ func TestLokiWorkPlannerScopeIDsFilterAndTriggerOverride(t *testing.T) {
 	if got, want := len(items), 1; got != want {
 		t.Fatalf("len(items) = %d, want %d", got, want)
 	}
-	if got, want := items[0].ScopeID, "loki:source:bg-qa"; got != want {
+	if got, want := items[0].ScopeID, "loki:source:example-qa"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
 }
@@ -249,15 +249,15 @@ func TestLokiWorkPlannerScopeIDsFilterAndTriggerOverride(t *testing.T) {
 func testLokiConfigTwoEnabledOneDisabled() string {
 	return `{
 		"targets": [{
-			"scope_id": "loki:source:ops-prod",
-			"instance_id": "ops-prod",
-			"base_url": "https://loki.ops-prod.example",
+			"scope_id": "loki:source:platform-prod",
+			"instance_id": "platform-prod",
+			"base_url": "https://loki.platform-prod.example",
 			"token_env": "LOKI_TOKEN",
 			"enabled": true
 		}, {
-			"scope_id": "loki:source:bg-qa",
-			"instance_id": "bg-qa",
-			"base_url": "https://loki.bg-qa.example",
+			"scope_id": "loki:source:example-qa",
+			"instance_id": "example-qa",
+			"base_url": "https://loki.example-qa.example",
 			"token_env": "LOKI_TOKEN",
 			"enabled": true
 		}, {

@@ -155,7 +155,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderAdmitsResolvedDeploymentEvidence
 		ResolvedLoader: &stubResolvedRelationshipLoader{
 			resolved: []relationships.ResolvedRelationship{
 				{
-					SourceRepoID:     "repo-delivery",
+					SourceRepoID:     "repo-payments",
 					TargetRepoID:     "repo-service",
 					RelationshipType: relationships.RelDeploysFrom,
 					Confidence:       0.96,
@@ -188,7 +188,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderAdmitsResolvedDeploymentEvidence
 	if len(candidates) != 1 {
 		t.Fatalf("len(candidates) = %d, want 1", len(candidates))
 	}
-	if got, want := candidates[0].DeploymentRepoID, "repo-delivery"; got != want {
+	if got, want := candidates[0].DeploymentRepoID, "repo-payments"; got != want {
 		t.Fatalf("DeploymentRepoID = %q, want %q", got, want)
 	}
 	if got, want := candidates[0].WorkloadName, "api"; got != want {
