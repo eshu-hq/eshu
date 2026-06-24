@@ -33,12 +33,17 @@ on:
       - ".github/workflows/frontend.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
 jobs:
   marketing-site:
     name: Marketing site (root Vite)
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -65,6 +70,7 @@ jobs:
 
   console:
     name: Console (apps/console)
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -91,6 +97,7 @@ jobs:
 
   audit:
     name: npm audit (fail on high/critical)
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
