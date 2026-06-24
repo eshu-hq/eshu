@@ -198,15 +198,18 @@ func meetsThreshold(metric Metric, threshold Threshold) (bool, string) {
 	var failures []string
 	if metric.Precision < threshold.MinPrecision {
 		failures = append(failures, fmt.Sprintf(
-			"precision=%.3f below min %.3f", metric.Precision, threshold.MinPrecision))
+			"precision=%.3f below min %.3f", metric.Precision, threshold.MinPrecision,
+		))
 	}
 	if metric.Recall < threshold.MinRecall {
 		failures = append(failures, fmt.Sprintf(
-			"recall=%.3f below min %.3f", metric.Recall, threshold.MinRecall))
+			"recall=%.3f below min %.3f", metric.Recall, threshold.MinRecall,
+		))
 	}
 	if metric.CoveredItems < threshold.MinCoveredItems {
 		failures = append(failures, fmt.Sprintf(
-			"covered=%d below min %d", metric.CoveredItems, threshold.MinCoveredItems))
+			"covered=%d below min %d", metric.CoveredItems, threshold.MinCoveredItems,
+		))
 	}
 	if len(failures) == 0 {
 		return true, "ok"

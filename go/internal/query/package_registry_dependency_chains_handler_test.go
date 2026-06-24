@@ -59,8 +59,8 @@ func TestPackageRegistryDependencyChainsNextCursorRoundTrip(t *testing.T) {
 		t.Fatalf("page1 status = %d, want %d; body = %s", got, want, w1.Body.String())
 	}
 	var page1 struct {
-		Count      int    `json:"count"`
-		Truncated  bool   `json:"truncated"`
+		Count      int  `json:"count"`
+		Truncated  bool `json:"truncated"`
 		NextCursor *struct {
 			AfterCorrelationID string `json:"after_correlation_id"`
 		} `json:"next_cursor"`

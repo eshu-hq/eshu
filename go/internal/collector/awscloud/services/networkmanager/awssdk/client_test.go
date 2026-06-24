@@ -29,27 +29,35 @@ type fakeAPI struct {
 func (f fakeAPI) DescribeGlobalNetworks(context.Context, *awsnm.DescribeGlobalNetworksInput, ...func(*awsnm.Options)) (*awsnm.DescribeGlobalNetworksOutput, error) {
 	return &awsnm.DescribeGlobalNetworksOutput{GlobalNetworks: f.globalNetworks}, nil
 }
+
 func (f fakeAPI) GetSites(context.Context, *awsnm.GetSitesInput, ...func(*awsnm.Options)) (*awsnm.GetSitesOutput, error) {
 	return &awsnm.GetSitesOutput{Sites: f.sites}, nil
 }
+
 func (f fakeAPI) GetDevices(context.Context, *awsnm.GetDevicesInput, ...func(*awsnm.Options)) (*awsnm.GetDevicesOutput, error) {
 	return &awsnm.GetDevicesOutput{Devices: f.devices}, nil
 }
+
 func (f fakeAPI) GetLinks(context.Context, *awsnm.GetLinksInput, ...func(*awsnm.Options)) (*awsnm.GetLinksOutput, error) {
 	return &awsnm.GetLinksOutput{Links: f.links}, nil
 }
+
 func (f fakeAPI) GetConnections(context.Context, *awsnm.GetConnectionsInput, ...func(*awsnm.Options)) (*awsnm.GetConnectionsOutput, error) {
 	return &awsnm.GetConnectionsOutput{Connections: f.connections}, nil
 }
+
 func (f fakeAPI) GetLinkAssociations(context.Context, *awsnm.GetLinkAssociationsInput, ...func(*awsnm.Options)) (*awsnm.GetLinkAssociationsOutput, error) {
 	return &awsnm.GetLinkAssociationsOutput{LinkAssociations: f.associations}, nil
 }
+
 func (f fakeAPI) GetTransitGatewayRegistrations(context.Context, *awsnm.GetTransitGatewayRegistrationsInput, ...func(*awsnm.Options)) (*awsnm.GetTransitGatewayRegistrationsOutput, error) {
 	return &awsnm.GetTransitGatewayRegistrationsOutput{TransitGatewayRegistrations: f.registrations}, nil
 }
+
 func (f fakeAPI) ListCoreNetworks(context.Context, *awsnm.ListCoreNetworksInput, ...func(*awsnm.Options)) (*awsnm.ListCoreNetworksOutput, error) {
 	return &awsnm.ListCoreNetworksOutput{CoreNetworks: f.coreSummaries}, nil
 }
+
 func (f fakeAPI) GetCoreNetwork(context.Context, *awsnm.GetCoreNetworkInput, ...func(*awsnm.Options)) (*awsnm.GetCoreNetworkOutput, error) {
 	return &awsnm.GetCoreNetworkOutput{CoreNetwork: f.coreNetwork}, nil
 }

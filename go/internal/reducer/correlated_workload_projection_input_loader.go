@@ -126,7 +126,8 @@ func mergeResolvedRelationships(
 }
 
 func resolvedRelationshipMergeKey(relationship relationships.ResolvedRelationship) string {
-	return fmt.Sprintf("%s|%s|%s|%s|%s",
+	return fmt.Sprintf(
+		"%s|%s|%s|%s|%s",
 		relationship.SourceRepoID,
 		relationship.TargetRepoID,
 		relationship.SourceEntityID,

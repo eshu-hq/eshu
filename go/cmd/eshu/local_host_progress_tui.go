@@ -64,7 +64,7 @@ func (m localHostProgressTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case localHostProgressReportMsg:
 		m.report = msg.report
 		m.ready = true
-		return m, m.animateKnownWorkRows(localHostKnownWorkRows(msg.report))
+		return m, m.animateKnownWorkRows(localHostKnownWorkRows(msg.report)) //nolint:gocritic // evalOrder: animation must observe the post-`ready` state.
 	case progress.FrameMsg:
 		return m.updateProgressBars(msg)
 	default:

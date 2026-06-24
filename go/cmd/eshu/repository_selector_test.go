@@ -9,7 +9,7 @@ import (
 func TestRepositorySelectorCanonicalizesOnlyPathFields(t *testing.T) {
 	root := t.TempDir()
 	selector := filepath.Join(root, "repo")
-	cleanEquivalentPath := root + string(os.PathSeparator) + "nested" +
+	cleanEquivalentPath := root + string(os.PathSeparator) + "nested" + //nolint:gocritic // preferFilepathJoin: the test deliberately constructs an un-cleaned path equivalent to filepath.Join, to assert the selector canonicalizes both forms.
 		string(os.PathSeparator) + ".." + string(os.PathSeparator) + "repo"
 
 	repo := repositorySelectorEntry{

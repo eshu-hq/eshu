@@ -227,7 +227,8 @@ func (s *SharedIntentStore) ListIntents(ctx context.Context, f SharedIntentFilte
 		projDomain = *f.ProjectionDomain
 	}
 
-	sqlRows, err := s.db.QueryContext(ctx, listSharedIntentsSQL,
+	sqlRows, err := s.db.QueryContext(
+		ctx, listSharedIntentsSQL,
 		f.RepositoryID,
 		f.SourceRunID,
 		projDomain,
@@ -275,7 +276,8 @@ func (s *SharedIntentStore) ClaimPartitionLease(ctx context.Context, domain stri
 	now := time.Now().UTC()
 	leaseExpiresAt := now.Add(leaseTTL)
 
-	rows, err := s.db.QueryContext(ctx, claimPartitionLeaseSQL,
+	rows, err := s.db.QueryContext(
+		ctx, claimPartitionLeaseSQL,
 		domain,
 		partitionID,
 		partitionCount,
@@ -304,7 +306,8 @@ func (s *SharedIntentStore) ClaimPartitionLease(ctx context.Context, domain stri
 func (s *SharedIntentStore) ReleasePartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string) error {
 	now := time.Now().UTC()
 
-	_, err := s.db.ExecContext(ctx, releasePartitionLeaseSQL,
+	_, err := s.db.ExecContext(
+		ctx, releasePartitionLeaseSQL,
 		domain,
 		partitionID,
 		partitionCount,

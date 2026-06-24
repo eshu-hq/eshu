@@ -165,7 +165,6 @@ func (h *CompareHandler) environmentSnapshot(
 		"workload_id": compareStringVal(workload, "id"),
 		"environment": environment,
 	})
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -218,7 +217,6 @@ func (h *CompareHandler) environmentSnapshot(
 		"instance_id": compareStringVal(instanceRow, "id"),
 		"limit":       limit + 1,
 	})
-
 	if err != nil {
 		return nil, false, err
 	}

@@ -15,8 +15,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const nornicDBTransactionCommitFailedCode = "Neo.ClientError.Transaction.TransactionCommitFailed"
-const nornicDBTransactionOutdatedCode = "Neo.TransientError.Transaction.Outdated"
+const (
+	nornicDBTransactionCommitFailedCode = "Neo.ClientError.Transaction.TransactionCommitFailed"
+	nornicDBTransactionOutdatedCode     = "Neo.TransientError.Transaction.Outdated"
+)
 
 // RetryingExecutor wraps an Executor with retry logic for transient Neo4j
 // errors such as deadlocks. Concurrent MERGE operations on shared nodes
@@ -106,7 +108,8 @@ func (r *RetryingExecutor) runWithRetry(
 
 		delay := baseDelay * time.Duration(1<<uint(attempt))
 		jitter := time.Duration(float64(delay) * (0.5 + rand.Float64()))
-		slog.Warn("neo4j transient error, retrying",
+		slog.Warn(
+			"neo4j transient error, retrying",
 			"attempt", attempt+1,
 			"max_retries", maxRetries,
 			"delay", jitter.String(),

@@ -38,7 +38,8 @@ func startServiceQueryStage(
 		startedAt: time.Now(),
 	}
 	if logger != nil {
-		logger.InfoContext(ctx, "service query stage started",
+		logger.InfoContext(
+			ctx, "service query stage started",
 			telemetry.EventAttr("service_query.stage_started"),
 			slog.String("operation", operation),
 			slog.String("stage", stage),

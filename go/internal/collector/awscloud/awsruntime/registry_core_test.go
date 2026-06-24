@@ -41,7 +41,7 @@ func TestRegisterPanicsOnDuplicate(t *testing.T) {
 
 	Register(ScannerRegistration{
 		ServiceKind: service,
-		Build: func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
+		Build:       func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
 	})
 	defer func() {
 		r := recover()
@@ -60,7 +60,7 @@ func TestRegisterPanicsOnDuplicate(t *testing.T) {
 	}()
 	Register(ScannerRegistration{
 		ServiceKind: service,
-		Build: func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
+		Build:       func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
 	})
 }
 

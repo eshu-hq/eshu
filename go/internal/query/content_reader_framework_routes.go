@@ -15,7 +15,8 @@ const frameworkRouteEvidenceLimit = 50
 // ListFrameworkRoutes queries fact_records for files with framework_semantics
 // route detection for a given repo_id.
 func (cr *ContentReader) ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_framework_routes"),

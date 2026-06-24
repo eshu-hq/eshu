@@ -17,7 +17,8 @@ func (cr *ContentReader) documentationEvidencePacketWithFilter(
 	if cr == nil || cr.db == nil || strings.TrimSpace(filter.FindingID) == "" {
 		return documentationEvidencePacketReadModel{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "get_documentation_evidence_packet"),
@@ -74,7 +75,8 @@ func (cr *ContentReader) documentationEvidencePacketFreshnessWithFilter(
 	if cr == nil || cr.db == nil || strings.TrimSpace(filter.PacketID) == "" {
 		return documentationEvidencePacketFreshnessReadModel{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "check_documentation_packet_freshness"),

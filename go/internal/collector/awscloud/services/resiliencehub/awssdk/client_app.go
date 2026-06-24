@@ -227,7 +227,8 @@ func (c *Client) versionMissingWarning(appARN string) *awscloud.WarningObservati
 		ErrorClass:  "resource_not_found",
 		Message: fmt.Sprintf(
 			"Resilience Hub application %q has no %q version; input sources, components, and protected resources omitted for this scan",
-			appARN, publishedAppVersion),
+			appARN, publishedAppVersion,
+		),
 		SourceRecordID: "resiliencehub_app_version_missing:" + appARN,
 	}
 }

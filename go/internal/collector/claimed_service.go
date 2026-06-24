@@ -25,8 +25,10 @@ type ClaimControlStore interface {
 	FailClaimTerminal(context.Context, workflow.ClaimMutation) error
 }
 
-var errRetryableClaimRecorded = errors.New("retryable claim failure recorded")
-var errTerminalClaimRecorded = errors.New("terminal claim failure recorded")
+var (
+	errRetryableClaimRecorded = errors.New("retryable claim failure recorded")
+	errTerminalClaimRecorded  = errors.New("terminal claim failure recorded")
+)
 
 // ClaimedSource resolves one already-claimed work item into a collected
 // generation that can be committed through the normal collector path.

@@ -104,7 +104,8 @@ func (h IAMEscalationMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerIAMEscalationMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerIAMEscalationMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -321,7 +322,8 @@ type iamEscalationTiming struct {
 }
 
 func logIAMEscalationCompleted(ctx context.Context, timing iamEscalationTiming) {
-	slog.InfoContext(ctx, "iam escalation materialization completed",
+	slog.InfoContext(
+		ctx, "iam escalation materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

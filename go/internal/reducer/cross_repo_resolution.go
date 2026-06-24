@@ -1,4 +1,4 @@
-package reducer
+package reducer //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating the cross-repo identifier hydration and resolution graph reads in one file keeps the deterministic ordering and dedup rules reviewable.
 
 import (
 	"context"
@@ -77,7 +77,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanCrossRepoResolution,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanCrossRepoResolution,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, scopeID),
 				attribute.String(telemetry.LogKeyGenerationID, generationID),
@@ -86,7 +87,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		defer span.End()
 	}
 
-	slog.InfoContext(ctx, "cross-repo relationship resolution started",
+	slog.InfoContext(
+		ctx, "cross-repo relationship resolution started",
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
 		slog.String(telemetry.LogKeyDomain, "cross_repo_resolution"),
@@ -106,7 +108,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		readinessLookup = resolvedLookup
 	}
 	if hasReadinessKey && readinessLookup == nil {
-		slog.WarnContext(ctx, "cross-repo readiness lookup not configured; bypassing backward evidence gate",
+		slog.WarnContext(
+			ctx, "cross-repo readiness lookup not configured; bypassing backward evidence gate",
 			slog.String(telemetry.LogKeyScopeID, scopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationID),
 			slog.String("keyspace", string(GraphProjectionKeyspaceCrossRepoEvidence)),
@@ -116,7 +119,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	if hasReadinessKey && readinessLookup != nil {
 		ready, found := readinessLookup(readinessKey, GraphProjectionPhaseBackwardEvidenceCommitted)
 		if !found || !ready {
-			slog.InfoContext(ctx, "cross-repo resolution gated",
+			slog.InfoContext(
+				ctx, "cross-repo resolution gated",
 				slog.String(telemetry.LogKeyScopeID, scopeID),
 				slog.String(telemetry.LogKeyGenerationID, generationID),
 				slog.String("reason", "backward_evidence_not_committed"),
@@ -156,14 +160,16 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			}
 		}
 		if len(retractRows) == 0 {
-			slog.InfoContext(ctx, "cross-repo resolution skipped: no evidence",
+			slog.InfoContext(
+				ctx, "cross-repo resolution skipped: no evidence",
 				slog.String(telemetry.LogKeyScopeID, scopeID),
 				slog.String(telemetry.LogKeyGenerationID, generationID),
 			)
 			h.recordDuration(ctx, start, scopeID)
 			return 0, nil
 		}
-		slog.InfoContext(ctx, "cross-repo resolution emitted retract intents: no evidence",
+		slog.InfoContext(
+			ctx, "cross-repo resolution emitted retract intents: no evidence",
 			slog.String(telemetry.LogKeyScopeID, scopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationID),
 			slog.Int("intent_count", len(retractRows)),
@@ -175,7 +181,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	evidenceFacts = relationships.DedupeEvidenceFacts(evidenceFacts)
 
 	if h.Instruments != nil {
-		h.Instruments.CrossRepoEvidenceLoaded.Add(ctx, int64(len(evidenceFacts)),
+		h.Instruments.CrossRepoEvidenceLoaded.Add(
+			ctx, int64(len(evidenceFacts)),
 			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
 		)
 	}
@@ -198,7 +205,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	candidates = normalizeRelationshipCandidates(candidates)
 	resolved = normalizeResolvedRelationships(resolved)
 
-	slog.InfoContext(ctx, "cross-repo relationship resolution completed",
+	slog.InfoContext(
+		ctx, "cross-repo relationship resolution completed",
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
 		slog.Int("evidence_count", len(evidenceFacts)),
@@ -267,7 +275,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 
 	if h.Instruments != nil {
 		for relationshipType, count := range routeCounts {
-			h.Instruments.CrossRepoEdgesResolved.Add(ctx, int64(count),
+			h.Instruments.CrossRepoEdgesResolved.Add(
+				ctx, int64(count),
 				metric.WithAttributes(
 					telemetry.AttrScopeID(scopeID),
 					attribute.String("relationship_type", relationshipType),
@@ -276,7 +285,8 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		}
 	}
 
-	slog.InfoContext(ctx, "cross-repo relationship routing completed",
+	slog.InfoContext(
+		ctx, "cross-repo relationship routing completed",
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
 		slog.Any("relationship_route_counts", routeCounts),
@@ -350,7 +360,8 @@ func crossRepoBackwardEvidenceReadinessKey(
 // recordDuration records the cross-repo resolution duration metric.
 func (h *CrossRepoRelationshipHandler) recordDuration(ctx context.Context, start time.Time, scopeID string) {
 	if h.Instruments != nil {
-		h.Instruments.CrossRepoResolutionDuration.Record(ctx,
+		h.Instruments.CrossRepoResolutionDuration.Record(
+			ctx,
 			time.Since(start).Seconds(),
 			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
 		)
@@ -372,7 +383,8 @@ func (h *CrossRepoRelationshipHandler) recordActivationFenced(
 	intentCount int,
 	cause error,
 ) {
-	slog.WarnContext(ctx, "cross-repo activation fenced: graph acceptance not durable",
+	slog.WarnContext(
+		ctx, "cross-repo activation fenced: graph acceptance not durable",
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
 		slog.Int("withheld_intent_count", intentCount),
@@ -380,7 +392,8 @@ func (h *CrossRepoRelationshipHandler) recordActivationFenced(
 		slog.Any("error", cause),
 	)
 	if h.Instruments != nil {
-		h.Instruments.CrossRepoActivationFenced.Add(ctx, 1,
+		h.Instruments.CrossRepoActivationFenced.Add(
+			ctx, 1,
 			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
 		)
 	}

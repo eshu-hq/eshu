@@ -200,11 +200,13 @@ func ProjectContentEntity(input ContentEntity) (Document, Decision) {
 		StartLine: input.StartLine,
 		EndLine:   input.EndLine,
 	}}
-	doc.GraphHandles = appendNonEmptyHandles(doc.GraphHandles,
+	doc.GraphHandles = appendNonEmptyHandles(
+		doc.GraphHandles,
 		GraphHandle{Kind: "content_entity", ID: entityID},
 		fileHandle(repoID, relativePath),
 	)
-	doc.Labels = appendLabels(doc.Labels,
+	doc.Labels = appendLabels(
+		doc.Labels,
 		label("language", input.Language),
 		label("entity_type", entityType),
 		label("artifact_type", input.ArtifactType),
@@ -241,7 +243,8 @@ func ProjectContentFile(input ContentFile) (Document, Decision) {
 	)
 	doc.ContextText = boundedContext(input.Content)
 	doc.GraphHandles = append(doc.GraphHandles, GraphHandle{Kind: "file", ID: repoID + ":" + relativePath})
-	doc.Labels = appendLabels(doc.Labels,
+	doc.Labels = appendLabels(
+		doc.Labels,
 		label("language", input.Language),
 		label("artifact_type", input.ArtifactType),
 	)
@@ -272,7 +275,8 @@ func ProjectRuntimeSummary(input RuntimeSummary) (Document, Decision) {
 		[]string{id},
 	)
 	doc.ContextText = boundedContext(input.Summary)
-	doc.GraphHandles = appendNonEmptyHandles(doc.GraphHandles,
+	doc.GraphHandles = appendNonEmptyHandles(
+		doc.GraphHandles,
 		GraphHandle{Kind: "runtime_summary", ID: id},
 		GraphHandle{Kind: "service", ID: clean(input.ServiceID)},
 		GraphHandle{Kind: "workload", ID: clean(input.WorkloadID)},

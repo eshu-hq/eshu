@@ -187,7 +187,8 @@ func verify(
 	if failed {
 		return fmt.Errorf(
 			"capability inventory verification failed: %d catalog findings, %d surface findings, catalog_stale=%v, surface_stale=%v",
-			len(findings), len(surfaceFindings), catalogStale, surfaceStale)
+			len(findings), len(surfaceFindings), catalogStale, surfaceStale,
+		)
 	}
 	_, err := fmt.Fprintln(stdout, "capability catalog and surface inventory verified")
 	return err

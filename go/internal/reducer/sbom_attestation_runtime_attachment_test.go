@@ -25,7 +25,8 @@ func TestRuntimeSBOMFactsAttachToOCIReferrerSubjectTruth(t *testing.T) {
 	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
 	documentDigest := payloadString(doc.Payload, "document_digest")
 
-	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(append(runtimeFacts,
+	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(append(
+		runtimeFacts,
 		ociImageReferrerFact("referrer-runtime", runtimeSubjectDigest, documentDigest, "application/vnd.cyclonedx+json"),
 	))
 	if len(decisions) != 1 {
@@ -47,7 +48,8 @@ func TestRuntimeSBOMFactsPreserveSubjectMismatchEvidence(t *testing.T) {
 	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
 	documentDigest := payloadString(doc.Payload, "document_digest")
 
-	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(append(runtimeFacts,
+	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(append(
+		runtimeFacts,
 		ociImageReferrerFact("referrer-runtime-mismatch", runtimeOtherDigest, documentDigest, "application/vnd.cyclonedx+json"),
 	))
 	if len(decisions) != 1 {

@@ -11,10 +11,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const defaultCodeValueFlowStaleCleanupPollInterval = time.Hour
-const defaultCodeValueFlowStaleCleanupLeaseTTL = 5 * time.Minute
-const defaultCodeValueFlowStaleCleanupScopeBatchLimit = 100
-const defaultCodeValueFlowStaleCleanupDeleteBatchLimit = 500
+const (
+	defaultCodeValueFlowStaleCleanupPollInterval     = time.Hour
+	defaultCodeValueFlowStaleCleanupLeaseTTL         = 5 * time.Minute
+	defaultCodeValueFlowStaleCleanupScopeBatchLimit  = 100
+	defaultCodeValueFlowStaleCleanupDeleteBatchLimit = 500
+)
 
 const (
 	codeValueFlowStaleCleanupLeaseDomain         = "code_value_flow_stale_cleanup"
@@ -292,7 +294,8 @@ func (r *CodeValueFlowStaleCleanupRunner) recordResult(ctx context.Context, resu
 	if r.Logger == nil {
 		return
 	}
-	r.Logger.InfoContext(ctx,
+	r.Logger.InfoContext(
+		ctx,
 		"code value-flow stale cleanup cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
 		slog.Int("scopes_scanned", result.ScopesScanned),
@@ -309,7 +312,8 @@ func (r *CodeValueFlowStaleCleanupRunner) recordFailure(ctx context.Context, err
 	if r.Logger == nil {
 		return
 	}
-	r.Logger.ErrorContext(ctx,
+	r.Logger.ErrorContext(
+		ctx,
 		"code value-flow stale cleanup cycle failed",
 		slog.String("error", err.Error()),
 		telemetry.FailureClassAttr("code_value_flow_stale_cleanup_error"),

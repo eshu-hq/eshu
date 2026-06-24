@@ -113,7 +113,8 @@ func EvaluateProductionGate(
 	}
 	if vectorCoverage < thresholds.MinVectorCoverage {
 		return GateDegraded, []string{fmt.Sprintf(
-			"vector coverage %.3f below minimum %.3f", vectorCoverage, thresholds.MinVectorCoverage)}
+			"vector coverage %.3f below minimum %.3f", vectorCoverage, thresholds.MinVectorCoverage,
+		)}
 	}
 
 	var reasons []string

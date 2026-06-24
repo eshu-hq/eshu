@@ -125,7 +125,8 @@ func (s *DecisionStore) UpsertDecision(ctx context.Context, d projector.Projecti
 		return fmt.Errorf("marshal provenance: %w", err)
 	}
 
-	_, err = s.db.ExecContext(ctx, upsertDecisionSQL,
+	_, err = s.db.ExecContext(
+		ctx, upsertDecisionSQL,
 		d.DecisionID,
 		d.DecisionType,
 		d.RepositoryID,
@@ -157,7 +158,8 @@ func (s *DecisionStore) InsertEvidence(ctx context.Context, rows []projector.Pro
 			factID = *e.FactID
 		}
 
-		_, err = s.db.ExecContext(ctx, upsertEvidenceSQL,
+		_, err = s.db.ExecContext(
+			ctx, upsertEvidenceSQL,
 			e.EvidenceID,
 			e.DecisionID,
 			factID,
@@ -182,7 +184,8 @@ func (s *DecisionStore) ListDecisions(ctx context.Context, f DecisionFilter) ([]
 		decisionType = *f.DecisionType
 	}
 
-	sqlRows, err := s.db.QueryContext(ctx, listDecisionsSQL,
+	sqlRows, err := s.db.QueryContext(
+		ctx, listDecisionsSQL,
 		f.RepositoryID,
 		f.SourceRunID,
 		decisionType,

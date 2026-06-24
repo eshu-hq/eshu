@@ -666,7 +666,7 @@ func TestIsLargeRepositoryReturnsTrueAboveThreshold(t *testing.T) {
 
 	dir := t.TempDir()
 	for i := 0; i < 600; i++ {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.py", i)), []byte("x"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.py", i)), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -681,7 +681,7 @@ func TestIsLargeRepositoryReturnsFalseAtOrBelowThreshold(t *testing.T) {
 
 	dir := t.TempDir()
 	for i := 0; i < 100; i++ {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.py", i)), []byte("x"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.py", i)), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -697,17 +697,17 @@ func TestIsLargeRepositorySkipsGitDirectory(t *testing.T) {
 	dir := t.TempDir()
 	// 10 real files
 	for i := 0; i < 10; i++ {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.py", i)), []byte("x"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.py", i)), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// .git dir with 1000 files — should be skipped
 	gitDir := filepath.Join(dir, ".git")
-	if err := os.Mkdir(gitDir, 0755); err != nil {
+	if err := os.Mkdir(gitDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 1000; i++ {
-		if err := os.WriteFile(filepath.Join(gitDir, fmt.Sprintf("obj_%d", i)), []byte("x"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(gitDir, fmt.Sprintf("obj_%d", i)), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -722,16 +722,16 @@ func TestIsLargeRepositorySkipsNodeModules(t *testing.T) {
 
 	dir := t.TempDir()
 	for i := 0; i < 5; i++ {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.js", i)), []byte("x"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("file_%d.js", i)), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	nmDir := filepath.Join(dir, "node_modules")
-	if err := os.Mkdir(nmDir, 0755); err != nil {
+	if err := os.Mkdir(nmDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2000; i++ {
-		if err := os.WriteFile(filepath.Join(nmDir, fmt.Sprintf("dep_%d.js", i)), []byte("x"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(nmDir, fmt.Sprintf("dep_%d.js", i)), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -753,7 +753,7 @@ func TestLargeRepoSemaphoreLimitsConcurrency(t *testing.T) {
 		dir := t.TempDir()
 		// Write 5 files so each repo exceeds threshold=1.
 		for j := 0; j < 5; j++ {
-			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("f_%d.py", j)), []byte("x"), 0644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("f_%d.py", j)), []byte("x"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -900,7 +900,7 @@ func TestTwoLaneSmallReposFlowWhileLargeBlocked(t *testing.T) {
 		// Large repo
 		largeDir := t.TempDir()
 		for j := 0; j < 5; j++ {
-			if err := os.WriteFile(filepath.Join(largeDir, fmt.Sprintf("f_%d.py", j)), []byte("x"), 0644); err != nil {
+			if err := os.WriteFile(filepath.Join(largeDir, fmt.Sprintf("f_%d.py", j)), []byte("x"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -989,7 +989,7 @@ func TestTwoLaneDrainsLargeAfterSmallExhausted(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		dir := t.TempDir()
 		for j := 0; j < 5; j++ {
-			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("f_%d.py", j)), []byte("x"), 0644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("f_%d.py", j)), []byte("x"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}

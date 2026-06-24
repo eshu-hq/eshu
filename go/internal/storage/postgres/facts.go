@@ -252,7 +252,8 @@ func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope
 			values.WriteString(", ")
 		}
 		offset := i * columnsPerFactRow
-		fmt.Fprintf(&values,
+		fmt.Fprintf(
+			&values,
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::jsonb)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
 			offset+6, offset+7, offset+8, offset+9, offset+10,
@@ -260,7 +261,8 @@ func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope
 			offset+16, offset+17,
 		)
 
-		args = append(args,
+		args = append(
+			args,
 			envelope.FactID,
 			envelope.ScopeID,
 			envelope.GenerationID,

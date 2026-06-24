@@ -111,7 +111,7 @@ func TestPriorGenerationCheck(t *testing.T) {
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
 			db: &generationFreshnessTestDB{
-				generations: map[string][]string{"scope-123": []string{"gen-abc"}},
+				generations: map[string][]string{"scope-123": {"gen-abc"}},
 			},
 		},
 		{
@@ -119,7 +119,7 @@ func TestPriorGenerationCheck(t *testing.T) {
 			scopeID:      "scope-123",
 			generationID: "gen-new",
 			db: &generationFreshnessTestDB{
-				generations: map[string][]string{"scope-123": []string{"gen-old", "gen-new"}},
+				generations: map[string][]string{"scope-123": {"gen-old", "gen-new"}},
 			},
 			wantPrior: true,
 		},

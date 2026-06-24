@@ -375,7 +375,6 @@ func TestOrphanSweepStoreUsesInjectedClockAndBoundsMutations(t *testing.T) {
 		CountLimit: 5,
 		Labels:     []string{"Repository"},
 	})
-
 	if err != nil {
 		t.Fatalf("SweepOrphanNodes() error = %v, want nil", err)
 	}

@@ -187,7 +187,8 @@ func TestKubernetesCorrelationMaterializationProvenanceNotWritten(t *testing.T) 
 	// A derived tag->single-digest workload is provenance-only and must not
 	// materialize an edge; the handler must succeed (graceful degrade).
 	derivedRef := testK8sRegistry + "/" + testK8sRepository + ":v1.2.3"
-	envelopes := append(exactDigestEdgeFixture(),
+	envelopes := append(
+		exactDigestEdgeFixture(),
 		podTemplateFact("pod-derived", "derived", "uid-d", []string{derivedRef}, map[string]string{"app": "d"}, false),
 		k8sSourceTagFact("tag-derived", testK8sRegistry, testK8sRepository, "v1.2.3", testK8sDigest, "", false),
 	)

@@ -216,7 +216,8 @@ func (s FunctionSourceStore) upsertBatch(ctx context.Context, sources []interpro
 			placeholders = append(placeholders, fmt.Sprintf("$%d", base+i))
 		}
 		values = append(values, "("+strings.Join(placeholders, ", ")+")")
-		args = append(args,
+		args = append(
+			args,
 			functionID,
 			src.Port.Slot.Index,
 			src.Kind,

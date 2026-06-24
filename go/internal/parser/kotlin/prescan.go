@@ -1,7 +1,9 @@
 package kotlin
 
-import "github.com/eshu-hq/eshu/go/internal/parser/shared"
-import tree_sitter "github.com/tree-sitter/go-tree-sitter"
+import (
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
 
 // PreScan returns Kotlin names used by the collector import-map pre-scan.
 func PreScan(repoRoot string, path string, parser *tree_sitter.Parser) ([]string, error) {

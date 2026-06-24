@@ -4,27 +4,27 @@ package sbomdocument
 // into stable facts. Fields outside the shape are surfaced as warning facts
 // rather than being silently consumed.
 type cycloneDXDocument struct {
-	BOMFormat       string                  `json:"bomFormat"`
-	SpecVersion     string                  `json:"specVersion"`
-	SerialNumber    string                  `json:"serialNumber"`
-	Version         any                     `json:"version"`
-	Metadata        *cycloneDXMetadata      `json:"metadata"`
-	Components      []cycloneDXComponent    `json:"components"`
-	Dependencies    []cycloneDXDependency   `json:"dependencies"`
-	Vulnerabilities []map[string]any        `json:"vulnerabilities"`
-	Services        []map[string]any        `json:"services"`
-	Compositions    []map[string]any        `json:"compositions"`
-	Formulation     []map[string]any        `json:"formulation"`
-	Annotations     []map[string]any        `json:"annotations"`
-	Extensions      *map[string]any         `json:"properties"`
-	Signatures      *map[string]any         `json:"signature"`
-	Definitions     *map[string]any         `json:"definitions"`
-	ExternalRefs    []cycloneDXExternalRef  `json:"externalReferences"`
+	BOMFormat       string                 `json:"bomFormat"`
+	SpecVersion     string                 `json:"specVersion"`
+	SerialNumber    string                 `json:"serialNumber"`
+	Version         any                    `json:"version"`
+	Metadata        *cycloneDXMetadata     `json:"metadata"`
+	Components      []cycloneDXComponent   `json:"components"`
+	Dependencies    []cycloneDXDependency  `json:"dependencies"`
+	Vulnerabilities []map[string]any       `json:"vulnerabilities"`
+	Services        []map[string]any       `json:"services"`
+	Compositions    []map[string]any       `json:"compositions"`
+	Formulation     []map[string]any       `json:"formulation"`
+	Annotations     []map[string]any       `json:"annotations"`
+	Extensions      *map[string]any        `json:"properties"`
+	Signatures      *map[string]any        `json:"signature"`
+	Definitions     *map[string]any        `json:"definitions"`
+	ExternalRefs    []cycloneDXExternalRef `json:"externalReferences"`
 }
 
 type cycloneDXMetadata struct {
-	Timestamp string             `json:"timestamp"`
-	Tools     any                `json:"tools"`
+	Timestamp string              `json:"timestamp"`
+	Tools     any                 `json:"tools"`
 	Component *cycloneDXComponent `json:"component"`
 	Supplier  *cycloneDXSupplier  `json:"supplier"`
 	Authors   []map[string]any    `json:"authors"`
@@ -69,8 +69,8 @@ type cycloneDXLicenseDetail struct {
 }
 
 type cycloneDXSupplier struct {
-	Name    string   `json:"name"`
-	URL     []string `json:"url"`
+	Name    string           `json:"name"`
+	URL     []string         `json:"url"`
 	Contact []map[string]any `json:"contact"`
 }
 

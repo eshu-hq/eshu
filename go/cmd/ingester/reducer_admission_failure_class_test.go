@@ -23,7 +23,7 @@ func TestReducerAdmissionReadinessBacklogDoesNotThrottle(t *testing.T) {
 	reader := &classScopedDepthReader{
 		// 800 retrying rows are all readiness-not-ready; zero are
 		// graph-write timeouts. The graph backend is perfectly healthy.
-		depths:                []map[string]map[string]int64{{"reducer": {"pending": 5, "retrying": 800}}},
+		depths:                 []map[string]map[string]int64{{"reducer": {"pending": 5, "retrying": 800}}},
 		graphWriteTimeoutDepth: []int64{0},
 	}
 	writer := &recordingReducerIntentWriter{}
@@ -133,7 +133,7 @@ func TestReducerAdmissionGraphWritePressureRecordsFailureClass(t *testing.T) {
 			RetryingLowWaterMark:  100,
 			PollInterval:          time.Second,
 		},
-		deferral:        newAdmissionDeferralState(),
+		deferral:         newAdmissionDeferralState(),
 		failureClassSink: recorder.record,
 		sleep:            func(context.Context, time.Duration) error { return nil },
 	}

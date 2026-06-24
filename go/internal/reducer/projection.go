@@ -183,14 +183,16 @@ func InferWorkloadClassification(candidate WorkloadCandidate) string {
 }
 
 func hasServiceClassificationSignals(candidate WorkloadCandidate) bool {
-	return hasProvenance(candidate.Provenance,
+	return hasProvenance(
+		candidate.Provenance,
 		"argocd_application_source",
 		"argocd_applicationset_deploy_source",
 		"kustomize_resource",
 		"helm_deployment",
 		"dockerfile_runtime",
 		"docker_compose_runtime",
-	) || hasAnyResourceKind(candidate.ResourceKinds,
+	) || hasAnyResourceKind(
+		candidate.ResourceKinds,
 		"deployment",
 		"service",
 		"statefulset",

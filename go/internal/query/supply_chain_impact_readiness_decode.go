@@ -6,9 +6,11 @@ import (
 	"fmt"
 )
 
-const sourceSnapshotFamilyMarker = "vulnerability.source_snapshot"
-const sourceStateFamilyMarker = "vulnerability.source_state"
-const unsupportedTargetFamilyMarker = "vulnerability.unsupported_target"
+const (
+	sourceSnapshotFamilyMarker    = "vulnerability.source_snapshot"
+	sourceStateFamilyMarker       = "vulnerability.source_state"
+	unsupportedTargetFamilyMarker = "vulnerability.unsupported_target"
+)
 
 func decodeSourceSnapshots(raw sql.NullString) ([]SupplyChainImpactSourceSnapshot, error) {
 	if !raw.Valid || raw.String == "" {

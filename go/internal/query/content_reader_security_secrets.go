@@ -15,7 +15,8 @@ func (cr *ContentReader) investigateHardcodedSecrets(
 	ctx context.Context,
 	req hardcodedSecretInvestigationRequest,
 ) ([]hardcodedSecretFindingRow, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "investigate_hardcoded_secrets"),

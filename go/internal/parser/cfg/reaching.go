@@ -76,9 +76,11 @@ func (b *Builder) Build() Function {
 	defs, defsByBinding, stmtDefIDs := indexDefs(blocks)
 	in := b.solveReaching(blocks, defs, defsByBinding, stmtDefIDs)
 	fn.DefUses, fn.Overflow.DefUseEdges = emitDefUses(
-		blocks, defs, defsByBinding, stmtDefIDs, in, b.limits.MaxDefUseEdges)
+		blocks, defs, defsByBinding, stmtDefIDs, in, b.limits.MaxDefUseEdges,
+	)
 	fn.ControlDependencies, fn.Overflow.ControlDependencies = computeControlDependencies(
-		blocks, b.limits.MaxControlDependencies)
+		blocks, b.limits.MaxControlDependencies,
+	)
 	return fn
 }
 

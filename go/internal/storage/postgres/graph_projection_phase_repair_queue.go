@@ -250,7 +250,8 @@ func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer,
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
 			offset+7, offset+8, offset+9, offset+10, offset+11,
 		)
-		args = append(args,
+		args = append(
+			args,
 			strings.TrimSpace(repair.Key.ScopeID),
 			strings.TrimSpace(repair.Key.AcceptanceUnitID),
 			strings.TrimSpace(repair.Key.SourceRunID),
@@ -290,7 +291,8 @@ func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, 
 			"($%d, $%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
 		)
-		args = append(args,
+		args = append(
+			args,
 			strings.TrimSpace(repair.Key.ScopeID),
 			strings.TrimSpace(repair.Key.AcceptanceUnitID),
 			strings.TrimSpace(repair.Key.SourceRunID),

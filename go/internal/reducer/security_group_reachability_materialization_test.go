@@ -166,7 +166,8 @@ func TestSecurityGroupReachabilityTripleGate(t *testing.T) {
 func securityGroupReachabilityFacts() []facts.Envelope {
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 	return []facts.Envelope{anchor, rule}
 }
 
@@ -270,7 +271,8 @@ func TestSecurityGroupReachabilityUnresolvedAnchorIsGracefulNoEdge(t *testing.T)
 
 	// Only the rule fact, no anchor resource.
 	rule := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 
 	writer := &recordingSecurityGroupReachabilityWriter{}
 	handler := SecurityGroupReachabilityMaterializationHandler{
@@ -343,10 +345,12 @@ func TestSecurityGroupReachabilityMetricsCountNodesEdgesAndSkips(t *testing.T) {
 
 	anchor := securityGroupAnchorEnvelope("sg-0abc")
 	resolved := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
+	))
 	// Anchor unscanned -> unresolved_anchor skip.
 	unresolved := sgReachabilityRuleEnvelope(sgReachabilityRulePayload(
-		"sg-9xyz", "ingress", "tcp", int32(80), int32(80), "cidr_ipv4", "10.0.0.0/8"))
+		"sg-9xyz", "ingress", "tcp", int32(80), int32(80), "cidr_ipv4", "10.0.0.0/8",
+	))
 
 	handler := SecurityGroupReachabilityMaterializationHandler{
 		FactLoader:           &stubFactLoader{envelopes: []facts.Envelope{anchor, resolved, unresolved}},

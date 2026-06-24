@@ -38,10 +38,12 @@ type neo4jDeps struct {
 	close     func() error
 }
 
-type openBootstrapDBFn func(context.Context, func(string) string) (bootstrapDB, error)
-type applyPostgresFn func(context.Context, bootstrapExecutor) error
-type openNeo4jFn func(context.Context, func(string) string) (neo4jDeps, error)
-type applyNeo4jFn func(context.Context, graph.CypherExecutor, *slog.Logger, graph.SchemaBackend) error
+type (
+	openBootstrapDBFn func(context.Context, func(string) string) (bootstrapDB, error)
+	applyPostgresFn   func(context.Context, bootstrapExecutor) error
+	openNeo4jFn       func(context.Context, func(string) string) (neo4jDeps, error)
+	applyNeo4jFn      func(context.Context, graph.CypherExecutor, *slog.Logger, graph.SchemaBackend) error
+)
 
 const (
 	graphSchemaStatementTimeoutEnv     = "ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT"
@@ -134,7 +136,8 @@ func run(
 				return err
 			}
 		}
-		logger.Info("graph schema already applied",
+		logger.Info(
+			"graph schema already applied",
 			telemetry.EventAttr("bootstrap.graph.skipped"),
 			"graph_backend", backend,
 			"schema_fingerprint", schemaApplication.Fingerprint,

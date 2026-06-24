@@ -323,8 +323,10 @@ func (f fakePortContentStore) ResolveRepository(context.Context, string) (*Repos
 	return &repo, nil
 }
 
-var _ GraphQuery = (*fakePortGraphQuery)(nil)
-var _ ContentStore = (*fakePortContentStore)(nil)
+var (
+	_ GraphQuery   = (*fakePortGraphQuery)(nil)
+	_ ContentStore = (*fakePortContentStore)(nil)
+)
 
 func TestQueryHandlersAcceptCapabilityPorts(t *testing.T) {
 	t.Parallel()

@@ -1,6 +1,6 @@
 // Package telemetry provides pre-registered OTEL metric instruments for the
 // Go data plane.
-package telemetry
+package telemetry //nolint:filelength // data registry; ~4400 lines of frozen eshu_dp_* instrument definitions. Tracked in audit § T11 and issue eshu-hq/eshu#3761. Splitting is a separate, non-trivial work item because the contract is reviewed as a single table.
 
 import (
 	"context"
@@ -3604,7 +3604,8 @@ func RegisterObservableGauges(
 				}
 				for queue, statuses := range depths {
 					for status, count := range statuses {
-						o.Observe(count,
+						o.Observe(
+							count,
 							metric.WithAttributes(
 								attribute.String("queue", queue),
 								attribute.String("status", status),
@@ -3629,7 +3630,8 @@ func RegisterObservableGauges(
 					return err
 				}
 				for queue, age := range ages {
-					o.Observe(age,
+					o.Observe(
+						age,
 						metric.WithAttributes(
 							attribute.String("queue", queue),
 						),
@@ -3653,7 +3655,8 @@ func RegisterObservableGauges(
 					return err
 				}
 				for pool, count := range counts {
-					o.Observe(count,
+					o.Observe(
+						count,
 						metric.WithAttributes(
 							attribute.String("pool", pool),
 						),

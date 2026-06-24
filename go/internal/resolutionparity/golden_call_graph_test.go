@@ -17,7 +17,8 @@ import (
 func TestGoldenCallGraphCorrectnessHarness(t *testing.T) {
 	t.Parallel()
 
-	fixtures := append(sourceCallGraphFixtures,
+	fixtures := append(
+		sourceCallGraphFixtures,
 		dartImportBindingCallGraphFixture(),
 		importBindingCallGraphFixture(),
 		elixirImportBindingCallGraphFixture(),

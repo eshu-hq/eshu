@@ -112,7 +112,8 @@ func (h IAMCanAssumeMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerIAMCanAssumeMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerIAMCanAssumeMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -340,7 +341,8 @@ func logIAMCanAssumeMaterializationCompleted(
 	ctx context.Context,
 	timing iamCanAssumeMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "iam can-assume materialization completed",
+	slog.InfoContext(
+		ctx, "iam can-assume materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

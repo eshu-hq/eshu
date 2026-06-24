@@ -63,7 +63,7 @@ func run() {
 	got := goKnownImportedVariableTypes(
 		tree.RootNode(),
 		source,
-		map[string][]string{"example.com/pkg": []string{"pkg"}},
+		map[string][]string{"example.com/pkg": {"pkg"}},
 		goBuildParentLookup(tree.RootNode()),
 	)
 

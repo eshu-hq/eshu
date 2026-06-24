@@ -168,7 +168,8 @@ func BenchmarkBackfillScopedCatalogWithGCP(b *testing.B) {
 		fleet, sourceFacts, newRepoIDs := newBackfillScaleCorpus(fleetSize)
 		// repo-00007 is in newRepoIDs; alias "org/repo-00007" anchors the GCP
 		// target match, and an existing fleet repo is the GCP source.
-		fleet = append(fleet,
+		fleet = append(
+			fleet,
 			relationships.CatalogEntry{RepoID: "repo-gcp-source", Aliases: []string{"order-gateway"}},
 		)
 		gcpFact := gcpRelationshipFact("order-gateway", "repo-00007")

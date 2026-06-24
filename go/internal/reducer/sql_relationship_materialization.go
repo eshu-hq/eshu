@@ -73,7 +73,8 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("sql relationship materialization intent writer is required")
 	}
 
-	slog.InfoContext(ctx, "sql relationship materialization started",
+	slog.InfoContext(
+		ctx, "sql relationship materialization started",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
@@ -109,7 +110,8 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		}
 	}
 
-	slog.InfoContext(ctx, "sql relationship materialization completed",
+	slog.InfoContext(
+		ctx, "sql relationship materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.Int("intent_count", len(intentRows)),

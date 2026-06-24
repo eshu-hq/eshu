@@ -16,7 +16,8 @@ func BenchmarkSecretsIAMGCPGrantObservations(b *testing.B) {
 	envelopes := make([]facts.Envelope, 0, principalCount*3)
 	for i := 0; i < principalCount; i++ {
 		fp := fmt.Sprintf("sha256:svc-%d", i)
-		envelopes = append(envelopes,
+		envelopes = append(
+			envelopes,
 			gcpPrincipalFact(fp),
 			gcpPermissionFact(fmt.Sprintf("perm-secret-%d", i), fp, "roles/secretmanager.secretAccessor", true, false),
 			gcpPermissionFact(fmt.Sprintf("perm-owner-%d", i), fp, "roles/owner", false, true),

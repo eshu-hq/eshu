@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,8 +13,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"log/slog"
 
 	"go.opentelemetry.io/otel/trace"
 

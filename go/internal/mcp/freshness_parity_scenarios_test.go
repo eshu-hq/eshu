@@ -90,7 +90,8 @@ func TestFreshnessParityUnchangedRefreshSkipped(t *testing.T) {
 		Limit: 50,
 	}}, nil)
 
-	httpCmp, _ := driveGenerationParity(t,
+	httpCmp, _ := driveGenerationParity(
+		t,
 		handler,
 		"?scope_id="+parityScope,
 		map[string]any{"scope_id": parityScope},
@@ -132,7 +133,8 @@ func TestFreshnessParityChangedGenerationSupersedes(t *testing.T) {
 		Limit: 50,
 	}}, nil)
 
-	httpCmp, _ := driveGenerationParity(t,
+	httpCmp, _ := driveGenerationParity(
+		t,
 		handler,
 		"?scope_id="+parityScope,
 		map[string]any{"scope_id": parityScope},
@@ -181,7 +183,8 @@ func TestFreshnessParityProjectorWorkSuperseded(t *testing.T) {
 		Limit: 50,
 	}}, nil)
 
-	httpCmp, _ := driveGenerationParity(t,
+	httpCmp, _ := driveGenerationParity(
+		t,
 		handler,
 		"?scope_id="+parityScope,
 		map[string]any{"scope_id": parityScope},
@@ -214,7 +217,8 @@ func TestFreshnessParityReducerWorkFilteredInactive(t *testing.T) {
 		Limit: 50,
 	}}, nil)
 
-	httpCmp, _ := driveGenerationParity(t,
+	httpCmp, _ := driveGenerationParity(
+		t,
 		handler,
 		"?scope_id="+parityScope+"&status=superseded",
 		map[string]any{"scope_id": parityScope, "status": "superseded"},
@@ -254,7 +258,8 @@ func TestFreshnessParityRetiredEvidenceDisappears(t *testing.T) {
 		},
 	}})
 
-	httpCmp, _ := driveChangedSinceParity(t,
+	httpCmp, _ := driveChangedSinceParity(
+		t,
 		handler,
 		"?scope_id="+parityScope+"&since_generation_id=gen-prior",
 		map[string]any{"scope_id": parityScope, "since_generation_id": "gen-prior"},
@@ -307,7 +312,8 @@ func TestFreshnessParityWebhookRefreshReachesCurrent(t *testing.T) {
 		}})
 
 	// Lifecycle surface: webhook generation is active and fresh.
-	genCmp, _ := driveGenerationParity(t,
+	genCmp, _ := driveGenerationParity(
+		t,
 		handler,
 		"?scope_id="+parityScope,
 		map[string]any{"scope_id": parityScope},
@@ -318,7 +324,8 @@ func TestFreshnessParityWebhookRefreshReachesCurrent(t *testing.T) {
 	requireGenerationIDs(t, genCmp, []string{"gen:gen-webhook", "active:gen-webhook"})
 
 	// Changed-since surface: the diff reaches the webhook generation as current.
-	chgCmp, _ := driveChangedSinceParity(t,
+	chgCmp, _ := driveChangedSinceParity(
+		t,
 		handler,
 		"?scope_id="+parityScope+"&since_generation_id=gen-prior",
 		map[string]any{"scope_id": parityScope, "since_generation_id": "gen-prior"},
@@ -346,7 +353,8 @@ func TestFreshnessParityPendingGenerationBuilding(t *testing.T) {
 		Limit: 50,
 	}}, nil)
 
-	httpCmp, _ := driveGenerationParity(t,
+	httpCmp, _ := driveGenerationParity(
+		t,
 		handler,
 		"?repository="+parityRepo,
 		map[string]any{"repository": parityRepo},
@@ -371,7 +379,8 @@ func TestFreshnessParityNoActiveGenerationUnavailable(t *testing.T) {
 		},
 	}})
 
-	httpCmp, _ := driveChangedSinceParity(t,
+	httpCmp, _ := driveChangedSinceParity(
+		t,
 		handler,
 		"?scope_id="+parityScope+"&since_generation_id=gen-prior",
 		map[string]any{"scope_id": parityScope, "since_generation_id": "gen-prior"},

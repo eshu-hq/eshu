@@ -120,7 +120,8 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 
 		// Verify gen-orphaned-old is now superseded in DB.
 		var orphanedOldStatus string
-		if err := db.QueryRowContext(ctx,
+		if err := db.QueryRowContext(
+			ctx,
 			"SELECT status FROM scope_generations WHERE generation_id = 'gen-orphaned-old'",
 		).Scan(&orphanedOldStatus); err != nil {
 			t.Fatalf("query gen-orphaned-old status: %v", err)
@@ -131,7 +132,8 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 
 		// Verify gen-orphaned-new is still active.
 		var orphanedNewStatus string
-		if err := db.QueryRowContext(ctx,
+		if err := db.QueryRowContext(
+			ctx,
 			"SELECT status FROM scope_generations WHERE generation_id = 'gen-orphaned-new'",
 		).Scan(&orphanedNewStatus); err != nil {
 			t.Fatalf("query gen-orphaned-new status: %v", err)
@@ -247,7 +249,8 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 
 		// Confirm scope-fresh generation status unchanged.
 		var freshStatus string
-		if err := db.QueryRowContext(ctx,
+		if err := db.QueryRowContext(
+			ctx,
 			"SELECT status FROM scope_generations WHERE generation_id = 'gen-fresh'",
 		).Scan(&freshStatus); err != nil {
 			t.Fatalf("query gen-fresh status: %v", err)
@@ -258,7 +261,8 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 
 		// Confirm scope-pending-newer active generation unchanged.
 		var pendingStatus string
-		if err := db.QueryRowContext(ctx,
+		if err := db.QueryRowContext(
+			ctx,
 			"SELECT status FROM scope_generations WHERE generation_id = 'gen-pending-active'",
 		).Scan(&pendingStatus); err != nil {
 			t.Fatalf("query gen-pending-active status: %v", err)

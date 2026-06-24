@@ -1,7 +1,9 @@
 package parser
 
-import "path/filepath"
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestDefaultEngineParsePathTypeScriptCapturesAdvancedTypeSemantics(t *testing.T) {
 	t.Parallel()

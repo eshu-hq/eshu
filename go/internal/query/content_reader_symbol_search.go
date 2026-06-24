@@ -13,7 +13,8 @@ func (cr *ContentReader) searchSymbols(
 	ctx context.Context,
 	req symbolSearchRequest,
 ) ([]EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "search_symbols"),

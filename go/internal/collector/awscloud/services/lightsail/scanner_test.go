@@ -182,7 +182,8 @@ func TestScannerEmitsLightsailMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// Every emitted edge must satisfy the runtime graph-join contract.
-	relguard.AssertObservations(t,
+	relguard.AssertObservations(
+		t,
 		loadBalancerInstanceRelationships(testBoundary(), client.loadBalancers[0])[0],
 		*instanceDiskRelationship(testBoundary(), client.disks[0]),
 		*instanceStaticIPRelationship(testBoundary(), client.staticIPs[0]),

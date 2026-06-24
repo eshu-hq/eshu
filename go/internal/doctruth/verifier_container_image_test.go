@@ -73,14 +73,15 @@ func TestVerifierMarksContainerImageUnsupportedWithoutResolver(t *testing.T) {
 func TestContainerImageRefsFromTextIsConservative(t *testing.T) {
 	t.Parallel()
 
-	refs := doctruth.ContainerImageRefsFromText("" +
-		"image: ghcr.io/acme/api:1.2.3\n" +
-		"image: registry.example.test:5000/team/api:2.0.0\n" +
-		"image: postgres:16\n" +
-		"image: \"12345.jpg\"\n" +
-		"image: ${IMAGE:-ghcr.io/acme/default:2.0.0}\n" +
-		"FROM ghcr.io/acme/base:3.0.0\n" +
-		"http://example.com/not-an-image:8080\n",
+	refs := doctruth.ContainerImageRefsFromText(
+		"" +
+			"image: ghcr.io/acme/api:1.2.3\n" +
+			"image: registry.example.test:5000/team/api:2.0.0\n" +
+			"image: postgres:16\n" +
+			"image: \"12345.jpg\"\n" +
+			"image: ${IMAGE:-ghcr.io/acme/default:2.0.0}\n" +
+			"FROM ghcr.io/acme/base:3.0.0\n" +
+			"http://example.com/not-an-image:8080\n",
 	)
 	want := map[string]struct{}{
 		"ghcr.io/acme/api:1.2.3":                    {},

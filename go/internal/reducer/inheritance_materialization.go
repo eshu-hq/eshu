@@ -86,7 +86,8 @@ func (h InheritanceMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("inheritance materialization intent writer is required")
 	}
 
-	slog.InfoContext(ctx, "inheritance materialization started",
+	slog.InfoContext(
+		ctx, "inheritance materialization started",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
@@ -150,7 +151,8 @@ func (h InheritanceMaterializationHandler) Handle(
 	}
 	timing.totalDuration = time.Since(totalStarted)
 
-	slog.InfoContext(ctx, "inheritance materialization completed",
+	slog.InfoContext(
+		ctx, "inheritance materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.Int("intent_count", len(intentRows)),

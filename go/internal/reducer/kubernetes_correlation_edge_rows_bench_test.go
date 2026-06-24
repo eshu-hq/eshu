@@ -20,7 +20,8 @@ func kubernetesCorrelationEdgeBenchCorpus(workloadCount int) []facts.Envelope {
 		digest := fmt.Sprintf("sha256:%064d", i)
 		imageRef := testK8sRegistry + "/" + repo + "@" + digest
 		desc := "oci-descriptor://" + testK8sRegistry + "/" + repo + "@" + digest
-		envelopes = append(envelopes,
+		envelopes = append(
+			envelopes,
 			podTemplateFact(
 				fmt.Sprintf("pod-%d", i),
 				fmt.Sprintf("svc-%d", i),

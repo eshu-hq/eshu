@@ -78,7 +78,8 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 	}
 
 	for _, candidate := range snapshot.TerraformStateCandidates {
-		writeFreshnessHashf(h, "tfstate_candidate:%s:%s:%d\n",
+		writeFreshnessHashf(
+			h, "tfstate_candidate:%s:%s:%d\n",
 			candidate.RelativePath,
 			candidate.PathHash,
 			candidate.FileSize,

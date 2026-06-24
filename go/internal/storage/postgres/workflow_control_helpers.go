@@ -38,7 +38,8 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 			offset+16, offset+17, offset+18, offset+19, offset+20, offset+21, offset+22,
 			offset+23, offset+24, offset+25, offset+26, offset+27,
 		)
-		args = append(args,
+		args = append(
+			args,
 			item.WorkItemID,
 			item.RunID,
 			string(item.CollectorKind),
@@ -153,7 +154,8 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 	if includeVisibleAt {
 		args = append(args, mutation.VisibleAt.UTC())
 	}
-	args = append(args,
+	args = append(
+		args,
 		mutation.FencingToken,
 		mutation.OwnerID,
 		mutation.ClaimID,

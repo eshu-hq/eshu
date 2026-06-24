@@ -387,7 +387,8 @@ func (s Service) acquireLargeGenSem(ctx context.Context, work ScopeGenerationWor
 	if err != nil {
 		// On error, skip semaphore (don't block).
 		if s.Logger != nil {
-			s.Logger.WarnContext(ctx, "fact count failed, skipping large-gen semaphore",
+			s.Logger.WarnContext(
+				ctx, "fact count failed, skipping large-gen semaphore",
 				slog.String("error", err.Error()),
 				slog.Int("worker_id", workerID),
 			)
@@ -405,7 +406,8 @@ func (s Service) acquireLargeGenSem(ctx context.Context, work ScopeGenerationWor
 		for _, a := range scopeAttrs {
 			logAttrs = append(logAttrs, a)
 		}
-		logAttrs = append(logAttrs,
+		logAttrs = append(
+			logAttrs,
 			slog.Int("fact_count", count),
 			slog.Int("threshold", s.largeGenThreshold()),
 			slog.Int("worker_id", workerID),
@@ -421,7 +423,8 @@ func (s Service) acquireLargeGenSem(ctx context.Context, work ScopeGenerationWor
 			s.Instruments.LargeRepoSemaphoreWait.Record(ctx, time.Since(waitStart).Seconds())
 		}
 		if s.Logger != nil {
-			s.Logger.InfoContext(ctx, "large generation semaphore acquired",
+			s.Logger.InfoContext(
+				ctx, "large generation semaphore acquired",
 				slog.Int("fact_count", count),
 				slog.Int("worker_id", workerID),
 			)

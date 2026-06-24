@@ -132,7 +132,8 @@ func (h webhookHandler) logAWSFreshnessStoreError(ctx context.Context, trigger f
 	if h.Logger == nil {
 		return
 	}
-	h.Logger.ErrorContext(ctx, "AWS freshness trigger persistence failed",
+	h.Logger.ErrorContext(
+		ctx, "AWS freshness trigger persistence failed",
 		slog.String("kind", string(trigger.Kind)),
 		slog.String("account", trigger.AccountID),
 		slog.String("region", trigger.Region),

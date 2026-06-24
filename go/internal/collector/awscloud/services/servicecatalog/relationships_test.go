@@ -24,7 +24,8 @@ func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
 		t.Fatal("provisionedProductStackRelationship returned nil for a CFN_STACK with a stack ARN")
 	}
 
-	product := productInPortfolioRelationships(boundary,
+	product := productInPortfolioRelationships(
+		boundary,
 		Product{ID: "prod-xyz789", ARN: "arn:aws:catalog:us-east-1:123456789012:product/prod-xyz789"},
 		[]Portfolio{{ID: "port-abc123", ARN: "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"}},
 	)
@@ -32,7 +33,8 @@ func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
 		t.Fatal("productInPortfolioRelationships returned no edges for an associated portfolio")
 	}
 
-	portfolio := portfolioPrincipalRelationships(boundary,
+	portfolio := portfolioPrincipalRelationships(
+		boundary,
 		Portfolio{ID: "port-abc123", ARN: "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"},
 		[]Principal{{ARN: "arn:aws:iam::123456789012:role/LaunchRole", Type: "IAM"}},
 	)

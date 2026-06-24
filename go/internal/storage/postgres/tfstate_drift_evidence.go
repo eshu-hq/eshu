@@ -301,7 +301,8 @@ func (r loggingUnresolvedRecorder) record(ctx context.Context, reason string) {
 		attribute.String(telemetry.MetricDimensionDriftUnresolvedModuleReason, reason),
 	))
 	if r.logger != nil {
-		r.logger.LogAttrs(ctx, slog.LevelDebug, "drift evidence loader skipped unresolvable module call",
+		r.logger.LogAttrs(
+			ctx, slog.LevelDebug, "drift evidence loader skipped unresolvable module call",
 			slog.String(telemetry.LogKeyFailureClass, reason),
 		)
 	}
@@ -402,7 +403,8 @@ func (l PostgresDriftEvidenceLoader) logDecodeFailure(ctx context.Context, scope
 	if l.Logger == nil {
 		return
 	}
-	l.Logger.LogAttrs(ctx, slog.LevelWarn, "drift evidence loader skipped state resource",
+	l.Logger.LogAttrs(
+		ctx, slog.LevelWarn, "drift evidence loader skipped state resource",
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
 		slog.String("state.address", address),
@@ -434,7 +436,8 @@ func (l PostgresDriftEvidenceLoader) logPriorConfigWalk(
 			}
 		}
 	}
-	l.Logger.LogAttrs(ctx, slog.LevelInfo, "drift evidence loader walked prior config generations",
+	l.Logger.LogAttrs(
+		ctx, slog.LevelInfo, "drift evidence loader walked prior config generations",
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
 		slog.Int(telemetry.LogKeyDriftPriorConfigDepth, l.effectivePriorConfigDepth()),

@@ -78,7 +78,8 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerS3ExternalPrincipalGrantMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerS3ExternalPrincipalGrantMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -231,7 +232,8 @@ func logS3ExternalPrincipalGrantMaterializationCompleted(
 	ctx context.Context,
 	timing s3ExternalPrincipalGrantTiming,
 ) {
-	slog.InfoContext(ctx, "s3 external-principal grant materialization completed",
+	slog.InfoContext(
+		ctx, "s3 external-principal grant materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

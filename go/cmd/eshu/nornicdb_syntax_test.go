@@ -520,7 +520,8 @@ func withNornicDBSyntaxDriver(t *testing.T, fn func(context.Context, neo4jdriver
 func runNornicDBSyntaxCases(t *testing.T, ctx context.Context, driver neo4jdriver.DriverWithContext, tests []struct {
 	name   string
 	cypher string
-}) {
+},
+) {
 	t.Helper()
 
 	for _, tt := range tests {

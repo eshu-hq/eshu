@@ -9,8 +9,10 @@ import (
 
 // jsDefaultAccessPathParts matches cfg.DefaultLimits().MaxAccessPathParts for
 // helper callers that do not thread a CFG limit object.
-const jsDefaultAccessPathParts = 4
-const jsSubscriptMarker = "[*]"
+const (
+	jsDefaultAccessPathParts = 4
+	jsSubscriptMarker        = "[*]"
+)
 
 // jsAccessPathOptions carries the field-sensitivity depth cap and the shared
 // truncation counter. truncated, when non-nil, is incremented once per access

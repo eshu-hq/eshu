@@ -16,15 +16,15 @@ type Client interface {
 // Cluster is the scanner-owned representation of an MSK provisioned or
 // serverless cluster.
 type Cluster struct {
-	ARN          string
-	Name         string
-	Type         string
-	State        string
+	ARN            string
+	Name           string
+	Type           string
+	State          string
 	CurrentVersion string
-	CreationTime time.Time
-	Tags         map[string]string
-	Provisioned  *ProvisionedCluster
-	Serverless   *ServerlessCluster
+	CreationTime   time.Time
+	Tags           map[string]string
+	Provisioned    *ProvisionedCluster
+	Serverless     *ServerlessCluster
 }
 
 // ProvisionedCluster carries MSK provisioned-mode metadata.
@@ -125,22 +125,22 @@ type Replicator struct {
 // with an MSK Replicator. Bootstrap broker strings for non-MSK clusters are
 // excluded to keep the scanner free of broker-endpoint material.
 type ReplicatorKafkaCluster struct {
-	Alias            string
-	MSKClusterARN    string
-	VPCSubnetIDs     []string
+	Alias               string
+	MSKClusterARN       string
+	VPCSubnetIDs        []string
 	VPCSecurityGroupIDs []string
 }
 
 // ReplicationInfo captures the per-pair replication settings reported by AWS
 // without persisting per-topic detail beyond aggregate filter counts.
 type ReplicationInfo struct {
-	SourceClusterARN string
-	TargetClusterARN string
-	SourceAlias      string
-	TargetAlias      string
-	TargetCompression string
-	TopicIncludePatternCount   int
-	TopicExcludePatternCount   int
+	SourceClusterARN                 string
+	TargetClusterARN                 string
+	SourceAlias                      string
+	TargetAlias                      string
+	TargetCompression                string
+	TopicIncludePatternCount         int
+	TopicExcludePatternCount         int
 	ConsumerGroupIncludePatternCount int
 	ConsumerGroupExcludePatternCount int
 }

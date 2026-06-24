@@ -32,7 +32,8 @@ func NewNeo4jReader(driver neo4jdriver.DriverWithContext, database string) *Neo4
 
 // Run executes a read-only Cypher query and returns results as maps.
 func (r *Neo4jReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	ctx, span := r.tracer.Start(ctx, "neo4j.query",
+	ctx, span := r.tracer.Start(
+		ctx, "neo4j.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "neo4j"),
 			attribute.String("db.name", r.database),
@@ -79,7 +80,8 @@ func (r *Neo4jReader) Run(ctx context.Context, cypher string, params map[string]
 
 // RunSingle executes a Cypher query expecting at most one result row.
 func (r *Neo4jReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	ctx, span := r.tracer.Start(ctx, "neo4j.query.single",
+	ctx, span := r.tracer.Start(
+		ctx, "neo4j.query.single",
 		trace.WithAttributes(
 			attribute.String("db.system", "neo4j"),
 			attribute.String("db.name", r.database),

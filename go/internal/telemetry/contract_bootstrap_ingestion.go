@@ -24,7 +24,8 @@ package telemetry
 const SpanBootstrapCollectorCycle = "bootstrap.collector_cycle"
 
 func init() {
-	metricDimensionKeys = append(metricDimensionKeys,
+	metricDimensionKeys = append(
+		metricDimensionKeys,
 		MetricDimensionSourceFileKind,
 		MetricDimensionBootstrapPhase,
 	)

@@ -130,7 +130,8 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerSecurityGroupReachabilityMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerSecurityGroupReachabilityMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -370,7 +371,8 @@ type securityGroupReachabilityTiming struct {
 }
 
 func logSecurityGroupReachabilityCompleted(ctx context.Context, timing securityGroupReachabilityTiming) {
-	slog.InfoContext(ctx, "security group reachability materialization completed",
+	slog.InfoContext(
+		ctx, "security group reachability materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

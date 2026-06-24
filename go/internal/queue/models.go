@@ -23,8 +23,9 @@ const (
 	// StatusDeadLetter means the item exhausted retries or was quarantined.
 	StatusDeadLetter WorkItemStatus = "dead_letter"
 	// StatusFailed means the item is terminally failed.
+	//
 	// Deprecated: retained only so legacy rows can still be replayed.
-	StatusFailed WorkItemStatus = "failed"
+	StatusFailed WorkItemStatus = "failed" //nolint:gocritic // deprecatedComment: the godoc directive is the canonical marker; gocritic wants a blank-line paragraph above it.
 )
 
 // RetryState captures bounded retry timing for one work item.

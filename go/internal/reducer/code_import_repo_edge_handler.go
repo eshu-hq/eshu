@@ -225,7 +225,8 @@ func (h CodeImportRepoEdgeHandler) logCompleted(
 	counts codeImportEdgeCounts,
 	written int,
 ) {
-	slog.InfoContext(ctx, "code import repo edge projection completed",
+	slog.InfoContext(
+		ctx, "code import repo edge projection completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(DomainCodeImportRepoEdge)),

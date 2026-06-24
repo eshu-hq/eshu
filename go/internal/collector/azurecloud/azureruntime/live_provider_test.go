@@ -84,7 +84,8 @@ func TestExplicitLiveProviderPaginatesBySkipToken(t *testing.T) {
 		t.Fatalf("live calls = %d, want 2", len(client.calls))
 	}
 	if client.calls[0].SkipToken != "" || client.calls[1].SkipToken != fixtureSkipToken {
-		t.Fatalf("skip token calls = [%q %q], want [\"\" %q]",
+		t.Fatalf(
+			"skip token calls = [%q %q], want [\"\" %q]",
 			client.calls[0].SkipToken,
 			client.calls[1].SkipToken,
 			fixtureSkipToken,

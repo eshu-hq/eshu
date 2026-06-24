@@ -107,7 +107,8 @@ func waitLocalHostChildrenKeepingAllowedCleanExits(ctx context.Context, children
 				return fmt.Errorf("%s exited: %w", exit.name, exit.err)
 			}
 			if _, ok := allowedCleanExits[exit.name]; ok {
-				slog.Info("local Eshu service child exited cleanly; keeping service alive",
+				slog.Info(
+					"local Eshu service child exited cleanly; keeping service alive",
 					slog.String("child", exit.name),
 					slog.Int("remaining_children", active),
 				)

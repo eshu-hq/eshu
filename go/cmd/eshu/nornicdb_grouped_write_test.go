@@ -393,7 +393,8 @@ func executeExplicitRollbackProbe(
 	if err != nil {
 		return err
 	}
-	result, err := tx.Run(ctx,
+	result, err := tx.Run(
+		ctx,
 		"MERGE (n:EshuConformanceRollback {id: $id}) SET n.value = $value",
 		map[string]any{"id": nodeID, "value": "must-rollback"},
 	)
@@ -433,7 +434,8 @@ func executeCleanExplicitRollbackProbe(
 	if err != nil {
 		return err
 	}
-	result, err := tx.Run(ctx,
+	result, err := tx.Run(
+		ctx,
 		"MERGE (n:EshuConformanceRollback {id: $id}) SET n.value = $value",
 		map[string]any{"id": nodeID, "value": "must-rollback"},
 	)

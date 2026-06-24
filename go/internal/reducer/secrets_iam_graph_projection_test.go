@@ -34,54 +34,63 @@ func (w *recordingGraphWriter) WriteServiceAccountNodes(_ context.Context, r []m
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteVaultAuthRoleNodes(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.vaultAuthRoleNodes = append(w.vaultAuthRoleNodes, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteVaultPolicyNodes(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.vaultPolicyNodes = append(w.vaultPolicyNodes, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteSecretMetadataPathNodes(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.secretPathNodes = append(w.secretPathNodes, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteUsesServiceAccountEdges(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.usesSAEdges = append(w.usesSAEdges, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteAssumesIAMRoleEdges(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.assumesIAMRoleEdges = append(w.assumesIAMRoleEdges, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteAuthenticatesVaultRoleEdges(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.authVaultRoleEdges = append(w.authVaultRoleEdges, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteUsesVaultPolicyEdges(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.usesVaultPolicyEdge = append(w.usesVaultPolicyEdge, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) WriteGrantsSecretReadEdges(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.grantsSecretEdges = append(w.grantsSecretEdges, r)
 	}
 	return nil
 }
+
 func (w *recordingGraphWriter) RetractScope(_ context.Context, scopeIDs []string, _ string) error {
 	w.retracts = append(w.retracts, scopeIDs)
 	return nil

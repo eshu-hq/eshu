@@ -19,7 +19,8 @@ func (cr *ContentReader) documentationFindings(
 	if cr == nil || cr.db == nil {
 		return documentationFindingListReadModel{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_documentation_findings"),
@@ -107,7 +108,8 @@ func (cr *ContentReader) documentationFacts(
 	if cr == nil || cr.db == nil {
 		return documentationFactListReadModel{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_documentation_facts"),

@@ -42,7 +42,8 @@ func newFirstRunClient() *APIClient {
 // TestDetectFirstRunRuntimePrefersReachableAPI proves an already-reachable API
 // is the chosen shape even when binaries and compose files are also present.
 func TestDetectFirstRunRuntimePrefersReachableAPI(t *testing.T) {
-	probe := fakeFirstRunProbe(true,
+	probe := fakeFirstRunProbe(
+		true,
 		map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true},
 		map[string]bool{"/ws/docker-compose.yaml": true},
 	)
@@ -58,7 +59,8 @@ func TestDetectFirstRunRuntimePrefersReachableAPI(t *testing.T) {
 // TestDetectFirstRunRuntimeFallsBackToLocalBinaries proves local binaries are
 // chosen when the API is down but binaries are on PATH.
 func TestDetectFirstRunRuntimeFallsBackToLocalBinaries(t *testing.T) {
-	probe := fakeFirstRunProbe(false,
+	probe := fakeFirstRunProbe(
+		false,
 		map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true},
 		map[string]bool{},
 	)
@@ -71,7 +73,8 @@ func TestDetectFirstRunRuntimeFallsBackToLocalBinaries(t *testing.T) {
 // TestDetectFirstRunRuntimeFallsBackToCompose proves a compose file is chosen
 // when the API is down and binaries are missing.
 func TestDetectFirstRunRuntimeFallsBackToCompose(t *testing.T) {
-	probe := fakeFirstRunProbe(false,
+	probe := fakeFirstRunProbe(
+		false,
 		map[string]bool{},
 		map[string]bool{"/ws/docker-compose.yaml": true},
 	)

@@ -93,7 +93,8 @@ func datasetEnvelopes(boundary awscloud.Boundary, dataset Dataset) ([]facts.Enve
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	return appendRelationships(envelopes,
+	return appendRelationships(
+		envelopes,
 		datasetReadsS3Relationship(boundary, dataset),
 		datasetReadsGlueTableRelationship(boundary, dataset),
 	)
@@ -105,7 +106,8 @@ func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error)
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	envelopes, err = appendRelationships(envelopes,
+	envelopes, err = appendRelationships(
+		envelopes,
 		jobAssumesRoleRelationship(boundary, job),
 		jobProcessesDatasetRelationship(boundary, job),
 	)
@@ -128,7 +130,8 @@ func projectEnvelopes(boundary awscloud.Boundary, project Project) ([]facts.Enve
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	return appendRelationships(envelopes,
+	return appendRelationships(
+		envelopes,
 		projectUsesDatasetRelationship(boundary, project),
 		projectUsesRecipeRelationship(boundary, project),
 		projectAssumesRoleRelationship(boundary, project),

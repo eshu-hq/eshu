@@ -190,7 +190,6 @@ func TestLoadRuntimeConfigAcceptsDivergentTargetScopeCredentials(t *testing.T) {
 		}
 		return values[key]
 	})
-
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}

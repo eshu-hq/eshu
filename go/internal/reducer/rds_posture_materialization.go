@@ -88,7 +88,8 @@ func (h RDSPostureMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerRDSPostureMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerRDSPostureMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -265,7 +266,8 @@ func logRDSPostureMaterializationCompleted(
 	ctx context.Context,
 	timing rdsPostureMaterializationTiming,
 ) {
-	slog.InfoContext(ctx, "rds posture materialization completed",
+	slog.InfoContext(
+		ctx, "rds posture materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

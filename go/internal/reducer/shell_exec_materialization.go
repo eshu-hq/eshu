@@ -44,7 +44,8 @@ func (h ShellExecMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("shell exec materialization intent writer is required")
 	}
 
-	slog.InfoContext(ctx, "shell exec materialization started",
+	slog.InfoContext(
+		ctx, "shell exec materialization started",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
@@ -80,7 +81,8 @@ func (h ShellExecMaterializationHandler) Handle(
 		}
 	}
 
-	slog.InfoContext(ctx, "shell exec materialization completed",
+	slog.InfoContext(
+		ctx, "shell exec materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.Int("intent_count", len(intentRows)),

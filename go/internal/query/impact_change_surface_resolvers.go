@@ -66,7 +66,8 @@ func changeSurfaceGenericResolverQueries(target string, limit int) []changeSurfa
 	if canonicalID := canonicalWorkloadIDCandidate(target); canonicalID != target {
 		queries = append(queries, changeSurfaceWorkloadResolverQuery("id", canonicalID, next(), limit))
 	}
-	queries = append(queries,
+	queries = append(
+		queries,
 		changeSurfaceRepositoryResolverQuery("id", target, next(), limit),
 		changeSurfaceWorkloadInstanceResolverQuery("id", target, next(), limit),
 		changeSurfaceCloudResourceResolverQuery("id", target, next(), limit),

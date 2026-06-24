@@ -97,7 +97,8 @@ func (r AccuracyResult) MeetsThreshold(minPrecision float64, minRecall float64) 
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b,
+	fmt.Fprintf(
+		&b,
 		"accuracy below threshold: precision=%.3f (min %.3f) recall=%.3f (min %.3f)",
 		r.Overall.Precision, minPrecision, r.Overall.Recall, minRecall,
 	)

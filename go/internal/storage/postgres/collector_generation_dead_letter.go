@@ -69,8 +69,10 @@ type CollectorGenerationDeadLetterStore struct {
 	db ExecQueryer
 }
 
-var _ collector.GenerationDeadLetterSink = CollectorGenerationDeadLetterStore{}
-var _ collector.GenerationDeadLetterReplayCompleter = CollectorGenerationDeadLetterStore{}
+var (
+	_ collector.GenerationDeadLetterSink            = CollectorGenerationDeadLetterStore{}
+	_ collector.GenerationDeadLetterReplayCompleter = CollectorGenerationDeadLetterStore{}
+)
 
 // NewCollectorGenerationDeadLetterStore constructs a Postgres-backed collector
 // generation dead-letter store.

@@ -22,7 +22,6 @@ func TestCodeValueFlowCurrentGenerationStoreListsActiveRepositoryScopes(t *testi
 	store := NewCodeValueFlowCurrentGenerationStore(db)
 
 	got, err := store.ListCurrentCodeValueFlowGenerations(context.Background(), "scope-a", 25)
-
 	if err != nil {
 		t.Fatalf("ListCurrentCodeValueFlowGenerations() error = %v, want nil", err)
 	}
@@ -63,7 +62,6 @@ func TestCodeValueFlowCurrentGenerationStoreNoOpsWithoutPositiveLimit(t *testing
 	store := NewCodeValueFlowCurrentGenerationStore(db)
 
 	got, err := store.ListCurrentCodeValueFlowGenerations(context.Background(), "", 0)
-
 	if err != nil {
 		t.Fatalf("ListCurrentCodeValueFlowGenerations() error = %v, want nil", err)
 	}

@@ -92,11 +92,11 @@ func TestClientListsElastiCacheMetadataOnly(t *testing.T) {
 		}},
 		parameterGroupPages: []*awselasticache.DescribeCacheParameterGroupsOutput{{
 			CacheParameterGroups: []awselasticachetypes.CacheParameterGroup{{
-				ARN:                         aws.String(parameterGroupARN),
-				CacheParameterGroupName:     aws.String("orders-redis7"),
-				CacheParameterGroupFamily:   aws.String("redis7"),
-				Description:                 aws.String("orders redis 7 params"),
-				IsGlobal:                    aws.Bool(false),
+				ARN:                       aws.String(parameterGroupARN),
+				CacheParameterGroupName:   aws.String("orders-redis7"),
+				CacheParameterGroupFamily: aws.String("redis7"),
+				Description:               aws.String("orders redis 7 params"),
+				IsGlobal:                  aws.Bool(false),
 			}},
 		}},
 		userPages: []*awselasticache.DescribeUsersOutput{{

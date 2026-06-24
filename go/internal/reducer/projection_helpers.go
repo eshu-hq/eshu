@@ -162,7 +162,8 @@ func inferCandidateRuntimePlatformKind(candidate WorkloadCandidate) string {
 	if len(candidateDeploymentRepoIDs(candidate)) == 0 {
 		return ""
 	}
-	if hasProvenance(candidate.Provenance,
+	if hasProvenance(
+		candidate.Provenance,
 		"argocd_application_source",
 		"argocd_applicationset_deploy_source",
 		"kustomize_resource",

@@ -61,7 +61,8 @@ func recordImageListDuration(ctx context.Context, start time.Time, outcome strin
 	if imageListDuration == nil {
 		return
 	}
-	imageListDuration.Record(ctx, time.Since(start).Seconds(),
+	imageListDuration.Record(
+		ctx, time.Since(start).Seconds(),
 		metric.WithAttributes(
 			attribute.String("outcome", outcome),
 			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
@@ -76,7 +77,8 @@ func recordImageListError(ctx context.Context, reason string) {
 	if imageListErrors == nil {
 		return
 	}
-	imageListErrors.Add(ctx, 1,
+	imageListErrors.Add(
+		ctx, 1,
 		metric.WithAttributes(
 			attribute.String("reason", reason),
 			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),

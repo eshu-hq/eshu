@@ -46,13 +46,15 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 			values.WriteString(", ")
 		}
 		offset := i * columnsPerContentFile
-		fmt.Fprintf(&values,
+		fmt.Fprintf(
+			&values,
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
 			offset+6, offset+7, offset+8, offset+9, offset+10, offset+11,
 		)
 
-		args = append(args,
+		args = append(
+			args,
 			row.repoID,
 			row.path,
 			row.commitSHA,
@@ -110,14 +112,16 @@ func (w ContentWriter) upsertContentEntityBatch(ctx context.Context, batch []pre
 			values.WriteString(", ")
 		}
 		offset := i * columnsPerContentEntity
-		fmt.Fprintf(&values,
+		fmt.Fprintf(
+			&values,
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::jsonb, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
 			offset+6, offset+7, offset+8, offset+9, offset+10,
 			offset+11, offset+12, offset+13, offset+14, offset+15, offset+16,
 		)
 
-		args = append(args,
+		args = append(
+			args,
 			row.entityID,
 			row.repoID,
 			row.path,

@@ -363,7 +363,8 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 		w.instruments.ReducerAdmissionDeferrals.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}
 	if w.logger != nil {
-		w.logger.WarnContext(ctx, "reducer admission deferring enqueue",
+		w.logger.WarnContext(
+			ctx, "reducer admission deferring enqueue",
 			slog.String("reason", reason),
 			slog.String("failure_class", failureClass),
 			slog.Int64("queue_depth", depth),

@@ -253,7 +253,8 @@ func (c *Client) ListRecoveryPoints(
 	if vaultName == "" {
 		return nil, nil
 	}
-	paginator := awsbackup.NewListRecoveryPointsByBackupVaultPaginator(c.client,
+	paginator := awsbackup.NewListRecoveryPointsByBackupVaultPaginator(
+		c.client,
 		&awsbackup.ListRecoveryPointsByBackupVaultInput{BackupVaultName: aws.String(vaultName)},
 	)
 	var recoveryPoints []backupservice.RecoveryPoint

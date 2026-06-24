@@ -149,7 +149,8 @@ func (c compositeRunner) logFatal(ctx context.Context, index int, err error, rem
 	if c.logger == nil {
 		return
 	}
-	c.logger.ErrorContext(ctx, "composite runner sibling failed; draining peers",
+	c.logger.ErrorContext(
+		ctx, "composite runner sibling failed; draining peers",
 		slog.Int("runner_index", index),
 		slog.Int("remaining_runners", remaining),
 		telemetry.FailureClassAttr("composite_runner_fatal"),
@@ -163,7 +164,8 @@ func (c compositeRunner) logDrainTimeout(ctx context.Context, remaining int) {
 	if c.logger == nil {
 		return
 	}
-	c.logger.ErrorContext(ctx, "composite runner sibling drain exceeded grace window",
+	c.logger.ErrorContext(
+		ctx, "composite runner sibling drain exceeded grace window",
 		slog.Int("remaining_runners", remaining),
 		telemetry.FailureClassAttr("composite_runner_drain_timeout"),
 		slog.Duration("drain_grace", c.drainGrace),

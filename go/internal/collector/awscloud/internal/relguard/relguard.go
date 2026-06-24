@@ -174,7 +174,8 @@ func Validate(literals []EmittedTargetType, known map[string]struct{}) []error {
 				"%s: target_type %q is not a declared awscloud.ResourceType constant and is not in relguard.KnownTargetTypeAllowlist; "+
 					"a relationship to it would dangle. Fix the target_type to the value the target scanner publishes, "+
 					"or add a documented allowlist entry if the target is deliberately not scanned yet",
-				lit.File, lit.Value))
+				lit.File, lit.Value,
+			))
 		}
 	}
 	return errs

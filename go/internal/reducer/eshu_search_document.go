@@ -164,7 +164,8 @@ func (h EshuSearchDocumentHandler) logCancelError(ctx context.Context, intent In
 	if h.Logger == nil {
 		return
 	}
-	h.Logger.WarnContext(ctx, "eshu search document session cancel failed after stream error",
+	h.Logger.WarnContext(
+		ctx, "eshu search document session cancel failed after stream error",
 		slog.String("scope_id", intent.ScopeID),
 		slog.String("generation_id", intent.GenerationID),
 		slog.String("domain", string(DomainEshuSearchDocument)),

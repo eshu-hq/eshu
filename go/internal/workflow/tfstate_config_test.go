@@ -32,7 +32,6 @@ func TestValidateTerraformStateCollectorConfigurationAcceptsTargetScopeS3Seed(t 
 			}]
 		}
 	}`)
-
 	if err != nil {
 		t.Fatalf("ValidateTerraformStateCollectorConfiguration() error = %v, want nil", err)
 	}

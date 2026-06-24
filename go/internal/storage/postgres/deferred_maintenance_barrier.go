@@ -170,7 +170,8 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 		}
 		committed = true
 		if s.Logger != nil {
-			s.Logger.InfoContext(ctx, "deferred maintenance barrier waiting for shards",
+			s.Logger.InfoContext(
+				ctx, "deferred maintenance barrier waiting for shards",
 				telemetry.PhaseAttr("deferred_maintenance_barrier"),
 				"epoch", epoch,
 				"arrived_shards", arrivedCount,
@@ -200,7 +201,8 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 		return err
 	}
 	if s.Logger != nil {
-		s.Logger.InfoContext(ctx, "deferred maintenance barrier completed",
+		s.Logger.InfoContext(
+			ctx, "deferred maintenance barrier completed",
 			telemetry.PhaseAttr("deferred_maintenance_barrier"),
 			"epoch", epoch,
 			"arrived_shards", arrivedCount,
@@ -261,7 +263,8 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 		}
 		if completed {
 			if s.Logger != nil {
-				s.Logger.InfoContext(ctx, "deferred maintenance barrier observed completion",
+				s.Logger.InfoContext(
+					ctx, "deferred maintenance barrier observed completion",
 					telemetry.PhaseAttr("deferred_maintenance_barrier"),
 					"epoch", epoch,
 					"shard_count", config.ShardCount,

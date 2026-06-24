@@ -368,7 +368,8 @@ func dedupeResolved(resolved []ResolvedRelationship) []ResolvedRelationship {
 	seen := make(map[string]struct{}, len(resolved))
 	deduped := make([]ResolvedRelationship, 0, len(resolved))
 	for i := range resolved {
-		key := fmt.Sprintf("%s|%s|%s",
+		key := fmt.Sprintf(
+			"%s|%s|%s",
 			resolved[i].SourceEntityID,
 			resolved[i].TargetEntityID,
 			resolved[i].RelationshipType,

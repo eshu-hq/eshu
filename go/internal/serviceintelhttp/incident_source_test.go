@@ -183,7 +183,8 @@ func TestDurableIncidentEvidenceSourceResolvesLoadsAndMaps(t *testing.T) {
 		},
 	}}
 	source := NewDurableIncidentEvidenceSource(
-		fakeCatalogResolver{id: "component:default/checkout"}, loader, nil)
+		fakeCatalogResolver{id: "component:default/checkout"}, loader, nil,
+	)
 
 	records, err := source.IncidentRecordsForWorkload(context.Background(), "workload:checkout")
 	if err != nil {
@@ -228,7 +229,8 @@ func TestDurableIncidentEvidenceSourceAmbiguousIsNoRecords(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	loader := &fakeEvidenceLoader{}
 	source := NewDurableIncidentEvidenceSource(
-		fakeCatalogResolver{err: postgres.ErrAmbiguousCatalogService}, loader, logger)
+		fakeCatalogResolver{err: postgres.ErrAmbiguousCatalogService}, loader, logger,
+	)
 
 	records, err := source.IncidentRecordsForWorkload(context.Background(), "workload:checkout")
 	if err != nil {
@@ -251,7 +253,8 @@ func TestDurableIncidentEvidenceSourceResolverErrorPropagatesAndLogs(t *testing.
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	source := NewDurableIncidentEvidenceSource(
-		fakeCatalogResolver{err: errors.New("connection reset")}, &fakeEvidenceLoader{}, logger)
+		fakeCatalogResolver{err: errors.New("connection reset")}, &fakeEvidenceLoader{}, logger,
+	)
 	if _, err := source.IncidentRecordsForWorkload(context.Background(), "workload:checkout"); err == nil {
 		t.Fatal("a resolver infra error must propagate")
 	}
@@ -268,7 +271,8 @@ func TestDurableIncidentEvidenceSourceLoaderErrorPropagatesAndLogs(t *testing.T)
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	loader := &fakeEvidenceLoader{err: errors.New("query failed")}
 	source := NewDurableIncidentEvidenceSource(
-		fakeCatalogResolver{id: "component:default/checkout"}, loader, logger)
+		fakeCatalogResolver{id: "component:default/checkout"}, loader, logger,
+	)
 	if _, err := source.IncidentRecordsForWorkload(context.Background(), "workload:checkout"); err == nil {
 		t.Fatal("a loader infra error must propagate")
 	}

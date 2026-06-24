@@ -83,7 +83,8 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 
 	if h.Tracer != nil {
 		var span trace.Span
-		ctx, span = h.Tracer.Start(ctx, telemetry.SpanReducerS3InternetExposureMaterialization,
+		ctx, span = h.Tracer.Start(
+			ctx, telemetry.SpanReducerS3InternetExposureMaterialization,
 			trace.WithAttributes(
 				attribute.String(telemetry.LogKeyScopeID, intent.ScopeID),
 				attribute.String(telemetry.LogKeyGenerationID, intent.GenerationID),
@@ -275,7 +276,8 @@ func logS3InternetExposureMaterializationCompleted(
 	ctx context.Context,
 	timing s3InternetExposureTiming,
 ) {
-	slog.InfoContext(ctx, "s3 internet exposure materialization completed",
+	slog.InfoContext(
+		ctx, "s3 internet exposure materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

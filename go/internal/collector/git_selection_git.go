@@ -422,7 +422,8 @@ func gitRunWithStderrWriter(
 	}
 	if err := command.Run(); err != nil {
 		flushProgressWriter(stderrWriter)
-		return "", fmt.Errorf("git %s: %w: %s",
+		return "", fmt.Errorf(
+			"git %s: %w: %s",
 			strings.Join(args, " "),
 			err,
 			sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())),
@@ -448,7 +449,8 @@ func gitCommandEnv(config RepoSyncConfig, token string) []string {
 			return env
 		}
 		index := len(env)
-		env = append(env,
+		env = append(
+			env,
 			fmt.Sprintf("GIT_CONFIG_COUNT=%d", 1),
 			"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
 			"GIT_CONFIG_VALUE_0="+githubHTTPExtraHeader(token),

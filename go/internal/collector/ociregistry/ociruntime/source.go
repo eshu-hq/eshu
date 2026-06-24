@@ -126,7 +126,8 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		return collector.CollectedGeneration{}, err
 	}
 	if s.Logger != nil {
-		s.Logger.InfoContext(ctx, "OCI registry scan completed",
+		s.Logger.InfoContext(
+			ctx, "OCI registry scan completed",
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),

@@ -296,7 +296,8 @@ func upsertGraphEndpointPresenceBatch(ctx context.Context, db ExecQueryer, batch
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+6,
 		)
-		args = append(args,
+		args = append(
+			args,
 			strings.TrimSpace(string(row.Keyspace)),
 			strings.TrimSpace(row.UID),
 			strings.TrimSpace(row.ScopeID),

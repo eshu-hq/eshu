@@ -150,7 +150,8 @@ func printReport(
 }
 
 func printLatency(name string, l latency) {
-	fmt.Printf("%-26s %12s %12s %12s %10d\n",
+	fmt.Printf(
+		"%-26s %12s %12s %12s %10d\n",
 		name,
 		l.P50.Round(time.Microsecond),
 		l.P95.Round(time.Microsecond),

@@ -28,7 +28,8 @@ func (cr *ContentReader) cloudInventoryIdentities(
 	if cr == nil || cr.db == nil {
 		return cloudInventoryListReadModel{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_cloud_inventory_identities"),

@@ -182,7 +182,8 @@ func printCapSweepReport(stats corpusStats, suitePath string, results []capSweep
 		if result.Score.Metrics.FalseCanonicalClaimCount != nil {
 			falseClaims = *result.Score.Metrics.FalseCanonicalClaimCount
 		}
-		fmt.Printf("%10d %10d %10d %12s %12s %12s %8.3f %8.3f %8.3f %8d\n",
+		fmt.Printf(
+			"%10d %10d %10d %12s %12s %12s %8.3f %8.3f %8.3f %8d\n",
 			result.Cap,
 			result.Indexed,
 			result.Overflow,

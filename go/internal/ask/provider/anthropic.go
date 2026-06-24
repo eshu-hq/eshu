@@ -123,7 +123,8 @@ type anthropicStreamRequest struct {
 //   - event: message_stop        → end of stream
 func parseAnthropicStream(body interface {
 	Read([]byte) (int, error)
-}, emit func(StreamEvent)) (Completion, error) {
+}, emit func(StreamEvent),
+) (Completion, error) {
 	type streamDelta struct {
 		Type        string `json:"type"`
 		Text        string `json:"text"`

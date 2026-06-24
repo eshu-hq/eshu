@@ -198,18 +198,18 @@ func TestClientMapsServerlessMetadataAndTags(t *testing.T) {
 	serverless := &fakeServerlessAPI{
 		namespacePages: []*awsserverless.ListNamespacesOutput{{
 			Namespaces: []awsserverlesstypes.Namespace{{
-				NamespaceArn:               aws.String(namespaceARN),
-				NamespaceName:              aws.String("analytics-ns"),
-				NamespaceId:                aws.String("ns-abc"),
-				Status:                     awsserverlesstypes.NamespaceStatusAvailable,
-				DbName:                     aws.String("analytics"),
-				DefaultIamRoleArn:          aws.String("arn:aws:iam::123456789012:role/redshift-serverless"),
-				IamRoles:                   []string{"arn:aws:iam::123456789012:role/redshift-serverless"},
-				KmsKeyId:                   aws.String("arn:aws:kms:us-east-1:123456789012:key/analytics-ns"),
-				LogExports:                 []awsserverlesstypes.LogExport{awsserverlesstypes.LogExportConnectionLog, awsserverlesstypes.LogExportUserLog},
-				CreationDate:               aws.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
-				AdminUsername:              aws.String("do-not-copy"),
-				AdminPasswordSecretArn:     aws.String("do-not-copy"),
+				NamespaceArn:                aws.String(namespaceARN),
+				NamespaceName:               aws.String("analytics-ns"),
+				NamespaceId:                 aws.String("ns-abc"),
+				Status:                      awsserverlesstypes.NamespaceStatusAvailable,
+				DbName:                      aws.String("analytics"),
+				DefaultIamRoleArn:           aws.String("arn:aws:iam::123456789012:role/redshift-serverless"),
+				IamRoles:                    []string{"arn:aws:iam::123456789012:role/redshift-serverless"},
+				KmsKeyId:                    aws.String("arn:aws:kms:us-east-1:123456789012:key/analytics-ns"),
+				LogExports:                  []awsserverlesstypes.LogExport{awsserverlesstypes.LogExportConnectionLog, awsserverlesstypes.LogExportUserLog},
+				CreationDate:                aws.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
+				AdminUsername:               aws.String("do-not-copy"),
+				AdminPasswordSecretArn:      aws.String("do-not-copy"),
 				AdminPasswordSecretKmsKeyId: aws.String("do-not-copy"),
 			}},
 		}},
@@ -366,12 +366,12 @@ func (f *fakeProvisionedAPI) DescribeScheduledActions(
 }
 
 type fakeServerlessAPI struct {
-	namespacePages     []*awsserverless.ListNamespacesOutput
-	namespaceCalls     int
-	workgroupPages     []*awsserverless.ListWorkgroupsOutput
-	workgroupCalls     int
-	tags               map[string][]awsserverlesstypes.Tag
-	tagRequests        []string
+	namespacePages []*awsserverless.ListNamespacesOutput
+	namespaceCalls int
+	workgroupPages []*awsserverless.ListWorkgroupsOutput
+	workgroupCalls int
+	tags           map[string][]awsserverlesstypes.Tag
+	tagRequests    []string
 }
 
 func (f *fakeServerlessAPI) ListNamespaces(

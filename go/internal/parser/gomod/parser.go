@@ -101,16 +101,16 @@ func parseGoMod(path string, isDependency bool, options shared.Options) (map[str
 	sortGoModRows(rows)
 	payload["variables"] = rows
 	payload["gomod_state"] = map[string]any{
-		"state":             "parsed",
-		"module_path":       moduleDeclarationPath(parsed),
-		"go_version":        goDirectiveVersion(parsed),
-		"toolchain":         toolchainName(parsed),
-		"require_count":     len(parsed.Require),
-		"replace_count":     len(parsed.Replace),
-		"exclude_count":     len(parsed.Exclude),
-		"retract_count":     len(parsed.Retract),
-		"indirect_count":    countIndirectRequires(parsed.Require),
-		"replaced_modules":  replacedModulePaths(parsed.Replace),
+		"state":            "parsed",
+		"module_path":      moduleDeclarationPath(parsed),
+		"go_version":       goDirectiveVersion(parsed),
+		"toolchain":        toolchainName(parsed),
+		"require_count":    len(parsed.Require),
+		"replace_count":    len(parsed.Replace),
+		"exclude_count":    len(parsed.Exclude),
+		"retract_count":    len(parsed.Retract),
+		"indirect_count":   countIndirectRequires(parsed.Require),
+		"replaced_modules": replacedModulePaths(parsed.Replace),
 	}
 	return payload, nil
 }

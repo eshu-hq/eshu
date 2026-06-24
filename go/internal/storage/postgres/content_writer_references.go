@@ -119,7 +119,8 @@ func (w ContentWriter) upsertPreparedContentReferenceBatch(
 			values.WriteString(", ")
 		}
 		offset := i * columnsPerContentReference
-		fmt.Fprintf(&values,
+		fmt.Fprintf(
+			&values,
 			"($%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
 		)

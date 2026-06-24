@@ -268,17 +268,17 @@ func (r *graphProjectionPhaseRepairQueueRows) Scan(dest ...any) error {
 		return fmt.Errorf("scan: got %d dest, want 11", len(dest))
 	}
 	row := r.data[r.idx]
-	*(dest[0].(*string)) = row.scopeID
-	*(dest[1].(*string)) = row.acceptanceUnitID
-	*(dest[2].(*string)) = row.sourceRunID
-	*(dest[3].(*string)) = row.generationID
-	*(dest[4].(*reducer.GraphProjectionKeyspace)) = reducer.GraphProjectionKeyspace(row.keyspace)
-	*(dest[5].(*reducer.GraphProjectionPhase)) = reducer.GraphProjectionPhase(row.phase)
-	*(dest[6].(*time.Time)) = row.committedAt
-	*(dest[7].(*time.Time)) = row.enqueuedAt
-	*(dest[8].(*time.Time)) = row.nextAttemptAt
-	*(dest[9].(*int)) = row.attempts
-	*(dest[10].(*string)) = row.lastError
+	*dest[0].(*string) = row.scopeID
+	*dest[1].(*string) = row.acceptanceUnitID
+	*dest[2].(*string) = row.sourceRunID
+	*dest[3].(*string) = row.generationID
+	*dest[4].(*reducer.GraphProjectionKeyspace) = reducer.GraphProjectionKeyspace(row.keyspace)
+	*dest[5].(*reducer.GraphProjectionPhase) = reducer.GraphProjectionPhase(row.phase)
+	*dest[6].(*time.Time) = row.committedAt
+	*dest[7].(*time.Time) = row.enqueuedAt
+	*dest[8].(*time.Time) = row.nextAttemptAt
+	*dest[9].(*int) = row.attempts
+	*dest[10].(*string) = row.lastError
 	return nil
 }
 

@@ -19,7 +19,8 @@ func (cr *ContentReader) evidenceCitationFiles(
 		return map[evidenceCitationFileKey]FileContent{}, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "evidence_citation_files"),

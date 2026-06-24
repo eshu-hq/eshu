@@ -69,7 +69,8 @@ func adoptExistingGraphSchema(
 	missing := missingGraphSchemaObjectNames(expectedNames, actualNames)
 	if len(missing) > 0 {
 		if logger != nil {
-			logger.Info("graph schema adoption incomplete",
+			logger.Info(
+				"graph schema adoption incomplete",
 				telemetry.EventAttr("bootstrap.graph.adoption_incomplete"),
 				"graph_backend", app.Backend,
 				"schema_fingerprint", app.Fingerprint,
@@ -85,7 +86,8 @@ func adoptExistingGraphSchema(
 		return false, err
 	}
 	if logger != nil {
-		logger.Info("graph schema adopted",
+		logger.Info(
+			"graph schema adopted",
 			telemetry.EventAttr("bootstrap.graph.adopted"),
 			"graph_backend", app.Backend,
 			"schema_fingerprint", app.Fingerprint,

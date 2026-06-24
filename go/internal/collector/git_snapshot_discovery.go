@@ -201,42 +201,50 @@ func (s NativeRepositorySnapshotter) recordDiscoveryMetrics(ctx context.Context,
 	}
 
 	for name, count := range stats.DirsSkippedByName {
-		s.Instruments.DiscoveryDirsSkipped.Add(ctx, int64(count),
+		s.Instruments.DiscoveryDirsSkipped.Add(
+			ctx, int64(count),
 			metric.WithAttributes(telemetry.AttrSkipReason(name)),
 		)
 	}
 	for ext, count := range stats.FilesSkippedByExtension {
-		s.Instruments.DiscoveryFilesSkipped.Add(ctx, int64(count),
+		s.Instruments.DiscoveryFilesSkipped.Add(
+			ctx, int64(count),
 			metric.WithAttributes(telemetry.AttrSkipReason("ext:"+ext)),
 		)
 	}
 	for reason, count := range stats.FilesSkippedByContent {
-		s.Instruments.DiscoveryFilesSkipped.Add(ctx, int64(count),
+		s.Instruments.DiscoveryFilesSkipped.Add(
+			ctx, int64(count),
 			metric.WithAttributes(telemetry.AttrSkipReason("content:"+reason)),
 		)
 	}
 	for reason, count := range stats.DirsSkippedByUser {
-		s.Instruments.DiscoveryDirsSkipped.Add(ctx, int64(count),
+		s.Instruments.DiscoveryDirsSkipped.Add(
+			ctx, int64(count),
 			metric.WithAttributes(telemetry.AttrSkipReason("user:"+reason)),
 		)
 	}
 	for reason, count := range stats.FilesSkippedByUser {
-		s.Instruments.DiscoveryFilesSkipped.Add(ctx, int64(count),
+		s.Instruments.DiscoveryFilesSkipped.Add(
+			ctx, int64(count),
 			metric.WithAttributes(telemetry.AttrSkipReason("user:"+reason)),
 		)
 	}
 	if stats.FilesSkippedHidden > 0 {
-		s.Instruments.DiscoveryFilesSkipped.Add(ctx, int64(stats.FilesSkippedHidden),
+		s.Instruments.DiscoveryFilesSkipped.Add(
+			ctx, int64(stats.FilesSkippedHidden),
 			metric.WithAttributes(telemetry.AttrSkipReason("hidden")),
 		)
 	}
 	if stats.FilesSkippedGitignore > 0 {
-		s.Instruments.DiscoveryFilesSkipped.Add(ctx, int64(stats.FilesSkippedGitignore),
+		s.Instruments.DiscoveryFilesSkipped.Add(
+			ctx, int64(stats.FilesSkippedGitignore),
 			metric.WithAttributes(telemetry.AttrSkipReason("gitignore")),
 		)
 	}
 	if stats.FilesSkippedEshuIgnore > 0 {
-		s.Instruments.DiscoveryFilesSkipped.Add(ctx, int64(stats.FilesSkippedEshuIgnore),
+		s.Instruments.DiscoveryFilesSkipped.Add(
+			ctx, int64(stats.FilesSkippedEshuIgnore),
 			metric.WithAttributes(telemetry.AttrSkipReason("eshuignore")),
 		)
 	}

@@ -24,18 +24,18 @@ type Client interface {
 // in this record. The structural view is intentionally narrow: state names,
 // state types, transition edges, and Task Resource ARNs only.
 type StateMachine struct {
-	ARN              string
-	Name             string
-	Type             string
-	Status           string
-	RoleARN          string
-	CreationDate     time.Time
-	LoggingLevel     string
-	TracingEnabled   bool
-	StartAt          string
-	States           []StateNode
-	ReferencedARNs   []string
-	Tags             map[string]string
+	ARN            string
+	Name           string
+	Type           string
+	Status         string
+	RoleARN        string
+	CreationDate   time.Time
+	LoggingLevel   string
+	TracingEnabled bool
+	StartAt        string
+	States         []StateNode
+	ReferencedARNs []string
+	Tags           map[string]string
 }
 
 // StateNode is the safe structural view of one state inside a Step Functions

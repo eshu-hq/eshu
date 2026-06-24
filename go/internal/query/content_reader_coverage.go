@@ -14,7 +14,8 @@ func (cr *ContentReader) RepositoryCoverage(ctx context.Context, repoID string) 
 		return RepositoryContentCoverage{}, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "repository_coverage"),

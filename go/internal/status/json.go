@@ -2,9 +2,8 @@ package status
 
 import (
 	"encoding/json"
-	"time"
-
 	"slices"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 )

@@ -31,33 +31,43 @@ func (f *fakeClient) PingReadOnly(context.Context) error { return f.pingErr }
 func (f *fakeClient) ListNamespaces(context.Context) (ListResult[ObjectMeta], error) {
 	return f.namespaces, nil
 }
+
 func (f *fakeClient) ListPods(context.Context) (ListResult[WorkloadObject], error) {
 	return f.pods, nil
 }
+
 func (f *fakeClient) ListDeployments(context.Context) (ListResult[WorkloadObject], error) {
 	return f.deployments, nil
 }
+
 func (f *fakeClient) ListReplicaSets(context.Context) (ListResult[WorkloadObject], error) {
 	return f.replicasets, nil
 }
+
 func (f *fakeClient) ListServices(context.Context) (ListResult[ServiceObject], error) {
 	return f.services, nil
 }
+
 func (f *fakeClient) ListIngresses(context.Context) (ListResult[IngressObject], error) {
 	return f.ingresses, nil
 }
+
 func (f *fakeClient) ListServiceAccounts(context.Context) (ListResult[ServiceAccountObject], error) {
 	return f.serviceAccounts, nil
 }
+
 func (f *fakeClient) ListRoles(context.Context) (ListResult[RBACRoleObject], error) {
 	return f.roles, nil
 }
+
 func (f *fakeClient) ListClusterRoles(context.Context) (ListResult[RBACRoleObject], error) {
 	return f.clusterRoles, nil
 }
+
 func (f *fakeClient) ListRoleBindings(context.Context) (ListResult[RBACBindingObject], error) {
 	return f.roleBindings, nil
 }
+
 func (f *fakeClient) ListClusterRoleBindings(context.Context) (ListResult[RBACBindingObject], error) {
 	return f.clusterRoleBindings, nil
 }

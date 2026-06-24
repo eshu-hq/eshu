@@ -97,7 +97,8 @@ func goReceiverContext(node *tree_sitter.Node, source []byte) string {
 		return ""
 	}
 
-	typeNode := firstNamedDescendant(receiver,
+	typeNode := firstNamedDescendant(
+		receiver,
 		"type_identifier",
 		"qualified_type",
 		"generic_type",

@@ -234,16 +234,19 @@ func TestGCPMaterializationSignalsReachPrometheusExposition(t *testing.T) {
 	providers.PrometheusHandler.ServeHTTP(rec, req)
 	body := rec.Body.String()
 
-	assertPrometheusMetricLine(t, body, "eshu_dp_gcp_materialization_facts_total",
+	assertPrometheusMetricLine(
+		t, body, "eshu_dp_gcp_materialization_facts_total",
 		`domain="gcp_resource_materialization"`,
 		`fact_kind="gcp_cloud_resource"`,
 		`service_name="reducer"`,
 	)
-	assertPrometheusMetricLine(t, body, "eshu_dp_gcp_materialization_graph_writes_total",
+	assertPrometheusMetricLine(
+		t, body, "eshu_dp_gcp_materialization_graph_writes_total",
 		`domain="gcp_relationship_materialization"`,
 		`kind="edge"`,
 	)
-	assertPrometheusMetricLine(t, body, "eshu_dp_gcp_materialization_duration_seconds_count",
+	assertPrometheusMetricLine(
+		t, body, "eshu_dp_gcp_materialization_duration_seconds_count",
 		`domain="gcp_relationship_materialization"`,
 		`write_phase="graph_write"`,
 	)

@@ -13,7 +13,8 @@ func (cr *ContentReader) investigateCodeTopic(
 	ctx context.Context,
 	req codeTopicInvestigationRequest,
 ) ([]codeTopicEvidenceRow, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "investigate_code_topic"),

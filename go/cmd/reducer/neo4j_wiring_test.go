@@ -165,7 +165,8 @@ func TestReducerCypherExecutorExecutesCypher(t *testing.T) {
 	session := &fakeNeo4jSession{}
 	executor := reducerCypherExecutor{session: session}
 
-	err := executor.ExecuteCypher(context.Background(),
+	err := executor.ExecuteCypher(
+		context.Background(),
 		"MERGE (w:Workload {id: $workload_id})",
 		map[string]any{"workload_id": "workload:my-api"},
 	)

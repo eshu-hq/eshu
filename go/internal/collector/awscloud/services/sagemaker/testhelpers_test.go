@@ -36,15 +36,19 @@ func (c *fakeClient) ListEndpoints(context.Context) ([]Endpoint, error) { return
 func (c *fakeClient) ListEndpointConfigs(context.Context) ([]EndpointConfig, error) {
 	return c.endpointConfigs, nil
 }
+
 func (c *fakeClient) ListTrainingJobs(context.Context) ([]TrainingJob, error) {
 	return c.trainingJobs, nil
 }
+
 func (c *fakeClient) ListProcessingJobs(context.Context) ([]ProcessingJob, error) {
 	return c.processingJobs, nil
 }
+
 func (c *fakeClient) ListTransformJobs(context.Context) ([]TransformJob, error) {
 	return c.transformJobs, nil
 }
+
 func (c *fakeClient) ListHyperParameterTuningJobs(context.Context) ([]HyperParameterTuningJob, error) {
 	return c.tuningJobs, nil
 }

@@ -146,7 +146,8 @@ func TestServiceIncidentEvidenceForServicesBoundedPassesLimit(t *testing.T) {
 	loader := NewServiceIncidentEvidenceLoader(db)
 
 	if _, err := loader.GetIncidentEvidenceForServicesBounded(
-		context.Background(), []string{"component:default/checkout"}, 512); err != nil {
+		context.Background(), []string{"component:default/checkout"}, 512,
+	); err != nil {
 		t.Fatalf("GetIncidentEvidenceForServicesBounded() error = %v, want nil", err)
 	}
 	if len(db.queries) != 1 {

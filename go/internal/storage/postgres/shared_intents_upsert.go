@@ -146,13 +146,15 @@ func upsertSharedIntentBatch(ctx context.Context, db ExecQueryer, batch []prepar
 			values.WriteString(", ")
 		}
 		offset := i * columnsPerSharedIntent
-		fmt.Fprintf(&values,
+		fmt.Fprintf(
+			&values,
 			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::numeric, $%d::jsonb, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
 			offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12,
 		)
 
-		args = append(args,
+		args = append(
+			args,
 			row.intentID,
 			row.projectionDomain,
 			row.partitionKey,

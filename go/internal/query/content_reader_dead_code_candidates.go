@@ -35,7 +35,8 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 		offset = 0
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "dead_code_candidate_rows"),

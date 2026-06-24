@@ -20,7 +20,8 @@ func (w PostgresEshuSearchDocumentWriter) startSearchIndexWriteSpan(
 	if w.Tracer == nil {
 		return ctx, nil
 	}
-	return w.Tracer.Start(ctx, telemetry.SpanReducerEshuSearchIndexWrite,
+	return w.Tracer.Start(
+		ctx, telemetry.SpanReducerEshuSearchIndexWrite,
 		trace.WithAttributes(
 			attribute.String(telemetry.MetricDimensionDomain, string(DomainEshuSearchDocument)),
 			attribute.String(telemetry.MetricDimensionScopeID, scopeID),

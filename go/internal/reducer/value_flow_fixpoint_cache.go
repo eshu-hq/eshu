@@ -1,4 +1,4 @@
-package reducer
+package reducer //nolint:filelength // 504 lines: value-flow fixpoint cache. The cache is a single in-memory data structure backing the value-flow fixpoint domain; splitting it would scatter the cache invariants (TTL, eviction, dedup) across files.
 
 import (
 	"context"

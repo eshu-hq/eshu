@@ -226,7 +226,8 @@ func TestWholeCorpusMaintenanceDoesNotBlockUnrelatedCommit(t *testing.T) {
 	// Take repo-a's exclusive lock to model the repo-a batch being mid-flight.
 	batchTx := &advisoryLockTx{mgr: mgr}
 	if err := acquireDeferredMaintenanceRepoExclusiveLocks(
-		context.Background(), batchTx, []string{"repo-a"}); err != nil {
+		context.Background(), batchTx, []string{"repo-a"},
+	); err != nil {
 		t.Fatalf("repo-a batch lock: %v", err)
 	}
 
@@ -234,7 +235,8 @@ func TestWholeCorpusMaintenanceDoesNotBlockUnrelatedCommit(t *testing.T) {
 	go func() {
 		commitTx := &advisoryLockTx{mgr: mgr}
 		if err := acquireDeferredMaintenanceRepoSharedLock(
-			context.Background(), commitTx, "repo-b"); err != nil {
+			context.Background(), commitTx, "repo-b",
+		); err != nil {
 			t.Errorf("repo-b commit shared lock: %v", err)
 		}
 		_ = commitTx.Commit()

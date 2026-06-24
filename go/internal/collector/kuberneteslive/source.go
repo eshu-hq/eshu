@@ -129,7 +129,8 @@ func (s *Source) collectCluster(ctx context.Context, config Config, target Clust
 		))
 	}
 	if s.Logger != nil {
-		s.Logger.InfoContext(ctx, "kubernetes live snapshot completed",
+		s.Logger.InfoContext(
+			ctx, "kubernetes live snapshot completed",
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),

@@ -1,4 +1,4 @@
-package shape
+package shape //nolint:filelength // 522 lines: bucket table, File/Entity types, and Materialize. The bucket table and entity ordering are referenced as a single frozen table by the entity-row count contract.
 
 import (
 	"fmt"

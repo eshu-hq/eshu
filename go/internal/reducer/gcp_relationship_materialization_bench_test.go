@@ -19,7 +19,8 @@ func BenchmarkExtractGCPRelationshipEdgeRows(b *testing.B) {
 	for i := 0; i < resourceCount; i++ {
 		instance := fmt.Sprintf("//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/vm-%d", i)
 		disk := fmt.Sprintf("//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/disks/disk-%d", i)
-		resources = append(resources,
+		resources = append(
+			resources,
 			facts.Envelope{FactKind: facts.GCPCloudResourceFactKind, Payload: map[string]any{
 				"full_resource_name": instance,
 				"asset_type":         "compute.googleapis.com/Instance",

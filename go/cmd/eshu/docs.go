@@ -290,7 +290,8 @@ func endpointTruthFromOpenAPI(spec string) []doctruth.HTTPEndpointTruth {
 
 func docsVerifyHTTPEndpointTruth() []doctruth.HTTPEndpointTruth {
 	out := endpointTruthFromOpenAPI(query.OpenAPISpec())
-	out = append(out,
+	out = append(
+		out,
 		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/api/v0/docs"},
 		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/api/v0/redoc"},
 		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/health"},

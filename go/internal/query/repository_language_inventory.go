@@ -7,8 +7,10 @@ import (
 	"time"
 )
 
-const repositoryLanguageDefaultLimit = 100
-const repositoryLanguageMaxLimit = 500
+const (
+	repositoryLanguageDefaultLimit = 100
+	repositoryLanguageMaxLimit     = 500
+)
 
 func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r *http.Request) {
 	language := strings.ToLower(strings.TrimSpace(QueryParam(r, "language")))

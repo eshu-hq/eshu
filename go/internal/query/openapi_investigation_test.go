@@ -80,8 +80,10 @@ func TestOpenAPISpecIncludesInvestigationPacketRoutes(t *testing.T) {
 			}
 			responses := mustMapField(t, get, "responses")
 			okResponse := mustMapField(t, responses, "200")
-			schema := mustMapField(t,
-				mustMapField(t,
+			schema := mustMapField(
+				t,
+				mustMapField(
+					t,
 					mustMapField(t, okResponse, "content"),
 					"application/json",
 				),

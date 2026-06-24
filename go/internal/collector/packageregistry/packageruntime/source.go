@@ -390,7 +390,8 @@ func (s *ClaimedSource) recordGenerationLag(
 }
 
 func envelopesFromParsedMetadata(parsed packageregistry.ParsedMetadata) ([]facts.Envelope, error) {
-	envs := make([]facts.Envelope, 0,
+	envs := make(
+		[]facts.Envelope, 0,
 		len(parsed.Packages)+len(parsed.Versions)+len(parsed.Dependencies)+
 			len(parsed.Artifacts)+len(parsed.SourceHints)+len(parsed.Vulnerables)+
 			len(parsed.Events)+len(parsed.Hosting)+len(parsed.Warnings),

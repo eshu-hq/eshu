@@ -232,7 +232,8 @@ func TestDriftHandlerSingleOwnerEmitsCountersForAllFiveDriftKinds(t *testing.T) 
 		t.Fatalf("rule_matches = %d, want 5 (one per (match-rule, admitted candidate))", got)
 	}
 
-	assertCounterLabelKeys(t, rm,
+	assertCounterLabelKeys(
+		t, rm,
 		"eshu_dp_correlation_drift_detected_total",
 		map[string]struct{}{
 			telemetry.MetricDimensionPack:      {},
@@ -240,7 +241,8 @@ func TestDriftHandlerSingleOwnerEmitsCountersForAllFiveDriftKinds(t *testing.T) 
 			telemetry.MetricDimensionDriftKind: {},
 		},
 	)
-	assertCounterLabelKeys(t, rm,
+	assertCounterLabelKeys(
+		t, rm,
 		"eshu_dp_correlation_rule_matches_total",
 		map[string]struct{}{
 			telemetry.MetricDimensionPack: {},

@@ -112,7 +112,8 @@ func (a *openAICompatAdapter) CompleteStream(ctx context.Context, messages []Mes
 // Delta shape: {"choices":[{"delta":{"content":"...","tool_calls":[...]}}]}.
 func parseOpenAICompatStream(body interface {
 	Read([]byte) (int, error)
-}, emit func(StreamEvent)) (Completion, error) {
+}, emit func(StreamEvent),
+) (Completion, error) {
 	type deltaToolCallFunction struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`

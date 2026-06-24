@@ -1,4 +1,4 @@
-package main
+package main //nolint:filelength // 503 lines: main(), signal handling, telemetry bootstrap, and buildReducerService. The wiring into internal/reducer is single-purpose and reviewed as one entry point.
 
 import (
 	"fmt"
@@ -145,7 +145,8 @@ func buildReducerService(
 		return reducer.Service{}, fmt.Errorf("load reducer projector drain gate: %w", err)
 	}
 	if projectorDrainGate && logger != nil {
-		logger.Info("reducer claims will wait for source-local projection drain",
+		logger.Info(
+			"reducer claims will wait for source-local projection drain",
 			"graph_backend", string(graphBackend),
 			"query_profile", string(query.ProfileLocalAuthoritative),
 		)
@@ -155,7 +156,8 @@ func buildReducerService(
 		return reducer.Service{}, fmt.Errorf("load reducer claim domains: %w", err)
 	}
 	if len(claimDomains) > 0 && logger != nil {
-		logger.Info("reducer claims restricted to domains",
+		logger.Info(
+			"reducer claims restricted to domains",
 			"domains", reducerDomainStrings(claimDomains),
 		)
 	}

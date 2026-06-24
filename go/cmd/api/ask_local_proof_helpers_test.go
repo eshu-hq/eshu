@@ -368,7 +368,8 @@ func cleanScript(prose string) askStubScript {
 		},
 		narration: openAICompatCompletion{content: fmt.Sprintf(
 			`{"sentences":[{"text":%s,"kind":"factual","provenance":[{"kind":"citation","id":%q}]}]}`,
-			jsonQuote(prose), askProofCitationRef)},
+			jsonQuote(prose), askProofCitationRef,
+		)},
 	}
 }
 

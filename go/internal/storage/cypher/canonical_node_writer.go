@@ -312,7 +312,8 @@ func (w *CanonicalNodeWriter) logCanonicalPhaseFailure(
 	err error,
 	mode string,
 ) {
-	slog.WarnContext(ctx, "canonical phase failed",
+	slog.WarnContext(
+		ctx, "canonical phase failed",
 		"scope_id", mat.ScopeID,
 		"repo_id", mat.RepoID,
 		"generation_id", mat.GenerationID,
@@ -375,8 +376,10 @@ func annotateCanonicalWritePhases(phases []canonicalWritePhase) []canonicalWrite
 
 // --- Phase A: Retract stale nodes ---
 
-const canonicalNodeRefreshFilePathBatchSize = 100
-const canonicalNodeRefreshEntityContainmentBatchSize = 50
+const (
+	canonicalNodeRefreshFilePathBatchSize          = 100
+	canonicalNodeRefreshEntityContainmentBatchSize = 50
+)
 
 var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
 	"Function":               {},

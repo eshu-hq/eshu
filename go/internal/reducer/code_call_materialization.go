@@ -320,7 +320,8 @@ type codeCallMaterializationTiming struct {
 }
 
 func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMaterializationTiming) {
-	slog.InfoContext(ctx, "code call materialization completed",
+	slog.InfoContext(
+		ctx, "code call materialization completed",
 		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),

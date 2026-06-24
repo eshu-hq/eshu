@@ -63,7 +63,7 @@ func (c *awsS3ObjectClient) GetObject(
 	if output.ContentLength != nil {
 		size = *output.ContentLength
 	}
-	var lastModified = timeZeroUTC()
+	lastModified := timeZeroUTC()
 	if output.LastModified != nil {
 		lastModified = output.LastModified.UTC()
 	}

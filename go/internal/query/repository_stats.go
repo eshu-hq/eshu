@@ -31,7 +31,8 @@ func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Re
 
 	timer := startRepositoryQueryStage(ctx, h.Logger, "repository_stats", repoID, "repository_lookup")
 	repo, repoSource, err := h.repositoryStatsRepositoryRef(ctx, repoID)
-	timer.Done(ctx,
+	timer.Done(
+		ctx,
 		slog.Bool("found", repo != nil),
 		slog.Bool("error", err != nil),
 		slog.String("source_backend", repoSource),

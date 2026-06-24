@@ -10,8 +10,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const defaultGraphOrphanSweepPollInterval = time.Hour
-const defaultGraphOrphanSweepLeaseTTL = 5 * time.Minute
+const (
+	defaultGraphOrphanSweepPollInterval = time.Hour
+	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
+)
 
 const (
 	graphOrphanSweepLeaseDomain         = "graph_orphan_sweep"
@@ -181,7 +183,8 @@ func (r *GraphOrphanSweepRunner) recordResult(ctx context.Context, result GraphO
 	if r.Logger == nil {
 		return
 	}
-	r.Logger.InfoContext(ctx,
+	r.Logger.InfoContext(
+		ctx,
 		"graph orphan sweep cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
 		slog.Int64("orphan_count_total", graphOrphanSweepTotal(result.Counts)),
@@ -197,7 +200,8 @@ func (r *GraphOrphanSweepRunner) recordResult(ctx context.Context, result GraphO
 
 func (r *GraphOrphanSweepRunner) recordFailure(ctx context.Context, err error) {
 	if r.Logger != nil {
-		r.Logger.ErrorContext(ctx,
+		r.Logger.ErrorContext(
+			ctx,
 			"graph orphan sweep cycle failed",
 			slog.String("error", err.Error()),
 			telemetry.FailureClassAttr("graph_orphan_sweep_error"),

@@ -643,7 +643,8 @@ func TestReconciliationDriftRetractionsCounterRecordsBoundedLabels(t *testing.T)
 	inst, err := NewInstruments(provider.Meter("test"))
 	require.NoError(t, err)
 
-	inst.ReconciliationDriftRetractions.Add(context.Background(), 3,
+	inst.ReconciliationDriftRetractions.Add(
+		context.Background(), 3,
 		metric.WithAttributes(
 			AttrDomain("canonical_graph"),
 			AttrWritePhase("retract"),

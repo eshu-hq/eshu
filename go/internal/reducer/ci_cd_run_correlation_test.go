@@ -10,8 +10,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-const testCICDDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-const testCICDAmbiguousDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+const (
+	testCICDDigest          = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	testCICDAmbiguousDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+)
 
 type stubCICDRunCorrelationFactLoader struct {
 	scopeFacts []facts.Envelope

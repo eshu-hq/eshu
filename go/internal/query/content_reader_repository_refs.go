@@ -10,7 +10,8 @@ import (
 
 // ListRepositoryRefs returns source-backed Git refs observed for a repository.
 func (cr *ContentReader) ListRepositoryRefs(ctx context.Context, repoID string) ([]RepositoryRef, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_repository_refs"),

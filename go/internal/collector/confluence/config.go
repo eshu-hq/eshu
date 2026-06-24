@@ -11,8 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
-const defaultPageLimit = 100
-const defaultPollInterval = 5 * time.Minute
+const (
+	defaultPageLimit    = 100
+	defaultPollInterval = 5 * time.Minute
+)
 
 // SourceConfig configures bounded Confluence documentation source syncs.
 type SourceConfig struct {

@@ -1,4 +1,4 @@
-package python
+package python //nolint:filelength // 522 lines: dead-code root evidence (script-main guard, dunder protocol). Per internal/parser/python/AGENTS.md the per-language helper files intentionally bundle the AST-walking evidence rules; the per-rule contracts are tested in language_test.go.
 
 import (
 	"strings"

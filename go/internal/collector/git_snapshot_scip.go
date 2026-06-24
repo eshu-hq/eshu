@@ -268,7 +268,8 @@ func (s NativeRepositorySnapshotter) logSCIPSnapshotFallback(ctx context.Context
 	if s.Logger == nil {
 		return
 	}
-	s.Logger.WarnContext(ctx, "SCIP snapshot fallback to native parser",
+	s.Logger.WarnContext(
+		ctx, "SCIP snapshot fallback to native parser",
 		slog.String("language", language),
 		slog.String("reason", reason),
 		telemetry.FailureClassAttr("scip_"+reason),

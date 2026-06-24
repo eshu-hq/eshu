@@ -299,7 +299,8 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.SBOMDocumentFactKind:
-			keys = append(keys,
+			keys = append(
+				keys,
 				payloadString(envelope.Payload, "subject_digest"),
 				payloadString(envelope.Payload, "document_digest"),
 				payloadString(envelope.Payload, "document_id"),
@@ -308,23 +309,27 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 			keys = append(keys, payloadString(envelope.Payload, "document_id"))
 		case facts.AttestationStatementFactKind:
 			keys = append(keys, payloadStrings(envelope.Payload, "subject_digest", "subject_digests")...)
-			keys = append(keys,
+			keys = append(
+				keys,
 				payloadString(envelope.Payload, "statement_digest"),
 				payloadString(envelope.Payload, "payload_digest"),
 				payloadString(envelope.Payload, "statement_id"),
 			)
 		case facts.AttestationSignatureVerificationFactKind:
-			keys = append(keys,
+			keys = append(
+				keys,
 				payloadString(envelope.Payload, "statement_id"),
 				payloadString(envelope.Payload, "document_id"),
 			)
 		case facts.SBOMWarningFactKind:
-			keys = append(keys,
+			keys = append(
+				keys,
 				payloadString(envelope.Payload, "document_id"),
 				payloadString(envelope.Payload, "statement_id"),
 			)
 		case facts.OCIImageReferrerFactKind:
-			keys = append(keys,
+			keys = append(
+				keys,
 				payloadString(envelope.Payload, "subject_digest"),
 				payloadString(envelope.Payload, "referrer_digest"),
 			)

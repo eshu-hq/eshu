@@ -446,7 +446,8 @@ func logWorkloadMaterializationCompleted(
 		endpointRows = len(projection.EndpointRows)
 	}
 
-	slog.InfoContext(ctx, "workload materialization completed",
+	slog.InfoContext(
+		ctx, "workload materialization completed",
 		slog.String("scope_id", intent.ScopeID),
 		slog.String("generation_id", intent.GenerationID),
 		slog.String("domain", string(DomainWorkloadMaterialization)),

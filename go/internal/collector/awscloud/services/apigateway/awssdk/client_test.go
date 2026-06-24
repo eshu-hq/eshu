@@ -363,5 +363,7 @@ func (f *fakeV2API) GetApiMappings(
 	return page, nil
 }
 
-var _ restAPIClient = (*fakeRESTAPI)(nil)
-var _ v2APIClient = (*fakeV2API)(nil)
+var (
+	_ restAPIClient = (*fakeRESTAPI)(nil)
+	_ v2APIClient   = (*fakeV2API)(nil)
+)

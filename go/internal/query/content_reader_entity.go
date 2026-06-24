@@ -12,7 +12,8 @@ import (
 
 // GetEntityContent returns one entity by entity_id.
 func (cr *ContentReader) GetEntityContent(ctx context.Context, entityID string) (*EntityContent, error) {
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "get_entity_content"),
@@ -61,7 +62,8 @@ func (cr *ContentReader) GetEntityContentInRepositories(
 		return nil, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "get_entity_content_in_repositories"),
@@ -105,7 +107,8 @@ func (cr *ContentReader) GetEntityContents(ctx context.Context, entityIDs []stri
 		return map[string]*EntityContent{}, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "get_entity_contents"),
@@ -169,7 +172,8 @@ func (cr *ContentReader) GetEntityContentsInRepositories(
 		return map[string]*EntityContent{}, nil
 	}
 
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "get_entity_contents_in_repositories"),

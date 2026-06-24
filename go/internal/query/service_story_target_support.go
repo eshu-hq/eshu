@@ -108,7 +108,8 @@ func (cr *ContentReader) serviceStoryTargetSupportEvidence(
 	if cr == nil || cr.db == nil {
 		return serviceStoryTargetSupportReadModel{}, nil
 	}
-	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
 		trace.WithAttributes(
 			attribute.String("db.system", "postgresql"),
 			attribute.String("db.operation", "list_service_story_target_support"),
@@ -212,7 +213,8 @@ LIMIT $%d
 
 func serviceStoryTargetSupportFactKinds() []string {
 	kinds := append([]string{}, workItemEvidenceFactKinds...)
-	kinds = append(kinds,
+	kinds = append(
+		kinds,
 		"incident_routing.applied_pagerduty_resource",
 		"incident_routing.observed_pagerduty_service",
 		"incident_routing.coverage_warning",

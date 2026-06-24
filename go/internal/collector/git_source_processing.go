@@ -33,7 +33,8 @@ func (s *GitSource) discoverRepositories(ctx context.Context) (SelectionBatch, e
 		duration := time.Since(start).Seconds()
 
 		if s.Instruments != nil {
-			s.Instruments.ScopeAssignDuration.Record(ctx, duration,
+			s.Instruments.ScopeAssignDuration.Record(
+				ctx, duration,
 				metric.WithAttributes(
 					telemetry.AttrCollectorKind("git"),
 					telemetry.AttrSourceSystem("git"),
@@ -46,7 +47,8 @@ func (s *GitSource) discoverRepositories(ctx context.Context) (SelectionBatch, e
 			if len(batch.Repositories) == 0 {
 				logFn = s.Logger.DebugContext
 			}
-			logFn(ctx, "collector discovery completed",
+			logFn(
+				ctx, "collector discovery completed",
 				slog.String("collector_kind", "git"),
 				slog.Int("repository_count", len(batch.Repositories)),
 			)
@@ -136,7 +138,7 @@ func (s *GitSource) processRepo(
 	observedAt time.Time,
 	workerID int,
 	errOnce *sync.Once,
-	firstErr *error,
+	firstErr *error, //nolint:gocritic // ptrToRefParam: shared error pointer across the snapshotter goroutines is the documented capture pattern.
 	cancel context.CancelFunc,
 	completed *atomic.Int64,
 ) {
@@ -151,7 +153,8 @@ func (s *GitSource) processRepo(
 
 	if err != nil {
 		if s.Instruments != nil {
-			s.Instruments.ReposSnapshotted.Add(ctx, 1,
+			s.Instruments.ReposSnapshotted.Add(
+				ctx, 1,
 				metric.WithAttributes(attribute.String("status", "failed")),
 			)
 		}
@@ -245,23 +248,27 @@ func (s *GitSource) snapshotOneRepository(
 	// without the unbounded cardinality of a raw file_count label; the exact
 	// file_count is recorded on the structured completion log below.
 	if s.Instruments != nil {
-		s.Instruments.RepoSnapshotDuration.Record(ctx, duration,
+		s.Instruments.RepoSnapshotDuration.Record(
+			ctx, duration,
 			metric.WithAttributes(
 				telemetry.AttrScopeID(scopeID),
 				telemetry.AttrRepoSizeTier(sizeTier),
 			),
 		)
-		s.Instruments.ReposSnapshotted.Add(ctx, 1,
+		s.Instruments.ReposSnapshotted.Add(
+			ctx, 1,
 			metric.WithAttributes(attribute.String("status", "succeeded")),
 		)
-		s.Instruments.FactEmitDuration.Record(ctx, duration,
+		s.Instruments.FactEmitDuration.Record(
+			ctx, duration,
 			metric.WithAttributes(
 				telemetry.AttrCollectorKind("git"),
 				telemetry.AttrSourceSystem("git"),
 				telemetry.AttrScopeID(scopeID),
 			),
 		)
-		s.Instruments.FactsEmitted.Add(ctx, int64(factCount),
+		s.Instruments.FactsEmitted.Add(
+			ctx, int64(factCount),
 			metric.WithAttributes(
 				telemetry.AttrCollectorKind("git"),
 				telemetry.AttrSourceSystem("git"),

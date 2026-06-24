@@ -173,7 +173,8 @@ func runComponentVerify(cmd *cobra.Command, args []string) error {
 		payload.Verification = &result
 		return writeComponentJSON(cmd.OutOrStdout(), payload)
 	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "verified %s@%s with %s policy\n",
+	_, err = fmt.Fprintf(
+		cmd.OutOrStdout(), "verified %s@%s with %s policy\n",
 		manifest.Metadata.ID,
 		manifest.Metadata.Version,
 		result.Mode,

@@ -117,7 +117,8 @@ func (s SearchDocumentProjectionSweeper) logSweep(ctx context.Context, pending i
 	if s.Logger == nil {
 		return
 	}
-	s.Logger.InfoContext(ctx, "eshu search document projection sweep completed",
+	s.Logger.InfoContext(
+		ctx, "eshu search document projection sweep completed",
 		slog.Int("pending_scopes", pending),
 		slog.Int("enqueued_intents", enqueued),
 		slog.Float64("duration_seconds", time.Since(startedAt).Seconds()),

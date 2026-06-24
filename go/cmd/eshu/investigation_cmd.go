@@ -125,7 +125,8 @@ func buildInvestigationExportPacket(cmd *cobra.Command, family query.Investigati
 		return buildDriftExportPacket(cmd, subject)
 	default:
 		return query.InvestigationEvidencePacket{}, fmt.Errorf(
-			"investigation family %q is recognized but not yet available in this CLI build", family)
+			"investigation family %q is recognized but not yet available in this CLI build", family,
+		)
 	}
 }
 

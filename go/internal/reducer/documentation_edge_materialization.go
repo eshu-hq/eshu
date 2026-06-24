@@ -37,7 +37,8 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 		return Result{}, fmt.Errorf("documentation materialization edge writer is required")
 	}
 
-	slog.InfoContext(ctx, "documentation materialization started",
+	slog.InfoContext(
+		ctx, "documentation materialization started",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
@@ -78,7 +79,8 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 		}
 	}
 
-	slog.InfoContext(ctx, "documentation materialization completed",
+	slog.InfoContext(
+		ctx, "documentation materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 		slog.Int("edge_count", len(writeRows)),

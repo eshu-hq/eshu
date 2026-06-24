@@ -210,7 +210,8 @@ func unmatchedSurfaceFindings(matrix Matrix, signals Signals, nonMCP map[string]
 				Subject: tool,
 				Detail: fmt.Sprintf(
 					"capability %q declares tool %q with no MCP registry match and no non_mcp_surfaces declaration",
-					capability.Capability, tool),
+					capability.Capability, tool,
+				),
 			})
 		}
 	}

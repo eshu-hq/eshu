@@ -37,14 +37,16 @@ func TestAdapterInterfaceForbidsStateAndMutation(t *testing.T) {
 			if strings.Contains(name, banned) {
 				t.Fatalf(
 					"apiClient exposes forbidden state/mutation method %q; the recovery-control adapter is metadata-only",
-					name)
+					name,
+				)
 			}
 		}
 		for _, prefix := range forbiddenPrefixes {
 			if strings.HasPrefix(name, prefix) {
 				t.Fatalf(
 					"apiClient exposes mutation method %q (prefix %q); the recovery-control adapter is metadata-only",
-					name, prefix)
+					name, prefix,
+				)
 			}
 		}
 	}
