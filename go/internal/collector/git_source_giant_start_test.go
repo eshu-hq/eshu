@@ -108,71 +108,120 @@ func TestSchedulerRolePrefersGiantOverFrontLoadedSmallLane(t *testing.T) {
 	}
 }
 
-// concurrencyPeakSnapshotter is a RepositorySnapshotter that records the peak
-// number of SnapshotRepository calls executing concurrently. A brief sleep
-// inside SnapshotRepository ensures real overlap when the semaphore allows
-// multiple concurrent holders.
-type concurrencyPeakSnapshotter struct {
-	mu        sync.Mutex
-	inflight  int
-	peak      int
-	calls     []string
-	snapshots map[string]RepositorySnapshot
-}
-
-// SnapshotRepository satisfies RepositorySnapshotter.
-func (c *concurrencyPeakSnapshotter) SnapshotRepository(
-	_ context.Context, repo SelectedRepository,
-) (RepositorySnapshot, error) {
-	c.mu.Lock()
-	c.inflight++
-	if c.inflight > c.peak {
-		c.peak = c.inflight
-	}
-	c.calls = append(c.calls, repo.RepoPath)
-	c.mu.Unlock()
-
-	// Hold the slot long enough for other goroutines to be scheduled.
-	time.Sleep(5 * time.Millisecond)
-
-	c.mu.Lock()
-	c.inflight--
-	c.mu.Unlock()
-
-	snap := c.snapshots[repo.RepoPath]
-	return snap, nil
-}
-
-// TestSchedulerSemaphoreCapNotExceeded proves that the largeSem capacity is
-// never breached when multiple large-preferring workers run concurrently.
+// gatedConcurrencySnapshotter is a RepositorySnapshotter that deterministically
+// measures the peak number of *giant* SnapshotRepository calls in flight at once,
+// without relying on a sleep to coax overlap. Every gated (giant) path increments
+// the in-flight counter, records the high-water mark, announces itself on
+// arrived, and then blocks on release until the test opens the gate. Small repos
+// are never gated and pass through instantly, so the peak reflects giant
+// concurrency alone.
 //
-// It fails a regression where the semaphore acquisition logic is bypassed
-// (e.g. the slot send is guarded by a condition that allows more than cap
-// concurrent holders), because the peak concurrent count recorded by the
-// instrumented snapshotter would exceed the semaphore cap.
+// The test's gate controller reads exactly semCap arrivals before closing
+// release. At that instant semCap giants are past the in-flight increment and
+// blocked on release with none yet decremented, so inflight==semCap and the
+// recorded peak is pinned to semCap deterministically — there is no timing window
+// in which the assertion can flake.
+type gatedConcurrencySnapshotter struct {
+	snapshots map[string]RepositorySnapshot
+	gate      map[string]bool // repo paths that block on release (the giants)
+	arrived   chan string     // one send per gated snapshot when it goes in flight
+	release   chan struct{}   // closed by the test to let gated snapshots complete
+
+	mu       sync.Mutex
+	inflight int
+	peak     int
+	calls    []string
+}
+
+// SnapshotRepository satisfies RepositorySnapshotter. Gated repos block on the
+// release gate (or ctx) while in flight; ungated repos return immediately.
+func (g *gatedConcurrencySnapshotter) SnapshotRepository(
+	ctx context.Context, repo SelectedRepository,
+) (RepositorySnapshot, error) {
+	g.mu.Lock()
+	g.calls = append(g.calls, repo.RepoPath)
+	gated := g.gate[repo.RepoPath]
+	if gated {
+		g.inflight++
+		if g.inflight > g.peak {
+			g.peak = g.inflight
+		}
+	}
+	g.mu.Unlock()
+
+	if gated {
+		g.arrived <- repo.RepoPath
+		select {
+		case <-g.release:
+		case <-ctx.Done():
+		}
+		g.mu.Lock()
+		g.inflight--
+		g.mu.Unlock()
+	}
+
+	return g.snapshots[repo.RepoPath], nil
+}
+
+// TestSchedulerSemaphoreCapNotExceeded proves that largeSem caps concurrent
+// giant snapshots at LargeRepoMaxConcurrent under the real multi-worker mix —
+// min(semCap, workers) large-preferring lanes plus the rest small-preferring —
+// all sharing one smallCh, largeCh, and buffered largeSem.
+//
+// Both lanes are pre-filled with several giants and many smalls and then closed
+// (the worst-case "classifier already drained both lanes" ordering), and all
+// four worker goroutines are spawned via the two role methods. A deterministic
+// gate (the gatedConcurrencySnapshotter) blocks every giant in flight until
+// exactly semCap of them are simultaneously executing, then opens. The recorded
+// peak must equal semCap: never above (semaphore must hold) and never below (the
+// gate pins semCap giants in flight, so a regression that serialized giants or
+// failed to use both slots would be caught too). Every repo must also drain
+// exactly once.
+//
+// It fails a regression where the semaphore is bypassed (peak > semCap) and a
+// regression where giants cannot run concurrently up to the cap (peak < semCap).
 func TestSchedulerSemaphoreCapNotExceeded(t *testing.T) {
 	t.Parallel()
 
-	const semCap = 2
-	giants := []string{"giant-0", "giant-1", "giant-2", "giant-3", "giant-4"}
+	const (
+		workers = 4
+		semCap  = 2 // LargeRepoMaxConcurrent
+	)
+	giants := []string{"giant-0", "giant-1", "giant-2", "giant-3"}
+	smalls := []string{"s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"}
+	total := len(giants) + len(smalls)
 
-	snapshots := make(map[string]RepositorySnapshot, len(giants))
+	snapshots := make(map[string]RepositorySnapshot, total)
+	gate := make(map[string]bool, len(giants))
 	for _, g := range giants {
 		snapshots[g] = RepositorySnapshot{RepoPath: g, FileCount: 9999}
+		gate[g] = true
+	}
+	for _, s := range smalls {
+		snapshots[s] = RepositorySnapshot{RepoPath: s, FileCount: 0}
 	}
 
-	cts := &concurrencyPeakSnapshotter{snapshots: snapshots}
+	snap := &gatedConcurrencySnapshotter{
+		snapshots: snapshots,
+		gate:      gate,
+		arrived:   make(chan string, len(giants)),
+		release:   make(chan struct{}),
+	}
 
-	// Build the scheduler directly — same pattern as the existing test.
+	// Pre-fill BOTH lanes fully, then close, so all workers drain everything and
+	// exit. Buffered to the lane size so the fills never block.
 	largeCh := make(chan SelectedRepository, len(giants))
 	for _, g := range giants {
 		largeCh <- SelectedRepository{RepoPath: g, RemoteURL: "https://github.com/example/repo"}
 	}
 	close(largeCh)
-	smallCh := make(chan SelectedRepository)
+	smallCh := make(chan SelectedRepository, len(smalls))
+	for _, s := range smalls {
+		smallCh <- SelectedRepository{RepoPath: s, RemoteURL: "https://github.com/example/repo"}
+	}
 	close(smallCh)
 
-	stream := make(chan CollectedGeneration, len(giants)+1)
+	stream := make(chan CollectedGeneration, total)
 	drainDone := make(chan struct{})
 	go func() {
 		defer close(drainDone)
@@ -181,7 +230,7 @@ func TestSchedulerSemaphoreCapNotExceeded(t *testing.T) {
 		}
 	}()
 
-	src := &GitSource{Component: "collector-git", Snapshotter: cts}
+	src := &GitSource{Component: "collector-git", Snapshotter: snap}
 	src.stream = stream
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -205,17 +254,44 @@ func TestSchedulerSemaphoreCapNotExceeded(t *testing.T) {
 		completed:   &completed,
 	}
 
-	// Run 3 large-preferring workers concurrently (> semCap) so contention is real.
+	// Deterministic gate controller: wait until exactly semCap giants are in
+	// flight (which pins inflight==semCap with none yet released), then open the
+	// gate. This makes the peak deterministic instead of relying on a sleep to
+	// produce overlap. semCap arrivals are guaranteed: semCap large-preferring
+	// workers each reserve a slot and block-pull a giant, and len(giants) >= semCap.
+	gateOpened := make(chan struct{})
+	go func() {
+		defer close(gateOpened)
+		for range semCap {
+			<-snap.arrived
+		}
+		close(snap.release)
+	}()
+
+	// Spawn the real worker mix: min(semCap, workers) large-preferring lanes and
+	// the rest small-preferring, all sharing the scheduler's channels and sem.
+	largeWorkers := semCap
+	if workers < semCap {
+		largeWorkers = workers
+	}
 	var wg sync.WaitGroup
-	const numWorkers = 3
-	for i := range numWorkers {
+	for i := range largeWorkers {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			sc.runLargePreferring(id + 1)
-		}(i)
+			sc.runLargePreferring(id)
+		}(i + 1)
 	}
+	for i := range workers - largeWorkers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			sc.runSmallPreferring(id)
+		}(largeWorkers + i + 1)
+	}
+
 	wg.Wait()
+	<-gateOpened
 	close(stream)
 	<-drainDone
 
@@ -223,17 +299,20 @@ func TestSchedulerSemaphoreCapNotExceeded(t *testing.T) {
 		t.Fatalf("unexpected worker error: %v", firstErr)
 	}
 
-	// All giants must be processed exactly once.
-	cts.mu.Lock()
-	gotCalls := len(cts.calls)
-	peakConcurrent := cts.peak
-	cts.mu.Unlock()
+	snap.mu.Lock()
+	gotCalls := len(snap.calls)
+	peakConcurrent := snap.peak
+	snap.mu.Unlock()
 
-	if gotCalls != len(giants) {
-		t.Fatalf("processed %d giants, want %d", gotCalls, len(giants))
+	if gotCalls != total {
+		t.Fatalf("processed %d repos, want %d (every repo must drain exactly once)", gotCalls, total)
 	}
 	if peakConcurrent > semCap {
 		t.Fatalf("peak concurrent giant snapshots = %d, exceeded semaphore cap %d (semaphore not enforced)",
+			peakConcurrent, semCap)
+	}
+	if peakConcurrent != semCap {
+		t.Fatalf("peak concurrent giant snapshots = %d, want exactly %d (gate pins semCap giants in flight)",
 			peakConcurrent, semCap)
 	}
 }
@@ -395,5 +474,141 @@ func TestSchedulerSemaphoreReleasedOnSnapshotError(t *testing.T) {
 	// Semaphore must be fully released despite the error.
 	if got := len(sem); got != 0 {
 		t.Fatalf("largeSem has %d token(s) after snapshot error, want 0 (afterSnapshot not called on error path)", got)
+	}
+}
+
+// TestSchedulerSmallWorkerReservedWhenCapEqualsWorkers proves the P2 fix: when
+// ESHU_SNAPSHOT_WORKERS <= ESHU_LARGE_REPO_MAX_CONCURRENT (e.g. both == 2),
+// at least one worker must be small-preferring so small repos drain WITHOUT
+// waiting for largeCh to close.
+//
+// Setup: largeCh is intentionally never closed (simulating a slow classifier
+// or a long-running discovery goroutine). smallCh has one small repo and is
+// closed. With workers==2 and semCap==2 (cap >= workers), the pre-fix code set
+// largePreferring=min(2,2)=2, making BOTH workers large-preferring; those
+// workers each reserve a sem slot and then block waiting for largeCh forever,
+// so the small repo would never be processed. The fix clamps largePreferring to
+// workers-1 == 1, leaving one worker small-preferring, which drains the small
+// repo promptly.
+//
+// The test fails without the `if largePreferring >= workers && workers > 1`
+// reserve clamp in git_source_stream.go and passes with it.
+func TestSchedulerSmallWorkerReservedWhenCapEqualsWorkers(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workers = 2
+		semCap  = 2 // cap >= workers: the P2 starvation condition
+	)
+
+	const small = "small-repo"
+
+	snapshots := map[string]RepositorySnapshot{
+		small: {RepoPath: small, FileCount: 0},
+	}
+	stub := &stubRepositorySnapshotter{snapshots: snapshots}
+
+	stream := make(chan CollectedGeneration, workers+1)
+	drainDone := make(chan struct{})
+	go func() {
+		defer close(drainDone)
+		for gen := range stream {
+			drainFactChannel(gen.Facts)
+		}
+	}()
+
+	src := &GitSource{Component: "collector-git", Snapshotter: stub}
+	src.stream = stream
+
+	// smallCh: one small repo then closed — the test asserts this drains promptly.
+	smallCh := make(chan SelectedRepository, 1)
+	smallCh <- SelectedRepository{RepoPath: small, RemoteURL: "https://github.com/example/repo"}
+	close(smallCh)
+
+	// largeCh: never closed and never written to. If both workers become
+	// large-preferring, they both block here forever and the small repo starves.
+	largeCh := make(chan SelectedRepository)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var (
+		once      sync.Once
+		firstErr  error
+		completed atomic.Int64
+	)
+	sc := &snapshotScheduler{
+		source:      src,
+		smallCh:     smallCh,
+		largeCh:     largeCh,
+		largeSem:    make(chan struct{}, semCap),
+		workerCtx:   ctx,
+		cancel:      cancel,
+		sourceRunID: "run-reserve",
+		observedAt:  time.Unix(0, 0).UTC(),
+		errOnce:     &once,
+		firstErr:    &firstErr,
+		completed:   &completed,
+	}
+
+	// Spawn the same worker mix that startStream would use after the P2 fix:
+	// largePreferring = min(semCap, workers) - 1 = 1, so one large-preferring
+	// and one small-preferring. The small-preferring worker drains the small
+	// repo and exits; the large-preferring worker eventually gets ctx-cancelled.
+	largePreferring := semCap
+	if largePreferring > workers {
+		largePreferring = workers
+	}
+	if largePreferring >= workers && workers > 1 {
+		largePreferring = workers - 1
+	}
+
+	var wg sync.WaitGroup
+	for i := range workers {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			if idx < largePreferring {
+				sc.runLargePreferring(idx + 1)
+			} else {
+				sc.runSmallPreferring(idx + 1)
+			}
+		}(i)
+	}
+
+	// The small repo must be processed well before the timeout. We detect
+	// completion by polling completed until it reaches 1, then cancel to
+	// unblock any large-preferring workers blocked on largeCh.
+	deadline := time.NewTimer(3 * time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(1 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-tick.C:
+			if completed.Load() >= 1 {
+				cancel() // unblock the large-preferring worker
+				goto done
+			}
+		case <-deadline.C:
+			cancel()
+			t.Fatal("small repo was not processed within 3s: small-preferring worker not reserved (P2 starvation)")
+		}
+	}
+done:
+	wg.Wait()
+	close(stream)
+	<-drainDone
+
+	if firstErr != nil {
+		t.Fatalf("unexpected worker error: %v", firstErr)
+	}
+
+	stub.mu.Lock()
+	calls := stub.calls
+	stub.mu.Unlock()
+
+	if len(calls) != 1 || calls[0] != small {
+		t.Fatalf("processed repos = %v, want [%q]", calls, small)
 	}
 }

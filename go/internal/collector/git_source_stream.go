@@ -207,6 +207,14 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	if largePreferring > workers {
 		largePreferring = workers
 	}
+	// Reserve at least one small-preferring worker when workers > 1 so small
+	// repos are not starved until largeCh closes. When workers == 1 the lone
+	// worker is small-preferring and still opportunistically drains large repos
+	// via the runSmallPreferring select (it can win the semaphore when no small
+	// repo is immediately available).
+	if largePreferring >= workers && workers > 1 {
+		largePreferring = workers - 1
+	}
 
 	for i := 0; i < workers; i++ {
 		workerID := i + 1
@@ -214,6 +222,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 		// LargeRepoMaxConcurrent giant repos start in the first scheduling window
 		// regardless of how the classifier front-loads the small lane (issue
 		// #3839); the rest prefer the small lane to keep small repos flowing.
+		// largePreferring is always < workers (enforced above), so at least one
+		// worker here takes the small-preferring path.
 		preferLarge := i < largePreferring
 		wg.Add(1)
 		go func() {
