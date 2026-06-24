@@ -88,6 +88,9 @@ func (v CrewjamSAMLVerifier) VerifySAMLResponse(
 		return SAMLAssertion{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		return SAMLAssertion{}, fmt.Errorf("parse saml response form: %w", err)
+	}
 	assertion, err := sp.ParseResponse(req, []string{requestID})
 	if err != nil {
 		return SAMLAssertion{}, err
