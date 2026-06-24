@@ -467,10 +467,12 @@ claim/execute spans for the value-flow evidence domains.
   per-repo snapshotting. Raising this value beyond CPU capacity increases
   context-switching without reducing wall time.
 - `ESHU_PARSE_WORKERS` partitions parser-supported files by stable repository
-  subtree before concurrent native parsing. Oversized subtrees are split into
-  deterministic chunks so a single large monorepo can keep multiple parse
-  workers busy while the composed snapshot is sorted back to the original file
-  order.
+  subtree before concurrent native parsing. Partitions are balanced by total
+  on-disk bytes, not file count, so a subtree dominated by a few heavy files
+  does not pin one parse worker. Subtrees heavier than one worker's byte target
+  are split into deterministic byte-balanced chunks; lighter subtrees stay whole
+  so a single large monorepo can keep multiple parse workers busy while the
+  composed snapshot is sorted back to the original file order.
 - `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX` deterministically filter
   discovered repository IDs before filesystem or Git sync begins. The shard hash
   uses only the normalized repository ID; shard IDs are not part of repository,
@@ -575,6 +577,43 @@ existing small/large lane classification, so no second tree walk is added.
   `file_count` remains on the existing `collector snapshot completed` structured
   log. No new instrument or pipeline stage is introduced; `repo_size_tier` is an
   already-registered telemetry dimension.
+
+### Size-aware parse-partition balancing (issue #3711)
+
+Within a single repository, parse work was partitioned by file *count*: a
+subtree was split into chunks of `ceil(fileCount/workers)` files. That balances
+file count, not parse cost, so a subtree with a few huge files pinned one parse
+worker while others idled. In the measured full-corpus run a single
+16,659-file repository's parse took ~1012 s (~0.49 s/file, ~10x normal),
+consistent with a few heavy files/subtrees dominating its partitions.
+
+This change balances partitions by total on-disk bytes (`os.Stat` size, summed)
+instead of file count. Subtrees lighter than one worker's byte target stay
+whole; heavier subtrees are split into byte-balanced chunks so their heavy files
+spread across workers. Stat failures fall back to a default weight so no file is
+dropped. The partitions cover the exact same file set (same indexes, no drop, no
+duplicate), so the parse result is byte-identical — only the worker distribution
+changes.
+
+- Performance Evidence (projected, pending e2e): baseline is the count-based
+  partitioning where one giant repository's parse ran ~1012 s with heavy files
+  clustered in a few partitions; after this change the same heavy files are
+  spread by byte weight across parse workers, so the expected improvement is a
+  lower max-partition parse time for heavy-file-skewed repositories within the
+  fixed `ESHU_PARSE_WORKERS` budget. Correctness and balance proof:
+  `go test ./internal/collector -run
+  'Test(BuildParseSubtreePartitionsCoversExactFileSet|BuildParseSubtreePartitionsSpreadsHeavyFiles|BuildParseSubtreePartitionsEdgeCases|BuildParseSubtreePartitionsSplitsStableSubtrees|PartitionedConcurrentParseMatchesSequentialComposition)'
+  -count=1` proves the union of partitions equals the input file set exactly,
+  heavy files spread instead of clustering, the empty/single/all-same-size edge
+  cases hold, and the concurrent parse output still matches the sequential
+  composition byte-for-byte. The projected wall-time win is to be confirmed by
+  the remote full-corpus e2e run.
+- No-Observability-Change: parse-partition balancing changes only how files are
+  grouped across the existing parse workers. The existing
+  `eshu_dp_file_parse_duration_seconds`, `eshu_dp_files_parsed_total`, and the
+  `collector snapshot stage completed` parse log (`parse_workers`,
+  `parse_partition_count`) continue to report parse timing and partition shape;
+  no metric, span, log field, or label is added or removed.
 
 - Collector Performance Evidence: declared Prometheus/Mimir, Loki, and Tempo source
   facts reuse the existing repository parse and fact-stream pass. The focused
