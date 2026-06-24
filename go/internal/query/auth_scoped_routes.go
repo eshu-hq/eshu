@@ -66,6 +66,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedAuthProfileReadRoute(r) {
 		return true
 	}
+	if scopedAuthAdminReadRoute(r) {
+		return true
+	}
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
@@ -216,6 +219,34 @@ func scopedAuthProfileReadRoute(r *http.Request) bool {
 	case "/api/v0/auth/profile",
 		"/api/v0/auth/sessions",
 		"/api/v0/auth/local/api-tokens":
+		return true
+	default:
+		return false
+	}
+}
+
+// scopedAuthAdminReadRoute reports whether the request targets one of the
+// tenant-admin identity read endpoints. These GETs derive the tenant/workspace
+// strictly from AuthContext and return only metadata within the caller's own
+// tenant (never another tenant's data and never any secret). The handler
+// additionally requires all-scope admin auth, so a non-admin browser-session or
+// scoped-token caller that reaches here is still denied by adminScope. Admins
+// drive the console with cookie sessions, which the auth middleware treats as
+// tenant-filter eligible only for routes in this allowlist, so these routes
+// must be listed for the admin console to function.
+func scopedAuthAdminReadRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/auth/local/invitations",
+		"/api/v0/auth/admin/role-assignments",
+		"/api/v0/auth/admin/roles",
+		"/api/v0/auth/admin/idp-providers",
+		"/api/v0/auth/admin/idp-group-mappings",
+		"/api/v0/auth/admin/api-tokens",
+		"/api/v0/auth/admin/audit/events",
+		"/api/v0/auth/admin/audit/summary":
 		return true
 	default:
 		return false

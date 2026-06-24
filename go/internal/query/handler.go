@@ -185,6 +185,7 @@ type APIRouter struct {
 	LocalIdentity          *LocalIdentityHandler
 	BrowserSessions        *BrowserSessionHandler
 	SessionList            *BrowserSessionListHandler
+	AdminIdentityReads     *AdminIdentityReadHandler
 	Profile                *ProfileHandler
 	OIDCLogin              *OIDCLoginHandler
 	SAML                   *SAMLHandler
@@ -211,6 +212,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.SessionList != nil {
 		a.SessionList.Mount(mux)
+	}
+	if a.AdminIdentityReads != nil {
+		a.AdminIdentityReads.Mount(mux)
 	}
 	if a.Profile != nil {
 		a.Profile.Mount(mux)
