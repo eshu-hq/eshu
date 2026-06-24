@@ -51,7 +51,8 @@ type AdminAPITokenListItem struct {
 
 // listAdminIdPProvidersQuery selects metadata-only provider columns for the
 // caller's tenant. No hashed issuer/metadata/entity/client identifiers and no
-// credential handle are selected.
+// credential handle are selected. tombstoned_at IS NULL excludes soft-deleted
+// providers that may still carry status='active'.
 const listAdminIdPProvidersQuery = `
 SELECT
     provider_config_id,
@@ -59,6 +60,7 @@ SELECT
     status
 FROM identity_provider_configs
 WHERE tenant_id = $1
+  AND tombstoned_at IS NULL
 ORDER BY provider_config_id ASC
 LIMIT 500
 `
@@ -105,7 +107,8 @@ func (s *IdentitySubjectStore) ListAdminIdPProviders(
 // caller's tenant/workspace. external_group_hash is never selected; a stable
 // md5 digest over the composite primary key forms a non-secret MappingRef so an
 // admin can address a row without the hashed group name. md5 here is a
-// non-cryptographic row identifier, not a secret.
+// non-cryptographic row identifier, not a secret. tombstoned_at IS NULL excludes
+// soft-deleted mappings that may still carry status='active'.
 const listAdminIdPGroupMappingsQuery = `
 SELECT
     md5(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash) AS mapping_ref,
@@ -118,6 +121,7 @@ SELECT
     workspace_id
 FROM identity_provider_group_role_mappings
 WHERE tenant_id = $1 AND workspace_id = $2
+  AND tombstoned_at IS NULL
 ORDER BY provider_config_id ASC, role_id ASC, mapping_ref ASC
 LIMIT 500
 `

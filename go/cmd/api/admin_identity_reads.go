@@ -252,6 +252,7 @@ func (a *adminGovernanceAuditReader) ListAuditEvents(
 		OccurredAfter:      q.OccurredAfter,
 		OccurredBefore:     q.OccurredBefore,
 		Limit:              q.Limit,
+		OrderDesc:          q.OrderDesc,
 	})
 }
 

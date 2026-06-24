@@ -234,6 +234,11 @@ func scopedAuthProfileReadRoute(r *http.Request) bool {
 // drive the console with cookie sessions, which the auth middleware treats as
 // tenant-filter eligible only for routes in this allowlist, so these routes
 // must be listed for the admin console to function.
+//
+// The audit routes (/audit/events, /audit/summary) are intentionally excluded:
+// they expose GLOBAL cross-tenant data and require AuthModeShared, not a
+// browser-session tenant context. Shared-operator callers hold bearer tokens
+// that bypass the tenant-filter gate entirely. See #3717 for per-tenant audit.
 func scopedAuthAdminReadRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
@@ -244,9 +249,7 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 		"/api/v0/auth/admin/roles",
 		"/api/v0/auth/admin/idp-providers",
 		"/api/v0/auth/admin/idp-group-mappings",
-		"/api/v0/auth/admin/api-tokens",
-		"/api/v0/auth/admin/audit/events",
-		"/api/v0/auth/admin/audit/summary":
+		"/api/v0/auth/admin/api-tokens":
 		return true
 	default:
 		return false

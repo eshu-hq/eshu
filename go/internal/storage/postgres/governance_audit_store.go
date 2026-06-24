@@ -122,6 +122,11 @@ type GovernanceAuditQuery struct {
 	OccurredAfter      time.Time
 	OccurredBefore     time.Time
 	Limit              int
+	// OrderDesc reverses the default ASC ordering to occurred_at DESC so that
+	// callers like the admin read path see the most-recent events first under
+	// LIMIT rather than the oldest. The default (false) preserves the existing
+	// ASC behaviour used by all other callers.
+	OrderDesc bool
 }
 
 // GovernanceAuditStore persists normalized hosted governance audit events.
@@ -343,14 +348,18 @@ func buildGovernanceAuditListQuery(filter GovernanceAuditQuery) (string, []any) 
 		clauses = append(clauses, fmt.Sprintf("occurred_at < $%d", len(args)))
 	}
 	args = append(args, governanceAuditLimit(filter.Limit))
+	orderDir := "ASC"
+	if filter.OrderDesc {
+		orderDir = "DESC"
+	}
 	query := fmt.Sprintf(`
 SELECT event_type, actor_class, actor_id_hash, service_principal_id, scope_class,
        scope_id_hash, decision, reason_code, correlation_id, policy_revision_hash, occurred_at
 FROM governance_audit_events
 WHERE %s
-ORDER BY occurred_at ASC, event_id ASC
+ORDER BY occurred_at %s, event_id %s
 LIMIT $%d
-`, strings.Join(clauses, " AND "), len(args))
+`, strings.Join(clauses, " AND "), orderDir, orderDir, len(args))
 	return query, args
 }
 

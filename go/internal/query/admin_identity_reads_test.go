@@ -64,13 +64,17 @@ func (f *fakeAdminIdentityReadStore) ListAdminAPITokens(_ context.Context, tenan
 
 // fakeAdminAuditReader records the query it received and returns canned events.
 type fakeAdminAuditReader struct {
-	gotQuery AdminAuditQuery
-	events   []governanceaudit.Event
-	summary  governanceaudit.Summary
+	gotQuery       AdminAuditQuery
+	events         []governanceaudit.Event
+	summary        governanceaudit.Summary
+	forceListError error
 }
 
 func (f *fakeAdminAuditReader) ListAuditEvents(_ context.Context, q AdminAuditQuery) ([]governanceaudit.Event, error) {
 	f.gotQuery = q
+	if f.forceListError != nil {
+		return nil, f.forceListError
+	}
 	return f.events, nil
 }
 
@@ -276,12 +280,14 @@ func TestAdminAuditEventsSetsOperatorAuthorizedAndFilters(t *testing.T) {
 
 	target := "/api/v0/auth/admin/audit/events?event_type=token_lifecycle&decision=allowed&reason_code=api_token_issued&limit=10&occurred_after=2026-06-01T00:00:00Z"
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, target, allScopeAdminAuth("tenant_a", "workspace_a")))
+	// Audit reads require the global shared-operator scope (governance_audit_events
+	// has no tenant column; per-tenant audit is tracked in #3717).
+	mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, target, AuthContext{Mode: AuthModeShared, AllScopes: true}))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 	if !reader.gotQuery.OperatorAuthorized {
-		t.Fatal("audit query OperatorAuthorized = false, want true after admin gate")
+		t.Fatal("audit query OperatorAuthorized = false, want true after shared-operator gate")
 	}
 	if reader.gotQuery.EventType != "token_lifecycle" || reader.gotQuery.Decision != "allowed" ||
 		reader.gotQuery.ReasonCode != "api_token_issued" || reader.gotQuery.Limit != 10 {
@@ -306,9 +312,16 @@ func TestAdminAuditEventsSetsOperatorAuthorizedAndFilters(t *testing.T) {
 	}
 }
 
-// TestAdminAuditEventsRequireAllScope verifies the audit endpoints reject a
-// non-admin caller before authorizing the store query.
-func TestAdminAuditEventsRequireAllScope(t *testing.T) {
+// TestAdminAuditEventsRequireSharedOperator verifies the audit endpoints require
+// AuthModeShared. Both a non-admin scoped caller and a tenant admin (AllScopes +
+// tenant, the browser-session pattern) must be rejected with 403.
+//
+// Background: governance_audit_events has no tenant_id column, so the data is
+// GLOBAL. A tenant admin in tenant_a would see tenant_b's audit volumes and
+// decisions if allowed. Only a shared operator (AuthModeShared bearer token)
+// holds the authority to read the full cross-tenant audit stream.
+// Per-tenant audit is tracked in #3717.
+func TestAdminAuditEventsRequireSharedOperator(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeAdminAuditReader{}
@@ -316,16 +329,45 @@ func TestAdminAuditEventsRequireAllScope(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
+	auditPaths := []string{"/api/v0/auth/admin/audit/events", "/api/v0/auth/admin/audit/summary"}
+
+	// Scoped (non-admin) caller: must be denied.
 	scopedAuth := AuthContext{Mode: AuthModeScoped, TenantID: "tenant_a", AllScopes: false}
-	for _, path := range []string{"/api/v0/auth/admin/audit/events", "/api/v0/auth/admin/audit/summary"} {
+	for _, path := range auditPaths {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, scopedAuth))
 		if rec.Code != http.StatusForbidden {
-			t.Errorf("GET %s as non-admin = %d, want 403", path, rec.Code)
+			t.Errorf("GET %s as scoped non-admin = %d, want 403", path, rec.Code)
 		}
 	}
+
+	// Tenant admin (AllScopes + tenant, browser-session mode): must also be denied.
+	// This is the key cross-tenant data-leak scenario.
+	tenantAdmin := AuthContext{Mode: AuthModeBrowserSession, TenantID: "tenant_a", WorkspaceID: "workspace_a", AllScopes: true}
+	for _, path := range auditPaths {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, tenantAdmin))
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("GET %s as tenant-admin (AllScopes+tenant) = %d, want 403: "+
+				"tenant admin must not access global audit data", path, rec.Code)
+		}
+	}
+
+	// No denied caller may reach the audit store. Assert this BEFORE the allowed
+	// shared-operator call below, which legitimately queries the store.
 	if reader.gotQuery.OperatorAuthorized {
-		t.Fatal("audit store was queried with OperatorAuthorized despite denied admin gate")
+		t.Fatal("audit store was queried with OperatorAuthorized despite denied callers")
+	}
+
+	// Shared operator: must be allowed.
+	sharedOp := AuthContext{Mode: AuthModeShared, AllScopes: true}
+	for _, path := range auditPaths {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path, sharedOp))
+		// 200 or 503 (nil audit store case is separate test); must NOT be 403.
+		if rec.Code == http.StatusForbidden {
+			t.Errorf("GET %s as shared operator = 403, want non-403: shared operator must reach audit endpoints", path)
+		}
 	}
 }
 
@@ -345,6 +387,10 @@ func TestAdminIdentityReadsNilStoreReturns503(t *testing.T) {
 	}
 }
 
+// adminReadPaths returns the tenant-admin identity read paths (all-scope +
+// tenant gate). The audit paths are excluded because they use the
+// shared-operator gate (AuthModeShared), not the tenant-admin gate; they are
+// tested separately in TestAdminAuditEventsRequireSharedOperator.
 func adminReadPaths() []string {
 	return []string{
 		"/api/v0/auth/local/invitations",
@@ -353,7 +399,5 @@ func adminReadPaths() []string {
 		"/api/v0/auth/admin/idp-providers",
 		"/api/v0/auth/admin/idp-group-mappings",
 		"/api/v0/auth/admin/api-tokens",
-		"/api/v0/auth/admin/audit/events",
-		"/api/v0/auth/admin/audit/summary",
 	}
 }

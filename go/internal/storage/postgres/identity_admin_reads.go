@@ -63,7 +63,8 @@ type AdminRoleGrantListItem struct {
 
 // listAdminInvitationsQuery selects metadata-only columns for invitations in the
 // caller's tenant/workspace. It never selects invite_code_hash,
-// invitee_handle_hash, or inviter_subject_id_hash.
+// invitee_handle_hash, or inviter_subject_id_hash. tombstoned_at IS NULL
+// excludes soft-deleted rows that may still carry status='active'.
 const listAdminInvitationsQuery = `
 SELECT
     invite_id,
@@ -78,6 +79,7 @@ SELECT
     workspace_id
 FROM identity_invitations
 WHERE tenant_id = $1 AND workspace_id = $2
+  AND tombstoned_at IS NULL
 ORDER BY created_at DESC, invite_id ASC
 LIMIT 500
 `
@@ -141,7 +143,8 @@ func (s *IdentitySubjectStore) ListAdminInvitations(
 
 // listAdminRoleAssignmentsQuery selects metadata-only membership-role rows for
 // the caller's tenant/workspace, optionally filtered by user_id. When the
-// user_id parameter ($3) is blank the filter is a no-op.
+// user_id parameter ($3) is blank the filter is a no-op. tombstoned_at IS NULL
+// excludes soft-deleted rows that may still carry status='active'.
 const listAdminRoleAssignmentsQuery = `
 SELECT
     user_id,
@@ -156,6 +159,7 @@ FROM identity_membership_roles
 WHERE tenant_id = $1
   AND workspace_id = $2
   AND ($3 = '' OR user_id = $3)
+  AND tombstoned_at IS NULL
 ORDER BY user_id ASC, role_id ASC
 LIMIT 500
 `
@@ -213,7 +217,8 @@ func (s *IdentitySubjectStore) ListAdminRoleAssignments(
 }
 
 // listAdminRolesQuery selects metadata-only role rows for the caller's tenant.
-// role_key_hash and policy_revision_hash are never selected.
+// role_key_hash and policy_revision_hash are never selected. tombstoned_at IS
+// NULL excludes soft-deleted rows that may still carry status='active'.
 const listAdminRolesQuery = `
 SELECT
     role_id,
@@ -221,13 +226,15 @@ SELECT
     built_in
 FROM identity_roles
 WHERE tenant_id = $1
+  AND tombstoned_at IS NULL
 ORDER BY role_id ASC
 LIMIT 500
 `
 
 // listAdminRoleGrantsQuery selects metadata-only grant rows for the caller's
 // tenant. scope_id_hash, repository_id_hash, and policy_revision_hash are never
-// selected.
+// selected. tombstoned_at IS NULL excludes soft-deleted grants attached to
+// still-active roles; both the role set and grant set must agree on liveness.
 const listAdminRoleGrantsQuery = `
 SELECT
     role_id,
@@ -239,6 +246,7 @@ SELECT
     status
 FROM identity_role_grants
 WHERE tenant_id = $1
+  AND tombstoned_at IS NULL
 ORDER BY role_id ASC, grant_id ASC
 LIMIT 500
 `

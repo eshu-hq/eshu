@@ -95,7 +95,7 @@ type AdminAPITokenListItem struct {
 }
 
 // AdminAuditQuery bounds an admin audit-event read. OperatorAuthorized is set by
-// the handler only after the all-scope admin gate passes; the underlying store
+// the handler only after the shared-operator gate passes; the underlying store
 // refuses to return detailed events when it is false.
 type AdminAuditQuery struct {
 	OperatorAuthorized bool
@@ -105,6 +105,10 @@ type AdminAuditQuery struct {
 	OccurredAfter      time.Time
 	OccurredBefore     time.Time
 	Limit              int
+	// OrderDesc requests most-recent-first ordering (occurred_at DESC). The
+	// admin read surface always sets this true so a bounded page shows the
+	// newest events, not the oldest.
+	OrderDesc bool
 }
 
 // AdminIdentityReadStore is the read surface the admin console backend uses for

@@ -1,6 +1,7 @@
 package query
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -14,6 +15,15 @@ import (
 // request through the HTTP query string. The store applies its own cap as well;
 // this keeps a hostile or buggy client from requesting an unbounded page.
 const maxAdminAuditEventLimit = 500
+
+// adminIdentityListLimit is the LIMIT applied by every tenant-scoped admin
+// identity read query (invitations, role assignments, roles, role grants,
+// IdP providers, IdP group mappings, API tokens). It must stay in sync with
+// the LIMIT 500 clause in each listAdmin*Query constant in
+// internal/storage/postgres/identity_admin_reads*.go. When a response returns
+// exactly this many rows the list was truncated; the handler signals this via
+// a "truncated": true field so callers are not silently shown a partial view.
+const adminIdentityListLimit = 500
 
 // AdminIdentityReadHandler serves tenant-scoped admin read endpoints for the
 // console admin UX: invitations, role assignments, roles+grants, IdP providers,
@@ -59,6 +69,25 @@ func (h *AdminIdentityReadHandler) adminScope(w http.ResponseWriter, r *http.Req
 	return auth.TenantID, auth.WorkspaceID, true
 }
 
+// sharedOperatorScope verifies the caller holds the global shared-operator
+// AuthMode (AuthModeShared). It writes 403 and returns false for any other
+// auth mode, including all-scope browser sessions with a tenant.
+//
+// The audit endpoints (/audit/events, /audit/summary) expose GLOBAL,
+// cross-tenant data because governance_audit_events has no tenant_id column.
+// A tenant admin (AllScopes + tenant) must NOT reach these — only a shared
+// operator holds the authority to see the full audit stream.
+//
+// Per-tenant audit (adding tenant_id to the table) is tracked in #3717.
+func (h *AdminIdentityReadHandler) sharedOperatorScope(w http.ResponseWriter, r *http.Request) bool {
+	auth, ok := AuthContextFromContext(r.Context())
+	if !ok || normalizeAuthContext(auth).Mode != AuthModeShared {
+		WriteError(w, http.StatusForbidden, "shared operator authentication is required for global audit access")
+		return false
+	}
+	return true
+}
+
 // storeReady reports whether the read store is wired, writing 503 when not.
 func (h *AdminIdentityReadHandler) storeReady(w http.ResponseWriter) bool {
 	if h == nil || h.Store == nil {
@@ -98,7 +127,10 @@ func (h *AdminIdentityReadHandler) handleListInvitations(w http.ResponseWriter, 
 		addOptionalTime(row, "revoked_at", item.RevokedAt)
 		out = append(out, row)
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"invitations": out})
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"invitations": out,
+		"truncated":   len(items) == adminIdentityListLimit,
+	})
 }
 
 func (h *AdminIdentityReadHandler) handleListRoleAssignments(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +162,10 @@ func (h *AdminIdentityReadHandler) handleListRoleAssignments(w http.ResponseWrit
 		addOptionalTime(row, "expires_at", item.ExpiresAt)
 		out = append(out, row)
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"role_assignments": out})
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"role_assignments": out,
+		"truncated":        len(items) == adminIdentityListLimit,
+	})
 }
 
 func (h *AdminIdentityReadHandler) handleListRoles(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +202,10 @@ func (h *AdminIdentityReadHandler) handleListRoles(w http.ResponseWriter, r *htt
 			"grants":   grants,
 		})
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"roles": out})
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"roles":     out,
+		"truncated": len(items) == adminIdentityListLimit,
+	})
 }
 
 func (h *AdminIdentityReadHandler) handleListIdPProviders(w http.ResponseWriter, r *http.Request) {
@@ -192,7 +230,10 @@ func (h *AdminIdentityReadHandler) handleListIdPProviders(w http.ResponseWriter,
 			"status":             item.Status,
 		})
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"providers": out})
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"providers": out,
+		"truncated": len(items) == adminIdentityListLimit,
+	})
 }
 
 func (h *AdminIdentityReadHandler) handleListIdPGroupMappings(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +264,10 @@ func (h *AdminIdentityReadHandler) handleListIdPGroupMappings(w http.ResponseWri
 		addOptionalTime(row, "expires_at", item.ExpiresAt)
 		out = append(out, row)
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"group_mappings": out})
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"group_mappings": out,
+		"truncated":      len(items) == adminIdentityListLimit,
+	})
 }
 
 func (h *AdminIdentityReadHandler) handleListAPITokens(w http.ResponseWriter, r *http.Request) {
@@ -260,7 +304,10 @@ func (h *AdminIdentityReadHandler) handleListAPITokens(w http.ResponseWriter, r 
 		addOptionalTime(row, "revoked_at", item.RevokedAt)
 		out = append(out, row)
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"tokens": out})
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"tokens":    out,
+		"truncated": len(items) == adminIdentityListLimit,
+	})
 }
 
 func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, r *http.Request) {
@@ -268,7 +315,15 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 		WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
 		return
 	}
-	if _, _, ok := h.adminScope(w, r); !ok {
+	// Audit data is GLOBAL (governance_audit_events has no tenant_id column).
+	// Only a shared operator may read it; a tenant admin (AllScopes + tenant)
+	// must not see cross-tenant audit volumes. See #3717 for per-tenant audit.
+	if !h.sharedOperatorScope(w, r) {
+		return
+	}
+	limit, err := parseAdminAuditLimit(r.URL.Query().Get("limit"))
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	query := AdminAuditQuery{
@@ -278,7 +333,11 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 		ReasonCode:         strings.TrimSpace(r.URL.Query().Get("reason_code")),
 		OccurredAfter:      parseAdminAuditTime(r.URL.Query().Get("occurred_after")),
 		OccurredBefore:     parseAdminAuditTime(r.URL.Query().Get("occurred_before")),
-		Limit:              parseAdminAuditLimit(r.URL.Query().Get("limit")),
+		Limit:              limit,
+		// Always show most-recent events first so a bounded page is useful.
+		// The underlying store defaults to ASC (chronological replay order);
+		// DESC is only used on the admin read path.
+		OrderDesc: true,
 	}
 	events, err := h.Audit.ListAuditEvents(r.Context(), query)
 	if err != nil {
@@ -290,7 +349,10 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 	for _, event := range events {
 		out = append(out, adminAuditEventJSON(event))
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"events": out})
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"events":    out,
+		"truncated": len(events) == maxAdminAuditEventLimit,
+	})
 }
 
 func (h *AdminIdentityReadHandler) handleAuditSummary(w http.ResponseWriter, r *http.Request) {
@@ -298,7 +360,10 @@ func (h *AdminIdentityReadHandler) handleAuditSummary(w http.ResponseWriter, r *
 		WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
 		return
 	}
-	if _, _, ok := h.adminScope(w, r); !ok {
+	// Audit data is GLOBAL (governance_audit_events has no tenant_id column).
+	// Only a shared operator may read it; a tenant admin (AllScopes + tenant)
+	// must not see cross-tenant audit volumes. See #3717 for per-tenant audit.
+	if !h.sharedOperatorScope(w, r) {
 		return
 	}
 	summary, err := h.Audit.SummarizeAuditEvents(r.Context())
@@ -377,20 +442,25 @@ func parseAdminAuditTime(raw string) time.Time {
 	return parsed.UTC()
 }
 
-// parseAdminAuditLimit clamps a requested limit to [0, maxAdminAuditEventLimit].
-// A non-positive or unparseable value yields 0, letting the store apply its
-// default.
-func parseAdminAuditLimit(raw string) int {
+// parseAdminAuditLimit parses and clamps a requested limit.
+// A blank value returns (0, nil) and lets the store apply its default.
+// A non-numeric or negative value returns an error so the handler can
+// reject the request with 400 rather than silently coercing it.
+// A value above maxAdminAuditEventLimit is clamped silently.
+func parseAdminAuditLimit(raw string) (int, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return 0
+		return 0, nil
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit < 0 {
-		return 0
+	if err != nil {
+		return 0, fmt.Errorf("limit must be a non-negative integer, got %q", raw)
+	}
+	if limit < 0 {
+		return 0, fmt.Errorf("limit must be non-negative, got %d", limit)
 	}
 	if limit > maxAdminAuditEventLimit {
-		return maxAdminAuditEventLimit
+		return maxAdminAuditEventLimit, nil
 	}
-	return limit
+	return limit, nil
 }
