@@ -155,14 +155,13 @@ describe("loadTokens", () => {
     expect(calledPath).toBe("/api/v0/auth/local/api-tokens");
   });
 
-  it("returns tokens array on success", async () => {
+  it("returns tokens array on success without display_label (hash removed, see #3708)", async () => {
     const now = new Date().toISOString();
     const client = makeClient(() => ({
       tokens: [
         {
           token_id: "tok-001",
           token_class: "personal",
-          display_label: "dev-laptop",
           issued_at: now,
           expires_at: now
         }
@@ -172,8 +171,8 @@ describe("loadTokens", () => {
     expect(result.provenance).toBe("live");
     expect(result.tokens).toHaveLength(1);
     expect(result.tokens[0].token_id).toBe("tok-001");
-    // display_label is the hash stored at creation — never a raw secret
-    expect(result.tokens[0].display_label).toBe("dev-laptop");
+    // display_label is intentionally absent: SHA-256(display_label) is a hash,
+    // not a human label. Issue #3708 tracks persisting a real non-secret label.
   });
 
   it("returns unavailable with empty array on error, never fabricating rows", async () => {
