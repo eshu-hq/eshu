@@ -369,6 +369,11 @@ func (h *AdminIdentityMutationHandler) handleDeleteIdPGroupMapping(w http.Respon
 // audit emits one governance audit event for a mutation decision, deriving the
 // actor class and actor id hash from the request's AuthContext. It is a no-op
 // when no appender is wired.
+//
+// For shared bearer-token callers (AuthModeShared) that carry no per-subject
+// hash, it falls back to sharedAdminActorIDHash — the same stable synthetic
+// identity adminRecoveryActor uses — so the event satisfies NormalizeEvent's
+// actor_identity requirement and is not silently dropped.
 func (h *AdminIdentityMutationHandler) audit(
 	r *http.Request,
 	eventType governanceaudit.EventType,
@@ -381,12 +386,21 @@ func (h *AdminIdentityMutationHandler) audit(
 	}
 	auth, _ := AuthContextFromContext(r.Context())
 	auth = normalizeAuthContext(auth)
+	actorClass := localIdentityActorClass(auth)
 	if actorIDHash == "" {
 		actorIDHash = auth.SubjectIDHash
 	}
+	// A shared bearer token carries no per-subject hash. NormalizeEvent rejects
+	// an event with ActorClass=shared_token and empty ActorIDHash (and no
+	// ServicePrincipalID), which would silently drop denial audit events for
+	// shared-token callers. Use the same stable synthetic identity that
+	// adminRecoveryActor uses for this case.
+	if actorIDHash == "" && actorClass == governanceaudit.ActorClassSharedToken {
+		actorIDHash = sharedAdminActorIDHash
+	}
 	event := governanceaudit.Event{
 		Type:               eventType,
-		ActorClass:         localIdentityActorClass(auth),
+		ActorClass:         actorClass,
 		ActorIDHash:        actorIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           decision,

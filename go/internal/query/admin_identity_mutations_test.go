@@ -169,6 +169,39 @@ func TestAdminMutationsRequireTenant(t *testing.T) {
 	}
 }
 
+// TestAdminMutationsSharedTokenDenialAuditsValidEvent verifies that a denial
+// from a shared bearer-token caller (AuthModeShared, no SubjectIDHash, no
+// tenant) produces a governance audit event that passes NormalizeEvent. Without
+// the sharedAdminActorIDHash fallback the event has ActorClass=shared_token and
+// empty ActorIDHash, which NormalizeEvent rejects, silently dropping the record.
+func TestAdminMutationsSharedTokenDenialAuditsValidEvent(t *testing.T) {
+	t.Parallel()
+
+	// Shared bearer token: no SubjectIDHash, no tenant — triggers admin_tenant_required.
+	sharedNoTenant := AuthContext{Mode: AuthModeShared, AllScopes: true, SubjectIDHash: ""}
+	for _, tc := range adminMutationCases() {
+		audit := &recordingAuditAppender{}
+		mux := newMutationMux(&fakeAdminMutationStore{}, audit)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, mutationRequest(tc.method, tc.target, tc.body, sharedNoTenant))
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%s %s: status = %d, want 403", tc.method, tc.target, rec.Code)
+		}
+		if len(audit.events) == 0 {
+			t.Errorf("%s %s: no audit event recorded for shared-token denial", tc.method, tc.target)
+			continue
+		}
+		// Every emitted event must normalizable — a silently dropped event would
+		// mean the denial is unrecorded in the governance trail.
+		for i, ev := range audit.events {
+			if _, err := governanceaudit.NormalizeEvent(ev); err != nil {
+				t.Errorf("%s %s: event[%d] failed NormalizeEvent: %v (ActorIDHash=%q ActorClass=%q)",
+					tc.method, tc.target, i, err, ev.ActorIDHash, ev.ActorClass)
+			}
+		}
+	}
+}
+
 // TestAdminMutationsNilStoreReturns503 verifies a nil store yields 503 not panic.
 func TestAdminMutationsNilStoreReturns503(t *testing.T) {
 	t.Parallel()
