@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts AWS SDK ACM Private CA (acm-pca) control-plane calls
 // into the scanner-owned certificate authority metadata the acmpca package
 // consumes.

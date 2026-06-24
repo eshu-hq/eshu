@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package provider
 
 // anthropicRequest is the JSON body sent to the Anthropic Messages API.

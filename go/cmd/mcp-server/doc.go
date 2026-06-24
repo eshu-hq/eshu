@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the eshu-mcp-server binary, which serves the Eshu MCP
 // tool transport over stdio or HTTP backed by the same query and content
 // stores as the HTTP API. `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or

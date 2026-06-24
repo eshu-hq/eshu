@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package bindings is a one-stop aggregator that imports every AWS service
 // runtimebind package for its init side effect.
 //

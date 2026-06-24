@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package reducer //nolint:filelength // 620 lines: eshu search document writer. The writer owns the full durable search-document payload (id, payload, score, version, metadata) so the search subsystem reads from one source of truth.
 
 import (

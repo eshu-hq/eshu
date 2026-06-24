@@ -1,4 +1,7 @@
-package relationships
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package relationships //nolint:filelength // 502 lines: YAML IaC evidence relationship resolver. Tracked for split in audit § T8.
 
 import (
 	"io"

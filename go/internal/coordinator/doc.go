@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package coordinator runs the workflow coordinator's reconcile,
 // webhook-freshness handoff, expired-claim reap, and workflow-run reconciliation
 // loops.

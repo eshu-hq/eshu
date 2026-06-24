@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package terraformschema loads packaged Terraform provider schemas and
 // classifies resource types into ESHU-facing service and category labels.
 //

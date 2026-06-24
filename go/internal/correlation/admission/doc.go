@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package admission applies the bounded confidence and structural-evidence
 // gates that decide whether a correlation candidate is admitted or rejected.
 //

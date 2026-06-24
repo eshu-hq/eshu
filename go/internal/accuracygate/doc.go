@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package accuracygate is the continuous golden accuracy gate that fails CI on
 // regressions across three measured dimensions: cyclomatic complexity
 // correctness, cross-repo call-edge precision/recall plus resolver coverage, and

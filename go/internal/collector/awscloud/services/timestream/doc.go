@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package timestream maps Amazon Timestream for LiveAnalytics database and
 // table metadata into AWS cloud collector facts.
 //

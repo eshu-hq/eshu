@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package clientgo is the client-go adapter for the Kubernetes live collector.
 // It is the only place client-go and the Kubernetes typed API are imported, so
 // the collector source stays backend-neutral and unit-testable with fakes.

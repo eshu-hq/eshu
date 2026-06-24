@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package query owns Eshu's HTTP read surface and the read models behind API,
 // MCP, and CLI query workflows.
 //

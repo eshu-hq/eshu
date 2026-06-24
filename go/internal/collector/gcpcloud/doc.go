@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package gcpcloud builds durable source facts for the GCP cloud collector from
 // Cloud Asset Inventory (CAI) responses.
 //

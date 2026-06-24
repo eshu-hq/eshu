@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package linkcandidates defines diagnostic link-prediction candidate evidence.
 //
 // The package validates candidate shape, truth labels, freshness, relationship

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package searchdecay defines decay scoring for selected non-canonical evidence.
 //
 // The package applies bounded half-life policies to ranking metadata for

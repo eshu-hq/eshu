@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package awssdk //nolint:filelength // 631 lines: Glue SDK pagination, HidePassword/IncludeGraph enforcement, and safe metadata mapping. Per services/glue/awssdk/AGENTS.md the SDK adapter owns pagination, retries, throttling, and credential loading so scanner.go can stay a thin fact selector.
 
 import (

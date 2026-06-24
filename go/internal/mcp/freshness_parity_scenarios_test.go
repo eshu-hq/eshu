@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package mcp
 
 // Incremental-freshness parity scenarios (issue #1804, parent #1797).

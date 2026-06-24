@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the eshu-bootstrap-index binary, which performs a
 // one-shot end-to-end indexing pass: collection, source-local projection,
 // relationship-evidence backfill, IaC reachability materialization,

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package mcp
 
 // Second-generation answer parity tests (issue #1937).

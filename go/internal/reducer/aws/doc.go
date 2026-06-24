@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package aws records the reducer contract for AWS cloud-resource projection.
 //
 // The package is currently a scaffold: it names the reducer components and

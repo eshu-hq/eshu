@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package terraformstate_test
 
 // This file locks the contract that the state-snapshot scope ID built by

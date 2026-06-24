@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ds maps AWS Directory Service metadata into AWS cloud collector facts
 // across AWS Managed Microsoft AD, Simple AD, and AD Connector directories.
 //

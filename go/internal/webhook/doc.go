@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package webhook verifies GitHub, GitLab, Bitbucket, PagerDuty, and Jira
 // webhook authentication material and normalizes provider payloads into
 // repository or incident-source refresh trigger decisions.

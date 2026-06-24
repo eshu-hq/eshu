@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts the AWS SDK Route 53 Application Recovery Controller
 // recovery-control configuration control-plane calls into the scanner-owned
 // metadata model.

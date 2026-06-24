@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package azurecloud implements the fixture-testable Azure cloud collector fact
 // engine. It parses Azure Resource Graph Resources API response pages, parses
 // fixture Resource Graph resourcechanges pages, normalizes Azure Resource

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package apigateway emits metadata-only AWS API Gateway facts for REST, HTTP,
 // and WebSocket APIs.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package verifiedaccess maps Amazon Verified Access instance, group, endpoint,
 // and trust-provider metadata into AWS cloud collector facts.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts AWS SDK IAM Access Analyzer responses into scanner-owned
 // Access Analyzer records.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cfg builds a per-function control-flow graph and computes reaching
 // definitions over it, producing bounded, deterministic def->use facts.
 //

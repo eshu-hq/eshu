@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package catalog
 
 // askRouteAnnotations returns the curated backend/cost annotations for implemented HTTP API routes.

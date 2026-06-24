@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main wires the OCI registry collector binary.
 //
 // The binary reads configured OCI Distribution-compatible registries, maps

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package sbomdocument
 
 // cycloneDXDocument is the slice of the CycloneDX JSON shape Eshu projects

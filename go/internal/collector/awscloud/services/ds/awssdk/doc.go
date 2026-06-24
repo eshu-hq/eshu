@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts AWS SDK for Go v2 Directory Service calls into
 // scanner-owned metadata across AWS Managed Microsoft AD, Simple AD, and AD
 // Connector directories.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package dataflowemit renders language-neutral value-flow facts into the
 // deterministic parser payload buckets the reducer consumes: "dataflow_functions"
 // (per-function control-flow graphs and reaching-definition def->use edges),

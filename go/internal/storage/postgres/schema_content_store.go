@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package postgres
 
 // This file holds the content-store schema DDL: the base tables and indexes for

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package tempo collects bounded live Tempo trace-signal metadata.
 //
 // The package owns source observation for configured Tempo query-frontends and

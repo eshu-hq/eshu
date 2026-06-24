@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package scannerworker defines scanner-worker claims, output validation,
 // failure payloads, analyzer ports, and hosted claim processing.
 //

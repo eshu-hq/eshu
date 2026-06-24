@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package extensionhost adapts public collector SDK results into the core
 // claim-aware collector commit boundary.
 package extensionhost

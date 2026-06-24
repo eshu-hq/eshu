@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command collector-gcp-cloud runs the GCP Cloud Asset Inventory collector.
 //
 // In fixture mode, the binary loads a declarative JSON config (collector

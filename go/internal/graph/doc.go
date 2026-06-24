@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package graph defines the source-local graph write contract and the Cypher
 // builders used by writers and schema bootstrap.
 //

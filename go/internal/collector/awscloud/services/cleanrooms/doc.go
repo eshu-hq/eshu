@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cleanrooms maps AWS Clean Rooms collaboration, configured-table, and
 // membership metadata into AWS cloud collector facts.
 //

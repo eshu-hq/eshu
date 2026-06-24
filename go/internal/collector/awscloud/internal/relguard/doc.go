@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package relguard is shared test-support code that mechanizes the AWS scanner
 // graph-join contract: every relationship a scanner emits must carry a
 // non-empty target_type that names a resource family Eshu can actually resolve.

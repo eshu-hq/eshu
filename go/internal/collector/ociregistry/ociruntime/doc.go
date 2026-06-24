@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ociruntime scans configured OCI registry repositories and returns
 // collected generations for the shared collector boundary.
 //

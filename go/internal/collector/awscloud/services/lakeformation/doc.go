@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package lakeformation maps AWS Lake Formation data-lake settings, registered
 // data locations, and principal/resource permission grants into AWS cloud
 // collector facts.

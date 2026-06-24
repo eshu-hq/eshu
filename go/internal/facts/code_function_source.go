@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package facts
 
 // CodeFunctionSourceFactKind identifies one function's param-level value-flow

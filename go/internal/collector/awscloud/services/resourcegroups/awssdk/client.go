@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts the AWS SDK Resource Groups client into the
 // scanner-owned metadata-only Client interface. The adapter reads groups, their
 // query type, and their membership only; it never calls a mutation API and never

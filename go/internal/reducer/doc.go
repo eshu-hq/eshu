@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package reducer owns Eshu's cross-domain materialization, shared projection,
 // queued repair, and reducer-owned fact publication.
 //

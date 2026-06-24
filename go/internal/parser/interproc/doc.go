@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package interproc solves interprocedural, cross-repo taint by reachability over
 // a port graph: a node is a value position (a function's parameter, return, or a
 // named slot for a captured closure variable or an object field), and an edge is

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package postgres
 
 // SQL for tenant-scoped admin identity mutations (issue #3703 PR-2). Every

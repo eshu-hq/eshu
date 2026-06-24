@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Managed collector entrypoint. Update go/internal/collector/entrypoints/collector_entrypoints.yaml, then rerun scripts/generate-collector-entrypoints.sh.
 
 package main

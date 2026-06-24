@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package sandbox provides a Tier 2 read-only query sandbox for executing
 // Cypher and SQL queries with strict authorization controls and resource
 // constraints.

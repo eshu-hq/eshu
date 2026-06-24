@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // impactAnchorLabelDisjunction is the label set the Neo4j-compat impact reads

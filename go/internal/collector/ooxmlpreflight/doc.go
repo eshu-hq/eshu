@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ooxmlpreflight classifies OOXML documentation packages before any
 // document extractor reads source content.
 //

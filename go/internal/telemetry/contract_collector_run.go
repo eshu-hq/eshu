@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package telemetry
 
 // Metric names and span name for per-collector claimed-service run telemetry.

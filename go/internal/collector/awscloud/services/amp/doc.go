@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package amp maps Amazon Managed Service for Prometheus workspace, rule-groups
 // namespace, and managed-collector (scraper) metadata into AWS cloud collector
 // facts.

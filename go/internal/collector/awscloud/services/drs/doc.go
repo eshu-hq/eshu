@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package drs maps AWS Elastic Disaster Recovery (DRS) source server, recovery
 // instance, and replication configuration template metadata into AWS cloud
 // collector facts.

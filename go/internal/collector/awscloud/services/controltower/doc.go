@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package controltower maps AWS Control Tower landing-zone, enabled-control, and
 // enabled-baseline metadata into AWS cloud collector facts.
 //

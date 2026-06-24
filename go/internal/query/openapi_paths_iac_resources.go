@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // openAPIPathsIaCResources documents the bounded Terraform/IaC resource list

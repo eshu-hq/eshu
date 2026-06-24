@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package lightsail maps Amazon Lightsail instance, managed relational
 // database, load balancer, block-storage disk, and static IP metadata into AWS
 // cloud collector facts.

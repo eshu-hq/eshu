@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awscloud defines AWS cloud scanner fact identity and runtime-neutral
 // observation contracts.
 //

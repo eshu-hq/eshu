@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package answerquality scores captured API, MCP, CLI, and hosted answer runs
 // against the publish-safe dogfood criteria for representative Eshu answer
 // families.

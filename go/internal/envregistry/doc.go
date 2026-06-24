@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package envregistry is the code-owned source of truth for Eshu's ESHU_*
 // environment variables. It declares each supported variable with its type,
 // default, owning subsystem, and deprecation aliases, and it powers

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package storageeval defines evidence contracts for storage migration gates.
 //
 // The package is intentionally pure: it does not open Postgres, call NornicDB,

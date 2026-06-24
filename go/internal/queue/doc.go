@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package queue defines the durable Go data-plane work-item contracts used
 // by the projector, reducer, and replay paths.
 //

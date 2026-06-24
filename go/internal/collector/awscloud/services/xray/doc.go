@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package xray emits AWS X-Ray configuration-only facts for one claimed AWS
 // boundary. It covers X-Ray groups (name, ARN, trace filter expression,
 // insights flags), sampling rules (name, ARN, priority, reservoir, fixed rate,

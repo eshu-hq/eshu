@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package guardset derives the AWS scanner guard set from the repository
 // layout rather than from a hardcoded list. It is test-support code shared by
 // the awsruntime and bindings guard tests.

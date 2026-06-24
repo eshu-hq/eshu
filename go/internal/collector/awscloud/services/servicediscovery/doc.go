@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package servicediscovery maps AWS Cloud Map (Service Discovery) metadata into
 // AWS cloud collector facts.
 //

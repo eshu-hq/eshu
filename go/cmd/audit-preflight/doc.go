@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command audit-preflight validates a competitive-audit issue body against the
 // Eshu preflight contract.
 //

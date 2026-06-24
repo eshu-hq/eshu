@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package entrypoints renders manifest-backed collector command entrypoints.
 //
 // The package owns deterministic generation for the shared hosted collector

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main //nolint:filelength // 503 lines: main(), signal handling, telemetry bootstrap, and buildReducerService. The wiring into internal/reducer is single-purpose and reviewed as one entry point.
 
 import (

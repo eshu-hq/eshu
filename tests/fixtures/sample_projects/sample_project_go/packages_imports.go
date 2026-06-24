@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // packages_imports.go - Demonstrates Go package imports and usage
 package main
 

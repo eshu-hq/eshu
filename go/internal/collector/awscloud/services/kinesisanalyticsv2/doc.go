@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package kinesisanalyticsv2 maps Amazon Managed Service for Apache Flink
 // (Kinesis Data Analytics v2) application metadata into AWS cloud collector
 // facts.

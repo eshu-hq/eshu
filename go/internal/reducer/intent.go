@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package reducer defines the durable cross-source and cross-scope reducer
 // substrate used by the Go data plane.
 package reducer

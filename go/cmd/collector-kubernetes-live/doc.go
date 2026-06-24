@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main wires the Kubernetes live collector binary.
 //
 // The binary connects to one or more configured Kubernetes clusters with

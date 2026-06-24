@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package sbomgenerator implements the bounded scanner-worker analyzer that
 // produces CycloneDX-compatible SBOM source facts from a repository, image, or
 // artifact target.

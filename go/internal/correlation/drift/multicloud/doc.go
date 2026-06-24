@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package multicloud carries provider-neutral cloud-runtime drift correlation
 // helpers shared by AWS, GCP, and Azure (issues #1997, #1998).
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts AWS SDK for Go v2 Classic ELB (v1) responses into
 // scanner-owned ELB records. It owns SDK pagination, batched tag reads, response
 // mapping, throttle classification, and per-call telemetry.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package entrypoints
 
 import (
@@ -9,7 +12,7 @@ import (
 	"text/template"
 )
 
-const managedHeader = "// Managed collector entrypoint. Update go/internal/collector/entrypoints/collector_entrypoints.yaml, then rerun scripts/generate-collector-entrypoints.sh.\n\n"
+const managedHeader = "// SPDX-License-Identifier: MIT\n// Copyright (c) 2025-2026 eshu-hq\n\n// Managed collector entrypoint. Update go/internal/collector/entrypoints/collector_entrypoints.yaml, then rerun scripts/generate-collector-entrypoints.sh.\n\n"
 
 // Generate returns the Go files for a manifest-backed collector entrypoint.
 func Generate(manifest Manifest) ([]GeneratedFile, error) {

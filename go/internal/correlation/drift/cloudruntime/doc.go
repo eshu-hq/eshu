@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cloudruntime carries helper Go for the AWS cloud-runtime drift
 // correlation pack.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package status projects raw Go data-plane runtime counts into an
 // operator-facing status report.
 package status

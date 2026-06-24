@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package kotlin owns Kotlin parser extraction for the parent parser engine.
 //
 // Parse reads one Kotlin source file and returns the payload buckets consumed by

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package packageruntime implements the claim-driven runtime for
 // package-registry metadata collection.
 //

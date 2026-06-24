@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command scanner-worker runs isolated scanner-worker claims for CPU-heavy or
 // memory-heavy security analyzers.
 //

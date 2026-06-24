@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package doctruth extracts conservative documentation truth evidence,
 // verification findings, and drift findings from bounded documentation
 // sections.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package shape //nolint:filelength // 522 lines: bucket table, File/Entity types, and Materialize. The bucket table and entity ordering are referenced as a single frozen table by the entity-row count contract.
 
 import (

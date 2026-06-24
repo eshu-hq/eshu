@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package pdfpreflight classifies PDF documentation sources before any PDF
 // extractor reads page text, links, or document metadata.
 //

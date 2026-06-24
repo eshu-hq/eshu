@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package graph
 
 // labelToSnake converts a PascalCase label to lower_snake_case for use in

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package valueflow is the semantic bridge that composes the four value-flow
 // engines into an end-to-end interprocedural taint pipeline: it derives a
 // function's summary effects from its control-flow graph and intraprocedural

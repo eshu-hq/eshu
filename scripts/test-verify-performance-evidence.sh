@@ -161,4 +161,70 @@ git -C "${compose_runtime_removal_repo}" add .
 git -C "${compose_runtime_removal_repo}" commit -q -m 'remove runtime compose knob'
 expect_fail "${compose_runtime_removal_repo}"
 
+# Comment-only change to an EXISTING hot-path Go file (e.g. SPDX header
+# rollout): the file already exists with hot-path content, and the diff
+# only adds comment lines at the top. The gate must NOT trip.
+spdx_repo="$(init_repo spdx-rollout)"
+{
+  printf 'package cypher\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${spdx_repo}/go/internal/storage/cypher/writer.go"
+git -C "${spdx_repo}" add .
+git -C "${spdx_repo}" commit -q -m 'baseline hot-path writer'
+{
+  printf '// SPDX-License-Identifier: MIT\n'
+  printf '// Copyright (c) 2025-2026 eshu-hq\n'
+  printf '\n'
+  printf 'package cypher\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${spdx_repo}/go/internal/storage/cypher/writer.go"
+git -C "${spdx_repo}" add .
+git -C "${spdx_repo}" commit -q -m 'add SPDX header (comment-only)'
+expect_pass "${spdx_repo}"
+
+# Mixed change to an existing hot-path Go file: comment header AND a real
+# code edit in the same commit. Gate must still trip because the code
+# change is real.
+mixed_repo="$(init_repo mixed-change)"
+{
+  printf 'package cypher\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${mixed_repo}/go/internal/storage/cypher/writer.go"
+git -C "${mixed_repo}" add .
+git -C "${mixed_repo}" commit -q -m 'baseline hot-path writer'
+{
+  printf '// SPDX-License-Identifier: MIT\n'
+  printf '// Copyright (c) 2025-2026 eshu-hq\n'
+  printf '\n'
+  printf 'package cypher\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid, kind: row.kind})"\n'
+} >"${mixed_repo}/go/internal/storage/cypher/writer.go"
+git -C "${mixed_repo}" add .
+git -C "${mixed_repo}" commit -q -m 'add SPDX header and tweak hot-path query'
+expect_fail "${mixed_repo}"
+
+# Whitespace-only change to a hot-path Go file (no comment, no code): gate
+# must NOT trip because the diff is purely indentation/blank lines.
+whitespace_repo="$(init_repo whitespace-only)"
+{
+  printf 'package cypher\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${whitespace_repo}/go/internal/storage/cypher/writer.go"
+git -C "${whitespace_repo}" add .
+git -C "${whitespace_repo}" commit -q -m 'baseline hot-path file'
+{
+  printf 'package cypher\n'
+  printf '\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${whitespace_repo}/go/internal/storage/cypher/writer.go"
+git -C "${whitespace_repo}" add .
+git -C "${whitespace_repo}" commit -q -m 'add blank line (whitespace-only)'
+expect_pass "${whitespace_repo}"
+
 printf 'verify-performance-evidence tests passed\n'

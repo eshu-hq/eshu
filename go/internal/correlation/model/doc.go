@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package model defines the candidate, evidence, and rejection-reason types
 // shared across the correlation pipeline.
 //

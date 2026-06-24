@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package applicationautoscaling maps AWS Application Auto Scaling scalable
 // target, scaling policy, and scheduled action metadata into AWS cloud
 // collector facts.

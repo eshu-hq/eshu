@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package projector canonical.go defines the canonical graph materialization
 // types used to project labeled Neo4j nodes from fact envelopes. These types
 // replace SourceLocalRecord as the projector's Neo4j write output.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Module-aware drift joining helpers for PostgresDriftEvidenceLoader.
 //
 // This file walks `terraform_modules` parser facts within the active commit

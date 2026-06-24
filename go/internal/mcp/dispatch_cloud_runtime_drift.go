@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package mcp
 
 // cloudRuntimeDriftRoute maps the provider-neutral runtime drift readback tool to

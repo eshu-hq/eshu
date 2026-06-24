@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package packetdogfood
 
 // BenchmarkSchema is the stable schema identifier for a dogfood benchmark

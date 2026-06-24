@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package answerquality
 
 // DefaultSuite returns the representative answer families required by issue

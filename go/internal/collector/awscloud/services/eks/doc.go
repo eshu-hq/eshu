@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package eks turns Amazon EKS cluster, node group, add-on, and OIDC provider
 // observations into AWS collector facts.
 //

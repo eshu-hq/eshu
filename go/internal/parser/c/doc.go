@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package c parses C source files into Eshu parser payloads.
 //
 // Parse emits C functions, types, includes, macros, typedefs, variables, calls,

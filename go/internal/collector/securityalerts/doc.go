@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package securityalerts normalizes repository-scoped provider security alert
 // evidence into durable source facts.
 //

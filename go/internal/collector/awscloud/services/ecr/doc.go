@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ecr scans Amazon Elastic Container Registry source truth into AWS
 // cloud fact observations.
 //

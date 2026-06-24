@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cicdrun normalizes GitHub Actions CI/CD provider evidence into
 // durable facts for the ci_cd_run collector family.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package relationships
 
 // confidence_calibration_test.go implements the statistical calibration gate for

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package edgetype is the single central registry of Cypher graph relationship
 // (edge) types used across Eshu's graph writers, reducer materialization, and
 // query read paths.

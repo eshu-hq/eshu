@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package evidencebundle
 
 // SchemaVersion is the stable schema identifier for portable evidence bundles.

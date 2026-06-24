@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package workflow defines the durable contracts for the workflow control
 // plane: runs, work items, claims, collector instances, completeness states,
 // and the reducer-facing phase contract per collector family.

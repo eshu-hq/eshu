@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package proofofvalue measures whether an agent answers IaC reachability
 // questions more accurately with Eshu's reachability analysis than with a
 // baseline that only has plain text search ("grep").

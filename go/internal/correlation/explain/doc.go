@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package explain renders one engine result as a stable, line-oriented text
 // block for the explain API and operator-facing diagnostics.
 //

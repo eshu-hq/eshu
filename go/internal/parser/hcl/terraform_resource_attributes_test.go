@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Tests in this file mutate the slog.Default() global to capture log records
 // from walkBlockAttributes (which has no logger plumbing — see the
 // "Parser-side logging access" decision in

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command proof-of-value measures whether an agent answers IaC reachability
 // questions more accurately with Eshu than with plain text search ("grep").
 //

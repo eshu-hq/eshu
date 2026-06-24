@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package auditpreflight validates competitive-audit issues against the Eshu
 // preflight contract: every audit issue must state the competitor source and
 // the Eshu code, docs, and proof evidence inspected, the duplicate search, a

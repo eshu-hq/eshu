@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package alertruntime //nolint:filelength // 555 lines: claim-driven hosted provider security-alert runtime; per alertruntime/AGENTS.md this package owns the full claim → provider API → source-fact path. Splitting across files would scatter the per-credential resolution and classification logic.
 
 import (

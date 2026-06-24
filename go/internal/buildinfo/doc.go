@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package buildinfo exposes the application version injected at build time.
 //
 // Version is set via -ldflags during release builds and defaults to "dev" for

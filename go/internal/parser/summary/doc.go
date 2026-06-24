@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package summary builds durable, content-versioned function summaries and
 // recomposes them incrementally: changing one function recomputes only the
 // summaries that transitively depend on it.

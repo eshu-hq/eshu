@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ocrdoc builds source-neutral documentation facts from reviewed local
 // OCR results.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cypher owns backend-neutral Cypher write contracts, canonical
 // node and edge writers, statement metadata, and write instrumentation for
 // Eshu's canonical graph.

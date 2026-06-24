@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package emr maps Amazon EMR metadata into AWS cloud collector facts.
 //
 // One service kind covers EMR on EC2 clusters, EMR Serverless applications,

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package cpp parses C++ source files into Eshu parser payloads.
 //
 // The package emits syntax facts for C++ functions, types, includes, macros,

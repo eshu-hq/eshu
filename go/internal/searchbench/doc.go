@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package searchbench defines the curated search benchmark evidence contract.
 //
 // The package keeps benchmark results tied to explicit EshuSearchDocument

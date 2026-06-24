@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package conformance is the public, out-of-tree-runnable collector conformance
 // harness for Eshu component packages.
 //

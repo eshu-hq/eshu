@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package vpc emits AWS VPC network-fabric metadata fact evidence.
 //
 // The package owns the resources that sit alongside the EC2 instance and ENI

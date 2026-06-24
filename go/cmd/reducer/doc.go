@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the eshu-reducer binary, the long-running runtime that
 // drains the reducer fact-work queue, executes domain handlers, materializes
 // cross-domain truth, and writes shared edges into the configured graph

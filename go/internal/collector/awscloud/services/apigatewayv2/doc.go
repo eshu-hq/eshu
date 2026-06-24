@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package apigatewayv2 owns the AWS API Gateway v2 metadata scanner for the AWS
 // cloud collector. It converts HTTP and WebSocket APIs, their stages, routes,
 // integrations, authorizers, custom domains, and VPC links into reported AWS

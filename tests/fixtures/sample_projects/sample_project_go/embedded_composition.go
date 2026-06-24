@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // embedded_composition.go - Demonstrates Go embedding and composition
 package main
 

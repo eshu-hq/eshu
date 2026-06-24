@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main is a golangci-lint Go plugin (loaded as a .so via
 // linters.settings.custom.path) that enforces Eshu's repository-wide
 // 500-line file cap on non-test, non-generated Go source files.

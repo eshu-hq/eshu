@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package servicequotas maps AWS Service Quotas applied-quota metadata into AWS
 // cloud collector facts.
 //

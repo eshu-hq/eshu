@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package glue maps AWS Glue Data Catalog, crawler, job, trigger, workflow,
 // and connection metadata into AWS cloud collector facts.
 //

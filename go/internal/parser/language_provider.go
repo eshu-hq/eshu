@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package parser
 
 // LanguageProvider owns parse and optional pre-scan behavior for one registered

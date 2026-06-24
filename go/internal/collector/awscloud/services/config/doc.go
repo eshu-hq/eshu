@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package config maps AWS Config metadata into AWS cloud collector facts.
 //
 // The package owns scanner-level fact selection for configuration recorders

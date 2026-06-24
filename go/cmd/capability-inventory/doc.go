@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Command capability-inventory generates and verifies the reconciled Eshu
 // capability catalog artifact.
 //

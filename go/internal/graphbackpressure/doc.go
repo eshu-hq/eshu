@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package graphbackpressure wires the cypher.BackpressureExecutor into the
 // reducer and projector graph write paths and bridges its signals to telemetry.
 //

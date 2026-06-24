@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ses maps Amazon Simple Email Service (SES v2) email-identity,
 // configuration-set, configuration-set event-destination, and dedicated-IP-pool
 // metadata into AWS cloud collector facts.

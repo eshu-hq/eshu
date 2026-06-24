@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package vaultapi is the net/http implementation of the vaultlive.Client
 // metadata-only Vault seam. It talks to Vault's REST API using only the
 // standard library — no Vault SDK dependency — and is metadata-only by

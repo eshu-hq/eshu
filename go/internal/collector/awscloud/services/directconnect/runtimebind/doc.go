@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package runtimebind registers the Direct Connect scanner with the awsruntime
 // registry.
 //

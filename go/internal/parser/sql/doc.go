@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package sql extracts SQL parser payloads without depending on the parent
 // parser dispatch package.
 //

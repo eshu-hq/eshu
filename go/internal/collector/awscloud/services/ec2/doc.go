@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package ec2 emits AWS EC2 network topology fact evidence.
 //
 // Alongside the raw aws_resource and aws_relationship facts for VPCs, subnets,

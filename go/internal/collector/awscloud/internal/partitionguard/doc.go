@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package partitionguard is shared test-support code that mechanizes the AWS
 // scanner ARN-partition contract: a scanner must never synthesize an ARN with a
 // hardcoded commercial `aws` partition. An ARN's second segment is its partition

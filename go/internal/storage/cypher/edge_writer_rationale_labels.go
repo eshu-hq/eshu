@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package cypher
 
 // buildRationaleRowMap routes a rationale EXPLAINS edge row (issue #2230) to its

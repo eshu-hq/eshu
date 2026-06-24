@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package awssdk adapts the AWS SDK Resilience Hub control-plane API into the
 // resiliencehub scanner's metadata-only Client port.
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package resolutionparity holds the per-language call-resolution accuracy
 // goldens and CI parity gates for code-edge resolution provenance.
 //

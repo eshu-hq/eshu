@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package batch maps AWS Batch observations into AWS cloud fact envelopes.
 //
 // The package owns scanner-level Batch fact selection for compute

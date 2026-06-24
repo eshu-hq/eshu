@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package sbomruntime provides the claim-driven hosted SBOM and attestation
 // collector runtime.
 package sbomruntime

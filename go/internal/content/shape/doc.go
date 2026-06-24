@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package shape converts parser-shaped file payloads into the
 // content.Materialization rows persisted by the Postgres content writer.
 //

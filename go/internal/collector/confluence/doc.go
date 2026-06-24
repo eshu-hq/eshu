@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package confluence collects read-only Confluence documentation evidence.
 //
 // The package supports bounded collection by Confluence space or root page

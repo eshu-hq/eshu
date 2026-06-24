@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package fsx maps Amazon FSx metadata into AWS cloud collector facts across
 // every FSx flavor (Windows File Server, Lustre, NetApp ONTAP, OpenZFS).
 //

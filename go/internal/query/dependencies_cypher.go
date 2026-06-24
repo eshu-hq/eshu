@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package query
 
 // dependenciesCypher builds the bounded Cypher for GET /api/v0/dependencies.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package main runs the projector binary, the local verification runtime
 // for source-local projection: it claims projector queue items from
 // Postgres, projects facts into canonical graph state, and writes content

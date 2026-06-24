@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package appmesh maps AWS App Mesh metadata into AWS cloud collector facts.
 //
 // The package owns scanner-level App Mesh normalization only. It never calls

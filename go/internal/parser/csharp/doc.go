@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package csharp owns C# parser extraction without depending on the parent
 // parser dispatcher. Parse emits declarations, calls, inheritance metadata, and
 // bounded dead-code root hints for directly visible C# runtime and framework

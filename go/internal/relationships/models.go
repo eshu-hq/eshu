@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 // Package relationships implements evidence-backed relationship resolution
 // for cross-repository and cross-entity dependency discovery.
 package relationships
