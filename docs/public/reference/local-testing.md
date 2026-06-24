@@ -85,6 +85,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Generated collector entrypoint manifest or generated collector command files | `scripts/test-verify-collector-entrypoints-generated.sh` and `scripts/verify-collector-entrypoints-generated.sh` |
 | Skillgen roundtrip baseline (`skill-fragments/`, `expected/`, `go/cmd/skillgen/`, `go/internal/extensions/skillgen/`, `specs/surface-inventory.v1.yaml`, or the gate script itself) | `cd go && go build ./cmd/skillgen/...` and `bash scripts/test-verify-skill-roundtrip.sh` plus `bash scripts/verify-skill-roundtrip.sh` (and the docs build when the matrix or skillgen doc changes) |
 | New or changed Go package under `go/internal` or `go/cmd` | `scripts/test-verify-package-docs.sh` and `scripts/verify-package-docs.sh` |
+| New or changed telemetry registration, pipeline stage, or `docs/public/observability/telemetry-coverage.md` row (the X2 coverage gate) | `scripts/test-verify-telemetry-coverage.sh` and `scripts/verify-telemetry-coverage.sh` (and the docs build when the X1 doc changes) |
 | Go source, comments, package contracts, or generated docs | `cd go && golangci-lint run ./...` |
 | Root marketing site (Cloudflare Pages) | `npm test` (unit) plus `npm run site:review` (desktop + mobile browser gate documented in the repo-root `CLOUDFLARE_PAGES.md`) |
 | Repo hygiene gates | `git diff --check` |
