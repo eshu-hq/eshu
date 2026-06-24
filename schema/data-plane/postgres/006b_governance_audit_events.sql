@@ -11,8 +11,13 @@ CREATE TABLE IF NOT EXISTS governance_audit_events (
     correlation_id TEXT NULL,
     policy_revision_hash TEXT NULL,
     occurred_at TIMESTAMPTZ NOT NULL,
-    persisted_at TIMESTAMPTZ NOT NULL
+    persisted_at TIMESTAMPTZ NOT NULL,
+    tenant_id TEXT NULL,
+    workspace_id TEXT NULL
 );
+
+ALTER TABLE governance_audit_events ADD COLUMN IF NOT EXISTS tenant_id TEXT NULL;
+ALTER TABLE governance_audit_events ADD COLUMN IF NOT EXISTS workspace_id TEXT NULL;
 
 CREATE INDEX IF NOT EXISTS governance_audit_events_query_idx
     ON governance_audit_events (
@@ -30,3 +35,7 @@ CREATE INDEX IF NOT EXISTS governance_audit_events_correlation_idx
 
 CREATE INDEX IF NOT EXISTS governance_audit_events_reason_idx
     ON governance_audit_events (reason_code, occurred_at ASC, event_id ASC);
+
+CREATE INDEX IF NOT EXISTS governance_audit_events_tenant_idx
+    ON governance_audit_events (tenant_id, occurred_at ASC, event_id ASC)
+    WHERE tenant_id IS NOT NULL;
