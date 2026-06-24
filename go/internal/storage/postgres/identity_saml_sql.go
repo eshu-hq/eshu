@@ -1,11 +1,22 @@
 package postgres
 
+// resolveSAMLExternalSubjectQuery resolves any active SAML subject through
+// durable identity, membership, role, and grant state. It returns one row per
+// resolved subject with a has_all_scope_role boolean derived from whether any
+// of the subject's active role grants carry scope_class='all'. All existing
+// safety predicates (active/not-disabled/not-tombstoned, effective_at/expires_at
+// windows, group_claims_hash match) are preserved. The role-name allowlist and
+// scope_class='all' hard-filter are removed from the resolution gate: any active
+// mapped role now resolves the subject, and the all-scope flag is computed from
+// the grant set rather than hard-coded.
 const resolveSAMLExternalSubjectQuery = `
 SELECT
     m.tenant_id,
     m.workspace_id,
     u.subject_id_hash,
-    m.policy_revision_hash
+    m.policy_revision_hash,
+    u.user_id,
+    BOOL_OR(rg.scope_class = 'all') AS has_all_scope_role
 FROM identity_external_subjects es
 JOIN identity_provider_configs pc
     ON pc.provider_config_id = es.provider_config_id
@@ -50,19 +61,17 @@ WHERE es.provider_config_id = $1
   AND m.tombstoned_at IS NULL
   AND m.effective_at <= $4
   AND (m.expires_at IS NULL OR m.expires_at > $4)
-  AND mr.role_id IN ('owner', 'tenant_admin')
   AND mr.status = 'active'
   AND mr.tombstoned_at IS NULL
   AND mr.effective_at <= $4
   AND (mr.expires_at IS NULL OR mr.expires_at > $4)
   AND r.status = 'active'
   AND r.tombstoned_at IS NULL
-  AND rg.scope_class = 'all'
   AND rg.status = 'active'
   AND rg.tombstoned_at IS NULL
   AND rg.effective_at <= $4
   AND (rg.expires_at IS NULL OR rg.expires_at > $4)
-ORDER BY m.effective_at DESC, mr.effective_at DESC, rg.effective_at DESC
+GROUP BY m.tenant_id, m.workspace_id, u.subject_id_hash, m.policy_revision_hash, u.user_id
 LIMIT 1
 `
 

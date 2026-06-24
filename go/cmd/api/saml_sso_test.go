@@ -79,6 +79,8 @@ func TestResolveSAMLPrincipalUsesDurableIdentity(t *testing.T) {
 				"workspace_durable",
 				"sha256:user-subject",
 				"sha256:policy-durable",
+				"user_durable",
+				true, // has_all_scope_role: admin path, no follow-up queries
 			}},
 		}},
 	}
@@ -103,6 +105,9 @@ func TestResolveSAMLPrincipalUsesDurableIdentity(t *testing.T) {
 	}
 	if auth.SubjectIDHash != "sha256:user-subject" || auth.PolicyRevisionHash != "sha256:policy-durable" {
 		t.Fatalf("auth subject/policy = %q/%q, want durable user/policy", auth.SubjectIDHash, auth.PolicyRevisionHash)
+	}
+	if !auth.AllScopes {
+		t.Fatal("ResolveSAMLPrincipal() AllScopes = false, want true for admin durable subject")
 	}
 }
 
@@ -288,15 +293,22 @@ func (r *samlIdentityTestRows) Scan(dest ...any) error {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}
 	for i := range dest {
-		target, ok := dest[i].(*string)
-		if !ok {
+		switch target := dest[i].(type) {
+		case *string:
+			value, ok := row[i].(string)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want string", i, row[i])
+			}
+			*target = value
+		case *bool:
+			value, ok := row[i].(bool)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want bool", i, row[i])
+			}
+			*target = value
+		default:
 			return fmt.Errorf("unsupported scan target %T", dest[i])
 		}
-		value, ok := row[i].(string)
-		if !ok {
-			return fmt.Errorf("row[%d] type = %T, want string", i, row[i])
-		}
-		*target = value
 	}
 	r.index++
 	return nil

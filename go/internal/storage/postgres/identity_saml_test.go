@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestResolveSAMLExternalSubjectRequiresActiveIdentityMembershipAndGrant(t *testing.T) {
+func TestResolveSAMLExternalSubjectAdminStaysAllScopeFailOpen(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 22, 18, 0, 0, 0, time.UTC)
@@ -18,6 +18,8 @@ func TestResolveSAMLExternalSubjectRequiresActiveIdentityMembershipAndGrant(t *t
 				"workspace_saml",
 				"sha256:user-subject",
 				"sha256:policy",
+				"user_owner",
+				true, // has_all_scope_role
 			}},
 		}},
 	}
@@ -43,11 +45,17 @@ func TestResolveSAMLExternalSubjectRequiresActiveIdentityMembershipAndGrant(t *t
 		t.Fatalf("auth subject = %q/%q, want mapped durable user", auth.SubjectClass, auth.SubjectIDHash)
 	}
 	if !auth.AllScopes || auth.PolicyRevisionHash != "sha256:policy" {
-		t.Fatalf("auth grant = all_scopes:%t policy:%q, want active all-scope grant", auth.AllScopes, auth.PolicyRevisionHash)
+		t.Fatalf("auth grant = all_scopes:%t policy:%q, want all-scope admin", auth.AllScopes, auth.PolicyRevisionHash)
+	}
+	if auth.PermissionCatalogEnforced {
+		t.Fatalf("admin auth PermissionCatalogEnforced = true, want false (must stay fail-open)")
+	}
+	if len(auth.AllowedPermissionFeatures) != 0 || len(auth.AllowedPermissionDataClasses) != 0 {
+		t.Fatalf("admin auth carries permission grants = %#v/%#v, want empty", auth.AllowedPermissionFeatures, auth.AllowedPermissionDataClasses)
 	}
 
 	if got := len(db.queries); got != 1 {
-		t.Fatalf("query count = %d, want one successful durable resolution query", got)
+		t.Fatalf("query count = %d, want one durable resolution query (admin short-circuits enforcement)", got)
 	}
 	query := db.queries[0].query
 	for _, want := range []string{
@@ -62,19 +70,144 @@ func TestResolveSAMLExternalSubjectRequiresActiveIdentityMembershipAndGrant(t *t
 		"JOIN workspaces w",
 		"pc.provider_kind = 'external_saml'",
 		"es.group_claims_hash = $3",
-		"rg.scope_class = 'all'",
-		"rg.status = 'active'",
-		"rg.tombstoned_at IS NULL",
-		"ORDER BY m.effective_at DESC, mr.effective_at DESC, rg.effective_at DESC",
+		"AS has_all_scope_role",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("durable SAML resolution query missing %q:\n%s", want, query)
+		}
+	}
+	for _, banned := range []string{
+		"mr.role_id IN ('owner', 'tenant_admin')\n  AND mr.status",
+		"AND rg.scope_class = 'all'",
+	} {
+		if strings.Contains(query, banned) {
+			t.Fatalf("durable SAML resolution query must not hard-filter the resolution gate to admin-only/all-scope grants: found %q:\n%s", banned, query)
 		}
 	}
 	for _, leaked := range []string{"saml-admins", "user@example.test", "raw-name-id"} {
 		if fakeExecArgsContain(db.queries[0].args, leaked) {
 			t.Fatalf("durable SAML resolution args leaked raw SAML value %q: %#v", leaked, db.queries[0].args)
 		}
+	}
+}
+
+func TestResolveSAMLExternalSubjectNonAdminEnforcesCatalog(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 18, 10, 0, 0, time.UTC)
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{{
+			"tenant_saml",
+			"workspace_saml",
+			"sha256:member-subject",
+			"sha256:policy",
+			"user_member",
+			false, // has_all_scope_role
+		}}},
+		{rows: [][]any{{"role_reader"}}},
+		{rows: [][]any{
+			{"ask_search", "ask_reasoning"},
+			{"repository_content", "source_content"},
+		}},
+	}}
+	store := NewIdentitySubjectStore(db)
+
+	result, err := store.ResolveSAMLExternalSubject(context.Background(), SAMLExternalSubjectResolutionRequest{
+		ProviderConfigID:      "provider_saml",
+		ExternalSubjectIDHash: "sha256:external-subject",
+		GroupClaimsHash:       "sha256:groups-current",
+		Now:                   now,
+	})
+	if err != nil {
+		t.Fatalf("ResolveSAMLExternalSubject() error = %v", err)
+	}
+	if !result.Resolved || !result.KnownSubject {
+		t.Fatalf("ResolveSAMLExternalSubject() result = %#v, want resolved known subject", result)
+	}
+	auth := result.Auth
+	if auth.AllScopes {
+		t.Fatalf("non-admin auth AllScopes = true, want false")
+	}
+	if !auth.PermissionCatalogEnforced {
+		t.Fatalf("non-admin auth PermissionCatalogEnforced = false, want true")
+	}
+	if got, want := auth.RoleIDs, []string{"role_reader"}; !equalStringSlices(got, want) {
+		t.Fatalf("RoleIDs = %#v, want %#v", got, want)
+	}
+	if got, want := auth.AllowedPermissionFeatures, []string{"ask_search", "repository_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("AllowedPermissionFeatures = %#v, want %#v", got, want)
+	}
+	if got, want := auth.AllowedPermissionDataClasses, []string{"ask_reasoning", "source_content"}; !equalStringSlices(got, want) {
+		t.Fatalf("AllowedPermissionDataClasses = %#v, want %#v", got, want)
+	}
+	if !fakeQueriesContain(db.queries, "FROM identity_role_grants grant") {
+		t.Fatalf("non-admin SAML resolution must derive permission grants from roles: %#v", db.queries)
+	}
+}
+
+// TestResolveSAMLExternalSubjectParityWithScopedTokenForSameRole proves that a
+// resolved non-admin SAML session authorizes identically to a scoped token for
+// the same role: same allowed features, same data classes, catalog enforced,
+// not all-scope. Both call resolvePermissionGrantsForRoles, the single source of
+// truth, so the two derive identical grants from the same role set.
+func TestResolveSAMLExternalSubjectParityWithScopedTokenForSameRole(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 18, 20, 0, 0, time.UTC)
+	grantRows := [][]any{
+		{"ask_search", "ask_reasoning"},
+		{"repository_content", "source_content"},
+	}
+
+	samlDB := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{{
+			"tenant_saml",
+			"workspace_saml",
+			"sha256:member-subject",
+			"sha256:policy",
+			"user_member",
+			false, // has_all_scope_role
+		}}},
+		{rows: [][]any{{"role_reader"}}},
+		{rows: append([][]any(nil), grantRows...)},
+	}}
+	samlResult, err := NewIdentitySubjectStore(samlDB).ResolveSAMLExternalSubject(
+		context.Background(),
+		SAMLExternalSubjectResolutionRequest{
+			ProviderConfigID:      "provider_saml",
+			ExternalSubjectIDHash: "sha256:external-subject",
+			GroupClaimsHash:       "sha256:groups-current",
+			Now:                   now,
+		},
+	)
+	if err != nil {
+		t.Fatalf("ResolveSAMLExternalSubject() error = %v", err)
+	}
+
+	tokenDB := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: append([][]any(nil), grantRows...)},
+	}}
+	tokenFeatures, tokenDataClasses, err := NewScopedAPITokenStore(tokenDB).ResolvePermissionGrantsForRoles(
+		context.Background(),
+		"tenant_saml",
+		[]string{"role_reader"},
+		now,
+	)
+	if err != nil {
+		t.Fatalf("ResolvePermissionGrantsForRoles() error = %v", err)
+	}
+
+	if samlResult.Auth.AllScopes {
+		t.Fatalf("SAML auth AllScopes = true, want false for parity with scoped token")
+	}
+	if !samlResult.Auth.PermissionCatalogEnforced {
+		t.Fatalf("SAML auth PermissionCatalogEnforced = false, want true for parity with scoped token")
+	}
+	if !equalStringSlices(samlResult.Auth.AllowedPermissionFeatures, tokenFeatures) {
+		t.Fatalf("feature parity mismatch: saml %#v vs token %#v", samlResult.Auth.AllowedPermissionFeatures, tokenFeatures)
+	}
+	if !equalStringSlices(samlResult.Auth.AllowedPermissionDataClasses, tokenDataClasses) {
+		t.Fatalf("data-class parity mismatch: saml %#v vs token %#v", samlResult.Auth.AllowedPermissionDataClasses, tokenDataClasses)
 	}
 }
 

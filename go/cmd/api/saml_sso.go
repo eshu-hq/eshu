@@ -264,12 +264,16 @@ func (s *postgresSAMLStore) ResolveSAMLPrincipal(
 		}
 		if result.Resolved {
 			return query.AuthContext{
-				TenantID:           result.Auth.TenantID,
-				WorkspaceID:        result.Auth.WorkspaceID,
-				SubjectClass:       result.Auth.SubjectClass,
-				SubjectIDHash:      result.Auth.SubjectIDHash,
-				PolicyRevisionHash: result.Auth.PolicyRevisionHash,
-				AllScopes:          result.Auth.AllScopes,
+				TenantID:                     result.Auth.TenantID,
+				WorkspaceID:                  result.Auth.WorkspaceID,
+				SubjectClass:                 result.Auth.SubjectClass,
+				SubjectIDHash:                result.Auth.SubjectIDHash,
+				PolicyRevisionHash:           result.Auth.PolicyRevisionHash,
+				AllScopes:                    result.Auth.AllScopes,
+				RoleIDs:                      append([]string(nil), result.Auth.RoleIDs...),
+				PermissionCatalogEnforced:    result.Auth.PermissionCatalogEnforced,
+				AllowedPermissionFeatures:    append([]string(nil), result.Auth.AllowedPermissionFeatures...),
+				AllowedPermissionDataClasses: append([]string(nil), result.Auth.AllowedPermissionDataClasses...),
 			}, true, nil
 		}
 		return query.AuthContext{}, false, nil
