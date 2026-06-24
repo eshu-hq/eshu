@@ -109,6 +109,7 @@ when the reducer has a graph orphan observer.
 | `DiscoveryFilesSkipped` | `eshu_dp_discovery_files_skipped_total` |
 | `LargeRepoClassifications` | `eshu_dp_large_repo_classifications_total` |
 | `EvidenceFactsDiscovered` | `eshu_dp_evidence_facts_discovered_total` |
+| `WorkflowClaimFactsEmitted` | `eshu_dp_workflow_claim_facts_emitted_total` (labels: `collector_kind`, `source_system`) |
 | `DeferredBackfillEvidence` | `eshu_dp_deferred_backfill_evidence_total` |
 | `DeploymentMappingReopened` | `eshu_dp_deployment_mapping_reopened_total` |
 | `IaCReachabilityRows` | `eshu_dp_iac_reachability_rows_total` |
@@ -320,6 +321,27 @@ module prefixes across generations.
 | `IaCReachabilityMaterializationDuration` | `eshu_dp_iac_reachability_materialization_duration_seconds` | 0.1–300 s |
 | `CrossRepoResolutionDuration` | `eshu_dp_cross_repo_resolution_duration_seconds` | 0.01–30 s |
 | `PipelineOverlapDuration` | `eshu_dp_pipeline_overlap_seconds` | 1–1800 s |
+| `WorkflowClaimRunDuration` | `eshu_dp_workflow_claim_run_duration_seconds` (labels: `collector_kind`, `source_system`, `outcome`) | 0.1–1800 s |
+
+`WorkflowClaimRunDuration` records the wall time of one claimed-service
+processing cycle (`ClaimedService.processClaimed`) for every collector family,
+recorded via `defer` on every return path. `outcome` is a bounded enum
+(`success`, `unchanged`, `released`, `fail_retryable`, `fail_terminal`). It is
+the per-collector long-pole signal: `sum by (collector_kind)` of `_sum` over
+`_count` gives mean run duration per family. It shares the `collector_kind`
+label with the #3678 per-stage `eshu_dp_bootstrap_pipeline_phase_seconds` so the
+per-collector and per-phase layers join cleanly. The matching trace span is
+`collector.claimed_run`, carrying the same `collector_kind`, `source_system`,
+and `outcome` attributes.
+
+`WorkflowClaimFactsEmitted` (`eshu_dp_workflow_claim_facts_emitted_total`, labels
+`collector_kind` and `source_system`) counts facts committed per claimed-service
+run from `CollectedGeneration.FactCount`, recorded on the success path only — no
+extra scan or IO. `sum by (collector_kind)` of its rate gives facts/second per
+collector; paired with `WorkflowClaimRunDuration` an operator sees whether a slow
+collector is IO-bound or emission-heavy, and it joins the #3678
+`eshu_dp_content_entity_emitted_total` (`source_file_kind`) counter for a
+per-collector and per-file-kind volume breakdown.
 
 #### Observable gauges
 

@@ -881,6 +881,29 @@ type Instruments struct {
 	// pole in a full-corpus run from the metrics port without strace.
 	BootstrapPipelinePhaseDuration metric.Float64Histogram
 
+	// WorkflowClaimRunDuration records the wall time of one claimed-service
+	// processing cycle (ClaimedService.processClaimed) in seconds, labeled by
+	// collector_kind, source_system, and outcome. It is the per-collector
+	// long-pole signal: sum by (collector_kind) of run duration / count gives
+	// mean run time per family. Outcome values are the bounded
+	// CollectorRunOutcome* constants (success, unchanged, released,
+	// fail_retryable, fail_terminal) so claim-state tables do not need to be
+	// joined to attribute cost. Duration is recorded on every return path
+	// (including failures) via defer so no cycle is silently dropped.
+	// Concurrency-safe: metric.Float64Histogram.Record is safe for concurrent
+	// callers; timing is call-local (time.Now diff on the stack frame).
+	WorkflowClaimRunDuration metric.Float64Histogram
+
+	// WorkflowClaimFactsEmitted counts facts committed per claimed-service run,
+	// labeled by collector_kind and source_system. It uses
+	// CollectedGeneration.FactCount (already populated at the seam) so no extra
+	// scan or IO is introduced. Only recorded on success — unchanged, released,
+	// and failed runs contribute zero facts but are not counted here (they are
+	// visible via the outcome label on WorkflowClaimRunDuration). Join with
+	// eshu_dp_bootstrap_pipeline_phase_seconds on collector_kind to attribute
+	// volume to a pipeline phase.
+	WorkflowClaimFactsEmitted metric.Int64Counter
+
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
 
@@ -3464,6 +3487,28 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register BootstrapPipelinePhaseDuration histogram: %w", err)
+	}
+
+	// Per-collector claimed-service run duration: wide enough for sub-second
+	// lightweight collectors and 30-minute heavyweight git snapshots, with fine
+	// resolution at the low end so fast no-op cycles are visible.
+	claimRunBuckets := []float64{0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800}
+	inst.WorkflowClaimRunDuration, err = meter.Float64Histogram(
+		"eshu_dp_workflow_claim_run_duration_seconds",
+		metric.WithDescription("Wall time of one claimed-service processing cycle labeled by collector_kind, source_system, and outcome. Use to find the per-collector long pole in a full-corpus run."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(claimRunBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimRunDuration histogram: %w", err)
+	}
+
+	inst.WorkflowClaimFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_facts_emitted_total",
+		metric.WithDescription("Total facts emitted per claimed-service run, labeled by collector_kind and source_system. Recorded from CollectedGeneration.FactCount on successful commit only."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimFactsEmitted counter: %w", err)
 	}
 
 	pipelineOverlapBuckets := []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}
