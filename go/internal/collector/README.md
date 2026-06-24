@@ -744,5 +744,7 @@ Both metrics are surfaced on the existing metrics port (no new endpoint).
   pessimistic default (`fail_terminal`) with the correct outcome on each arm;
   if a future arm is added without an explicit assignment it falls back to
   `fail_terminal`, which is conservative rather than incorrect.
-- Tests verify all five outcome values under race detection
-  (`go test -race ./internal/collector`): 80 tests passed, 0 races detected.
+- Tests verify all five outcome values (success, unchanged, released,
+  fail_retryable, fail_terminal) under race detection
+  (`go test -race ./internal/collector -run 'ClaimedService|Service|Collector|Metric|Outcome|Released'`):
+  81 tests passed, 0 races detected.

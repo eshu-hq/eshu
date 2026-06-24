@@ -103,6 +103,59 @@ func TestClaimedServiceRunDurationOutcomeUnchanged(t *testing.T) {
 	}
 }
 
+// TestClaimedServiceRunDurationOutcomeReleased proves the outcome label is
+// "released" when a claimed source returns ok == false (work item not yet
+// ready) and the claim is released back to the queue without a commit.
+func TestClaimedServiceRunDurationOutcomeReleased(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 20, 12, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.SourceSystem = "git"
+	claim := testWorkflowClaim(item.WorkItemID, now)
+
+	instruments, metricReader := newTestInstrumentsPair(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store := &stubClaimStore{item: item, claim: claim, found: true}
+	store.heartbeat = func(context.Context, workflow.ClaimMutation) error { return nil }
+	// After the claim is released, cancel so Run exits.
+	store.release = func(context.Context, workflow.ClaimMutation) error {
+		cancel()
+		return nil
+	}
+
+	// ok == false drives the release path; no error means no failure outcome.
+	svc := testClaimedService(now, claim, scope.CollectorGit, store, &stubClaimedSource{
+		ok: false,
+	}, &stubClaimedCommitter{})
+	svc.Instruments = instruments
+
+	if err := svc.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if store.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", store.releaseCalls)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := metricReader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	// The duration metric must record with outcome=released.
+	if got := claimedHistogramCount(t, rm, "eshu_dp_workflow_claim_run_duration_seconds"); got != 1 {
+		t.Fatalf("eshu_dp_workflow_claim_run_duration_seconds count = %d, want 1", got)
+	}
+	got := claimedHistogramOutcome(t, rm, "eshu_dp_workflow_claim_run_duration_seconds")
+	if got != telemetry.CollectorRunOutcomeReleased {
+		t.Fatalf("outcome = %q, want %q", got, telemetry.CollectorRunOutcomeReleased)
+	}
+}
+
 // TestClaimedServiceRunDurationOutcomeFailRetryable proves the outcome label is
 // "fail_retryable" when NextClaimed returns a retryable error.
 func TestClaimedServiceRunDurationOutcomeFailRetryable(t *testing.T) {
