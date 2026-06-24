@@ -42,10 +42,13 @@ or marker that already diagnoses it.
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
 | queue claim | go/internal/reducer/service.go:189 | `eshu_dp_queue_claim_duration_seconds`, `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth`, `eshu_dp_worker_pool_active` | reducer runtime |
-| intent enqueue | go/internal/projector/runtime.go:171 | `eshu_dp_reducer_intents_enqueued_total`, `eshu_dp_reducer_admission_deferrals_total` | reducer runtime |
+| intent enqueue | go/internal/projector/runtime.go:173 | `eshu_dp_reducer_intents_enqueued_total` | reducer runtime |
 | batch claim | go/internal/reducer/repo_dependency_projection_runner.go:149 | `eshu_dp_reducer_batch_claim_size`, `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
 | fact load | go/internal/reducer/cross_repo_resolution.go:178 | `eshu_dp_postgres_query_duration_seconds`, `eshu_dp_cross_repo_resolution_duration_seconds`, `eshu_dp_cross_repo_evidence_loaded_total` | reducer fact load |
-| candidate classification | go/internal/reducer/admission_decisions.go | `eshu_dp_reducer_executions_total`, `eshu_dp_admission_decisions_*` | reducer admission |
+| candidate classification (admission deferral) | go/cmd/ingester/reducer_admission.go:363 | `eshu_dp_reducer_admission_deferrals_total` | reducer admission |
+| candidate classification (CI/CD run correlation) | go/internal/reducer/ci_cd_run_correlation.go:160 | `eshu_dp_ci_cd_run_correlations_total` | reducer admission |
+| candidate classification (cloud inventory) | go/internal/reducer/cloud_inventory_admission.go:413 | `eshu_dp_cloud_inventory_admissions_total` | reducer admission |
+| candidate classification (container image identity) | go/internal/reducer/container_image_identity.go:191 | `eshu_dp_container_image_identity_decisions_total` | reducer admission |
 | projection (cross-repo edges) | go/internal/reducer/cross_repo_resolution.go:270 | `eshu_dp_cross_repo_edges_resolved_total`, `eshu_dp_cross_repo_activation_fenced_total` | reducer cross-repo |
 | projection (shared edges) | go/internal/reducer/shared_projection_runner.go | `eshu_dp_shared_projection_cycles_total`, `eshu_dp_shared_projection_intent_wait_seconds`, `eshu_dp_shared_projection_processing_seconds`, `eshu_dp_shared_projection_step_seconds` | reducer shared projection |
 | projection (search index) | go/internal/reducer/eshu_search_index_writer.go | `eshu_dp_search_index_mutations_total`, `eshu_dp_search_index_errors_total`, `eshu_dp_search_index_write_duration_seconds` | reducer search index |
@@ -64,6 +67,13 @@ or marker that already diagnoses it.
 | projection (EC2 block-device KMS posture) | go/internal/reducer/ec2_block_device_kms_posture_materialization.go | `eshu_dp_ec2_block_device_kms_posture_decisions_total`, `eshu_dp_ec2_block_device_kms_posture_skipped_total` | reducer posture |
 | projection (config-state drift) | go/internal/reducer/terraform_config_state_drift.go:263 | `eshu_dp_correlation_drift_detected_total`, `eshu_dp_correlation_drift_intents_enqueued_total`, `eshu_dp_drift_unresolved_module_calls_total`, `eshu_dp_drift_schema_unknown_composite_total` | reducer drift |
 | projection (AWS runtime drift) | go/internal/correlation/drift/cloudruntime/telemetry.go:88 | `eshu_dp_correlation_orphan_detected_total`, `eshu_dp_correlation_unmanaged_detected_total` | reducer AWS drift |
+| projection (drift rule match) | go/internal/correlation/drift/multicloud/telemetry.go:67 | `eshu_dp_correlation_rule_matches_total` | reducer drift |
+| projection (correlated incidents) | go/internal/reducer/incident_repository_correlation.go:272 | `eshu_dp_incident_repository_correlations_total` | reducer incident |
+| projection (incident routing) | go/internal/reducer/incident_routing_materialization.go:194 | `eshu_dp_incident_routing_evidence_total` | reducer incident |
+| projection (package source correlation) | go/internal/reducer/package_source_correlation_handler.go:289 | `eshu_dp_package_source_correlations_total`, `eshu_dp_package_consumption_repo_edges_total` | reducer package |
+| projection (SBOM attestation) | go/internal/reducer/sbom_attestation_attachment.go:210 | `eshu_dp_sbom_attestation_attachments_total` | reducer SBOM |
+| projection (secrets/IAM graph) | go/internal/reducer/secrets_iam_graph_projection.go:232 | `eshu_dp_secrets_iam_graph_edges_written_total`, `eshu_dp_secrets_iam_graph_skipped_total` | reducer secrets/IAM |
+| projection (secrets/IAM posture) | go/internal/reducer/secrets_iam_trust_chain.go:223 | `eshu_dp_secrets_iam_reducer_trust_chains_total`, `eshu_dp_secrets_iam_posture_observations_total` | reducer secrets/IAM |
 | projection (supply-chain) | go/internal/reducer/supply_chain_impact.go:316 | `eshu_dp_supply_chain_impact_findings_total`, `eshu_dp_supply_chain_suppression_decisions_total`, `eshu_dp_supply_chain_remediation_decisions_total` | reducer supply-chain |
 | projection (documentation drift) | go/internal/doctruth/observability.go:15 | `eshu_dp_documentation_entity_mentions_extracted_total`, `eshu_dp_documentation_claim_candidates_extracted_total`, `eshu_dp_documentation_claim_candidates_suppressed_total`, `eshu_dp_documentation_drift_findings_total`, `eshu_dp_documentation_drift_generation_duration_seconds` | reducer docs |
 | projection (IaC reachability) | go/internal/storage/postgres/iac_reachability_materializer.go:64 | `eshu_dp_iac_reachability_materialization_duration_seconds`, `eshu_dp_iac_reachability_rows_total` | reducer IaC |
@@ -74,7 +84,7 @@ or marker that already diagnoses it.
 | graph write (batch size) | go/internal/storage/cypher/edge_writer.go | `eshu_dp_neo4j_batch_size`, `eshu_dp_neo4j_batches_executed_total` | reducer graph write |
 | canonical projection (nodes/edges) | go/internal/storage/cypher/canonical_node_writer_entities.go | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_edges_written_total`, `eshu_dp_canonical_write_duration_seconds`, `eshu_dp_canonical_retract_duration_seconds`, `eshu_dp_canonical_batch_size` | reducer canonical |
 | ack/retry | go/internal/collector/claimed_service_backpressure_metrics.go:41 | `eshu_dp_workflow_claim_retries_total`, `eshu_dp_workflow_claim_attempt_budget_exhausted_total`, `eshu_dp_workflow_claim_provider_throttle_total` | reducer queue |
-| dead-letter | go/internal/collector/claimed_service_backpressure_metrics.go:54 | `eshu_dp_workflow_claim_provider_throttle_total`, `eshu_dp_reducer_admission_deferrals_total` | reducer queue |
+| dead-letter | go/internal/collector/claimed_service_backpressure_metrics.go:60 | `eshu_dp_workflow_claim_provider_throttle_total` | reducer queue |
 | generation retention | go/internal/reducer/generation_retention_runner.go:144 | `eshu_dp_generation_retention_generations_pruned_total`, `eshu_dp_generation_retention_rows_pruned_total`, `eshu_dp_generation_retention_failures_total`, `eshu_dp_generation_retention_skipped_total`, `eshu_dp_generation_retention_duration_seconds`, `eshu_dp_generation_retention_batch_size`, `eshu_dp_generation_retention_oldest_eligible_age_seconds` | reducer retention |
 | generation liveness sweep | go/internal/reducer/generation_liveness_runner.go:157 | `eshu_dp_generation_liveness_recovered_total`, `eshu_dp_generation_liveness_superseded_total`, `eshu_dp_generation_liveness_failures_total`, `eshu_dp_active_generations` | reducer liveness |
 | reducer run duration | go/internal/reducer/service.go:358 | `eshu_dp_reducer_run_duration_seconds`, `eshu_dp_reducer_executions_total` | reducer runtime |
@@ -93,11 +103,12 @@ queue-depth and claim-wait surfaces with the reducer.
 | --- | --- | --- | --- |
 | queue claim | go/internal/projector/service.go:115 | `eshu_dp_queue_claim_duration_seconds`, `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth` | projector runtime |
 | projector run | go/internal/projector/service_logging.go:41 | `eshu_dp_projector_run_duration_seconds`, `eshu_dp_projector_stage_duration_seconds`, `eshu_dp_canonical_writes_total` | projector runtime |
+| projection completion | go/internal/projector/service_logging.go:44 | `eshu_dp_projections_completed_total` | projector runtime |
 | fact commit | go/internal/collector/git_source_processing.go:217 | `eshu_dp_fact_emit_duration_seconds`, `eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`, `eshu_dp_fact_batches_committed_total`, `eshu_dp_generation_fact_count` | projector fact commit |
-| content re-read | go/internal/telemetry/instruments.go:795 | `No-Observability-Change: ContentReReads and ContentReReadSkips counters are registered but no longer emit; facts emitted/fact batches committed cover the path` | projector fact commit |
+| content re-read | go/internal/telemetry/instruments.go:795 | `No-Observability-Change: eshu_dp_content_rereads_total and eshu_dp_content_reread_skips_total counters are registered but no longer emit; facts emitted/fact batches committed cover the path` | projector fact commit |
 | phase publish | go/internal/projector/service.go (publish_phases) | `eshu_dp_canonical_phase_duration_seconds`, `eshu_dp_deployment_mapping_reopened_total` | projector phase publish |
 | ack/retry | go/internal/collector/claimed_service_backpressure_metrics.go:41 | `eshu_dp_workflow_claim_retries_total`, `eshu_dp_workflow_claim_attempt_budget_exhausted_total` | projector queue |
-| dead-letter | go/internal/collector/git_selection_baseline.go:187 | `eshu_dp_reconciliation_full_snapshots_total`, `eshu_dp_reconciliation_drift_retractions_total`, `eshu_dp_reconciliation_convergence_total` | projector dead-letter |
+| dead-letter | go/internal/collector/git_selection_baseline.go:187 | `eshu_dp_collector_reconciliation_full_snapshots_total`, `eshu_dp_reconciliation_drift_retractions_total`, `eshu_dp_reconciliation_convergence_total` | projector dead-letter |
 | deferred backfill | go/internal/storage/postgres/ingestion_backfill.go:103 | `eshu_dp_deferred_backfill_duration_seconds`, `eshu_dp_deferred_backfill_batch_duration_seconds`, `eshu_dp_deferred_backfill_batches_completed_total`, `eshu_dp_deferred_backfill_evidence_total` | projector backfill |
 
 <!-- eshu:metric:section=collector-dispatch-seams -->
@@ -110,12 +121,14 @@ land at the same call sites.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
-| collector.observe (claim → complete) | go/internal/collector/service.go:393 | `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_workflow_claim_wait_duration_seconds` | collector chokepoint |
+| collector.observe (claim → complete) | go/internal/collector/service.go:393 | `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_workflow_claim_wait_seconds` | collector chokepoint |
 | collector.claimed_run (per-cycle outcome) | go/internal/collector/claimed_service_run_metrics.go:36 | `eshu_dp_workflow_claim_run_duration_seconds`, `eshu_dp_workflow_claim_facts_emitted_total` | collector chokepoint |
 | collector.stream (streaming read) | go/internal/collector/git_source_stream.go:325 | `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_facts_emitted_total` | collector chokepoint |
 | bootstrap collector cycle | go/cmd/bootstrap-index/main.go (drainCollector) | `eshu_dp_bootstrap_pipeline_phase_seconds`, `eshu_dp_content_entity_emitted_total` | collector chokepoint |
+| bootstrap pipeline overlap | go/cmd/bootstrap-index/main.go:420 | `eshu_dp_pipeline_overlap_seconds` | collector chokepoint |
 | repo snapshot | go/internal/collector/git_source_processing.go:211 | `eshu_dp_repo_snapshot_duration_seconds`, `eshu_dp_repos_snapshotted_total`, `eshu_dp_files_parsed_total` | collector per-collector |
 | snapshot stage timing | go/internal/collector/git_snapshot_native.go:330 | `eshu_dp_collector_snapshot_stage_duration_seconds` | collector per-collector |
+| delta baseline fallback | go/internal/collector/git_selection_baseline.go:175 | `eshu_dp_collector_delta_baseline_fallback_total` | collector per-collector |
 | file parse | go/internal/collector/git_snapshot_native.go | `eshu_dp_file_parse_duration_seconds`, `eshu_dp_scip_snapshot_attempts_total`, `eshu_dp_scip_process_wait_seconds` | collector per-collector |
 | scope assign | go/internal/collector/git_source_processing.go:35 | `eshu_dp_scope_assign_duration_seconds` | collector per-collector |
 | discovery | go/internal/collector/git_selection_discovery.go:375 | `eshu_dp_discovery_dirs_skipped_total`, `eshu_dp_discovery_files_skipped_total`, `eshu_dp_repository_basename_collision_total` | collector discovery |
@@ -214,6 +227,8 @@ Each domain has a depth/age gauge pair sourced from the queue observer.
 | projector queue | go/internal/storage/postgres/queue_observer.go:112 (stage=projector) | `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_workflow_family_queue_depth` | queue domain |
 | semantic extraction queue | go/internal/storage/postgres/queue_observer.go:57 (semanticQueueDepthQuery) | `eshu_dp_semantic_extraction_queue_events_total`, `eshu_dp_semantic_extraction_budget_tokens_total`, `eshu_dp_semantic_extraction_budget_cost_micros_total` | queue domain |
 | worker pool active | go/internal/telemetry/instruments.go:3617 | `eshu_dp_worker_pool_active` | queue runtime |
+| workflow claim lease age | go/internal/collector/claimed_service_backpressure_metrics.go:78 | `eshu_dp_workflow_claim_lease_age_seconds` | queue runtime |
+| go runtime memory limit | go/cmd/ingester/main.go:61 | `eshu_dp_gomemlimit_bytes` | queue runtime |
 | reducer graph-write-timeout retrying | go/internal/storage/postgres/queue_observer.go:168 | `eshu_dp_queue_depth`, `eshu_dp_graph_write_backpressure_engaged_total` | queue runtime |
 
 <!-- eshu:metric:section=graph-write-statement-metadata -->
@@ -324,7 +339,7 @@ the right name when adding a new stage.
 | shared_acceptance.lookup | go/internal/telemetry/contract.go:387 | `eshu_dp_shared_acceptance_lookup_duration_seconds` | span shared acceptance |
 | shared_acceptance.upsert | go/internal/telemetry/contract.go:388 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | span shared acceptance |
 | query.* (handler spans) | go/internal/telemetry/contract.go:389-470, contract_z_observability_coverage.go:10 | `eshu_dp_api_request_duration_seconds` | span query |
-| tfstate.collector.* (claim/parse/emit) | go/internal/telemetry/contract.go:491-496 | `eshu_dp_tfstate_*_total`, `eshu_dp_tfstate_parse_duration_seconds` | span tfstate |
+| tfstate.collector.* (claim/parse/emit) | go/internal/telemetry/contract.go:491-496 | `eshu_dp_tfstate_snapshots_observed_total`, `eshu_dp_tfstate_resources_emitted_total`, `eshu_dp_tfstate_outputs_emitted_total`, `eshu_dp_tfstate_modules_emitted_total`, `eshu_dp_tfstate_warnings_emitted_total`, `eshu_dp_tfstate_redactions_applied_total`, `eshu_dp_tfstate_s3_conditional_get_not_modified_total`, `eshu_dp_tfstate_parse_duration_seconds` | span tfstate |
 | webhook.handle / webhook.store | go/internal/telemetry/contract.go:497-498 | `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | span webhook |
 | oci_registry.scan / oci_registry.api_call | go/internal/telemetry/contract.go:499-500 | `eshu_dp_oci_registry_scan_duration_seconds` | span OCI |
 | kubernetes_live.snapshot / kubernetes_live.api_call | go/internal/telemetry/contract.go:501-502 | `eshu_dp_kubernetes_list_duration_seconds` | span Kubernetes |
