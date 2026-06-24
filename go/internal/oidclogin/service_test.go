@@ -295,6 +295,147 @@ func TestServiceCompleteDeniesEmptyGroupsBeforeGrantResolution(t *testing.T) {
 	}
 }
 
+func TestServiceCompleteStaticGrantsDoNotEnforcePermissionCatalog(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 14, 0, 0, 0, time.UTC)
+	store := &fakeStateStore{
+		consume: StateRecord{
+			StateHash:        SHA256Hash("state-secret"),
+			NonceHash:        SHA256Hash("nonce-secret"),
+			ProviderConfigID: "okta-dev",
+			TenantID:         "tenant_a",
+			WorkspaceID:      "workspace_a",
+			RedirectURIHash:  SHA256Hash("https://eshu.example.test/api/v0/auth/oidc/callback"),
+			IssuedAt:         now.Add(-time.Minute),
+			ExpiresAt:        now.Add(9 * time.Minute),
+			UpdatedAt:        now,
+		},
+		consumeOK: true,
+	}
+	connector := &fakeConnector{
+		claims: VerifiedClaims{
+			Subject: "external-subject",
+			Nonce:   "nonce-secret",
+			Groups:  []string{"Eshu Developers"},
+		},
+	}
+	service := NewService(Config{
+		DefaultProviderID: "okta-dev",
+		StateTTL:          10 * time.Minute,
+		Providers: []ProviderConfig{{
+			ProviderConfigID: "okta-dev",
+			IssuerURL:        "https://idp.example.test/oauth2/default",
+			ClientID:         "client-id",
+			RedirectURL:      "https://eshu.example.test/api/v0/auth/oidc/callback",
+			GroupsClaim:      "groups",
+			TenantID:         "tenant_a",
+			WorkspaceID:      "workspace_a",
+		}},
+	}, store, StaticGrantResolver{
+		GroupRoleMappings: []GroupRoleMapping{{Group: "Eshu Developers", RoleIDs: []string{"developer"}}},
+		RoleGrants: []RoleGrant{{
+			RoleID:               "developer",
+			PolicyRevisionHash:   "sha256:policy",
+			AllowedScopeIDs:      []string{"scope_a"},
+			AllowedRepositoryIDs: []string{"repo_a"},
+		}},
+	}, func(context.Context, ProviderConfig) (Connector, error) {
+		return connector, nil
+	}, WithNow(func() time.Time { return now }))
+
+	complete, err := service.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+		State: "state-secret",
+		Code:  "auth-code",
+	})
+	if err != nil {
+		t.Fatalf("CompleteOIDCLogin() error = %v", err)
+	}
+	auth := complete.Auth
+	// A static role grant carries no permission-catalog snapshot. Enabling
+	// enforcement against an empty snapshot would 403 every catalog-gated route
+	// (ask/semantic search) the static scope grant actually authorizes.
+	if auth.PermissionCatalogEnforced {
+		t.Fatal("PermissionCatalogEnforced = true, want false for static grants that supply no catalog snapshot")
+	}
+	if len(auth.AllowedPermissionFeatures) != 0 || len(auth.AllowedPermissionDataClasses) != 0 {
+		t.Fatalf(
+			"static permission snapshot = %#v/%#v, want empty",
+			auth.AllowedPermissionFeatures,
+			auth.AllowedPermissionDataClasses,
+		)
+	}
+	// The operator-declared scope/repo grant still bounds the session.
+	if got := auth.AllowedScopeIDs; len(got) != 1 || got[0] != "scope_a" {
+		t.Fatalf("AllowedScopeIDs = %#v, want [scope_a]", got)
+	}
+}
+
+func TestServiceCompleteHonorsResolverDeclaredCatalogEnforcement(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 14, 30, 0, 0, time.UTC)
+	store := &fakeStateStore{
+		consume: StateRecord{
+			StateHash:        SHA256Hash("state-secret"),
+			NonceHash:        SHA256Hash("nonce-secret"),
+			ProviderConfigID: "okta-dev",
+			TenantID:         "tenant_a",
+			WorkspaceID:      "workspace_a",
+			RedirectURIHash:  SHA256Hash("https://eshu.example.test/api/v0/auth/oidc/callback"),
+			IssuedAt:         now.Add(-time.Minute),
+			ExpiresAt:        now.Add(9 * time.Minute),
+			UpdatedAt:        now,
+		},
+		consumeOK: true,
+	}
+	resolver := fixedGrantResolver{resolution: GrantResolution{
+		RoleIDs:                      []string{"analyst"},
+		PolicyRevisionHash:           "sha256:policy",
+		PermissionCatalogEnforced:    true,
+		AllowedPermissionFeatures:    []string{"ask_search"},
+		AllowedPermissionDataClasses: []string{"source_content"},
+		AllowedScopeIDs:              []string{"scope_a"},
+	}}
+	service := NewService(Config{
+		DefaultProviderID: "okta-dev",
+		StateTTL:          10 * time.Minute,
+		Providers: []ProviderConfig{{
+			ProviderConfigID: "okta-dev",
+			IssuerURL:        "https://idp.example.test/oauth2/default",
+			ClientID:         "client-id",
+			RedirectURL:      "https://eshu.example.test/api/v0/auth/oidc/callback",
+			GroupsClaim:      "groups",
+			TenantID:         "tenant_a",
+			WorkspaceID:      "workspace_a",
+		}},
+	}, store, resolver, func(context.Context, ProviderConfig) (Connector, error) {
+		return &fakeConnector{claims: VerifiedClaims{
+			Subject: "external-subject",
+			Nonce:   "nonce-secret",
+			Groups:  []string{"Eshu Analysts"},
+		}}, nil
+	}, WithNow(func() time.Time { return now }))
+
+	complete, err := service.CompleteOIDCLogin(context.Background(), query.OIDCLoginCompleteRequest{
+		State: "state-secret",
+		Code:  "auth-code",
+	})
+	if err != nil {
+		t.Fatalf("CompleteOIDCLogin() error = %v", err)
+	}
+	auth := complete.Auth
+	if !auth.PermissionCatalogEnforced {
+		t.Fatal("PermissionCatalogEnforced = false, want true when the resolver declares enforcement")
+	}
+	if got := auth.AllowedPermissionFeatures; len(got) != 1 || got[0] != "ask_search" {
+		t.Fatalf("AllowedPermissionFeatures = %#v, want [ask_search]", got)
+	}
+	if got := auth.AllowedPermissionDataClasses; len(got) != 1 || got[0] != "source_content" {
+		t.Fatalf("AllowedPermissionDataClasses = %#v, want [source_content]", got)
+	}
+}
+
 func fakeConnectorFactory(t *testing.T) ConnectorFactory {
 	t.Helper()
 	return func(context.Context, ProviderConfig) (Connector, error) {
@@ -333,6 +474,17 @@ func (r *failingGrantResolver) ResolveGroupGrants(
 ) (GrantResolution, bool, error) {
 	r.called = true
 	return GrantResolution{}, false, errors.New("grant resolver should not be called")
+}
+
+type fixedGrantResolver struct {
+	resolution GrantResolution
+}
+
+func (r fixedGrantResolver) ResolveGroupGrants(
+	context.Context,
+	GrantQuery,
+) (GrantResolution, bool, error) {
+	return r.resolution, true, nil
 }
 
 type fakeConnector struct {
