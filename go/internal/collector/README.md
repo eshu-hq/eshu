@@ -63,11 +63,15 @@ batch it launches `startStream`, which:
 
 1. Calls `Selector.SelectRepositories` to discover the current repository list
    (span: `SpanScopeAssign`).
-2. Resolves all paths to absolute form and computes a stable `sourceRunID` via
-   `facts.StableID`.
-3. Classifies repositories into `smallCh` and `largeCh` by file count via
-   `isLargeRepository` (skips `.git`, `node_modules`, `vendor`, `.venv`,
-   `__pycache__`).
+2. Resolves all paths to absolute form, orders repositories largest-first by
+   file count (`countRepositoryFiles`), and computes a stable `sourceRunID` via
+   `facts.StableID`. The `sourceRunID` is derived from the input-order paths, so
+   the largest-first reorder never changes the run identity.
+3. Classifies repositories into `smallCh` and `largeCh` by file count. The
+   count is walked once during step 2 (`countRepositoryFiles`, skipping `.git`,
+   `node_modules`, `vendor`, `.venv`, `__pycache__`) and reused here, so the
+   tree is not re-walked. `isLargeRepository` exposes the same count to callers
+   that need the exact number.
 4. Launches `s.SnapshotWorkers` goroutines (default 8). Workers prefer small
    repos; large repos acquire a `largeSem` semaphore (capacity
    `LargeRepoMaxConcurrent`) before snapshotting so at most N large parses run
@@ -538,6 +542,40 @@ claim/execute spans for the value-flow evidence domains.
   logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
   selector/copy window separately from per-repository discovery, pre-scan,
   parse, materialize, commit, and projection stages.
+### Giant-repo collection scheduling (issue #3711)
+
+Full-corpus measurement (896 repos, remote Compose run) showed collection
+wall-time dominated by a giant-repo tail: per-stage totals were parse ~1586 s,
+materialize ~449 s, and pre-scan ~350 s (parallel), with a single 16,659-file
+repository's parse taking ~1012 s (~0.49 s/file, ~10x the normal per-file cost).
+Parse is already 8-way parallel and count-balanced, yet repositories were
+dispatched in discovery order, so the giants clustered at the end and serialized
+the tail.
+
+This change orders repositories largest-first in `resolveRepositories` so the
+heaviest repos start before the small-repo bulk and overlap with it instead of
+serializing at the end. The file count walked for ordering is reused for the
+existing small/large lane classification, so no second tree walk is added.
+
+- Performance Evidence (projected, pending e2e): baseline is the full-corpus
+  per-stage breakdown above where the giant-repo parse (~1012 s) ran as a serial
+  tail in discovery order; after this change the same giant repos are dispatched
+  first and overlap the small-repo bulk, so the expected improvement is the
+  collapse of most of the giant-repo serial tail into overlapped wall-time. The
+  ordering walk reuses the existing classification file-count walk, adding no new
+  per-repo walk. Focused proof of the ordering and the preserved repo set:
+  `go test ./internal/collector -run
+  'Test(ResolveRepositoriesSortsLargestFirst|ResolveRepositoriesStableForEqualCounts|IsLargeRepositoryReturnsExactCount)'
+  -count=1`. The projected wall-time win is to be confirmed by the remote
+  full-corpus e2e run.
+- Observability Evidence: the per-repo `eshu_dp_repo_snapshot_duration_seconds`
+  histogram now carries the bounded `repo_size_tier` (`small`/`large`)
+  dimension so an operator can slice giant-repo cost by size without the
+  unbounded cardinality of a raw file-count label. The exact per-repo
+  `file_count` remains on the existing `collector snapshot completed` structured
+  log. No new instrument or pipeline stage is introduced; `repo_size_tier` is an
+  already-registered telemetry dimension.
+
 - Collector Performance Evidence: declared Prometheus/Mimir, Loki, and Tempo source
   facts reuse the existing repository parse and fact-stream pass. The focused
   proof is
