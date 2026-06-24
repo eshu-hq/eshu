@@ -184,6 +184,34 @@ git -C "${case_missing_doc}" add -A
 git -C "${case_missing_doc}" commit -q -m "delete doc"
 expect_fail "fails when telemetry-coverage.md is missing" "${case_missing_doc}"
 
+# Case 7: a new file is added AND a doc row is added that names the file,
+# but the row's metric column is blank or TODO. The verifier must fail
+# because the row has no eshu_dp_* metric or No-Observability-Change:
+# marker, which would defeat the "every stage must register telemetry"
+# policy. The fixed check requires a signal, not just a covered path.
+case_blank_metric="$(init_repo case-blank-metric)"
+mkdir -p "${case_blank_metric}/go/internal/reducer/blankstage"
+printf 'package blankstage\n' >"${case_blank_metric}/go/internal/reducer/blankstage/materialization.go"
+cat >>"${case_blank_metric}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| blank stage | go/internal/reducer/blankstage/materialization.go:1 | TODO | reducer runtime |
+MD
+git -C "${case_blank_metric}" add .
+git -C "${case_blank_metric}" commit -q -m "add stage with blank/TODO metric column"
+expect_fail "fails when a new row's metric column has no signal" "${case_blank_metric}"
+
+# Case 8: a new file is added under go/internal/content/shape. The
+# verifier's allow-list must cover the real package path; the original
+# allow-list had a wrong path (go/internal/contentshape/*) that let
+# content-shape files slip through. The new path
+# (go/internal/content/shape/*.go) catches them.
+case_content_shape="$(init_repo case-content-shape)"
+mkdir -p "${case_content_shape}/go/internal/content/shape/newshape"
+printf 'package newshape\n' >"${case_content_shape}/go/internal/content/shape/newshape/materialize.go"
+git -C "${case_content_shape}" add .
+git -C "${case_content_shape}" commit -q -m "add content shape stage"
+expect_fail "fails when a new go/internal/content/shape file is not covered by the doc" "${case_content_shape}"
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1

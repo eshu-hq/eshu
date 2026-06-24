@@ -86,9 +86,9 @@ trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instrum
 rg -v 'No-Observability-Change:' "$all_rows_tmp" >"$required_rows_tmp" 2>/dev/null || true
 rg -o 'eshu_dp_[a-zA-Z0-9_]+' "$required_rows_tmp" 2>/dev/null | sort -u >"$doc_required_tmp" || true
 
-# doc_files_tmp: file:line dispatcher column. Used for the "new stage file
-# must be covered by a doc row" check. We capture the file path (text up
-# to the first ':' or '|') of column 2 of every row.
+# doc_files_tmp: file:line dispatcher column. Replaced by
+# doc_row_signals_tmp below; kept as a debug artifact for callers that
+# want to inspect which file:line entries the parser saw.
 rg -N --no-line-number '^\|[[:space:]]*[^|]+\|[[:space:]]*([^|:|[:space:]]+)' \
   --replace '$1' "$all_rows_tmp" >"$doc_files_tmp" 2>/dev/null || true
 sort -u -o "$doc_files_tmp" "$doc_files_tmp"
@@ -128,13 +128,41 @@ if [ -n "$base" ]; then
       go/internal/reducer/*) ;;
       go/internal/projector/*) ;;
       go/internal/correlation/*) ;;
-      go/internal/contentshape/*) ;;
+      go/internal/content/shape/*.go) ;;
       go/cmd/collector-*/*.go) ;;
       *) continue ;;
     esac
     printf '%s\n' "$file" >>"$new_stages_tmp"
   done <"$tmp_diff"
   sort -u -o "$new_stages_tmp" "$new_stages_tmp"
+fi
+
+# doc_row_signals_tmp: per-doc-row file-path and whether the row's
+# metric column carries a real signal (an eshu_dp_* metric or a
+# No-Observability-Change: marker). Used by the new-stage check to
+# detect rows that name a new file but leave the metric column blank
+# or TODO, which would defeat the "every stage must register telemetry"
+# policy. Format: <file> <signal> where signal is 1 or 0.
+doc_row_signals_tmp="$(mktemp)"
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp"' EXIT
+: >"$doc_row_signals_tmp"
+if [ -s "$all_rows_tmp" ]; then
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    file_path="$(printf '%s' "$row" \
+      | rg -o '^\|[[:space:]]*[^|]+\|[[:space:]]*([^|:|[:space:]]+)(?::[0-9]+)?[[:space:]]*\|' \
+        --replace '$1' 2>/dev/null || true)"
+    [ -n "$file_path" ] || continue
+    metric_col="$(printf '%s' "$row" \
+      | rg -o '^\|[[:space:]]*[^|]+\|[[:space:]]*[^|]+\|[[:space:]]*([^|]+)' \
+        --replace '$1' 2>/dev/null || true)"
+    if printf '%s' "$metric_col" | rg -q 'eshu_dp_[a-zA-Z0-9_]+|No-Observability-Change:'; then
+      signal=1
+    else
+      signal=0
+    fi
+    printf '%s %s\n' "$file_path" "$signal" >>"$doc_row_signals_tmp"
+  done <"$all_rows_tmp"
 fi
 
 drift=0
@@ -164,12 +192,32 @@ while IFS= read -r metric; do
   fi
 done <"$instruments_metrics_tmp"
 
-# (3) A new pipeline-stage source file was added but the doc has no row
-# that names its dispatcher.
+# (3) A new pipeline-stage source file was added. The doc must have a
+# row that names the file AND the row's metric column must carry a
+# real signal (an eshu_dp_* metric or a No-Observability-Change:
+# marker). A row that names the file but leaves the metric column
+# blank or TODO would defeat the "every stage must register telemetry"
+# policy.
 while IFS= read -r file; do
   [ -n "$file" ] || continue
-  if ! rg -qF "$file" "$doc_files_tmp"; then
+  matching_rows="$(rg -F " $file" "$doc_row_signals_tmp" 2>/dev/null || true)"
+  if [ -z "$matching_rows" ]; then
     report="${report}  - new stage file ${file} is not covered by any row in ${doc_path}
+"
+    drift=1
+    continue
+  fi
+  has_signal=0
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    sig="${m##* }"
+    if [ "$sig" = "1" ]; then
+      has_signal=1
+      break
+    fi
+  done <<<"$matching_rows"
+  if [ "$has_signal" -eq 0 ]; then
+    report="${report}  - new stage file ${file} is mentioned in ${doc_path} but the matching row has no eshu_dp_* metric or No-Observability-Change: marker
 "
     drift=1
   fi
