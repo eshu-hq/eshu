@@ -686,6 +686,78 @@ spans, the `DeferredBackfillDuration`/`DeferredBackfillEvidence`/
 `deployment_mapping_reopened`/`relationship_backfill_deferred_source_skipped`
 log lines are emitted from the same statements, now relocated.
 
+### Latest-generation CTE: DISTINCT ON rewrite + per-batch telemetry (#3704)
+
+Every relationship-fact loader and the active-repository-generation lookup share
+a `WITH latest_generations AS (...)` CTE that resolves each scope's active
+generation. The pre-#3704 form computed the fallback (scopes without an
+`active_generation_id` pointer) with a **per-scope correlated subquery**
+(`SELECT generation_id ... WHERE candidate.scope_id = generation.scope_id ORDER BY
+ingested_at DESC, generation_id DESC LIMIT 1`) evaluated once per GROUP BY group.
+At corpus scale the planner could not estimate that correlated subplan's
+cardinality, and the corpus-wide deferred relationship backfill
+(`BackfillAllRelationshipEvidence`) became a single CPU-bound serial query — the
+backfill long pole (one core at 100%, bootstrap-index blocked on the pgx read).
+
+The CTE is now the single shared `latestGenerationCTE` constant
+(`latest_generation_cte.go`), rewritten to one `DISTINCT ON (scope_id)` pass:
+`ORDER BY (scope_id, ingested_at DESC, generation_id DESC)` makes the first row
+per scope the newest generation, and `COALESCE(active_generation_id, that newest
+id)` reproduces the original precedence exactly. `active_generation_id` is a
+column of `ingestion_scopes` (one row per scope) so it is constant across a
+scope's generation rows; the COALESCE yields the identical value the correlated
+form selected. All six embedding queries
+(`listLatestRelationshipFactRecordsQuery`, `activeRepositoryGenerationsQuery`,
+`listOnboardedRepoScopedRelationshipFactRecordsQuery`,
+`listDeferredScopedRelationshipFactRecordsQuery`, `resolveRepoActiveGenerationsQuery`,
+`listArgoCDGeneratorConfigFactRecordsQuery`) reference the one constant, so they
+cannot drift. `scope_generations_scope_latest_lookup_idx`
+(`scope_id, ingested_at DESC, generation_id DESC`) backs the DISTINCT ON ordering
+so the per-scope newest row is an index read, not a full sort; the prior
+`scope_generations_scope_idx` could not serve it because `status` sits between
+`scope_id` and `ingested_at`.
+
+Accuracy (truth-equivalence): the rewritten CTE must select the byte-identical
+`(scope_id, generation_id)` set the correlated form selected, so no graph truth
+changes. The active-pointer-wins, fallback-to-newest, and single-generation cases
+are pinned by `TestLatestGenerationCTETruthEquivalenceAndPlan`
+(`latest_generation_cte_integration_test.go`, gated on
+`ESHU_LATEST_GENERATION_PROOF_DSN`). String-shape gates that run everywhere live
+in `ingestion_latest_generation_cte_test.go`
+(`TestLatestGenerationCTEHasNoCorrelatedSubquery`,
+`TestLatestGenerationCTEPreservesActiveGenerationPreference`,
+`TestScopeGenerationsLatestLookupIndexExists`).
+
+Performance Evidence: PostgreSQL 18, fixture of 2000 scopes × 3 generations
+(6000 generation rows, half with an active pointer), `ANALYZE`d, with
+`scope_generations_scope_latest_lookup_idx` present. `EXPLAIN` of the legacy
+correlated form yields total cost `21654.36` with two correlated `SubPlan` nodes
+(`Group` node cost `21594.66`, each SubPlan an Index Only Scan evaluated per
+group). `EXPLAIN` of the DISTINCT ON rewrite yields total cost `372.85` — a
+single `Unique` over one Merge Left Join + Index Only Scan, **no SubPlan** —
+about a 58x planner-cost reduction at that scale, and the correlated subplan the
+planner mis-estimated is removed. The integration test also asserts the rewrite
+plan contains no `SubPlan` node. This addresses the structural long pole the
+#3569/#3659 anchor-scoping already removed the per-fact-volume part of; the
+remaining lever was this shared CTE's correlated subquery, present on every
+live latest-generation read. Before: 34-min serial single query over ~3.5M facts
+with the correlated CTE. After: the correlated subplan is gone on every embedding
+query and the per-scope newest-generation lookup is an index read. End-to-end
+wall-time on the de-nested 896-repo / ~3.5M-fact corpus is measured by the
+operator's remote validation stack (no local corpus of that size).
+
+Observability Evidence: the deferred backfill previously logged nothing until the
+whole pass returned, hiding intra-pass progress. `writeDeferredBackfillInBatches`
+now records `eshu_dp_deferred_backfill_batch_duration_seconds` (histogram) and
+`eshu_dp_deferred_backfill_batches_completed_total` (counter) per committed
+per-repository batch, and emits a `deferred_backfill_batch_committed batch=N
+total_batches=M repos=R readiness_rows=P duration_s=D` log line per batch. A
+rising `…batches_completed_total` during a pass is the operator-visible progress
+signal for the backfill long pole; the existing `relationship.backfill_deferred`
+span and `DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments still
+record the whole-pass totals. New instruments are registered in
+`internal/telemetry/instruments.go`.
+
 ## Platform-Graph Conflict-Domain Partition (#3672)
 
 ### Conflict-Domain Map

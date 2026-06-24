@@ -93,7 +93,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 		totalEvidence++
 	}
 
-	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo)
+	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, instruments)
 	if err != nil {
 		return err
 	}
@@ -119,6 +119,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 func (s IngestionStore) writeDeferredBackfillInBatches(
 	ctx context.Context,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+	instruments *telemetry.Instruments,
 ) (int, error) {
 	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
 	if err != nil {
@@ -139,17 +140,35 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		batchSize = deferredMaintenanceRepoBatchSize
 	}
 
+	totalBatches := (len(repoIDs) + batchSize - 1) / batchSize
 	readinessRows := 0
+	batchIndex := 0
 	for start := 0; start < len(repoIDs); start += batchSize {
 		end := start + batchSize
 		if end > len(repoIDs) {
 			end = len(repoIDs)
 		}
+		batchIndex++
+		batchStart := time.Now()
 		published, err := s.writeDeferredBackfillBatch(ctx, repoIDs[start:end], evidenceBySourceRepo)
 		if err != nil {
 			return readinessRows, err
 		}
 		readinessRows += published
+
+		// Per-batch progress signal: each batch commits independently, so emitting
+		// duration and a completion count here lets an operator watch the backfill
+		// advance batch-by-batch instead of seeing nothing until the whole pass
+		// returns (the gap that hid the issue #3704 long pole).
+		batchDuration := time.Since(batchStart).Seconds()
+		if instruments != nil {
+			instruments.DeferredBackfillBatchDuration.Record(ctx, batchDuration)
+			instruments.DeferredBackfillBatchesCompleted.Add(ctx, 1)
+		}
+		log.Printf(
+			"deferred_backfill_batch_committed batch=%d total_batches=%d repos=%d readiness_rows=%d duration_s=%.2f",
+			batchIndex, totalBatches, end-start, published, batchDuration,
+		)
 	}
 	return readinessRows, nil
 }

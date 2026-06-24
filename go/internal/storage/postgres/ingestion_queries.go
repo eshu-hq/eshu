@@ -7,25 +7,7 @@ WHERE fact_kind = 'repository'
 ORDER BY observed_at DESC, fact_id DESC
 `
 
-const listLatestRelationshipFactRecordsQuery = `
-WITH latest_generations AS (
-    SELECT
-        generation.scope_id,
-        COALESCE(
-            scope.active_generation_id,
-            (
-                SELECT generation_id
-                FROM scope_generations AS candidate
-                WHERE candidate.scope_id = generation.scope_id
-                ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
-                LIMIT 1
-            )
-        ) AS generation_id
-    FROM scope_generations AS generation
-    LEFT JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
-    GROUP BY generation.scope_id, scope.active_generation_id
-)
+const listLatestRelationshipFactRecordsQuery = latestGenerationCTE + `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -132,25 +114,7 @@ ORDER BY generation.ingested_at DESC, generation.generation_id DESC
 LIMIT 1
 `
 
-const activeRepositoryGenerationsQuery = `
-WITH latest_generations AS (
-    SELECT
-        generation.scope_id,
-        COALESCE(
-            scope.active_generation_id,
-            (
-                SELECT generation_id
-                FROM scope_generations AS candidate
-                WHERE candidate.scope_id = generation.scope_id
-                ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
-                LIMIT 1
-            )
-        ) AS generation_id
-    FROM scope_generations AS generation
-    LEFT JOIN ingestion_scopes AS scope
-      ON scope.scope_id = generation.scope_id
-    GROUP BY generation.scope_id, scope.active_generation_id
-)
+const activeRepositoryGenerationsQuery = latestGenerationCTE + `
 SELECT DISTINCT ON (repo_id)
     repo_id,
     fact.scope_id,
