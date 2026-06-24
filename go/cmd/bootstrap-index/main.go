@@ -249,7 +249,48 @@ func runPipelined(
 
 	errc := make(chan error, 2)
 
+	// recordPhaseDuration records one named bootstrap pipeline phase duration as
+	// both a metric (BootstrapPipelinePhaseDuration) and a structured log line so
+	// operators can read the long pole from logs or the metrics port without
+	// strace (#3678). The collector_kind label aligns with the per-collector
+	// telemetry convention so the two layers join cleanly.
+	recordPhaseDuration := func(phase string, d float64) {
+		if instruments != nil {
+			instruments.BootstrapPipelinePhaseDuration.Record(ctx, d, metric.WithAttributes(
+				telemetry.AttrBootstrapPhase(phase),
+				telemetry.AttrCollectorKind("bootstrap-index"),
+			))
+		}
+		if logger != nil {
+			logger.InfoContext(ctx, "bootstrap phase complete",
+				slog.String("bootstrap_phase", phase),
+				slog.Float64("phase_duration_seconds", d),
+				telemetry.PhaseAttr(telemetry.PhaseEmission),
+			)
+		}
+	}
+	// recordPhase records a phase that ends now (sequential post-collection work).
+	recordPhase := func(phase string, start time.Time) {
+		recordPhaseDuration(phase, time.Since(start).Seconds())
+	}
+	// recordPhaseAt records a phase whose end is a captured timestamp rather than
+	// "now". Required for the concurrent projection phase: the projector runs in
+	// parallel with collection and backfill, so its true wall time is
+	// (projector completion - projectionStart), not time.Since at the point where
+	// runPipelined happens to receive the projector's result. Using time.Since
+	// here would wrongly fold the backfill wait into the projection duration and
+	// defeat the long-pole diagnostic.
+	recordPhaseAt := func(phase string, start, end time.Time) {
+		recordPhaseDuration(phase, end.Sub(start).Seconds())
+	}
+
+	// projectorCompletedAt carries the projector goroutine's actual completion
+	// timestamp out to the projection-phase recorder, independent of when
+	// runPipelined receives the projector's error from errc.
+	projectorCompletedAt := make(chan time.Time, 1)
+
 	// Start collector goroutine
+	collectionStart := time.Now()
 	go func() {
 		defer close(collectorDone)
 		err := drainCollector(ctx, cd.source, cd.committer, tracer, instruments, logger, firstDiscoveryAdvisorySink(advisorySinks))
@@ -258,8 +299,12 @@ func runPipelined(
 
 	// Start projector goroutine — polls for work, projects concurrently.
 	// After collector signals done, drains remaining queue then exits.
+	projectionStart := time.Now()
 	go func() {
 		err := drainProjectorPipelined(ctx, pd, workers, collectorDone, tracer, instruments, logger)
+		// Capture the projector's true completion time before publishing the
+		// error, so the projection phase duration excludes any later backfill wait.
+		projectorCompletedAt <- time.Now()
 		errc <- err
 	}()
 
@@ -267,6 +312,7 @@ func runPipelined(
 	collectorErr := <-errc
 
 	overlapDuration := time.Since(pipelineStart).Seconds()
+	recordPhase(telemetry.BootstrapPhaseCollection, collectionStart)
 
 	if collectorErr != nil {
 		// Collector failed — cancel projector and drain.
@@ -275,7 +321,13 @@ func runPipelined(
 		return errors.Join(collectorErr, projectorErr)
 	}
 
+	// Each post-collection phase records its duration even on the error path:
+	// the entire point of #3678 is to see WHICH phase is the long pole, and a
+	// failing long-pole phase is exactly the case an operator must diagnose. So
+	// recordPhase is called before every early return, not only on success.
+	backfillStart := time.Now()
 	if err := cd.committer.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseRelationshipBackfill, backfillStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "deferred relationship backfill failed",
 				slog.String("error", err.Error()),
@@ -286,16 +338,24 @@ func runPipelined(
 		projectorErr := <-errc
 		return fmt.Errorf("deferred backfill fatal: %w", errors.Join(err, projectorErr))
 	}
+	recordPhase(telemetry.BootstrapPhaseRelationshipBackfill, backfillStart)
 
 	// Wait for the source-local projector to drain before reopening reducer work.
 	// Otherwise deployment_mapping items emitted after the reopen pass starts
 	// could miss reopening and remain soft-gated.
 	projectorErr := <-errc
+	// Record projection wall time from its own start to its own completion. The
+	// projector ran concurrently with collection and the backfill above, so its
+	// completion timestamp (captured inside the goroutine) is the only accurate
+	// end point; time.Since here would include the backfill wait.
+	recordPhaseAt(telemetry.BootstrapPhaseProjection, projectionStart, <-projectorCompletedAt)
 	if projectorErr != nil {
 		return projectorErr
 	}
 
+	iacStart := time.Now()
 	if err := cd.committer.MaterializeIaCReachability(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseIaCReachability, iacStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "iac reachability materialization failed",
 				slog.String("error", err.Error()),
@@ -304,6 +364,7 @@ func runPipelined(
 		}
 		return fmt.Errorf("iac reachability materialization fatal: %w", err)
 	}
+	recordPhase(telemetry.BootstrapPhaseIaCReachability, iacStart)
 
 	// Reopen only the deployment_mapping items that already succeeded with the
 	// cross-repo readiness gate closed. Items still pending or claimed will
@@ -312,7 +373,13 @@ func runPipelined(
 	// in-flight items may succeed between now and the reopen pass — those
 	// stragglers are NOT automatically replayed today and require manual admin
 	// replay or a future automated straggler-replay mechanism.
+	//
+	// This step gets its own bounded phase so it is independently identifiable as
+	// a potential long pole; without it the reopen time would be an unaccounted
+	// gap between iac_reachability and config_state_drift.
+	reopenStart := time.Now()
 	if err := cd.committer.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseDeploymentReopen, reopenStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "reopen deployment_mapping work items failed",
 				slog.String("error", err.Error()),
@@ -321,13 +388,16 @@ func runPipelined(
 		}
 		return fmt.Errorf("reopen deployment_mapping fatal: %w", err)
 	}
+	recordPhase(telemetry.BootstrapPhaseDeploymentReopen, reopenStart)
 
 	// Phase 3.5: enqueue config_state_drift intents for every state_snapshot
 	// scope that has an active generation. The drift handler consumes both
 	// config-side parser facts and state-side collector facts, so its work
 	// items must land after Phase 3 reopens deployment_mapping (the same
 	// facts-first ordering rationale documented in CLAUDE.md). Idempotent.
+	driftStart := time.Now()
 	if err := cd.committer.EnqueueConfigStateDriftIntents(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseConfigStateDrift, driftStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "enqueue config_state_drift intents failed",
 				slog.String("error", err.Error()),
@@ -336,6 +406,7 @@ func runPipelined(
 		}
 		return fmt.Errorf("enqueue config_state_drift fatal: %w", err)
 	}
+	recordPhase(telemetry.BootstrapPhaseConfigStateDrift, driftStart)
 
 	totalDuration := time.Since(pipelineStart).Seconds()
 	if logger != nil {
@@ -444,9 +515,23 @@ func projectionWorkerCount(getenv func(string) string) int {
 	return n
 }
 
+// bootstrapProgressInterval is the number of repos between periodic progress
+// log lines during collection. Low enough to be useful; high enough to avoid
+// log noise on very large corpora.
+const bootstrapProgressInterval = 10
+
 // drainCollector runs the collector source until no more work is available.
 // Each cycle is wrapped in a collector.observe span with metric and log output
 // so operators can trace collection throughput during bootstrap.
+//
+// Per-repo instrumentation added by #3678:
+//   - eshu_dp_content_entity_emitted_total (source_file_kind, collector_kind):
+//     incremented per entity by bounded file kind so lockfile/config explosions
+//     are visible from the metrics port without manual SQL.
+//   - Periodic progress log every bootstrapProgressInterval repos (repos done,
+//     elapsed, facts emitted) so a 70-min run produces visible progress in logs.
+//   - Per-repo content_entity breakdown in the "bootstrap scope collected" log
+//     line (content_entity_count, entity_by_source_file_kind).
 func drainCollector(
 	ctx context.Context,
 	source collector.Source,
@@ -456,7 +541,12 @@ func drainCollector(
 	logger *slog.Logger,
 	advisorySinks ...discoveryAdvisorySink,
 ) error {
-	var total int
+	var (
+		total           int
+		totalFacts      int64
+		totalEntities   int64
+		collectionStart = time.Now()
+	)
 	advisorySink := firstDiscoveryAdvisorySink(advisorySinks)
 	for {
 		cycleStart := time.Now()
@@ -484,6 +574,9 @@ func drainCollector(
 			if logger != nil {
 				logger.InfoContext(ctx, "bootstrap collection complete",
 					slog.Int("scopes_collected", total),
+					slog.Int64("total_facts_emitted", totalFacts),
+					slog.Int64("total_entities_emitted", totalEntities),
+					slog.Float64("collection_duration_seconds", time.Since(collectionStart).Seconds()),
 					telemetry.PhaseAttr(telemetry.PhaseEmission),
 				)
 			}
@@ -519,6 +612,31 @@ func drainCollector(
 			}
 			return fmt.Errorf("bootstrap collector commit: %w", err)
 		}
+
+		// Emit per-file-kind content_entity counters from the discovery advisory.
+		// The advisory classifies each entity into a bounded source_file_kind
+		// (telemetry.ContentEntitySourceFileKind: code, package_manifest, config,
+		// other) — package_manifest comes from dependency entity metadata, the same
+		// signal the reducer admits. Iterate the bounded constant set (not the map
+		// keys) so both the metric label space and the log field space are
+		// statically bounded and a stray advisory key can never leak a new
+		// dimension. These counters let operators distinguish a lockfile explosion
+		// (package_manifest) from normal code growth without querying fact_records.
+		var entityCount int
+		entityByKind := map[string]int{}
+		if collected.DiscoveryAdvisory != nil {
+			for _, kind := range telemetry.SourceFileKinds() {
+				n := collected.DiscoveryAdvisory.EntityCounts.BySourceFileKind[kind]
+				entityByKind[kind] = n
+				entityCount += n
+				if instruments != nil && n > 0 {
+					instruments.ContentEntityEmitted.Add(cycleCtx, int64(n), metric.WithAttributes(
+						telemetry.AttrSourceFileKind(kind),
+						telemetry.AttrCollectorKind("bootstrap-index"),
+					))
+				}
+			}
+		}
 		if collected.DiscoveryAdvisory != nil && advisorySink != nil {
 			report := *collected.DiscoveryAdvisory
 			if report.Run.ScopeID == "" {
@@ -541,22 +659,48 @@ func drainCollector(
 				telemetry.AttrCollectorKind("bootstrap-index"),
 			))
 		}
+
+		totalFacts += int64(factCount)
+		totalEntities += int64(entityCount)
+		total++
+
 		if logger != nil {
-			logger.InfoContext(cycleCtx, "bootstrap scope collected",
+			// Per-repo log: include content_entity count and per-file-kind breakdown
+			// so log grep surfaces the noisy sources without DB queries.
+			logAttrs := []any{
 				slog.String("scope_id", collected.Scope.ScopeID),
 				slog.Int("fact_count", factCount),
+				slog.Int("content_entity_count", entityCount),
 				slog.Float64("duration_seconds", duration),
 				telemetry.PhaseAttr(telemetry.PhaseEmission),
-			)
+			}
+			// Iterate the bounded constant set so the log field set is static and
+			// ordered (entity_kind_code, entity_kind_package_manifest, ...).
+			for _, kind := range telemetry.SourceFileKinds() {
+				logAttrs = append(logAttrs, slog.Int("entity_kind_"+kind, entityByKind[kind]))
+			}
+			logger.InfoContext(cycleCtx, "bootstrap scope collected", logAttrs...)
+
+			// Periodic progress: every bootstrapProgressInterval repos emit a
+			// summary so a 70-min run does not look silent.
+			if total%bootstrapProgressInterval == 0 {
+				logger.InfoContext(ctx, "bootstrap collection progress",
+					slog.Int("scopes_done", total),
+					slog.Int64("total_facts_emitted", totalFacts),
+					slog.Int64("total_entities_emitted", totalEntities),
+					slog.Float64("elapsed_seconds", time.Since(collectionStart).Seconds()),
+					telemetry.PhaseAttr(telemetry.PhaseEmission),
+				)
+			}
 		}
 		if span != nil {
 			span.SetAttributes(
 				attribute.String("scope_id", collected.Scope.ScopeID),
 				attribute.Int("fact_count", factCount),
+				attribute.Int("content_entity_count", entityCount),
 			)
 			span.End()
 		}
-		total++
 	}
 }
 

@@ -850,6 +850,18 @@ type Instruments struct {
 	// denormalized edges are stranded at the source.
 	CrossRepoActivationFenced metric.Int64Counter
 
+	// ContentEntityEmitted counts content_entity facts streamed during
+	// collection, broken down by source_file_kind (code, package_manifest,
+	// config, other). This is the single most valuable counter for surfacing
+	// lockfile/minified entity explosions without manual SQL.
+	ContentEntityEmitted metric.Int64Counter
+
+	// BootstrapPipelinePhaseDuration records the wall time of each named
+	// bootstrap pipeline phase (collection, projection, relationship_backfill,
+	// iac_reachability, config_state_drift) so operators can see the long
+	// pole in a full-corpus run from the metrics port without strace.
+	BootstrapPipelinePhaseDuration metric.Float64Histogram
+
 	// Pipeline overlap metric — how long collector and projector ran concurrently
 	PipelineOverlapDuration metric.Float64Histogram
 
@@ -3408,6 +3420,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CrossRepoActivationFenced counter: %w", err)
 	}
 
+	inst.ContentEntityEmitted, err = meter.Int64Counter(
+		"eshu_dp_content_entity_emitted_total",
+		metric.WithDescription("Total content_entity facts streamed during collection, broken down by source_file_kind (code, package_manifest, config, other). Use to detect lockfile or config entity explosions without manual SQL."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContentEntityEmitted counter: %w", err)
+	}
+
+	bootstrapPhaseBuckets := []float64{1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600}
+	inst.BootstrapPipelinePhaseDuration, err = meter.Float64Histogram(
+		"eshu_dp_bootstrap_pipeline_phase_seconds",
+		metric.WithDescription("Wall time of each named bootstrap pipeline phase (collection, projection, relationship_backfill, iac_reachability, config_state_drift). Use to find the long pole in a full-corpus run."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(bootstrapPhaseBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BootstrapPipelinePhaseDuration histogram: %w", err)
+	}
+
 	pipelineOverlapBuckets := []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}
 	inst.PipelineOverlapDuration, err = meter.Float64Histogram(
 		"eshu_dp_pipeline_overlap_seconds",
@@ -3968,6 +3999,162 @@ func AttrResourceScope(v string) attribute.KeyValue {
 // AttrFactKind returns a fact_kind attribute for metric recording.
 func AttrFactKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionFactKind, v)
+}
+
+// Bounded source_file_kind values for ContentEntityEmitted. Producers MUST
+// use exactly these constants; the metric must stay low-cardinality.
+const (
+	// SourceFileKindCode represents an ordinary source file parsed by the
+	// language engine (no artifact_type set by the parser and no
+	// dependency-manifest metadata).
+	SourceFileKindCode = "code"
+	// SourceFileKindPackageManifest represents a dependency manifest or
+	// lockfile entity (go.mod, package-lock.json, Cargo.lock, requirements.txt,
+	// pom.xml, *.csproj, etc.). The git parser does NOT set artifact_type for
+	// these files; the manifest signal lives in entity metadata instead. A
+	// manifest dependency entity is emitted with entity_type "Variable" and
+	// metadata config_kind "dependency" (the exact pair the reducer's
+	// extractPackageManifestDependencies admits in
+	// internal/reducer/package_consumption_correlation.go). This is the bucket
+	// that surfaces a lockfile content_entity explosion (issue #3676).
+	SourceFileKindPackageManifest = "package_manifest"
+	// SourceFileKindConfig represents an infra or config artifact. Classified
+	// from the artifact_type tokens the git parser actually emits via
+	// inferArtifactType / persistedArtifactType (internal/parser:
+	// templated_detection.go): Dockerfile, docker-compose, Terraform HCL and
+	// templates, Helm/Go/Jinja templated YAML, GitHub Actions workflows,
+	// Ansible files, and nginx/apache/generic config families.
+	SourceFileKindConfig = "config"
+	// SourceFileKindOther represents any other artifact_type value returned by
+	// the parser that does not map to code, manifest, or config.
+	SourceFileKindOther = "other"
+)
+
+// SourceFileKinds returns the bounded, ordered set of source_file_kind label
+// values. Producers MUST iterate this set (rather than dynamic map keys) when
+// emitting per-kind metrics or log fields so the dimension space stays
+// statically bounded and a stray classification can never leak a new label.
+func SourceFileKinds() []string {
+	return []string{
+		SourceFileKindCode,
+		SourceFileKindPackageManifest,
+		SourceFileKindConfig,
+		SourceFileKindOther,
+	}
+}
+
+// ConfigKindDependency is the entity-metadata config_kind value the git
+// dependency parsers set on a package-manifest dependency entity. It is the
+// exact value the reducer's extractPackageManifestDependencies admits, so the
+// telemetry classifier keys on the same signal as supply-chain truth.
+const ConfigKindDependency = "dependency"
+
+// EntityTypeVariable is the content-entity type the git dependency parsers emit
+// for manifest dependency rows (they land in the parser "variables" bucket,
+// labeled "Variable"). The reducer requires entity_type == "Variable" before
+// admitting a package-manifest dependency, so the classifier requires it too.
+const EntityTypeVariable = "Variable"
+
+// ContentEntitySourceFileKind classifies a content entity into one of the
+// bounded SourceFileKind* constants so eshu_dp_content_entity_emitted_total
+// stays low-cardinality. It mirrors the real parser/reducer data path:
+//
+//   - package_manifest: entity_type "Variable" AND config_kind "dependency"
+//     (the dependency-manifest signal the git parsers set in entity metadata;
+//     artifact_type is empty for these files, so it can NOT be used). This is
+//     the exact pair the reducer admits as a package-manifest dependency.
+//   - config: a non-empty artifact_type emitted by inferArtifactType /
+//     persistedArtifactType for IaC/config/templated files.
+//   - code: no artifact_type and no manifest metadata (ordinary source).
+//   - other: a non-empty artifact_type that is not a known config token.
+//
+// Callers MUST use this function rather than deriving the label themselves.
+func ContentEntitySourceFileKind(entityType, artifactType, configKind string) string {
+	// Manifest detection comes first: dependency entities carry no
+	// artifact_type, so the metadata signal is the only reliable one.
+	if entityType == EntityTypeVariable && configKind == ConfigKindDependency {
+		return SourceFileKindPackageManifest
+	}
+	if artifactType == "" {
+		return SourceFileKindCode
+	}
+	if isConfigArtifactType(artifactType) {
+		return SourceFileKindConfig
+	}
+	return SourceFileKindOther
+}
+
+// isConfigArtifactType reports whether artifactType is one of the config/infra
+// tokens the git parser actually emits. The set is aligned with the switch arms
+// of inferArtifactType and persistedArtifactType in
+// internal/parser/templated_detection.go; tokens those functions never produce
+// (terraform, helm_chart, argocd, kustomize, cloudformation, bare "ansible")
+// are intentionally absent because they would be dead labels.
+func isConfigArtifactType(artifactType string) bool {
+	switch artifactType {
+	// Container / orchestration config.
+	case "dockerfile", "docker_compose", "github_actions_workflow":
+		return true
+	// Terraform HCL and Terraform templates.
+	case "terraform_hcl", "terraform_template_text":
+		return true
+	// Persisted templated-YAML buckets (persistedArtifactType). A plain
+	// (untemplated) YAML document persists with an empty artifact_type and is
+	// intentionally classified as code, not config.
+	case "helm_helper_tpl", "go_template_yaml", "jinja_yaml":
+		return true
+	// Jinja/text/YAML templates from inferArtifactType.
+	case "yaml_template", "jinja_text_template", "text_template":
+		return true
+	// Web-server and generic config families (inferArtifactType).
+	case "nginx_config", "nginx_config_template",
+		"apache_config", "apache_config_template",
+		"generic_config", "generic_config_template":
+		return true
+	// Ansible family (ansibleArtifactType).
+	case "ansible_inventory", "ansible_vars", "ansible_playbook",
+		"ansible_role", "ansible_task_entrypoint":
+		return true
+	default:
+		return false
+	}
+}
+
+// AttrSourceFileKind returns a source_file_kind attribute for metric
+// recording. The value MUST be a SourceFileKind* constant.
+func AttrSourceFileKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionSourceFileKind, v)
+}
+
+// Bounded bootstrap_phase values for BootstrapPipelinePhaseDuration. Producers
+// MUST use exactly these constants.
+const (
+	// BootstrapPhaseCollection is the concurrent collector + fact-emission
+	// phase (drainCollector).
+	BootstrapPhaseCollection = "collection"
+	// BootstrapPhaseProjection is the source-local projector drain phase
+	// (drainProjectorPipelined).
+	BootstrapPhaseProjection = "projection"
+	// BootstrapPhaseRelationshipBackfill is the deferred relationship
+	// evidence backfill phase (BackfillAllRelationshipEvidence).
+	BootstrapPhaseRelationshipBackfill = "relationship_backfill"
+	// BootstrapPhaseIaCReachability is the IaC reachability materialization
+	// phase (MaterializeIaCReachability).
+	BootstrapPhaseIaCReachability = "iac_reachability"
+	// BootstrapPhaseDeploymentReopen is the deployment_mapping work-item reopen
+	// phase (ReopenDeploymentMappingWorkItems). It runs after IaC reachability
+	// and before config-state drift; without its own phase it would be an
+	// unaccounted gap that could not be flagged as a long pole.
+	BootstrapPhaseDeploymentReopen = "deployment_reopen"
+	// BootstrapPhaseConfigStateDrift is the config-state drift intent
+	// enqueue phase (EnqueueConfigStateDriftIntents).
+	BootstrapPhaseConfigStateDrift = "config_state_drift"
+)
+
+// AttrBootstrapPhase returns a bootstrap_phase attribute for metric recording.
+// The value MUST be a BootstrapPhase* constant.
+func AttrBootstrapPhase(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionBootstrapPhase, v)
 }
 
 // AttrStatusClass returns a status_class attribute for metric recording.

@@ -208,15 +208,55 @@ endpoint.
 
 | Signal | Name or key | Where |
 | --- | --- | --- |
-| Span | `telemetry.SpanCollectorObserve` | `main.go:448` — one collect + commit cycle |
-| Span | `telemetry.SpanProjectorRun` | `main.go:657` — one claim + project + ack cycle |
-| Metric | `eshu_dp_facts_emitted_total` | `instruments.FactsEmitted` (`main.go:438`) |
-| Metric | `eshu_dp_facts_committed_total` | `instruments.FactsCommitted` (`main.go:481`) |
-| Metric | `eshu_dp_collector_observe_duration_seconds` | `instruments.CollectorObserveDuration` (`main.go:483`) |
-| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector` (`main.go:646`) |
-| Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` (`main.go:797`) |
-| Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` (`main.go:800`) |
-| Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` (`main.go:115`) |
+| Span | `telemetry.SpanCollectorObserve` | `main.go` — one collect + commit cycle |
+| Span | `telemetry.SpanProjectorRun` | `main.go` — one claim + project + ack cycle |
+| Metric | `eshu_dp_facts_emitted_total` | `instruments.FactsEmitted`, `collector_kind=bootstrap-index` |
+| Metric | `eshu_dp_facts_committed_total` | `instruments.FactsCommitted` |
+| Metric | `eshu_dp_collector_observe_duration_seconds` | `instruments.CollectorObserveDuration`, `collector_kind=bootstrap-index` |
+| Metric | `eshu_dp_content_entity_emitted_total` | `instruments.ContentEntityEmitted`, `source_file_kind` × `collector_kind=bootstrap-index` — per-file-kind content-entity volume (#3678) |
+| Metric | `eshu_dp_bootstrap_pipeline_phase_seconds` | `instruments.BootstrapPipelinePhaseDuration`, `bootstrap_phase` × `collector_kind=bootstrap-index` — per-phase wall time (#3678) |
+| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector` |
+| Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` |
+| Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` |
+| Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` |
+
+`source_file_kind` is one of the bounded values `code`, `package_manifest`,
+`config`, `other`, produced by `telemetry.ContentEntitySourceFileKind`. The
+classifier mirrors the real parser/reducer data path: `package_manifest` is
+detected from a dependency entity's metadata (`entity_type` `Variable` plus
+`config_kind` `dependency`) — the same signal the reducer's
+`extractPackageManifestDependencies` admits — because the git parser leaves
+`artifact_type` empty for dependency manifests. `config` is detected from the
+`artifact_type` tokens the parser actually emits via `inferArtifactType` /
+`persistedArtifactType` (`terraform_hcl`, `dockerfile`, `docker_compose`,
+`github_actions_workflow`, `helm_helper_tpl`, `go_template_yaml`, `jinja_yaml`,
+the `ansible_*` family, nginx/apache/generic config, and Jinja/text templates);
+`code` is the no-artifact-type, no-manifest-metadata default. Dependency
+*checksum* rows (go.sum, `config_kind` `dependency_checksum`) and the
+vcs/path/url/unsupported dependency variants route to `code`/`other` by design —
+mirroring the reducer, which admits consumption on `config_kind` `dependency`
+only — so a high-volume go.sum content_entity explosion surfaces under `code`,
+not `package_manifest`. `bootstrap_phase`
+is one of `collection`, `relationship_backfill`, `projection`,
+`iac_reachability`, `deployment_reopen`, `config_state_drift`, and is recorded
+even when a phase fails so the long pole is visible on the error path. The
+`projection` phase is measured from the projector goroutine's start to its own
+captured completion time (it runs concurrently with collection and backfill), so
+its duration reflects only projector wall time and never folds in the backfill
+wait. The `deployment_reopen` phase wraps `ReopenDeploymentMappingWorkItems` so
+that ordered step is independently identifiable rather than an unaccounted gap.
+The `collector_kind=bootstrap-index` label is shared with the per-collector layer
+so per-stage and per-collector metrics join cleanly. Both the metric label space
+and the per-repo `entity_kind_<kind>` log fields iterate the bounded
+`telemetry.SourceFileKinds()` set, so the dimension space is statically bounded.
+
+During collection, `drainCollector` also logs a `bootstrap collection progress`
+line every 10 repos (`scopes_done`, `total_facts_emitted`,
+`total_entities_emitted`, `elapsed_seconds`) and a per-repo `bootstrap scope
+collected` line carrying `content_entity_count` plus `entity_kind_<kind>`
+breakdown, so a long full-corpus run shows continuous progress in logs without
+strace or SQL forensics. Each post-collection phase emits a `bootstrap phase
+complete` log line with `bootstrap_phase` and `phase_duration_seconds`.
 
 Enable OTEL export by setting OTEL_EXPORTER_OTLP_ENDPOINT. When unset, a
 noop exporter is used and only local structured logs flow.
@@ -232,6 +272,67 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `projection_failure` | Phase 1 — projection worker |
 | `lease_heartbeat_failure` | Phase 1 — heartbeat goroutine |
 | `status=superseded` | Phase 1 — stale projector generation replaced by newer same-scope work |
+
+### Evidence (#3678 per-stage timing + per-file-kind content volume)
+
+- Observability Evidence: Added `eshu_dp_content_entity_emitted_total`
+  (`source_file_kind` × `collector_kind`) and
+  `eshu_dp_bootstrap_pipeline_phase_seconds` (`bootstrap_phase` ×
+  `collector_kind`) instruments, plus per-repo `content_entity_count` /
+  `entity_kind_<kind>` log attributes, a `bootstrap collection progress` log
+  every 10 repos, and a `bootstrap phase complete` log per post-collection
+  phase (recorded on the error path too). Coverage, by layer:
+  - Classification correctness against REAL fixtures:
+    `TestDiscoveryAdvisoryClassifiesRealManifestAndConfigFixtures`
+    (`internal/collector`) writes a real `go.mod` and runs it through the actual
+    `gomod` parser + `entityBucketsFromParsed` + `snapshotEntityMetadata` path,
+    then `buildDiscoveryAdvisoryReport`, and asserts the dependencies classify as
+    `package_manifest` (≥2) and a `terraform_hcl` file as `config`. This guards
+    the #3678 P1 regression: a real dependency manifest carries an empty
+    `artifact_type`, so the prior `artifact_type`-only classifier returned `code`
+    and `package_manifest` was permanently 0. The metadata-based classifier
+    returns `package_manifest`; the old behavior was confirmed failing for the
+    same input before the fix.
+  - Classifier unit coverage:
+    `TestContentEntitySourceFileKindClassifier` (`internal/telemetry`) covers the
+    `Variable`+`config_kind=dependency` manifest signal, the real config
+    `artifact_type` tokens, and that dead tokens (`terraform`, `helm_chart`,
+    `argocd`, `kustomize`, `cloudformation`) the parser never emits fall through
+    to `other` rather than masquerading as `config`.
+  - Advisory→metric wiring:
+    `TestDrainCollectorEmitsContentEntityCounterByFileKind` drives the real
+    `drainCollector` loop against an in-memory OTEL `ManualReader` and asserts the
+    counter emits per bounded `source_file_kind` faithfully to the advisory it is
+    handed (it does not re-derive classification — that is covered above).
+  - Phase timing: `TestRunPipelinedEmitsBootstrapPhaseTimings` drives the real
+    `runPipelined` and asserts each of the six `bootstrap_phase` values records
+    its histogram point.
+  - Phase-timing accuracy:
+    `TestRunPipelinedProjectionPhaseExcludesBackfillWait` injects a slow backfill
+    and asserts the `projection` duration reflects only projector wall time, not
+    the backfill wait (confirmed failing under the prior `time.Since`-after-
+    backfill code, which recorded ~4s instead of ~2.5s).
+    `TestRunPipelinedRecordsDeploymentReopenPhaseOnError` asserts the new
+    `deployment_reopen` phase records even when reopen fails, and that the later
+    `config_state_drift` phase does not record on that error path.
+
+  Full gate: `go test ./internal/telemetry ./internal/collector ./internal/parser
+  ./cmd/bootstrap-index -count=1`.
+  The `collector_kind=bootstrap-index` label is shared with the per-collector
+  layer so the two telemetry layers join without relabeling.
+- No-Regression Evidence: The new counter adds, per repo, four bounded map reads
+  over the already-built `DiscoveryAdvisory.EntityCounts.BySourceFileKind` plus a
+  single-map-read `config_kind` lookup per entity during advisory construction;
+  the histogram adds five `Record` calls per run. No new graph reads, Cypher,
+  locks, queue claims, or per-fact scans are introduced; the package-manifest
+  signal reuses the `config_kind` metadata the advisory already iterates. Both
+  the metric label space and the `entity_kind_<kind>` log fields iterate the
+  bounded `telemetry.SourceFileKinds()` set, so dimension cardinality is static.
+  Collection, projection, and commit paths are unchanged except for the added
+  emission; the progress log is rate-limited to one line per 10 repos. Baseline
+  behavior (facts emitted, projections completed, queue drain) is unchanged and
+  covered by the existing `cmd/bootstrap-index` pipeline tests, which continue to
+  pass.
 
 ## Configuration
 

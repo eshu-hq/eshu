@@ -74,6 +74,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"principal_kind",
 		"budget_state",
 		"budget_reason",
+		"source_file_kind",
+		"bootstrap_phase",
 		"stage",
 		"field_class",
 	}
@@ -241,6 +243,7 @@ func TestSpanNames(t *testing.T) {
 		"postgres.exec",
 		"postgres.query",
 		"neo4j.execute",
+		"bootstrap.collector_cycle",
 		"collector.snapshot_stage",
 	}
 
