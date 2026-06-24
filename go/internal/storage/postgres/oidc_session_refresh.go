@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -58,6 +59,9 @@ func (s *OIDCLoginStore) ResolveActiveRoleGrants(
 	}
 	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, query.TenantID, roles, query.AsOf)
 	if err != nil {
+		// Fails closed (refresh denied -> session revoked). Log for operator triage.
+		slog.ErrorContext(ctx, "oidc session permission grant resolution failed during refresh; session denied",
+			"subject_class", "external_oidc_user", "tenant_id", query.TenantID, "role_count", len(roles), "error", err)
 		return OIDCGroupGrantResolution{}, false, err
 	}
 	return OIDCGroupGrantResolution{

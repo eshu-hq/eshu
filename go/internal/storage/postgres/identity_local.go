@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -187,10 +188,16 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if !auth.AllScopes {
 		roles, err := s.resolveLocalIdentityRoles(ctx, row.TenantID, row.WorkspaceID, row.UserID, attempt.Now)
 		if err != nil {
+			// Fails closed (no session issued). Log distinctly so an operator can
+			// tell a permission-catalog resolution outage from any other login 500.
+			slog.ErrorContext(ctx, "local session role resolution failed; login denied",
+				"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
 			return LocalIdentityAuthenticationResult{}, err
 		}
 		features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, row.TenantID, roles, attempt.Now)
 		if err != nil {
+			slog.ErrorContext(ctx, "local session permission grant resolution failed; login denied",
+				"subject_class", "local_user", "tenant_id", row.TenantID, "role_count", len(roles), "error", err)
 			return LocalIdentityAuthenticationResult{}, err
 		}
 		auth.RoleIDs = roles
