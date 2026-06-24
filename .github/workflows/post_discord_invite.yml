@@ -10,10 +10,15 @@ on:
   pull_request:
     types: [opened]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   post_discord_invite:
     # Skip if the event is a PR from a fork; still run for issues and in-repo PRs
     if: ${{ github.event_name == 'issues' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork) }}
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Post Discord Invite Comment
