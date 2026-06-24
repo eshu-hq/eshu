@@ -15,6 +15,7 @@ import (
 var latestGenerationCTEQueries = map[string]string{
 	"listLatestRelationshipFactRecordsQuery":              listLatestRelationshipFactRecordsQuery,
 	"activeRepositoryGenerationsQuery":                    activeRepositoryGenerationsQuery,
+	"activeScopeGenerationPartitionsQuery":                activeScopeGenerationPartitionsQuery,
 	"listOnboardedRepoScopedRelationshipFactRecordsQuery": listOnboardedRepoScopedRelationshipFactRecordsQuery,
 	"listDeferredScopedRelationshipFactRecordsQuery":      listDeferredScopedRelationshipFactRecordsQuery,
 	"resolveRepoActiveGenerationsQuery":                   resolveRepoActiveGenerationsQuery,

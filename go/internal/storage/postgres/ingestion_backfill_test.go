@@ -296,6 +296,9 @@ func TestIngestionStoreBackfillAllRelationshipEvidenceSkipsUnknownTargetGenerati
 	otherGen := [][]any{
 		{"repo-other", "scope-other", "gen-other"},
 	}
+	otherPartitions := [][]any{
+		{"scope-other", "gen-other"},
+	}
 	inner := &fakeExecQueryer{
 		// Per-scope deferred fact load (issue #3710): the source fact lives in
 		// scope-infra/gen-infra but references repo-app. Its target generation is
@@ -330,8 +333,8 @@ func TestIngestionStoreBackfillAllRelationshipEvidenceSkipsUnknownTargetGenerati
 					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
 				},
 			},
-			// active repository generations snapshot (fact-load partitioning)
-			{rows: otherGen},
+			// scope-generation partition snapshot (fact-load partitioning, #3710)
+			{rows: otherPartitions},
 			// active repository generations snapshot (write phase)
 			{rows: otherGen},
 			// batch transaction re-load of active generations under the lock
@@ -371,6 +374,10 @@ func TestIngestionStoreBackfillAllRelationshipEvidencePersistsBySourceGeneration
 		{"repo-infra", "scope-infra", "gen-infra"},
 		{"repo-app", "scope-app", "gen-app"},
 	}
+	scopeGenPartitions := [][]any{
+		{"scope-infra", "gen-infra"},
+		{"scope-app", "gen-app"},
+	}
 	inner := &fakeExecQueryer{
 		// Per-scope deferred fact load (issue #3710): the infra source fact lives in
 		// scope-infra/gen-infra and references repo-app, so evidence attaches to the
@@ -405,8 +412,8 @@ func TestIngestionStoreBackfillAllRelationshipEvidencePersistsBySourceGeneration
 					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
 				},
 			},
-			// active repository generations snapshot (fact-load partitioning)
-			{rows: activeGens},
+			// scope-generation partition snapshot (fact-load partitioning, #3710)
+			{rows: scopeGenPartitions},
 			// active repository generations snapshot (write phase)
 			{rows: activeGens},
 			// batch transaction re-load of active generations under the lock

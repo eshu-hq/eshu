@@ -21,7 +21,12 @@ import (
 //
 //	$2 pq.StringArray — raw lowercase repo_id values. The repo_id arm uses
 //	   EXISTS to load a fact only when its payload contains a catalog repo_id
-//	   value that is not the row's own repo_id.
+//	   value that is not the row's own repo_id. The value stays raw so the exact
+//	   self-exclusion comparison (catalog_repo_id.value <> own repo_id) is a whole
+//	   string match; the substring LIKE escapes the value's LIKE metacharacters
+//	   (\ % _) inline with the same ESCAPE '\' convention as $1 so a repo_id
+//	   containing one of those characters (or a trailing backslash) cannot become
+//	   an accidental wildcard or a malformed escape sequence.
 //
 //	$3 string — the scope_id partition this run is bounded to (issue #3710).
 //
@@ -58,24 +63,27 @@ import (
 //
 // Performance shape (issue #3710). The query is bound to one (scope_id,
 // generation_id) partition via $3/$4 and selects from fact_records inside a
-// `WITH matched_facts AS MATERIALIZED (...)` CTE. Two plan facts drove this shape,
-// both measured by EXPLAIN ANALYZE on a 3.5M-fact Postgres 18 corpus:
+// `WITH matched_facts AS MATERIALIZED (...)` CTE. Two plan expectations drove this
+// shape (PROJECTED — the EXPLAIN ANALYZE artifact and corpus wall-time are pending
+// the operator's remote full-corpus run, not yet measured locally):
 //
 //  1. Per-scope partition. The original query scanned every latest-generation
 //     content/file/gcp fact once and evaluated the per-row self-exclusion arm
-//     against the whole catalog: an O(facts × catalog) correlated scan that ran
-//     ~20min+ at corpus scale (the measured long pole). The scope_generation
-//     predicate ($3/$4) bounds each run to one repository's facts via
-//     fact_records_scope_generation_idx, turning the monolithic scan into many
-//     small ones the caller fans out across the deferred-maintenance worker pool.
+//     against the whole catalog: an O(facts × catalog) correlated scan over the
+//     full corpus. The scope_generation predicate ($3/$4) bounds each run to one
+//     scope's facts via fact_records_scope_generation_idx, turning the monolithic
+//     scan into many small ones the caller fans out across the
+//     deferred-maintenance worker pool.
 //
-//  2. MATERIALIZED candidate set. Without MATERIALIZED the planner joins
-//     fact_records to latest_generations as a Nested Loop and pushes the
+//  2. MATERIALIZED candidate set. Without MATERIALIZED the planner is expected to
+//     join fact_records to latest_generations as a Nested Loop and push the
 //     payload-text predicate to the inner side as a per-row Filter, which ignores
 //     the trigram GIN index on lower(payload::text)
 //     (fact_records_payload_trgm_idx). MATERIALIZED forces Postgres to build the
-//     predicate-narrowed candidate set first — letting the $1 LIKE ANY arm drive a
-//     Bitmap Index Scan — then join the small result to the latest-generation set.
+//     predicate-narrowed candidate set first — letting the $1 LIKE ANY
+//     constant-pattern arm drive a Bitmap Index Scan — then join the small result
+//     to the latest-generation set. The trigram index accelerates only the $1 arm;
+//     the $2 correlated arm is bounded by the per-scope partition, not the index.
 //
 // Self-exclusion arm ($2). The repo_id arm keeps the exact #3659 self-exclusion
 // (catalog_repo_id.value <> the row's own repo_id) so a fact is never loaded
@@ -87,8 +95,9 @@ import (
 // catalogMatcher.match) re-applies the boundary-safe token matching and the
 // self-match drop (entry.RepoID == sourceRepoID), so the final
 // relationship-evidence set is identical (truth-equivalence). The regex was
-// un-indexable and ~15x slower per scope than the LIKE form; both feed the same
-// matcher.
+// un-indexable; the LIKE form is indexable for the $1 constant-pattern arm. The
+// per-scope speed comparison is pending the remote EXPLAIN ANALYZE; both forms
+// feed the same matcher.
 const listDeferredScopedRelationshipFactRecordsQuery = latestGenerationCTE + `,
 matched_facts AS MATERIALIZED (
     SELECT
@@ -118,7 +127,10 @@ matched_facts AS MATERIALIZED (
           SELECT 1
           FROM unnest($2::text[]) AS catalog_repo_id(value)
           WHERE catalog_repo_id.value <> lower(COALESCE(fact.payload->>'repo_id', ''))
-            AND lower(fact.payload::text) LIKE '%' || catalog_repo_id.value || '%'
+            AND lower(fact.payload::text) LIKE
+              '%' ||
+              replace(replace(replace(catalog_repo_id.value, '\', '\\'), '%', '\%'), '_', '\_') ||
+              '%' ESCAPE '\'
         )
       )
 )

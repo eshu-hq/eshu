@@ -31,6 +31,13 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 		{"repo-infra", "scope-infra", "gen-infra"},
 		{"repo-app", "scope-app", "gen-app"},
 	}
+	// Fact-load partitioning is keyed on the (scope_id, generation_id) pair (issue
+	// #3710), so its snapshot has two columns, not the three of the repository-
+	// generation write snapshots.
+	scopeGenPartitions := [][]any{
+		{"scope-infra", "gen-infra"},
+		{"scope-app", "gen-app"},
+	}
 	// Two catalog entries: repo-infra (aliases: ["repo-infra","infra-repo"]) and
 	// repo-app (aliases: ["repo-app","app-repo"]). The payload for each fact
 	// carries its OWN repo_id. Without the self-exclusion fix, both facts would
@@ -60,8 +67,8 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
 				},
 			},
-			// active repository generations snapshot (fact-load partitioning)
-			{rows: activeGens},
+			// scope-generation partition snapshot (fact-load partitioning, #3710)
+			{rows: scopeGenPartitions},
 			// active repository generations snapshot (write phase)
 			{rows: activeGens},
 			// batch transaction re-load of active generations under the lock
@@ -158,6 +165,10 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 		{"repo-infra", "scope-infra", "gen-infra"},
 		{"repo-app", "scope-app", "gen-app"},
 	}
+	scopeGenPartitions := [][]any{
+		{"scope-infra", "gen-infra"},
+		{"scope-app", "gen-app"},
+	}
 	inner := &fakeExecQueryer{
 		// anchor-scoped relationship facts (issue #3569), per-scope routed (#3710)
 		deferredFactsByScope: map[string][][]any{
@@ -190,8 +201,8 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
 				},
 			},
-			// active repository generations snapshot (fact-load partitioning)
-			{rows: activeGens},
+			// scope-generation partition snapshot (fact-load partitioning, #3710)
+			{rows: scopeGenPartitions},
 			// active repository generations snapshot (write phase)
 			{rows: activeGens},
 			// batch transaction re-load of active generations under the lock

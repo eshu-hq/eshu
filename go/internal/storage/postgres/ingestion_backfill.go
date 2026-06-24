@@ -68,9 +68,15 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	// bootstrap point; on installs that already have it the call is a cheap
 	// catalog lookup. It runs outside the per-scope query fan-out so the
 	// concurrent reads below see a ready index.
+	indexBuildStart := time.Now()
 	if err := EnsureBackfillPayloadTrigramIndex(ctx, s.db); err != nil {
 		return fmt.Errorf("ensure backfill payload trigram index: %w", err)
 	}
+	indexBuildDuration := time.Since(indexBuildStart).Seconds()
+	if instruments != nil {
+		instruments.DeferredBackfillIndexBuildDuration.Record(ctx, indexBuildDuration)
+	}
+	log.Printf("deferred_backfill_index_ensured duration_s=%.2f", indexBuildDuration)
 
 	// Scope the corpus-wide source-fact load to the content anchors of the full
 	// catalog instead of streaming every committed fact (issue #3569), and
@@ -88,7 +94,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	// With no usable anchors no fact can resolve a catalog target, so the fact
 	// load short-circuits and the pass still publishes readiness for the active
 	// generations below.
-	activeFacts, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog)
+	activeFacts, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog, instruments)
 	if err != nil {
 		return fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}
