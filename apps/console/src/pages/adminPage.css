@@ -1,0 +1,40 @@
+/* adminPage.css — layout for the admin console panels (issue #3703). */
+
+.admin-subtitle {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 14px;
+  max-width: 64ch;
+}
+
+/* Inline mutation forms (grant role, create group mapping). Inputs wrap on
+   narrow widths; the submit button sits at the end of the row. */
+.admin-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.admin-form input {
+  font: inherit;
+  color: var(--bone);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  min-width: 9rem;
+}
+
+.admin-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Per-grant line in the read-only roles table. */
+.grant-line {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}

@@ -73,7 +73,11 @@ const NAV_ROUTE_TO_FAMILY: ReadonlyMap<string, string> = new Map([
   ["/freshness-causality", "operations_status"],
   // admin_recovery: capability catalog, collector readiness
   ["/capabilities", "admin_recovery"],
-  ["/collector-readiness", "admin_recovery"]
+  ["/collector-readiness", "admin_recovery"],
+  // identity_admin: admin console (invitations, role assignments, IdP group
+  // mappings, token revocation, audit). UX-only gate; server enforces. The
+  // gate activates for real once #3684 persists session features (#3703).
+  ["/admin", "identity_admin"]
 ]);
 
 // buildAllowedNavSet returns the set of route prefixes the current session may
