@@ -13,11 +13,11 @@ operator-side signal gap.
 
 This is the Epic X discipline. It exists because the **telemetry inventory
 drift** class — metrics defined in code but never documented, or referenced
-in the contract but never registered — has recurred in this repo at least
-twice (see [#3633](https://github.com/eshu-hq/eshu/issues/3633) closed
-2026-06-23 and the historical note in
-`docs/public/reference/telemetry/index.md:140-156`). The discipline replaces
-the human audit with a CI gate.
+in the contract but never registered — has recurred in this repo. The
+historical note in `docs/public/reference/telemetry/index.md:140-156`
+describes the prior instances; the maintainer narrative at
+`docs/internal/telemetry-discipline-precedent.md` ties the discipline to
+those incidents. The discipline replaces the human audit with a CI gate.
 
 ## When To Use
 
@@ -129,22 +129,21 @@ git diff --check
 ## Cross-References
 
 - `docs/internal/telemetry-discipline-precedent.md` — the maintainer
-  narrative and the "Limitations Of The X2 Gate" section
+  narrative and the "Limitations Of The X2 Gate" section. This is the
+  durable home for the historical incident links; refer there rather
+  than to ephemeral issue numbers in this skill.
 - `docs/public/observability/telemetry-coverage.md` — the X1 contract doc
 - `docs/public/reference/telemetry/index.md` — the public operator
-  reference; the per-endpoint metrics section lives at lines 223-254
+  reference; the per-endpoint metrics section lives at lines 223-254;
+  the historical drift note lives at lines 140-156
 - `go/internal/telemetry/instruments.go` — metric source of truth
 - `go/internal/telemetry/contract.go` and `contract_*.go` — dimensions,
   span names, log keys
-- [#3633](https://github.com/eshu-hq/eshu/issues/3633) — closed root-cause
-  class (generation-liveness counters missing)
-- [#3680](https://github.com/eshu-hq/eshu/issues/3680) — open in-flight
-  adoption of the discipline
-- Epic X children: [#3689](https://github.com/eshu-hq/eshu/issues/3689)
-  (X1), [#3690](https://github.com/eshu-hq/eshu/issues/3690) (X2),
-  [#3691](https://github.com/eshu-hq/eshu/issues/3691) (X3),
-  [#3692](https://github.com/eshu-hq/eshu/issues/3692) (X4),
-  [#3693](https://github.com/eshu-hq/eshu/issues/3693) (X5)
+
+Issue numbers in this skill would rot as issues close. The precedent doc
+and the historical note in the public reference are stable; the issue
+links live in the precedent doc, where they are maintained alongside the
+narrative.
 
 ## Failure Modes
 

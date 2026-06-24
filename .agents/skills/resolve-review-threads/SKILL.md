@@ -7,7 +7,10 @@ description: |
   on the conversation tab. The skill takes a PR number, classifies each
   unresolved thread as `fixed`, `unchanged`, or `ambiguous` against the
   current HEAD, and only auto-resolves the `fixed` ones. The rest stay open
-  with a structured report.
+  with a structured report. Treats every reviewer uniformly — codex,
+  GitHub Copilot, Claude (when present), and human reviewers — by reading the
+  comment body and checking the cited file:line, not by trusting the bot
+  label.
 ---
 
 # Resolve Review Threads
@@ -29,12 +32,37 @@ classification rules around it.
 - Right after `git push` for a fix that addresses one or more review comments.
 - When a PR shows many open threads on the conversation tab but the agent
   knows recent commits addressed several of them.
-- **Load this skill proactively when opening a PR.** Codex and human
-  review comments often arrive within minutes of opening; the
-  classification rules and the "MUST NOT auto-resolve unchanged" rule
-  affect how the agent should respond to the first codex P2. Loading
-  the skill after the comments arrive is too late — the agent will
-  have already half-applied the wrong response.
+- **Load this skill proactively when opening a PR.** Bot and human review
+  comments often arrive within minutes of opening; the classification
+  rules and the "MUST NOT auto-resolve unchanged" rule affect how the
+  agent should respond to the first P2. Loading the skill after the
+  comments arrive is too late — the agent will have already half-applied
+  the wrong response.
+
+## Reviewers That Show Up On Eshu PRs
+
+The PR conversation tab accumulates review threads from several sources.
+Classify every thread by reading the comment body and the cited file:line;
+**never trust the bot label alone** to decide whether a finding is correct.
+
+| Reviewer | Author handle | Notes |
+| --- | --- | --- |
+| Codex | `chatgpt-codex-connector[bot]` | Most common bot reviewer. Posts severity-tagged P0/P1/P2 findings with a `file:line` cite and a one-line rule reference. The P2s are the bulk; most are real, some are out-of-scope. |
+| GitHub Copilot | `github-copilot[bot]` | Posts inline comments on specific lines, often without a severity tag. Sometimes duplicates codex findings; sometimes catches different surface issues (typos, missing error checks, doc gaps). |
+| Claude (when tokens are available) | `claude[bot]` or a harness-specific handle | Posts summary reviews and inline comments. Tends to focus on architectural concerns and security/secret leakage. |
+| Human reviewers | a real GitHub user | Authoritative. Treats their findings as P0/P1 unless the author can prove they are out of scope. |
+| Eshu post-discord-invite | `github-actions[bot]` | Not a review; a Discord link post. Ignore. |
+| Cloudflare Pages / Build & Release bots | `cloudflare-workers-and-pages[bot]`, `github-actions[bot]` | Not reviews; deployment status. Ignore. |
+
+**Severity framing is the same regardless of author.** A Copilot comment
+that says "this could be a nil pointer" and a codex P2 that says "missing
+nil check" are the same finding, classified the same way, and resolved
+the same way. Do not let the bot's identity change the classification.
+
+**Duplicate findings are common.** When codex and Copilot both flag the
+same line, resolve both threads but only fix the underlying code once.
+When they disagree (codex says "must add a marker", Copilot says "the
+row is fine"), trust the code and the project rules over either bot.
 - When a reviewer asks "are the open threads still real?" — this skill answers
   with evidence.
 
