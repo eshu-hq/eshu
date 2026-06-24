@@ -330,6 +330,15 @@ type lockAwareMaintenanceDB struct {
 	beginCount       int
 	heldExclusive    int
 	peakHeld         int
+	// concurrencyBarrier, when non-nil, makes the peak-held-locks assertion
+	// deterministic across schedulers: every batch transaction calls it AFTER it
+	// has acquired its locks (so the locks are counted into peakHeld) and blocks
+	// until the expected concurrent cohort has all arrived, then proceeds to
+	// commit/release. Without it, a fast scheduler (e.g. the macOS CI runner)
+	// could run one batch to completion before the next acquires, so the observed
+	// peak would be batchSize rather than the real workers*batchSize bound. nil
+	// disables the barrier for tests that do not measure concurrent peak.
+	concurrencyBarrier func()
 }
 
 func (db *lockAwareMaintenanceDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -398,6 +407,15 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 	switch {
 	case strings.Contains(query, "fact_kind = 'repository'") && !tx.gensServed:
 		tx.gensServed = true
+		// This per-batch active-generations reload runs AFTER the batch has
+		// acquired all its exclusive locks (acquireDeferredMaintenanceRepoExclusiveLocks
+		// precedes it in writeDeferredBackfillBatch), so every concurrent batch's
+		// locks are counted into peakHeld before any batch is allowed past the
+		// barrier to commit and release. This forces the deterministic concurrent
+		// peak regardless of the OS scheduler.
+		if tx.db.concurrencyBarrier != nil {
+			tx.db.concurrencyBarrier()
+		}
 		return &queueFakeRows{rows: tx.db.batchActiveGens}, nil
 	case strings.Contains(query, "deployment_mapping") && !tx.workServed:
 		tx.workServed = true
@@ -498,6 +516,16 @@ func TestConcurrentBackfillBatchesBoundPeakHeldLocks(t *testing.T) {
 		catalogRows = append(catalogRows, []any{[]byte(`{"repo_id":"` + id + `","name":"` + id + `"}`)})
 		activeGens = append(activeGens, []any{id, "scope-" + id, "gen-" + id})
 	}
+	const (
+		batchSize = 2 // 8 repos / 2 => 4 batches
+		workers   = 4
+	)
+	batches := repoCount / batchSize
+	cohort := workers
+	if cohort > batches {
+		cohort = batches
+	}
+
 	db := &lockAwareMaintenanceDB{
 		mgr: newAdvisoryLockManager(),
 		snapshotRows: []*queueFakeRows{
@@ -508,16 +536,31 @@ func TestConcurrentBackfillBatchesBoundPeakHeldLocks(t *testing.T) {
 		batchActiveGens:  activeGens,
 		succeededWorkIDs: [][]any{},
 	}
+	// Deterministic rendezvous: every batch holds its locks until the full
+	// concurrent cohort has arrived, so the observed peak is forced regardless of
+	// the OS scheduler (the macOS CI runner could otherwise finish one batch
+	// before the next acquired, observing only batchSize). The 5s safety deadline
+	// guarantees the test fails loudly rather than hanging if the pool ever runs
+	// fewer than `cohort` batches concurrently.
+	db.concurrencyBarrier = newCohortBarrier(cohort, 5*time.Second)
 
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC) }
-	store.maintenanceBatchSize = 2 // 8 repos / 2 => 4 batches
-	store.maintenanceWorkers = 4
+	store.maintenanceBatchSize = batchSize
+	store.maintenanceWorkers = workers
 
 	if err := store.BackfillAllRelationshipEvidence(context.Background(), nil, nil); err != nil {
 		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want nil", err)
 	}
 
+	// With the barrier, the whole cohort holds its locks at once, so the peak is
+	// deterministically cohort*batchSize. This both proves real concurrency
+	// (peak > batchSize) and pins the workers*batchSize upper bound exactly.
+	wantPeak := cohort * batchSize
+	if db.peakHeld != wantPeak {
+		t.Fatalf("peak simultaneous repo locks = %d, want exactly %d (cohort %d x batch size %d)",
+			db.peakHeld, wantPeak, cohort, batchSize)
+	}
 	if db.peakHeld <= store.maintenanceBatchSize {
 		t.Fatalf("peak simultaneous repo locks = %d, want > batch size %d (batches did not run concurrently)",
 			db.peakHeld, store.maintenanceBatchSize)
@@ -528,6 +571,37 @@ func TestConcurrentBackfillBatchesBoundPeakHeldLocks(t *testing.T) {
 	}
 	if db.heldExclusive != 0 {
 		t.Fatalf("residual held exclusive locks = %d, want 0 (locks leaked across concurrent batches)", db.heldExclusive)
+	}
+}
+
+// newCohortBarrier returns a function that blocks each caller until `size`
+// callers have arrived, then releases all of them, for the next cohort it resets
+// (cyclic). A per-call deadline bounds the wait so a scheduling pathology fails
+// the test loudly instead of hanging CI. It is used to force a deterministic
+// observed peak in the concurrency proof above.
+func newCohortBarrier(size int, deadline time.Duration) func() {
+	if size < 1 {
+		size = 1
+	}
+	var mu sync.Mutex
+	count := 0
+	gate := make(chan struct{})
+	return func() {
+		mu.Lock()
+		count++
+		if count == size {
+			count = 0
+			close(gate)
+			gate = make(chan struct{})
+			mu.Unlock()
+			return
+		}
+		waitOn := gate
+		mu.Unlock()
+		select {
+		case <-waitOn:
+		case <-time.After(deadline):
+		}
 	}
 }
 

@@ -111,6 +111,7 @@ when the reducer has a graph orphan observer.
 | `EvidenceFactsDiscovered` | `eshu_dp_evidence_facts_discovered_total` |
 | `WorkflowClaimFactsEmitted` | `eshu_dp_workflow_claim_facts_emitted_total` (labels: `collector_kind`, `source_system`) |
 | `DeferredBackfillEvidence` | `eshu_dp_deferred_backfill_evidence_total` |
+| `DeferredBackfillBatchesCompleted` | `eshu_dp_deferred_backfill_batches_completed_total` |
 | `DeploymentMappingReopened` | `eshu_dp_deployment_mapping_reopened_total` |
 | `IaCReachabilityRows` | `eshu_dp_iac_reachability_rows_total` |
 | `TerraformStateSnapshotsObserved` | `eshu_dp_tfstate_snapshots_observed_total` |
@@ -318,6 +319,7 @@ module prefixes across generations.
 | `SCIPProcessWaitDuration` | `eshu_dp_scip_process_wait_seconds` | 0–60 s |
 | `LargeRepoSemaphoreWait` | `eshu_dp_large_repo_semaphore_wait_seconds` | 0–300 s |
 | `DeferredBackfillDuration` | `eshu_dp_deferred_backfill_duration_seconds` | 0.1–300 s |
+| `DeferredBackfillBatchDuration` | `eshu_dp_deferred_backfill_batch_duration_seconds` | 0.1–300 s |
 | `IaCReachabilityMaterializationDuration` | `eshu_dp_iac_reachability_materialization_duration_seconds` | 0.1–300 s |
 | `CrossRepoResolutionDuration` | `eshu_dp_cross_repo_resolution_duration_seconds` | 0.01–30 s |
 | `PipelineOverlapDuration` | `eshu_dp_pipeline_overlap_seconds` | 1–1800 s |
