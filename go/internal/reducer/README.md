@@ -3104,3 +3104,79 @@ Observability Evidence: adds per-phase `sub_duration_<key>_seconds` structured-l
 attributes to the reducer result log line (via `recordReducerResult` in
 `service.go` / `service_batch.go`), giving operators per-phase visibility into the
 materialization drain so the long pole is diagnosable from logs at 3 AM.
+
+## Sub-Duration Telemetry — Long-Pole Domains (issue #3624)
+
+This section tracks the observability-only instrumentation added to the four
+highest-pending materialization domains identified in issue #3624 (~26k total
+intents, ~3,255 pending per domain). No graph write shapes, worker counts,
+batch sizes, or conflict keys were changed.
+
+### Domains Instrumented
+
+| Domain | Handler file | SubDurations keys added | input_ready signal |
+|--------|-------------|-------------------------|--------------------|
+| `deployment_mapping` | `platform_materialization.go` | `platform_write`, `load_facts`, `infra_extract`, `infra_graph_write`, `cross_repo_resolve`, `workload_replay`, `phase_publish`, `input_ready` | 0.0 when CanonicalWrites=0 (upstream ordering stall), 1.0 otherwise |
+| `workload_identity` | `workload_identity.go` | `graph_write`, `phase_publish`, `total`, `input_ready` | 0.0 when CanonicalWrites=0, 1.0 otherwise |
+| `inheritance_materialization` | `inheritance_materialization.go` | `load_facts`, `build_intents`, `upsert_intents`, `total`, `written_rows`, `input_ready` | 0.0 when no repo context found in facts (ordering stall), 1.0 when handler reached build phase |
+| `code_call_materialization` | `code_call_materialization.go` | `load_facts`, `build_context`, `load_symbols`, `extract_rows`, `build_intents`, `upsert_intents`, `total`, `written_rows`, `input_ready` | 0.0 when no repo context built from facts (ordering stall), 1.0 when upsert path reached |
+
+### Deferred Domains (follow-up PR)
+
+The four remaining long-pole domains from issue #3624 are deferred to a
+follow-up PR to keep this change focused and reviewable:
+- `sql_relationship_materialization`
+- `shell_exec_materialization`
+- `deployable_unit_correlation`
+- `workload_materialization` (already has SubDurations; needs `input_ready` + `written_rows` backfill)
+
+### Operator Diagnostic Pattern
+
+To diagnose an ordering stall vs. genuine empty work at 3 AM, query the
+structured reducer log for a domain:
+
+```
+sub_duration_input_ready_seconds=0  → upstream data not ready (ordering stall)
+sub_duration_written_rows_seconds=0 + input_ready=1 → data ready, genuinely no rows after extraction
+sub_duration_load_facts_seconds=N   → fact load wall time (may indicate large fact set)
+sub_duration_graph_write_seconds=N  → graph write wall time (may indicate backend contention)
+sub_duration_phase_publish_seconds=N → phase-gate publication cost
+```
+
+All attributes appear on the `reducer execution succeeded` log line emitted by
+`recordReducerResult` in `service.go`, alongside `handler_duration_seconds` and
+`queue_wait_seconds`. Keys are named `sub_duration_<key>_seconds` uniformly.
+
+### Observability Evidence
+
+New keys added per domain (all emitted via `Result.SubDurations` → service layer
+`sub_duration_<key>_seconds` log attributes — no new Cypher, no graph writes
+changed):
+
+- **deployment_mapping**: `sub_duration_platform_write_seconds`, `sub_duration_load_facts_seconds`,
+  `sub_duration_infra_extract_seconds`, `sub_duration_infra_graph_write_seconds`,
+  `sub_duration_cross_repo_resolve_seconds`, `sub_duration_workload_replay_seconds`,
+  `sub_duration_phase_publish_seconds`, `sub_duration_input_ready_seconds`
+- **workload_identity**: `sub_duration_graph_write_seconds`, `sub_duration_phase_publish_seconds`,
+  `sub_duration_total_seconds`, `sub_duration_input_ready_seconds`
+- **inheritance_materialization**: `sub_duration_load_facts_seconds`,
+  `sub_duration_build_intents_seconds`, `sub_duration_upsert_intents_seconds`,
+  `sub_duration_total_seconds`, `sub_duration_written_rows_seconds`,
+  `sub_duration_input_ready_seconds`
+- **code_call_materialization**: `sub_duration_load_facts_seconds`,
+  `sub_duration_build_context_seconds`, `sub_duration_load_symbols_seconds`,
+  `sub_duration_extract_rows_seconds`, `sub_duration_build_intents_seconds`,
+  `sub_duration_upsert_intents_seconds`, `sub_duration_total_seconds`,
+  `sub_duration_written_rows_seconds`, `sub_duration_input_ready_seconds`
+
+### No-Regression Evidence
+
+Timing wrappers are `time.Now()` diffs around existing work — same pattern as
+`workload_materialization_subduration_bench_test.go` which measured ~190 ns/op /
+2 allocs/op for the map construction step. No Cypher, no graph writes, no worker
+counts, no batch sizes changed.
+
+Full reducer test suite (`go test ./internal/reducer/... -count=1`): **2416 tests
+passed** (darwin/arm64, Go toolchain in worktree). Existing tests for all four
+domains remain green. 8 new TDD tests added in
+`materialization_subduration_test.go` (red before green confirmed).

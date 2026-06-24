@@ -84,18 +84,24 @@ func (h CodeCallMaterializationHandler) Handle(
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
 	contextDuration := time.Since(contextStart)
 	if len(contextByRepoID) == 0 {
+		totalDuration := time.Since(totalStart)
 		logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
 			intent:          intent,
 			factCount:       len(envelopes),
 			loadDuration:    loadDuration,
 			contextDuration: contextDuration,
-			totalDuration:   time.Since(totalStart),
+			totalDuration:   totalDuration,
 		})
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainCodeCallMaterialization,
 			Status:          ResultStatusSucceeded,
 			EvidenceSummary: "no repositories available for code call materialization",
+			SubDurations: codeCallMaterializationSubDurations(codeCallMaterializationTiming{
+				loadDuration:    loadDuration,
+				contextDuration: contextDuration,
+				totalDuration:   totalDuration,
+			}, 0, false),
 		}, nil
 	}
 
@@ -157,6 +163,7 @@ func (h CodeCallMaterializationHandler) Handle(
 	intentBuildDuration := time.Since(intentBuildStart)
 
 	if len(intentRows) == 0 {
+		totalDuration := time.Since(totalStart)
 		logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
 			intent:              intent,
 			factCount:           len(envelopes),
@@ -174,13 +181,21 @@ func (h CodeCallMaterializationHandler) Handle(
 			symbolLoadDuration:  symbolLoadDuration,
 			extractDuration:     extractDuration,
 			intentBuildDuration: intentBuildDuration,
-			totalDuration:       time.Since(totalStart),
+			totalDuration:       totalDuration,
 		})
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainCodeCallMaterialization,
 			Status:          ResultStatusSucceeded,
 			EvidenceSummary: "no code-call or metaclass intents available for materialization",
+			SubDurations: codeCallMaterializationSubDurations(codeCallMaterializationTiming{
+				loadDuration:        loadDuration,
+				contextDuration:     contextDuration,
+				symbolLoadDuration:  symbolLoadDuration,
+				extractDuration:     extractDuration,
+				intentBuildDuration: intentBuildDuration,
+				totalDuration:       totalDuration,
+			}, 0, true),
 		}, nil
 	}
 
@@ -189,6 +204,17 @@ func (h CodeCallMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("write code call intents: %w", err)
 	}
 	upsertDuration := time.Since(upsertStart)
+	totalDuration := time.Since(totalStart)
+
+	successTiming := codeCallMaterializationTiming{
+		loadDuration:        loadDuration,
+		contextDuration:     contextDuration,
+		symbolLoadDuration:  symbolLoadDuration,
+		extractDuration:     extractDuration,
+		intentBuildDuration: intentBuildDuration,
+		upsertDuration:      upsertDuration,
+		totalDuration:       totalDuration,
+	}
 
 	logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
 		intent:              intent,
@@ -208,7 +234,7 @@ func (h CodeCallMaterializationHandler) Handle(
 		extractDuration:     extractDuration,
 		intentBuildDuration: intentBuildDuration,
 		upsertDuration:      upsertDuration,
-		totalDuration:       time.Since(totalStart),
+		totalDuration:       totalDuration,
 	})
 
 	return Result{
@@ -221,7 +247,36 @@ func (h CodeCallMaterializationHandler) Handle(
 			len(contextByRepoID),
 		),
 		CanonicalWrites: len(intentRows),
+		SubDurations:    codeCallMaterializationSubDurations(successTiming, len(intentRows), true),
 	}, nil
+}
+
+// codeCallMaterializationSubDurations converts per-phase timing into the
+// Result.SubDurations map so the service layer emits sub_duration_<key>_seconds
+// log attributes. Keys follow the workload_materialization naming convention
+// for cross-domain log correlation.
+//
+// inputReady is false when no repository context was found in the fact load
+// (upstream data not ready — ordering stall). writtenRows is the count of
+// durable intent rows emitted, enabling operators to distinguish a stall
+// (inputReady=false, writtenRows=0) from genuine empty work after extraction
+// (inputReady=true, writtenRows=0).
+func codeCallMaterializationSubDurations(t codeCallMaterializationTiming, writtenRows int, inputReady bool) map[string]float64 {
+	ready := 0.0
+	if inputReady {
+		ready = 1.0
+	}
+	return map[string]float64{
+		"load_facts":     t.loadDuration.Seconds(),
+		"build_context":  t.contextDuration.Seconds(),
+		"load_symbols":   t.symbolLoadDuration.Seconds(),
+		"extract_rows":   t.extractDuration.Seconds(),
+		"build_intents":  t.intentBuildDuration.Seconds(),
+		"upsert_intents": t.upsertDuration.Seconds(),
+		"total":          t.totalDuration.Seconds(),
+		"written_rows":   float64(writtenRows),
+		"input_ready":    ready,
+	}
 }
 
 func loadActiveCodeCallSymbolDefinitionFacts(

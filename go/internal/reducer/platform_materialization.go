@@ -213,7 +213,35 @@ func (h PlatformMaterializationHandler) Handle(
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: canonicalWrites,
+		SubDurations:    platformMaterializationSubDurations(timing, canonicalWrites),
 	}, nil
+}
+
+// platformMaterializationSubDurations converts the internal per-phase timing
+// struct into the Result.SubDurations map so the service layer emits
+// sub_duration_<key>_seconds log attributes alongside handler_duration_seconds.
+// Keys follow the workload_materialization naming convention so operators can
+// compare sub-phase timing across domains in the same structured-log stream.
+//
+// The input_ready key encodes whether the handler performed real graph writes
+// (1.0) or produced zero rows (0.0), letting an operator distinguish an
+// upstream ordering stall (input_ready=0, written_rows=0) from a genuine
+// no-op (input_ready=1, written_rows=0 after filtering).
+func platformMaterializationSubDurations(t platformMaterializationTiming, canonicalWrites int) map[string]float64 {
+	inputReady := 1.0
+	if canonicalWrites == 0 {
+		inputReady = 0.0
+	}
+	return map[string]float64{
+		"platform_write":     t.platformWriteDuration.Seconds(),
+		"load_facts":         t.factLoadDuration.Seconds(),
+		"infra_extract":      t.infrastructureExtract.Seconds(),
+		"infra_graph_write":  t.infrastructureGraphWrite.Seconds(),
+		"cross_repo_resolve": t.crossRepoResolutionDuration.Seconds(),
+		"workload_replay":    t.workloadReplayDuration.Seconds(),
+		"phase_publish":      t.phasePublishDuration.Seconds(),
+		"input_ready":        inputReady,
+	}
 }
 
 func (h PlatformMaterializationHandler) materializeInfrastructurePlatforms(

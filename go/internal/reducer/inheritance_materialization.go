@@ -55,11 +55,24 @@ type InheritanceMaterializationHandler struct {
 	IntentWriter InheritanceIntentWriter
 }
 
+// inheritanceMaterializationTiming records success-path stage timings for the
+// inheritance_materialization reducer domain. Timing wrappers are time.Now
+// diffs around existing work and add negligible overhead per intent.
+type inheritanceMaterializationTiming struct {
+	loadFactsDuration    time.Duration
+	buildIntentsDuration time.Duration
+	upsertDuration       time.Duration
+	totalDuration        time.Duration
+}
+
 // Handle executes the inheritance materialization path.
 func (h InheritanceMaterializationHandler) Handle(
 	ctx context.Context,
 	intent Intent,
 ) (Result, error) {
+	totalStarted := time.Now()
+	var timing inheritanceMaterializationTiming
+
 	if intent.Domain != DomainInheritanceMaterialization {
 		return Result{}, fmt.Errorf(
 			"inheritance materialization handler does not accept domain %q",
@@ -79,7 +92,9 @@ func (h InheritanceMaterializationHandler) Handle(
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 	)
 
+	loadStarted := time.Now()
 	envelopes, err := loadInheritanceMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
+	timing.loadFactsDuration = time.Since(loadStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for inheritance materialization: %w", err)
 	}
@@ -89,11 +104,13 @@ func (h InheritanceMaterializationHandler) Handle(
 	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
 	if len(repoIDs) == 0 || len(contextByRepoID) == 0 {
+		timing.totalDuration = time.Since(totalStarted)
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainInheritanceMaterialization,
 			Status:          ResultStatusSucceeded,
 			EvidenceSummary: "no repositories available for inheritance materialization",
+			SubDurations:    inheritanceMaterializationSubDurations(timing, 0, false),
 		}, nil
 	}
 
@@ -102,12 +119,18 @@ func (h InheritanceMaterializationHandler) Handle(
 		createdAt = time.Now().UTC()
 	}
 
+	buildStarted := time.Now()
 	intentRows := buildInheritanceSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, createdAt)
+	timing.buildIntentsDuration = time.Since(buildStarted)
+
 	if len(intentRows) > 0 {
+		upsertStarted := time.Now()
 		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
 			return Result{}, fmt.Errorf("write inheritance intents: %w", err)
 		}
+		timing.upsertDuration = time.Since(upsertStarted)
 	}
+	timing.totalDuration = time.Since(totalStarted)
 
 	slog.InfoContext(ctx, "inheritance materialization completed",
 		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
@@ -115,6 +138,10 @@ func (h InheritanceMaterializationHandler) Handle(
 		slog.Int("intent_count", len(intentRows)),
 		slog.Int("edge_count", len(rows)),
 		slog.Int("repo_count", len(repoIDs)),
+		slog.Float64("load_facts_duration_seconds", timing.loadFactsDuration.Seconds()),
+		slog.Float64("build_intents_duration_seconds", timing.buildIntentsDuration.Seconds()),
+		slog.Float64("upsert_intents_duration_seconds", timing.upsertDuration.Seconds()),
+		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)
 
 	return Result{
@@ -127,7 +154,33 @@ func (h InheritanceMaterializationHandler) Handle(
 			len(repoIDs),
 		),
 		CanonicalWrites: len(intentRows),
+		SubDurations:    inheritanceMaterializationSubDurations(timing, len(intentRows), true),
 	}, nil
+}
+
+// inheritanceMaterializationSubDurations converts per-phase timing into the
+// Result.SubDurations map so the service layer emits sub_duration_<key>_seconds
+// log attributes. Keys follow the workload_materialization convention.
+//
+// inputReady is false when no repository context was found in the fact load
+// (upstream data not ready — ordering stall), and true when the handler
+// reached the intent-build and upsert phases. writtenRows is the count of
+// durable intent rows emitted, enabling operators to distinguish a stall
+// (inputReady=false, writtenRows=0) from genuine empty work
+// (inputReady=true, writtenRows=0 after extraction).
+func inheritanceMaterializationSubDurations(t inheritanceMaterializationTiming, writtenRows int, inputReady bool) map[string]float64 {
+	ready := 0.0
+	if inputReady {
+		ready = 1.0
+	}
+	return map[string]float64{
+		"load_facts":     t.loadFactsDuration.Seconds(),
+		"build_intents":  t.buildIntentsDuration.Seconds(),
+		"upsert_intents": t.upsertDuration.Seconds(),
+		"total":          t.totalDuration.Seconds(),
+		"written_rows":   float64(writtenRows),
+		"input_ready":    ready,
+	}
 }
 
 // ExtractInheritanceRows builds canonical child/parent edge rows from content

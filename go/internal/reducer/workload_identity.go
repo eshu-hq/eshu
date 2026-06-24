@@ -42,11 +42,23 @@ type WorkloadIdentityHandler struct {
 	PhasePublisher GraphProjectionPhasePublisher
 }
 
+// workloadIdentityTiming records success-path stage timings for the
+// workload_identity reducer domain. Timing wrappers are time.Now diffs around
+// existing work and add negligible overhead (sub-microsecond per intent).
+type workloadIdentityTiming struct {
+	graphWriteDuration   time.Duration
+	phasePublishDuration time.Duration
+	totalDuration        time.Duration
+}
+
 // Handle executes the workload identity reduction path.
 func (h WorkloadIdentityHandler) Handle(
 	ctx context.Context,
 	intent Intent,
 ) (Result, error) {
+	totalStarted := time.Now()
+	var timing workloadIdentityTiming
+
 	if intent.Domain != DomainWorkloadIdentity {
 		return Result{}, fmt.Errorf(
 			"workload identity handler does not accept domain %q",
@@ -62,10 +74,14 @@ func (h WorkloadIdentityHandler) Handle(
 		return Result{}, err
 	}
 
+	graphWriteStarted := time.Now()
 	writeResult, err := h.Writer.WriteWorkloadIdentity(ctx, request)
+	timing.graphWriteDuration = time.Since(graphWriteStarted)
 	if err != nil {
 		return Result{}, err
 	}
+
+	phaseStarted := time.Now()
 	if err := publishIntentGraphPhase(
 		ctx,
 		h.PhasePublisher,
@@ -76,6 +92,8 @@ func (h WorkloadIdentityHandler) Handle(
 	); err != nil {
 		return Result{}, err
 	}
+	timing.phasePublishDuration = time.Since(phaseStarted)
+	timing.totalDuration = time.Since(totalStarted)
 
 	evidenceSummary := strings.TrimSpace(writeResult.EvidenceSummary)
 	if evidenceSummary == "" {
@@ -92,7 +110,29 @@ func (h WorkloadIdentityHandler) Handle(
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: writeResult.CanonicalWrites,
+		SubDurations:    workloadIdentitySubDurations(timing, writeResult.CanonicalWrites),
 	}, nil
+}
+
+// workloadIdentitySubDurations converts the per-phase timing struct into the
+// Result.SubDurations map so the service layer emits sub_duration_<key>_seconds
+// log attributes alongside handler_duration_seconds. Keys follow the
+// workload_materialization naming convention for cross-domain log correlation.
+//
+// input_ready is 1.0 when graph writes were produced and 0.0 when
+// CanonicalWrites is zero (upstream data may not be ready yet — ordering
+// stall), so an operator can distinguish a stall from a genuine no-op.
+func workloadIdentitySubDurations(t workloadIdentityTiming, canonicalWrites int) map[string]float64 {
+	inputReady := 1.0
+	if canonicalWrites == 0 {
+		inputReady = 0.0
+	}
+	return map[string]float64{
+		"graph_write":   t.graphWriteDuration.Seconds(),
+		"phase_publish": t.phasePublishDuration.Seconds(),
+		"total":         t.totalDuration.Seconds(),
+		"input_ready":   inputReady,
+	}
 }
 
 func workloadIdentityWriteFromIntent(intent Intent) (WorkloadIdentityWrite, error) {
