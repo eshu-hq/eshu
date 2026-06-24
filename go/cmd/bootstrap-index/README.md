@@ -221,11 +221,24 @@ endpoint.
 | Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` |
 
 `source_file_kind` is one of the bounded values `code`, `package_manifest`,
-`config`, `other` (classified from the parser's `artifact_type` by
-`telemetry.ContentEntitySourceFileKind`). `bootstrap_phase` is one of
-`collection`, `relationship_backfill`, `projection`, `iac_reachability`,
-`config_state_drift`. The `collector_kind=bootstrap-index` label is shared with
-the per-collector layer so per-stage and per-collector metrics join cleanly.
+`config`, `other`, produced by `telemetry.ContentEntitySourceFileKind`. The
+classifier mirrors the real parser/reducer data path: `package_manifest` is
+detected from a dependency entity's metadata (`entity_type` `Variable` plus
+`config_kind` `dependency`) — the same signal the reducer's
+`extractPackageManifestDependencies` admits — because the git parser leaves
+`artifact_type` empty for dependency manifests. `config` is detected from the
+`artifact_type` tokens the parser actually emits via `inferArtifactType` /
+`persistedArtifactType` (`terraform_hcl`, `dockerfile`, `docker_compose`,
+`github_actions_workflow`, `helm_helper_tpl`, `go_template_yaml`, `jinja_yaml`,
+the `ansible_*` family, nginx/apache/generic config, and Jinja/text templates);
+`code` is the no-artifact-type, no-manifest-metadata default. `bootstrap_phase`
+is one of `collection`, `relationship_backfill`, `projection`,
+`iac_reachability`, `config_state_drift`, and is recorded even when a phase
+fails so the long pole is visible on the error path. The
+`collector_kind=bootstrap-index` label is shared with the per-collector layer so
+per-stage and per-collector metrics join cleanly. Both the metric label space
+and the per-repo `entity_kind_<kind>` log fields iterate the bounded
+`telemetry.SourceFileKinds()` set, so the dimension space is statically bounded.
 
 During collection, `drainCollector` also logs a `bootstrap collection progress`
 line every 10 repos (`scopes_done`, `total_facts_emitted`,
@@ -258,24 +271,49 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
   `collector_kind`) instruments, plus per-repo `content_entity_count` /
   `entity_kind_<kind>` log attributes, a `bootstrap collection progress` log
   every 10 repos, and a `bootstrap phase complete` log per post-collection
-  phase. Verified end to end against an in-memory OTEL `ManualReader`:
-  `go test ./internal/telemetry ./internal/collector ./cmd/bootstrap-index
-  -count=1` (582 tests pass). `TestDrainCollectorEmitsContentEntityCounterByFileKind`
-  drives the real `drainCollector` loop and asserts the counter increments per
-  bounded `source_file_kind`; `TestRunPipelinedEmitsBootstrapPhaseTimings`
-  asserts each phase records its histogram point. The
-  `collector_kind=bootstrap-index` label is shared with the per-collector layer
-  so the two telemetry layers join without relabeling.
-- No-Regression Evidence: The new counters and histogram add one map iteration
-  over the already-built `DiscoveryAdvisory.EntityCounts.BySourceFileKind`
-  (bounded to 4 keys) per repo and five `Histogram.Record` calls per run. No new
-  graph reads, Cypher, locks, queue claims, or per-fact scans are introduced;
-  the per-file-kind classification reuses data the discovery advisory already
-  computes while iterating entities. Collection, projection, and commit paths
-  are byte-for-byte unchanged except for the added emission. The progress log is
-  rate-limited to one line per 10 repos. Baseline behavior (facts emitted,
-  projections completed, queue drain) is unchanged and covered by the existing
-  `cmd/bootstrap-index` pipeline tests, which continue to pass.
+  phase (recorded on the error path too). Coverage, by layer:
+  - Classification correctness against REAL fixtures:
+    `TestDiscoveryAdvisoryClassifiesRealManifestAndConfigFixtures`
+    (`internal/collector`) writes a real `go.mod` and runs it through the actual
+    `gomod` parser + `entityBucketsFromParsed` + `snapshotEntityMetadata` path,
+    then `buildDiscoveryAdvisoryReport`, and asserts the dependencies classify as
+    `package_manifest` (≥2) and a `terraform_hcl` file as `config`. This guards
+    the #3678 P1 regression: a real dependency manifest carries an empty
+    `artifact_type`, so the prior `artifact_type`-only classifier returned `code`
+    and `package_manifest` was permanently 0. The metadata-based classifier
+    returns `package_manifest`; the old behavior was confirmed failing for the
+    same input before the fix.
+  - Classifier unit coverage:
+    `TestContentEntitySourceFileKindClassifier` (`internal/telemetry`) covers the
+    `Variable`+`config_kind=dependency` manifest signal, the real config
+    `artifact_type` tokens, and that dead tokens (`terraform`, `helm_chart`,
+    `argocd`, `kustomize`, `cloudformation`) the parser never emits fall through
+    to `other` rather than masquerading as `config`.
+  - Advisory→metric wiring:
+    `TestDrainCollectorEmitsContentEntityCounterByFileKind` drives the real
+    `drainCollector` loop against an in-memory OTEL `ManualReader` and asserts the
+    counter emits per bounded `source_file_kind` faithfully to the advisory it is
+    handed (it does not re-derive classification — that is covered above).
+  - Phase timing: `TestRunPipelinedEmitsBootstrapPhaseTimings` drives the real
+    `runPipelined` and asserts each `bootstrap_phase` records its histogram point.
+
+  Full gate: `go test ./internal/telemetry ./internal/collector ./internal/parser
+  ./cmd/bootstrap-index -count=1`.
+  The `collector_kind=bootstrap-index` label is shared with the per-collector
+  layer so the two telemetry layers join without relabeling.
+- No-Regression Evidence: The new counter adds, per repo, four bounded map reads
+  over the already-built `DiscoveryAdvisory.EntityCounts.BySourceFileKind` plus a
+  single-map-read `config_kind` lookup per entity during advisory construction;
+  the histogram adds five `Record` calls per run. No new graph reads, Cypher,
+  locks, queue claims, or per-fact scans are introduced; the package-manifest
+  signal reuses the `config_kind` metadata the advisory already iterates. Both
+  the metric label space and the `entity_kind_<kind>` log fields iterate the
+  bounded `telemetry.SourceFileKinds()` set, so dimension cardinality is static.
+  Collection, projection, and commit paths are unchanged except for the added
+  emission; the progress log is rate-limited to one line per 10 repos. Baseline
+  behavior (facts emitted, projections completed, queue drain) is unchanged and
+  covered by the existing `cmd/bootstrap-index` pipeline tests, which continue to
+  pass.
 
 ## Configuration
 

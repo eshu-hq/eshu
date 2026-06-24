@@ -147,8 +147,16 @@ func buildDiscoveryAdvisoryReport(
 		// Track entities by bounded source file kind (code, package_manifest,
 		// config, other) so drainCollector can emit ContentEntityEmitted without
 		// scanning individual facts. This is the counter that would have surfaced
-		// the #3676 lockfile explosion instantly.
-		report.EntityCounts.BySourceFileKind[telemetry.ContentEntitySourceFileKind(entity.ArtifactType)]++
+		// the #3676 lockfile explosion instantly. The package-manifest signal is
+		// the entity's config_kind metadata (not artifact_type, which the git
+		// parser leaves empty for dependency manifests), keyed identically to the
+		// reducer's package-manifest admission.
+		kind := telemetry.ContentEntitySourceFileKind(
+			entity.EntityType,
+			entity.ArtifactType,
+			entityConfigKind(entity.Metadata),
+		)
+		report.EntityCounts.BySourceFileKind[kind]++
 
 		fileEntry := fileEntry(fileCounts, rel)
 		fileEntry.ContentEntities++
@@ -164,6 +172,22 @@ func buildDiscoveryAdvisoryReport(
 	report.TopNoisyFiles = topAdvisoryFiles(fileCounts, 10)
 	report.TopNoisyDirs = topAdvisoryDirs(dirCounts, 10)
 	return report
+}
+
+// entityConfigKind returns the config_kind metadata value for a content entity,
+// or "" when absent or non-string. The git dependency parsers set
+// config_kind="dependency" on manifest dependency entities; this is the signal
+// telemetry.ContentEntitySourceFileKind uses to classify package manifests,
+// matching the reducer's package-manifest admission. The lookup is a single map
+// read with no allocation, so it adds negligible cost to the advisory build.
+func entityConfigKind(metadata map[string]any) string {
+	if metadata == nil {
+		return ""
+	}
+	if value, ok := metadata["config_kind"].(string); ok {
+		return value
+	}
+	return ""
 }
 
 func enrichDiscoveryAdvisoryRun(

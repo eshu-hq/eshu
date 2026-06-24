@@ -19,20 +19,23 @@ import (
 func TestBuildDiscoveryAdvisoryReportBySourceFileKind(t *testing.T) {
 	t.Parallel()
 
+	depMeta := map[string]any{"config_kind": "dependency", "package_manager": "npm", "lockfile": true}
 	entities := []ContentEntitySnapshot{
-		// Code entities (empty ArtifactType)
-		{EntityType: "function", RelativePath: "pkg/main.go", ArtifactType: ""},
-		{EntityType: "function", RelativePath: "pkg/util.go", ArtifactType: ""},
-		{EntityType: "class", RelativePath: "pkg/types.go", ArtifactType: ""},
+		// Code entities (empty ArtifactType, no manifest metadata).
+		{EntityType: "Function", RelativePath: "pkg/main.go", ArtifactType: ""},
+		{EntityType: "Function", RelativePath: "pkg/util.go", ArtifactType: ""},
+		{EntityType: "Class", RelativePath: "pkg/types.go", ArtifactType: ""},
 
-		// Package manifest / lockfile entities — simulates #3676 explosion
-		{EntityType: "dependency", RelativePath: "package-lock.json", ArtifactType: "npm_lockfile"},
-		{EntityType: "dependency", RelativePath: "package-lock.json", ArtifactType: "npm_lockfile"},
-		{EntityType: "dependency", RelativePath: "go.sum", ArtifactType: "go_sum"},
+		// Package manifest dependency entities — simulates the #3676 explosion.
+		// Real parser/reducer shape: entity_type "Variable", empty artifact_type,
+		// config_kind "dependency" in metadata.
+		{EntityType: "Variable", RelativePath: "package-lock.json", ArtifactType: "", Metadata: depMeta},
+		{EntityType: "Variable", RelativePath: "package-lock.json", ArtifactType: "", Metadata: depMeta},
+		{EntityType: "Variable", RelativePath: "go.mod", ArtifactType: "", Metadata: map[string]any{"config_kind": "dependency", "package_manager": "gomod"}},
 
-		// Config entities
-		{EntityType: "resource", RelativePath: "deploy/main.tf", ArtifactType: "terraform"},
-		{EntityType: "service", RelativePath: "docker-compose.yml", ArtifactType: "docker_compose"},
+		// Config entities use the artifact_type tokens the parser really emits.
+		{EntityType: "Resource", RelativePath: "deploy/main.tf", ArtifactType: "terraform_hcl"},
+		{EntityType: "Service", RelativePath: "docker-compose.yml", ArtifactType: "docker_compose"},
 	}
 
 	contentFiles := []ContentFileMeta{
@@ -40,7 +43,7 @@ func TestBuildDiscoveryAdvisoryReportBySourceFileKind(t *testing.T) {
 		{RelativePath: "pkg/util.go"},
 		{RelativePath: "pkg/types.go"},
 		{RelativePath: "package-lock.json"},
-		{RelativePath: "go.sum"},
+		{RelativePath: "go.mod"},
 		{RelativePath: "deploy/main.tf"},
 		{RelativePath: "docker-compose.yml"},
 	}

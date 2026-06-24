@@ -11,80 +11,88 @@ import (
 )
 
 // TestContentEntitySourceFileKindClassifier verifies that
-// ContentEntitySourceFileKind maps every documented artifact_type to the
-// correct bounded SourceFileKind* constant. The classifier is the gatekeeper
-// that keeps eshu_dp_content_entity_emitted_total low-cardinality.
+// ContentEntitySourceFileKind classifies content entities from the SAME signals
+// the real parser/reducer path uses: package manifests are detected from
+// entity_type "Variable" + config_kind "dependency" (artifact_type is empty for
+// them), and config is detected from the artifact_type tokens inferArtifactType /
+// persistedArtifactType actually emit. The classifier is the gatekeeper that
+// keeps eshu_dp_content_entity_emitted_total low-cardinality.
 func TestContentEntitySourceFileKindClassifier(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
+		name         string
+		entityType   string
 		artifactType string
+		configKind   string
 		wantKind     string
 	}{
-		// Empty → code (ordinary source file with no artifact_type)
-		{"", SourceFileKindCode},
+		// Package manifests: the real signal is metadata, not artifact_type.
+		// Dependency entities land in the parser "Variable" bucket with
+		// config_kind="dependency" and carry NO artifact_type.
+		{"go.mod dependency", "Variable", "", "dependency", SourceFileKindPackageManifest},
+		{"package-lock dependency", "Variable", "", "dependency", SourceFileKindPackageManifest},
+		{"maven pom dependency", "Variable", "", "dependency", SourceFileKindPackageManifest},
 
-		// Package manifests and lockfiles
-		{"package_manifest", SourceFileKindPackageManifest},
-		{"go_module", SourceFileKindPackageManifest},
-		{"go_sum", SourceFileKindPackageManifest},
-		{"npm_lockfile", SourceFileKindPackageManifest},
-		{"yarn_lockfile", SourceFileKindPackageManifest},
-		{"pnpm_lockfile", SourceFileKindPackageManifest},
-		{"cargo_manifest", SourceFileKindPackageManifest},
-		{"cargo_lockfile", SourceFileKindPackageManifest},
-		{"pyproject", SourceFileKindPackageManifest},
-		{"requirements", SourceFileKindPackageManifest},
-		{"pip_lockfile", SourceFileKindPackageManifest},
-		{"pipfile", SourceFileKindPackageManifest},
-		{"pipfile_lock", SourceFileKindPackageManifest},
-		{"maven_pom", SourceFileKindPackageManifest},
-		{"gradle_build", SourceFileKindPackageManifest},
-		{"nuget", SourceFileKindPackageManifest},
-		{"nuget_lock", SourceFileKindPackageManifest},
-		{"composer", SourceFileKindPackageManifest},
-		{"composer_lock", SourceFileKindPackageManifest},
-		{"mix_lock", SourceFileKindPackageManifest},
-		{"hex_manifest", SourceFileKindPackageManifest},
-		{"pubspec", SourceFileKindPackageManifest},
-		{"pubspec_lock", SourceFileKindPackageManifest},
-		{"swift_package", SourceFileKindPackageManifest},
-		{"swift_package_resolved", SourceFileKindPackageManifest},
+		// config_kind="dependency" but wrong entity_type is NOT a manifest
+		// (the reducer requires entity_type=="Variable").
+		{"dependency-config non-Variable", "Function", "", "dependency", SourceFileKindCode},
+		// entity_type Variable but a non-dependency config_kind is not a manifest.
+		{"Variable checksum config_kind", "Variable", "", "dependency_checksum", SourceFileKindCode},
+		{"Variable env-var no config_kind", "Variable", "", "", SourceFileKindCode},
 
-		// Config / infra artifacts
-		{"config", SourceFileKindConfig},
-		{"generic_config", SourceFileKindConfig},
-		{"generic_config_template", SourceFileKindConfig},
-		{"dockerfile", SourceFileKindConfig},
-		{"docker_compose", SourceFileKindConfig},
-		{"terraform", SourceFileKindConfig},
-		{"terraform_template_text", SourceFileKindConfig},
-		{"helm_chart", SourceFileKindConfig},
-		{"argocd", SourceFileKindConfig},
-		{"kustomize", SourceFileKindConfig},
-		{"nginx_config", SourceFileKindConfig},
-		{"nginx_config_template", SourceFileKindConfig},
-		{"apache_config", SourceFileKindConfig},
-		{"apache_config_template", SourceFileKindConfig},
-		{"ansible", SourceFileKindConfig},
-		{"ansible_playbook", SourceFileKindConfig},
-		{"ansible_role", SourceFileKindConfig},
-		{"yaml_template", SourceFileKindConfig},
-		{"github_actions_workflow", SourceFileKindConfig},
-		{"cloudformation_serverless", SourceFileKindConfig},
-		{"cloudformation", SourceFileKindConfig},
+		// Ordinary source code: no artifact_type, no manifest metadata.
+		{"plain code function", "Function", "", "", SourceFileKindCode},
+		{"plain code class", "Class", "", "", SourceFileKindCode},
+		// A plain (untemplated) YAML persists with empty artifact_type → code.
+		{"plain yaml empty artifact_type", "Document", "", "", SourceFileKindCode},
 
-		// Anything else maps to "other" (not code, manifest, or config)
-		{"some_new_artifact_type", SourceFileKindOther},
-		{"unknown_kind", SourceFileKindOther},
+		// Config / infra artifacts — only the tokens the parser actually emits
+		// via inferArtifactType / persistedArtifactType.
+		{"dockerfile", "Resource", "dockerfile", "", SourceFileKindConfig},
+		{"docker_compose", "Service", "docker_compose", "", SourceFileKindConfig},
+		{"github actions", "Job", "github_actions_workflow", "", SourceFileKindConfig},
+		{"terraform_hcl", "Resource", "terraform_hcl", "", SourceFileKindConfig},
+		{"terraform_template_text", "Resource", "terraform_template_text", "", SourceFileKindConfig},
+		{"helm_helper_tpl", "Template", "helm_helper_tpl", "", SourceFileKindConfig},
+		{"go_template_yaml", "Document", "go_template_yaml", "", SourceFileKindConfig},
+		{"jinja_yaml", "Document", "jinja_yaml", "", SourceFileKindConfig},
+		{"yaml_template", "Document", "yaml_template", "", SourceFileKindConfig},
+		{"jinja_text_template", "Document", "jinja_text_template", "", SourceFileKindConfig},
+		{"text_template", "Document", "text_template", "", SourceFileKindConfig},
+		{"nginx_config", "Resource", "nginx_config", "", SourceFileKindConfig},
+		{"nginx_config_template", "Resource", "nginx_config_template", "", SourceFileKindConfig},
+		{"apache_config", "Resource", "apache_config", "", SourceFileKindConfig},
+		{"apache_config_template", "Resource", "apache_config_template", "", SourceFileKindConfig},
+		{"generic_config", "Resource", "generic_config", "", SourceFileKindConfig},
+		{"generic_config_template", "Resource", "generic_config_template", "", SourceFileKindConfig},
+		{"ansible_playbook", "Task", "ansible_playbook", "", SourceFileKindConfig},
+		{"ansible_role", "Task", "ansible_role", "", SourceFileKindConfig},
+		{"ansible_inventory", "Task", "ansible_inventory", "", SourceFileKindConfig},
+		{"ansible_vars", "Task", "ansible_vars", "", SourceFileKindConfig},
+		{"ansible_task_entrypoint", "Task", "ansible_task_entrypoint", "", SourceFileKindConfig},
+
+		// Dead tokens the parser NEVER emits must NOT classify as config — they
+		// fall through to "other" so a future parser change is visible, not
+		// silently mislabeled.
+		{"dead token terraform", "Resource", "terraform", "", SourceFileKindOther},
+		{"dead token helm_chart", "Resource", "helm_chart", "", SourceFileKindOther},
+		{"dead token argocd", "Resource", "argocd", "", SourceFileKindOther},
+		{"dead token kustomize", "Resource", "kustomize", "", SourceFileKindOther},
+		{"dead token cloudformation", "Resource", "cloudformation", "", SourceFileKindOther},
+		{"unknown artifact_type", "Resource", "some_new_artifact_type", "", SourceFileKindOther},
+
+		// Manifest signal wins even if an artifact_type is somehow also present.
+		{"manifest beats artifact_type", "Variable", "dockerfile", "dependency", SourceFileKindPackageManifest},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.artifactType+"→"+tc.wantKind, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ContentEntitySourceFileKind(tc.artifactType)
+			got := ContentEntitySourceFileKind(tc.entityType, tc.artifactType, tc.configKind)
 			if got != tc.wantKind {
-				t.Fatalf("ContentEntitySourceFileKind(%q) = %q, want %q", tc.artifactType, got, tc.wantKind)
+				t.Fatalf("ContentEntitySourceFileKind(entityType=%q, artifactType=%q, configKind=%q) = %q, want %q",
+					tc.entityType, tc.artifactType, tc.configKind, got, tc.wantKind)
 			}
 		})
 	}

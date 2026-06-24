@@ -300,8 +300,13 @@ func runPipelined(
 		return errors.Join(collectorErr, projectorErr)
 	}
 
+	// Each post-collection phase records its duration even on the error path:
+	// the entire point of #3678 is to see WHICH phase is the long pole, and a
+	// failing long-pole phase is exactly the case an operator must diagnose. So
+	// recordPhase is called before every early return, not only on success.
 	backfillStart := time.Now()
 	if err := cd.committer.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseRelationshipBackfill, backfillStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "deferred relationship backfill failed",
 				slog.String("error", err.Error()),
@@ -318,13 +323,14 @@ func runPipelined(
 	// Otherwise deployment_mapping items emitted after the reopen pass starts
 	// could miss reopening and remain soft-gated.
 	projectorErr := <-errc
+	recordPhase(telemetry.BootstrapPhaseProjection, projectionStart)
 	if projectorErr != nil {
 		return projectorErr
 	}
-	recordPhase(telemetry.BootstrapPhaseProjection, projectionStart)
 
 	iacStart := time.Now()
 	if err := cd.committer.MaterializeIaCReachability(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseIaCReachability, iacStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "iac reachability materialization failed",
 				slog.String("error", err.Error()),
@@ -359,6 +365,7 @@ func runPipelined(
 	// facts-first ordering rationale documented in CLAUDE.md). Idempotent.
 	driftStart := time.Now()
 	if err := cd.committer.EnqueueConfigStateDriftIntents(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseConfigStateDrift, driftStart)
 		if logger != nil {
 			logger.ErrorContext(ctx, "enqueue config_state_drift intents failed",
 				slog.String("error", err.Error()),
@@ -574,17 +581,23 @@ func drainCollector(
 			return fmt.Errorf("bootstrap collector commit: %w", err)
 		}
 
-		// Emit per-file-kind content_entity counters from the discovery advisory,
-		// which already classifies each entity by ArtifactType. These counters let
-		// operators distinguish a lockfile explosion (package_manifest) from normal
-		// code-entity growth without querying fact_records.
+		// Emit per-file-kind content_entity counters from the discovery advisory.
+		// The advisory classifies each entity into a bounded source_file_kind
+		// (telemetry.ContentEntitySourceFileKind: code, package_manifest, config,
+		// other) — package_manifest comes from dependency entity metadata, the same
+		// signal the reducer admits. Iterate the bounded constant set (not the map
+		// keys) so both the metric label space and the log field space are
+		// statically bounded and a stray advisory key can never leak a new
+		// dimension. These counters let operators distinguish a lockfile explosion
+		// (package_manifest) from normal code growth without querying fact_records.
 		var entityCount int
 		entityByKind := map[string]int{}
 		if collected.DiscoveryAdvisory != nil {
-			for kind, n := range collected.DiscoveryAdvisory.EntityCounts.BySourceFileKind {
+			for _, kind := range telemetry.SourceFileKinds() {
+				n := collected.DiscoveryAdvisory.EntityCounts.BySourceFileKind[kind]
 				entityByKind[kind] = n
 				entityCount += n
-				if instruments != nil {
+				if instruments != nil && n > 0 {
 					instruments.ContentEntityEmitted.Add(cycleCtx, int64(n), metric.WithAttributes(
 						telemetry.AttrSourceFileKind(kind),
 						telemetry.AttrCollectorKind("bootstrap-index"),
@@ -629,8 +642,10 @@ func drainCollector(
 				slog.Float64("duration_seconds", duration),
 				telemetry.PhaseAttr(telemetry.PhaseEmission),
 			}
-			for kind, n := range entityByKind {
-				logAttrs = append(logAttrs, slog.Int("entity_kind_"+kind, n))
+			// Iterate the bounded constant set so the log field set is static and
+			// ordered (entity_kind_code, entity_kind_package_manifest, ...).
+			for _, kind := range telemetry.SourceFileKinds() {
+				logAttrs = append(logAttrs, slog.Int("entity_kind_"+kind, entityByKind[kind]))
 			}
 			logger.InfoContext(cycleCtx, "bootstrap scope collected", logAttrs...)
 
