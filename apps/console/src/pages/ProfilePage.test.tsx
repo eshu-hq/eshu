@@ -154,6 +154,29 @@ describe("ProfilePage", () => {
     expect(screen.queryByText("Label")).not.toBeInTheDocument();
   });
 
+  it("labels an expired (not revoked) token 'expired', not 'active'", async () => {
+    const client = {
+      getJson: async (path: string) => {
+        if (path === "/api/v0/auth/profile") return profileFixture;
+        if (path === "/api/v0/auth/sessions") return { sessions: [] };
+        return {
+          tokens: [
+            {
+              token_id: "tok-expired",
+              token_class: "personal",
+              issued_at: "2020-01-01T00:00:00Z",
+              expires_at: "2020-02-01T00:00:00Z"
+            }
+          ]
+        };
+      }
+    } as unknown as EshuApiClient;
+    render(<ProfilePage client={client} />);
+    const table = await screen.findByRole("table", { name: "API tokens" });
+    expect(within(table).getByText("expired")).toBeInTheDocument();
+    expect(within(table).queryByText("active")).not.toBeInTheDocument();
+  });
+
   it("renders unavailable state for all sections when all endpoints fail", async () => {
     const client = makeClient({ throwAll: true });
     render(<ProfilePage client={client} />);

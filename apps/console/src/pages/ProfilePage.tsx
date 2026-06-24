@@ -32,6 +32,15 @@ function providerLabel(id: string | undefined): string {
   return id && id.length > 0 ? id : "Local";
 }
 
+// isExpired reports whether a token's expiry has passed. An expired-but-not-
+// revoked token must not be labeled "active" — that would imply it is still
+// usable. Tokens with no expiry never expire.
+function isExpired(iso: string | undefined): boolean {
+  if (!iso) return false;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) && ms < Date.now();
+}
+
 // ---------------------------------------------------------------------------
 // Identity section
 // ---------------------------------------------------------------------------
@@ -253,6 +262,8 @@ function TokensSection({
               <td>
                 {t.revoked_at ? (
                   <Badge tone="crit">revoked</Badge>
+                ) : isExpired(t.expires_at) ? (
+                  <Badge tone="neutral">expired</Badge>
                 ) : (
                   <Badge tone="teal">active</Badge>
                 )}

@@ -63,6 +63,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedLocalIdentityAPITokenRoute(r) {
 		return true
 	}
+	if scopedAuthProfileReadRoute(r) {
+		return true
+	}
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
@@ -198,6 +201,25 @@ func scopedLocalIdentityAPITokenRoute(r *http.Request) bool {
 		return false
 	}
 	return action == "revoke" || action == "rotate"
+}
+
+// scopedAuthProfileReadRoute reports whether the request targets one of the
+// caller's own identity-profile read endpoints. These GETs derive the subject
+// strictly from AuthContext and return only the caller's own profile, sessions,
+// or generated API token metadata (never another subject's data and never any
+// secret), so they are safe for browser-session and scoped-token callers.
+func scopedAuthProfileReadRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/auth/profile",
+		"/api/v0/auth/sessions",
+		"/api/v0/auth/local/api-tokens":
+		return true
+	default:
+		return false
+	}
 }
 
 func scopedBrowserSessionAuthRoute(r *http.Request) bool {

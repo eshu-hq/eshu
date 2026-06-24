@@ -18,6 +18,9 @@ func plannerExcludedSurfaces() map[string]struct{} {
 	return map[string]struct{}{
 		"DELETE /api/v0/auth/browser-session":        {}, // revokes the caller's browser session
 		"GET /api/v0/auth/browser-session":           {}, // reads caller-local session metadata only
+		"GET /api/v0/auth/local/api-tokens":          {}, // lists the caller's own API token metadata
+		"GET /api/v0/auth/profile":                   {}, // reads the caller's own identity profile
+		"GET /api/v0/auth/sessions":                  {}, // lists the caller's own browser sessions
 		"PATCH /api/v0/auth/browser-session/context": {}, // switches the caller's tenant/workspace context
 		"POST /api/v0/admin/backfill":                {}, // RequestBackfill enqueues backfill work
 		"POST /api/v0/admin/dead-letter":             {}, // DeadLetterWorkItems dead-letters queued work
