@@ -150,7 +150,7 @@ describe("ProfilePage", () => {
     );
     expect(screen.getByText("tok-001")).toBeInTheDocument();
     // "Label" column was removed: SHA-256(display_label) must not be presented
-    // as a human label. See issue #3703.
+    // as a human label. Real-label persistence tracked in #3708.
     expect(screen.queryByText("Label")).not.toBeInTheDocument();
   });
 
