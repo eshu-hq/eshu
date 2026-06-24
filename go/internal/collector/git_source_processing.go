@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -57,16 +58,26 @@ func (s *GitSource) discoverRepositories(ctx context.Context) (SelectionBatch, e
 	return s.Selector.SelectRepositories(ctx)
 }
 
-// resolveRepositories converts selected repositories to absolute paths and
-// computes the stable source run ID.
-func (s *GitSource) resolveRepositories(batch SelectionBatch) ([]SelectedRepository, string, error) {
+// resolveRepositories converts selected repositories to absolute paths,
+// computes the stable source run ID, and returns the repositories ordered
+// largest-first by file count.
+//
+// Longest-first scheduling overlaps the slow giant-repo parse tail with the
+// small-repo bulk instead of letting giants (which cluster at the end in
+// discovery order) serialize at the end of collection. The per-repo file count
+// is walked once here and reused for the small/large lane classification in
+// startStream, so the walk is not repeated.
+// The returned counts slice is aligned 1:1 with the returned (sorted)
+// repositories, so startStream can classify the small/large lanes without
+// walking each tree a second time.
+func (s *GitSource) resolveRepositories(batch SelectionBatch) ([]SelectedRepository, []int, string, error) {
 	resolved := make([]SelectedRepository, 0, len(batch.Repositories))
 	paths := make([]string, 0, len(batch.Repositories))
 
 	for _, repo := range batch.Repositories {
 		absPath, err := filepath.Abs(repo.RepoPath)
 		if err != nil {
-			return nil, "", fmt.Errorf("resolve selected repo path %q: %w", repo.RepoPath, err)
+			return nil, nil, "", fmt.Errorf("resolve selected repo path %q: %w", repo.RepoPath, err)
 		}
 		resolved = append(resolved, SelectedRepository{
 			RepoPath:     absPath,
@@ -79,6 +90,28 @@ func (s *GitSource) resolveRepositories(batch SelectionBatch) ([]SelectedReposit
 		paths = append(paths, absPath)
 	}
 
+	// Order largest-first so the heaviest repos start before the small-repo
+	// bulk and their long parses overlap rather than serialize at the tail.
+	// The count is paired with each repo so the stable sort keeps repo and
+	// count aligned; equal-count repos keep their input (discovery) order for
+	// deterministic scheduling.
+	type repoWithCount struct {
+		repo  SelectedRepository
+		count int
+	}
+	pairs := make([]repoWithCount, len(resolved))
+	for i := range resolved {
+		pairs[i] = repoWithCount{repo: resolved[i], count: countRepositoryFiles(resolved[i].RepoPath)}
+	}
+	sort.SliceStable(pairs, func(i, j int) bool {
+		return pairs[i].count > pairs[j].count
+	})
+	counts := make([]int, len(pairs))
+	for i := range pairs {
+		resolved[i] = pairs[i].repo
+		counts[i] = pairs[i].count
+	}
+
 	sourceRunID := facts.StableID(
 		"GitCollectorSnapshotRun",
 		map[string]any{
@@ -88,7 +121,7 @@ func (s *GitSource) resolveRepositories(batch SelectionBatch) ([]SelectedReposit
 		},
 	)
 
-	return resolved, sourceRunID, nil
+	return resolved, counts, sourceRunID, nil
 }
 
 // processRepo snapshots a single repository, invokes the afterSnapshot
@@ -205,11 +238,18 @@ func (s *GitSource) snapshotOneRepository(
 	duration := time.Since(start).Seconds()
 	scopeID := generation.Scope.ScopeID
 	factCount := generation.FactCount
+	sizeTier := s.repoSizeTier(snapshot.FileCount)
 
-	// Record metrics
+	// Record metrics. The per-repo duration carries the bounded repo_size_tier
+	// dimension so an operator can slice the giant-repo cost signal by size
+	// without the unbounded cardinality of a raw file_count label; the exact
+	// file_count is recorded on the structured completion log below.
 	if s.Instruments != nil {
 		s.Instruments.RepoSnapshotDuration.Record(ctx, duration,
-			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
+			metric.WithAttributes(
+				telemetry.AttrScopeID(scopeID),
+				telemetry.AttrRepoSizeTier(sizeTier),
+			),
 		)
 		s.Instruments.ReposSnapshotted.Add(ctx, 1,
 			metric.WithAttributes(attribute.String("status", "succeeded")),
@@ -254,6 +294,29 @@ func (s *GitSource) componentName() string {
 	return s.Component
 }
 
+// defaultLargeRepoThreshold is the file-count boundary between the small and
+// large scheduling lanes when LargeRepoThreshold is unset.
+const defaultLargeRepoThreshold = 500
+
+// largeRepoThreshold returns the configured large-repo file-count threshold,
+// falling back to the default when unset. Shared by lane classification and the
+// repo_size_tier telemetry dimension so both agree on the boundary.
+func (s *GitSource) largeRepoThreshold() int {
+	if s.LargeRepoThreshold <= 0 {
+		return defaultLargeRepoThreshold
+	}
+	return s.LargeRepoThreshold
+}
+
+// repoSizeTier maps a repository file count to the bounded "small"/"large"
+// telemetry dimension using the same threshold as lane classification.
+func (s *GitSource) repoSizeTier(fileCount int) string {
+	if fileCount > s.largeRepoThreshold() {
+		return "large"
+	}
+	return "small"
+}
+
 func buildScope(repo repositoryidentity.Metadata) scope.IngestionScope {
 	metadata := map[string]string{
 		"repo_id":    repo.ID,
@@ -280,12 +343,12 @@ func buildScope(repo repositoryidentity.Metadata) scope.IngestionScope {
 	}
 }
 
-// isLargeRepository performs a lightweight file count to classify a repository
-// as "large" (above the threshold). It walks the directory tree counting
-// regular files and bails early once the threshold is exceeded. Directories
-// that don't contribute to the real parse (.git, node_modules, vendor, etc.)
-// are skipped for speed.
-func isLargeRepository(repoPath string, threshold int) bool {
+// countRepositoryFiles walks the repository tree once and returns the number of
+// regular files that contribute to the real parse. Directories that never
+// contribute (.git, node_modules, vendor, etc.) are skipped for speed. The full
+// count (no early bail) is used both to order repositories largest-first and to
+// classify them into the small/large scheduling lanes.
+func countRepositoryFiles(repoPath string) int {
 	count := 0
 	_ = filepath.WalkDir(repoPath, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -299,12 +362,17 @@ func isLargeRepository(repoPath string, threshold int) bool {
 			return nil
 		}
 		count++
-		if count > threshold {
-			return filepath.SkipAll
-		}
 		return nil
 	})
-	return count > threshold
+	return count
+}
+
+// isLargeRepository classifies a repository as "large" (above the threshold)
+// and returns the file count it walked, so callers that need the exact count
+// (largest-first scheduling) do not have to walk the tree a second time.
+func isLargeRepository(repoPath string, threshold int) (bool, int) {
+	count := countRepositoryFiles(repoPath)
+	return count > threshold, count
 }
 
 func buildGeneration(

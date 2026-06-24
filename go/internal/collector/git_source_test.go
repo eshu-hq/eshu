@@ -671,7 +671,7 @@ func TestIsLargeRepositoryReturnsTrueAboveThreshold(t *testing.T) {
 		}
 	}
 
-	if !isLargeRepository(dir, 500) {
+	if large, _ := isLargeRepository(dir, 500); !large {
 		t.Fatal("isLargeRepository = false, want true for 600 files with threshold 500")
 	}
 }
@@ -686,7 +686,7 @@ func TestIsLargeRepositoryReturnsFalseAtOrBelowThreshold(t *testing.T) {
 		}
 	}
 
-	if isLargeRepository(dir, 500) {
+	if large, _ := isLargeRepository(dir, 500); large {
 		t.Fatal("isLargeRepository = true, want false for 100 files with threshold 500")
 	}
 }
@@ -712,7 +712,7 @@ func TestIsLargeRepositorySkipsGitDirectory(t *testing.T) {
 		}
 	}
 
-	if isLargeRepository(dir, 500) {
+	if large, _ := isLargeRepository(dir, 500); large {
 		t.Fatal("isLargeRepository = true, want false — .git directory should be skipped")
 	}
 }
@@ -736,7 +736,7 @@ func TestIsLargeRepositorySkipsNodeModules(t *testing.T) {
 		}
 	}
 
-	if isLargeRepository(dir, 500) {
+	if large, _ := isLargeRepository(dir, 500); large {
 		t.Fatal("isLargeRepository = true, want false — node_modules should be skipped")
 	}
 }

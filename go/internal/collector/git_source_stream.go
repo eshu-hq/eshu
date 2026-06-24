@@ -43,8 +43,11 @@ func (s *GitSource) startStream(ctx context.Context) error {
 		return nil
 	}
 
-	// Phase 2: Resolve paths and compute stable source run ID
-	resolved, sourceRunID, err := s.resolveRepositories(batch)
+	// Phase 2: Resolve paths, order largest-first, and compute stable source
+	// run ID. resolvedCounts is aligned 1:1 with resolved so the small/large
+	// lane classification below reuses the file count walked here instead of
+	// re-walking each repository tree.
+	resolved, resolvedCounts, sourceRunID, err := s.resolveRepositories(batch)
 	if err != nil {
 		return err
 	}
@@ -58,10 +61,7 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	// Size-tiered scheduling: large repos acquire a semaphore before
 	// snapshotting so at most N large repos parse concurrently. Small repos
 	// bypass the semaphore entirely and use all available workers.
-	largeThreshold := s.LargeRepoThreshold
-	if largeThreshold <= 0 {
-		largeThreshold = 500
-	}
+	largeThreshold := s.largeRepoThreshold()
 	largeMaxConcurrent := s.LargeRepoMaxConcurrent
 	if largeMaxConcurrent <= 0 {
 		largeMaxConcurrent = 2
@@ -124,13 +124,16 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	largeCh := make(chan SelectedRepository, len(resolved))
 
 	// Discovery goroutine: classify once per repo and route to the
-	// appropriate lane. Classification (isLargeRepository) is a fast
-	// file-count pre-scan that bails immediately on large repos.
+	// appropriate lane. Classification reuses the file count already walked in
+	// resolveRepositories (aligned 1:1 with resolved), so no early-bail pre-scan
+	// re-walks the tree here.
 	go func() {
 		defer close(smallCh)
 		defer close(largeCh)
-		for _, repo := range resolved {
-			large := isLargeRepository(repo.RepoPath, largeThreshold)
+		for i, repo := range resolved {
+			// Reuse the file count walked in resolveRepositories (aligned 1:1
+			// with resolved) so classification does not re-walk the tree.
+			large := resolvedCounts[i] > largeThreshold
 
 			// Record size-tier classification.
 			if s.Instruments != nil {

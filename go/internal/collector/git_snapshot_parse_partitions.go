@@ -28,48 +28,130 @@ type parseSubtreePartition struct {
 	jobs []parseFileJob
 }
 
+// defaultParseFileSizeBytes is the size assumed for a file whose os.Stat fails.
+// Unstattable files are never dropped from a partition; they are weighted at
+// this default so balancing stays loss-free.
+const defaultParseFileSizeBytes int64 = 4096
+
+// minParseFileWeightBytes floors every file's parse weight so a large group of
+// empty or tiny files still spreads across workers by count instead of
+// collapsing into a single partition. Each file costs a fixed parse pass
+// regardless of byte size, so weighting tiny files at zero would re-create the
+// count-clustering this byte-balancing avoids.
+const minParseFileWeightBytes int64 = 512
+
+type parseFileJobSized struct {
+	job  parseFileJob
+	size int64
+}
+
+// buildParseSubtreePartitions groups files by subtree key for parse context,
+// then balances the partitions by total bytes rather than file count so a
+// subtree dominated by a few heavy files does not pin one parse worker. The
+// resulting partitions cover the exact same file set as the input — same
+// indexes, no file dropped or duplicated — so the parse result is unchanged;
+// only the worker distribution differs.
 func buildParseSubtreePartitions(repoPath string, files []string, workerCount int) []parseSubtreePartition {
 	if len(files) == 0 {
 		return nil
 	}
-	targetSize := parseSubtreePartitionTargetSize(len(files), workerCount)
+
 	groupOrder := make([]string, 0, len(files))
-	groups := make(map[string][]parseFileJob)
+	groups := make(map[string][]parseFileJobSized)
+	var totalBytes int64
 	for index, filePath := range files {
 		key := parseSubtreePartitionKey(repoPath, filePath)
 		if _, ok := groups[key]; !ok {
 			groupOrder = append(groupOrder, key)
 		}
-		groups[key] = append(groups[key], parseFileJob{index: index, path: filePath})
+		size := parseFileSizeBytes(filePath)
+		totalBytes += size
+		groups[key] = append(groups[key], parseFileJobSized{
+			job:  parseFileJob{index: index, path: filePath},
+			size: size,
+		})
 	}
 	sort.Strings(groupOrder)
 
+	targetBytes := parseSubtreePartitionTargetBytes(totalBytes, workerCount)
+
 	partitions := make([]parseSubtreePartition, 0, len(groupOrder))
 	for _, key := range groupOrder {
-		jobs := groups[key]
-		if len(jobs) <= targetSize {
-			partitions = append(partitions, parseSubtreePartition{key: key, jobs: jobs})
+		sized := groups[key]
+		var groupBytes int64
+		for _, item := range sized {
+			groupBytes += item.size
+		}
+		// Keep a group whole when its total bytes fit within one worker's
+		// target. Heavier groups are split so their bytes spread across
+		// partitions.
+		if groupBytes <= targetBytes {
+			partitions = append(partitions, parseSubtreePartition{key: key, jobs: jobsFromSized(sized)})
 			continue
 		}
-		for start, chunk := 0, 1; start < len(jobs); start, chunk = start+targetSize, chunk+1 {
-			end := min(start+targetSize, len(jobs))
-			partitions = append(partitions, parseSubtreePartition{
-				key:  fmt.Sprintf("%s#%03d", key, chunk),
-				jobs: jobs[start:end],
-			})
-		}
+		partitions = append(partitions, chunkGroupByBytes(key, sized, targetBytes)...)
 	}
 	return partitions
 }
 
-func parseSubtreePartitionTargetSize(fileCount int, workerCount int) int {
-	if fileCount <= 0 {
+// chunkGroupByBytes splits one subtree group into byte-balanced chunks. A file
+// is always placed in the current chunk first (so a single file larger than the
+// target still lands in exactly one chunk, never dropped); a new chunk starts
+// once the running total reaches the target and files remain.
+func chunkGroupByBytes(key string, sized []parseFileJobSized, targetBytes int64) []parseSubtreePartition {
+	partitions := make([]parseSubtreePartition, 0)
+	current := make([]parseFileJob, 0, len(sized))
+	var currentBytes int64
+	chunk := 1
+	flush := func() {
+		partitions = append(partitions, parseSubtreePartition{
+			key:  fmt.Sprintf("%s#%03d", key, chunk),
+			jobs: current,
+		})
+		chunk++
+		current = make([]parseFileJob, 0, len(sized))
+		currentBytes = 0
+	}
+	for i, item := range sized {
+		current = append(current, item.job)
+		currentBytes += item.size
+		if currentBytes >= targetBytes && i < len(sized)-1 {
+			flush()
+		}
+	}
+	if len(current) > 0 {
+		flush()
+	}
+	return partitions
+}
+
+func jobsFromSized(sized []parseFileJobSized) []parseFileJob {
+	jobs := make([]parseFileJob, len(sized))
+	for i, item := range sized {
+		jobs[i] = item.job
+	}
+	return jobs
+}
+
+// parseFileSizeBytes returns the on-disk size of a file, falling back to a
+// default weight when os.Stat fails so an unstattable file is still scheduled
+// (never dropped).
+func parseFileSizeBytes(filePath string) int64 {
+	info, err := os.Stat(filePath)
+	if err != nil || info.Size() < 0 {
+		return defaultParseFileSizeBytes
+	}
+	return max(info.Size(), minParseFileWeightBytes)
+}
+
+func parseSubtreePartitionTargetBytes(totalBytes int64, workerCount int) int64 {
+	if totalBytes <= 0 {
 		return 1
 	}
 	if workerCount <= 1 {
-		return fileCount
+		return totalBytes
 	}
-	return max(1, (fileCount+workerCount-1)/workerCount)
+	return max(int64(1), (totalBytes+int64(workerCount)-1)/int64(workerCount))
 }
 
 func parseSubtreePartitionKey(repoPath string, filePath string) string {

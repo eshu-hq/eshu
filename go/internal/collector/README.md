@@ -63,11 +63,15 @@ batch it launches `startStream`, which:
 
 1. Calls `Selector.SelectRepositories` to discover the current repository list
    (span: `SpanScopeAssign`).
-2. Resolves all paths to absolute form and computes a stable `sourceRunID` via
-   `facts.StableID`.
-3. Classifies repositories into `smallCh` and `largeCh` by file count via
-   `isLargeRepository` (skips `.git`, `node_modules`, `vendor`, `.venv`,
-   `__pycache__`).
+2. Resolves all paths to absolute form, orders repositories largest-first by
+   file count (`countRepositoryFiles`), and computes a stable `sourceRunID` via
+   `facts.StableID`. The `sourceRunID` is derived from the input-order paths, so
+   the largest-first reorder never changes the run identity.
+3. Classifies repositories into `smallCh` and `largeCh` by file count. The
+   count is walked once during step 2 (`countRepositoryFiles`, skipping `.git`,
+   `node_modules`, `vendor`, `.venv`, `__pycache__`) and reused here, so the
+   tree is not re-walked. `isLargeRepository` exposes the same count to callers
+   that need the exact number.
 4. Launches `s.SnapshotWorkers` goroutines (default 8). Workers prefer small
    repos; large repos acquire a `largeSem` semaphore (capacity
    `LargeRepoMaxConcurrent`) before snapshotting so at most N large parses run
@@ -463,10 +467,12 @@ claim/execute spans for the value-flow evidence domains.
   per-repo snapshotting. Raising this value beyond CPU capacity increases
   context-switching without reducing wall time.
 - `ESHU_PARSE_WORKERS` partitions parser-supported files by stable repository
-  subtree before concurrent native parsing. Oversized subtrees are split into
-  deterministic chunks so a single large monorepo can keep multiple parse
-  workers busy while the composed snapshot is sorted back to the original file
-  order.
+  subtree before concurrent native parsing. Partitions are balanced by total
+  on-disk bytes, not file count, so a subtree dominated by a few heavy files
+  does not pin one parse worker. Subtrees heavier than one worker's byte target
+  are split into deterministic byte-balanced chunks; lighter subtrees stay whole
+  so a single large monorepo can keep multiple parse workers busy while the
+  composed snapshot is sorted back to the original file order.
 - `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX` deterministically filter
   discovered repository IDs before filesystem or Git sync begins. The shard hash
   uses only the normalized repository ID; shard IDs are not part of repository,
@@ -538,6 +544,96 @@ claim/execute spans for the value-flow evidence domains.
   logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
   selector/copy window separately from per-repository discovery, pre-scan,
   parse, materialize, commit, and projection stages.
+### Giant-repo collection scheduling (issue #3711)
+
+Full-corpus measurement (896 repos, remote Compose run) showed collection
+wall-time dominated by a giant-repo tail: per-stage totals were parse ~1586 s,
+materialize ~449 s, and pre-scan ~350 s (parallel), with a single 16,659-file
+repository's parse taking ~1012 s (~0.49 s/file, ~10x the normal per-file cost).
+Parse is already 8-way parallel and count-balanced, yet repositories were
+dispatched in discovery order, so the giants clustered at the end and serialized
+the tail.
+
+This change orders repositories largest-first in `resolveRepositories` so the
+heaviest repos start before the small-repo bulk and overlap with it instead of
+serializing at the end. The file count walked for ordering is reused for the
+existing small/large lane classification, so no second tree walk is added.
+
+- Performance Evidence (measured, full-corpus 895-repository run, PostgreSQL 18 +
+  NornicDB): the giant repos are enqueued first (verified by the order of the
+  `large repository queued` log) and parsed concurrently with the small-repo bulk
+  rather than serializing at the tail. The ordering guarantees enqueue order, not
+  start order: the worker loop prefers the small lane, so the largest-first
+  *start* overlap is best-effort and scheduler/backpressure-dependent (in this run
+  the large-repo semaphore waits were ~90-100 s, not the full small-bulk, so the
+  overlap held). Making early giant start guaranteed regardless of classifier
+  timing is tracked as a follow-up (issue #3839); the byte-balanced parse win
+  below is independent of scheduling and already guaranteed. The clean, attributable
+  metric is the parse stage (the collection work this change targets, unconfounded
+  by the downstream projection consumer): the worst single-repository parse
+  dropped from ~1012 s to ~238 s and the total parse stage from ~1586 s to ~675 s
+  versus the pre-change run, combining this ordering change with the byte-balanced
+  partitioning below. Two giant repositories parse at a time under the existing
+  large-repo semaphore (`large_repo_max_concurrent`, default 2), so giants 3+ wait
+  ~90-100 s for a slot — a pre-existing cap, not introduced here. Caveat: the
+  end-to-end collector-stream wall-time is pipelined against projection
+  backpressure and so is dominated by the projection consumer's wall-time (which
+  varied ~17% run-to-run from NornicDB write timing, a phase this change does not
+  touch); the per-stage parse durations above are the isolated collection metric.
+  Focused proof of the ordering and the preserved repo set: `go test
+  ./internal/collector -run
+  'Test(ResolveRepositoriesSortsLargestFirst|ResolveRepositoriesStableForEqualCounts|IsLargeRepositoryReturnsExactCount)'
+  -count=1`.
+- Observability Evidence: the per-repo `eshu_dp_repo_snapshot_duration_seconds`
+  histogram now carries the bounded `repo_size_tier` (`small`/`large`)
+  dimension so an operator can slice giant-repo cost by size without the
+  unbounded cardinality of a raw file-count label. The exact per-repo
+  `file_count` remains on the existing `collector snapshot completed` structured
+  log. No new instrument or pipeline stage is introduced; `repo_size_tier` is an
+  already-registered telemetry dimension.
+
+### Size-aware parse-partition balancing (issue #3711)
+
+Within a single repository, parse work was partitioned by file *count*: a
+subtree was split into chunks of `ceil(fileCount/workers)` files. That balances
+file count, not parse cost, so a subtree with a few huge files pinned one parse
+worker while others idled. In the measured full-corpus run a single
+16,659-file repository's parse took ~1012 s (~0.49 s/file, ~10x normal),
+consistent with a few heavy files/subtrees dominating its partitions.
+
+This change balances partitions by total on-disk bytes (`os.Stat` size, summed)
+instead of file count. Subtrees lighter than one worker's byte target stay
+whole; heavier subtrees are split into byte-balanced chunks so their heavy files
+spread across workers. Stat failures fall back to a default weight so no file is
+dropped. The partitions cover the exact same file set (same indexes, no drop, no
+duplicate), so the parse result is byte-identical — only the worker distribution
+changes.
+
+- Performance Evidence (measured, full-corpus 895-repository run): baseline is the
+  count-based partitioning where one giant repository's parse ran ~1012 s with
+  heavy files clustered in a few partitions; with byte-balanced partitioning the
+  same repository's worst parse stage dropped to ~238 s and the total parse stage
+  across the corpus fell from ~1586 s to ~675 s, within the fixed
+  `ESHU_PARSE_WORKERS` budget. The ~238 s residual is the giant repository's
+  irreducible parse — a partition cannot split below a single file, so one
+  multi-megabyte authored file still parses on one worker (files already skipped
+  as minified/generated/vendored under #3679 are excluded; these are kept,
+  authored files). `materialize` (~458 s total, serial, untouched here) is now
+  co-equal with the parse residual and is the next collection target. Correctness
+  and balance proof:
+  `go test ./internal/collector -run
+  'Test(BuildParseSubtreePartitionsCoversExactFileSet|BuildParseSubtreePartitionsSpreadsHeavyFiles|BuildParseSubtreePartitionsEdgeCases|BuildParseSubtreePartitionsSplitsStableSubtrees|PartitionedConcurrentParseMatchesSequentialComposition)'
+  -count=1` proves the union of partitions equals the input file set exactly,
+  heavy files spread instead of clustering, the empty/single/all-same-size edge
+  cases hold, and the concurrent parse output still matches the sequential
+  composition byte-for-byte.
+- No-Observability-Change: parse-partition balancing changes only how files are
+  grouped across the existing parse workers. The existing
+  `eshu_dp_file_parse_duration_seconds`, `eshu_dp_files_parsed_total`, and the
+  `collector snapshot stage completed` parse log (`parse_workers`,
+  `parse_partition_count`) continue to report parse timing and partition shape;
+  no metric, span, log field, or label is added or removed.
+
 - Collector Performance Evidence: declared Prometheus/Mimir, Loki, and Tempo source
   facts reuse the existing repository parse and fact-stream pass. The focused
   proof is
