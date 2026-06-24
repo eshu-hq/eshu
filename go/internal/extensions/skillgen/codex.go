@@ -13,6 +13,13 @@ import (
 // byte-citation block) so the two host skills are byte-comparable except
 // for the host-specific always-on layer file, which lives outside the
 // generated output.
+//
+// The YAML frontmatter is at byte 0 because Codex discovers skills from
+// the leading `---` block; the byte-citation block follows the frontmatter
+// so the loader reads the metadata before any HTML comment is parsed.
+// This is the only host whose discovery contract requires frontmatter-at-
+// byte-0; the other two hosts accept the citation block above the
+// frontmatter but we keep all three hosts on the same shape for symmetry.
 type codexAdapter struct{}
 
 func (codexAdapter) Host() Host { return HostCodex }
@@ -25,8 +32,6 @@ func (a codexAdapter) Render(in RenderInput) ([]byte, error) {
 		return nil, fmt.Errorf("codex adapter: %w", err)
 	}
 	var b strings.Builder
-	b.WriteString(commentBlock)
-	b.WriteString("\n")
 	b.WriteString("---\n")
 	b.WriteString("name: eshu\n")
 	b.WriteString("description: |\n")
@@ -36,6 +41,10 @@ func (a codexAdapter) Render(in RenderInput) ([]byte, error) {
 		b.WriteString("\n")
 	}
 	b.WriteString("---\n\n")
+	if commentBlock != "" {
+		b.WriteString(commentBlock)
+		b.WriteString("\n\n")
+	}
 	b.WriteString("# Eshu Agent Skill\n\n")
 	b.WriteString("This skill is auto-generated from `skill-fragments/`. Do not edit it by hand; run `go run ./cmd/skillgen gen` to regenerate.\n\n")
 	for _, fragment := range in.Fragments {

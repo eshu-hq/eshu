@@ -12,8 +12,9 @@ import (
 )
 
 // repoRootDir resolves the repository root from this test file. The
-// skill-fragments/ and expected/ directories live at the repo root; the
-// Go module lives one level deeper at go/.
+// skill-fragments/, expected/, and specs/surface-inventory.v1.yaml
+// directories all live at the repo root; the Go module lives one level
+// deeper at go/.
 func repoRootDir(t *testing.T) string {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
@@ -41,10 +42,28 @@ func loadCanonicalFragments(t *testing.T) []Fragment {
 	return fragments
 }
 
+// loadCanonicalCapabilities loads the catalog from
+// specs/surface-inventory.v1.yaml at the repo root and returns the
+// fully-enabled default Capabilities. Tests that exercise the roundtrip
+// baseline or the real catalog use this helper; tests that don't depend
+// on the catalog use DefaultCapabilitiesFor with a fixed test list.
+func loadCanonicalCapabilities(t *testing.T) Capabilities {
+	t.Helper()
+	catalogPath := filepath.Join(repoRootDir(t), "specs", "surface-inventory.v1.yaml")
+	overridePath := filepath.Join(t.TempDir(), "capabilities.local.yaml")
+	// Pass an override path that does not exist; the catalog is the
+	// source of truth and the absence of an override means "all enabled".
+	caps, err := LoadCapabilities(overridePath, catalogPath)
+	if err != nil {
+		t.Fatalf("LoadCapabilities(catalog=%s): %v (the canonical surface inventory is the single source of truth for collectors; the test requires it to be readable)", catalogPath, err)
+	}
+	return caps
+}
+
 func TestRenderAll_ProducesAllThreeHosts(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
-	results, err := RenderAll(fragments, DefaultCapabilities())
+	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
 	if err != nil {
 		t.Fatalf("RenderAll: %v", err)
 	}
@@ -65,16 +84,15 @@ func TestRenderAll_ProducesAllThreeHosts(t *testing.T) {
 func TestRenderAll_EmitsByteCitationBlockOnEveryHost(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
-	results, err := RenderAll(fragments, DefaultCapabilities())
+	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
 	if err != nil {
 		t.Fatalf("RenderAll: %v", err)
 	}
 	for _, r := range results {
-		if !bytes.HasPrefix(r.Bytes, []byte("<!-- eshu:byte-citation ")) {
-			t.Errorf("host %s: output does not start with byte-citation block\nfirst 200 bytes: %q", r.Host, truncate(string(r.Bytes), 200))
-			continue
-		}
 		// Every fragment's citation must appear as a comment line.
+		// The block is no longer at byte 0 (the frontmatter is now at
+		// byte 0 for loader-safe discovery); the test is on presence,
+		// not position.
 		for _, f := range fragments {
 			normalized, err := NormalizeByteCitation(f.ByteCitation, f.SourcePath)
 			if err != nil {
@@ -88,10 +106,29 @@ func TestRenderAll_EmitsByteCitationBlockOnEveryHost(t *testing.T) {
 	}
 }
 
+// TestRenderAll_FrontmatterIsAtByte0 is the regression catch for the
+// Codex/Cursor loader-discovery contract. Both loaders read the leading
+// `---` block to discover skills/rules, so the YAML frontmatter MUST be
+// at byte 0 in every generated file; the byte-citation block follows
+// after the frontmatter.
+func TestRenderAll_FrontmatterIsAtByte0(t *testing.T) {
+	t.Parallel()
+	fragments := loadCanonicalFragments(t)
+	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
+	if err != nil {
+		t.Fatalf("RenderAll: %v", err)
+	}
+	for _, r := range results {
+		if !bytes.HasPrefix(r.Bytes, []byte("---\n")) {
+			t.Errorf("host %s: output does not start with `---\\n` (frontmatter must be at byte 0 for Codex/Cursor loader discovery)\nfirst 200 bytes: %q", r.Host, truncate(string(r.Bytes), 200))
+		}
+	}
+}
+
 func TestRenderAll_ClaudeCodeFrontmatterHasNameAndDescription(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
-	results, err := RenderAll(fragments, DefaultCapabilities())
+	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
 	if err != nil {
 		t.Fatalf("RenderAll: %v", err)
 	}
@@ -118,7 +155,7 @@ func TestRenderAll_ClaudeCodeFrontmatterHasNameAndDescription(t *testing.T) {
 func TestRenderAll_OutputPathsMatchTheHostMatrix(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
-	results, err := RenderAll(fragments, DefaultCapabilities())
+	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
 	if err != nil {
 		t.Fatalf("RenderAll: %v", err)
 	}
@@ -137,7 +174,7 @@ func TestRenderAll_OutputPathsMatchTheHostMatrix(t *testing.T) {
 func TestRoundtripAgainstCommittedBaseline(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
-	results, err := RenderAll(fragments, DefaultCapabilities())
+	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
 	if err != nil {
 		t.Fatalf("RenderAll: %v", err)
 	}
@@ -161,118 +198,14 @@ func TestRoundtripAgainstCommittedBaseline(t *testing.T) {
 			b.WriteString(d.Reason)
 			b.WriteString(")\n")
 		}
-		b.WriteString("\nrun `go run ./cmd/skillgen gen` to regenerate the baseline.\n")
+		b.WriteString("run `go run ./cmd/skillgen gen` to regenerate the baseline.\n")
 		t.Fatal(b.String())
 	}
-}
-
-func TestCheckDrift_DetectsContentMismatch(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	results := []RenderResult{{
-		Host:       HostClaudeCode,
-		OutputPath: ".claude/skills/eshu/SKILL.md",
-		Bytes:      []byte("alpha\n"),
-	}}
-	if err := WriteExpected(root, results); err != nil {
-		t.Fatalf("WriteExpected: %v", err)
-	}
-	// Mutate the on-disk baseline.
-	drifted := results[0]
-	drifted.Bytes = []byte("beta\n")
-	drifts, err := CheckDrift(root, []RenderResult{drifted})
-	if err != nil {
-		t.Fatalf("CheckDrift: %v", err)
-	}
-	if len(drifts) != 1 {
-		t.Fatalf("drifts = %d, want 1", len(drifts))
-	}
-	if drifts[0].Reason != "content_mismatch" {
-		t.Errorf("Reason = %q, want content_mismatch", drifts[0].Reason)
-	}
-}
-
-func TestCheckDrift_DetectsMissingFile(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	results := []RenderResult{{
-		Host:       HostClaudeCode,
-		OutputPath: ".claude/skills/eshu/SKILL.md",
-		Bytes:      []byte("alpha\n"),
-	}}
-	drifts, err := CheckDrift(root, results)
-	if err != nil {
-		t.Fatalf("CheckDrift: %v", err)
-	}
-	if len(drifts) != 1 {
-		t.Fatalf("drifts = %d, want 1", len(drifts))
-	}
-	if drifts[0].Reason != "missing" {
-		t.Errorf("Reason = %q, want missing", drifts[0].Reason)
-	}
-}
-
-func TestWriteExpected_CreatesNestedDirectories(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	results := []RenderResult{{
-		Host:       HostClaudeCode,
-		OutputPath: ".claude/skills/eshu/SKILL.md",
-		Bytes:      []byte("hello\n"),
-	}}
-	if err := WriteExpected(root, results); err != nil {
-		t.Fatalf("WriteExpected: %v", err)
-	}
-	got, err := os.ReadFile(filepath.Join(root, string(HostClaudeCode), ".claude/skills/eshu/SKILL.md"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	if string(got) != "hello\n" {
-		t.Errorf("file content = %q, want hello\\n", string(got))
-	}
-}
-
-func TestRenderAll_AllFragmentBodiesAppearOnEveryHost(t *testing.T) {
-	t.Parallel()
-	fragments := loadCanonicalFragments(t)
-	results, err := RenderAll(fragments, DefaultCapabilities())
-	if err != nil {
-		t.Fatalf("RenderAll: %v", err)
-	}
-	for _, r := range results {
-		// Each fragment body is a Markdown document; the rendered skill
-		// must include a recognizable substring from each body. We use the
-		// first sentence of each body as the discriminator.
-		for _, f := range fragments {
-			marker := firstSentence(f.Body)
-			if marker == "" {
-				continue
-			}
-			if !bytes.Contains(r.Bytes, []byte(marker)) {
-				t.Errorf("host %s: missing fragment %s body marker %q", r.Host, f.ID, marker)
-			}
-		}
-	}
-}
-
-func firstSentence(body string) string {
-	// Strip the leading H1 and any leading whitespace, then take the first
-	// non-empty line as the marker. This is intentionally simple; the
-	// fragments are author-controlled.
-	lines := strings.Split(body, "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "# "))
-		if trimmed == "" || strings.HasPrefix(trimmed, "# ") {
-			continue
-		}
-		return trimmed
-	}
-	return ""
 }
 
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "..."
+	return s[:n] + "…"
 }

@@ -42,12 +42,75 @@ func skillgenFragmentsDir(t *testing.T) string {
 	return dir
 }
 
+// skillgenCatalogFile writes a minimal surface-inventory.v1.yaml fixture
+// to a temp dir and returns the path. The fixture has 11 implemented
+// collectors matching the package's testCatalogNames; tests pass
+// `-catalog` with this path so the cmd does not depend on the
+// repo-root editorial overlay.
+func skillgenCatalogFile(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "surface-inventory.v1.yaml")
+	const catalog = `version: v1
+surfaces:
+  - category: collector
+    name: git
+    readiness: implemented
+  - category: collector
+    name: documentation
+    readiness: implemented
+  - category: collector
+    name: oci_registry
+    readiness: implemented
+  - category: collector
+    name: aws
+    readiness: implemented
+  - category: collector
+    name: azure
+    readiness: implemented
+  - category: collector
+    name: gcp
+    readiness: partial
+  - category: collector
+    name: kubernetes
+    readiness: implemented
+  - category: collector
+    name: pagerduty
+    readiness: implemented
+  - category: collector
+    name: jira
+    readiness: implemented
+  - category: collector
+    name: package_registry
+    readiness: implemented
+  - category: collector
+    name: grafana
+    readiness: not_implemented
+`
+	if err := os.WriteFile(path, []byte(catalog), 0o644); err != nil {
+		t.Fatalf("write catalog: %v", err)
+	}
+	return path
+}
+
+// runArgs is the common test scaffolding: fragments, expected, and
+// catalog paths from the test fixtures, in the cmd's argument form.
+func runArgs(command, fragmentsDir, expectedDir, catalogPath string) []string {
+	return []string{
+		command,
+		"-fragments", fragmentsDir,
+		"-expected", expectedDir,
+		"-catalog", catalogPath,
+	}
+}
+
 func TestRun_GenWritesAllHostFiles(t *testing.T) {
 	t.Parallel()
 	fragments := skillgenFragmentsDir(t)
+	catalog := skillgenCatalogFile(t)
 	expected := t.TempDir()
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"gen", "-fragments", fragments, "-expected", expected}, &stdout, &stderr); err != nil {
+	if err := run(runArgs("gen", fragments, expected, catalog), &stdout, &stderr); err != nil {
 		t.Fatalf("run gen: %v\nstderr:\n%s", err, stderr.String())
 	}
 	// Every host must produce a file at <expected>/<host>/<output_path>.
@@ -70,13 +133,14 @@ func TestRun_GenWritesAllHostFiles(t *testing.T) {
 func TestRun_CheckExitsZeroOnBaseline(t *testing.T) {
 	t.Parallel()
 	fragments := skillgenFragmentsDir(t)
+	catalog := skillgenCatalogFile(t)
 	expected := t.TempDir()
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"gen", "-fragments", fragments, "-expected", expected}, &stdout, &stderr); err != nil {
-		t.Fatalf("run gen: %v", err)
+	if err := run(runArgs("gen", fragments, expected, catalog), &stdout, &stderr); err != nil {
+		t.Fatalf("run gen: %v\nstderr:\n%s", err, stderr.String())
 	}
 	stdout.Reset()
-	if err := run([]string{"check", "-fragments", fragments, "-expected", expected}, &stdout, &stderr); err != nil {
+	if err := run(runArgs("check", fragments, expected, catalog), &stdout, &stderr); err != nil {
 		t.Fatalf("run check: %v\nstderr:\n%s", err, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "in lockstep") {
@@ -87,9 +151,10 @@ func TestRun_CheckExitsZeroOnBaseline(t *testing.T) {
 func TestRun_CheckExitsNonZeroOnDrift(t *testing.T) {
 	t.Parallel()
 	fragments := skillgenFragmentsDir(t)
+	catalog := skillgenCatalogFile(t)
 	expected := t.TempDir()
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"gen", "-fragments", fragments, "-expected", expected}, &stdout, &stderr); err != nil {
+	if err := run(runArgs("gen", fragments, expected, catalog), &stdout, &stderr); err != nil {
 		t.Fatalf("run gen: %v", err)
 	}
 	// Hand-edit one byte in the on-disk baseline.
@@ -106,7 +171,7 @@ func TestRun_CheckExitsNonZeroOnDrift(t *testing.T) {
 		t.Fatalf("write drifted baseline: %v", err)
 	}
 	stdout.Reset()
-	err = run([]string{"check", "-fragments", fragments, "-expected", expected}, &stdout, &stderr)
+	err = run(runArgs("check", fragments, expected, catalog), &stdout, &stderr)
 	if err == nil {
 		t.Fatal("run check on drifted baseline: error = nil, want drift error")
 	}

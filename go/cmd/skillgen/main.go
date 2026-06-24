@@ -11,7 +11,8 @@
 // expected root) so the gen output and the check baseline are always
 // produced from the same source. The capability override file at
 // `<fragments>/capabilities.local.yaml` is read when present; its
-// absence means the default capability set (all collectors enabled).
+// absence means the default capability set (the on-disk catalog
+// enumerated collectors, all enabled).
 //
 // Run from the go module directory:
 //
@@ -23,6 +24,7 @@
 //	-fragments  path to the skill-fragments/ directory
 //	-expected   path to the expected/ baseline directory
 //	-caps       path to a capabilities.local.yaml file (optional)
+//	-catalog    path to the editorial surface inventory (specs/surface-inventory.v1.yaml)
 package main
 
 import (
@@ -38,6 +40,7 @@ import (
 const (
 	defaultFragmentsDir = "../skill-fragments"
 	defaultExpectedDir  = "../expected"
+	defaultCatalogPath  = "../specs/surface-inventory.v1.yaml"
 )
 
 func main() {
@@ -60,6 +63,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fragmentsDir := flags.String("fragments", defaultFragmentsDir, "path to the skill-fragments/ directory")
 	expectedDir := flags.String("expected", defaultExpectedDir, "path to the expected/ baseline directory")
 	capsPath := flags.String("caps", "", "path to a capabilities.local.yaml file (defaults to <fragments>/capabilities.local.yaml)")
+	catalogPath := flags.String("catalog", defaultCatalogPath, "path to the editorial surface inventory (the S1 contract for the per-collector matrix)")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -69,7 +73,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		resolvedCaps = filepath.Join(*fragmentsDir, "capabilities.local.yaml")
 	}
 
-	caps, err := skillgen.LoadCapabilities(resolvedCaps)
+	caps, err := skillgen.LoadCapabilities(resolvedCaps, *catalogPath)
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,10 @@ import (
 // always-on mechanism. The frontmatter uses Cursor's rule schema
 // (description, globs, alwaysApply) — the "name" frontmatter field is
 // replaced by the rule id (the file name).
+//
+// The YAML frontmatter is at byte 0; the byte-citation block follows
+// after. Cursor's loader discovers rules from the leading `---` block,
+// so frontmatter-at-byte-0 is required for the rule to apply.
 type cursorAdapter struct{}
 
 func (cursorAdapter) Host() Host { return HostCursor }
@@ -23,8 +27,6 @@ func (a cursorAdapter) Render(in RenderInput) ([]byte, error) {
 		return nil, fmt.Errorf("cursor adapter: %w", err)
 	}
 	var b strings.Builder
-	b.WriteString(commentBlock)
-	b.WriteString("\n")
 	b.WriteString("---\n")
 	b.WriteString("description: |\n")
 	for _, line := range wrapDescription(combinedDescription(in.Fragments), 72) {
@@ -35,6 +37,10 @@ func (a cursorAdapter) Render(in RenderInput) ([]byte, error) {
 	b.WriteString("globs: \n")
 	b.WriteString("alwaysApply: true\n")
 	b.WriteString("---\n\n")
+	if commentBlock != "" {
+		b.WriteString(commentBlock)
+		b.WriteString("\n\n")
+	}
 	b.WriteString("# Eshu Agent Rule (eshu)\n\n")
 	b.WriteString("This rule is auto-generated from `skill-fragments/`. Do not edit it by hand; run `go run ./cmd/skillgen gen` to regenerate.\n\n")
 	for _, fragment := range in.Fragments {

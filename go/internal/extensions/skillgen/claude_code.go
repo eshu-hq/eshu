@@ -7,9 +7,16 @@ import (
 )
 
 // claudeCodeAdapter renders the .claude/skills/eshu/SKILL.md file the
-// Claude Code loader expects. The byte-citation block is the first content
-// in the file; the YAML frontmatter follows; each fragment body is
+// Claude Code loader expects. The YAML frontmatter is at byte 0 (the
+// loader-safe position); the byte-citation block follows as an HTML
+// comment so the loader reads the metadata first; each fragment body is
 // appended under a "## <title>" heading derived from the fragment id.
+//
+// All three host adapters share this emission order: frontmatter at
+// byte 0, citation block after. Claude Code's loader accepts the
+// citation block before the frontmatter, but emitting frontmatter at
+// byte 0 keeps the three hosts byte-comparable except for the
+// host-specific schema fields and the always-on layer file.
 //
 // The adapter is the only place that knows the Claude Code frontmatter
 // schema; adding a new frontmatter field is local to this file.
@@ -27,8 +34,6 @@ func (a claudeCodeAdapter) Render(in RenderInput) ([]byte, error) {
 		return nil, fmt.Errorf("claude-code adapter: %w", err)
 	}
 	var b strings.Builder
-	b.WriteString(commentBlock)
-	b.WriteString("\n")
 	b.WriteString("---\n")
 	b.WriteString("name: eshu\n")
 	b.WriteString("description: |\n")
@@ -38,6 +43,10 @@ func (a claudeCodeAdapter) Render(in RenderInput) ([]byte, error) {
 		b.WriteString("\n")
 	}
 	b.WriteString("---\n\n")
+	if commentBlock != "" {
+		b.WriteString(commentBlock)
+		b.WriteString("\n\n")
+	}
 	b.WriteString("# Eshu Agent Skill\n\n")
 	b.WriteString("This skill is auto-generated from `skill-fragments/`. Do not edit it by hand; run `go run ./cmd/skillgen gen` to regenerate.\n\n")
 	for _, fragment := range in.Fragments {

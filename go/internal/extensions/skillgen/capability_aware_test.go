@@ -8,47 +8,80 @@ import (
 	"testing"
 )
 
-func TestDefaultCapabilities_AllCollectorsEnabled(t *testing.T) {
+// testCatalogNames is the fixed collector list the package's tests use.
+// Tests that don't need to read the on-disk catalog use this list via
+// DefaultCapabilitiesFor so the test does not depend on the working
+// directory or the file system.
+//
+// The list intentionally overlaps the real catalog
+// (specs/surface-inventory.v1.yaml) so a test that disables "aws" or
+// "kubernetes" exercises the same names the production render will see.
+var testCatalogNames = []string{
+	"aws",
+	"azure",
+	"gcp",
+	"kubernetes",
+	"oci_registry",
+	"terraform_state",
+	"package_registry",
+	"pagerduty",
+	"jira",
+	"git",
+	"documentation",
+}
+
+func TestDefaultCapabilitiesFor_AllCollectorsEnabled(t *testing.T) {
 	t.Parallel()
-	caps := DefaultCapabilities()
-	if caps.Source != "default" {
-		t.Errorf("Source = %q, want default", caps.Source)
+	caps := DefaultCapabilitiesFor(testCatalogNames)
+	if caps.Source != "test" {
+		t.Errorf("Source = %q, want test", caps.Source)
 	}
-	for _, name := range defaultCollectors {
+	for _, name := range testCatalogNames {
 		if !caps.IsEnabled(name) {
-			t.Errorf("default collector %q should be enabled", name)
+			t.Errorf("test collector %q should be enabled", name)
 		}
 	}
 }
 
-func TestLoadCapabilities_MissingFileReturnsDefault(t *testing.T) {
+func TestLoadCapabilities_MissingOverrideFileUsesCatalog(t *testing.T) {
 	t.Parallel()
-	caps, err := LoadCapabilities(filepath.Join(t.TempDir(), "capabilities.local.yaml"))
-	if err != nil {
-		t.Fatalf("LoadCapabilities: %v", err)
+	// The override file does not exist. The catalog is also absent
+	// (we pass a path that points at nothing). This is the
+	// fail-closed contract: a missing catalog is an error.
+	dir := t.TempDir()
+	missingCatalog := filepath.Join(dir, "no-such-catalog.yaml")
+	_, err := LoadCapabilities(filepath.Join(dir, "capabilities.local.yaml"), missingCatalog)
+	if err == nil {
+		t.Fatal("LoadCapabilities: error = nil, want missing-catalog error")
 	}
-	if caps.Source != "default" {
-		t.Errorf("Source = %q, want default", caps.Source)
-	}
-	if !caps.IsEnabled("aws") {
-		t.Errorf("default aws should be enabled")
+}
+
+func TestLoadCapabilities_EmptyCatalogPathIsError(t *testing.T) {
+	t.Parallel()
+	_, err := LoadCapabilities("", "")
+	if err == nil {
+		t.Fatal("LoadCapabilities: error = nil, want empty-catalog error")
 	}
 }
 
 func TestLoadCapabilities_DisablesAWSFromFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "capabilities.local.yaml")
-	yaml := "collectors:\n  aws: false\n  azure: true\n"
-	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+	overridePath := filepath.Join(dir, "capabilities.local.yaml")
+	catalogPath := filepath.Join(dir, "catalog.yaml")
+	if err := os.WriteFile(catalogPath, []byte(testCatalogYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	caps, err := LoadCapabilities(path)
+	yaml := "collectors:\n  aws: false\n  azure: true\n"
+	if err := os.WriteFile(overridePath, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	caps, err := LoadCapabilities(overridePath, catalogPath)
 	if err != nil {
 		t.Fatalf("LoadCapabilities: %v", err)
 	}
-	if caps.Source != path {
-		t.Errorf("Source = %q, want %q", caps.Source, path)
+	if caps.Source != overridePath {
+		t.Errorf("Source = %q, want %q", caps.Source, overridePath)
 	}
 	if caps.IsEnabled("aws") {
 		t.Errorf("aws should be disabled after override")
@@ -64,35 +97,46 @@ func TestLoadCapabilities_DisablesAWSFromFile(t *testing.T) {
 func TestLoadCapabilities_RejectsMalformedYAML(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "capabilities.local.yaml")
-	if err := os.WriteFile(path, []byte("collectors: [unbalanced"), 0o644); err != nil {
+	overridePath := filepath.Join(dir, "capabilities.local.yaml")
+	catalogPath := filepath.Join(dir, "catalog.yaml")
+	if err := os.WriteFile(catalogPath, []byte(testCatalogYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := LoadCapabilities(path)
+	if err := os.WriteFile(overridePath, []byte("collectors: [unbalanced"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadCapabilities(overridePath, catalogPath)
 	if err == nil {
 		t.Fatal("LoadCapabilities: error = nil, want parse error")
 	}
 }
 
-func TestLoadCapabilities_EmptyFileIsDefault(t *testing.T) {
+func TestLoadCapabilities_EmptyOverrideFileIsCatalog(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "capabilities.local.yaml")
-	if err := os.WriteFile(path, []byte("   \n"), 0o644); err != nil {
+	overridePath := filepath.Join(dir, "capabilities.local.yaml")
+	catalogPath := filepath.Join(dir, "catalog.yaml")
+	if err := os.WriteFile(catalogPath, []byte(testCatalogYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	caps, err := LoadCapabilities(path)
+	if err := os.WriteFile(overridePath, []byte("   \n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	caps, err := LoadCapabilities(overridePath, catalogPath)
 	if err != nil {
 		t.Fatalf("LoadCapabilities: %v", err)
 	}
-	if caps.Source != "default" {
-		t.Errorf("Source = %q, want default for blank file", caps.Source)
+	if caps.Source != overridePath {
+		t.Errorf("Source = %q, want %q", caps.Source, overridePath)
+	}
+	if !caps.IsEnabled("aws") {
+		t.Errorf("blank override file: aws should default to enabled from catalog")
 	}
 }
 
 func TestEnabledCollectors_OnlyEnabledNames(t *testing.T) {
 	t.Parallel()
-	caps := DefaultCapabilities()
+	caps := DefaultCapabilitiesFor(testCatalogNames)
 	caps.Collectors["aws"] = false
 	caps.Collectors["azure"] = false
 	got := caps.EnabledCollectors()
@@ -108,7 +152,7 @@ func TestEnabledCollectors_OnlyEnabledNames(t *testing.T) {
 
 func TestDisabledCollectors_OnlyDisabledNames(t *testing.T) {
 	t.Parallel()
-	caps := DefaultCapabilities()
+	caps := DefaultCapabilitiesFor(testCatalogNames)
 	caps.Collectors["aws"] = false
 	got := caps.DisabledCollectors()
 	want := []string{"aws"}
@@ -120,7 +164,7 @@ func TestDisabledCollectors_OnlyDisabledNames(t *testing.T) {
 func TestRenderAll_AWSDisabledDoesNotListAWSAsEnabled(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
-	caps := DefaultCapabilities()
+	caps := DefaultCapabilitiesFor(testCatalogNames)
 	caps.Collectors["aws"] = false
 	caps.Source = "test-aws-disabled"
 	results, err := RenderAll(fragments, caps)
@@ -151,7 +195,7 @@ func TestRenderAll_PropertyTest_NeverPanics(t *testing.T) {
 	// exercise the merge path: subsets enabled, subsets disabled, names
 	// outside the default set, an empty config.
 	configs := []Capabilities{
-		DefaultCapabilities(),
+		DefaultCapabilitiesFor(testCatalogNames),
 		allDisabledConfig(),
 		sparseConfig(),
 		emptyConfig(),
@@ -167,8 +211,34 @@ func TestRenderAll_PropertyTest_NeverPanics(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultCatalog_FailsClosedOnMissingFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_, err := loadCatalogFrom(filepath.Join(dir, "no-such-file.yaml"))
+	if err == nil {
+		t.Fatal("loadCatalogFrom: error = nil, want missing-file error")
+	}
+}
+
+func TestLoadDefaultCatalog_ParsesImplementedCollectors(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	catalogPath := filepath.Join(dir, "catalog.yaml")
+	if err := os.WriteFile(catalogPath, []byte(testCatalogYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	names, err := loadCatalogFrom(catalogPath)
+	if err != nil {
+		t.Fatalf("loadCatalogFrom: %v", err)
+	}
+	want := []string{"aws", "azure", "documentation", "git", "jira", "kubernetes", "oci_registry", "package_registry", "pagerduty", "prometheus_mimir", "tempo"}
+	if !reflect.DeepEqual(names, want) {
+		t.Errorf("names = %v, want %v", names, want)
+	}
+}
+
 func allDisabledConfig() Capabilities {
-	caps := DefaultCapabilities()
+	caps := DefaultCapabilitiesFor(testCatalogNames)
 	for name := range caps.Collectors {
 		caps.Collectors[name] = false
 	}
@@ -177,10 +247,10 @@ func allDisabledConfig() Capabilities {
 }
 
 func sparseConfig() Capabilities {
-	caps := DefaultCapabilities()
+	caps := DefaultCapabilitiesFor(testCatalogNames)
 	caps.Collectors["aws"] = false
-	caps.Collectors["terraform"] = false
-	caps.Collectors["kustomize"] = false
+	caps.Collectors["oci_registry"] = false
+	caps.Collectors["pagerduty"] = false
 	caps.Source = "sparse"
 	return caps
 }
@@ -210,3 +280,56 @@ func contains(b []byte, needle string) bool {
 	}
 	return false
 }
+
+// testCatalogYAML is a fixture for tests that exercise the catalog
+// parser. It mirrors the shape of specs/surface-inventory.v1.yaml so a
+// test that loads this file behaves the same as production code reading
+// the real catalog.
+const testCatalogYAML = `version: v1
+surfaces:
+  - category: collector
+    name: git
+    readiness: implemented
+  - category: collector
+    name: documentation
+    readiness: implemented
+  - category: collector
+    name: oci_registry
+    readiness: implemented
+  - category: collector
+    name: aws
+    readiness: implemented
+  - category: collector
+    name: azure
+    readiness: implemented
+  - category: collector
+    name: gcp
+    readiness: partial
+  - category: collector
+    name: kubernetes
+    readiness: implemented
+  - category: collector
+    name: pagerduty
+    readiness: implemented
+  - category: collector
+    name: jira
+    readiness: implemented
+  - category: collector
+    name: package_registry
+    readiness: implemented
+  - category: collector
+    name: grafana
+    readiness: not_implemented
+  - category: collector
+    name: loki
+    readiness: not_implemented
+  - category: collector
+    name: prometheus_mimir
+    readiness: implemented
+  - category: collector
+    name: tempo
+    readiness: implemented
+  - category: capability
+    name: code_search
+    readiness: implemented
+`

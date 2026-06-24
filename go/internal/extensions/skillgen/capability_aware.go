@@ -27,60 +27,69 @@ type Capabilities struct {
 	Collectors map[string]bool
 }
 
-// defaultCollectors is the canonical collector name list S2 enumerates in
-// the per-collector-matrix fragment. The list is intentionally short in
-// v1; the S1 design says per-collector MCP tools are enumerated from the
-// live capability catalog, not from a static prose list, and a future
-// slice can swap this constant for a catalog-driven list.
-var defaultCollectors = []string{
-	"code",
-	"terraform",
-	"helm",
-	"kustomize",
-	"argo",
-	"aws",
-	"azure",
-	"gcp",
-	"kubernetes",
+// DefaultCapabilities returns the fully-enabled default capability set
+// from the on-disk catalog at DefaultCatalogPath. The function is
+// fail-closed: a missing or malformed catalog is an error rather than a
+// fallback to a static subset, because the S1 design says per-collector
+// MCP tools are enumerated from the live capability catalog, not from a
+// static prose list, and a partial list would teach agents an
+// incomplete surface.
+func DefaultCapabilities() Capabilities {
+	names, err := LoadDefaultCatalog()
+	if err != nil {
+		panic(fmt.Sprintf("skillgen: %v (this is a build-time tool; the catalog must be readable from the working directory)", err))
+	}
+	return DefaultCapabilitiesFor(names)
 }
 
-// DefaultCapabilities returns the fully-enabled default capability set.
-func DefaultCapabilities() Capabilities {
-	caps := Capabilities{Source: "default", Collectors: make(map[string]bool, len(defaultCollectors))}
-	for _, name := range defaultCollectors {
+// DefaultCapabilitiesFor wraps a sorted collector list as a fully-enabled
+// Capabilities. The Source field is set to "test" so production code
+// (which always supplies the on-disk catalog) is distinguishable from
+// test-only constructions.
+func DefaultCapabilitiesFor(names []string) Capabilities {
+	caps := Capabilities{Source: "test", Collectors: make(map[string]bool, len(names))}
+	for _, name := range names {
 		caps.Collectors[name] = true
 	}
 	return caps
 }
 
-// LoadCapabilities reads a capabilities file. A missing file returns the
-// default set with Source set to "default" (not the path); this is the
-// expected state for a contributor who has not configured per-deployment
-// overrides. A present file with malformed YAML or a non-map
-// `collectors` value returns an error.
-func LoadCapabilities(path string) (Capabilities, error) {
-	data, err := os.ReadFile(path)
+// LoadCapabilities reads a capabilities override file and merges it with
+// the on-disk catalog. The override file is gitignored and per-deployment;
+// a missing override file is the default (the catalog is the source of
+// truth). A present file with malformed YAML or a non-map `collectors`
+// value returns an error.
+func LoadCapabilities(overridePath, catalogPath string) (Capabilities, error) {
+	names, err := loadCatalogFrom(catalogPath)
+	if err != nil {
+		return Capabilities{}, err
+	}
+	caps := DefaultCapabilitiesFor(names)
+	caps.Source = catalogPath
+
+	data, err := os.ReadFile(overridePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return DefaultCapabilities(), nil
+			return caps, nil
 		}
-		return Capabilities{}, fmt.Errorf("read capabilities %s: %w", path, err)
+		return Capabilities{}, fmt.Errorf("read capabilities %s: %w", overridePath, err)
 	}
-	return parseCapabilities(data, path)
+	return parseOverride(data, overridePath, caps)
 }
 
-// parseCapabilities decodes a capabilities YAML document. The schema is:
-//
-//	collectors:
-//	  aws: false
-//	  azure: true
-//
-// A `collectors` key missing from the document is treated as the default
-// (all enabled) so a capabilities file that documents a deployment but
-// has no overrides is still legal.
-func parseCapabilities(data []byte, source string) (Capabilities, error) {
+// parseOverride applies an override file's `collectors` map on top of the
+// fully-enabled default set built from the catalog. A missing `collectors`
+// key in the document is treated as no overrides so a capabilities file
+// that documents a deployment but has no per-collector toggles is still
+// legal.
+func parseOverride(data []byte, source string, caps Capabilities) (Capabilities, error) {
+	// The override file is present (LoadCapabilities verified this) so
+	// Source always tracks the override path, not the catalog path. A
+	// blank file means "no overrides"; the catalog-derived collectors
+	// remain the source of truth.
+	caps.Source = source
 	if len(strings.TrimSpace(string(data))) == 0 {
-		return DefaultCapabilities(), nil
+		return caps, nil
 	}
 	var doc struct {
 		Collectors map[string]bool `yaml:"collectors"`
@@ -88,8 +97,6 @@ func parseCapabilities(data []byte, source string) (Capabilities, error) {
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return Capabilities{}, fmt.Errorf("parse capabilities %s: %w", source, err)
 	}
-	caps := DefaultCapabilities()
-	caps.Source = source
 	if doc.Collectors == nil {
 		return caps, nil
 	}

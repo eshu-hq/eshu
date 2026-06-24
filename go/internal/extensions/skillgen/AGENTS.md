@@ -31,11 +31,16 @@
   same input. The roundtrip baseline in `expected/` is the regression
   guard; a non-deterministic change shows up as a `content_mismatch`
   drift and fails the `check` subcommand.
-- **`byte_citation` is a stable identifier.** The comment block emitted at
-  the top of every generated skill is the anchor S3 verifies against the
-  merge tree. The format `<!-- eshu:byte-citation path#start-end -->` is
-  load-bearing; do not rename the prefix, do not switch to a different
-  comment style, do not move the block below the frontmatter.
+- **`byte_citation` is a stable identifier.** The comment block emitted
+  immediately after the loader-required frontmatter in every generated
+  skill is the anchor S3 verifies against the merge tree. The format
+  `<!-- eshu:byte-citation path#start-end -->` is load-bearing; do not
+  rename the prefix, do not switch to a different comment style. The
+  block follows the frontmatter because the Codex and Cursor loaders
+  discover skills/rules from the leading `---` block; emitting anything
+  before the frontmatter would make the skill undiscoverable. The
+  Claude Code loader is permissive about position, but all three hosts
+  share the same shape for symmetry.
 - **RenderAll is host-agnostic.** Per-host frontmatter fields, the
   always-on layer file, and any per-host formatting quirks live in the
   owning adapter (`claude_code.go`, `cursor.go`, `codex.go`). Adding a

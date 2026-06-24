@@ -1,10 +1,3 @@
-<!-- eshu:byte-citation docs/internal/agent-guide.md#14-22 -->
-<!-- eshu:byte-citation docs/public/architecture.md#24-26 -->
-<!-- eshu:byte-citation docs/public/reference/capability-conformance-spec.md#29-49 -->
-<!-- eshu:byte-citation docs/public/reference/evidence-bundle.md#1-49 -->
-<!-- eshu:byte-citation docs/public/reference/truth-label-protocol.md#10-21 -->
-<!-- eshu:byte-citation go/internal/capabilitycatalog/catalog.go#1-80 -->
-<!-- eshu:byte-citation go/internal/semanticqueue/README.md#10 -->
 ---
 name: eshu
 description: |
@@ -31,6 +24,14 @@ description: |
   or `fallback` levels. High-authority capabilities MUST return
   `unsupported_capability` rather than silently downgrading.
 ---
+
+<!-- eshu:byte-citation docs/internal/agent-guide.md#14-22 -->
+<!-- eshu:byte-citation docs/public/architecture.md#24-26 -->
+<!-- eshu:byte-citation docs/public/reference/capability-conformance-spec.md#29-49 -->
+<!-- eshu:byte-citation docs/public/reference/evidence-bundle.md#1-49 -->
+<!-- eshu:byte-citation docs/public/reference/truth-label-protocol.md#10-21 -->
+<!-- eshu:byte-citation go/internal/capabilitycatalog/catalog.go#1-80 -->
+<!-- eshu:byte-citation go/internal/semanticqueue/README.md#10 -->
 
 # Eshu Agent Skill
 
@@ -160,15 +161,23 @@ rendered fragment body.
 
 The active collector set on this deployment is enumerated below. Disabling a collector hides its MCP surface from the generated skill.
 
-- argo (enabled)
 - aws (enabled)
-- azure (enabled)
-- code (enabled)
-- gcp (enabled)
-- helm (enabled)
-- kubernetes (enabled)
-- kustomize (enabled)
-- terraform (enabled)
+- documentation (enabled)
+- git (enabled)
+- grafana (enabled)
+- jira (enabled)
+- loki (enabled)
+- oci_registry (enabled)
+- package_registry (enabled)
+- pagerduty (enabled)
+- prometheus_mimir (enabled)
+- sbom_attestation (enabled)
+- scanner_worker (enabled)
+- security_alert (enabled)
+- tempo (enabled)
+- terraform_state (enabled)
+- vulnerability_intelligence (enabled)
+- webhook (enabled)
 
 ## Reducer Invariant
 
