@@ -1,13 +1,14 @@
 // AnswerView.tsx — the rendered answer: truth label first, then prose or the
 // evidence-only note, artifacts, limitations and the evidence expander.
-import type { RefObject } from "react";
 import { ShieldCheck, TriangleAlert } from "lucide-react";
-import { Panel } from "../atoms";
+import type { RefObject } from "react";
+
 import type { AskAnswer } from "../../api/askEshu";
-import { TruthBadge } from "./TruthBadge";
+import { Panel } from "../atoms";
 import { ArtifactCard } from "./ArtifactCard";
 import { EvidenceList } from "./EvidenceList";
 import { renderMarkdown } from "./markdown";
+import { TruthBadge } from "./TruthBadge";
 
 /** The full answer panel. Leads with the truth badge; usable with no prose. */
 export function AnswerView({

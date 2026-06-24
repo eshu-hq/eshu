@@ -7,8 +7,7 @@
 //     failure), distinct from a real "unavailable" error
 //   - each mutator posts/deletes to the real endpoint with the right body
 import { describe, it, expect, vi } from "vitest";
-import { EshuApiHttpError } from "./client";
-import type { EshuApiClient } from "./client";
+
 import {
   loadInvitations,
   loadRoleAssignments,
@@ -25,6 +24,8 @@ import {
   deleteIdPGroupMapping,
   revokeApiToken
 } from "./adminConsole";
+import { EshuApiHttpError } from "./client";
+import type { EshuApiClient } from "./client";
 
 const NOW = "2026-06-24T10:00:00Z";
 

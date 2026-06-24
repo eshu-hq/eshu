@@ -1,8 +1,8 @@
 // pages/OperationsPage.tsx
-import type { ConsoleModel } from "../console/types";
-import { fmt } from "../console/types";
 import { Panel, StatTile, FreshDot, CollectorGlyph } from "../components/atoms";
 import { AreaChart, BarRows } from "../components/charts";
+import type { ConsoleModel } from "../console/types";
+import { fmt } from "../console/types";
 
 export function OperationsPage({ model }: { readonly model: ConsoleModel }): React.JSX.Element {
   const r = model.runtime;

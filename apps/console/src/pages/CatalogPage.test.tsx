@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+
 import { CatalogPage } from "./CatalogPage";
 import { demoModel } from "../console/demoModel";
 import { emptyConsoleModel } from "../console/liveModel";

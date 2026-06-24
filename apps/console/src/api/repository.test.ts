@@ -1,6 +1,6 @@
 import { EshuApiClient } from "./client";
-import { inspectionRequest } from "../test/inspectionRequest";
 import { loadWorkspaceStory } from "./repository";
+import { inspectionRequest } from "../test/inspectionRequest";
 describe("workspace story adapter", () => {
   it("loads demo workspace stories from typed fixtures", async () => {
     const story = await loadWorkspaceStory({

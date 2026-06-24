@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { EshuApiClient } from "./client";
+
 import {
   loadGenerationLifecycle,
   loadRepositoryChangedSince,
   loadServiceChangedSince
 } from "./changedSince";
+import type { EshuApiClient } from "./client";
 
 function envelope(data: unknown, capability = "freshness.changed_since") {
   return {

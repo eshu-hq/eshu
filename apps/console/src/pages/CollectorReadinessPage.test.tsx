@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+
 import { CollectorReadinessPage } from "./CollectorReadinessPage";
 import type { CollectorReadinessRow } from "../api/collectorReadiness";
 

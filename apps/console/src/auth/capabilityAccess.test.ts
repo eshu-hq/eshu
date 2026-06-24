@@ -4,8 +4,9 @@
 //   cloud_iac, secrets_iam, supply_chain, docs_semantic, ask_search,
 //   operations_status, audit_export, admin_recovery
 import { describe, expect, it } from "vitest";
-import type { BrowserSessionAuth } from "../api/client";
+
 import { canAccessNav, buildAllowedNavSet } from "./capabilityAccess";
+import type { BrowserSessionAuth } from "../api/client";
 
 function makeAuth(overrides: Partial<BrowserSessionAuth> = {}): BrowserSessionAuth {
   return {

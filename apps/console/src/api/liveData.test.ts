@@ -1,5 +1,5 @@
 import { EshuApiClient } from "./client";
-import { inspectionRequest } from "../test/inspectionRequest";
+import { loadDashboardSnapshot } from "./dashboardSnapshot";
 import {
   loadCatalogServiceRows,
   loadCatalogRows,
@@ -7,7 +7,7 @@ import {
   loadFindingRows,
   loadSearchCandidates
 } from "./liveData";
-import { loadDashboardSnapshot } from "./dashboardSnapshot";
+import { inspectionRequest } from "../test/inspectionRequest";
 
 function clientFor(
   routes: Record<string, unknown>,

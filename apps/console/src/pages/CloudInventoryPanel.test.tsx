@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { EshuApiClient } from "../api/client";
+
 import { CloudInventoryPanel } from "./CloudInventoryPanel";
+import type { EshuApiClient } from "../api/client";
 
 describe("CloudInventoryPanel", () => {
   it("renders canonical source-state rollups from the inventory readback", async () => {

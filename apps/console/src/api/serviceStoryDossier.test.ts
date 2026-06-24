@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { serviceContextFromStoryDossier, type ServiceStoryDossierResponse } from "./serviceStoryDossier";
 
 describe("serviceContextFromStoryDossier", () => {

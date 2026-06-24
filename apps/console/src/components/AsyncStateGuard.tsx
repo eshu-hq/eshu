@@ -15,6 +15,7 @@
 // spinner until the API responds.
 
 import type { ReactNode } from "react";
+
 import type { SectionProvenance } from "../api/eshuConsoleLive";
 
 interface AsyncStateGuardProps {

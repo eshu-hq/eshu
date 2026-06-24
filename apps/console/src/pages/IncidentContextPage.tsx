@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
-import {
-  loadIncidentContext,
-  type IncidentContextLoadResult
-} from "../api/incidentContext";
-import type { ConsoleModel } from "../console/types";
-import { Badge, Panel, StatTile } from "../components/atoms";
+
 import {
   AmbiguousEvidence,
   EvidencePath,
@@ -16,6 +10,13 @@ import {
   Timeline,
   statRows
 } from "./IncidentContextSections";
+import type { EshuApiClient } from "../api/client";
+import {
+  loadIncidentContext,
+  type IncidentContextLoadResult
+} from "../api/incidentContext";
+import { Badge, Panel, StatTile } from "../components/atoms";
+import type { ConsoleModel } from "../console/types";
 import "./incidentContextPage.css";
 
 interface IncidentFormState {

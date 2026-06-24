@@ -2,9 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
+
 import { DeadCodePage } from "./DeadCodePage";
-import { demoModel } from "../console/demoModel";
 import type { EshuApiClient } from "../api/client";
+import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
 
 function envelope(results: readonly Record<string, unknown>[]) {

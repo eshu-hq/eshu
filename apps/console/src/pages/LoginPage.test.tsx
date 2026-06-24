@@ -10,9 +10,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+
+import { LoginPage } from "./LoginPage";
 import type { EshuApiClient, BrowserSessionResponse } from "../api/client";
 import { EshuApiHttpError } from "../api/client";
-import { LoginPage } from "./LoginPage";
 
 // mockSession matches the shape loginLocal wraps in {status:"ok", session:...}.
 // postJson must return a raw LocalIdentitySessionResponse with status field.

@@ -1,26 +1,26 @@
 import type { EshuApiClient } from "./client";
 import type { DeploymentConfigInfluence } from "./deploymentConfigInfluence";
-import { envelopePayload } from "./envelopePayload";
 import type { EshuTruth } from "./envelope";
+import { envelopePayload } from "./envelopePayload";
 import type { DeploymentGraph } from "./mockData";
 import {
   normalizeServiceInvestigation,
   type ServiceInvestigation,
   type ServiceInvestigationResponse
 } from "./serviceInvestigation";
+import { deploymentGraph } from "./serviceSpotlightGraph";
+import { deploymentLanes } from "./serviceSpotlightLanes";
+import { relationshipClusters } from "./serviceSpotlightRelationships";
 import {
   serviceSupportFromRecord,
   type ServiceSupportOverview,
   type ServiceSupportRecord
 } from "./serviceSupportEvidence";
-import { deploymentGraph } from "./serviceSpotlightGraph";
 import {
   buildServiceTrafficPaths,
   type ServiceTrafficPath,
   type ServiceTrafficPathContext
 } from "./serviceTrafficPath";
-import { deploymentLanes } from "./serviceSpotlightLanes";
-import { relationshipClusters } from "./serviceSpotlightRelationships";
 
 export interface ServiceSpotlight {
   readonly api: {

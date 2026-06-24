@@ -1,13 +1,14 @@
 import { render, screen, within } from "@testing-library/react";
-import type { GraphModel } from "../console/types";
-import type { EshuTruth } from "../api/envelope";
+
+import { AnswerRenderer } from "./AnswerRenderer";
 import {
   normalizeAnswerCompanion,
   normalizeCitationPacket,
   type EvidenceCitationPacket
 } from "../api/answerPacket";
 import { normalizeVisualizationPacket, type VisualizationPacket } from "../api/answerVisualization";
-import { AnswerRenderer } from "./AnswerRenderer";
+import type { EshuTruth } from "../api/envelope";
+import type { GraphModel } from "../console/types";
 
 describe("AnswerRenderer", () => {
   it("renders summary, resolved subgraph, citations, and truth labels together", () => {

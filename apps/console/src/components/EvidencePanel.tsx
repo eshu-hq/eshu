@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+
+import { Badge, FreshDot, TruthChip } from "./atoms";
 import type { EshuTruth } from "../api/envelope";
 import { uiFresh, uiTruth } from "../console/types";
-import { Badge, FreshDot, TruthChip } from "./atoms";
 import "./evidencePanel.css";
 
 // EvidencePanelFact is one label/value row of joined evidence about the selected

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+
 import { EshuApiHttpError, type EshuApiClient } from "./client";
 import type { EshuEnvelope } from "./envelope";
 import {

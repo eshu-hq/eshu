@@ -1,5 +1,5 @@
-import type { ConsoleEnvironment } from "../config/environment";
 import type { FreshnessState, RuntimeProfile } from "../api/envelope";
+import type { ConsoleEnvironment } from "../config/environment";
 
 export interface RuntimeStatusSummary {
   readonly freshnessState: FreshnessState;

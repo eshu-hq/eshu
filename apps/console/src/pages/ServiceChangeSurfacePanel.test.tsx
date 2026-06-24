@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
+
 import { ServiceChangeSurfacePanel } from "./ServiceChangeSurfacePanel";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
 

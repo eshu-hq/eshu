@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { act } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import type { EshuApiClient } from "../api/client";
+
 import { ExposurePathPage } from "./ExposurePathPage";
-import { act } from "react";
+import type { EshuApiClient } from "../api/client";
 
 // ExposurePathPage is the entrypoint-first exposure view (#3403). It must:
 // - auto-load the proven ingress chain for a service deep-linked via ?service=

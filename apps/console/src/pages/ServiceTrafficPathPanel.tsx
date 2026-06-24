@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import { EshuApiClient } from "../api/client";
 import type { EntityResolutionResult, EntityResolutionCandidate } from "../api/entityResolution";
 import { resolveEntity } from "../api/entityResolution";

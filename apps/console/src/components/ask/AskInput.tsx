@@ -1,9 +1,10 @@
 // AskInput.tsx — the question box, format selector and submit/cancel control.
+import { Send, Square, TriangleAlert } from "lucide-react";
 import { useRef } from "react";
 import type { KeyboardEvent } from "react";
-import { Send, Square, TriangleAlert } from "lucide-react";
-import type { AskFormat } from "../../api/askEshu";
+
 import { cx } from "./cx";
+import type { AskFormat } from "../../api/askEshu";
 
 /** Available answer formats shown in the selector. */
 export const FORMAT_OPTIONS: ReadonlyArray<{ readonly id: AskFormat; readonly label: string }> = [

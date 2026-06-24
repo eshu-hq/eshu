@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
-import type { EshuApiClient } from "../api/client";
+
 import { ObservabilityPage } from "./ObservabilityPage";
+import type { EshuApiClient } from "../api/client";
 
 describe("ObservabilityPage", () => {
   it("keeps provider empty state hidden while coverage is loading", () => {

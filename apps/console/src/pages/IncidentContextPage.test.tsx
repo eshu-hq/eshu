@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { vi } from "vitest";
+
+import { IncidentContextPage } from "./IncidentContextPage";
 import type { EshuApiClient } from "../api/client";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
-import { IncidentContextPage } from "./IncidentContextPage";
 
 describe("IncidentContextPage", () => {
   it("renders a deep-linked incident context packet with truth and evidence slots", async () => {

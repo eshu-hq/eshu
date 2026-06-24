@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadRepositories, loadRepositoryDetail, loadRepositoryNameMap } from "./repoCatalog";
+
 import type { EshuApiClient } from "./client";
+import { loadRepositories, loadRepositoryDetail, loadRepositoryNameMap } from "./repoCatalog";
 
 describe("repoCatalog", () => {
   it("maps the repository list and drops entries without an id", async () => {

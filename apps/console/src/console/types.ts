@@ -2,12 +2,12 @@
 // View-model types + palettes shared across the redesigned console.
 // Builds on the live snapshot shape from ../api/eshuConsoleLive.
 
+import type { CollectorReadinessRow } from "../api/collectorReadiness";
 import type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
   IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
   AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle, ArgoCDAppRow
 } from "../api/eshuConsoleLive";
-import type { CollectorReadinessRow } from "../api/collectorReadiness";
 
 export type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,

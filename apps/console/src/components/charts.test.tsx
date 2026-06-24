@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+
 import { AreaChart, Sparkline } from "./charts";
 
 // Regression: a single-datapoint series used to divide by (length - 1) === 0 and

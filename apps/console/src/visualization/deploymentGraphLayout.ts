@@ -1,4 +1,5 @@
 import { curveBumpX, line, scalePoint } from "d3";
+
 import type { DeploymentGraph, DeploymentGraphNode } from "../api/mockData";
 
 const graphWidth = 1280;

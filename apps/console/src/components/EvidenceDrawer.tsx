@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import type { EshuTruth } from "../api/envelope";
+
+import { Badge, FreshDot, TruthChip } from "./atoms";
 import type { AnswerEvidenceHandle, AnswerNextCall } from "../api/answerPacket";
 import { buildSourceCitationHref } from "../api/answerPacket";
 import type { VisualizationEdge, VisualizationNode, VisualizationPacket } from "../api/answerVisualization";
+import type { EshuTruth } from "../api/envelope";
 import { uiFresh, uiTruth } from "../console/types";
-import { Badge, FreshDot, TruthChip } from "./atoms";
 import "./evidenceDrawer.css";
 
 // EvidenceSelection identifies the visualization element the operator is

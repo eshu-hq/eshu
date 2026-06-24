@@ -12,6 +12,7 @@ import {
   replatformingDemoHref,
   supplyChainDemoHref
 } from "./siteContentLinks";
+import { personaDemos, proofPoints, rolePrompts } from "./siteContentOrg";
 import {
   capabilities,
   coverage,
@@ -19,7 +20,6 @@ import {
   surfaces,
   useCases
 } from "./siteContentProduct";
-import { personaDemos, proofPoints, rolePrompts } from "./siteContentOrg";
 import type { NavItem } from "./siteContentTypes";
 import { whatsNew } from "./siteContentWhatsNew";
 

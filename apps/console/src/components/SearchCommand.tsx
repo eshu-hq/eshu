@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+
 import type { SearchCandidate } from "../api/mockData";
 
 interface SearchCommandProps {

@@ -1,5 +1,6 @@
 // components/atoms.tsx
 import type { ReactNode } from "react";
+
 import { Sparkline } from "./charts";
 import { TRUTH_COLOR, FRESH_COLOR } from "../console/types";
 import type { UiTruth, UiFresh } from "../console/types";

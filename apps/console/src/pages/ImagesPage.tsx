@@ -8,10 +8,11 @@
 // show a "deploying workloads" column. It surfaces image node properties only and
 // never fabricates deployment links.
 import { useEffect, useState } from "react";
+
 import type { EshuApiClient } from "../api/client";
+import type { SectionProvenance } from "../api/eshuConsoleLive";
 import { loadImages } from "../api/imageInventory";
 import type { ImageRow } from "../api/imageInventory";
-import type { SectionProvenance } from "../api/eshuConsoleLive";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import { uiTruth, uiFresh } from "../console/types";
 import "./liveInventory.css";

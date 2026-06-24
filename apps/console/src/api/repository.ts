@@ -1,17 +1,17 @@
 import type { EshuApiClient } from "./client";
 import { loadDeploymentConfigInfluence, type DeploymentConfigInfluence } from "./deploymentConfigInfluence";
+import { deploymentGraphFromStory } from "./deploymentGraph";
 import type { EshuTruth } from "./envelope";
 import { getDemoWorkspaceStory } from "./mockData";
 import type { EntityKind, EvidenceRow, OverviewStat, WorkspaceStory } from "./mockData";
-import { deploymentGraphFromStory } from "./deploymentGraph";
 import { deploymentArtifactDrilldown, drilldownForStorySection } from "./repositoryEvidenceDrilldown";
 import { deploymentEvidenceSummary, isPresent, joinHuman, nonEmpty } from "./repositoryText";
+import { serviceSpotlightFromContext } from "./serviceSpotlight";
+import type { ServiceContextResponse } from "./serviceSpotlight";
 import {
   serviceContextFromStoryDossier,
   type ServiceStoryDossierResponse
 } from "./serviceStoryDossier";
-import { serviceSpotlightFromContext } from "./serviceSpotlight";
-import type { ServiceContextResponse } from "./serviceSpotlight";
 import type { ConsoleMode } from "../config/environment";
 
 export interface StoryResponse {
@@ -225,7 +225,7 @@ async function loadServiceContext(
     return serviceContextFromStoryDossier(
       story as ServiceStoryDossierResponse,
       serviceNameFromStory(story, entityId)
-    ) as WorkspaceContextResponse;
+    );
   }
   return loadRepositoryWorkloadContext(client, story, entityKind);
 }
@@ -246,7 +246,7 @@ async function loadRepositoryWorkloadContext(
     const dossier = await client.getJson<ServiceStoryDossierResponse>(
       `/api/v0/services/${encodeURIComponent(workloadName)}/story`
     );
-    return serviceContextFromStoryDossier(dossier, workloadName) as WorkspaceContextResponse;
+    return serviceContextFromStoryDossier(dossier, workloadName);
   } catch {
     try {
       return await client.getJson<WorkspaceContextResponse>(

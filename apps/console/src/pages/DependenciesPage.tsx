@@ -5,12 +5,13 @@
 // honest empty/error states and truth/freshness chips.
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
+import type { EshuTruth, TruthLevel } from "../api/envelope";
+import type { DependencyRow, DependencyPage } from "../api/eshuConsoleLive";
 import { loadDependencies } from "../api/eshuDependencies";
 import { loadDependencyChains } from "../api/eshuDependencyChains";
 import type { DependencyChain, DependencyChainPage } from "../api/eshuDependencyChains";
-import type { DependencyRow, DependencyPage } from "../api/eshuConsoleLive";
-import type { EshuTruth, TruthLevel } from "../api/envelope";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import type { UiTruth, UiFresh } from "../console/types";
 import "./liveInventory.css";

@@ -1,9 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { CodeGraphPage } from "./CodeGraphPage";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
-import { CodeGraphPage } from "./CodeGraphPage";
 
 describe("CodeGraphPage relationship truth labels", () => {
   it("renders relationship-story confidence tiers, truth states, and coverage", async () => {

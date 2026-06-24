@@ -3,11 +3,11 @@
 // App demo mode renders this explicit fixture source; private mode still renders
 // only the Eshu API and never falls back to these rows.
 
+import { modelFromSnapshot } from "./liveModel";
 import type {
   ConsoleModel, GraphModel, RelationshipRow, SeriesBundle
 } from "./types";
 import { uiTruth, uiFresh } from "./types";
-import { modelFromSnapshot } from "./liveModel";
 
 function ramp(seed: number, n: number, base: number, amp: number, drift: number): number[] {
   let s = seed | 0; const out: number[] = []; let v = base;

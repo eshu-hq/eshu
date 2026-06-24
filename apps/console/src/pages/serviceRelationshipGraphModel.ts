@@ -9,6 +9,7 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum
 } from "d3";
+
 import type {
   ServiceRelationshipCluster,
   ServiceRelationshipRepository,

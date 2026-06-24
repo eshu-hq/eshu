@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { CodeGraphPage } from "./CodeGraphPage";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
-import { CodeGraphPage } from "./CodeGraphPage";
 
 describe("CodeGraphPage source-link hydration", () => {
   it("keeps story truth labels while hydrating related-symbol source links", async () => {

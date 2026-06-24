@@ -4,11 +4,12 @@
 // tree or contents here — source browsing is the separate code-viewer page.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
 import { loadRepositories, loadRepositoryDetail } from "../api/repoCatalog";
 import type { RepoDetail, RepoListItem } from "../api/repoCatalog";
-import type { ConsoleModel } from "../console/types";
 import { Panel, StatTile, Badge } from "../components/atoms";
+import type { ConsoleModel } from "../console/types";
 import "./repositories.css";
 import "./liveInventory.css";
 

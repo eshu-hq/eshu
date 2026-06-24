@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadObservabilityCoverage } from "./eshuObservability";
+
 import type { EshuApiClient } from "./client";
+import { loadObservabilityCoverage } from "./eshuObservability";
 
 // The coverage endpoint requires a provider anchor, so the adapter must fan out
 // one getJson request per provider and merge paginated results.

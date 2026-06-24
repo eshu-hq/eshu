@@ -1,12 +1,13 @@
 import { line, scalePoint } from "d3";
 import { useMemo, useState } from "react";
-import { EshuApiClient } from "../api/client";
+
 import {
   loadServiceChangeSurface,
   type ChangeSurfaceImpactNode,
   type ChangeSurfaceInvestigation,
   type ChangeSurfaceNextCall
 } from "../api/changeSurface";
+import { EshuApiClient } from "../api/client";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
 import { loadConsoleEnvironment } from "../config/environment";
 

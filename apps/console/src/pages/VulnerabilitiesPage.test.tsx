@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
 import { VulnerabilitiesPage } from "./VulnerabilitiesPage";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";

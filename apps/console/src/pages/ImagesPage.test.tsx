@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import type { EshuApiClient } from "../api/client";
+
 import { ImagesPage } from "./ImagesPage";
+import type { EshuApiClient } from "../api/client";
 
 // ImagesPage renders the bounded (:ContainerImage) inventory. It must:
 // - show a loading state until the first page resolves

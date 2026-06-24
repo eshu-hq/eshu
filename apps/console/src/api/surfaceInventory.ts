@@ -6,8 +6,8 @@
 // the page can render a truthful empty state, and it shows each readiness lane
 // exactly as the backend classified it — never implying readiness a surface
 // does not have.
-import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 
 // SurfaceRow is the console view-model for one surface inventory entry.
 export interface SurfaceRow {

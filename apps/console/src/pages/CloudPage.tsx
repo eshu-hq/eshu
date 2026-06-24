@@ -7,6 +7,8 @@
 // demo values come only from the explicit prospect fixture source.
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
+
+import { CloudInventoryPanel } from "./CloudInventoryPanel";
 import type { EshuApiClient } from "../api/client";
 import { loadCloudResources } from "../api/cloudResources";
 import type {
@@ -15,11 +17,10 @@ import type {
   CloudResourceQuery,
   CloudResourceRow
 } from "../api/cloudResources";
-import type { GraphEdge, GraphModel, GraphNode } from "../console/types";
 import { Panel, TruthChip, FreshDot, StatTile, Badge } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
+import type { GraphEdge, GraphModel, GraphNode } from "../console/types";
 import { uiTruth, uiFresh } from "../console/types";
-import { CloudInventoryPanel } from "./CloudInventoryPanel";
 
 const PAGE_LIMIT = 50;
 

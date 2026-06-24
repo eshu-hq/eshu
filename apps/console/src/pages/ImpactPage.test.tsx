@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { ImpactPage } from "./ImpactPage";
 import type { EshuApiClient } from "../api/client";
 import { modelFromSnapshot, emptySnapshot } from "../console/liveModel";
-import { ImpactPage } from "./ImpactPage";
 
 describe("ImpactPage", () => {
   it("loads a deep-linked service impact review with graph, truth, and trace evidence", async () => {

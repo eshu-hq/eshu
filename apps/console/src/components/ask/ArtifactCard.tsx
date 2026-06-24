@@ -4,13 +4,14 @@
 // graceful fall back to the diagram source on render failure); JSON/YAML/CSV
 // render in a highlighted, line-numbered block. Every artifact offers Copy and
 // Download, and any per-format `issues[]` are shown as non-blocking warnings.
-import { useEffect, useRef, useState } from "react";
 import { Box, Check, Copy, Download, TriangleAlert } from "lucide-react";
-import type { AskArtifact } from "../../api/askEshu";
-import { renderMarkdown } from "./markdown";
+import { useEffect, useRef, useState } from "react";
+
 import { CodeBlock } from "./CodeBlock";
-import { renderMermaid } from "./mermaid";
 import { cx } from "./cx";
+import { renderMarkdown } from "./markdown";
+import { renderMermaid } from "./mermaid";
+import type { AskArtifact } from "../../api/askEshu";
 
 const FORMAT_LABEL: Record<string, string> = {
   auto: "Auto",

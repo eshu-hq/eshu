@@ -1,7 +1,7 @@
-import { buildSourceCitationHref, sourceCitationLabel, type AnswerEvidenceHandle } from "../api/answerPacket";
-import type { VisualizationPacket } from "../api/answerVisualization";
 import type { EvidenceSelection } from "./EvidenceDrawer";
 import type { EvidencePanelData, EvidencePanelFact, EvidencePanelSection } from "./EvidencePanel";
+import { buildSourceCitationHref, sourceCitationLabel, type AnswerEvidenceHandle } from "../api/answerPacket";
+import type { VisualizationPacket } from "../api/answerVisualization";
 
 // visualizationEvidencePanelData maps a selected node or edge from a
 // visualization packet into the packet-agnostic EvidencePanelData contract so the

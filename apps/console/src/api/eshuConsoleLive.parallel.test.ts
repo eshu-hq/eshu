@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadConsoleSnapshot } from "./eshuConsoleLive";
+
 import type { EshuApiClient } from "./client";
+import { loadConsoleSnapshot } from "./eshuConsoleLive";
 
 // Parallel-load + abort-resilience coverage for loadConsoleSnapshot (issue
 // #1727). The mapping/contract tests live in eshuConsoleLive.test.ts; this
@@ -38,7 +39,7 @@ describe("loadConsoleSnapshot concurrency + resilience", () => {
       return value;
     };
     const enveloped = (path: string, data: unknown): Promise<unknown> =>
-      defer(path, { data, error: null, truth: null as unknown });
+      defer(path, { data, error: null, truth: null });
     const client = {
       get: async (path: string) => {
         if (path.includes("/catalog")) {

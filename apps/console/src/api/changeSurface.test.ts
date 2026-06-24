@@ -1,9 +1,9 @@
-import { EshuApiClient } from "./client";
-import { inspectionRequest } from "../test/inspectionRequest";
 import {
   loadServiceChangeSurface,
   normalizeChangeSurfaceInvestigation
 } from "./changeSurface";
+import { EshuApiClient } from "./client";
+import { inspectionRequest } from "../test/inspectionRequest";
 
 describe("change-surface investigation adapter", () => {
   it("posts a bounded service-scoped investigation request", async () => {

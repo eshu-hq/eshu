@@ -9,9 +9,9 @@
 // Field names match the backend OpenAPI verbatim
 // (go/internal/query/openapi_paths_auth_admin_reads.go). Only audit-safe fields
 // are modeled — never actor, scope, or policy revision hashes.
+import type { AdminAuditProvenance } from "./adminConsoleTypes";
 import { EshuApiHttpError } from "./client";
 import type { EshuApiClient } from "./client";
-import type { AdminAuditProvenance } from "./adminConsoleTypes";
 
 // ---------------------------------------------------------------------------
 // Audit events — GET /api/v0/auth/admin/audit/events

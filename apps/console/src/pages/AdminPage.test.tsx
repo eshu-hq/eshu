@@ -4,8 +4,9 @@
 // (the audit panel's 403 case is covered in admin/AdminPanels.test.tsx).
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import type { EshuApiClient } from "../api/client";
+
 import { AdminPage } from "./AdminPage";
+import type { EshuApiClient } from "../api/client";
 
 describe("AdminPage", () => {
   it("renders the page heading and every panel title", async () => {

@@ -14,8 +14,6 @@
 import type { EshuApiClient } from "./client";
 import { loadCollectorReadiness, type CollectorReadinessRow } from "./collectorReadiness";
 import type { EshuTruth, TruthLevel, FreshnessState } from "./envelope";
-import { loadImages } from "./imageInventory";
-import type { ImagePage, ImageRow } from "./imageInventory";
 import {
   emptyRuntime,
   loadAdvisories,
@@ -33,6 +31,8 @@ import {
   loadVulnerabilities
 } from "./eshuConsoleSections";
 import type { SectionContext } from "./eshuConsoleSections";
+import { loadImages } from "./imageInventory";
+import type { ImagePage, ImageRow } from "./imageInventory";
 // severityFromCvss stays re-exported from this module for existing consumers.
 export { severityFromCvss } from "./eshuConsoleSections";
 

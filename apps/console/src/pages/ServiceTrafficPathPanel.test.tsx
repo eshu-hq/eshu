@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
-import type { ServiceTrafficPath } from "../api/serviceTrafficPath";
+
 import { ServiceTrafficPathPanel } from "./ServiceTrafficPathPanel";
+import type { ServiceTrafficPath } from "../api/serviceTrafficPath";
 
 describe("ServiceTrafficPathPanel", () => {
   afterEach(() => {

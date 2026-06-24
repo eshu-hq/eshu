@@ -4,9 +4,10 @@
 // provider-discovery endpoint (#3682). The helpers and tests remain in place.
 // On successful local login, calls onSuccess(session) — caller navigates.
 import { useState, type FormEvent } from "react";
+
+import { loginLocal } from "../api/authSession";
 import type { BrowserSessionResponse } from "../api/client";
 import type { EshuApiClient } from "../api/client";
-import { loginLocal } from "../api/authSession";
 
 export interface LoginPageProps {
   readonly client: EshuApiClient;

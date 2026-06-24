@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+
+import { ReplatformingPage } from "./ReplatformingPage";
 import type { EshuApiClient } from "../api/client";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
-import { ReplatformingPage } from "./ReplatformingPage";
 
 describe("ReplatformingPage", () => {
   it("loads a deep-linked read-only plan with rollups, import candidates, and ownership packets", async () => {

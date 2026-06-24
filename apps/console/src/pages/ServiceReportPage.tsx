@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
 import {
   loadServiceInvestigation,
   type ServiceInvestigation,
   type ServiceReportResult
 } from "../api/serviceInvestigation";
+import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
+import { defaultServiceName } from "../console/defaultEntity";
 import type { ConsoleModel } from "../console/types";
 import { uiFresh, uiTruth } from "../console/types";
-import { defaultServiceName } from "../console/defaultEntity";
-import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import "./serviceReport.css";
 
 type NextCall = ServiceInvestigation["nextCalls"][number];

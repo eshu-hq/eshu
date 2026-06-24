@@ -1,9 +1,10 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
-import type { ConsoleModel } from "../console/types";
-import { emptyConsoleModel } from "../console/liveModel";
+
 import { RelationshipsPage } from "./RelationshipsPage";
+import type { EshuApiClient } from "../api/client";
+import { emptyConsoleModel } from "../console/liveModel";
+import type { ConsoleModel } from "../console/types";
 
 function liveModel(): ConsoleModel {
   const base = emptyConsoleModel();

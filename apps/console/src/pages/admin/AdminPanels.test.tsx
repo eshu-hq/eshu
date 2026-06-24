@@ -6,15 +6,16 @@
 //   - never renders a secret/hash/invite-code/external-group name
 import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+import { AdminAssignmentsPanel } from "./AdminAssignmentsPanel";
+import { AdminAuditPanel } from "./AdminAuditPanel";
+import { AdminIdPGroupMappingsPanel } from "./AdminIdPGroupMappingsPanel";
+import { AdminInvitationsPanel } from "./AdminInvitationsPanel";
+import { AdminProvidersPanel } from "./AdminProvidersPanel";
+import { AdminRolesPanel } from "./AdminRolesPanel";
+import { AdminTokensPanel } from "./AdminTokensPanel";
 import type { EshuApiClient } from "../../api/client";
 import { EshuApiHttpError } from "../../api/client";
-import { AdminInvitationsPanel } from "./AdminInvitationsPanel";
-import { AdminAssignmentsPanel } from "./AdminAssignmentsPanel";
-import { AdminRolesPanel } from "./AdminRolesPanel";
-import { AdminProvidersPanel } from "./AdminProvidersPanel";
-import { AdminIdPGroupMappingsPanel } from "./AdminIdPGroupMappingsPanel";
-import { AdminTokensPanel } from "./AdminTokensPanel";
-import { AdminAuditPanel } from "./AdminAuditPanel";
 
 const NOW = "2026-06-24T10:00:00Z";
 

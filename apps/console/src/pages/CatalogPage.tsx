@@ -1,9 +1,10 @@
 // pages/CatalogPage.tsx
 import { useState } from "react";
+
+import { AsyncStateGuard } from "../components/AsyncStateGuard";
+import { Panel, TruthChip, FreshDot, Badge } from "../components/atoms";
 import type { ConsoleModel, FindingRow, Severity } from "../console/types";
 import { SEVERITY_COLOR } from "../console/types";
-import { Panel, TruthChip, FreshDot, Badge } from "../components/atoms";
-import { AsyncStateGuard } from "../components/AsyncStateGuard";
 
 // severityBarCounts aggregates finding rows by severity for one service name.
 // Findings are matched by entity name so the bar only covers findings whose

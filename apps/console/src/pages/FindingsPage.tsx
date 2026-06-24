@@ -1,9 +1,10 @@
 // pages/FindingsPage.tsx
 import { Link } from "react-router-dom";
-import { uiTruth, type ConsoleModel, type FindingRow, type VulnRow } from "../console/types";
-import { Panel, StatTile, TruthChip, Badge } from "../components/atoms";
-import { AsyncStateGuard } from "../components/AsyncStateGuard";
+
 import type { SectionProvenance } from "../api/eshuConsoleLive";
+import { AsyncStateGuard } from "../components/AsyncStateGuard";
+import { Panel, StatTile, TruthChip, Badge } from "../components/atoms";
+import { uiTruth, type ConsoleModel, type FindingRow, type VulnRow } from "../console/types";
 
 export function FindingsPage({ model }: { readonly model: ConsoleModel }): React.JSX.Element {
   const rows = worklistRows(model);

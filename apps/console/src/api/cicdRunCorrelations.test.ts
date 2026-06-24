@@ -1,6 +1,6 @@
+import { loadCICDRunCorrelationReview } from "./cicdRunCorrelations";
 import { EshuApiClient } from "./client";
 import { inspectionRequest } from "../test/inspectionRequest";
-import { loadCICDRunCorrelationReview } from "./cicdRunCorrelations";
 
 describe("ci/cd run correlation adapter", () => {
   it("loads cheap rollups plus a bounded anchored row page", async () => {

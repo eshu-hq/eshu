@@ -4,8 +4,6 @@
 // scope/account/project/subscription and must preserve safety/refusal posture.
 
 import type { EshuApiClient } from "./client";
-import type { EshuTruth } from "./envelope";
-import { EshuEnvelopeError, unwrapEnvelope } from "./envelope";
 import type {
   AwsRuntimeDriftFinding,
   AwsRuntimeDriftPage,
@@ -31,6 +29,8 @@ import type {
   UnmanagedFindingWire,
   UnmanagedListWire
 } from "./cloudDriftTypes";
+import type { EshuTruth } from "./envelope";
+import { EshuEnvelopeError, unwrapEnvelope } from "./envelope";
 export type {
   AwsRuntimeDriftFinding,
   AwsRuntimeDriftPage,
@@ -301,7 +301,11 @@ function nullableNumber(value: unknown): number | null {
 }
 
 function stringList(value: readonly string[] | undefined): readonly string[] {
-  return Array.isArray(value) ? value.filter((item) => item.trim() !== "") : [];
+  if (!Array.isArray(value)) return [];
+  // Array.isArray narrows to `any` per its signature, so retype to the
+  // declared element type before any string-only operations.
+  const list = value as readonly string[];
+  return list.filter((item) => item.trim() !== "");
 }
 
 function compactRequest(

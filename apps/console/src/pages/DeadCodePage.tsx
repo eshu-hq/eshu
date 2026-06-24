@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
 import { loadDeadCodePage } from "../api/deadCode";
 import type { DeadCodePage as LiveDeadCodePage } from "../api/deadCode";
 import { loadRepositoryNameMap } from "../api/repoCatalog";
+import { Panel, StatTile, Badge, TruthChip } from "../components/atoms";
 import type { ConsoleModel, FindingRow } from "../console/types";
 import { fmt, uiTruth } from "../console/types";
-import { Panel, StatTile, Badge, TruthChip } from "../components/atoms";
 import "./liveInventory.css";
 
 const ANY = "all";

@@ -1,5 +1,6 @@
 import { curveBumpX, line, scalePoint } from "d3";
 import { useMemo, useState } from "react";
+
 import type { ServiceDeploymentLane, ServiceSpotlight } from "../api/serviceSpotlight";
 
 interface ServiceDeploymentLaneMapProps {

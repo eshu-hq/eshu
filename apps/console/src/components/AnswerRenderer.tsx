@@ -1,5 +1,6 @@
-import type { GraphModel } from "../console/types";
-import { uiFresh, uiTruth } from "../console/types";
+import { Badge, FreshDot, TruthChip } from "./atoms";
+import { EvidencePacketReader } from "./EvidencePacketReader";
+import { GraphCanvas } from "./GraphCanvas";
 import type {
   AnswerCompanion,
   AnswerEvidenceHandle,
@@ -11,9 +12,8 @@ import {
   sourceCitationLabel
 } from "../api/answerPacket";
 import { emptyAnswerGraph, type VisualizationPacket } from "../api/answerVisualization";
-import { Badge, FreshDot, TruthChip } from "./atoms";
-import { EvidencePacketReader } from "./EvidencePacketReader";
-import { GraphCanvas } from "./GraphCanvas";
+import { uiFresh, uiTruth } from "../console/types";
+import type { GraphModel } from "../console/types";
 import "./answerRenderer.css";
 
 interface AnswerRendererProps {

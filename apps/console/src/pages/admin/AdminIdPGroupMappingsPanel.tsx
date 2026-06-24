@@ -13,15 +13,16 @@
 // also re-trigger because client is in the dependency array. Any in-flight load
 // from a prior client or prior key checks `cancelled` before committing state.
 import { useEffect, useState, useCallback } from "react";
-import type { EshuApiClient } from "../../api/client";
+
+import { fmt, dash, truncatedNote } from "./adminFormat";
 import {
   loadIdPGroupMappings,
   createIdPGroupMapping,
   deleteIdPGroupMapping
 } from "../../api/adminConsole";
 import type { IdPGroupMappingItem } from "../../api/adminConsole";
+import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
-import { fmt, dash, truncatedNote } from "./adminFormat";
 
 function statusBadge(status: string | undefined): React.JSX.Element {
   if (status === "active") return <Badge tone="teal">active</Badge>;

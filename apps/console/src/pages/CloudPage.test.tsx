@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+
 import { CloudPage } from "./CloudPage";
 import type { EshuApiClient } from "../api/client";
 
@@ -102,7 +103,7 @@ describe("CloudPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
 
     await waitFor(() => expect(screen.getByText("role-b")).toBeInTheDocument());
-    const lastCall = get.mock.calls[get.mock.calls.length - 1][0] as string;
+    const lastCall = get.mock.calls[get.mock.calls.length - 1][0];
     expect(lastCall).toContain("after_id=r1");
     expect(lastCall).not.toContain("offset");
   });

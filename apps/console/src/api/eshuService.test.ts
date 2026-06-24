@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import type { EshuApiClient } from "./client";
 import { loadServiceSpotlight } from "./eshuService";
 

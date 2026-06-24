@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
+
 import type { EshuApiClient } from "../api/client";
 import {
   loadDeployableUnitPacket,
   type InvestigationPacketResult
 } from "../api/investigationPacket";
-import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
 import { Panel } from "../components/atoms";
+import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
 
 interface DeployablePacketFormState {
   readonly generationId: string;

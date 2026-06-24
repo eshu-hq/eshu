@@ -1,6 +1,6 @@
 import { EshuApiClient } from "./client";
-import { inspectionRequest } from "../test/inspectionRequest";
 import { loadImpactReview } from "./impactReview";
+import { inspectionRequest } from "../test/inspectionRequest";
 
 describe("impact review adapter", () => {
   it("posts bounded service impact and deployment trace requests", async () => {

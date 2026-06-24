@@ -4,6 +4,7 @@
 //   - return "unavailable" on error, never fabricating rows
 //   - never include session_hash, token_hash, or other secrets in view models
 import { describe, it, expect } from "vitest";
+
 import type { EshuApiClient } from "./client";
 import { loadProfile, loadSessions, loadTokens } from "./userProfile";
 

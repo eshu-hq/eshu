@@ -1,6 +1,3 @@
-import type { GraphModel, GraphLayer, GraphNode } from "../console/types";
-import { uiTruth } from "../console/types";
-import type { EshuTruth } from "./envelope";
 import type {
   AnswerEvidenceHandle,
   AnswerEvidenceHandleWire,
@@ -9,6 +6,9 @@ import type {
   EvidenceCitationPacket,
   EvidenceCitationResponseWire
 } from "./answerPacket";
+import type { EshuTruth } from "./envelope";
+import type { GraphModel, GraphLayer, GraphNode } from "../console/types";
+import { uiTruth } from "../console/types";
 
 export interface VisualizationDeriveRequest {
   readonly source_response: EvidenceCitationResponseWire;

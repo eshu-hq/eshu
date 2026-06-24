@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+
+import { CodeGraphPage } from "./CodeGraphPage";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
-import { CodeGraphPage } from "./CodeGraphPage";
 
 describe("CodeGraphPage", () => {
   it("renders the demo-style code analyzer from live code relationships", async () => {

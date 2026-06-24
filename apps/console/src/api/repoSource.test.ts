@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { decodeRepoFile, loadRepoBranches, loadRepoFile, loadRepoTree } from "./repoSource";
+
 import type { EshuApiClient } from "./client";
+import { decodeRepoFile, loadRepoBranches, loadRepoFile, loadRepoTree } from "./repoSource";
 
 describe("repoSource", () => {
   it("loads repository branches as the derived indexed ref list", async () => {

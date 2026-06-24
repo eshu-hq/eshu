@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
+
 import { EvidencePanel, type EvidencePanelData } from "./EvidencePanel";
 
 function dataFrom(overrides: Partial<EvidencePanelData> = {}): EvidencePanelData {

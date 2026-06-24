@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+
+import { defaultChangedSinceParams, defaultServiceName } from "./defaultEntity";
 import { emptySnapshot, modelFromSnapshot } from "./liveModel";
 import type { ConsoleModel, ServiceRow } from "./types";
-import { defaultChangedSinceParams, defaultServiceName } from "./defaultEntity";
 
 function row(overrides: Partial<ServiceRow>): ServiceRow {
   return {

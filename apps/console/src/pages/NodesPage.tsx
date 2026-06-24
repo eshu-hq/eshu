@@ -5,10 +5,11 @@
 // of first-class entities. Clicking a node opens it in the Graph Explorer.
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import type { EshuApiClient } from "../api/client";
+import type { SectionProvenance } from "../api/eshuConsoleLive";
 import { loadGraphEntities } from "../api/graphEntities";
 import type { GraphEntityKindCount, GraphEntityRow } from "../api/graphEntities";
-import type { SectionProvenance } from "../api/eshuConsoleLive";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import { uiTruth, uiFresh, fmt } from "../console/types";
 import "./liveInventory.css";

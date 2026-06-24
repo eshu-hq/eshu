@@ -5,12 +5,13 @@
 // filters, and refreshes live through the catalog client.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { ConsoleModel, Severity, AdvisoryRow } from "../console/types";
-import { SEVERITY_COLOR, uiTruth, uiFresh } from "../console/types";
-import { Panel, TruthChip, FreshDot } from "../components/atoms";
+
 import type { EshuApiClient } from "../api/client";
 import { fetchAdvisoryCatalogPage } from "../api/eshuConsoleAdvisories";
 import type { AdvisoryCatalogCursor } from "../api/eshuConsoleAdvisories";
+import { Panel, TruthChip, FreshDot } from "../components/atoms";
+import { SEVERITY_COLOR, uiTruth, uiFresh } from "../console/types";
+import type { ConsoleModel, Severity, AdvisoryRow } from "../console/types";
 
 const PAGE_SIZE = 50;
 

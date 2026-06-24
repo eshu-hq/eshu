@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+
+import { CICDRunCorrelationsPage } from "./CICDRunCorrelationsPage";
 import type { EshuApiClient } from "../api/client";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
-import { CICDRunCorrelationsPage } from "./CICDRunCorrelationsPage";
 
 describe("CICDRunCorrelationsPage", () => {
   it("loads deep-linked run correlations with truth, rollups, and evidence gaps", async () => {

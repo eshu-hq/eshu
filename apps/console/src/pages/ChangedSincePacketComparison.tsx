@@ -3,8 +3,8 @@ import type {
   EvidencePacketDeltaHop,
   EvidencePacketDeltaVerdict
 } from "../api/evidencePacketDelta";
-import { fmt } from "../console/types";
 import { Badge } from "../components/atoms";
+import { fmt } from "../console/types";
 
 /**
  * Renders current-vs-baseline evidence packet deltas from the changed-since

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadCloudInventory } from "./cloudInventory";
+
 import type { EshuApiClient } from "./client";
+import { loadCloudInventory } from "./cloudInventory";
 
 describe("loadCloudInventory", () => {
   function fakeClient(capture: { path?: string }): EshuApiClient {

@@ -1,5 +1,6 @@
 // components/GraphCanvas.tsx
 import { useMemo, useRef, useState } from "react";
+
 import type { GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR } from "../console/types";
 

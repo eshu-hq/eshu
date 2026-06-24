@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+
+import type { EshuTruth } from "../api/envelope";
 import {
   type IncidentContext,
   type IncidentEvidenceEdge,
@@ -8,9 +10,8 @@ import {
   type IncidentTimelineEvent,
   type IncidentTruthLabel
 } from "../api/incidentContext";
-import type { EshuTruth } from "../api/envelope";
-import { fmt, uiFresh, uiTruth } from "../console/types";
 import { FreshDot, TruthChip } from "../components/atoms";
+import { fmt, uiFresh, uiTruth } from "../console/types";
 
 export function IncidentSummary({
   incident,

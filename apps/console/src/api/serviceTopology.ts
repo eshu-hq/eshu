@@ -2,16 +2,16 @@ import type { EshuApiClient } from "./client";
 import { envelopePayload } from "./envelopePayload";
 import type { ServiceRow } from "./eshuConsoleLive";
 import {
-  serviceContextFromStoryDossier,
-  type ServiceStoryDossierResponse
-} from "./serviceStoryDossier";
-import {
   type DeploymentArtifactRecord,
   serviceSpotlightFromContext,
   type ServiceContextResponse,
   type ServiceDependency,
   type ServiceDeploymentLane
 } from "./serviceSpotlight";
+import {
+  serviceContextFromStoryDossier,
+  type ServiceStoryDossierResponse
+} from "./serviceStoryDossier";
 import type { ServiceTrafficPath } from "./serviceTrafficPath";
 
 export type TopologyProvenance = "live" | "unavailable";

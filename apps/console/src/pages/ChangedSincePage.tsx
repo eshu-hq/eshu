@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import type { EshuApiClient } from "../api/client";
+
+import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
 import {
   type ChangedSinceMode,
   type ChangedSincePageData,
@@ -11,12 +12,12 @@ import {
   loadRepositoryChangedSince,
   loadServiceChangedSince
 } from "../api/changedSince";
+import type { EshuApiClient } from "../api/client";
 import { buildEvidencePacketComparison } from "../api/evidencePacketDelta";
+import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
+import { defaultChangedSinceParams, type DefaultChangedSinceParams } from "../console/defaultEntity";
 import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
-import { defaultChangedSinceParams, type DefaultChangedSinceParams } from "../console/defaultEntity";
-import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
-import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
 import "./changedSincePage.css";
 
 interface FormState {

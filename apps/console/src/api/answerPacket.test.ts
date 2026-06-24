@@ -1,10 +1,10 @@
-import type { GraphModel } from "../console/types";
 import {
   buildSourceCitationHref,
   emptyAnswerGraph,
   normalizeAnswerCompanion
 } from "./answerPacket";
 import type { EshuTruth } from "./envelope";
+import type { GraphModel } from "../console/types";
 
 describe("answer packet adapter", () => {
   it("normalizes answer packets, metadata, truth, and source citations", () => {

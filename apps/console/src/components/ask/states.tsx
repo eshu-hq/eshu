@@ -4,8 +4,9 @@
 // rather than dumping a raw error: disabled-by-config, scoped-token (403),
 // demo-mode (no live backend), and generic request failure.
 import { Sparkles, TriangleAlert, Zap } from "lucide-react";
-import { Panel } from "../atoms";
+
 import type { AskError } from "../../api/askEshu";
+import { Panel } from "../atoms";
 
 /** Friendly empty state when Ask Eshu is turned off on the deployment (503/disabled). */
 export function DisabledState({ reason }: { readonly reason: string }): React.JSX.Element {

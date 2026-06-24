@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
+
+import { DashboardPage } from "./DashboardPage";
 import type { EshuApiClient } from "../api/client";
 import type { RepoListItem } from "../api/repoCatalog";
-import { DashboardPage } from "./DashboardPage";
 import { demoModel } from "../console/demoModel";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
 import type { ConsoleModel } from "../console/types";
@@ -489,7 +490,7 @@ function resolveEntityMap(resolvers: Map<string, (value: unknown) => void>, from
 function graphLabel(label: string): HTMLElement {
   const text = screen.getAllByText(label).find((element) => element.tagName.toLowerCase() === "text");
   if (!text) throw new Error(`missing graph label ${label}`);
-  return text as HTMLElement;
+  return text;
 }
 
 function requestFrom(body: unknown): string {

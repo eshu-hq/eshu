@@ -4,8 +4,8 @@
 // tool, so the console capability matrix is in parity with those surfaces. The
 // loader never fabricates data: on any error it returns an "unavailable"
 // provenance so the page can render a truthful empty state.
-import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 
 // CapabilitySurface is one classified public surface for a capability.
 export interface CapabilitySurface {

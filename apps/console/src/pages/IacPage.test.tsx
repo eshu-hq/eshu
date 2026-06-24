@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
+
 import { IacPage } from "./IacPage";
-import { demoModel } from "../console/demoModel";
 import type { EshuApiClient } from "../api/client";
+import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
 
 function envelope(resources: readonly Record<string, unknown>[], opts: { readonly truncated?: boolean; readonly afterName?: string; readonly afterId?: string } = {}) {

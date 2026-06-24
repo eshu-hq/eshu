@@ -17,8 +17,11 @@ export const consoleStorageKeys = {
 } as const;
 
 // Build-time key injection (e.g. local dev via VITE_ESHU_API_KEY) seeds the
-// in-memory key. It is never written back to web storage.
-const defaultApiKey: string = import.meta.env.VITE_ESHU_API_KEY?.trim() ?? "";
+// in-memory key. It is never written back to web storage. Vite types
+// `import.meta.env` as `Record<string, any>`, so we narrow the value through
+// a tiny reader that treats anything non-string as empty.
+const rawApiKeyEnv: unknown = import.meta.env.VITE_ESHU_API_KEY;
+const defaultApiKey: string = typeof rawApiKeyEnv === "string" ? rawApiKeyEnv.trim() : "";
 
 const defaultEnvironment: ConsoleEnvironment = {
   apiKey: defaultApiKey,

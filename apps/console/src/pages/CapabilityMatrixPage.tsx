@@ -6,9 +6,10 @@
 // with both. It never fabricates state: an unavailable source renders a truthful
 // empty state, not invented capabilities.
 import { useEffect, useMemo, useState } from "react";
-import type { EshuApiClient } from "../api/client";
+
 import { loadCapabilityCatalog } from "../api/capabilityCatalog";
 import type { CapabilityRow } from "../api/capabilityCatalog";
+import type { EshuApiClient } from "../api/client";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import { uiTruth, uiFresh } from "../console/types";
 import "./liveInventory.css";
