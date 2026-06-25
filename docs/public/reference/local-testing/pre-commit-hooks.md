@@ -32,6 +32,7 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `go-package-docs` | commit | `verify-package-docs.sh` (new packages need doc.go/README.md/AGENTS.md) |
 | `capability-surface-inventory` | commit | the `surface_stale` drift gate (run the generator after catalog/command changes) |
 | `go-gosec` | **push** | the gosec security gate (slow on Go 1.26, so push-time only) |
+| `go-perf-evidence` | **push** | the hot-path performance-evidence gate (a change under storage/cypher, storage/postgres, collector, reducer, query, runtime, workers, or queues needs a tracked No-Regression / No-Observability marker in an `evidence-*.md` / README / AGENTS file). Diffs the branch against origin/main, so it runs at push time; needs bash ≥ 4. |
 
 The lint/format/gosec hooks run only on the **changed packages**, so a normal
 commit is fast. `golangci-lint` runs against a config copy with the custom

@@ -75,3 +75,17 @@ repos:
         pass_filenames: true
         require_serial: true
         stages: [pre-push]
+
+      # Hot-path performance-evidence gate (test.yml "Verify hot-path evidence"):
+      # a change touching storage/cypher, storage/postgres, collector, reducer,
+      # query, runtime, workers, or queues needs a tracked No-Regression /
+      # No-Observability (or Performance/Benchmark) marker in an evidence file.
+      # Diffs the branch against origin/main, so it runs at push time.
+      - id: go-perf-evidence
+        name: hot-path performance evidence
+        entry: scripts/dev/precommit-go.sh perf-evidence
+        language: script
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]
