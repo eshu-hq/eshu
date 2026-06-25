@@ -183,4 +183,20 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 	if blocked {
 		t.Fatal("file repo_refresh is fenced behind its older non-file edge — #3865 file-lane deadlock")
 	}
+
+	// The non-file edge must still be fenced behind the file repo_refresh so the
+	// retract runs before the edge writes.
+	edgeRow := reducer.SharedProjectionIntentRow{
+		IntentID: edgeID, ProjectionDomain: reducer.DomainCodeCalls,
+		PartitionKey: "content-entity:e_a->content-entity:e_b", ScopeID: scope, AcceptanceUnitID: au,
+		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
+		Payload: map[string]any{"action": "upsert"}, CreatedAt: base,
+	}
+	blocked, err = store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, edgeRow, reducer.DomainCodeCalls)
+	if err != nil {
+		t.Fatalf("fence(edge): %v", err)
+	}
+	if !blocked {
+		t.Fatal("non-file edge must be fenced behind the file repo_refresh")
+	}
 }
