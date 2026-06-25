@@ -2,10 +2,11 @@
 name: eshu-security-scan-gates
 description: |
   Debug and modify Eshu's security-scan workflow
-  (.github/workflows/security-scan.yml): the Trivy filesystem/image, gosec, and
-  govulncheck gates. ACTIVATE when editing security-scan.yml, bumping the Go
-  toolchain (the `go` directive in go/go.mod) or a security dependency, or when
-  any of those four jobs is red (or red only in CI but green locally). Captures
+  (.github/workflows/security-scan.yml): the Trivy filesystem/image, gosec,
+  govulncheck, and nancy gates. ACTIVATE when editing security-scan.yml, bumping
+  the Go toolchain (the `go` directive in go/go.mod) or a security dependency, or
+  when any of those jobs (Trivy fs, Trivy image, gosec, govulncheck, nancy) is
+  red (or red only in CI but green locally). Captures
   the Go-1.26 x/tools breakage, the trivy-action SARIF severity trap, the
   #nosec / gosec exit behavior, and — most important — the rule that you MUST
   reproduce with the exact CI tool version and flags, because a local

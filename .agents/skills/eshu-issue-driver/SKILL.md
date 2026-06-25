@@ -79,6 +79,9 @@ Ask before coding if any acceptance criteria are unclear.
   - `telemetry-coverage-discipline` — telemetry instruments/contract/dashboard.
   - `generator-script-discipline` — regenerators and generated artifacts.
   - `eshu-release` — release/version/image/Helm/GitHub Release work.
+  - `eshu-security-scan-gates` — `.github/workflows/security-scan.yml`, a Go
+    toolchain bump (the `go` directive in `go/go.mod`), or a red
+    Trivy/gosec/govulncheck/nancy gate.
 
 ## Step 3 — Execution doctrine
 
@@ -166,7 +169,9 @@ to the originating issue.
 - For every leaf issue AND every epic:
   `gh issue view <n> --repo eshu-hq/eshu --json state` shows `CLOSED`.
 - For every follow-up issue filed: closed, or deferred with a written reason.
-- `gh pr list --repo eshu-hq/eshu --search "<n>"` shows the PRs MERGED.
+- `gh pr list --repo eshu-hq/eshu --state merged --search "<n>"` shows the PRs
+  MERGED (`gh pr list` defaults to `--state open`, so omitting the state would
+  return nothing once the work has merged).
 - For each open PR owned by this work:
   `gh pr view <n> --repo eshu-hq/eshu --json mergeable,statusCheckRollup` shows
   no conflicts and CI green.
