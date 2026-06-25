@@ -373,14 +373,3 @@ func TestAuditHandlersRejectNonAdminScoped(t *testing.T) {
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Helpers used above (adminReadPaths is defined in admin_identity_reads_test.go)
-// ---------------------------------------------------------------------------
-
-func adminAuditReadPaths() []string {
-	return []string{
-		"/api/v0/auth/admin/audit/events",
-		"/api/v0/auth/admin/audit/summary",
-	}
-}

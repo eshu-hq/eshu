@@ -363,8 +363,8 @@ func (db *governanceAuditTenantMemoryDB) ExecContext(_ context.Context, query st
 		n := governanceAuditColumnsPerRow
 		for i := 0; i+n <= len(args); i += n {
 			row := governanceAuditTenantMemoryRow{
-				eventID:     args[i+0].(string),
-				occurredAt:  args[i+n-3].(time.Time), // persistedAt is at n-1; occurredAt at n-3? no:
+				eventID:    args[i+0].(string),
+				occurredAt: args[i+n-3].(time.Time), // persistedAt is at n-1; occurredAt at n-3? no:
 				// Actual layout after implementation:
 				// 0:eventID 1:eventType 2:actorClass 3:actorIDHash 4:servicePrincipalID
 				// 5:scopeClass 6:scopeIDHash 7:decision 8:reasonCode 9:correlationID
