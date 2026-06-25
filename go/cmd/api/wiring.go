@@ -201,6 +201,9 @@ func wireAPI(
 		return nil, nil, fmt.Errorf("configure saml sso: %w", err)
 	}
 	router.SAML = samlHandler
+	router.AuthProviders = &query.AuthProviderListHandler{
+		Store: newAuthProviderListStore(db, samlHandler),
+	}
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)

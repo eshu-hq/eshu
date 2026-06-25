@@ -9,6 +9,52 @@ package query //nolint:filelength // 585 lines of OpenAPI path fragments for aut
 // the string across files breaks the per-fragment review boundary.
 
 const openAPIPathsAuth = `
+    "/api/v0/auth/providers": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "List configured SSO providers for login",
+        "description": "Public pre-auth endpoint. Returns the configured OIDC and SAML providers available for interactive browser login so the console can render SSO buttons. The response exposes only the opaque provider_config_id (required by the redirect endpoints) and a safe generic display label derived from the protocol class (never an IdP hostname, issuer, or operator-specific name). No secrets or private IdP configuration are ever returned. When no providers are configured an empty array is returned.",
+        "operationId": "listAuthProviders",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The configured SSO providers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["provider_config_id", "display_label", "provider_kind"],
+                        "properties": {
+                          "provider_config_id": {
+                            "type": "string",
+                            "description": "Opaque operator-assigned provider config identifier. Required by the OIDC and SAML redirect endpoints."
+                          },
+                          "display_label": {
+                            "type": "string",
+                            "description": "Safe generic label for the login button. Always a generic protocol-class label (e.g. 'Single sign-on (OIDC)'). Never echoes a domain, org name, or IdP identifier."
+                          },
+                          "provider_kind": {
+                            "type": "string",
+                            "enum": ["oidc", "saml"],
+                            "description": "Protocol class: oidc or saml. Used by the console to select the correct redirect helper."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/auth/oidc/login": {
       "get": {
         "tags": ["auth"],

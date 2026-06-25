@@ -284,6 +284,32 @@ func (s *postgresSAMLStore) ResolveSAMLPrincipal(
 	return query.AuthContext{}, false, nil
 }
 
+// ListProviderIDs implements query.SAMLProviderIDLister. It returns the sorted
+// list of provider_config_ids registered from the ESHU_SAML_PROVIDERS_JSON env
+// config. The caller (authProviderListStore) is responsible for checking DB
+// activity before surfacing these IDs to the pre-auth discovery endpoint.
+func (s *postgresSAMLStore) ListProviderIDs() []string {
+	ids := make([]string, 0, len(s.providers))
+	for id := range s.providers {
+		ids = append(ids, id)
+	}
+	// Stable ordering so the discovery response is deterministic.
+	sortStrings(ids)
+	return ids
+}
+
+func sortStrings(ss []string) {
+	for i := 1; i < len(ss); i++ {
+		key := ss[i]
+		j := i - 1
+		for j >= 0 && ss[j] > key {
+			ss[j+1] = ss[j]
+			j--
+		}
+		ss[j+1] = key
+	}
+}
+
 func cleanSAMLStrings(values []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(values))

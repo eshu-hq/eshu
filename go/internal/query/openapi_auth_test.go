@@ -203,6 +203,67 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 	}
 }
 
+func TestOpenAPIIncludesAuthProvidersRoute(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	providerPath := mustMapField(t, paths, "/api/v0/auth/providers")
+	get := mustMapField(t, providerPath, "get")
+
+	description, ok := get["description"].(string)
+	if !ok {
+		t.Fatal("GET /api/v0/auth/providers description missing")
+	}
+
+	// Must document public/pre-auth nature and safe-label contract.
+	for _, want := range []string{
+		"Public pre-auth",
+		"provider_config_id",
+		"display label",
+		"No secrets",
+	} {
+		if !strings.Contains(description, want) {
+			t.Errorf("GET /api/v0/auth/providers description missing %q: %s", want, description)
+		}
+	}
+
+	// Must NOT leak private IdP column names or credentials in the description.
+	for _, forbidden := range []string{
+		"issuer_hash", "metadata_url_hash", "entity_id_hash", "client_id_hash", "credential_handle",
+	} {
+		if strings.Contains(description, forbidden) {
+			t.Errorf("GET /api/v0/auth/providers description MUST NOT reference %q: %s", forbidden, description)
+		}
+	}
+
+	// Response schema must include providers array with the three safe fields.
+	responses := mustMapField(t, get, "responses")
+	ok200 := mustMapField(t, responses, "200")
+	content := mustMapField(t, ok200, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+	properties := mustMapField(t, schema, "properties")
+	providersArray, ok := properties["providers"].(map[string]any)
+	if !ok {
+		t.Fatal("providers array schema missing")
+	}
+	items, ok := providersArray["items"].(map[string]any)
+	if !ok {
+		t.Fatal("providers items schema missing")
+	}
+	itemProps := mustMapField(t, items, "properties")
+	for _, field := range []string{"provider_config_id", "display_label", "provider_kind"} {
+		if _, ok := itemProps[field]; !ok {
+			t.Errorf("providers item schema missing field %q", field)
+		}
+	}
+}
+
 func TestOpenAPIIncludesSAMLRoutes(t *testing.T) {
 	var spec map[string]any
 	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {

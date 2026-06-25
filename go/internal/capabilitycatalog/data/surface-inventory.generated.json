@@ -83,6 +83,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/auth/providers",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/auth/saml/providers/{provider_id}/login",
       "readiness": "implemented"
     },

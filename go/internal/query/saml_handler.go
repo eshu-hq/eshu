@@ -73,6 +73,15 @@ type SAMLAuthnRequestBuilder interface {
 	BuildSAMLRedirect(context.Context, SAMLProviderConfig, string) (SAMLAuthnRequest, error)
 }
 
+// SAMLProviderIDLister is an optional extension on SAMLStore implementations
+// that can enumerate the set of provider_config_ids they manage. The
+// AuthProviderListHandler uses it to surface env-config SAML providers for the
+// pre-auth provider discovery endpoint. Implementations that do not list
+// providers (e.g. fakes in unit tests) need not implement this interface.
+type SAMLProviderIDLister interface {
+	ListProviderIDs() []string
+}
+
 // SAMLHandler serves SAML metadata and ACS routes for dashboard SSO.
 type SAMLHandler struct {
 	Store           SAMLStore
@@ -83,6 +92,20 @@ type SAMLHandler struct {
 	Now             func() time.Time
 	IdleTimeout     time.Duration
 	AbsoluteTimeout time.Duration
+}
+
+// RegisteredProviderIDs returns the set of provider_config_ids managed by the
+// Store, if the Store implements SAMLProviderIDLister. Returns nil when the
+// Store does not implement the interface or when h is nil.
+func (h *SAMLHandler) RegisteredProviderIDs() []string {
+	if h == nil || h.Store == nil {
+		return nil
+	}
+	lister, ok := h.Store.(SAMLProviderIDLister)
+	if !ok {
+		return nil
+	}
+	return lister.ListProviderIDs()
 }
 
 // Mount registers the SAML service-provider routes.

@@ -52,6 +52,62 @@ type AdminAPITokenListItem struct {
 	WorkspaceID        string
 }
 
+// LoginProviderItem is the minimal pre-auth view of one configured identity
+// provider used by the public /api/v0/auth/providers discovery endpoint.
+// Only provider_config_id and provider_kind are selected — no hashed or private
+// IdP fields (issuer_hash, metadata_url_hash, entity_id_hash, client_id_hash,
+// credential_handle, tenant_id) are exposed.
+type LoginProviderItem struct {
+	ProviderConfigID string
+	ProviderKind     string
+}
+
+// listActiveLoginProvidersQuery selects the active OIDC and SAML provider rows
+// globally (no tenant scope) for the pre-auth discovery endpoint. Only login-
+// facing provider kinds are returned (external_oidc, external_saml). Rows with
+// tombstoned_at IS NOT NULL or status != 'active' are excluded.
+const listActiveLoginProvidersQuery = `
+SELECT
+    provider_config_id,
+    provider_kind
+FROM identity_provider_configs
+WHERE provider_kind IN ('external_oidc', 'external_saml')
+  AND status = 'active'
+  AND tombstoned_at IS NULL
+ORDER BY provider_kind ASC, provider_config_id ASC
+LIMIT 200
+`
+
+// ListActiveLoginProviders returns the active OIDC and SAML providers across
+// all tenants for the pre-auth provider-discovery endpoint. No private or hashed
+// IdP fields are returned. The caller (authProviderListStore) derives the
+// display label from provider_kind and never echoes a domain or org name.
+func (s *IdentitySubjectStore) ListActiveLoginProviders(
+	ctx context.Context,
+) ([]LoginProviderItem, error) {
+	if s.db == nil {
+		return nil, errors.New("identity subject store database is required")
+	}
+	rows, err := s.db.QueryContext(ctx, listActiveLoginProvidersQuery)
+	if err != nil {
+		return nil, fmt.Errorf("list active login providers: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []LoginProviderItem
+	for rows.Next() {
+		var item LoginProviderItem
+		if err := rows.Scan(&item.ProviderConfigID, &item.ProviderKind); err != nil {
+			return nil, fmt.Errorf("scan active login provider item: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list active login providers: %w", err)
+	}
+	return items, nil
+}
+
 // listAdminIdPProvidersQuery selects metadata-only provider columns for the
 // caller's tenant. No hashed issuer/metadata/entity/client identifiers and no
 // credential handle are selected. tombstoned_at IS NULL excludes soft-deleted
