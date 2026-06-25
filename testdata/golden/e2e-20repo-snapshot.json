@@ -213,24 +213,29 @@
         "note": "Repository→Repository service materialization dependency edges"
       },
       "SECRETS_IAM_USES_SERVICE_ACCOUNT": {
-        "min": 0,
+        "min": 1,
         "max": 20,
-        "note": "vault_live service-account binding edges from the secrets/IAM graph projection"
+        "note": "vault_live service-account binding edges; min=1 because vault_live is a declared corpus collector"
       },
       "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE": {
-        "min": 0,
+        "min": 1,
         "max": 20,
-        "note": "vault_live workload→vault-auth-role authentication edges"
+        "note": "vault_live workload→vault-auth-role authentication edges; min=1 because vault_live is a declared corpus collector"
       },
       "SECRETS_IAM_GRANTS_SECRET_READ": {
         "min": 0,
         "max": 20,
-        "note": "vault_live policy→secret-path grant edges"
+        "note": "vault_live policy→secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
       },
       "SECRETS_IAM_USES_VAULT_POLICY": {
+        "min": 1,
+        "max": 20,
+        "note": "vault_live role→policy binding edges; min=1 because vault_live is a declared corpus collector"
+      },
+      "SECRETS_IAM_ASSUMES_IAM_ROLE": {
         "min": 0,
         "max": 20,
-        "note": "vault_live role→policy binding edges"
+        "note": "vault_live IAM role trust-chain edges; 0 if no assume-role facts in the supply-chain-demo cassette"
       }
     },
     "required_correlations": [
@@ -288,8 +293,8 @@
         "result_item_required_fields": ["id", "name"]
       },
       "get_repo_summary": {
-        "description": "Returns a single repo's summary object (not a list); confirms graph projection is complete for the queried repo",
-        "required_response_fields": ["repo_id", "summary"],
+        "description": "Returns a single repo's stats object at GET /api/v0/repositories/{selector}/stats; confirms graph projection is complete for the queried repo",
+        "required_response_fields": ["repository", "file_count", "languages", "entity_count", "entity_types", "coverage"],
         "minimum_results": 1
       },
       "list_kubernetes_correlations": {
@@ -311,7 +316,7 @@
       },
       "GET /api/v0/status/operator-control-plane": {
         "description": "Operator control plane status; confirms the status projection is operational",
-        "required_response_fields": ["freshness", "last_updated_at"]
+        "required_response_fields": ["version", "as_of", "health", "queue", "reducer_domains", "collector_families", "dead_letters", "retry_policies"]
       }
     }
   },
