@@ -1,0 +1,323 @@
+{
+  "schema_version": "1",
+  "corpus_id": "supply-chain-demo-20repo",
+  "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently.",
+  "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
+  "corpus_composition": {
+    "git_repos": 20,
+    "credentialed_collectors": [
+      "kubernetes_live",
+      "aws_cloud",
+      "azure_cloud",
+      "gcp_cloud",
+      "vault_live",
+      "oci_registry",
+      "package_registry",
+      "terraform_state",
+      "prometheus_mimir"
+    ],
+    "cassette_recording": "testdata/cassettes/*/supply-chain-demo.json"
+  },
+  "graph": {
+    "node_counts": {
+      "Repository": {
+        "min": 15,
+        "max": 30,
+        "note": "20 corpus repos; may include additional discovered mirror stubs"
+      },
+      "File": {
+        "min": 200,
+        "max": 20000,
+        "note": "all source files parsed across the corpus; wide range to avoid size sensitivity"
+      },
+      "Function": {
+        "min": 100,
+        "max": 50000,
+        "note": "all parsed function definitions across the corpus"
+      },
+      "WorkloadInstance": {
+        "min": 1,
+        "max": 20,
+        "note": "logical workload-instance nodes correlated from kubernetes_live facts"
+      },
+      "KubernetesWorkload": {
+        "min": 1,
+        "max": 20,
+        "note": "raw k8s Deployment/Service workload nodes; source of RUNS_IMAGE edges"
+      },
+      "Workload": {
+        "min": 1,
+        "max": 10,
+        "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
+      },
+      "CloudResource": {
+        "min": 4,
+        "max": 60,
+        "note": "AWS ECR/ECS + Azure ACR/Container App + GCP GKE/Artifact Registry nodes"
+      },
+      "TerraformResource": {
+        "min": 1,
+        "max": 30,
+        "note": "Terraform state resources from terraform_state cassette; at least one ECS resource expected"
+      },
+      "OciImageManifest": {
+        "min": 1,
+        "max": 20,
+        "note": "OCI image manifests from oci_registry cassette; target of RUNS_IMAGE edges"
+      },
+      "PackageVersion": {
+        "min": 1,
+        "max": 200,
+        "note": "package versions from package_registry cassette; target of HAS_VERSION and DEPENDS_ON_PACKAGE"
+      },
+      "ExternalPrincipal": {
+        "min": 0,
+        "max": 50,
+        "note": "cross-account principals from aws_cloud S3 grant path; 0 if no cross-account grants in corpus"
+      },
+      "SecretsIAMServiceAccount": {
+        "min": 1,
+        "max": 20,
+        "note": "service account nodes from vault_live auth-mount facts"
+      },
+      "SecretsIAMVaultAuthRole": {
+        "min": 1,
+        "max": 20,
+        "note": "vault auth role nodes from vault_live secrets/IAM projection"
+      },
+      "SecretsIAMVaultPolicy": {
+        "min": 0,
+        "max": 20,
+        "note": "vault policy nodes; 0 if no policy facts in corpus"
+      },
+      "SecretsIAMSecretMetadataPath": {
+        "min": 0,
+        "max": 50,
+        "note": "vault secret metadata path nodes; 0 if no secret-path facts in corpus"
+      },
+      "Platform": {
+        "min": 0,
+        "max": 10,
+        "note": "CI/CD and deployment platform nodes; 0 if platform-correlation collector not active"
+      },
+      "DocumentationSection": {
+        "min": 0,
+        "max": 5000,
+        "note": "optional; present only if the docs collector is active for corpus repos"
+      }
+    },
+    "edge_counts": {
+      "REPO_CONTAINS": {
+        "min": 200,
+        "max": 20000,
+        "note": "every Repository→File edge; scales with corpus repo sizes"
+      },
+      "DEFINES": {
+        "min": 100,
+        "max": 50000,
+        "note": "File→Function definition edges"
+      },
+      "IMPORTS": {
+        "min": 0,
+        "max": 10000,
+        "note": "module import edges between files"
+      },
+      "CALLS": {
+        "min": 0,
+        "max": 200000,
+        "note": "inter-function call edges from code-call materialization; 0 if semantic extraction is not active"
+      },
+      "DEPENDS_ON": {
+        "min": 1,
+        "max": 2000,
+        "note": "cross-repo Repository→Repository dependency edges from code-import and package-consumption domains (B-13 fix)"
+      },
+      "DEPENDS_ON_PACKAGE": {
+        "min": 1,
+        "max": 5000,
+        "note": "Repository→PackageVersion manifest-level dependency edges"
+      },
+      "DECLARES_DEPENDENCY": {
+        "min": 1,
+        "max": 5000,
+        "note": "manifest-level dependency declarations before resolution"
+      },
+      "HAS_VERSION": {
+        "min": 1,
+        "max": 200,
+        "note": "Package→PackageVersion version edges from package_registry canonical writer"
+      },
+      "CORRELATES_DEPLOYABLE_UNIT": {
+        "min": 1,
+        "max": 20,
+        "note": "Repository(source)→Repository(deployment-config) deployable-unit correlation edge"
+      },
+      "RUNS_IN": {
+        "min": 1,
+        "max": 5000,
+        "note": "Function→Workload code-to-workload binding (not WorkloadInstance→CloudResource)"
+      },
+      "RUNS_IMAGE": {
+        "min": 1,
+        "max": 30,
+        "note": "KubernetesWorkload→OciImageManifest supply-chain image correlation"
+      },
+      "HANDLES_ROUTE": {
+        "min": 0,
+        "max": 500,
+        "note": "Function or WorkloadInstance handling an HTTP/gRPC route; 0 if endpoint-presence gate did not activate"
+      },
+      "INVOKES_CLOUD_ACTION": {
+        "min": 0,
+        "max": 1000,
+        "note": "code-to-cloud reachability edges"
+      },
+      "USES": {
+        "min": 0,
+        "max": 100,
+        "note": "WorkloadInstance→CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
+      },
+      "GRANTS_ACCESS_TO": {
+        "min": 0,
+        "max": 100,
+        "note": "CloudResource→ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
+      },
+      "CAN_ASSUME": {
+        "min": 0,
+        "max": 100,
+        "note": "IAM role assumption edges from cloud or vault collector"
+      },
+      "CAN_PERFORM": {
+        "min": 0,
+        "max": 200,
+        "note": "IAM capability edges from cloud permission projection"
+      },
+      "DEPLOYMENT_SOURCE": {
+        "min": 0,
+        "max": 20,
+        "note": "Repository that is the source of truth for a deployed workload"
+      },
+      "DISCOVERS_CONFIG_IN": {
+        "min": 0,
+        "max": 100,
+        "note": "config discovery edges from the Terraform or k8s collector"
+      },
+      "PROVISIONS_PLATFORM": {
+        "min": 0,
+        "max": 20,
+        "note": "Repository→Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
+      },
+      "PROVISIONS_DEPENDENCY_FOR": {
+        "min": 0,
+        "max": 100,
+        "note": "Repository→Repository service materialization dependency edges"
+      },
+      "SECRETS_IAM_USES_SERVICE_ACCOUNT": {
+        "min": 0,
+        "max": 20,
+        "note": "vault_live service-account binding edges from the secrets/IAM graph projection"
+      },
+      "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE": {
+        "min": 0,
+        "max": 20,
+        "note": "vault_live workload→vault-auth-role authentication edges"
+      },
+      "SECRETS_IAM_GRANTS_SECRET_READ": {
+        "min": 0,
+        "max": 20,
+        "note": "vault_live policy→secret-path grant edges"
+      },
+      "SECRETS_IAM_USES_VAULT_POLICY": {
+        "min": 0,
+        "max": 20,
+        "note": "vault_live role→policy binding edges"
+      }
+    },
+    "required_correlations": [
+      {
+        "id": "rc-1",
+        "description": "At least one Repository(source) CORRELATES_DEPLOYABLE_UNIT Repository(deployment-config); confirms the deployable-unit correlation materializer ran",
+        "relationship": "CORRELATES_DEPLOYABLE_UNIT",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-2",
+        "description": "At least one Function RUNS_IN a Workload; confirms code-to-workload binding ran (RUNS_IN goes Function→Workload, not WorkloadInstance→CloudResource)",
+        "relationship": "RUNS_IN",
+        "from_label": "Function",
+        "to_label": "Workload",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-3",
+        "description": "Cross-repo Repository DEPENDS_ON Repository edges exist; confirms the B-13 fix — repo_dependency shared_projection_intents drained correctly",
+        "relationship": "DEPENDS_ON",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-4",
+        "description": "At least one KubernetesWorkload RUNS_IMAGE an OciImageManifest; confirms the supply-chain-demo OCI image is correlated to the k8s workload",
+        "relationship": "RUNS_IMAGE",
+        "from_label": "KubernetesWorkload",
+        "to_label": "OciImageManifest",
+        "minimum_count": 1
+      }
+    ]
+  },
+  "drain_assertions": {
+    "description": "B-7(a) drain checks; these validate queue state, not graph truth. Both queues must drain before B-7(b) graph assertions run.",
+    "fact_work_items": {
+      "residual_max": 0,
+      "note": "primary reducer queue table; must reach 0 before graph truth is checked"
+    },
+    "shared_projection_intents": {
+      "nonterminal_max": 0,
+      "note": "all rows must have completed_at IS NOT NULL; the repo_dependency domain (B-13 #3859) is the primary gate — nonterminal intents here indicate the activation-gate bypass is not working or the drain budget was exceeded"
+    }
+  },
+  "query_shapes": {
+    "mcp": {
+      "list_indexed_repositories": {
+        "description": "Returns the indexed repository list; confirms the corpus was ingested",
+        "required_response_fields": ["repositories"],
+        "minimum_results": 1,
+        "result_item_required_fields": ["id", "name"]
+      },
+      "get_repo_summary": {
+        "description": "Returns a single repo's summary object (not a list); confirms graph projection is complete for the queried repo",
+        "required_response_fields": ["repo_id", "summary"],
+        "minimum_results": 1
+      },
+      "list_kubernetes_correlations": {
+        "description": "Returns k8s workload correlations; confirms WorkloadInstance→Repository deployable-unit correlation ran",
+        "required_response_fields": ["correlations"],
+        "minimum_results": 1
+      },
+      "list_cloud_resource_inventory": {
+        "description": "Returns cloud resource inventory; confirms AWS/Azure/GCP cassette facts were ingested and projected",
+        "required_response_fields": ["resources"],
+        "minimum_results": 1
+      }
+    },
+    "http": {
+      "GET /api/v0/repositories": {
+        "description": "Repository list endpoint (not /api/v0/repos)",
+        "minimum_results": 1,
+        "required_response_fields": ["repositories"]
+      },
+      "GET /api/v0/status/operator-control-plane": {
+        "description": "Operator control plane status; confirms the status projection is operational",
+        "required_response_fields": ["freshness", "last_updated_at"]
+      }
+    }
+  },
+  "update_protocol": {
+    "when": "Update this snapshot when an intentional change to graph shape, node labels, relationship types, or canonical query responses lands. Do not update in response to transient corpus drift.",
+    "how": "Run B-7 locally against the corpus, capture the actual counts and shapes, update the ranges, commit with a clear summary of what changed and why. The PR description must include before/after diffs of this file.",
+    "who": "Snapshot updates require the same review bar as code changes. Silent updates that widen all ranges without explanation are not acceptable."
+  }
+}
