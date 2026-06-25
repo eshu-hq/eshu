@@ -8,12 +8,15 @@ import { EshuApiHttpError } from "./client";
 // Returns null when no session exists (401/403/404). Rethrows all other errors
 // so callers can distinguish "no session" from "API unavailable".
 export async function loadCurrentSession(
-  client: EshuApiClient
+  client: EshuApiClient,
 ): Promise<BrowserSessionResponse | null> {
   try {
     return await client.getBrowserSession();
   } catch (e) {
-    if (e instanceof EshuApiHttpError && (e.status === 401 || e.status === 403 || e.status === 404)) {
+    if (
+      e instanceof EshuApiHttpError &&
+      (e.status === 401 || e.status === 403 || e.status === 404)
+    ) {
       return null;
     }
     throw e;
@@ -60,11 +63,11 @@ export type LocalLoginRawResponse =
 //   login_id, password, recovery_code
 export async function loginLocal(
   client: EshuApiClient,
-  opts: LoginLocalOptions
+  opts: LoginLocalOptions,
 ): Promise<LocalLoginResult> {
   const body: Record<string, string> = {
     login_id: opts.login,
-    password: opts.password
+    password: opts.password,
   };
   if (opts.mfaCode !== undefined && opts.mfaCode.trim().length > 0) {
     body["recovery_code"] = opts.mfaCode.trim();
@@ -120,7 +123,7 @@ export interface OidcLoginOptions {
 export function beginOidcLogin(
   baseUrl: string,
   opts: OidcLoginOptions,
-  redirectFn?: (url: string) => void
+  redirectFn?: (url: string) => void,
 ): string {
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   const params = new URLSearchParams();
@@ -149,7 +152,7 @@ export interface SamlLoginOptions {
 export function beginSamlLogin(
   baseUrl: string,
   opts: SamlLoginOptions,
-  redirectFn?: (url: string) => void
+  redirectFn?: (url: string) => void,
 ): string {
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   const params = new URLSearchParams();
@@ -159,6 +162,42 @@ export function beginSamlLogin(
     redirectFn(url);
   }
   return url;
+}
+
+// AuthLoginProvider is the pre-auth view of one configured SSO provider.
+// Only the opaque provider_config_id, a safe generic display_label, and the
+// protocol class (provider_kind) are ever returned — no secrets, metadata URLs,
+// IdP hostnames, org names, or group names. Shape matches
+// go/internal/query/auth_providers_handler.go AuthProviderItem.
+export interface AuthLoginProvider {
+  readonly provider_config_id: string;
+  readonly display_label: string;
+  readonly provider_kind: "oidc" | "saml";
+}
+
+// listAuthProviders fetches the pre-auth provider discovery endpoint scoped to
+// a single tenant. tenantId must be non-empty to receive a non-empty response;
+// when tenantId is absent the endpoint returns an empty array (no global scan).
+// Returns an empty array when no providers are configured, when tenantId is
+// absent, or when the fetch fails (the login page falls back to local-only).
+export async function listAuthProviders(
+  client: EshuApiClient,
+  tenantId?: string,
+): Promise<readonly AuthLoginProvider[]> {
+  try {
+    const trimmed = tenantId?.trim() ?? "";
+    const path =
+      trimmed.length > 0
+        ? `/api/v0/auth/providers?tenant_id=${encodeURIComponent(trimmed)}`
+        : "/api/v0/auth/providers";
+    const resp = await client.getJson<{ providers: AuthLoginProvider[] }>(path);
+    return resp.providers ?? [];
+  } catch (err) {
+    // Pre-auth network errors must never break the login form, but warn so
+    // backend outages are visible in devtools during development and triage.
+    console.warn("[eshu] GET /api/v0/auth/providers failed — SSO buttons hidden", err);
+    return [];
+  }
 }
 
 // logout revokes the current browser session.

@@ -193,6 +193,7 @@ type APIRouter struct {
 	Profile                *ProfileHandler
 	OIDCLogin              *OIDCLoginHandler
 	SAML                   *SAMLHandler
+	AuthProviders          *AuthProviderListHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -231,6 +232,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.SAML != nil {
 		a.SAML.Mount(mux)
+	}
+	if a.AuthProviders != nil {
+		a.AuthProviders.Mount(mux)
 	}
 
 	// Repositories

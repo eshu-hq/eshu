@@ -66,11 +66,46 @@ type OIDCLoginCompleteResponse struct {
 // already-issued OIDC browser sessions.
 const DefaultOIDCSessionRefreshWindow = 15 * time.Minute
 
+// OIDCProviderLister is an optional extension on OIDCLoginService implementations
+// that can enumerate the set of provider_config_ids they manage. The
+// AuthProviderListHandler uses it to surface runtime-configured OIDC providers
+// for the pre-auth provider discovery endpoint. Each entry is
+// (ProviderConfigID, TenantID) — no client secrets, issuer URLs, or claim
+// mappings are exposed. Implementations that do not list providers need not
+// implement this interface.
+type OIDCProviderLister interface {
+	// ListOIDCProviderIDs returns the (ProviderConfigID, TenantID) pairs for
+	// every OIDC provider registered at runtime. The caller is responsible for
+	// deduplicating against DB rows before surfacing to clients.
+	ListOIDCProviderIDs() []OIDCRegisteredProvider
+}
+
+// OIDCRegisteredProvider carries the identity fields needed for provider
+// discovery. Only the safe-to-surface subset of ProviderConfig is included.
+type OIDCRegisteredProvider struct {
+	ProviderConfigID string
+	TenantID         string
+}
+
 // OIDCLoginHandler serves generic OIDC login and callback routes.
 type OIDCLoginHandler struct {
 	Service              OIDCLoginService
 	SessionIssuer        *BrowserSessionHandler
 	SessionRefreshWindow time.Duration
+}
+
+// RegisteredProviders returns the set of OIDC providers managed by the Service,
+// if the Service implements OIDCProviderLister. Returns nil when the Service
+// does not implement the interface or when h is nil.
+func (h *OIDCLoginHandler) RegisteredProviders() []OIDCRegisteredProvider {
+	if h == nil || h.Service == nil {
+		return nil
+	}
+	lister, ok := h.Service.(OIDCProviderLister)
+	if !ok {
+		return nil
+	}
+	return lister.ListOIDCProviderIDs()
 }
 
 // Mount registers OIDC login routes.

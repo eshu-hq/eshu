@@ -20,6 +20,7 @@ func TestIdentitySubjectSchemaIncludesSAMLAuthnRequestAndReplayLedger(t *testing
 		"provider_config_id TEXT NOT NULL REFERENCES identity_provider_configs(provider_config_id) ON DELETE CASCADE",
 		"request_id_hash TEXT NOT NULL",
 		"relay_state_hash TEXT NOT NULL",
+		"return_to_path TEXT NULL",
 		"expires_at TIMESTAMPTZ NOT NULL",
 		"consumed_at TIMESTAMPTZ NULL",
 		"PRIMARY KEY (provider_config_id, request_id_hash)",
@@ -58,6 +59,7 @@ func TestSAMLSSOSchemaSQLIncludesHashLedgers(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS identity_saml_authn_requests",
 		"request_id_hash TEXT NOT NULL",
 		"relay_state_hash TEXT NOT NULL",
+		"return_to_path TEXT NULL",
 		"CREATE TABLE IF NOT EXISTS identity_saml_replay_keys",
 		"replay_hash TEXT NOT NULL",
 	} {
@@ -94,6 +96,7 @@ func TestSAMLSSOStoreCreateRequestPersistsHashesOnlyAndIgnoresConflicts(t *testi
 	for _, want := range []string{
 		"INSERT INTO identity_saml_authn_requests",
 		"relay_state_hash",
+		"return_to_path",
 		"status",
 		"ON CONFLICT (provider_config_id, request_id_hash) DO NOTHING",
 	} {
@@ -112,10 +115,17 @@ func TestSAMLSSOStoreConsumeRequestAtomicallyConsumesUnexpiredRequest(t *testing
 	t.Parallel()
 
 	now := time.Date(2026, 6, 22, 14, 35, 0, 0, time.UTC)
-	db := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}}}
+	// ConsumeSAMLRequest now uses a CTE with RETURNING + SELECT, so it issues
+	// a QueryContext call. One row with the stored return_to_path (empty here)
+	// signals that the UPDATE matched (request consumed).
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{""}}, err: nil},
+		},
+	}
 	store := NewSAMLSSOStore(db)
 
-	consumed, err := store.ConsumeSAMLRequest(
+	returnToPath, consumed, err := store.ConsumeSAMLRequest(
 		context.Background(),
 		"provider_config_a",
 		"sha256:request",
@@ -128,12 +138,16 @@ func TestSAMLSSOStoreConsumeRequestAtomicallyConsumesUnexpiredRequest(t *testing
 	if !consumed {
 		t.Fatal("ConsumeSAMLRequest() consumed = false, want true")
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec count = %d, want 1", len(db.execs))
+	if returnToPath != "" {
+		t.Fatalf("ConsumeSAMLRequest() returnToPath = %q, want empty", returnToPath)
+	}
+	if len(db.queries) != 1 {
+		t.Fatalf("query count = %d, want 1", len(db.queries))
 	}
 
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, want := range []string{
+		"WITH consumed AS",
 		"UPDATE identity_saml_authn_requests",
 		"status = 'consumed'",
 		"consumed_at = $4",
@@ -144,6 +158,8 @@ func TestSAMLSSOStoreConsumeRequestAtomicallyConsumesUnexpiredRequest(t *testing
 		"status = 'pending'",
 		"consumed_at IS NULL",
 		"expires_at > $4",
+		"RETURNING return_to_path",
+		"COALESCE(return_to_path, '')",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("consume request query missing %q:\n%s", want, query)
@@ -151,14 +167,48 @@ func TestSAMLSSOStoreConsumeRequestAtomicallyConsumesUnexpiredRequest(t *testing
 	}
 }
 
+func TestSAMLSSOStoreConsumeRequestReturnsPathWhenStored(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 14, 36, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{"/dashboard/projects"}}, err: nil},
+		},
+	}
+	store := NewSAMLSSOStore(db)
+
+	returnToPath, consumed, err := store.ConsumeSAMLRequest(
+		context.Background(),
+		"provider_config_a",
+		"sha256:request",
+		"sha256:relay-state",
+		now,
+	)
+	if err != nil {
+		t.Fatalf("ConsumeSAMLRequest() error = %v", err)
+	}
+	if !consumed {
+		t.Fatal("ConsumeSAMLRequest() consumed = false, want true")
+	}
+	if returnToPath != "/dashboard/projects" {
+		t.Fatalf("ConsumeSAMLRequest() returnToPath = %q, want %q", returnToPath, "/dashboard/projects")
+	}
+}
+
 func TestSAMLSSOStoreConsumeRequestReturnsFalseForExpiredRequest(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 22, 14, 40, 0, 0, time.UTC)
-	db := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}}}
+	// No rows returned means the UPDATE matched nothing (expired or already consumed).
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: nil, err: nil},
+		},
+	}
 	store := NewSAMLSSOStore(db)
 
-	consumed, err := store.ConsumeSAMLRequest(
+	_, consumed, err := store.ConsumeSAMLRequest(
 		context.Background(),
 		"provider_config_a",
 		"sha256:request",

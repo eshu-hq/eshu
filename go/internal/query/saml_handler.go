@@ -26,7 +26,11 @@ const (
 type SAMLStore interface {
 	GetSAMLProvider(context.Context, string) (SAMLProviderConfig, bool, error)
 	CreateSAMLRequest(context.Context, string, SAMLRequestCreateRecord) error
-	ConsumeSAMLRequest(context.Context, string, string, string, time.Time) (bool, error)
+	// ConsumeSAMLRequest atomically marks the pending AuthnRequest as consumed
+	// and returns the sanitized return_to path stored when the request was
+	// created (empty string when none was stored), whether the request was
+	// found and consumed, and any error.
+	ConsumeSAMLRequest(context.Context, string, string, string, time.Time) (string, bool, error)
 	ReserveSAMLReplay(context.Context, string, string, time.Time) (bool, error)
 	ResolveSAMLPrincipal(context.Context, string, samlauth.Principal, time.Time) (AuthContext, bool, error)
 }
@@ -42,9 +46,13 @@ type SAMLProviderConfig struct {
 }
 
 // SAMLRequestCreateRecord is the hash-only AuthnRequest state stored for ACS.
+// ReturnToPath is the sanitized post-login redirect path (same-origin only,
+// already validated by safeOIDCReturnPath). Empty string means no redirect —
+// the ACS handler falls back to a JSON session response.
 type SAMLRequestCreateRecord struct {
 	RequestIDHash  string
 	RelayStateHash string
+	ReturnToPath   string
 	IssuedAt       time.Time
 	ExpiresAt      time.Time
 }
@@ -73,6 +81,15 @@ type SAMLAuthnRequestBuilder interface {
 	BuildSAMLRedirect(context.Context, SAMLProviderConfig, string) (SAMLAuthnRequest, error)
 }
 
+// SAMLProviderIDLister is an optional extension on SAMLStore implementations
+// that can enumerate the set of provider_config_ids they manage. The
+// AuthProviderListHandler uses it to surface env-config SAML providers for the
+// pre-auth provider discovery endpoint. Implementations that do not list
+// providers (e.g. fakes in unit tests) need not implement this interface.
+type SAMLProviderIDLister interface {
+	ListProviderIDs() []string
+}
+
 // SAMLHandler serves SAML metadata and ACS routes for dashboard SSO.
 type SAMLHandler struct {
 	Store           SAMLStore
@@ -83,6 +100,20 @@ type SAMLHandler struct {
 	Now             func() time.Time
 	IdleTimeout     time.Duration
 	AbsoluteTimeout time.Duration
+}
+
+// RegisteredProviderIDs returns the set of provider_config_ids managed by the
+// Store, if the Store implements SAMLProviderIDLister. Returns nil when the
+// Store does not implement the interface or when h is nil.
+func (h *SAMLHandler) RegisteredProviderIDs() []string {
+	if h == nil || h.Store == nil {
+		return nil
+	}
+	lister, ok := h.Store.(SAMLProviderIDLister)
+	if !ok {
+		return nil
+	}
+	return lister.ListProviderIDs()
 }
 
 // Mount registers the SAML service-provider routes.
@@ -146,6 +177,7 @@ func (h *SAMLHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	record := SAMLRequestCreateRecord{
 		RequestIDHash:  requestIDHash,
 		RelayStateHash: BrowserSessionSecretHash(relayState),
+		ReturnToPath:   safeOIDCReturnPath(r.URL.Query().Get("return_to")),
 		IssuedAt:       now,
 		ExpiresAt:      now.Add(DefaultSAMLRequestTTL),
 	}
@@ -193,7 +225,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	requestIDHash := BrowserSessionSecretHash(requestID)
-	requestConsumed, err := h.Store.ConsumeSAMLRequest(
+	returnToPath, requestConsumed, err := h.Store.ConsumeSAMLRequest(
 		r.Context(),
 		provider.ProviderConfigID,
 		requestIDHash,
@@ -270,7 +302,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		unauthorizedResponse(w, r)
 		return
 	}
-	h.createSession(w, r, auth, now)
+	h.createSession(w, r, auth, returnToPath, now)
 }
 
 func (h *SAMLHandler) readyForACS(w http.ResponseWriter) bool {
@@ -281,7 +313,7 @@ func (h *SAMLHandler) readyForACS(w http.ResponseWriter) bool {
 	return true
 }
 
-func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth AuthContext, now time.Time) {
+func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth AuthContext, returnToPath string, now time.Time) {
 	auth = normalizeAuthContext(auth)
 	if strings.TrimSpace(auth.TenantID) == "" || strings.TrimSpace(auth.WorkspaceID) == "" {
 		WriteError(w, http.StatusInternalServerError, "saml principal resolved without tenant or workspace")
@@ -332,6 +364,14 @@ func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth
 		absoluteExpiresAt,
 		int(h.absoluteTimeout().Seconds()),
 	)
+	// Mirror OIDC: redirect to returnToPath when a safe same-origin path was
+	// stored with the AuthnRequest. Fall back to JSON session response when no
+	// path was stored (API clients or direct ACS callers without a console).
+	safePath := safeOIDCReturnPath(returnToPath)
+	if safePath != "" {
+		http.Redirect(w, r, safePath, http.StatusSeeOther)
+		return
+	}
 	WriteJSON(w, http.StatusCreated, BrowserSessionResponse{
 		Auth:              browserSessionAuthResponse(sessionAuth),
 		CSRFToken:         csrfSecret,

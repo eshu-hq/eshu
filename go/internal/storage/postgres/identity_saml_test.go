@@ -336,3 +336,144 @@ func TestHasActiveSAMLProviderConfigRequiresExternalSAMLProviderRow(t *testing.T
 		}
 	}
 }
+
+func TestHasActiveSAMLProviderConfigForTenantBindsBothParams(t *testing.T) {
+	t.Parallel()
+
+	// Row returned only when both provider_config_id ($1) and tenant_id ($2) match.
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{{"provider_saml"}}}},
+	}
+	store := NewIdentitySubjectStore(db)
+
+	active, err := store.HasActiveSAMLProviderConfigForTenant(
+		context.Background(), " provider_saml ", "tenant-a",
+	)
+	if err != nil {
+		t.Fatalf("HasActiveSAMLProviderConfigForTenant() error = %v", err)
+	}
+	if !active {
+		t.Fatal("HasActiveSAMLProviderConfigForTenant() active = false, want true")
+	}
+
+	// Assert the query text contains both parameter bindings and the tenant predicate.
+	query := db.queries[0].query
+	for _, want := range []string{
+		"FROM identity_provider_configs pc",
+		"JOIN tenants t",
+		"pc.provider_config_id = $1",
+		"pc.tenant_id = $2",
+		"pc.provider_kind = 'external_saml'",
+		"pc.status = 'active'",
+		"pc.tombstoned_at IS NULL",
+		"t.status = 'active'",
+		"t.tombstoned_at IS NULL",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("tenant-scoped SAML provider query missing %q:\n%s", want, query)
+		}
+	}
+
+	// Assert both args were bound: providerConfigID as $1, tenantID as $2.
+	args := db.queries[0].args
+	if len(args) != 2 {
+		t.Fatalf("expected 2 query args, got %d: %v", len(args), args)
+	}
+	if args[0] != "provider_saml" {
+		t.Errorf("arg[0] = %q, want %q (provider_config_id)", args[0], "provider_saml")
+	}
+	if args[1] != "tenant-a" {
+		t.Errorf("arg[1] = %q, want %q (tenant_id)", args[1], "tenant-a")
+	}
+}
+
+func TestHasActiveSAMLProviderConfigForTenantReturnsFalseForWrongTenant(t *testing.T) {
+	t.Parallel()
+
+	// Empty row set: provider exists for tenant-a but query is for tenant-b.
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: nil}},
+	}
+	store := NewIdentitySubjectStore(db)
+
+	active, err := store.HasActiveSAMLProviderConfigForTenant(
+		context.Background(), "provider_saml", "tenant-b",
+	)
+	if err != nil {
+		t.Fatalf("HasActiveSAMLProviderConfigForTenant() error = %v", err)
+	}
+	if active {
+		t.Fatal("HasActiveSAMLProviderConfigForTenant() active = true for wrong tenant, want false (cross-tenant isolation)")
+	}
+}
+
+func TestHasActiveOIDCProviderConfigForTenantBindsBothParams(t *testing.T) {
+	t.Parallel()
+
+	// Row returned only when both provider_config_id ($1) and tenant_id ($2) match.
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{{"provider_oidc"}}}},
+	}
+	store := NewIdentitySubjectStore(db)
+
+	active, err := store.HasActiveOIDCProviderConfigForTenant(
+		context.Background(), " provider_oidc ", "tenant-a",
+	)
+	if err != nil {
+		t.Fatalf("HasActiveOIDCProviderConfigForTenant() error = %v", err)
+	}
+	if !active {
+		t.Fatal("HasActiveOIDCProviderConfigForTenant() active = false, want true")
+	}
+
+	// Assert the query text contains both parameter bindings, the OIDC kind
+	// predicate, and the tenant predicate.
+	query := db.queries[0].query
+	for _, want := range []string{
+		"FROM identity_provider_configs pc",
+		"JOIN tenants t",
+		"pc.provider_config_id = $1",
+		"pc.tenant_id = $2",
+		"pc.provider_kind = 'external_oidc'",
+		"pc.status = 'active'",
+		"pc.tombstoned_at IS NULL",
+		"t.status = 'active'",
+		"t.tombstoned_at IS NULL",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("tenant-scoped OIDC provider query missing %q:\n%s", want, query)
+		}
+	}
+
+	// Assert both args were bound: providerConfigID as $1, tenantID as $2.
+	args := db.queries[0].args
+	if len(args) != 2 {
+		t.Fatalf("expected 2 query args, got %d: %v", len(args), args)
+	}
+	if args[0] != "provider_oidc" {
+		t.Errorf("arg[0] = %q, want %q (provider_config_id)", args[0], "provider_oidc")
+	}
+	if args[1] != "tenant-a" {
+		t.Errorf("arg[1] = %q, want %q (tenant_id)", args[1], "tenant-a")
+	}
+}
+
+func TestHasActiveOIDCProviderConfigForTenantReturnsFalseForWrongTenant(t *testing.T) {
+	t.Parallel()
+
+	// Empty row set: provider exists for tenant-a but query is for tenant-b.
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: nil}},
+	}
+	store := NewIdentitySubjectStore(db)
+
+	active, err := store.HasActiveOIDCProviderConfigForTenant(
+		context.Background(), "provider_oidc", "tenant-b",
+	)
+	if err != nil {
+		t.Fatalf("HasActiveOIDCProviderConfigForTenant() error = %v", err)
+	}
+	if active {
+		t.Fatal("HasActiveOIDCProviderConfigForTenant() active = true for wrong tenant, want false (cross-tenant isolation)")
+	}
+}

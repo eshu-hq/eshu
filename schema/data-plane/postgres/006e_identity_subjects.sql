@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS identity_saml_authn_requests (
     provider_config_id TEXT NOT NULL REFERENCES identity_provider_configs(provider_config_id) ON DELETE CASCADE,
     request_id_hash TEXT NOT NULL,
     relay_state_hash TEXT NOT NULL,
+    return_to_path TEXT NULL,
     status TEXT NOT NULL,
     issued_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
@@ -441,3 +442,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS identity_break_glass_windows_code_hash_idx
 CREATE INDEX IF NOT EXISTS identity_break_glass_windows_active_idx
     ON identity_break_glass_windows (tenant_id, workspace_id, expires_at DESC)
     WHERE status = 'active' AND disabled_at IS NULL AND used_at IS NULL;
+
+ALTER TABLE identity_saml_authn_requests
+    ADD COLUMN IF NOT EXISTS return_to_path TEXT NULL;

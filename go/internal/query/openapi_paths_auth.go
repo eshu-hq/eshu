@@ -9,6 +9,67 @@ package query //nolint:filelength // 585 lines of OpenAPI path fragments for aut
 // the string across files breaks the per-fragment review boundary.
 
 const openAPIPathsAuth = `
+    "/api/v0/auth/providers": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "List configured SSO providers for login (tenant-scoped)",
+        "description": "Public pre-auth endpoint scoped to a single tenant. Returns the configured OIDC and SAML providers available for interactive browser login for the specified tenant so the console can render SSO buttons. The response exposes only the opaque provider_config_id (required by the redirect endpoints) and a safe generic display label derived from the protocol class (never an IdP hostname, issuer, or operator-specific name). No secrets or private IdP configuration are ever returned. When tenant_id is absent or empty an empty array is returned — the endpoint never performs a global cross-tenant scan. When no providers are configured for the tenant an empty array is returned. The response carries Cache-Control: public, max-age=60.",
+        "operationId": "listAuthProviders",
+        "security": [],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Tenant to list SSO providers for. When absent or empty the response is always an empty providers array — no global cross-tenant scan is performed."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The configured SSO providers for the tenant. Empty array when tenant_id is absent or no providers are configured.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Always set to 'public, max-age=60'.",
+                "schema": {"type": "string"}
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["provider_config_id", "display_label", "provider_kind"],
+                        "properties": {
+                          "provider_config_id": {
+                            "type": "string",
+                            "description": "Opaque operator-assigned provider config identifier. Required by the OIDC and SAML redirect endpoints."
+                          },
+                          "display_label": {
+                            "type": "string",
+                            "description": "Safe generic label for the login button. Always a generic protocol-class label (e.g. 'Single sign-on (OIDC)'). Never echoes a domain, org name, or IdP identifier."
+                          },
+                          "provider_kind": {
+                            "type": "string",
+                            "enum": ["oidc", "saml"],
+                            "description": "Protocol class: oidc or saml. Used by the console to select the correct redirect helper."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/auth/oidc/login": {
       "get": {
         "tags": ["auth"],
@@ -426,7 +487,8 @@ const openAPIPathsAuth = `
             "required": true,
             "schema": {"type": "string"},
             "description": "Opaque SAML provider configuration identifier."
-          }
+          },
+          {"name": "return_to", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional same-origin return path after the ACS callback. Absolute URLs and protocol-relative paths are ignored."}
         ],
         "responses": {
           "302": {
@@ -476,7 +538,7 @@ const openAPIPathsAuth = `
         },
         "responses": {
           "201": {
-            "description": "SAML login accepted; Set-Cookie includes __Host-eshu_session and __Host-eshu_csrf.",
+            "description": "SAML login accepted; Set-Cookie includes __Host-eshu_session and __Host-eshu_csrf. Returned when no return_to path was stored.",
             "headers": {
               "Set-Cookie": {
                 "description": "__Host-eshu_session is HttpOnly/Secure/SameSite=Strict; __Host-eshu_csrf is readable by the browser client and must be echoed in X-Eshu-CSRF for unsafe requests.",
@@ -486,6 +548,19 @@ const openAPIPathsAuth = `
             "content": {
               "application/json": {
                 "schema": {"$ref": "#/components/schemas/BrowserSessionResponse"}
+              }
+            }
+          },
+          "303": {
+            "description": "SAML login accepted; browser redirected to the same-origin return_to path stored at login initiation. Set-Cookie is set before the redirect.",
+            "headers": {
+              "Location": {
+                "description": "Same-origin path from the original return_to query parameter.",
+                "schema": {"type": "string"}
+              },
+              "Set-Cookie": {
+                "description": "__Host-eshu_session and __Host-eshu_csrf browser-session cookies.",
+                "schema": {"type": "string"}
               }
             }
           },

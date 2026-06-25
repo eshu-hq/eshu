@@ -32,6 +32,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"GET /api/v0/auth/local/api-tokens":                          {}, // lists the caller's own API token metadata
 		"GET /api/v0/auth/local/invitations":                         {}, // lists the tenant's invitations metadata (admin)
 		"GET /api/v0/auth/profile":                                   {}, // reads the caller's own identity profile
+		"GET /api/v0/auth/providers":                                 {}, // lists configured login providers for the tenant (pre-auth discovery)
 		"GET /api/v0/auth/sessions":                                  {}, // lists the caller's own browser sessions
 		"PATCH /api/v0/auth/browser-session/context":                 {}, // switches the caller's tenant/workspace context
 		"POST /api/v0/admin/backfill":                                {}, // RequestBackfill enqueues backfill work
