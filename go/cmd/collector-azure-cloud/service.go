@@ -20,8 +20,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
-	cassette "github.com/eshu-hq/eshu/go/internal/collector/cassette"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
+	cassette "github.com/eshu-hq/eshu/go/internal/collector/cassette"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"

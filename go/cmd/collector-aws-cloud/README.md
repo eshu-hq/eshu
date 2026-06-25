@@ -287,3 +287,16 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 - `docs/public/services/collector-aws-cloud.md`
 - `docs/public/guides/collector-authoring.md`
 - `docs/public/reference/telemetry/index.md`
+
+## No-Regression Evidence:
+
+No-Regression Evidence: the only change to this package in this PR is an
+import-order reordering (cassette import moved after awscloud import to
+satisfy gofumpt alphabetical order). No runtime logic, no new code paths,
+no query or concurrency changes. The import order does not affect binary
+behaviour.
+
+## No-Observability-Change:
+
+No-Observability-Change: import-order fix only; no new metrics, spans,
+or log lines introduced.
