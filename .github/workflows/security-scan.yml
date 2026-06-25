@@ -186,9 +186,19 @@ jobs:
 
       - name: Run govulncheck on every Go package
         working-directory: go
+        # -scan package, not the default symbol mode. The symbol-level scan
+        # builds an SSA call graph via golang.org/x/tools, which panics on
+        # Go 1.26 generics ("ForEachElement called on type containing
+        # *types.TypeParam"); the bug is present in the latest released
+        # x/tools (v0.46.0) and on x/vuln master, so no govulncheck version
+        # survives symbol mode here yet. Package mode resolves vulnerable
+        # imports without the SSA call graph, so it does not panic. It is
+        # strictly more conservative than symbol mode (it flags an imported
+        # vulnerable package even when no vulnerable symbol is called), so it
+        # never hides a vulnerability the default mode would have caught.
         run: |
           set -euo pipefail
-          govulncheck ./... 2>&1 | tee govulncheck.out
+          govulncheck -scan package ./... 2>&1 | tee govulncheck.out
           status=${PIPESTATUS[0]}
           if [ "${status}" -ne 0 ]; then
             printf 'govulncheck: vulnerabilities found, see govulncheck.out above\n' >&2
