@@ -48,10 +48,13 @@ require "drains phase" "-phase=drains"
 require "graph+query+timing phase" "-phase=graph,query,timing"
 require "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
 require "timing budget" "-budget-multiplier"
-# Minimal-corpus posture: graph-populated smoke is required; code_calls is the
-# quarantined advisory drain domain (the held-intent follow-up).
+# Minimal-corpus posture: graph-populated smoke is required. Every
+# shared_projection_intents domain (incl. code_calls, #3865) must drain — no
+# domain is quarantined as advisory.
 require "graph-populated smoke" "-required-node-labels"
-require "code_calls quarantine" 'drain-advisory-domains="code_calls"'
+if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script}"; then
+	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
+fi
 
 # Wires all nine B-10 cassette collectors.
 for collector in \

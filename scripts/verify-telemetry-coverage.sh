@@ -123,11 +123,14 @@ if [ -n "$base" ]; then
     case "$file" in
       *_test.go|*_bench_test.go|*/testdata/*|*/vendor/*|*/doc.go) continue ;;
     esac
+    # A stage is a new *.go source file (see comment above). Restrict every
+    # stage-owner directory to *.go so non-Go additions — package docs, README,
+    # AGENTS, evidence-*.md — are never mistaken for a new pipeline stage.
     case "$file" in
-      go/internal/collector/*) ;;
-      go/internal/reducer/*) ;;
-      go/internal/projector/*) ;;
-      go/internal/correlation/*) ;;
+      go/internal/collector/*.go) ;;
+      go/internal/reducer/*.go) ;;
+      go/internal/projector/*.go) ;;
+      go/internal/correlation/*.go) ;;
       go/internal/content/shape/*.go) ;;
       go/cmd/collector-*/*.go) ;;
       *) continue ;;

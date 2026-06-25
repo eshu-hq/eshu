@@ -75,9 +75,22 @@ SELECT EXISTS (
 )
 `
 
+// codeCallProjectionWholeFenceSQL fences a non-file code-call intent behind the
+// earlier intents for the same repository acceptance unit. "Earlier" MUST use
+// the same ordering as the batch query and the in-memory fence —
+// (is_refresh_intent DESC, created_at ASC, intent_id ASC) — not raw
+// (created_at, intent_id). A refresh intent precedes every non-refresh edge, so:
+//   - an edge is correctly fenced behind the repo refresh, and
+//   - the refresh is NEVER fenced behind its own (older) edges.
+//
+// The raw (created_at, intent_id) comparison was the #3865 deadlock: when a
+// repo's refresh intent and an older-created edge landed in the same projection
+// partition, the DB fence blocked the refresh behind the edge (created_at order)
+// while the in-memory fence blocked the edge behind the refresh (refresh-first
+// list order), so neither ever ran and the intents were held at terminal.
 const codeCallProjectionWholeFenceSQL = `
 WITH selected AS (
-    SELECT 1
+    SELECT is_refresh_intent
     FROM shared_projection_intents
     WHERE intent_id = $1
       AND scope_id = $2
@@ -89,7 +102,7 @@ WITH selected AS (
 ),
 blocked AS (
     SELECT 1
-    FROM shared_projection_intents AS candidate
+    FROM shared_projection_intents AS candidate, selected
     WHERE candidate.scope_id = $2
       AND candidate.acceptance_unit_id = $3
       AND candidate.source_run_id = $4
@@ -97,7 +110,13 @@ blocked AS (
       AND candidate.repository_id = $6
       AND candidate.completed_at IS NULL
       AND candidate.intent_id <> $1
-      AND (candidate.created_at, candidate.intent_id) < ($7, $1)
+      AND (
+          (candidate.is_refresh_intent AND NOT selected.is_refresh_intent)
+          OR (
+              candidate.is_refresh_intent = selected.is_refresh_intent
+              AND (candidate.created_at, candidate.intent_id) < ($7, $1)
+          )
+      )
     LIMIT 1
 )
 SELECT
@@ -105,9 +124,16 @@ SELECT
     EXISTS (SELECT 1 FROM blocked) AS blocked_by_fence
 `
 
+// codeCallProjectionFileFenceSQL fences a file-scoped code-call intent. The
+// non-file branch (the OR arm below) ranks non-file candidates by the same
+// is_refresh_intent-first order as the whole-fence (#3865): a non-file refresh
+// (the repo whole-refresh) precedes a non-refresh file row, but a non-refresh
+// non-file edge must NOT fence a file repo_refresh behind it — otherwise a file
+// repo_refresh and an older non-file edge deadlock exactly as the whole-fence
+// case did.
 const codeCallProjectionFileFenceSQL = `
 WITH selected AS (
-    SELECT 1
+    SELECT is_refresh_intent
     FROM shared_projection_intents
     WHERE intent_id = $1
       AND scope_id = $2
@@ -119,7 +145,7 @@ WITH selected AS (
 ),
 blocked AS (
     SELECT 1
-    FROM shared_projection_intents AS candidate
+    FROM shared_projection_intents AS candidate, selected
     WHERE candidate.scope_id = $2
       AND candidate.acceptance_unit_id = $3
       AND candidate.source_run_id = $4
@@ -156,7 +182,13 @@ blocked AS (
           )
           OR (
               candidate.partition_key NOT LIKE $9
-              AND (candidate.created_at, candidate.intent_id) < ($7, $1)
+              AND (
+                  (candidate.is_refresh_intent AND NOT selected.is_refresh_intent)
+                  OR (
+                      candidate.is_refresh_intent = selected.is_refresh_intent
+                      AND (candidate.created_at, candidate.intent_id) < ($7, $1)
+                  )
+              )
           )
       )
     LIMIT 1
