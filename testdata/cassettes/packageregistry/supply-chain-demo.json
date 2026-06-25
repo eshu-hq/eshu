@@ -1,0 +1,43 @@
+{
+  "collector": "package_registry",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "package_registry:npm:synthetic-vulnerable-npm",
+      "source_system": "package_registry",
+      "scope_kind": "package_registry",
+      "collector_kind": "package_registry",
+      "partition_key": "package_registry:npm:synthetic-vulnerable-npm",
+      "metadata": {
+        "registry_kind": "npm",
+        "package_name": "synthetic-vulnerable-npm"
+      },
+      "generation_id": "cassette-pkgreg-npm-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "package_registry.package_version",
+          "stable_fact_key": "package_registry:npm:synthetic-vulnerable-npm:1.0.0",
+          "schema_version": "1.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "registry_kind": "npm",
+            "name": "synthetic-vulnerable-npm",
+            "version": "1.0.0",
+            "description": "A synthetic package used only in the supply-chain-demo fixture. Not real.",
+            "license": "MIT",
+            "publisher_fingerprint": "synthetic-npm-publisher",
+            "published_at": "2026-01-01T00:00:00Z",
+            "dist_integrity": "sha512-synthetic0000000000000000000000000000000000000000000000000000000000000000000000000000==",
+            "correlation_anchors": [
+              "pkg:npm/synthetic-vulnerable-npm@1.0.0"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

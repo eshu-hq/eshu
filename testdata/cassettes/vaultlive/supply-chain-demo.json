@@ -1,0 +1,55 @@
+{
+  "collector": "vault_live",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "vault_live:cluster:supply-chain-demo-vault",
+      "source_system": "vault_live",
+      "scope_kind": "vault_cluster",
+      "collector_kind": "vault_live",
+      "partition_key": "vault_live:cluster:supply-chain-demo-vault",
+      "metadata": {
+        "cluster_addr": "https://vault.supply-chain-demo.internal:8200",
+        "cluster_name": "supply-chain-demo-vault"
+      },
+      "generation_id": "cassette-vault-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "secrets_iam.vault_auth_mount",
+          "stable_fact_key": "vault_live:cluster:supply-chain-demo-vault:auth:kubernetes",
+          "schema_version": "1.0.0",
+          "collector_kind": "vault_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "supply-chain-demo-vault",
+            "mount_path": "auth/kubernetes",
+            "auth_type": "kubernetes",
+            "description": "Kubernetes auth for supply-chain-demo cluster",
+            "accessor": "auth_kubernetes_synthetic_01",
+            "bound_service_account_names": ["supply-chain-demo"],
+            "bound_service_account_namespaces": ["default"],
+            "kubernetes_host_fingerprint": "k8s-host-fingerprint-synthetic"
+          }
+        },
+        {
+          "fact_kind": "secrets_iam.vault_auth_mount",
+          "stable_fact_key": "vault_live:cluster:supply-chain-demo-vault:auth:approle",
+          "schema_version": "1.0.0",
+          "collector_kind": "vault_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "supply-chain-demo-vault",
+            "mount_path": "auth/approle",
+            "auth_type": "approle",
+            "description": "AppRole auth for CI/CD pipelines",
+            "accessor": "auth_approle_synthetic_02"
+          }
+        }
+      ]
+    }
+  ]
+}

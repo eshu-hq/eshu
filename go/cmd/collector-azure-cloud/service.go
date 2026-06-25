@@ -20,6 +20,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
+	cassette "github.com/eshu-hq/eshu/go/internal/collector/cassette"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -31,6 +32,32 @@ import (
 // fallbackClaimSequence backs the deterministic fallback claim id when the
 // crypto random source is unavailable.
 var fallbackClaimSequence uint64
+
+// buildCassetteService constructs a collector service that replays a recorded
+// cassette JSON file. It uses no live Azure transport and is intended for
+// offline testing and deterministic proof runs.
+func buildCassetteService(
+	database postgres.ExecQueryer,
+	cassettePath string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.Service, error) {
+	src, err := cassette.NewSource(cassettePath)
+	if err != nil {
+		return collector.Service{}, fmt.Errorf("load cassette: %w", err)
+	}
+	committer := postgres.NewIngestionStore(database)
+	committer.Logger = logger
+	return collector.Service{
+		Source:       src,
+		Committer:    committer,
+		PollInterval: 24 * time.Hour,
+		Tracer:       tracer,
+		Instruments:  instruments,
+		Logger:       logger,
+	}, nil
+}
 
 // buildClaimedService constructs the claim-driven Azure cloud collector service.
 // It selects one enabled, claim-enabled Azure collector instance, wires the

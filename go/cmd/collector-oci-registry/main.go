@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -21,6 +22,21 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+const serviceName = "collector-oci-registry"
+
+type launchMode string
+
+const (
+	launchModeCassette launchMode = "cassette"
+	launchModeLive     launchMode = "live"
+)
+
+// launchOptions holds the parsed command-line inputs for the collector binary.
+type launchOptions struct {
+	mode         launchMode
+	cassetteFile string
+}
+
 func main() {
 	if handled, err := buildinfo.PrintVersionFlag(os.Args[1:], os.Stdout, "eshu-collector-oci-registry"); handled {
 		if err != nil {
@@ -30,21 +46,52 @@ func main() {
 		return
 	}
 
-	bootstrap, err := telemetry.NewBootstrap("collector-oci-registry")
+	bootstrap, err := telemetry.NewBootstrap(serviceName)
 	if err != nil {
 		fallback := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 		fallback.Error("collector bootstrap failed", "event_name", "runtime.startup.failed", "error", err)
 		os.Exit(1)
 	}
-	logger := telemetry.NewLogger(bootstrap, "collector-oci-registry", "collector-oci-registry")
+	logger := telemetry.NewLogger(bootstrap, serviceName, serviceName)
 
-	if err := run(context.Background()); err != nil {
-		logger.Error("collector-oci-registry failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+	opts, err := parseArgs(os.Args[1:])
+	if err != nil {
+		logger.Error(serviceName+" argument parsing failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
+
+	if err := run(context.Background(), opts); err != nil {
+		logger.Error(serviceName+" failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(parent context.Context) error {
+// parseArgs parses the collector launch mode. The default mode is live.
+// Cassette mode requires a -cassette-file path.
+func parseArgs(args []string) (launchOptions, error) {
+	flags := flag.NewFlagSet(serviceName, flag.ContinueOnError)
+	mode := flags.String("mode", string(launchModeLive), "collector mode: live or cassette")
+	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (cassette mode only)")
+	if err := flags.Parse(args); err != nil {
+		return launchOptions{}, err
+	}
+	selectedMode := launchMode(strings.TrimSpace(*mode))
+	if selectedMode == "" {
+		selectedMode = launchModeLive
+	}
+	switch selectedMode {
+	case launchModeLive:
+	case launchModeCassette:
+		if strings.TrimSpace(*cassetteFile) == "" {
+			return launchOptions{}, fmt.Errorf("-cassette-file is required in cassette mode")
+		}
+	default:
+		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
+	}
+	return launchOptions{mode: selectedMode, cassetteFile: strings.TrimSpace(*cassetteFile)}, nil
+}
+
+func run(parent context.Context, opts launchOptions) error {
 	bootstrap, err := telemetry.NewBootstrap("collector-oci-registry")
 	if err != nil {
 		return fmt.Errorf("telemetry bootstrap: %w", err)
@@ -93,32 +140,34 @@ func run(parent context.Context) error {
 		StoreName:   "collector_oci_registry",
 	}
 	var runner app.Runner
-	if claimAwareModeEnabled(os.Getenv) {
-		runner, err = buildClaimedService(
-			storeDB,
-			os.Getenv,
-			tracer,
-			instruments,
-			logger,
-		)
-		if err != nil {
-			return err
-		}
-	} else {
-		runner, err = buildCollectorService(
-			parent,
-			storeDB,
-			os.Getenv,
-			tracer,
-			instruments,
-			logger,
-		)
-		if err != nil {
-			return err
+	switch opts.mode {
+	case launchModeCassette:
+		runner, err = buildCassetteService(storeDB, opts.cassetteFile, tracer, instruments, logger)
+	default:
+		if claimAwareModeEnabled(os.Getenv) {
+			runner, err = buildClaimedService(
+				storeDB,
+				os.Getenv,
+				tracer,
+				instruments,
+				logger,
+			)
+		} else {
+			runner, err = buildCollectorService(
+				parent,
+				storeDB,
+				os.Getenv,
+				tracer,
+				instruments,
+				logger,
+			)
 		}
 	}
+	if err != nil {
+		return err
+	}
 	service, err := app.NewHostedWithStatusServer(
-		"collector-oci-registry",
+		serviceName,
 		runner,
 		postgres.NewStatusStore(postgres.SQLQueryer{DB: db}),
 		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),

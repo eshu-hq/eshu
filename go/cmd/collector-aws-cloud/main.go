@@ -34,12 +34,14 @@ type launchMode string
 const (
 	launchModeFixture     launchMode = "fixture"
 	launchModeClaimedLive launchMode = "claimed-live"
+	launchModeCassette    launchMode = "cassette"
 )
 
 // launchOptions holds the parsed command-line inputs for the collector binary.
 type launchOptions struct {
-	mode       launchMode
-	configPath string
+	mode         launchMode
+	configPath   string
+	cassetteFile string
 }
 
 func main() {
@@ -73,11 +75,13 @@ func main() {
 
 // parseArgs parses the collector mode and the fixture config path. The default
 // mode is claimed-live so existing live deployments keep their behavior; the
-// fixture mode is opt-in and requires a config file.
+// fixture mode is opt-in and requires a config file; cassette mode is opt-in
+// and requires a cassette JSON file.
 func parseArgs(args []string) (launchOptions, error) {
 	flags := flag.NewFlagSet("collector-aws-cloud", flag.ContinueOnError)
-	mode := flags.String("mode", string(launchModeClaimedLive), "collector mode: fixture or claimed-live")
+	mode := flags.String("mode", string(launchModeClaimedLive), "collector mode: fixture, claimed-live, or cassette")
 	configPath := flags.String("config", "", "path to the declarative AWS collector fixture config JSON (fixture mode only)")
+	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (cassette mode only)")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
@@ -94,10 +98,18 @@ func parseArgs(args []string) (launchOptions, error) {
 		if strings.TrimSpace(*configPath) != "" {
 			return launchOptions{}, fmt.Errorf("-config is not used in claimed-live mode")
 		}
+	case launchModeCassette:
+		if strings.TrimSpace(*cassetteFile) == "" {
+			return launchOptions{}, fmt.Errorf("-cassette-file is required in cassette mode")
+		}
 	default:
 		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
 	}
-	return launchOptions{mode: selectedMode, configPath: strings.TrimSpace(*configPath)}, nil
+	return launchOptions{
+		mode:         selectedMode,
+		configPath:   strings.TrimSpace(*configPath),
+		cassetteFile: strings.TrimSpace(*cassetteFile),
+	}, nil
 }
 
 func run(parent context.Context, opts launchOptions) error {
@@ -162,8 +174,8 @@ func run(parent context.Context, opts launchOptions) error {
 	return service.Run(ctx)
 }
 
-// buildRuntimeRunner selects the offline fixture service or the live
-// workflow-claimed service for the requested mode.
+// buildRuntimeRunner selects the offline fixture service, the cassette replay
+// service, or the live workflow-claimed service for the requested mode.
 func buildRuntimeRunner(
 	db *sql.DB,
 	opts launchOptions,
@@ -181,6 +193,14 @@ func buildRuntimeRunner(
 			instruments,
 			logger,
 		)
+	case launchModeCassette:
+		storeDB := &postgres.InstrumentedDB{
+			Inner:       postgres.SQLDB{DB: db},
+			Tracer:      tracer,
+			Instruments: instruments,
+			StoreName:   "collector_aws_cloud",
+		}
+		return buildCassetteService(storeDB, opts.cassetteFile, tracer, instruments, logger)
 	case launchModeClaimedLive:
 		storeDB := &postgres.InstrumentedDB{
 			Inner:       postgres.SQLDB{DB: db},

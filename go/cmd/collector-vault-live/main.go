@@ -5,10 +5,12 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -21,6 +23,19 @@ import (
 )
 
 const serviceName = "collector-vault-live"
+
+type launchMode string
+
+const (
+	launchModeCassette    launchMode = "cassette"
+	launchModeClaimedLive launchMode = "claimed-live"
+)
+
+// launchOptions holds the parsed command-line inputs for the collector binary.
+type launchOptions struct {
+	mode         launchMode
+	cassetteFile string
+}
 
 func main() {
 	if handled, err := buildinfo.PrintVersionFlag(os.Args[1:], os.Stdout, "eshu-collector-vault-live"); handled {
@@ -39,13 +54,44 @@ func main() {
 	}
 	logger := telemetry.NewLogger(bootstrap, serviceName, serviceName)
 
-	if err := run(context.Background()); err != nil {
+	opts, err := parseArgs(os.Args[1:])
+	if err != nil {
+		logger.Error(serviceName+" argument parsing failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
+
+	if err := run(context.Background(), opts); err != nil {
 		logger.Error(serviceName+" failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(parent context.Context) error {
+// parseArgs parses the collector launch mode. The default mode is claimed-live.
+// Cassette mode requires a -cassette-file path.
+func parseArgs(args []string) (launchOptions, error) {
+	flags := flag.NewFlagSet(serviceName, flag.ContinueOnError)
+	mode := flags.String("mode", string(launchModeClaimedLive), "collector mode: claimed-live or cassette")
+	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (cassette mode only)")
+	if err := flags.Parse(args); err != nil {
+		return launchOptions{}, err
+	}
+	selectedMode := launchMode(strings.TrimSpace(*mode))
+	if selectedMode == "" {
+		selectedMode = launchModeClaimedLive
+	}
+	switch selectedMode {
+	case launchModeClaimedLive:
+	case launchModeCassette:
+		if strings.TrimSpace(*cassetteFile) == "" {
+			return launchOptions{}, fmt.Errorf("-cassette-file is required in cassette mode")
+		}
+	default:
+		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
+	}
+	return launchOptions{mode: selectedMode, cassetteFile: strings.TrimSpace(*cassetteFile)}, nil
+}
+
+func run(parent context.Context, opts launchOptions) error {
 	bootstrap, err := telemetry.NewBootstrap(serviceName)
 	if err != nil {
 		return fmt.Errorf("telemetry bootstrap: %w", err)
@@ -95,7 +141,13 @@ func run(parent context.Context) error {
 		StoreName:   "collector_vault_live",
 	}
 
-	runner, err := buildClaimedService(storeDB, os.Getenv, tracer, instruments, logger)
+	var runner app.Runner
+	switch opts.mode {
+	case launchModeCassette:
+		runner, err = buildCassetteService(storeDB, opts.cassetteFile, tracer, instruments, logger)
+	default:
+		runner, err = buildClaimedService(storeDB, os.Getenv, tracer, instruments, logger)
+	}
 	if err != nil {
 		return err
 	}

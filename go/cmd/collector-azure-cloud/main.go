@@ -31,12 +31,14 @@ type launchMode string
 const (
 	launchModeFixture     launchMode = "fixture"
 	launchModeClaimedLive launchMode = "claimed-live"
+	launchModeCassette    launchMode = "cassette"
 )
 
 // launchOptions holds the parsed command-line inputs for the collector binary.
 type launchOptions struct {
 	mode             launchMode
 	redactionKeyPath string
+	cassetteFile     string
 }
 
 func main() {
@@ -74,8 +76,9 @@ func main() {
 // redaction key file so live tag observation never runs unkeyed.
 func parseArgs(args []string) (launchOptions, error) {
 	flags := flag.NewFlagSet("collector-azure-cloud", flag.ContinueOnError)
-	mode := flags.String("mode", string(launchModeFixture), "collector mode: fixture or claimed-live")
+	mode := flags.String("mode", string(launchModeFixture), "collector mode: fixture, claimed-live, or cassette")
 	keyPath := flags.String("redaction-key-file", "", "path to the read-only redaction key material file (required in claimed-live mode)")
+	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (cassette mode only)")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
@@ -89,10 +92,14 @@ func parseArgs(args []string) (launchOptions, error) {
 		if strings.TrimSpace(*keyPath) == "" {
 			return launchOptions{}, fmt.Errorf("-redaction-key-file is required in claimed-live mode")
 		}
+	case launchModeCassette:
+		if strings.TrimSpace(*cassetteFile) == "" {
+			return launchOptions{}, fmt.Errorf("-cassette-file is required in cassette mode")
+		}
 	default:
 		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
 	}
-	return launchOptions{mode: selectedMode, redactionKeyPath: strings.TrimSpace(*keyPath)}, nil
+	return launchOptions{mode: selectedMode, redactionKeyPath: strings.TrimSpace(*keyPath), cassetteFile: strings.TrimSpace(*cassetteFile)}, nil
 }
 
 func run(parent context.Context, opts launchOptions) error {
@@ -158,9 +165,10 @@ func run(parent context.Context, opts launchOptions) error {
 	return service.Run(ctx)
 }
 
-// buildRuntimeRunner selects the fixture or claimed-live runner. Fixture mode
-// preserves the environment-driven offline source; claimed-live mode wires the
-// workflow-claimed live runtime.
+// buildRuntimeRunner selects the fixture, claimed-live, or cassette runner.
+// Fixture mode preserves the environment-driven offline source; claimed-live
+// mode wires the workflow-claimed live runtime; cassette mode replays a
+// recorded JSON cassette file without issuing live Azure calls.
 func buildRuntimeRunner(
 	ctx context.Context,
 	db *sql.DB,
@@ -185,6 +193,8 @@ func buildRuntimeRunner(
 			return nil, err
 		}
 		return buildClaimedService(ctx, storeDB, redactionKey, os.Getenv, tracer, meter, instruments, logger)
+	case launchModeCassette:
+		return buildCassetteService(storeDB, opts.cassetteFile, tracer, instruments, logger)
 	default:
 		return nil, fmt.Errorf("unsupported mode %q", opts.mode)
 	}

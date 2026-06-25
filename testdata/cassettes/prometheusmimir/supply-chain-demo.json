@@ -1,0 +1,59 @@
+{
+  "collector": "prometheus_mimir",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "prometheus_mimir:supply-chain-demo-metrics:supply-chain-demo",
+      "source_system": "prometheus_mimir",
+      "scope_kind": "metric_source",
+      "collector_kind": "prometheus_mimir",
+      "partition_key": "prometheus_mimir:supply-chain-demo-metrics:supply-chain-demo",
+      "metadata": {
+        "endpoint": "https://prometheus.supply-chain-demo.internal",
+        "namespace": "supply-chain-demo"
+      },
+      "generation_id": "cassette-prometheus-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.metric_target",
+          "stable_fact_key": "prometheus_mimir:supply-chain-demo-metrics:target:supply-chain-demo:3000",
+          "schema_version": "1.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "endpoint": "https://prometheus.supply-chain-demo.internal",
+            "job": "supply-chain-demo",
+            "instance": "supply-chain-demo:3000",
+            "health": "up",
+            "labels": {
+              "app": "supply-chain-demo",
+              "namespace": "default",
+              "cluster": "supply-chain-demo"
+            },
+            "scrape_interval": "15s"
+          }
+        },
+        {
+          "fact_kind": "observability.recording_rule",
+          "stable_fact_key": "prometheus_mimir:supply-chain-demo-metrics:rule:http_requests_total:rate5m",
+          "schema_version": "1.0",
+          "collector_kind": "prometheus_mimir",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "endpoint": "https://prometheus.supply-chain-demo.internal",
+            "group_name": "supply_chain_demo_rules",
+            "rule_name": "supply_chain_demo:http_requests_total:rate5m",
+            "expr": "rate(http_requests_total{job=\"supply-chain-demo\"}[5m])",
+            "labels": {
+              "app": "supply-chain-demo"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	cassette "github.com/eshu-hq/eshu/go/internal/collector/cassette"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -50,6 +51,34 @@ func buildCollectorService(
 		Source:       &awsruntime.FixtureSource{Config: cfg},
 		Committer:    committer,
 		PollInterval: pollInterval,
+		Tracer:       tracer,
+		Instruments:  instruments,
+		Logger:       logger,
+	}, nil
+}
+
+// buildCassetteService constructs the AWS cloud collector service from a
+// pre-recorded cassette file. It wires a cassette.Source over the shared
+// Postgres ingestion store, so replayed facts flow through the same durable
+// commit, projector, and reducer path as live facts but with no AWS
+// credentials and no network calls.
+func buildCassetteService(
+	database postgres.ExecQueryer,
+	cassettePath string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.Service, error) {
+	src, err := cassette.NewSource(cassettePath)
+	if err != nil {
+		return collector.Service{}, fmt.Errorf("load cassette: %w", err)
+	}
+	committer := postgres.NewIngestionStore(database)
+	committer.Logger = logger
+	return collector.Service{
+		Source:       src,
+		Committer:    committer,
+		PollInterval: 24 * time.Hour,
 		Tracer:       tracer,
 		Instruments:  instruments,
 		Logger:       logger,
