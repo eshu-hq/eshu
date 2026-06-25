@@ -19,7 +19,7 @@
         {
           "fact_kind": "oci_image_manifest",
           "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:supply-chain-demo:sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
-          "schema_version": "1.0",
+          "schema_version": "1.0.0",
           "collector_kind": "oci_registry",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -28,7 +28,10 @@
             "repository": "eshu-hq/supply-chain-demo",
             "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
             "media_type": "application/vnd.oci.image.manifest.v1+json",
-            "tags": ["latest", "1.0.0"],
+            "tags": [
+              "latest",
+              "1.0.0"
+            ],
             "config_digest": "sha256:config1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
             "created_at": "2026-06-25T00:00:00Z",
             "os": "linux",

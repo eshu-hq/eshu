@@ -17,9 +17,9 @@
       "trigger_kind": "snapshot",
       "facts": [
         {
-          "fact_kind": "observability.metric_target",
-          "stable_fact_key": "prometheus_mimir:supply-chain-demo-metrics:target:supply-chain-demo:3000",
-          "schema_version": "1.0",
+          "fact_kind": "observability.observed_target",
+          "stable_fact_key": "prometheus_mimir:supply-chain-demo-metrics:observed_target:supply-chain-demo:3000",
+          "schema_version": "1.0.0",
           "collector_kind": "prometheus_mimir",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -37,9 +37,9 @@
           }
         },
         {
-          "fact_kind": "observability.recording_rule",
-          "stable_fact_key": "prometheus_mimir:supply-chain-demo-metrics:rule:http_requests_total:rate5m",
-          "schema_version": "1.0",
+          "fact_kind": "observability.observed_rule",
+          "stable_fact_key": "prometheus_mimir:supply-chain-demo-metrics:observed_rule:http_requests_total:rate5m",
+          "schema_version": "1.0.0",
           "collector_kind": "prometheus_mimir",
           "fencing_token": 1,
           "source_confidence": "observed",

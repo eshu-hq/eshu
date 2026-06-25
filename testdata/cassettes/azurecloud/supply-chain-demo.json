@@ -19,7 +19,7 @@
         {
           "fact_kind": "azure_resource",
           "stable_fact_key": "azure:00000000-0000-0000-0000-000000000001:Microsoft.ContainerRegistry/registries:supply-chain-demo-acr",
-          "schema_version": "1.0",
+          "schema_version": "1.0.0",
           "collector_kind": "azure",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -42,7 +42,7 @@
         {
           "fact_kind": "azure_resource",
           "stable_fact_key": "azure:00000000-0000-0000-0000-000000000001:Microsoft.App/containerApps:supply-chain-demo",
-          "schema_version": "1.0",
+          "schema_version": "1.0.0",
           "collector_kind": "azure",
           "fencing_token": 1,
           "source_confidence": "observed",
