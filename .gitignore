@@ -15,6 +15,7 @@ go/eshu-mcp-server
 go/eshu-projector
 go/eshu-reducer
 go/eshu-workflow-coordinator
+go/golden-corpus-gate
 go/ingester
 go/mcp-server
 go/eshu
