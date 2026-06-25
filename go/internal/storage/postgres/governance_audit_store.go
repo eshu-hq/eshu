@@ -5,8 +5,11 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -22,103 +25,6 @@ const (
 // ErrGovernanceAuditQueryUnauthorized marks a detailed audit query without an
 // operator authorization gate.
 var ErrGovernanceAuditQueryUnauthorized = errors.New("governance audit detailed query is unauthorized")
-
-const governanceAuditEventsSchemaSQL = `
-CREATE TABLE IF NOT EXISTS governance_audit_events (
-    event_id TEXT PRIMARY KEY,
-    event_type TEXT NOT NULL,
-    actor_class TEXT NOT NULL,
-    actor_id_hash TEXT NULL,
-    service_principal_id TEXT NULL,
-    scope_class TEXT NOT NULL,
-    scope_id_hash TEXT NULL,
-    decision TEXT NOT NULL,
-    reason_code TEXT NOT NULL,
-    correlation_id TEXT NULL,
-    policy_revision_hash TEXT NULL,
-    occurred_at TIMESTAMPTZ NOT NULL,
-    persisted_at TIMESTAMPTZ NOT NULL,
-    tenant_id TEXT NULL,
-    workspace_id TEXT NULL
-);
-
-ALTER TABLE governance_audit_events ADD COLUMN IF NOT EXISTS tenant_id TEXT NULL;
-ALTER TABLE governance_audit_events ADD COLUMN IF NOT EXISTS workspace_id TEXT NULL;
-
-CREATE INDEX IF NOT EXISTS governance_audit_events_query_idx
-    ON governance_audit_events (
-        event_type,
-        actor_class,
-        scope_class,
-        decision,
-        occurred_at ASC,
-        event_id ASC
-    );
-
-CREATE INDEX IF NOT EXISTS governance_audit_events_correlation_idx
-    ON governance_audit_events (correlation_id, occurred_at ASC, event_id ASC)
-    WHERE correlation_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS governance_audit_events_reason_idx
-    ON governance_audit_events (reason_code, occurred_at ASC, event_id ASC);
-
-CREATE INDEX IF NOT EXISTS governance_audit_events_tenant_idx
-    ON governance_audit_events (tenant_id, occurred_at ASC, event_id ASC)
-    WHERE tenant_id IS NOT NULL;
-`
-
-const insertGovernanceAuditEventsPrefix = `
-INSERT INTO governance_audit_events (
-    event_id,
-    event_type,
-    actor_class,
-    actor_id_hash,
-    service_principal_id,
-    scope_class,
-    scope_id_hash,
-    decision,
-    reason_code,
-    correlation_id,
-    policy_revision_hash,
-    occurred_at,
-    persisted_at,
-    tenant_id,
-    workspace_id
-) VALUES `
-
-const insertGovernanceAuditEventsSuffix = `
-ON CONFLICT (event_id) DO NOTHING
-`
-
-const governanceAuditSummarySQL = `
-WITH base AS (
-    SELECT event_type, actor_class, scope_class, decision, reason_code, occurred_at
-    FROM governance_audit_events
-),
-summary_rows AS (
-    SELECT 'total' AS category, '' AS name, COUNT(*)::BIGINT AS count,
-        COALESCE(MAX(occurred_at), '1970-01-01T00:00:00Z'::timestamptz) AS last_occurred_at
-    FROM base
-    UNION ALL
-    SELECT 'event_type', event_type, COUNT(*)::BIGINT, MAX(occurred_at)
-    FROM base GROUP BY event_type
-    UNION ALL
-    SELECT 'decision', decision, COUNT(*)::BIGINT, MAX(occurred_at)
-    FROM base GROUP BY decision
-    UNION ALL
-    SELECT 'reason', reason_code, COUNT(*)::BIGINT, MAX(occurred_at)
-    FROM base GROUP BY reason_code
-    UNION ALL
-    SELECT 'actor_class', actor_class, COUNT(*)::BIGINT, MAX(occurred_at)
-    FROM base GROUP BY actor_class
-    UNION ALL
-    SELECT 'scope_class', scope_class, COUNT(*)::BIGINT, MAX(occurred_at)
-    FROM base GROUP BY scope_class
-)
-SELECT category, name, count, last_occurred_at
-FROM summary_rows
-ORDER BY category ASC, name ASC
-`
 
 // GovernanceAuditQuery bounds private detailed audit queries.
 type GovernanceAuditQuery struct {
@@ -152,11 +58,6 @@ type GovernanceAuditStore struct {
 // NewGovernanceAuditStore creates a Postgres-backed governance audit store.
 func NewGovernanceAuditStore(db ExecQueryer) GovernanceAuditStore {
 	return GovernanceAuditStore{db: db}
-}
-
-// GovernanceAuditEventsSchemaSQL returns the private audit sink DDL.
-func GovernanceAuditEventsSchemaSQL() string {
-	return governanceAuditEventsSchemaSQL
 }
 
 // EnsureSchema applies the private audit sink DDL.
@@ -329,14 +230,66 @@ func (s GovernanceAuditStore) DeleteExpired(ctx context.Context, cutoff time.Tim
 	return deleted, nil
 }
 
-func governanceAuditEventsBootstrapDefinition() Definition {
-	return Definition{
-		Name: "governance_audit_events",
-		Path: "schema/data-plane/postgres/006b_governance_audit_events.sql",
-		SQL:  GovernanceAuditEventsSchemaSQL(),
+func (s GovernanceAuditStore) appendBatch(
+	ctx context.Context,
+	events []governanceaudit.Event,
+	persistedAt time.Time,
+) error {
+	args := make([]any, 0, len(events)*governanceAuditColumnsPerRow)
+	var values strings.Builder
+	for i, event := range events {
+		if i > 0 {
+			values.WriteString(", ")
+		}
+		offset := i * governanceAuditColumnsPerRow
+		fmt.Fprintf(
+			&values,
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
+			offset+7, offset+8, offset+9, offset+10, offset+11, offset+12, offset+13,
+			offset+14, offset+15,
+		)
+		args = append(
+			args,
+			governanceAuditEventID(event),
+			string(event.Type),
+			string(event.ActorClass),
+			nullableGovernanceAuditString(event.ActorIDHash),
+			nullableGovernanceAuditString(event.ServicePrincipalID),
+			string(event.ScopeClass),
+			nullableGovernanceAuditString(event.ScopeIDHash),
+			string(event.Decision),
+			event.ReasonCode,
+			nullableGovernanceAuditString(event.CorrelationID),
+			nullableGovernanceAuditString(event.PolicyRevisionHash),
+			event.OccurredAt.UTC(),
+			persistedAt,
+			nullableGovernanceAuditString(event.TenantID),
+			nullableGovernanceAuditString(event.WorkspaceID),
+		)
 	}
+	query := insertGovernanceAuditEventsPrefix + values.String() + insertGovernanceAuditEventsSuffix
+	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("append governance audit events (%d rows): %w", len(events), err)
+	}
+	return nil
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, governanceAuditEventsBootstrapDefinition())
+func governanceAuditEventID(event governanceaudit.Event) string {
+	parts := []string{
+		string(event.Type), string(event.ActorClass), event.ActorIDHash,
+		event.ServicePrincipalID, string(event.ScopeClass), event.ScopeIDHash,
+		string(event.Decision), event.ReasonCode, event.CorrelationID,
+		event.PolicyRevisionHash, event.OccurredAt.UTC().Format(time.RFC3339Nano),
+		event.TenantID, event.WorkspaceID,
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func nullableGovernanceAuditString(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
 }

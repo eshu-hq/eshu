@@ -381,9 +381,9 @@ func TestSAMLHandlerACSRedirectsToReturnToPath(t *testing.T) {
 		replayOK:     true,
 		returnToPath: "/dashboard/projects",
 		sessionAuth: AuthContext{
-			Mode:        AuthModeBrowserSession,
-			TenantID:    "tenant_a",
-			WorkspaceID: "workspace_a",
+			Mode:         AuthModeBrowserSession,
+			TenantID:     "tenant_a",
+			WorkspaceID:  "workspace_a",
 			SubjectClass: "external_saml",
 		},
 	}

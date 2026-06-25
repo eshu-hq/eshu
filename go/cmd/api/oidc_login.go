@@ -43,7 +43,7 @@ type oidcServiceAdapter struct {
 // config file. No sensitive fields (issuer URL, client ID, scopes, claims) are
 // included. The caller deduplicates against DB rows before surfacing to clients.
 func (a oidcServiceAdapter) ListOIDCProviderIDs() []query.OIDCRegisteredProvider {
-	providers := a.Service.RegisteredProviders()
+	providers := a.RegisteredProviders()
 	result := make([]query.OIDCRegisteredProvider, 0, len(providers))
 	for _, p := range providers {
 		result = append(result, query.OIDCRegisteredProvider{
