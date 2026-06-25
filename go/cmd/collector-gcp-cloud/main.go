@@ -32,6 +32,7 @@ type launchMode string
 const (
 	launchModeFixture     launchMode = "fixture"
 	launchModeClaimedLive launchMode = "claimed-live"
+	launchModeCassette    launchMode = "cassette"
 )
 
 // launchOptions holds the parsed command-line inputs for the scaffolding binary.
@@ -39,6 +40,7 @@ type launchOptions struct {
 	mode             launchMode
 	configPath       string
 	redactionKeyPath string
+	cassetteFile     string
 }
 
 func main() {
@@ -73,9 +75,10 @@ func main() {
 // parseArgs parses the config and redaction-key file paths.
 func parseArgs(args []string) (launchOptions, error) {
 	flags := flag.NewFlagSet("collector-gcp-cloud", flag.ContinueOnError)
-	mode := flags.String("mode", string(launchModeFixture), "collector mode: fixture or claimed-live")
+	mode := flags.String("mode", string(launchModeFixture), "collector mode: fixture, claimed-live, or cassette")
 	configPath := flags.String("config", "", "path to the declarative GCP collector config JSON")
 	keyPath := flags.String("redaction-key-file", "", "path to the read-only redaction key material file")
+	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (cassette mode only)")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
@@ -92,13 +95,22 @@ func parseArgs(args []string) (launchOptions, error) {
 		if strings.TrimSpace(*configPath) != "" {
 			return launchOptions{}, fmt.Errorf("-config is not used in claimed-live mode")
 		}
+	case launchModeCassette:
+		if strings.TrimSpace(*cassetteFile) == "" {
+			return launchOptions{}, fmt.Errorf("-cassette-file is required in cassette mode")
+		}
 	default:
 		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
 	}
-	if strings.TrimSpace(*keyPath) == "" {
+	if selectedMode != launchModeCassette && strings.TrimSpace(*keyPath) == "" {
 		return launchOptions{}, fmt.Errorf("-redaction-key-file is required")
 	}
-	return launchOptions{mode: selectedMode, configPath: *configPath, redactionKeyPath: *keyPath}, nil
+	return launchOptions{
+		mode:             selectedMode,
+		configPath:       strings.TrimSpace(*configPath),
+		redactionKeyPath: *keyPath,
+		cassetteFile:     strings.TrimSpace(*cassetteFile),
+	}, nil
 }
 
 func run(parent context.Context, opts launchOptions) error {
@@ -135,9 +147,12 @@ func run(parent context.Context, opts launchOptions) error {
 		}()
 	}
 
-	redactionKey, err := loadRedactionKey(opts.redactionKeyPath)
-	if err != nil {
-		return err
+	var redactionKey redact.Key
+	if opts.mode != launchModeCassette {
+		redactionKey, err = loadRedactionKey(opts.redactionKeyPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
@@ -197,6 +212,14 @@ func buildRuntimeRunner(
 			StoreName:   "collector_gcp_cloud",
 		}
 		return buildClaimedService(ctx, storeDB, redactionKey, os.Getenv, tracer, meter, instruments, logger)
+	case launchModeCassette:
+		storeDB := &postgres.InstrumentedDB{
+			Inner:       postgres.SQLDB{DB: db},
+			Tracer:      tracer,
+			Instruments: instruments,
+			StoreName:   "collector_gcp_cloud",
+		}
+		return buildCassetteService(storeDB, opts.cassetteFile, tracer, instruments, logger)
 	default:
 		return nil, fmt.Errorf("unsupported mode %q", opts.mode)
 	}

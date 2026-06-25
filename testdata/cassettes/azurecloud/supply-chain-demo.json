@@ -1,0 +1,66 @@
+{
+  "collector": "azure",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "azure:00000000-0000-0000-0000-000000000001:subscription:supply-chain-demo-rg",
+      "source_system": "azure",
+      "scope_kind": "account",
+      "collector_kind": "azure",
+      "partition_key": "azure:00000000-0000-0000-0000-000000000001:subscription:supply-chain-demo-rg",
+      "metadata": {
+        "tenant_id": "00000000-0000-0000-0000-000000000001",
+        "subscription_id": "00000000-0000-0000-0000-000000000002"
+      },
+      "generation_id": "cassette-azure-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "azure_resource",
+          "stable_fact_key": "azure:00000000-0000-0000-0000-000000000001:Microsoft.ContainerRegistry/registries:supply-chain-demo-acr",
+          "schema_version": "1.0.0",
+          "collector_kind": "azure",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "id": "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/supply-chain-demo-rg/providers/Microsoft.ContainerRegistry/registries/supplychaindemoacr",
+            "name": "supplychaindemoacr",
+            "type": "Microsoft.ContainerRegistry/registries",
+            "location": "eastus",
+            "resource_group": "supply-chain-demo-rg",
+            "subscription_id": "00000000-0000-0000-0000-000000000002",
+            "correlation_anchors": [
+              "supplychaindemoacr.azurecr.io"
+            ],
+            "properties": {
+              "login_server": "supplychaindemoacr.azurecr.io",
+              "sku": "Basic"
+            }
+          }
+        },
+        {
+          "fact_kind": "azure_resource",
+          "stable_fact_key": "azure:00000000-0000-0000-0000-000000000001:Microsoft.App/containerApps:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "azure",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "id": "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/supply-chain-demo-rg/providers/Microsoft.App/containerApps/supply-chain-demo",
+            "name": "supply-chain-demo",
+            "type": "Microsoft.App/containerApps",
+            "location": "eastus",
+            "resource_group": "supply-chain-demo-rg",
+            "subscription_id": "00000000-0000-0000-0000-000000000002",
+            "correlation_anchors": [],
+            "properties": {
+              "provisioning_state": "Succeeded",
+              "latest_revision_fqdn": "supply-chain-demo.eastus.azurecontainerapps.io"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

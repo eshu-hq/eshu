@@ -1,0 +1,91 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:123456789012:us-east-1:ecr",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:123456789012:us-east-1:ecr",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "ecr"
+      },
+      "generation_id": "cassette-aws-ecr-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:ecr:repository:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:ecr:us-east-1:123456789012:repository/supply-chain-demo",
+            "resource_id": "supply-chain-demo",
+            "resource_type": "ecr.repository",
+            "name": "supply-chain-demo",
+            "state": "active",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "ecr",
+            "correlation_anchors": [
+              "arn:aws:ecr:us-east-1:123456789012:repository/supply-chain-demo"
+            ],
+            "attributes": {
+              "uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
+              "image_tag_mutability": "MUTABLE"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "aws:123456789012:us-east-1:ecs",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:123456789012:us-east-1:ecs",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "ecs"
+      },
+      "generation_id": "cassette-aws-ecs-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:ecs:service:supply-chain-demo/supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:ecs:us-east-1:123456789012:service/supply-chain-demo/supply-chain-demo",
+            "resource_id": "supply-chain-demo",
+            "resource_type": "ecs.service",
+            "name": "supply-chain-demo",
+            "state": "active",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "ecs",
+            "correlation_anchors": [
+              "arn:aws:ecs:us-east-1:123456789012:service/supply-chain-demo/supply-chain-demo"
+            ],
+            "attributes": {
+              "cluster_arn": "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo",
+              "desired_count": 2,
+              "running_count": 2
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

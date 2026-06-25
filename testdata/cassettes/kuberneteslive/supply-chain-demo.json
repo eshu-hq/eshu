@@ -1,0 +1,86 @@
+{
+  "collector": "kubernetes_live",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "kubernetes_live:cluster:supply-chain-demo",
+      "source_system": "kubernetes_live",
+      "scope_kind": "cluster",
+      "collector_kind": "kubernetes_live",
+      "partition_key": "kubernetes_live:cluster:supply-chain-demo",
+      "metadata": {
+        "cluster_name": "supply-chain-demo",
+        "cluster_id": "supply-chain-demo"
+      },
+      "generation_id": "cassette-k8s-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:deployment:default:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "supply-chain-demo",
+            "namespace": "default",
+            "name": "supply-chain-demo",
+            "kind": "Deployment",
+            "labels": {
+              "app": "supply-chain-demo",
+              "version": "1.0.0"
+            },
+            "containers": [
+              {
+                "name": "app",
+                "image": "ghcr.io/eshu-hq/supply-chain-demo:sha256-synthetic-abc123",
+                "ports": [{"container_port": 3000, "protocol": "TCP"}],
+                "env_keys": ["NODE_ENV", "VAULT_ADDR", "DATABASE_URL"]
+              }
+            ],
+            "service_account": "supply-chain-demo",
+            "replicas": 2
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:service:default:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "supply-chain-demo",
+            "namespace": "default",
+            "name": "supply-chain-demo",
+            "kind": "Service",
+            "labels": {"app": "supply-chain-demo"},
+            "ports": [{"port": 80, "target_port": 3000, "protocol": "TCP"}],
+            "selector": {"app": "supply-chain-demo"},
+            "type": "ClusterIP"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.relationship",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:rel:deployment:service:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "cluster_id": "supply-chain-demo",
+            "relationship_type": "EXPOSES",
+            "source_kind": "Deployment",
+            "source_namespace": "default",
+            "source_name": "supply-chain-demo",
+            "target_kind": "Service",
+            "target_namespace": "default",
+            "target_name": "supply-chain-demo"
+          }
+        }
+      ]
+    }
+  ]
+}

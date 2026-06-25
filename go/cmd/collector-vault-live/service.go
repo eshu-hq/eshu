@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/cassette"
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive/vaultapi"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -25,6 +26,31 @@ import (
 )
 
 var fallbackClaimSequence uint64
+
+// buildCassetteService wires a credential-free cassette source onto the shared
+// collector commit boundary. It requires no live Vault credentials.
+func buildCassetteService(
+	database postgres.ExecQueryer,
+	cassettePath string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.Service, error) {
+	src, err := cassette.NewSource(cassettePath)
+	if err != nil {
+		return collector.Service{}, fmt.Errorf("load cassette: %w", err)
+	}
+	committer := postgres.NewIngestionStore(database)
+	committer.Logger = logger
+	return collector.Service{
+		Source:       src,
+		Committer:    committer,
+		PollInterval: 24 * time.Hour,
+		Tracer:       tracer,
+		Instruments:  instruments,
+		Logger:       logger,
+	}, nil
+}
 
 func buildClaimedService(
 	database postgres.ExecQueryer,

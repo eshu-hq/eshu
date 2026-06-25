@@ -1,0 +1,69 @@
+{
+  "collector": "gcp",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "gcp:project:supply-chain-demo-project",
+      "source_system": "gcp",
+      "scope_kind": "account",
+      "collector_kind": "gcp",
+      "partition_key": "gcp:project:supply-chain-demo-project",
+      "metadata": {
+        "project_id": "supply-chain-demo-project",
+        "project_number": "123456789"
+      },
+      "generation_id": "cassette-gcp-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "gcp_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:container.googleapis.com/Cluster:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "asset_type": "container.googleapis.com/Cluster",
+            "name": "//container.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/clusters/supply-chain-demo",
+            "resource_id": "supply-chain-demo",
+            "project_id": "supply-chain-demo-project",
+            "location": "us-central1",
+            "state": "RUNNING",
+            "correlation_anchors": [
+              "//container.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/clusters/supply-chain-demo"
+            ],
+            "properties": {
+              "node_count": 3,
+              "node_machine_type": "n2-standard-4",
+              "kubernetes_version": "1.28.6-gke.1369000"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:artifactregistry.googleapis.com/Repository:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "asset_type": "artifactregistry.googleapis.com/Repository",
+            "name": "//artifactregistry.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/repositories/supply-chain-demo",
+            "resource_id": "supply-chain-demo",
+            "project_id": "supply-chain-demo-project",
+            "location": "us-central1",
+            "state": "active",
+            "correlation_anchors": [
+              "us-central1-docker.pkg.dev/supply-chain-demo-project/supply-chain-demo"
+            ],
+            "properties": {
+              "format": "DOCKER",
+              "mode": "STANDARD_REPOSITORY"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
