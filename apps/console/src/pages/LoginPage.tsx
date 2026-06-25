@@ -109,25 +109,34 @@ export function LoginPage({
     return path;
   }
 
+  // safeNavigate parses the target through the URL API and navigates only to
+  // http(s) destinations, rejecting javascript:/data: and other script-bearing
+  // schemes before they reach location.assign.
+  function safeNavigate(url: string): void {
+    let target: URL;
+    try {
+      target = new URL(url, globalThis.location?.origin ?? undefined);
+    } catch {
+      return;
+    }
+    if (target.protocol === "http:" || target.protocol === "https:") {
+      globalThis.location.assign(target.href);
+    }
+  }
+
   function handleSSOClick(provider: AuthLoginProvider): void {
     const returnTo = safeSSOReturnPath(globalThis.location?.pathname);
     if (provider.provider_kind === "oidc") {
       beginOidcLogin(
         baseUrl,
         { providerConfigId: provider.provider_config_id, returnTo },
-        redirectFn ??
-          ((url) => {
-            globalThis.location.assign(url);
-          }),
+        redirectFn ?? safeNavigate,
       );
     } else {
       beginSamlLogin(
         baseUrl,
         { providerId: provider.provider_config_id, returnTo },
-        redirectFn ??
-          ((url) => {
-            globalThis.location.assign(url);
-          }),
+        redirectFn ?? safeNavigate,
       );
     }
   }
