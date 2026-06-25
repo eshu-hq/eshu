@@ -262,9 +262,24 @@ jobs:
         # module twice — once for SARIF, once for text — pushed wall time past
         # the timeout. Only the SARIF is consumed (uploaded to the Security
         # tab), so emit SARIF only.
+        #
+        # `-no-fail` because gosec's bundled go/types loader cannot fully
+        # type-check some Go 1.26 generics (it logs "package <x> has type
+        # errors, skipping SSA analysis" for `query`/`reducer` and then exits
+        # non-zero) even when there are zero security findings. That exit is an
+        # analysis-tooling artifact, not a real finding. So we suppress gosec's
+        # own exit code and instead gate on the actual finding count in the
+        # SARIF: any reported result fails the job; the benign type-check
+        # errors (which carry no SARIF results) do not.
         run: |
           set -euo pipefail
-          gosec -severity=low -confidence=low -fmt=sarif -out gosec.sarif ./...
+          gosec -severity=low -confidence=low -no-fail -fmt=sarif -out gosec.sarif ./...
+          findings="$(jq '[.runs[].results[]] | length' gosec.sarif)"
+          printf 'gosec: %s finding(s) in SARIF\n' "${findings}"
+          if [ "${findings}" -ne 0 ]; then
+            printf 'gosec: security findings present — see the SARIF / Security tab\n' >&2
+            exit 1
+          fi
 
       - name: Upload gosec SARIF to GitHub Security tab
         if: always()
