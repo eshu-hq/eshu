@@ -85,16 +85,16 @@ collector-kubernetes-live \
 The `buildCassetteService` function in each binary's `service.go` wires
 `cassette.NewSource(cassettePath)` as the source.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
-`Source` performs no network calls, acquires no credentials, and holds no shared
-mutable state beyond its scope index (which advances single-threaded per
-`collector.Service`). Verified by
+No-Regression Evidence: `Source` performs no network calls, acquires no
+credentials, and holds no shared mutable state beyond its scope index (which
+advances single-threaded per `collector.Service`). Verified by
 `go test ./internal/collector/cassette/... -count=1`.
 
-## No-Observability-Change
+## No-Observability-Change:
 
-No new metrics, spans, or log lines are emitted by the cassette package itself.
-Collector-level telemetry (collection cycle duration, fact count) records
-normally because `Source` is wired through the standard `collector.Service`
-poll loop.
+No-Observability-Change: no new metrics, spans, or log lines are emitted by the
+cassette package itself. Collector-level telemetry (collection cycle duration,
+fact count) records normally because `Source` is wired through the standard
+`collector.Service` poll loop.
