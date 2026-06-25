@@ -1,7 +1,7 @@
 # golangci-lint-filelength
 
 A small [Go plugin](https://golangci-lint.run/docs/plugins/go-plugins) for
-[golangci-lint v2.11.4](https://github.com/golangci/golangci-lint) that
+[golangci-lint v2.12.2](https://github.com/golangci/golangci-lint) that
 enforces Eshu's repository-wide **500-line file cap** on non-test,
 non-generated Go source files.
 
@@ -54,7 +54,7 @@ This plugin uses option 1 because:
 ## Version pinning
 
 The plugin must be built against the **same** `golang.org/x/tools`
-revision that golangci-lint v2.11.4 vendors. A mismatch makes
+revision that golangci-lint v2.12.2 vendors. A mismatch makes
 `plugin.Open` fail with:
 
 ```text
@@ -62,8 +62,8 @@ plugin was built with a different version of package
 golang.org/x/tools/go/analysis
 ```
 
-`go.mod` pins `golang.org/x/tools v0.43.0` (the revision in
-`go/pkg/mod/github.com/golangci/golangci-lint/v2@v2.11.4/go.mod`).
+`go.mod` pins `golang.org/x/tools v0.44.0` (the revision in
+`go/pkg/mod/github.com/golangci/golangci-lint/v2@v2.12.2/go.mod`).
 When bumping golangci-lint, bump this pin in the same PR.
 
 ## Build and test
@@ -98,7 +98,7 @@ linters:
   run: make build
 
 - name: Install golangci-lint
-  run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+  run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 
 - name: Lint Go
   working-directory: go

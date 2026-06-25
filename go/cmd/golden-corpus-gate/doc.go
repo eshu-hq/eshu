@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+// Command golden-corpus-gate is the typed assertion step of the B-7 golden
+// end-to-end corpus gate (issue #3800).
+//
+// It diffs a live pipeline run against the B-12 golden snapshot
+// (testdata/golden/e2e-20repo-snapshot.json) and asserts the four B-7
+// acceptance buckets:
+//
+//   - drains: fact_work_items residual rows and shared_projection_intents
+//     nonterminal rows both reach their snapshot bound. The
+//     shared_projection_intents check is the B-13 (#3859) gate — a zero
+//     fact_work_items queue alone misses held projection intents, so this gate
+//     also waits for the projection-intent ledger to reach a terminal state.
+//   - graph: required correlations (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...)
+//     must exist. Per-label node and per-relationship edge counts are reported
+//     against the snapshot tolerances as advisory findings, because those
+//     ranges are calibrated for the full 20-repo corpus, not the minimal gate.
+//   - query: canonical HTTP responses carry their required shape.
+//   - timing: pipeline wall time stays within a budget multiplier.
+//
+// The command connects to a Postgres DSN, a graph backend, and a running
+// eshu-api using the same environment variables the services under test use
+// (ESHU_POSTGRES_DSN, ESHU_GRAPH_BACKEND, NEO4J_URI, ESHU_API_KEY, ...). The
+// orchestration that actually runs the pipeline — bootstrap-index over a
+// minimal repo corpus, the B-10 cassette collectors, and the reducer drain —
+// lives in scripts/verify-golden-corpus-gate.sh, which invokes this command for
+// each phase.
+//
+// Exit status is non-zero when any required finding fails; advisory findings are
+// printed but never fail the gate. An empty report (no assertions executed) is
+// treated as a failure.
+package main

@@ -1,0 +1,86 @@
+name: Golden Corpus Gate
+
+# B-7 golden end-to-end corpus gate (#3800). Runs the full pipeline over a
+# minimal repo corpus with the B-10 cassette collectors and diffs the result
+# against the B-12 golden snapshot. Required on every PR that touches a pipeline
+# phase (sync/discover/parse/collect/reduce/query), because those are exactly the
+# changes that can silently break end-to-end behaviour.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'go/internal/collector/**'
+      - 'go/internal/parser/**'
+      - 'go/internal/projector/**'
+      - 'go/internal/reducer/**'
+      - 'go/internal/query/**'
+      - 'go/internal/storage/**'
+      - 'go/cmd/bootstrap-index/**'
+      - 'go/cmd/ingester/**'
+      - 'go/cmd/projector/**'
+      - 'go/cmd/reducer/**'
+      - 'go/cmd/collector-**'
+      - 'go/cmd/api/**'
+      - 'go/cmd/golden-corpus-gate/**'
+      - 'testdata/golden/**'
+      - 'testdata/cassettes/**'
+      - 'scripts/verify-golden-corpus-gate.sh'
+      - 'scripts/test-verify-golden-corpus-gate.sh'
+      - '.github/workflows/golden-corpus-gate.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Least privilege: the gate only checks out and reads the repo.
+permissions:
+  contents: read
+
+jobs:
+  static-mirror:
+    name: static mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Validate orchestrator contract
+        run: bash scripts/test-verify-golden-corpus-gate.sh
+
+  corpus-gate:
+    name: corpus-gate (${{ matrix.graph_backend }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - graph_backend: nornicdb
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run B-7 golden corpus gate
+        env:
+          ESHU_GRAPH_BACKEND: ${{ matrix.graph_backend }}
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+        run: bash scripts/verify-golden-corpus-gate.sh
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+
+      - name: Tear down Docker services
+        if: always()
+        run: docker compose -f docker-compose.yaml down -v || true

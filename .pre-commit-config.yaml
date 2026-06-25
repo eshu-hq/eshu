@@ -1,0 +1,77 @@
+# Local pre-commit hooks that mirror the CI gates which have repeatedly blocked
+# PRs, so they fail fast at commit time instead of on GitHub. Setup:
+#
+#   pip install pre-commit   # or: brew install pre-commit
+#   pre-commit install --install-hooks
+#   pre-commit install --hook-type pre-push
+#
+# The Go hooks bootstrap golangci-lint / gosec at the CI-pinned versions using
+# the local `go` toolchain on first run (cached under .git/eshu-precommit), so
+# they match CI exactly. See scripts/dev/precommit-go.sh.
+minimum_pre_commit_version: "3.5.0"
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-added-large-files
+        # Catches an accidentally-committed Go build artifact (e.g. a bare
+        # `go build ./cmd/...` dropping a ~28MB binary).
+        args: ["--maxkb=1024"]
+
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: gofumpt formatting (golangci-lint fmt)
+        entry: scripts/dev/precommit-go.sh fmt
+        language: script
+        types: [go]
+        pass_filenames: true
+        require_serial: true
+
+      - id: go-lint
+        name: golangci-lint (changed packages)
+        entry: scripts/dev/precommit-go.sh lint
+        language: script
+        types: [go]
+        pass_filenames: true
+        require_serial: true
+
+      - id: go-file-cap
+        name: 500-line Go file cap
+        entry: scripts/dev/precommit-go.sh filecap
+        language: script
+        types: [go]
+        pass_filenames: true
+
+      - id: go-package-docs
+        name: Go package docs (doc.go/README.md/AGENTS.md)
+        entry: scripts/verify-package-docs.sh
+        language: script
+        files: '^go/(internal|cmd)/'
+        pass_filenames: false
+
+      - id: capability-surface-inventory
+        name: capability surface-inventory drift
+        entry: scripts/dev/precommit-go.sh surface
+        language: script
+        files: '^(go/internal/capabilitycatalog/|go/cmd/|specs/surface-inventory)'
+        pass_filenames: false
+        require_serial: true
+
+      # gosec is slow on Go 1.26 (per-package SSA); run it at push time, not on
+      # every commit.
+      - id: go-gosec
+        name: gosec (changed packages)
+        entry: scripts/dev/precommit-go.sh gosec
+        language: script
+        types: [go]
+        pass_filenames: true
+        require_serial: true
+        stages: [pre-push]
