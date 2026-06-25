@@ -37,18 +37,52 @@ func TestPollUntilDrainedConvergesAfterRetries(t *testing.T) {
 		{FactWorkItemsResidual: 1, SharedIntentsNonterminal: 1},
 		{}, // drained
 	}}
-	counts, drained, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), time.Second, time.Millisecond)
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if !drained {
+	if !ok {
 		t.Fatalf("expected drained, got counts %+v", counts)
+	}
+}
+
+func TestPollUntilDrainedWaitsForPopulation(t *testing.T) {
+	// Both queues read empty from the start, but the reducer has not emitted the
+	// required domain until the third poll. The poll must NOT converge on the
+	// early empty reads (the premature-convergence bug).
+	q := &fakeDrainQuerier{seq: []DrainCounts{
+		{PopulatedDomainsPresent: 0}, // empty + unpopulated — must not converge
+		{PopulatedDomainsPresent: 0},
+		{PopulatedDomainsPresent: 1}, // reducer emitted; empty + populated — converge
+	}}
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, time.Second, time.Millisecond)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected convergence after population, got %+v", counts)
+	}
+	if q.i < 3 {
+		t.Errorf("converged after %d polls; must wait for population (>=3)", q.i)
+	}
+}
+
+func TestPollUntilDrainedTimesOutWhenNeverPopulated(t *testing.T) {
+	// Queues are empty but the reducer never emits the required domain → the gate
+	// must NOT report drained (it would otherwise pass on an unreduced pipeline).
+	q := &fakeDrainQuerier{seq: []DrainCounts{{PopulatedDomainsPresent: 0}}}
+	_, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, 5*time.Millisecond, time.Millisecond)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if ok {
+		t.Fatal("must not converge when the required domain is never populated")
 	}
 }
 
 func TestPollUntilDrainedTimeoutReturnsLastCounts(t *testing.T) {
 	q := &fakeDrainQuerier{seq: []DrainCounts{{FactWorkItemsResidual: 9}}}
-	counts, drained, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 5*time.Millisecond, time.Millisecond)
+	counts, drained, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, 5*time.Millisecond, time.Millisecond)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -62,7 +96,7 @@ func TestPollUntilDrainedTimeoutReturnsLastCounts(t *testing.T) {
 
 func TestPollUntilDrainedPropagatesQueryError(t *testing.T) {
 	q := &fakeDrainQuerier{seq: []DrainCounts{{}}, errOn: 1}
-	if _, _, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), time.Second, time.Millisecond); err == nil {
+	if _, _, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond); err == nil {
 		t.Fatal("expected query error to propagate")
 	}
 }
@@ -198,6 +232,22 @@ func TestParseHTTPShapeKey(t *testing.T) {
 	}
 	if _, _, err := parseHTTPShapeKey("bogus"); err == nil {
 		t.Error("malformed key must be rejected")
+	}
+}
+
+func TestSplitCSVTrimsAndDropsEmpty(t *testing.T) {
+	got := splitCSV("rc-1, rc-3 ,, code_calls")
+	want := []string{"rc-1", "rc-3", "code_calls"}
+	if len(got) != len(want) {
+		t.Fatalf("splitCSV = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("splitCSV[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	if len(splitCSV("")) != 0 || len(splitCSV("  ,  ")) != 0 {
+		t.Error("empty / whitespace-only input must yield no elements")
 	}
 }
 

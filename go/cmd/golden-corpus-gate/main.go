@@ -39,18 +39,19 @@ func main() {
 }
 
 type options struct {
-	snapshotPath         string
-	phase                string
-	apiBaseURL           string
-	drainTimeout         time.Duration
-	drainPoll            time.Duration
-	budgetSeconds        float64
-	budgetMultiplier     float64
-	elapsedSeconds       float64
-	graphRequiredOnly    bool
-	requiredCorrelations string
-	requiredNodeLabels   string
-	drainAdvisoryDomains string
+	snapshotPath            string
+	phase                   string
+	apiBaseURL              string
+	drainTimeout            time.Duration
+	drainPoll               time.Duration
+	budgetSeconds           float64
+	budgetMultiplier        float64
+	elapsedSeconds          float64
+	graphRequiredOnly       bool
+	requiredCorrelations    string
+	requiredNodeLabels      string
+	drainAdvisoryDomains    string
+	requirePopulatedDomains string
 }
 
 func parseFlags(args []string) (options, error) {
@@ -68,6 +69,7 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.requiredCorrelations, "required-correlations", "", "comma-separated correlation IDs that fail the gate; others are advisory (empty = all advisory until the corpus produces them)")
 	fs.StringVar(&o.requiredNodeLabels, "required-node-labels", "Repository", "comma-separated node labels that must each have >=1 node (graph-populated smoke check)")
 	fs.StringVar(&o.drainAdvisoryDomains, "drain-advisory-domains", "", "comma-separated shared_projection_intents domains whose nonterminal rows are advisory, not blocking")
+	fs.StringVar(&o.requirePopulatedDomains, "require-populated-domains", "", "comma-separated shared_projection_intents domains the reducer must be observed to emit before a drain is accepted (guards against draining an unreduced pipeline)")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

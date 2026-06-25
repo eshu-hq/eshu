@@ -84,8 +84,12 @@ func (b DrainBound) Limit() int64 {
 	}
 }
 
-// QueryShapes describes the canonical MCP and HTTP responses the gate validates
-// for B-7(c) query truth.
+// QueryShapes describes the canonical MCP and HTTP responses defined by the
+// snapshot for B-7(c) query truth. The gate currently enforces only the HTTP
+// shapes (checkQuery); the MCP shapes are modeled but not yet asserted —
+// asserting them is tracked in the gate-widening follow-up (#3866). The field is
+// kept so the snapshot stays the single source of truth and the follow-up only
+// adds the assertion, not the schema.
 type QueryShapes struct {
 	MCP  map[string]QueryShape `json:"mcp"`
 	HTTP map[string]QueryShape `json:"http"`

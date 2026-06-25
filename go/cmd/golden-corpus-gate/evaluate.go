@@ -38,6 +38,13 @@ type DrainCounts struct {
 	// the relationship-generation activation gate drained correctly; reported as
 	// detail on the shared-intents finding.
 	RepoDependencyNonterminal int64
+	// PopulatedDomainsPresent is the number of distinct
+	// require-populated domains that have at least one shared_projection_intents
+	// row (completed or not). It proves the reducer actually emitted work for
+	// those domains, which is the guard against premature drain convergence: a
+	// drain poll that reads 0/0 before the reducer has started would otherwise
+	// pass on an unreduced pipeline.
+	PopulatedDomainsPresent int64
 }
 
 // Drained reports whether the queues are within the snapshot's drain bounds. The
@@ -49,7 +56,15 @@ func (d DrainCounts) Drained(a DrainAssertions) bool {
 }
 
 // evaluateDrains turns observed drain counts into required findings.
-func evaluateDrains(d DrainCounts, a DrainAssertions, r *Report) {
+// expectedPopulatedDomains is the number of domains the reducer must be proven to
+// have emitted (the populated-then-drained guard); 0 disables the check.
+func evaluateDrains(d DrainCounts, a DrainAssertions, expectedPopulatedDomains int, r *Report) {
+	if expectedPopulatedDomains > 0 {
+		r.AddCheck("drains", "reducer_emitted_required_domains",
+			d.PopulatedDomainsPresent >= int64(expectedPopulatedDomains), true,
+			fmt.Sprintf("populated domains present=%d, want %d (guards against draining an unreduced pipeline)",
+				d.PopulatedDomainsPresent, expectedPopulatedDomains))
+	}
 	factLimit := a.FactWorkItems.Limit()
 	r.AddCheck("drains", "fact_work_items_residual",
 		d.FactWorkItemsResidual <= factLimit, true,

@@ -26,6 +26,14 @@ require() {
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
 require "exit trap" "trap cleanup EXIT"
+# Background pids must be recorded in the PARENT shell (printf -v), or the cleanup
+# trap reaps nothing on a failure path and leaks host processes.
+require "parent-shell pid capture" "printf -v"
+# Failure must surface the host-binary logs before the work dir is removed.
+require "failure log dump" "host binary logs (failure)"
+# A collector that no-ops must not let the gate pass: liveness + facts-landed.
+require "collector liveness check" "exited during settle"
+require "cassette facts landed check" "credentialed collector source"
 
 # Drives every pipeline stage end to end.
 require "bootstrap stage" "eshu-bootstrap-index"
@@ -59,6 +67,11 @@ done
 if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${script}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
+
+# Premature-convergence guard: the drain must require the reducer to be observed
+# populated before accepting a drained reading, or it can pass on an unreduced
+# pipeline (the 0/0-before-the-reducer-runs race).
+require "populated-then-drained guard" 'require-populated-domains="repo_dependency"'
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'

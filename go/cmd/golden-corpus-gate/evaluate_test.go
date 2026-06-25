@@ -21,14 +21,14 @@ func TestEvaluateDrains(t *testing.T) {
 	a := strictDrainAssertions()
 	t.Run("drained", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{}, a, &r)
+		evaluateDrains(DrainCounts{}, a, 0, &r)
 		if r.Failed() {
 			t.Errorf("clean drain must pass; findings: %+v", r.Findings)
 		}
 	})
 	t.Run("fact residual reports dead_letter subset", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{FactWorkItemsResidual: 3, FactWorkItemsDeadLetter: 2}, a, &r)
+		evaluateDrains(DrainCounts{FactWorkItemsResidual: 3, FactWorkItemsDeadLetter: 2}, a, 0, &r)
 		if !r.Failed() {
 			t.Error("nonzero fact_work_items residual must fail")
 		}
@@ -47,7 +47,7 @@ func TestEvaluateDrains(t *testing.T) {
 	})
 	t.Run("required intent nonterminal includes repo_dependency detail", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 2, SharedIntentsRequiredNonterminal: 2, RepoDependencyNonterminal: 2}, a, &r)
+		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 2, SharedIntentsRequiredNonterminal: 2, RepoDependencyNonterminal: 2}, a, 0, &r)
 		if !r.Failed() {
 			t.Error("nonterminal required shared intents must fail (B-13 gate)")
 		}
@@ -64,9 +64,24 @@ func TestEvaluateDrains(t *testing.T) {
 			t.Error("missing shared_projection_intents_nonterminal finding")
 		}
 	})
+	t.Run("unpopulated pipeline fails the populated-then-drained guard", func(t *testing.T) {
+		var r Report
+		// Queues read empty but the reducer emitted nothing — must fail.
+		evaluateDrains(DrainCounts{PopulatedDomainsPresent: 0}, a, 1, &r)
+		if !r.Failed() {
+			t.Error("a drained-but-unreduced pipeline must fail the population guard")
+		}
+	})
+	t.Run("populated and drained passes the guard", func(t *testing.T) {
+		var r Report
+		evaluateDrains(DrainCounts{PopulatedDomainsPresent: 1}, a, 1, &r)
+		if r.Failed() {
+			t.Errorf("populated + drained must pass; findings: %+v", r.Findings)
+		}
+	})
 	t.Run("advisory-domain nonterminal does not block", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 6, SharedIntentsRequiredNonterminal: 0, SharedIntentsAdvisoryNonterminal: 6}, a, &r)
+		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 6, SharedIntentsRequiredNonterminal: 0, SharedIntentsAdvisoryNonterminal: 6}, a, 0, &r)
 		if r.Failed() {
 			t.Errorf("advisory-domain nonterminal must not fail the gate; findings: %+v", r.Findings)
 		}

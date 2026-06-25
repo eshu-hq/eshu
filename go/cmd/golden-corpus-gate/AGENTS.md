@@ -34,6 +34,12 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   guard on any new graph query.
 - **An empty report is a failure.** `Report.Failed()` returns true when nothing
   ran — a gate that asserted nothing has proven nothing. Preserve this.
+- **Drain is populated-then-drained, not just drained.** `pollUntilDrained` must
+  not accept a `0/0` reading until it has observed the reducer emit the
+  require-populated domains (`-require-populated-domains`, default off in the
+  binary, `repo_dependency` in the orchestrator). The reducer runs in the
+  background, so a poll that fires before it starts would otherwise read an empty
+  queue and pass on an unreduced pipeline. Do not weaken this to "queue empty".
 
 ## Tests
 

@@ -56,21 +56,27 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 }
 
 func runDrains(ctx context.Context, o options, getenv func(string) string, snap Snapshot, r *Report, stderr io.Writer) error {
-	q, closeFn, err := openDrainQuerier(ctx, getenv, o.drainAdvisoryDomains)
+	// Normalize the domain lists (trim each element) so a flag like "a, b" cannot
+	// leave a leading space that fails to match a domain name.
+	advisory := strings.Join(splitCSV(o.drainAdvisoryDomains), ",")
+	populatedDomains := splitCSV(o.requirePopulatedDomains)
+	populatedCSV := strings.Join(populatedDomains, ",")
+	q, closeFn, err := openDrainQuerier(ctx, getenv, advisory, populatedCSV)
 	if err != nil {
 		return err
 	}
 	defer closeFn()
 
-	counts, drained, err := pollUntilDrained(ctx, q, snap.DrainAssertions, o.drainTimeout, o.drainPoll)
+	counts, ok, err := pollUntilDrained(ctx, q, snap.DrainAssertions, len(populatedDomains), o.drainTimeout, o.drainPoll)
 	if err != nil {
 		return err
 	}
-	if !drained {
-		fmt.Fprintf(stderr, "drains: timed out after %s with residual fact=%d intents=%d\n",
-			o.drainTimeout, counts.FactWorkItemsResidual, counts.SharedIntentsNonterminal)
+	if !ok {
+		fmt.Fprintf(stderr, "drains: not satisfied after %s (fact residual=%d, required intents=%d, populated domains=%d/%d)\n",
+			o.drainTimeout, counts.FactWorkItemsResidual, counts.SharedIntentsRequiredNonterminal,
+			counts.PopulatedDomainsPresent, len(populatedDomains))
 	}
-	evaluateDrains(counts, snap.DrainAssertions, r)
+	evaluateDrains(counts, snap.DrainAssertions, len(populatedDomains), r)
 	return nil
 }
 

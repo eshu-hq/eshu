@@ -37,8 +37,10 @@ SELECT count(*) FROM shared_projection_intents
 WHERE completed_at IS NULL`
 
 	// $1 is a comma-separated advisory-domain list. string_to_array('', ',')
-	// yields {''}, which matches no real projection_domain, so an empty advisory
-	// list cleanly degrades to "required = total, advisory = 0".
+	// yields an empty array, so `projection_domain = ANY(...)` is false for every
+	// row and an empty advisory list cleanly degrades to "required = total,
+	// advisory = 0". The caller trims each element before joining, so a list like
+	// "a, b" cannot smuggle a leading space into a domain name.
 	sharedIntentsRequiredNonterminalSQL = `
 SELECT count(*) FROM shared_projection_intents
 WHERE completed_at IS NULL
@@ -52,6 +54,14 @@ WHERE completed_at IS NULL
 	repoDependencyNonterminalSQL = `
 SELECT count(*) FROM shared_projection_intents
 WHERE completed_at IS NULL AND projection_domain = 'repo_dependency'`
+
+	// Counts how many of the require-populated domains have at least one intent
+	// (completed or not). Counting completed rows too is deliberate: even if the
+	// reducer emitted and completed a domain's intents before the first poll, we
+	// still observe that it ran — only a reducer that never ran reads 0 here.
+	sharedIntentsPopulatedDomainsSQL = `
+SELECT count(DISTINCT projection_domain) FROM shared_projection_intents
+WHERE projection_domain = ANY(string_to_array($1, ','))`
 )
 
 // drainQuerier reads the current queue residuals. Defined here where it is
@@ -64,18 +74,19 @@ type drainQuerier interface {
 // comma-separated set of shared_projection_intents domains whose nonterminal rows
 // are reported but do not block the gate.
 type sqlDrainQuerier struct {
-	db              *sql.DB
-	advisoryDomains string
+	db               *sql.DB
+	advisoryDomains  string
+	populatedDomains string
 }
 
 // openDrainQuerier opens a Postgres connection from the environment using the
 // same loader the services under test use.
-func openDrainQuerier(ctx context.Context, getenv func(string) string, advisoryDomains string) (*sqlDrainQuerier, func(), error) {
+func openDrainQuerier(ctx context.Context, getenv func(string) string, advisoryDomains, populatedDomains string) (*sqlDrainQuerier, func(), error) {
 	db, err := runtimecfg.OpenPostgres(ctx, getenv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open postgres: %w", err)
 	}
-	return &sqlDrainQuerier{db: db, advisoryDomains: advisoryDomains}, func() { _ = db.Close() }, nil
+	return &sqlDrainQuerier{db: db, advisoryDomains: advisoryDomains, populatedDomains: populatedDomains}, func() { _ = db.Close() }, nil
 }
 
 func (q *sqlDrainQuerier) scalar(ctx context.Context, query string, args ...any) (int64, error) {
@@ -111,6 +122,13 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 	if err != nil {
 		return DrainCounts{}, fmt.Errorf("repo_dependency nonterminal: %w", err)
 	}
+	var populated int64
+	if q.populatedDomains != "" {
+		populated, err = q.scalar(ctx, sharedIntentsPopulatedDomainsSQL, q.populatedDomains)
+		if err != nil {
+			return DrainCounts{}, fmt.Errorf("populated domains present: %w", err)
+		}
+	}
 	return DrainCounts{
 		FactWorkItemsResidual:            fact,
 		FactWorkItemsDeadLetter:          deadLetter,
@@ -118,26 +136,41 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 		SharedIntentsRequiredNonterminal: required,
 		SharedIntentsAdvisoryNonterminal: advisory,
 		RepoDependencyNonterminal:        repoDep,
+		PopulatedDomainsPresent:          populated,
 	}, nil
 }
 
-// pollUntilDrained polls q until both queues are within the snapshot bounds or
-// the context/timeout expires. It always returns the last observed counts so the
-// caller can report the residual even on a timeout. drained reports whether the
-// drain bounds were met.
+// pollUntilDrained polls q until the queues are within the snapshot bounds AND
+// the pipeline has been observed populated, or the context/timeout expires.
+//
+// expectedPopulatedDomains is the populated-then-drained guard: the poll will not
+// accept a drained reading until it has observed at least that many
+// require-populated domains present (i.e. the reducer actually emitted work).
+// Without it, a poll that fires before the reducer starts reads an empty 0/0 and
+// would pass on an unreduced pipeline. "Populated" is sticky across polls because
+// completed intents are also counted, so a domain that drained between polls still
+// counts as observed.
+//
+// It always returns the last observed counts so the caller can report the residual
+// even on a timeout. ok reports whether both populated and drained held.
 func pollUntilDrained(
 	ctx context.Context,
 	q drainQuerier,
 	a DrainAssertions,
+	expectedPopulatedDomains int,
 	timeout, poll time.Duration,
-) (counts DrainCounts, drained bool, err error) {
+) (counts DrainCounts, ok bool, err error) {
 	deadline := time.Now().Add(timeout)
+	populated := expectedPopulatedDomains <= 0
 	for {
 		counts, err = q.Counts(ctx)
 		if err != nil {
 			return counts, false, err
 		}
-		if counts.Drained(a) {
+		if counts.PopulatedDomainsPresent >= int64(expectedPopulatedDomains) {
+			populated = true
+		}
+		if populated && counts.Drained(a) {
 			return counts, true, nil
 		}
 		if !time.Now().Before(deadline) {

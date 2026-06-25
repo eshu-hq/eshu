@@ -95,6 +95,18 @@ die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 
 cleanup() {
 	local status=$?
+	# On failure, dump every host-binary log to stdout BEFORE the work dir is
+	# removed, so a CI failure (which captures this script's stdout) preserves the
+	# api/collector/projector/reducer logs that explain the break — not just the
+	# Docker logs the workflow dumps separately.
+	if [[ "${status}" -ne 0 && -d "${log_dir}" ]]; then
+		printf '\n=== host binary logs (failure) ===\n' >&2
+		for logf in "${log_dir}"/*.log; do
+			[[ -f "${logf}" ]] || continue
+			printf '\n--- %s ---\n' "$(basename "${logf}")" >&2
+			tail -40 "${logf}" >&2 || true
+		done
+	fi
 	for pid in "${bg_pids[@]:-}"; do
 		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
 	done
@@ -149,12 +161,32 @@ build_bin() {
 		|| die "build ${cmd} failed"
 }
 
+# start_bg <name> <pidvar> <cmd...> launches cmd in the background, records its
+# pid in bg_pids (so the cleanup trap can reap it on EVERY exit path), and writes
+# the pid into the caller-named variable pidvar. The pid is assigned via
+# printf -v in the PARENT shell — a previous version returned it through command
+# substitution, whose subshell discarded the bg_pids append, leaving the trap a
+# no-op that leaked processes on failure.
 start_bg() {
-	local name="$1"; shift
+	local name="$1" pidvar="$2"; shift 2
 	"$@" >"${log_dir}/${name}.log" 2>&1 &
 	local pid=$!
 	bg_pids+=("${pid}")
-	printf '%s' "${pid}"
+	printf -v "${pidvar}" '%s' "${pid}"
+}
+
+# pg runs a single-value SQL query against the gate's Postgres, working in both
+# compose mode (via the postgres container) and --no-compose mode (via a local
+# psql client). Used to assert the cassette collectors actually committed.
+pg() {
+	local sql="$1"
+	if [[ "${use_compose}" -eq 1 ]]; then
+		docker compose -f "${compose_file}" exec -T postgres \
+			psql -U eshu -d eshu -tA -c "${sql}" 2>/dev/null
+	else
+		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
+		psql "${ESHU_POSTGRES_DSN}" -tA -c "${sql}" 2>/dev/null
+	fi
 }
 
 # ----------------------------------------------------------------------------
@@ -183,6 +215,7 @@ if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose -f "${compose_file}" up -d "${graph_service}" postgres
 
 	log "wait for backends"
+	backends_ready=false
 	for _ in $(seq 1 60); do
 		graph_ready=false
 		if [[ "${graph_service}" == "nornicdb" ]]; then
@@ -192,10 +225,12 @@ if [[ "${use_compose}" -eq 1 ]]; then
 		fi
 		if [[ "${graph_ready}" == "true" ]] && \
 			docker compose -f "${compose_file}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1; then
+			backends_ready=true
 			break
 		fi
 		sleep 2
 	done
+	[[ "${backends_ready}" == "true" ]] || die "Postgres + ${graph_service} did not become ready within budget"
 fi
 
 pipeline_start="$(date +%s)"
@@ -206,31 +241,59 @@ log "bootstrap-index over minimal corpus (schema + filesystem facts + projection
 
 log "replay B-10 cassette collectors (credential-free)"
 collector_pids=()
+collector_names=()
 for spec in "${collector_specs[@]}"; do
 	cmd="${spec%%:*}"
 	dir="${spec##*:}"
 	cassette="${repo_root}/testdata/cassettes/${dir}/${cassette_recording}"
 	[[ -f "${cassette}" ]] || die "cassette not found: ${cassette}"
-	pid="$(start_bg "${cmd}" "${bin_dir}/eshu-${cmd}" -mode=cassette -cassette-file="${cassette}")"
-	collector_pids+=("${pid}")
+	start_bg "${cmd}" cpid "${bin_dir}/eshu-${cmd}" -mode=cassette -cassette-file="${cassette}"
+	collector_pids+=("${cpid}")
+	collector_names+=("${cmd}")
 done
 printf 'launched %d collectors; settling %ss for first-pass commit\n' "${#collector_pids[@]}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
 sleep "${GATE_COLLECTOR_SETTLE_SECONDS}"
+# A collector that crashed on startup (cassette parse, Postgres connect) exited
+# during the settle. Catch that before killing, so a silently-dead collector does
+# not let the gate pass with the cassette half of the pipeline unverified.
+for i in "${!collector_pids[@]}"; do
+	if ! kill -0 "${collector_pids[$i]}" >/dev/null 2>&1; then
+		tail -20 "${log_dir}/${collector_names[$i]}.log" >&2 || true
+		die "collector ${collector_names[$i]} exited during settle (did not stay up to commit)"
+	fi
+done
 for pid in "${collector_pids[@]}"; do kill "${pid}" >/dev/null 2>&1 || true; done
 
+# Prove the cassette facts actually landed: each credentialed collector must have
+# produced at least one ingestion scope. Without this, all 9 collectors could
+# no-op and the gate would still pass (Repository nodes come from filesystem
+# discovery, not collectors).
+collector_sources="$(pg "SELECT count(DISTINCT source_system) FROM ingestion_scopes WHERE source_system <> 'git';" | tr -d '[:space:]')"
+: "${GATE_MIN_COLLECTOR_SOURCES:=${#collector_specs[@]}}"
+if [[ -z "${collector_sources}" ]] || (( collector_sources < GATE_MIN_COLLECTOR_SOURCES )); then
+	die "only ${collector_sources:-0} credentialed collector source(s) landed facts; want >= ${GATE_MIN_COLLECTOR_SOURCES} (cassette replay did not commit)"
+fi
+printf 'cassette facts landed: %s credentialed collector sources\n' "${collector_sources}"
+
 log "drain projector + reducer (background; gate polls to terminal)"
-projector_pid="$(start_bg projector "${bin_dir}/eshu-projector")"
-reducer_pid="$(start_bg reducer "${bin_dir}/eshu-reducer")"
+start_bg projector projector_pid "${bin_dir}/eshu-projector"
+start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
 
 log "B-7(a) drains"
 # code_calls shared_projection_intents are a known held-intent domain on the
 # minimal corpus (tracked as a follow-up); quarantine it as advisory so it is
 # reported but does not block. repo_dependency (the B-13/#3859 gate) and every
 # other domain stay required.
+# -require-populated-domains guards against premature convergence: the reducer
+# runs in the background and the poll could otherwise read an empty 0/0 before it
+# emits any intents and pass on an unreduced pipeline. repo_dependency is the
+# domain the corpus reliably produces (and the B-13/#3859 gate), so the drain is
+# accepted only once it has been observed populated and then drained.
 if ! "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=drains \
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 	-drain-advisory-domains="code_calls" \
+	-require-populated-domains="repo_dependency" \
 	-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
 	tail -30 "${log_dir}/reducer.log" || true
 	tail -30 "${log_dir}/projector.log" || true
@@ -242,11 +305,16 @@ pipeline_end="$(date +%s)"
 elapsed=$(( pipeline_end - pipeline_start ))
 
 log "start eshu-api for query truth"
-ESHU_RUNTIME_ROLE="api" api_pid="$(start_bg api "${bin_dir}/eshu-api")"
+start_bg api api_pid "${bin_dir}/eshu-api"
+api_ready=false
 for _ in $(seq 1 30); do
-	curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1 && break
+	if curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
+		api_ready=true
+		break
+	fi
 	sleep 1
 done
+[[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
 
 log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # Minimal-corpus posture: the required graph assertion is "the pipeline projected

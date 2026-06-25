@@ -16,7 +16,7 @@ The gate asserts the four B-7 acceptance buckets:
 
 | Bucket | Assertion |
 | --- | --- |
-| (a) drains | `fact_work_items` residual rows and `shared_projection_intents` nonterminal rows both reach their snapshot bound. The `shared_projection_intents` check is the decisive one — a zero `fact_work_items` queue alone misses held projection intents (see #3859). The `repo_dependency` domain subset is reported because it is the primary drain signal. |
+| (a) drains | `fact_work_items` residual rows and `shared_projection_intents` nonterminal rows both reach their snapshot bound. The `shared_projection_intents` check is the decisive one — a zero `fact_work_items` queue alone misses held projection intents (see #3859). To avoid passing on an *unreduced* pipeline, the drain is **populated-then-drained**: it is accepted only after the reducer has been observed to emit the `repo_dependency` domain (`-require-populated-domains`), so a poll that fires before the reducer starts cannot read an empty `0/0` and pass. The `repo_dependency` subset is reported because it is the primary drain signal. |
 | (b) graph truth | Required correlations exist (`rc-1` deployable-unit, `rc-3` cross-repo `DEPENDS_ON`, ...). Per-label node and per-relationship edge counts are reported against the snapshot tolerances. |
 | (c) query truth | Canonical HTTP responses (`GET /api/v0/repositories`, `GET /api/v0/status/operator-control-plane`) carry their required shape. |
 | (d) timing | The pipeline wall time stays within a budget multiple. |
