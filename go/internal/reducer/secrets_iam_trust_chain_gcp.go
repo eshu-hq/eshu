@@ -17,8 +17,8 @@ import (
 // surfaced as posture until the impersonation/Workload-Identity trust layer
 // (#2369) connects a workload to the service account.
 const (
-	gcpRiskSecretAccessGrant = "gcp_service_account_secret_access"
-	gcpRiskBroadRoleGrant    = "gcp_service_account_broad_role"
+	gcpRiskSecretAccessGrant = "gcp_service_account_secret_access" // #nosec G101 -- risk-type token string identifier, not a credential
+	gcpRiskBroadRoleGrant    = "gcp_service_account_broad_role"    // #nosec G101 -- risk-type token string identifier, not a credential
 )
 
 // secretsIAMGCPGrantObservations projects the GCP IAM principal/permission

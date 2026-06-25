@@ -52,7 +52,7 @@ const (
 	// SemanticRedactionApplied marks payloads redacted before extraction.
 	SemanticRedactionApplied = "applied"
 	// SemanticRedactionSkippedNoSensitiveContent marks payloads with nothing to redact.
-	SemanticRedactionSkippedNoSensitiveContent = "skipped_no_sensitive_content"
+	SemanticRedactionSkippedNoSensitiveContent = "skipped_no_sensitive_content" // #nosec G101 -- redaction-state label, not a credential or sensitive value
 	// SemanticRedactionUnsafePayload marks payloads rejected before provider egress.
 	SemanticRedactionUnsafePayload = "unsafe_payload"
 

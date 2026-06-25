@@ -29,7 +29,7 @@ const (
 	EnvSemanticProviderWorkerLeaseTTL = "ESHU_SEMANTIC_PROVIDER_WORKER_LEASE_TTL"
 	// EnvSemanticProviderWorkerMaxClaimsPerPass bounds how many jobs one pass
 	// drains per scope.
-	EnvSemanticProviderWorkerMaxClaimsPerPass = "ESHU_SEMANTIC_PROVIDER_WORKER_MAX_CLAIMS_PER_PASS"
+	EnvSemanticProviderWorkerMaxClaimsPerPass = "ESHU_SEMANTIC_PROVIDER_WORKER_MAX_CLAIMS_PER_PASS" // #nosec G101 -- environment variable name, not a credential value
 	// EnvSemanticProviderWorkerLeaseOwner identifies this worker for lease fencing.
 	EnvSemanticProviderWorkerLeaseOwner = "ESHU_SEMANTIC_PROVIDER_WORKER_LEASE_OWNER"
 

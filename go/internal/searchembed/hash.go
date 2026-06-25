@@ -74,5 +74,5 @@ func feature(term string, dimensions int) (int, float64) {
 	if sum&1 == 1 {
 		sign = -1.0
 	}
-	return int((sum >> 1) % uint64(dimensions)), sign
+	return int((sum >> 1) % uint64(dimensions)), sign // #nosec G115 -- bounded: result is % dimensions which is range-checked > 0 at construction
 }

@@ -221,7 +221,7 @@ func readSchemaDocument(schemaPath string) (*schemaDocument, error) {
 		file *os.File
 		err  error
 	)
-	file, err = os.Open(schemaPath)
+	file, err = os.Open(schemaPath) // #nosec G304 -- reads a bundled Terraform provider schema file at a path constructed by the program from known schema directories
 	if err != nil {
 		return nil, err
 	}

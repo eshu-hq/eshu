@@ -113,7 +113,7 @@ func pythonPackageInitExportedNames(repoRoot string, sourcePath string) map[stri
 	repoRoot = pythonLambdaRepoRoot(repoRoot, sourcePath)
 	sourcePath = filepath.Clean(sourcePath)
 	for _, initPath := range pythonPackageInitCandidates(repoRoot, sourcePath) {
-		source, err := os.ReadFile(initPath)
+		source, err := os.ReadFile(initPath) // #nosec G304 -- reads a Python package __init__ file at a path derived from the scan target repo root
 		if err != nil {
 			continue
 		}

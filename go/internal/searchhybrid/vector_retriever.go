@@ -166,9 +166,9 @@ func angularVectorSignature(table int, vector []float64) uint64 {
 }
 
 func angularProjectionWeight(table int, bit int, dim int) float64 {
-	seed := uint64(table+1)*0x9e3779b97f4a7c15 ^
-		uint64(bit+1)*0xbf58476d1ce4e5b9 ^
-		uint64(dim+1)*0x94d049bb133111eb
+	seed := uint64(table+1)*0x9e3779b97f4a7c15 ^ // #nosec G115 -- bounded: table is a small loop index (< approximateVectorTableCount)
+		uint64(bit+1)*0xbf58476d1ce4e5b9 ^ // #nosec G115 -- bounded: bit is a small loop index (< approximateVectorSignatureBits)
+		uint64(dim+1)*0x94d049bb133111eb // #nosec G115 -- bounded: dim is a vector dimension index bounded by the vector length
 	value := splitmix64(seed)
 	const mantissaBits = 53
 	unit := float64(value>>(64-mantissaBits)) / float64(uint64(1)<<mantissaBits)

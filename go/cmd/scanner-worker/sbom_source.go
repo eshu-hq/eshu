@@ -194,7 +194,7 @@ func (r *repositoryManifestReader) readManifest(path string) ([]byte, error) {
 			nil,
 		)
 	}
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) // #nosec G304 -- path is produced by filepath.WalkDir over an indexed repository working tree, not from untrusted external input
 	if err != nil {
 		return nil, scannerworker.NewRetryableAnalyzerFailure(
 			scannerworker.FailureClassTargetUnavailable,

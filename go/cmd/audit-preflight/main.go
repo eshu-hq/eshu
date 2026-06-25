@@ -55,7 +55,7 @@ func readBody(file string, stdin io.Reader) (string, error) {
 		}
 		return string(raw), nil
 	}
-	raw, err := os.ReadFile(file)
+	raw, err := os.ReadFile(file) // #nosec G304 -- file is the -file CLI flag pointing to a local issue body file supplied by the operator
 	if err != nil {
 		return "", fmt.Errorf("read issue body %s: %w", file, err)
 	}

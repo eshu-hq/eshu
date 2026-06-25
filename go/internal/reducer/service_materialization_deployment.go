@@ -4,7 +4,7 @@
 package reducer
 
 import (
-	"crypto/sha1" //nolint:gosec // sha1 is a non-cryptographic identity digest, matching the resolved-relationship and deployment-artifact identity contracts.
+	"crypto/sha1" // #nosec G505 -- non-cryptographic identity digest for deployment-artifact identity contracts, not a security primitive //nolint:gosec
 	"encoding/hex"
 	"sort"
 	"strings"
@@ -99,7 +99,7 @@ func serviceDeploymentEvidenceIdentity(rel relationships.ResolvedRelationship) s
 		strings.TrimSpace(rel.SourceEntityID),
 		strings.TrimSpace(rel.TargetEntityID),
 	}
-	sum := sha1.Sum([]byte(strings.Join(parts, "\x00"))) //nolint:gosec // non-cryptographic identity digest.
+	sum := sha1.Sum([]byte(strings.Join(parts, "\x00"))) // #nosec G401 -- non-cryptographic identity digest, not a security primitive //nolint:gosec
 	return hex.EncodeToString(sum[:])
 }
 

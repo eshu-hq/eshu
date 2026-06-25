@@ -28,7 +28,7 @@ func LoadConfigFile(path string) (Config, StaticGrantResolver, error) {
 	if path == "" {
 		return Config{}, StaticGrantResolver{}, fmt.Errorf("oidc config file is required")
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- reads operator-managed OIDC config file at a path from deployment config, not an HTTP/MCP request param
 	if err != nil {
 		return Config{}, StaticGrantResolver{}, fmt.Errorf("read oidc config file: %w", err)
 	}

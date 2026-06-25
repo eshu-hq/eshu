@@ -81,7 +81,7 @@ func BasePayload(path string, lang string, isDependency bool) map[string]any {
 
 // ReadSource reads one parser input file and wraps the path into read errors.
 func ReadSource(path string) ([]byte, error) {
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository source file at a path derived from the scan target
 	if err != nil {
 		return nil, fmt.Errorf("read source %q: %w", path, err)
 	}

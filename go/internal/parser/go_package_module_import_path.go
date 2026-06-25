@@ -10,7 +10,7 @@ import (
 )
 
 func goModulePath(repoRoot string) string {
-	body, err := os.ReadFile(filepath.Join(repoRoot, "go.mod"))
+	body, err := os.ReadFile(filepath.Join(repoRoot, "go.mod")) // #nosec G304 -- reads go.mod at a path derived from the scan target repo root
 	if err != nil {
 		return ""
 	}

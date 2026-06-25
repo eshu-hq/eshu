@@ -25,7 +25,7 @@ type SCIPIndexParser struct{}
 
 // Parse reads one index.scip file and returns file payloads plus the enriched symbol table.
 func (SCIPIndexParser) Parse(indexPath string, projectPath string) (SCIPParseResult, error) {
-	body, err := os.ReadFile(indexPath)
+	body, err := os.ReadFile(indexPath) // #nosec G304 -- reads an indexed SCIP file at a path derived from the parser's own scan target
 	if err != nil {
 		return SCIPParseResult{}, fmt.Errorf("read SCIP index %q: %w", indexPath, err)
 	}
@@ -204,7 +204,7 @@ func appendSCIPReference(
 }
 
 func scipDefinitionKind(symbol string, definition map[string]any) int32 {
-	kind := int32(intValueFromMap(definition, "kind"))
+	kind := int32(intValueFromMap(definition, "kind")) // #nosec G115 -- bounded: intValueFromMap returns a value sourced from protobuf int32 fields, always fits int32
 	if kind != 0 {
 		return kind
 	}

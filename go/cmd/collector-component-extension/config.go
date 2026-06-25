@@ -207,7 +207,7 @@ func loadComponentRuntimeFile(path string) (componentRuntimeFile, error) {
 	if trimmed == "" {
 		return componentRuntimeFile{}, fmt.Errorf("component activation config path is required for process adapter")
 	}
-	raw, err := os.ReadFile(trimmed)
+	raw, err := os.ReadFile(trimmed) // #nosec G304 -- trimmed is a validated, operator-supplied config path (CLI flag / env var), not untrusted external input
 	if err != nil {
 		return componentRuntimeFile{}, fmt.Errorf("read component activation config: %w", sanitizedActivationConfigReadError(err))
 	}

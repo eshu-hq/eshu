@@ -54,7 +54,7 @@ func AnnotatePublicHeaderRoots(payload map[string]any, repoRoot string, sourcePa
 		return
 	}
 	for _, headerPath := range cIncludedLocalHeaderPaths(payload, repoRoot, sourcePath) {
-		source, err := os.ReadFile(headerPath)
+		source, err := os.ReadFile(headerPath) // #nosec G304 -- reads a C header at a path derived from the scan target repo tree
 		if err != nil {
 			continue
 		}

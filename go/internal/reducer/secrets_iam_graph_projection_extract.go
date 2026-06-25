@@ -42,14 +42,14 @@ const (
 	// failure.
 	secretsIAMSkipMissingVaultRole  = "missing_vault_role_join_key"
 	secretsIAMSkipMissingWorkload   = "missing_workload_endpoint"
-	secretsIAMSkipMissingSecretPath = "missing_secret_path_identity"
+	secretsIAMSkipMissingSecretPath = "missing_secret_path_identity" // #nosec G101 -- skip-reason label string, not a credential
 	// secretsIAMSkipIAMRoleUnresolved marks the ASSUMES_IAM_ROLE edge that
 	// cannot resolve its CloudResource endpoint from the current read model. It is
 	// counted, never fabricated, when the read-model row carries only the one-way
 	// iam_role_fingerprint and no CloudResource-joinable IAM-role identity
 	// (iam_role_cloud_resource_uid). When that joinable uid is present the edge
 	// promotes instead (ADR #1314 §5.1).
-	secretsIAMSkipIAMRoleUnresolved = "iam_role_endpoint_unresolved_pending_read_model"
+	secretsIAMSkipIAMRoleUnresolved = "iam_role_endpoint_unresolved_pending_read_model" // #nosec G101 -- skip-reason label string, not a credential
 )
 
 // Bounded assume-mode enum for the ASSUMES_IAM_ROLE edge. The reducer derives it

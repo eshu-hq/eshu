@@ -95,7 +95,7 @@ func nearestPackageManifest(repoRoot string, path string) (packageManifest, stri
 	if !ok {
 		return packageManifest{}, "", false
 	}
-	body, err := os.ReadFile(packagePath)
+	body, err := os.ReadFile(packagePath) // #nosec G304 -- reads a package.json at a path derived from the scan target repo tree
 	if err != nil {
 		return packageManifest{}, "", false
 	}

@@ -35,7 +35,7 @@ func loadCorpus(fixtureRoot string) (map[string][]iacreachability.File, error) {
 		if !ok {
 			repoID, repoRelativePath = relative, ""
 		}
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(path) // #nosec G304 G122 -- path is produced by filepath.WalkDir over the fixture corpus root; no untrusted input or symlink TOCTOU risk in this offline tool
 		if err != nil {
 			return err
 		}
@@ -58,7 +58,7 @@ func loadCorpus(fixtureRoot string) (map[string][]iacreachability.File, error) {
 // loadGroundTruth reads the curated dead-IaC expected-truth file and returns
 // the per-artifact assertions the harness scores against.
 func loadGroundTruth(expectedPath string) ([]proofofvalue.GroundTruth, error) {
-	content, err := os.ReadFile(expectedPath)
+	content, err := os.ReadFile(expectedPath) // #nosec G304 -- expectedPath is a CLI-flag path to a local ground-truth file supplied by the operator
 	if err != nil {
 		return nil, fmt.Errorf("read ground truth %s: %w", expectedPath, err)
 	}

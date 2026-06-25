@@ -734,7 +734,7 @@ func writeDiscoveryAdvisoryReports(path string, reports []collector.DiscoveryAdv
 	if path == "" {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("create discovery advisory report directory: %w", err)
 	}
 	contents, err := json.MarshalIndent(reports, "", "  ")
@@ -742,7 +742,7 @@ func writeDiscoveryAdvisoryReports(path string, reports []collector.DiscoveryAdv
 		return fmt.Errorf("marshal discovery advisory report: %w", err)
 	}
 	contents = append(contents, '\n')
-	if err := os.WriteFile(path, contents, 0o644); err != nil {
+	if err := os.WriteFile(path, contents, 0o600); err != nil {
 		return fmt.Errorf("write discovery advisory report %q: %w", path, err)
 	}
 	return nil

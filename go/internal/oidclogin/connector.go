@@ -91,7 +91,7 @@ func readClientSecret(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- reads operator-managed OIDC client secret file at a path from deployment config, not an HTTP/MCP request param
 	if err != nil {
 		return "", fmt.Errorf("read oidc client secret file: %w", err)
 	}

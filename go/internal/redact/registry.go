@@ -39,7 +39,7 @@ type SensitiveClass string
 
 const (
 	// SensitiveRawToken covers bearer tokens, API tokens, and session tokens.
-	SensitiveRawToken SensitiveClass = "raw_token"
+	SensitiveRawToken SensitiveClass = "raw_token" // #nosec G101 -- classification label string, not a credential
 	// SensitiveProviderKey covers model, cloud, SaaS, or source-system keys.
 	SensitiveProviderKey SensitiveClass = "provider_key"
 	// SensitivePrompt covers raw prompt, response, and semantic source text.
@@ -59,9 +59,9 @@ type SafeClass string
 
 const (
 	// SafeCredentialReference is a credential handle class, never a value.
-	SafeCredentialReference SafeClass = "credential_reference"
+	SafeCredentialReference SafeClass = "credential_reference" // #nosec G101 -- safe-class taxonomy label, not a credential value
 	// SafeCredentialSourceKind is the credential source kind without its handle.
-	SafeCredentialSourceKind SafeClass = "credential_source_kind"
+	SafeCredentialSourceKind SafeClass = "credential_source_kind" // #nosec G101 -- safe-class taxonomy label, not a credential value
 	// SafeProviderProfileID is a configured provider profile identifier.
 	SafeProviderProfileID SafeClass = "provider_profile_id"
 	// SafeSourceClass is a low-cardinality source class.
@@ -146,7 +146,7 @@ func HostedGovernanceRegistry() Registry {
 			{Class: SensitiveRawToken, Raw: "CANARY_RAW_TOKEN_DO_NOT_PERSIST_123"},
 			{Class: SensitiveProviderKey, Raw: "CANARY_PROVIDER_KEY_DO_NOT_PERSIST_456"},
 			{Class: SensitivePrompt, Raw: "CANARY_PROMPT_PAYLOAD_DO_NOT_PERSIST_789"},
-			{Class: SensitivePrivateURL, Raw: "https://user:pass@example.invalid/private-redaction-canary"},
+			{Class: SensitivePrivateURL, Raw: "https://user:pass@example.invalid/private-redaction-canary"}, // #nosec G101 -- synthetic canary value used only for negative leakage tests, never a real credential
 			{Class: SensitiveSecretValue, Raw: "correct-horse-redaction-canary"},
 			{Class: SensitivePersonalIdentifier, Raw: "operator.person@example.invalid"},
 			{Class: SensitivePrivateSourceIdentifier, Raw: "repo://private/source-redaction-canary"},

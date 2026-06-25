@@ -91,7 +91,7 @@ func (p *javaScriptSiblingParser) parseFile(path string) (*tree_sitter.Node, *tr
 	if !ok {
 		return nil, nil, nil
 	}
-	source, err := os.ReadFile(path)
+	source, err := os.ReadFile(path) // #nosec G304 -- reads a sibling source file at a path derived from the scan target repo tree
 	if err != nil || len(source) == 0 {
 		return nil, nil, nil
 	}

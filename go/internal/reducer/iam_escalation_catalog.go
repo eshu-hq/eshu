@@ -71,25 +71,25 @@ const iamEscalationPassRoleAction = "iam:passrole"
 // It is a package-level value built once; callers MUST NOT mutate it.
 var iamEscalationCatalog = []iamEscalationPrimitive{
 	// 3.1 single-action policy-mutation primitives.
-	{Token: "iam_create_policy_version", Actions: []string{"iam:createpolicyversion"}, TargetKind: iamEscalationTargetPolicy},
-	{Token: "iam_set_default_policy_version", Actions: []string{"iam:setdefaultpolicyversion"}, TargetKind: iamEscalationTargetPolicy},
-	{Token: "iam_attach_user_policy", Actions: []string{"iam:attachuserpolicy"}, TargetKind: iamEscalationTargetUser},
-	{Token: "iam_attach_role_policy", Actions: []string{"iam:attachrolepolicy"}, TargetKind: iamEscalationTargetRole},
-	{Token: "iam_attach_group_policy", Actions: []string{"iam:attachgrouppolicy"}, TargetKind: iamEscalationTargetGroup},
-	{Token: "iam_put_user_policy", Actions: []string{"iam:putuserpolicy"}, TargetKind: iamEscalationTargetUser},
-	{Token: "iam_put_role_policy", Actions: []string{"iam:putrolepolicy"}, TargetKind: iamEscalationTargetRole},
-	{Token: "iam_put_group_policy", Actions: []string{"iam:putgrouppolicy"}, TargetKind: iamEscalationTargetGroup},
-	{Token: "iam_update_assume_role_policy", Actions: []string{"iam:updateassumerolepolicy"}, TargetKind: iamEscalationTargetRole},
+	{Token: "iam_create_policy_version", Actions: []string{"iam:createpolicyversion"}, TargetKind: iamEscalationTargetPolicy},   // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_set_default_policy_version", Actions: []string{"iam:setdefaultpolicyversion"}, TargetKind: iamEscalationTargetPolicy}, // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_attach_user_policy", Actions: []string{"iam:attachuserpolicy"}, TargetKind: iamEscalationTargetUser},            // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_attach_role_policy", Actions: []string{"iam:attachrolepolicy"}, TargetKind: iamEscalationTargetRole},            // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_attach_group_policy", Actions: []string{"iam:attachgrouppolicy"}, TargetKind: iamEscalationTargetGroup},         // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_put_user_policy", Actions: []string{"iam:putuserpolicy"}, TargetKind: iamEscalationTargetUser},                  // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_put_role_policy", Actions: []string{"iam:putrolepolicy"}, TargetKind: iamEscalationTargetRole},                  // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_put_group_policy", Actions: []string{"iam:putgrouppolicy"}, TargetKind: iamEscalationTargetGroup},               // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_update_assume_role_policy", Actions: []string{"iam:updateassumerolepolicy"}, TargetKind: iamEscalationTargetRole}, // #nosec G101 -- IAM action name string, not a credential
 	// 3.2 credential / login primitives (escalate to the target user).
-	{Token: "iam_create_access_key", Actions: []string{"iam:createaccesskey"}, TargetKind: iamEscalationTargetUser},
-	{Token: "iam_create_login_profile", Actions: []string{"iam:createloginprofile"}, TargetKind: iamEscalationTargetUser},
-	{Token: "iam_update_login_profile", Actions: []string{"iam:updateloginprofile"}, TargetKind: iamEscalationTargetUser},
+	{Token: "iam_create_access_key", Actions: []string{"iam:createaccesskey"}, TargetKind: iamEscalationTargetUser},              // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_create_login_profile", Actions: []string{"iam:createloginprofile"}, TargetKind: iamEscalationTargetUser},        // #nosec G101 -- IAM action name string, not a credential
+	{Token: "iam_update_login_profile", Actions: []string{"iam:updateloginprofile"}, TargetKind: iamEscalationTargetUser},        // #nosec G101 -- IAM action name string, not a credential
 	// 3.3 group-membership primitive.
-	{Token: "iam_add_user_to_group", Actions: []string{"iam:addusertogroup"}, TargetKind: iamEscalationTargetGroup},
+	{Token: "iam_add_user_to_group", Actions: []string{"iam:addusertogroup"}, TargetKind: iamEscalationTargetGroup}, // #nosec G101 -- IAM action name string, not a credential
 	// 3.4 PassRole + compute-create primitives (escalate to the passed role).
 	{Token: "passrole_lambda", Actions: []string{iamEscalationPassRoleAction, "lambda:createfunction", "lambda:invokefunction"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},
-	{Token: "passrole_ec2", Actions: []string{iamEscalationPassRoleAction, "ec2:runinstances"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},
-	{Token: "passrole_glue_dev_endpoint", Actions: []string{iamEscalationPassRoleAction, "glue:createdevendpoint"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},
+	{Token: "passrole_ec2", Actions: []string{iamEscalationPassRoleAction, "ec2:runinstances"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},                                    // #nosec G101 -- IAM action name string, not a credential
+	{Token: "passrole_glue_dev_endpoint", Actions: []string{iamEscalationPassRoleAction, "glue:createdevendpoint"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},               // #nosec G101 -- IAM action name string, not a credential
 	{Token: "passrole_cloudformation", Actions: []string{iamEscalationPassRoleAction, "cloudformation:createstack"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},
 	{Token: "passrole_sagemaker_notebook", Actions: []string{iamEscalationPassRoleAction, "sagemaker:createnotebookinstance"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},
 	{Token: "passrole_datapipeline", Actions: []string{iamEscalationPassRoleAction, "datapipeline:createpipeline", "datapipeline:putpipelinedefinition", "datapipeline:activatepipeline"}, TargetKind: iamEscalationTargetPassedRole, PassRoleAction: iamEscalationPassRoleAction},
