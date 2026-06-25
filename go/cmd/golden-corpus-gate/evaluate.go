@@ -16,7 +16,12 @@ import (
 
 // DrainCounts is the observed queue state at a drain poll.
 type DrainCounts struct {
-	FactWorkItemsResidual    int64
+	FactWorkItemsResidual int64
+	// FactWorkItemsDeadLetter is the dead_letter subset of the residual. It never
+	// drains on its own (the reducer treats dead_letter as terminal and does not
+	// retry it), so a nonzero value is the usual reason a drain times out;
+	// reporting it makes the failure diagnosable from the gate output alone.
+	FactWorkItemsDeadLetter  int64
 	SharedIntentsNonterminal int64
 	// RepoDependencyNonterminal is the repo_dependency-domain subset of
 	// SharedIntentsNonterminal. Per B-13 (#3859) it is the primary signal that
@@ -36,8 +41,8 @@ func evaluateDrains(d DrainCounts, a DrainAssertions, r *Report) {
 	factLimit := a.FactWorkItems.Limit()
 	r.AddCheck("drains", "fact_work_items_residual",
 		d.FactWorkItemsResidual <= factLimit, true,
-		fmt.Sprintf("residual=%d (limit %d; status NOT IN succeeded,superseded)",
-			d.FactWorkItemsResidual, factLimit))
+		fmt.Sprintf("residual=%d (limit %d; status NOT IN succeeded,superseded; dead_letter=%d)",
+			d.FactWorkItemsResidual, factLimit, d.FactWorkItemsDeadLetter))
 
 	intentLimit := a.SharedProjectionIntents.Limit()
 	r.AddCheck("drains", "shared_projection_intents_nonterminal",

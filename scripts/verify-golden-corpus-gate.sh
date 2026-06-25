@@ -29,7 +29,7 @@ cd "${repo_root}"
 : "${NEO4J_HTTP_PORT:=7474}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
-: "${GATE_API_PORT:=8080}"
+: "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
 : "${GATE_DRAIN_TIMEOUT:=10m}"
 : "${GATE_BUDGET_SECONDS:=900}"   # baseline wall-time budget; ceiling is 2x.
@@ -130,6 +130,17 @@ export ESHU_GIT_AUTH_METHOD="none"
 export ESHU_REPOSITORY_RULES_JSON="[]"
 export ESHU_QUERY_PROFILE="local_full_stack"
 export ESHU_API_KEY="${GATE_API_KEY}"
+export ESHU_API_ADDR=":${GATE_API_PORT}"
+# Every Lifecycle binary (the 9 collectors, projector, reducer) starts an
+# operator status server on ESHU_LISTEN_ADDR and a metrics scrape server on
+# ESHU_METRICS_ADDR, both defaulting to fixed ports (8080 / 9464). Run
+# concurrently they would all collide on those ports and exit on startup, so each
+# process gets an ephemeral port. The api's data server is separate
+# (ESHU_API_ADDR, set above) and is the one the gate queries. pprof stays off
+# because ESHU_PPROF_ADDR is left unset.
+export ESHU_LISTEN_ADDR="127.0.0.1:0"
+export ESHU_METRICS_ADDR="127.0.0.1:0"
+unset ESHU_PPROF_ADDR || true
 mkdir -p "${ESHU_REPOS_DIR}"
 
 build_bin() {
@@ -148,10 +159,13 @@ start_bg() {
 
 # ----------------------------------------------------------------------------
 log "stage minimal corpus (${#corpus_fixtures[@]} repos)"
+# Copy (not symlink) each fixture: the filesystem discovery walker treats each
+# immediate child of ESHU_FILESYSTEM_ROOT as a repo and does not follow symlinks,
+# so symlinked fixtures collapse to a single scope and break cross-repo edges.
 for fixture in "${corpus_fixtures[@]}"; do
 	src="${repo_root}/tests/fixtures/ecosystems/${fixture}"
 	[[ -d "${src}" ]] || die "corpus fixture not found: ${src}"
-	ln -s "${src}" "${corpus_dir}/${fixture}"
+	cp -R "${src}" "${corpus_dir}/${fixture}"
 done
 printf 'staged: %s\n' "${corpus_fixtures[*]}"
 

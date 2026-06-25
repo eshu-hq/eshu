@@ -26,11 +26,23 @@ func TestEvaluateDrains(t *testing.T) {
 			t.Errorf("clean drain must pass; findings: %+v", r.Findings)
 		}
 	})
-	t.Run("fact residual", func(t *testing.T) {
+	t.Run("fact residual reports dead_letter subset", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{FactWorkItemsResidual: 3}, a, &r)
+		evaluateDrains(DrainCounts{FactWorkItemsResidual: 3, FactWorkItemsDeadLetter: 2}, a, &r)
 		if !r.Failed() {
 			t.Error("nonzero fact_work_items residual must fail")
+		}
+		var found bool
+		for _, f := range r.Findings {
+			if f.Check == "fact_work_items_residual" {
+				found = true
+				if !contains(f.Detail, "dead_letter=2") {
+					t.Errorf("detail missing dead_letter breakdown: %q", f.Detail)
+				}
+			}
+		}
+		if !found {
+			t.Error("missing fact_work_items_residual finding")
 		}
 	})
 	t.Run("intent nonterminal includes repo_dependency detail", func(t *testing.T) {

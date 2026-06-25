@@ -28,6 +28,10 @@ const (
 SELECT count(*) FROM fact_work_items
 WHERE status NOT IN ('succeeded', 'superseded')`
 
+	factWorkItemsDeadLetterSQL = `
+SELECT count(*) FROM fact_work_items
+WHERE status = 'dead_letter'`
+
 	sharedIntentsNonterminalSQL = `
 SELECT count(*) FROM shared_projection_intents
 WHERE completed_at IS NULL`
@@ -71,6 +75,10 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 	if err != nil {
 		return DrainCounts{}, fmt.Errorf("fact_work_items residual: %w", err)
 	}
+	deadLetter, err := q.scalar(ctx, factWorkItemsDeadLetterSQL)
+	if err != nil {
+		return DrainCounts{}, fmt.Errorf("fact_work_items dead_letter: %w", err)
+	}
 	intents, err := q.scalar(ctx, sharedIntentsNonterminalSQL)
 	if err != nil {
 		return DrainCounts{}, fmt.Errorf("shared_projection_intents nonterminal: %w", err)
@@ -81,6 +89,7 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 	}
 	return DrainCounts{
 		FactWorkItemsResidual:     fact,
+		FactWorkItemsDeadLetter:   deadLetter,
 		SharedIntentsNonterminal:  intents,
 		RepoDependencyNonterminal: repoDep,
 	}, nil
