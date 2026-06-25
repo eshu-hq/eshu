@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	apiKeyEnvVar             = "ESHU_API_KEY"             // #nosec G101 -- environment variable name, not a credential
+	apiKeyEnvVar             = "ESHU_API_KEY"               // #nosec G101 -- environment variable name, not a credential
 	autoGenerateAPIKeyEnvVar = "ESHU_AUTO_GENERATE_API_KEY" // #nosec G101 -- environment variable name, not a credential
 	eshuHomeEnvVar           = "ESHU_HOME"
 	appHomeDirname           = ".eshu"
