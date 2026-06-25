@@ -78,6 +78,14 @@ func GateAcceptedGenerationOnActive(
 // carry scope generation IDs from scope_generations, which are a separate table
 // and will never be found in relationship_generations. Applying the activation
 // gate to those paths permanently blocks their intents (B-13).
+//
+// Invariant for future sub-runners: any source run that carries a
+// relationship generation ID (one written to relationship_generations by
+// ActivateResolutionGeneration or CreateGeneration/CommitGeneration) MUST
+// match this predicate — extend it if a new relationship-gen-backed path is
+// added. Conversely, any source run matching "repo_dependency[:<scope>]" MUST
+// carry a relationship generation ID; a new non-relationship path MUST NOT
+// adopt this prefix.
 func requiresRelationshipGenerationGate(sourceRunID string) bool {
 	return sourceRunID == "repo_dependency" ||
 		strings.HasPrefix(sourceRunID, "repo_dependency:")

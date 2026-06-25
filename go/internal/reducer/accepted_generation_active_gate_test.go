@@ -225,6 +225,67 @@ func TestGateAcceptedGenerationOnActivePassesThroughPackageConsumptionSourceRun(
 	}
 }
 
+// TestGateAcceptedGenerationPrefetchPassesThroughCodeImportSourceRun proves
+// that the batched prefetch path (the production hot path the repo-dependency
+// runner uses) also bypasses the activation gate for code-import source runs.
+// GateAcceptedGenerationPrefetchOnActive wraps the resolved lookup with
+// GateAcceptedGenerationOnActive, so a regression that reordered the bypass
+// relative to the memoized active call would only be caught here.
+func TestGateAcceptedGenerationPrefetchPassesThroughCodeImportSourceRun(t *testing.T) {
+	t.Parallel()
+
+	basePrefetch := func(_ context.Context, _ []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+		return acceptedGenerationFixed("scope-gen-ci", true), nil
+	}
+	// isActive always returns false — simulates a scope generation ID that is
+	// never found in relationship_generations.
+	gatedPrefetch := GateAcceptedGenerationPrefetchOnActive(basePrefetch, func(string) (bool, error) {
+		return false, nil
+	})
+
+	lookup, err := gatedPrefetch(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("gated prefetch error = %v", err)
+	}
+	key := SharedProjectionAcceptanceKey{
+		ScopeID:          "git-repository-scope:repository:r_lib",
+		AcceptanceUnitID: "repository:r_lib",
+		SourceRunID:      "code_import_repo_dependency:git-repository-scope:repository:r_lib",
+	}
+	gen, ok := lookup(key)
+	if !ok || gen != "scope-gen-ci" {
+		t.Fatalf("prefetch lookup = (%q, %v), want (scope-gen-ci, true) for code-import source run; "+
+			"activation gate must not block scope-generation-ID paths on the prefetch path", gen, ok)
+	}
+}
+
+// TestGateAcceptedGenerationPrefetchPassesThroughPackageConsumptionSourceRun
+// proves the same bypass on the prefetch path for package-consumption source runs.
+func TestGateAcceptedGenerationPrefetchPassesThroughPackageConsumptionSourceRun(t *testing.T) {
+	t.Parallel()
+
+	basePrefetch := func(_ context.Context, _ []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+		return acceptedGenerationFixed("scope-gen-pc", true), nil
+	}
+	gatedPrefetch := GateAcceptedGenerationPrefetchOnActive(basePrefetch, func(string) (bool, error) {
+		return false, nil
+	})
+
+	lookup, err := gatedPrefetch(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("gated prefetch error = %v", err)
+	}
+	key := SharedProjectionAcceptanceKey{
+		ScopeID:          "package-registry-scope:pkg-scope",
+		AcceptanceUnitID: "repository:r_consumer",
+		SourceRunID:      "package_consumption_repo_dependency:package-registry-scope:pkg-scope",
+	}
+	gen, ok := lookup(key)
+	if !ok || gen != "scope-gen-pc" {
+		t.Fatalf("prefetch lookup = (%q, %v), want (scope-gen-pc, true) for package-consumption source run", gen, ok)
+	}
+}
+
 // TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive proves the
 // end-to-end fence at the runner: with acceptance committed for the intent's
 // generation but that generation NOT yet active, the repo-dependency runner
