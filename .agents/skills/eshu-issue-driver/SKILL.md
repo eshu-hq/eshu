@@ -119,9 +119,10 @@ current turn, stop and ask — do not self-approve and proceed.
   the `fixed` ones). Duplicate findings across bots: fix the code once, resolve
   both threads. When bots disagree, trust the code and the project rules.
 - **If GitHub Copilot returns "couldn't review any files"** on its first pass,
-  re-request the review immediately (`gh pr review --request <copilot-bot>`
-  or via the GitHub API) and poll again before proceeding. An empty first review
-  is not a pass — it is a failed request that must be retried.
+  re-request the review immediately via `gh pr edit <n> --add-reviewer @copilot`
+  (reviewer re-requests use `gh pr edit`, not `gh pr review`) and poll again
+  before proceeding. An empty first review is not a pass — it is a failed
+  request that must be retried.
 - Check GHA on every PR; on red, root-cause (no symptom patch), fix, rerun.
 
 ## Step 5 — Per-PR gate (no skip)
