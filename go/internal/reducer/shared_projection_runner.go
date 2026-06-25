@@ -394,6 +394,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 
 	if err == nil {
 		r.recordSharedProjectionTiming(ctx, domain, result)
+		r.recordSharedProjectionPartitionMetrics(ctx, domain, partitionID, duration, result)
 	}
 
 	if err == nil && result.ProcessedIntents > 0 {

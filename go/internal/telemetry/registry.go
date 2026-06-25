@@ -15,6 +15,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionCollectorKind,
 	MetricDimensionDomain,
 	MetricDimensionPartitionKey,
+	MetricDimensionPartitionID,
 	MetricDimensionRunner,
 	MetricDimensionLookupResult,
 	MetricDimensionErrorType,
