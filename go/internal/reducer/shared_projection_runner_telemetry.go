@@ -89,6 +89,50 @@ func (r *SharedProjectionRunner) recordSharedProjectionCycle(
 	}
 }
 
+// recordSharedProjectionPartitionMetrics records the two per-(domain,
+// partition_id) instruments added by #3624 Phase 1:
+//
+//   - eshu_dp_shared_projection_partition_processing_seconds: wall time for the
+//     full ProcessPartitionOnce call (lease + select + retract + write + mark).
+//     Bounded dims: domain and partition_id (0-based slot).
+//   - eshu_dp_shared_projection_intents_completed_total: intents marked
+//     completed this cycle, labeled by domain only, so an operator
+//     can derive per-domain drain rate and pending depth.
+//
+// Called on every successful processPartitionWithTelemetry cycle, including
+// cycles that acquired the lease but found no work (zero ProcessedIntents)
+// so the histogram captures idle partition cost too.
+func (r *SharedProjectionRunner) recordSharedProjectionPartitionMetrics(
+	ctx context.Context,
+	domain string,
+	partitionID int,
+	totalDurationSeconds float64,
+	result PartitionProcessResult,
+) {
+	if r.Instruments == nil {
+		return
+	}
+	if totalDurationSeconds > 0 {
+		r.Instruments.SharedProjectionPartitionProcessingDuration.Record(
+			ctx,
+			totalDurationSeconds,
+			metric.WithAttributes(
+				telemetry.AttrDomain(domain),
+				telemetry.AttrPartitionID(partitionID),
+			),
+		)
+	}
+	if result.ProcessedIntents > 0 {
+		r.Instruments.SharedProjectionIntentsCompleted.Add(
+			ctx,
+			int64(result.ProcessedIntents),
+			metric.WithAttributes(
+				telemetry.AttrDomain(domain),
+			),
+		)
+	}
+}
+
 func recordSharedProjectionStepDurations(
 	ctx context.Context,
 	instruments *telemetry.Instruments,

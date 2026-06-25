@@ -315,3 +315,49 @@ the timing and outcome values are call-local, so the N concurrent claimed-servic
 workers share no mutable state through the recording path. Verified by
 `go test ./internal/collector ./internal/telemetry -count=1` and the
 claimed-service `-race` suite.
+
+## Per-(Domain, Partition) Shared-Projection Drain Telemetry
+
+The reducer shared-projection runner now publishes two instruments for #3624
+Phase 1 per-domain attribution:
+
+- `eshu_dp_shared_projection_partition_processing_seconds` — a histogram of
+  the full `ProcessPartitionOnce` wall time (lease claim + selection + retract
+  + write + mark_completed) labeled by `domain` and `partition_id`
+  (0-based slot, bounded by `ESHU_SHARED_PROJECTION_PARTITION_COUNT`). This is
+  the primary long-pole signal: read `max by (domain, partition_id)`
+  to identify which (domain, partition) pair dominates the cycle and whether the
+  cost is in graph writes or Postgres.
+- `eshu_dp_shared_projection_intents_completed_total` — a counter of intents
+  marked completed, labeled by `domain` only (bounded domain set).
+  Combine with an intent-emit counter to derive per-domain pending depth and
+  drain rate without a per-scrape table scan.
+
+Graph-write back-pressure gate-acquire wait is already covered by the existing
+`eshu_dp_graph_write_backpressure_wait_seconds` histogram (labeled by
+`operation`), which records every time a write blocks for a permit from the
+shared `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` pool. No new gate-wait instrument is
+needed.
+
+Performance Evidence: Phase 2 remote measurement pending — these instruments
+exist so the next corpus run can provide the per-domain latency distribution
+that confirms the Phase 2 scaling parameters
+(`ESHU_SHARED_PROJECTION_PARTITION_COUNT`, `ESHU_SHARED_PROJECTION_WORKERS`).
+
+Observability Evidence: `eshu_dp_shared_projection_partition_processing_seconds`
+and `eshu_dp_shared_projection_intents_completed_total` are the missing
+per-domain attribution signals. Before this change an operator could see total
+cycle count and overall processing duration (via the existing instruments) but
+could not attribute latency or throughput to a specific (domain, partition) pair.
+Verified by `TestRecordSharedProjectionPartitionMetrics_HistogramAndCounter`
+(emission and label correctness), `TestRecordSharedProjectionPartitionMetrics_SkipsZeroDuration`
+(no spurious zero-bucket emission), and
+`TestRecordSharedProjectionPartitionMetrics_CardinalityBounded`
+(forbidden label discipline) in `go/internal/reducer/shared_projection_runner_test.go`.
+
+No-Regression Evidence: both instruments record via two concurrency-safe OTEL
+calls (`Float64Histogram.Record`, `Int64Counter.Add`) inside the existing
+`processPartitionWithTelemetry` path. No new worker, goroutine, query, lease,
+graph write, or queue behavior is introduced. Verified by
+`go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
+(2678 tests, all passing).

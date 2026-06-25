@@ -34,12 +34,17 @@ const (
 	MetricDimensionCollectorKind = "collector_kind"
 	MetricDimensionDomain        = "domain"
 	MetricDimensionPartitionKey  = "partition_key"
-	MetricDimensionRunner        = "runner"
-	MetricDimensionLookupResult  = "lookup_result"
-	MetricDimensionErrorType     = "error_type"
-	MetricDimensionRepoSizeTier  = "repo_size_tier"
-	MetricDimensionSkipReason    = "skip_reason"
-	MetricDimensionNodeType      = "node_type"
+	// MetricDimensionPartitionID labels per-(domain, partition) shared-projection
+	// histograms with the numeric partition slot (0-based, bounded by
+	// ESHU_SHARED_PROJECTION_PARTITION_COUNT). It is a small closed set (≤64
+	// partitions by operator choice), never a raw intent id or scope id.
+	MetricDimensionPartitionID  = "partition_id"
+	MetricDimensionRunner       = "runner"
+	MetricDimensionLookupResult = "lookup_result"
+	MetricDimensionErrorType    = "error_type"
+	MetricDimensionRepoSizeTier = "repo_size_tier"
+	MetricDimensionSkipReason   = "skip_reason"
+	MetricDimensionNodeType     = "node_type"
 	// MetricDimensionNodeLabel labels graph maintenance metrics with a closed
 	// Cypher label such as Repository, Platform, or EvidenceArtifact. Producers
 	// must never use raw node ids, names, paths, or provider locators here.

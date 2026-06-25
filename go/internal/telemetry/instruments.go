@@ -74,16 +74,23 @@ type AWSClaimConcurrencyObserver interface {
 // Python eshu_ metrics.
 type Instruments struct {
 	// Counters track cumulative totals
-	FactsEmitted                              metric.Int64Counter
-	FactsCommitted                            metric.Int64Counter
-	ProjectionsCompleted                      metric.Int64Counter
-	ReducerIntentsEnqueued                    metric.Int64Counter
-	ReducerAdmissionDeferrals                 metric.Int64Counter
-	ReducerExecutions                         metric.Int64Counter
-	SearchIndexMutations                      metric.Int64Counter
-	SearchIndexErrors                         metric.Int64Counter
-	CanonicalWrites                           metric.Int64Counter
-	SharedProjectionCycles                    metric.Int64Counter
+	FactsEmitted              metric.Int64Counter
+	FactsCommitted            metric.Int64Counter
+	ProjectionsCompleted      metric.Int64Counter
+	ReducerIntentsEnqueued    metric.Int64Counter
+	ReducerAdmissionDeferrals metric.Int64Counter
+	ReducerExecutions         metric.Int64Counter
+	SearchIndexMutations      metric.Int64Counter
+	SearchIndexErrors         metric.Int64Counter
+	CanonicalWrites           metric.Int64Counter
+	SharedProjectionCycles    metric.Int64Counter
+	// SharedProjectionIntentsCompleted counts shared-projection intents marked
+	// completed per domain. Labeled by domain only (bounded: the
+	// domain set is the fixed sharedProjectionDomains list). Never keyed by
+	// intent_id, scope_id, or generation_id. Lets an operator derive per-domain
+	// drain rate (completed/s) and — combined with an intent-emit counter —
+	// pending depth per domain without a per-scrape table scan.
+	SharedProjectionIntentsCompleted          metric.Int64Counter
 	SharedAcceptanceUpserts                   metric.Int64Counter
 	SharedAcceptanceLookupErrors              metric.Int64Counter
 	SharedProjectionStaleIntents              metric.Int64Counter
@@ -771,17 +778,24 @@ type Instruments struct {
 	// counts server-side (5xx) failures per route. Together they give operators
 	// uniform latency and error-rate signal across all read endpoints, not only
 	// the handful with bespoke instruments.
-	APIRequestDuration                   metric.Float64Histogram
-	APIRequestErrors                     metric.Int64Counter
-	SharedAcceptanceUpsertDuration       metric.Float64Histogram
-	SharedAcceptanceLookupDuration       metric.Float64Histogram
-	SharedAcceptancePrefetchSize         metric.Int64Histogram
-	SharedProjectionIntentWaitDuration   metric.Float64Histogram
-	SharedProjectionProcessingDuration   metric.Float64Histogram
-	SharedProjectionStepDuration         metric.Float64Histogram
-	DocumentationDriftGenerationDuration metric.Float64Histogram
-	WebhookRequestDuration               metric.Float64Histogram
-	WebhookStoreDuration                 metric.Float64Histogram
+	APIRequestDuration                 metric.Float64Histogram
+	APIRequestErrors                   metric.Int64Counter
+	SharedAcceptanceUpsertDuration     metric.Float64Histogram
+	SharedAcceptanceLookupDuration     metric.Float64Histogram
+	SharedAcceptancePrefetchSize       metric.Int64Histogram
+	SharedProjectionIntentWaitDuration metric.Float64Histogram
+	SharedProjectionProcessingDuration metric.Float64Histogram
+	SharedProjectionStepDuration       metric.Float64Histogram
+	// SharedProjectionPartitionProcessingDuration records per-(domain,
+	// partition_id) wall time for one ProcessPartitionOnce call (lease claim +
+	// selection + retract + write + mark_completed). Bounded dims: domain
+	// is the fixed domain set; partition_id is 0-based ≤ ESHU_SHARED_PROJECTION_PARTITION_COUNT.
+	// This is the primary long-pole signal for #3624: an operator reads which
+	// (domain, partition) pair dominates cycle latency without a full corpus run.
+	SharedProjectionPartitionProcessingDuration metric.Float64Histogram
+	DocumentationDriftGenerationDuration        metric.Float64Histogram
+	WebhookRequestDuration                      metric.Float64Histogram
+	WebhookStoreDuration                        metric.Float64Histogram
 
 	// Collector concurrency histograms and counters
 	RepoSnapshotDuration           metric.Float64Histogram
@@ -1018,6 +1032,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionCycles counter: %w", err)
+	}
+
+	inst.SharedProjectionIntentsCompleted, err = meter.Int64Counter(
+		"eshu_dp_shared_projection_intents_completed_total",
+		metric.WithDescription("Total shared-projection intents marked completed, labeled by domain (bounded domain set only). Combine with intent-emit counters to derive per-domain pending depth without a per-scrape table scan."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedProjectionIntentsCompleted counter: %w", err)
 	}
 
 	inst.SharedAcceptanceUpserts, err = meter.Int64Counter(
@@ -3065,6 +3087,19 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register SharedProjectionStepDuration histogram: %w", err)
 	}
 
+	inst.SharedProjectionPartitionProcessingDuration, err = meter.Float64Histogram(
+		"eshu_dp_shared_projection_partition_processing_seconds",
+		metric.WithDescription("Per-(domain, partition_id) wall time for one ProcessPartitionOnce call "+
+			"(lease claim + selection + retract + write + mark_completed). "+
+			"Bounded dims: domain is the fixed domain set; partition_id is 0-based ≤ ESHU_SHARED_PROJECTION_PARTITION_COUNT. "+
+			"Primary long-pole signal for #3624: identifies which (domain, partition) pair dominates cycle latency."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(sharedProjectionProcessingBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedProjectionPartitionProcessingDuration histogram: %w", err)
+	}
+
 	inst.DocumentationDriftGenerationDuration, err = meter.Float64Histogram(
 		"eshu_dp_documentation_drift_generation_duration_seconds",
 		metric.WithDescription("Duration of documentation drift finding generation"),
@@ -3929,6 +3964,15 @@ func AttrDomain(v string) attribute.KeyValue {
 // AttrPartitionKey returns a partition_key attribute for metric recording.
 func AttrPartitionKey(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionPartitionKey, v)
+}
+
+// AttrPartitionID returns a partition_id attribute for per-(domain, partition)
+// shared-projection histograms. The value is the 0-based partition slot, which
+// is bounded by ESHU_SHARED_PROJECTION_PARTITION_COUNT (operator-configured,
+// ≤64 by convention). Never use raw intent, scope, or generation identifiers
+// here.
+func AttrPartitionID(v int) attribute.KeyValue {
+	return attribute.Int(MetricDimensionPartitionID, v)
 }
 
 // AttrRunner returns a runner attribute for metric recording.

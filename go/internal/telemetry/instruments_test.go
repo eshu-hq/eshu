@@ -453,6 +453,21 @@ func TestAttrHelpers(t *testing.T) {
 	}
 }
 
+// TestAttrPartitionID proves that AttrPartitionID returns the correct dimension
+// key and preserves the integer value. It is kept separate from TestAttrHelpers
+// because AttrPartitionID takes int, not string.
+func TestAttrPartitionID(t *testing.T) {
+	t.Parallel()
+
+	kv := AttrPartitionID(3)
+	if got := string(kv.Key); got != MetricDimensionPartitionID {
+		t.Fatalf("AttrPartitionID key = %q, want %q", got, MetricDimensionPartitionID)
+	}
+	if got := kv.Value.AsInt64(); got != 3 {
+		t.Fatalf("AttrPartitionID value = %d, want 3", got)
+	}
+}
+
 func TestRegisterObservableGauges_NilInstruments(t *testing.T) {
 	meter := sdkmetric.NewMeterProvider().Meter("test")
 	err := RegisterObservableGauges(nil, meter, nil, nil)
