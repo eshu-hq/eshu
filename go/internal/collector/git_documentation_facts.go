@@ -275,7 +275,7 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 	if format.format == "xls" {
 		return nil, true
 	}
-	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
+	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI))) // #nosec G304 -- reads indexed repo documentation file at a path derived from the scan target, not user-supplied input
 	if err != nil {
 		return nil, false
 	}
@@ -305,7 +305,7 @@ func readDocumentationCandidateBody(repoPath string, relativePath string, body [
 		}
 		readLimit = apiContractMaxBodyBytes
 	}
-	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
+	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI))) // #nosec G304 -- reads indexed repo API-contract file at a path derived from the scan target, not user-supplied input
 	if err != nil {
 		return nil, false
 	}

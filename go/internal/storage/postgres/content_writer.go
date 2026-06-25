@@ -5,7 +5,7 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic content-addressing digest for body deduplication, not a security primitive
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -388,7 +388,7 @@ func fileContentHash(record content.Record) (string, error) {
 		return record.Digest, nil
 	}
 
-	sum := sha1.Sum([]byte(record.Body))
+	sum := sha1.Sum([]byte(record.Body)) // #nosec G401 -- non-cryptographic body deduplication digest, not a security primitive
 	return hex.EncodeToString(sum[:]), nil
 }
 

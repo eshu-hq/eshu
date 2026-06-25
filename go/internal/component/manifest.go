@@ -107,7 +107,7 @@ type Telemetry struct {
 
 // LoadManifest loads and validates a component package manifest.
 func LoadManifest(path string) (Manifest, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is supplied by the install flow from a locally staged manifest file, not from untrusted external input
 	if err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
 	}

@@ -155,7 +155,7 @@ func (r OCIRunner) commandArgs() ([]string, error) {
 }
 
 func defaultOCIExec(ctx context.Context, name string, args []string, stdin []byte, stdout, stderr io.Writer) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- runs operator-configured OCI runtime (docker/podman) with internally-constructed arguments
 	cmd.Stdin = bytes.NewReader(stdin)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

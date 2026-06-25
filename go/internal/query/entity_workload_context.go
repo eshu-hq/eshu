@@ -80,7 +80,7 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	followupWhereClause := whereClause
 	followupParams := params
 	if workloadID := StringVal(row, "id"); workloadID != "" {
-		followupWhereClause = "w.id = $workload_id"
+		followupWhereClause = "w.id = $workload_id" // #nosec G101 -- Cypher parameterised query template, not a hardcoded credential
 		followupParams = map[string]any{"workload_id": workloadID}
 	}
 

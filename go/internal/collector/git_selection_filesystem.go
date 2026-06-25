@@ -42,7 +42,7 @@ func syncFilesystemRepositories(
 		return nil, false, err
 	}
 	manifestPath := filepath.Join(config.ReposDir, ".eshu-fixture-manifest")
-	previousManifest, err := os.ReadFile(manifestPath)
+	previousManifest, err := os.ReadFile(manifestPath) // #nosec G304 -- reads internal fixture-manifest file at a path derived from config.ReposDir, not user-supplied input
 	if err == nil && strings.TrimSpace(string(previousManifest)) == currentManifest {
 		return nil, false, nil
 	}
@@ -50,7 +50,7 @@ func syncFilesystemRepositories(
 		return nil, false, fmt.Errorf("read filesystem manifest: %w", err)
 	}
 
-	if err := os.MkdirAll(config.ReposDir, 0o755); err != nil {
+	if err := os.MkdirAll(config.ReposDir, 0o750); err != nil { // #nosec G301 -- internal repos workspace directory
 		return nil, false, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
 	if config.FilesystemDirect {
@@ -65,7 +65,7 @@ func syncFilesystemRepositories(
 			}
 			selectedPaths = append(selectedPaths, sourcePath)
 		}
-		if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o644); err != nil {
+		if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
 			return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
 		}
 		return selectedPaths, true, nil
@@ -89,7 +89,7 @@ func syncFilesystemRepositories(
 		selectedPaths = append(selectedPaths, targetPath)
 	}
 
-	if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o644); err != nil {
+	if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
 		return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
 	}
 	return selectedPaths, true, nil
@@ -228,7 +228,7 @@ func copyRepositoryTree(sourceRoot string, targetRoot string) error {
 	if err := os.RemoveAll(targetRoot); err != nil {
 		return fmt.Errorf("reset target repo %q: %w", targetRoot, err)
 	}
-	if err := os.MkdirAll(targetRoot, 0o755); err != nil {
+	if err := os.MkdirAll(targetRoot, 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
 		return fmt.Errorf("create target repo %q: %w", targetRoot, err)
 	}
 
@@ -267,7 +267,7 @@ func copyRepositoryTree(sourceRoot string, targetRoot string) error {
 
 		targetPath := filepath.Join(targetRoot, filepath.FromSlash(rel))
 		if entry.IsDir() {
-			return os.MkdirAll(targetPath, 0o755)
+			return os.MkdirAll(targetPath, 0o750) // #nosec G301 -- internal managed workspace directory tree
 		}
 		if err := copyRepositoryFile(current, targetPath); err != nil {
 			// Skip files we cannot read (permission denied, etc.)
@@ -278,7 +278,7 @@ func copyRepositoryTree(sourceRoot string, targetRoot string) error {
 }
 
 func copyRepositoryFile(sourcePath string, targetPath string) error {
-	sourceFile, err := os.Open(sourcePath)
+	sourceFile, err := os.Open(sourcePath) // #nosec G304 -- reads indexed repo file at an internally-constructed source path during filesystem copy, not user-supplied input
 	if err != nil {
 		return err
 	}
@@ -293,10 +293,10 @@ func copyRepositoryFile(sourcePath string, targetPath string) error {
 	if info.Mode()&os.ModeSymlink != 0 {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
 		return err
 	}
-	targetFile, err := os.Create(targetPath)
+	targetFile, err := os.Create(targetPath) // #nosec G304 -- creates file at an internally-constructed target path during filesystem copy, not user-supplied input
 	if err != nil {
 		return err
 	}

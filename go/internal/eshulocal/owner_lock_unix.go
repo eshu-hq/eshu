@@ -28,7 +28,7 @@ func AcquireOwnerLock(path string) (*OwnerLock, error) {
 		return nil, fmt.Errorf("create owner lock directory: %w", err)
 	}
 
-	lockFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	lockFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600) // #nosec G304 -- path is program-constructed from the workspace layout owner lock path
 	if err != nil {
 		return nil, fmt.Errorf("open owner lock file: %w", err)
 	}

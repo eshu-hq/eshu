@@ -77,7 +77,7 @@ func inventoryDocs(opts docsVerifyOptions) (docsInventory, error) {
 }
 
 func readDocumentInput(path string, maxBytes int) (doctruth.DocumentInput, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is a documentation file discovered by the program from the scan target directory, not an HTTP request param
 	if err != nil {
 		return doctruth.DocumentInput{}, fmt.Errorf("read documentation file %s: %w", path, err)
 	}
@@ -138,7 +138,7 @@ func docsVerifyEnvironmentTruth(path string) []string {
 		out[name] = struct{}{}
 	}
 	for _, candidate := range environmentReferenceCandidates(path) {
-		content, err := os.ReadFile(candidate)
+		content, err := os.ReadFile(candidate) // #nosec G304 -- candidate paths are program-enumerated env-reference file locations within the scan target directory, not HTTP request params
 		if err != nil {
 			continue
 		}

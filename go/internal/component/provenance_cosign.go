@@ -100,7 +100,7 @@ func (v CosignProvenanceVerifier) verifyAttestation(
 func (v CosignProvenanceVerifier) run(ctx context.Context, args []string) error {
 	runCtx, cancel := context.WithTimeout(ctx, v.timeout())
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, v.command(), args...)
+	cmd := exec.CommandContext(runCtx, v.command(), args...) // #nosec G204 -- runs cosign with program-constructed args (fixed flags + digest-pinned image ref from manifest); command defaults to "cosign"
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	err := cmd.Run()

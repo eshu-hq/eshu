@@ -3,6 +3,7 @@
 
 package postgres
 
+// #nosec G101 -- SQL DML whose const name contains "Token"; the value is a fully-parameterized query, not a credential literal
 const insertLocalIdentityPersonalAPITokenQuery = `
 INSERT INTO identity_token_metadata (
     token_id,
@@ -42,6 +43,7 @@ WHERE user_subject.user_id = $5
   AND (membership.expires_at IS NULL OR membership.expires_at > $8)
 `
 
+// #nosec G101 -- SQL DML whose const name contains "Token"; the value is a fully-parameterized query, not a credential literal
 const insertLocalIdentityServicePrincipalAPITokenQuery = `
 INSERT INTO identity_token_metadata (
     token_id,
@@ -87,6 +89,7 @@ WHERE token_id = $1
   AND revoked_at IS NULL
 `
 
+// #nosec G101 -- SQL DML whose const name contains "Token"; the value is a fully-parameterized query, not a credential literal
 const rotateLocalIdentityAPITokenQuery = `
 INSERT INTO identity_token_metadata (
     token_id,

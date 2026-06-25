@@ -96,10 +96,10 @@ const (
 	RelationshipVPCEndpointUsesService = "vpc_endpoint_uses_service"
 	// RelationshipVPCElasticIPAssociatedWithInstance records an Elastic IP
 	// allocation's reported EC2 instance association.
-	RelationshipVPCElasticIPAssociatedWithInstance = "vpc_elastic_ip_associated_with_instance"
+	RelationshipVPCElasticIPAssociatedWithInstance = "vpc_elastic_ip_associated_with_instance" // #nosec G101 -- relationship-type identifier, not a credential
 	// RelationshipVPCElasticIPAssociatedWithNetworkInterface records an Elastic
 	// IP allocation's reported network interface association.
-	RelationshipVPCElasticIPAssociatedWithNetworkInterface = "vpc_elastic_ip_associated_with_network_interface"
+	RelationshipVPCElasticIPAssociatedWithNetworkInterface = "vpc_elastic_ip_associated_with_network_interface" // #nosec G101 -- relationship-type identifier, not a credential
 	// RelationshipVPCVPNGatewayAttachedToVPC records a virtual private gateway's
 	// reported VPC attachment.
 	RelationshipVPCVPNGatewayAttachedToVPC = "vpc_vpn_gateway_attached_to_vpc"

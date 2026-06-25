@@ -5,7 +5,7 @@ package query
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic stable citation ID digest, not a security primitive
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -450,7 +450,7 @@ func evidenceFamily(explicit, relativePath, artifactType, kind string) string {
 }
 
 func evidenceCitationID(parts ...any) string {
-	hash := sha1.New()
+	hash := sha1.New() // #nosec G401 -- non-cryptographic stable citation ID digest, not a security primitive
 	for _, part := range parts {
 		_, _ = fmt.Fprintf(hash, "%v\x00", part)
 	}

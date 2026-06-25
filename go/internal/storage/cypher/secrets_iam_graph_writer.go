@@ -27,6 +27,7 @@ const (
 // Node upsert templates. MERGE keys on uid only; mutable properties are SET
 // after the identity MERGE so duplicate delivery converges on one node.
 const (
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Account" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMServiceAccountNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SecretsIAMServiceAccount {uid: row.uid})
 SET n.scope_id = row.scope_id,
@@ -34,6 +35,7 @@ SET n.scope_id = row.scope_id,
     n.evidence_source = row.evidence_source,
     n.confidence = row.confidence`
 
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Vault" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMVaultAuthRoleNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SecretsIAMVaultAuthRole {uid: row.uid})
 SET n.vault_mount_join_key = row.vault_mount_join_key,
@@ -42,6 +44,7 @@ SET n.vault_mount_join_key = row.vault_mount_join_key,
     n.evidence_source = row.evidence_source,
     n.confidence = row.confidence`
 
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Policy" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMVaultPolicyNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SecretsIAMVaultPolicy {uid: row.uid})
 SET n.scope_id = row.scope_id,
@@ -49,6 +52,7 @@ SET n.scope_id = row.scope_id,
     n.evidence_source = row.evidence_source,
     n.confidence = row.confidence`
 
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Metadata" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMSecretMetadataPathNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SecretsIAMSecretMetadataPath {uid: row.uid})
 SET n.vault_mount_join_key = row.vault_mount_join_key,
@@ -64,6 +68,7 @@ SET n.vault_mount_join_key = row.vault_mount_join_key,
 // edge and no fabricated node. Both anchors are uid-indexed lookups (no scan).
 // MERGE keys on the two endpoint uids plus the static relationship token only.
 const (
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Account" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMUsesServiceAccountEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (w:KubernetesWorkload {uid: row.workload_uid})
 MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})
@@ -74,6 +79,7 @@ SET rel.scope_id = row.scope_id,
     rel.confidence = row.confidence,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"IAMRole" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMAssumesIAMRoleEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})
 MATCH (c:CloudResource {uid: row.cloud_resource_uid})
@@ -85,6 +91,7 @@ SET rel.assume_mode = row.assume_mode,
     rel.confidence = row.confidence,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Vault" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})
 MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid})
@@ -95,6 +102,7 @@ SET rel.scope_id = row.scope_id,
     rel.confidence = row.confidence,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Policy" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMUsesVaultPolicyEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid})
 MATCH (p:SecretsIAMVaultPolicy {uid: row.vault_policy_uid})
@@ -105,6 +113,7 @@ SET rel.scope_id = row.scope_id,
     rel.confidence = row.confidence,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
+	// #nosec G101 -- Cypher template; const name contains "Secret"/"Read" but the value is a parameterized graph-write query, not a credential literal
 	secretsIAMGrantsSecretReadEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (p:SecretsIAMVaultPolicy {uid: row.vault_policy_uid})
 MATCH (s:SecretsIAMSecretMetadataPath {uid: row.secret_path_uid})
@@ -123,18 +132,22 @@ SET rel.capabilities = row.capabilities,
 // SecretsIAM* nodes carry the reducer scope_id, unlike the CloudResource /
 // KubernetesWorkload endpoints, so a node-scoped predicate is correct here.
 const (
+	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Account" but the value is a scoped DETACH DELETE query with bound parameters, not a credential literal
 	secretsIAMServiceAccountNodeRetractCypher = `MATCH (n:SecretsIAMServiceAccount)
 WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
+	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Vault" but the value is a scoped DETACH DELETE query with bound parameters, not a credential literal
 	secretsIAMVaultAuthRoleNodeRetractCypher = `MATCH (n:SecretsIAMVaultAuthRole)
 WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
+	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Policy" but the value is a scoped DETACH DELETE query with bound parameters, not a credential literal
 	secretsIAMVaultPolicyNodeRetractCypher = `MATCH (n:SecretsIAMVaultPolicy)
 WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
+	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Metadata" but the value is a scoped DETACH DELETE query with bound parameters, not a credential literal
 	secretsIAMSecretMetadataPathNodeRetractCypher = `MATCH (n:SecretsIAMSecretMetadataPath)
 WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
@@ -145,6 +158,7 @@ DETACH DELETE n`
 	// DETACH DELETE below; this pass intentionally runs after node retraction so
 	// Bolt-backed NornicDB does not have to delete a relationship and then
 	// DETACH DELETE its target in one managed transaction.
+	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Account" but the value is a scoped DELETE query with bound parameters, not a credential literal
 	secretsIAMUsesServiceAccountEdgeRetractCypher = `MATCH (:KubernetesWorkload)-[rel:SECRETS_IAM_USES_SERVICE_ACCOUNT]->()
 WHERE rel.scope_id = $scope_id AND rel.evidence_source = $evidence_source
 DELETE rel`

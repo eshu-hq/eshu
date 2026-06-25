@@ -84,7 +84,7 @@ func LoadPackagedSchemaResolver(schemaDir string) (ProviderSchemaResolver, error
 		}
 		sort.Strings(matches)
 		for _, schemaPath := range matches {
-			file, err := os.Open(schemaPath)
+			file, err := os.Open(schemaPath) // #nosec G304 -- reads indexed Terraform schema files at paths from filepath.Glob over an operator-configured schema directory
 			if err != nil {
 				continue
 			}

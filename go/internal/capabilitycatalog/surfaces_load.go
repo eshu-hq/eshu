@@ -60,7 +60,7 @@ type surfaceOverlayFileRecord struct {
 // file yields an empty overlay so the inventory can be built from live surfaces
 // and category defaults alone (which then flags any unclassified collector).
 func LoadSurfaceOverlay(path string) (SurfaceOverlay, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured surface inventory overlay file under specs/, not external input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return SurfaceOverlay{}, nil

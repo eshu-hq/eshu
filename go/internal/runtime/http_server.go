@@ -61,7 +61,7 @@ func (s *HTTPServer) Start(context.Context) error {
 		return fmt.Errorf("listen on %s: %w", s.config.Addr, err)
 	}
 
-	server := &http.Server{Handler: s.config.Handler}
+	server := &http.Server{Handler: s.config.Handler, ReadHeaderTimeout: 30 * time.Second}
 	s.listener = listener
 	s.server = server
 

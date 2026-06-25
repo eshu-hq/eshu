@@ -29,6 +29,7 @@ INSERT INTO identity_users (
 ) VALUES ($1, $2, 'active', NULLIF($3, ''), $4, $4, NULL, NULL)
 `
 
+// #nosec G101 -- SQL DML whose const name contains "Credential"; the value is a fully-parameterized INSERT, not a credential literal
 const insertLocalIdentityCredentialQuery = `
 INSERT INTO identity_local_credentials (
     credential_id,
@@ -197,6 +198,7 @@ WHERE invite_id = $1
   AND tombstoned_at IS NULL
 `
 
+// #nosec G101 -- SQL SELECT whose const name contains "Credential"; the value is a fully-parameterized query selecting the password_hash column, not a credential literal
 const selectLocalIdentityCredentialQuery = `
 SELECT
     u.user_id,

@@ -38,7 +38,7 @@ type OwnerRecord struct {
 
 // ReadOwnerRecord loads owner metadata from disk.
 func ReadOwnerRecord(path string) (OwnerRecord, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- path is program-constructed from the workspace layout owner record path
 	if err != nil {
 		return OwnerRecord{}, fmt.Errorf("read owner record: %w", err)
 	}

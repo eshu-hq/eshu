@@ -52,6 +52,7 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	// DISTINCT collapses duplicate (entity, method) pairs so row volume is bounded
 	// by distinct resolution methods per candidate, not the raw incoming-edge
 	// count; the strongest-edge selection by confidence still happens in Go.
+	// #nosec G202 -- concatenates only $N parameter placeholders (generated from loop indices) into IN lists; entity ID values are bound args, not SQL text
 	query := `
 		SELECT DISTINCT incoming_entity_id, resolution_method
 		FROM (
@@ -141,6 +142,7 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 		args = append(args, entityID)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
 	}
+	// #nosec G202 -- concatenates only $N parameter placeholders (generated from len(args)) into the IN list; entity ID values are bound args, not SQL text
 	query := `
 		SELECT DISTINCT row.entity_id, row.min_resolution_method
 		FROM code_reachability_rows AS row

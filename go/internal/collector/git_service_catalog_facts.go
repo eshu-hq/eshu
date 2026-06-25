@@ -65,7 +65,7 @@ func serviceCatalogFactCountForFile(
 		return 0
 	}
 	if body == nil {
-		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
+		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(sourceURI))) // #nosec G304 -- reads indexed repo service-catalog file at a path derived from the scan target, not user-supplied input
 		if err != nil {
 			return 0
 		}

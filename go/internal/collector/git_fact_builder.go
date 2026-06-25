@@ -175,7 +175,7 @@ func streamFacts(
 	documentationPaths := documentationMetaRelativePaths(snapshot.DocumentationFileMetas)
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
-			body, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath)))
+			body, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input
 			if err != nil {
 				// File disappeared between parse and emit — skip.
 				snapshot.ContentFileMetas[i] = ContentFileMeta{}

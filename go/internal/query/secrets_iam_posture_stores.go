@@ -134,6 +134,7 @@ func (s PostgresSecretsIAMPrivilegePostureObservationStore) ListSecretsIAMPrivil
 	return out, nil
 }
 
+// #nosec G101 -- SQL SELECT whose const name contains "Secrets"/"IAM"; the value is a fully-parameterized query, not a credential literal
 const listSecretsIAMPrivilegePostureObservationsQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact
@@ -270,6 +271,7 @@ func (s PostgresSecretsIAMSecretAccessPathStore) ListSecretsIAMSecretAccessPaths
 	return out, nil
 }
 
+// #nosec G101 -- SQL SELECT whose const name contains "Secrets"/"IAM"; the value is a fully-parameterized query, not a credential literal
 const listSecretsIAMSecretAccessPathsQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact
@@ -404,6 +406,7 @@ func (s PostgresSecretsIAMPostureGapStore) ListSecretsIAMPostureGaps(
 	return out, nil
 }
 
+// #nosec G101 -- SQL SELECT whose const name contains "Secrets"/"IAM"; the value is a fully-parameterized query, not a credential literal
 const listSecretsIAMPostureGapsQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact

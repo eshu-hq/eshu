@@ -84,7 +84,7 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 }
 
 func verifyFile(path string, want []byte) error {
-	got, err := os.ReadFile(path)
+	got, err := os.ReadFile(path) // #nosec G304 -- reads internally-constructed generated file path to verify staleness, not user-supplied input
 	if err != nil {
 		return fmt.Errorf("read generated file %s: %w", path, err)
 	}
@@ -95,14 +95,14 @@ func verifyFile(path string, want []byte) error {
 }
 
 func writeFile(path string, contents []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil { // #nosec G301 -- internal generated-file output directory
 		return fmt.Errorf("create generated file directory %s: %w", filepath.Dir(path), err)
 	}
-	current, err := os.ReadFile(path)
+	current, err := os.ReadFile(path) // #nosec G304 -- reads internally-constructed generated file path to skip identical writes, not user-supplied input
 	if err == nil && bytes.Equal(current, contents) {
 		return nil
 	}
-	if err := os.WriteFile(path, contents, 0o644); err != nil {
+	if err := os.WriteFile(path, contents, 0o644); err != nil { // #nosec G306 -- generated Go source file must be world-readable for the Go toolchain
 		return fmt.Errorf("write generated file %s: %w", path, err)
 	}
 	return nil

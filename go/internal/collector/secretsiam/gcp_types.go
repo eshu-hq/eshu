@@ -21,11 +21,11 @@ const (
 	GCPMemberClassServiceAccount = "serviceAccount"
 	// GCPWorkloadIdentityMemberClassServiceAccount identifies a GKE Workload
 	// Identity member in a ServiceAccount IAM binding.
-	GCPWorkloadIdentityMemberClassServiceAccount = "gke_serviceAccount"
+	GCPWorkloadIdentityMemberClassServiceAccount = "gke_serviceAccount" // #nosec G101 -- GKE Workload Identity member-class label string, not a credential
 	// GCPImpersonationModeWorkloadIdentity marks roles/iam.workloadIdentityUser.
 	GCPImpersonationModeWorkloadIdentity = "workload_identity"
 	// GCPImpersonationModeTokenCreator marks roles/iam.serviceAccountTokenCreator.
-	GCPImpersonationModeTokenCreator = "token_creator"
+	GCPImpersonationModeTokenCreator = "token_creator" // #nosec G101 -- string label identifying an impersonation mode, not a credential
 	// GCPImpersonationModeServiceAccountUser marks roles/iam.serviceAccountUser.
 	GCPImpersonationModeServiceAccountUser = "service_account_user"
 )

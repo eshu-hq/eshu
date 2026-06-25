@@ -37,6 +37,7 @@ func (cr *ContentReader) investigateHardcodedSecrets(
 	includeSuppressedArg := nextArg + 2
 	limitArg := nextArg + 3
 	offsetArg := nextArg + 4
+	// #nosec G201 -- interpolates integer arg indices and hardcodedSecretSQLSuppressionPredicate (built from compile-time suppression rules with SQL-escaped literals); no user data concatenated into SQL
 	query := fmt.Sprintf(`
 		WITH candidate_files AS (
 		  SELECT repo_id, relative_path, coalesce(language, '') AS language, content

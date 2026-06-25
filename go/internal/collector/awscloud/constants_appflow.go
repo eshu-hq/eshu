@@ -41,5 +41,5 @@ const (
 	// profile's reference to the Secrets Manager secret that stores its
 	// credentials, targeting the secret node by ARN only. The credential values
 	// themselves are never read.
-	RelationshipAppFlowConnectorProfileUsesSecret = "appflow_connector_profile_uses_secret"
+	RelationshipAppFlowConnectorProfileUsesSecret = "appflow_connector_profile_uses_secret" // #nosec G101 -- relationship-type identifier recording a secret ARN reference, not a credential value
 )

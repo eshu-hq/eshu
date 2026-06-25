@@ -15,7 +15,7 @@ const mcpServerKey = "eshu"
 // apiKeyEnvVar is the environment variable name an MCP client should reference
 // for the hosted bearer token. Setup emits this reference instead of the raw
 // secret whenever the target client supports env-var interpolation.
-const apiKeyEnvVar = "ESHU_API_KEY"
+const apiKeyEnvVar = "ESHU_API_KEY" // #nosec G101 -- apiKeyEnvVar holds an env-var name, not a secret value
 
 // mcpSetupMode selects between local stdio launch and hosted HTTP transport.
 type mcpSetupMode int

@@ -148,7 +148,7 @@ func workflowPlanningLockKeys(items []workflow.WorkItem) []int64 {
 func workflowPlanningLockKey(item workflow.WorkItem) int64 {
 	hasher := fnv.New64a()
 	_, _ = hasher.Write([]byte(workflowPlanningLockKeyValue(item)))
-	return int64(hasher.Sum64())
+	return int64(hasher.Sum64()) // #nosec G115 -- bounded: intentional bit-reinterpret of FNV-64 hash to int64 for pg_advisory_lock; full 64-bit range is the design
 }
 
 func workflowPlanningLockKeyValue(item workflow.WorkItem) string {

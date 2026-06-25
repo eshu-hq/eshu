@@ -46,7 +46,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Check API connectivity.
 	client := NewAPIClient("", "", "")
 	healthClient := &http.Client{Timeout: 3 * time.Second}
-	resp, err := healthClient.Get(client.BaseURL + "/health")
+	resp, err := healthClient.Get(client.BaseURL + "/health") // #nosec G704 -- BaseURL is the locally-configured Eshu API endpoint, not user-supplied input //nolint:noctx
 	if err != nil {
 		fmt.Printf("  [!!] API not reachable at %s\n", client.BaseURL)
 	} else {

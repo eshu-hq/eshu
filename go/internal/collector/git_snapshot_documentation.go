@@ -4,7 +4,7 @@
 package collector
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic content digest for documentation file deduplication, not a security primitive
 	"encoding/hex"
 	"io"
 	"os"
@@ -93,12 +93,12 @@ func documentationFileMetasForPaths(repoPath string, paths []string, commitSHA s
 }
 
 func documentationDigestForFile(filePath string) (string, bool) {
-	file, err := os.Open(filePath)
+	file, err := os.Open(filePath) // #nosec G304 -- reads indexed repo documentation file at a path derived from the scan target, not user-supplied input
 	if err != nil {
 		return "", false
 	}
 	defer func() { _ = file.Close() }()
-	hash := sha1.New()
+	hash := sha1.New() // #nosec G401 -- non-cryptographic content digest for documentation file deduplication, not a security primitive
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", false
 	}

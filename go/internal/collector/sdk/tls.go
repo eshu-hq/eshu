@@ -133,7 +133,7 @@ func systemCertPool() (*x509.CertPool, error) {
 func appendCACert(pool *x509.CertPool, options TLSOptions) error {
 	var appended bool
 	if path := strings.TrimSpace(options.CACertPath); path != "" {
-		pem, err := os.ReadFile(path)
+		pem, err := os.ReadFile(path) // #nosec G304 -- reads TLS CA bundle at path from operator-supplied TLSOptions configuration
 		if err != nil {
 			return fmt.Errorf("read TLS CA bundle %q: %w", path, err)
 		}

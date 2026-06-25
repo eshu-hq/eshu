@@ -27,6 +27,7 @@ func (cr *ContentReader) searchSymbols(
 	defer span.End()
 
 	filters, args, nextArg := symbolSearchFilters(req)
+	// #nosec G201 -- interpolates only $N placeholder strings from symbolSearchFilters and integer arg indices; no user data concatenated into SQL
 	query := fmt.Sprintf(`
 		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),

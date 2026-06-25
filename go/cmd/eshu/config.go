@@ -83,7 +83,7 @@ func resolveConfigValue(key, profile string) string {
 // setConfigValue writes a key=value pair to the .env file.
 func setConfigValue(key, value string) error {
 	dir := appHome()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
 
@@ -104,5 +104,5 @@ func writeEnvConfig(config map[string]string) error {
 			lines[j], lines[j-1] = lines[j-1], lines[j]
 		}
 	}
-	return os.WriteFile(envFilePath(), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	return os.WriteFile(envFilePath(), []byte(strings.Join(lines, "\n")+"\n"), 0o600)
 }

@@ -60,7 +60,7 @@ func discoveryOptionsWithRepoDiscoveryConfig(
 
 func readRepoDiscoveryConfig(repoPath string, relPath string) (repoDiscoveryConfig, bool, error) {
 	configPath := filepath.Join(repoPath, relPath)
-	contents, err := os.ReadFile(configPath)
+	contents, err := os.ReadFile(configPath) // #nosec G304 -- reads indexed repo config file at a path derived from filepath.Join(repoPath, relPath), not user-supplied input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return repoDiscoveryConfig{}, false, nil

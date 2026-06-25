@@ -25,7 +25,7 @@ func syncGitRepositoriesWithLogger(
 	logger *slog.Logger,
 	baseline gitDeltaBaseline,
 ) (GitSyncSelection, error) {
-	if err := os.MkdirAll(config.ReposDir, 0o755); err != nil {
+	if err := os.MkdirAll(config.ReposDir, 0o750); err != nil { // #nosec G301 -- internal git repos workspace directory
 		return GitSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
 	token, err := resolveGitToken(ctx, config)
@@ -109,11 +109,11 @@ func cloneRepository(
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
-	if err := os.MkdirAll(filepath.Dir(repoPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(repoPath), 0o750); err != nil { // #nosec G301 -- internal git checkout parent directory
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
-	command := exec.CommandContext(
+	command := exec.CommandContext( // #nosec G204 -- runs git with internally-constructed clone arguments; binary is fixed, args are program-generated
 		ctx,
 		"git",
 		"clone",
@@ -413,7 +413,7 @@ func gitRunWithStderrWriter(
 	commandArgs := make([]string, 0, len(args)+2)
 	commandArgs = append(commandArgs, "-C", repoPath)
 	commandArgs = append(commandArgs, args...)
-	command := exec.CommandContext(ctx, "git", commandArgs...)
+	command := exec.CommandContext(ctx, "git", commandArgs...) // #nosec G204 -- runs git with internally-constructed arguments derived from config and validated repo paths
 	command.Env = gitCommandEnv(config, token)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

@@ -47,7 +47,7 @@ func startProcessLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*m
 		return nil, err
 	}
 
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304 -- logPath is derived from program-managed layout.LogsDir, not user input
 	if err != nil {
 		return nil, fmt.Errorf("open graph log file: %w", err)
 	}
@@ -61,7 +61,7 @@ func startProcessLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*m
 		fmt.Sprintf("--http-port=%d", httpPort),
 		"--data-dir=" + dataDir,
 	}
-	cmd := exec.Command(binaryPath, args...)
+	cmd := exec.Command(binaryPath, args...) // #nosec G204 -- binaryPath is resolved via resolveNornicDBBinary from PATH/env; args are program-constructed constants and formatted port numbers
 	cmd.Args = append([]string{binaryPath}, args...)
 	cmd.Env = mergeEnvironment(eshuEnviron(), map[string]string{
 		"NORNICDB_ADDRESS":          localNornicDBBindAddress,
@@ -132,7 +132,7 @@ func resolveNornicDBBinary() (string, error) {
 }
 
 func readLocalGraphVersion(binaryPath string) (string, error) {
-	output, err := exec.Command(binaryPath, "version").Output()
+	output, err := exec.Command(binaryPath, "version").Output() // #nosec G702 -- binaryPath is resolved via resolveNornicDBBinary from PATH/ESHU_NORNICDB_BINARY; "version" is a fixed literal arg
 	if err != nil {
 		return "", fmt.Errorf("read nornicdb version: %w", err)
 	}

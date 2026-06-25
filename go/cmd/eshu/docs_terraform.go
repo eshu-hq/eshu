@@ -106,7 +106,7 @@ func isDocsVerifyTerraformTruthFile(path string) bool {
 }
 
 func docsVerifyTerraformAddressesFromFile(path string) ([]string, bool) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is a local Terraform file discovered by the program from the scan target directory, not an HTTP request param
 	if err != nil {
 		return nil, false
 	}

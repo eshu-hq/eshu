@@ -95,7 +95,7 @@ func LoadFragments(fragmentsDir string) ([]Fragment, error) {
 
 // loadFragment reads one fragment file and parses its frontmatter.
 func loadFragment(path string) (Fragment, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is program-constructed from the operator-configured fragmentsDir plus a filename enumerated by os.ReadDir
 	if err != nil {
 		return Fragment{}, fmt.Errorf("read fragment %s: %w", path, err)
 	}

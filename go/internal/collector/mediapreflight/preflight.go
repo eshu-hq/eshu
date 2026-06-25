@@ -199,7 +199,7 @@ func parseWAVMetadata(body []byte) (int64, int, bool) {
 			byteRate = binary.LittleEndian.Uint32(chunk[8:12])
 			hasFormat = true
 		case "data":
-			dataSize = uint32(chunkSize)
+			dataSize = uint32(chunkSize) // #nosec G115 -- bounded: chunkSize is read from a 32-bit WAV RIFF field, always fits in uint32
 			hasData = true
 		}
 		offset += chunkSize

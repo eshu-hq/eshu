@@ -262,6 +262,7 @@ func (cr *ContentReader) SearchEntitiesByName(
 		args = append(args, filterArgs...)
 		nextArg = next
 	}
+	// #nosec G202 -- appends only an integer arg index ($N) for the LIMIT clause; no user data concatenated into SQL
 	query += fmt.Sprintf(`
 		ORDER BY relative_path, start_line
 		LIMIT $%d

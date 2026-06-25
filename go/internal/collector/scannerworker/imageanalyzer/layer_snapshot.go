@@ -128,7 +128,7 @@ func (r *layerSnapshotReader) readLayer(ctx context.Context, layerPath string) e
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("%w: context canceled", errSourceUnavailable)
 	}
-	file, err := os.Open(layerPath)
+	file, err := os.Open(layerPath) // #nosec G304 -- reads indexed container image layer at a path derived from the scan target, not user-supplied input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("%w: layer unavailable", errTargetUnavailable)

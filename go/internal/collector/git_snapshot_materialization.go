@@ -5,7 +5,7 @@ package collector
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic content-addressing digest for snapshot deduplication, not a security primitive
 	"encoding/hex"
 	"fmt"
 	"os/exec"
@@ -187,7 +187,7 @@ func materializationEntitiesToSnapshots(
 }
 
 func gitCommitSHA(ctx context.Context, repoPath string) string {
-	command := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "HEAD")
+	command := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "HEAD") // #nosec G204 -- runs git with fixed internally-constructed arguments, no user input
 	output, err := command.Output()
 	if err != nil {
 		return ""
@@ -196,7 +196,7 @@ func gitCommitSHA(ctx context.Context, repoPath string) string {
 }
 
 func digestForBody(body string) string {
-	sum := sha1.Sum([]byte(body))
+	sum := sha1.Sum([]byte(body)) // #nosec G401 -- non-cryptographic content-addressing digest for snapshot deduplication, not a security primitive
 	return hex.EncodeToString(sum[:])
 }
 

@@ -86,7 +86,7 @@ type fileSystem interface {
 // osFileSystem is the production fileSystem backed by the os package.
 type osFileSystem struct{}
 
-func (osFileSystem) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+func (osFileSystem) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) } // #nosec G304 -- path is a project-directory file path managed by guidanceEngine, not an HTTP request param
 func (osFileSystem) WriteFile(path string, data []byte, perm os.FileMode) error {
 	return os.WriteFile(path, data, perm)
 }

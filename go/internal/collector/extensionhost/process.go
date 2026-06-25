@@ -41,7 +41,7 @@ func (r ProcessRunner) RunCollector(ctx context.Context, request Request) (sdkco
 		return sdkcollector.Result{}, fmt.Errorf("encode extension request: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, r.Command, r.Args...)
+	cmd := exec.CommandContext(ctx, r.Command, r.Args...) // #nosec G204 -- runs operator-configured extension command with operator-supplied args from ProcessRunner config
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Env = append(os.Environ(), r.Env...)
 	cmd.Dir = r.Dir

@@ -125,9 +125,9 @@ const (
 	// SatisfiedBy is the "SATISFIED_BY" graph relationship type.
 	SatisfiedBy EdgeType = "SATISFIED_BY"
 	// SecretsIamAssumesIamRole is the "SECRETS_IAM_ASSUMES_IAM_ROLE" graph relationship type.
-	SecretsIamAssumesIamRole EdgeType = "SECRETS_IAM_ASSUMES_IAM_ROLE"
+	SecretsIamAssumesIamRole EdgeType = "SECRETS_IAM_ASSUMES_IAM_ROLE" // #nosec G101 -- graph edge-type label constant, not a credential
 	// SecretsIamAuthenticatesToVaultRole is the "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE" graph relationship type.
-	SecretsIamAuthenticatesToVaultRole EdgeType = "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE"
+	SecretsIamAuthenticatesToVaultRole EdgeType = "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE" // #nosec G101 -- graph edge-type label constant, not a credential
 	// SecretsIamGrantsSecretRead is the "SECRETS_IAM_GRANTS_SECRET_READ" graph relationship type.
 	SecretsIamGrantsSecretRead EdgeType = "SECRETS_IAM_GRANTS_SECRET_READ"
 	// SecretsIamUsesServiceAccount is the "SECRETS_IAM_USES_SERVICE_ACCOUNT" graph relationship type.

@@ -95,6 +95,7 @@ func (cr *ContentReader) searchFileContentScoped(
 
 	limitArg := len(args) + 1
 	offsetArg := len(args) + 2
+	// #nosec G201 -- `where` is a compile-time literal string chosen by the caller (e.g. "repo_id = $1 AND content ILIKE '%' || $2 || '%'"); limitArg/offsetArg are integers; no user data concatenated into SQL
 	query := fmt.Sprintf(`
 		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
 		       '', content_hash, line_count, coalesce(language, ''),

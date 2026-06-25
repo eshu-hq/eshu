@@ -28,7 +28,7 @@ const (
 	WarningKindRedaction = "redaction"
 	// WarningKindPageTokenExpired marks a paginated scan whose continuation token
 	// expired before the shard finished.
-	WarningKindPageTokenExpired = "page_token_expired"
+	WarningKindPageTokenExpired = "page_token_expired" // #nosec G101 -- warning-kind label for a pagination token expiry, not a credential
 )
 
 // Outcome enumerates the bounded per-shard source states a warning reports.

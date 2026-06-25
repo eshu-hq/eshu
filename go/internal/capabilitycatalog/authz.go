@@ -117,7 +117,7 @@ type authorizationIndex struct {
 // catalog. The file is required for BuildFromSpecs because every generated
 // catalog artifact must carry authorization metadata.
 func LoadAuthorizationCatalog(path string) (AuthorizationCatalog, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured authorization catalog file under specs/, not external input
 	if err != nil {
 		return AuthorizationCatalog{}, fmt.Errorf("read authorization catalog %s: %w", path, err)
 	}

@@ -235,7 +235,7 @@ func startVulnScanLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exe
 		"watch",
 		layout.WorkspaceRoot,
 	}
-	cmd := exec.CommandContext(ctx, binary, args[1:]...)
+	cmd := exec.CommandContext(ctx, binary, args[1:]...) // #nosec G204 -- binary is the current process path from os.Executable(); args are program-constructed literals
 	cmd.Args = args
 	cmd.Env = env
 	cmd.Stdout = os.Stderr

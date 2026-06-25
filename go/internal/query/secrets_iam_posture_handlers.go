@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	secretsIAMPrivilegePostureObservationsCapability = "secrets_iam.privilege_posture_observations.list"
+	secretsIAMPrivilegePostureObservationsCapability = "secrets_iam.privilege_posture_observations.list" // #nosec G101 -- capability name identifier, not a credential
 	secretsIAMSecretAccessPathsCapability            = "secrets_iam.secret_access_paths.list"
 	secretsIAMPostureGapsCapability                  = "secrets_iam.posture_gaps.list"
 )

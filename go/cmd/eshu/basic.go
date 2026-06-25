@@ -19,7 +19,7 @@ import (
 
 var (
 	indexLookPath = exec.LookPath
-	indexExec     = func(binary string, args []string, env []string) error { return syscall.Exec(binary, args, env) }
+	indexExec     = func(binary string, args []string, env []string) error { return syscall.Exec(binary, args, env) } // #nosec G204 -- binary is resolved via LookPath from a fixed name, args are program-constructed
 )
 
 func init() {
@@ -260,7 +260,7 @@ func normalizeRepositoryStatsSelector(arg string) (string, error) {
 	if arg == "" {
 		return "", nil
 	}
-	if _, err := os.Stat(arg); err == nil {
+	if _, err := os.Stat(arg); err == nil { // #nosec G703 -- arg is a CLI-supplied local path; path traversal is operator-controlled, not an HTTP attack surface
 		return filepath.Abs(arg)
 	} else if !os.IsNotExist(err) {
 		return "", err

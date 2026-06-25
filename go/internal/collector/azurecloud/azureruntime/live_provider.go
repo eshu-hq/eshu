@@ -299,7 +299,7 @@ type liveProviderErrorKind string
 const (
 	liveProviderErrorThrottled        liveProviderErrorKind = "throttled"
 	liveProviderErrorSkipTokenExpired liveProviderErrorKind = "skip_token_expired"
-	liveProviderErrorTokenExpired     liveProviderErrorKind = "token_expired"
+	liveProviderErrorTokenExpired     liveProviderErrorKind = "token_expired" // #nosec G101 -- error-kind label for an expired auth token, not a credential value
 	liveProviderErrorPermissionHidden liveProviderErrorKind = "permission_hidden"
 	liveProviderErrorUnsupported      liveProviderErrorKind = "unsupported"
 )

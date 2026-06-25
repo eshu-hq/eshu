@@ -98,7 +98,7 @@ func ParseCollectorClaims(docsDir string) ([]CollectorClaim, error) {
 }
 
 func parseFileCollectorClaims(path, rel string) ([]CollectorClaim, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is program-constructed from WalkDir over the operator-configured docsDir, not from external input
 	if err != nil {
 		return nil, fmt.Errorf("open doc %s: %w", path, err)
 	}

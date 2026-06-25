@@ -33,7 +33,7 @@ func workflowImageEvidenceFactCountForFile(repoPath string, relativePath string,
 		return 0
 	}
 	if body == "" {
-		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(relativePath)))
+		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(relativePath))) // #nosec G304 -- reads indexed repo file at a path derived from the scan target, not user-supplied input
 		if err != nil {
 			return 0
 		}

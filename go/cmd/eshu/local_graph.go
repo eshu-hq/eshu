@@ -115,7 +115,7 @@ type localGraphCredentials struct {
 }
 
 func loadOrCreateLocalGraphCredentials(path string) (localGraphCredentials, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- path is the program-managed credentials file under layout.GraphDir, not user-supplied input
 	if err == nil {
 		var credentials localGraphCredentials
 		if err := json.Unmarshal(content, &credentials); err != nil {
@@ -148,7 +148,7 @@ func writeLocalGraphCredentials(path string, credentials localGraphCredentials) 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create local graph credentials directory: %w", err)
 	}
-	content, err := json.MarshalIndent(credentials, "", "  ")
+	content, err := json.MarshalIndent(credentials, "", "  ") // #nosec G117 -- intentionally marshaling local graph credentials to the program-managed credentials file; file is written with 0o600 permissions
 	if err != nil {
 		return fmt.Errorf("encode local graph credentials: %w", err)
 	}

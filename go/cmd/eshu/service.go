@@ -130,7 +130,7 @@ var (
 	eshuExecutable = os.Executable
 	eshuGetwd      = os.Getwd
 	eshuLookPath   = exec.LookPath
-	eshuExec       = func(binary string, args []string, env []string) error { return syscall.Exec(binary, args, env) }
+	eshuExec       = func(binary string, args []string, env []string) error { return syscall.Exec(binary, args, env) } // #nosec G204 -- binary is resolved via LookPath from a fixed name; args are program-constructed
 	eshuEnviron    = os.Environ
 )
 
@@ -399,7 +399,7 @@ func runAPIStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Printf("Starting Eshu HTTP API on %s:%d...\n", host, port)
-	return syscall.Exec(binary, []string{"eshu-api"}, os.Environ())
+	return syscall.Exec(binary, []string{"eshu-api"}, os.Environ()) // #nosec G204 -- binary is LookPath("eshu-api"); args literal
 }
 
 func runServeStart(cmd *cobra.Command, args []string) error {
@@ -416,7 +416,7 @@ func runServeStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Printf("Starting Eshu service (HTTP API + MCP) on %s:%d...\n", host, port)
-	return syscall.Exec(binary, []string{"eshu-api"}, os.Environ())
+	return syscall.Exec(binary, []string{"eshu-api"}, os.Environ()) // #nosec G204 -- binary is LookPath("eshu-api"); args literal
 }
 
 func cleanExecutableArg0(binary string) string {

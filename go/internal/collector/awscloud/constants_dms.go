@@ -76,7 +76,7 @@ const (
 	// RelationshipDMSEndpointUsesSecret records a DMS endpoint's Secrets Manager
 	// secret reference for its connection credentials. The secret value is never
 	// read; only the secret id/ARN reference is recorded.
-	RelationshipDMSEndpointUsesSecret = "dms_endpoint_uses_secret"
+	RelationshipDMSEndpointUsesSecret = "dms_endpoint_uses_secret" // #nosec G101 -- relationship-type identifier recording a secret ARN reference, not a credential value
 	// RelationshipDMSReplicationTaskUsesSourceEndpoint records a replication
 	// task's source endpoint, keyed by the endpoint ARN the endpoint node
 	// publishes.

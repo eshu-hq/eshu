@@ -281,7 +281,7 @@ func gitDiffNameStatus(repoPath, baseRef, headRef string) ([]changeImpactFileCha
 		args = append(args, headRef)
 	}
 	args = append(args, "--")
-	out, err := exec.Command("git", args...).Output()
+	out, err := exec.Command("git", args...).Output() // #nosec G204 -- fixed binary "git"; args are program-constructed from flag values (refs and "--"), not arbitrary user strings
 	if err != nil {
 		return nil, fmt.Errorf("derive git diff: %w", err)
 	}
