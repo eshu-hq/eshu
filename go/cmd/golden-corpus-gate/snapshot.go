@@ -107,7 +107,9 @@ type QueryShape struct {
 
 // LoadSnapshot reads and parses the golden snapshot at path.
 func LoadSnapshot(path string) (Snapshot, error) {
-	raw, err := os.ReadFile(path) //nolint:gosec // path is an operator-supplied gate input, not user data
+	// #nosec G304 -- path is the operator-supplied golden snapshot path (a gate
+	// flag), not user- or request-derived input.
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("read snapshot %q: %w", path, err)
 	}

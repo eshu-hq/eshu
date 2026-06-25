@@ -123,6 +123,9 @@ func (f Fact) sourceConfidence() string {
 
 // LoadFile reads and validates a cassette from the given file path.
 func LoadFile(path string) (File, error) {
+	// #nosec G304 -- path is an operator-supplied cassette location (the
+	// -cassette-file flag / repo-shipped testdata), not user- or request-derived
+	// input.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return File{}, fmt.Errorf("read cassette file %q: %w", path, err)

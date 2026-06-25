@@ -92,9 +92,15 @@ credentials, and holds no shared mutable state beyond its scope index (which
 advances single-threaded per `collector.Service`). Verified by
 `go test ./internal/collector/cassette/... -count=1`.
 
+The `// #nosec G304` annotation on `LoadFile`'s `os.ReadFile` is comment-only: it
+documents that the cassette path is operator-supplied (the `-cassette-file` flag
+or repo-shipped testdata), not user- or request-derived input. No code path,
+allocation, or query changed, so there is no performance impact to measure.
+
 ## No-Observability-Change:
 
 No-Observability-Change: no new metrics, spans, or log lines are emitted by the
-cassette package itself. Collector-level telemetry (collection cycle duration,
-fact count) records normally because `Source` is wired through the standard
+cassette package itself, including the `#nosec G304` documentation change on
+`LoadFile`. Collector-level telemetry (collection cycle duration, fact count)
+records normally because `Source` is wired through the standard
 `collector.Service` poll loop.
