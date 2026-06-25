@@ -94,9 +94,9 @@ func (r *SharedProjectionRunner) recordSharedProjectionCycle(
 //
 //   - eshu_dp_shared_projection_partition_processing_seconds: wall time for the
 //     full ProcessPartitionOnce call (lease + select + retract + write + mark).
-//     Bounded dims: projection_domain and partition_id (0-based slot).
+//     Bounded dims: domain and partition_id (0-based slot).
 //   - eshu_dp_shared_projection_intents_completed_total: intents marked
-//     completed this cycle, labeled by projection_domain only, so an operator
+//     completed this cycle, labeled by domain only, so an operator
 //     can derive per-domain drain rate and pending depth.
 //
 // Called on every successful processPartitionWithTelemetry cycle, including

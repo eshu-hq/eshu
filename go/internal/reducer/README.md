@@ -3235,15 +3235,15 @@ the #3624 root-cause analysis.
 ### New Instruments
 
 - **`eshu_dp_shared_projection_partition_processing_seconds`** — histogram of
-  full `ProcessPartitionOnce` wall time labeled by `projection_domain` and
+  full `ProcessPartitionOnce` wall time labeled by `domain` and
   `partition_id` (0-based slot). This is the primary long-pole signal: read
-  `max by (projection_domain, partition_id)` to find which (domain, partition)
+  `max by (domain, partition_id)` to find which (domain, partition)
   pair dominates the drain cycle. The `partition_id` dimension is bounded by
   `ESHU_SHARED_PROJECTION_PARTITION_COUNT` (operator-configured, ≤64 by
   convention).
 
 - **`eshu_dp_shared_projection_intents_completed_total`** — counter of intents
-  marked completed per `projection_domain`. Combine with an intent-emit counter
+  marked completed per `domain`. Combine with an intent-emit counter
   to compute per-domain drain rate (completed/s) and pending backlog depth
   without a per-scrape table scan.
 

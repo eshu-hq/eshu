@@ -17,8 +17,8 @@ import (
 // TestRecordSharedProjectionPartitionMetrics_HistogramAndCounter proves that
 // recordSharedProjectionPartitionMetrics emits:
 //  1. eshu_dp_shared_projection_partition_processing_seconds with
-//     projection_domain and partition_id labels.
-//  2. eshu_dp_shared_projection_intents_completed_total with projection_domain
+//     domain and partition_id labels.
+//  2. eshu_dp_shared_projection_intents_completed_total with domain
 //     label and correct count.
 //
 // This is the primary drain-path telemetry for #3624 Phase 1.

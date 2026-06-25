@@ -85,7 +85,7 @@ type Instruments struct {
 	CanonicalWrites           metric.Int64Counter
 	SharedProjectionCycles    metric.Int64Counter
 	// SharedProjectionIntentsCompleted counts shared-projection intents marked
-	// completed per domain. Labeled by projection_domain only (bounded: the
+	// completed per domain. Labeled by domain only (bounded: the
 	// domain set is the fixed sharedProjectionDomains list). Never keyed by
 	// intent_id, scope_id, or generation_id. Lets an operator derive per-domain
 	// drain rate (completed/s) and — combined with an intent-emit counter —
@@ -786,9 +786,9 @@ type Instruments struct {
 	SharedProjectionIntentWaitDuration metric.Float64Histogram
 	SharedProjectionProcessingDuration metric.Float64Histogram
 	SharedProjectionStepDuration       metric.Float64Histogram
-	// SharedProjectionPartitionProcessingDuration records per-(projection_domain,
+	// SharedProjectionPartitionProcessingDuration records per-(domain,
 	// partition_id) wall time for one ProcessPartitionOnce call (lease claim +
-	// selection + retract + write + mark_completed). Bounded dims: projection_domain
+	// selection + retract + write + mark_completed). Bounded dims: domain
 	// is the fixed domain set; partition_id is 0-based ≤ ESHU_SHARED_PROJECTION_PARTITION_COUNT.
 	// This is the primary long-pole signal for #3624: an operator reads which
 	// (domain, partition) pair dominates cycle latency without a full corpus run.
@@ -1036,7 +1036,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SharedProjectionIntentsCompleted, err = meter.Int64Counter(
 		"eshu_dp_shared_projection_intents_completed_total",
-		metric.WithDescription("Total shared-projection intents marked completed, labeled by projection_domain (bounded domain set only). Combine with intent-emit counters to derive per-domain pending depth without a per-scrape table scan."),
+		metric.WithDescription("Total shared-projection intents marked completed, labeled by domain (bounded domain set only). Combine with intent-emit counters to derive per-domain pending depth without a per-scrape table scan."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionIntentsCompleted counter: %w", err)
@@ -3089,9 +3089,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SharedProjectionPartitionProcessingDuration, err = meter.Float64Histogram(
 		"eshu_dp_shared_projection_partition_processing_seconds",
-		metric.WithDescription("Per-(projection_domain, partition_id) wall time for one ProcessPartitionOnce call "+
+		metric.WithDescription("Per-(domain, partition_id) wall time for one ProcessPartitionOnce call "+
 			"(lease claim + selection + retract + write + mark_completed). "+
-			"Bounded dims: projection_domain is the fixed domain set; partition_id is 0-based ≤ ESHU_SHARED_PROJECTION_PARTITION_COUNT. "+
+			"Bounded dims: domain is the fixed domain set; partition_id is 0-based ≤ ESHU_SHARED_PROJECTION_PARTITION_COUNT. "+
 			"Primary long-pole signal for #3624: identifies which (domain, partition) pair dominates cycle latency."),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(sharedProjectionProcessingBuckets...),

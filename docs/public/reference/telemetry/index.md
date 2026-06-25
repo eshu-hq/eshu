@@ -323,13 +323,13 @@ Phase 1 per-domain attribution:
 
 - `eshu_dp_shared_projection_partition_processing_seconds` — a histogram of
   the full `ProcessPartitionOnce` wall time (lease claim + selection + retract
-  + write + mark_completed) labeled by `projection_domain` and `partition_id`
+  + write + mark_completed) labeled by `domain` and `partition_id`
   (0-based slot, bounded by `ESHU_SHARED_PROJECTION_PARTITION_COUNT`). This is
-  the primary long-pole signal: read `max by (projection_domain, partition_id)`
+  the primary long-pole signal: read `max by (domain, partition_id)`
   to identify which (domain, partition) pair dominates the cycle and whether the
   cost is in graph writes or Postgres.
 - `eshu_dp_shared_projection_intents_completed_total` — a counter of intents
-  marked completed, labeled by `projection_domain` only (bounded domain set).
+  marked completed, labeled by `domain` only (bounded domain set).
   Combine with an intent-emit counter to derive per-domain pending depth and
   drain rate without a per-scrape table scan.
 
