@@ -100,3 +100,22 @@ WHERE pc.provider_config_id = $1
   AND t.tombstoned_at IS NULL
 LIMIT 1
 `
+
+// selectActiveSAMLProviderConfigForTenantQuery is the tenant-scoped variant of
+// selectActiveSAMLProviderConfigQuery. It adds pc.tenant_id = $2 so the check
+// is confined to a single tenant and cannot leak cross-tenant SAML activity.
+// Used only by the pre-auth provider-discovery endpoint.
+const selectActiveSAMLProviderConfigForTenantQuery = `
+SELECT pc.provider_config_id
+FROM identity_provider_configs pc
+JOIN tenants t
+    ON t.tenant_id = pc.tenant_id
+WHERE pc.provider_config_id = $1
+  AND pc.tenant_id = $2
+  AND pc.provider_kind = 'external_saml'
+  AND pc.status = 'active'
+  AND pc.tombstoned_at IS NULL
+  AND t.status = 'active'
+  AND t.tombstoned_at IS NULL
+LIMIT 1
+`

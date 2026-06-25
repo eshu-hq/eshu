@@ -188,8 +188,10 @@ export async function listAuthProviders(
       : "/api/v0/auth/providers";
     const resp = await client.getJson<{ providers: AuthLoginProvider[] }>(path);
     return resp.providers ?? [];
-  } catch {
-    // Pre-auth network errors must never break the login form.
+  } catch (err) {
+    // Pre-auth network errors must never break the login form, but warn so
+    // backend outages are visible in devtools during development and triage.
+    console.warn("[eshu] GET /api/v0/auth/providers failed — SSO buttons hidden", err);
     return [];
   }
 }

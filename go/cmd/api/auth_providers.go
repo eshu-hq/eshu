@@ -85,13 +85,13 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 	}
 
 	// Add env-config SAML providers not already covered by the DB rows.
-	// We check DB-level activity via HasActiveSAMLProviderConfig to avoid
-	// surfacing a provider whose DB row has been tombstoned.
+	// Use the tenant-scoped check to prevent a SAML provider active for a
+	// different tenant from leaking into this tenant's provider list.
 	for _, providerID := range s.samlProviderIDs {
 		if _, alreadySeen := seen[providerID]; alreadySeen {
 			continue
 		}
-		active, err := s.identity.HasActiveSAMLProviderConfig(ctx, providerID)
+		active, err := s.identity.HasActiveSAMLProviderConfigForTenant(ctx, providerID, tenantID)
 		if err != nil {
 			// Non-fatal: skip this provider rather than failing the whole list.
 			continue
