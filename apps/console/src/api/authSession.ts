@@ -8,12 +8,15 @@ import { EshuApiHttpError } from "./client";
 // Returns null when no session exists (401/403/404). Rethrows all other errors
 // so callers can distinguish "no session" from "API unavailable".
 export async function loadCurrentSession(
-  client: EshuApiClient
+  client: EshuApiClient,
 ): Promise<BrowserSessionResponse | null> {
   try {
     return await client.getBrowserSession();
   } catch (e) {
-    if (e instanceof EshuApiHttpError && (e.status === 401 || e.status === 403 || e.status === 404)) {
+    if (
+      e instanceof EshuApiHttpError &&
+      (e.status === 401 || e.status === 403 || e.status === 404)
+    ) {
       return null;
     }
     throw e;
@@ -60,11 +63,11 @@ export type LocalLoginRawResponse =
 //   login_id, password, recovery_code
 export async function loginLocal(
   client: EshuApiClient,
-  opts: LoginLocalOptions
+  opts: LoginLocalOptions,
 ): Promise<LocalLoginResult> {
   const body: Record<string, string> = {
     login_id: opts.login,
-    password: opts.password
+    password: opts.password,
   };
   if (opts.mfaCode !== undefined && opts.mfaCode.trim().length > 0) {
     body["recovery_code"] = opts.mfaCode.trim();
@@ -120,7 +123,7 @@ export interface OidcLoginOptions {
 export function beginOidcLogin(
   baseUrl: string,
   opts: OidcLoginOptions,
-  redirectFn?: (url: string) => void
+  redirectFn?: (url: string) => void,
 ): string {
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   const params = new URLSearchParams();
@@ -149,7 +152,7 @@ export interface SamlLoginOptions {
 export function beginSamlLogin(
   baseUrl: string,
   opts: SamlLoginOptions,
-  redirectFn?: (url: string) => void
+  redirectFn?: (url: string) => void,
 ): string {
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   const params = new URLSearchParams();
@@ -179,13 +182,14 @@ export interface AuthLoginProvider {
 // absent, or when the fetch fails (the login page falls back to local-only).
 export async function listAuthProviders(
   client: EshuApiClient,
-  tenantId?: string
+  tenantId?: string,
 ): Promise<readonly AuthLoginProvider[]> {
   try {
     const trimmed = tenantId?.trim() ?? "";
-    const path = trimmed.length > 0
-      ? `/api/v0/auth/providers?tenant_id=${encodeURIComponent(trimmed)}`
-      : "/api/v0/auth/providers";
+    const path =
+      trimmed.length > 0
+        ? `/api/v0/auth/providers?tenant_id=${encodeURIComponent(trimmed)}`
+        : "/api/v0/auth/providers";
     const resp = await client.getJson<{ providers: AuthLoginProvider[] }>(path);
     return resp.providers ?? [];
   } catch (err) {

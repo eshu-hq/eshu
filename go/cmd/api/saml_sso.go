@@ -214,6 +214,7 @@ func (s *postgresSAMLStore) CreateSAMLRequest(
 		ProviderConfigID: strings.TrimSpace(providerID),
 		RequestIDHash:    record.RequestIDHash,
 		RelayStateHash:   record.RelayStateHash,
+		ReturnToPath:     record.ReturnToPath,
 		IssuedAt:         record.IssuedAt,
 		ExpiresAt:        record.ExpiresAt,
 		CreatedAt:        record.IssuedAt,
@@ -227,7 +228,7 @@ func (s *postgresSAMLStore) ConsumeSAMLRequest(
 	requestIDHash string,
 	relayStateHash string,
 	now time.Time,
-) (bool, error) {
+) (string, bool, error) {
 	return s.ledger.ConsumeSAMLRequest(ctx, providerID, requestIDHash, relayStateHash, now)
 }
 

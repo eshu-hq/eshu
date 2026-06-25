@@ -366,8 +366,11 @@ func NewIdentitySubjectStore(db ExecQueryer) *IdentitySubjectStore {
 }
 
 // IdentitySubjectSchemaSQL returns the additive identity subject DDL.
+// It includes an idempotent migration to add return_to_path to
+// identity_saml_authn_requests for deployments created before this column
+// existed in the CREATE TABLE statement.
 func IdentitySubjectSchemaSQL() string {
-	return identitySubjectSchemaSQL + identityLocalIdentitySchemaSQL
+	return identitySubjectSchemaSQL + identityLocalIdentitySchemaSQL + samlSSOReturnToPathMigrationSQL
 }
 
 func identitySubjectBootstrapDefinition() Definition {

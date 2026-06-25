@@ -17,6 +17,8 @@ import (
 //   - SAML providers registered via ESHU_SAML_PROVIDERS_JSON env config that
 //     are also active in identity_provider_configs (to avoid surfacing
 //     env-only providers the DB hasn't provisioned)
+//   - OIDC providers registered via ESHU_AUTH_OIDC_CONFIG_FILE env config that
+//     are also active in identity_provider_configs for the requested tenant
 //
 // Only provider_config_id and a safe generic display label are returned.
 // No domain, metadata URL, entity ID, client ID, org name, or group name is
@@ -28,18 +30,27 @@ type authProviderListStore struct {
 	// SAML runtime (ESHU_SAML_PROVIDERS_JSON). Only IDs whose DB row is also
 	// active are surfaced.
 	samlProviderIDs []string
+	// oidcProviders is the set of (provider_config_id, tenant_id) pairs from
+	// the env-config OIDC runtime (ESHU_AUTH_OIDC_CONFIG_FILE). Only entries
+	// whose DB row is active for the matching tenant are surfaced.
+	oidcProviders []query.OIDCRegisteredProvider
 }
 
 // newAuthProviderListStore constructs the store. db may be nil in test-only
 // environments without a database; the handler then returns an empty list.
-// samlHandler may be nil when SAML is not configured.
+// samlHandler and oidcHandler may be nil when those providers are not configured.
 func newAuthProviderListStore(
 	db *sql.DB,
 	samlHandler *query.SAMLHandler,
+	oidcHandler *query.OIDCLoginHandler,
 ) *authProviderListStore {
 	var samlIDs []string
 	if samlHandler != nil {
 		samlIDs = samlHandler.RegisteredProviderIDs()
+	}
+	var oidcProviders []query.OIDCRegisteredProvider
+	if oidcHandler != nil {
+		oidcProviders = oidcHandler.RegisteredProviders()
 	}
 	var identityStore *pgstatus.IdentitySubjectStore
 	if db != nil {
@@ -48,6 +59,7 @@ func newAuthProviderListStore(
 	return &authProviderListStore{
 		identity:        identityStore,
 		samlProviderIDs: samlIDs,
+		oidcProviders:   oidcProviders,
 	}
 }
 
@@ -104,6 +116,32 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 			ProviderConfigID: providerID,
 			DisplayLabel:     displayLabelForKind("external_saml"),
 			ProviderKind:     "saml",
+		})
+	}
+
+	// Add env-config OIDC providers not already covered by the DB rows.
+	// Only include providers whose config-file tenant_id matches the requested
+	// tenant to prevent cross-tenant provider enumeration.
+	for _, p := range s.oidcProviders {
+		if p.TenantID != tenantID {
+			continue
+		}
+		if _, alreadySeen := seen[p.ProviderConfigID]; alreadySeen {
+			continue
+		}
+		active, err := s.identity.HasActiveOIDCProviderConfigForTenant(ctx, p.ProviderConfigID, tenantID)
+		if err != nil {
+			// Non-fatal: skip this provider rather than failing the whole list.
+			continue
+		}
+		if !active {
+			continue
+		}
+		seen[p.ProviderConfigID] = struct{}{}
+		result = append(result, query.AuthProviderItem{
+			ProviderConfigID: p.ProviderConfigID,
+			DisplayLabel:     displayLabelForKind("external_oidc"),
+			ProviderKind:     "oidc",
 		})
 	}
 

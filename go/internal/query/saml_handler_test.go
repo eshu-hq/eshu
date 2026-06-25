@@ -258,6 +258,7 @@ type fakeSAMLStore struct {
 	providerOK             bool
 	createdRequest         SAMLRequestCreateRecord
 	requestOK              bool
+	returnToPath           string
 	replayOK               bool
 	resolveOK              bool
 	sessionAuth            AuthContext
@@ -283,10 +284,10 @@ func (s *fakeSAMLStore) ConsumeSAMLRequest(
 	requestIDHash string,
 	relayStateHash string,
 	_ time.Time,
-) (bool, error) {
+) (string, bool, error) {
 	s.consumedRequestIDHash = requestIDHash
 	s.consumedRelayStateHash = relayStateHash
-	return s.requestOK, nil
+	return s.returnToPath, s.requestOK, nil
 }
 
 func (s *fakeSAMLStore) CreateSAMLRequest(
@@ -367,6 +368,129 @@ func (v fakeSAMLVerifier) VerifySAMLResponse(
 			ClockSkew:    time.Minute,
 		},
 	}, nil
+}
+
+func TestSAMLHandlerACSRedirectsToReturnToPath(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 16, 0, 0, 0, time.UTC)
+	store := &fakeSAMLStore{
+		provider:     testSAMLProvider(),
+		requestOK:    true,
+		resolveOK:    true,
+		replayOK:     true,
+		returnToPath: "/dashboard/projects",
+		sessionAuth: AuthContext{
+			Mode:        AuthModeBrowserSession,
+			TenantID:    "tenant_a",
+			WorkspaceID: "workspace_a",
+			SubjectClass: "external_saml",
+		},
+	}
+	handler := &SAMLHandler{
+		Store:     store,
+		Sessions:  store,
+		Verifier:  fakeSAMLVerifier{},
+		NewSecret: sequenceSecrets("session-secret", "csrf-secret"),
+		Now:       func() time.Time { return now },
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	form := url.Values{}
+	form.Set("RelayState", "relay-secret")
+	form.Set("SAMLResponse", testSAMLResponseForRequest("request-1"))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/saml/providers/provider_a/acs", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d (303 SeeOther redirect)", rec.Code, http.StatusSeeOther)
+	}
+	location := rec.Header().Get("Location")
+	if location != "/dashboard/projects" {
+		t.Fatalf("Location = %q, want %q", location, "/dashboard/projects")
+	}
+	// Session cookie must be set even when redirecting.
+	sessionCookie := requireCookie(t, rec.Result(), BrowserSessionCookieName)
+	if sessionCookie.Value != "session-secret" || !sessionCookie.HttpOnly || !sessionCookie.Secure {
+		t.Fatalf("session cookie attrs = %#v, want secure HttpOnly cookie", sessionCookie)
+	}
+}
+
+func TestSAMLHandlerLoginStoresReturnToPath(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 16, 0, 0, 0, time.UTC)
+	store := &fakeSAMLStore{
+		provider:   testSAMLProvider(),
+		providerOK: true,
+	}
+	handler := &SAMLHandler{
+		Store:          store,
+		Sessions:       store,
+		Verifier:       fakeSAMLVerifier{},
+		RequestBuilder: fakeSAMLRequestBuilder{},
+		NewSecret:      sequenceSecrets("relay-secret"),
+		Now:            func() time.Time { return now },
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/saml/providers/provider_a/login?return_to=/dashboard", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusFound)
+	}
+	if store.createdRequest.ReturnToPath != "/dashboard" {
+		t.Fatalf("stored ReturnToPath = %q, want %q", store.createdRequest.ReturnToPath, "/dashboard")
+	}
+}
+
+func TestSAMLHandlerLoginRejectsMaliciousReturnTo(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 16, 0, 0, 0, time.UTC)
+
+	for _, badPath := range []string{
+		"//evil.example.com/steal",
+		"http://evil.example.com/steal",
+		"/path\r\nX-Injected: header",
+		"\\UNC\\path",
+	} {
+		badPath := badPath // capture loop var
+		store := &fakeSAMLStore{
+			provider:   testSAMLProvider(),
+			providerOK: true,
+		}
+		handler := &SAMLHandler{
+			Store:          store,
+			Sessions:       store,
+			Verifier:       fakeSAMLVerifier{},
+			RequestBuilder: fakeSAMLRequestBuilder{},
+			NewSecret:      sequenceSecrets("relay-secret"),
+			Now:            func() time.Time { return now },
+		}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/saml/providers/provider_a/login?return_to="+url.QueryEscape(badPath), nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		// Login should still redirect to IdP; the malicious return_to is silently
+		// dropped (stored as empty string, not as an error response).
+		if rec.Code != http.StatusFound {
+			t.Fatalf("path %q: status = %d, want %d", badPath, rec.Code, http.StatusFound)
+		}
+		if store.createdRequest.ReturnToPath != "" {
+			t.Fatalf("path %q: stored ReturnToPath = %q, want empty (rejected)", badPath, store.createdRequest.ReturnToPath)
+		}
+	}
 }
 
 type fakeSAMLRequestBuilder struct{}

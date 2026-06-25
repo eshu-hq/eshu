@@ -202,7 +202,7 @@ func wireAPI(
 	}
 	router.SAML = samlHandler
 	router.AuthProviders = &query.AuthProviderListHandler{
-		Store: newAuthProviderListStore(db, samlHandler),
+		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler),
 	}
 
 	apiMux := http.NewServeMux()

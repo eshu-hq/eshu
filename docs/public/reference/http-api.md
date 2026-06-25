@@ -122,8 +122,8 @@ The Console browser flow uses these `/api/v0` routes:
 | `POST /api/v0/auth/local/break-glass` | Shared-operator route that enables one audited, time-boxed break-glass window. Disabled by default when no active window exists. |
 | `POST /api/v0/auth/local/break-glass/session` | Public recovery route that issues a browser session only for an active, unexpired break-glass code. |
 | `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | Returns public SAML service-provider metadata for a configured provider. |
-| `GET /api/v0/auth/saml/providers/{provider_id}/login` | Starts SP-initiated SAML login by storing a RelayState hash and redirecting to the IdP. |
-| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | Completes SAML login from IdP POST binding after RelayState, signature, replay, clock, NameID, and group-claim validation. |
+| `GET /api/v0/auth/saml/providers/{provider_id}/login` | Starts SP-initiated SAML login by storing a RelayState hash and redirecting to the IdP. Accepts an optional `return_to` query parameter (same-origin path only; absolute URLs and protocol-relative paths are silently discarded). |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | Completes SAML login from IdP POST binding after RelayState, signature, replay, clock, NameID, and group-claim validation. Returns `201` with a JSON session body when no return path was stored, or `303` redirecting to the stored same-origin path when one was. |
 
 OIDC login is optional and disabled until API startup receives an
 operator-managed OIDC config file. The callback verifies provider metadata/JWKS,

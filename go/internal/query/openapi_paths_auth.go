@@ -487,7 +487,8 @@ const openAPIPathsAuth = `
             "required": true,
             "schema": {"type": "string"},
             "description": "Opaque SAML provider configuration identifier."
-          }
+          },
+          {"name": "return_to", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional same-origin return path after the ACS callback. Absolute URLs and protocol-relative paths are ignored."}
         ],
         "responses": {
           "302": {
@@ -537,7 +538,7 @@ const openAPIPathsAuth = `
         },
         "responses": {
           "201": {
-            "description": "SAML login accepted; Set-Cookie includes __Host-eshu_session and __Host-eshu_csrf.",
+            "description": "SAML login accepted; Set-Cookie includes __Host-eshu_session and __Host-eshu_csrf. Returned when no return_to path was stored.",
             "headers": {
               "Set-Cookie": {
                 "description": "__Host-eshu_session is HttpOnly/Secure/SameSite=Strict; __Host-eshu_csrf is readable by the browser client and must be echoed in X-Eshu-CSRF for unsafe requests.",
@@ -547,6 +548,19 @@ const openAPIPathsAuth = `
             "content": {
               "application/json": {
                 "schema": {"$ref": "#/components/schemas/BrowserSessionResponse"}
+              }
+            }
+          },
+          "303": {
+            "description": "SAML login accepted; browser redirected to the same-origin return_to path stored at login initiation. Set-Cookie is set before the redirect.",
+            "headers": {
+              "Location": {
+                "description": "Same-origin path from the original return_to query parameter.",
+                "schema": {"type": "string"}
+              },
+              "Set-Cookie": {
+                "description": "__Host-eshu_session and __Host-eshu_csrf browser-session cookies.",
+                "schema": {"type": "string"}
               }
             }
           },

@@ -176,6 +176,16 @@ func NewService(
 	return service
 }
 
+// RegisteredProviders returns the provider configs loaded from the config file.
+// This is used by the pre-auth provider discovery endpoint to surface
+// runtime-configured OIDC providers that may not yet have a DB row.
+func (s *Service) RegisteredProviders() []ProviderConfig {
+	if s == nil {
+		return nil
+	}
+	return append([]ProviderConfig(nil), s.config.Providers...)
+}
+
 // ValidateConfig returns the normalized OIDC login config or an error.
 func ValidateConfig(config Config) (Config, error) {
 	return normalizeConfig(config)

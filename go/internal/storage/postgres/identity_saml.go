@@ -118,6 +118,42 @@ func (s *IdentitySubjectStore) HasActiveSAMLProviderConfigForTenant(
 	return strings.TrimSpace(activeProviderConfigID) == providerConfigID, rows.Err()
 }
 
+// HasActiveOIDCProviderConfigForTenant reports whether an OIDC provider config
+// is active in durable identity state, belongs to an active tenant, AND is
+// owned by the specified tenantID. This is the tenant-scoped OIDC variant used
+// by the pre-auth provider-discovery endpoint to prevent cross-tenant OIDC
+// runtime-config entries from leaking into another tenant's provider list.
+func (s *IdentitySubjectStore) HasActiveOIDCProviderConfigForTenant(
+	ctx context.Context,
+	providerConfigID string,
+	tenantID string,
+) (bool, error) {
+	if s.db == nil {
+		return false, errors.New("identity subject store database is required")
+	}
+	providerConfigID = strings.TrimSpace(providerConfigID)
+	tenantID = strings.TrimSpace(tenantID)
+	if providerConfigID == "" || tenantID == "" {
+		return false, nil
+	}
+	rows, err := s.db.QueryContext(ctx, selectActiveOIDCProviderConfigForTenantQuery, providerConfigID, tenantID)
+	if err != nil {
+		return false, fmt.Errorf("select active oidc provider config for tenant: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, fmt.Errorf("select active oidc provider config for tenant: %w", err)
+		}
+		return false, nil
+	}
+	var activeProviderConfigID string
+	if err := rows.Scan(&activeProviderConfigID); err != nil {
+		return false, fmt.Errorf("select active oidc provider config for tenant: %w", err)
+	}
+	return strings.TrimSpace(activeProviderConfigID) == providerConfigID, rows.Err()
+}
+
 func normalizeSAMLExternalSubjectResolutionRequest(
 	request SAMLExternalSubjectResolutionRequest,
 ) SAMLExternalSubjectResolutionRequest {

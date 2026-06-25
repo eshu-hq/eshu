@@ -25,7 +25,12 @@ export interface LoginPageProps {
 
 type LoginPhase = "credentials" | "mfa";
 
-export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: LoginPageProps): React.JSX.Element {
+export function LoginPage({
+  client,
+  onSuccess,
+  baseUrl = "",
+  redirectFn,
+}: LoginPageProps): React.JSX.Element {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
@@ -39,11 +44,14 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
   // Errors are swallowed so they never block the local login form.
   useEffect(() => {
     let cancelled = false;
-    const tenantId = new URLSearchParams(globalThis.location?.search ?? "").get("tenant_id") ?? undefined;
+    const tenantId =
+      new URLSearchParams(globalThis.location?.search ?? "").get("tenant_id") ?? undefined;
     void listAuthProviders(client, tenantId).then((items) => {
       if (!cancelled) setProviders(items);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [client]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
@@ -54,7 +62,7 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
       const result = await loginLocal(client, {
         login: login.trim(),
         password,
-        mfaCode: phase === "mfa" ? mfaCode.trim() : undefined
+        mfaCode: phase === "mfa" ? mfaCode.trim() : undefined,
       });
       switch (result.status) {
         case "ok":
@@ -68,7 +76,7 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
           setErrorMsg(
             result.lockedUntil
               ? `Account locked until ${new Date(result.lockedUntil).toLocaleString()}.`
-              : "Account is temporarily locked. Try again later."
+              : "Account is temporarily locked. Try again later.",
           );
           break;
         case "disabled":
@@ -85,19 +93,41 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
     }
   }
 
+  /**
+   * Returns a safe same-origin return path from location.pathname, or "/" when
+   * the path cannot be validated. Rejects open-redirect vectors: protocol-
+   * relative URLs (//), absolute URLs (http:/https:), UNC paths (\\), and
+   * values containing CRLF characters. Mirrors the Go safeOIDCReturnPath guard.
+   */
+  function safeSSOReturnPath(pathname: string | undefined): string {
+    const path = (pathname ?? "").trim();
+    if (!path.startsWith("/")) return "/";
+    if (path.startsWith("//")) return "/";
+    if (/^https?:/i.test(path)) return "/";
+    if (path.startsWith("\\")) return "/";
+    if (/[\r\n\t]/.test(path)) return "/";
+    return path;
+  }
+
   function handleSSOClick(provider: AuthLoginProvider): void {
-    const returnTo = globalThis.location?.pathname ?? "/";
+    const returnTo = safeSSOReturnPath(globalThis.location?.pathname);
     if (provider.provider_kind === "oidc") {
       beginOidcLogin(
         baseUrl,
         { providerConfigId: provider.provider_config_id, returnTo },
-        redirectFn ?? ((url) => { globalThis.location.assign(url); })
+        redirectFn ??
+          ((url) => {
+            globalThis.location.assign(url);
+          }),
       );
     } else {
       beginSamlLogin(
         baseUrl,
         { providerId: provider.provider_config_id, returnTo },
-        redirectFn ?? ((url) => { globalThis.location.assign(url); })
+        redirectFn ??
+          ((url) => {
+            globalThis.location.assign(url);
+          }),
       );
     }
   }
@@ -106,8 +136,17 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <span className="brand-mark brand-glyph" aria-hidden><i /><i /><i /></span>
-          <span><span className="brand-name">e<b>shu</b></span><span className="brand-sub">Context Graph</span></span>
+          <span className="brand-mark brand-glyph" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>
+            <span className="brand-name">
+              e<b>shu</b>
+            </span>
+            <span className="brand-sub">Context Graph</span>
+          </span>
         </div>
         <h1 className="login-title">Sign in to Eshu</h1>
 
@@ -117,7 +156,12 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
           </div>
         ) : null}
 
-        <form className="login-form" onSubmit={(e) => { void handleSubmit(e); }}>
+        <form
+          className="login-form"
+          onSubmit={(e) => {
+            void handleSubmit(e);
+          }}
+        >
           <div className="login-field">
             <label htmlFor="login-id">Login</label>
             <input
@@ -155,18 +199,16 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
               />
             </div>
           ) : null}
-          <button
-            className="btn-primary login-submit"
-            type="submit"
-            disabled={submitting}
-          >
+          <button className="btn-primary login-submit" type="submit" disabled={submitting}>
             {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
 
         {providers.length > 0 ? (
           <div className="login-sso">
-            <div className="login-sso-divider" aria-hidden>or</div>
+            <div className="login-sso-divider" aria-hidden>
+              or
+            </div>
             {providers.map((provider) => (
               <button
                 key={provider.provider_config_id}
