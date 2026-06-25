@@ -154,6 +154,18 @@ git -C "${case_new_file}" add .
 git -C "${case_new_file}" commit -q -m "add new reducer stage without doc row"
 expect_fail "fails when a new go/internal file is not covered by the doc" "${case_new_file}"
 
+# Case 4b: a new NON-.go file (package docs / evidence note) under a stage-owner
+# directory must NOT be treated as a pipeline stage — a stage is a *.go source
+# file; docs never register telemetry. Regression for the false positive that
+# flagged go/internal/reducer/evidence-*.md.
+case_new_doc="$(init_repo case-new-doc)"
+mkdir -p "${case_new_doc}/go/internal/reducer" "${case_new_doc}/go/internal/collector"
+printf '# evidence\n\nNo-Regression Evidence: n/a\n' >"${case_new_doc}/go/internal/reducer/evidence-example.md"
+printf '# collector\n' >"${case_new_doc}/go/internal/collector/README.md"
+git -C "${case_new_doc}" add .
+git -C "${case_new_doc}" commit -q -m "add reducer evidence note + collector README"
+expect_pass "ignores new non-.go files under stage-owner directories" "${case_new_doc}"
+
 # Case 5: the doc has a No-Observability-Change: marker for a stage whose
 # underlying counters are intentionally not registered. The verifier must
 # accept the marker and exit 0.

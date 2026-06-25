@@ -179,7 +179,17 @@ case "${cmd}" in
 		fi
 		ESHU_PERFORMANCE_EVIDENCE_BASE="${base}" "${bash4}" "${repo_root}/scripts/verify-performance-evidence.sh"
 		;;
+	telemetry)
+		# The telemetry-coverage gate (verify-telemetry-coverage.yml): a new metric
+		# or pipeline stage must be reflected in the X1 coverage doc. Like the
+		# perf-evidence gate it diffs against the PR base, so pin it to origin/main
+		# (the script's HEAD~1 fallback only sees the last commit).
+		git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
+		base="origin/main"
+		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
+		ESHU_TELEMETRY_COVERAGE_BASE="${base}" "${repo_root}/scripts/verify-telemetry-coverage.sh"
+		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|filecap|gosec|surface|perf-evidence)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|filecap|gosec|surface|perf-evidence|telemetry)"
 		;;
 esac
