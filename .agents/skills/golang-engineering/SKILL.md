@@ -27,7 +27,14 @@ References:
 - MUST cover every dispatch variant touched by a shared helper, constant family,
   query builder, replay path, or retry classifier. Do not rely on one
   representative case when the production code has multiple variants.
-- MUST run `gofmt` on changed Go files.
+- MUST run `gofmt` on changed Go files. The repo linter enforces `gofumpt`
+  (stricter superset of `gofmt`) — run `gofumpt -w <files>` before committing
+  to avoid lint failures that block CI.
+- MUST isolate the Go build cache per worktree when running parallel agents.
+  Set `GOCACHE=<worktree-path>/.gocache` in each agent's environment before
+  any `go build`, `go test`, or `golangci-lint` invocation. Parallel agents
+  sharing the default `~/.cache/go-build` corrupt each other's incremental
+  builds and can wipe in-progress compilation for a sibling agent.
 - MUST run focused Go tests before broader package tests.
 - MUST run `golangci-lint` when Go code changed unless the user explicitly
   narrows verification.
