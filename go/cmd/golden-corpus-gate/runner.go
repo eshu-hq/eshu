@@ -72,7 +72,7 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 		return err
 	}
 	if !ok {
-		fmt.Fprintf(stderr, "drains: not satisfied after %s (fact residual=%d, required intents=%d, populated domains=%d/%d)\n",
+		_, _ = fmt.Fprintf(stderr, "drains: not satisfied after %s (fact residual=%d, required intents=%d, populated domains=%d/%d)\n",
 			o.drainTimeout, counts.FactWorkItemsResidual, counts.SharedIntentsRequiredNonterminal,
 			counts.PopulatedDomainsPresent, len(populatedDomains))
 	}

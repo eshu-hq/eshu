@@ -1460,6 +1460,11 @@
     },
     {
       "category": "command",
+      "name": "golden-corpus-gate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "ingester",
       "readiness": "implemented"
     },

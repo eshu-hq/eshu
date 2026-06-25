@@ -70,7 +70,7 @@ func (r *Report) Write(w io.Writer) {
 
 	var pass, requiredFail, advisoryFail int
 	for _, phase := range order {
-		fmt.Fprintf(w, "\n== %s ==\n", phase)
+		_, _ = fmt.Fprintf(w, "\n== %s ==\n", phase)
 		fs := byPhase[phase]
 		sort.SliceStable(fs, func(i, j int) bool {
 			// Required failures first, then advisory failures, then passes.
@@ -98,8 +98,8 @@ func (r *Report) Write(w io.Writer) {
 				mark = "WARN"
 				advisoryFail++
 			}
-			fmt.Fprintf(w, "  [%s] %s: %s\n", mark, f.Check, f.Detail)
+			_, _ = fmt.Fprintf(w, "  [%s] %s: %s\n", mark, f.Check, f.Detail)
 		}
 	}
-	fmt.Fprintf(w, "\nsummary: %d pass, %d required-fail, %d advisory-warn\n", pass, requiredFail, advisoryFail)
+	_, _ = fmt.Fprintf(w, "\nsummary: %d pass, %d required-fail, %d advisory-warn\n", pass, requiredFail, advisoryFail)
 }

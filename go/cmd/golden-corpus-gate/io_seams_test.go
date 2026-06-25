@@ -112,9 +112,11 @@ type fakeCounter struct {
 func (f fakeCounter) CountNodes(_ context.Context, label string) (int64, error) {
 	return f.nodes[label], f.err
 }
+
 func (f fakeCounter) CountEdges(_ context.Context, rel string) (int64, error) {
 	return f.edges[rel], f.err
 }
+
 func (f fakeCounter) CountCorrelation(_ context.Context, from, rel, to string) (int64, error) {
 	return f.corr[from+"|"+rel+"|"+to], f.err
 }
@@ -252,7 +254,7 @@ func TestSplitCSVTrimsAndDropsEmpty(t *testing.T) {
 }
 
 func TestPhaseSet(t *testing.T) {
-	if s := phaseSet("all"); !(s["drains"] && s["graph"] && s["query"] && s["timing"]) {
+	if s := phaseSet("all"); !s["drains"] || !s["graph"] || !s["query"] || !s["timing"] {
 		t.Errorf("all => %+v", s)
 	}
 	s := phaseSet("drains,graph")
