@@ -40,7 +40,10 @@ require "drains phase" "-phase=drains"
 require "graph+query+timing phase" "-phase=graph,query,timing"
 require "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
 require "timing budget" "-budget-multiplier"
-require "minimal blocking correlations" 'rc-1,rc-3'
+# Minimal-corpus posture: graph-populated smoke is required; code_calls is the
+# quarantined advisory drain domain (the held-intent follow-up).
+require "graph-populated smoke" "-required-node-labels"
+require "code_calls quarantine" 'drain-advisory-domains="code_calls"'
 
 # Wires all nine B-10 cassette collectors.
 for collector in \

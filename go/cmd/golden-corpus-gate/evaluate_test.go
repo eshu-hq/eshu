@@ -45,11 +45,11 @@ func TestEvaluateDrains(t *testing.T) {
 			t.Error("missing fact_work_items_residual finding")
 		}
 	})
-	t.Run("intent nonterminal includes repo_dependency detail", func(t *testing.T) {
+	t.Run("required intent nonterminal includes repo_dependency detail", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 2, RepoDependencyNonterminal: 2}, a, &r)
+		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 2, SharedIntentsRequiredNonterminal: 2, RepoDependencyNonterminal: 2}, a, &r)
 		if !r.Failed() {
-			t.Error("nonterminal shared intents must fail (B-13 gate)")
+			t.Error("nonterminal required shared intents must fail (B-13 gate)")
 		}
 		var found bool
 		for _, f := range r.Findings {
@@ -64,6 +64,34 @@ func TestEvaluateDrains(t *testing.T) {
 			t.Error("missing shared_projection_intents_nonterminal finding")
 		}
 	})
+	t.Run("advisory-domain nonterminal does not block", func(t *testing.T) {
+		var r Report
+		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 6, SharedIntentsRequiredNonterminal: 0, SharedIntentsAdvisoryNonterminal: 6}, a, &r)
+		if r.Failed() {
+			t.Errorf("advisory-domain nonterminal must not fail the gate; findings: %+v", r.Findings)
+		}
+		var advisory bool
+		for _, f := range r.Findings {
+			if f.Check == "shared_projection_intents_advisory_nonterminal" {
+				advisory = true
+				if f.Required {
+					t.Error("advisory drain finding must not be required")
+				}
+			}
+		}
+		if !advisory {
+			t.Error("missing advisory drain finding when advisory nonterminal > 0")
+		}
+	})
+}
+
+func TestEvaluateNodePresent(t *testing.T) {
+	if f := evaluateNodePresent("Repository", 0); f.OK || !f.Required {
+		t.Errorf("0 nodes must fail required smoke: %+v", f)
+	}
+	if f := evaluateNodePresent("Repository", 5); !f.OK || !f.Required {
+		t.Errorf("5 nodes must pass required smoke: %+v", f)
+	}
 }
 
 func TestDrainCountsDrained(t *testing.T) {
@@ -74,8 +102,12 @@ func TestDrainCountsDrained(t *testing.T) {
 	if (DrainCounts{FactWorkItemsResidual: 1}).Drained(a) {
 		t.Error("residual=1 must not be drained")
 	}
-	if (DrainCounts{SharedIntentsNonterminal: 1}).Drained(a) {
-		t.Error("nonterminal=1 must not be drained")
+	if (DrainCounts{SharedIntentsRequiredNonterminal: 1}).Drained(a) {
+		t.Error("required nonterminal=1 must not be drained")
+	}
+	// Advisory-only nonterminal still counts as drained for poll convergence.
+	if !(DrainCounts{SharedIntentsNonterminal: 5, SharedIntentsAdvisoryNonterminal: 5}).Drained(a) {
+		t.Error("advisory-only nonterminal must be considered drained")
 	}
 }
 

@@ -36,6 +36,19 @@ WHERE status = 'dead_letter'`
 SELECT count(*) FROM shared_projection_intents
 WHERE completed_at IS NULL`
 
+	// $1 is a comma-separated advisory-domain list. string_to_array('', ',')
+	// yields {''}, which matches no real projection_domain, so an empty advisory
+	// list cleanly degrades to "required = total, advisory = 0".
+	sharedIntentsRequiredNonterminalSQL = `
+SELECT count(*) FROM shared_projection_intents
+WHERE completed_at IS NULL
+  AND NOT (projection_domain = ANY(string_to_array($1, ',')))`
+
+	sharedIntentsAdvisoryNonterminalSQL = `
+SELECT count(*) FROM shared_projection_intents
+WHERE completed_at IS NULL
+  AND projection_domain = ANY(string_to_array($1, ','))`
+
 	repoDependencyNonterminalSQL = `
 SELECT count(*) FROM shared_projection_intents
 WHERE completed_at IS NULL AND projection_domain = 'repo_dependency'`
@@ -47,24 +60,27 @@ type drainQuerier interface {
 	Counts(ctx context.Context) (DrainCounts, error)
 }
 
-// sqlDrainQuerier reads drain counts from Postgres.
+// sqlDrainQuerier reads drain counts from Postgres. advisoryDomains is the
+// comma-separated set of shared_projection_intents domains whose nonterminal rows
+// are reported but do not block the gate.
 type sqlDrainQuerier struct {
-	db *sql.DB
+	db              *sql.DB
+	advisoryDomains string
 }
 
 // openDrainQuerier opens a Postgres connection from the environment using the
 // same loader the services under test use.
-func openDrainQuerier(ctx context.Context, getenv func(string) string) (*sqlDrainQuerier, func(), error) {
+func openDrainQuerier(ctx context.Context, getenv func(string) string, advisoryDomains string) (*sqlDrainQuerier, func(), error) {
 	db, err := runtimecfg.OpenPostgres(ctx, getenv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open postgres: %w", err)
 	}
-	return &sqlDrainQuerier{db: db}, func() { _ = db.Close() }, nil
+	return &sqlDrainQuerier{db: db, advisoryDomains: advisoryDomains}, func() { _ = db.Close() }, nil
 }
 
-func (q *sqlDrainQuerier) scalar(ctx context.Context, query string) (int64, error) {
+func (q *sqlDrainQuerier) scalar(ctx context.Context, query string, args ...any) (int64, error) {
 	var n int64
-	if err := q.db.QueryRowContext(ctx, query).Scan(&n); err != nil {
+	if err := q.db.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -83,15 +99,25 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 	if err != nil {
 		return DrainCounts{}, fmt.Errorf("shared_projection_intents nonterminal: %w", err)
 	}
+	required, err := q.scalar(ctx, sharedIntentsRequiredNonterminalSQL, q.advisoryDomains)
+	if err != nil {
+		return DrainCounts{}, fmt.Errorf("shared_projection_intents required nonterminal: %w", err)
+	}
+	advisory, err := q.scalar(ctx, sharedIntentsAdvisoryNonterminalSQL, q.advisoryDomains)
+	if err != nil {
+		return DrainCounts{}, fmt.Errorf("shared_projection_intents advisory nonterminal: %w", err)
+	}
 	repoDep, err := q.scalar(ctx, repoDependencyNonterminalSQL)
 	if err != nil {
 		return DrainCounts{}, fmt.Errorf("repo_dependency nonterminal: %w", err)
 	}
 	return DrainCounts{
-		FactWorkItemsResidual:     fact,
-		FactWorkItemsDeadLetter:   deadLetter,
-		SharedIntentsNonterminal:  intents,
-		RepoDependencyNonterminal: repoDep,
+		FactWorkItemsResidual:            fact,
+		FactWorkItemsDeadLetter:          deadLetter,
+		SharedIntentsNonterminal:         intents,
+		SharedIntentsRequiredNonterminal: required,
+		SharedIntentsAdvisoryNonterminal: advisory,
+		RepoDependencyNonterminal:        repoDep,
 	}, nil
 }
 

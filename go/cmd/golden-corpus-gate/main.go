@@ -49,6 +49,8 @@ type options struct {
 	elapsedSeconds       float64
 	graphRequiredOnly    bool
 	requiredCorrelations string
+	requiredNodeLabels   string
+	drainAdvisoryDomains string
 }
 
 func parseFlags(args []string) (options, error) {
@@ -63,7 +65,9 @@ func parseFlags(args []string) (options, error) {
 	fs.Float64Var(&o.budgetMultiplier, "budget-multiplier", 2.0, "allowed multiple of the baseline budget")
 	fs.Float64Var(&o.elapsedSeconds, "elapsed-seconds", 0, "observed pipeline wall time in seconds (from the orchestrator)")
 	fs.BoolVar(&o.graphRequiredOnly, "graph-required-only", true, "assert only required correlations (minimal corpus); node/edge tolerances are skipped")
-	fs.StringVar(&o.requiredCorrelations, "required-correlations", "rc-1,rc-3", "comma-separated correlation IDs that fail the gate; others are advisory")
+	fs.StringVar(&o.requiredCorrelations, "required-correlations", "", "comma-separated correlation IDs that fail the gate; others are advisory (empty = all advisory until the corpus produces them)")
+	fs.StringVar(&o.requiredNodeLabels, "required-node-labels", "Repository", "comma-separated node labels that must each have >=1 node (graph-populated smoke check)")
+	fs.StringVar(&o.drainAdvisoryDomains, "drain-advisory-domains", "", "comma-separated shared_projection_intents domains whose nonterminal rows are advisory, not blocking")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

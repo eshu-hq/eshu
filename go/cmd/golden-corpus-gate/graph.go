@@ -73,14 +73,19 @@ func (b *boltGraphCounter) CountNodes(ctx context.Context, label string) (int64,
 	if !identRE.MatchString(label) {
 		return 0, fmt.Errorf("unsafe node label %q", label)
 	}
-	return b.scalarCount(ctx, fmt.Sprintf("MATCH (n:`%s`) RETURN count(n) AS c", label))
+	// No backtick quoting: NornicDB's Cypher dialect does not match a
+	// backtick-quoted label (MATCH (n:`Repository`) returns 0 where
+	// (n:Repository) returns the real count), and identRE already guarantees the
+	// identifier is safe to interpolate, so plain interpolation is both injection
+	// -safe and portable across NornicDB and Neo4j.
+	return b.scalarCount(ctx, fmt.Sprintf("MATCH (n:%s) RETURN count(n) AS c", label))
 }
 
 func (b *boltGraphCounter) CountEdges(ctx context.Context, relationship string) (int64, error) {
 	if !identRE.MatchString(relationship) {
 		return 0, fmt.Errorf("unsafe relationship type %q", relationship)
 	}
-	return b.scalarCount(ctx, fmt.Sprintf("MATCH ()-[r:`%s`]->() RETURN count(r) AS c", relationship))
+	return b.scalarCount(ctx, fmt.Sprintf("MATCH ()-[r:%s]->() RETURN count(r) AS c", relationship))
 }
 
 func (b *boltGraphCounter) CountCorrelation(ctx context.Context, from, rel, to string) (int64, error) {
@@ -90,7 +95,21 @@ func (b *boltGraphCounter) CountCorrelation(ctx context.Context, from, rel, to s
 		}
 	}
 	return b.scalarCount(ctx, fmt.Sprintf(
-		"MATCH (:`%s`)-[r:`%s`]->(:`%s`) RETURN count(r) AS c", from, rel, to))
+		"MATCH (:%s)-[r:%s]->(:%s) RETURN count(r) AS c", from, rel, to))
+}
+
+// checkRequiredNodes asserts each label in requiredLabels has at least one node.
+// This is the minimal required graph smoke check: it proves the pipeline
+// projected the corpus into the graph, and holds for any non-empty corpus.
+func checkRequiredNodes(ctx context.Context, c graphCounter, requiredLabels []string, r *Report) error {
+	for _, label := range requiredLabels {
+		count, err := c.CountNodes(ctx, label)
+		if err != nil {
+			return fmt.Errorf("count nodes %s: %w", label, err)
+		}
+		r.Add(evaluateNodePresent(label, count))
+	}
+	return nil
 }
 
 // checkGraph runs every B-7(b) graph assertion: required correlations and

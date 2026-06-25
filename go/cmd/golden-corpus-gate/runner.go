@@ -56,7 +56,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 }
 
 func runDrains(ctx context.Context, o options, getenv func(string) string, snap Snapshot, r *Report, stderr io.Writer) error {
-	q, closeFn, err := openDrainQuerier(ctx, getenv)
+	q, closeFn, err := openDrainQuerier(ctx, getenv, o.drainAdvisoryDomains)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,21 @@ func runGraph(ctx context.Context, o options, getenv func(string) string, snap S
 		return err
 	}
 	defer closeFn()
+	if err := checkRequiredNodes(ctx, counter, splitCSV(o.requiredNodeLabels), r); err != nil {
+		return err
+	}
 	return checkGraph(ctx, counter, snap, o.graphRequiredOnly, correlationSet(o.requiredCorrelations), r)
+}
+
+// splitCSV splits a comma-separated flag into trimmed, non-empty values.
+func splitCSV(raw string) []string {
+	out := []string{}
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // correlationSet parses the comma-separated blocking-correlation flag into a set.
