@@ -28,7 +28,9 @@ func TestGateAcceptedGenerationOnActiveDefersUntilActive(t *testing.T) {
 		return active, nil
 	})
 
-	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"}
+	// Use a cross-repo source-run ID — only this variant triggers the
+	// relationship_generations activation check.
+	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 
 	// Acceptance committed, generation NOT active yet -> defer (not authoritative).
 	if gen, ok := gated(key); ok {
@@ -58,7 +60,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughMissingAcceptance(t *testing
 		},
 	)
 
-	if gen, ok := gated(SharedProjectionAcceptanceKey{AcceptanceUnitID: "repo-a", SourceRunID: "run-1"}); ok {
+	if gen, ok := gated(SharedProjectionAcceptanceKey{AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}); ok {
 		t.Fatalf("gated lookup = (%q, true), want (\"\", false) for missing acceptance", gen)
 	}
 	if called {
@@ -80,7 +82,7 @@ func TestGateAcceptedGenerationOnActiveDefersOnError(t *testing.T) {
 		},
 	)
 
-	if gen, ok := gated(SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"}); ok {
+	if gen, ok := gated(SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-a"}); ok {
 		t.Fatalf("gated lookup = (%q, true) on error, want deferred (\"\", false)", gen)
 	}
 }
@@ -102,7 +104,8 @@ func TestGateAcceptedGenerationPrefetchOnActiveDefersUntilActive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gated prefetch error = %v", err)
 	}
-	key := SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"}
+	// Use a cross-repo source-run ID so the prefetch gate is exercised.
+	key := SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:s"}
 	if gen, ok := lookup(key); ok {
 		t.Fatalf("prefetched lookup = (%q, true) before activation, want deferred", gen)
 	}
@@ -138,13 +141,87 @@ func TestGateAcceptedGenerationPrefetchMemoizesActiveCheck(t *testing.T) {
 		t.Fatalf("gated prefetch error = %v", err)
 	}
 	for i := 0; i < 5; i++ {
-		key := SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"}
+		// Cross-repo source run so the active check is actually invoked.
+		key := SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:s"}
 		if gen, ok := lookup(key); !ok || gen != "gen-2" {
 			t.Fatalf("lookup #%d = (%q, %v), want (gen-2, true)", i, gen, ok)
 		}
 	}
 	if checks != 1 {
 		t.Fatalf("active checks = %d across 5 lookups of one generation, want 1 (memoized)", checks)
+	}
+}
+
+// TestGateAcceptedGenerationOnActivePassesThroughCodeImportSourceRun proves
+// that code-import source runs carry scope generation IDs — IDs that are
+// NEVER in relationship_generations — and therefore MUST NOT be blocked by the
+// activation gate. Before the B-13 fix, GateAcceptedGenerationOnActive applied
+// IsGenerationActive uniformly to all repo_dependency intents, permanently
+// blocking the 271 code-import intents whose scope gen IDs can never appear in
+// relationship_generations.
+func TestGateAcceptedGenerationOnActivePassesThroughCodeImportSourceRun(t *testing.T) {
+	t.Parallel()
+
+	// isActive returns false for every generation ID, simulating a scope
+	// generation ID that will never be found in relationship_generations.
+	gated := GateAcceptedGenerationOnActive(
+		acceptedGenerationFixed("scope-gen-abc", true),
+		func(string) (bool, error) { return false, nil },
+	)
+
+	// "code_import_repo_dependency:<scope>" is the source-run form for
+	// code-import intents. The gate must NOT apply the activation check.
+	key := SharedProjectionAcceptanceKey{
+		ScopeID:          "git-repository-scope:repository:r_app",
+		AcceptanceUnitID: "repository:r_app",
+		SourceRunID:      "code_import_repo_dependency:git-repository-scope:repository:r_app",
+	}
+	gen, ok := gated(key)
+	if !ok || gen != "scope-gen-abc" {
+		t.Fatalf("gated lookup = (%q, %v), want (scope-gen-abc, true) for code-import source run; "+
+			"activation gate must not block scope-generation-ID paths", gen, ok)
+	}
+}
+
+// TestGateAcceptedGenerationOnActivePassesThroughCodeImportBareSourceRun
+// covers the bare (no scope suffix) code-import source-run variant.
+func TestGateAcceptedGenerationOnActivePassesThroughCodeImportBareSourceRun(t *testing.T) {
+	t.Parallel()
+
+	gated := GateAcceptedGenerationOnActive(
+		acceptedGenerationFixed("scope-gen-abc", true),
+		func(string) (bool, error) { return false, nil },
+	)
+	key := SharedProjectionAcceptanceKey{
+		ScopeID:          "s",
+		AcceptanceUnitID: "repository:r_app",
+		SourceRunID:      "code_import_repo_dependency",
+	}
+	gen, ok := gated(key)
+	if !ok || gen != "scope-gen-abc" {
+		t.Fatalf("gated lookup = (%q, %v), want (scope-gen-abc, true) for bare code-import source run", gen, ok)
+	}
+}
+
+// TestGateAcceptedGenerationOnActivePassesThroughPackageConsumptionSourceRun
+// proves that package-consumption source runs carry scope generation IDs and
+// MUST NOT be blocked by the activation gate — same root cause as the
+// code-import case (B-13).
+func TestGateAcceptedGenerationOnActivePassesThroughPackageConsumptionSourceRun(t *testing.T) {
+	t.Parallel()
+
+	gated := GateAcceptedGenerationOnActive(
+		acceptedGenerationFixed("scope-gen-xyz", true),
+		func(string) (bool, error) { return false, nil },
+	)
+	key := SharedProjectionAcceptanceKey{
+		ScopeID:          "package-registry-scope:pkg-scope",
+		AcceptanceUnitID: "repository:r_consumer",
+		SourceRunID:      "package_consumption_repo_dependency:package-registry-scope:pkg-scope",
+	}
+	gen, ok := gated(key)
+	if !ok || gen != "scope-gen-xyz" {
+		t.Fatalf("gated lookup = (%q, %v), want (scope-gen-xyz, true) for package-consumption source run", gen, ok)
 	}
 }
 
@@ -159,7 +236,7 @@ func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T)
 	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
 	repoID := "repository:r_repo_a"
 	intent := repoDependencyIntentRow(
-		"active-1", "scope-b", repoID, repoID, "run-2", "gen-2", now,
+		"active-1", "scope-b", repoID, repoID, "repo_dependency:scope-b", "gen-2", now,
 		map[string]any{
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target_1",

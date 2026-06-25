@@ -3,7 +3,10 @@
 
 package reducer
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // RelationshipGenerationActiveLookup reports whether a relationship generation
 // is currently active (published) in Postgres. It backs the repo-dependency
@@ -36,6 +39,12 @@ type RelationshipGenerationActiveLookup func(generationID string) (bool, error)
 // the runner retries on a later cycle rather than projecting ahead of Postgres.
 //
 // The #3559/#3616 reconciler remains as defense-in-depth for any residual drift.
+//
+// The activation fence applies ONLY to source runs whose generation IDs are
+// relationship generation IDs (cross-repo resolver: "repo_dependency" or
+// "repo_dependency:<scope>"). Code-import and package-consumption source runs
+// carry scope generation IDs that never appear in relationship_generations, so
+// applying the fence to them would permanently block those intents (B-13).
 func GateAcceptedGenerationOnActive(
 	base AcceptedGenerationLookup,
 	isActive RelationshipGenerationActiveLookup,
@@ -48,12 +57,30 @@ func GateAcceptedGenerationOnActive(
 		if !ok {
 			return "", false
 		}
+		if !requiresRelationshipGenerationGate(key.SourceRunID) {
+			return generationID, true
+		}
 		active, err := isActive(generationID)
 		if err != nil || !active {
 			return "", false
 		}
 		return generationID, true
 	}
+}
+
+// requiresRelationshipGenerationGate reports whether a repo-dependency
+// source-run ID belongs to the cross-repo resolution path and therefore
+// carries a relationship generation ID (an ID from relationship_generations).
+//
+// Only the cross-repo resolver emits source runs matching "repo_dependency" or
+// "repo_dependency:<scopeID>". Code-import ("code_import_repo_dependency[:<s>]")
+// and package-consumption ("package_consumption_repo_dependency[:<s>]") paths
+// carry scope generation IDs from scope_generations, which are a separate table
+// and will never be found in relationship_generations. Applying the activation
+// gate to those paths permanently blocks their intents (B-13).
+func requiresRelationshipGenerationGate(sourceRunID string) bool {
+	return sourceRunID == "repo_dependency" ||
+		strings.HasPrefix(sourceRunID, "repo_dependency:")
 }
 
 // GateAcceptedGenerationPrefetchOnActive applies the activation fence to the
