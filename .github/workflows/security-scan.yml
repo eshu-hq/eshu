@@ -59,8 +59,16 @@ on:
     workflows: ["Publish Image and Helm Chart"]
     types: [completed]
 
+# Coalesce superseded PR runs, but never coalesce release image scans.
+# For workflow_run events GitHub sets github.ref to the default branch, so a
+# naive `${{ github.workflow }}-${{ github.ref }}` group would put every
+# trivy-image run in one group; GitHub keeps only a single pending run per
+# group (even with cancel-in-progress: false), so back-to-back image
+# publishes would drop the earlier shipped digest's scan. Keying on the
+# triggering run's head_sha gives each shipped digest its own group; PRs and
+# branch/tag pushes fall back to github.ref.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
