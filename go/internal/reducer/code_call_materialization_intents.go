@@ -178,6 +178,11 @@ func buildCodeCallRefreshIntent(
 	context ProjectionContext,
 	createdAt time.Time,
 ) SharedProjectionIntentRow {
+	// action="refresh" and intent_type="repo_refresh" MUST stay co-defined: the DB
+	// fences rank by the generated column is_refresh_intent (= action='refresh')
+	// while the in-memory fence/selection key off intent_type='repo_refresh'.
+	// If these diverge the two fences disagree on which row is the repo refresh
+	// and can deadlock (the #3865 class).
 	payload := map[string]any{
 		"repo_id":         repositoryID,
 		"action":          "refresh",

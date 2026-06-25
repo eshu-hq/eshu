@@ -417,3 +417,39 @@ func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 		t.Fatalf("whole-fence must tie-break within an is_refresh_intent class; got %q", db.query)
 	}
 }
+
+// TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst guards the file-lane
+// twin of the #3865 fix: the file-fence's non-file branch must also rank by
+// is_refresh_intent so a file repo_refresh is never fenced behind an older
+// non-file edge.
+func TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst(t *testing.T) {
+	t.Parallel()
+
+	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
+	store := NewSharedIntentStore(db)
+
+	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
+		context.Background(),
+		reducer.SharedProjectionAcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
+		reducer.SharedProjectionIntentRow{
+			IntentID:         "file-refresh-1",
+			ProjectionDomain: reducer.DomainCodeCalls,
+			PartitionKey:     "code-calls:v1:files:repo-a:src/a.go",
+			ScopeID:          "scope-a",
+			AcceptanceUnitID: "repo-a",
+			RepositoryID:     "repo-a",
+			SourceRunID:      "run-1",
+			Payload: map[string]any{
+				"action": "refresh", "intent_type": "repo_refresh", "repo_id": "repo-a",
+				"delta_projection": true, "delta_file_paths": []string{"src/a.go"},
+			},
+		},
+		reducer.DomainCodeCalls,
+	)
+	if err != nil {
+		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
+	}
+	if !strings.Contains(db.query, "candidate.is_refresh_intent AND NOT selected.is_refresh_intent") {
+		t.Fatalf("file-fence non-file branch must rank refresh-first (#3865 file lane); got %q", db.query)
+	}
+}

@@ -106,3 +106,81 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 		t.Fatal("edge must be fenced behind the repo refresh so the retract runs first")
 	}
 }
+
+// TestCodeCallFileFenceRefreshNotBlockedByOlderEdgeIntegration is the file-lane
+// twin of the #3865 regression: a file-scoped repo_refresh and an older non-file
+// edge for the same repo must not deadlock. The file-fence's non-file branch must
+// also rank refresh-first, so a non-refresh edge never fences a file refresh.
+//
+// Set ESHU_CODE_CALL_FENCE_PROOF_DSN to a throwaway Postgres to run it.
+func TestCodeCallFileFenceRefreshNotBlockedByOlderEdgeIntegration(t *testing.T) {
+	dsn := os.Getenv("ESHU_CODE_CALL_FENCE_PROOF_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_CODE_CALL_FENCE_PROOF_DSN to run the code-call fence regression")
+	}
+
+	ctx := context.Background()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	db.SetMaxOpenConns(1)
+
+	store := NewSharedIntentStore(SQLDB{DB: db})
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	const (
+		scope     = "fence-proof-3865-file:scope"
+		au        = "fence-proof-3865-file:repo"
+		repo      = "fence-proof-3865-file:repo"
+		run       = "fence-proof-3865-file:run"
+		gen       = "fence-proof-3865-file:gen"
+		edgeID    = "fence-proof-3865-file-edge"     // sorts before the refresh id
+		refreshID = "fence-proof-3865-file-zrefresh" // created LATER than the edge
+		filePart  = "code-calls:v1:files:fence-proof-3865-file:repo:src/a.go"
+	)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM shared_projection_intents WHERE scope_id = $1`, scope)
+	})
+	_, _ = db.ExecContext(ctx, `DELETE FROM shared_projection_intents WHERE scope_id = $1`, scope)
+
+	base := time.Date(2026, time.June, 25, 0, 0, 0, 0, time.UTC)
+	insert := func(intentID, partitionKey string, createdAt time.Time, payload string) {
+		t.Helper()
+		_, err := db.ExecContext(ctx, `
+INSERT INTO shared_projection_intents
+    (intent_id, projection_domain, partition_key, scope_id, acceptance_unit_id,
+     repository_id, source_run_id, generation_id, payload, created_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
+			intentID, reducer.DomainCodeCalls, partitionKey, scope, au,
+			repo, run, gen, payload, createdAt)
+		if err != nil {
+			t.Fatalf("insert %s: %v", intentID, err)
+		}
+	}
+	insert(edgeID, "content-entity:e_a->content-entity:e_b", base, `{"action":"upsert"}`)
+	insert(refreshID, filePart, base.Add(time.Second),
+		`{"action":"refresh","intent_type":"repo_refresh","repo_id":"`+repo+`","delta_projection":true,"delta_file_paths":["src/a.go"]}`)
+
+	key := reducer.SharedProjectionAcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
+	refreshRow := reducer.SharedProjectionIntentRow{
+		IntentID: refreshID, ProjectionDomain: reducer.DomainCodeCalls,
+		PartitionKey: filePart, ScopeID: scope, AcceptanceUnitID: au,
+		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
+		Payload: map[string]any{
+			"action": "refresh", "intent_type": "repo_refresh", "repo_id": repo,
+			"delta_projection": true, "delta_file_paths": []any{"src/a.go"},
+		},
+		CreatedAt: base.Add(time.Second),
+	}
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, refreshRow, reducer.DomainCodeCalls)
+	if err != nil {
+		t.Fatalf("fence(file refresh): %v", err)
+	}
+	if blocked {
+		t.Fatal("file repo_refresh is fenced behind its older non-file edge — #3865 file-lane deadlock")
+	}
+}
