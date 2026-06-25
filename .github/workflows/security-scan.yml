@@ -94,6 +94,13 @@ jobs:
           scan-ref: .
           scanners: vuln,secret,misconfig
           severity: CRITICAL,HIGH
+          # With format: sarif, trivy-action does NOT apply `severity` to the
+          # SARIF or the exit code by default — it emits every severity and
+          # `exit-code: 1` then fires on MEDIUM/LOW findings too (e.g. the
+          # opinionated k8s/Docker hardening rules on our own charts). This
+          # flag applies the CRITICAL,HIGH threshold to the SARIF + exit code,
+          # so only CRITICAL/HIGH block the gate, matching the intent above.
+          limit-severities-for-sarif: true
           exit-code: "1"
           ignore-unfixed: true
           format: sarif
@@ -156,6 +163,9 @@ jobs:
           scan-type: image
           image-ref: ${{ steps.image.outputs.ref }}
           severity: CRITICAL,HIGH
+          # See trivy-fs: apply the severity threshold to the SARIF + exit code
+          # so only CRITICAL/HIGH block the gate.
+          limit-severities-for-sarif: true
           exit-code: "1"
           ignore-unfixed: true
           format: sarif
