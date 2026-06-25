@@ -42,6 +42,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Validate orchestrator contract
         run: bash scripts/test-verify-golden-corpus-gate.sh
 
