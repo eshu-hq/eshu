@@ -55,7 +55,7 @@ func (backend Backend) Search(
 	response, err := backend.Client.SearchText(ctx, &nornicsearch.SearchTextRequest{
 		Database: strings.TrimSpace(backend.Database),
 		Query:    strings.TrimSpace(req.Query),
-		Limit:    uint32(backendLimit(req.Limit)),
+		Limit:    uint32(backendLimit(req.Limit)), // #nosec G115 -- bounded: backendLimit caps the value to a small positive int before conversion
 		Labels:   []string{SemanticContextLabel},
 	})
 	if err != nil {

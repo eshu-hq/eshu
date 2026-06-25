@@ -73,14 +73,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(*out, payload, 0o644); err != nil {
+		if err := os.WriteFile(*out, payload, 0o600); err != nil {
 			return fmt.Errorf("write artifact %s: %w", *out, err)
 		}
 		surfacePayload, err := capabilitycatalog.MarshalSurfaceInventory(surfaceInventory)
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(*surfaceOut, surfacePayload, 0o644); err != nil {
+		if err := os.WriteFile(*surfaceOut, surfacePayload, 0o600); err != nil {
 			return fmt.Errorf("write surface artifact %s: %w", *surfaceOut, err)
 		}
 		writeFindings(stdout, findings)

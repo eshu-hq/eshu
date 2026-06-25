@@ -3,6 +3,7 @@
 
 package query
 
+// #nosec G101 -- OpenAPI spec JSON whose const name contains "Tokens"; the value is a static API schema definition, not a credential literal
 const openAPIPathsAuthTokens = `
     "/api/v0/auth/local/api-tokens": {
       "post": {

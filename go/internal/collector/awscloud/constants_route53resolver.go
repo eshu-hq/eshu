@@ -39,11 +39,11 @@ const (
 	ResourceTypeRoute53ResolverFirewallDomainList = "aws_route53resolver_firewall_domain_list"
 	// ResourceTypeRoute53ResolverFirewallRuleGroupAssociation identifies a DNS
 	// Firewall rule group-to-VPC association reported by AWS.
-	ResourceTypeRoute53ResolverFirewallRuleGroupAssociation = "aws_route53resolver_firewall_rule_group_association"
+	ResourceTypeRoute53ResolverFirewallRuleGroupAssociation = "aws_route53resolver_firewall_rule_group_association" // #nosec G101 -- AWS resource-type identifier constant, not a credential
 	// ResourceTypeRoute53ResolverQueryLogConfig identifies a Resolver query log
 	// configuration. The resource carries the reported destination ARN only;
 	// the scanner never reads query log records.
-	ResourceTypeRoute53ResolverQueryLogConfig = "aws_route53resolver_query_log_config"
+	ResourceTypeRoute53ResolverQueryLogConfig = "aws_route53resolver_query_log_config" // #nosec G101 -- resource-type identifier, not a credential
 )
 
 const (

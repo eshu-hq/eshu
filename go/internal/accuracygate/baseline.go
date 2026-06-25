@@ -12,7 +12,7 @@ import (
 
 // LoadBaseline reads and validates a checked-in accuracy baseline file.
 func LoadBaseline(path string) (Baseline, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- reads a checked-in accuracy baseline file at a path supplied by the test/CLI caller, not an HTTP/MCP request param
 	if err != nil {
 		return Baseline{}, fmt.Errorf("read accuracy baseline %q: %w", path, err)
 	}

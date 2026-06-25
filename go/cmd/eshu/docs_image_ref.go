@@ -129,7 +129,7 @@ func isDocsVerifyImageTruthFile(path string) bool {
 }
 
 func docsVerifyImageRefsFromFile(path string) ([]string, bool) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is a local config/manifest file discovered by the program from the scan target directory, not an HTTP request param
 	if err != nil {
 		return nil, false
 	}

@@ -35,6 +35,7 @@ func (cr *ContentReader) SearchEntitiesByLanguageAndType(
 
 	languageVariants := normalizedLanguageVariants(language)
 	filters, args, nextArg := buildLanguageTypeEntityFilters(repoID, languageVariants, entityType, query)
+	// #nosec G201 -- interpolates only $N placeholder strings from buildLanguageTypeEntityFilters and an integer arg index; no user data concatenated into SQL
 	sqlQuery := fmt.Sprintf(`
 		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),

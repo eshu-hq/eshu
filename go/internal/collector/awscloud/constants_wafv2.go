@@ -31,16 +31,16 @@ const (
 	// protected resource (ALB, CloudFront distribution, API Gateway stage,
 	// AppSync GraphQL API, App Runner service, or Cognito user pool) reported by
 	// AWS.
-	RelationshipWAFv2WebACLProtectsResource = "wafv2_web_acl_protects_resource"
+	RelationshipWAFv2WebACLProtectsResource = "wafv2_web_acl_protects_resource" // #nosec G101 -- relationship-type identifier, not a credential
 	// RelationshipWAFv2WebACLUsesRuleGroup records a web ACL reference to a
 	// customer-owned rule group by ARN.
-	RelationshipWAFv2WebACLUsesRuleGroup = "wafv2_web_acl_uses_rule_group"
+	RelationshipWAFv2WebACLUsesRuleGroup = "wafv2_web_acl_uses_rule_group" // #nosec G101 -- relationship-type identifier, not a credential
 	// RelationshipWAFv2WebACLUsesIPSet records a web ACL reference to an IP set
 	// by ARN.
-	RelationshipWAFv2WebACLUsesIPSet = "wafv2_web_acl_uses_ip_set"
+	RelationshipWAFv2WebACLUsesIPSet = "wafv2_web_acl_uses_ip_set" // #nosec G101 -- relationship-type identifier, not a credential
 	// RelationshipWAFv2WebACLUsesRegexPatternSet records a web ACL reference to a
 	// regex pattern set by ARN.
-	RelationshipWAFv2WebACLUsesRegexPatternSet = "wafv2_web_acl_uses_regex_pattern_set"
+	RelationshipWAFv2WebACLUsesRegexPatternSet = "wafv2_web_acl_uses_regex_pattern_set" // #nosec G101 -- relationship-type identifier, not a credential
 )
 
 // WAF Classic (v1) is out of scope by construction: the scanner imports only

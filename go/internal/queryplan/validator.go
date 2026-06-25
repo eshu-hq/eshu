@@ -72,7 +72,7 @@ type PlanExpectation struct {
 
 // LoadManifestFile decodes a query-plan gate manifest from disk.
 func LoadManifestFile(path string) (Manifest, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is an internal CLI flag or test literal pointing to a local manifest file, not user-supplied HTTP input
 	if err != nil {
 		return Manifest{}, err
 	}

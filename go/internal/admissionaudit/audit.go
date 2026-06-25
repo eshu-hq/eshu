@@ -13,7 +13,7 @@ import (
 
 // LoadSuite reads an independent checked-in admission audit fixture suite.
 func LoadSuite(path string) (Suite, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- reads a checked-in admission audit fixture suite at a path supplied by the test/CLI caller, not an HTTP/MCP request param
 	if err != nil {
 		return Suite{}, fmt.Errorf("read admission audit suite %q: %w", path, err)
 	}

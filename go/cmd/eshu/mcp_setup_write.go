@@ -68,7 +68,7 @@ func writeMCPServerConfig(p *mcpPlatform, req mcpSetupRequest, targetPath string
 		return fmt.Errorf("platform %q has no safe --write target; copy the snippet into %s manually", p.Name, p.TargetFile)
 	}
 
-	existing, err := os.ReadFile(targetPath) //nolint:gosec // path is operator-provided config target
+	existing, err := os.ReadFile(targetPath) // #nosec G304 -- targetPath is an operator-provided MCP config file path, not an HTTP request param //nolint:gosec
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read existing config %s: %w", targetPath, err)
 	}
@@ -80,7 +80,7 @@ func writeMCPServerConfig(p *mcpPlatform, req mcpSetupRequest, targetPath string
 	merged = append(merged, '\n')
 
 	dir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("create config directory %s: %w", dir, err)
 	}
 

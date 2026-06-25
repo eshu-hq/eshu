@@ -59,6 +59,18 @@ on:
     workflows: ["Publish Image and Helm Chart"]
     types: [completed]
 
+# Coalesce superseded PR runs, but never coalesce release image scans.
+# For workflow_run events GitHub sets github.ref to the default branch, so a
+# naive `${{ github.workflow }}-${{ github.ref }}` group would put every
+# trivy-image run in one group; GitHub keeps only a single pending run per
+# group (even with cancel-in-progress: false), so back-to-back image
+# publishes would drop the earlier shipped digest's scan. Keying on the
+# triggering run's head_sha gives each shipped digest its own group; PRs and
+# branch/tag pushes fall back to github.ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
@@ -66,6 +78,7 @@ jobs:
   trivy-fs:
     name: Trivy filesystem scan (vuln + secret + config)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name != 'workflow_run'
     permissions:
       contents: read
@@ -81,11 +94,23 @@ jobs:
           scan-ref: .
           scanners: vuln,secret,misconfig
           severity: CRITICAL,HIGH
+          # With format: sarif, trivy-action does NOT apply `severity` to the
+          # SARIF or the exit code by default — it emits every severity and
+          # `exit-code: 1` then fires on MEDIUM/LOW findings too (e.g. the
+          # opinionated k8s/Docker hardening rules on our own charts). This
+          # flag applies the CRITICAL,HIGH threshold to the SARIF + exit code,
+          # so only CRITICAL/HIGH block the gate, matching the intent above.
+          limit-severities-for-sarif: true
           exit-code: "1"
           ignore-unfixed: true
           format: sarif
           output: trivy-fs.sarif
-          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,tests/fixtures,node_modules,apps/console/node_modules
+          # Skip non-product trees: intentionally-vulnerable govuln test
+          # fixtures (they embed known CVEs to test the vulnerability-
+          # intelligence collector and MUST NOT be "fixed"), and the example
+          # collector-extension artifacts (e.g. the scorecard OCI worker that
+          # runs as root by design to read the mounted docker socket).
+          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules
 
       - name: Upload Trivy fs SARIF to GitHub Security tab
         if: always()
@@ -97,6 +122,7 @@ jobs:
   trivy-image:
     name: Trivy image scan (ghcr.io/eshu-hq/eshu)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
     permissions:
       contents: read
@@ -137,6 +163,9 @@ jobs:
           scan-type: image
           image-ref: ${{ steps.image.outputs.ref }}
           severity: CRITICAL,HIGH
+          # See trivy-fs: apply the severity threshold to the SARIF + exit code
+          # so only CRITICAL/HIGH block the gate.
+          limit-severities-for-sarif: true
           exit-code: "1"
           ignore-unfixed: true
           format: sarif
@@ -152,6 +181,7 @@ jobs:
   govulncheck:
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: github.event_name != 'workflow_run'
     permissions:
       contents: read
@@ -171,9 +201,19 @@ jobs:
 
       - name: Run govulncheck on every Go package
         working-directory: go
+        # -scan package, not the default symbol mode. The symbol-level scan
+        # builds an SSA call graph via golang.org/x/tools, which panics on
+        # Go 1.26 generics ("ForEachElement called on type containing
+        # *types.TypeParam"); the bug is present in the latest released
+        # x/tools (v0.46.0) and on x/vuln master, so no govulncheck version
+        # survives symbol mode here yet. Package mode resolves vulnerable
+        # imports without the SSA call graph, so it does not panic. It is
+        # strictly more conservative than symbol mode (it flags an imported
+        # vulnerable package even when no vulnerable symbol is called), so it
+        # never hides a vulnerability the default mode would have caught.
         run: |
           set -euo pipefail
-          govulncheck ./... 2>&1 | tee govulncheck.out
+          govulncheck -scan package ./... 2>&1 | tee govulncheck.out
           status=${PIPESTATUS[0]}
           if [ "${status}" -ne 0 ]; then
             printf 'govulncheck: vulnerabilities found, see govulncheck.out above\n' >&2
@@ -191,6 +231,7 @@ jobs:
   gosec:
     name: gosec (Go static analysis)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event_name != 'workflow_run'
     permissions:
       contents: read
@@ -206,16 +247,38 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install gosec (pinned)
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
+        # v2.27.1, not v2.22.0: gosec builds an SSA representation via
+        # golang.org/x/tools, which panics on Go 1.26 generics. v2.22.0 lets
+        # that panic abort the run; v2.27.1 recovers ("skipping SSA analysis")
+        # and continues with the AST-based rules. Two packages (reducer, query)
+        # whose generics trip the loader fall back to AST-only coverage; the
+        # rest get full coverage.
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.27.1
 
-      - name: Run gosec on every Go package (SARIF + text)
+      - name: Run gosec on every Go package (SARIF)
         working-directory: go
+        # Single pass. gosec is slow on Go 1.26 (it attempts SSA per package
+        # and recovers from the x/tools generics panic), so scanning the whole
+        # module twice — once for SARIF, once for text — pushed wall time past
+        # the timeout. Only the SARIF is consumed (uploaded to the Security
+        # tab), so emit SARIF only.
+        #
+        # `-no-fail` because gosec's bundled go/types loader cannot fully
+        # type-check some Go 1.26 generics (it logs "package <x> has type
+        # errors, skipping SSA analysis" for `query`/`reducer` and then exits
+        # non-zero) even when there are zero security findings. That exit is an
+        # analysis-tooling artifact, not a real finding. So we suppress gosec's
+        # own exit code and instead gate on the actual finding count in the
+        # SARIF: any reported result fails the job; the benign type-check
+        # errors (which carry no SARIF results) do not.
         run: |
           set -euo pipefail
-          gosec -severity=low -confidence=low \
-            -fmt=sarif -out gosec.sarif ./...
-          if [ -f gosec.sarif ]; then
-            gosec -severity=low -confidence=low -fmt=text ./... > gosec.txt
+          gosec -severity=low -confidence=low -no-fail -fmt=sarif -out gosec.sarif ./...
+          findings="$(jq '[.runs[].results[]] | length' gosec.sarif)"
+          printf 'gosec: %s finding(s) in SARIF\n' "${findings}"
+          if [ "${findings}" -ne 0 ]; then
+            printf 'gosec: security findings present — see the SARIF / Security tab\n' >&2
+            exit 1
           fi
 
       - name: Upload gosec SARIF to GitHub Security tab
@@ -228,6 +291,7 @@ jobs:
   nancy:
     name: nancy (Sonatype dep CVE + license scan)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name != 'workflow_run'
     permissions:
       contents: read

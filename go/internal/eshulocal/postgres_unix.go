@@ -172,7 +172,7 @@ func embeddedPostgresConfig(
 		Username(localPostgresUser).
 		Password(localPostgresPassword).
 		Database(localPostgresDatabase).
-		Port(uint32(port)).
+		Port(uint32(port)). // #nosec G115 -- port is reserved via net.Listen and validated > 0, safely fits uint32
 		StartTimeout(45 * time.Second).
 		RuntimePath(runtimeDir).
 		DataPath(dataDir).
@@ -194,7 +194,7 @@ func postgresStartupLogWriter(layout Layout) (io.Writer, func()) {
 		return io.Discard, nil
 	}
 	logPath := filepath.Join(layout.LogsDir, "postgres.log")
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304 -- path is program-constructed under operator-controlled layout.LogsDir
 	if err != nil {
 		return io.Discard, nil
 	}
@@ -262,7 +262,7 @@ func reserveLocalPostgresPort() (int, error) {
 }
 
 func readPostmasterPID(dataDir string) (int, error) {
-	content, err := os.ReadFile(filepath.Join(dataDir, "postmaster.pid"))
+	content, err := os.ReadFile(filepath.Join(dataDir, "postmaster.pid")) // #nosec G304 -- path is program-constructed from the embedded-postgres data directory
 	if err != nil {
 		return 0, fmt.Errorf("read embedded postgres pid: %w", err)
 	}
@@ -312,7 +312,7 @@ type postmasterLockFile struct {
 }
 
 func readPostmasterLockFile(dataDir string) (postmasterLockFile, error) {
-	content, err := os.ReadFile(filepath.Join(dataDir, "postmaster.pid"))
+	content, err := os.ReadFile(filepath.Join(dataDir, "postmaster.pid")) // #nosec G304 -- path is program-constructed from the embedded-postgres data directory
 	if err != nil {
 		return postmasterLockFile{}, err
 	}

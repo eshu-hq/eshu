@@ -114,7 +114,7 @@ func nearestTSConfig(repoRoot string, path string) (string, bool) {
 }
 
 func tsConfigCompilerOptions(path string) tsConfigOptions {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- reads a tsconfig.json at a path derived from the scan target repo tree
 	if err != nil {
 		return tsConfigOptions{}
 	}

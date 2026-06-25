@@ -5,7 +5,7 @@ package query
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic stable evidence artifact ID digest, not a security primitive
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -239,7 +239,7 @@ func firstDeploymentArtifactString(details map[string]any, keys ...string) strin
 }
 
 func deploymentEvidenceArtifactID(resolvedID, evidenceKind, path, matchedValue string) string {
-	hash := sha1.Sum([]byte(strings.Join([]string{resolvedID, evidenceKind, path, matchedValue}, "\x00")))
+	hash := sha1.Sum([]byte(strings.Join([]string{resolvedID, evidenceKind, path, matchedValue}, "\x00"))) // #nosec G401 -- non-cryptographic stable evidence artifact ID, not a security primitive
 	return "evidence-artifact:" + hex.EncodeToString(hash[:8])
 }
 

@@ -57,5 +57,5 @@ func repositoryShardForID(repositoryID string, shardCount int) int {
 	}
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(strings.ToLower(strings.TrimSpace(repositoryID))))
-	return int(hasher.Sum32() % uint32(shardCount))
+	return int(hasher.Sum32() % uint32(shardCount)) // #nosec G115 -- bounded: result is in [0, shardCount-1] which is a small positive int validated by caller
 }

@@ -51,7 +51,7 @@ func EnsureLayoutVersion(layout Layout, currentVersion string) error {
 
 // ReadLayoutVersion loads and normalizes the VERSION file contents.
 func ReadLayoutVersion(path string) (string, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- path is the program-constructed layout VERSION file path inside the operator-controlled data root
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +98,7 @@ func WriteLayoutVersion(path, version string) error {
 }
 
 func dirHasEntriesExcept(path string, ignoredNames ...string) (bool, error) {
-	dir, err := os.Open(path)
+	dir, err := os.Open(path) // #nosec G304 -- path is the program-constructed layout root directory path inside the operator-controlled data root
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil

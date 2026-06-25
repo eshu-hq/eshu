@@ -55,10 +55,10 @@ const (
 	// KubernetesGCPWorkloadIdentityBindingFactKind identifies one GKE Workload
 	// Identity ServiceAccount annotation joined to an operator-declared workload
 	// pool. It carries only redaction-safe GCP target and subject anchors.
-	KubernetesGCPWorkloadIdentityBindingFactKind = "k8s_gcp_workload_identity_binding"
+	KubernetesGCPWorkloadIdentityBindingFactKind = "k8s_gcp_workload_identity_binding" // #nosec G101 -- fact-kind identifier string, not a credential
 	// KubernetesServiceAccountTokenPostureFactKind identifies projected and
 	// automount token posture for one ServiceAccount source identity.
-	KubernetesServiceAccountTokenPostureFactKind = "k8s_service_account_token_posture"
+	KubernetesServiceAccountTokenPostureFactKind = "k8s_service_account_token_posture" // #nosec G101 -- fact-kind identifier string, not a credential
 	// EKSIRSAAnnotationFactKind identifies an EKS IRSA ServiceAccount annotation
 	// source fact.
 	EKSIRSAAnnotationFactKind = "eks_irsa_annotation"

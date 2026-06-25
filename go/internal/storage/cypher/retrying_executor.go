@@ -110,7 +110,7 @@ func (r *RetryingExecutor) runWithRetry(
 		}
 
 		delay := baseDelay * time.Duration(1<<uint(attempt))
-		jitter := time.Duration(float64(delay) * (0.5 + rand.Float64()))
+		jitter := time.Duration(float64(delay) * (0.5 + rand.Float64())) // #nosec G404 -- non-security jitter for exponential backoff retry delay
 		slog.Warn(
 			"neo4j transient error, retrying",
 			"attempt", attempt+1,

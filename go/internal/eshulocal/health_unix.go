@@ -82,7 +82,7 @@ func derivedPgCtlPath(dataDir string) string {
 }
 
 func runPgCtlCommand(binary string, args ...string) error {
-	cmd := exec.Command(binary, args...)
+	cmd := exec.Command(binary, args...) // #nosec G204 -- binary is pg_ctl resolved from the embedded-postgres binaries dir or PATH; args are program-constructed
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, string(output))

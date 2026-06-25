@@ -126,6 +126,7 @@ func (cr *ContentReader) GetEntityContents(ctx context.Context, entityIDs []stri
 		args = append(args, entityID)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
 	}
+	// #nosec G202 -- concatenates only $N parameter placeholders (generated from loop indices) into the IN list; entity values are bound args, not SQL text
 	rows, err := cr.db.QueryContext(ctx, `
 		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),

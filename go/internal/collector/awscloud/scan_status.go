@@ -37,7 +37,7 @@ const (
 	ScanStatusFailed = "failed"
 	// ScanStatusCredentialFailed means credential acquisition failed for the
 	// target account.
-	ScanStatusCredentialFailed = "credential_failed"
+	ScanStatusCredentialFailed = "credential_failed" // #nosec G101 -- scan-status label indicating credential acquisition failed, not a credential value
 
 	// ScanCommitPending means scanner output has not yet reached the durable
 	// fact commit boundary.

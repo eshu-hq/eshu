@@ -68,7 +68,7 @@ type Registry struct {
 // returns an error so a deployment never silently runs with a partial or
 // ambiguous grant table. Errors never include token-hash material.
 func LoadRegistryFromFile(path string) (*Registry, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- reads an operator-managed hashed-token grant table at a path supplied by deployment config, not an HTTP/MCP request param
 	if err != nil {
 		return nil, fmt.Errorf("read scoped token registry: %w", err)
 	}

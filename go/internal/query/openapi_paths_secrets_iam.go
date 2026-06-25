@@ -3,6 +3,7 @@
 
 package query
 
+// #nosec G101 -- OpenAPI spec JSON whose const name contains "Secrets"/"IAM"; the value is a static API schema definition, not a credential literal
 const openAPIPathsSecretsIAM = `
     "/api/v0/secrets-iam/posture-summary": {
       "get": {

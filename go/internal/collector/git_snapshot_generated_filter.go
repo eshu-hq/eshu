@@ -70,7 +70,7 @@ func largeJavaScriptBundlePrefix(path string) (string, bool) {
 	if err != nil || info.Size() < generatedJavaScriptBundleMinBytes {
 		return "", false
 	}
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- reads indexed repo file at a path derived from the scan target, not user-supplied input
 	if err != nil {
 		return "", false
 	}
@@ -196,7 +196,7 @@ func javascriptFilePrefix(path string, limit int) (string, bool) {
 	if limit <= 0 {
 		return "", false
 	}
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- reads indexed repo file at a path derived from the scan target, not user-supplied input
 	if err != nil {
 		return "", false
 	}

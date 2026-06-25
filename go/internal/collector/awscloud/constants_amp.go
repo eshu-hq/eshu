@@ -18,7 +18,7 @@ const (
 	// Prometheus workspace metadata resource. The scanner emits identity, alias,
 	// status, the optional customer-managed KMS key ARN, and the Prometheus
 	// endpoint URL only.
-	ResourceTypeAMPWorkspace = "aws_amp_workspace"
+	ResourceTypeAMPWorkspace = "aws_amp_workspace" // #nosec G101 -- resource-type identifier for an AMP workspace, not a credential
 	// ResourceTypeAMPRuleGroupsNamespace identifies an Amazon Managed Service
 	// for Prometheus rule-groups namespace metadata resource. The scanner emits
 	// the namespace NAME, ARN, owning workspace id, and status only. The

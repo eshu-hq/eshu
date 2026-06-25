@@ -379,7 +379,7 @@ func (e *Engine) parseDefinition(
 }
 
 func readSource(path string) ([]byte, error) {
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository source file at a path derived from the scan target
 	if err != nil {
 		return nil, fmt.Errorf("read source %q: %w", path, err)
 	}

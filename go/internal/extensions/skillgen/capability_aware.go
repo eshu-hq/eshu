@@ -70,7 +70,7 @@ func LoadCapabilities(overridePath, catalogPath string) (Capabilities, error) {
 	caps := DefaultCapabilitiesFor(names)
 	caps.Source = catalogPath
 
-	data, err := os.ReadFile(overridePath)
+	data, err := os.ReadFile(overridePath) // #nosec G304 -- overridePath is the operator-configured per-deployment capabilities override file, not external input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return caps, nil

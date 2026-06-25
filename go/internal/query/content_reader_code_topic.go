@@ -31,6 +31,7 @@ func (cr *ContentReader) investigateCodeTopic(
 	if len(filters) > 0 {
 		where = "WHERE " + strings.Join(filters, " AND ")
 	}
+	// #nosec G201 -- interpolates integer arg indices and `where` which contains only $N placeholder clauses from codeTopicFilters; no user data concatenated into SQL
 	query := fmt.Sprintf(`
 		WITH terms AS (
 		  SELECT unnest(string_to_array($%d, E'\x1f')) AS term

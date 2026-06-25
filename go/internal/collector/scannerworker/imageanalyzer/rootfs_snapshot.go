@@ -90,7 +90,7 @@ func (r *rootFSUnsupportedReader) readOptional(
 	if info.Size() > r.remainingBytes {
 		return nil, false, fmt.Errorf("%w: rootfs metadata byte budget exceeded", errInputLimitExceeded)
 	}
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) // #nosec G304 -- reads rootfs metadata file at a path constructed from the scanner-controlled rootfs extraction directory
 	if err != nil {
 		return nil, false, err
 	}

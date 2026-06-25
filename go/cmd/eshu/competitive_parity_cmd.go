@@ -109,7 +109,7 @@ func competitiveParityInventory(repoRoot string) (competitiveparity.Inventory, e
 	sort.Strings(inv.MCPTools)
 	sort.Strings(inv.ConsolePages)
 	for _, path := range competitiveParityDocPaths() {
-		raw, err := os.ReadFile(filepath.Join(repoRoot, path)) //nolint:gosec // repo-local public docs path from static expectations
+		raw, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- path is a static string from competitiveParityDocPaths(); repoRoot is the operator-supplied repo root, not an HTTP request param //nolint:gosec
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -265,7 +265,7 @@ func buildCompetitiveParitySupportedSupplyChainPacket() (query.InvestigationEvid
 }
 
 func exerciseEvidencePacketDogfoodFixture(repoRoot string) error {
-	raw, err := os.ReadFile(filepath.Join(repoRoot, "go/internal/packetdogfood/testdata/fixture_benchmark.json")) //nolint:gosec // repo-local fixture path
+	raw, err := os.ReadFile(filepath.Join(repoRoot, "go/internal/packetdogfood/testdata/fixture_benchmark.json")) // #nosec G304 -- path suffix is a fixed literal; repoRoot is the operator-supplied repo root, not an HTTP request param //nolint:gosec
 	if err != nil {
 		return fmt.Errorf("read dogfood fixture: %w", err)
 	}

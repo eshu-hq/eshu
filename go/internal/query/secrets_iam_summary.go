@@ -130,6 +130,7 @@ func (s PostgresSecretsIAMPostureSummaryStore) bucketCounts(
 // secretsIAMPostureSummaryQueryTemplate groups active reducer facts for one
 // scope by a bucket field. The %s is an allow-listed payload column (never
 // caller input); fact kind and scope are bound parameters.
+// #nosec G101 -- SQL template whose const name contains "Secrets"/"IAM"; the value is a parameterized query template (the %s is an allowlist-validated payload column name, not a credential literal)
 const secretsIAMPostureSummaryQueryTemplate = `
 SELECT COALESCE(NULLIF(fact.payload->>'%s', ''), 'unknown') AS bucket, COUNT(*) AS bucket_count
 FROM fact_records AS fact

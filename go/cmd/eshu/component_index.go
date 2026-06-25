@@ -43,7 +43,7 @@ func runComponentIndexVerify(cmd *cobra.Command, args []string) error {
 }
 
 func loadComponentIndex(path string) (componentindex.Index, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local component index file, not an HTTP request param
 	if err != nil {
 		return componentindex.Index{}, component.NewError(component.ErrorCodeInvalidManifest, "read component index failed")
 	}

@@ -19,7 +19,7 @@ type ManifestSet struct {
 
 // LoadManifestFile reads and validates a collector entrypoint manifest file.
 func LoadManifestFile(path string) ([]Manifest, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- reads operator-supplied collector entrypoint manifest file path, not an HTTP request param
 	if err != nil {
 		return nil, fmt.Errorf("read collector entrypoint manifest: %w", err)
 	}

@@ -151,7 +151,7 @@ func readFragmentFiles(dir string) ([]matrixFile, error) {
 }
 
 func readMatrixFile(path string) (matrixFile, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is program-constructed from the operator-configured specsDir joined with a fixed filename or ReadDir-enumerated fragment name
 	if err != nil {
 		return matrixFile{}, fmt.Errorf("read matrix %s: %w", path, err)
 	}

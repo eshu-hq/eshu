@@ -5,7 +5,7 @@ package cypher
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic stable artifact ID digest, not a security primitive
 	"encoding/hex"
 	"fmt"
 	"sort"
@@ -466,6 +466,6 @@ func repoEvidenceArtifactRowsFromIntent(
 }
 
 func repoEvidenceArtifactID(resolvedID string, evidenceKind string, path string, matchedValue string) string {
-	hash := sha1.Sum([]byte(strings.Join([]string{resolvedID, evidenceKind, path, matchedValue}, "\x00")))
+	hash := sha1.Sum([]byte(strings.Join([]string{resolvedID, evidenceKind, path, matchedValue}, "\x00"))) // #nosec G401 -- non-cryptographic stable evidence artifact ID, not a security primitive
 	return "evidence-artifact:" + hex.EncodeToString(hash[:8])
 }

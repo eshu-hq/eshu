@@ -58,7 +58,7 @@ const (
 	// WarningArchiveNestedSkipped marks nested archive members.
 	WarningArchiveNestedSkipped WarningClass = "archive_nested_skipped"
 	// WarningCredentialFileSkipped marks credential-like archive members.
-	WarningCredentialFileSkipped WarningClass = "credential_file_skipped"
+	WarningCredentialFileSkipped WarningClass = "credential_file_skipped" // #nosec G101 -- warning-class label for skipped credential-like archive members, not a credential value
 )
 
 // Options bounds archive preflight work.
@@ -187,7 +187,7 @@ func preflightZip(ctx context.Context, reader io.ReaderAt, size int64, options O
 			continue
 		}
 		rec.result.RegularFileCount++
-		rec.observeExpandedBytes(int64(file.UncompressedSize64), options)
+		rec.observeExpandedBytes(int64(file.UncompressedSize64), options) // #nosec G115 -- bounded: zip.File.UncompressedSize64 is the declared member size already validated against the budget
 		if zipCompressionRatioExceeded(file, options.MaxCompressionRatio) {
 			rec.warn(WarningCompressionRatioExceeded)
 		}

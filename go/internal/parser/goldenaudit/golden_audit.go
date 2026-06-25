@@ -93,7 +93,7 @@ func (r Report) Summary() string {
 
 // LoadGoldenGraph reads a checked-in independent golden graph fixture.
 func LoadGoldenGraph(path string) (Graph, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- reads a checked-in golden fixture file at a caller-supplied test path
 	if err != nil {
 		return Graph{}, fmt.Errorf("read golden graph %q: %w", path, err)
 	}

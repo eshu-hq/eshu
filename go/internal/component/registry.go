@@ -75,7 +75,7 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 		verification.Version != manifest.Metadata.Version {
 		return InstalledComponent{}, NewError(ErrorCodeUnverifiedPackage, "verification result does not match manifest")
 	}
-	raw, err := os.ReadFile(manifestPath)
+	raw, err := os.ReadFile(manifestPath) // #nosec G304 -- manifestPath is supplied by the caller from a verified component install flow, not from external input
 	if err != nil {
 		return InstalledComponent{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
 	}
@@ -108,10 +108,10 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 		TrustMode:      verification.Mode,
 		InstalledAt:    time.Now().UTC(),
 	}
-	if err := os.MkdirAll(filepath.Dir(installed.ManifestPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(installed.ManifestPath), 0o750); err != nil {
 		return InstalledComponent{}, WrapError(ErrorCodeRegistryWriteFailed, "create component package directory", err)
 	}
-	if err := os.WriteFile(installed.ManifestPath, raw, 0o600); err != nil {
+	if err := os.WriteFile(installed.ManifestPath, raw, 0o600); err != nil { // #nosec G703 -- ManifestPath is program-constructed from registry home + validated component ID and version, not from external input
 		return InstalledComponent{}, WrapError(ErrorCodeRegistryWriteFailed, "copy component manifest", err)
 	}
 	state.upsert(installed)
@@ -279,7 +279,7 @@ func (r Registry) load() (registryState, error) {
 }
 
 func (r Registry) save(state registryState) error {
-	if err := os.MkdirAll(r.home, 0o755); err != nil {
+	if err := os.MkdirAll(r.home, 0o750); err != nil {
 		return WrapError(ErrorCodeRegistryWriteFailed, "create component home", err)
 	}
 	sortComponents(state.Components)

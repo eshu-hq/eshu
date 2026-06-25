@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	apiKeyEnvVar             = "ESHU_API_KEY"
-	autoGenerateAPIKeyEnvVar = "ESHU_AUTO_GENERATE_API_KEY"
+	apiKeyEnvVar             = "ESHU_API_KEY"               // #nosec G101 -- environment variable name, not a credential
+	autoGenerateAPIKeyEnvVar = "ESHU_AUTO_GENERATE_API_KEY" // #nosec G101 -- environment variable name, not a credential
 	eshuHomeEnvVar           = "ESHU_HOME"
 	appHomeDirname           = ".eshu"
 	envFileName              = ".env"
@@ -41,7 +41,7 @@ func ResolveAPIKey(getenv func(string) string) (string, error) {
 	}
 
 	home := appHomeFromGetenv(getenv)
-	if err := os.MkdirAll(home, 0o755); err != nil {
+	if err := os.MkdirAll(home, 0o750); err != nil {
 		return "", fmt.Errorf("create Eshu home: %w", err)
 	}
 
@@ -93,7 +93,7 @@ func appHomeFromGetenv(getenv func(string) string) string {
 }
 
 func acquireLock(path string) (*os.File, error) {
-	lockFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	lockFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600) // #nosec G304 -- path is program-constructed from operator-controlled ESHU_HOME or user home dir
 	if err != nil {
 		return nil, fmt.Errorf("open lock file: %w", err)
 	}
@@ -124,7 +124,7 @@ func isTruthy(value string) bool {
 func loadEnvConfig(path string) (map[string]string, error) {
 	config := make(map[string]string)
 
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- path is program-constructed under operator-controlled ESHU_HOME or user home dir
 	if err != nil {
 		if os.IsNotExist(err) {
 			return config, nil

@@ -140,7 +140,7 @@ func (s *Server) RunHTTP(ctx context.Context, addr string, base *http.ServeMux) 
 		IdleTimeout:       120 * time.Second,
 	}
 
-	go func() {
+	go func() { // #nosec G118 -- graceful-shutdown goroutine, not an HTTP handler goroutine; ReadHeaderTimeout is set on the server above
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

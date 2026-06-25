@@ -127,7 +127,7 @@ func deterministicRetryJitter(key string, attempt int, delay time.Duration) time
 	_, _ = hash.Write([]byte(key))
 	_, _ = hash.Write([]byte(":"))
 	_, _ = hash.Write([]byte(strconv.Itoa(attempt)))
-	return time.Duration(hash.Sum64() % uint64(window+1))
+	return time.Duration(hash.Sum64() % uint64(window+1)) // #nosec G115 -- bounded: result is at most window (a duration/4), safe to convert to time.Duration
 }
 
 func confluenceRetryFailureClass(statusCode int) string {

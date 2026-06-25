@@ -47,5 +47,5 @@ const (
 	// admin credentials, emitted only for SECRET_ARN auth. The target is keyed
 	// by the secret ARN so the edge joins the secret node the Secrets Manager
 	// scanner publishes. The secret value is never read.
-	RelationshipDocDBElasticClusterUsesAdminSecret = "docdbelastic_cluster_uses_admin_secret"
+	RelationshipDocDBElasticClusterUsesAdminSecret = "docdbelastic_cluster_uses_admin_secret" // #nosec G101 -- relationship-type identifier recording a secret ARN reference, not a credential value
 )

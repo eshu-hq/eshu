@@ -125,7 +125,7 @@ func walkTerragruntIncludeChain(
 		return nil
 	}
 
-	source, err := os.ReadFile(absolute)
+	source, err := os.ReadFile(absolute) // #nosec G304 -- reads a Terragrunt include file at a path validated by Lstat and size cap above
 	if err != nil {
 		return nil
 	}
@@ -274,7 +274,7 @@ func walkUpForFile(currentDir, name string) string {
 			return ""
 		}
 		candidate := filepath.Join(parent, name)
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() { // #nosec G703 -- os.Stat result is used only for existence/type check; error is intentionally ignored on miss
 			return candidate
 		}
 		dir = parent

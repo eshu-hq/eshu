@@ -234,7 +234,7 @@ func writeNornicDBInstallManifest(targetPath, manifestPath string, source prepar
 }
 
 func sha256File(path string) (string, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G703 G304 -- path is the program-managed nornicdb install source path, not user input
 	if err != nil {
 		return "", fmt.Errorf("open %q for sha256: %w", path, err)
 	}
@@ -249,7 +249,7 @@ func sha256File(path string) (string, error) {
 }
 
 func copyExecutableFile(sourcePath, targetPath string) error {
-	source, err := os.Open(sourcePath)
+	source, err := os.Open(sourcePath) // #nosec G304 -- sourcePath is the program-managed nornicdb install source path, not user input
 	if err != nil {
 		return fmt.Errorf("open nornicdb source binary: %w", err)
 	}

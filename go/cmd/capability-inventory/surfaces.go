@@ -95,7 +95,7 @@ func enumerateConsolePages(root string) ([]string, error) {
 	var combined strings.Builder
 	for _, name := range consoleRouterFiles {
 		routerPath := filepath.Join(root, "apps", "console", "src", name)
-		fileBody, err := os.ReadFile(routerPath)
+		fileBody, err := os.ReadFile(routerPath) // #nosec G304 -- routerPath is constructed by the program from a fixed internal template joined to the repo root, not from untrusted input
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue

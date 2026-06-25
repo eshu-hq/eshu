@@ -116,7 +116,7 @@ type overlayFileSurface struct {
 // LoadOverlay reads the overlay from path. A missing file yields an empty
 // overlay so the catalog can be built from the matrix alone.
 func LoadOverlay(path string) (Overlay, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured capability catalog overlay file under specs/, not external input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return Overlay{}, nil

@@ -366,7 +366,7 @@ func graphStatusForLayout(layout eshulocal.Layout) (graphStatusOutput, error) {
 
 func graphLogsForLayout(layout eshulocal.Layout) error {
 	logPath := filepath.Join(layout.LogsDir, "graph-nornicdb.log")
-	file, err := os.Open(logPath)
+	file, err := os.Open(logPath) // #nosec G304 -- logPath is program-constructed from layout.LogsDir and a fixed filename literal
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("graph log does not exist at %q; start local_authoritative with eshu watch first", logPath)

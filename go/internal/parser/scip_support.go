@@ -216,7 +216,7 @@ func (i SCIPIndexer) runCommand() func(context.Context, []string, string) error 
 		return i.RunCommand
 	}
 	return func(ctx context.Context, command []string, cwd string) error {
-		cmd := exec.CommandContext(ctx, command[0], command[1:]...)
+		cmd := exec.CommandContext(ctx, command[0], command[1:]...) // #nosec G204 -- runs a fixed indexer binary with internally-constructed arguments
 		cmd.Dir = cwd
 		output, err := cmd.CombinedOutput()
 		if err != nil {

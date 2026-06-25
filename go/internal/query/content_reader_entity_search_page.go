@@ -66,6 +66,7 @@ func (cr *ContentReader) searchEntityContentScoped(
 
 	limitArg := len(args) + 1
 	offsetArg := len(args) + 2
+	// #nosec G201 -- `where` is a compile-time literal string chosen by the caller (e.g. "repo_id = $1 AND source_cache ILIKE '%' || $2 || '%'"); limitArg/offsetArg are integers; no user data concatenated into SQL
 	query := fmt.Sprintf(`
 		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),

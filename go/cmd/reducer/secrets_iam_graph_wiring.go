@@ -19,7 +19,7 @@ import (
 // activation decision and flag-on proof are recorded. The repo-local §11/§12
 // proofs and §14 principal+security sign-off exist; turning this on without the
 // target deployment record is a rule violation, not a config choice.
-const secretsIAMGraphProjectionEnabledEnv = "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED"
+const secretsIAMGraphProjectionEnabledEnv = "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED" // #nosec G101 -- env-var name constant, not a credential
 
 // secretsIAMGraphProjectionEnabled reports whether the operator explicitly
 // opted into live secrets/IAM graph projection. An empty value is OFF; a

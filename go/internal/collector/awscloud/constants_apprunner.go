@@ -63,7 +63,7 @@ const (
 	// SSM Parameter Store ARN referenced by a service's runtime environment
 	// secrets. Only the reference ARN is recorded; the resolved value is never
 	// read or persisted.
-	RelationshipAppRunnerServiceReferencesSecret = "apprunner_service_references_secret"
+	RelationshipAppRunnerServiceReferencesSecret = "apprunner_service_references_secret" // #nosec G101 -- relationship-type identifier recording a secret ARN reference, not a credential value
 	// RelationshipAppRunnerVpcConnectorUsesSubnet records a subnet a VPC
 	// connector places network interfaces in. The target keys on the bare
 	// subnet ID.

@@ -132,7 +132,7 @@ func startLocalChildProcess(name string, args []string, env []string) (*exec.Cmd
 	if err != nil {
 		return nil, fmt.Errorf("%s binary not found in PATH", name)
 	}
-	cmd := exec.Command(binary, args[1:]...)
+	cmd := exec.Command(binary, args[1:]...) // #nosec G204 -- binary is resolved via LookPath from a fixed service name; args are program-constructed
 	cmd.Args = append([]string(nil), args...)
 	cmd.Env = env
 	closeIO, err := configureLocalChildProcessIOWithCleanup(cmd, name, env)
@@ -182,7 +182,7 @@ func configureLocalChildProcessIOWithCleanup(cmd *exec.Cmd, name string, env []s
 			return nil, fmt.Errorf("create local child log dir: %w", err)
 		}
 		logPath := filepath.Join(logDir, filepath.Base(name)+".log")
-		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304 -- logPath is derived from operator-configured log directory and a fixed service-name base; not an HTTP request path
 		if err != nil {
 			return nil, fmt.Errorf("open %s log: %w", name, err)
 		}

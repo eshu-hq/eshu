@@ -130,6 +130,7 @@ func (s PostgresSecretsIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustCh
 	return out, nil
 }
 
+// #nosec G101 -- SQL SELECT whose const name contains "Secrets"/"IAM"; the value is a fully-parameterized query, not a credential literal
 const listSecretsIAMIdentityTrustChainsQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact

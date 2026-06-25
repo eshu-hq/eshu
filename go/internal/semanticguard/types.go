@@ -44,7 +44,7 @@ const (
 	// ReasonChunkTooLarge marks a byte budget violation.
 	ReasonChunkTooLarge = "chunk_too_large"
 	// ReasonTokenBudgetExceeded marks a token budget violation.
-	ReasonTokenBudgetExceeded = "token_budget_exceeded"
+	ReasonTokenBudgetExceeded = "token_budget_exceeded" // #nosec G101 -- reason-code label for a budget decision, not a credential or token value
 	// ReasonClassifierMissing marks a missing classifier version or result set.
 	ReasonClassifierMissing = "classifier_missing"
 	// ReasonUnknownDataClass marks a data class outside the approved taxonomy.

@@ -49,7 +49,7 @@ const (
 	// RelationshipCodeBuildProjectReferencesSecret records a Secrets Manager
 	// secret referenced by a SECRETS_MANAGER environment variable. The target is
 	// the Secrets Manager secret ARN or name.
-	RelationshipCodeBuildProjectReferencesSecret = "codebuild_project_references_secret"
+	RelationshipCodeBuildProjectReferencesSecret = "codebuild_project_references_secret" // #nosec G101 -- relationship-type identifier recording a Secrets Manager reference, not a credential value
 	// RelationshipCodeBuildProjectReferencesSSMParameter records an SSM Parameter
 	// Store parameter referenced by a PARAMETER_STORE environment variable. The
 	// target is the SSM parameter ARN or name.

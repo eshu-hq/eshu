@@ -121,7 +121,7 @@ func runEvidenceBundleValidate(cmd *cobra.Command, _ []string) error {
 
 func readEvidenceBundleInput(in io.Reader, path string) ([]byte, error) {
 	if strings.TrimSpace(path) != "" {
-		raw, err := os.ReadFile(path) //nolint:gosec // user-provided local validation path
+		raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied local validation path, not an HTTP request param //nolint:gosec
 		if err != nil {
 			return nil, fmt.Errorf("read evidence bundle: %w", err)
 		}

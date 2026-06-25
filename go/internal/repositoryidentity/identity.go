@@ -4,7 +4,7 @@
 package repositoryidentity
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic repository identity digest, not a security primitive
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -114,6 +114,6 @@ func CanonicalRepositoryID(remoteURL string, localPath string) (string, error) {
 		identity = localPath
 	}
 
-	sum := sha1.Sum([]byte(identity))
+	sum := sha1.Sum([]byte(identity)) // #nosec G401 -- non-cryptographic repository identity digest, not a security primitive
 	return fmt.Sprintf("repository:r_%s", hex.EncodeToString(sum[:])[:8]), nil
 }

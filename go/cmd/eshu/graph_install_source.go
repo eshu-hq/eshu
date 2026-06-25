@@ -33,7 +33,7 @@ const (
 )
 
 var graphInstallExpandPackage = func(pkgPath, targetDir string) error {
-	cmd := exec.Command("pkgutil", "--expand-full", pkgPath, targetDir)
+	cmd := exec.Command("pkgutil", "--expand-full", pkgPath, targetDir) // #nosec G204 -- fixed binary "pkgutil"; pkgPath and targetDir are program-managed temp paths constructed by this function
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("expand package %q: %w: %s", pkgPath, err, strings.TrimSpace(string(output)))
@@ -242,7 +242,7 @@ func downloadNornicDBInstallSource(ctx context.Context, sourceURL string) (strin
 		name = "nornicdb-source"
 	}
 	targetPath := filepath.Join(tempDir, name)
-	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) // #nosec G304 -- targetPath is filepath.Join of an os.MkdirTemp dir and a filepath.Base-cleaned URL filename; contained within the temp dir
 	if err != nil {
 		_ = os.RemoveAll(tempDir)
 		return "", fmt.Errorf("create downloaded nornicdb source file: %w", err)
@@ -275,7 +275,7 @@ func nornicDBInstallDownloadTimeout() (time.Duration, error) {
 }
 
 func extractNornicDBBinaryFromArchive(archivePath string) (string, string, func() error, error) {
-	file, err := os.Open(archivePath)
+	file, err := os.Open(archivePath) // #nosec G304 -- archivePath is a program-managed temp file path created by downloadNornicDBSource, not user-supplied input
 	if err != nil {
 		return "", "", nil, fmt.Errorf("open nornicdb archive %q: %w", archivePath, err)
 	}
@@ -324,12 +324,13 @@ func extractNornicDBBinaryFromArchive(archivePath string) (string, string, func(
 			continue
 		}
 		targetPath := filepath.Join(tempDir, name)
-		targetFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+		targetFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o750) // #nosec G302 G304 -- 0o750 is intentional: extracted NornicDB binary requires owner execute; targetPath is filepath.Join of os.MkdirTemp dir and filepath.Base(header.Name) validated against a fixed allowlist
 		if err != nil {
 			_ = os.RemoveAll(tempDir)
 			return "", "", nil, fmt.Errorf("create extracted nornicdb binary: %w", err)
 		}
-		if _, err := io.Copy(targetFile, tarReader); err != nil {
+		const nornicDBBinaryMaxBytes = 512 << 20 // 512 MiB — guards against decompression bombs
+		if _, err := io.Copy(targetFile, io.LimitReader(tarReader, nornicDBBinaryMaxBytes)); err != nil {
 			_ = targetFile.Close()
 			_ = os.RemoveAll(tempDir)
 			return "", "", nil, fmt.Errorf("extract nornicdb binary from archive: %w", err)

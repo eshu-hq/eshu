@@ -98,7 +98,7 @@ func payloadInt(payload map[string]any, key string) (int, bool) {
 	case uint32:
 		return int(typed), true
 	case uint64:
-		return int(typed), true
+		return int(typed), true // #nosec G115 -- caller is a generic type-switch converter; callers must validate range; truncation is intentional on 32-bit int platforms
 	case float32:
 		return int(typed), true
 	case float64:

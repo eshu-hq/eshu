@@ -18,7 +18,7 @@ const (
 	RegistryHost = "ghcr.io"
 	// DistributionBaseURL is GHCR's Distribution API endpoint.
 	DistributionBaseURL = "https://ghcr.io"
-	tokenRealm          = "https://ghcr.io/token"
+	tokenRealm          = "https://ghcr.io/token" // #nosec G101 -- URL of the GHCR token endpoint, not a credential value
 	tokenService        = "ghcr.io"
 )
 

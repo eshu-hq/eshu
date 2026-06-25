@@ -18,7 +18,7 @@ const (
 	RegistryHost = "docker.io"
 	// DistributionBaseURL is Docker Hub's Distribution API endpoint.
 	DistributionBaseURL = "https://registry-1.docker.io"
-	tokenRealm          = "https://auth.docker.io/token"
+	tokenRealm          = "https://auth.docker.io/token" // #nosec G101 -- URL of the Docker Hub token endpoint, not a credential value
 	tokenService        = "registry.docker.io"
 )
 

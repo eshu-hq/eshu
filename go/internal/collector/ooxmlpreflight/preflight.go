@@ -401,7 +401,7 @@ func (r *xmlBudgetReader) Read(p []byte) (int, error) {
 		p = p[:r.remaining]
 	}
 	n, err := r.reader.Read(p)
-	r.remaining -= uint64(n)
+	r.remaining -= uint64(n) // #nosec G115 -- bounded: n is the result of Read(p) where len(p) <= r.remaining, so n fits in uint64
 	return n, err
 }
 

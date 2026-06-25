@@ -33,6 +33,7 @@ CREATE INDEX IF NOT EXISTS scoped_api_tokens_active_idx
     WHERE status = 'active' AND revoked_at IS NULL;
 `
 
+// #nosec G101 -- SQL DML whose const name contains "Token"; the value is a fully-parameterized query, not a credential literal
 const upsertScopedAPITokenQuery = `
 INSERT INTO scoped_api_tokens (
     token_hash,
@@ -90,6 +91,7 @@ WHERE tok.token_hash = $1
 LIMIT 1
 `
 
+// #nosec G101 -- SQL DML whose const name contains "Token"; the value is a fully-parameterized query, not a credential literal
 const markScopedAPITokenUsedQuery = `
 UPDATE scoped_api_tokens
 SET last_used_at = $2,

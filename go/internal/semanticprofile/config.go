@@ -42,7 +42,7 @@ const (
 
 const (
 	// CredentialSourceKubernetesSecret means credentials live in a Kubernetes Secret.
-	CredentialSourceKubernetesSecret = "kubernetes_secret"
+	CredentialSourceKubernetesSecret = "kubernetes_secret" // #nosec G101 -- credential source kind identifier, not a credential value
 	// CredentialSourceVaultSecretHandle means credentials live behind a Vault-like handle.
 	CredentialSourceVaultSecretHandle = "vault_secret_handle"
 	// CredentialSourceEnvironmentVariable means credentials are referenced by env var name.
@@ -50,7 +50,7 @@ const (
 	// CredentialSourceCloudWorkloadIdentity means cloud workload identity supplies auth.
 	CredentialSourceCloudWorkloadIdentity = "cloud_workload_identity"
 	// CredentialSourceLocalDevProfile means local development profile configuration supplies auth.
-	CredentialSourceLocalDevProfile = "local_dev_profile"
+	CredentialSourceLocalDevProfile = "local_dev_profile" // #nosec G101 -- credential source kind identifier, not a credential value
 )
 
 const (

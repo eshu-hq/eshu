@@ -55,7 +55,7 @@ func LoadDefaultCatalog() ([]string, error) {
 // implemented collector names. Exposed for tests so they can point at a
 // fixture file without touching the repo-root path.
 func loadCatalogFrom(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured surface inventory YAML file (DefaultCatalogPath or a test fixture), not external input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("catalog %s: file missing (the S1 design requires the editorial overlay as the single source of truth for collectors)", path)

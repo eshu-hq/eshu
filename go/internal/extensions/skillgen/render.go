@@ -67,10 +67,10 @@ func RenderAll(fragments []Fragment, caps Capabilities) ([]RenderResult, error) 
 func WriteExpected(expectedRoot string, results []RenderResult) error {
 	for _, r := range results {
 		target := filepath.Join(expectedRoot, string(r.Host), r.OutputPath)
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 			return fmt.Errorf("mkdir for %s: %w", target, err)
 		}
-		if err := os.WriteFile(target, r.Bytes, 0o644); err != nil {
+		if err := os.WriteFile(target, r.Bytes, 0o600); err != nil {
 			return fmt.Errorf("write %s: %w", target, err)
 		}
 	}
@@ -94,7 +94,7 @@ func CheckDrift(expectedRoot string, results []RenderResult) ([]Drift, error) {
 	var drifts []Drift
 	for _, r := range results {
 		path := filepath.Join(expectedRoot, string(r.Host), r.OutputPath)
-		disk, err := os.ReadFile(path)
+		disk, err := os.ReadFile(path) // #nosec G304 -- path is program-constructed from expectedRoot + host + output path; expectedRoot is the operator-configured skill output directory
 		if err != nil {
 			if os.IsNotExist(err) {
 				drifts = append(drifts, Drift{Host: r.Host, Path: path, Reason: "missing"})

@@ -78,7 +78,7 @@ func readAnswerQualityEvidence(stdin io.Reader, path string) ([]byte, error) {
 		}
 		return raw, nil
 	}
-	raw, err := os.ReadFile(path) //nolint:gosec // operator-supplied local evidence artifact path
+	raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied local evidence artifact path, not an HTTP request param //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("read answer-quality evidence file %q: %w", path, err)
 	}

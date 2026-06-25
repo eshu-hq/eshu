@@ -88,7 +88,7 @@ func runServiceReport(cmd *cobra.Command, _ []string) error {
 
 func readServiceReportInput(stdin io.Reader, path string) ([]byte, error) {
 	if strings.TrimSpace(path) != "" {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local captured response file, not an HTTP request param
 		if err != nil {
 			return nil, fmt.Errorf("read service-story response %s: %w", path, err)
 		}
@@ -111,7 +111,7 @@ func supplyChainSection(path string, subject serviceintel.ReportSubject) (*servi
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local supply-chain inventory file, not an HTTP request param
 	if err != nil {
 		return nil, fmt.Errorf("read supply-chain inventory %s: %w", path, err)
 	}

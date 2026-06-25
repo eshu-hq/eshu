@@ -128,15 +128,15 @@ func writeComponentInitCollectorScaffold(spec componentInitCollectorSpec) error 
 	} else if !os.IsNotExist(err) {
 		return component.WrapError(component.ErrorCodeInvalidInput, "inspect output directory", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(spec.OutputDir), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(spec.OutputDir), 0o750); err != nil {
 		return component.WrapError(component.ErrorCodeRegistryWriteFailed, "create output parent", err)
 	}
-	if err := os.Mkdir(spec.OutputDir, 0o755); err != nil {
+	if err := os.Mkdir(spec.OutputDir, 0o750); err != nil {
 		return component.WrapError(component.ErrorCodeRegistryWriteFailed, "create output directory", err)
 	}
 	for _, file := range componentInitCollectorFiles {
 		path := filepath.Join(spec.OutputDir, file.Path)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return component.WrapError(component.ErrorCodeRegistryWriteFailed, "create scaffold directory", err)
 		}
 		if err := writeComponentInitTemplate(path, file.Mode, file.Body, spec); err != nil {

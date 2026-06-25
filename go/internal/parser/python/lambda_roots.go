@@ -29,7 +29,7 @@ func pythonLambdaHandlerRoots(repoRoot string, sourcePath string) pythonLambdaHa
 	handlers := make(pythonLambdaHandlerSet)
 	repoRoot = pythonLambdaRepoRoot(repoRoot, sourcePath)
 	for _, configPath := range pythonLambdaConfigCandidates(repoRoot, sourcePath) {
-		source, err := os.ReadFile(configPath)
+		source, err := os.ReadFile(configPath) // #nosec G304 -- reads a Lambda config file at a path derived from the scan target repo root
 		if err != nil {
 			continue
 		}

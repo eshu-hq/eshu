@@ -4,7 +4,7 @@
 package query
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic stable node/edge ID digest for visualization identity, not a security primitive
 	"encoding/hex"
 	"fmt"
 	"sort"
@@ -322,7 +322,7 @@ func unsupportedVisualizationPacket(
 // underlying identity parts. Equal identities always hash to the same ID, so
 // node IDs are independent of iteration order.
 func visualizationNodeID(kind string, parts ...string) string {
-	hash := sha1.New()
+	hash := sha1.New() // #nosec G401 -- non-cryptographic stable node ID digest for visualization identity, not a security primitive
 	_, _ = fmt.Fprintf(hash, "%s\x00", kind)
 	for _, part := range parts {
 		_, _ = fmt.Fprintf(hash, "%s\x00", strings.TrimSpace(part))
@@ -333,7 +333,7 @@ func visualizationNodeID(kind string, parts ...string) string {
 // visualizationEdgeID derives a stable edge ID from its endpoints and label, so
 // the same relationship between the same nodes always yields the same edge ID.
 func visualizationEdgeID(source, target, relationship string) string {
-	hash := sha1.New()
+	hash := sha1.New() // #nosec G401 -- non-cryptographic stable edge ID digest for visualization identity, not a security primitive
 	_, _ = fmt.Fprintf(hash, "%s\x00%s\x00%s\x00", source, target, strings.TrimSpace(relationship))
 	return "vizedge:" + hex.EncodeToString(hash.Sum(nil))[:16]
 }

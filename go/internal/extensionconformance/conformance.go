@@ -142,7 +142,7 @@ func normalizeReportMode(mode Mode) Mode {
 }
 
 func readFixture(fixturePath string) (sdkcollector.Result, error) {
-	raw, err := os.ReadFile(fixturePath)
+	raw, err := os.ReadFile(fixturePath) // #nosec G304 -- reads a checked-in conformance fixture file at a path constructed by the program from known fixture directories
 	if err != nil {
 		return sdkcollector.Result{}, err
 	}

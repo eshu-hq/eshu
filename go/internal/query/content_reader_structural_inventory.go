@@ -35,6 +35,7 @@ func (cr *ContentReader) InspectStructuralInventory(
 	where, args := structuralInventoryWhere(req)
 	limitArg := len(args) + 1
 	offsetArg := len(args) + 2
+	// #nosec G201 -- interpolates only $N placeholder strings from structuralInventoryWhere and integer arg indices; no user data concatenated into SQL
 	query := fmt.Sprintf(`
 		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
@@ -111,6 +112,7 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 	where, args := structuralInventoryWhere(countReq)
 	limitArg := len(args) + 1
 	offsetArg := len(args) + 2
+	// #nosec G201 -- interpolates only $N placeholder strings from structuralInventoryWhere and integer arg indices; no user data concatenated into SQL
 	query := fmt.Sprintf(`
 		SELECT repo_id, relative_path, coalesce(language, ''), count(*) AS function_count
 		FROM content_entities

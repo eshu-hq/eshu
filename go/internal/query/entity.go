@@ -47,7 +47,7 @@ type resolveEntityRequest struct {
 	Limit  int    `json:"limit"`
 }
 
-const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name"
+const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name" // #nosec G101 -- Cypher parameterised query template, not a hardcoded credential
 
 // resolveEntity resolves an entity by name and optional type/repo filters.
 func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {

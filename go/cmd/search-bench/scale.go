@@ -37,7 +37,7 @@ func (o *capSweepObserver) ObserveRetrieval(_ context.Context, observation searc
 }
 
 func loadQuerySuite(path string) (searchbench.QuerySuite, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is a CLI-flag argument pointing to an operator-supplied local query suite file
 	if err != nil {
 		return searchbench.QuerySuite{}, fmt.Errorf("read query suite: %w", err)
 	}

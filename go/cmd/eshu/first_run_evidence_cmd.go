@@ -126,7 +126,7 @@ func readEvidenceEnvelope(cmd *cobra.Command, path string) ([]byte, error) {
 		}
 		return data, nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local first-run envelope file, not an HTTP request param
 	if err != nil {
 		return nil, fmt.Errorf("read first-run envelope: %w", err)
 	}

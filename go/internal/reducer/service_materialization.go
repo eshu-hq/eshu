@@ -5,7 +5,7 @@ package reducer
 
 import (
 	"context"
-	"crypto/md5" //nolint:gosec // md5 is a non-cryptographic payload fingerprint, matching the #1799 changed-since hash.
+	"crypto/md5" // #nosec G501 -- non-cryptographic payload fingerprint for changed-since hash (#1799), not a security primitive //nolint:gosec
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -185,7 +185,7 @@ func ServiceEvidencePayloadHash(payload map[string]any) string {
 		// to a stable sentinel rather than panicking in the reducer write path.
 		encoded = []byte("{}")
 	}
-	sum := md5.Sum(encoded) //nolint:gosec // non-cryptographic fingerprint.
+	sum := md5.Sum(encoded) // #nosec G401 -- non-cryptographic payload fingerprint, not a security primitive //nolint:gosec
 	return hex.EncodeToString(sum[:])
 }
 

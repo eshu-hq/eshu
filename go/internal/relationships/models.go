@@ -6,7 +6,7 @@
 package relationships
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic 16-char node-identity fingerprint, not a security primitive
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -208,7 +208,7 @@ func relationshipDigest(prefix string, parts ...string) string {
 			normalized[i] = part
 		}
 	}
-	h := sha1.New()
+	h := sha1.New() // #nosec G401 -- non-cryptographic node-identity fingerprint digest, not a security primitive
 	h.Write([]byte(strings.Join(normalized, "\n")))
 	digest := hex.EncodeToString(h.Sum(nil))[:16]
 	return fmt.Sprintf("%s_%s", prefix, digest)
