@@ -27,19 +27,25 @@ type AuthProviderItem struct {
 	ProviderKind string `json:"provider_kind"`
 }
 
-// AuthProviderStore lists the configured interactive login providers.
-// Implementations must return only auth-safe fields: no secrets, metadata URLs,
-// IdP domains, org names, or group names.
+// AuthProviderStore lists the configured interactive login providers scoped to
+// one tenant. Implementations must return only auth-safe fields: no secrets,
+// metadata URLs, IdP domains, org names, or group names. tenantID must be
+// non-empty; callers that cannot resolve a tenant must return an empty list
+// rather than invoking ListLoginProviders with an empty tenantID.
 type AuthProviderStore interface {
-	ListLoginProviders(ctx context.Context) ([]AuthProviderItem, error)
+	ListLoginProviders(ctx context.Context, tenantID string) ([]AuthProviderItem, error)
 }
 
 // AuthProviderListHandler serves GET /api/v0/auth/providers. The route is
 // PUBLIC (pre-auth) — the user is not logged in when the login page fetches it.
-// The response lists configured OIDC and SAML providers so the console can
-// render "Continue with …" buttons. When no providers are configured the
-// handler returns an empty array rather than 404 so the UI can reliably
-// distinguish "unavailable" from "none configured".
+// The response lists OIDC and SAML providers configured for the tenant
+// identified by the required tenant_id query parameter. When tenant_id is
+// absent or empty the handler returns an empty array — it never falls back to a
+// global cross-tenant scan. When no providers are configured the handler also
+// returns an empty array so the UI can reliably distinguish "unavailable" from
+// "none configured". The response carries Cache-Control: public, max-age=60 to
+// reduce anonymous DB load; CDN or proxy caches may serve stale data for up to
+// 60 seconds.
 type AuthProviderListHandler struct {
 	Store AuthProviderStore
 }
@@ -50,11 +56,19 @@ func (h *AuthProviderListHandler) Mount(mux *http.ServeMux) {
 }
 
 func (h *AuthProviderListHandler) handleList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "public, max-age=60")
 	if h == nil || h.Store == nil {
 		WriteJSON(w, http.StatusOK, map[string]any{"providers": []AuthProviderItem{}})
 		return
 	}
-	items, err := h.Store.ListLoginProviders(r.Context())
+	tenantID := QueryParam(r, "tenant_id")
+	if tenantID == "" {
+		// No tenant can be resolved pre-auth without an explicit tenant_id.
+		// Return an empty list rather than performing a global cross-tenant scan.
+		WriteJSON(w, http.StatusOK, map[string]any{"providers": []AuthProviderItem{}})
+		return
+	}
+	items, err := h.Store.ListLoginProviders(r.Context(), tenantID)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to list login providers")
 		return

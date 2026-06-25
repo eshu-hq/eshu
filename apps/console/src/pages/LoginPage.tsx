@@ -34,10 +34,13 @@ export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: Login
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [providers, setProviders] = useState<readonly AuthLoginProvider[]>([]);
 
-  // Fetch available SSO providers on mount. Never blocks the local login form.
+  // Fetch available SSO providers on mount. The tenant_id query param scopes
+  // the request to a single tenant — without it the endpoint returns empty.
+  // Errors are swallowed so they never block the local login form.
   useEffect(() => {
     let cancelled = false;
-    void listAuthProviders(client).then((items) => {
+    const tenantId = new URLSearchParams(globalThis.location?.search ?? "").get("tenant_id") ?? undefined;
+    void listAuthProviders(client, tenantId).then((items) => {
       if (!cancelled) setProviders(items);
     });
     return () => { cancelled = true; };

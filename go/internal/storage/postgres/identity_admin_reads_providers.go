@@ -63,32 +63,41 @@ type LoginProviderItem struct {
 }
 
 // listActiveLoginProvidersQuery selects the active OIDC and SAML provider rows
-// globally (no tenant scope) for the pre-auth discovery endpoint. Only login-
-// facing provider kinds are returned (external_oidc, external_saml). Rows with
-// tombstoned_at IS NOT NULL or status != 'active' are excluded.
+// scoped to a single tenant for the pre-auth discovery endpoint. Scoping to one
+// tenant prevents cross-tenant provider enumeration by anonymous callers. Only
+// login-facing provider kinds are returned (external_oidc, external_saml). Rows
+// with tombstoned_at IS NOT NULL or status != 'active' are excluded.
 const listActiveLoginProvidersQuery = `
 SELECT
     provider_config_id,
     provider_kind
 FROM identity_provider_configs
-WHERE provider_kind IN ('external_oidc', 'external_saml')
+WHERE tenant_id = $1
+  AND provider_kind IN ('external_oidc', 'external_saml')
   AND status = 'active'
   AND tombstoned_at IS NULL
 ORDER BY provider_kind ASC, provider_config_id ASC
 LIMIT 200
 `
 
-// ListActiveLoginProviders returns the active OIDC and SAML providers across
-// all tenants for the pre-auth provider-discovery endpoint. No private or hashed
-// IdP fields are returned. The caller (authProviderListStore) derives the
-// display label from provider_kind and never echoes a domain or org name.
+// ListActiveLoginProviders returns the active OIDC and SAML providers for the
+// specified tenant for the pre-auth provider-discovery endpoint. The tenant_id
+// must be non-empty; callers that cannot resolve a tenant must not call this
+// method and must return an empty list instead. No private or hashed IdP fields
+// are returned. The caller (authProviderListStore) derives the display label
+// from provider_kind and never echoes a domain or org name.
 func (s *IdentitySubjectStore) ListActiveLoginProviders(
 	ctx context.Context,
+	tenantID string,
 ) ([]LoginProviderItem, error) {
 	if s.db == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listActiveLoginProvidersQuery)
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		return nil, errors.New("tenant_id is required for login provider listing")
+	}
+	rows, err := s.db.QueryContext(ctx, listActiveLoginProvidersQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list active login providers: %w", err)
 	}

@@ -151,7 +151,8 @@ describe("LoginPage SSO provider discovery (#3682)", () => {
     expect(redirectUrl).toContain("/api/v0/auth/saml/providers/saml-corp/login");
   });
 
-  it("fetches providers from GET /api/v0/auth/providers on mount", async () => {
+  it("fetches providers from GET /api/v0/auth/providers on mount (no tenant_id in URL)", async () => {
+    // jsdom default: window.location.search = "" → no tenant_id → path has no param.
     const getJson = vi.fn(async () => ({ providers: [] })) as unknown as EshuApiClient["getJson"];
     const client = makeClient({ getJson });
     renderLogin(client);
@@ -159,6 +160,27 @@ describe("LoginPage SSO provider discovery (#3682)", () => {
     await waitFor(() => {
       expect(getJson).toHaveBeenCalledWith("/api/v0/auth/providers");
     });
+  });
+
+  it("passes tenant_id from URL search params when fetching providers", async () => {
+    // Simulate ?tenant_id=my-org in the login page URL.
+    const original = globalThis.location;
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: { ...original, search: "?tenant_id=my-org" }
+    });
+
+    const getJson = vi.fn(async () => ({ providers: [] })) as unknown as EshuApiClient["getJson"];
+    const client = makeClient({ getJson });
+    renderLogin(client);
+
+    await waitFor(() => {
+      expect(getJson).toHaveBeenCalledWith(
+        expect.stringContaining("tenant_id=my-org")
+      );
+    });
+
+    Object.defineProperty(globalThis, "location", { configurable: true, value: original });
   });
 
   it("renders multiple SSO buttons when multiple providers are returned", async () => {

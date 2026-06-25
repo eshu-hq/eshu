@@ -89,7 +89,7 @@ The Console browser flow uses these `/api/v0` routes:
 
 | Route | Purpose |
 | --- | --- |
-| `GET /api/v0/auth/providers` | **Public pre-auth.** Lists active OIDC and SAML providers for the login page. Returns only opaque `provider_config_id` values and safe generic display labels — no secrets, metadata URLs, IdP hostnames, or org names. |
+| `GET /api/v0/auth/providers` | **Public pre-auth, tenant-scoped.** Lists active OIDC and SAML providers for the login page for the tenant identified by the required `tenant_id` query parameter. When `tenant_id` is absent the response is always an empty array — the endpoint never performs a global cross-tenant scan. Returns only opaque `provider_config_id` values and safe generic display labels — no secrets, metadata URLs, IdP hostnames, or org names. Response carries `Cache-Control: public, max-age=60`. |
 | `GET /api/v0/auth/oidc/login` | Starts a backend OIDC Authorization Code login and redirects the browser to the configured provider. |
 | `GET /api/v0/auth/oidc/callback` | Completes OIDC login, validates state/nonce/provider proof, maps external groups to Eshu roles/grants, and issues browser-session cookies. |
 | `POST /api/v0/auth/browser-session` | Exchanges an already-authenticated explicit API credential for a browser session. Existing browser sessions cannot mint another browser session. |

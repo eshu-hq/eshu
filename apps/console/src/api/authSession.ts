@@ -172,16 +172,21 @@ export interface AuthLoginProvider {
   readonly provider_kind: "oidc" | "saml";
 }
 
-// listAuthProviders fetches the pre-auth provider discovery endpoint.
-// Returns an empty array when no providers are configured or when the fetch
-// fails (the login page falls back to local-only display).
+// listAuthProviders fetches the pre-auth provider discovery endpoint scoped to
+// a single tenant. tenantId must be non-empty to receive a non-empty response;
+// when tenantId is absent the endpoint returns an empty array (no global scan).
+// Returns an empty array when no providers are configured, when tenantId is
+// absent, or when the fetch fails (the login page falls back to local-only).
 export async function listAuthProviders(
-  client: EshuApiClient
+  client: EshuApiClient,
+  tenantId?: string
 ): Promise<readonly AuthLoginProvider[]> {
   try {
-    const resp = await client.getJson<{ providers: AuthLoginProvider[] }>(
-      "/api/v0/auth/providers"
-    );
+    const trimmed = tenantId?.trim() ?? "";
+    const path = trimmed.length > 0
+      ? `/api/v0/auth/providers?tenant_id=${encodeURIComponent(trimmed)}`
+      : "/api/v0/auth/providers";
+    const resp = await client.getJson<{ providers: AuthLoginProvider[] }>(path);
     return resp.providers ?? [];
   } catch {
     // Pre-auth network errors must never break the login form.

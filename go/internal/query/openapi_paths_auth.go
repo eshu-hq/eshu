@@ -12,13 +12,28 @@ const openAPIPathsAuth = `
     "/api/v0/auth/providers": {
       "get": {
         "tags": ["auth"],
-        "summary": "List configured SSO providers for login",
-        "description": "Public pre-auth endpoint. Returns the configured OIDC and SAML providers available for interactive browser login so the console can render SSO buttons. The response exposes only the opaque provider_config_id (required by the redirect endpoints) and a safe generic display label derived from the protocol class (never an IdP hostname, issuer, or operator-specific name). No secrets or private IdP configuration are ever returned. When no providers are configured an empty array is returned.",
+        "summary": "List configured SSO providers for login (tenant-scoped)",
+        "description": "Public pre-auth endpoint scoped to a single tenant. Returns the configured OIDC and SAML providers available for interactive browser login for the specified tenant so the console can render SSO buttons. The response exposes only the opaque provider_config_id (required by the redirect endpoints) and a safe generic display label derived from the protocol class (never an IdP hostname, issuer, or operator-specific name). No secrets or private IdP configuration are ever returned. When tenant_id is absent or empty an empty array is returned — the endpoint never performs a global cross-tenant scan. When no providers are configured for the tenant an empty array is returned. The response carries Cache-Control: public, max-age=60.",
         "operationId": "listAuthProviders",
         "security": [],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Tenant to list SSO providers for. When absent or empty the response is always an empty providers array — no global cross-tenant scan is performed."
+          }
+        ],
         "responses": {
           "200": {
-            "description": "The configured SSO providers.",
+            "description": "The configured SSO providers for the tenant. Empty array when tenant_id is absent or no providers are configured.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Always set to 'public, max-age=60'.",
+                "schema": {"type": "string"}
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {

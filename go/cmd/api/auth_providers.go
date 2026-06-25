@@ -51,21 +51,18 @@ func newAuthProviderListStore(
 	}
 }
 
-// ListLoginProviders returns the active OIDC and SAML providers in a
-// deterministic order: DB-sourced OIDC rows first (sorted by provider_config_id),
-// then DB-sourced SAML rows, then env-config-only SAML entries not already
-// covered by the DB rows.
-func (s *authProviderListStore) ListLoginProviders(ctx context.Context) ([]query.AuthProviderItem, error) {
+// ListLoginProviders returns the active OIDC and SAML providers for the
+// supplied tenant in a deterministic order: DB-sourced OIDC rows first (sorted
+// by provider_config_id), then DB-sourced SAML rows, then env-config-only SAML
+// entries not already covered by the DB rows for that tenant.
+// tenantID must be non-empty; callers must not invoke this method with an empty
+// tenantID — the handler returns an empty list in that case without calling here.
+func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID string) ([]query.AuthProviderItem, error) {
 	if s.identity == nil {
 		return []query.AuthProviderItem{}, nil
 	}
 
-	// Use the existing admin list — it already enforces tombstoned_at IS NULL
-	// and returns only provider_config_id + provider_kind + status. We pass
-	// an empty tenant_id because this is a cross-tenant pre-auth surface; the
-	// admin store scopes by tenant_id so we call the identity-level helper
-	// instead.
-	dbItems, err := s.identity.ListActiveLoginProviders(ctx)
+	dbItems, err := s.identity.ListActiveLoginProviders(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
