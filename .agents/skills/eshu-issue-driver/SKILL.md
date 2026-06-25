@@ -61,6 +61,11 @@ each leaf as problem + acceptance criteria + affected flow
 (`sync -> discover -> parse -> emit -> enqueue -> reducer -> projection -> query`).
 Ask before coding if any acceptance criteria are unclear.
 
+**Before touching any code**, output a numbered plan of every leaf issue you
+will tackle and the intended order. Wait for explicit user approval before
+beginning exploration or editing. If the user does not respond within the
+current turn, stop and ask — do not self-approve and proceed.
+
 ## Step 2 — Setup
 
 - Create a git **worktree per leaf issue** (never work on `main`). Use the same
@@ -113,6 +118,11 @@ Ask before coding if any acceptance criteria are unclear.
   unresolved thread `fixed` / `unchanged` / `ambiguous` and auto-resolves only
   the `fixed` ones). Duplicate findings across bots: fix the code once, resolve
   both threads. When bots disagree, trust the code and the project rules.
+- **If GitHub Copilot returns "couldn't review any files"** on its first pass,
+  re-request the review immediately via `gh pr edit <n> --add-reviewer @copilot`
+  (reviewer re-requests use `gh pr edit`, not `gh pr review`) and poll again
+  before proceeding. An empty first review is not a pass — it is a failed
+  request that must be retried.
 - Check GHA on every PR; on red, root-cause (no symptom patch), fix, rerun.
 
 ## Step 5 — Per-PR gate (no skip)
@@ -157,6 +167,12 @@ Ask before coding if any acceptance criteria are unclear.
 7. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
    AND the internal review gate above both land AND all their findings resolve.
    CI green is necessary, not sufficient.
+8. **When the goal is "drive to merged-closed", execute the merge.** Do not
+   defer the merge back to the user when all gates are green and all review
+   threads are resolved. Use `gh pr merge <n> --repo eshu-hq/eshu --squash
+   --delete-branch` and confirm the returned state is `MERGED`. Deferring is
+   only appropriate when an explicit blocker exists (operator-only gate,
+   outstanding P0/P1 finding, unresolved thread).
 
 ## Step 6 — New issues
 
@@ -174,9 +190,15 @@ to the originating issue.
   return nothing once the work has merged).
 - For each open PR owned by this work:
   `gh pr view <n> --repo eshu-hq/eshu --json mergeable,statusCheckRollup` shows
-  no conflicts and CI green.
+  no conflicts and CI green. **Confirm merge state directly from the GitHub API —
+  do not assert it from local git or memory.**
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
 - Latest internal review verdict shows **P0=0 and P1=0** with re-review proof.
+- **Before closing any issue as fixed**: run the full verification suite from
+  `docs/public/reference/local-testing.md` with exact tool versions. Do NOT
+  shortcut by verifying a pre-existing fix, trusting a prior CI run, or
+  asserting correctness from code inspection alone. Cite the commands run and
+  their output. A fix that cannot be reproduced by running the gates is not done.
 
 Not done until ALL of the above are pasted and clean.

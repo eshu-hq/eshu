@@ -55,6 +55,10 @@ fixture corpora or offline tooling.
 - MUST NOT add AI attribution to commits, PRs, or docs.
 - MUST NOT push to `main` or `master`.
 - MUST create git worktrees before executing plans or PRDs.
+- MUST verify `pwd` matches the intended feature worktree before any Edit or
+  Write operation. Run `pwd` and confirm it is the feature worktree path, not
+  the main repo checkout. If an edit lands in the wrong path, stop immediately,
+  report it, and let the user decide how to recover.
 - MUST use the same branch/worktree name across repos when one workflow touches
   multiple repos.
 - MUST NOT use `git stash` (or stash pop/apply) when multiple worktrees may be
