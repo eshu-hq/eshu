@@ -345,4 +345,3 @@ func TestLoadFileRejectsInvalidCassette(t *testing.T) {
 		})
 	}
 }
-
