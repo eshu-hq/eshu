@@ -161,6 +161,34 @@ export function beginSamlLogin(
   return url;
 }
 
+// AuthLoginProvider is the pre-auth view of one configured SSO provider.
+// Only the opaque provider_config_id, a safe generic display_label, and the
+// protocol class (provider_kind) are ever returned — no secrets, metadata URLs,
+// IdP hostnames, org names, or group names. Shape matches
+// go/internal/query/auth_providers_handler.go AuthProviderItem.
+export interface AuthLoginProvider {
+  readonly provider_config_id: string;
+  readonly display_label: string;
+  readonly provider_kind: "oidc" | "saml";
+}
+
+// listAuthProviders fetches the pre-auth provider discovery endpoint.
+// Returns an empty array when no providers are configured or when the fetch
+// fails (the login page falls back to local-only display).
+export async function listAuthProviders(
+  client: EshuApiClient
+): Promise<readonly AuthLoginProvider[]> {
+  try {
+    const resp = await client.getJson<{ providers: AuthLoginProvider[] }>(
+      "/api/v0/auth/providers"
+    );
+    return resp.providers ?? [];
+  } catch {
+    // Pre-auth network errors must never break the login form.
+    return [];
+  }
+}
+
 // logout revokes the current browser session.
 export async function logout(client: EshuApiClient): Promise<void> {
   await client.logoutBrowserSession();

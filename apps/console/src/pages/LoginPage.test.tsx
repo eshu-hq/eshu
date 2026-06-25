@@ -42,6 +42,9 @@ function makeClient(overrides: Partial<EshuApiClient> = {}): EshuApiClient {
     postJson: vi.fn(async () => mockSessionRaw),
     logoutBrowserSession: vi.fn(async () => undefined),
     getBrowserSession: vi.fn(async () => mockSession),
+    // getJson is called by listAuthProviders on mount; return empty list so
+    // Slice A local-login tests see no SSO buttons and remain unaffected.
+    getJson: vi.fn(async () => ({ providers: [] })),
     ...overrides
   } as unknown as EshuApiClient;
 }
@@ -73,7 +76,7 @@ describe("LoginPage", () => {
     expect((passwordInput as HTMLInputElement).type).toBe("password");
   });
 
-  it("does NOT render OIDC or SAML buttons in Slice A (#3682)", () => {
+  it("does NOT render SSO buttons when provider discovery returns empty (#3682 zero-provider case)", async () => {
     renderLogin(makeClient());
     expect(screen.queryByText(/continue with oidc/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/continue with saml/i)).not.toBeInTheDocument();

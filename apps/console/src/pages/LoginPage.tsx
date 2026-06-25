@@ -1,11 +1,14 @@
 // LoginPage.tsx — production login surface.
-// No API-key input. Supports local login (login_id + password + optional MFA
-// recovery code). OIDC/SAML redirect buttons are hidden in Slice A pending
-// provider-discovery endpoint (#3682). The helpers and tests remain in place.
+// Supports local login (login_id + password + optional MFA recovery code).
+// On mount, fetches GET /api/v0/auth/providers (public, no auth) and renders a
+// "Continue with <label>" button per discovered OIDC/SAML provider (#3682).
+// Local username/password login remains the DEFAULT/primary surface.
+// If no providers are configured, no SSO buttons are rendered (current behavior).
 // On successful local login, calls onSuccess(session) — caller navigates.
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 
-import { loginLocal } from "../api/authSession";
+import { loginLocal, listAuthProviders, beginOidcLogin, beginSamlLogin } from "../api/authSession";
+import type { AuthLoginProvider } from "../api/authSession";
 import type { BrowserSessionResponse } from "../api/client";
 import type { EshuApiClient } from "../api/client";
 
@@ -13,19 +16,32 @@ export interface LoginPageProps {
   readonly client: EshuApiClient;
   // onSuccess is called with the session after a successful local login.
   readonly onSuccess: (session: BrowserSessionResponse) => void;
-  // baseUrl is kept for future OIDC/SAML redirect URLs (#3682).
+  // baseUrl is required for OIDC/SAML redirect URL construction.
   readonly baseUrl?: string;
+  // redirectFn is called with the constructed SSO redirect URL. Defaults to
+  // location.assign. Injected in tests to avoid real navigation.
+  readonly redirectFn?: (url: string) => void;
 }
 
 type LoginPhase = "credentials" | "mfa";
 
-export function LoginPage({ client, onSuccess }: LoginPageProps): React.JSX.Element {
+export function LoginPage({ client, onSuccess, baseUrl = "", redirectFn }: LoginPageProps): React.JSX.Element {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
   const [phase, setPhase] = useState<LoginPhase>("credentials");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [providers, setProviders] = useState<readonly AuthLoginProvider[]>([]);
+
+  // Fetch available SSO providers on mount. Never blocks the local login form.
+  useEffect(() => {
+    let cancelled = false;
+    void listAuthProviders(client).then((items) => {
+      if (!cancelled) setProviders(items);
+    });
+    return () => { cancelled = true; };
+  }, [client]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
@@ -63,6 +79,23 @@ export function LoginPage({ client, onSuccess }: LoginPageProps): React.JSX.Elem
       setErrorMsg(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function handleSSOClick(provider: AuthLoginProvider): void {
+    const returnTo = globalThis.location?.pathname ?? "/";
+    if (provider.provider_kind === "oidc") {
+      beginOidcLogin(
+        baseUrl,
+        { providerConfigId: provider.provider_config_id, returnTo },
+        redirectFn ?? ((url) => { globalThis.location.assign(url); })
+      );
+    } else {
+      beginSamlLogin(
+        baseUrl,
+        { providerId: provider.provider_config_id, returnTo },
+        redirectFn ?? ((url) => { globalThis.location.assign(url); })
+      );
     }
   }
 
@@ -127,8 +160,22 @@ export function LoginPage({ client, onSuccess }: LoginPageProps): React.JSX.Elem
             {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        {/* OIDC and SAML sign-in buttons are hidden in Slice A pending
-            provider-discovery endpoint implementation (#3682). */}
+
+        {providers.length > 0 ? (
+          <div className="login-sso">
+            <div className="login-sso-divider" aria-hidden>or</div>
+            {providers.map((provider) => (
+              <button
+                key={provider.provider_config_id}
+                className="btn-secondary login-sso-btn"
+                type="button"
+                onClick={() => handleSSOClick(provider)}
+              >
+                Continue with {provider.display_label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
