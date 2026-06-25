@@ -376,3 +376,44 @@ func equalPartitionHistoryArgs(got []any, want []any) bool {
 	}
 	return true
 }
+
+// TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst guards the #3865 fix:
+// the whole-fence query must rank candidates by is_refresh_intent first, so a
+// repo-refresh intent is never fenced behind its own (older) edges. A revert to a
+// raw (created_at, intent_id) comparison would reintroduce the deadlock.
+func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
+	t.Parallel()
+
+	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
+	store := NewSharedIntentStore(db)
+
+	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
+		context.Background(),
+		reducer.SharedProjectionAcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
+		reducer.SharedProjectionIntentRow{
+			IntentID:         "whole-1",
+			ProjectionDomain: reducer.DomainCodeCalls,
+			PartitionKey:     "code-calls:v1:whole:repo-a",
+			ScopeID:          "scope-a",
+			AcceptanceUnitID: "repo-a",
+			RepositoryID:     "repo-a",
+			SourceRunID:      "run-1",
+			Payload:          map[string]any{"action": "refresh", "repo_id": "repo-a"},
+		},
+		reducer.DomainCodeCalls,
+	)
+	if err != nil {
+		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
+	}
+	if !strings.Contains(db.query, "blocked_by_fence") {
+		t.Fatalf("expected the whole-fence query, got %q", db.query)
+	}
+	// The refresh-priority guard: a refresh candidate precedes a non-refresh
+	// selected row, and same-class rows fall back to (created_at, intent_id).
+	if !strings.Contains(db.query, "candidate.is_refresh_intent AND NOT selected.is_refresh_intent") {
+		t.Fatalf("whole-fence must exempt a refresh row from non-refresh edges (#3865); got %q", db.query)
+	}
+	if !strings.Contains(db.query, "candidate.is_refresh_intent = selected.is_refresh_intent") {
+		t.Fatalf("whole-fence must tie-break within an is_refresh_intent class; got %q", db.query)
+	}
+}

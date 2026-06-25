@@ -280,10 +280,9 @@ start_bg projector projector_pid "${bin_dir}/eshu-projector"
 start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
 
 log "B-7(a) drains"
-# code_calls shared_projection_intents are a known held-intent domain on the
-# minimal corpus (tracked as a follow-up); quarantine it as advisory so it is
-# reported but does not block. repo_dependency (the B-13/#3859 gate) and every
-# other domain stay required.
+# Every shared_projection_intents domain must reach terminal — including
+# code_calls, whose held-intent deadlock (#3865) is fixed. No domain is
+# quarantined as advisory.
 # -require-populated-domains guards against premature convergence: the reducer
 # runs in the background and the poll could otherwise read an empty 0/0 before it
 # emits any intents and pass on an unreduced pipeline. repo_dependency is the
@@ -292,7 +291,6 @@ log "B-7(a) drains"
 if ! "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=drains \
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-	-drain-advisory-domains="code_calls" \
 	-require-populated-domains="repo_dependency" \
 	-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
 	tail -30 "${log_dir}/reducer.log" || true
