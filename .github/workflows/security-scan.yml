@@ -232,7 +232,13 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install gosec (pinned)
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
+        # v2.27.1, not v2.22.0: gosec builds an SSA representation via
+        # golang.org/x/tools, which panics on Go 1.26 generics. v2.22.0 lets
+        # that panic abort the run; v2.27.1 recovers ("skipping SSA analysis")
+        # and continues with the AST-based rules. Two packages (reducer, query)
+        # whose generics trip the loader fall back to AST-only coverage; the
+        # rest get full coverage.
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.27.1
 
       - name: Run gosec on every Go package (SARIF + text)
         working-directory: go
