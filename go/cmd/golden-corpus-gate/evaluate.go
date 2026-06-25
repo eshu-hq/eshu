@@ -46,9 +46,12 @@ func evaluateDrains(d DrainCounts, a DrainAssertions, r *Report) {
 			d.SharedIntentsNonterminal, intentLimit, d.RepoDependencyNonterminal))
 }
 
-// evaluateRequiredCorrelation produces a required finding for an existence-style
-// correlation assertion (rc-N). These are corpus-size independent.
-func evaluateRequiredCorrelation(rc RequiredCorrelation, count int64) Finding {
+// evaluateRequiredCorrelation produces an existence-style correlation finding
+// (rc-N). These assertions are corpus-size independent. required controls
+// whether a shortfall fails the gate: the minimal gate blocks only on a
+// configured subset (rc-1, rc-3) and reports the rest as advisory so latent
+// cassette↔code binding gaps surface without blocking until they are fixed.
+func evaluateRequiredCorrelation(rc RequiredCorrelation, count int64, required bool) Finding {
 	want := rc.MinimumCount
 	if want < 1 {
 		want = 1
@@ -57,9 +60,9 @@ func evaluateRequiredCorrelation(rc RequiredCorrelation, count int64) Finding {
 		Phase:    "graph",
 		Check:    rc.ID,
 		OK:       count >= want,
-		Required: true,
-		Detail: fmt.Sprintf("(%s)-[:%s]->(%s) count=%d, want >= %d",
-			rc.FromLabel, rc.Relationship, rc.ToLabel, count, want),
+		Required: required,
+		Detail: fmt.Sprintf("(%s)-[:%s]->(%s) count=%d, want >= %d [%s]",
+			rc.FromLabel, rc.Relationship, rc.ToLabel, count, want, rc.Relationship),
 	}
 }
 

@@ -69,15 +69,19 @@ func TestDrainCountsDrained(t *testing.T) {
 
 func TestEvaluateRequiredCorrelation(t *testing.T) {
 	rc := RequiredCorrelation{ID: "rc-1", Relationship: "CORRELATES_DEPLOYABLE_UNIT", FromLabel: "Repository", ToLabel: "Repository", MinimumCount: 1}
-	if f := evaluateRequiredCorrelation(rc, 0); f.OK || !f.Required {
+	if f := evaluateRequiredCorrelation(rc, 0, true); f.OK || !f.Required {
 		t.Errorf("count 0 must fail and be required: %+v", f)
 	}
-	if f := evaluateRequiredCorrelation(rc, 1); !f.OK {
+	if f := evaluateRequiredCorrelation(rc, 1, true); !f.OK {
 		t.Errorf("count 1 must pass: %+v", f)
+	}
+	// An advisory correlation that falls short warns but does not block.
+	if f := evaluateRequiredCorrelation(rc, 0, false); f.OK || f.Required {
+		t.Errorf("advisory shortfall must warn, not block: %+v", f)
 	}
 	// minimum_count of 0 is clamped to 1 — an existence assertion is never vacuous.
 	rc0 := RequiredCorrelation{ID: "rc-x", Relationship: "X", MinimumCount: 0}
-	if f := evaluateRequiredCorrelation(rc0, 0); f.OK {
+	if f := evaluateRequiredCorrelation(rc0, 0, true); f.OK {
 		t.Errorf("clamped minimum must require >= 1: %+v", f)
 	}
 }

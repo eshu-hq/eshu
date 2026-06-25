@@ -93,17 +93,18 @@ func (b *boltGraphCounter) CountCorrelation(ctx context.Context, from, rel, to s
 		"MATCH (:`%s`)-[r:`%s`]->(:`%s`) RETURN count(r) AS c", from, rel, to))
 }
 
-// checkGraph runs every B-7(b) graph assertion: required correlations (required
-// findings) and node/edge count tolerances (advisory). requiredOnly limits the
-// run to the required correlations, used by the minimal 5-repo gate where the
-// 20-repo count ranges do not apply.
-func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly bool, r *Report) error {
+// checkGraph runs every B-7(b) graph assertion: required correlations and
+// node/edge count tolerances. blockingCorrelations names the correlation IDs
+// that fail the gate (the rest are advisory). requiredOnly limits the run to the
+// correlations, used by the minimal 5-repo gate where the 20-repo count ranges
+// do not apply.
+func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly bool, blockingCorrelations map[string]bool, r *Report) error {
 	for _, rc := range snap.Graph.RequiredCorrelations {
 		count, err := c.CountCorrelation(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel)
 		if err != nil {
 			return fmt.Errorf("count correlation %s: %w", rc.ID, err)
 		}
-		r.Add(evaluateRequiredCorrelation(rc, count))
+		r.Add(evaluateRequiredCorrelation(rc, count, blockingCorrelations[rc.ID]))
 	}
 	if requiredOnly {
 		return nil

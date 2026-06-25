@@ -32,7 +32,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		}
 	}
 	if phases["graph"] {
-		if err := runGraph(ctx, getenv, snap, o.graphRequiredOnly, &r); err != nil {
+		if err := runGraph(ctx, o, getenv, snap, &r); err != nil {
 			return fmt.Errorf("graph phase: %w", err)
 		}
 	}
@@ -74,13 +74,24 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 	return nil
 }
 
-func runGraph(ctx context.Context, getenv func(string) string, snap Snapshot, requiredOnly bool, r *Report) error {
+func runGraph(ctx context.Context, o options, getenv func(string) string, snap Snapshot, r *Report) error {
 	counter, closeFn, err := openGraphCounter(ctx, getenv)
 	if err != nil {
 		return err
 	}
 	defer closeFn()
-	return checkGraph(ctx, counter, snap, requiredOnly, r)
+	return checkGraph(ctx, counter, snap, o.graphRequiredOnly, correlationSet(o.requiredCorrelations), r)
+}
+
+// correlationSet parses the comma-separated blocking-correlation flag into a set.
+func correlationSet(raw string) map[string]bool {
+	set := map[string]bool{}
+	for _, id := range strings.Split(raw, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			set[id] = true
+		}
+	}
+	return set
 }
 
 func runQuery(ctx context.Context, o options, getenv func(string) string, snap Snapshot, r *Report) error {

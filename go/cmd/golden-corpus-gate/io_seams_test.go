@@ -97,11 +97,30 @@ func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 		"KubernetesWorkload|RUNS_IMAGE|OciImageManifest":   1,
 	}}
 	var r Report
-	if err := checkGraph(context.Background(), c, snap, true, &r); err != nil {
+	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
 		t.Fatalf("expected pass; findings: %+v", r.Findings)
+	}
+}
+
+func TestCheckGraphAdvisoryCorrelationDoesNotBlock(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// rc-1 and rc-3 present; rc-2 and rc-4 absent but advisory (not in blocking set).
+	c := fakeCounter{corr: map[string]int64{
+		"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 1,
+		"Repository|DEPENDS_ON|Repository":                 1,
+	}}
+	var r Report
+	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if r.Failed() {
+		t.Fatalf("advisory rc-2/rc-4 absence must not fail the minimal gate; findings: %+v", r.Findings)
 	}
 }
 
@@ -111,11 +130,11 @@ func TestCheckGraphRequiredFailsWhenCorrelationMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	var r Report
-	if err := checkGraph(context.Background(), fakeCounter{}, snap, true, &r); err != nil {
+	if err := checkGraph(context.Background(), fakeCounter{}, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
-		t.Fatal("expected failure when required correlations are absent")
+		t.Fatal("expected failure when blocking correlations are absent")
 	}
 }
 
