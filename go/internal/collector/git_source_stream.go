@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // startStream performs synchronous repo discovery, then launches background
@@ -35,9 +36,10 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	}
 	if len(batch.Repositories) == 0 {
 		if s.Logger != nil {
-			s.Logger.DebugContext(ctx, "collector stream: no repositories discovered",
-				slog.String("collector_kind", "git"),
-				slog.String("component", s.componentName()),
+			s.Logger.DebugContext(
+				ctx, "collector stream: no repositories discovered",
+				log.CollectorKind("git"),
+				log.Component(s.componentName()),
 				telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 			)
 		}
@@ -87,7 +89,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	var streamSpan trace.Span
 	streamCtx := ctx
 	if s.Tracer != nil {
-		streamCtx, streamSpan = s.Tracer.Start(ctx, telemetry.SpanCollectorStream,
+		streamCtx, streamSpan = s.Tracer.Start(
+			ctx, telemetry.SpanCollectorStream,
 			trace.WithAttributes(
 				attribute.String("component", s.componentName()),
 				attribute.Int("repository_count", len(resolved)),
@@ -98,9 +101,10 @@ func (s *GitSource) startStream(ctx context.Context) error {
 
 	streamStart := time.Now()
 	if s.Logger != nil {
-		s.Logger.InfoContext(streamCtx, "collector stream started",
-			slog.String("collector_kind", "git"),
-			slog.String("component", s.componentName()),
+		s.Logger.InfoContext(
+			streamCtx, "collector stream started",
+			log.CollectorKind("git"),
+			log.Component(s.componentName()),
 			slog.Int("repository_count", len(resolved)),
 			slog.Int("snapshot_workers", workers),
 			slog.Int("stream_buffer", streamBuf),
@@ -144,7 +148,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 				if large {
 					tier = "large"
 				}
-				s.Instruments.LargeRepoClassifications.Add(workerCtx, 1,
+				s.Instruments.LargeRepoClassifications.Add(
+					workerCtx, 1,
 					metric.WithAttributes(attribute.String(telemetry.MetricDimensionRepoSizeTier, tier)),
 				)
 			}
@@ -153,8 +158,9 @@ func (s *GitSource) startStream(ctx context.Context) error {
 			if large {
 				ch = largeCh
 				if s.Logger != nil {
-					s.Logger.InfoContext(workerCtx, "large repository queued",
-						slog.String("repo_path", repo.RepoPath),
+					s.Logger.InfoContext(
+						workerCtx, "large repository queued",
+						log.RepoPath(repo.RepoPath),
 					)
 				}
 			}
@@ -252,7 +258,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 
 		// Record stream-level metrics
 		if s.Instruments != nil {
-			s.Instruments.CollectorObserveDuration.Record(ctx, streamDuration,
+			s.Instruments.CollectorObserveDuration.Record(
+				ctx, streamDuration,
 				metric.WithAttributes(
 					telemetry.AttrCollectorKind("git"),
 					attribute.String("component", s.componentName()),
@@ -276,8 +283,8 @@ func (s *GitSource) startStream(ctx context.Context) error {
 		// Log stream completion
 		if s.Logger != nil {
 			logAttrs := []any{
-				slog.String("collector_kind", "git"),
-				slog.String("component", s.componentName()),
+				log.CollectorKind("git"),
+				log.Component(s.componentName()),
 				slog.Int64("repos_completed", completedCount),
 				slog.Int("repos_total", len(resolved)),
 				slog.Int("snapshot_workers", workers),
@@ -285,8 +292,9 @@ func (s *GitSource) startStream(ctx context.Context) error {
 				telemetry.PhaseAttr(telemetry.PhaseEmission),
 			}
 			if firstErr != nil {
-				logAttrs = append(logAttrs,
-					slog.String("error", firstErr.Error()),
+				logAttrs = append(
+					logAttrs,
+					log.Err(firstErr),
 					telemetry.FailureClassAttr("stream_snapshot_failure"),
 				)
 				s.Logger.ErrorContext(ctx, "collector stream failed", logAttrs...)

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -78,9 +78,9 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 
 	slog.InfoContext(
 		ctx, "sql relationship materialization started",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(intent.Domain)),
 	)
 
 	envelopes, err := loadSQLRelationshipMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
@@ -115,8 +115,8 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 
 	slog.InfoContext(
 		ctx, "sql relationship materialization completed",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
 		slog.Int("intent_count", len(intentRows)),
 		slog.Int("edge_count", len(edgeRows)),
 		slog.Int("repo_count", len(repositoryIDs)),

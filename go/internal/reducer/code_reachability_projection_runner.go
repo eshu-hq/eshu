@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -241,9 +243,9 @@ func (r *CodeReachabilityProjectionRunner) projectPartitions(
 					if r.Logger != nil {
 						r.Logger.Warn(
 							"code reachability snapshot truncated at max visited bound",
-							slog.String("scope_id", input.ScopeID),
-							slog.String("generation_id", input.GenerationID),
-							slog.String("repository_id", input.RepositoryID),
+							log.ScopeID(input.ScopeID),
+							log.GenerationID(input.GenerationID),
+							log.RepositoryID(input.RepositoryID),
 							slog.Int("visited", stats.Visited),
 						)
 					}

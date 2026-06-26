@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // activePackageOwnershipFactLoader exposes the cross-scope package-registry
@@ -230,9 +231,9 @@ func (h CodeImportRepoEdgeHandler) logCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "code import repo edge projection completed",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(DomainCodeImportRepoEdge)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(DomainCodeImportRepoEdge)),
 		slog.Int("considered", counts.considered),
 		slog.Int("written", written),
 		slog.Int("skipped_relative", counts.skippedRelative),

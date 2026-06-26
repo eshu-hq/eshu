@@ -6,6 +6,7 @@ package projector
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // recordWorkStage logs coarse projector service stages outside Runtime's
@@ -28,11 +30,11 @@ func (s Service) recordWorkStage(ctx context.Context, work ScopeGenerationWork, 
 	}
 	logAttrs = append(
 		logAttrs,
-		slog.String("queue", "projector"),
+		log.Queue("projector"),
 		slog.String("stage", stage),
 		slog.Int("fact_count", factCount),
 		slog.Float64("duration_seconds", time.Since(start).Seconds()),
-		slog.Int("worker_id", workerID),
+		log.WorkerID(fmt.Sprintf("%d", workerID)),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),
 	)
 	s.Logger.InfoContext(ctx, "projector work stage completed", logAttrs...)
@@ -62,15 +64,15 @@ func (s Service) recordProjectionResult(ctx context.Context, work ScopeGeneratio
 	}
 	logAttrs = append(
 		logAttrs,
-		slog.String("queue", "projector"),
-		slog.String("status", status),
+		log.Queue("projector"),
+		log.Status(status),
 		slog.Int("fact_count", factCount),
 		slog.Float64("duration_seconds", duration),
-		slog.Int("worker_id", workerID),
+		log.WorkerID(fmt.Sprintf("%d", workerID)),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),
 	)
 	if err != nil {
-		logAttrs = append(logAttrs, slog.String("error", err.Error()))
+		logAttrs = append(logAttrs, log.Err(err))
 		failureClass := "projection_failure"
 		message := "projection failed"
 		if status == "ack_failed" {
@@ -102,16 +104,16 @@ func (s Service) recordProjectionShutdownCanceled(ctx context.Context, work Scop
 	}
 	logAttrs = append(
 		logAttrs,
-		slog.String("queue", "projector"),
-		slog.String("status", "shutdown_canceled"),
+		log.Queue("projector"),
+		log.Status("shutdown_canceled"),
 		slog.Int("fact_count", factCount),
 		slog.Float64("duration_seconds", time.Since(start).Seconds()),
-		slog.Int("worker_id", workerID),
+		log.WorkerID(fmt.Sprintf("%d", workerID)),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),
 		telemetry.FailureClassAttr("shutdown_canceled"),
 	)
 	if err != nil {
-		logAttrs = append(logAttrs, slog.String("error", err.Error()))
+		logAttrs = append(logAttrs, log.Err(err))
 	}
 	s.Logger.InfoContext(ctx, "projector work canceled during shutdown", logAttrs...)
 }

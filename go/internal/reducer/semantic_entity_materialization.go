@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // SemanticEntityRow holds one canonical semantic-entity materialization row.
@@ -200,9 +200,9 @@ func logSemanticEntityMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "semantic entity materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("row_count", timing.rowCount),

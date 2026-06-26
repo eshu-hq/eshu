@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // ecrProvider is the target provider value that selects the AWS ECR
@@ -66,8 +67,8 @@ func (f ECRReferrerClientFactory) ReferrerClient(ctx context.Context, target Tar
 	if f.Logger != nil {
 		f.Logger.InfoContext(
 			ctx, "ecr oci_referrer auth via GetAuthorizationToken exchange",
-			slog.String("provider", ecrProvider),
-			slog.String("scope_id", strings.TrimSpace(target.ScopeID)),
+			log.Provider(ecrProvider),
+			log.ScopeID(strings.TrimSpace(target.ScopeID)),
 			slog.String("repository", strings.TrimSpace(target.Repository)),
 			slog.String("registry_host", registryHost),
 		)

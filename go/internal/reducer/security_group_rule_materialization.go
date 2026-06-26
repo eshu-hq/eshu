@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // securityGroupRuleMaterializationDomainDefinition returns the additive
@@ -137,9 +138,9 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 	h.recordRuleNodes(ctx, len(reach.RuleNodes))
 	slog.InfoContext(
 		ctx, "security group rule materialization completed",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(intent.Domain)),
 		slog.Int("resource_fact_count", len(resourceEnvelopes)),
 		slog.Int("rule_fact_count", len(ruleEnvelopes)),
 		slog.Int("rule_node_count", len(reach.RuleNodes)),

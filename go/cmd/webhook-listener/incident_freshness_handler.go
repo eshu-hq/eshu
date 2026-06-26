@@ -6,12 +6,12 @@ package main
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/webhook"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -174,8 +174,8 @@ func (h webhookHandler) logIncidentFreshnessStoreError(
 	}
 	h.Logger.ErrorContext(
 		ctx, "incident freshness trigger persistence failed",
-		slog.String("provider", string(trigger.Provider)),
-		slog.String("event_kind", trigger.EventKind),
-		slog.String("error", err.Error()),
+		log.Provider(string(trigger.Provider)),
+		log.EventKind(trigger.EventKind),
+		log.Err(err),
 	)
 }

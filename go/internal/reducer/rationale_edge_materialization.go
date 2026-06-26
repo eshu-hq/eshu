@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const rationaleEvidenceSource = "reducer/rationale"
@@ -56,9 +56,9 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 
 	slog.InfoContext(
 		ctx, "rationale materialization started",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(intent.Domain)),
 	)
 
 	envelopes, err := loadRationaleMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
@@ -93,8 +93,8 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 
 	slog.InfoContext(
 		ctx, "rationale materialization completed",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
 		slog.Int("intent_count", len(intentRows)),
 		slog.Int("edge_count", len(rows)),
 		slog.Int("repo_count", len(repoIDs)),

@@ -81,10 +81,10 @@ func TestContractShape(t *testing.T) {
 			Public:         true,
 		}},
 		ResourcePolicyStatements: []ResourcePolicyStatement{{
-			StatementSID: "AllowPartner",
-			Effect:       "Allow",
-			Actions:      []string{"s3:GetObject"},
-			Resources:    []string{"arn:aws:s3:::orders-artifacts/*"},
+			StatementSID:   "AllowPartner",
+			Effect:         "Allow",
+			Actions:        []string{"s3:GetObject"},
+			Resources:      []string{"arn:aws:s3:::orders-artifacts/*"},
 			PrincipalTypes: []string{"AWS"},
 		}},
 	}}}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // defaultCompositeDrainGrace bounds how long Run waits for sibling runners to
@@ -159,7 +160,7 @@ func (c compositeRunner) logFatal(ctx context.Context, index int, err error, rem
 		telemetry.FailureClassAttr("composite_runner_fatal"),
 		slog.Bool("retryable", false),
 		slog.Duration("drain_grace", c.drainGrace),
-		slog.String("error", err.Error()),
+		log.Err(err),
 	)
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 var snapshotEntityBuckets = []struct {
@@ -360,8 +361,8 @@ func (s NativeRepositorySnapshotter) recordSnapshotStage(
 
 	if s.Logger != nil {
 		logAttrs := []any{
-			slog.String("collector_kind", "git"),
-			slog.String("repo_path", repoPath),
+			log.CollectorKind("git"),
+			log.RepoPath(repoPath),
 			slog.String("stage", stage),
 			slog.Float64("duration_seconds", duration.Seconds()),
 		}

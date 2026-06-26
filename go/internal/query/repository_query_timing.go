@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // repositoryQueryStageTimer emits repository read-stage timings so full-corpus
@@ -39,7 +40,7 @@ func startRepositoryQueryStage(
 		logger.InfoContext(
 			ctx, "repository query stage started",
 			telemetry.EventAttr("repository_query.stage_started"),
-			slog.String("operation", operation),
+			log.Operation(operation),
 			slog.String("stage", stage),
 			slog.String("repo_id", repoID),
 		)
@@ -54,7 +55,7 @@ func (t repositoryQueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr)
 	}
 	base := []slog.Attr{
 		telemetry.EventAttr("repository_query.stage_completed"),
-		slog.String("operation", t.operation),
+		log.Operation(t.operation),
 		slog.String("stage", t.stage),
 		slog.String("repo_id", t.repoID),
 		slog.Float64("duration_seconds", time.Since(t.startedAt).Seconds()),

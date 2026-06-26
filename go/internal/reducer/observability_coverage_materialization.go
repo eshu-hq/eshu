@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // observabilityCoverageMaterializationDomainDefinition returns the additive
@@ -332,9 +333,9 @@ func logObservabilityCoverageMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "observability coverage materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("edge_count", timing.edgeCount),
 		slog.String("materialized_by_signal", formatCoverageTally(timing.materialized)),

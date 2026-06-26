@@ -31,6 +31,8 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 type bootstrapDB interface {
@@ -349,7 +351,7 @@ func runPipelined(
 		if logger != nil {
 			logger.ErrorContext(
 				ctx, "deferred relationship backfill failed",
-				slog.String("error", err.Error()),
+				log.Err(err),
 				telemetry.FailureClassAttr("backfill_deferred_failure"),
 			)
 		}
@@ -378,7 +380,7 @@ func runPipelined(
 		if logger != nil {
 			logger.ErrorContext(
 				ctx, "iac reachability materialization failed",
-				slog.String("error", err.Error()),
+				log.Err(err),
 				telemetry.FailureClassAttr("iac_reachability_materialization_failure"),
 			)
 		}
@@ -403,7 +405,7 @@ func runPipelined(
 		if logger != nil {
 			logger.ErrorContext(
 				ctx, "reopen deployment_mapping work items failed",
-				slog.String("error", err.Error()),
+				log.Err(err),
 				telemetry.FailureClassAttr("reopen_deployment_mapping_failure"),
 			)
 		}
@@ -422,7 +424,7 @@ func runPipelined(
 		if logger != nil {
 			logger.ErrorContext(
 				ctx, "reopen code_import_repo_edge work items failed",
-				slog.String("error", err.Error()),
+				log.Err(err),
 				telemetry.FailureClassAttr("reopen_code_import_repo_edge_failure"),
 			)
 		}
@@ -453,7 +455,7 @@ func runPipelined(
 		if logger != nil {
 			logger.ErrorContext(
 				ctx, "reopen correlation work items failed",
-				slog.String("error", err.Error()),
+				log.Err(err),
 				telemetry.FailureClassAttr("reopen_correlation_failure"),
 			)
 		}
@@ -472,7 +474,7 @@ func runPipelined(
 		if logger != nil {
 			logger.ErrorContext(
 				ctx, "enqueue config_state_drift intents failed",
-				slog.String("error", err.Error()),
+				log.Err(err),
 				telemetry.FailureClassAttr("enqueue_config_state_drift_failure"),
 			)
 		}
@@ -679,9 +681,9 @@ func drainCollector(
 			if logger != nil {
 				logger.ErrorContext(
 					ctx, "bootstrap collector commit failed",
-					slog.String("scope_id", collected.Scope.ScopeID),
+					log.ScopeID(collected.Scope.ScopeID),
 					slog.Int("fact_count", factCount),
-					slog.String("error", err.Error()),
+					log.Err(err),
 					telemetry.PhaseAttr(telemetry.PhaseEmission),
 					telemetry.FailureClassAttr("commit_failure"),
 				)
@@ -744,7 +746,7 @@ func drainCollector(
 			// Per-repo log: include content_entity count and per-file-kind breakdown
 			// so log grep surfaces the noisy sources without DB queries.
 			logAttrs := []any{
-				slog.String("scope_id", collected.Scope.ScopeID),
+				log.ScopeID(collected.Scope.ScopeID),
 				slog.Int("fact_count", factCount),
 				slog.Int("content_entity_count", entityCount),
 				slog.Float64("duration_seconds", duration),
@@ -765,7 +767,7 @@ func drainCollector(
 					slog.Int("scopes_done", total),
 					slog.Int64("total_facts_emitted", totalFacts),
 					slog.Int64("total_entities_emitted", totalEntities),
-					slog.Float64("elapsed_seconds", time.Since(collectionStart).Seconds()),
+					log.ElapsedSeconds(time.Since(collectionStart).Seconds()),
 					telemetry.PhaseAttr(telemetry.PhaseEmission),
 				)
 			}
@@ -1045,11 +1047,11 @@ func startBootstrapProjectorHeartbeat(
 						}
 						logAttrs = append(
 							logAttrs,
-							slog.Int("worker_id", workerID),
+							log.WorkerID(strconv.Itoa(workerID)),
 							slog.Duration("heartbeat_interval", interval),
 							telemetry.PhaseAttr(telemetry.PhaseProjection),
 							telemetry.FailureClassAttr("lease_heartbeat_failure"),
-							slog.String("error", heartbeatErr.Error()),
+							log.Err(heartbeatErr),
 						)
 						logger.ErrorContext(heartbeatCtx, "bootstrap projector lease heartbeat failed", logAttrs...)
 					}
@@ -1115,14 +1117,14 @@ func recordBootstrapProjectionResult(
 		}
 		logAttrs = append(
 			logAttrs,
-			slog.Int("worker_id", workerID),
-			slog.String("status", status),
+			log.WorkerID(strconv.Itoa(workerID)),
+			log.Status(status),
 			slog.Int("fact_count", factCount),
 			slog.Float64("duration_seconds", duration),
 			telemetry.PhaseAttr(telemetry.PhaseProjection),
 		)
 		if err != nil {
-			logAttrs = append(logAttrs, slog.String("error", err.Error()))
+			logAttrs = append(logAttrs, log.Err(err))
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr("projection_failure"))
 			logger.ErrorContext(ctx, "bootstrap projection failed", logAttrs...)
 			return

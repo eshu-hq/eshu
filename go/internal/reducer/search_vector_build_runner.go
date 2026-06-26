@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -250,8 +252,8 @@ func (r *SearchVectorBuildRunner) logFailure(ctx context.Context, err error) {
 	}
 	r.Logger.ErrorContext(
 		ctx, "search vector build sweep failed",
-		slog.String("error", err.Error()),
-		slog.String("failure_class", "search_vector_build_error"),
+		log.Err(err),
+		log.FailureClass("search_vector_build_error"),
 		slog.String("phase", "reduction"),
 	)
 }

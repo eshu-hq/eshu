@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // ec2InstanceSkipReason names a conservative no-fabrication skip class for the
@@ -214,9 +214,9 @@ func logEC2InstanceNodeMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "ec2 instance node materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("node_count", timing.nodeCount),
 		slog.Int("skipped_missing_identity", timing.skipped[ec2InstanceSkipMissingIdentity]),

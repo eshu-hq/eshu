@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // CollectorKind is the source-system / scope collector-kind identifier for the
@@ -194,8 +195,8 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 		s.Logger.InfoContext(
 			ctx, "vault live snapshot completed",
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
-			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
-			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),
+			log.ScopeID(scopeValue.ScopeID),
+			log.GenerationID(generationValue.GenerationID),
 			slog.Int("fact_count", len(envelopes)),
 			slog.Float64("duration_seconds", time.Since(start).Seconds()),
 		)

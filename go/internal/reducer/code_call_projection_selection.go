@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 type codeCallSelectionResult struct {
@@ -274,7 +275,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				"code call projection skipped acceptance units until canonical node readiness is committed",
 				slog.Int("blocked_count", blockedCount),
 				slog.Float64("blocked_intent_wait_seconds", maxBlockedWait),
-				slog.String("domain", DomainCodeCalls),
+				log.Domain(DomainCodeCalls),
 				telemetry.PhaseAttr(telemetry.PhaseShared),
 			)
 		}

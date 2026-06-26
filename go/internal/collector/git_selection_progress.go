@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const gitProgressLogInterval = 5 * time.Second
@@ -157,12 +158,12 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 
 func (e gitSyncLogEvent) eventAttrs(now time.Time) []any {
 	attrs := []any{
-		slog.String("collector_kind", "git"),
-		slog.String("operation", e.Operation),
-		slog.String("repository_id", e.RepositoryID),
+		log.CollectorKind("git"),
+		log.Operation(e.Operation),
+		log.RepositoryID(e.RepositoryID),
 		slog.Int("repository_index", e.RepositoryIndex),
 		slog.Int("repository_count", e.RepositoryCount),
-		slog.Float64("elapsed_seconds", now.Sub(e.StartedAt).Seconds()),
+		log.ElapsedSeconds(now.Sub(e.StartedAt).Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 	}
 	if e.ProviderKind != "" {

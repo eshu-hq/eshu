@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -125,7 +126,7 @@ func (s SearchDocumentProjectionSweeper) logSweep(ctx context.Context, pending i
 		slog.Int("pending_scopes", pending),
 		slog.Int("enqueued_intents", enqueued),
 		slog.Float64("duration_seconds", time.Since(startedAt).Seconds()),
-		slog.String("domain", string(reducer.DomainEshuSearchDocument)),
+		log.Domain(string(reducer.DomainEshuSearchDocument)),
 	)
 }
 
@@ -133,7 +134,7 @@ func (s SearchDocumentProjectionSweeper) logError(ctx context.Context, err error
 	if s.Logger == nil {
 		return
 	}
-	s.Logger.ErrorContext(ctx, "eshu search document projection sweep failed", slog.String("error", err.Error()))
+	s.Logger.ErrorContext(ctx, "eshu search document projection sweep failed", log.Err(err))
 }
 
 func sleepWithContext(ctx context.Context, d time.Duration) error {

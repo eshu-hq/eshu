@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const defaultSnapshotSCIPWorkers = 4
@@ -273,7 +274,7 @@ func (s NativeRepositorySnapshotter) logSCIPSnapshotFallback(ctx context.Context
 	}
 	s.Logger.WarnContext(
 		ctx, "SCIP snapshot fallback to native parser",
-		slog.String("language", language),
+		log.Language(language),
 		slog.String("reason", reason),
 		telemetry.FailureClassAttr("scip_"+reason),
 	)

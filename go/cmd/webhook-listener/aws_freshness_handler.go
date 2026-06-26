@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -141,7 +142,7 @@ func (h webhookHandler) logAWSFreshnessStoreError(ctx context.Context, trigger f
 		slog.String("account", trigger.AccountID),
 		slog.String("region", trigger.Region),
 		slog.String("service", trigger.ServiceKind),
-		slog.String("error", err.Error()),
+		log.Err(err),
 	)
 }
 

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const documentationEvidenceSource = "reducer/documentation"
@@ -42,9 +42,9 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 
 	slog.InfoContext(
 		ctx, "documentation materialization started",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(intent.Domain)),
 	)
 
 	envelopes, err := loadDocumentationMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
@@ -84,8 +84,8 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 
 	slog.InfoContext(
 		ctx, "documentation materialization completed",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
 		slog.Int("edge_count", len(writeRows)),
 	)
 

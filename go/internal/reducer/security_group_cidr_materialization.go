@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // Security-group rule source-kind discriminators the reducer keys on. They
@@ -405,9 +406,9 @@ func logSecurityGroupCidrMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "security group cidr materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("cidr_node_count", timing.cidrCount),
 		slog.Int("prefix_list_node_count", timing.prefixCount),

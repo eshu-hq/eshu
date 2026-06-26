@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -369,7 +370,7 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 		w.logger.WarnContext(
 			ctx, "reducer admission deferring enqueue",
 			slog.String("reason", reason),
-			slog.String("failure_class", failureClass),
+			log.FailureClass(failureClass),
 			slog.Int64("queue_depth", depth),
 			slog.Int64("high_water_mark", w.config.HighWaterMark),
 			slog.Int64("retrying_high_water_mark", w.config.RetryingHighWaterMark),

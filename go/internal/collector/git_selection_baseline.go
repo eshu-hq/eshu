@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // syncExistingRepository resolves the delta baseline for an already-cloned
@@ -43,8 +44,8 @@ func syncExistingRepository(
 		if logger != nil {
 			logger.WarnContext(
 				ctx, "git_delta_baseline_lookup_failed",
-				slog.String("repo_path", repoPath),
-				slog.String("error", err.Error()),
+				log.RepoPath(repoPath),
+				log.Err(err),
 			)
 		}
 		// Classify the fallback here as a lookup error so a Postgres outage is

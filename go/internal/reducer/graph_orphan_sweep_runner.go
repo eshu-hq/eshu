@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -206,7 +207,7 @@ func (r *GraphOrphanSweepRunner) recordFailure(ctx context.Context, err error) {
 		r.Logger.ErrorContext(
 			ctx,
 			"graph orphan sweep cycle failed",
-			slog.String("error", err.Error()),
+			log.Err(err),
 			telemetry.FailureClassAttr("graph_orphan_sweep_error"),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

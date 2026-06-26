@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -91,7 +92,7 @@ func (r *GraphProjectionPhaseRepairer) Run(ctx context.Context) error {
 				r.Logger.ErrorContext(
 					ctx,
 					"graph projection readiness repair cycle failed",
-					slog.String("error", err.Error()),
+					log.Err(err),
 					slog.Float64("duration_seconds", time.Since(startedAt).Seconds()),
 					telemetry.FailureClassAttr("graph_projection_repair_cycle_error"),
 					telemetry.PhaseAttr(telemetry.PhaseShared),
@@ -184,7 +185,7 @@ func (r *GraphProjectionPhaseRepairer) RunOnce(ctx context.Context, now time.Tim
 				logAttrs := repairLogAttrs(repair)
 				logAttrs = append(
 					logAttrs,
-					slog.String("error", err.Error()),
+					log.Err(err),
 					slog.Time("next_attempt_at", nextAttemptAt),
 					telemetry.FailureClassAttr("graph_projection_repair_publish_failed"),
 					telemetry.PhaseAttr(telemetry.PhaseShared),

@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // Source yields one collected scope generation at a time for durable commit.
@@ -331,7 +332,7 @@ func (s Service) logRetryableCommit(ctx context.Context, collected CollectedGene
 	logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseEmission))
 	logAttrs = append(logAttrs, telemetry.FailureClassAttr("commit_retryable"))
 	logAttrs = append(logAttrs, slog.Bool("retryable", true))
-	logAttrs = append(logAttrs, slog.String("error", cause.Error()))
+	logAttrs = append(logAttrs, log.Err(cause))
 	s.Logger.WarnContext(ctx, "collector commit retryable; quarantined for replay, continuing", logAttrs...)
 }
 
@@ -416,7 +417,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseEmission))
 		if err != nil {
-			logAttrs = append(logAttrs, slog.String("error", err.Error()))
+			logAttrs = append(logAttrs, log.Err(err))
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr("commit_failure"))
 			s.Logger.ErrorContext(ctx, "collector commit failed", logAttrs...)
 		} else {

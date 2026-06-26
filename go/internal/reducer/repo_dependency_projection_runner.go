@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -289,11 +290,11 @@ func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context
 				if err != nil || !claimed {
 					if r.Logger != nil {
 						attrs := []any{
-							slog.String(telemetry.LogKeyDomain, DomainRepoDependency),
+							log.Domain(DomainRepoDependency),
 							telemetry.PhaseAttr(telemetry.PhaseReduction),
 						}
 						if err != nil {
-							attrs = append(attrs, slog.String("error", err.Error()))
+							attrs = append(attrs, log.Err(err))
 						}
 						r.Logger.WarnContext(heartbeatCtx, "repo dependency lease heartbeat failed", attrs...)
 					}

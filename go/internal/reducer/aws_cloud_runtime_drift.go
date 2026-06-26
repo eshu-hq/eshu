@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // AWSCloudRuntimeDriftEvidenceLoader supplies the joined AWS cloud,
@@ -190,9 +191,9 @@ func (h AWSCloudRuntimeDriftHandler) logAdmittedFindings(
 	}
 	for _, candidate := range candidates {
 		attrs := []slog.Attr{
-			slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
-			slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-			slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
+			log.Domain(string(intent.Domain)),
+			log.ScopeID(intent.ScopeID),
+			log.GenerationID(intent.GenerationID),
 			slog.String("drift.pack", rules.AWSCloudRuntimeDriftPackName),
 			slog.String("drift.kind", awsCloudRuntimeFindingKind(candidate)),
 		}

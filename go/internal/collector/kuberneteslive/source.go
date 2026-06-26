@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // Config configures the snapshot Source with one or more cluster targets.
@@ -135,9 +136,9 @@ func (s *Source) collectCluster(ctx context.Context, config Config, target Clust
 		s.Logger.InfoContext(
 			ctx, "kubernetes live snapshot completed",
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
-			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
-			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),
-			slog.String("cluster_id", target.ClusterID),
+			log.ScopeID(scopeValue.ScopeID),
+			log.GenerationID(generationValue.GenerationID),
+			log.ClusterID(target.ClusterID),
 			slog.Bool("partial", builder.partial),
 			slog.Int("fact_count", len(envelopes)),
 			slog.Float64("duration_seconds", time.Since(start).Seconds()),

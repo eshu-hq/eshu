@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // defaultIgnoredDirs lists directories that are always pruned during discovery.
@@ -164,7 +165,7 @@ func (s NativeRepositorySnapshotter) logDiscoveryStats(ctx context.Context, repo
 	}
 
 	attrs := []any{
-		slog.String("repo_path", filepath.Base(repoPath)),
+		log.RepoPath(filepath.Base(repoPath)),
 		slog.Int("dirs_skipped_total", stats.TotalDirsSkipped()),
 		slog.Int("files_skipped_total", stats.TotalFilesSkipped()),
 	}

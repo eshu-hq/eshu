@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // securityGroupReachabilityEvidenceSource tags the :SecurityGroupRule nodes and
@@ -376,9 +377,9 @@ type securityGroupReachabilityTiming struct {
 func logSecurityGroupReachabilityCompleted(ctx context.Context, timing securityGroupReachabilityTiming) {
 	slog.InfoContext(
 		ctx, "security group reachability materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("rule_fact_count", timing.ruleCount),
 		slog.Int("rule_node_count", timing.ruleNodeCount),

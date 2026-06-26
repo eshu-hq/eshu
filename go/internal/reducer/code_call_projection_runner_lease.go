@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 var errCodeCallLeaseHeartbeatRejected = errors.New("code call partition lease heartbeat rejected")
@@ -90,11 +91,11 @@ func (r *CodeCallProjectionRunner) logLeaseHeartbeatFailure(ctx context.Context,
 	}
 	logAttrs = append(
 		logAttrs,
-		slog.String("queue", "code_calls"),
+		log.Queue("code_calls"),
 		slog.Duration("heartbeat_interval", r.leaseHeartbeatInterval()),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 		telemetry.FailureClassAttr("lease_heartbeat_failure"),
-		slog.String("error", heartbeatErr.Error()),
+		log.Err(heartbeatErr),
 	)
 	r.Logger.ErrorContext(ctx, "code call projection lease heartbeat failed", logAttrs...)
 }
