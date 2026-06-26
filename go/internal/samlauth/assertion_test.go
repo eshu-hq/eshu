@@ -5,11 +5,20 @@ package samlauth
 
 import (
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 )
+
+// constantTimeHashEqual compares two hash strings in constant time using
+// crypto/subtle.ConstantTimeCompare. This is test scaffolding — the production
+// SAML path enforces replay via a DB INSERT…ON CONFLICT ledger and never
+// compares fingerprints in-process.
+func constantTimeHashEqual(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
 
 func TestForgeReplayFingerprintRejectsDifferentAssertionIDs(t *testing.T) {
 	t.Parallel()
@@ -278,17 +287,14 @@ func TestValidateAssertionWindowBoundaryCases(t *testing.T) {
 			t.Parallel()
 
 			err := ValidateAssertionWindow(now, tc.window)
-			if tc.want == nil && err != nil {
-				t.Fatalf("ValidateAssertionWindow() error = %v, want nil", err)
-			}
-			if tc.want != nil && err == nil {
-				t.Fatalf("ValidateAssertionWindow() error = nil, want error")
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("ValidateAssertionWindow() error = %v, want %v", err, tc.want)
 			}
 		})
 	}
 }
 
-func TestConstantTimeHashEqualTiming(t *testing.T) {
+func TestConstantTimeHashEqualMatchAndMismatch(t *testing.T) {
 	t.Parallel()
 
 	fp, err := ReplayFingerprint(ReplayInput{
@@ -299,28 +305,22 @@ func TestConstantTimeHashEqualTiming(t *testing.T) {
 		t.Fatalf("ReplayFingerprint() error = %v", err)
 	}
 
-	// Prove constantTimeHashEqual uses crypto/subtle.ConstantTimeCompare by
-	// verifying the function signature and that it processes strings that
-	// differ at every position correctly.
-	match := constantTimeHashEqual(fp, fp)
-	differ := constantTimeHashEqual(fp, stableHash("different"))
-	if !match || differ {
-		t.Fatal("constantTimeHashEqual produced wrong result")
+	if !constantTimeHashEqual(fp, fp) {
+		t.Fatal("constantTimeHashEqual failed to match identical hashes")
 	}
-	// Verify the underlying implementation uses subtle.ConstantTimeCompare.
-	// We do this by confirming the byte-slice comparison branch is in
-	// crypto/subtle, not a hand-rolled loop.
-	if len(fp) > 0 && subtle.ConstantTimeCompare([]byte(fp), []byte(fp)) != 1 {
-		t.Fatal("ConstantTimeCompare returned unexpected result for identical slices")
+	if constantTimeHashEqual(fp, stableHash("different")) {
+		t.Fatal("constantTimeHashEqual matched unrelated hash")
 	}
 }
 
 // BenchmarkConstantTimeHashEqualSameLength compares two hashes of identical
-// length to verify there is no early-exit timing signal.
+// length (71 chars = "sha256:" + 64 hex) to verify there is no early-exit
+// timing signal. The differing byte is at the last position so the comparison
+// must scan the full length.
 func BenchmarkConstantTimeHashEqualSameLength(b *testing.B) {
 	a := fmt.Sprintf("sha256:%x", make([]byte, 32))
-	diff := make([]byte, 64)
-	copy(diff, []byte(a))
+	// diff is derived from a so it has the same length; flip last byte.
+	diff := []byte(a)
 	diff[len(diff)-1] ^= 0x01
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
