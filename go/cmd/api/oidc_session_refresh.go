@@ -158,7 +158,7 @@ func newOIDCSessionRefreshWorker(
 }
 
 func (w *oidcSessionRefreshWorker) registerInstruments() error {
-	meter := otel.Meter("eshu-api")
+	meter := otel.Meter(telemetry.DefaultSignalName)
 	var err error
 	if w.passes, err = meter.Int64Counter(
 		"eshu_auth_oidc_session_refresh_passes_total",

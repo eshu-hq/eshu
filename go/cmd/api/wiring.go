@@ -130,7 +130,7 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
-	instruments, err := telemetry.NewInstruments(otel.Meter("eshu-api"))
+	instruments, err := telemetry.NewInstruments(otel.Meter(telemetry.DefaultSignalName))
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
