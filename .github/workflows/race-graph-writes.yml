@@ -9,7 +9,6 @@ on:
       - "go/internal/correlation/**"
       - "go/internal/content/shape/**"
       - "go/internal/relationships/**"
-      - "go/internal/storage/postgres/**.sql"
   push:
     branches:
       - main
@@ -20,7 +19,6 @@ on:
       - "go/internal/correlation/**"
       - "go/internal/content/shape/**"
       - "go/internal/relationships/**"
-      - "go/internal/storage/postgres/**.sql"
   schedule:
     - cron: "30 18 * * *"
   workflow_dispatch:
@@ -28,6 +26,9 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
   race:
