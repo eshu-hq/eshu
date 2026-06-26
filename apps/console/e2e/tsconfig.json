@@ -15,5 +15,5 @@
     "target": "ES2023",
     "types": ["node"]
   },
-  "include": ["**/*.ts", "../src/e2e/routeAssertions.ts"]
+  "include": ["**/*.ts", "pages/**/*.ts", "../src/e2e/routeAssertions.ts"]
 }

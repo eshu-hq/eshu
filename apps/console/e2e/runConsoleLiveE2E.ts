@@ -40,7 +40,7 @@ import {
   type ConsoleRoute,
   type NetworkObservation,
   type RouteResult,
-  type RouteSignals
+  type RouteSignals,
 } from "../src/e2e/routeAssertions.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -78,17 +78,25 @@ async function startDevServer(): Promise<DevServer> {
   // leave an orphaned vite child holding the port between runs.
   const child = spawn(
     viteBin,
-    ["--config", "apps/console/vite.config.ts", "--host", "127.0.0.1", "--strictPort", "--port", "5180"],
+    [
+      "--config",
+      "apps/console/vite.config.ts",
+      "--host",
+      "127.0.0.1",
+      "--strictPort",
+      "--port",
+      "5180",
+    ],
     {
       cwd: repoRoot,
       env: {
         ...process.env,
         VITE_ESHU_API_KEY: apiKey,
         // Point the dev-server proxy at the live API the operator brought up.
-        ESHU_DEV_PROXY_TARGET: apiBase
+        ESHU_DEV_PROXY_TARGET: apiBase,
       },
-      stdio: ["ignore", "pipe", "pipe"]
-    }
+      stdio: ["ignore", "pipe", "pipe"],
+    },
   );
 
   const baseUrl = await new Promise<string>((resolvePromise, rejectPromise) => {
@@ -106,7 +114,9 @@ async function startDevServer(): Promise<DevServer> {
       }
     };
     child.stdout.on("data", onData);
-    child.stderr.on("data", (chunk: Buffer) => process.stderr.write(`[vite-err] ${chunk.toString()}`));
+    child.stderr.on("data", (chunk: Buffer) =>
+      process.stderr.write(`[vite-err] ${chunk.toString()}`),
+    );
     child.on("exit", (code) => {
       clearTimeout(timer);
       rejectPromise(new Error(`dev server exited early with code ${String(code)}`));
@@ -173,7 +183,7 @@ function installApiQuietTracker(page: Page): ApiQuietTracker {
   page.on("requestfailed", (request) => settle(request.url()));
   return {
     inFlight: () => inFlight,
-    lastChangeAt: () => lastChangeAt
+    lastChangeAt: () => lastChangeAt,
   };
 }
 
@@ -202,7 +212,7 @@ async function waitForApiQuiet(page: Page, tracker: ApiQuietTracker): Promise<vo
 async function captureRoute(
   page: Page,
   route: ConsoleRoute,
-  tracker: ApiQuietTracker
+  tracker: ApiQuietTracker,
 ): Promise<RouteSignals> {
   const consoleErrors: string[] = [];
   const network: NetworkObservation[] = [];
@@ -215,20 +225,28 @@ async function captureRoute(
   const onPageError = (error: Error): void => {
     consoleErrors.push(`uncaught: ${error.message}`);
   };
-  const onResponse = (response: { url: () => string; status: () => number; request: () => { method: () => string } }): void => {
+  const onResponse = (response: {
+    url: () => string;
+    status: () => number;
+    request: () => { method: () => string };
+  }): void => {
     network.push({
       url: response.url(),
       method: response.request().method(),
       status: response.status(),
-      failureText: null
+      failureText: null,
     });
   };
-  const onRequestFailed = (request: { url: () => string; method: () => string; failure: () => { errorText: string } | null }): void => {
+  const onRequestFailed = (request: {
+    url: () => string;
+    method: () => string;
+    failure: () => { errorText: string } | null;
+  }): void => {
     network.push({
       url: request.url(),
       method: request.method(),
       status: 0,
-      failureText: request.failure()?.errorText ?? "request failed"
+      failureText: request.failure()?.errorText ?? "request failed",
     });
   };
 
@@ -251,20 +269,23 @@ async function captureRoute(
   const dom = await page.evaluate(() => {
     const pill = document.querySelector(".source-pill");
     const main = document.querySelector(".main");
-    const demoBanner = Array.from(document.querySelectorAll(".prov-banner")).some((node) =>
-      (node.textContent ?? "").includes("Prospect demo") ||
-      (node.textContent ?? "").toLowerCase().includes("demo fixtures")
+    const demoBanner = Array.from(document.querySelectorAll(".prov-banner")).some(
+      (node) =>
+        (node.textContent ?? "").includes("Prospect demo") ||
+        (node.textContent ?? "").toLowerCase().includes("demo fixtures"),
     );
     const pillText = (pill?.textContent ?? "").trim();
     const connected = pill?.className.includes("src-connected") ?? false;
     const sourceMode = connected
-      ? pillText.toLowerCase().includes("demo") ? "demo" : "live"
+      ? pillText.toLowerCase().includes("demo")
+        ? "demo"
+        : "live"
       : pillText.toLowerCase().replace(/[^a-z]+/g, "-") || "unknown";
     return {
       connected,
       sourceMode,
       demoBannerPresent: demoBanner,
-      mainContentChars: (main?.textContent ?? "").trim().length
+      mainContentChars: (main?.textContent ?? "").trim().length,
     };
   });
 
@@ -283,7 +304,7 @@ async function captureRoute(
     demoBannerPresent: dom.demoBannerPresent,
     mainContentChars: dom.mainContentChars,
     consoleErrors,
-    network
+    network,
   };
 }
 
@@ -301,7 +322,7 @@ function routeUrl(page: Page, route: ConsoleRoute): string {
 export async function runConsoleLiveE2E(): Promise<number> {
   if (apiKey.length === 0) {
     process.stderr.write(
-      "console-live-e2e: ESHU_E2E_API_KEY is required so the console can authenticate against the live API\n"
+      "console-live-e2e: ESHU_E2E_API_KEY is required so the console can authenticate against the live API\n",
     );
     return 1;
   }
@@ -329,10 +350,10 @@ export async function runConsoleLiveE2E(): Promise<number> {
       ([base]: readonly string[]) => {
         window.localStorage.setItem(
           "eshu.console.environment",
-          JSON.stringify({ mode: "private", apiBaseUrl: base, recentApiBaseUrls: [base] })
+          JSON.stringify({ mode: "private", apiBaseUrl: base, recentApiBaseUrls: [base] }),
         );
       },
-      [consoleApiBaseUrl]
+      [consoleApiBaseUrl],
     );
 
     const page = await context.newPage();
@@ -357,7 +378,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
       results.push(result);
       const status = result.passed ? "PASS" : "FAIL";
       process.stdout.write(
-        `  ${status} ${route.path} (mode=${signals.sourceMode}, mainChars=${signals.mainContentChars}, errors=${signals.consoleErrors.length}, reqs=${signals.network.length})\n`
+        `  ${status} ${route.path} (mode=${signals.sourceMode}, mainChars=${signals.mainContentChars}, errors=${signals.consoleErrors.length}, reqs=${signals.network.length})\n`,
       );
       for (const failure of result.failures) {
         process.stdout.write(`        - ${failure.code}: ${failure.detail}\n`);
@@ -371,11 +392,13 @@ export async function runConsoleLiveE2E(): Promise<number> {
     const summary = summarizeGate(results);
     await writeFile(reportPath, JSON.stringify({ apiBase, summary }, null, 2), "utf8");
     process.stdout.write(
-      `console-live-e2e: ${summary.passedCount}/${summary.total} routes passed; report ${reportPath}\n`
+      `console-live-e2e: ${summary.passedCount}/${summary.total} routes passed; report ${reportPath}\n`,
     );
 
     if (!summary.passed) {
-      process.stderr.write(`console-live-e2e: ${summary.failedCount} route(s) failed the live gate\n`);
+      process.stderr.write(
+        `console-live-e2e: ${summary.failedCount} route(s) failed the live gate\n`,
+      );
       return 1;
     }
     return 0;
