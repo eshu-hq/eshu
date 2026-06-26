@@ -1,0 +1,8 @@
+{
+  "event": {
+    "id": "evt-PD0987654321fedcba",
+    "event_type": "incident.resolved",
+    "occurred_at": "2026-06-01T14:30:00Z",
+    "data": {}
+  }
+}

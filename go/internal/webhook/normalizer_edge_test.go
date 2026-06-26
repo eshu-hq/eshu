@@ -5,6 +5,76 @@ package webhook
 
 import "testing"
 
+func TestNormalizeGitHubMissingMergeCommitFromFixture(t *testing.T) {
+	t.Parallel()
+
+	payload := loadFixture(t, "testdata/edge/github_missing_merge_commit.json")
+	expected := loadExpected(t, "testdata/edge/github_missing_merge_commit_expected.json")
+
+	trigger, err := NormalizeGitHub("pull_request", "delivery-missing-merge", payload, "")
+	if err != nil {
+		t.Fatalf("NormalizeGitHub() error = %v, want nil", err)
+	}
+
+	assertTriggerFromExpected(t, trigger, expected)
+}
+
+func TestNormalizeGitLabMissingMergeCommitFromFixture(t *testing.T) {
+	t.Parallel()
+
+	payload := loadFixture(t, "testdata/edge/gitlab_missing_merge_commit.json")
+	expected := loadExpected(t, "testdata/edge/gitlab_missing_merge_commit_expected.json")
+
+	trigger, err := NormalizeGitLab("Merge Request Hook", "delivery-missing-merge", payload, "")
+	if err != nil {
+		t.Fatalf("NormalizeGitLab() error = %v, want nil", err)
+	}
+
+	assertTriggerFromExpected(t, trigger, expected)
+}
+
+func TestNormalizeGitHubDeleteBranchFromFixture(t *testing.T) {
+	t.Parallel()
+
+	payload := loadFixture(t, "testdata/edge/github_delete_branch.json")
+	expected := loadExpected(t, "testdata/edge/github_delete_branch_expected.json")
+
+	trigger, err := NormalizeGitHub("push", "delivery-delete", payload, "")
+	if err != nil {
+		t.Fatalf("NormalizeGitHub() error = %v, want nil", err)
+	}
+
+	assertTriggerFromExpected(t, trigger, expected)
+}
+
+func TestNormalizeGitLabDeleteBranchFromFixture(t *testing.T) {
+	t.Parallel()
+
+	payload := loadFixture(t, "testdata/edge/gitlab_delete_branch.json")
+	expected := loadExpected(t, "testdata/edge/gitlab_delete_branch_expected.json")
+
+	trigger, err := NormalizeGitLab("Push Hook", "delivery-delete", payload, "")
+	if err != nil {
+		t.Fatalf("NormalizeGitLab() error = %v, want nil", err)
+	}
+
+	assertTriggerFromExpected(t, trigger, expected)
+}
+
+func TestNormalizeBitbucketDeleteBranchFromFixture(t *testing.T) {
+	t.Parallel()
+
+	payload := loadFixture(t, "testdata/edge/bitbucket_delete_branch.json")
+	expected := loadExpected(t, "testdata/edge/bitbucket_delete_branch_expected.json")
+
+	trigger, err := NormalizeBitbucket("repo:push", "delivery-delete", payload, "")
+	if err != nil {
+		t.Fatalf("NormalizeBitbucket() error = %v, want nil", err)
+	}
+
+	assertTriggerFromExpected(t, trigger, expected)
+}
+
 func TestNormalizeGitHubPullRequestIgnoresMergedEventWithoutMergeCommit(t *testing.T) {
 	t.Parallel()
 

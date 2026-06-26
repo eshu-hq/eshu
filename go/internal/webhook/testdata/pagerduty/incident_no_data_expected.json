@@ -1,0 +1,8 @@
+{
+  "provider": "pagerduty",
+  "event_kind": "incident.resolved",
+  "event_id": "evt-PD0987654321fedcba",
+  "scope_id": "pd:eshu-hq",
+  "resource_id": "",
+  "observed_at": "2026-06-01T14:30:00Z"
+}
