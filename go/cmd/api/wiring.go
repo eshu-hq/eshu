@@ -248,7 +248,11 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
-	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, mux, adminRecoveryAuditAppender(governanceAudit))
+	// Rewrite /api/v1/* to /api/v0/* before auth so scoped-token and
+	// browser-session route classification sees the v0 path.
+	v1Rewritten := v1PrefixAliasMiddleware(mux)
+
+	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, v1Rewritten, adminRecoveryAuditAppender(governanceAudit))
 
 	// Rewrite /api/v1/* to /api/v0/* before auth so scoped-token and
 	// browser-session route classification sees the v0 path.
