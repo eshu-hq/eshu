@@ -61,6 +61,7 @@ corpus_fixtures=(
 	orders-api
 	deployable-source
 	deployable-config
+	api-svc
 )
 
 # 9 credentialed collectors and their B-10 cassette directories.
@@ -371,13 +372,15 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # projected the corpus" (Repository present) and the cross-repo DEPENDS_ON
 # correlation (rc-3), which the lib-common/orders-api fixture pair plus the
 # package-registry cassette deterministically produce. The deployable-unit (rc-1),
-# the cassette-dependent correlations (rc-2/rc-4), and the 20-repo node/edge
-# tolerances: rc-1 (deployable-unit) is now required — the deployable-source +
-# deployable-config (ArgoCD) fixture pair plus the correlation reopen produce
-# CORRELATES_DEPLOYABLE_UNIT deterministically. rc-2 (RUNS_IN) and rc-4
-# (RUNS_IMAGE) stay advisory until the projector materializes the code-entity and
-# oci/k8s node families they need (tracked as follow-ups). Promote each by adding
-# its ID to -required-correlations.
+# the cassette-dependent correlations, and the 20-repo node/edge tolerances:
+# rc-1 (deployable-unit) is required — the deployable-source + deployable-config
+# (ArgoCD) pair plus the correlation reopen produce CORRELATES_DEPLOYABLE_UNIT.
+# rc-2 (RUNS_IN) is now required too — the api-svc fixture (Flask @app.route
+# handlers + an in-repo k8s/deployment.yaml) produces the code->runtime bridge:
+# the handler Functions bind via HANDLES_ROUTE to their Endpoints and via runs_in
+# to the api-svc Workload the repository DEFINES. rc-4 (RUNS_IMAGE) stays advisory
+# until the oci/k8s node families it needs materialize (tracked as a follow-up).
+# Promote each by adding its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=graph,query,timing \
@@ -385,7 +388,7 @@ gate_status=0
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
 	-required-node-labels="Repository,Directory,File,Function" \
-	-required-correlations="rc-3,rc-1" \
+	-required-correlations="rc-3,rc-1,rc-2" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?
