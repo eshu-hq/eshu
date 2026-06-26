@@ -1239,7 +1239,7 @@
         "bindAddress": {
           "type": "string",
           "minLength": 1,
-          "description": "IP address the API server binds to. Default 127.0.0.1 (localhost only). Set to 0.0.0.0 to listen on all interfaces."
+          "description": "IP address the API server binds to. Default 0.0.0.0 (all pod-network interfaces). Set to 127.0.0.1 only for bare-host/docker-compose deployments, not Kubernetes."
         },
         "env": {
           "type": "object",
