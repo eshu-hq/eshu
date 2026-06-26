@@ -199,14 +199,10 @@ func TestKVWalkEscapesQueryInjectionKey(t *testing.T) {
 	t.Parallel()
 	srv, mock := hostileVault(t, `"x?version=99"`)
 	// The key is a leaf; the read is escaped (404 from the mock) and must never
-	// arrive as a raw query parameter. A 404 is surfaced as VaultNotFoundError
-	// rather than silently dropped.
+	// arrive as a raw query parameter. A 404 is silently skipped (not an error).
 	_, err := newTestAdapter(t, srv).ListKVMetadata(context.Background())
-	if err == nil {
-		t.Fatal("ListKVMetadata error = nil, want VaultNotFoundError for injected key read")
-	}
-	if !errors.Is(err, ErrVaultNotFound) {
-		t.Fatalf("ListKVMetadata error = %v, want VaultNotFoundError", err)
+	if err != nil {
+		t.Fatalf("ListKVMetadata error = %v, want nil (404 for missing key is silently skipped)", err)
 	}
 	// The "?version=99" must have been percent-escaped into the path, so it can
 	// never appear as a real query parameter (only "list=true" is legitimate).

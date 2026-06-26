@@ -362,6 +362,7 @@ the right name when adding a new stage.
 | oci_registry.scan / oci_registry.api_call | go/internal/telemetry/contract.go:499-500 | `eshu_dp_oci_registry_scan_duration_seconds` | span OCI |
 | kubernetes_live.snapshot / kubernetes_live.api_call | go/internal/telemetry/contract.go:501-502 | `eshu_dp_kubernetes_list_duration_seconds` | span Kubernetes |
 | vault_live.snapshot | go/internal/telemetry/contract.go:503 | `No-Observability-Change: Vault snapshot metrics share SecretsIAMSource* counters and span is parent-only` | span vault |
+| vault_live.api_call | go/cmd/collector-vault-live/service.go:166 | `eshu_dp_vault_request_total` | span vault |
 | package_registry.observe / package_registry.fetch | go/internal/telemetry/contract.go:504-505 | `eshu_dp_package_registry_observe_duration_seconds` | span package registry |
 | aws.collector.claim.process | go/internal/telemetry/contract.go:506 | `eshu_dp_aws_scan_duration_seconds` | span AWS |
 | aws.credentials.assume_role | go/internal/telemetry/contract.go:507 | `eshu_dp_aws_assumerole_failed_total` | span AWS |

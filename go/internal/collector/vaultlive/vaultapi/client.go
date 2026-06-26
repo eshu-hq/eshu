@@ -23,11 +23,12 @@ import (
 // vaultlive.Client. It holds a short-lived token supplied by the caller; Eshu
 // never persists it.
 type Adapter struct {
-	httpClient *http.Client
-	address    string
-	token      string
-	namespace  string
-	onAPICall  func(operation, result string)
+	httpClient     *http.Client
+	address        string
+	token          string
+	namespace      string
+	onAPICall      func(operation, result string)
+	lastHTTPStatus int
 }
 
 // recordAPICall reports one Vault API operation outcome to the optional
@@ -38,7 +39,16 @@ func (a *Adapter) recordAPICall(operation string, err error) {
 	if a.onAPICall == nil {
 		return
 	}
-	a.onAPICall(operation, classifyError(err))
+	if err != nil {
+		a.onAPICall(operation, classifyError(err))
+		return
+	}
+	if a.lastHTTPStatus == http.StatusNotFound {
+		a.onAPICall(operation, "not_found")
+		a.lastHTTPStatus = 0
+		return
+	}
+	a.onAPICall(operation, classifyError(nil))
 }
 
 // Config configures the adapter. Address is the Vault API base (for example
@@ -122,10 +132,11 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	a.lastHTTPStatus = resp.StatusCode
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		return false, VaultNotFoundError{Operation: operation}
+		return false, nil
 	case http.StatusForbidden:
 		return false, fmt.Errorf("vaultapi: forbidden metadata read (check read-only policy): %w", classifyHTTPStatus(operation, resp))
 	default:

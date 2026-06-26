@@ -21,8 +21,8 @@ var (
 // VaultTimeoutError wraps a timeout or deadline-exceeded error from the
 // underlying HTTP transport. Carry no token, address, or path.
 type VaultTimeoutError struct {
-	Operation string
-	Cause     error
+	Path  string
+	Cause error
 }
 
 func (e VaultTimeoutError) Error() string {
@@ -36,7 +36,7 @@ func (e VaultTimeoutError) Is(target error) bool { return target == ErrVaultTime
 // VaultAuthError wraps a 403 Forbidden response from Vault, typically indicating
 // an expired or insufficient token. Carry no token, address, or path.
 type VaultAuthError struct {
-	Operation  string
+	Path       string
 	StatusCode int
 	Message    string
 }
@@ -51,7 +51,7 @@ func (e VaultAuthError) Is(target error) bool { return target == ErrVaultAuth }
 // that the requested mount, role, or metadata path does not exist — a partial
 // coverage outcome, not a fatal failure.
 type VaultNotFoundError struct {
-	Operation string
+	Path string
 }
 
 func (e VaultNotFoundError) Error() string {
@@ -64,8 +64,8 @@ func (e VaultNotFoundError) Is(target error) bool { return target == ErrVaultNot
 // (connection refused, DNS failure, TLS handshake failure). Carry no address or
 // token.
 type VaultTransportError struct {
-	Operation string
-	Cause     error
+	Path  string
+	Cause error
 }
 
 func (e VaultTransportError) Error() string {
@@ -98,7 +98,7 @@ func classifyError(err error) string {
 	case errors.As(err, &transport):
 		return "transport_error"
 	default:
-		return "transport_error"
+		return "fallback"
 	}
 }
 
@@ -108,9 +108,9 @@ func classifyError(err error) string {
 func wrapTransportError(operation string, err error) error {
 	var netErr interface{ Timeout() bool }
 	if errors.As(err, &netErr) && netErr.Timeout() {
-		return VaultTimeoutError{Operation: operation, Cause: err}
+		return VaultTimeoutError{Path: operation, Cause: err}
 	}
-	return VaultTransportError{Operation: operation, Cause: err}
+	return VaultTransportError{Path: operation, Cause: err}
 }
 
 // classifyHTTPStatus maps an HTTP status code to a typed vault error.
@@ -118,12 +118,12 @@ func classifyHTTPStatus(operation string, resp *http.Response) error {
 	switch resp.StatusCode {
 	case http.StatusForbidden:
 		return VaultAuthError{
-			Operation:  operation,
+			Path:       operation,
 			StatusCode: resp.StatusCode,
 			Message:    http.StatusText(resp.StatusCode),
 		}
 	case http.StatusNotFound:
-		return VaultNotFoundError{Operation: operation}
+		return VaultNotFoundError{Path: operation}
 	default:
 		return sdk.HTTPError{
 			Provider:   "vault",
