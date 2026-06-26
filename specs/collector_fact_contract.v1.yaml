@@ -1,0 +1,199 @@
+# Per-collector fact-shape contract v1
+#
+# Each collector declares the fact kinds it may emit and the required payload
+# keys for each. CI contracts (to be wired separately) assert every emit site
+# matches. This is the source-of-truth spec; the Go contracttest package
+# consumes a programmatic equivalent.
+#
+# Version: 1.0.0
+# Owner:   eshu-hq/eshu/issues/3736 (Epic A)
+
+version: "1.0.0"
+
+collectors:
+  aws:
+    collector_kind: aws
+    fact_kinds:
+      aws_resource:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - arn
+          - resource_id
+          - resource_type
+          - name
+          - state
+          - tags
+          - attributes
+          - correlation_anchors
+
+      aws_relationship:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - relationship_type
+          - source_resource_id
+          - source_arn
+          - target_resource_id
+          - target_arn
+          - target_type
+          - attributes
+
+      aws_image_reference:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - repository_arn
+          - repository_name
+          - registry_id
+          - image_digest
+          - manifest_digest
+          - tag
+          - correlation_anchors
+
+      aws_dns_record:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - hosted_zone_id
+          - hosted_zone_name
+          - record_name
+          - record_type
+          - correlation_anchors
+
+      aws_warning:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - warning_kind
+          - error_class
+
+      aws_security_group_rule:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - rule_id
+          - group_id
+          - direction
+          - source_kind
+          - source_value
+
+      aws_iam_permission:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - principal_arn
+          - principal_type
+          - policy_source
+          - effect
+          - actions
+
+      aws_resource_policy_permission:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - resource_arn
+          - resource_type
+          - effect
+          - actions
+
+      s3_bucket_posture:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - bucket_arn
+          - bucket_name
+
+      s3_external_principal_grant:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - bucket_arn
+          - bucket_name
+          - principal_kind
+          - principal_value
+          - grant_outcome
+
+      ec2_instance_posture:
+        required_payload_keys:
+          - account_id
+          - region
+          - service_kind
+          - collector_instance_id
+          - instance_id
+          - imds_v2_required
+
+      secrets_iam_principal:
+        required_payload_keys:
+          - scope_id
+          - principal_arn
+          - principal_type
+          - collector_kind
+
+      secrets_iam_trust_policy:
+        required_payload_keys:
+          - scope_id
+          - principal_arn
+          - principal_type
+          - collector_instance_id
+
+      secrets_iam_permission_policy:
+        required_payload_keys:
+          - scope_id
+          - principal_arn
+          - principal_type
+          - policy_source
+          - effect
+          - actions
+          - collector_kind
+
+      secrets_iam_policy_attachment:
+        required_payload_keys:
+          - scope_id
+          - principal_arn
+          - principal_type
+          - policy_arn
+          - collector_kind
+
+      secrets_iam_permission_boundary:
+        required_payload_keys:
+          - scope_id
+          - principal_arn
+          - principal_type
+          - boundary_policy_arn
+          - collector_kind
+
+      secrets_iam_instance_profile:
+        required_payload_keys:
+          - scope_id
+          - profile_arn
+          - profile_name
+          - collector_kind
+
+      secrets_iam_coverage_warning:
+        required_payload_keys:
+          - scope_id
+          - warning_kind
+          - source_state
+          - error_class
+          - collector_kind
