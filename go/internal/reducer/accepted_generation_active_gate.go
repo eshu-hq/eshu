@@ -6,6 +6,10 @@ package reducer
 import (
 	"context"
 	"strings"
+
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // RelationshipGenerationActiveLookup reports whether a relationship generation
@@ -48,6 +52,7 @@ type RelationshipGenerationActiveLookup func(generationID string) (bool, error)
 func GateAcceptedGenerationOnActive(
 	base AcceptedGenerationLookup,
 	isActive RelationshipGenerationActiveLookup,
+	instruments *telemetry.Instruments,
 ) AcceptedGenerationLookup {
 	if base == nil || isActive == nil {
 		return base
@@ -58,11 +63,42 @@ func GateAcceptedGenerationOnActive(
 			return "", false
 		}
 		if !requiresRelationshipGenerationGate(key.SourceRunID) {
+			if instruments != nil {
+				instruments.RepoDependencyGateDecisions.Add(
+					context.Background(),
+					1,
+					metric.WithAttributes(telemetry.AttrDecision("bypassed")),
+				)
+			}
 			return generationID, true
 		}
 		active, err := isActive(generationID)
-		if err != nil || !active {
+		if err != nil {
+			if instruments != nil {
+				instruments.RepoDependencyGateDecisions.Add(
+					context.Background(),
+					1,
+					metric.WithAttributes(telemetry.AttrDecision("deferred_error")),
+				)
+			}
 			return "", false
+		}
+		if !active {
+			if instruments != nil {
+				instruments.RepoDependencyGateDecisions.Add(
+					context.Background(),
+					1,
+					metric.WithAttributes(telemetry.AttrDecision("deferred_inactive")),
+				)
+			}
+			return "", false
+		}
+		if instruments != nil {
+			instruments.RepoDependencyGateDecisions.Add(
+				context.Background(),
+				1,
+				metric.WithAttributes(telemetry.AttrDecision("active")),
+			)
 		}
 		return generationID, true
 	}
@@ -105,6 +141,7 @@ func requiresRelationshipGenerationGate(sourceRunID string) bool {
 func GateAcceptedGenerationPrefetchOnActive(
 	base AcceptedGenerationPrefetch,
 	isActive RelationshipGenerationActiveLookup,
+	instruments *telemetry.Instruments,
 ) AcceptedGenerationPrefetch {
 	if base == nil || isActive == nil {
 		return base
@@ -114,7 +151,7 @@ func GateAcceptedGenerationPrefetchOnActive(
 		if err != nil {
 			return nil, err
 		}
-		return GateAcceptedGenerationOnActive(resolved, memoizeActiveLookup(isActive)), nil
+		return GateAcceptedGenerationOnActive(resolved, memoizeActiveLookup(isActive), instruments), nil
 	}
 }
 

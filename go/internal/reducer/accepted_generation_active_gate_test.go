@@ -26,7 +26,7 @@ func TestGateAcceptedGenerationOnActiveDefersUntilActive(t *testing.T) {
 			t.Fatalf("isActive called with %q, want gen-2", generationID)
 		}
 		return active, nil
-	})
+	}, nil)
 
 	// Use a cross-repo source-run ID — only this variant triggers the
 	// relationship_generations activation check.
@@ -58,6 +58,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughMissingAcceptance(t *testing
 			called = true
 			return true, nil
 		},
+		nil,
 	)
 
 	if gen, ok := gated(SharedProjectionAcceptanceKey{AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}); ok {
@@ -80,6 +81,7 @@ func TestGateAcceptedGenerationOnActiveDefersOnError(t *testing.T) {
 		func(string) (bool, error) {
 			return false, errors.New("transient lookup failure")
 		},
+		nil,
 	)
 
 	if gen, ok := gated(SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-a"}); ok {
@@ -98,7 +100,7 @@ func TestGateAcceptedGenerationPrefetchOnActiveDefersUntilActive(t *testing.T) {
 	active := false
 	gatedPrefetch := GateAcceptedGenerationPrefetchOnActive(basePrefetch, func(string) (bool, error) {
 		return active, nil
-	})
+	}, nil)
 
 	lookup, err := gatedPrefetch(context.Background(), nil)
 	if err != nil {
@@ -134,7 +136,7 @@ func TestGateAcceptedGenerationPrefetchMemoizesActiveCheck(t *testing.T) {
 	gatedPrefetch := GateAcceptedGenerationPrefetchOnActive(basePrefetch, func(string) (bool, error) {
 		checks++
 		return true, nil
-	})
+	}, nil)
 
 	lookup, err := gatedPrefetch(context.Background(), nil)
 	if err != nil {
@@ -167,6 +169,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughCodeImportSourceRun(t *testi
 	gated := GateAcceptedGenerationOnActive(
 		acceptedGenerationFixed("scope-gen-abc", true),
 		func(string) (bool, error) { return false, nil },
+		nil,
 	)
 
 	// "code_import_repo_dependency:<scope>" is the source-run form for
@@ -191,6 +194,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughCodeImportBareSourceRun(t *t
 	gated := GateAcceptedGenerationOnActive(
 		acceptedGenerationFixed("scope-gen-abc", true),
 		func(string) (bool, error) { return false, nil },
+		nil,
 	)
 	key := SharedProjectionAcceptanceKey{
 		ScopeID:          "s",
@@ -213,6 +217,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughPackageConsumptionSourceRun(
 	gated := GateAcceptedGenerationOnActive(
 		acceptedGenerationFixed("scope-gen-xyz", true),
 		func(string) (bool, error) { return false, nil },
+		nil,
 	)
 	key := SharedProjectionAcceptanceKey{
 		ScopeID:          "package-registry-scope:pkg-scope",
@@ -241,7 +246,7 @@ func TestGateAcceptedGenerationPrefetchPassesThroughCodeImportSourceRun(t *testi
 	// never found in relationship_generations.
 	gatedPrefetch := GateAcceptedGenerationPrefetchOnActive(basePrefetch, func(string) (bool, error) {
 		return false, nil
-	})
+	}, nil)
 
 	lookup, err := gatedPrefetch(context.Background(), nil)
 	if err != nil {
@@ -269,7 +274,7 @@ func TestGateAcceptedGenerationPrefetchPassesThroughPackageConsumptionSourceRun(
 	}
 	gatedPrefetch := GateAcceptedGenerationPrefetchOnActive(basePrefetch, func(string) (bool, error) {
 		return false, nil
-	})
+	}, nil)
 
 	lookup, err := gatedPrefetch(context.Background(), nil)
 	if err != nil {
@@ -318,6 +323,7 @@ func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T)
 	gated := GateAcceptedGenerationOnActive(
 		acceptedGenerationFixed("gen-2", true),
 		func(string) (bool, error) { return active, nil },
+		nil,
 	)
 	runner := RepoDependencyProjectionRunner{
 		IntentReader: reader,
