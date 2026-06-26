@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // serviceQueryStageTimer emits per-stage service read timings so slow graph or
@@ -44,7 +45,7 @@ func startServiceQueryStage(
 		logger.InfoContext(
 			ctx, "service query stage started",
 			telemetry.EventAttr("service_query.stage_started"),
-			slog.String("operation", operation),
+			log.Operation(operation),
 			slog.String("stage", stage),
 			slog.String("target_service", service),
 			slog.String("repo_id", repoID),
@@ -61,7 +62,7 @@ func (t serviceQueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr) {
 	}
 	base := []slog.Attr{
 		telemetry.EventAttr("service_query.stage_completed"),
-		slog.String("operation", t.operation),
+		log.Operation(t.operation),
 		slog.String("stage", t.stage),
 		slog.String("target_service", t.service),
 		slog.String("repo_id", t.repoID),
