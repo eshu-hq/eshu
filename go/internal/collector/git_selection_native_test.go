@@ -356,9 +356,9 @@ func resolveRepoPathForAssertion(t *testing.T, path string) string {
 // canonicalization fix on every platform (not just macOS): with the repository
 // reached through an explicit symlink, the selected RepoPath must be the
 // resolved real path so it shares a prefix with the symlink-resolved file paths
-// content discovery produces. Without canonicalization, filepath.Rep(repoRoot,
+// content discovery produces. Without canonicalization, filepath.Rel(repoRoot,
 // file) yields a broken ../.. path and no Directory/File/entity nodes
-// materialize downstream. (The broken call is filepath.Rel(repoRoot, file).)
+// materialize downstream.
 func TestNativeRepositorySelectorResolvesSymlinkedRepoPath(t *testing.T) {
 	t.Parallel()
 
