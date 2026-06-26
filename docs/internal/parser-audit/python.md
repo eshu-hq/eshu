@@ -1,7 +1,7 @@
 # Python Parser Audit
 
 ## Overview
-The Python parser (`go/internal/parser/python/`) is the most thoroughly tested language adapter in Eshu. It parses `.py` and `.ipynb` files via tree-sitter, emitting functions, classes, modules, variables, imports, calls, type annotations, framework semantics (FastAPI/Flask), ORM table mappings, embedded shell commands, dead-code root evidence, generator flags, rationale comments, property/cached-property/setter decorator metadata, and opt-in value-flow buckets. The package has 3 subdirectory test files plus approximately 15+ parent-level engine-python test files.
+The Python parser (`go/internal/parser/python/`) is the most thoroughly tested language adapter in Eshu. It parses `.py` and `.ipynb` files via tree-sitter, emitting functions, classes, modules, variables, imports, calls, type annotations, framework semantics (FastAPI/Flask), ORM table mappings, embedded shell commands, dead-code root evidence, generator flags, rationale comments, property/cached-property/setter decorator metadata, and opt-in value-flow buckets. The package has 4 subdirectory test files plus 27 parent-level engine-python test files.
 
 ## Claimed Constructs
 List every construct the parser claims to extract, with source references.
@@ -87,12 +87,10 @@ List constructs claimed but not covered by any test.
 
 1. **Notebook cell `source` as `[]any` or `[]string`** (`notebook.go:49-57`): the empty notebook is tested (`notebook_test.go`), but multi-string arrays are not explicitly tested.
 2. **Dunder protocol hook with `type_alias_statement`** (`dead_code_roots.go:294-300`): tested via `type().method = method` pattern but not explicitly isolated.
-3. **`python.dataclass_post_init` root kind** (`language.go:139-141`): no dedicated test for `__post_init__` in a dataclass.
-4. **Class reference call items** (`call_inference.go:95-114`, `language.go:232-234`): `call_kind: python.class_reference` not explicitly tested.
-5. **Empty notebook source** (`notebook.go:23-24`): tested for `no code cells`, but not for `cells: []`.
-6. **Invalid notebook JSON** (`notebook.go:18-19`): error path not tested in subdirectory tests.
-7. **Import resolution with `__init__.py` fallback** (`imports.go:233-235`, `pythonResolveImportCandidate`): no test with actual filesystem resolution.
-8. **`pythonTrailingName` with edge case separators** (`call_inference.go:81-93`): not tested with backslashes or colons.
+3. **Empty notebook source** (`notebook.go:23-24`): tested for `no code cells`, but not for `cells: []`.
+4. **Invalid notebook JSON** (`notebook.go:18-19`): error path not tested in subdirectory tests.
+5. **Import resolution with `__init__.py` fallback** (`imports.go:233-235`, `pythonResolveImportCandidate`): no test with actual filesystem resolution.
+6. **`pythonTrailingName` with edge case separators** (`call_inference.go:81-93`): not tested with backslashes or colons.
 
 ## Edge Cases Considered
 List edge cases the tests actually cover with test references.
@@ -128,10 +126,8 @@ List edge cases not tested.
 ## Verdict
 deep
 
-The Python parser has 15+ parent-level engine tests, 3 subdirectory test files, dedicated tests for every dead-code root kind, framework semantics, ORM mappings, embedded shell, generators, lambda assignments, annotated assignments, type annotations, call inference, rationale comments, value-flow, and notebook extraction. Tests cover edge cases like reversed script guards, concatenated `__all__` exports, splat-typed parameters, and alias shadowing in embedded shell. Only a few tertiary code paths (notebook `[]any` source, `__post_init__` in dataclass, explicit invalid-JSON error) lack dedicated tests.
+The Python parser has 27 parent-level engine tests, 4 subdirectory test files, dedicated tests for every dead-code root kind (including `dataclass_post_init` via `engine_python_dead_code_semantics_test.go`), framework semantics, ORM mappings, embedded shell, generators, lambda assignments, annotated assignments, type annotations, call inference, rationale comments, value-flow, class-reference call items, and notebook extraction. Tests cover edge cases like reversed script guards, concatenated `__all__` exports, splat-typed parameters, and alias shadowing in embedded shell. Only a few tertiary code paths (notebook `[]any` source, explicit invalid-JSON error) lack dedicated tests.
 
 ## Recommended Actions
-1. Add a dedicated test for `python.dataclass_post_init` (`__post_init__` in a `@dataclass` class).
-2. Add an explicit test for `python.class_reference` call items.
-3. Add an explicit test for notebook with `source` as `[]any` array.
-4. Add a test for `staticmethod` and `classmethod` decorators not being marked as dead-code roots.
+1. Add an explicit test for notebook with `source` as `[]any` array.
+2. Add a test for `staticmethod` and `classmethod` decorators not being marked as dead-code roots.

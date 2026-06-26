@@ -29,7 +29,6 @@ From `doc.go`, `README.md`, `metadata.go`:
 - `TestRuntimeMetadataParsesHealthcheckAndUser` (`metadata_test.go:`): HEALTHCHECK, USER
 
 ## Unverified / Claimed-but-Untested Constructs
-- **Escape directive**: claimed in doc.go but no dedicated test found
 - **Quoted ENV key=value with embedded equals signs**
 - **LABEL with multiple key=value pairs on one line**
 
@@ -60,6 +59,5 @@ From `doc.go`, `README.md`, `metadata.go`:
 
 ## Recommended Actions
 - Document that DOCKERFILE is a **permanent exception** — it uses `bufio` instruction scanning, not tree-sitter
-- Add a test for the escape directive (`# escape=\`)
 - Add a test for ADD/ONBUILD (or document they are intentionally not parsed)
 - Add a test for completely empty Dockerfile input

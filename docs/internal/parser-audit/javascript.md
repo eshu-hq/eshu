@@ -12,8 +12,8 @@ React component detection with hooks, Hapi/Express/Fastify/Next.js route
 evidence, dead-code root modeling (20+ root kinds), embedded shell commands,
 TypeScript type parameters and declaration merging, and opt-in value-flow
 analysis. A parent-lookup optimization eliminated per-node cgo crossings
-(#3586). The test suite is the largest of any parser: approximately 35
-parent-level tests plus 20+ subdirectory tests and jsdataflow tests.
+(#3586). The test suite is the largest of any parser: 33
+parent-level tests plus 11 subdirectory tests and jsdataflow tests.
 
 ## Claimed Constructs
 - **Functions**: from function_declaration, generator_function_declaration,
