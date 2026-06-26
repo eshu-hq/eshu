@@ -53,6 +53,12 @@ type bootstrapCommitter interface {
 	// owner facts they join against are present — the same after-the-fact
 	// dependency ReopenDeploymentMappingWorkItems handles. Idempotent.
 	ReopenCodeImportRepoEdgeWorkItems(context.Context, trace.Tracer, *telemetry.Instruments) error
+	// ReopenSucceededReducerWorkItems replays succeeded reducer work items for the
+	// given additive correlation domains (e.g. deployable_unit_correlation) so they
+	// re-run once the resolved relationships they consume — produced by the
+	// deployment_mapping reopen + cross-repo resolution in an earlier drain — exist.
+	// Idempotent.
+	ReopenSucceededReducerWorkItems(context.Context, trace.Tracer, []string) error
 	// EnqueueConfigStateDriftIntents enqueues one config_state_drift reducer
 	// intent per state_snapshot:* scope with an active generation. Phase 3.5
 	// trigger required by the facts-first bootstrap ordering: drift consumes
@@ -423,6 +429,28 @@ func runPipelined(
 		return fmt.Errorf("reopen code_import_repo_edge fatal: %w", err)
 	}
 	recordPhase("code_import_repo_edge_reopen", codeImportReopenStart)
+
+	// Replay additive correlation domains that consume resolved relationships
+	// produced by the deployment_mapping reopen above. deployable_unit_correlation
+	// reads resolved DEPLOYS_FROM and has no readiness retry, so on the first
+	// maintenance pass (before resolution commits) it correlates nothing; a later
+	// maintenance pass — the ingester loops; the gate runs maintenance twice —
+	// replays it once resolution exists. Idempotent.
+	correlationReopenStart := time.Now()
+	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, []string{
+		"deployable_unit_correlation", // reducer.DomainDeployableUnitCorrelation
+	}); err != nil {
+		recordPhase("correlation_reopen", correlationReopenStart)
+		if logger != nil {
+			logger.ErrorContext(
+				ctx, "reopen correlation work items failed",
+				slog.String("error", err.Error()),
+				telemetry.FailureClassAttr("reopen_correlation_failure"),
+			)
+		}
+		return fmt.Errorf("reopen correlation work items fatal: %w", err)
+	}
+	recordPhase("correlation_reopen", correlationReopenStart)
 
 	// Phase 3.5: enqueue config_state_drift intents for every state_snapshot
 	// scope that has an active generation. The drift handler consumes both
