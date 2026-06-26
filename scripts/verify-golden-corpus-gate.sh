@@ -59,6 +59,9 @@ corpus_fixtures=(
 	helm_argocd_platform
 	lib-common
 	orders-api
+	deployable-source
+	deployable-config
+	api-svc
 )
 
 # 9 credentialed collectors and their B-10 cassette directories.
