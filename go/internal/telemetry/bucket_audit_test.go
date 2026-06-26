@@ -66,17 +66,17 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_scanner_worker_cpu_seconds", Buckets: []float64{0.01, 0.1, 1, 10, 30, 60, 120, 300, 600, 1800}},
 
 		// ---- reducer / projector histograms ----
-		{MetricName: "eshu_dp_reducer_run_duration_seconds", Buckets: nil},                         // default OTEL buckets
+		{MetricName: "eshu_dp_reducer_run_duration_seconds", Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900}},
 		{MetricName: "eshu_dp_reducer_queue_wait_seconds", Buckets: reducerWaitBuckets},
 		{MetricName: "eshu_dp_search_index_write_duration_seconds", Buckets: reducerWaitBuckets},
 		{MetricName: "eshu_dp_gcp_materialization_duration_seconds", Buckets: reducerWaitBuckets},
 		{MetricName: "eshu_dp_projector_run_duration_seconds", Buckets: []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
-		{MetricName: "eshu_dp_projector_stage_duration_seconds", Buckets: nil}, // default OTEL
+		{MetricName: "eshu_dp_projector_stage_duration_seconds", Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
 
-		// ---- default-bucket (no explicit) histograms ----
-		{MetricName: "eshu_dp_scope_assign_duration_seconds", Buckets: nil},
-		{MetricName: "eshu_dp_fact_emit_duration_seconds", Buckets: nil},
-		{MetricName: "eshu_dp_queue_claim_duration_seconds", Buckets: nil},
+		// ---- scope / fact / queue ----
+		{MetricName: "eshu_dp_scope_assign_duration_seconds", Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
+		{MetricName: "eshu_dp_fact_emit_duration_seconds", Buckets: []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}},
+		{MetricName: "eshu_dp_queue_claim_duration_seconds", Buckets: nil}, // sub-second ops; default OTEL buckets are adequate
 
 		// ---- generation retention ----
 		{MetricName: "eshu_dp_generation_retention_duration_seconds", Buckets: []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900}},
@@ -97,7 +97,7 @@ func bucketAuditTable() []bucketAuditEntry {
 
 		// ---- shared acceptance / projection ----
 		{MetricName: "eshu_dp_shared_acceptance_upsert_duration_seconds", Buckets: nil}, // default OTEL
-		{MetricName: "eshu_dp_shared_acceptance_lookup_duration_seconds", Buckets: nil}, // default OTEL
+		{MetricName: "eshu_dp_shared_acceptance_lookup_duration_seconds", Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
 		{MetricName: "eshu_dp_shared_projection_intent_wait_seconds", Buckets: sharedProjectionWaitBuckets()},
 		{MetricName: "eshu_dp_shared_projection_processing_seconds", Buckets: sharedProjectionProcessingBuckets},
 		{MetricName: "eshu_dp_shared_projection_step_seconds", Buckets: sharedProjectionProcessingBuckets},
