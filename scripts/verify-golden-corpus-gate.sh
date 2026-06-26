@@ -61,7 +61,6 @@ corpus_fixtures=(
 	orders-api
 	deployable-source
 	deployable-config
-	api-svc
 )
 
 # 9 credentialed collectors and their B-10 cassette directories.
@@ -373,8 +372,12 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # correlation (rc-3), which the lib-common/orders-api fixture pair plus the
 # package-registry cassette deterministically produce. The deployable-unit (rc-1),
 # the cassette-dependent correlations (rc-2/rc-4), and the 20-repo node/edge
-# tolerances stay advisory until a corpus and cassette set that produce them lands
-# (tracked as follow-ups). Promote each by adding its ID to -required-correlations.
+# tolerances: rc-1 (deployable-unit) is now required — the deployable-source +
+# deployable-config (ArgoCD) fixture pair plus the correlation reopen produce
+# CORRELATES_DEPLOYABLE_UNIT deterministically. rc-2 (RUNS_IN) and rc-4
+# (RUNS_IMAGE) stay advisory until the projector materializes the code-entity and
+# oci/k8s node families they need (tracked as follow-ups). Promote each by adding
+# its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=graph,query,timing \
@@ -382,7 +385,7 @@ gate_status=0
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
 	-required-node-labels="Repository" \
-	-required-correlations="rc-3" \
+	-required-correlations="rc-3,rc-1" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?

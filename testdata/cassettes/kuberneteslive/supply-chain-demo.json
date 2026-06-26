@@ -35,7 +35,7 @@
             "containers": [
               {
                 "name": "app",
-                "image": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+                "image": "ghcr.io/eshu-hq/supply-chain-demo:sha256-synthetic-abc123",
                 "ports": [{"container_port": 3000, "protocol": "TCP"}],
                 "env_keys": ["NODE_ENV", "VAULT_ADDR", "DATABASE_URL"]
               }
