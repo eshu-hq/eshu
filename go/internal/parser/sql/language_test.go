@@ -152,6 +152,75 @@ func TestParseMigrationTargetsFromAlterAndReferences(t *testing.T) {
 	assertSQLMigrationExists(t, gotReferences, "prisma", "SqlTable", "public.orders")
 }
 
+func TestParseMySQLBacktickQuotedIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(t, "backtick.sql", "CREATE TABLE `my_schema`.`users` (\n  `id` BIGINT NOT NULL,\n  `full_name` TEXT NOT NULL\n);\n")
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLBucketContainsName(t, got, "sql_tables", "my_schema.users")
+	assertSQLBucketContainsName(t, got, "sql_columns", "my_schema.users.id")
+	assertSQLBucketContainsName(t, got, "sql_columns", "my_schema.users.full_name")
+}
+
+func TestParseMSSQLBracketQuotedIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(t, "bracket.sql", "CREATE TABLE [dbo].[Orders] (\n  [OrderID] INT NOT NULL,\n  [CustomerName] NVARCHAR(100) NOT NULL\n);\n")
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLBucketContainsName(t, got, "sql_tables", "dbo.Orders")
+	assertSQLBucketContainsName(t, got, "sql_columns", "dbo.Orders.OrderID")
+	assertSQLBucketContainsName(t, got, "sql_columns", "dbo.Orders.CustomerName")
+}
+
+func TestParseDMLDeleteMigrationTarget(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260622_delete", "migration.sql"),
+		`DELETE FROM public.old_records WHERE created_at < '2020-01-01';
+`,
+	)
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.old_records")
+}
+
+func TestParseDMLInsertMigrationTarget(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260623_insert", "migration.sql"),
+		`INSERT INTO public.audit_log (event, data) VALUES ('migration', '{}');
+`,
+	)
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.audit_log")
+}
+
+func TestParseDMLUpdateMigrationTarget(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260624_update", "migration.sql"),
+		`UPDATE public.accounts SET active = TRUE WHERE status = 'pending';
+`,
+	)
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.accounts")
+}
+
 func parseSQLTestFile(t *testing.T, path string) map[string]any {
 	t.Helper()
 
