@@ -32,6 +32,15 @@ contract types (`Contract`, `FactKindShape`) — those are defined in the parent
 - `gopkg.in/yaml.v3` — YAML spec parsing.
 - Parent `contracttest` package — contract types are consumed by generated code.
 
+## Evidence
+- No-Regression Evidence: contracttest-gen is a build-time code generator with
+  no runtime execution path. It reads a YAML spec and writes a Go file. No
+  Cypher, concurrency, queue, database, or graph operations are involved.
+  The generator is run once per spec change, not per request or event.
+- No-Observability-Change: contracttest-gen is invoked at build time (CI gate
+  and local regeneration). No runtime telemetry, spans, metrics, or logs are
+  affected. The CI workflow produces only a pass/fail status.
+
 ## Related docs
 - `specs/collector_fact_contract.v1.yaml` — source-of-truth spec.
 - `go/internal/collector/contracttest/README.md` — parent package docs.
