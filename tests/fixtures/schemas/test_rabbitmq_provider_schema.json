@@ -1,0 +1,28 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/rabbitmq": {
+      "provider": {},
+      "resource_schemas": {
+        "rabbitmq_vhost": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true }
+            }
+          }
+        },
+        "rabbitmq_queue": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "vhost": { "type": "string", "required": true },
+              "durable": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

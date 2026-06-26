@@ -1,0 +1,40 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/google": {
+      "provider": {},
+      "resource_schemas": {
+        "google_compute_instance": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "machine_type": { "type": "string" },
+              "zone": { "type": "string", "required": true }
+            }
+          }
+        },
+        "google_storage_bucket": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "location": { "type": "string", "required": true },
+              "force_destroy": { "type": "bool" }
+            }
+          }
+        },
+        "google_container_cluster": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "initial_node_count": { "type": "number" },
+              "remove_default_node_pool": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

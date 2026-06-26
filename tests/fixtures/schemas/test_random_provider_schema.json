@@ -1,0 +1,39 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/random": {
+      "provider": {},
+      "resource_schemas": {
+        "random_string": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "length": { "type": "number", "required": true },
+              "special": { "type": "bool" },
+              "upper": { "type": "bool" }
+            }
+          }
+        },
+        "random_password": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "length": { "type": "number", "required": true },
+              "special": { "type": "bool" },
+              "numeric": { "type": "bool" }
+            }
+          }
+        },
+        "random_id": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "byte_length": { "type": "number", "required": true },
+              "prefix": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/azurerm": {
+      "provider": {},
+      "resource_schemas": {
+        "azurerm_resource_group": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "location": { "type": "string", "required": true },
+              "tags": { "type": ["map", "string"] }
+            }
+          }
+        },
+        "azurerm_kubernetes_cluster": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "dns_prefix": { "type": "string", "required": true },
+              "node_count": { "type": "number" }
+            }
+          }
+        },
+        "azurerm_key_vault": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "sku_name": { "type": "string" },
+              "soft_delete_retention_days": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

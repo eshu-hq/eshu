@@ -1,0 +1,21 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/archive": {
+      "provider": {},
+      "resource_schemas": {
+        "archive_file": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "type": { "type": "string", "required": true },
+              "source_dir": { "type": "string" },
+              "output_path": { "type": "string", "required": true },
+              "exclude_symlink_directories": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

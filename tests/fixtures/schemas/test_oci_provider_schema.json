@@ -1,0 +1,31 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/oracle/oci": {
+      "provider": {},
+      "resource_schemas": {
+        "oci_core_instance": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "availability_domain": { "type": "string", "required": true },
+              "compartment_id": { "type": "string", "required": true },
+              "shape": { "type": "string", "required": true }
+            }
+          }
+        },
+        "oci_core_vcn": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "compartment_id": { "type": "string", "required": true },
+              "cidr_block": { "type": "string", "required": true },
+              "display_name": { "type": "string" },
+              "dns_label": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

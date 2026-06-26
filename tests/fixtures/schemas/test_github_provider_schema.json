@@ -1,0 +1,30 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/integrations/github": {
+      "provider": {},
+      "resource_schemas": {
+        "github_repository": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "visibility": { "type": "string" },
+              "auto_init": { "type": "bool" }
+            }
+          }
+        },
+        "github_branch_protection": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "repository_id": { "type": "string", "required": true },
+              "pattern": { "type": "string", "required": true },
+              "require_signed_commits": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

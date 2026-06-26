@@ -1,0 +1,39 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/kubernetes": {
+      "provider": {},
+      "resource_schemas": {
+        "kubernetes_namespace": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "metadata": { "type": "block" },
+              "labels": { "type": ["map", "string"] }
+            }
+          }
+        },
+        "kubernetes_deployment": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "namespace": { "type": "string" },
+              "replicas": { "type": "number" }
+            }
+          }
+        },
+        "kubernetes_service": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "namespace": { "type": "string" },
+              "cluster_ip": { "type": "string" },
+              "type": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

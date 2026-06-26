@@ -1,0 +1,29 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/pagerduty/pagerduty": {
+      "provider": {},
+      "resource_schemas": {
+        "pagerduty_service": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "description": { "type": "string" },
+              "auto_resolve_timeout": { "type": "number" }
+            }
+          }
+        },
+        "pagerduty_escalation_policy": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "num_loops": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
