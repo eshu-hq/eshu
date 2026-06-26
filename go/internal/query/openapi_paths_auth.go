@@ -625,6 +625,20 @@ const openAPIPathsAuth = `
         "summary": "List the caller's own browser sessions",
         "description": "Returns metadata for the authenticated caller's own active browser sessions: issued/last-seen/expiry timestamps, tenant/workspace, and which row is the current session. Never returns the session hash or secret, and never returns other subjects' sessions.",
         "operationId": "listAuthSessions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of sessions to return (default 20, max 100). Invalid or missing values use the default.",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of sessions to skip before the first result (default 0).",
+            "schema": {"type": "integer", "minimum": 0, "default": 0}
+          }
+        ],
         "responses": {
           "200": {
             "description": "The caller's browser sessions.",
@@ -648,6 +662,14 @@ const openAPIPathsAuth = `
                           "revoked_at": {"type": "string", "format": "date-time"}
                         }
                       }
+                    },
+                    "prev": {
+                      "type": "string",
+                      "description": "Relative URL to the previous page of results. Present only when offset > 0."
+                    },
+                    "next": {
+                      "type": "string",
+                      "description": "Relative URL to the next page of results. Present only when more results exist."
                     }
                   }
                 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -35,8 +36,16 @@ type BrowserSessionLister interface {
 	// sessionHash parameter is used server-side to compute the Current boolean;
 	// it is never selected or returned in the results. Pass "" when no session
 	// cookie is available; no row will be marked current.
-	ListSessionsBySubject(ctx context.Context, subjectIDHash string, asOf time.Time, sessionHash string) ([]BrowserSessionListItem, error)
+	//
+	// limit caps the page size. The store may return up to limit+1 rows to
+	// detect truncation. offset skips that many rows before the page.
+	ListSessionsBySubject(ctx context.Context, subjectIDHash string, asOf time.Time, sessionHash string, limit int, offset int) ([]BrowserSessionListItem, error)
 }
+
+const (
+	defaultSessionListLimit = 20
+	maxSessionListLimit     = 100
+)
 
 // BrowserSessionListHandler serves GET /api/v0/auth/sessions, returning
 // metadata-only rows for the caller's own browser sessions.
@@ -77,8 +86,10 @@ func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r 
 	// current. The raw cookie value is never forwarded to the store.
 	sessionHash, _ := browserSessionHashFromCookie(r)
 
+	limit, offset := parseSessionListPagination(r)
+
 	now := h.now()
-	items, err := h.Store.ListSessionsBySubject(r.Context(), auth.SubjectIDHash, now, sessionHash)
+	items, err := h.Store.ListSessionsBySubject(r.Context(), auth.SubjectIDHash, now, sessionHash, limit, offset)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "list browser sessions failed", "err", err)
 		WriteError(w, http.StatusInternalServerError, "failed to list browser sessions")
@@ -94,6 +105,11 @@ func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r 
 		WorkspaceID       string     `json:"workspace_id,omitempty"`
 		Current           bool       `json:"current"`
 		RevokedAt         *time.Time `json:"revoked_at,omitempty"`
+	}
+
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
 	}
 
 	out := make([]sessionJSON, 0, len(items))
@@ -114,5 +130,41 @@ func (h *BrowserSessionListHandler) handleListSessions(w http.ResponseWriter, r 
 		out = append(out, s)
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{"sessions": out})
+	response := map[string]any{"sessions": out}
+	if offset > 0 {
+		prevLimit := limit
+		prevOffset := offset - limit
+		if prevOffset < 0 {
+			prevOffset = 0
+			prevLimit = offset
+		}
+		response["prev"] = formatSessionListLink(prevLimit, prevOffset)
+	}
+	if hasMore {
+		response["next"] = formatSessionListLink(limit, offset+limit)
+	}
+
+	WriteJSON(w, http.StatusOK, response)
+}
+
+func parseSessionListPagination(r *http.Request) (limit int, offset int) {
+	limit = defaultSessionListLimit
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > maxSessionListLimit {
+		limit = maxSessionListLimit
+	}
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	return limit, offset
+}
+
+func formatSessionListLink(limit, offset int) string {
+	return "?limit=" + strconv.Itoa(limit) + "&offset=" + strconv.Itoa(offset)
 }

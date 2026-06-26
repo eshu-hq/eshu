@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+const (
+	defaultBrowserSessionListLimit = 20
+	maxBrowserSessionListLimit     = 100
+)
+
 // BrowserSessionListItem is the metadata-only view of one browser session that
 // is safe to return to the owning subject. It never includes session_hash,
 // csrf_token_hash, or external auth secrets. Current is computed server-side
@@ -34,6 +39,7 @@ type BrowserSessionListItem struct {
 // used only to compute the "current" boolean — it is never SELECTed into the
 // result set. No session_hash, csrf_token_hash, or external identity values
 // appear in the output columns.
+// Parameters: $1 = subject_id_hash, $2 = session_hash, $3 = limit, $4 = offset.
 const listBrowserSessionsBySubjectQuery = `
 SELECT
     issued_at,
@@ -46,8 +52,8 @@ SELECT
     (session_hash = $2) AS current
 FROM browser_sessions
 WHERE subject_id_hash = $1
-ORDER BY issued_at DESC
-LIMIT 200
+ORDER BY issued_at DESC, session_hash DESC
+LIMIT $3 OFFSET $4
 `
 
 // ListSessionsBySubject returns metadata-only browser session rows for the
@@ -64,6 +70,8 @@ func (s *BrowserSessionStore) ListSessionsBySubject(
 	subjectIDHash string,
 	asOf time.Time,
 	sessionHash string,
+	limit int,
+	offset int,
 ) ([]BrowserSessionListItem, error) {
 	if s.db == nil {
 		return nil, errors.New("browser session store database is required")
@@ -75,7 +83,17 @@ func (s *BrowserSessionStore) ListSessionsBySubject(
 	if asOf.IsZero() {
 		return nil, errors.New("as_of is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, sessionHash)
+	if limit <= 0 {
+		limit = defaultBrowserSessionListLimit
+	}
+	if limit > maxBrowserSessionListLimit {
+		limit = maxBrowserSessionListLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	// Request limit+1 rows to detect whether more pages exist.
+	rows, err := s.db.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, sessionHash, limit+1, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list browser sessions by subject: %w", err)
 	}

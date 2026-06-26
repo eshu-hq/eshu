@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -33,6 +34,8 @@ func (s *fakeBrowserSessionListStore) ListSessionsBySubject(
 	subjectIDHash string,
 	_ time.Time,
 	_ string,
+	_ int,
+	_ int,
 ) ([]BrowserSessionListItem, error) {
 	s.capturedSubject = subjectIDHash
 	if s.listErr != nil {
@@ -166,6 +169,101 @@ func TestBrowserSessionListHandlerReturnsSessions(t *testing.T) {
 	// Verify the handler forwarded the correct subject hash to the store.
 	if store.capturedSubject != "subject-hash-a" {
 		t.Errorf("store received subject %q, want subject-hash-a", store.capturedSubject)
+	}
+}
+
+func TestBrowserSessionListHandlerPagination(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 24, 10, 0, 0, 0, time.UTC)
+	// Return 3 sessions when limit=2 (limit+1 to trigger truncation).
+	store := &fakeBrowserSessionListStore{
+		sessionsBySubject: map[string][]BrowserSessionListItem{
+			"subject-hash-a": {
+				{IssuedAt: now, LastSeenAt: now, IdleExpiresAt: now, AbsoluteExpiresAt: now, TenantID: "t", WorkspaceID: "w"},
+				{IssuedAt: now, LastSeenAt: now, IdleExpiresAt: now, AbsoluteExpiresAt: now, TenantID: "t", WorkspaceID: "w"},
+				{IssuedAt: now, LastSeenAt: now, IdleExpiresAt: now, AbsoluteExpiresAt: now, TenantID: "t", WorkspaceID: "w"},
+			},
+		},
+	}
+	handler := &BrowserSessionListHandler{Store: store, Now: func() time.Time { return now }}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/sessions?limit=2&offset=0", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:          AuthModeBrowserSession,
+		SubjectIDHash: "subject-hash-a",
+	}))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	sessions, _ := resp["sessions"].([]any)
+	if len(sessions) != 2 {
+		t.Fatalf("sessions len = %d, want 2 (truncated from 3 by limit)", len(sessions))
+	}
+	next, _ := resp["next"].(string)
+	if next == "" {
+		t.Fatal("expected next link when limit+1 items returned")
+	}
+	if !strings.Contains(next, "limit=2") || !strings.Contains(next, "offset=2") {
+		t.Fatalf("next link = %q, want limit=2&offset=2", next)
+	}
+
+	prev, _ := resp["prev"].(string)
+	if prev != "" {
+		t.Fatalf("prev link should be empty when offset=0, got %q", prev)
+	}
+}
+
+func TestBrowserSessionListHandlerPaginationPrevLink(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 24, 10, 0, 0, 0, time.UTC)
+	store := &fakeBrowserSessionListStore{
+		sessionsBySubject: map[string][]BrowserSessionListItem{
+			"subject-hash-a": {
+				{IssuedAt: now, LastSeenAt: now, IdleExpiresAt: now, AbsoluteExpiresAt: now, TenantID: "t", WorkspaceID: "w"},
+			},
+		},
+	}
+	handler := &BrowserSessionListHandler{Store: store, Now: func() time.Time { return now }}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	// Request page 2 (offset=2, limit=2).
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/sessions?limit=2&offset=2", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:          AuthModeBrowserSession,
+		SubjectIDHash: "subject-hash-a",
+	}))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	prev, _ := resp["prev"].(string)
+	if prev == "" {
+		t.Fatal("expected prev link when offset > 0")
+	}
+	if !strings.Contains(prev, "limit=2") || !strings.Contains(prev, "offset=0") {
+		t.Fatalf("prev link = %q, want limit=2&offset=0", prev)
+	}
+	next, _ := resp["next"].(string)
+	if next != "" {
+		t.Fatalf("next link should be empty when no more results, got %q", next)
 	}
 }
 

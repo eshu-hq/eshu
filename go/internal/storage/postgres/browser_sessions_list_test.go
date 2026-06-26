@@ -71,8 +71,11 @@ func TestBrowserSessionStoreListSessionsBySubjectQueryIncludesRequiredClauses(t 
 	if !strings.Contains(q, "$2") {
 		t.Error("listBrowserSessionsBySubjectQuery must accept sessionHash parameter ($2) for current-session comparison")
 	}
-	if strings.Contains(q, "$3") {
-		t.Error("listBrowserSessionsBySubjectQuery must not use $3 (only $1 subject + $2 sessionHash)")
+	if !strings.Contains(q, "$3") {
+		t.Error("listBrowserSessionsBySubjectQuery must accept limit parameter ($3)")
+	}
+	if !strings.Contains(q, "$4") {
+		t.Error("listBrowserSessionsBySubjectQuery must accept offset parameter ($4)")
 	}
 }
 
@@ -82,7 +85,7 @@ func TestBrowserSessionStoreListSessionsBySubjectNilDatabase(t *testing.T) {
 	t.Parallel()
 
 	store := &BrowserSessionStore{db: nil}
-	_, err := store.ListSessionsBySubject(nil, "subject-hash", time.Now(), "") //nolint:staticcheck
+	_, err := store.ListSessionsBySubject(nil, "subject-hash", time.Now(), "", 20, 0) //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for nil database, got nil")
 	}
@@ -97,10 +100,10 @@ func TestBrowserSessionStoreListSessionsBySubjectRejectsBlankInputs(t *testing.T
 	store := &BrowserSessionStore{db: db}
 	now := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
 
-	if _, err := store.ListSessionsBySubject(nil, "", now, ""); err == nil { //nolint:staticcheck
+	if _, err := store.ListSessionsBySubject(nil, "", now, "", 20, 0); err == nil { //nolint:staticcheck
 		t.Fatal("expected error for blank subject hash")
 	}
-	if _, err := store.ListSessionsBySubject(nil, "subject-hash", time.Time{}, ""); err == nil { //nolint:staticcheck
+	if _, err := store.ListSessionsBySubject(nil, "subject-hash", time.Time{}, "", 20, 0); err == nil { //nolint:staticcheck
 		t.Fatal("expected error for zero asOf")
 	}
 }
