@@ -72,6 +72,9 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 		if fn.classContext != "" {
 			item["class_context"] = fn.classContext
 		}
+		if fn.isFactory {
+			item["factory"] = true
+		}
 		if len(fn.decorators) > 0 {
 			item["decorators"] = slices.Clone(fn.decorators)
 		}
