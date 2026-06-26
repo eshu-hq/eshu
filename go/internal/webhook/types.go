@@ -19,6 +19,10 @@ const (
 	ProviderPagerDuty Provider = "pagerduty"
 	// ProviderJira identifies webhook events emitted by Jira Cloud.
 	ProviderJira Provider = "jira_cloud"
+	// ProviderAzureDevOps identifies webhook events emitted by Azure DevOps Services.
+	ProviderAzureDevOps Provider = "azure_devops"
+	// ProviderJenkins identifies webhook events emitted by Jenkins.
+	ProviderJenkins Provider = "jenkins"
 )
 
 // EventKind names the normalized event category that can trigger refresh work.
