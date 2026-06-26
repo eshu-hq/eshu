@@ -2,7 +2,7 @@ version: scale-benchmark-artifact/v1
 updated_at: 2026-06-20
 parent_issue: 3169
 issue: 3171
-gate_status: proposed
+gate_status: operational
 purpose: >
   Define the public-safe benchmark artifact contract for large-corpus fact
   ingestion, reducer drain, graph-write, API, and MCP performance proof.
