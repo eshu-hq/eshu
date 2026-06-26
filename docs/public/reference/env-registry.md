@@ -11,6 +11,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_API_ADDR` | string | `:8080` | API server listen address. |
 | `ESHU_API_KEY` | string | — | Bearer token for API authentication. |
 | `ESHU_API_SHUTDOWN_TIMEOUT` | duration | `30s` | Graceful shutdown deadline for the API HTTP server; an explicit 5 s setting is honored for backwards compatibility. |
+| `ESHU_API_V0_SUNSET_DATE` | string | `Thu, 01 Jul 2027 00:00:00 GMT` | RFC 1123 GMT date after which /api/v0/ routes may be removed. Passed through as-is in the Sunset response header on every /api/v0/ response. |
 | `ESHU_AUTH_OIDC_CONFIG_FILE` | string | — | Path to an operator-managed OIDC login config file. When set and not disabled, the API enables backend Authorization Code login and reads provider/client/group-role mapping handles from this file. |
 | `ESHU_AUTH_OIDC_ENABLED` | bool | `false` | Explicitly enables or disables backend OIDC login. Set true with ESHU_AUTH_OIDC_CONFIG_FILE to require OIDC startup config; set false to disable even when a config file is present. |
 | `ESHU_AUTH_OIDC_LOGIN_PROVIDER_BURST` | int | `10` | Maximum burst size for the per-provider OIDC login rate limiter. |

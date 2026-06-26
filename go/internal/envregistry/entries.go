@@ -69,6 +69,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_HOME", Type: VarString, Subsystem: "api", Description: "Root directory for persisted API key and configuration (defaults to ~/.eshu)."},
 	{Name: "ESHU_QUERY_PROFILE", Type: VarEnum, Default: "production", Subsystem: "api", Allowed: []string{"production", "local_authoritative", "local_lightweight"}, Description: "Query execution profile."},
 	{Name: "ESHU_SCOPED_TOKENS_FILE", Type: VarString, Subsystem: "api", Description: "Path to an operator-managed scoped-token registry file; API and MCP fail closed if the configured file is malformed or unreadable."},
+	{Name: "ESHU_API_V0_SUNSET_DATE", Type: VarString, Default: "Thu, 01 Jul 2027 00:00:00 GMT", Subsystem: "api", Description: "RFC 1123 GMT date after which /api/v0/ routes may be removed. Passed through as-is in the Sunset response header on every /api/v0/ response."},
 	{Name: "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, serve GET /api/v0/supply-chain/impact/findings from the maintained canonical winners read model (#3389) instead of read-time dedup (bounded O(page)). Honored by both the API and MCP server; enable only after the reducer maintainer has populated the winners table. Output is byte-identical."},
 
 	// mcp

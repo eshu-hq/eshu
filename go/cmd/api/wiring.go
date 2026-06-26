@@ -258,7 +258,13 @@ func wireAPI(
 	// browser-session route classification sees the v0 path.
 	// Must wrap authedMux (not be wrapped by it) because wrapAPIAuth
 	// puts auth as the outer layer.
-	final := v1PrefixAliasMiddleware(authedMux)
+	v1Rewritten := v1PrefixAliasMiddleware(authedMux)
+
+	// Add Deprecation + Sunset headers to /api/v0/* responses. Must be
+	// the outermost layer so it sees the original request path before
+	// the v1→v0 rewrite transforms /api/v1/* paths.
+	sunsetDate := readSunsetDate(getenv)
+	final := deprecationHeadersMiddleware(v1Rewritten, sunsetDate)
 
 	// Install the fully-wrapped handler into the Ask runner's deferred
 	// handler so inner tool dispatches re-run auth + the scoped-route
@@ -542,4 +548,29 @@ func v1PrefixAliasMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// deprecationHeadersMiddleware adds Deprecation: true and Sunset: <date>
+// headers to every response whose request path starts with /api/v0/.
+// It is applied BEFORE the v1→v0 rewrite middleware so /api/v1/ requests
+// never carry the headers. Headers are set before the next handler runs,
+// so they appear on error responses too.
+func deprecationHeadersMiddleware(next http.Handler, sunset string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v0/") {
+			w.Header().Set("Deprecation", "true")
+			w.Header().Set("Sunset", sunset)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// readSunsetDate returns the date for the Sunset response header, read from
+// ESHU_API_V0_SUNSET_DATE, or the default 12-month window. The value is used
+// as-is in the header; operators should supply a valid RFC 1123 GMT date.
+func readSunsetDate(getenv func(string) string) string {
+	if v := getenv("ESHU_API_V0_SUNSET_DATE"); v != "" {
+		return v
+	}
+	return "Thu, 01 Jul 2027 00:00:00 GMT"
 }
