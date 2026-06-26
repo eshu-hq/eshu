@@ -248,16 +248,18 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
+	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, mux, adminRecoveryAuditAppender(governanceAudit))
+
 	// Rewrite /api/v1/* to /api/v0/* before auth so scoped-token and
 	// browser-session route classification sees the v0 path.
-	v1Rewritten := v1PrefixAliasMiddleware(mux)
+	// Must wrap authedMux (not be wrapped by it) because wrapAPIAuth
+	// puts auth as the outer layer.
+	final := v1PrefixAliasMiddleware(authedMux)
 
-	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, v1Rewritten, adminRecoveryAuditAppender(governanceAudit))
-
-	// Install the fully-wrapped handler into the Ask runner's deferred handler so
-	// inner tool dispatches re-run auth + the scoped-route gate under the caller's
-	// token. Done before returning, hence before any request is served.
-	askInnerHandler.Set(authedMux)
+	// Install the fully-wrapped handler into the Ask runner's deferred
+	// handler so inner tool dispatches re-run auth + the scoped-route
+	// gate under the caller's token.
+	askInnerHandler.Set(final)
 
 	cleanup := func() {
 		_ = db.Close()
@@ -266,7 +268,7 @@ func wireAPI(
 		}
 	}
 
-	return authedMux, cleanup, instruments, nil
+	return final, cleanup, instruments, nil
 }
 
 func openQueryGraph(
