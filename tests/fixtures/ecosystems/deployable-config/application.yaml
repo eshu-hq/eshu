@@ -1,0 +1,18 @@
+# ArgoCD Application deploying the in-corpus deployable-source repo. The
+# spec.source.repoURL points at deployable-source's synthesized remote
+# (ESHU_GITHUB_ORG=acme), so relationship evidence (DEPLOYS_FROM) links this
+# deployment-config repo to the source repo -> CORRELATES_DEPLOYABLE_UNIT (rc-1).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: deployable-source
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/acme/deployable-source
+    path: k8s
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
