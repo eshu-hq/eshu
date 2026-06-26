@@ -486,3 +486,54 @@ on phase at 3 AM.
 covers. New reducer projection stages, new shared-edge writers, and new
 graph-write statement phases all flow through this contract; the X2 script
 is the machine-enforced gate.
+
+<!-- eshu:metric:section=histogram-buckets -->
+## Histogram Bucket Boundaries
+
+Each documented bucket set maps a short name to the exact boundary values used
+in `go/internal/telemetry/instruments.go`. The X2 verifier asserts that every
+`WithExplicitBucketBoundaries(...)` call in instruments.go matches a documented
+set, and every documented set has a matching variable in the code.
+
+| set_name | boundary_values |
+| --- | --- |
+| collector-seconds | 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60 |
+| workflow-claim-wait-seconds | 0, 0.1, 0.5, 1, 5, 10, 30, 60, 300, 900, 1800, 3600 |
+| tfstate-snapshot-bytes | 1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600 |
+| tfstate-parse-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
+| oci-registry-scan-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
+| dependency-list-seconds | 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
+| fetch-duration-seconds | 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60 |
+| queue-wait-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600 |
+| scanner-worker-scan-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1200 |
+| scanner-worker-count | 1, 10, 100, 1000, 10000, 100000 |
+| scanner-worker-cpu-seconds | 0.01, 0.1, 1, 10, 30, 60, 120, 300, 600, 1800 |
+| scanner-worker-memory-bytes | 1048576, 16777216, 67108864, 268435456, 1073741824, 2147483648, 4294967296, 8589934592, 17179869184 |
+| aws-scan-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300 |
+| scope-assign-seconds | 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
+| fact-emit-seconds | 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300 |
+| projector-run-seconds | 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
+| projector-stage-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
+| reducer-run-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900 |
+| retention-duration-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900 |
+| retention-batch-count | 1, 2, 4, 8, 16, 32, 64, 100 |
+| retention-age-seconds | 3600, 21600, 43200, 86400, 259200, 604800, 1209600, 2592000, 7776000 |
+| postgres-query-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5 |
+| canonical-phase-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
+| acceptance-lookup-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
+| acceptance-prefetch-count | 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 |
+| shared-projection-processing-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60 |
+| collector-stage-seconds | 0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
+| scip-process-wait-seconds | 0, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60 |
+| generation-fact-count | 10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 300000 |
+| large-repo-semaphore-seconds | 0, 0.1, 0.5, 1, 5, 10, 30, 60, 120, 300 |
+| batch-claim-count | 1, 4, 8, 16, 32, 64, 128 |
+| neo4j-batch-count | 1, 10, 50, 100, 250, 500, 1000 |
+| shared-edge-statement-count | 1, 2, 4, 8, 16, 32, 64, 128 |
+| code-call-edge-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
+| cross-repo-resolution-seconds | 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
+| bootstrap-phase-seconds | 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600 |
+| workflow-claim-run-seconds | 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800 |
+| pipeline-overlap-seconds | 1, 5, 10, 30, 60, 120, 300, 600, 1800 |
+| shutdown-duration-seconds | 0.5, 1, 2.5, 5, 10, 30, 60 |
+| deferred-backfill-partition-workers-count | 1, 2, 4, 8, 16, 32 |

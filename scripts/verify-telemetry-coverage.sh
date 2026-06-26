@@ -164,7 +164,7 @@ fi
 # or TODO, which would defeat the "every stage must register telemetry"
 # policy. Format: <file> <signal> where signal is 1 or 0.
 doc_row_signals_tmp="$(mktemp)"
-trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp"' EXIT
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp"' EXIT
 : >"$doc_row_signals_tmp"
 if [ -s "$all_rows_tmp" ]; then
   while IFS= read -r row; do
@@ -242,6 +242,75 @@ while IFS= read -r file; do
     drift=1
   fi
 done <"$new_stages_tmp"
+
+# (4) Histogram bucket boundary assertion.
+# Parse documented bucket sets from the X1 doc's histogram-buckets section
+# and bucket boundary definitions from instruments.go. Normalize both to
+# canonical form (sorted numbers, no whitespace) and assert bidirectional
+# agreement: every code bucket set must match a doc row, and vice versa.
+canonicalize_buckets() {
+  printf '%s' "$1" | tr -d '[:space:]' | tr ',' '\n' | sort -n | paste -sd ',' -
+}
+
+doc_buckets_tmp="$(mktemp)"
+code_buckets_tmp="$(mktemp)"
+
+# 4a: Parse documented bucket sets from the histogram-buckets section.
+section_line=$(rg -n '<!-- eshu:metric:section=histogram-buckets -->' "$repo_root/$doc_path" | head -1 | cut -d: -f1 || true)
+if [ -n "$section_line" ]; then
+  next_section_line=$(rg -n '<!-- eshu:metric:section=' "$repo_root/$doc_path" | \
+    awk -F: -v s="$section_line" '$1 > s {print $1; exit}' || true)
+  [ -z "$next_section_line" ] && next_section_line=$(( $(wc -l < "$repo_root/$doc_path") + 1 ))
+  sed -n "$((section_line + 1)),$((next_section_line - 1))p" "$repo_root/$doc_path" | \
+    while IFS= read -r line; do
+      printf '%s' "$line" | rg -q '^\|[-:|[:space:]]+\|' && continue
+      if printf '%s' "$line" | rg -q '^\|.*\|.*[0-9].*\|'; then
+        boundaries=$(printf '%s' "$line" | sed -n 's/^|[^|]*|\([^|]*\)|$/\1/p')
+        if [ -n "$boundaries" ]; then
+          boundaries=$(printf '%s' "$boundaries" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          canonicalize_buckets "$boundaries"
+        fi
+      fi
+    done | sort -u >"$doc_buckets_tmp" 2>/dev/null || true
+fi
+
+# 4b: Parse bucket boundary definitions from instruments.go.
+# Named variables: var name = []float64{...}
+: >"$code_buckets_tmp"
+rg -UPo '=\s*\[\]float64\{([^}]+)\}' --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | \
+  while IFS= read -r raw_set; do
+    [ -n "$raw_set" ] && canonicalize_buckets "$raw_set" >>"$code_buckets_tmp"
+  done || true
+# Inline literals: WithExplicitBucketBoundaries(1, 2, 4, ...)
+# Filter out variable references by requiring the capture to contain only
+# digits, commas, dots, and spaces (no letters or underscores — variable
+# names like neo4jBatchBuckets contain digits but are not literal values).
+rg -UPo 'WithExplicitBucketBoundaries\(([^)]+)\)' --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | \
+  sed 's/\.\.\.$//' | while IFS= read -r raw_set; do
+    if ! printf '%s' "$raw_set" | rg -q '[a-zA-Z_]'; then
+      canonicalize_buckets "$raw_set" >>"$code_buckets_tmp"
+    fi
+  done || true
+sort -u -o "$code_buckets_tmp" "$code_buckets_tmp"
+
+# 4c: Bidirectional assertion.
+# Every code bucket set must have a matching documented set.
+while IFS= read -r code_set; do
+  [ -n "$code_set" ] || continue
+  if ! rg -qx "$code_set" "$doc_buckets_tmp"; then
+    report="${report}  - bucket set [${code_set}] is in ${instruments_path} but not documented in ${doc_path}\n"
+    drift=1
+  fi
+done <"$code_buckets_tmp"
+
+# Every documented bucket set must have a matching code definition.
+while IFS= read -r doc_set; do
+  [ -n "$doc_set" ] || continue
+  if ! rg -qx "$doc_set" "$code_buckets_tmp"; then
+    report="${report}  - bucket set [${doc_set}] is documented in ${doc_path} but not defined in ${instruments_path}\n"
+    drift=1
+  fi
+done <"$doc_buckets_tmp"
 
 if [ "$drift" -ne 0 ]; then
   {

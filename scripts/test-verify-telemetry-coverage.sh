@@ -269,6 +269,78 @@ else
   record_pass "merge-base fallback flags a stage added before HEAD~1"
 fi
 
+# Case 11: clean bucket sets pass. Add a histogram with explicit buckets to
+# instruments.go and a matching histogram-buckets doc section, plus a row in
+# the main table so check (2) doesn't flag the new metric as undocumented.
+# The verifier must confirm bidirectional bucket agreement.
+case_buckets_clean="$(init_repo case-buckets-clean)"
+cat >>"${case_buckets_clean}/go/internal/telemetry/instruments.go" <<'GO'
+	if _, err := meter.Float64Histogram(
+		"eshu_dp_test_histogram_seconds",
+		metric.WithDescription("test histogram"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(1, 10, 100),
+	); err != nil {
+		return nil, err
+	}
+GO
+cat >>"${case_buckets_clean}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| test histogram | go/internal/telemetry/instruments.go:99 | `eshu_dp_test_histogram_seconds` | test |
+
+<!-- eshu:metric:section=histogram-buckets -->
+## Histogram Bucket Boundaries
+
+| set_name | boundary_values |
+| --- | --- |
+| test-histogram-seconds | 1, 10, 100 |
+MD
+git -C "${case_buckets_clean}" add .
+git -C "${case_buckets_clean}" commit -q -m "add histogram with doc row and bucket section"
+expect_pass "passes when bucket sets agree between doc and code" "${case_buckets_clean}"
+
+# Case 12: undocumented bucket set fails. Add a bucket set to instruments.go
+# that is NOT in the doc's histogram-buckets section.
+case_buckets_undocumented="$(init_repo case-buckets-undocumented)"
+cat >>"${case_buckets_undocumented}/go/internal/telemetry/instruments.go" <<'GO'
+	if _, err := meter.Float64Histogram(
+		"eshu_dp_undocumented_histogram_seconds",
+		metric.WithDescription("undocumented histogram"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(5, 50, 500),
+	); err != nil {
+		return nil, err
+	}
+GO
+cat >>"${case_buckets_undocumented}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+<!-- eshu:metric:section=histogram-buckets -->
+## Histogram Bucket Boundaries
+
+| set_name | boundary_values |
+| --- | --- |
+| known-set-seconds | 1, 10, 100 |
+MD
+git -C "${case_buckets_undocumented}" add .
+git -C "${case_buckets_undocumented}" commit -q -m "add undocumented bucket set"
+expect_fail "fails when code has bucket set not in doc" "${case_buckets_undocumented}"
+
+# Case 13: documented bucket set missing from code fails. Add a bucket set
+# to the doc that does NOT exist in instruments.go.
+case_buckets_missing="$(init_repo case-buckets-missing)"
+cat >>"${case_buckets_missing}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+<!-- eshu:metric:section=histogram-buckets -->
+## Histogram Bucket Boundaries
+
+| set_name | boundary_values |
+| --- | --- |
+| ghost-histogram-seconds | 7, 77, 777 |
+MD
+git -C "${case_buckets_missing}" add .
+git -C "${case_buckets_missing}" commit -q -m "add ghost bucket set to doc"
+expect_fail "fails when doc has bucket set missing from code" "${case_buckets_missing}"
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1
