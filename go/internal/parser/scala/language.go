@@ -57,15 +57,17 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 			}
 			appendScalaVariables(payload, node, source)
 		case "import_declaration":
-			name := scalaImportName(node, source)
-			if strings.TrimSpace(name) == "" {
-				return
+			names := scalaImportNames(node, source)
+			for _, name := range names {
+				if strings.TrimSpace(name) == "" {
+					continue
+				}
+				shared.AppendBucket(payload, "imports", map[string]any{
+					"name":        name,
+					"line_number": shared.NodeLine(node),
+					"lang":        "scala",
+				})
 			}
-			shared.AppendBucket(payload, "imports", map[string]any{
-				"name":        name,
-				"line_number": shared.NodeLine(node),
-				"lang":        "scala",
-			})
 		case "call_expression":
 			appendCall(payload, scalaCallNameNode(node), source, "scala")
 		}
@@ -111,18 +113,82 @@ func appendScalaVariables(payload map[string]any, node *tree_sitter.Node, source
 	}
 }
 
-func scalaImportName(node *tree_sitter.Node, source []byte) string {
+func scalaImportNames(node *tree_sitter.Node, source []byte) []string {
 	cursor := node.Walk()
 	defer cursor.Close()
-	var parts []string
+	var prefix []string
+	var results []string
 	for _, child := range node.NamedChildren(cursor) {
 		child := child
-		if child.Kind() != "identifier" {
-			continue
+		switch child.Kind() {
+		case "identifier":
+			prefix = append(prefix, shared.NodeText(&child, source))
+		case "namespace_selectors":
+			selectors := scalaImportSelectorNames(&child, source, prefix)
+			results = append(results, selectors...)
+		case "namespace_wildcard":
+			base := strings.Join(prefix, ".")
+			if base != "" {
+				base += "."
+			}
+			results = append(results, base+"_")
+		case "arrow_renamed_identifier", "as_renamed_identifier":
+			name := scalaRenamedImportAlias(&child, source, prefix)
+			if name != "" {
+				results = append(results, name)
+			}
 		}
-		parts = append(parts, shared.NodeText(&child, source))
 	}
-	return strings.Join(parts, ".")
+	if len(results) == 0 && len(prefix) > 0 {
+		return []string{strings.Join(prefix, ".")}
+	}
+	return results
+}
+
+func scalaImportSelectorNames(node *tree_sitter.Node, source []byte, prefix []string) []string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	var names []string
+	base := strings.Join(prefix, ".")
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "identifier":
+			if base != "" {
+				names = append(names, base+"."+shared.NodeText(&child, source))
+			} else {
+				names = append(names, shared.NodeText(&child, source))
+			}
+		case "arrow_renamed_identifier", "as_renamed_identifier":
+			name := scalaRenamedImportAlias(&child, source, prefix)
+			if name != "" {
+				names = append(names, name)
+			}
+		case "namespace_wildcard":
+			if base != "" {
+				names = append(names, base+"._")
+			} else {
+				names = append(names, "_")
+			}
+		}
+	}
+	return names
+}
+
+func scalaRenamedImportAlias(node *tree_sitter.Node, source []byte, prefix []string) string {
+	aliasNode := node.ChildByFieldName("alias")
+	if aliasNode == nil {
+		return ""
+	}
+	alias := shared.NodeText(aliasNode, source)
+	if strings.TrimSpace(alias) == "" {
+		return ""
+	}
+	base := strings.Join(prefix, ".")
+	if base != "" {
+		base += "."
+	}
+	return base + alias
 }
 
 func scalaCallNameNode(node *tree_sitter.Node) *tree_sitter.Node {
