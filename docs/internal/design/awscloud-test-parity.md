@@ -10,7 +10,8 @@ The original framing ("8.5% test ratio") measured only the flat top-level
 static lookup tables with no behavior to unit-test.
 
 Verified current state (commit `0f4c8a8c`):
-- Whole tree: 722 test / 1,510 non-test files (≈32%).
+- Whole tree: 722 test files, 1,510 non-test files
+  (test/non-test ≈ 48%; test/total = 722/2,232 ≈ 32%).
 - All 134 service subdirs under `services/` have tests.
 - Every priority service named below already has `scanner_test.go` plus
   supplementary test files.
@@ -51,7 +52,7 @@ For each priority service:
 | AWS_USES_KMS_KEY | `TestScannerEmitsS3MetadataOnlyBucketFactsAndLoggingRelationships` (line 74-75, `kms_master_key_ids` attribute; line 26-28, KMS encryption rule) | KMS key is optional; scanner handles unencrypted buckets (no KMS key emitted). Verified by absence of `kms_master_key_ids` in unencrypted fixtures. | Covered |
 
 ### Test files
-- `services/s3/scanner_test.go`: 10 test functions (plus partition, resource-policy, servicekind tests).
+- `services/s3/scanner_test.go`: 6 test functions (plus partition, resource-policy, servicekind tests).
 - `services/s3/partition_test.go`: partition derivation tests.
 - `services/s3/resource_policy_scanner_test.go`: resource-policy-permission tests.
 - `services/s3/servicekind_test.go`: service-kind canonicalization tests.
@@ -107,7 +108,7 @@ For each priority service:
 | RUNS_ON | `TestScannerEmitsNetworkTopologyWithoutInstanceFacts` (line 143-149, `ec2_network_interface_attached_to_resource` with instance ARN); `TestScannerEmitsInstancePostureFactsWithoutInventory` (line 172-176, block-device list) | Attachment is optional (not all ENIs are attached); the scanner handles nil attachment. | Covered |
 
 ### Test files
-- `services/ec2/scanner_test.go`: 4 test functions.
+- `services/ec2/scanner_test.go`: 3 test functions.
 - `services/ec2/volume_test.go`: EBS volume tests.
 - `services/ec2/servicekind_test.go`: service-kind tests.
 - `services/ec2/awssdk/`: adapter tests for VPC, subnet, security-group, ENI, instance, volume, and rule mapping.
@@ -186,13 +187,13 @@ For each priority service:
 | user_group_has_user | `TestScannerEmitsElastiCacheMetadataOnlyFactsAndRelationships` (line 239) | Empty UserIDs emits no relationships. | Covered |
 
 ### Test files (Glue)
-- `services/glue/scanner_test.go`: 8 test functions.
+- `services/glue/scanner_test.go`: 10 test functions.
 - `services/glue/relationships_test.go`: partition derivation test.
 - `services/glue/servicekind_test.go`: service-kind tests.
 - `services/glue/awssdk/`: adapter tests for database, table, crawler, job, trigger, workflow, connection mapping.
 
 ### Test files (ElastiCache)
-- `services/elasticache/scanner_test.go`: 5 test functions.
+- `services/elasticache/scanner_test.go`: 6 test functions.
 - `services/elasticache/servicekind_test.go`: service-kind tests.
 - `services/elasticache/awssdk/`: adapter tests for cache cluster, replication group, user, snapshot mapping.
 
