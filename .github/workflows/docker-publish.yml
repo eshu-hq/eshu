@@ -274,10 +274,10 @@ jobs:
 
       - name: Compare builds
         run: |
-          find /tmp/out1 -type f -exec sha256sum {} \; | sort -k2 > /tmp/out1.sha256
-          find /tmp/out2 -type f -exec sha256sum {} \; | sort -k2 > /tmp/out2.sha256
-          grep '/usr/local/bin/' /tmp/out1.sha256 | sort -k2 > /tmp/out1.binaries.sha256
-          grep '/usr/local/bin/' /tmp/out2.sha256 | sort -k2 > /tmp/out2.binaries.sha256
+          (cd /tmp/out1 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out1.sha256
+          (cd /tmp/out2 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out2.sha256
+          grep './usr/local/bin/' /tmp/out1.sha256 | sort -k2 > /tmp/out1.binaries.sha256
+          grep './usr/local/bin/' /tmp/out2.sha256 | sort -k2 > /tmp/out2.binaries.sha256
           if ! diff /tmp/out1.binaries.sha256 /tmp/out2.binaries.sha256; then
             echo "::error::Go binaries differ across builds. Reproducibility failed."
             exit 1
