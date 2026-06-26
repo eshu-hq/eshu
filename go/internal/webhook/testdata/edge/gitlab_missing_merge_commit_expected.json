@@ -1,0 +1,6 @@
+{
+  "provider": "gitlab",
+  "event_kind": "merge_request_merged",
+  "decision": "ignored",
+  "reason": "missing_merge_commit"
+}

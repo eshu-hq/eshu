@@ -1,0 +1,17 @@
+{
+  "object_kind": "merge_request",
+  "event_type": "merge_request",
+  "project": {
+    "id": 7701,
+    "path_with_namespace": "eshu-hq/eshu",
+    "default_branch": "main"
+  },
+  "object_attributes": {
+    "action": "merge",
+    "target_branch": "main",
+    "merge_commit_sha": "d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2"
+  },
+  "user": {
+    "username": "linuxdynasty"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "event": {
+    "id": "evt-PD1234567890abcdef",
+    "event_type": "incident.triggered",
+    "occurred_at": "2026-06-01T12:00:00Z",
+    "data": {
+      "id": "INC1234",
+      "type": "incident",
+      "self": "https://api.pagerduty.com/incidents/INC1234",
+      "html_url": "https://eshu-hq.pagerduty.com/incidents/INC1234",
+      "number": 42,
+      "status": "triggered",
+      "title": "Production latency spike",
+      "service": {
+        "id": "SVC5678",
+        "summary": "Eshu API",
+        "self": "https://api.pagerduty.com/services/SVC5678"
+      }
+    }
+  }
+}

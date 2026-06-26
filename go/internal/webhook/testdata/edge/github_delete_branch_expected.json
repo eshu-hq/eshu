@@ -1,0 +1,6 @@
+{
+  "provider": "github",
+  "event_kind": "push",
+  "decision": "ignored",
+  "reason": "deleted_branch"
+}

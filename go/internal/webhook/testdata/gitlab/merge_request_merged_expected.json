@@ -1,0 +1,13 @@
+{
+  "provider": "gitlab",
+  "event_kind": "merge_request_merged",
+  "decision": "accepted",
+  "delivery_id": "gl-mr-001",
+  "repository_external_id": "7701",
+  "repository_full_name": "eshu-hq/eshu",
+  "default_branch": "main",
+  "ref": "refs/heads/main",
+  "target_sha": "d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2",
+  "action": "merge",
+  "sender": "linuxdynasty"
+}
