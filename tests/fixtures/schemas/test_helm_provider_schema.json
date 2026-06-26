@@ -1,0 +1,21 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/helm": {
+      "provider": {},
+      "resource_schemas": {
+        "helm_release": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "chart": { "type": "string", "required": true },
+              "namespace": { "type": "string" },
+              "create_namespace": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

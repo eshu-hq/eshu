@@ -1,0 +1,20 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/http": {
+      "provider": {},
+      "resource_schemas": {
+        "http": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "url": { "type": "string", "required": true },
+              "method": { "type": "string" },
+              "request_headers": { "type": ["map", "string"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

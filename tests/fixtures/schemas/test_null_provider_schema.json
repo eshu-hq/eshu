@@ -1,0 +1,18 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/null": {
+      "provider": {},
+      "resource_schemas": {
+        "null_resource": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "triggers": { "type": ["map", "string"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

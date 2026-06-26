@@ -1,0 +1,29 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/grafana/grafana": {
+      "provider": {},
+      "resource_schemas": {
+        "grafana_dashboard": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "config_json": { "type": "string", "required": true },
+              "folder": { "type": "string" },
+              "overwrite": { "type": "bool" }
+            }
+          }
+        },
+        "grafana_folder": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "title": { "type": "string", "required": true },
+              "uid": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

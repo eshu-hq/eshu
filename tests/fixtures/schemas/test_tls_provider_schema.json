@@ -1,0 +1,29 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/tls": {
+      "provider": {},
+      "resource_schemas": {
+        "tls_private_key": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "algorithm": { "type": "string", "required": true },
+              "rsa_bits": { "type": "number" }
+            }
+          }
+        },
+        "tls_self_signed_cert": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "private_key_pem": { "type": "string", "required": true },
+              "validity_period_hours": { "type": "number" },
+              "allowed_uses": { "type": ["list", "string"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

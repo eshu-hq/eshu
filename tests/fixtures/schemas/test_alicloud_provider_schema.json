@@ -1,0 +1,39 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/aliyun/alicloud": {
+      "provider": {},
+      "resource_schemas": {
+        "alicloud_instance": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "instance_name": { "type": "string", "required": true },
+              "instance_type": { "type": "string", "required": true },
+              "image_id": { "type": "string" }
+            }
+          }
+        },
+        "alicloud_vpc": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "vpc_name": { "type": "string" },
+              "cidr_block": { "type": "string", "required": true }
+            }
+          }
+        },
+        "alicloud_oss_bucket": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "bucket": { "type": "string", "required": true },
+              "acl": { "type": "string" },
+              "force_destroy": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

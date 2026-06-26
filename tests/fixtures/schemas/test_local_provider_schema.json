@@ -1,0 +1,29 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/local": {
+      "provider": {},
+      "resource_schemas": {
+        "local_file": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "filename": { "type": "string", "required": true },
+              "content": { "type": "string" },
+              "file_permission": { "type": "string" }
+            }
+          }
+        },
+        "local_sensitive_file": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "filename": { "type": "string", "required": true },
+              "content": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

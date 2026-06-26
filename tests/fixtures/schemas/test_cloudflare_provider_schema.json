@@ -1,0 +1,31 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/cloudflare/cloudflare": {
+      "provider": {},
+      "resource_schemas": {
+        "cloudflare_record": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "zone_id": { "type": "string", "required": true },
+              "name": { "type": "string", "required": true },
+              "type": { "type": "string" },
+              "value": { "type": "string" }
+            }
+          }
+        },
+        "cloudflare_zone": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "zone": { "type": "string", "required": true },
+              "plan": { "type": "string" },
+              "paused": { "type": "bool" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

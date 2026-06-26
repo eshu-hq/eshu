@@ -1,0 +1,30 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/mysql": {
+      "provider": {},
+      "resource_schemas": {
+        "mysql_database": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": { "type": "string", "required": true },
+              "default_character_set": { "type": "string" },
+              "default_collation": { "type": "string" }
+            }
+          }
+        },
+        "mysql_user": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "user": { "type": "string", "required": true },
+              "host": { "type": "string" },
+              "plaintext_password": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
