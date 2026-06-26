@@ -1059,7 +1059,7 @@ neo4j:
   auth:
     secretName: eshu-neo4j
     username: neo4j
-    password: change-me
+    password: ""
     usernameKey: username
     passwordKey: password
 

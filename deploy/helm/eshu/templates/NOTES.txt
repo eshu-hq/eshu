@@ -1,5 +1,13 @@
 Eshu chart {{ .Chart.Version }} rendered for release {{ .Release.Name }}.
 
+{{- if and (not .Values.neo4j.auth.secretName) (not .Values.neo4j.auth.password) }}
+WARNING: neo4j.auth.password is unset. A random password was generated for this
+template invocation. Re-running `helm template` generates a new random password.
+Capture and store the password in a Kubernetes Secret (set
+neo4j.auth.secretName) before deploying to production, or set
+neo4j.auth.password explicitly with --set neo4j.auth.password=<value>.
+{{- end }}
+
 NetworkPolicy:
 {{- if .Values.networkPolicy.enabled }}
   enabled: true

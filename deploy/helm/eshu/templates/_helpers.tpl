@@ -483,7 +483,11 @@ app.kubernetes.io/component: vault-live-collector
 - name: NEO4J_USERNAME
   value: {{ required "neo4j.auth.username is required when neo4j.auth.secretName is empty" .Values.neo4j.auth.username | quote }}
 - name: NEO4J_PASSWORD
-  value: {{ required "neo4j.auth.password is required when neo4j.auth.secretName is empty" .Values.neo4j.auth.password | quote }}
+  {{- if .Values.neo4j.auth.password }}
+  value: {{ .Values.neo4j.auth.password | quote }}
+  {{- else }}
+  value: {{ randAlphaNum 20 | quote }}
+  {{- end }}
 {{- end }}
 {{- end -}}
 
