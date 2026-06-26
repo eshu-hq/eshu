@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -254,7 +255,13 @@ func wireAPI(
 	// browser-session route classification sees the v0 path.
 	// Must wrap authedMux (not be wrapped by it) because wrapAPIAuth
 	// puts auth as the outer layer.
-	final := v1PrefixAliasMiddleware(authedMux)
+	v1Rewritten := v1PrefixAliasMiddleware(authedMux)
+
+	// Add Deprecation + Sunset headers to /api/v0/* responses. Must be
+	// the outermost layer so it sees the original request path before
+	// the v1→v0 rewrite transforms /api/v1/* paths.
+	sunsetDate := readSunsetDate(getenv)
+	final := deprecationHeadersMiddleware(v1Rewritten, sunsetDate)
 
 	// Install the fully-wrapped handler into the Ask runner's deferred
 	// handler so inner tool dispatches re-run auth + the scoped-route
@@ -538,4 +545,36 @@ func v1PrefixAliasMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// deprecationHeadersMiddleware adds Deprecation: true and Sunset: <date>
+// headers to every response whose request path starts with /api/v0/.
+// It is applied BEFORE the v1→v0 rewrite middleware so /api/v1/ requests
+// never carry the headers. Headers are set before the next handler runs,
+// so they appear on error responses too.
+func deprecationHeadersMiddleware(next http.Handler, sunset string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v0/") {
+			w.Header().Set("Deprecation", "true")
+			w.Header().Set("Sunset", sunset)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// readSunsetDate returns the date for the Sunset response header, read from
+// ESHU_API_V0_SUNSET_DATE. If set, the value is validated against RFC 1123
+// (http.TimeFormat); a parse failure falls back to the default with a warning.
+func readSunsetDate(getenv func(string) string) string {
+	const defaultDate = "Thu, 01 Jul 2027 00:00:00 GMT"
+	if v := getenv("ESHU_API_V0_SUNSET_DATE"); v != "" {
+		if _, err := time.Parse(time.RFC1123, v); err == nil {
+			return v
+		}
+		slog.Warn("ESHU_API_V0_SUNSET_DATE parse failed, using default",
+			"value", v,
+			"default", defaultDate,
+		)
+	}
+	return defaultDate
 }
