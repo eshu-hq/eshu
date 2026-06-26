@@ -49,8 +49,8 @@ type OIDCRateLimiter struct {
 	providerBurst int
 	instruments   *telemetry.Instruments
 
-	mu        sync.Mutex
-	ips       map[string]*rateLimiterPair
+	mu       sync.Mutex
+	ips      map[string]*rateLimiterPair
 	providers map[string]*rateLimiterPair
 
 	stopCh chan struct{}
