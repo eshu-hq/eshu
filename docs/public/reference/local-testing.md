@@ -9,6 +9,23 @@ Use the smallest gate that proves the touched behavior, then run the hygiene
 checks required by the files you changed. Do not call work ready without citing
 the commands you actually ran.
 
+## Before You Push
+
+Run the one-command local mirror of the CI build gate before opening or updating
+a PR, so lint/build/test failures are caught in a single local pass instead of
+across multiple CI rounds:
+
+```bash
+make pre-pr            # or: bash scripts/dev/pre-pr.sh
+```
+
+It runs gofumpt and golangci-lint over the **whole** module (catching
+cross-package consequences a changed-package run misses, such as code that
+becomes unused when a sibling package changes), `go build` and `go vet` over the
+whole module, `go test` on the packages changed versus `origin/main`, plus the
+500-line file cap and package-docs gates. Integration suites that need Postgres
+or NornicDB are not run here — use the focused Compose gates below for those.
+
 ## Common Compose Environment
 
 When running commands directly against the default local Compose stack:
