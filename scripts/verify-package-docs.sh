@@ -3,8 +3,13 @@ set -euo pipefail
 
 repo_root="${ESHU_PACKAGE_DOCS_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
-  repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null \
-    || (cd "$(dirname "$0")/.." && pwd))"
+  # Derive the repo root from the script's own location, NOT
+  # `git rev-parse --show-toplevel`. Git hooks (pre-commit/pre-push) export
+  # GIT_DIR, and with GIT_DIR set `git -C scripts rev-parse --show-toplevel`
+  # returns the -C directory (<repo>/scripts) instead of the repo root, so the
+  # `$repo_root/<path>` checks fail. The script always lives at <repo>/scripts/,
+  # so dirname/.. is the repo root and is both worktree- and hook-safe.
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
 base="${ESHU_PACKAGE_DOCS_BASE:-}"
@@ -15,7 +20,17 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   fi
 fi
 if [ -z "$base" ]; then
-  if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+  # Local (non-CI) runs: diff against the branch's divergence point from
+  # origin/main, not HEAD~1. On a branch based on a squash-merge commit, HEAD~1
+  # is the pre-merge commit, so HEAD~1...HEAD diffs the MERGE's files (packages
+  # the developer never touched) and false-positives — which pushes developers to
+  # `commit --no-verify` and thereby skips the other gates (hot-path evidence,
+  # telemetry) too. The merge-base with origin/main yields only the branch's own
+  # changes. CI keeps using GITHUB_BASE_REF above.
+  git -C "$repo_root" fetch --no-tags origin main >/dev/null 2>&1 || true
+  if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
+    base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
+  elif git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
     base="HEAD~1"
   else
     printf 'verify-package-docs: no base commit available, skipping\n'
