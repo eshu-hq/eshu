@@ -30,6 +30,13 @@ Legacy names such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
 `eshu.index.*`, `eshu.fact_*`, `eshu.resolution.*`, `eshu.graph.*`, and
 `eshu.content.*` are not part of the current Go trace contract.
 
+The instrumentation scope name for all data-plane binaries is
+`eshu/go/data-plane` (`telemetry.DefaultSignalName` in
+`go/internal/telemetry/contract.go`).  The API binary previously reported
+`eshu-api` as its scope name; operators with saved Tempo/Honeycomb trace
+queries filtering by scope `eshu-api` should update the filter to
+`eshu/go/data-plane`.
+
 ## How To Read The Tree
 
 | Area | What to inspect |
