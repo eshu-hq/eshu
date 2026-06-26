@@ -52,7 +52,7 @@ func newPostgresAdminIdentityReadAdapter(
 	if instruments != nil {
 		identityDB = &pgstatus.InstrumentedDB{
 			Inner:       identityDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "identity_subjects",
 		}
@@ -232,7 +232,7 @@ func newAdminGovernanceAuditReader(
 	if instruments != nil {
 		governanceAuditDB = &pgstatus.InstrumentedDB{
 			Inner:       governanceAuditDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "governance_audit",
 		}

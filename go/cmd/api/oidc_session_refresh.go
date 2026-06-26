@@ -122,13 +122,13 @@ func newOIDCSessionRefreshWorker(
 	if instruments != nil {
 		sessionDB = &pgstatus.InstrumentedDB{
 			Inner:       sessionDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "browser_sessions",
 		}
 		oidcDB = &pgstatus.InstrumentedDB{
 			Inner:       oidcDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "identity_oidc_login",
 		}
