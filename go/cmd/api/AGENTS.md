@@ -122,3 +122,16 @@
   see `docs/public/reference/backend-conformance.md`.
 - The `AuthMiddleware` placement relative to `mountRuntimeSurface` — moving this
   changes which routes require auth; that is a security-boundary change.
+
+## Evidence (W-1: ESHU_API_SHUTDOWN_TIMEOUT)
+
+- No-Regression Evidence: The change replaces a hardcoded `5*time.Second` with
+  an env-read-and-parse that lands on the same 5 s when `ESHU_API_SHUTDOWN_TIMEOUT=5s`
+  is set explicitly, and defaults to 30 s otherwise. No runtime, storage,
+  Cypher, concurrency, queue, or performance path is affected. The shutdown
+  goroutine remains a single closure with identical scheduling behavior.
+- No-Observability-Change: The existing `eshu-api` OTEL span, `eshu_dp_*` metrics,
+  and structured log keys already diagnose the API binary lifecycle. The
+  shutdown timeout value change does not alter the signal contract. W-2 adds
+  a dedicated `eshu_dp_shutdown_duration_seconds` histogram for the shutdown
+  path.
