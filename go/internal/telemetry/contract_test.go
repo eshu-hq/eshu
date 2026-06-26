@@ -12,7 +12,6 @@ func TestMetricDimensionKeys(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
-		"scope_id",
 		"scope_kind",
 		"source",
 		"source_class",

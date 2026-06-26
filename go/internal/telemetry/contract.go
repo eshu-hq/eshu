@@ -26,7 +26,6 @@ const (
 // Metric dimension keys define the stable labels used by the Go data-plane
 // telemetry contract.
 const (
-	MetricDimensionScopeID       = "scope_id"
 	MetricDimensionScopeKind     = "scope_kind"
 	MetricDimensionSource        = "source"
 	MetricDimensionSourceSystem  = "source_system"

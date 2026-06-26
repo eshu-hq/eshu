@@ -243,7 +243,7 @@ func (s *GitSource) snapshotOneRepository(
 	)
 
 	duration := time.Since(start).Seconds()
-	scopeID := generation.Scope.ScopeID
+	scopeKind := string(generation.Scope.ScopeKind)
 	factCount := generation.FactCount
 	sizeTier := s.repoSizeTier(snapshot.FileCount)
 
@@ -255,7 +255,7 @@ func (s *GitSource) snapshotOneRepository(
 		s.Instruments.RepoSnapshotDuration.Record(
 			ctx, duration,
 			metric.WithAttributes(
-				telemetry.AttrScopeID(scopeID),
+				telemetry.AttrScopeKind(scopeKind),
 				telemetry.AttrRepoSizeTier(sizeTier),
 			),
 		)
@@ -268,7 +268,7 @@ func (s *GitSource) snapshotOneRepository(
 			metric.WithAttributes(
 				telemetry.AttrCollectorKind("git"),
 				telemetry.AttrSourceSystem("git"),
-				telemetry.AttrScopeID(scopeID),
+				telemetry.AttrScopeKind(scopeKind),
 			),
 		)
 		s.Instruments.FactsEmitted.Add(
@@ -276,7 +276,7 @@ func (s *GitSource) snapshotOneRepository(
 			metric.WithAttributes(
 				telemetry.AttrCollectorKind("git"),
 				telemetry.AttrSourceSystem("git"),
-				telemetry.AttrScopeID(scopeID),
+				telemetry.AttrScopeKind(scopeKind),
 			),
 		)
 	}

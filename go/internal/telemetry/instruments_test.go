@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package telemetry
+package telemetry //nolint:filelength // 814-line test table for all Attr* helpers and instrument registrations; splitting would break the per-helper coverage table invariant.
 
 import (
 	"context"
@@ -231,7 +231,7 @@ func TestAttrHelpers(t *testing.T) {
 		{
 			name:     "AttrScopeID",
 			attrFunc: func(v string) string { return string(AttrScopeID(v).Key) },
-			wantKey:  MetricDimensionScopeID,
+			wantKey:  LogKeyScopeID,
 		},
 		{
 			name:     "AttrScopeKind",

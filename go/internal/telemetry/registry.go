@@ -6,7 +6,6 @@ package telemetry
 import "slices"
 
 var metricDimensionKeys = []string{
-	MetricDimensionScopeID,
 	MetricDimensionScopeKind,
 	MetricDimensionSource,
 	MetricDimensionLanguage,

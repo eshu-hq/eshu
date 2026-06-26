@@ -109,9 +109,9 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 	}
 
 	if got := projectorCounterValue(t, rm, "eshu_dp_projections_completed_total", map[string]string{
-		"queue":    "projector",
-		"status":   "ack_failed",
-		"scope_id": work.Scope.ScopeID,
+		"queue":      "projector",
+		"status":     "ack_failed",
+		"scope_kind": string(work.Scope.ScopeKind),
 	}); got != 1 {
 		t.Fatalf("eshu_dp_projections_completed_total ack_failed value = %d, want 1", got)
 	}

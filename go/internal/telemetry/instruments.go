@@ -3967,7 +3967,7 @@ func RegisterAWSClaimConcurrencyGauge(
 
 // AttrScopeID returns a scope_id attribute for metric recording.
 func AttrScopeID(v string) attribute.KeyValue {
-	return attribute.String(MetricDimensionScopeID, v)
+	return attribute.String(LogKeyScopeID, v)
 }
 
 // AttrScopeKind returns a scope_kind attribute for metric recording.
