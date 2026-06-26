@@ -454,6 +454,18 @@ func (f *fakeCommitter) ReopenCodeImportRepoEdgeWorkItems(
 	return nil
 }
 
+func (f *fakeCommitter) ReopenSucceededReducerWorkItems(
+	_ context.Context,
+	_ trace.Tracer,
+	_ *telemetry.Instruments,
+	_ []string,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "reopen_correlation")
+	return nil
+}
+
 func (f *fakeCommitter) EnqueueConfigStateDriftIntents(
 	_ context.Context,
 	_ trace.Tracer,
@@ -939,7 +951,7 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 		t.Fatalf("runPipelined() error = %v, want nil", err)
 	}
 
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 	if got := sink.acked.Load(); got != 0 {
@@ -1068,7 +1080,7 @@ func TestPipelinedBootstrapDriftEnqueueFailureIsFatal(t *testing.T) {
 	if !errors.Is(err, driftErr) {
 		t.Fatalf("runPipelined() error = %v, want wrapping %v", err, driftErr)
 	}
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }
@@ -1104,7 +1116,7 @@ func TestPipelinedBootstrapWaitsForProjectorDrainBeforeReopen(t *testing.T) {
 	if got := sink.acked.Load(); got != 1 {
 		t.Fatalf("projector not drained before reopen: acked=%d, want 1", got)
 	}
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployable-source
+  namespace: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: deployable-source
+  template:
+    metadata:
+      labels:
+        app: deployable-source
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/acme/deployable-source:1.0.0
+          ports:
+            - containerPort: 8080

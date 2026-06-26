@@ -59,6 +59,8 @@ corpus_fixtures=(
 	helm_argocd_platform
 	lib-common
 	orders-api
+	deployable-source
+	deployable-config
 )
 
 # 9 credentialed collectors and their B-10 cassette directories.
@@ -308,42 +310,46 @@ if ! "${bin_dir}/eshu-golden-corpus-gate" \
 fi
 kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
 
-# Deferred maintenance AFTER the first drain — the ingester's post-shard-drain
-# pattern (RunDeferredRelationshipMaintenance). With the queue idle, re-run
-# bootstrap-index: its post-collection phase re-backfills relationship evidence
-# with the collector facts now present and replays the succeeded
-# code_import_repo_edge work items (now that the ownership facts they join against
-# exist and are active). The second drain below then re-resolves them, producing
-# the cross-repo DEPENDS_ON edge that the first drain could not. Collection and
-# projection re-runs are idempotent (facts dedupe by stable key; schema is
-# IF NOT EXISTS).
-log "deferred maintenance: re-run bootstrap-index maintenance (reopen cross-scope projections)"
-"${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-2.log" 2>&1 \
-	|| { tail -40 "${log_dir}/bootstrap-index-2.log"; die "deferred maintenance pass failed"; }
+# Deferred maintenance + drain, run TWICE — the ingester's post-shard-drain
+# pattern (RunDeferredRelationshipMaintenance) loops continuously; the gate
+# approximates that with two cycles so additive correlation domains converge.
+# Each maintenance pass re-runs bootstrap-index's post-collection phase: it
+# re-backfills relationship evidence with the collector facts now present, replays
+# the succeeded code_import_repo_edge work items, and replays the correlation
+# domains (deployable_unit_correlation). Cycle 1's drain produces the resolved
+# DEPLOYS_FROM relationships (deployment_mapping -> cross-repo resolution) and the
+# cross-repo DEPENDS_ON edge; cycle 2's drain re-runs deployable_unit_correlation
+# now that the resolved relationships it consumes exist, producing
+# CORRELATES_DEPLOYABLE_UNIT. Collection/projection re-runs are idempotent (facts
+# dedupe by stable key; schema is IF NOT EXISTS). The final cycle is the asserted
+# B-7(a) drain.
+for maintenance_pass in 1 2; do
+	log "deferred maintenance pass ${maintenance_pass}: re-run bootstrap-index maintenance"
+	"${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-maint-${maintenance_pass}.log" 2>&1 \
+		|| { tail -40 "${log_dir}/bootstrap-index-maint-${maintenance_pass}.log"; die "deferred maintenance pass ${maintenance_pass} failed"; }
 
-log "drain projector + reducer — second pass (background; gate polls to terminal)"
-start_bg projector projector_pid "${bin_dir}/eshu-projector"
-start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
-
-log "B-7(a) drains"
-# Every shared_projection_intents domain must reach terminal — including
-# code_calls, whose held-intent deadlock (#3865) is fixed. No domain is
-# quarantined as advisory.
-# -require-populated-domains guards against premature convergence: the reducer
-# runs in the background and the poll could otherwise read an empty 0/0 before it
-# emits any intents and pass on an unreduced pipeline. repo_dependency is the
-# domain the corpus reliably produces (and the B-13/#3859 gate), so the drain is
-# accepted only once it has been observed populated and then drained.
-if ! "${bin_dir}/eshu-golden-corpus-gate" \
-	-phase=drains \
-	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-	-require-populated-domains="repo_dependency" \
-	-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
-	tail -30 "${log_dir}/reducer.log" || true
-	tail -30 "${log_dir}/projector.log" || true
-	die "drain phase failed"
-fi
-kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+	log "B-7(a) drains — maintenance drain ${maintenance_pass} (background; gate polls to terminal)"
+	# Every shared_projection_intents domain must reach terminal — including
+	# code_calls, whose held-intent deadlock (#3865) is fixed. No domain is
+	# quarantined as advisory. -require-populated-domains guards against premature
+	# convergence: the reducer runs in the background and the poll could otherwise
+	# read an empty 0/0 before it emits any intents and pass on an unreduced
+	# pipeline. repo_dependency is the domain the corpus reliably produces (and the
+	# B-13/#3859 gate), so the drain is accepted only once it has been observed
+	# populated and then drained.
+	start_bg projector projector_pid "${bin_dir}/eshu-projector"
+	start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
+	if ! "${bin_dir}/eshu-golden-corpus-gate" \
+		-phase=drains \
+		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
+		-require-populated-domains="repo_dependency" \
+		-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
+		tail -30 "${log_dir}/reducer.log" || true
+		tail -30 "${log_dir}/projector.log" || true
+		die "maintenance drain ${maintenance_pass} failed"
+	fi
+	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+done
 
 pipeline_end="$(date +%s)"
 elapsed=$(( pipeline_end - pipeline_start ))
@@ -366,8 +372,12 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # correlation (rc-3), which the lib-common/orders-api fixture pair plus the
 # package-registry cassette deterministically produce. The deployable-unit (rc-1),
 # the cassette-dependent correlations (rc-2/rc-4), and the 20-repo node/edge
-# tolerances stay advisory until a corpus and cassette set that produce them lands
-# (tracked as follow-ups). Promote each by adding its ID to -required-correlations.
+# tolerances: rc-1 (deployable-unit) is now required — the deployable-source +
+# deployable-config (ArgoCD) fixture pair plus the correlation reopen produce
+# CORRELATES_DEPLOYABLE_UNIT deterministically. rc-2 (RUNS_IN) and rc-4
+# (RUNS_IMAGE) stay advisory until the projector materializes the code-entity and
+# oci/k8s node families they need (tracked as follow-ups). Promote each by adding
+# its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=graph,query,timing \
@@ -375,7 +385,7 @@ gate_status=0
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
 	-required-node-labels="Repository" \
-	-required-correlations="rc-3" \
+	-required-correlations="rc-3,rc-1" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?
