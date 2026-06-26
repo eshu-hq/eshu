@@ -17,6 +17,10 @@ const openAPISpecPrefix = `{
     {
       "url": "/api/v0",
       "description": "API v0 prefix"
+    },
+    {
+      "url": "/api/v1",
+      "description": "API v1 prefix"
     }
   ],
   "tags": [

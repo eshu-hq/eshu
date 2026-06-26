@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 504 lines: full API wiring sequence (Postgres + graph driver + admin surface + auth). Splitting risks breaking the `mountRuntimeSurface` order contract documented in cmd/api/AGENTS.md.
+package main //nolint:filelength // ~539 lines: full API wiring sequence (Postgres + graph driver + admin surface + auth). Splitting risks breaking the `mountRuntimeSurface` order contract documented in cmd/api/AGENTS.md.
 
 import (
 	"context"
@@ -227,6 +227,10 @@ func wireAPI(
 		Incidents:   newIncidentEvidenceSource(db, logger),
 		SupplyChain: newSupplyChainEvidenceSource(db, logger),
 	}).Mount(apiMux)
+
+	// Register /api/v1/ as an alias for /api/v0/ — rewrites paths and
+	// re-dispatches through the same mux so every v0 handler is reachable at v1.
+	mountV1Alias(apiMux)
 
 	// Record per-endpoint duration/error metrics for every API route. The
 	// middleware wraps the application mux only; the admin surface (probes,
@@ -513,4 +517,23 @@ func newRouterWithSemanticEmbedding(
 	router.Admin.Recovery = recoveryHandler
 	router.Admin.Reindexer = reindexer
 	return router, nil
+}
+
+// mountV1Alias registers a catch-all handler on mux that rewrites
+// /api/v1/* requests to /api/v0/* and re-dispatches through the same
+// mux. It must be called after all /api/v0/ routes are mounted so
+// the rewritten paths match the registered patterns.
+//
+// A request for GET /api/v1/foo/bar is rewritten to GET /api/v0/foo/bar
+// and the inner mux matches the method+path pattern. Query parameters,
+// headers, and body are preserved through r.Clone.
+func mountV1Alias(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
+		rest := r.URL.Path[len("/api/v1/"):]
+		r2 := r.Clone(r.Context())
+		u := *r.URL
+		u.Path = "/api/v0/" + rest
+		r2.URL = &u
+		mux.ServeHTTP(w, r2)
+	})
 }
