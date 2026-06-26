@@ -206,6 +206,55 @@ func TestGetRepositoryContentTruncatesLargeFile(t *testing.T) {
 	}
 }
 
+func TestGetRepositoryContent_LocalLightweightReturnsContentWithDegradedTruth(t *testing.T) {
+	t.Parallel()
+
+	content := "# Title\nhello\n"
+	handler := &RepositoryHandler{
+		Profile: ProfileLocalLightweight,
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles: []FileContent{
+				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", LineCount: 2, Language: "markdown", Content: content},
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/content?path=README.md", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var env ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("json.Unmarshal envelope: %v", err)
+	}
+	if env.Truth == nil {
+		t.Fatal("truth envelope is nil")
+	}
+	if got, want := string(env.Truth.Profile), string(ProfileLocalLightweight); got != want {
+		t.Fatalf("truth profile = %s, want %s", got, want)
+	}
+
+	raw, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("json.Marshal env.Data: %v", err)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		t.Fatalf("json.Unmarshal data: %v", err)
+	}
+	if got, want := data["content"], content; got != want {
+		t.Fatalf("content = %#v, want %#v", got, want)
+	}
+}
+
 func TestGetRepositoryContentBase64EncodesBinary(t *testing.T) {
 	t.Parallel()
 

@@ -31,6 +31,7 @@ type extractionReadinessEnvelope struct {
 		Capability string `json:"capability"`
 		Basis      string `json:"basis"`
 		Level      string `json:"level"`
+		Profile    string `json:"profile"`
 	} `json:"truth"`
 	Error *struct {
 		Code string `json:"code"`
@@ -140,6 +141,40 @@ func TestCollectorExtractionReadinessFamilyDrilldown(t *testing.T) {
 	}
 	if len(data.Family.Criteria) != 7 {
 		t.Fatalf("criteria = %d, want 7", len(data.Family.Criteria))
+	}
+}
+
+func TestCollectorExtractionReadinessFamily_LocalLightweightReturnsFamilyData(t *testing.T) {
+	t.Parallel()
+	handler := &CollectorExtractionReadinessHandler{Profile: ProfileLocalLightweight}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/collector-extraction-readiness/pagerduty", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var env extractionReadinessEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("json.Unmarshal envelope: %v", err)
+	}
+	if got, want := string(env.Truth.Level), string(TruthLevelExact); got != want {
+		t.Fatalf("truth level = %s, want %s", got, want)
+	}
+	if got, want := string(env.Truth.Profile), string(ProfileLocalLightweight); got != want {
+		t.Fatalf("truth profile = %s, want %s", got, want)
+	}
+
+	var data CollectorExtractionReadinessFamilyResponse
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decode data: %v", err)
+	}
+	if data.Family.Family != "pagerduty" {
+		t.Fatalf("family = %s, want pagerduty", data.Family.Family)
 	}
 }
 
