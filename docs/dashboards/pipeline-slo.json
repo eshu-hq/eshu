@@ -812,15 +812,6 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "rate(eshu_dp_collector_errors_total{service_namespace=~\"$namespace\"}[$__rate_interval])",
-          "legendFormat": "Collection Errors",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
           "expr": "rate(eshu_dp_projections_completed_total{status=\"failed\",service_namespace=~\"$namespace\"}[$__rate_interval])",
           "legendFormat": "Projection Errors",
           "refId": "B"

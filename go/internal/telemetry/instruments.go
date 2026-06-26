@@ -116,6 +116,7 @@ type Instruments struct {
 	TerraformStateWarningsEmitted             metric.Int64Counter
 	TerraformStateRedactionsApplied           metric.Int64Counter
 	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
+	TerraformStateDiscoveryCandidates         metric.Int64Counter
 	OCIRegistryAPICalls                       metric.Int64Counter
 	OCIRegistryTagsObserved                   metric.Int64Counter
 	OCIRegistryManifestsObserved              metric.Int64Counter
@@ -1267,6 +1268,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateS3ConditionalGetNotModified counter: %w", err)
+	}
+
+	inst.TerraformStateDiscoveryCandidates, err = meter.Int64Counter(
+		"eshu_dp_tfstate_discovery_candidates_total",
+		metric.WithDescription("Total Terraform state discovery candidates resolved by source"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TerraformStateDiscoveryCandidates counter: %w", err)
 	}
 
 	inst.OCIRegistryAPICalls, err = meter.Int64Counter(
