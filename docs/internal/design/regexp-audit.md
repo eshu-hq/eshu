@@ -219,9 +219,9 @@ The C package already migrated its `cTypedefAliasPattern` from `parser.go` to AS
 |------|---------|---------|----------------|-----------|
 | 12 | `dbtIdentifierRe` | Extract bare SQL identifiers from expressions for unqualified reference resolution | **keep** | Bounded SQL identifier scanner. Runs on already-sanitized text (string literals blanked out). |
 | 13 | `dbtSingleQuotedStringRe` | Match single-quoted string literals for sanitization | **keep** | String-literal sanitization helper. |
-| 25 | Dynamic `regexp.MustCompile(".", ...)` | Replace all characters in string literals with spaces for sanitization | **keep** | Trivial "replace any character" pattern. Performance note: could use `strings.Repeat(" ", len(value))` instead of regex replacement for a ~10x speedup on long strings. |
+| 25 | Dynamic `regexp.MustCompile(".", ...)` | Replace all characters in string literals with spaces for sanitization | **keep** | Trivial "replace any character" pattern. Performance note: could use `strings.Repeat(" ", len(value))` for a speedup, but the regex `.` (without `s` flag) does not match `\n` while `strings.Repeat` would blank all bytes — verify equivalence before substituting. |
 
-### 26. go/internal/parser/dbtsql/expressions.go (17 sites)
+### 26. go/internal/parser/dbtsql/expressions.go (16 sites)
 
 | Line | Pattern | Purpose | Classification | Rationale |
 |------|---------|---------|----------------|-----------|
@@ -338,7 +338,7 @@ Three sites compile regexes dynamically at call time rather than at init time. T
 | `golang/embedded_shell.go` | 95-96 | `goIdentifierShadowedBeforeOffset` | Compiles `\b<identifier>\s*:=` and `\bvar\s+<identifier>\b` per call. Consider a `sync.Map` cache keyed by identifier. |
 | `dbtsql/expressions.go` | 241, 253 | `isSupportedCaseExpression`, `isSupportedArithmeticExpression` | Compiles `^[\s()=<>!,+\-*/%]*$` and `^[\s()+\-*/%]*$` per call. These patterns are constant — promote to package-level `var`. |
 | `dbtsql/expression_helpers.go` | 110 | `replaceReferenceTokens` | Compiles `\b<token>\b` per token in an inner loop. Consider `strings.ReplaceAll` with word-boundary-aware scanning. |
-| `dbtsql/identifiers.go` | 25 | String-literal sanitization | Uses regex to replace every character in string literals with spaces. Consider `strings.Repeat(" ", len(value))`. |
+| `dbtsql/identifiers.go` | 25 | String-literal sanitization | Uses regex to replace every character. Consider `strings.Repeat` after verifying newline equivalence (`.` without `s` flag preserves `\n`). |
 
 ---
 
@@ -362,7 +362,7 @@ These files contain regexes that are canonical for their domain. Tree-sitter mig
 | `gradle/coordinate.go` | Build-script scanner | No migration. Coordinate pattern matching. Pre-compile dynamic regex in `extractMapEntry`. |
 | `gradle/scanner.go` | Build-script scanner | No migration. Property extraction from Gradle DSL text. |
 | `dbtsql/lineage.go` | SQL lineage | No migration. Bounded SQL-lineage scanner over compiled model text. |
-| `dbtsql/identifiers.go` | SQL lineage | No migration. SQL identifier scanning. Use `strings.Repeat` for sanitization. |
+| `dbtsql/identifiers.go` | SQL lineage | No migration. SQL identifier scanning. Consider `strings.Repeat` for sanitization after verifying newline equivalence. |
 | `dbtsql/expressions.go` | SQL lineage | No migration. SQL expression classification. Pre-compile dynamic patterns. |
 | `dbtsql/expression_helpers.go` | SQL lineage | No migration. Reference-token replacement. |
 | `java/metadata.go` | Resource file | No migration. Validates class names in META-INF/services, spring.factories, etc. |
@@ -370,7 +370,7 @@ These files contain regexes that are canonical for their domain. Tree-sitter mig
 | `groovy/entities.go` | Jenkins DSL | No migration. Jenkinsfile entrypoint detection. |
 | `groovy/metadata.go` | Jenkins DSL | No migration. All 8 sites are delivery evidence, not symbol extraction. |
 | `sql/migrations.go` | Path detection | No migration. File-path-based migration tool classification. |
-| `templated_detection.go` | Content classification | No migration. Tamplated-text detection for possibly-invalid-grammar files. |
+| `templated_detection.go` | Content classification | No migration. Templated-text detection for possibly-invalid-grammar files. |
 | `scip_parser.go` | SCIP index | No migration. SCIP protobuf symbol manipulation, not source parsing. |
 
 ### Language Adapters — Documented Permanent Exceptions
