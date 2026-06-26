@@ -4,11 +4,15 @@
 package yaml
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
 	yamlv3 "gopkg.in/yaml.v3"
 )
+
+// atlantisWorkflowStages are the Atlantis custom-workflow stages.
+var atlantisWorkflowStages = []string{"plan", "apply", "import", "policy_check"}
 
 // isAtlantisConfig reports whether filename is a repo-level Atlantis config
 // (atlantis.yaml / atlantis.yml). Atlantis configs are plain YAML with no
@@ -63,9 +67,9 @@ func parseAtlantisProjectsFromSource(source []byte, path string) ([]map[string]a
 	return rows, nil
 }
 
-// atlantisProjectsNode returns the `projects` sequence node of a decoded
-// atlantis.yaml document, or nil when absent or not a sequence.
-func atlantisProjectsNode(root *yamlv3.Node) *yamlv3.Node {
+// atlantisDocumentMapping returns the top-level mapping node of a decoded
+// atlantis.yaml document, or nil when it is not a mapping.
+func atlantisDocumentMapping(root *yamlv3.Node) *yamlv3.Node {
 	doc := root
 	if doc.Kind == yamlv3.DocumentNode {
 		if len(doc.Content) == 0 {
@@ -76,16 +80,159 @@ func atlantisProjectsNode(root *yamlv3.Node) *yamlv3.Node {
 	if doc.Kind != yamlv3.MappingNode {
 		return nil
 	}
+	return doc
+}
+
+// atlantisMappingValue returns the value node for key in a mapping node.
+func atlantisMappingValue(doc *yamlv3.Node, key string) *yamlv3.Node {
+	if doc == nil {
+		return nil
+	}
 	for index := 0; index+1 < len(doc.Content); index += 2 {
-		if doc.Content[index].Value == "projects" {
-			value := doc.Content[index+1]
-			if value.Kind == yamlv3.SequenceNode {
-				return value
-			}
-			return nil
+		if doc.Content[index].Value == key {
+			return doc.Content[index+1]
 		}
 	}
 	return nil
+}
+
+// atlantisProjectsNode returns the `projects` sequence node of a decoded
+// atlantis.yaml document, or nil when absent or not a sequence.
+func atlantisProjectsNode(root *yamlv3.Node) *yamlv3.Node {
+	value := atlantisMappingValue(atlantisDocumentMapping(root), "projects")
+	if value != nil && value.Kind == yamlv3.SequenceNode {
+		return value
+	}
+	return nil
+}
+
+// parseAtlantisWorkflowsFromSource extracts AtlantisWorkflow rows from a
+// repo-level atlantis.yaml: one row per workflow defined in the `workflows:` map
+// (source=defined, with the ordered step kinds of each defined stage), plus one
+// source=referenced row per workflow named by a project's `workflow:` that has no
+// in-file definition (Atlantis allows server-side workflow definitions, which is
+// the common real-world case). Run-step command bodies are intentionally NOT
+// captured as node properties — recording the step KIND (`run`) is truthful
+// without fabricating semantics for an opaque shell command.
+func parseAtlantisWorkflowsFromSource(source []byte, path string) ([]map[string]any, error) {
+	var root yamlv3.Node
+	if err := yamlv3.Unmarshal(source, &root); err != nil {
+		return nil, err
+	}
+	doc := atlantisDocumentMapping(&root)
+	if doc == nil {
+		return nil, nil
+	}
+
+	defined := map[string]bool{}
+	var rows []map[string]any
+
+	if wfNode := atlantisMappingValue(doc, "workflows"); wfNode != nil && wfNode.Kind == yamlv3.MappingNode {
+		for index := 0; index+1 < len(wfNode.Content); index += 2 {
+			name := strings.TrimSpace(wfNode.Content[index].Value)
+			if name == "" {
+				continue
+			}
+			var body map[string]any
+			if err := wfNode.Content[index+1].Decode(&body); err != nil || body == nil {
+				continue
+			}
+			rows = append(rows, atlantisWorkflowRow(name, body, path, wfNode.Content[index].Line))
+			defined[name] = true
+		}
+	}
+
+	// Referenced-but-undefined workflows: a project names a workflow defined
+	// server-side. Emit a stub node so USES_WORKFLOW has a target.
+	referenced := map[string]int{}
+	if projectsNode := atlantisProjectsNode(&root); projectsNode != nil {
+		for _, elem := range projectsNode.Content {
+			var project map[string]any
+			if err := elem.Decode(&project); err != nil || project == nil {
+				continue
+			}
+			ref := cleanYAMLString(project["workflow"])
+			if ref == "" || defined[ref] {
+				continue
+			}
+			if _, seen := referenced[ref]; !seen {
+				referenced[ref] = elem.Line
+			}
+		}
+	}
+	refNames := make([]string, 0, len(referenced))
+	for name := range referenced {
+		refNames = append(refNames, name)
+	}
+	sort.Strings(refNames)
+	for _, name := range refNames {
+		rows = append(rows, map[string]any{
+			"name":        name,
+			"line_number": referenced[name],
+			"path":        path,
+			"lang":        "yaml",
+			"source":      "referenced",
+		})
+	}
+	return rows, nil
+}
+
+// atlantisWorkflowRow builds one defined AtlantisWorkflow row from a workflow
+// body map (its plan/apply/import/policy_check stages and their steps).
+func atlantisWorkflowRow(name string, body map[string]any, path string, line int) map[string]any {
+	row := map[string]any{
+		"name":        name,
+		"line_number": line,
+		"path":        path,
+		"lang":        "yaml",
+		"source":      "defined",
+	}
+	stages := make([]string, 0, len(atlantisWorkflowStages))
+	for _, stage := range atlantisWorkflowStages {
+		stageBody, ok := body[stage].(map[string]any)
+		if !ok {
+			continue
+		}
+		stages = append(stages, stage)
+		if kinds := atlantisStepKinds(stageBody["steps"]); kinds != "" {
+			row[stage+"_step_kinds"] = kinds
+		}
+	}
+	if len(stages) > 0 {
+		sort.Strings(stages)
+		row["defined_stages"] = strings.Join(stages, ",")
+	}
+	return row
+}
+
+// atlantisStepKinds returns the ordered step kinds of one workflow stage. A step
+// is either a bare string (init/plan/apply/import/policy_check) or a single-key
+// map (run/env/multienv/...); the kind is that string or map key. The opaque
+// body of a run/env step is deliberately not captured.
+func atlantisStepKinds(steps any) string {
+	items, ok := steps.([]any)
+	if !ok {
+		return ""
+	}
+	kinds := make([]string, 0, len(items))
+	for _, item := range items {
+		switch typed := item.(type) {
+		case string:
+			if kind := strings.TrimSpace(typed); kind != "" {
+				kinds = append(kinds, kind)
+			}
+		case map[string]any:
+			keys := make([]string, 0, len(typed))
+			for key := range typed {
+				keys = append(keys, key)
+			}
+			if len(keys) > 0 {
+				sort.Strings(keys)
+				kinds = append(kinds, keys[0])
+			}
+		}
+	}
+	return strings.Join(kinds, ",")
 }
 
 // atlantisProjectRow builds one AtlantisProject row from a decoded project map,

@@ -317,6 +317,103 @@ projects:
 	}
 }
 
+// TestParseAtlantisConfigEmitsWorkflowRows proves the workflows: map becomes
+// AtlantisWorkflow rows (source=defined, with per-stage step kinds), and a
+// project that names a workflow not defined in-file (defined server-side)
+// produces a source=referenced row so the USES_WORKFLOW edge still has a target.
+func TestParseAtlantisConfigEmitsWorkflowRows(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "atlantis.yaml")
+	source := `version: 3
+projects:
+  - name: app
+    dir: app
+    workflow: custom
+  - name: legacy
+    dir: legacy
+    workflow: server_side
+workflows:
+  custom:
+    plan:
+      steps:
+        - init
+        - run: terraform fmt -check
+        - plan
+    apply:
+      steps:
+        - apply
+`
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("write atlantis.yaml: %v", err)
+	}
+
+	payload, err := Parse(path, false, Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	rows, ok := payload["atlantis_workflows"].([]map[string]any)
+	if !ok {
+		t.Fatalf("payload[atlantis_workflows] type = %T, want []map[string]any; keys=%v", payload["atlantis_workflows"], keysOf(payload))
+	}
+	if len(rows) != 2 {
+		t.Fatalf("atlantis_workflows len = %d, want 2 (custom defined + server_side referenced); rows=%+v", len(rows), rows)
+	}
+	byName := map[string]map[string]any{}
+	for _, row := range rows {
+		byName[fmt.Sprint(row["name"])] = row
+	}
+
+	custom, okc := byName["custom"]
+	if !okc {
+		t.Fatalf("missing 'custom' workflow; rows=%+v", rows)
+	}
+	if custom["source"] != "defined" {
+		t.Fatalf("custom.source = %v, want defined", custom["source"])
+	}
+	if custom["defined_stages"] != "apply,plan" {
+		t.Fatalf("custom.defined_stages = %v, want apply,plan (sorted)", custom["defined_stages"])
+	}
+	if custom["plan_step_kinds"] != "init,run,plan" {
+		t.Fatalf("custom.plan_step_kinds = %v, want init,run,plan", custom["plan_step_kinds"])
+	}
+	if custom["apply_step_kinds"] != "apply" {
+		t.Fatalf("custom.apply_step_kinds = %v, want apply", custom["apply_step_kinds"])
+	}
+
+	server, oks := byName["server_side"]
+	if !oks {
+		t.Fatalf("missing referenced 'server_side' workflow; rows=%+v", rows)
+	}
+	if server["source"] != "referenced" {
+		t.Fatalf("server_side.source = %v, want referenced", server["source"])
+	}
+	if _, hasStages := server["defined_stages"]; hasStages {
+		t.Fatalf("referenced workflow must not claim defined_stages: %+v", server)
+	}
+}
+
+// TestParseAtlantisConfigNoWorkflowRowsWithoutWorkflows proves a config with no
+// workflows: block and no project workflow: references emits no workflow rows.
+func TestParseAtlantisConfigNoWorkflowRowsWithoutWorkflows(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "atlantis.yaml")
+	if err := os.WriteFile(path, []byte("version: 3\nprojects:\n  - name: a\n    dir: a\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	payload, err := Parse(path, false, Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	rows, _ := payload["atlantis_workflows"].([]map[string]any)
+	if len(rows) != 0 {
+		t.Fatalf("atlantis_workflows len = %d, want 0; %+v", len(rows), rows)
+	}
+}
+
 func keysOf(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for key := range m {

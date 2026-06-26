@@ -25,18 +25,22 @@ entries), reusing the same per-bucket materialization the other ~60 entity label
 already use. The added graph-schema statements are one uniqueness constraint and
 one label added to the existing infra fulltext index, applied once at schema
 init. The B-7 golden-corpus gate drains the full corpus (drain → maintenance →
-drain) in ~36s with `fact_work_items_residual=0`, unchanged from before, and now
-additionally materializes `AtlantisProject` nodes (`node_present_AtlantisProject`
-count=2) plus the `MANAGES` (`rc-5`, count=2) and `ATLANTIS_DEPENDS_ON` (`rc-6`, count=1)
-governance edges, with no measurable change to drain time.
+drain) in ~38s with `fact_work_items_residual=0`, unchanged from before, and now
+additionally materializes `AtlantisProject` (count=2) and `AtlantisWorkflow`
+(count=1) nodes plus the `MANAGES` (`rc-5`, count=2), `ATLANTIS_DEPENDS_ON`
+(`rc-6`, count=1), and `USES_WORKFLOW` (`rc-7`, count=1) governance edges, with no
+measurable change to drain time.
 
-The two governance edges run in the canonical structural-edge phase
+The three governance edges run in the canonical structural-edge phase
 (`atlantisEdgeStatements`), guarded so they emit nothing for non-Atlantis repos.
-They are resolved in Go from the AtlantisProject entity metadata and matched by
-canonical key (`AtlantisProject.uid` / `Directory.path` — the same UNWIND/MERGE
-pattern as the existing IMPORTS edge), avoiding bound-variable property matching;
-fan-out is one row per project (MANAGES) and one per `depends_on` entry
-(ATLANTIS_DEPENDS_ON), bounded by the number of projects in one `atlantis.yaml`.
+They are resolved in Go from the AtlantisProject/AtlantisWorkflow entity metadata
+and matched by canonical key (`AtlantisProject.uid` / `Directory.path` /
+`AtlantisWorkflow.uid` — the same UNWIND/MERGE pattern as the existing IMPORTS
+edge), avoiding bound-variable property matching; fan-out is one row per project
+(MANAGES), one per `depends_on` entry (ATLANTIS_DEPENDS_ON), and one per workflow
+reference (USES_WORKFLOW), bounded by the number of projects in one
+`atlantis.yaml`. Workflow parsing captures per-stage step kinds only — run-step
+command bodies are deliberately not stored as node properties.
 
 ## Observability
 

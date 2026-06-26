@@ -207,7 +207,8 @@ var entityTypeLabelMap = map[string]string{
 	"terragrunt_config":       "TerragruntConfig",
 
 	// Atlantis governance entities
-	"atlantis_project": "AtlantisProject",
+	"atlantis_project":  "AtlantisProject",
+	"atlantis_workflow": "AtlantisWorkflow",
 
 	// CloudFormation entities
 	"cloudformation_resource":  "CloudFormationResource",
