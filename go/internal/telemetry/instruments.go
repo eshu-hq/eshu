@@ -2823,19 +2823,23 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register AWSScanDuration histogram: %w", err)
 	}
 
+	scopeAssignBuckets := []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 	inst.ScopeAssignDuration, err = meter.Float64Histogram(
 		"eshu_dp_scope_assign_duration_seconds",
 		metric.WithDescription("Scope assignment duration"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(scopeAssignBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ScopeAssignDuration histogram: %w", err)
 	}
 
+	factEmitBuckets := []float64{0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300}
 	inst.FactEmitDuration, err = meter.Float64Histogram(
 		"eshu_dp_fact_emit_duration_seconds",
 		metric.WithDescription("Fact emission duration"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(factEmitBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register FactEmitDuration histogram: %w", err)
@@ -2852,19 +2856,23 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ProjectorRunDuration histogram: %w", err)
 	}
 
+	projectorStageBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120}
 	inst.ProjectorStageDuration, err = meter.Float64Histogram(
 		"eshu_dp_projector_stage_duration_seconds",
 		metric.WithDescription("Projector stage duration"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(projectorStageBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProjectorStageDuration histogram: %w", err)
 	}
 
+	reducerRunBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900}
 	inst.ReducerRunDuration, err = meter.Float64Histogram(
 		"eshu_dp_reducer_run_duration_seconds",
 		metric.WithDescription("Reducer intent execution duration"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(reducerRunBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerRunDuration histogram: %w", err)
@@ -3047,10 +3055,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register SharedAcceptanceUpsertDuration histogram: %w", err)
 	}
 
+	acceptanceLookupBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 	inst.SharedAcceptanceLookupDuration, err = meter.Float64Histogram(
 		"eshu_dp_shared_acceptance_lookup_duration_seconds",
 		metric.WithDescription("Shared acceptance lookup duration"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(acceptanceLookupBuckets...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedAcceptanceLookupDuration histogram: %w", err)
