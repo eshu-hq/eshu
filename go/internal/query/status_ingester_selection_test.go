@@ -100,6 +100,21 @@ func TestListIngestersRequestsFilteredSelection(t *testing.T) {
 	}
 }
 
+func TestGetIngesterStatusUnknownIngesterReturns404(t *testing.T) {
+	t.Parallel()
+
+	handler := &StatusHandler{}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/ingesters/unknown_ingester", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
 func TestGetIngesterStatusRequestsFilteredSelection(t *testing.T) {
 	t.Parallel()
 

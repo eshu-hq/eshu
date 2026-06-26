@@ -4,6 +4,9 @@
 package query
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -146,5 +149,111 @@ func TestBuildDeploymentConfigInfluenceResponseUsesServiceStoryDeploymentEvidenc
 	coverage := mapValue(resp, "coverage")
 	if got, want := IntVal(coverage, "artifact_candidate_count"), 2; got != want {
 		t.Fatalf("coverage.artifact_candidate_count = %d, want %d", got, want)
+	}
+}
+
+func makeDeploymentConfigInfluenceHandler() *ImpactHandler {
+	return &ImpactHandler{
+		Neo4j: fakeWorkloadGraphReader{
+			runSingleByMatch: map[string]map[string]any{
+				"MATCH (w:Workload) WHERE": {
+					"id":      "svc-1",
+					"name":    "test-service",
+					"kind":    "service",
+					"repo_id": "repo-1",
+				},
+				"MATCH (r:Repository {id: $repo_id})": {
+					"repo_name": "test-service",
+				},
+			},
+			runByMatch: map[string][]map[string]any{
+				"INSTANCE_OF":                         {},
+				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
+				"K8sResource OR":                      {},
+				"fn.name IN":                          {},
+				"DEPLOYMENT_SOURCE":                   {},
+			},
+		},
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{{ID: "repo-1", Name: "test-service"}},
+		},
+	}
+}
+
+func requestDeploymentConfigInfluence(t *testing.T, handler *ImpactHandler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/deployment-config-influence", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	return w
+}
+
+func TestInvestigateDeploymentConfigInfluenceReturnsEnrichedResponse(t *testing.T) {
+	t.Parallel()
+
+	handler := makeDeploymentConfigInfluenceHandler()
+	w := requestDeploymentConfigInfluence(t, handler, `{"service_name":"test-service","limit":10}`)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+
+	if got, want := resp["service_name"], "test-service"; got != want {
+		t.Fatalf("service_name = %#v, want %#v", got, want)
+	}
+	if _, ok := resp["workload_id"]; !ok {
+		t.Fatal("response missing workload_id")
+	}
+	for _, key := range []string{"values_layers", "image_tag_sources", "rendered_targets", "influencing_repositories"} {
+		if _, ok := resp[key]; !ok {
+			t.Fatalf("response missing %s", key)
+		}
+	}
+}
+
+func TestInvestigateDeploymentConfigInfluenceReturns404ForUnknownService(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{
+		Neo4j: fakeWorkloadGraphReader{
+			runSingleByMatch: map[string]map[string]any{},
+			runByMatch:       map[string][]map[string]any{},
+		},
+	}
+
+	w := requestDeploymentConfigInfluence(t, handler, `{"service_name":"unknown-service","limit":10}`)
+
+	if got, want := w.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestInvestigateDeploymentConfigInfluence_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{Profile: ProfileLocalLightweight}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/deployment-config-influence", strings.NewReader(`{"service_name":"test-service"}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotImplemented; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"unsupported_capability"`) {
+		t.Fatalf("body = %s, want unsupported_capability envelope", body)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"platform_impact.deployment_config_influence"`) {
+		t.Fatalf("body = %s, want deployment_config_influence capability", body)
 	}
 }

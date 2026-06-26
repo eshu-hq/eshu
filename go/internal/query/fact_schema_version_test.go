@@ -145,6 +145,26 @@ func TestFactSchemaVersionDetailClassifiesCandidate(t *testing.T) {
 	}
 }
 
+func TestFactSchemaVersionDetail_LocalLightweightReturnsVersionData(t *testing.T) {
+	t.Parallel()
+	kind := facts.TerraformStateFactKinds()[0]
+	handler := &FactSchemaVersionHandler{Profile: ProfileLocalLightweight}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, envelopeRequest("/api/v0/fact-schema-versions/"+kind))
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	env := decodeFactSchemaVersionEnvelope(t, rec.Body.Bytes())
+	if env.Error != nil {
+		t.Fatalf("unexpected error envelope: %+v", env.Error)
+	}
+	if env.Truth.Capability != factSchemaVersionDetailCapability {
+		t.Fatalf("truth capability = %q, want %q", env.Truth.Capability, factSchemaVersionDetailCapability)
+	}
+}
+
 func TestFactSchemaVersionDetailUnknownKindReturns404(t *testing.T) {
 	t.Parallel()
 	rec := httptest.NewRecorder()
