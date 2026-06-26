@@ -5,8 +5,10 @@ package searchrerank
 
 import (
 	"math"
+	"strconv"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
 
@@ -145,4 +147,77 @@ func TestRerankBenchmarkAcceptanceEvidence(t *testing.T) {
 	if improved < 3 {
 		t.Fatalf("REJECT: expected >=3 improved cases, got %d", improved)
 	}
+}
+
+func BenchmarkRerank(b *testing.B) {
+	for _, size := range []int{10, 100, 1000} {
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			baseline := makeBenchResults(size, 0.3)
+			opts := Options{
+				Enabled: true,
+				Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+				Scope:   searchretrieval.Scope{RepoID: "repo-1"},
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = Rerank(baseline, opts)
+			}
+		})
+	}
+}
+
+func BenchmarkRerankDenseSignals(b *testing.B) {
+	for _, size := range []int{10, 100, 1000} {
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			baseline := makeBenchResults(size, 0.9)
+			opts := Options{
+				Enabled: true,
+				Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+				Scope:   searchretrieval.Scope{RepoID: "repo-1"},
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = Rerank(baseline, opts)
+			}
+		})
+	}
+}
+
+func BenchmarkRerankNoSignals(b *testing.B) {
+	for _, size := range []int{10, 100, 1000} {
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			baseline := makeBenchResults(size, 0)
+			opts := Options{
+				Enabled: true,
+				Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+				Scope:   searchretrieval.Scope{RepoID: "repo-1"},
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = Rerank(baseline, opts)
+			}
+		})
+	}
+}
+
+func makeBenchResults(n int, signalDensity float64) []searchretrieval.Result {
+	results := make([]searchretrieval.Result, n)
+	signalKinds := []string{"service", "workload", "deployment", "incident", "container_image", "owner"}
+	for i := range results {
+		var handles []searchdocs.GraphHandle
+		if signalDensity > 0 && float64(i)/float64(n) < signalDensity {
+			kind := signalKinds[i%len(signalKinds)]
+			handles = append(handles, handle(kind, "sig-"+strconv.Itoa(i)))
+		}
+		results[i] = result(
+			"d-"+strconv.Itoa(i),
+			i+1,
+			float64(n-i),
+			handles...,
+		)
+	}
+	return results
 }
