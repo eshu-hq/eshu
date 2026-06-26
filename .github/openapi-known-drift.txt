@@ -1,0 +1,10 @@
+# Known OpenAPI drift — routes that are intentionally excluded from the
+# OpenAPI surface or that predate this verifier.
+#
+# Format: METHOD /path (one per line, comments start with #)
+#
+# Documentation UIs — these serve HTML documentation, not an API surface.
+GET /api/v0/docs
+GET /api/v0/redoc
+# TODO(#3781): add openapi_paths_code_visualize fragment for this route.
+POST /api/v0/code/visualize
