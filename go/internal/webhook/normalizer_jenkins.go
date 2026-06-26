@@ -49,6 +49,7 @@ func jenkinsRef(event jenkinsPayload) string {
 	}
 	if branch := strings.TrimSpace(event.GitBranch); branch != "" {
 		if !strings.HasPrefix(branch, "refs/") {
+			branch = strings.TrimPrefix(branch, "origin/")
 			return branchRef(branch)
 		}
 		return branch

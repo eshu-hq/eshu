@@ -37,15 +37,31 @@ func normalizeAzureDevOpsPush(deliveryID string, payload []byte, defaultBranchFa
 	if err != nil {
 		return Trigger{}, err
 	}
-	if len(event.Resource.RefUpdates) == 0 {
-		return Trigger{}, fmt.Errorf("azure devops push event did not include ref updates")
+	trigger.Sender = strings.TrimSpace(event.Resource.PushedBy.DisplayName)
+
+	var firstIgnored Trigger
+	for _, refUpdate := range event.Resource.RefUpdates {
+		decision, err := normalizeAzureDevOpsPushChange(trigger, refUpdate)
+		if err != nil {
+			return Trigger{}, err
+		}
+		if decision.Decision == DecisionAccepted {
+			return decision, nil
+		}
+		if firstIgnored.Decision == "" {
+			firstIgnored = decision
+		}
 	}
-	refUpdate := event.Resource.RefUpdates[0]
+	if firstIgnored.Decision != "" {
+		return firstIgnored, nil
+	}
+	return Trigger{}, fmt.Errorf("azure devops push event did not include ref updates")
+}
+
+func normalizeAzureDevOpsPushChange(trigger Trigger, refUpdate adoRefUpdate) (Trigger, error) {
 	trigger.Ref = strings.TrimSpace(refUpdate.Name)
 	trigger.BeforeSHA = strings.TrimSpace(refUpdate.OldObjectID)
 	trigger.TargetSHA = strings.TrimSpace(refUpdate.NewObjectID)
-	trigger.Sender = strings.TrimSpace(event.Resource.PushedBy.DisplayName)
-
 	return decideBranchTrigger(trigger)
 }
 
