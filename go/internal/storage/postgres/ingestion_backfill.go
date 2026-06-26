@@ -294,6 +294,9 @@ func (s IngestionStore) RunDeferredRelationshipMaintenance(
 	if err := s.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
 		return err
 	}
+	// One reopen transaction replays both deployment_mapping and
+	// code_import_repo_edge work items — they share the same after-the-fact
+	// dependency (cross-scope evidence committed by the backfill above).
 	return s.reopenDeploymentMappingWorkItemsInTransaction(ctx, tracer, instruments)
 }
 
@@ -322,6 +325,12 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsInTransaction(
 	reopenStore.Now = s.Now
 	reopenStore.Logger = s.Logger
 	if err := reopenStore.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
+		return err
+	}
+	// Replay code_import_repo_edge in the same transaction: it shares the
+	// after-the-fact dependency on cross-scope evidence and must re-run once that
+	// evidence is committed, just like deployment_mapping.
+	if err := reopenStore.ReopenCodeImportRepoEdgeWorkItems(ctx, tracer, instruments); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

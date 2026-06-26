@@ -287,7 +287,41 @@ if [[ -z "${collector_sources}" ]] || (( collector_sources < GATE_MIN_COLLECTOR_
 fi
 printf 'cassette facts landed: %s credentialed collector sources\n' "${collector_sources}"
 
-log "drain projector + reducer (background; gate polls to terminal)"
+log "drain projector + reducer — first pass (background; gate polls to terminal)"
+start_bg projector projector_pid "${bin_dir}/eshu-projector"
+start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
+
+# First drain: let the reducer reach terminal. This produces the cross-scope
+# package-registry ownership facts (reducer_package_ownership_correlation) from
+# the cassette source hints, and runs the code_import_repo_edge projection once —
+# which resolves no owner yet (the ownership fact is produced in the same drain)
+# and so succeeds as a retraction. We do not assert here; this is the shard-drain
+# whose completion the deferred maintenance below keys off.
+if ! "${bin_dir}/eshu-golden-corpus-gate" \
+	-phase=drains \
+	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
+	-require-populated-domains="repo_dependency" \
+	-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
+	tail -30 "${log_dir}/reducer.log" || true
+	tail -30 "${log_dir}/projector.log" || true
+	die "first drain pass failed"
+fi
+kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+
+# Deferred maintenance AFTER the first drain — the ingester's post-shard-drain
+# pattern (RunDeferredRelationshipMaintenance). With the queue idle, re-run
+# bootstrap-index: its post-collection phase re-backfills relationship evidence
+# with the collector facts now present and replays the succeeded
+# code_import_repo_edge work items (now that the ownership facts they join against
+# exist and are active). The second drain below then re-resolves them, producing
+# the cross-repo DEPENDS_ON edge that the first drain could not. Collection and
+# projection re-runs are idempotent (facts dedupe by stable key; schema is
+# IF NOT EXISTS).
+log "deferred maintenance: re-run bootstrap-index maintenance (reopen cross-scope projections)"
+"${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-2.log" 2>&1 \
+	|| { tail -40 "${log_dir}/bootstrap-index-2.log"; die "deferred maintenance pass failed"; }
+
+log "drain projector + reducer — second pass (background; gate polls to terminal)"
 start_bg projector projector_pid "${bin_dir}/eshu-projector"
 start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
 

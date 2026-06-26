@@ -878,6 +878,7 @@ type Instruments struct {
 	DeferredBackfillPartitionWorkers       metric.Int64Histogram
 	DeferredBackfillPartitionLoadDuration  metric.Float64Histogram
 	DeploymentMappingReopened              metric.Int64Counter
+	CodeImportRepoEdgeReopened             metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter
 
@@ -3502,6 +3503,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register DeploymentMappingReopened counter: %w", err)
 	}
 
+	inst.CodeImportRepoEdgeReopened, err = meter.Int64Counter(
+		"eshu_dp_code_import_repo_edge_reopened_total",
+		metric.WithDescription("Total code_import_repo_edge work items reopened after deferred backfill"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeImportRepoEdgeReopened counter: %w", err)
+	}
+
 	inst.IaCReachabilityMaterializationDuration, err = meter.Float64Histogram(
 		"eshu_dp_iac_reachability_materialization_duration_seconds",
 		metric.WithDescription("Duration of corpus-wide IaC reachability materialization"),
@@ -4318,6 +4327,12 @@ const (
 	// and before config-state drift; without its own phase it would be an
 	// unaccounted gap that could not be flagged as a long pole.
 	BootstrapPhaseDeploymentReopen = "deployment_reopen"
+	// BootstrapPhaseCodeImportReopen is the code_import_repo_edge work-item reopen
+	// phase (ReopenCodeImportRepoEdgeWorkItems). It runs alongside the
+	// deployment_mapping reopen so a code-import projection that resolved no owner
+	// before the cross-scope package-registry facts landed is replayed once they
+	// exist; without its own phase its duration would be an unaccounted gap.
+	BootstrapPhaseCodeImportReopen = "code_import_repo_edge_reopen"
 	// BootstrapPhaseConfigStateDrift is the config-state drift intent
 	// enqueue phase (EnqueueConfigStateDriftIntents).
 	BootstrapPhaseConfigStateDrift = "config_state_drift"
