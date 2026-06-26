@@ -93,6 +93,13 @@ func GateAcceptedGenerationOnActive(
 			}
 			return "", false
 		}
+		if instruments != nil {
+			instruments.RepoDependencyGateDecisions.Add(
+				context.Background(),
+				1,
+				metric.WithAttributes(telemetry.AttrDecision("active")),
+			)
+		}
 		return generationID, true
 	}
 }

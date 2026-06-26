@@ -300,3 +300,39 @@ func TestGateAcceptedGenerationOnActiveCountersNoIncrementForMissingAcceptance(t
 		}
 	}
 }
+
+// TestGateAcceptedGenerationOnActiveCountersActive proves the counter
+// increments with decision="active" when the generation is accepted,
+// the source run requires the gate, and the generation IS active.
+func TestGateAcceptedGenerationOnActiveCountersActive(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	gated := GateAcceptedGenerationOnActive(
+		acceptedGenerationFixed("gen-2", true),
+		func(string) (bool, error) { return true, nil }, // active
+		instruments,
+	)
+
+	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	gen, ok := gated(key)
+	if !ok || gen != "gen-2" {
+		t.Fatalf("gated lookup = (%q, %v), want (gen-2, true)", gen, ok)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := gateDecisionsCounterValue(t, rm, map[string]string{
+		telemetry.MetricDimensionDecision: "active",
+	}); got != 1 {
+		t.Fatalf("repo_dependency_gate_decisions_total[active] = %d, want 1", got)
+	}
+}

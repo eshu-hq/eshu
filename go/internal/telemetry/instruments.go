@@ -901,14 +901,16 @@ type Instruments struct {
 
 	// RepoDependencyGateDecisions counts per-key gate decisions emitted from
 	// GateAcceptedGenerationOnActive, labeled by the bounded decision enum
-	// bypassed, deferred_inactive, deferred_error. It increments once per
+	// bypassed, deferred_inactive, deferred_error, active. It increments once per
 	// intent key resolved, never per prefetch batch. Operators read this to
 	// distinguish scope-gen bypass (bypassed, healthy) from transient deferral
-	// (deferred_inactive, expected until activation) and lookup failures
-	// (deferred_error, fail-safe). Sustained deferred_inactive signals a
-	// generation that's accepted but not yet active — the alertable wedge
-	// signal the B-13 post-mortem identified. Labels are bounded enums only:
-	// decision. Never carries generation ids, scope ids, or repository ids.
+	// (deferred_inactive, expected until activation), lookup failures
+	// (deferred_error, fail-safe), and successful pass-through (active).
+	// Sustained deferred_inactive signals a generation that's accepted but not
+	// yet active — the alertable wedge signal the B-13 post-mortem identified.
+	// Labels are bounded enums only: decision. Never carries generation ids,
+	// scope ids, or repository ids. Counter uses context.Background() because
+	// AcceptedGenerationLookup closures lack a context parameter.
 	RepoDependencyGateDecisions metric.Int64Counter
 
 	// ContentEntityEmitted counts content_entity facts streamed during
@@ -4229,7 +4231,9 @@ func AttrEventKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionEventKind, v)
 }
 
-// AttrDecision returns a decision attribute for webhook listener metrics.
+// AttrDecision returns a bounded-decision attribute for metric recording
+// (webhook listener, repo-dependency activation gate, and other
+// decision-classification call sites).
 func AttrDecision(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionDecision, v)
 }

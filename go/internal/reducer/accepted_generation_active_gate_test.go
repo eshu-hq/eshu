@@ -356,5 +356,3 @@ func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T)
 		t.Fatalf("graph write calls = %d after activation, want 1", len(writer.writeCalls))
 	}
 }
-
-
