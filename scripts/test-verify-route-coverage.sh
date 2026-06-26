@@ -108,10 +108,12 @@ GO
   fi
 }
 
-# Test 3 — green: handler file with a test file that uses file-prefix-based naming
-test_green_handler_with_file_prefix_test() {
+# Test 3 — green: short method name matches via concatenated file-stem+method pattern
+# e.g. getFamily in collector_readiness.go → search for CollectorReadinessFamily
+# matching TestCollectorReadinessFamilyDrilldown
+test_green_handler_with_concatenated_name_test() {
   local dir
-  dir="$(setup_repo "green-prefix")"
+  dir="$(setup_repo "green-concat")"
 
   cat > "${dir}/go/internal/query/collector_readiness.go" << 'GO'
 package query
@@ -137,15 +139,55 @@ GO
 
   export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
   if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
-    record_pass "green: file-prefix-based test name matches"
+    record_pass "green: concatenated file-stem+method test name matches"
   else
-    record_fail "green: file-prefix-based test name should match but failed"
+    record_fail "green: concatenated file-stem+method test name should match but failed"
+  fi
+}
+
+# Test 4 — red: short method name with only-an-unrelated-sibling-test is NOT a match
+# e.g. adding a short new method to an already-tested file should still fail
+# if no test exists that references the concatenated file-stem+method name
+test_red_short_method_only_has_unrelated_sibling_test() {
+  local dir
+  dir="$(setup_repo "red-short-unrelated")"
+
+  cat > "${dir}/go/internal/query/repo.go" << 'GO'
+package query
+
+import "net/http"
+
+type RepoHandler struct{}
+
+func (h *RepoHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/repos", h.listRepos)
+  mux.HandleFunc("GET /api/v0/repos/{repo_id}/new", h.getNew)
+}
+
+func (h *RepoHandler) listRepos(w http.ResponseWriter, r *http.Request) {}
+func (h *RepoHandler) getNew(w http.ResponseWriter, r *http.Request)    {}
+GO
+
+  cat > "${dir}/go/internal/query/repo_test.go" << 'GO'
+package query
+
+import "testing"
+
+func TestRepoListReposReturnsRepos(t *testing.T) {}
+GO
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_fail "red: short method with unrelated sibling should fail but passed"
+  else
+    record_pass "red: short method with unrelated sibling test correctly fails (RepoNew unmatched)"
   fi
 }
 
 test_green_handler_with_test
 test_red_handler_without_test
-test_green_handler_with_file_prefix_test
+test_green_handler_with_concatenated_name_test
+test_red_short_method_only_has_unrelated_sibling_test
 
 printf '\n%d/%d tests passed\n' "$PASS" "$TOTAL"
 

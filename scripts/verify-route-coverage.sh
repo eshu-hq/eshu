@@ -78,16 +78,16 @@ test_search_words() {
     printf ' %s' "$stripped"
   fi
 
-  # As a fallback for very short/common method names (e.g. "list", "detail",
-  # "getFamily"), add the file-stem PascalCase so that test names like
-  # TestFactSchemaVersionDetail and TestCollectorExtractionReadinessFamily
-  # are findable even though "Detail" alone would be too broad.
+  # For very short/common method names (e.g. "list", "detail", "getFamily"),
+  # add a concatenated file-stem+method search term. This avoids false matches
+  # from an unrelated sibling test in the same file (e.g. a bare "Repository"
+  # word matching TestRepositoryListCatalog when a new short route has no test).
   local short_threshold=7
   if [ ${#pascal} -lt "$short_threshold" ] || [ ${#stripped} -lt "$short_threshold" ]; then
     local file_pascal
     file_pascal="$(pascal_case "$file_stem")"
     if [ -n "$file_pascal" ] && [ "$file_pascal" != "$pascal" ] && [ "$file_pascal" != "$stripped" ]; then
-      printf ' %s' "$file_pascal"
+      printf ' %s%s' "$file_pascal" "$stripped"
     fi
   fi
 }

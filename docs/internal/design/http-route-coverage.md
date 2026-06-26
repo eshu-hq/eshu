@@ -38,6 +38,12 @@ A route is covered if any search term matches a test function name.
 - Pre-existing uncovered routes (e.g. `ServeReDoc`, `handleAsk`) are not retroactively flagged
 - The test mirror validates the verifier itself does not regress
 
+## Limitations
+
+The gate proves a similarly-named test function exists — it does not prove the test exercises the route or asserts meaningful behavior. A test named to match the convention but asserting nothing satisfies the gate. This is intentional: the gate is a name-coverage heuristic, not a behavioral-coverage verifier. Operators should treat a green gate as "a test with a plausible name exists," not as "the route is behavior-covered."
+
+For short method names (fewer than 7 characters after prefix stripping), the gate uses a concatenated file-stem+method search term (e.g., `FactSchemaVersion` + `Detail` → `FactSchemaVersionDetail`) to avoid matching unrelated sibling tests in the same file. This prevents false passes from pre-existing tests like `TestRepositoryListCatalog` when a new short method is added to `repository.go`.
+
 ## Cross-references
 - Epic R #3739: HTTP route coverage
 - gap-analysis.md § P0-6: 10 uncovered routes
