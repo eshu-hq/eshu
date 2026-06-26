@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -284,11 +285,11 @@ func (h webhookHandler) storeAndWrite(
 		if h.Logger != nil {
 			h.Logger.ErrorContext(
 				r.Context(), "webhook trigger persistence failed",
-				slog.String("provider", string(trigger.Provider)),
-				slog.String("event_kind", string(trigger.EventKind)),
+				log.Provider(string(trigger.Provider)),
+				log.EventKind(string(trigger.EventKind)),
 				slog.String("decision", string(trigger.Decision)),
 				slog.String("reason", string(trigger.Reason)),
-				slog.String("error", err.Error()),
+				log.Err(err),
 			)
 		}
 		http.Error(w, "store webhook trigger", http.StatusInternalServerError)
@@ -386,12 +387,12 @@ func (h webhookHandler) logWebhookRequest(
 	}
 	h.Logger.InfoContext(
 		ctx, "webhook request handled",
-		slog.String("provider", providerValue(provider)),
+		log.Provider(providerValue(provider)),
 		slog.String("outcome", fallbackValue(result.Outcome)),
 		slog.String("reason", fallbackValue(result.Reason)),
-		slog.String("event_kind", eventKindValue(result.EventKind)),
+		log.EventKind(eventKindValue(result.EventKind)),
 		slog.String("decision", decisionValue(result.Decision)),
-		slog.String("status", statusValue(result.Status)),
+		log.Status(statusValue(result.Status)),
 	)
 }
 

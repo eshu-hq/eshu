@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 func ingesterDeferredRelationshipMaintenance(
@@ -26,7 +27,7 @@ func ingesterDeferredRelationshipMaintenance(
 			if logger != nil {
 				logger.ErrorContext(
 					ctx, "deferred relationship maintenance failed",
-					slog.String("error", err.Error()),
+					log.Err(err),
 					telemetry.FailureClassAttr("deferred_relationship_maintenance_failure"),
 				)
 			}

@@ -23,13 +23,13 @@ func BenchmarkScoreQueryResults(b *testing.B) {
 	for i := range results {
 		results[i] = Result{
 			Document: searchdocs.Document{
-				ID:         "d-" + strconv.Itoa(i),
-				RepoID:     "repo-1",
-				Title:      "doc " + strconv.Itoa(i),
+				ID:          "d-" + strconv.Itoa(i),
+				RepoID:      "repo-1",
+				Title:       "doc " + strconv.Itoa(i),
 				ContextText: "sample content",
-				SourceKind: searchdocs.SourceKindCodeEntity,
-				TruthScope: searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived},
-				Freshness:  searchdocs.Freshness{State: searchdocs.FreshnessFresh},
+				SourceKind:  searchdocs.SourceKindCodeEntity,
+				TruthScope:  searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived},
+				Freshness:   searchdocs.Freshness{State: searchdocs.FreshnessFresh},
 				GraphHandles: []searchdocs.GraphHandle{
 					{Kind: "content_entity", ID: "d-" + strconv.Itoa(i)},
 				},
