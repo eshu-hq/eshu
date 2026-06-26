@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // PlatformMaterializationWrite captures the bounded canonical reconciliation
@@ -295,9 +297,9 @@ func logPlatformMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "deployment mapping materialization completed",
-		slog.String("scope_id", intent.ScopeID),
-		slog.String("generation_id", intent.GenerationID),
-		slog.String("domain", string(DomainDeploymentMapping)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(DomainDeploymentMapping)),
 		slog.Int("entity_key_count", len(request.EntityKeys)),
 		slog.Int("related_scope_count", len(request.RelatedScopeIDs)),
 		slog.Int("canonical_write_count", canonicalWrites),

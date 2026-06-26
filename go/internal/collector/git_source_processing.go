@@ -23,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // discoverRepositories runs repo selection with telemetry instrumentation.
@@ -52,7 +53,7 @@ func (s *GitSource) discoverRepositories(ctx context.Context) (SelectionBatch, e
 			}
 			logFn(
 				ctx, "collector discovery completed",
-				slog.String("collector_kind", "git"),
+				log.CollectorKind("git"),
 				slog.Int("repository_count", len(batch.Repositories)),
 			)
 		}
@@ -283,13 +284,13 @@ func (s *GitSource) snapshotOneRepository(
 	// Log completion
 	if s.Logger != nil {
 		logAttrs := []any{
-			slog.String("collector_kind", "git"),
-			slog.String("repo_path", repoPath),
+			log.CollectorKind("git"),
+			log.RepoPath(repoPath),
 			slog.Int("file_count", snapshot.FileCount),
 			slog.Int("fact_count", factCount),
 		}
 		if workerID > 0 {
-			logAttrs = append(logAttrs, slog.Int("worker_id", workerID))
+			logAttrs = append(logAttrs, log.WorkerID(fmt.Sprintf("%d", workerID)))
 		}
 		s.Logger.InfoContext(ctx, "collector snapshot completed", logAttrs...)
 	}

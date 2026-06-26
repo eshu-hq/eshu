@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // NativeRepositorySelector owns Go-native repository selection and sync behavior.
@@ -56,7 +57,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 	if s.Config.RepoShardCount > 1 && s.Logger != nil {
 		s.Logger.InfoContext(
 			ctx, "collector repository shard selected",
-			slog.String("collector_kind", "git"),
+			log.CollectorKind("git"),
 			slog.Int("repo_shard_count", s.Config.RepoShardCount),
 			slog.Int("repo_shard_index", s.Config.RepoShardIndex),
 			slog.Int("repository_count", len(repositoryIDs)),

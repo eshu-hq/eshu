@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // s3LogsToMaterializationDomainDefinition returns the additive definition for S3
@@ -362,9 +363,9 @@ func logS3LogsToMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "s3 logs-to materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("posture_fact_count", timing.postureCount),
 		slog.Int("edge_count", timing.edgeCount),

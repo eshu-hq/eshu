@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // awsRelationshipMaterializationDomainDefinition returns the additive
@@ -337,9 +338,9 @@ func logAWSRelationshipMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "aws relationship materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("resource_fact_count", timing.resourceFactCount),
 		slog.Int("relationship_fact_count", timing.relationshipCount),
 		slog.Int("edge_count", timing.edgeCount),

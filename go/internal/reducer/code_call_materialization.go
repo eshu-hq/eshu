@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -325,9 +325,9 @@ type codeCallMaterializationTiming struct {
 func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMaterializationTiming) {
 	slog.InfoContext(
 		ctx, "code call materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("symbol_key_count", timing.symbolKeyCount),
 		slog.Int("symbol_definition_fact_count", timing.symbolFactCount),

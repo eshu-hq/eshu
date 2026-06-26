@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -351,7 +352,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.Logger.InfoContext(
 			ctx,
 			"shared projection skipped intents until semantic readiness is committed",
-			slog.String("domain", domain),
+			log.Domain(domain),
 			slog.Int("partition_id", partitionID),
 			slog.Int("partition_count", partitionCount),
 			slog.Int("blocked_count", result.BlockedReadiness),
@@ -369,7 +370,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.Logger.InfoContext(
 			ctx,
 			"shared projection drained intents with no runtime target",
-			slog.String("domain", domain),
+			log.Domain(domain),
 			slog.Int("partition_id", partitionID),
 			slog.Int("partition_count", partitionCount),
 			slog.Int("terminal_no_endpoint_count", result.TerminalNoEndpoint),
@@ -384,7 +385,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.Logger.InfoContext(
 			ctx,
 			"shared projection deferred per-edge rows behind repo refresh fence",
-			slog.String("domain", domain),
+			log.Domain(domain),
 			slog.Int("partition_id", partitionID),
 			slog.Int("partition_count", partitionCount),
 			slog.Int("refresh_fence_deferred_count", result.RefreshFenceDeferred),

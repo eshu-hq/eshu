@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -197,7 +198,7 @@ func (r *GenerationRetentionRunner) recordFailure(ctx context.Context, err error
 		r.Logger.ErrorContext(
 			ctx,
 			"generation retention cycle failed",
-			slog.String("error", err.Error()),
+			log.Err(err),
 			telemetry.FailureClassAttr("generation_retention_error"),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

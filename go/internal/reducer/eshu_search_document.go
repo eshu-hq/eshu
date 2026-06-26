@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -139,15 +140,15 @@ func (h EshuSearchDocumentHandler) recordCycle(
 		return
 	}
 	logAttrs := []any{
-		slog.String("scope_id", intent.ScopeID),
-		slog.String("generation_id", intent.GenerationID),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
 		slog.Int("considered", summary.Considered),
 		slog.Int("included", summary.Included),
 		slog.Int("skipped", summary.Considered-summary.Included),
 		slog.Int("written", write.CanonicalWrites),
 		slog.Int("retired", write.Retired),
 		slog.Float64("duration_seconds", duration),
-		slog.String("domain", string(DomainEshuSearchDocument)),
+		log.Domain(string(DomainEshuSearchDocument)),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	}
 	for reason, count := range summary.SkippedByReason {
@@ -169,9 +170,9 @@ func (h EshuSearchDocumentHandler) logCancelError(ctx context.Context, intent In
 	}
 	h.Logger.WarnContext(
 		ctx, "eshu search document session cancel failed after stream error",
-		slog.String("scope_id", intent.ScopeID),
-		slog.String("generation_id", intent.GenerationID),
-		slog.String("domain", string(DomainEshuSearchDocument)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(DomainEshuSearchDocument)),
 		slog.String("cancel_error", cancelErr.Error()),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
@@ -107,7 +108,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycleFailure(ctx co
 		logAttrs,
 		slog.Float64("duration_seconds", duration),
 		slog.Bool("retryable", IsRetryable(err)),
-		slog.String("error", err.Error()),
+		log.Err(err),
 		telemetry.FailureClassAttr(failureClass),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

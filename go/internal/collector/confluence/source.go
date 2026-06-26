@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // Source emits one Confluence documentation source generation at a time.
@@ -75,7 +76,7 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 		s.Logger.InfoContext(
 			ctx,
 			"confluence sync completed",
-			slog.String("scope_id", scopeValue.ScopeID),
+			log.ScopeID(scopeValue.ScopeID),
 			slog.Int("page_count", len(pages)),
 			slog.Int("failure_count", failureCount),
 			slog.String("freshness_hint", generationValue.FreshnessHint),

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 func (r *CodeCallProjectionRunner) recordCodeCallCycle(
@@ -115,7 +116,7 @@ func (r *CodeCallProjectionRunner) recordCodeCallCycleFailure(ctx context.Contex
 		logAttrs,
 		slog.Float64("duration_seconds", duration),
 		slog.Bool("retryable", IsRetryable(err)),
-		slog.String("error", err.Error()),
+		log.Err(err),
 		telemetry.FailureClassAttr(failureClass),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

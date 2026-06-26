@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // DriftEvidenceLoader supplies the joined per-address rows the drift handler
@@ -273,9 +274,9 @@ func (h TerraformConfigStateDriftHandler) emitTelemetry(
 		if h.Logger != nil {
 			h.Logger.LogAttrs(
 				ctx, slog.LevelInfo, "drift candidate admitted",
-				slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
-				slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-				slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
+				log.Domain(string(intent.Domain)),
+				log.ScopeID(intent.ScopeID),
+				log.GenerationID(intent.GenerationID),
 				slog.String("drift.pack", pack.Name),
 				slog.String("drift.kind", driftKind),
 				slog.String("drift.address", address),
@@ -305,10 +306,10 @@ func (h TerraformConfigStateDriftHandler) logRejection(ctx context.Context, inte
 	}
 	h.Logger.LogAttrs(
 		ctx, slog.LevelWarn, "drift candidate rejected",
-		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
-		slog.String(telemetry.LogKeyFailureClass, rejection.FailureClass),
+		log.Domain(string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.FailureClass(rejection.FailureClass),
 		slog.String("rejection.reason", rejection.Reason),
 	)
 }

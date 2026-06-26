@@ -5,10 +5,13 @@ package collector
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // snapshotScheduler holds the shared state for the two-lane snapshot worker
@@ -52,9 +55,10 @@ func (sc *snapshotScheduler) acquireForLarge(repo SelectedRepository, workerID i
 		sc.source.Instruments.LargeRepoSemaphoreWait.Record(sc.workerCtx, waitSeconds)
 	}
 	if sc.source.Logger != nil {
-		sc.source.Logger.InfoContext(sc.workerCtx, "large repo semaphore acquired",
-			slog.String("repo_path", repo.RepoPath),
-			slog.Int("worker_id", workerID),
+		sc.source.Logger.InfoContext(
+			sc.workerCtx, "large repo semaphore acquired",
+			log.RepoPath(repo.RepoPath),
+			log.WorkerID(fmt.Sprintf("%d", workerID)),
 			slog.Float64("wait_seconds", waitSeconds),
 		)
 	}
@@ -70,8 +74,9 @@ func (sc *snapshotScheduler) processLargeHeld(repo SelectedRepository, workerID 
 		func() {
 			<-sc.largeSem
 			if sc.source.Logger != nil {
-				sc.source.Logger.InfoContext(sc.workerCtx, "large repo semaphore released",
-					slog.Int("worker_id", workerID),
+				sc.source.Logger.InfoContext(
+					sc.workerCtx, "large repo semaphore released",
+					log.WorkerID(fmt.Sprintf("%d", workerID)),
 					slog.Float64("held_seconds", time.Since(semAcquiredAt).Seconds()),
 				)
 			}
@@ -155,9 +160,10 @@ func (sc *snapshotScheduler) runSmallPreferring(workerID int) {
 					sc.source.Instruments.LargeRepoSemaphoreWait.Record(sc.workerCtx, 0)
 				}
 				if sc.source.Logger != nil {
-					sc.source.Logger.InfoContext(sc.workerCtx, "large repo semaphore acquired",
-						slog.String("repo_path", repo.RepoPath),
-						slog.Int("worker_id", workerID),
+					sc.source.Logger.InfoContext(
+						sc.workerCtx, "large repo semaphore acquired",
+						log.RepoPath(repo.RepoPath),
+						log.WorkerID(fmt.Sprintf("%d", workerID)),
 						slog.Float64("wait_seconds", 0),
 					)
 				}
@@ -272,9 +278,10 @@ func (sc *snapshotScheduler) logLargeAcquired(repo SelectedRepository, workerID 
 		sc.source.Instruments.LargeRepoSemaphoreWait.Record(sc.workerCtx, 0)
 	}
 	if sc.source.Logger != nil {
-		sc.source.Logger.InfoContext(sc.workerCtx, "large repo semaphore acquired",
-			slog.String("repo_path", repo.RepoPath),
-			slog.Int("worker_id", workerID),
+		sc.source.Logger.InfoContext(
+			sc.workerCtx, "large repo semaphore acquired",
+			log.RepoPath(repo.RepoPath),
+			log.WorkerID(fmt.Sprintf("%d", workerID)),
 			slog.Float64("wait_seconds", 0),
 		)
 	}

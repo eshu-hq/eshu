@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -318,7 +319,7 @@ func (r *CodeValueFlowStaleCleanupRunner) recordFailure(ctx context.Context, err
 	r.Logger.ErrorContext(
 		ctx,
 		"code value-flow stale cleanup cycle failed",
-		slog.String("error", err.Error()),
+		log.Err(err),
 		telemetry.FailureClassAttr("code_value_flow_stale_cleanup_error"),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

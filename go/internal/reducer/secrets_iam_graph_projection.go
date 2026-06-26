@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // SecretsIAMGraphWriter persists and retracts the reducer-owned secrets/IAM
@@ -246,8 +247,8 @@ func (h SecretsIAMGraphProjectionHandler) logCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "secrets/iam graph projection completed",
-		slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
 		slog.Int("node_count", nodeCount),
 		slog.Int("edge_count", edgeCount),
 		slog.Int("skipped_count", totalTally(tally.SkippedByReason)),

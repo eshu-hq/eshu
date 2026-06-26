@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const defaultPollInterval = time.Second
@@ -377,9 +378,9 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 		for _, a := range domainAttrs {
 			logAttrs = append(logAttrs, a)
 		}
-		logAttrs = append(logAttrs, slog.String("queue", "reducer"))
-		logAttrs = append(logAttrs, slog.String("intent_id", intent.IntentID))
-		logAttrs = append(logAttrs, slog.String("status", status))
+		logAttrs = append(logAttrs, log.Queue("reducer"))
+		logAttrs = append(logAttrs, log.IntentID(intent.IntentID))
+		logAttrs = append(logAttrs, log.Status(status))
 		logAttrs = append(logAttrs, slog.Float64("duration_seconds", duration))
 		logAttrs = append(logAttrs, slog.Float64("handler_duration_seconds", duration))
 		logAttrs = append(logAttrs, slog.Float64("queue_wait_seconds", queueWait))
@@ -397,7 +398,7 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 		for k, v := range result.SubSignals {
 			logAttrs = append(logAttrs, slog.Float64("sub_signal_"+k, v))
 		}
-		logAttrs = append(logAttrs, slog.Int("worker_id", workerID))
+		logAttrs = append(logAttrs, log.WorkerID(fmt.Sprintf("%d", workerID)))
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseReduction))
 		switch status {
 		case "failed", "ack_failed":
@@ -409,7 +410,7 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 			}
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr(failureClass))
 			if execErr != nil {
-				logAttrs = append(logAttrs, slog.String("error", execErr.Error()))
+				logAttrs = append(logAttrs, log.Err(execErr))
 			}
 			s.Logger.ErrorContext(ctx, message, logAttrs...)
 		case "superseded":
@@ -465,13 +466,13 @@ func (s Service) startHeartbeat(ctx context.Context, intent Intent, workerID int
 						}
 						logAttrs = append(
 							logAttrs,
-							slog.String("queue", "reducer"),
-							slog.String("intent_id", intent.IntentID),
-							slog.Int("worker_id", workerID),
+							log.Queue("reducer"),
+							log.IntentID(intent.IntentID),
+							log.WorkerID(fmt.Sprintf("%d", workerID)),
 							slog.Duration("heartbeat_interval", s.HeartbeatInterval),
 							telemetry.PhaseAttr(telemetry.PhaseReduction),
 							telemetry.FailureClassAttr("lease_heartbeat_failure"),
-							slog.String("error", heartbeatErr.Error()),
+							log.Err(heartbeatErr),
 						)
 						s.Logger.ErrorContext(heartbeatCtx, "reducer lease heartbeat failed", logAttrs...)
 					}

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const s3ExternalPrincipalGrantEvidenceSource = "reducer/s3-external-principal-grant"
@@ -237,9 +238,9 @@ func logS3ExternalPrincipalGrantMaterializationCompleted(
 ) {
 	slog.InfoContext(
 		ctx, "s3 external-principal grant materialization completed",
-		slog.String(telemetry.LogKeyScopeID, timing.intent.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
-		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
+		log.ScopeID(timing.intent.ScopeID),
+		log.GenerationID(timing.intent.GenerationID),
+		log.Domain(string(timing.intent.Domain)),
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("grant_fact_count", timing.grantCount),
 		slog.Int("edge_count", timing.rowCount),

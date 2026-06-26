@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -59,7 +60,7 @@ func (s NativeRepositorySnapshotter) logSCIPProcessSlotAcquired(ctx context.Cont
 	}
 	s.Logger.DebugContext(
 		ctx, "SCIP process slot acquired",
-		slog.String("language", language),
+		log.Language(language),
 		slog.Float64("wait_seconds", wait.Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseParsing),
 	)

@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const warningMissingManifestDigest = "missing_manifest_digest"
@@ -132,9 +133,9 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		s.Logger.InfoContext(
 			ctx, "OCI registry scan completed",
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
-			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
-			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),
-			slog.String("provider", string(target.Provider)),
+			log.ScopeID(scopeValue.ScopeID),
+			log.GenerationID(generationValue.GenerationID),
+			log.Provider(string(target.Provider)),
 			slog.String("tls_mode", string(target.TLSMode())),
 			slog.Int("reference_count", len(tags)),
 			slog.Int("fact_count", len(envelopes)),

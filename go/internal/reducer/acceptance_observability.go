@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 type sharedAcceptanceLookupEvent struct {
@@ -59,7 +60,7 @@ func (t sharedAcceptanceTelemetry) RecordLookup(ctx context.Context, event share
 		slog.String("runner", event.Runner),
 		slog.String("lookup_result", event.Result),
 		slog.String("error_type", "lookup_failed"),
-		slog.String("error", event.Err.Error()),
+		log.Err(event.Err),
 		slog.Float64("duration_seconds", event.Duration),
 		telemetry.FailureClassAttr("shared_acceptance_lookup_error"),
 		telemetry.PhaseAttr(telemetry.PhaseShared),
@@ -90,7 +91,7 @@ func (t sharedAcceptanceTelemetry) RecordStaleIntents(ctx context.Context, runne
 		ctx,
 		"shared acceptance filtered stale intents",
 		slog.String("runner", runner),
-		slog.String(telemetry.LogKeyDomain, domain),
+		log.Domain(domain),
 		telemetry.AcceptanceStaleCountAttr(staleCount),
 		telemetry.PhaseAttr(telemetry.PhaseShared),
 	)

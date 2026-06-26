@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // FactLoader loads fact envelopes for one scope generation.
@@ -451,9 +452,9 @@ func logWorkloadMaterializationCompleted(
 
 	slog.InfoContext(
 		ctx, "workload materialization completed",
-		slog.String("scope_id", intent.ScopeID),
-		slog.String("generation_id", intent.GenerationID),
-		slog.String("domain", string(DomainWorkloadMaterialization)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(DomainWorkloadMaterialization)),
 		slog.Int("candidate_count", len(candidates)),
 		slog.Int("workload_row_count", workloadRows),
 		slog.Int("instance_row_count", instanceRows),

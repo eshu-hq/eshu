@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -337,11 +338,11 @@ func (s Service) startHeartbeat(ctx context.Context, work ScopeGenerationWork, w
 						for _, a := range scopeAttrs {
 							logAttrs = append(logAttrs, a)
 						}
-						logAttrs = append(logAttrs, slog.Int("worker_id", workerID))
+						logAttrs = append(logAttrs, log.WorkerID(fmt.Sprintf("%d", workerID)))
 						logAttrs = append(logAttrs, slog.Duration("heartbeat_interval", s.HeartbeatInterval))
 						logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseProjection))
 						logAttrs = append(logAttrs, telemetry.FailureClassAttr("lease_heartbeat_failure"))
-						logAttrs = append(logAttrs, slog.String("error", heartbeatErr.Error()))
+						logAttrs = append(logAttrs, log.Err(heartbeatErr))
 						s.Logger.ErrorContext(heartbeatCtx, "projector lease heartbeat failed", logAttrs...)
 					}
 					cancel()
@@ -392,8 +393,8 @@ func (s Service) acquireLargeGenSem(ctx context.Context, work ScopeGenerationWor
 		if s.Logger != nil {
 			s.Logger.WarnContext(
 				ctx, "fact count failed, skipping large-gen semaphore",
-				slog.String("error", err.Error()),
-				slog.Int("worker_id", workerID),
+				log.Err(err),
+				log.WorkerID(fmt.Sprintf("%d", workerID)),
 			)
 		}
 		return nil
@@ -413,7 +414,7 @@ func (s Service) acquireLargeGenSem(ctx context.Context, work ScopeGenerationWor
 			logAttrs,
 			slog.Int("fact_count", count),
 			slog.Int("threshold", s.largeGenThreshold()),
-			slog.Int("worker_id", workerID),
+			log.WorkerID(fmt.Sprintf("%d", workerID)),
 		)
 		s.Logger.InfoContext(ctx, "large generation detected, acquiring semaphore", logAttrs...)
 	}
@@ -429,7 +430,7 @@ func (s Service) acquireLargeGenSem(ctx context.Context, work ScopeGenerationWor
 			s.Logger.InfoContext(
 				ctx, "large generation semaphore acquired",
 				slog.Int("fact_count", count),
-				slog.Int("worker_id", workerID),
+				log.WorkerID(fmt.Sprintf("%d", workerID)),
 			)
 		}
 		return func() { <-s.largeSem }

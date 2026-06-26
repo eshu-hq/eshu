@@ -6,10 +6,12 @@ package projector
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 func (s Service) recordSupersededWork(
@@ -34,14 +36,14 @@ func (s Service) recordSupersededWork(
 	}
 	logAttrs = append(
 		logAttrs,
-		slog.String("queue", "projector"),
-		slog.String("status", "superseded"),
+		log.Queue("projector"),
+		log.Status("superseded"),
 		slog.Int("fact_count", factCount),
 		slog.Float64("duration_seconds", time.Since(start).Seconds()),
-		slog.Int("worker_id", workerID),
+		log.WorkerID(fmt.Sprintf("%d", workerID)),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),
 		telemetry.FailureClassAttr("projector_superseded_by_newer_generation"),
-		slog.String("error", heartbeatErr.Error()),
+		log.Err(heartbeatErr),
 	)
 	s.Logger.InfoContext(context.WithoutCancel(ctx), "projector work superseded by newer generation", logAttrs...)
 	return true
