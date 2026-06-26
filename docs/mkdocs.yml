@@ -11,7 +11,7 @@ theme:
     - navigation.expand
     - content.code.copy
     - toc.follow
-  palette: 
+  palette:
     - scheme: default
       primary: teal
       accent: purple
@@ -186,6 +186,7 @@ nav:
         - Repositories, Ingester, And Bundles: reference/http-api/repositories-ingesters-bundles.md
       - MCP Reference: reference/mcp-reference.md
       - MCP Cookbook: reference/mcp-cookbook.md
+      - API Versioning: reference/api-versioning.md
     - CLI Reference: reference/cli-reference.md
     - First-Run Evidence: reference/first-run-evidence.md
     - CLI Indexing: reference/cli-indexing.md
@@ -352,7 +353,7 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
   - attr_list
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
