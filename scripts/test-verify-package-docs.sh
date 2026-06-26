@@ -83,4 +83,55 @@ git -C "${deleted_repo}" rm -q -r go/internal/collector/removed
 git -C "${deleted_repo}" commit -q -m 'delete package'
 expect_pass "${deleted_repo}"
 
+# Regression (repo-root under GIT_DIR): the verifier must derive repo_root from
+# its own location, not `git rev-parse --show-toplevel`. Git hooks export
+# GIT_DIR, under which `git -C scripts rev-parse --show-toplevel` returns
+# <repo>/scripts, so the per-package doc paths resolve under the wrong root and a
+# package WITH docs is falsely reported missing. Run a COPY of the verifier from
+# the fixture's scripts/ with GIT_DIR set and ESHU_PACKAGE_DOCS_REPO_ROOT unset;
+# it must still resolve the fixture root and PASS.
+gitdir_repo="$(init_repo gitdir)"
+mkdir -p "${gitdir_repo}/scripts" "${gitdir_repo}/go/internal/collector/gitdircase"
+cp "${verifier}" "${gitdir_repo}/scripts/verify-package-docs.sh"
+printf 'package gitdircase\n' >"${gitdir_repo}/go/internal/collector/gitdircase/source.go"
+printf 'package gitdircase\n' >"${gitdir_repo}/go/internal/collector/gitdircase/doc.go"
+printf '# Gitdir Case\n' >"${gitdir_repo}/go/internal/collector/gitdircase/README.md"
+printf '# Gitdir Agent Rules\n' >"${gitdir_repo}/go/internal/collector/gitdircase/AGENTS.md"
+git -C "${gitdir_repo}" add .
+git -C "${gitdir_repo}" commit -q -m 'new package with docs (gitdir fixture)'
+if env -u ESHU_PACKAGE_DOCS_REPO_ROOT -u GITHUB_BASE_REF \
+    GIT_DIR="${gitdir_repo}/.git" ESHU_PACKAGE_DOCS_BASE=HEAD~1 \
+    "${gitdir_repo}/scripts/verify-package-docs.sh" \
+    >/tmp/eshu-package-docs.out 2>/tmp/eshu-package-docs.err; then
+  :
+else
+  printf 'expected verifier to resolve repo_root under GIT_DIR and pass\n' >&2
+  sed -n '1,40p' /tmp/eshu-package-docs.err >&2
+  exit 1
+fi
+
+# Regression (merge-base base): with no explicit base and no GITHUB_BASE_REF, the
+# verifier must fall back to merge-base(origin/main, HEAD), not HEAD~1. On a
+# branch with >1 commit past origin/main, a HEAD~1 base misses the first commit's
+# changes; merge-base catches the whole branch. The fixture adds an undocumented
+# package in commit B and an unrelated change in commit C (HEAD), with
+# origin/main pinned at the initial commit: merge-base picks up B's package and
+# fails; a HEAD~1 base would diff only C and wrongly pass.
+mergebase_repo="$(init_repo mergebase)"
+git -C "${mergebase_repo}" update-ref refs/remotes/origin/main HEAD
+mkdir -p "${mergebase_repo}/go/internal/collector/branchpkg"
+printf 'package branchpkg\n' >"${mergebase_repo}/go/internal/collector/branchpkg/source.go"
+git -C "${mergebase_repo}" add .
+git -C "${mergebase_repo}" commit -q -m 'B: undocumented package'
+printf 'note\n' >>"${mergebase_repo}/go/internal/collector/base/README.md"
+git -C "${mergebase_repo}" add .
+git -C "${mergebase_repo}" commit -q -m 'C: unrelated doc change'
+if env -u ESHU_PACKAGE_DOCS_BASE -u GITHUB_BASE_REF \
+    ESHU_PACKAGE_DOCS_REPO_ROOT="${mergebase_repo}" \
+    "${verifier}" >/tmp/eshu-package-docs.out 2>/tmp/eshu-package-docs.err; then
+  printf 'expected merge-base fallback to flag branchpkg (added in commit B), but verifier passed\n' >&2
+  sed -n '1,40p' /tmp/eshu-package-docs.out >&2
+  exit 1
+fi
+
 printf 'verify-package-docs tests passed\n'

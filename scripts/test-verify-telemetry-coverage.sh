@@ -224,6 +224,51 @@ git -C "${case_content_shape}" add .
 git -C "${case_content_shape}" commit -q -m "add content shape stage"
 expect_fail "fails when a new go/internal/content/shape file is not covered by the doc" "${case_content_shape}"
 
+# Case 9 (repo-root under GIT_DIR): the verifier must derive repo_root from its
+# own location, not `git rev-parse --show-toplevel`. Git hooks export GIT_DIR,
+# under which `git -C scripts rev-parse --show-toplevel` returns <repo>/scripts,
+# so the doc/instruments existence checks resolve under the wrong root and report
+# a false "is missing". Run a COPY of the verifier from the fixture's scripts/
+# with GIT_DIR set and ESHU_TELEMETRY_COVERAGE_REPO_ROOT unset; it must resolve
+# the fixture root and PASS.
+case_gitdir="$(init_repo case-gitdir)"
+mkdir -p "${case_gitdir}/scripts"
+cp "${verifier}" "${case_gitdir}/scripts/verify-telemetry-coverage.sh"
+git -C "${case_gitdir}" add .
+git -C "${case_gitdir}" commit -q -m "copy verifier into fixture scripts"
+if env -u ESHU_TELEMETRY_COVERAGE_REPO_ROOT -u GITHUB_BASE_REF \
+    GIT_DIR="${case_gitdir}/.git" ESHU_TELEMETRY_COVERAGE_BASE=HEAD~1 \
+    "${case_gitdir}/scripts/verify-telemetry-coverage.sh" \
+    >/tmp/eshu-telemetry-coverage.out 2>/tmp/eshu-telemetry-coverage.err; then
+  record_pass "resolves repo_root from script location under GIT_DIR"
+else
+  record_fail "resolves repo_root from script location under GIT_DIR"
+fi
+
+# Case 10 (merge-base base): with no explicit base and no GITHUB_BASE_REF, the
+# verifier must fall back to merge-base(origin/main, HEAD), not HEAD~1. On a
+# branch with >1 commit past origin/main, a HEAD~1 base misses the first commit's
+# new stage; merge-base catches it. origin/main is pinned at the initial commit,
+# commit B adds an uncovered stage file, commit C (HEAD) is unrelated:
+# merge-base flags B's stage and fails; a HEAD~1 base diffs only C and wrongly
+# passes.
+case_mergebase="$(init_repo case-mergebase)"
+git -C "${case_mergebase}" update-ref refs/remotes/origin/main HEAD
+mkdir -p "${case_mergebase}/go/internal/reducer/branchstage"
+printf 'package branchstage\n' >"${case_mergebase}/go/internal/reducer/branchstage/materialization.go"
+git -C "${case_mergebase}" add .
+git -C "${case_mergebase}" commit -q -m "B: uncovered stage"
+printf 'package reducer\n// trailing comment\n' >"${case_mergebase}/go/internal/reducer/service.go"
+git -C "${case_mergebase}" add .
+git -C "${case_mergebase}" commit -q -m "C: unrelated change"
+if env -u ESHU_TELEMETRY_COVERAGE_BASE -u GITHUB_BASE_REF \
+    ESHU_TELEMETRY_COVERAGE_REPO_ROOT="${case_mergebase}" \
+    "${verifier}" >/tmp/eshu-telemetry-coverage.out 2>/tmp/eshu-telemetry-coverage.err; then
+  record_fail "merge-base fallback flags a stage added before HEAD~1"
+else
+  record_pass "merge-base fallback flags a stage added before HEAD~1"
+fi
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1
