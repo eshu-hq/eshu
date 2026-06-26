@@ -228,10 +228,6 @@ func wireAPI(
 		SupplyChain: newSupplyChainEvidenceSource(db, logger),
 	}).Mount(apiMux)
 
-	// Register /api/v1/ as an alias for /api/v0/ — rewrites paths and
-	// re-dispatches through the same mux so every v0 handler is reachable at v1.
-	mountV1Alias(apiMux)
-
 	// Record per-endpoint duration/error metrics for every API route. The
 	// middleware wraps the application mux only; the admin surface (probes,
 	// /metrics) is mounted separately and is intentionally not counted.
@@ -252,7 +248,11 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
-	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, mux, adminRecoveryAuditAppender(governanceAudit))
+	// Rewrite /api/v1/* to /api/v0/* before auth so scoped-token and
+	// browser-session route classification sees the v0 path.
+	v1Rewritten := v1PrefixAliasMiddleware(mux)
+
+	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, v1Rewritten, adminRecoveryAuditAppender(governanceAudit))
 
 	// Install the fully-wrapped handler into the Ask runner's deferred handler so
 	// inner tool dispatches re-run auth + the scoped-route gate under the caller's
@@ -519,21 +519,21 @@ func newRouterWithSemanticEmbedding(
 	return router, nil
 }
 
-// mountV1Alias registers a catch-all handler on mux that rewrites
-// /api/v1/* requests to /api/v0/* and re-dispatches through the same
-// mux. It must be called after all /api/v0/ routes are mounted so
-// the rewritten paths match the registered patterns.
-//
-// A request for GET /api/v1/foo/bar is rewritten to GET /api/v0/foo/bar
-// and the inner mux matches the method+path pattern. Query parameters,
-// headers, and body are preserved through r.Clone.
-func mountV1Alias(mux *http.ServeMux) {
-	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
-		rest := r.URL.Path[len("/api/v1/"):]
-		r2 := r.Clone(r.Context())
-		u := *r.URL
-		u.Path = "/api/v0/" + rest
-		r2.URL = &u
-		mux.ServeHTTP(w, r2)
+// v1PrefixAliasMiddleware rewrites /api/v1/* request paths to /api/v0/*
+// before passing to next. It is applied ahead of auth middleware so
+// scoped-token and browser-session route classification sees the v0 path.
+// The request is cloned; method, headers, query parameters, and body are
+// preserved.
+func v1PrefixAliasMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			r2 := r.Clone(r.Context())
+			u := *r.URL
+			u.Path = "/api/v0/" + r.URL.Path[len("/api/v1/"):]
+			r2.URL = &u
+			next.ServeHTTP(w, r2)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
