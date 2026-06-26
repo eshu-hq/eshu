@@ -197,8 +197,10 @@ func (a *postgresBrowserSessionAdapter) ListSessionsBySubject(
 	subjectIDHash string,
 	asOf time.Time,
 	sessionHash string,
+	limit int,
+	offset int,
 ) ([]query.BrowserSessionListItem, error) {
-	items, err := a.store.ListSessionsBySubject(ctx, subjectIDHash, asOf, sessionHash)
+	items, err := a.store.ListSessionsBySubject(ctx, subjectIDHash, asOf, sessionHash, limit, offset)
 	if err != nil {
 		return nil, err
 	}

@@ -33,6 +33,8 @@ func (s *fakeBrowserSessionListStore) ListSessionsBySubject(
 	subjectIDHash string,
 	_ time.Time,
 	_ string,
+	_ int,
+	_ int,
 ) ([]BrowserSessionListItem, error) {
 	s.capturedSubject = subjectIDHash
 	if s.listErr != nil {
