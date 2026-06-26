@@ -92,9 +92,10 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 	}
 
+	shutdownTimeout := apiShutdownTimeout(os.Getenv)
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer shutdownCancel()
 		_ = srv.Shutdown(shutdownCtx)
 	}()

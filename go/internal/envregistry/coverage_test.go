@@ -40,6 +40,8 @@ var coreScanFiles = []string{
 	"cmd/collector-azure-cloud/config.go",
 	"cmd/collector-kubernetes-live/config.go",
 	"cmd/collector-component-extension/config.go",
+	"cmd/api/config_helpers.go",
+	"cmd/api/main.go",
 	"cmd/api/oidc_login.go",
 }
 

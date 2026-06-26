@@ -20,15 +20,15 @@ import (
 )
 
 const (
-	envAuthOIDCEnabled              = "ESHU_AUTH_OIDC_ENABLED"
-	envAuthOIDCConfigFile           = "ESHU_AUTH_OIDC_CONFIG_FILE"
-	envAuthOIDCProviderID           = "ESHU_AUTH_OIDC_PROVIDER_ID"
-	envAuthOIDCStateTTL             = "ESHU_AUTH_OIDC_STATE_TTL"
-	envAuthOIDCSessionRefreshWindow = "ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW"
-	envAuthOIDCLoginRatePerSec      = "ESHU_AUTH_OIDC_LOGIN_RATE_PER_SEC"
-	envAuthOIDCLoginRateBurst       = "ESHU_AUTH_OIDC_LOGIN_RATE_BURST"
-	envAuthOIDCLoginProviderRatePerMin  = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_RATE_PER_MIN"
-	envAuthOIDCLoginProviderBurst       = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_BURST"
+	envAuthOIDCEnabled                 = "ESHU_AUTH_OIDC_ENABLED"
+	envAuthOIDCConfigFile              = "ESHU_AUTH_OIDC_CONFIG_FILE"
+	envAuthOIDCProviderID              = "ESHU_AUTH_OIDC_PROVIDER_ID"
+	envAuthOIDCStateTTL                = "ESHU_AUTH_OIDC_STATE_TTL"
+	envAuthOIDCSessionRefreshWindow    = "ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW"
+	envAuthOIDCLoginRatePerSec         = "ESHU_AUTH_OIDC_LOGIN_RATE_PER_SEC"
+	envAuthOIDCLoginRateBurst          = "ESHU_AUTH_OIDC_LOGIN_RATE_BURST"
+	envAuthOIDCLoginProviderRatePerMin = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_RATE_PER_MIN"
+	envAuthOIDCLoginProviderBurst      = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_BURST"
 )
 
 type postgresOIDCStoreAdapter struct {

@@ -50,6 +50,7 @@ var coreEntries = []Entry{
 
 	// api
 	{Name: "ESHU_API_ADDR", Type: VarString, Default: ":8080", Subsystem: "api", Description: "API server listen address."},
+	{Name: "ESHU_API_SHUTDOWN_TIMEOUT", Type: VarDuration, Default: "30s", Subsystem: "api", Description: "Graceful shutdown deadline for the API HTTP server; an explicit 5 s setting is honored for backwards compatibility."},
 	{Name: "ESHU_API_KEY", Type: VarString, Subsystem: "api", Description: "Bearer token for API authentication."},
 	{Name: "ESHU_AUTH_OIDC_CONFIG_FILE", Type: VarString, Subsystem: "api", Description: "Path to an operator-managed OIDC login config file. When set and not disabled, the API enables backend Authorization Code login and reads provider/client/group-role mapping handles from this file."},
 	{Name: "ESHU_AUTH_OIDC_ENABLED", Type: VarBool, Default: "false", Subsystem: "api", Description: "Explicitly enables or disables backend OIDC login. Set true with ESHU_AUTH_OIDC_CONFIG_FILE to require OIDC startup config; set false to disable even when a config file is present."},

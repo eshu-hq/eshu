@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -25,6 +26,47 @@ func TestPrintAPIVersionFlagReturnsBeforeRuntimeStartup(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, handled)
 	assert.Equal(t, "eshu-api v1.2.3-api\n", stdout.String())
+}
+
+func TestAPIShutdownTimeoutDefault30s(t *testing.T) {
+	t.Parallel()
+
+	d := apiShutdownTimeout(nil)
+	assert.Equal(t, 30*time.Second, d, "default shutdown timeout should be 30s")
+}
+
+func TestAPIShutdownTimeoutExplicit5sHonored(t *testing.T) {
+	t.Parallel()
+
+	getenv := func(key string) string {
+		if key == "ESHU_API_SHUTDOWN_TIMEOUT" {
+			return "5s"
+		}
+		return ""
+	}
+	d := apiShutdownTimeout(getenv)
+	assert.Equal(t, 5*time.Second, d, "explicit 5s should be honored")
+}
+
+func TestAPIShutdownTimeoutInvalidValueFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
+	getenv := func(key string) string {
+		if key == "ESHU_API_SHUTDOWN_TIMEOUT" {
+			return "not-a-duration"
+		}
+		return ""
+	}
+	d := apiShutdownTimeout(getenv)
+	assert.Equal(t, 30*time.Second, d, "invalid value should fall back to 30s default")
+}
+
+func TestAPIShutdownTimeoutEmptyValueUsesDefault(t *testing.T) {
+	t.Parallel()
+
+	getenv := func(string) string { return "" }
+	d := apiShutdownTimeout(getenv)
+	assert.Equal(t, 30*time.Second, d, "empty value should use 30s default")
 }
 
 func TestNewLoggerOutputsStructuredJSON(t *testing.T) {
