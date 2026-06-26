@@ -3,13 +3,15 @@
 # xx provides cross-compilation helpers (clang + target sysroot selection).
 # Using --platform=$BUILDPLATFORM throughout avoids running Go 1.26 under
 # QEMU amd64 emulation, which causes runtime crashes on arm64 hosts.
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.5.0 AS xx
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.5.0@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS builder
 COPY --from=xx /usr/bin/xx-* /usr/bin/
 
 ARG TARGETPLATFORM
 ARG ESHU_VERSION=dev
+ARG SOURCE_DATE_EPOCH
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 
 # clang+lld for cross-compilation; xx-apk installs the target-arch sysroot.
 RUN apk add --no-cache git clang lld
@@ -64,7 +66,7 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
 
 # Production stage
-FROM alpine:3.21
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 RUN apk add --no-cache git curl
 
