@@ -4,7 +4,6 @@
 package dart
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -239,105 +238,163 @@ func TestParseSkipsDartCommentOnlyCalls(t *testing.T) {
 	assertBucketNameMissing(t, payload, "function_calls", "helperFromString")
 }
 
-func writeSource(t *testing.T, name string, source string) string {
-	t.Helper()
+func TestParseCapturesDartEnums(t *testing.T) {
+	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatalf("create source dir: %v", err)
+	path := writeSource(t, "colors.dart", `enum Color { red, green, blue }
+enum Status { pending, active, done }
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
-		t.Fatalf("write source: %v", err)
+
+	enum := assertBucketName(t, payload, "classes", "Color")
+	if got, want := enum["lang"], "dart"; got != want {
+		t.Fatalf("enum Color lang = %#v, want %#v", got, want)
 	}
-	return path
+	assertBucketName(t, payload, "classes", "Status")
+	assertBucketNameCount(t, payload, "classes", "Color", 1)
 }
 
-func assertBucketName(t *testing.T, payload map[string]any, bucket string, name string) map[string]any {
-	t.Helper()
+func TestParseCapturesDartMixins(t *testing.T) {
+	t.Parallel()
 
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+	path := writeSource(t, "logging.dart", `mixin Logger {
+  void log(String msg) {}
+}
+mixin Cacheable {
+  String cacheKey() => '';
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	for _, item := range items {
-		if item["name"] == name {
-			return item
-		}
+
+	mixin := assertBucketName(t, payload, "classes", "Logger")
+	if got, want := mixin["lang"], "dart"; got != want {
+		t.Fatalf("mixin Logger lang = %#v, want %#v", got, want)
 	}
-	t.Fatalf("payload[%q] missing name %q in %#v", bucket, name, items)
-	return nil
+	assertBucketName(t, payload, "classes", "Cacheable")
+	assertFunctionByNameAndClass(t, payload, "log", "Logger")
+	assertFunctionByNameAndClass(t, payload, "cacheKey", "Cacheable")
 }
 
-func assertBucketNameMissing(t *testing.T, payload map[string]any, bucket string, name string) {
-	t.Helper()
+func TestParseCapturesDartExtensions(t *testing.T) {
+	t.Parallel()
 
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+	path := writeSource(t, "ext.dart", `extension StringX on String {
+  bool get isBlank => trim().isEmpty;
+  String capitalize() => this[0].toUpperCase() + substring(1);
+}
+extension type Meters(int value) {
+  Meters operator +(Meters other) => Meters(value + other.value);
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	for _, item := range items {
-		if item["name"] == name {
-			t.Fatalf("payload[%q] contains name %q in %#v", bucket, name, items)
-		}
+
+	ext := assertBucketName(t, payload, "classes", "StringX")
+	if got, want := ext["lang"], "dart"; got != want {
+		t.Fatalf("extension StringX lang = %#v, want %#v", got, want)
+	}
+	assertBucketName(t, payload, "classes", "Meters")
+	// extension members carry class context
+	assertFunctionByNameAndClass(t, payload, "isBlank", "StringX")
+	assertFunctionByNameAndClass(t, payload, "capitalize", "StringX")
+}
+
+func TestParseCapturesDartFactoryConstructors(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "factory.dart", `class Widget {
+  factory Widget.named() => Widget._();
+  factory Widget.fromJson(Map<String, dynamic> json) {
+    return Widget._();
+  }
+  Widget._();
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	named := assertFunctionByNameAndClass(t, payload, "Widget.named", "Widget")
+	if isFactory, _ := named["factory"].(bool); !isFactory {
+		t.Fatalf("factory constructor Widget.named missing factory=true in %#v", named)
+	}
+
+	fromJson := assertFunctionByNameAndClass(t, payload, "Widget.fromJson", "Widget")
+	if isFactory, _ := fromJson["factory"].(bool); !isFactory {
+		t.Fatalf("factory constructor Widget.fromJson missing factory=true in %#v", fromJson)
+	}
+
+	// regular redirecting constructor (not factory) should not have factory=true
+	regular := assertFunctionByNameAndClass(t, payload, "Widget._", "Widget")
+	if isFactory, _ := regular["factory"].(bool); isFactory {
+		t.Fatalf("non-factory constructor Widget._ has factory=true in %#v", regular)
 	}
 }
 
-func assertFunctionByNameAndClass(t *testing.T, payload map[string]any, name string, classContext string) map[string]any {
-	t.Helper()
+func TestParseCapturesDartVariables(t *testing.T) {
+	t.Parallel()
 
-	items, ok := payload["functions"].([]map[string]any)
-	if !ok {
-		t.Fatalf("payload[functions] = %T, want []map[string]any", payload["functions"])
+	path := writeSource(t, "vars.dart", `int count = 0;
+final name = 'Eshu';
+const maxItems = 100;
+var items = <String>[];
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	for _, item := range items {
-		if item["name"] == name && item["class_context"] == classContext {
-			return item
-		}
+
+	v := assertBucketName(t, payload, "variables", "count")
+	if got, want := v["lang"], "dart"; got != want {
+		t.Fatalf("variable count lang = %#v, want %#v", got, want)
 	}
-	t.Fatalf("functions missing name %q class_context %q in %#v", name, classContext, items)
-	return nil
+	assertBucketName(t, payload, "variables", "name")
+	assertBucketName(t, payload, "variables", "maxItems")
+	assertBucketName(t, payload, "variables", "items")
+	assertBucketNameCount(t, payload, "variables", "count", 1)
 }
 
-func assertBucketNameCount(t *testing.T, payload map[string]any, bucket string, name string, want int) {
-	t.Helper()
+func TestParseCapturesDartCallExtraction(t *testing.T) {
+	t.Parallel()
 
-	items, ok := payload[bucket].([]map[string]any)
-	if !ok {
-		t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
-	}
-	count := 0
-	for _, item := range items {
-		if item["name"] == name {
-			count++
-		}
-	}
-	if count != want {
-		t.Fatalf("payload[%q] name %q count = %d, want %d in %#v", bucket, name, count, want, items)
-	}
+	path := writeSource(t, "calls.dart", `void run() {
+  print('hello');
+  doSomething(1, 2);
+  var result = compute(a, b);
+  fetch().then(process);
+  validate();
 }
+`)
 
-func assertStringSliceContains(t *testing.T, item map[string]any, key string, want string) {
-	t.Helper()
-
-	values, ok := item[key].([]string)
-	if !ok {
-		t.Fatalf("item[%q] = %T, want []string in %#v", key, item[key], item)
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
 	}
-	for _, value := range values {
-		if value == want {
-			return
-		}
-	}
-	t.Fatalf("item[%q] missing %q in %#v", key, want, values)
-}
 
-func assertStringSliceNotContains(t *testing.T, item map[string]any, key string, unwanted string) {
-	t.Helper()
+	assertBucketName(t, payload, "function_calls", "print")
+	assertBucketName(t, payload, "function_calls", "doSomething")
+	assertBucketName(t, payload, "function_calls", "compute")
+	assertBucketName(t, payload, "function_calls", "fetch")
+	assertBucketName(t, payload, "function_calls", "then")
+	assertBucketName(t, payload, "function_calls", "validate")
 
-	values, _ := item[key].([]string)
-	for _, value := range values {
-		if value == unwanted {
-			t.Fatalf("item[%q] contains %q in %#v", key, unwanted, values)
-		}
+	// ensure line_number is present on calls
+	call := assertBucketName(t, payload, "function_calls", "print")
+	if _, ok := call["line_number"]; !ok {
+		t.Fatalf("function_calls[print] missing line_number in %#v", call)
 	}
 }

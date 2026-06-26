@@ -29,6 +29,7 @@ type dartFunctionSpan struct {
 	startLine    int
 	endLine      int
 	complexity   int
+	isFactory    bool
 }
 
 type dartNamedSpan struct {
@@ -149,6 +150,7 @@ func dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string,
 	if bodyNode != nil && bodyNode.Kind() != "function_body" {
 		bodyNode = nil
 	}
+	isFactory := isDartFactoryConstructor(node)
 	return dartFunctionSpan{
 		name:         name,
 		classContext: scope.name,
@@ -157,6 +159,7 @@ func dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string,
 		startLine:    startLine,
 		endLine:      dartFunctionEndLine(endNode, lines),
 		complexity:   dartCyclomaticComplexity(node, bodyNode, source),
+		isFactory:    isFactory,
 	}
 }
 
@@ -311,6 +314,21 @@ func dartQuotedURI(text string) string {
 		return ""
 	}
 	return ""
+}
+
+func isDartFactoryConstructor(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind() == "factory_constructor_signature" || node.Kind() == "redirecting_factory_constructor_signature" {
+		return true
+	}
+	for _, child := range dartNamedChildren(node) {
+		if child.Kind() == "factory_constructor_signature" || child.Kind() == "redirecting_factory_constructor_signature" {
+			return true
+		}
+	}
+	return false
 }
 
 func dartDecoratorsBeforeLine(lines []string, line int) []string {
