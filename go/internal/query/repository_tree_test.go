@@ -285,3 +285,54 @@ func TestGetRepositoryTreeEmptyRepositoryReturnsEmptyEntries(t *testing.T) {
 		t.Fatalf("entries = %d, want 0 for an indexed repository with no files", len(entries))
 	}
 }
+
+func TestGetRepositoryTree_LocalLightweightReturnsTree(t *testing.T) {
+	t.Parallel()
+
+	handler := &RepositoryHandler{
+		Profile: ProfileLocalLightweight,
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles:    repositoryTreeFixtureFiles(),
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/tree", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var env ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("json.Unmarshal envelope: %v", err)
+	}
+	if env.Truth == nil {
+		t.Fatal("truth envelope is nil")
+	}
+	if got, want := env.Truth.Capability, "platform_impact.context_overview"; got != want {
+		t.Fatalf("truth capability = %s, want %s", got, want)
+	}
+	if got, want := string(env.Truth.Profile), string(ProfileLocalLightweight); got != want {
+		t.Fatalf("truth profile = %s, want %s", got, want)
+	}
+	if got, want := string(env.Truth.Level), string(TruthLevelDerived); got != want {
+		t.Fatalf("truth level = %s, want %s", got, want)
+	}
+	raw, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("json.Marshal env.Data: %v", err)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		t.Fatalf("json.Unmarshal data: %v", err)
+	}
+	if _, ok := data["entries"]; !ok {
+		t.Fatal("response missing entries")
+	}
+}
