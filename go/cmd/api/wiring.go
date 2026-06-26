@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -566,11 +567,18 @@ func deprecationHeadersMiddleware(next http.Handler, sunset string) http.Handler
 }
 
 // readSunsetDate returns the date for the Sunset response header, read from
-// ESHU_API_V0_SUNSET_DATE, or the default 12-month window. The value is used
-// as-is in the header; operators should supply a valid RFC 1123 GMT date.
+// ESHU_API_V0_SUNSET_DATE. If set, the value is validated against RFC 1123
+// (http.TimeFormat); a parse failure falls back to the default with a warning.
 func readSunsetDate(getenv func(string) string) string {
+	const defaultDate = "Thu, 01 Jul 2027 00:00:00 GMT"
 	if v := getenv("ESHU_API_V0_SUNSET_DATE"); v != "" {
-		return v
+		if _, err := time.Parse(time.RFC1123, v); err == nil {
+			return v
+		}
+		slog.Warn("ESHU_API_V0_SUNSET_DATE parse failed, using default",
+			"value", v,
+			"default", defaultDate,
+		)
 	}
-	return "Thu, 01 Jul 2027 00:00:00 GMT"
+	return defaultDate
 }
