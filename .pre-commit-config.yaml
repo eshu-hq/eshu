@@ -15,8 +15,15 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # Exclude the intentionally-crafted fixture/golden corpora: these files
+      # carry deliberate trailing whitespace / EOF bytes that the parser and
+      # golden tests assert on. Auto-fixing them mangled ~57 fixtures, which
+      # pushed contributors to `git commit --no-verify` and so silently skipped
+      # the go-lint/go-fmt gates below. Excluding them keeps commits hook-clean.
       - id: trailing-whitespace
+        exclude: '^tests/fixtures/|/testdata/|^testdata/'
       - id: end-of-file-fixer
+        exclude: '^tests/fixtures/|/testdata/|^testdata/'
       - id: check-merge-conflict
       - id: check-yaml
         args: ["--allow-multiple-documents"]

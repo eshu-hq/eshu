@@ -123,7 +123,16 @@ current turn, stop and ask — do not self-approve and proceed.
   (reviewer re-requests use `gh pr edit`, not `gh pr review`) and poll again
   before proceeding. An empty first review is not a pass — it is a failed
   request that must be retried.
-- Check GHA on every PR; on red, root-cause (no symptom patch), fix, rerun.
+- Check GHA on every PR. Enumerate **every** check's state, not just the green
+  rollup; on red, root-cause (no symptom patch), fix, rerun. A clean PR *diff*
+  can still inherit pre-existing red: this repo has no required-status-check
+  enforcement, so whole-module Lint Go / Go tests that an earlier sequential gate
+  masked (e.g. a failing "Verify hot-path evidence" step that aborts the job
+  before Lint Go) surface only on the first PR to pass those earlier gates. Fix
+  the inherited debt in that PR — do not merge through red because "it is not my
+  diff." The only red you may carry is a check on a documented advisory allowlist
+  (state it explicitly, e.g. the Docker `verify-reproducibility` build-determinism
+  job); treat every other red as blocking.
 
 ## Step 5 — Per-PR gate (no skip)
 
@@ -139,6 +148,16 @@ current turn, stop and ask — do not self-approve and proceed.
    - **Accuracy (Opus):** wrong graph/query/deploy truth, fact loss,
      fixture-vs-reducer-vs-API disagreement. Skills: `eshu-correlation-truth`,
      `cypher-query-rigor`, `eshu-mcp-call-rigor`.
+   - **Cross-file drift (Opus):** whole-repo consequences a unified diff hides.
+     When a PR repopulates an aggregator/registry via embed or codegen (e.g.
+     switching `BootstrapDefinitions()` to `//go:embed`), grep for the now-orphaned
+     producer symbols and confirm they are deleted AND that sibling tests asserting
+     the old shape (paths, names, columns) are updated — otherwise `golangci unused`
+     and the test suite fail on the *next* PR, not this one. When a PR edits a
+     SQL/Cypher query string (projected columns, `ORDER BY`, clause shape), open the
+     sibling `*_test.go` that asserts on that query and re-check the invariant still
+     holds (e.g. a security guard scanning for a forbidden bare column). Skills:
+     `golang-engineering`, `cypher-query-rigor`.
    - **Concurrency (Opus):** races, deadlocks, lock order/duration,
      MERGE/commit-uniqueness conflicts, missing idempotency under
      workers/retries/ordering, serialization-as-a-fix. Skill:

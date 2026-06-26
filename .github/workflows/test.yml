@@ -87,18 +87,28 @@ jobs:
       - name: Verify accuracy golden gate
         run: scripts/verify_accuracy_golden_gate.sh
 
+      # The code-quality block below runs with `if: ${{ !cancelled() }}` so a
+      # failure in any earlier verify-* gate (e.g. "Verify hot-path evidence")
+      # cannot silently skip whole-module Lint Go, gofumpt, build, and tests.
+      # Without this guard a sequential-step failure masked these checks, so
+      # lint/test debt only surfaced on a PR that happened to pass the earlier
+      # gates instead of on the PR that introduced it.
       - name: Install golangci-lint
+        if: ${{ !cancelled() }}
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 
       - name: Build golangci-lint filelength plugin
+        if: ${{ !cancelled() }}
         working-directory: tools/golangci-lint-filelength
         run: make build
 
       - name: Lint Go
+        if: ${{ !cancelled() }}
         working-directory: go
         run: golangci-lint run ./...
 
       - name: Check gofumpt formatting
+        if: ${{ !cancelled() }}
         # gofumpt is configured under `formatters` in v2, so it is
         # NOT enforced by `golangci-lint run`. Run the formatter
         # check separately so a non-gofumpt-clean tree fails CI
@@ -107,14 +117,17 @@ jobs:
         run: golangci-lint fmt --diff
 
       - name: Build all Go binaries
+        if: ${{ !cancelled() }}
         working-directory: go
         run: go build ./...
 
       - name: Clear non-race Go cache
+        if: ${{ !cancelled() }}
         working-directory: go
         run: go clean -cache -testcache
 
       - name: Run Go tests with race detector
+        if: ${{ !cancelled() }}
         working-directory: go
         run: go test ./... -count=1 -race -timeout 300s -p 2
 
