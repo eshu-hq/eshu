@@ -68,7 +68,7 @@ ARG SOURCE_DATE_EPOCH
 ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 ```
 
-Go's toolchain (1.18+) reads `SOURCE_DATE_EPOCH` and uses it in place of the
+Go's toolchain (1.13+) reads `SOURCE_DATE_EPOCH` and uses it in place of the
 wall-clock time when embedding the build timestamp in the binary. Combined with
 the existing `-trimpath` flag, this makes the Go compiler output fully
 deterministic for a given source tree, Go version, and dependency graph.
@@ -161,6 +161,13 @@ Result: All 31 Go binaries in /usr/local/bin/ are byte-identical (sha256 match).
 Alpine system files: xx files differ (acceptable — apk metadata variance).
 ```
 
+Sources used:
+
+- [`Dockerfile`](../../../Dockerfile)
+- [Docker Publish Workflow](../../../.github/workflows/docker-publish.yml)
+- [Reproducible Builds — SOURCE_DATE_EPOCH](https://reproducible-builds.org/docs/source-date-epoch/)
+- [Go Build Reproducibility](https://go.dev/doc/diagnostics#build-reproducibility)
+
 ## 7. Non-Goals
 
 This PR does not:
@@ -171,11 +178,3 @@ This PR does not:
   local proof on arm64 completed).
 - Change the Go toolchain version, `go.mod` go directive, or any Go package.
 - Alter `.github/workflows/security-scan.yml`.
-
-## 8. Sources
-
-- [Dockerfile](../../../Dockerfile)
-- [Docker Publish Workflow](../../../.github/workflows/docker-publish.yml)
-- [Reproducible Builds — SOURCE_DATE_EPOCH](https://reproducible-builds.org/docs/source-date-epoch/)
-- [Go 1.18 Release Notes — Build Reproducibility](https://go.dev/doc/go1.18#go-build-reproducibility)
-- [docker/build-push-action provenance](https://github.com/docker/build-push-action)
