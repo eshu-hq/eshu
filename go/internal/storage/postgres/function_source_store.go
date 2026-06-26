@@ -74,10 +74,6 @@ func functionSourceBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, functionSourceBootstrapDefinition())
-}
-
 // functionIDRepo returns the repository component of a FunctionID
 // (repo\x1fpkg\x1freceiver\x1fname), or the empty string when unset.
 func functionIDRepo(functionID string) string {

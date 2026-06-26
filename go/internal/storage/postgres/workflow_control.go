@@ -255,8 +255,4 @@ func workflowControlBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, workflowControlBootstrapDefinition())
-}
-
 var _ workflow.ControlStore = (*WorkflowControlStore)(nil)

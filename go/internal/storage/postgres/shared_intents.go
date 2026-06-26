@@ -491,6 +491,3 @@ func sharedIntentBootstrapDefinition() Definition {
 }
 
 // init registers the shared intent schema in the bootstrap definitions.
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, sharedIntentBootstrapDefinition())
-}

@@ -70,7 +70,3 @@ func admissionDecisionBootstrapDefinition() Definition {
 		SQL:  admissionDecisionSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, admissionDecisionBootstrapDefinition())
-}

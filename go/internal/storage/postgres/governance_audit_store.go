@@ -336,7 +336,3 @@ func governanceAuditEventsBootstrapDefinition() Definition {
 		SQL:  GovernanceAuditEventsSchemaSQL(),
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, governanceAuditEventsBootstrapDefinition())
-}

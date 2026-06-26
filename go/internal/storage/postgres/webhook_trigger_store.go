@@ -356,7 +356,3 @@ func webhookTriggerBootstrapDefinition() Definition {
 		SQL:  webhookTriggerSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, webhookTriggerBootstrapDefinition())
-}

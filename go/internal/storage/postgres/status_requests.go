@@ -281,11 +281,3 @@ func (s StatusRequestStore) GetReindexState(ctx context.Context, ingester string
 
 // Ensure StatusRequestStore satisfies the interface at compile time.
 var _ runtime.StatusRequestStore = StatusRequestStore{}
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, Definition{
-		Name: "runtime_ingester_control",
-		Path: "schema/data-plane/postgres/009_runtime_ingester_control.sql",
-		SQL:  controlSchemaSQL,
-	})
-}

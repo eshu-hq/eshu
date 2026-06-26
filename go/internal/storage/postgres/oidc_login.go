@@ -82,10 +82,6 @@ func oidcLoginBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, oidcLoginBootstrapDefinition())
-}
-
 // EnsureSchema applies the OIDC login schema.
 func (s *OIDCLoginStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

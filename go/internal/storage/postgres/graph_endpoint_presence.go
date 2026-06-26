@@ -324,7 +324,3 @@ func graphEndpointPresenceBootstrapDefinition() Definition {
 		SQL:  graphEndpointPresenceSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, graphEndpointPresenceBootstrapDefinition())
-}

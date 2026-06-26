@@ -82,11 +82,3 @@ func serviceEvidenceSnapshotsBootstrapDefinition() Definition {
 		SQL:  serviceEvidenceSnapshotsSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(
-		bootstrapDefinitions,
-		serviceMaterializationGenerationsBootstrapDefinition(),
-		serviceEvidenceSnapshotsBootstrapDefinition(),
-	)
-}

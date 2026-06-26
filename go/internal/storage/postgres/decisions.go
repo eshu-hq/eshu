@@ -284,6 +284,3 @@ func decisionBootstrapDefinition() Definition {
 }
 
 // init registers the decision schema in the bootstrap definitions.
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, decisionBootstrapDefinition())
-}

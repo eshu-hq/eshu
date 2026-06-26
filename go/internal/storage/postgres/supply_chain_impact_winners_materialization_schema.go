@@ -37,10 +37,3 @@ func supplyChainImpactWinnersMaterializationBootstrapDefinition() Definition {
 		SQL:  supplyChainImpactWinnersMaterializationSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(
-		bootstrapDefinitions,
-		supplyChainImpactWinnersMaterializationBootstrapDefinition(),
-	)
-}

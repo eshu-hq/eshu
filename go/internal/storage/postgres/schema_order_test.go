@@ -54,5 +54,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"value_flow_fixpoint_components",
 	"supply_chain_impact_canonical_winners",
 	"supply_chain_impact_winners_materialization",
+	"content_entities_repo_entity_idx",
 	"collector_evidence_summary",
 }

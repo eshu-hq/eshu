@@ -48,7 +48,3 @@ func collectorGenerationDeadLetterBootstrapDefinition() Definition {
 		SQL:  collectorGenerationDeadLetterSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, collectorGenerationDeadLetterBootstrapDefinition())
-}

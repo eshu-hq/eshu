@@ -74,10 +74,6 @@ func functionGraphIDBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, functionGraphIDBootstrapDefinition())
-}
-
 // FunctionGraphIDStore persists the FunctionID->graph-uid map for the cross-repo
 // fixpoint.
 type FunctionGraphIDStore struct {

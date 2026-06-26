@@ -58,10 +58,3 @@ func collectorEvidenceSummaryBootstrapDefinition() Definition {
 		SQL:  collectorEvidenceSummarySchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(
-		bootstrapDefinitions,
-		collectorEvidenceSummaryBootstrapDefinition(),
-	)
-}

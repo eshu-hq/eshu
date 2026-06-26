@@ -265,7 +265,3 @@ func awsFreshnessBootstrapDefinition() Definition {
 		SQL:  awsFreshnessSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, awsFreshnessBootstrapDefinition())
-}

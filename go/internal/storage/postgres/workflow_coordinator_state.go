@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -322,13 +321,5 @@ func workflowCoordinatorStateBootstrapDefinition() Definition {
 		Name: "workflow_coordinator_state",
 		Path: "schema/data-plane/postgres/015_workflow_coordinator_state.sql",
 		SQL:  workflowCoordinatorStateSchemaSQL,
-	}
-}
-
-func init() {
-	if !slices.ContainsFunc(bootstrapDefinitions, func(def Definition) bool {
-		return def.Name == "workflow_coordinator_state"
-	}) {
-		bootstrapDefinitions = append(bootstrapDefinitions, workflowCoordinatorStateBootstrapDefinition())
 	}
 }

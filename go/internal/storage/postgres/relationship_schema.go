@@ -332,6 +332,3 @@ func relationshipBootstrapDefinition() Definition {
 }
 
 // init registers the relationship schema in the bootstrap definitions.
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, relationshipBootstrapDefinition())
-}

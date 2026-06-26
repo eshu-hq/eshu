@@ -35,7 +35,3 @@ func generationRetentionBootstrapDefinition() Definition {
 		SQL:  generationRetentionEventSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, generationRetentionBootstrapDefinition())
-}
