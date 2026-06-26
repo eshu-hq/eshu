@@ -341,6 +341,48 @@ git -C "${case_buckets_missing}" add .
 git -C "${case_buckets_missing}" commit -q -m "add ghost bucket set to doc"
 expect_fail "fails when doc has bucket set missing from code" "${case_buckets_missing}"
 
+# Case 14: multi-line bucket literal in code. The verifier must parse
+# bucket arrays that span multiple lines inside []float64{...}. This pins
+# the parser against formatting drift where a developer splits a long
+# bucket list across lines.
+case_buckets_multiline="$(init_repo case-buckets-multiline)"
+cat >>"${case_buckets_multiline}/go/internal/telemetry/instruments.go" <<'GO'
+	if _, err := meter.Float64Histogram(
+		"eshu_dp_multiline_histogram_seconds",
+		metric.WithDescription("multi-line histogram"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(
+			0.005,
+			0.01,
+			0.025,
+			0.05,
+			0.1,
+			0.25,
+			0.5,
+			1,
+			2.5,
+			5,
+			10,
+		),
+	); err != nil {
+		return nil, err
+	}
+GO
+cat >>"${case_buckets_multiline}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| multi-line histogram | go/internal/telemetry/instruments.go:99 | `eshu_dp_multiline_histogram_seconds` | test |
+
+<!-- eshu:metric:section=histogram-buckets -->
+## Histogram Bucket Boundaries
+
+| set_name | boundary_values |
+| --- | --- |
+| multiline-seconds | 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
+MD
+git -C "${case_buckets_multiline}" add .
+git -C "${case_buckets_multiline}" commit -q -m "add multi-line bucket literal"
+expect_pass "passes when bucket set spans multiple lines in code" "${case_buckets_multiline}"
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1

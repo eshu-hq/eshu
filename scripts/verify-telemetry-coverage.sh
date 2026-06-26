@@ -164,7 +164,7 @@ fi
 # or TODO, which would defeat the "every stage must register telemetry"
 # policy. Format: <file> <signal> where signal is 1 or 0.
 doc_row_signals_tmp="$(mktemp)"
-trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp"' EXIT
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$instruments_flat"' EXIT
 : >"$doc_row_signals_tmp"
 if [ -s "$all_rows_tmp" ]; then
   while IFS= read -r row; do
@@ -275,21 +275,38 @@ if [ -n "$section_line" ]; then
 fi
 
 # 4b: Parse bucket boundary definitions from instruments.go.
-# Named variables: var name = []float64{...}
+# rg --replace is line-oriented even with -U (multiline), so a bucket list
+# split across lines produces one output line per number rather than one
+# combined capture. Collapse the file to a single line first (remove
+# newlines inside []float64{...} and WithExplicitBucketBoundaries(...)
+# blocks), then extract the sets with single-line regexps.
 : >"$code_buckets_tmp"
-rg -UPo '=\s*\[\]float64\{([^}]+)\}' --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | \
+instruments_flat="$(mktemp)"
+# python3 one-liner: join lines inside matching bracket pairs so each
+# bucket definition becomes a single line, then extract.
+python3 -c "
+import re, sys
+with open(sys.argv[1]) as f:
+    text = f.read()
+
+# Collapse newlines inside []float64{...} and WithExplicitBucketBoundaries(...)
+# blocks so each becomes a single line.
+text = re.sub(r'\[\]float64\{[^}]+\}', lambda m: m.group(0).replace('\n', ' '), text)
+text = re.sub(r'WithExplicitBucketBoundaries\([^)]+\)', lambda m: m.group(0).replace('\n', ' '), text)
+
+# Extract named variables: = []float64{...}
+for m in re.finditer(r'=\s*\[\]float64\{([^}]+)\}', text):
+    raw = m.group(1).strip()
+    sys.stdout.write(raw + '\n')
+
+# Extract inline literals: WithExplicitBucketBoundaries(N, N, ...)
+for m in re.finditer(r'WithExplicitBucketBoundaries\(([^)]+)\)', text):
+    raw = m.group(1).strip()
+    if not re.search(r'[a-zA-Z_]', raw):  # skip variable references
+        sys.stdout.write(raw + '\n')
+" "$repo_root/$instruments_path" 2>/dev/null | \
   while IFS= read -r raw_set; do
     [ -n "$raw_set" ] && canonicalize_buckets "$raw_set" >>"$code_buckets_tmp"
-  done || true
-# Inline literals: WithExplicitBucketBoundaries(1, 2, 4, ...)
-# Filter out variable references by requiring the capture to contain only
-# digits, commas, dots, and spaces (no letters or underscores — variable
-# names like neo4jBatchBuckets contain digits but are not literal values).
-rg -UPo 'WithExplicitBucketBoundaries\(([^)]+)\)' --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | \
-  sed 's/\.\.\.$//' | while IFS= read -r raw_set; do
-    if ! printf '%s' "$raw_set" | rg -q '[a-zA-Z_]'; then
-      canonicalize_buckets "$raw_set" >>"$code_buckets_tmp"
-    fi
   done || true
 sort -u -o "$code_buckets_tmp" "$code_buckets_tmp"
 
