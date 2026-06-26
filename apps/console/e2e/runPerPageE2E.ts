@@ -96,28 +96,90 @@ import { pageTest as pt_workspaceEnv } from "./pages/workspaceEnv.e2e.ts";
 import { pageTest as pt_workspaceWorkload } from "./pages/workspaceWorkload.e2e.ts";
 
 const allTests: readonly PageTest[] = [
-  pt_admin, pt_adminAssignments, pt_adminAudit, pt_adminGroupMappings,
-  pt_adminInvitations, pt_adminProviders, pt_adminRoles, pt_adminTokens,
-  pt_ask, pt_capabilities, pt_catalog, pt_changedSince, pt_changedSincePacket,
-  pt_cicdRunCorrelations, pt_cloud, pt_cloudDrift, pt_cloudInventoryPanel,
-  pt_codeGraph, pt_collectorReadiness, pt_dashboard, pt_dashboardRoot,
-  pt_deadCode, pt_dependencies, pt_deployableUnitPacket, pt_explorer,
-  pt_exposure, pt_exposurePathAdvanced, pt_findings, pt_freshnessCausality,
-  pt_iac, pt_images, pt_impact, pt_incidentContext, pt_incidentContextOther,
-  pt_incidents, pt_incidentSections, pt_login, pt_nodes, pt_observability,
-  pt_operations, pt_profile, pt_relationships, pt_relationshipTruthPanel,
-  pt_replatforming, pt_repositories, pt_repoSource, pt_repoSourceFrontend,
-  pt_repoSourceInfra, pt_repoSourceLedger, pt_repoSourcePayments, pt_sbom,
-  pt_secretsIam, pt_serviceAtlasEvidence, pt_serviceChangeSurface,
-  pt_serviceCodeInvestigation, pt_serviceConfigInfluence, pt_serviceInvestigation,
-  pt_serviceRelationshipExplorer, pt_serviceRelationshipInspector,
-  pt_serviceRelationshipWorkbench, pt_serviceReport, pt_serviceReportLedger,
-  pt_serviceReportPayments, pt_serviceReportService, pt_serviceSpotlight,
-  pt_serviceStory, pt_serviceStoryLedger, pt_serviceStoryPayments,
-  pt_serviceStoryService, pt_serviceSupportEvidence, pt_serviceTrafficPath,
-  pt_status, pt_surfaceInventory, pt_topology, pt_vulnCatalog, pt_vulnDetail,
-  pt_vulnDetailExact, pt_vulnDetailMedium, pt_vulnDetailOther, pt_vulnerabilities,
-  pt_vulnReachable, pt_workspace, pt_workspaceEnv, pt_workspaceWorkload
+  pt_admin,
+  pt_adminAssignments,
+  pt_adminAudit,
+  pt_adminGroupMappings,
+  pt_adminInvitations,
+  pt_adminProviders,
+  pt_adminRoles,
+  pt_adminTokens,
+  pt_ask,
+  pt_capabilities,
+  pt_catalog,
+  pt_changedSince,
+  pt_changedSincePacket,
+  pt_cicdRunCorrelations,
+  pt_cloud,
+  pt_cloudDrift,
+  pt_cloudInventoryPanel,
+  pt_codeGraph,
+  pt_collectorReadiness,
+  pt_dashboard,
+  pt_dashboardRoot,
+  pt_deadCode,
+  pt_dependencies,
+  pt_deployableUnitPacket,
+  pt_explorer,
+  pt_exposure,
+  pt_exposurePathAdvanced,
+  pt_findings,
+  pt_freshnessCausality,
+  pt_iac,
+  pt_images,
+  pt_impact,
+  pt_incidentContext,
+  pt_incidentContextOther,
+  pt_incidents,
+  pt_incidentSections,
+  pt_login,
+  pt_nodes,
+  pt_observability,
+  pt_operations,
+  pt_profile,
+  pt_relationships,
+  pt_relationshipTruthPanel,
+  pt_replatforming,
+  pt_repositories,
+  pt_repoSource,
+  pt_repoSourceFrontend,
+  pt_repoSourceInfra,
+  pt_repoSourceLedger,
+  pt_repoSourcePayments,
+  pt_sbom,
+  pt_secretsIam,
+  pt_serviceAtlasEvidence,
+  pt_serviceChangeSurface,
+  pt_serviceCodeInvestigation,
+  pt_serviceConfigInfluence,
+  pt_serviceInvestigation,
+  pt_serviceRelationshipExplorer,
+  pt_serviceRelationshipInspector,
+  pt_serviceRelationshipWorkbench,
+  pt_serviceReport,
+  pt_serviceReportLedger,
+  pt_serviceReportPayments,
+  pt_serviceReportService,
+  pt_serviceSpotlight,
+  pt_serviceStory,
+  pt_serviceStoryLedger,
+  pt_serviceStoryPayments,
+  pt_serviceStoryService,
+  pt_serviceSupportEvidence,
+  pt_serviceTrafficPath,
+  pt_status,
+  pt_surfaceInventory,
+  pt_topology,
+  pt_vulnCatalog,
+  pt_vulnDetail,
+  pt_vulnDetailExact,
+  pt_vulnDetailMedium,
+  pt_vulnDetailOther,
+  pt_vulnerabilities,
+  pt_vulnReachable,
+  pt_workspace,
+  pt_workspaceEnv,
+  pt_workspaceWorkload,
 ];
 
 const navTimeoutMs = 30000;
@@ -141,18 +203,25 @@ async function runOneTest(page: Page, test: PageTest): Promise<PageTestResult> {
 
     if (consoleErrors.length > 0) {
       return {
-        path: test.path, label: test.label, passed: false,
+        path: test.path,
+        label: test.label,
+        passed: false,
         error: `console errors: ${consoleErrors.join("; ")}`,
-        durationMs: Date.now() - start
+        durationMs: Date.now() - start,
       };
     }
     return { path: test.path, label: test.label, passed: true, durationMs: Date.now() - start };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const errDetail = consoleErrors.length > 0
-      ? `${msg} (+ console errors: ${consoleErrors.join("; ")})`
-      : msg;
-    return { path: test.path, label: test.label, passed: false, error: errDetail, durationMs: Date.now() - start };
+    const errDetail =
+      consoleErrors.length > 0 ? `${msg} (+ console errors: ${consoleErrors.join("; ")})` : msg;
+    return {
+      path: test.path,
+      label: test.label,
+      passed: false,
+      error: errDetail,
+      durationMs: Date.now() - start,
+    };
   } finally {
     page.off("console", onConsole);
   }
@@ -166,7 +235,9 @@ async function main(): Promise<void> {
   for (const test of allTests) {
     const result = await runOneTest(page, test);
     results.push(result);
-    process.stdout.write(`  ${result.passed ? "PASS" : "FAIL"} ${test.path} (${test.label}) [${result.durationMs}ms]\n`);
+    process.stdout.write(
+      `  ${result.passed ? "PASS" : "FAIL"} ${test.path} (${test.label}) [${result.durationMs}ms]\n`,
+    );
     if (result.error) {
       process.stdout.write(`        ${result.error}\n`);
     }

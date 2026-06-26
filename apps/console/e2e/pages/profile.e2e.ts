@@ -7,7 +7,9 @@ export const pageTest: PageTest = {
   area: "operations",
   async assert(page: Page): Promise<void> {
     await page.waitForSelector(".page-shell", { timeout: 10000 });
-    const len = await page.evaluate(() => document.querySelector(".page-shell")?.textContent?.trim().length ?? 0);
+    const len = await page.evaluate(
+      () => document.querySelector(".page-shell")?.textContent?.trim().length ?? 0,
+    );
     if (len < 40) throw new Error(`page rendered only ${len} chars`);
-  }
+  },
 };

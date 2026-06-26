@@ -28,19 +28,36 @@ const devServerReadyTimeoutMs = 60000;
 async function startDevServer(): Promise<DevServer> {
   const child = spawn(
     viteBin,
-    ["--config", "apps/console/vite.config.ts", "--host", "127.0.0.1", "--strictPort", "--port", String(devServerPort)],
-    { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] }
+    [
+      "--config",
+      "apps/console/vite.config.ts",
+      "--host",
+      "127.0.0.1",
+      "--strictPort",
+      "--port",
+      String(devServerPort),
+    ],
+    { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] },
   );
 
   const baseUrl = await new Promise<string>((resolvePromise, rejectPromise) => {
-    const timer = setTimeout(() => rejectPromise(new Error("dev server did not become ready")), devServerReadyTimeoutMs);
+    const timer = setTimeout(
+      () => rejectPromise(new Error("dev server did not become ready")),
+      devServerReadyTimeoutMs,
+    );
     const onData = (chunk: Buffer): void => {
       const text = chunk.toString();
       const m = text.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+)\/?/);
-      if (m) { clearTimeout(timer); resolvePromise(m[1]); }
+      if (m) {
+        clearTimeout(timer);
+        resolvePromise(m[1]);
+      }
     };
     child.stdout.on("data", onData);
-    child.on("exit", (code) => { clearTimeout(timer); rejectPromise(new Error(`dev server exited with code ${String(code)}`)); });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      rejectPromise(new Error(`dev server exited with code ${String(code)}`));
+    });
   });
   return { process: child, baseUrl };
 }
@@ -51,7 +68,10 @@ async function stopDevServer(server: DevServer): Promise<void> {
     const done = (): void => resolvePromise();
     server.process.once("exit", done);
     server.process.kill("SIGTERM");
-    setTimeout(() => { server.process.kill("SIGKILL"); resolvePromise(); }, 5000);
+    setTimeout(() => {
+      server.process.kill("SIGKILL");
+      resolvePromise();
+    }, 5000);
   });
 }
 
@@ -65,11 +85,14 @@ export async function getPage(): Promise<{ page: Page; baseUrl: string }> {
   const context = await _browser.newContext();
 
   await context.addInitScript(() => {
-    window.localStorage.setItem("eshu.console.environment", JSON.stringify({
-      mode: "private",
-      apiBaseUrl: "/eshu-api/",
-      recentApiBaseUrls: ["/eshu-api/"]
-    }));
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({
+        mode: "private",
+        apiBaseUrl: "/eshu-api/",
+        recentApiBaseUrls: ["/eshu-api/"],
+      }),
+    );
   });
 
   const page = await context.newPage();
