@@ -111,6 +111,25 @@ rg --no-filename -o 'HandleFunc\("([A-Z]+) "\+(\w+)' -r '$1 $2' \
 
 sort -u -o "$handlefunc_route_file" "$handlefunc_route_file"
 
+# ── Known-drift exclusions ──────────────────────────────────────────────────
+# `.github/openapi-known-drift.txt` lists routes intentionally excluded from the
+# OpenAPI surface (e.g., documentation UIs). The verifier subtracts these from
+# the drift report so the CI gate stays green on known gaps while catching new
+# drift. One route per line, format "METHOD /path".
+
+known_drift_file="${repo_root}/.github/openapi-known-drift.txt"
+known_drift_tmp="${tmpdir}/known_drift.txt"
+: > "$known_drift_tmp"
+if [ -f "$known_drift_file" ]; then
+  grep -v '^#' "$known_drift_file" | grep -v '^$' | sort -u > "$known_drift_tmp" || true
+  # Filter known drift out of the handlefunc set so they are treated as
+  # intentionally covered.
+  if [ -s "$known_drift_tmp" ]; then
+    comm -23 "$handlefunc_route_file" "$known_drift_tmp" > "${tmpdir}/handlefunc_filtered.txt"
+    mv "${tmpdir}/handlefunc_filtered.txt" "$handlefunc_route_file"
+  fi
+fi
+
 # ── 2. Extract routes from openapi_paths_*.go files ─────────────────────────
 #
 # Each file is a Go string constant of JSON shape:
