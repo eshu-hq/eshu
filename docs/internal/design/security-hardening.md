@@ -30,20 +30,25 @@ pattern and avoids this divergence.
 
 ### H2: Bind address and NetworkPolicy defaults
 
-**Decision:** Default the API server bind address to `127.0.0.1` and the
-NetworkPolicy egress mode to `restricted`.
+**Decision:** Keep the API server bind address at `0.0.0.0` (all pod-network
+interfaces) and the NetworkPolicy egress mode at `broad` as the chart default.
+Document `api.bindAddress: 127.0.0.1` for bare-host/docker-compose deployments
+and `networkPolicy.egress.mode: restricted` as the hardened posture.
 
-**Rationale:** Binding to `0.0.0.0` by default exposes the API on all network
-interfaces, which is unnecessary for in-cluster communication. `restricted`
-egress mode ensures workloads only reach explicitly configured destinations,
-reducing blast radius from compromised containers.
+**Rationale:** In Kubernetes the kubelet connects to the pod IP for health
+checks, not loopback. Binding to `127.0.0.1` causes liveness/readiness probes
+to fail (pod never becomes Ready, Service endpoints empty, CrashLoopBackOff).
+The isolation boundary in k8s is the pod netns; exposure is controlled by
+Service type (`ClusterIP`) and NetworkPolicy ingress, not by binding to
+loopback. Similarly, `restricted` egress with empty `datastores.to` and
+`classes[].to` denies Postgres (5432), graph (7687), and all provider (443)
+traffic, preventing readiness-checks from passing. Operators who need
+restricted egress must populate the destination selectors.
 
 **Trade-offs:**
-- Operators who need external access must explicitly set
-  `api.bindAddress: 0.0.0.0`.
-- `restricted` egress requires operators to populate per-class destination
-  selectors. The CI values file (`governance-two-team-k8s.values.yaml`)
-  demonstrates the pattern.
+- `broad` egress is the permissive default. Operators must explicitly opt into
+  `restricted` and populate `datastores.to`, `graph`, and `classes[].to`
+  selectors. The CI values file demonstrates the pattern.
 
 ### H3: OIDC login rate limiter
 
