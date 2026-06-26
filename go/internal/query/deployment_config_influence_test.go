@@ -240,11 +240,12 @@ func TestInvestigateDeploymentConfigInfluence_LocalLightweightReturnsStructuredU
 	t.Parallel()
 
 	handler := &ImpactHandler{Profile: ProfileLocalLightweight}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/deployment-config-influence", strings.NewReader(`{"service_name":"test-service"}`))
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
-
-	handler.investigateDeploymentConfigInfluence(w, req)
+	mux.ServeHTTP(w, req)
 
 	if got, want := w.Code, http.StatusNotImplemented; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
