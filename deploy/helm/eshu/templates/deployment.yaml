@@ -42,7 +42,7 @@ spec:
         - name: eshu
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["eshu", "api", "start", "--host", "0.0.0.0", "--port", {{ .Values.service.port | quote }}]
+          command: ["eshu", "api", "start", "--host", {{ .Values.api.bindAddress | default "0.0.0.0" | quote }}, "--port", {{ .Values.service.port | quote }}]
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           env:

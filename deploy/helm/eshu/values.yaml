@@ -62,8 +62,12 @@ service:
 networkPolicy:
   enabled: true
   egress:
-    # broad preserves existing chart compatibility. Hosted governance values
-    # should set this to restricted and fill only the required destinations.
+    # broad preserves existing chart compatibility. The Kubernetes pod network
+    # namespace isolates pods by IP; binding restricts to the pod IP (0.0.0.0
+    # from the pod's perspective). Use NetworkPolicy mode=restricted for
+    # egress hardening and Service type=ClusterIP for ingress isolation.
+    # Set to restricted when every required datastore.to, classes[].to,
+    # and graph destination is populated.
     mode: broad
     dns:
       enabled: true
@@ -142,6 +146,7 @@ apiAuth:
 api:
   replicas: 1
   revisionHistoryLimit: 3
+  bindAddress: 0.0.0.0
   env: {}
   # extraVolumes / extraVolumeMounts let an operator mount additional read-only
   # material (for example an ESHU_SCOPED_TOKENS_FILE registry Secret) into the

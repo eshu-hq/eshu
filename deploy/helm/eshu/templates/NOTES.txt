@@ -8,14 +8,29 @@ neo4j.auth.secretName. The values schema rejects common weak passwords
 (change-me, password, admin, root, neo4j, eshu).
 {{- end }}
 
+API bind: {{ .Values.api.bindAddress | default "0.0.0.0" }}
+{{- if eq (.Values.api.bindAddress | default "0.0.0.0") "127.0.0.1" }}
+  governance risk: API binds to 127.0.0.1 (loopback only). In Kubernetes this
+  blocks kubelet probes and ClusterIP Services — the pod will not become Ready
+  and Service endpoints will be empty. Loopback binds are only appropriate for
+  bare-host or docker-compose deployments.
+{{- end }}
+
 NetworkPolicy:
 {{- if .Values.networkPolicy.enabled }}
   enabled: true
   egress mode: {{ .Values.networkPolicy.egress.mode | default "broad" }}
   {{- if eq (.Values.networkPolicy.egress.mode | default "broad") "broad" }}
-  governance risk: broad egress allows enabled Eshu workloads to open outbound connections without chart-level destination proof. Hosted deployments should set networkPolicy.egress.mode=restricted and configure only required DNS, datastore, graph, internal service, collector provider, semantic provider, and extension destinations.
+  governance risk: broad egress allows enabled Eshu workloads to open outbound
+  connections without chart-level destination proof. Hosted deployments should
+  set networkPolicy.egress.mode=restricted and configure only required DNS,
+  datastore, graph, internal service, collector provider, semantic provider,
+  and extension destinations.
   {{- else }}
-  restricted egress: rendered policies deny unrestricted outbound traffic and use configured destination classes.
+  restricted egress: rendered policies deny unrestricted outbound traffic and
+  use configured destination classes. Verify datastores.to, graph, and
+  classes[].to are populated or the API pod will fail readiness (blocked
+  Postgres/graph connections).
   {{- end }}
 {{- else }}
   enabled: false

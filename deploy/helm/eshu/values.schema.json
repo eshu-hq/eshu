@@ -1236,6 +1236,11 @@
       "properties": {
         "replicas": { "type": "integer", "minimum": 0 },
         "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "bindAddress": {
+          "type": "string",
+          "minLength": 1,
+          "description": "IP address the API server binds to. Default 0.0.0.0 (all pod-network interfaces). Set to 127.0.0.1 only for bare-host/docker-compose deployments, not Kubernetes."
+        },
         "env": {
           "type": "object",
           "additionalProperties": { "type": "string" }
