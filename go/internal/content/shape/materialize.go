@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package shape //nolint:filelength // 522 lines: bucket table, File/Entity types, and Materialize. The bucket table and entity ordering are referenced as a single frozen table by the entity-row count contract.
+package shape //nolint:filelength // 527 lines: bucket table, File/Entity types, and Materialize. The bucket table and entity ordering are referenced as a single frozen table by the entity-row count contract.
 
 import (
 	"fmt"
@@ -125,6 +125,7 @@ var contentEntityBuckets = []entityBucketMapping{
 	{bucket: "cloudformation_conditions", label: "CloudFormationCondition"},
 	{bucket: "cloudformation_cross_stack_imports", label: "CloudFormationImport"},
 	{bucket: "cloudformation_cross_stack_exports", label: "CloudFormationExport"},
+	{bucket: "atlantis_projects", label: "AtlantisProject"},
 	{bucket: "sql_tables", label: "SqlTable"},
 	{bucket: "sql_columns", label: "SqlColumn"},
 	{bucket: "sql_views", label: "SqlView"},
@@ -169,6 +170,7 @@ var trailingNewlineLabels = map[string]struct{}{
 	"Annotation":              {},
 	"ArgoCDApplication":       {},
 	"ArgoCDApplicationSet":    {},
+	"AtlantisProject":         {},
 	"Class":                   {},
 	"Component":               {},
 	"CloudFormationOutput":    {},

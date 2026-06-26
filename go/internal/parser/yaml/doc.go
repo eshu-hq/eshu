@@ -7,8 +7,10 @@
 // Parse reads one YAML source file and emits the payload buckets consumed by
 // the parent parser and content materializer: Kubernetes resources, Argo CD
 // applications, Crossplane resources, Kustomize overlays, Helm chart metadata,
-// Helm values metadata, Pub dependency rows, and CloudFormation/SAM template
-// rows. DecodeDocuments and SanitizeTemplating remain available for parent
+// Helm values metadata, Pub dependency rows, CloudFormation/SAM template rows,
+// and Atlantis repo-level project rows (one AtlantisProject row per project in
+// atlantis.yaml, dispatched by filename since the config carries no
+// apiVersion/kind). DecodeDocuments and SanitizeTemplating remain available for parent
 // compatibility paths that decode YAML-side metadata. Argo CD Application rows preserve the legacy
 // singular source fields while adding positional source tuple fields that keep
 // repo, path, revision, and root values aligned by source index. The package

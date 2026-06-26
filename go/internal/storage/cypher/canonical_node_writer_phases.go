@@ -220,6 +220,11 @@ func (w *CanonicalNodeWriter) buildModuleStatements(mat projector.CanonicalMater
 func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
 	var stmts []Statement
 
+	// Atlantis MANAGES (project -> Terraform Directory) and DEPENDS_ON
+	// (project -> project) edges, derived from the AtlantisProject node
+	// properties written earlier this phase. No-op for non-Atlantis repos.
+	stmts = append(stmts, atlantisEdgeStatements(mat)...)
+
 	// IMPORTS edges
 	if len(mat.Imports) > 0 {
 		rows := make([]map[string]any, len(mat.Imports))

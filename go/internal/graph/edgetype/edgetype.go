@@ -18,6 +18,12 @@ const (
 	AllowsEgress EdgeType = "ALLOWS_EGRESS"
 	// AllowsIngress is the "ALLOWS_INGRESS" graph relationship type.
 	AllowsIngress EdgeType = "ALLOWS_INGRESS"
+	// AtlantisDependsOn is the "ATLANTIS_DEPENDS_ON" graph relationship type (an
+	// Atlantis project to a sibling project it declares in depends_on). It is
+	// deliberately distinct from DependsOn so Atlantis apply-ordering is not
+	// conflated with repository/package dependency edges by label-agnostic
+	// DEPENDS_ON traversals.
+	AtlantisDependsOn EdgeType = "ATLANTIS_DEPENDS_ON"
 	// Calls is the "CALLS" graph relationship type.
 	Calls EdgeType = "CALLS"
 	// CanAssume is the "CAN_ASSUME" graph relationship type.
@@ -94,6 +100,9 @@ const (
 	InvokesCloudAction EdgeType = "INVOKES_CLOUD_ACTION"
 	// LogsTo is the "LOGS_TO" graph relationship type.
 	LogsTo EdgeType = "LOGS_TO"
+	// Manages is the "MANAGES" graph relationship type (an Atlantis project to the
+	// Terraform Directory it plans/applies).
+	Manages EdgeType = "MANAGES"
 	// MapsToTable is the "MAPS_TO_TABLE" graph relationship type.
 	MapsToTable EdgeType = "MAPS_TO_TABLE"
 	// Migrates is the "MIGRATES" graph relationship type.
@@ -157,7 +166,7 @@ const (
 // registered lists every edge type known to the registry. Order is not
 // significant; All returns a defensive copy.
 var registered = []EdgeType{
-	Aliases, AllowsEgress, AllowsIngress, Calls,
+	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
 	CorrelatesDeployableUnit, DeclaresDependency, Defines, DependsOn,
 	DependsOnPackage, DeploymentSource, DeploysFrom, DiscoversConfigIn,
@@ -167,7 +176,7 @@ var registered = []EdgeType{
 	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
 	HasVersion, Implements, Imports, Indexes,
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
-	LogsTo, MapsToTable, Migrates, Overrides,
+	LogsTo, Manages, MapsToTable, Migrates, Overrides,
 	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,
 	ReadsFrom, References, ReferencesTable, RepoContains,
 	RunsImage, RunsIn, RunsOn, SatisfiedBy,

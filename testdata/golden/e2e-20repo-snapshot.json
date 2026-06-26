@@ -270,6 +270,22 @@
         "from_label": "KubernetesWorkload",
         "to_label": "OciImageManifest",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-5",
+        "description": "At least one AtlantisProject MANAGES a Directory; confirms the atlantis.yaml project-to-Terraform-dir governance edge formed for the terraform_comprehensive fixture",
+        "relationship": "MANAGES",
+        "from_label": "AtlantisProject",
+        "to_label": "Directory",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-6",
+        "description": "At least one AtlantisProject ATLANTIS_DEPENDS_ON another AtlantisProject; confirms the atlantis.yaml depends_on ordering edge formed",
+        "relationship": "ATLANTIS_DEPENDS_ON",
+        "from_label": "AtlantisProject",
+        "to_label": "AtlantisProject",
+        "minimum_count": 1
       }
     ]
   },
