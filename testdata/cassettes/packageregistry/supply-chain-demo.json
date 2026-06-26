@@ -38,6 +38,74 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "package_registry:go:github.com/acme/lib-common",
+      "source_system": "package_registry",
+      "scope_kind": "package_registry",
+      "collector_kind": "package_registry",
+      "partition_key": "package_registry:go:github.com/acme/lib-common",
+      "metadata": {
+        "registry_kind": "go",
+        "package_name": "github.com/acme/lib-common"
+      },
+      "generation_id": "cassette-pkgreg-go-acme-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "package_registry.package",
+          "stable_fact_key": "package_registry:go:github.com/acme/lib-common:package",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "registry_kind": "go",
+            "ecosystem": "go",
+            "package_id": "github.com/acme/lib-common",
+            "raw_name": "github.com/acme/lib-common",
+            "normalized_name": "github.com/acme/lib-common"
+          }
+        },
+        {
+          "fact_kind": "package_registry.package_version",
+          "stable_fact_key": "package_registry:go:github.com/acme/lib-common:1.0.0",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "registry_kind": "go",
+            "name": "github.com/acme/lib-common",
+            "version": "1.0.0",
+            "description": "IP-free fixture Go module published by the lib-common corpus repo; imported cross-repo to exercise DEPENDS_ON (rc-3).",
+            "license": "MIT",
+            "publisher_fingerprint": "acme-go-publisher",
+            "published_at": "2026-01-01T00:00:00Z",
+            "dist_integrity": "h1:acme0000000000000000000000000000000000000000=",
+            "correlation_anchors": [
+              "pkg:golang/github.com/acme/lib-common@1.0.0"
+            ]
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package_registry:go:github.com/acme/lib-common:source_hint:repository",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "registry_kind": "go",
+            "package_id": "github.com/acme/lib-common",
+            "version_id": "1.0.0",
+            "hint_kind": "repository",
+            "normalized_url": "https://github.com/acme/lib-common",
+            "raw_url": "https://github.com/acme/lib-common.git"
+          }
+        }
+      ]
     }
   ]
 }

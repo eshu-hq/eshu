@@ -188,6 +188,14 @@ func buildSelectedRepositories(
 		if config.SourceMode != "filesystem" {
 			repoID := repoIDFromManagedPath(config.ReposDir, absolutePath)
 			repository.RemoteURL = repoRemoteURL(config, repoID)
+		} else if strings.TrimSpace(config.GithubOrg) != "" {
+			// Filesystem repos carry no real git remote. When an operator explicitly
+			// declares an org (ESHU_GITHUB_ORG), synthesize a deterministic remote
+			// from the repo directory name so URL-keyed cross-repo correlations
+			// (package-registry source hints, etc.) can resolve the owning repo.
+			// Without an explicit org we leave RemoteURL empty rather than fabricate
+			// a github.com URL for an arbitrary local directory.
+			repository.RemoteURL = repoRemoteURL(config, filepath.Base(absolutePath))
 		}
 		repositories = append(repositories, repository)
 	}
