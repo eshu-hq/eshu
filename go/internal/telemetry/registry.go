@@ -64,6 +64,9 @@ var metricDimensionKeys = []string{
 	MetricDimensionResolutionMode,
 	MetricDimensionEndpointKind,
 	MetricDimensionPrincipalKind,
+	MetricDimensionNodeLabel,
+	MetricDimensionAgeBucket,
+	MetricDimensionEcosystem,
 }
 
 var spanNames = []string{
