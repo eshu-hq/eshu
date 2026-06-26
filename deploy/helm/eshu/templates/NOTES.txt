@@ -1,5 +1,13 @@
 Eshu chart {{ .Chart.Version }} rendered for release {{ .Release.Name }}.
 
+{{- if and (not .Values.neo4j.auth.secretName) (not .Values.neo4j.auth.password) }}
+WARNING: neo4j.auth.password is unset and no K8s Secret is referenced. The
+deployment will not render. Set neo4j.auth.password to a strong value (min 12
+chars, mixed case, and digits) or reference a K8s Secret via
+neo4j.auth.secretName. The values schema rejects common weak passwords
+(change-me, password, admin, root, neo4j, eshu).
+{{- end }}
+
 NetworkPolicy:
 {{- if .Values.networkPolicy.enabled }}
   enabled: true

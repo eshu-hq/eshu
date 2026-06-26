@@ -1398,7 +1398,23 @@
           "properties": {
             "secretName": { "type": "string" },
             "username": { "type": "string" },
-            "password": { "type": "string" },
+            "password": {
+              "type": "string",
+              "oneOf": [
+                {"maxLength": 0},
+                {
+                  "minLength": 12,
+                  "not": {
+                    "enum": ["change-me", "password", "admin", "root", "neo4j", "eshu", "12345678", "replace-me"]
+                  },
+                  "allOf": [
+                    {"pattern": "[a-z]"},
+                    {"pattern": "[A-Z]"},
+                    {"pattern": "[0-9]"}
+                  ]
+                }
+              ]
+            },
             "usernameKey": { "type": "string" },
             "passwordKey": { "type": "string" }
           }

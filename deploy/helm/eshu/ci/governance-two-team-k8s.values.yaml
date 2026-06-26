@@ -43,7 +43,7 @@ neo4j:
   auth:
     secretName: ""
     username: neo4j
-    password: change-me
+    password: CI-Test-Value-1234
 
 # Single-node proof: trim every workload to fit a laptop cluster.
 api:
