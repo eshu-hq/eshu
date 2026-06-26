@@ -375,7 +375,7 @@ func TestServiceMetricsUseCollectedScopeCollectorKind(t *testing.T) {
 	}
 
 	if got := collectorCounterValue(t, rm, "eshu_dp_facts_emitted_total", map[string]string{
-		"scope_id":       scopeValue.ScopeID,
+		"scope_kind":     string(scopeValue.ScopeKind),
 		"source_system":  "confluence",
 		"collector_kind": string(scope.CollectorDocumentation),
 	}); got != int64(len(envelopes)) {

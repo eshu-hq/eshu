@@ -46,12 +46,9 @@ var hardBannedDimensions = []string{
 //
 // Follow-up issues:
 //
-//	scope_id      → file an issue to migrate scope_id-dimensioned metrics to
-//	                 use scope_kind or other bounded alternatives.
 //	generation_id → file an issue to migrate generation_id-dimensioned metrics
 //	                 to use a bounded epoch/generation bucket.
 var riskTrackedDimensions = []string{
-	"scope_id",
 	"generation_id",
 }
 
@@ -256,7 +253,6 @@ func TestCardinalityAudit_DimensionKeyCardinalityBound(t *testing.T) {
 	// itself doesn't silently accumulate unbounded keys.
 
 	highCardinalityRiskKeys := map[string]string{
-		"scope_id":               "unbounded across all scopes; re-evaluate if added to allow-list",
 		"generation_id":          "unbounded across generations; re-evaluate if added to allow-list",
 		"provider_kind":          "bounded per collector family; confirm ≤20 values",
 		"provider_profile_class": "bounded; confirm source_class is from a closed enum",

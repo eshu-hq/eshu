@@ -65,8 +65,8 @@ func TestNewWiresObservabilityContract(t *testing.T) {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
 
-	if got.Observability.MetricDimensions[0] != telemetry.MetricDimensionScopeID {
-		t.Fatalf("Observability.MetricDimensions[0] = %q, want %q", got.Observability.MetricDimensions[0], telemetry.MetricDimensionScopeID)
+	if got.Observability.MetricDimensions[0] != telemetry.MetricDimensionScopeKind {
+		t.Fatalf("Observability.MetricDimensions[0] = %q, want %q", got.Observability.MetricDimensions[0], telemetry.MetricDimensionScopeKind)
 	}
 
 	if got.Observability.SpanNames[4] != telemetry.SpanProjectorRun {
@@ -78,7 +78,7 @@ func TestNewWiresObservabilityContract(t *testing.T) {
 	}
 
 	got.Observability.MetricDimensions[0] = "mutated"
-	if telemetry.MetricDimensionKeys()[0] != telemetry.MetricDimensionScopeID {
+	if telemetry.MetricDimensionKeys()[0] != telemetry.MetricDimensionScopeKind {
 		t.Fatalf("telemetry contract was mutated through bootstrap seam")
 	}
 }

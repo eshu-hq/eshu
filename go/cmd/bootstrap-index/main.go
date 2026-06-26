@@ -663,7 +663,7 @@ func drainCollector(
 		factCount := collected.FactCount
 		if instruments != nil {
 			instruments.FactsEmitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
-				telemetry.AttrScopeID(collected.Scope.ScopeID),
+				telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
 				telemetry.AttrCollectorKind("bootstrap-index"),
 			))
 		}
@@ -731,7 +731,7 @@ func drainCollector(
 		duration := time.Since(cycleStart).Seconds()
 		if instruments != nil {
 			instruments.FactsCommitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
-				telemetry.AttrScopeID(collected.Scope.ScopeID),
+				telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
 			))
 			instruments.CollectorObserveDuration.Record(cycleCtx, duration, metric.WithAttributes(
 				telemetry.AttrCollectorKind("bootstrap-index"),
@@ -1090,10 +1090,10 @@ func recordBootstrapProjectionResult(
 
 	if instruments != nil {
 		instruments.ProjectorRunDuration.Record(ctx, duration, metric.WithAttributes(
-			telemetry.AttrScopeID(work.Scope.ScopeID),
+			telemetry.AttrScopeKind(string(work.Scope.ScopeKind)),
 		))
 		instruments.ProjectionsCompleted.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrScopeID(work.Scope.ScopeID),
+			telemetry.AttrScopeKind(string(work.Scope.ScopeKind)),
 			attribute.String("status", status),
 		))
 	}

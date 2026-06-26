@@ -187,7 +187,6 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	if h.Instruments != nil {
 		h.Instruments.CrossRepoEvidenceLoaded.Add(
 			ctx, int64(len(evidenceFacts)),
-			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
 		)
 	}
 
@@ -282,7 +281,6 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			h.Instruments.CrossRepoEdgesResolved.Add(
 				ctx, int64(count),
 				metric.WithAttributes(
-					telemetry.AttrScopeID(scopeID),
 					attribute.String("relationship_type", relationshipType),
 				),
 			)
@@ -367,7 +365,6 @@ func (h *CrossRepoRelationshipHandler) recordDuration(ctx context.Context, start
 		h.Instruments.CrossRepoResolutionDuration.Record(
 			ctx,
 			time.Since(start).Seconds(),
-			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
 		)
 	}
 }
@@ -398,7 +395,6 @@ func (h *CrossRepoRelationshipHandler) recordActivationFenced(
 	if h.Instruments != nil {
 		h.Instruments.CrossRepoActivationFenced.Add(
 			ctx, 1,
-			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
 		)
 	}
 }

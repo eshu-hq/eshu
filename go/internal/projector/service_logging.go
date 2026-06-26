@@ -45,10 +45,10 @@ func (s Service) recordProjectionResult(ctx context.Context, work ScopeGeneratio
 
 	if s.Instruments != nil {
 		s.Instruments.ProjectorRunDuration.Record(ctx, duration, metric.WithAttributes(
-			telemetry.AttrScopeID(work.Scope.ScopeID),
+			telemetry.AttrScopeKind(string(work.Scope.ScopeKind)),
 		))
 		s.Instruments.ProjectionsCompleted.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrScopeID(work.Scope.ScopeID),
+			telemetry.AttrScopeKind(string(work.Scope.ScopeKind)),
 			attribute.String("queue", "projector"),
 			attribute.String("status", status),
 		))

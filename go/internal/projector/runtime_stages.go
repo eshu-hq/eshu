@@ -34,7 +34,7 @@ func (r Runtime) writeContentProjection(ctx context.Context, scopeValue scope.In
 	}
 	if r.Instruments != nil {
 		r.Instruments.ProjectorStageDuration.Record(ctx, time.Since(contentStart).Seconds(), metric.WithAttributes(
-			telemetry.AttrScopeID(scopeValue.ScopeID),
+			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
 			attribute.String("stage", "content_write"),
 		))
 	}
@@ -85,13 +85,13 @@ func (r Runtime) writeCanonicalProjection(
 	if r.Instruments != nil {
 		canonicalDur := time.Since(canonicalStart).Seconds()
 		r.Instruments.CanonicalProjectionDuration.Record(ctx, canonicalDur, metric.WithAttributes(
-			telemetry.AttrScopeID(scopeValue.ScopeID),
+			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
 		))
 		r.Instruments.CanonicalWrites.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrScopeID(scopeValue.ScopeID),
+			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
 		))
 		r.Instruments.ProjectorStageDuration.Record(ctx, canonicalDur, metric.WithAttributes(
-			telemetry.AttrScopeID(scopeValue.ScopeID),
+			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
 			attribute.String("stage", "canonical_write"),
 		))
 	}

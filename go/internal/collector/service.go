@@ -390,7 +390,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 
 	if s.Instruments != nil {
 		attrs := metric.WithAttributes(
-			telemetry.AttrScopeID(collected.Scope.ScopeID),
+			telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
 			telemetry.AttrSourceSystem(collected.Scope.SourceSystem),
 			telemetry.AttrCollectorKind(string(collected.Scope.CollectorKind)),
 		)

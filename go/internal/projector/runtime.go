@@ -105,7 +105,7 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 	}
 	if r.Instruments != nil {
 		r.Instruments.ProjectorStageDuration.Record(ctx, time.Since(buildStart).Seconds(), metric.WithAttributes(
-			telemetry.AttrScopeID(scopeValue.ScopeID),
+			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
 			attribute.String("stage", "build_projection"),
 		))
 	}
@@ -169,11 +169,11 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 		if r.Instruments != nil {
 			duration := time.Since(enqueueStart).Seconds()
 			r.Instruments.ProjectorStageDuration.Record(ctx, duration, metric.WithAttributes(
-				telemetry.AttrScopeID(scopeValue.ScopeID),
+				telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
 				attribute.String("stage", "intent_enqueue"),
 			))
 			r.Instruments.ReducerIntentsEnqueued.Add(ctx, int64(len(projection.reducerIntents)), metric.WithAttributes(
-				telemetry.AttrScopeID(scopeValue.ScopeID),
+				telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
 			))
 		}
 		r.logRuntimeStage(
