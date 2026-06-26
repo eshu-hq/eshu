@@ -10,23 +10,23 @@ in production without operator-side overrides for every default.
 ### H1: Helm password defaults
 
 **Decision:** Replace the hardcoded `change-me` default for
-`neo4j.auth.password` with a Helm `randAlphaNum`-generated per-install random
-password.
+`neo4j.auth.password` with an empty default. When no K8s Secret is referenced
+(`neo4j.auth.secretName` is empty), the chart fails closed via Helm's
+`required` function, forcing the operator to provide a strong password or
+reference a K8s Secret.
 
-**Rationale:** A static default password is a known credential. The Helm
-`randAlphaNum 20` helper generates a non-deterministic password on each
-template invocation, ensuring no two installs share the same default. Operators
-who capture the generated password and store it in a Kubernetes Secret (by
-setting `neo4j.auth.secretName`) get a deterministic deployment.
+**Rationale:** A static default password is a known credential. Helm's
+`randAlphaNum` was evaluated but rejected: the helper runs on every `include`
+of `eshu.renderNeo4jAuthEnv`, producing a different value for each workload
+(api, mcp, ingester, reducer), none of which match the backend. Fail-closed
+with a clear `required` error and schema validation is the standard Helm
+pattern and avoids this divergence.
 
 **Trade-offs:**
-- Non-deterministic `helm template` output means ArgoCD drift detection will
-  flag every sync. Operators should set an explicit password or reference a
-  K8s Secret before production deployment.
-- The schema rejects weak passwords (change-me, password, admin, root, neo4j,
-  eshu, etc.) via `not: {enum: [...]}` and requires mixed case + digits via
-  `allOf: [{pattern: "[a-z]"}, {pattern: "[A-Z]"}, {pattern: "[0-9]"}]` with
-  `minLength: 12`.
+- Operators must explicitly set `neo4j.auth.password` or reference a K8s
+  Secret before deployment. The schema validates the password is strong (not
+  on a denylist of known-weak literals, minLength 12, mixed case + digit, or
+  empty to allow secret-only flows).
 
 ### H2: Bind address and NetworkPolicy defaults
 
