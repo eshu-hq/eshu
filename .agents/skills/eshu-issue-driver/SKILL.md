@@ -145,8 +145,12 @@ current turn, stop and ask — do not self-approve and proceed.
      `concurrency-deadlock-rigor`.
    - **Reliability (Opus):** silent failures/fallbacks, swallowed errors,
      partial-failure/rollback/dead-letter gaps, missing runtime telemetry,
-     unmeasured perf regression. Skills: `eshu-diagnostic-rigor`,
-     `golang-engineering`.
+     unmeasured perf regression, false-green tests (a test that asserts against a
+     mock, fake, or re-implementation instead of the real SUT; a negative test
+     that cannot fail when the production assertion is broken; an "audit" run with
+     a check that does not detect the audited property — e.g. SQL-injection
+     claimed clean via staticcheck SA1029, a `context.WithValue` check, instead of
+     gosec G201/G202). Skills: `eshu-diagnostic-rigor`, `golang-engineering`.
    - **Security:** secret / private-data leakage on the full diff.
 
    Severity tags (priority order accuracy -> performance -> concurrency/reliability):
@@ -154,10 +158,13 @@ current turn, stop and ask — do not self-approve and proceed.
      / deadlock. BLOCKS commit and PR. Fix now, re-review, before anything else.
    - **P1** = concurrency defect under intended load, accuracy regression, missing
      idempotency/retry/ordering handling, silent failure, missing runtime
-     telemetry, unmeasured perf change on the path. BLOCKS merge. Fix + re-review
-     before opening/merging the PR.
-   - **P2** = edge case, doc drift, test gap, minor perf, naming. Fix inline OR
-     file a GH issue and link it; never silently drop.
+     telemetry, unmeasured perf change on the path, false-green test (asserts a
+     mock/re-implementation instead of the SUT, a negative test that cannot fail,
+     or an audit run with a check that does not detect the audited property).
+     BLOCKS merge. Fix + re-review before opening/merging the PR.
+   - **P2** = edge case, doc drift, genuine missing-coverage test gap (a
+     false-green test is P1, above), minor perf, naming. Fix inline OR file a GH
+     issue and link it; never silently drop.
 
    Each finding cites `file:line` + the violated rule/skill + the fix. Paste the
    verdict (counts per severity + resolution). Proceed only when **P0=0 and P1=0

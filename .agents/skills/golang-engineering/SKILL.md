@@ -27,6 +27,13 @@ References:
 - MUST cover every dispatch variant touched by a shared helper, constant family,
   query builder, replay path, or retry classifier. Do not rely on one
   representative case when the production code has multiple variants.
+- MUST make tests exercise the production code under test, not a mock, fake, or
+  inline re-implementation of the logic they claim to cover. A test that asserts
+  only against a hand-built stand-in is a false green — it passes while guarding
+  nothing, which is worse than no test. A negative or regression test MUST fail
+  when the real assertion is removed; prove it by breaking the production path,
+  not a copy of it. Extract the asserted logic into one helper called by both the
+  positive and the negative test so they exercise the same code.
 - MUST run `gofmt` on changed Go files. The repo linter enforces `gofumpt`
   (stricter superset of `gofmt`) — run `gofumpt -w <files>` before committing
   to avoid lint failures that block CI.
@@ -76,6 +83,8 @@ References:
 - Local conventions and package docs were read.
 - The behavior has focused test coverage.
 - The test failed for the intended reason before the fix when TDD applies.
+- Tests drive the real subject under test, not a mock or re-implementation of it;
+  the negative/regression test fails when the production assertion is broken.
 - API surface, naming, errors, context use, and package boundaries stayed clear.
 - Concurrency and storage changes have an explicit safety argument.
 - Verification evidence is listed with any gaps or remaining risk.
