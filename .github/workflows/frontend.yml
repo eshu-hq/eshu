@@ -107,6 +107,12 @@ jobs:
       - name: Build console
         run: npm run console:build
 
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run per-page e2e (mocked)
+        run: npm run console:e2e:mock
+
   lint:
     name: ESLint flat config (issue #3763)
     runs-on: ubuntu-latest
