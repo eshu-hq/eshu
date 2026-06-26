@@ -167,3 +167,27 @@ duplicate-instrument error from the OTEL SDK.
   `eshu_dp_reducer_queue_wait_seconds` (0.001–21600 s) and
   `eshu_dp_generation_fact_count` (10–300000) — they were chosen to capture the
   full observed distribution; narrowing them silently truncates operator data.
+
+## Evidence
+
+### 2026-06-26 — Remove scope_id from metric dimension registry (#3942)
+
+No-Regression Evidence: `go test ./internal/telemetry ./internal/projector
+./cmd/bootstrap-index ./internal/collector ./internal/reducer ./internal/app
+./internal/storage/cypher ./cmd/reducer ./cmd/ingester -count=1` → all PASS.
+The change replaces `scope_id` (unbounded per-scope identifier) with
+`scope_kind` (bounded closed set of ~18 values) as a metric dimension label on
+all affected instruments. Call sites in projector, bootstrap-index, and
+collector use `AttrScopeKind(string(scope.ScopeKind))`; reducer cross-repo
+resolution metrics drop the dimension entirely (scope_kind would be a constant
+`"repository"`, so it carries no diagnostic value). Metric emission volume,
+instrument count, and code paths are byte-identical aside from the label key
+change — no worker, queue, lease, batch, Cypher, or concurrency path touched.
+Span-attribute uses of `AttrScopeID` (collector observe, canonical write/retract
+spans) are unchanged.
+
+No-Observability-Change: the change adds no route, graph query shape, queue
+domain, worker, lease, runtime knob, metric instrument, or new metric label key
+(`scope_kind` was already registered). Operators slice the same histograms and
+counters with `scope_kind` instead of `scope_id`; structured logs still carry
+`scope_id` via `LogKeyScopeID`.
