@@ -162,6 +162,121 @@ pipelineDeploy(entry_point: 'deploy.sh')
 	assertPrescanContains(t, got, "deploy.sh", filePath)
 }
 
+func TestDefaultEngineParsePathGroovySuppressesIgnoredCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Jenkinsfile")
+	writeTestFile(
+		t,
+		filePath,
+		`@Library('pipelines') _
+pipelineDeploy(entry_point: 'deploy.sh')
+
+pipeline {
+  agent any
+  parameters {}
+  environment {}
+  options {}
+  stages {
+    stage('Build') {
+      when { branch 'main' }
+      steps {
+        script {
+          if (true) { return 0 }
+          for (x in []) { continue }
+          while (false) { break }
+          try {} catch (e) {}
+          node('worker') {}
+          new Object()
+        }
+      }
+    }
+  }
+  post {}
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	ignoredCalls := []string{
+		"pipeline", "agent", "parameters", "environment", "options",
+		"stages", "stage", "when", "steps", "script", "post",
+		"if", "for", "while", "catch", "return", "new",
+	}
+
+	calls, _ := got["function_calls"].([]map[string]any)
+	for _, call := range calls {
+		name, _ := call["name"].(string)
+		for _, ignored := range ignoredCalls {
+			if name == ignored {
+				t.Fatalf("function_calls contains ignored keyword %q", ignored)
+			}
+		}
+	}
+
+	assertBucketContainsFieldValue(t, got, "function_calls", "name", "pipelineDeploy")
+}
+
+func TestDefaultEngineParsePathGroovyCyclomaticComplexity(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "BranchHelper.groovy")
+	writeTestFile(
+		t,
+		filePath,
+		`class BranchHelper {
+  int complexMethod(int x) {
+    if (x > 0 && x < 10) {
+      for (int i = 0; i < x; i++) {
+        while (x > 0) {
+          switch (x) {
+            case 1: break
+            default: break
+          }
+          try {
+            return x > 0 ? 1 : 0
+          } catch (Exception e) {
+            throw e
+          }
+        }
+      }
+    }
+    return 0
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	item := assertBucketItemByName(t, got, "functions", "complexMethod")
+	complexity, _ := item["cyclomatic_complexity"].(int)
+	// base 1 + if 1 + && 1 + for 1 + while 1 + switch case 1 +
+	// ternary 1 + catch 1 = 8. The switch default is excluded.
+	if complexity != 8 {
+		t.Fatalf("cyclomatic_complexity = %d, want 8", complexity)
+	}
+}
+
 func assertStringSliceContains(t *testing.T, raw any, want string) {
 	t.Helper()
 
