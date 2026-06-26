@@ -1,0 +1,49 @@
+name: Race Graph Writes
+
+on:
+  pull_request:
+    paths:
+      - "go/internal/storage/cypher/**"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/correlation/**"
+      - "go/internal/content/shape/**"
+      - "go/internal/relationships/**"
+      - "go/internal/storage/postgres/**.sql"
+  push:
+    branches:
+      - main
+    paths:
+      - "go/internal/storage/cypher/**"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/correlation/**"
+      - "go/internal/content/shape/**"
+      - "go/internal/relationships/**"
+      - "go/internal/storage/postgres/**.sql"
+  schedule:
+    - cron: "30 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run graph-write tests with race detector
+        working-directory: go
+        run: go test -race -count=1 -timeout 600s ./internal/storage/cypher/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/...
