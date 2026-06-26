@@ -35,53 +35,102 @@ func TestTraceContextPropagationThroughHTTPServerLifecycle(t *testing.T) {
 		t.Fatal("boundary start: trace.SpanFromContext(ctx).SpanContext().TraceID() is zero — no span is active at pipeline start")
 	}
 
+	// Use a handler that blocks until the test unblocks it. This lets us
+	// observe that Stop respects the caller's context deadline: if Stop
+	// internally substitutes context.Background() for the caller's
+	// context, the short deadline passed below would be ignored and the
+	// config ShutdownTimeout (10 s) would be used instead.
+	handlerEntered := make(chan struct{})
+	doneCh := make(chan struct{})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		close(handlerEntered)
+		<-doneCh
 	})
 
 	srv, err := NewHTTPServer(HTTPServerConfig{
 		Addr:            "127.0.0.1:0",
 		Handler:         handler,
-		ShutdownTimeout: 3 * time.Second,
+		ShutdownTimeout: 10 * time.Second,
 	})
 	if err != nil {
 		t.Fatalf("NewHTTPServer: %v", err)
 	}
 
+	// Boundary 2: Start accepts a context. The current implementation
+	// ignores it (server.Serve runs in a goroutine without ctx), but
+	// the test preserves the contract so a future ctx-aware Start has
+	// a guardrail.
 	if err := srv.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// Boundary 2: trace ID after Start — the Start method accepts a
-	// context but the internal goroutine does not re-derive from it;
-	// the caller's ctx should still carry the trace.
-	afterStartTraceID := trace.SpanFromContext(ctx).SpanContext().TraceID()
-	if afterStartTraceID != startTraceID {
-		t.Fatalf("boundary Start: trace ID changed from %s to %s — ctx was dropped or replaced during server start",
-			startTraceID, afterStartTraceID)
+	addr := srv.Addr()
+	if addr == "" {
+		t.Fatal("Addr returned empty string after Start")
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 3*time.Second)
-	defer shutdownCancel()
+	// Issue a request that will block in the handler, creating an
+	// in-flight connection that server.Shutdown must wait for. Without
+	// an active connection, shutdown may complete immediately regardless
+	// of the caller's context deadline.
+	reqDone := make(chan error, 1)
+	go func() {
+		_, err := http.Get("http://" + addr + "/")
+		reqDone <- err
+	}()
 
-	if err := srv.Stop(shutdownCtx); err != nil {
-		t.Fatalf("Stop: %v", err)
+	// Wait for the handler to accept the connection before calling Stop.
+	// If Stop is called before the handler enters, the server may have
+	// no active connections and shutdown could complete before the
+	// deadline, making the test flaky.
+	<-handlerEntered
+
+	// Boundary 3: Stop with a short-deadline context that carries the
+	// trace. If Stop drops the caller's context — e.g. by substituting
+	// context.Background() — it will use the config ShutdownTimeout
+	// (10 s) instead of this 50 ms deadline, and the test will hang or
+	// time out. A correct implementation derives the shutdown context
+	// from the caller's ctx and returns quickly when the deadline fires.
+	stopCtx, stopCancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer stopCancel()
+
+	err = srv.Stop(stopCtx)
+	if err == nil {
+		close(doneCh)
+		<-reqDone
+		t.Fatal("Stop should have returned a context deadline error because the handler was still blocking")
 	}
 
-	// Boundary 3: trace ID after Stop with a ctx derived from the
-	// original — the shutdown path must not substitute a
-	// context.Background() or other ctx-dropping construct that breaks
-	// the trace chain.
-	afterStopTraceID := trace.SpanFromContext(shutdownCtx).SpanContext().TraceID()
+	// The error must be context.DeadlineExceeded — any other error
+	// (including nil) means Stop did not use the caller's context.
+	if err != context.DeadlineExceeded {
+		close(doneCh)
+		<-reqDone
+		t.Fatalf("Stop returned error %v, want context.DeadlineExceeded; the shutdown path did not respect the caller's context deadline", err)
+	}
+
+	// Unblock the handler so goroutines can drain.
+	close(doneCh)
+	<-reqDone // drain the request goroutine
+
+	// Boundary 4: trace ID after Stop — the caller's context is an
+	// immutable Go value, so this assertion documents the contract
+	// rather than testing Stop internals directly. Together with the
+	// deadline-propagation check above, it ensures Stop both uses the
+	// caller's context and does not strip span data through any
+	// intermediate wrapper.
+	afterStopTraceID := trace.SpanFromContext(stopCtx).SpanContext().TraceID()
 	if afterStopTraceID != startTraceID {
-		t.Fatalf("boundary Stop: trace ID changed from %s to %s — shutdown path dropped or replaced the caller's context",
+		t.Fatalf("boundary Stop: trace ID changed from %s to %s — shutdown path dropped or replaced the caller's context trace identity",
 			startTraceID, afterStopTraceID)
 	}
 
-	// Regression: a plant of context.Background() or
-	// context.WithoutCancel(ctx) at any pipeline boundary must cause
-	// this test to fail with a clear message naming which boundary
-	// broke the trace ID.
+	// Verify the server is actually stopped: a new request must fail.
+	_, err = http.Get("http://" + addr + "/")
+	if err == nil {
+		t.Fatal("server accepts connections after Stop — shutdown did not stop the listener")
+	}
 }
 
 // TestContextBackgroundDropsTraceID documents that context.Background()
