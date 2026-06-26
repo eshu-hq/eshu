@@ -99,12 +99,20 @@ async function startDevServer(): Promise<DevServer> {
 async function stopDevServer(server: DevServer): Promise<void> {
   if (server.process.exitCode !== null || server.process.signalCode !== null) return;
   await new Promise<void>((resolvePromise) => {
-    const done = (): void => resolvePromise();
+    let settled = false;
+    const done = (): void => {
+      if (settled) return;
+      settled = true;
+      resolvePromise();
+    };
+    // Register the exit listener BEFORE sending SIGTERM, so there is no
+    // TOCTOU window where the process exits between the null-check and the
+    // listener registration.
     server.process.once("exit", done);
     server.process.kill("SIGTERM");
     setTimeout(() => {
       server.process.kill("SIGKILL");
-      resolvePromise();
+      done();
     }, 5000);
   });
 }
@@ -119,35 +127,8 @@ interface PageA11yResult {
   violations: number;
   passes: number;
   incomplete: number;
+  /** Non-empty when navigation or axe-core scan failed for this page. */
   error?: string;
-}
-
-async function auditPage(page: Page, test: PageTest): Promise<PageA11yResult> {
-  try {
-    await page.goto(routeUrl(test.path), { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
-    await page.waitForTimeout(settleMs);
-
-    const builder = new AxeBuilder({ page });
-    const results = await builder.analyze();
-
-    return {
-      path: test.path,
-      label: test.label,
-      violations: results.violations.length,
-      passes: results.passes.length,
-      incomplete: results.incomplete.length,
-    };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return {
-      path: test.path,
-      label: test.label,
-      violations: 0,
-      passes: 0,
-      incomplete: 0,
-      error: msg,
-    };
-  }
 }
 
 interface StructuredViolation {
@@ -158,11 +139,19 @@ interface StructuredViolation {
   path: string;
 }
 
-async function runStructuredAudit(
-  page: Page,
-  tests: readonly PageTest[],
-): Promise<StructuredViolation[]> {
-  const allViolations: StructuredViolation[] = [];
+interface AuditResult {
+  pageResults: PageA11yResult[];
+  structuredViolations: StructuredViolation[];
+  skippedPages: number;
+}
+
+// auditAllPages navigates every page, runs axe-core once per page, and collects
+// both per-page counts and structured violation data in a single pass. This
+// avoids a false-green gate when the dev server dies between two separate passes.
+async function auditAllPages(page: Page, tests: readonly PageTest[]): Promise<AuditResult> {
+  const pageResults: PageA11yResult[] = [];
+  const structuredViolations: StructuredViolation[] = [];
+  let skippedPages = 0;
 
   for (const test of tests) {
     try {
@@ -172,8 +161,16 @@ async function runStructuredAudit(
       const builder = new AxeBuilder({ page });
       const results = await builder.analyze();
 
+      pageResults.push({
+        path: test.path,
+        label: test.label,
+        violations: results.violations.length,
+        passes: results.passes.length,
+        incomplete: results.incomplete.length,
+      });
+
       for (const v of results.violations) {
-        allViolations.push({
+        structuredViolations.push({
           impact: v.impact ?? "unknown",
           id: v.id,
           description: v.description,
@@ -181,12 +178,25 @@ async function runStructuredAudit(
           path: test.path,
         });
       }
-    } catch {
-      // Navigation errors are expected on some pages in mock mode; skip.
+
+      const status = results.violations.length > 0 ? "VIOL" : "OK";
+      process.stdout.write(`  ${status} ${test.path} (${test.label})\n`);
+    } catch (err) {
+      skippedPages += 1;
+      const msg = err instanceof Error ? err.message : String(err);
+      pageResults.push({
+        path: test.path,
+        label: test.label,
+        violations: 0,
+        passes: 0,
+        incomplete: 0,
+        error: msg,
+      });
+      process.stdout.write(`  ERR ${test.path} (${test.label}): ${msg}\n`);
     }
   }
 
-  return allViolations;
+  return { pageResults, structuredViolations, skippedPages };
 }
 
 function printBaseline(violations: StructuredViolation[]): void {
@@ -288,23 +298,19 @@ async function main(): Promise<void> {
     await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
     process.stdout.write("console-a11y: boot connected\n");
 
-    // First pass: fast audit with per-page violation counts.
-    const pageResults: PageA11yResult[] = [];
-    for (const test of allTests) {
-      const result = await auditPage(page, test);
-      pageResults.push(result);
-      const status = result.error ? "ERR" : result.violations > 0 ? "VIOL" : "OK";
-      process.stdout.write(`  ${status} ${test.path} (${test.label})\n`);
-    }
+    // Single atomic pass: navigate each page once, collect both per-page
+    // counts and structured violations. This prevents a false-green gate
+    // when the dev server or browser dies between separate passes.
+    const { pageResults, structuredViolations, skippedPages } = await auditAllPages(
+      page,
+      allTests,
+    );
 
     printPageResults(pageResults);
-
-    // Second pass: structured scan for the baseline report.
-    process.stdout.write("\nconsole-a11y: collecting structured baseline...\n");
-    const structuredViolations = await runStructuredAudit(page, allTests);
     printBaseline(structuredViolations);
 
-    // Gate evaluation: fail on critical + serious violations.
+    // Gate evaluation: fail on critical + serious violations, or on excessive
+    // skipped pages (degraded audit coverage that could mask violations).
     if (gateMode) {
       const blocking = structuredViolations.filter(
         (v) => v.impact === "critical" || v.impact === "serious",
@@ -321,11 +327,28 @@ async function main(): Promise<void> {
         `Warning violations (moderate + minor): ${warn.reduce((sum, v) => sum + v.nodes, 0)} nodes across ${warn.length} instances\n`,
       );
 
+      let gateFailed = false;
+
       if (blocking.length > 0) {
         process.stdout.write("\nGATE FAILED: critical or serious a11y violations detected\n");
         for (const v of blocking) {
           process.stdout.write(`  [${v.impact}] ${v.id} — ${v.path} (${v.nodes} node(s))\n`);
         }
+        gateFailed = true;
+      }
+
+      // If more than 10% of pages (ceil to nearest >= 9) were skipped, the
+      // audit coverage is too degraded to trust the result. Fail the gate
+      // so operators notice rather than silently accepting an incomplete scan.
+      const maxAllowedSkipped = Math.max(9, Math.ceil(allTests.length * 0.1));
+      if (skippedPages > maxAllowedSkipped) {
+        process.stdout.write(
+          `\nGATE FAILED: ${skippedPages} pages skipped (max allowed: ${maxAllowedSkipped}) — audit coverage degraded\n`,
+        );
+        gateFailed = true;
+      }
+
+      if (gateFailed) {
         exitCode = 1;
       } else {
         process.stdout.write("\nGATE PASSED: no critical or serious a11y violations\n");
