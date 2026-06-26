@@ -1,0 +1,55 @@
+name: Verify OpenAPI Surface
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-verify:
+    name: Verify OpenAPI test mirror
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run test mirror
+        run: scripts/test-verify-openapi.sh
+
+  verify:
+    name: Verify OpenAPI gate
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    needs: test-verify
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Verify OpenAPI surface drift
+        shell: bash
+        run: |
+          set -o pipefail
+          scripts/verify-openapi.sh 2>&1 | tee /tmp/openapi-drift.log
+
+      - name: Upload drift report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-drift-report
+          path: /tmp/openapi-drift.log
+          if-no-files-found: warn
