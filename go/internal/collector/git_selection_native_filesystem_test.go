@@ -1,0 +1,320 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package collector
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitHubWorkflows(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(
+		t,
+		filepath.Join(sourceRepo, ".github", "workflows", "deploy.yml"),
+		"name: deploy\non:\n  push:\n",
+	)
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(batch.Repositories), 1; got != want {
+		t.Fatalf("len(Repositories) = %d, want %d", got, want)
+	}
+
+	wantWorkflowPath := filepath.Join(reposDir, "eshu-hq", "service-a", ".github", "workflows", "deploy.yml")
+	if _, err := os.Stat(wantWorkflowPath); err != nil {
+		t.Fatalf("copied repository missing GitHub workflow %q: %v", wantWorkflowPath, err)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemReturnsEmptyBatchWhenManifestUnchanged(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+		Now: func() time.Time {
+			return time.Date(2026, time.April, 13, 20, 30, 0, 0, time.UTC)
+		},
+	}
+
+	firstBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("first SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(firstBatch.Repositories), 1; got != want {
+		t.Fatalf("len(first.Repositories) = %d, want %d", got, want)
+	}
+
+	secondBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("second SelectRepositories() error = %v, want nil", err)
+	}
+	if got := len(secondBatch.Repositories); got != 0 {
+		t.Fatalf("len(second.Repositories) = %d, want 0 when filesystem manifest is unchanged", got)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemIgnoresGitignoredManifestChurn(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "generated.log\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "generated.log"), "first\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	firstBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("first SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(firstBatch.Repositories), 1; got != want {
+		t.Fatalf("len(first.Repositories) = %d, want %d", got, want)
+	}
+
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "generated.log"), "second\n")
+	secondBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("second SelectRepositories() error = %v, want nil", err)
+	}
+	if got := len(secondBatch.Repositories); got != 0 {
+		t.Fatalf("len(second.Repositories) = %d, want 0 when only gitignored files changed", got)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemIgnoresEshuignoredManifestChurn(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".eshuignore"), "scratch.json\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "scratch.json"), "{\"version\":1}\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	firstBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("first SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(firstBatch.Repositories), 1; got != want {
+		t.Fatalf("len(first.Repositories) = %d, want %d", got, want)
+	}
+
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "scratch.json"), "{\"version\":2}\n")
+	secondBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("second SelectRepositories() error = %v, want nil", err)
+	}
+	if got := len(secondBatch.Repositories); got != 0 {
+		t.Fatalf("len(second.Repositories) = %d, want 0 when only eshuignored files changed", got)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemReselectsWhenIgnoreRulesChange(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "generated.log\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "generated.log"), "first\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	firstBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("first SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(firstBatch.Repositories), 1; got != want {
+		t.Fatalf("len(first.Repositories) = %d, want %d", got, want)
+	}
+
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "other.log\n")
+	secondBatch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("second SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(secondBatch.Repositories), 1; got != want {
+		t.Fatalf("len(second.Repositories) = %d, want %d when ignore rules changed", got, want)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemRootRepository(t *testing.T) {
+	t.Parallel()
+
+	sourceRepo := t.TempDir()
+	reposDir := t.TempDir()
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+
+	observedAt := time.Date(2026, time.April, 13, 21, 15, 0, 0, time.UTC)
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: sourceRepo,
+			Component:      "bootstrap-index",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+		Now: func() time.Time {
+			return observedAt
+		},
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(batch.Repositories), 1; got != want {
+		t.Fatalf("len(Repositories) = %d, want %d", got, want)
+	}
+
+	selectedRepo := batch.Repositories[0]
+	wantRepoPath := filepath.Join(reposDir, filepath.Base(sourceRepo))
+	if got, want := selectedRepo.RepoPath, wantRepoPath; got != want {
+		t.Fatalf("RepoPath = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(filepath.Join(wantRepoPath, "main.go")); err != nil {
+		t.Fatalf("copied repository missing main.go: %v", err)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemDirectRootRepository(t *testing.T) {
+	t.Parallel()
+
+	sourceRepo := t.TempDir()
+	reposDir := t.TempDir()
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:         reposDir,
+			SourceMode:       "filesystem",
+			FilesystemRoot:   sourceRepo,
+			FilesystemDirect: true,
+			Component:        "bootstrap-index",
+			CloneDepth:       1,
+			RepoLimit:        4000,
+			GitAuthMethod:    "none",
+		},
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(batch.Repositories), 1; got != want {
+		t.Fatalf("len(Repositories) = %d, want %d", got, want)
+	}
+	if got, want := batch.Repositories[0].RepoPath, sourceRepo; got != want {
+		t.Fatalf("RepoPath = %q, want %q", got, want)
+	}
+}
+
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemDirectWorkspaceRepositories(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:         reposDir,
+			SourceMode:       "filesystem",
+			FilesystemRoot:   filesystemRoot,
+			FilesystemDirect: true,
+			Component:        "workspace-index",
+			CloneDepth:       1,
+			RepoLimit:        4000,
+			GitAuthMethod:    "none",
+		},
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(batch.Repositories), 1; got != want {
+		t.Fatalf("len(Repositories) = %d, want %d", got, want)
+	}
+	if got, want := batch.Repositories[0].RepoPath, sourceRepo; got != want {
+		t.Fatalf("RepoPath = %q, want %q", got, want)
+	}
+}

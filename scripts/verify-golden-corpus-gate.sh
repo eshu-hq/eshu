@@ -45,14 +45,20 @@ if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
 	database="neo4j"
 fi
 
-# Minimal 5-repo corpus. Chosen to produce cross-repo DEPENDS_ON (rc-3) and a
-# source/deployment-config deployable-unit correlation (rc-1).
+# Minimal corpus. The comprehensive fixtures exercise the per-language parsers.
+# lib-common (publisher of @acme/lib-common) + orders-api (consumer of it)
+# form a cross-repo DEPENDS_ON (rc-3): the package-registry cassette carries a
+# source_hint mapping @acme/lib-common -> github.com/acme/lib-common, and
+# ESHU_GITHUB_ORG=acme (set below) makes both fixtures' synthesized remotes match
+# that org so consumption resolves to the in-corpus owner repo.
 corpus_fixtures=(
 	go_comprehensive
 	python_comprehensive
 	terraform_comprehensive
 	kubernetes_comprehensive
 	helm_argocd_platform
+	lib-common
+	orders-api
 )
 
 # 9 credentialed collectors and their B-10 cassette directories.
@@ -139,6 +145,12 @@ export ESHU_REPOS_DIR="${work_dir}/repos"
 export ESHU_REPO_SOURCE_MODE="filesystem"
 export ESHU_FILESYSTEM_ROOT="${corpus_dir}"
 export ESHU_GIT_AUTH_METHOD="none"
+# Filesystem repos have no real git remote; the collector synthesizes one from the
+# repo id + this org (repoRemoteURL in git_selection_discovery.go). Pinning it to a
+# fictional org makes the corpus repos' remotes deterministic
+# (github.com/acme/<repo>) so package-registry source_hint URLs resolve to the
+# in-corpus owner repo, producing cross-repo DEPENDS_ON (rc-3).
+export ESHU_GITHUB_ORG="acme"
 export ESHU_REPOSITORY_RULES_JSON="[]"
 export ESHU_QUERY_PROFILE="local_full_stack"
 export ESHU_API_KEY="${GATE_API_KEY}"
@@ -315,12 +327,13 @@ done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
 
 log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
-# Minimal-corpus posture: the required graph assertion is "the pipeline projected
-# the corpus" (Repository present). The deployable-unit (rc-1) and cross-repo
-# DEPENDS_ON (rc-3) correlations, the cassette-dependent correlations (rc-2/rc-4),
-# and the 20-repo node/edge tolerances are reported as advisory until a corpus
-# and cassette set that produce them lands (tracked as follow-ups). Promote them
-# by adding their IDs to -required-correlations.
+# Minimal-corpus posture: the required graph assertions are "the pipeline
+# projected the corpus" (Repository present) and the cross-repo DEPENDS_ON
+# correlation (rc-3), which the lib-common/orders-api fixture pair plus the
+# package-registry cassette deterministically produce. The deployable-unit (rc-1),
+# the cassette-dependent correlations (rc-2/rc-4), and the 20-repo node/edge
+# tolerances stay advisory until a corpus and cassette set that produce them lands
+# (tracked as follow-ups). Promote each by adding its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=graph,query,timing \
@@ -328,7 +341,7 @@ gate_status=0
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
 	-required-node-labels="Repository" \
-	-required-correlations="" \
+	-required-correlations="rc-3" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?
