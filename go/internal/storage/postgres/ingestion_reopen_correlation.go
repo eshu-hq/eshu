@@ -9,7 +9,11 @@ import (
 	"log"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // listSucceededReducerWorkItemsByDomainQuery selects succeeded reducer work
@@ -36,6 +40,7 @@ ORDER BY updated_at ASC, work_item_id ASC
 func (s IngestionStore) ReopenSucceededReducerWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
 	domains []string,
 ) error {
 	if s.db == nil {
@@ -62,6 +67,12 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 			if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
 				return fmt.Errorf("reopen %s work items: %w", domain, err)
 			}
+		}
+		if instruments != nil {
+			instruments.CorrelationReopened.Add(
+				ctx, int64(len(workItemIDs)),
+				metric.WithAttributes(attribute.String("domain", domain)),
+			)
 		}
 		log.Printf("reducer_work_items_reopened domain=%s count=%d", domain, len(workItemIDs))
 	}

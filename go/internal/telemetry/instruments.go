@@ -879,6 +879,7 @@ type Instruments struct {
 	DeferredBackfillPartitionLoadDuration  metric.Float64Histogram
 	DeploymentMappingReopened              metric.Int64Counter
 	CodeImportRepoEdgeReopened             metric.Int64Counter
+	CorrelationReopened                    metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter
 
@@ -3509,6 +3510,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CodeImportRepoEdgeReopened counter: %w", err)
+	}
+
+	inst.CorrelationReopened, err = meter.Int64Counter(
+		"eshu_dp_correlation_reopened_total",
+		metric.WithDescription("Total additive-correlation reducer work items reopened after deferred maintenance, keyed by domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CorrelationReopened counter: %w", err)
 	}
 
 	inst.IaCReachabilityMaterializationDuration, err = meter.Float64Histogram(

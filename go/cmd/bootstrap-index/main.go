@@ -58,7 +58,7 @@ type bootstrapCommitter interface {
 	// re-run once the resolved relationships they consume — produced by the
 	// deployment_mapping reopen + cross-repo resolution in an earlier drain — exist.
 	// Idempotent.
-	ReopenSucceededReducerWorkItems(context.Context, trace.Tracer, []string) error
+	ReopenSucceededReducerWorkItems(context.Context, trace.Tracer, *telemetry.Instruments, []string) error
 	// EnqueueConfigStateDriftIntents enqueues one config_state_drift reducer
 	// intent per state_snapshot:* scope with an active generation. Phase 3.5
 	// trigger required by the facts-first bootstrap ordering: drift consumes
@@ -437,7 +437,7 @@ func runPipelined(
 	// maintenance pass — the ingester loops; the gate runs maintenance twice —
 	// replays it once resolution exists. Idempotent.
 	correlationReopenStart := time.Now()
-	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, []string{
+	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, instruments, []string{
 		"deployable_unit_correlation", // reducer.DomainDeployableUnitCorrelation
 	}); err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)

@@ -457,6 +457,7 @@ func (f *fakeCommitter) ReopenCodeImportRepoEdgeWorkItems(
 func (f *fakeCommitter) ReopenSucceededReducerWorkItems(
 	_ context.Context,
 	_ trace.Tracer,
+	_ *telemetry.Instruments,
 	_ []string,
 ) error {
 	f.mu.Lock()
