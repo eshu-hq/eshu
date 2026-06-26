@@ -469,10 +469,12 @@ func buildReducerService(
 			AcceptedGen: reducer.GateAcceptedGenerationOnActive(
 				postgres.NewAcceptedGenerationLookup(database),
 				relationshipGenerationActive,
+				instruments,
 			),
 			AcceptedGenPrefetch: reducer.GateAcceptedGenerationPrefetchOnActive(
 				acceptedGenerationPrefetch,
 				relationshipGenerationActive,
+				instruments,
 			),
 			Config:      repoDependencyCfg,
 			Tracer:      tracer,

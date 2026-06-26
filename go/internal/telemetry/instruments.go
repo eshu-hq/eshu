@@ -899,6 +899,18 @@ type Instruments struct {
 	// denormalized edges are stranded at the source.
 	CrossRepoActivationFenced metric.Int64Counter
 
+	// RepoDependencyGateDecisions counts per-key gate decisions emitted from
+	// GateAcceptedGenerationOnActive, labeled by the bounded decision enum
+	// bypassed, deferred_inactive, deferred_error. It increments once per
+	// intent key resolved, never per prefetch batch. Operators read this to
+	// distinguish scope-gen bypass (bypassed, healthy) from transient deferral
+	// (deferred_inactive, expected until activation) and lookup failures
+	// (deferred_error, fail-safe). Sustained deferred_inactive signals a
+	// generation that's accepted but not yet active — the alertable wedge
+	// signal the B-13 post-mortem identified. Labels are bounded enums only:
+	// decision. Never carries generation ids, scope ids, or repository ids.
+	RepoDependencyGateDecisions metric.Int64Counter
+
 	// ContentEntityEmitted counts content_entity facts streamed during
 	// collection, broken down by source_file_kind (code, package_manifest,
 	// config, other). This is the single most valuable counter for surfacing
@@ -3611,6 +3623,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossRepoActivationFenced counter: %w", err)
+	}
+
+	inst.RepoDependencyGateDecisions, err = meter.Int64Counter(
+		"eshu_dp_repo_dependency_gate_decisions_total",
+		metric.WithDescription(
+			"Total repo-dependency activation gate decisions labeled by bounded decision (bypassed, deferred_inactive, deferred_error). Increments per key resolved, never per prefetch batch.",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RepoDependencyGateDecisions counter: %w", err)
 	}
 
 	inst.ContentEntityEmitted, err = meter.Int64Counter(
