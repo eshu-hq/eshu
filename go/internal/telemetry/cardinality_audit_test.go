@@ -97,29 +97,44 @@ func TestCardinalityAudit_RegistryIsClean(t *testing.T) {
 	}
 }
 
-// TestCardinalityAudit_NoBannedInlineKeys scans instruments.go for
-// attribute.String("key", ...) calls and asserts none use a hard-banned key.
-// This catches dimension keys set inline without going through the
-// Attr* helper / registry path.
+// TestCardinalityAudit_NoBannedInlineKeys scans all telemetry package source
+// files for attribute.String("key", ...) calls and asserts none use a
+// hard-banned key.  This catches dimension keys set inline without going
+// through the Attr* helper / registry path.  Resource-attribute uses
+// (service.name, service.namespace) are excluded by not matching banned keys.
 func TestCardinalityAudit_NoBannedInlineKeys(t *testing.T) {
-	src := readInstrumentsSource(t)
 	hardBanned := make(map[string]bool, len(hardBannedDimensions))
 	for _, k := range hardBannedDimensions {
 		hardBanned[k] = true
 	}
 
-	// Match attribute.String("key", ...) — capture the first string argument.
-	re := regexp.MustCompile(`attribute\.String\("([^"]+)"`)
-	matches := re.FindAllStringSubmatch(src, -1)
+	// (?s) lets . match \n so multiline attribute.String( calls are caught.
+	re := regexp.MustCompile(`(?s)attribute\.String\(\s*"([^"]+)"`)
+
+	dir := telemetrySourceDir(t)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read telemetry dir: %v", err)
+	}
 
 	var violations []string
 	seen := make(map[string]bool)
-	for _, m := range matches {
-		key := m[1]
-		if hardBanned[key] && !seen[key] {
-			seen[key] = true
-			violations = append(violations, fmt.Sprintf(
-				"hard-banned dimension key %q used via attribute.String() in instruments.go", key))
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", e.Name(), err)
+		}
+		matches := re.FindAllStringSubmatch(string(content), -1)
+		for _, m := range matches {
+			key := m[1]
+			if hardBanned[key] && !seen[key] {
+				seen[key] = true
+				violations = append(violations, fmt.Sprintf(
+					"hard-banned dimension key %q used via attribute.String() in %s", key, e.Name()))
+			}
 		}
 	}
 
@@ -181,18 +196,24 @@ func TestCardinalityAudit_NoBannedKeysInContractFiles(t *testing.T) {
 
 // TestCardinalityAudit_AllowedKeysAreDocumented asserts that every key in the
 // registry has a matching MetricDimension* constant defined somewhere in the
-// telemetry package.  A registry entry without a constant is a drift risk.
+// telemetry package, AND that every defined constant is in the registry.
+// A mismatch in either direction is a drift risk.
 func TestCardinalityAudit_AllowedKeysAreDocumented(t *testing.T) {
 	registered := telemetry.MetricDimensionKeys()
 
 	// Collect all metric dimension wire values from contract files.
 	wireKeys := collectWireKeysFromContracts(t)
 
+	if len(wireKeys) == 0 {
+		t.Fatalf("no dimension wire keys found in telemetry source files — is the checkout corrupted?")
+	}
+
 	regMap := make(map[string]bool, len(registered))
 	for _, k := range registered {
 		regMap[k] = true
 	}
 
+	// Direction 1: every registry key must have a matching constant.
 	var undocumented []string
 	for _, reg := range registered {
 		if !wireKeys[reg] {
@@ -204,6 +225,20 @@ func TestCardinalityAudit_AllowedKeysAreDocumented(t *testing.T) {
 		t.Errorf("metric dimension keys in registry with no matching MetricDimension* constant:\n%s\n\n"+
 			"Add a constant to a contract file and re-run the test.",
 			strings.Join(undocumented, "\n"))
+	}
+
+	// Direction 2: every constant-defined key must be in the registry.
+	var unregistered []string
+	for wire := range wireKeys {
+		if !regMap[wire] {
+			unregistered = append(unregistered, wire)
+		}
+	}
+
+	if len(unregistered) > 0 {
+		t.Errorf("MetricDimension* constants defined but not in the metricDimensionKeys registry:\n%s\n\n"+
+			"Add each wire key to the metricDimensionKeys slice in registry.go.",
+			strings.Join(unregistered, "\n"))
 	}
 }
 
@@ -277,16 +312,6 @@ func telemetrySourceDir(t *testing.T) string {
 
 	t.Fatalf("cannot find telemetry package directory from %s", dir)
 	return ""
-}
-
-func readInstrumentsSource(t *testing.T) string {
-	t.Helper()
-	dir := telemetrySourceDir(t)
-	data, err := os.ReadFile(filepath.Join(dir, "instruments.go"))
-	if err != nil {
-		t.Fatalf("read instruments.go: %v", err)
-	}
-	return string(data)
 }
 
 func collectWireKeysFromContracts(t *testing.T) map[string]bool {
