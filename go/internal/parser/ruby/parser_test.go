@@ -105,6 +105,94 @@ end
 	assertBucketField(t, payload, "function_calls", "full_name", "env.ready?")
 }
 
+func TestParseRubySingletonClassExtraction(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "singleton.rb", `class Builder
+  class << self
+    def from_block(name)
+      new(name)
+    end
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	fn := assertBucketName(t, payload, "functions", "from_block")
+	if got := fn["type"]; got != "singleton" {
+		t.Fatalf("functions[from_block][type] = %#v, want singleton", got)
+	}
+	if got := fn["class_context"]; got != "Builder" {
+		t.Fatalf("functions[from_block][class_context] = %#v, want Builder", got)
+	}
+}
+
+func TestParseRubyVisibilityTransitions(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "visibility.rb", `class Worker
+
+  def public_method
+    helper
+  end
+
+  private
+
+  def private_method
+    helper
+  end
+
+  protected
+
+  def protected_method
+    helper
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketName(t, payload, "functions", "public_method")
+	assertBucketName(t, payload, "functions", "private_method")
+	assertBucketName(t, payload, "functions", "protected_method")
+}
+
+func TestParseRubyModuleExtraction(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "modules.rb", `module Namespace
+  module InnerModule
+    class Worker
+      def perform
+        "work"
+      end
+    end
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketName(t, payload, "modules", "Namespace")
+	assertBucketName(t, payload, "modules", "InnerModule")
+	assertBucketName(t, payload, "classes", "Worker")
+
+	fn := assertBucketName(t, payload, "functions", "perform")
+	if got := fn["class_context"]; got != "Worker" {
+		t.Fatalf("functions[perform][class_context] = %#v, want Worker", got)
+	}
+}
+
 func writeSource(t *testing.T, name string, source string) string {
 	t.Helper()
 
