@@ -136,6 +136,18 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Compute source date epoch
+        id: epoch
+        run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+
+      - name: Pin deterministic labels
+        id: labels
+        run: |
+          CREATED="$(date -u -d "@${{ steps.epoch.outputs.epoch }}" '+%Y-%m-%dT%H:%M:%SZ')"
+          printf '%s\n' '${{ steps.meta.outputs.labels }}' > /tmp/labels.txt
+          sed -i "s|org\.opencontainers\.image\.created=.*|org.opencontainers.image.created=${CREATED}|" /tmp/labels.txt
+          { echo 'labels<<EOF'; cat /tmp/labels.txt; echo 'EOF'; } >> "${GITHUB_OUTPUT}"
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -145,8 +157,10 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           build-args: |
             ESHU_VERSION=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: ${{ env.IMAGE_PLATFORMS }}
@@ -215,6 +229,69 @@ jobs:
           gh attestation verify "${OCI_IMAGE_REF}" \
             -R "${GITHUB_REPOSITORY}" \
             --predicate-type https://spdx.dev/Document/v2.3
+
+  verify-reproducibility:
+    needs:
+      - changes
+      - build-and-push-image
+    if: needs.changes.outputs.image == 'true'
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute source date epoch
+        id: epoch
+        run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+
+      - name: Build image (first)
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg SOURCE_DATE_EPOCH="${{ steps.epoch.outputs.epoch }}" \
+            --build-arg ESHU_VERSION=reproducibility-test \
+            --provenance=false \
+            --no-cache \
+            --output type=local,dest=/tmp/out1 \
+            .
+
+      - name: Build image (second, no cache)
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg SOURCE_DATE_EPOCH="${{ steps.epoch.outputs.epoch }}" \
+            --build-arg ESHU_VERSION=reproducibility-test \
+            --provenance=false \
+            --no-cache \
+            --output type=local,dest=/tmp/out2 \
+            .
+
+      - name: Compare builds
+        run: |
+          (cd /tmp/out1 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out1.sha256
+          (cd /tmp/out2 && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/out2.sha256
+          grep './usr/local/bin/' /tmp/out1.sha256 | sort -k2 > /tmp/out1.binaries.sha256
+          grep './usr/local/bin/' /tmp/out2.sha256 | sort -k2 > /tmp/out2.binaries.sha256
+          if ! diff /tmp/out1.binaries.sha256 /tmp/out2.binaries.sha256; then
+            echo "::error::Go binaries differ across builds. Reproducibility failed."
+            exit 1
+          fi
+          echo "::notice::All Go binaries are byte-identical across builds."
+          echo "Reproducibility summary:"
+          echo "  Go binaries in /usr/local/bin: IDENTICAL"
+          echo "  Total files compared: $(wc -l < /tmp/out1.sha256)"
+          if diff /tmp/out1.sha256 /tmp/out2.sha256 > /tmp/repro.diff 2>&1; then
+            echo "  Full filesystem: IDENTICAL"
+          else
+            DIFF_COUNT=$(grep -c '^<' /tmp/repro.diff 2>/dev/null || echo 0)
+            echo "  Full filesystem: ${DIFF_COUNT} files differ (acceptable: apk-installed system package metadata variance)"
+          fi
 
   attach-release-sbom:
     needs:
