@@ -62,9 +62,9 @@ service:
 networkPolicy:
   enabled: true
   egress:
-    # broad preserves existing chart compatibility. Hosted governance values
-    # should set this to restricted and fill only the required destinations.
-    mode: broad
+    # restricted is the secure default. Set to broad only when the chart is not
+    # deployed in a cluster with namespaced workload isolation.
+    mode: restricted
     dns:
       enabled: true
       to:
@@ -142,6 +142,7 @@ apiAuth:
 api:
   replicas: 1
   revisionHistoryLimit: 3
+  bindAddress: 127.0.0.1
   env: {}
   # extraVolumes / extraVolumeMounts let an operator mount additional read-only
   # material (for example an ESHU_SCOPED_TOKENS_FILE registry Secret) into the
