@@ -67,7 +67,7 @@ The Scala parser (`go/internal/parser/scala/`) is a tree-sitter-backed language 
 | `framework_semantics` | `language.go:77` | Always emitted as `{"frameworks": []}`. Never populated with actual frameworks. Not asserted by any test. Appears to be dead code. |
 | `decorators` on functions | `language.go:192` | Always emitted as `[]string{}`. Never populated. Not asserted by any test. |
 | `IndexSource` option | `language.go:211-213` | `TestDefaultEngineParsePathScalaEmitsDeadCodeRootKinds` passes `IndexSource: true` but does not assert on the `source` field in the output. |
-| ScalaTest: `AnyFlatSpec`, `AnyWordSpec`, `AnyFreeSpec`, `AnyFeatureSpec`, `FunSuite`, `FlatSpec`, `WordSpec`, `FreeSpec`, `Specification` | `dead_code_roots.go:23-25` | Only `AnyFunSuite` is tested. 8 of 9 ScalaTest base class names are untested. |
+| ScalaTest: `AnyFlatSpec`, `AnyWordSpec`, `AnyFreeSpec`, `AnyFeatureSpec`, `FunSuite`, `FlatSpec`, `WordSpec`, `FreeSpec`, `Specification` | `dead_code_roots.go:23-24` | Only `AnyFunSuite` is tested. 9 of 10 ScalaTest base class names are untested. |
 | Play controllers: `BaseController`, `AbstractController`, `Controller` | `dead_code_roots.go:67` | Only `InjectedController` is tested. 3 of 4 Play base controller types are untested. |
 | Play action: `EssentialAction` | `dead_code_roots.go:70` | Only `Action` is tested in the method body check. `EssentialAction` is untested. |
 | Akka: `AbstractActor` | `dead_code_roots.go:54` | Only `Actor` is tested. `AbstractActor` is untested. |

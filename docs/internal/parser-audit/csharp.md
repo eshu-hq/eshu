@@ -17,7 +17,7 @@ The C# parser (`go/internal/parser/csharp/`) extracts declarations (classes, int
 | `function_calls` (invocation, object creation) | `language.go:73-78` |
 | `bases` (base list) | `dead_code_roots.go:78-121` (`csharpBaseNames`) |
 | `class_context` | `language.go:209-212` (`nearestNamedAncestorWithQualifiedKind`) |
-| `decorators` (attributes) | `language.go:206` (`csharpAttributeNames`) |
+| `decorators` (attributes) | `language.go:205` (`csharpAttributeNames` at `dead_code_syntax.go:45`) |
 | `cyclomatic_complexity` | `complexity.go:34-36` |
 | PreScan names | `language.go:94-101` |
 | `dataflow_functions` (CFG rows) | `dataflow_emit.go:29,55-83` |

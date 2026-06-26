@@ -168,7 +168,7 @@ From `doc.go:7-73`, `README.md:35-104`, and function docstrings:
 | Package interface prescan | `go_package_interface_prescan_test.go` |
 
 ## Unverified / Claimed-but-Untested Constructs
-- **`MethodDeclarationKeys`** — documented in `README.md:68`, not found in exported function list. The helper `goFunctionParamCallbackIndexes` in `dead_code_semantic_helpers.go:402` is similar but not the same interface.
+- **`MethodDeclarationKeys`** — exported in `golang/package_interface_prescan.go`, documented in `README.md:68`. No dedicated test exercises it independently of the package interface prescan tests.
 - **LiveComponent callback root** overlap risk — the Elixir comment applies, but for Go: `go.interface_method_implementation` via imported interface methods with `allowExportedMethods` (in `goMarkConcreteTypeForInterfaceTarget` at `dead_code_semantic_flows.go:164-170`) marks every exported method of a concrete type. This is tested only indirectly via the package interface prescan tests, not with a fixture that proves a false positive cannot occur (e.g., where not every exported method is actually called).
 - **Struct field interface targets in composite literals** — `goMarkCompositeLiteralInterfaceFields` in `dead_code_semantic_flows.go:60-99` is exercised only through the broader dead-code root tests, not with specific fixtures for struct field name mismatch or empty keyed_element.
 - **`LocalInterfaceMethods` and `GenericConstraintInterfaceNames`** — documented in `README.md:67-68` as exported functions; the generic constraint interface root (`goMarkGenericConstraintInterfaceRoots`) is tested through the dead-code interface tests, but the standalone export functions are not directly tested.

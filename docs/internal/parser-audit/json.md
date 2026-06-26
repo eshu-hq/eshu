@@ -31,7 +31,6 @@ From `doc.go`, `README.md`, `language.go`:
 - Parent-level: 20 parent test files reference json parsing
 
 ## Unverified / Claimed-but-Untested Constructs
-- **NuGet packages.lock.json**: claimed in doc.go/README but no dedicated test file visible
 - **JSONC-specific normalization edge cases**: no dedicated JSONC test file
 - **dbt manifest lineage**: lineage extraction is tested via dbtsql tests and JSON dbt manifest tests (check `json_dbt_test.go` — file not found, likely `dbt_manifest_test.go` or similar)
 - **TypeScript config (tsconfig.json) path handling**: may be covered in `parser_test.go` beyond line 100 or in parent-level tests
@@ -60,6 +59,5 @@ From `doc.go`, `README.md`, `language.go`:
 
 ## Recommended Actions
 - Document that JSON is a **permanent exception** — uses `encoding/json` with ordered-object decode, not tree-sitter
-- Verify NuGet packages.lock.json has test coverage (check parent-level tests or add a dedicated test)
 - Add a JSONC-specific test covering multi-line comments and trailing commas
 - Add a test for unparseable JSON error handling

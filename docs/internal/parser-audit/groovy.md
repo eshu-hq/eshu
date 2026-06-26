@@ -144,7 +144,7 @@ because the Groovy grammar has no node types for Jenkins-DSL conventions.
 **moderate**
 
 The Groovy parser has focused test coverage for its two delivery-evidence
-boundaries (tree-sitter syntax and Jenkins-DSL regex) with 13 tests across 3
+boundaries (tree-sitter syntax and Jenkins-DSL regex) with 15 tests across 3
 files plus engine-level integration tests. However, import extraction, error
 paths, keyword suppression, and PreScanWithParser are untested, and the test
 suite focuses on happy-path Jenkinsfile scenarios without negative/syntax-error
