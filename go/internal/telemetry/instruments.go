@@ -780,6 +780,7 @@ type Instruments struct {
 	// the handful with bespoke instruments.
 	APIRequestDuration                 metric.Float64Histogram
 	APIRequestErrors                   metric.Int64Counter
+	OIDCLoginThrottled                 metric.Int64Counter
 	SharedAcceptanceUpsertDuration     metric.Float64Histogram
 	SharedAcceptanceLookupDuration     metric.Float64Histogram
 	SharedAcceptancePrefetchSize       metric.Int64Histogram
@@ -3027,6 +3028,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register APIRequestErrors counter: %w", err)
+	}
+
+	inst.OIDCLoginThrottled, err = meter.Int64Counter(
+		"eshu_dp_oidc_login_throttled_total",
+		metric.WithDescription("OIDC login requests rejected by per-IP or per-user rate limiter"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register OIDCLoginThrottled counter: %w", err)
 	}
 
 	inst.SharedAcceptanceUpsertDuration, err = meter.Float64Histogram(
