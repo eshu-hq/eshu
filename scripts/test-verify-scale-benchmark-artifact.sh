@@ -166,4 +166,7 @@ jq '.run.id = ("scale-bench-" + "https" + "://private.example.invalid")' \
 	"${valid}" >"${private_value}"
 expect_fail "${private_value}" "artifact looks like private data"
 
+sample_artifact="${repo_root}/specs/scale-benchmark-artifact.sample.json"
+expect_pass "${sample_artifact}"
+
 printf 'verify-scale-benchmark-artifact tests passed\n'
