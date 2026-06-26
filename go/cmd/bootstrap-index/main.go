@@ -436,9 +436,18 @@ func runPipelined(
 	// maintenance pass (before resolution commits) it correlates nothing; a later
 	// maintenance pass — the ingester loops; the gate runs maintenance twice —
 	// replays it once resolution exists. Idempotent.
+	// kubernetes_correlation_materialization writes RUNS_IMAGE edges by joining a
+	// live workload's image digest to the cross-scope active OCI manifest facts.
+	// On the first pass the OCI registry scope's generation may not be active yet,
+	// so the digest resolves nothing and the edge succeeds with zero edges; a later
+	// maintenance pass replays it once the OCI generation is active. Idempotent.
+	// The kubernetes_workload_materialization node domain is intentionally NOT
+	// reopened here: it consumes only in-scope pod-template facts and commits on
+	// the normal drain, so it has no cross-scope readiness dependency to replay.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, instruments, []string{
-		"deployable_unit_correlation", // reducer.DomainDeployableUnitCorrelation
+		"deployable_unit_correlation",            // reducer.DomainDeployableUnitCorrelation
+		"kubernetes_correlation_materialization", // reducer.DomainKubernetesCorrelationMaterialization
 	}); err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)
 		if logger != nil {
