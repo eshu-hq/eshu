@@ -180,7 +180,18 @@ func codeImportEntrySource(entry map[string]any) string {
 		}
 		return resolved
 	}
-	return strings.TrimSpace(anyToString(entry["source"]))
+	// Field semantics differ by language. JS/TS/Python always set "source" to the
+	// module specifier (with "name" usually the imported symbol, or the module
+	// itself for bare `import X` / side-effect imports), so the resolvable
+	// coordinate is "source"; reading "name" first could key on a symbol and drop
+	// the edge (or fabricate a false one on a symbol/package name collision). Go
+	// emits the import PATH under "name" and never sets "source". So prefer
+	// "source", and fall back to "name" only when "source" is absent — which is
+	// exactly the Go case.
+	if source := strings.TrimSpace(anyToString(entry["source"])); source != "" {
+		return source
+	}
+	return strings.TrimSpace(anyToString(entry["name"]))
 }
 
 // isRepoRelativeResolvedSource reports whether a resolved_source value is a
