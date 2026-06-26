@@ -1,0 +1,46 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/time": {
+      "provider": {},
+      "resource_schemas": {
+        "time_offset": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "offset_days": { "type": "number" },
+              "offset_hours": { "type": "number" }
+            }
+          }
+        },
+        "time_rotating": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "rotation_days": { "type": "number" },
+              "rotation_hours": { "type": "number" }
+            }
+          }
+        },
+        "time_sleep": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "create_duration": { "type": "string" },
+              "destroy_duration": { "type": "string" }
+            }
+          }
+        },
+        "time_static": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "rfc3339": { "type": "string" },
+              "triggers": { "type": ["map", "string"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}
