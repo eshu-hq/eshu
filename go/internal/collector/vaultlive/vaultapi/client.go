@@ -23,25 +23,32 @@ import (
 // vaultlive.Client. It holds a short-lived token supplied by the caller; Eshu
 // never persists it.
 type Adapter struct {
-	httpClient *http.Client
-	address    string
-	token      string
-	namespace  string
-	onAPICall  func(operation, result string)
+	httpClient     *http.Client
+	address        string
+	token          string
+	namespace      string
+	onAPICall      func(operation, result string)
+	lastHTTPStatus int
 }
 
 // recordAPICall reports one Vault API operation outcome to the optional
 // observer. operation is a bounded enum (the list-method name); result is
-// "success" or "error". It carries no path, token, or address.
+// "success", "timeout", "auth_error", "not_found", or "transport_error". It
+// carries no path, token, or address.
 func (a *Adapter) recordAPICall(operation string, err error) {
 	if a.onAPICall == nil {
 		return
 	}
-	result := "success"
 	if err != nil {
-		result = "error"
+		a.onAPICall(operation, classifyError(err))
+		return
 	}
-	a.onAPICall(operation, result)
+	if a.lastHTTPStatus == http.StatusNotFound {
+		a.onAPICall(operation, "not_found")
+		a.lastHTTPStatus = 0
+		return
+	}
+	a.onAPICall(operation, classifyError(nil))
 }
 
 // Config configures the adapter. Address is the Vault API base (for example
@@ -109,9 +116,10 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 	if list {
 		endpoint += "?list=true"
 	}
+	operation := clean
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return false, fmt.Errorf("vaultapi: build request for %q: %w", clean, err)
+		return false, fmt.Errorf("vaultapi: build request for %q: %w", clean, wrapTransportError(operation, err))
 	}
 	req.Header.Set("X-Vault-Token", a.token)
 	if a.namespace != "" {
@@ -120,24 +128,19 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("vaultapi: request failed: %w", sdk.HTTPError{
-			Provider: "vault",
-			Message:  "request failed",
-			Cause:    err,
-		})
+		return false, wrapTransportError(operation, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	a.lastHTTPStatus = resp.StatusCode
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		// A 404 on a metadata/list endpoint means "no such mount/path" — an
-		// empty result, not an error, so partial coverage is tolerated.
 		return false, nil
 	case http.StatusForbidden:
-		return false, fmt.Errorf("vaultapi: forbidden metadata read (check read-only policy): %w", vaultHTTPError(resp))
+		return false, fmt.Errorf("vaultapi: forbidden metadata read (check read-only policy): %w", classifyHTTPStatus(operation, resp))
 	default:
-		return false, fmt.Errorf("vaultapi: unexpected metadata status: %w", vaultHTTPError(resp))
+		return false, fmt.Errorf("vaultapi: unexpected metadata status: %w", classifyHTTPStatus(operation, resp))
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
@@ -150,15 +153,6 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 		}
 	}
 	return true, nil
-}
-
-func vaultHTTPError(response *http.Response) sdk.HTTPError {
-	return sdk.HTTPError{
-		Provider:   "vault",
-		StatusCode: response.StatusCode,
-		Message:    http.StatusText(response.StatusCode),
-		RetryAfter: sdk.ParseRetryAfterHeader(response.Header.Get("Retry-After")),
-	}
 }
 
 // isKVDataPath reports whether a Vault path addresses a KV secret-data

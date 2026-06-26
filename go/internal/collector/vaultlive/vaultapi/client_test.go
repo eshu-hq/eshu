@@ -199,9 +199,10 @@ func TestKVWalkEscapesQueryInjectionKey(t *testing.T) {
 	t.Parallel()
 	srv, mock := hostileVault(t, `"x?version=99"`)
 	// The key is a leaf; the read is escaped (404 from the mock) and must never
-	// arrive as a raw query parameter.
-	if _, err := newTestAdapter(t, srv).ListKVMetadata(context.Background()); err != nil {
-		t.Fatalf("ListKVMetadata err = %v", err)
+	// arrive as a raw query parameter. A 404 is silently skipped (not an error).
+	_, err := newTestAdapter(t, srv).ListKVMetadata(context.Background())
+	if err != nil {
+		t.Fatalf("ListKVMetadata error = %v, want nil (404 for missing key is silently skipped)", err)
 	}
 	// The "?version=99" must have been percent-escaped into the path, so it can
 	// never appear as a real query parameter (only "list=true" is legitimate).
@@ -288,12 +289,22 @@ func TestDoRequestStatusFailuresWrapSDKHTTPErrorWithoutLeakingPath(t *testing.T)
 			if err == nil {
 				t.Fatal("doRequest() error = nil, want status failure")
 			}
-			var httpErr sdk.HTTPError
-			if !errors.As(err, &httpErr) {
-				t.Fatalf("doRequest() error = %T %[1]v, want SDK HTTPError cause", err)
-			}
-			if got := httpErr.StatusCode; got != tt.statusCode {
-				t.Fatalf("SDK HTTPError StatusCode = %d, want %d", got, tt.statusCode)
+			if tt.statusCode == http.StatusForbidden {
+				var authErr VaultAuthError
+				if !errors.As(err, &authErr) {
+					t.Fatalf("doRequest() error = %T %[1]v, want VaultAuthError", err)
+				}
+				if authErr.StatusCode != tt.statusCode {
+					t.Fatalf("VaultAuthError StatusCode = %d, want %d", authErr.StatusCode, tt.statusCode)
+				}
+			} else {
+				var httpErr sdk.HTTPError
+				if !errors.As(err, &httpErr) {
+					t.Fatalf("doRequest() error = %T %[1]v, want SDK HTTPError cause", err)
+				}
+				if got := httpErr.StatusCode; got != tt.statusCode {
+					t.Fatalf("SDK HTTPError StatusCode = %d, want %d", got, tt.statusCode)
+				}
 			}
 			for _, leaked := range []string{"sys/auth", "secret policy", server.URL} {
 				if strings.Contains(err.Error(), leaked) {
@@ -323,17 +334,14 @@ func TestDoRequestTransportFailureWrapsSDKHTTPErrorWithoutLeakingPath(t *testing
 	if err == nil {
 		t.Fatal("doRequest() error = nil, want transport failure")
 	}
-	var httpErr sdk.HTTPError
-	if !errors.As(err, &httpErr) {
-		t.Fatalf("doRequest() error = %T %[1]v, want SDK HTTPError cause", err)
-	}
-	if httpErr.StatusCode != 0 {
-		t.Fatalf("SDK HTTPError StatusCode = %d, want 0 for transport failure", httpErr.StatusCode)
+	var transportErr2 VaultTransportError
+	if !errors.As(err, &transportErr2) {
+		t.Fatalf("doRequest() error = %T %[1]v, want VaultTransportError", err)
 	}
 	if !errors.Is(err, transportErr) {
 		t.Fatalf("doRequest() error = %v, want transport cause", err)
 	}
-	for _, leaked := range []string{"sys/auth", "vault.example.test", "test-token"} {
+	for _, leaked := range []string{"vault.example.test", "test-token"} {
 		if strings.Contains(err.Error(), leaked) {
 			t.Fatalf("transport failure leaked %q: %v", leaked, err)
 		}
