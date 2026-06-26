@@ -1,0 +1,106 @@
+# MCP schema drift gate. Detects any tool defined in ReadOnlyTools()
+# that is not accounted for in the capability matrix, any tool declared
+# in the matrix but not registered, any change to the generated catalog
+# artifact, and any change to the expected ReadOnlyTools count.
+#
+# Drift definition (what this gate catches):
+#   1. ReadOnlyTools count changes without a corresponding
+#      tools_test.go expected-count update (P0).
+#   2. A tool name present in ReadOnlyTools but missing from every
+#      capability matrix YAML file (P0 — orphaned tool).
+#   3. A tool name declared in the matrix but not implemented in
+#      ReadOnlyTools (P0 — phantom capability).
+#   4. The committed catalog.generated.json or surface-inventory artifact
+#      differs from a freshly generated payload (P0 — stale artifact).
+#
+# What is NOT drift (cosmetic-only, not caught by this gate):
+#   - Tool description wording changes (whitespace, punctuation, rephrasing).
+#   - InputSchema property order or default value text.
+#   - Comment changes in tools_*.go files.
+#   - Go code formatting changes (caught by lint/gofumpt separately).
+#
+# When this gate fails on a PR:
+#   1. Run: cd go && go run ./cmd/capability-inventory -mode generate
+#   2. Commit the regenerated artifacts.
+#   3. If the matrix or overlay changed, ensure every tool in
+#      ReadOnlyTools() is accounted for and vice versa.
+#
+# Tool-count rule:
+#   TestReadOnlyTools in tools_test.go asserts the exact count of tools
+#   registered via ReadOnlyTools(). Adding or removing a tool requires
+#   updating tools_test.go. Failing to update is the most common drift.
+name: MCP Schema Drift
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Gate 1: Tool count ──
+  mcp-tool-count:
+    name: Verify ReadOnlyTools count
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Check ReadOnlyTools count
+        working-directory: go
+        run: go test ./internal/mcp/ -run TestReadOnlyTools -count=1
+
+  # ── Gate 2: Capability matrix reconciliation + artifact staleness ──
+  capability-verify:
+    name: Verify capability inventory
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    needs: mcp-tool-count
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run capability inventory verify
+        working-directory: go
+        run: go run ./cmd/capability-inventory -mode verify
+
+  # ── Gate 3: Dispatch route test ──
+  mcp-dispatch-route:
+    name: Verify dispatch routes
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run MCP test suite
+        working-directory: go
+        run: go test ./internal/mcp/ -count=1 -timeout 120s
