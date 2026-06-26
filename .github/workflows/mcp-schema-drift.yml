@@ -48,7 +48,7 @@ jobs:
   # ── Gate 1: Tool count ──
   mcp-tool-count:
     name: Verify ReadOnlyTools count
-    timeout-minutes: 10
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -62,19 +62,18 @@ jobs:
 
       - name: Check ReadOnlyTools count
         working-directory: go
-        run: go test ./internal/mcp/ -run TestReadOnlyTools -count=1
+        run: go test ./internal/mcp/ -run '^TestReadOnlyTools$' -count=1
 
   # ── Gate 2: Capability matrix reconciliation + artifact staleness ──
+  # Runs in parallel with mcp-tool-count (no data dependency) so both
+  # failures surface in a single CI run.
   capability-verify:
     name: Verify capability inventory
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    needs: mcp-tool-count
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 2
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -84,12 +83,20 @@ jobs:
 
       - name: Run capability inventory verify
         working-directory: go
-        run: go run ./cmd/capability-inventory -mode verify
+        run: go run ./cmd/capability-inventory -mode verify 2>&1 | tee /tmp/capability-verify.log
 
-  # ── Gate 3: Dispatch route test ──
-  mcp-dispatch-route:
-    name: Verify dispatch routes
-    timeout-minutes: 10
+      - name: Upload drift report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-schema-drift-report
+          path: /tmp/capability-verify.log
+          if-no-files-found: warn
+
+  # ── Gate 3: Full MCP test suite ──
+  mcp-test-suite:
+    name: Full MCP test suite
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
