@@ -28,6 +28,35 @@ func buildKubernetesWorkloadMaterializationReducerIntent(
 	generation scope.ScopeGeneration,
 	envelopes []facts.Envelope,
 ) (ReducerIntent, bool) {
+	return buildKubernetesPodTemplateReducerIntent(
+		scopeValue, generation, envelopes,
+		reducer.DomainKubernetesWorkloadMaterialization,
+		kubernetesWorkloadMaterializationAcceptanceUnit(scopeValue),
+	)
+}
+
+// kubernetesWorkloadMaterializationAcceptanceUnit is the readiness acceptance
+// unit (reducer-intent entity_key) under which the workload-materialization
+// domain publishes its kubernetes_workload_uid canonical-nodes phase. The edge
+// domain reuses this exact value so the claim-query readiness gate matches; see
+// buildKubernetesCorrelationMaterializationReducerIntent.
+func kubernetesWorkloadMaterializationAcceptanceUnit(scopeValue scope.IngestionScope) string {
+	return "kubernetes_workload_materialization:" + scopeValue.ScopeID
+}
+
+// buildKubernetesPodTemplateReducerIntent builds one scope-keyed reducer intent
+// for an additive Kubernetes domain triggered by the live-workload pod-template
+// fact. The two pod-template-driven domains (workload-node materialization and
+// the RUNS_IMAGE edge) share an identical trigger, reason, and source system and
+// differ only by domain and acceptance unit, so they funnel through this helper.
+// Returns ok=false when the generation observed no live workload.
+func buildKubernetesPodTemplateReducerIntent(
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	envelopes []facts.Envelope,
+	domain reducer.Domain,
+	entityKey string,
+) (ReducerIntent, bool) {
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.KubernetesPodTemplateFactKind {
 			continue
@@ -35,8 +64,8 @@ func buildKubernetesWorkloadMaterializationReducerIntent(
 		return ReducerIntent{
 			ScopeID:      scopeValue.ScopeID,
 			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainKubernetesWorkloadMaterialization,
-			EntityKey:    "kubernetes_workload_materialization:" + scopeValue.ScopeID,
+			Domain:       domain,
+			EntityKey:    entityKey,
 			Reason:       "kubernetes live workload pod-template facts observed",
 			FactID:       envelope.FactID,
 			SourceSystem: kubernetesCorrelationSourceSystem(envelope),
@@ -60,27 +89,16 @@ func buildKubernetesCorrelationMaterializationReducerIntent(
 	generation scope.ScopeGeneration,
 	envelopes []facts.Envelope,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.KubernetesPodTemplateFactKind {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainKubernetesCorrelationMaterialization,
-			// The readiness gate matches this intent's acceptance unit (its
-			// entity_key) against the kubernetes_workload_uid canonical-nodes phase
-			// the workload-materialization domain publishes. That phase's
-			// acceptance unit is the workload intent's entity_key, so the edge
-			// intent must carry the SAME key (the node domain's), not its own —
-			// mirroring how workload_cloud_relationship keys off
-			// "aws_resource_materialization:<scope>". Using a distinct key here
-			// leaves the edge permanently unclaimable (the gate never matches).
-			EntityKey:    "kubernetes_workload_materialization:" + scopeValue.ScopeID,
-			Reason:       "kubernetes live workload pod-template facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: kubernetesCorrelationSourceSystem(envelope),
-		}, true
-	}
-	return ReducerIntent{}, false
+	// The readiness gate matches this intent's acceptance unit (its entity_key)
+	// against the kubernetes_workload_uid canonical-nodes phase the
+	// workload-materialization domain publishes. That phase's acceptance unit is
+	// the workload intent's entity_key, so the edge intent must carry the SAME key
+	// (the node domain's), not its own — mirroring how workload_cloud_relationship
+	// keys off "aws_resource_materialization:<scope>". Using a distinct key here
+	// leaves the edge permanently unclaimable (the gate never matches).
+	return buildKubernetesPodTemplateReducerIntent(
+		scopeValue, generation, envelopes,
+		reducer.DomainKubernetesCorrelationMaterialization,
+		kubernetesWorkloadMaterializationAcceptanceUnit(scopeValue),
+	)
 }
