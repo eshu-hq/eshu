@@ -365,11 +365,3 @@ func strongerCodeReachabilityRow(left, right reducer.CodeReachabilityRow) bool {
 	}
 	return left.RootEntityID < right.RootEntityID
 }
-
-func codeReachabilityBootstrapDefinition() Definition {
-	return Definition{
-		Name: "code_reachability",
-		Path: "schema/data-plane/postgres/027_code_reachability.sql",
-		SQL:  codeReachabilitySchemaSQL,
-	}
-}

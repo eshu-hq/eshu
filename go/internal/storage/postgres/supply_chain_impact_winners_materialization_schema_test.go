@@ -27,7 +27,7 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactWinnersMaterialization(t *t
 	if def.Name == "" {
 		t.Fatal("supply_chain_impact_winners_materialization definition missing")
 	}
-	if def.Path != "schema/data-plane/postgres/034_supply_chain_impact_winners_materialization.sql" {
+	if def.Path != "go/internal/storage/postgres/migrations/034_supply_chain_impact_winners_materialization.sql" {
 		t.Fatalf("unexpected Path %q", def.Path)
 	}
 	for _, want := range []string{

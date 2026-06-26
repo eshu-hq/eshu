@@ -55,7 +55,7 @@ func TestBootstrapDefinitionsIncludeEshuSearchVectorMetadata(t *testing.T) {
 	if found.Name == "" {
 		t.Fatal("BootstrapDefinitions missing eshu_search_vector_metadata")
 	}
-	if found.Path != "schema/data-plane/postgres/003c_eshu_search_vector_metadata.sql" {
+	if found.Path != "go/internal/storage/postgres/migrations/003c_eshu_search_vector_metadata.sql" {
 		t.Fatalf("Path = %q", found.Path)
 	}
 	if !strings.Contains(found.SQL, "CREATE TABLE IF NOT EXISTS eshu_search_vector_metadata") {

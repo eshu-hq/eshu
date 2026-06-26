@@ -57,14 +57,6 @@ func ValueFlowFixpointComponentSchemaSQL() string {
 	return valueFlowFixpointComponentSchemaSQL
 }
 
-func valueFlowFixpointComponentBootstrapDefinition() Definition {
-	return Definition{
-		Name: "value_flow_fixpoint_components",
-		Path: "schema/data-plane/postgres/032_value_flow_fixpoint_components.sql",
-		SQL:  valueFlowFixpointComponentSchemaSQL,
-	}
-}
-
 // ValueFlowFixpointComponentStore persists solved value-flow weak-component
 // results keyed by the reducer's content-derived component key.
 type ValueFlowFixpointComponentStore struct {

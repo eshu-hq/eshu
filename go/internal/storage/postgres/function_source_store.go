@@ -66,14 +66,6 @@ func FunctionSourceSchemaSQL() string {
 	return functionSourceSchemaSQL
 }
 
-func functionSourceBootstrapDefinition() Definition {
-	return Definition{
-		Name: "function_sources",
-		Path: "schema/data-plane/postgres/029_function_sources.sql",
-		SQL:  functionSourceSchemaSQL,
-	}
-}
-
 // functionIDRepo returns the repository component of a FunctionID
 // (repo\x1fpkg\x1freceiver\x1fname), or the empty string when unset.
 func functionIDRepo(functionID string) string {

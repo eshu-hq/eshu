@@ -62,11 +62,3 @@ CREATE INDEX IF NOT EXISTS admission_decision_evidence_source_handle_idx
 func AdmissionDecisionSchemaSQL() string {
 	return admissionDecisionSchemaSQL
 }
-
-func admissionDecisionBootstrapDefinition() Definition {
-	return Definition{
-		Name: "admission_decisions",
-		Path: "schema/data-plane/postgres/007a_admission_decisions.sql",
-		SQL:  admissionDecisionSchemaSQL,
-	}
-}

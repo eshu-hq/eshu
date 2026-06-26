@@ -251,11 +251,3 @@ func graphProjectionReadinessCompositeKey(key reducer.GraphProjectionPhaseKey, p
 		strings.TrimSpace(string(phase)),
 	}, "|")
 }
-
-func graphProjectionPhaseStateBootstrapDefinition() Definition {
-	return Definition{
-		Name: "graph_projection_phase_state",
-		Path: "schema/data-plane/postgres/012_graph_projection_phase_state.sql",
-		SQL:  graphProjectionPhaseStateSchemaSQL,
-	}
-}

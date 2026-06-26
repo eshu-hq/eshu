@@ -86,14 +86,6 @@ func SemanticExtractionJobSchemaSQL() string {
 	return semanticExtractionJobSchemaSQL
 }
 
-func semanticExtractionJobBootstrapDefinition() Definition {
-	return Definition{
-		Name: "semantic_extraction_jobs",
-		Path: "schema/data-plane/postgres/006a_semantic_extraction_jobs.sql",
-		SQL:  semanticExtractionJobSchemaSQL,
-	}
-}
-
 // SemanticExtractionQueueStore persists semantic extraction queue records.
 type SemanticExtractionQueueStore struct {
 	db ExecQueryer

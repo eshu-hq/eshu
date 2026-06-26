@@ -257,11 +257,3 @@ func awsFreshnessTriggerIDArgs(ids []string, extra ...any) []any {
 	}
 	return append(args, extra...)
 }
-
-func awsFreshnessBootstrapDefinition() Definition {
-	return Definition{
-		Name: "aws_freshness_triggers",
-		Path: "schema/data-plane/postgres/020_aws_freshness_triggers.sql",
-		SQL:  awsFreshnessSchemaSQL,
-	}
-}

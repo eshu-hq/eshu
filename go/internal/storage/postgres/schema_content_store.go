@@ -106,6 +106,4 @@ CREATE INDEX IF NOT EXISTS content_entities_iac_relevant_idx
     ON content_entities (iac_relevant);
 `
 
-const contentStoreSchemaSQL = contentStoreBaseSchemaSQL + contentStoreSearchIndexSchemaSQL + contentStoreFilterIndexSchemaSQL
-
 const contentStoreSchemaWithoutSearchIndexesSQL = contentStoreBaseSchemaSQL + contentStoreFilterIndexSchemaSQL

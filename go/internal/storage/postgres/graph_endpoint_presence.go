@@ -316,11 +316,3 @@ func upsertGraphEndpointPresenceBatch(ctx context.Context, db ExecQueryer, batch
 	}
 	return nil
 }
-
-func graphEndpointPresenceBootstrapDefinition() Definition {
-	return Definition{
-		Name: "graph_endpoint_presence",
-		Path: "schema/data-plane/postgres/024_graph_endpoint_presence.sql",
-		SQL:  graphEndpointPresenceSchemaSQL,
-	}
-}

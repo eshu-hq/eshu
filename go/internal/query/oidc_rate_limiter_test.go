@@ -236,9 +236,10 @@ func TestOIDCRateLimiterConcurrent(t *testing.T) {
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 			mu.Lock()
-			if rec.Code == http.StatusOK {
+			switch rec.Code {
+			case http.StatusOK:
 				allowed++
-			} else if rec.Code == http.StatusTooManyRequests {
+			case http.StatusTooManyRequests:
 				blocked++
 			}
 			mu.Unlock()

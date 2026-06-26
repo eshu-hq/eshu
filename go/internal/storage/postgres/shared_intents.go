@@ -480,14 +480,4 @@ func sharedIntentPayloadString(payload map[string]any, key string) string {
 	}
 }
 
-// sharedIntentBootstrapDefinition returns the schema definition for the
-// bootstrap registry.
-func sharedIntentBootstrapDefinition() Definition {
-	return Definition{
-		Name: "shared_projection_intents",
-		Path: "schema/data-plane/postgres/008_shared_projection_intents.sql",
-		SQL:  sharedIntentSchemaSQL,
-	}
-}
-
 // init registers the shared intent schema in the bootstrap definitions.

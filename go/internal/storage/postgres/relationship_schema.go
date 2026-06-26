@@ -321,14 +321,4 @@ func coalesceNullable(a, b string) any {
 	return nil
 }
 
-// relationshipBootstrapDefinition returns the schema definition for the
-// bootstrap registry.
-func relationshipBootstrapDefinition() Definition {
-	return Definition{
-		Name: "relationship_tables",
-		Path: "schema/data-plane/postgres/010_relationship_tables.sql",
-		SQL:  relationshipSchemaSQL,
-	}
-}
-
 // init registers the relationship schema in the bootstrap definitions.

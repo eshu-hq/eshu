@@ -273,14 +273,4 @@ func scanEvidenceRows(rows Rows) ([]projector.ProjectionDecisionEvidenceRow, err
 	return result, rows.Err()
 }
 
-// decisionBootstrapDefinition returns the schema definition for the bootstrap
-// registry.
-func decisionBootstrapDefinition() Definition {
-	return Definition{
-		Name: "projection_decisions",
-		Path: "schema/data-plane/postgres/007_projection_decisions.sql",
-		SQL:  decisionSchemaSQL,
-	}
-}
-
 // init registers the decision schema in the bootstrap definitions.
