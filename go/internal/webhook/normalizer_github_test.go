@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-type githubExpected struct {
+type normalizerExpected struct {
 	Provider             string `json:"provider"`
 	EventKind            string `json:"event_kind"`
 	Decision             string `json:"decision"`
@@ -37,17 +37,17 @@ func loadFixture(t *testing.T, path string) []byte {
 	return data
 }
 
-func loadExpected(t *testing.T, path string) githubExpected {
+func loadExpected(t *testing.T, path string) normalizerExpected {
 	t.Helper()
 	data := loadFixture(t, path)
-	var exp githubExpected
+	var exp normalizerExpected
 	if err := json.Unmarshal(data, &exp); err != nil {
 		t.Fatalf("failed to unmarshal expected %s: %v", path, err)
 	}
 	return exp
 }
 
-func assertTriggerFromExpected(t *testing.T, got Trigger, want githubExpected) {
+func assertTriggerFromExpected(t *testing.T, got Trigger, want normalizerExpected) {
 	t.Helper()
 	if string(got.Provider) != want.Provider {
 		t.Fatalf("Provider = %q, want %q", got.Provider, want.Provider)
@@ -58,7 +58,7 @@ func assertTriggerFromExpected(t *testing.T, got Trigger, want githubExpected) {
 	if string(got.Decision) != want.Decision {
 		t.Fatalf("Decision = %q, want %q", got.Decision, want.Decision)
 	}
-	if got.Reason != "" && string(got.Reason) != want.Reason {
+	if want.Reason != "" && string(got.Reason) != want.Reason {
 		t.Fatalf("Reason = %q, want %q", got.Reason, want.Reason)
 	}
 	if want.DeliveryID != "" && got.DeliveryID != want.DeliveryID {

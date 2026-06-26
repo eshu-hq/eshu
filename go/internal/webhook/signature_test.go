@@ -17,11 +17,14 @@ func newSHA256Signature(secret string, payload []byte) string {
 	return sha256SignaturePrefix + hex.EncodeToString(mac.Sum(nil))
 }
 
-func forgeSignature(base string, pos int, b byte) string {
+func forgeSignature(base string, pos int) string {
 	raw := strings.TrimPrefix(base, sha256SignaturePrefix)
-	decoded, _ := hex.DecodeString(raw)
+	decoded, err := hex.DecodeString(raw)
+	if err != nil || len(decoded) == 0 {
+		return sha256SignaturePrefix + hex.EncodeToString([]byte{0xFF})
+	}
 	if pos < len(decoded) {
-		decoded[pos] = b
+		decoded[pos] ^= 0xFF
 	}
 	return sha256SignaturePrefix + hex.EncodeToString(decoded)
 }
@@ -52,7 +55,7 @@ func TestForgedSignatureRejectedAtEveryPosition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			forged := forgeSignature(valid, tt.pos, byte(tt.pos)&0xFF)
+			forged := forgeSignature(valid, tt.pos)
 			if forged == valid {
 				t.Fatal("forged signature unexpectedly equal to valid")
 			}
