@@ -39,7 +39,10 @@ if [ -z "$base" ]; then
   # is the pre-merge commit, so the new-stage diff would span the MERGE's files
   # and mis-fire. The merge-base with origin/main yields only the branch's own
   # changes. CI keeps using GITHUB_BASE_REF above.
-  git -C "$repo_root" fetch --no-tags origin main >/dev/null 2>&1 || true
+  #
+  # Use the origin/main ref the clone already has rather than fetching: a slightly
+  # stale base only widens the changed-file set conservatively, and avoids a
+  # per-invocation network round-trip.
   if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
     base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
   elif git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then

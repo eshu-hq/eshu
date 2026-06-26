@@ -27,7 +27,11 @@ if [ -z "$base" ]; then
   # `commit --no-verify` and thereby skips the other gates (hot-path evidence,
   # telemetry) too. The merge-base with origin/main yields only the branch's own
   # changes. CI keeps using GITHUB_BASE_REF above.
-  git -C "$repo_root" fetch --no-tags origin main >/dev/null 2>&1 || true
+  #
+  # Use the origin/main ref the clone already has rather than fetching: this runs
+  # at the pre-commit stage on every go/ commit, and a network round-trip (or a
+  # slow-network hang) per commit is not worth it. A slightly stale base only
+  # widens the changed-file set conservatively.
   if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
     base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
   elif git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
