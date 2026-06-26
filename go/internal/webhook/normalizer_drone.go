@@ -57,12 +57,10 @@ func normalizeDroneBuild(deliveryID string, payload []byte, defaultBranchFallbac
 		targetBranch := strings.TrimSpace(parsed.Build.Target)
 		trigger.Ref = branchRef(targetBranch)
 		trigger.TargetSHA = strings.TrimSpace(parsed.Build.After)
-		if targetBranch != "" {
-			trigger.DefaultBranch = targetBranch
-		}
 	default:
 		return Trigger{}, fmt.Errorf("unsupported drone build event type %q", buildEvent)
 	}
+	trigger.BeforeSHA = strings.TrimSpace(parsed.Build.Before)
 	trigger.Sender = strings.TrimSpace(parsed.Sender.Login)
 
 	return decideBranchTrigger(trigger)

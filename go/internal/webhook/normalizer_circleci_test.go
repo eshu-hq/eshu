@@ -88,8 +88,8 @@ func TestNormalizeCircleCIIgnoresTagRef(t *testing.T) {
 	if trigger.Decision != DecisionIgnored {
 		t.Fatalf("Decision = %q, want %q", trigger.Decision, DecisionIgnored)
 	}
-	if trigger.Reason != ReasonNonDefaultBranch {
-		t.Fatalf("Reason = %q, want %q", trigger.Reason, ReasonNonDefaultBranch)
+	if trigger.Reason != ReasonTagRef {
+		t.Fatalf("Reason = %q, want %q", trigger.Reason, ReasonTagRef)
 	}
 }
 

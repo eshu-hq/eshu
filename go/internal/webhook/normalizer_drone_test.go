@@ -37,6 +37,7 @@ func TestNormalizeDronePushAcceptsDefaultBranch(t *testing.T) {
 		RepositoryFullName:   "eshu-hq/eshu",
 		DefaultBranch:        "main",
 		Ref:                  "refs/heads/main",
+		BeforeSHA:            "1111111111111111111111111111111111111111",
 		TargetSHA:            "2222222222222222222222222222222222222222",
 		Sender:               "linuxdynasty",
 	})
@@ -74,6 +75,7 @@ func TestNormalizeDronePullRequestAcceptsDefaultBranch(t *testing.T) {
 		RepositoryFullName:   "eshu-hq/eshu",
 		DefaultBranch:        "main",
 		Ref:                  "refs/heads/main",
+		BeforeSHA:            "1111111111111111111111111111111111111111",
 		TargetSHA:            "3333333333333333333333333333333333333333",
 		Sender:               "linuxdynasty",
 	})
@@ -92,6 +94,35 @@ func TestNormalizeDroneIgnoresNonDefaultBranch(t *testing.T) {
 	}`)
 
 	trigger, err := NormalizeDrone("build.success", "delivery-d3", payload, "main")
+	if err != nil {
+		t.Fatalf("NormalizeDrone() error = %v, want nil", err)
+	}
+	if trigger.Decision != DecisionIgnored {
+		t.Fatalf("Decision = %q, want %q", trigger.Decision, DecisionIgnored)
+	}
+	if trigger.Reason != ReasonNonDefaultBranch {
+		t.Fatalf("Reason = %q, want %q", trigger.Reason, ReasonNonDefaultBranch)
+	}
+}
+
+func TestNormalizeDronePullRequestIgnoresNonDefaultBranch(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"build": {
+			"after": "3333333333333333333333333333333333333333",
+			"branch": "feature",
+			"source": "feature",
+			"target": "develop",
+			"link": "https://drone.io/eshu-hq/eshu/44",
+			"number": 44,
+			"event": "pull_request"
+		},
+		"repo": {"slug": "eshu-hq/eshu"},
+		"sender": {"login": "linuxdynasty"}
+	}`)
+
+	trigger, err := NormalizeDrone("build.success", "delivery-d2b", payload, "main")
 	if err != nil {
 		t.Fatalf("NormalizeDrone() error = %v, want nil", err)
 	}

@@ -30,8 +30,13 @@ func NormalizeCircleCI(event string, deliveryID string, payload []byte, defaultB
 	if err != nil {
 		return Trigger{}, err
 	}
-	trigger.Ref = branchRef(strings.TrimSpace(parsed.Pipeline.VCS.Branch))
 	trigger.TargetSHA = strings.TrimSpace(parsed.Pipeline.VCS.Revision)
+
+	if tag := strings.TrimSpace(parsed.Pipeline.VCS.Tag); tag != "" {
+		trigger.Ref = "refs/tags/" + tag
+	} else {
+		trigger.Ref = branchRef(strings.TrimSpace(parsed.Pipeline.VCS.Branch))
+	}
 
 	return decideBranchTrigger(trigger)
 }
@@ -41,6 +46,7 @@ type circleCIPayload struct {
 		VCS struct {
 			Revision            string `json:"revision"`
 			Branch              string `json:"branch"`
+			Tag                 string `json:"tag"`
 			OriginRepositoryURL string `json:"origin_repository_url"`
 			ProviderName        string `json:"provider_name"`
 		} `json:"vcs"`
@@ -62,13 +68,21 @@ func (p circleCIPayload) repositoryFields(defaultBranchFallback string) reposito
 	}
 }
 
-// extractFullNameFromURL extracts "org/repo" from a git repository URL.
+// extractFullNameFromURL extracts "org/repo" from a git repository URL
+// (HTTPS, git://, or SSH-style git@host:org/repo.git).
 func extractFullNameFromURL(url string) string {
 	url = strings.TrimSpace(url)
 	if url == "" {
 		return ""
 	}
 	url = strings.TrimSuffix(url, ".git")
+
+	if strings.Contains(url, "@") && strings.Contains(url, ":") {
+		if idx := strings.LastIndex(url, ":"); idx >= 0 {
+			url = url[idx+1:]
+		}
+	}
+
 	if idx := strings.LastIndex(url, "/"); idx >= 0 {
 		remainder := url[:idx]
 		if idx2 := strings.LastIndex(remainder, "/"); idx2 >= 0 {

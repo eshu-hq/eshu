@@ -2,9 +2,10 @@
 
 This package is the provider-facing normalization layer for the webhook
 listener runtime. It verifies provider authentication inputs, parses GitHub,
-GitLab, Bitbucket, PagerDuty, Jira, Azure DevOps, and Jenkins payloads, and
-returns a `Trigger` or `IncidentFreshnessTrigger` that says whether the event
-should create refresh work.
+GitLab, Bitbucket, PagerDuty, Jira, Azure DevOps, Jenkins, CircleCI,
+Buildkite, and Drone payloads, and returns a `Trigger` or
+`IncidentFreshnessTrigger` that says whether the event should create refresh
+work.
 
 The package does not enqueue work, write graph data, or decide repository
 truth. It only turns a verified provider delivery into an accepted or ignored
@@ -48,6 +49,13 @@ flowchart LR
   the repository default branch.
 - `NormalizeJenkins` accepts Jenkins Generic Webhook Trigger `push` and `merge`
   events that target the repository default branch.
+- `NormalizeCircleCI` accepts CircleCI `workflow-completed` events, extracting
+  git revision, branch, and tag information from `pipeline.vcs` fields.
+- `NormalizeBuildkite` accepts Buildkite `build.finished` and `build.running`
+  events, extracting commit SHA and branch from `build` fields.
+- `NormalizeDrone` accepts Drone `build.success` and `build.failure` events for
+  both `push` and `pull_request` builds, extracting branch, target, and commit
+  SHAs from `build` fields.
 - `ErrUnsupportedIncidentFreshnessEvent` marks verified provider deliveries
   that are not allowed to wake an incident-source collector.
 - `Trigger` carries provider, delivery, repository, ref, target SHA, sender,
