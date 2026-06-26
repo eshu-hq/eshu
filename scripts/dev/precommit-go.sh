@@ -4,7 +4,9 @@
 # capability surface-inventory drift) so they are caught at commit time instead
 # of on GitHub.
 #
-# Usage: scripts/dev/precommit-go.sh <fmt|lint|filecap|gosec|surface> [files...]
+# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|gosec|surface> [files...]
+#   lint-all / fmt-all run over the whole module (./...); the pre-pr gate
+#   (scripts/dev/pre-pr.sh) uses them to mirror CI before the first push.
 #
 # Design notes:
 #   - Tools are installed with the LOCAL `go` toolchain (which go.mod pins to
@@ -189,7 +191,22 @@ case "${cmd}" in
 		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
 		ESHU_TELEMETRY_COVERAGE_BASE="${base}" "${repo_root}/scripts/verify-telemetry-coverage.sh"
 		;;
+	lint-all)
+		# Whole-module golangci-lint (./...), not just changed packages. Catches
+		# cross-package consequences a changed-package run misses — e.g. code that
+		# becomes unused when a sibling package stops referencing it. Used by the
+		# pre-pr gate to mirror CI's "Lint Go" step.
+		bin="$(ensure_golangci)"
+		cfg="$(stripped_config)"
+		( cd "${go_dir}" && "${bin}" run --config "${cfg}" ./... )
+		;;
+	fmt-all)
+		bin="$(ensure_golangci)"
+		cfg="$(stripped_config)"
+		( cd "${go_dir}" && "${bin}" fmt --diff --config "${cfg}" ./... ) \
+			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
+		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|filecap|gosec|surface|perf-evidence|telemetry)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|gosec|surface|perf-evidence|telemetry)"
 		;;
 esac
