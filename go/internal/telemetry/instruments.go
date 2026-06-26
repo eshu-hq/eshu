@@ -125,67 +125,72 @@ type Instruments struct {
 	KubernetesLiveFactsEmitted                metric.Int64Counter
 	KubernetesLiveWarnings                    metric.Int64Counter
 	SecretsIAMSourceAPICalls                  metric.Int64Counter
-	SecretsIAMSourceFactsEmitted              metric.Int64Counter
-	SecretsIAMSourcePartialScope              metric.Int64Counter
-	SecretsIAMSourceRedactions                metric.Int64Counter
-	SecretsIAMSourceScopeFreshness            metric.Float64Gauge
-	SecretsIAMGraphNodesWritten               metric.Int64Counter
-	SecretsIAMGraphEdgesWritten               metric.Int64Counter
-	SecretsIAMGraphSkipped                    metric.Int64Counter
-	PackageRegistryRequests                   metric.Int64Counter
-	PackageRegistryFactsEmitted               metric.Int64Counter
-	PackageRegistryRateLimited                metric.Int64Counter
-	PackageRegistryParseFailures              metric.Int64Counter
-	VulnerabilityIntelligenceObservations     metric.Int64Counter
-	VulnerabilityIntelligenceFactsEmitted     metric.Int64Counter
-	VulnerabilityIntelligenceRateLimited      metric.Int64Counter
-	SecurityAlertProviderRequests             metric.Int64Counter
-	SecurityAlertFactsEmitted                 metric.Int64Counter
-	SecurityAlertRateLimited                  metric.Int64Counter
-	CICDRunProviderRequests                   metric.Int64Counter
-	CICDRunFactsEmitted                       metric.Int64Counter
-	CICDRunRateLimited                        metric.Int64Counter
-	CICDRunPartialGenerations                 metric.Int64Counter
-	PagerDutyProviderRequests                 metric.Int64Counter
-	PagerDutyFactsEmitted                     metric.Int64Counter
-	PagerDutyRateLimited                      metric.Int64Counter
-	PagerDutyConfigResourcesObserved          metric.Int64Counter
-	PagerDutyConfigDriftCandidates            metric.Int64Counter
-	PagerDutyConfigPartialFailures            metric.Int64Counter
-	PagerDutyConfigRedactions                 metric.Int64Counter
-	JiraProviderRequests                      metric.Int64Counter
-	JiraFactsEmitted                          metric.Int64Counter
-	JiraRateLimited                           metric.Int64Counter
-	GrafanaProviderRequests                   metric.Int64Counter
-	GrafanaFactsEmitted                       metric.Int64Counter
-	GrafanaRateLimited                        metric.Int64Counter
-	GrafanaRetries                            metric.Int64Counter
-	GrafanaRedactions                         metric.Int64Counter
-	PrometheusMimirProviderRequests           metric.Int64Counter
-	PrometheusMimirFactsEmitted               metric.Int64Counter
-	PrometheusMimirRateLimited                metric.Int64Counter
-	PrometheusMimirRetries                    metric.Int64Counter
-	PrometheusMimirRedactions                 metric.Int64Counter
-	PrometheusMimirStale                      metric.Int64Counter
-	LokiProviderRequests                      metric.Int64Counter
-	LokiFactsEmitted                          metric.Int64Counter
-	LokiRateLimited                           metric.Int64Counter
-	LokiRetries                               metric.Int64Counter
-	LokiRedactions                            metric.Int64Counter
-	LokiHighCardinalityRejected               metric.Int64Counter
-	LokiStale                                 metric.Int64Counter
-	TempoProviderRequests                     metric.Int64Counter
-	TempoFactsEmitted                         metric.Int64Counter
-	TempoRateLimited                          metric.Int64Counter
-	TempoRetries                              metric.Int64Counter
-	TempoRedactions                           metric.Int64Counter
-	TempoHighCardinalityRejected              metric.Int64Counter
-	TempoStale                                metric.Int64Counter
-	ScannerWorkerClaims                       metric.Int64Counter
-	ScannerWorkerRetries                      metric.Int64Counter
-	ScannerWorkerDeadLetters                  metric.Int64Counter
-	ScannerWorkerFactsEmitted                 metric.Int64Counter
-	PackageSourceCorrelations                 metric.Int64Counter
+	// VaultRequestTotal counts Vault API requests by operation and result.
+	// result is a bounded enum: success, timeout, auth_error, not_found,
+	// transport_error, or fallback. It carries no path, token, address, or
+	// mount name.
+	VaultRequestTotal                     metric.Int64Counter
+	SecretsIAMSourceFactsEmitted          metric.Int64Counter
+	SecretsIAMSourcePartialScope          metric.Int64Counter
+	SecretsIAMSourceRedactions            metric.Int64Counter
+	SecretsIAMSourceScopeFreshness        metric.Float64Gauge
+	SecretsIAMGraphNodesWritten           metric.Int64Counter
+	SecretsIAMGraphEdgesWritten           metric.Int64Counter
+	SecretsIAMGraphSkipped                metric.Int64Counter
+	PackageRegistryRequests               metric.Int64Counter
+	PackageRegistryFactsEmitted           metric.Int64Counter
+	PackageRegistryRateLimited            metric.Int64Counter
+	PackageRegistryParseFailures          metric.Int64Counter
+	VulnerabilityIntelligenceObservations metric.Int64Counter
+	VulnerabilityIntelligenceFactsEmitted metric.Int64Counter
+	VulnerabilityIntelligenceRateLimited  metric.Int64Counter
+	SecurityAlertProviderRequests         metric.Int64Counter
+	SecurityAlertFactsEmitted             metric.Int64Counter
+	SecurityAlertRateLimited              metric.Int64Counter
+	CICDRunProviderRequests               metric.Int64Counter
+	CICDRunFactsEmitted                   metric.Int64Counter
+	CICDRunRateLimited                    metric.Int64Counter
+	CICDRunPartialGenerations             metric.Int64Counter
+	PagerDutyProviderRequests             metric.Int64Counter
+	PagerDutyFactsEmitted                 metric.Int64Counter
+	PagerDutyRateLimited                  metric.Int64Counter
+	PagerDutyConfigResourcesObserved      metric.Int64Counter
+	PagerDutyConfigDriftCandidates        metric.Int64Counter
+	PagerDutyConfigPartialFailures        metric.Int64Counter
+	PagerDutyConfigRedactions             metric.Int64Counter
+	JiraProviderRequests                  metric.Int64Counter
+	JiraFactsEmitted                      metric.Int64Counter
+	JiraRateLimited                       metric.Int64Counter
+	GrafanaProviderRequests               metric.Int64Counter
+	GrafanaFactsEmitted                   metric.Int64Counter
+	GrafanaRateLimited                    metric.Int64Counter
+	GrafanaRetries                        metric.Int64Counter
+	GrafanaRedactions                     metric.Int64Counter
+	PrometheusMimirProviderRequests       metric.Int64Counter
+	PrometheusMimirFactsEmitted           metric.Int64Counter
+	PrometheusMimirRateLimited            metric.Int64Counter
+	PrometheusMimirRetries                metric.Int64Counter
+	PrometheusMimirRedactions             metric.Int64Counter
+	PrometheusMimirStale                  metric.Int64Counter
+	LokiProviderRequests                  metric.Int64Counter
+	LokiFactsEmitted                      metric.Int64Counter
+	LokiRateLimited                       metric.Int64Counter
+	LokiRetries                           metric.Int64Counter
+	LokiRedactions                        metric.Int64Counter
+	LokiHighCardinalityRejected           metric.Int64Counter
+	LokiStale                             metric.Int64Counter
+	TempoProviderRequests                 metric.Int64Counter
+	TempoFactsEmitted                     metric.Int64Counter
+	TempoRateLimited                      metric.Int64Counter
+	TempoRetries                          metric.Int64Counter
+	TempoRedactions                       metric.Int64Counter
+	TempoHighCardinalityRejected          metric.Int64Counter
+	TempoStale                            metric.Int64Counter
+	ScannerWorkerClaims                   metric.Int64Counter
+	ScannerWorkerRetries                  metric.Int64Counter
+	ScannerWorkerDeadLetters              metric.Int64Counter
+	ScannerWorkerFactsEmitted             metric.Int64Counter
+	PackageSourceCorrelations             metric.Int64Counter
 	// PackageConsumptionRepoEdges counts repo-to-repo DEPENDS_ON edge intents
 	// derived from package consumption-to-owner correlation joins, labeled by
 	// reducer domain and outcome (projected, skipped reason). It lets an
@@ -1320,6 +1325,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecretsIAMSourceAPICalls counter: %w", err)
+	}
+
+	inst.VaultRequestTotal, err = meter.Int64Counter(
+		"eshu_dp_vault_request_total",
+		metric.WithDescription("Total Vault API requests by operation and bounded result (success, timeout, auth_error, not_found, transport_error, fallback)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VaultRequestTotal counter: %w", err)
 	}
 
 	inst.SecretsIAMSourceFactsEmitted, err = meter.Int64Counter(

@@ -148,10 +148,10 @@ func (f vaultClientFactory) Client(_ context.Context, target vaultlive.ClusterTa
 	return client, nil
 }
 
-// apiCallObserver records each Vault list operation outcome to the
-// secrets/IAM source api-call counter (source="vault"). Labels are bounded
-// enums only — no path, token, or address. Returns nil when no instruments are
-// wired.
+// apiCallObserver records each Vault list operation outcome to two counters:
+// the secrets/IAM source api-call counter (source="vault") and the
+// Vault-request total counter. Labels are bounded enums only — no path, token,
+// or address. Returns nil when no instruments are wired.
 func (f vaultClientFactory) apiCallObserver() func(operation, result string) {
 	if f.instruments == nil {
 		return nil
@@ -160,6 +160,10 @@ func (f vaultClientFactory) apiCallObserver() func(operation, result string) {
 	return func(operation, result string) {
 		instruments.SecretsIAMSourceAPICalls.Add(context.Background(), 1, metric.WithAttributes(
 			telemetry.AttrSource("vault"),
+			telemetry.AttrOperation(operation),
+			telemetry.AttrResult(result),
+		))
+		instruments.VaultRequestTotal.Add(context.Background(), 1, metric.WithAttributes(
 			telemetry.AttrOperation(operation),
 			telemetry.AttrResult(result),
 		))
