@@ -4,6 +4,16 @@
 # referenced in Grafana dashboard JSONs against the canonical metric registry
 # go/internal/telemetry/instruments.go.
 #
+# Direction: dashboard → registry only. This gate catches a panel referencing
+# a non-existent metric; it intentionally does NOT require every registered
+# metric to appear on a dashboard, because not every metric needs a panel.
+# A future reader should not expect registry → dashboard coverage here.
+#
+# Assumption: all metric names in instruments.go are registered with string
+# literals. A metric registered via a constructed (non-literal) name would
+# read as an orphan if a dashboard referenced it. This is not the case today
+# but is worth noting for future maintainers.
+#
 # Exit 0 when every dashboard metric resolves to a registered instrument;
 # exit non-zero when orphan metrics are found.
 #
