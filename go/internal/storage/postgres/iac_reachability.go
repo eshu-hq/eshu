@@ -465,11 +465,3 @@ func scanIaCReachabilityRow(rows Rows) (IaCReachabilityRow, error) {
 	}
 	return row, nil
 }
-
-func iacReachabilityBootstrapDefinition() Definition {
-	return Definition{
-		Name: "iac_reachability",
-		Path: "schema/data-plane/postgres/016_iac_reachability.sql",
-		SQL:  iacReachabilitySchemaSQL,
-	}
-}

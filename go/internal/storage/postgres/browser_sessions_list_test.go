@@ -53,12 +53,26 @@ func TestBrowserSessionStoreListSessionsBySubjectQueryIncludesRequiredClauses(t 
 	if !strings.Contains(q, "(session_hash =") {
 		t.Error("listBrowserSessionsBySubjectQuery must use (session_hash = $N) AS current for current-session flag")
 	}
+	// Scope the bare-column scan to the SELECT projection (SELECT ... FROM). The
+	// security property is that session_hash must never be RETURNED to the caller,
+	// i.e. never a bare projected column. It legitimately appears in the ORDER BY
+	// tiebreaker for deterministic pagination, which does not expose its value.
+	inSelectProjection := false
 	for _, line := range strings.Split(q, "\n") {
 		trimmed := strings.TrimSpace(line)
+		switch upper := strings.ToUpper(trimmed); {
+		case strings.HasPrefix(upper, "SELECT"):
+			inSelectProjection = true
+		case strings.HasPrefix(upper, "FROM"):
+			inSelectProjection = false
+		}
+		if !inSelectProjection {
+			continue
+		}
 		// A bare column reference looks like "session_hash" or "    session_hash,"
 		// without the surrounding parenthesis of a comparison expression.
 		if strings.Contains(trimmed, "session_hash") && !strings.Contains(trimmed, "(session_hash") {
-			t.Errorf("listBrowserSessionsBySubjectQuery exposes session_hash as a bare column on line: %q", trimmed)
+			t.Errorf("listBrowserSessionsBySubjectQuery exposes session_hash as a bare column in the SELECT projection on line: %q", trimmed)
 		}
 	}
 

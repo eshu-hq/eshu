@@ -315,11 +315,3 @@ func scanCollectorInstance(rows Rows) (workflow.CollectorInstance, error) {
 	}
 	return instance, nil
 }
-
-func workflowCoordinatorStateBootstrapDefinition() Definition {
-	return Definition{
-		Name: "workflow_coordinator_state",
-		Path: "schema/data-plane/postgres/015_workflow_coordinator_state.sql",
-		SQL:  workflowCoordinatorStateSchemaSQL,
-	}
-}

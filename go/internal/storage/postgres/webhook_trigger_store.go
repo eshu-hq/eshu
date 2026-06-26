@@ -348,11 +348,3 @@ func triggerIDArgs(ids []string, extra ...any) []any {
 	}
 	return append(args, extra...)
 }
-
-func webhookTriggerBootstrapDefinition() Definition {
-	return Definition{
-		Name: "webhook_refresh_triggers",
-		Path: "schema/data-plane/postgres/017_webhook_refresh_triggers.sql",
-		SQL:  webhookTriggerSchemaSQL,
-	}
-}

@@ -70,6 +70,7 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT argocd_app_unique IF NOT EXISTS FOR (a:ArgoCDApplication) REQUIRE (a.name, a.path, a.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT argocd_appset_unique IF NOT EXISTS FOR (a:ArgoCDApplicationSet) REQUIRE (a.name, a.path, a.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT atlantis_project_unique IF NOT EXISTS FOR (p:AtlantisProject) REQUIRE (p.name, p.path, p.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT atlantis_workflow_unique IF NOT EXISTS FOR (w:AtlantisWorkflow) REQUIRE (w.name, w.path, w.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT xrd_unique IF NOT EXISTS FOR (x:CrossplaneXRD) REQUIRE (x.name, x.path, x.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT composition_unique IF NOT EXISTS FOR (c:CrossplaneComposition) REQUIRE (c.name, c.path, c.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT claim_unique IF NOT EXISTS FOR (cl:CrossplaneClaim) REQUIRE (cl.name, cl.kind, cl.path, cl.line_number) IS UNIQUE",
@@ -136,6 +137,7 @@ var uidConstraintLabels = []string{
 	"ArgoCDApplication",
 	"ArgoCDApplicationSet",
 	"AtlantisProject",
+	"AtlantisWorkflow",
 	"CidrBlock",
 	"Class",
 	"CloudResource",
@@ -367,7 +369,7 @@ var schemaFulltextIndexes = []fulltextIndex{
 	{
 		primary: "CALL db.index.fulltext.createNodeIndex('infra_search_index', " +
 			"['K8sResource', 'TerraformResource', 'ArgoCDApplication', " +
-			"'ArgoCDApplicationSet', 'AtlantisProject', 'CrossplaneXRD', 'CrossplaneComposition', " +
+			"'ArgoCDApplicationSet', 'AtlantisProject', 'AtlantisWorkflow', 'CrossplaneXRD', 'CrossplaneComposition', " +
 			"'CrossplaneClaim', 'KustomizeOverlay', 'HelmChart', 'HelmValues', " +
 			"'TerraformVariable', 'TerraformOutput', 'TerraformModule', " +
 			"'TerraformDataSource', 'TerraformProvider', 'TerraformLocal', " +
@@ -378,7 +380,7 @@ var schemaFulltextIndexes = []fulltextIndex{
 			"['name', 'kind', 'resource_type'])",
 		fallback: "CREATE FULLTEXT INDEX infra_search_index IF NOT EXISTS " +
 			"FOR (n:K8sResource|TerraformResource|ArgoCDApplication|" +
-			"ArgoCDApplicationSet|AtlantisProject|CrossplaneXRD|CrossplaneComposition|" +
+			"ArgoCDApplicationSet|AtlantisProject|AtlantisWorkflow|CrossplaneXRD|CrossplaneComposition|" +
 			"CrossplaneClaim|KustomizeOverlay|HelmChart|HelmValues|" +
 			"TerraformVariable|TerraformOutput|TerraformModule|" +
 			"TerraformDataSource|TerraformProvider|TerraformLocal|" +

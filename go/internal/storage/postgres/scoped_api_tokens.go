@@ -45,14 +45,6 @@ func ScopedAPITokenSchemaSQL() string {
 	return scopedAPITokenSchemaSQL
 }
 
-func scopedAPITokenBootstrapDefinition() Definition {
-	return Definition{
-		Name: "scoped_api_tokens",
-		Path: "schema/data-plane/postgres/006d_scoped_api_tokens.sql",
-		SQL:  scopedAPITokenSchemaSQL,
-	}
-}
-
 // ScopedAPITokenHash returns the durable hash used to look up a bearer token.
 func ScopedAPITokenHash(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))

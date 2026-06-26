@@ -80,6 +80,7 @@ func BenchmarkBackendCandidateMapping(b *testing.B) {
 			}
 			candidates = append(candidates, c)
 		}
+		_ = candidates
 	}
 }
 

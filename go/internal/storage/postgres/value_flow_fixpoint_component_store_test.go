@@ -42,7 +42,7 @@ func TestBootstrapDefinitionsIncludeValueFlowFixpointComponents(t *testing.T) {
 	if found.Name == "" {
 		t.Fatal("BootstrapDefinitions missing value_flow_fixpoint_components")
 	}
-	if found.Path != "schema/data-plane/postgres/032_value_flow_fixpoint_components.sql" {
+	if found.Path != "go/internal/storage/postgres/migrations/032_value_flow_fixpoint_components.sql" {
 		t.Fatalf("Path = %q", found.Path)
 	}
 	if !strings.Contains(found.SQL, "CREATE TABLE IF NOT EXISTS value_flow_fixpoint_components") {

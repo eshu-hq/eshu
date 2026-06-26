@@ -84,6 +84,58 @@ func TestAtlantisEdgeStatementsResolvesManagesAndDependsOn(t *testing.T) {
 	}
 }
 
+// TestAtlantisEdgeStatementsResolvesUsesWorkflow proves a project's workflow
+// reference resolves to the AtlantisWorkflow node's uid in the same file (whether
+// defined in-file or a referenced stub), producing a USES_WORKFLOW edge row.
+func TestAtlantisEdgeStatementsResolvesUsesWorkflow(t *testing.T) {
+	t.Parallel()
+
+	const file = "/repo/atlantis.yaml"
+	project := projector.EntityRow{
+		Label:      "AtlantisProject",
+		EntityID:   "uid-app",
+		EntityName: "app",
+		FilePath:   file,
+		Metadata:   map[string]any{"dir": "app", "workflow": "custom"},
+	}
+	workflow := projector.EntityRow{
+		Label:      "AtlantisWorkflow",
+		EntityID:   "uid-wf-custom",
+		EntityName: "custom",
+		FilePath:   file,
+		Metadata:   map[string]any{"source": "defined"},
+	}
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-1",
+		RepoPath:     "/repo",
+		Entities:     []projector.EntityRow{project, workflow},
+	}
+
+	stmts := atlantisEdgeStatements(mat)
+	var usesRows []map[string]any
+	for _, stmt := range stmts {
+		if strings.Contains(stmt.Cypher, "USES_WORKFLOW") {
+			usesRows = stmt.Parameters["rows"].([]map[string]any)
+		}
+	}
+	if len(usesRows) != 1 {
+		t.Fatalf("USES_WORKFLOW rows = %d, want 1; stmts=%d", len(usesRows), len(stmts))
+	}
+	if usesRows[0]["source_uid"] != "uid-app" || usesRows[0]["target_uid"] != "uid-wf-custom" {
+		t.Fatalf("USES_WORKFLOW row = %+v, want app->custom", usesRows[0])
+	}
+	// A workflow reference with no matching AtlantisWorkflow node yields no edge.
+	matNoWf := projector.CanonicalMaterialization{
+		GenerationID: "gen-1", RepoPath: "/repo",
+		Entities: []projector.EntityRow{project},
+	}
+	for _, stmt := range atlantisEdgeStatements(matNoWf) {
+		if strings.Contains(stmt.Cypher, "USES_WORKFLOW") {
+			t.Fatalf("USES_WORKFLOW emitted with no AtlantisWorkflow node present")
+		}
+	}
+}
+
 // TestAtlantisEdgeStatementsScopesDependsOnPerFile proves depends_on resolves
 // only against sibling projects in the SAME atlantis.yaml: two projects sharing a
 // name across different files must not produce a cross-file DEPENDS_ON edge.

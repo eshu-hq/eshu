@@ -27,11 +27,3 @@ CREATE INDEX IF NOT EXISTS generation_retention_events_generation_idx
 CREATE INDEX IF NOT EXISTS generation_retention_events_reason_idx
     ON generation_retention_events (reason, pruned_at DESC);
 `
-
-func generationRetentionBootstrapDefinition() Definition {
-	return Definition{
-		Name: "generation_retention_events",
-		Path: "schema/data-plane/postgres/006d_generation_retention_events.sql",
-		SQL:  generationRetentionEventSchemaSQL,
-	}
-}

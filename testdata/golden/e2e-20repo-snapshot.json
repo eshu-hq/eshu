@@ -286,6 +286,14 @@
         "from_label": "AtlantisProject",
         "to_label": "AtlantisProject",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-7",
+        "description": "At least one AtlantisProject USES_WORKFLOW an AtlantisWorkflow; confirms the atlantis.yaml project->custom-workflow edge formed",
+        "relationship": "USES_WORKFLOW",
+        "from_label": "AtlantisProject",
+        "to_label": "AtlantisWorkflow",
+        "minimum_count": 1
       }
     ]
   },

@@ -224,11 +224,3 @@ func buildMarkIncidentFreshnessTriggersFailedQuery(idCount int) string {
 		triggerIDPlaceholders(idCount),
 	)
 }
-
-func incidentFreshnessBootstrapDefinition() Definition {
-	return Definition{
-		Name: "incident_freshness_triggers",
-		Path: "schema/data-plane/postgres/023_incident_freshness_triggers.sql",
-		SQL:  incidentFreshnessSchemaSQL,
-	}
-}

@@ -83,6 +83,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		UsesMetaclass:                      "USES_METACLASS",
 		UsesModule:                         "USES_MODULE",
 		UsesProfile:                        "USES_PROFILE",
+		UsesWorkflow:                       "USES_WORKFLOW",
 	}
 
 	for got, str := range want {

@@ -127,14 +127,6 @@ func AWSPaginationCheckpointSchemaSQL() string {
 	return awsPaginationCheckpointSchemaSQL
 }
 
-func awsPaginationCheckpointBootstrapDefinition() Definition {
-	return Definition{
-		Name: "aws_pagination_checkpoints",
-		Path: "schema/data-plane/postgres/018_aws_pagination_checkpoints.sql",
-		SQL:  awsPaginationCheckpointSchemaSQL,
-	}
-}
-
 // EnsureSchema applies the AWS pagination checkpoint DDL.
 func (s AWSPaginationCheckpointStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

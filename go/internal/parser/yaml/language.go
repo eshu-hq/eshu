@@ -68,6 +68,14 @@ func Parse(
 			shared.AppendBucket(payload, "atlantis_projects", row)
 		}
 		shared.SortNamedBucket(payload, "atlantis_projects")
+		workflowRows, err := parseAtlantisWorkflowsFromSource(source, path)
+		if err != nil {
+			return nil, fmt.Errorf("parse atlantis workflows %q: %w", path, err)
+		}
+		for _, row := range workflowRows {
+			shared.AppendBucket(payload, "atlantis_workflows", row)
+		}
+		shared.SortNamedBucket(payload, "atlantis_workflows")
 		if options.IndexSource {
 			payload["source"] = string(source)
 		}
@@ -103,6 +111,7 @@ func Parse(
 		"cloudformation_cross_stack_imports",
 		"cloudformation_cross_stack_exports",
 		"atlantis_projects",
+		"atlantis_workflows",
 	} {
 		shared.SortNamedBucket(payload, bucket)
 	}
@@ -131,6 +140,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["cloudformation_cross_stack_imports"] = []map[string]any{}
 	payload["cloudformation_cross_stack_exports"] = []map[string]any{}
 	payload["atlantis_projects"] = []map[string]any{}
+	payload["atlantis_workflows"] = []map[string]any{}
 	payload["variables"] = []map[string]any{}
 	initObservabilityBuckets(payload)
 	return payload

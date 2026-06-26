@@ -47,7 +47,7 @@ func TestBootstrapDefinitionsIncludeFunctionSummaries(t *testing.T) {
 	if found.Name == "" {
 		t.Fatal("BootstrapDefinitions missing function_summaries")
 	}
-	if found.Path != "schema/data-plane/postgres/028_function_summaries.sql" {
+	if found.Path != "go/internal/storage/postgres/migrations/028_function_summaries.sql" {
 		t.Fatalf("Path = %q", found.Path)
 	}
 	if !strings.Contains(found.SQL, "CREATE TABLE IF NOT EXISTS function_summaries") {

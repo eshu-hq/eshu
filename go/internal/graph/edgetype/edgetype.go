@@ -161,6 +161,9 @@ const (
 	UsesModule EdgeType = "USES_MODULE"
 	// UsesProfile is the "USES_PROFILE" graph relationship type.
 	UsesProfile EdgeType = "USES_PROFILE"
+	// UsesWorkflow is the "USES_WORKFLOW" graph relationship type (an Atlantis
+	// project to the custom workflow it names).
+	UsesWorkflow EdgeType = "USES_WORKFLOW"
 )
 
 // registered lists every edge type known to the registry. Order is not
@@ -183,7 +186,7 @@ var registered = []EdgeType{
 	SecretsIamAssumesIamRole, SecretsIamAuthenticatesToVaultRole, SecretsIamGrantsSecretRead, SecretsIamUsesServiceAccount,
 	SecretsIamUsesVaultPolicy, TaintFlowsTo, TargetsEnvironment, To,
 	Triggers, TriggersOn, Uses, UsesMetaclass,
-	UsesModule, UsesProfile,
+	UsesModule, UsesProfile, UsesWorkflow,
 }
 
 // set indexes registered edge-type strings for O(1) membership checks.

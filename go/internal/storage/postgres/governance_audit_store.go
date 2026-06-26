@@ -328,11 +328,3 @@ func (s GovernanceAuditStore) DeleteExpired(ctx context.Context, cutoff time.Tim
 	}
 	return deleted, nil
 }
-
-func governanceAuditEventsBootstrapDefinition() Definition {
-	return Definition{
-		Name: "governance_audit_events",
-		Path: "schema/data-plane/postgres/006b_governance_audit_events.sql",
-		SQL:  GovernanceAuditEventsSchemaSQL(),
-	}
-}

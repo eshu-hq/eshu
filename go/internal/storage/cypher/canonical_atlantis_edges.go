@@ -35,6 +35,17 @@ MATCH (q:AtlantisProject {uid: row.target_uid})
 MERGE (p)-[r:ATLANTIS_DEPENDS_ON]->(q)
 SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id`
 
+// canonicalNodeAtlantisUsesWorkflowEdgeCypher links an Atlantis project to the
+// custom workflow it names. The Go builder resolves the project's workflow name
+// to the AtlantisWorkflow node's uid within the same atlantis.yaml (the workflow
+// node is either defined in-file or a referenced stub for a server-side
+// workflow), so both endpoints are matched by uid here.
+const canonicalNodeAtlantisUsesWorkflowEdgeCypher = `UNWIND $rows AS row
+MATCH (p:AtlantisProject {uid: row.source_uid})
+MATCH (w:AtlantisWorkflow {uid: row.target_uid})
+MERGE (p)-[r:USES_WORKFLOW]->(w)
+SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id`
+
 // atlantisProjectEntity is one AtlantisProject content entity reduced to the
 // fields the governance edges need.
 type atlantisProjectEntity struct {
@@ -43,6 +54,7 @@ type atlantisProjectEntity struct {
 	filePath  string
 	dir       string
 	dependsOn []string
+	workflow  string
 }
 
 // atlantisEdgeStatements returns the Atlantis governance edge statements
@@ -67,9 +79,12 @@ func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement 
 	for _, project := range projects {
 		uidByFileName[project.filePath+"\x00"+project.name] = project.uid
 	}
+	// workflow name -> uid, scoped per containing file, for the USES_WORKFLOW edge.
+	workflowUIDByFileName := collectAtlantisWorkflowUIDs(mat.Entities)
 
 	var manages []map[string]any
 	var dependsOn []map[string]any
+	var usesWorkflow []map[string]any
 	for _, project := range projects {
 		if dir := normalizeAtlantisDir(project.dir); dir != "" && repoRoot != "" {
 			manages = append(manages, map[string]any{
@@ -89,6 +104,15 @@ func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement 
 				"generation_id": mat.GenerationID,
 			})
 		}
+		if project.workflow != "" {
+			if targetUID, ok := workflowUIDByFileName[project.filePath+"\x00"+project.workflow]; ok {
+				usesWorkflow = append(usesWorkflow, map[string]any{
+					"source_uid":    project.uid,
+					"target_uid":    targetUID,
+					"generation_id": mat.GenerationID,
+				})
+			}
+		}
 	}
 
 	var stmts []Statement
@@ -106,7 +130,28 @@ func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement 
 			Parameters: map[string]any{"rows": dependsOn},
 		})
 	}
+	if len(usesWorkflow) > 0 {
+		stmts = append(stmts, Statement{
+			Operation:  OperationCanonicalUpsert,
+			Cypher:     canonicalNodeAtlantisUsesWorkflowEdgeCypher,
+			Parameters: map[string]any{"rows": usesWorkflow},
+		})
+	}
 	return stmts
+}
+
+// collectAtlantisWorkflowUIDs maps "<filePath>\x00<workflowName>" -> uid for
+// every AtlantisWorkflow entity, so a project's workflow reference resolves to a
+// workflow node in the same atlantis.yaml.
+func collectAtlantisWorkflowUIDs(entities []projector.EntityRow) map[string]string {
+	uids := map[string]string{}
+	for _, entity := range entities {
+		if entity.Label != "AtlantisWorkflow" {
+			continue
+		}
+		uids[entity.FilePath+"\x00"+entity.EntityName] = entity.EntityID
+	}
+	return uids
 }
 
 // collectAtlantisProjectEntities extracts AtlantisProject entities from the
@@ -123,6 +168,7 @@ func collectAtlantisProjectEntities(entities []projector.EntityRow) []atlantisPr
 			filePath:  entity.FilePath,
 			dir:       metadataString(entity.Metadata, "dir"),
 			dependsOn: splitAtlantisList(metadataString(entity.Metadata, "depends_on")),
+			workflow:  metadataString(entity.Metadata, "workflow"),
 		})
 	}
 	return projects

@@ -237,11 +237,3 @@ func upsertSharedProjectionAcceptanceBatch(ctx context.Context, db ExecQueryer, 
 
 	return nil
 }
-
-func sharedProjectionAcceptanceBootstrapDefinition() Definition {
-	return Definition{
-		Name: "shared_projection_acceptance",
-		Path: "schema/data-plane/postgres/011_shared_projection_acceptance.sql",
-		SQL:  sharedProjectionAcceptanceSchemaSQL,
-	}
-}

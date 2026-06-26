@@ -373,14 +373,6 @@ func IdentitySubjectSchemaSQL() string {
 	return identitySubjectSchemaSQL + identityLocalIdentitySchemaSQL + samlSSOReturnToPathMigrationSQL
 }
 
-func identitySubjectBootstrapDefinition() Definition {
-	return Definition{
-		Name: "identity_subjects",
-		Path: "schema/data-plane/postgres/006e_identity_subjects.sql",
-		SQL:  IdentitySubjectSchemaSQL(),
-	}
-}
-
 // EnsureSchema applies the identity subject schema.
 func (s *IdentitySubjectStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

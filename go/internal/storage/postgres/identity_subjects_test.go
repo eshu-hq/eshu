@@ -22,8 +22,8 @@ func TestBootstrapDefinitionsIncludeIdentitySubjects(t *testing.T) {
 	if identity.Name == "" {
 		t.Fatal("identity_subjects definition missing")
 	}
-	if identity.Path != "schema/data-plane/postgres/006e_identity_subjects.sql" {
-		t.Fatalf("identity schema path = %q, want schema/data-plane/postgres/006e_identity_subjects.sql", identity.Path)
+	if identity.Path != "go/internal/storage/postgres/migrations/006e_identity_subjects.sql" {
+		t.Fatalf("identity schema path = %q, want go/internal/storage/postgres/migrations/006e_identity_subjects.sql", identity.Path)
 	}
 
 	for _, want := range []string{

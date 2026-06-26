@@ -66,14 +66,6 @@ func FunctionGraphIDSchemaSQL() string {
 	return functionGraphIDSchemaSQL
 }
 
-func functionGraphIDBootstrapDefinition() Definition {
-	return Definition{
-		Name: "function_graph_ids",
-		Path: "schema/data-plane/postgres/030_function_graph_ids.sql",
-		SQL:  functionGraphIDSchemaSQL,
-	}
-}
-
 // FunctionGraphIDStore persists the FunctionID->graph-uid map for the cross-repo
 // fixpoint.
 type FunctionGraphIDStore struct {

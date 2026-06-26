@@ -247,12 +247,4 @@ func (s *WorkflowControlStore) ReapExpiredClaims(
 	return claims, nil
 }
 
-func workflowControlBootstrapDefinition() Definition {
-	return Definition{
-		Name: "workflow_control_plane",
-		Path: "schema/data-plane/postgres/014_workflow_control_plane.sql",
-		SQL:  workflowControlSchemaSQL,
-	}
-}
-
 var _ workflow.ControlStore = (*WorkflowControlStore)(nil)

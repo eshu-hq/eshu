@@ -74,14 +74,6 @@ func OIDCLoginSchemaSQL() string {
 	return oidcLoginSchemaSQL
 }
 
-func oidcLoginBootstrapDefinition() Definition {
-	return Definition{
-		Name: "identity_oidc_login",
-		Path: "schema/data-plane/postgres/006g_identity_oidc_login.sql",
-		SQL:  oidcLoginSchemaSQL,
-	}
-}
-
 // EnsureSchema applies the OIDC login schema.
 func (s *OIDCLoginStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

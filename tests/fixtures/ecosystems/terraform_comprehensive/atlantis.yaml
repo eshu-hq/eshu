@@ -15,6 +15,7 @@ projects:
     dir: staging
     workspace: staging
     execution_order_group: 1
+    workflow: custom
     depends_on:
       - network
     autoplan:
@@ -24,3 +25,13 @@ projects:
     apply_requirements:
       - approved
       - mergeable
+workflows:
+  custom:
+    plan:
+      steps:
+        - init
+        - run: terraform fmt -check
+        - plan
+    apply:
+      steps:
+        - apply

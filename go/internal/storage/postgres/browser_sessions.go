@@ -65,14 +65,6 @@ func BrowserSessionSchemaSQL() string {
 	return browserSessionSchemaSQL
 }
 
-func browserSessionBootstrapDefinition() Definition {
-	return Definition{
-		Name: "browser_sessions",
-		Path: "schema/data-plane/postgres/006f_browser_sessions.sql",
-		SQL:  browserSessionSchemaSQL,
-	}
-}
-
 // EnsureSchema applies the browser session registry schema.
 func (s *BrowserSessionStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

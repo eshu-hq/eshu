@@ -26,7 +26,7 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactCanonicalWinners(t *testing
 	if def.Name == "" {
 		t.Fatal("supply_chain_impact_canonical_winners definition missing")
 	}
-	if def.Path != "schema/data-plane/postgres/033_supply_chain_impact_canonical_winners.sql" {
+	if def.Path != "go/internal/storage/postgres/migrations/033_supply_chain_impact_canonical_winners.sql" {
 		t.Fatalf("unexpected Path %q", def.Path)
 	}
 	for _, want := range []string{

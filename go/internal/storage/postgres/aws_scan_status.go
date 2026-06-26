@@ -231,14 +231,6 @@ func AWSScanStatusSchemaSQL() string {
 	return awsScanStatusSchemaSQL
 }
 
-func awsScanStatusBootstrapDefinition() Definition {
-	return Definition{
-		Name: "aws_scan_status",
-		Path: "schema/data-plane/postgres/019_aws_scan_status.sql",
-		SQL:  awsScanStatusSchemaSQL,
-	}
-}
-
 // EnsureSchema applies the AWS scan-status DDL.
 func (s AWSScanStatusStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {
