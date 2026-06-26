@@ -50,6 +50,22 @@ The verifier runs on every PR and push to `main` via
 `.github/workflows/verify-openapi.yml`. A red gate blocks merge until the drift
 is resolved.
 
+### Known-drift exclusions
+
+`.github/openapi-known-drift.txt` lists routes intentionally excluded from the
+OpenAPI surface — documentation UIs, pre-existing gaps, and routes whose METHOD
+or path is computed at runtime or lives in a package outside the verifier's scan
+directories. One route per line in `METHOD /path` format; comments start with
+`#`. The verifier subtracts these from the drift report via `comm -23` so the CI
+gate stays green on acknowledged gaps while catching new drift.
+
+**Dynamic-route escape hatch:** the verifier resolves route constants and string
+concatenation (patterns 1b/1c) via regex, not AST. A route whose METHOD or path
+is constructed at runtime (e.g. built from a non-const function return, or whose
+const lives in a package the verifier does not scan) cannot be resolved. Such
+routes must be added to the known-drift file. Do not weaken the matcher to chase
+dynamic routes — the file is the explicit escape hatch.
+
 ## Consequences
 
 - Every new or changed API route must update its `openapi_paths_*.go` fragment
@@ -61,6 +77,8 @@ is resolved.
   explicit decision.
 - The verifier is self-contained (bash + rg + awk), requiring no Go compilation
   or external dependencies beyond what is already present in CI.
+- Routes whose METHOD/path is computed at runtime or lives outside scan dirs
+  must be listed in `.github/openapi-known-drift.txt`.
 
 ## Verification
 
