@@ -368,6 +368,114 @@ func assertNamedItem(t *testing.T, items []map[string]any, name string) map[stri
 	return nil
 }
 
+func TestParseExtractsGroovyImports(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "src", "Service.groovy")
+	source := `package org.example
+
+import com.acme.DeployHelper
+import com.acme.pipeline.ReleaseHelper as Release
+import static com.acme.Constants
+
+class Service {
+  def call() {}
+}
+`
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v, want nil", err)
+	}
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+
+	got, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	importItem := assertBucketItemByName(t, got, "imports", "com.acme.DeployHelper")
+	if importItem["lang"] != "groovy" {
+		t.Fatalf("import lang = %#v, want groovy", importItem["lang"])
+	}
+	if _, ok := importItem["alias"]; ok {
+		t.Fatalf("import alias = %#v, want absent for unaliased import", importItem["alias"])
+	}
+
+	aliasItem := assertBucketItemByName(t, got, "imports", "com.acme.pipeline.ReleaseHelper")
+	if aliasItem["lang"] != "groovy" {
+		t.Fatalf("import lang = %#v, want groovy", aliasItem["lang"])
+	}
+	if aliasItem["alias"] != "Release" {
+		t.Fatalf("import alias = %#v, want Release", aliasItem["alias"])
+	}
+
+	assertBucketItemByName(t, got, "imports", "com.acme.Constants")
+}
+
+func TestPreScanWithParserReturnsSortedUniqueMetadataNames(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "Jenkinsfile")
+	source := `pipelineDeploy(entry_point: 'deploy.sh')
+@Library('pipelines') _
+pipelineDeploy(entry_point: 'deploy.sh')
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+
+	parser := tree_sitter.NewParser()
+	if err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_groovy.Language())); err != nil {
+		parser.Close()
+		t.Fatalf("SetLanguage(groovy) error = %v, want nil", err)
+	}
+	defer parser.Close()
+
+	got, err := PreScanWithParser(path, parser)
+	if err != nil {
+		t.Fatalf("PreScanWithParser() error = %v, want nil", err)
+	}
+
+	want := []string{"deploy.sh", "pipelineDeploy", "pipelines"}
+	if len(got) != len(want) {
+		t.Fatalf("PreScanWithParser() len = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for i, item := range want {
+		if got[i] != item {
+			t.Fatalf("PreScanWithParser()[%d] = %q, want %q in %#v", i, got[i], item, got)
+		}
+	}
+}
+
+func TestParseWithParserNilParserReturnsError(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "Jenkinsfile")
+	if err := os.WriteFile(path, []byte(`pipeline { agent any }`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+
+	_, err := ParseWithParser(path, false, shared.Options{}, nil)
+	if err == nil {
+		t.Fatalf("ParseWithParser(nil parser) error = nil, want error")
+	}
+}
+
+func TestPreScanWithParserNilParserReturnsError(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "Jenkinsfile")
+	if err := os.WriteFile(path, []byte(`pipeline { agent any }`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v, want nil", err)
+	}
+
+	_, err := PreScanWithParser(path, nil)
+	if err == nil {
+		t.Fatalf("PreScanWithParser(nil parser) error = nil, want error")
+	}
+}
+
 func assertEmptyNamedBucket(t *testing.T, payload map[string]any, key string) {
 	t.Helper()
 
