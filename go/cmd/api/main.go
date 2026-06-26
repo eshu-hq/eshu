@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -67,7 +68,7 @@ func main() {
 		}()
 	}
 
-	mux, cleanup, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler)
+	mux, cleanup, instruments, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler)
 	if err != nil {
 		logger.Error("wire api failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
@@ -95,9 +96,21 @@ func main() {
 	shutdownTimeout := apiShutdownTimeout(os.Getenv)
 	go func() {
 		<-ctx.Done()
+		start := time.Now()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer shutdownCancel()
-		_ = srv.Shutdown(shutdownCtx)
+		err := srv.Shutdown(shutdownCtx)
+		duration := time.Since(start).Seconds()
+		result := "success"
+		if err != nil {
+			if shutdownCtx.Err() == context.DeadlineExceeded {
+				result = "timeout"
+			} else {
+				result = "error"
+			}
+		}
+		instruments.APIShutdownDuration.Record(context.Background(), duration,
+			metric.WithAttributes(telemetry.AttrResult(result)))
 	}()
 
 	logger.Info("eshu-api listening on address", telemetry.EventAttr("runtime.server.listening"), "address", addr)

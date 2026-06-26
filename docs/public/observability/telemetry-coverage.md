@@ -238,6 +238,16 @@ Each domain has a depth/age gauge pair sourced from the queue observer.
 | go runtime memory limit | go/cmd/ingester/main.go:61 | `eshu_dp_gomemlimit_bytes` | queue runtime |
 | reducer graph-write-timeout retrying | go/internal/storage/postgres/queue_observer.go:168 | `eshu_dp_queue_depth`, `eshu_dp_graph_write_backpressure_engaged_total` | queue runtime |
 
+<!-- eshu:metric:section=api-lifecycle -->
+## API Lifecycle
+
+The API binary exposes lifecycle metrics covering graceful shutdown behavior.
+Each row maps a lifecycle stage to the metric that diagnoses it at 3 AM.
+
+| stage | file:line | required metric name(s) | category |
+| --- | --- | --- | --- |
+| api shutdown | go/cmd/api/main.go:100 | `eshu_dp_shutdown_duration_seconds` | api lifecycle |
+
 <!-- eshu:metric:section=graph-write-statement-metadata -->
 ## Graph-Write Statement Metadata
 

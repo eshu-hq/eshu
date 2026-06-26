@@ -943,6 +943,11 @@ type Instruments struct {
 	// WorkflowFamilyQueueDepth reports outstanding claim-aware collector queue
 	// depth by collector_kind, source_system, and status (issue #2699/#2857).
 	WorkflowFamilyQueueDepth metric.Int64ObservableGauge
+	// APIShutdownDuration records the graceful shutdown duration of the API HTTP
+	// server. Recorded from the shutdown goroutine once per process exit. Labeled
+	// by result (success, error, timeout) to let operators distinguish clean
+	// shutdowns from forced terminations.
+	APIShutdownDuration metric.Float64Histogram
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the
@@ -3645,6 +3650,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PipelineOverlapDuration histogram: %w", err)
+	}
+
+	shutdownDurationBuckets := []float64{0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.APIShutdownDuration, err = meter.Float64Histogram(
+		"eshu_dp_shutdown_duration_seconds",
+		metric.WithDescription("API HTTP server graceful shutdown duration, from signal received to process exit"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(shutdownDurationBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register APIShutdownDuration histogram: %w", err)
 	}
 
 	return inst, nil
