@@ -33,7 +33,7 @@ func newPostgresBrowserSessionAdapter(
 	if instruments != nil {
 		sessionDB = &pgstatus.InstrumentedDB{
 			Inner:       sessionDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "browser_sessions",
 		}

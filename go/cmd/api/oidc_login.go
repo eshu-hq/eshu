@@ -143,7 +143,7 @@ func newPostgresOIDCStoreAdapter(
 	if instruments != nil {
 		oidcDB = &pgstatus.InstrumentedDB{
 			Inner:       oidcDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "identity_oidc_login",
 		}

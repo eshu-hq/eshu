@@ -24,7 +24,7 @@ func newGovernanceAuditStore(
 	if instruments != nil {
 		governanceAuditDB = &pgstatus.InstrumentedDB{
 			Inner:       governanceAuditDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "governance_audit",
 		}

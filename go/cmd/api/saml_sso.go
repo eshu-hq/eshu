@@ -67,7 +67,7 @@ func newSAMLHandler(
 	if instruments != nil {
 		samlDB = &pgstatus.InstrumentedDB{
 			Inner:       samlDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "saml_sso",
 		}

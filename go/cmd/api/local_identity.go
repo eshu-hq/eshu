@@ -45,7 +45,7 @@ func newPostgresLocalIdentityAdapter(
 	if instruments != nil {
 		identityDB = &pgstatus.InstrumentedDB{
 			Inner:       identityDB,
-			Tracer:      otel.Tracer("eshu-api"),
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
 			Instruments: instruments,
 			StoreName:   "identity_subjects",
 		}
