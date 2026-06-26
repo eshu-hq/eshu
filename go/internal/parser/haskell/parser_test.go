@@ -241,6 +241,115 @@ helper value = value
 	assertStringSliceMissing(t, names, "outer")
 }
 
+func TestParseHaskellEmptyFileReturnsEmptyPayload(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Empty.hs", "")
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	buckets := []string{"modules", "imports", "classes", "functions", "variables", "function_calls"}
+	for _, bucket := range buckets {
+		items, ok := payload[bucket].([]map[string]any)
+		if !ok {
+			t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+		}
+		if len(items) != 0 {
+			t.Fatalf("payload[%q] has %d items, want 0", bucket, len(items))
+		}
+	}
+}
+
+func TestParseHaskellSyntaxErrorHandlesGracefully(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Broken.hs", `module Broken where
+
+-- missing closing quote on next line
+broken = "unterminated string
+
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil (tree-sitter is error-tolerant)", err)
+	}
+
+	if _, ok := payload["modules"].([]map[string]any); !ok {
+		t.Fatalf("payload[modules] missing after syntax error parse")
+	}
+	if got, ok := payload["lang"].(string); !ok || got != "haskell" {
+		t.Fatalf("payload[lang] = %#v, want haskell", got)
+	}
+}
+
+func TestParseCapturesHaskellImportVariants(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Imports.hs", `module Imports where
+
+import Data.Text
+import qualified Data.Map as M
+import Data.List (nub, sort)
+import qualified Data.Set (empty, insert)
+
+main = Data.Text.pack "hello"
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketName(t, payload, "imports", "Data.Text")
+	assertBucketName(t, payload, "imports", "Data.Map")
+	assertBucketName(t, payload, "imports", "Data.List")
+	assertBucketName(t, payload, "imports", "Data.Set")
+
+	mapImport := assertBucketName(t, payload, "imports", "Data.Map")
+	if got := mapImport["alias"]; got != "M" {
+		t.Fatalf("imports[Data.Map][alias] = %#v, want M", got)
+	}
+
+	textImport := assertBucketName(t, payload, "imports", "Data.Text")
+	if _, ok := textImport["alias"]; ok {
+		t.Fatalf("imports[Data.Text][alias] unexpectedly present")
+	}
+}
+
+func TestParseCapturesHaskellFunctionCallContexts(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Calls.hs", `module Calls where
+
+import Data.Char (toUpper)
+
+class Processor a where
+  process :: a -> String
+
+instance Processor Int where
+  process n = helper n
+
+topLevel value = helper value
+helper value = show value
+
+main = putStrLn (process 42)
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketField(t, payload, "function_calls", "full_name", "helper")
+	assertBucketField(t, payload, "function_calls", "full_name", "show")
+	assertBucketField(t, payload, "function_calls", "full_name", "putStrLn")
+	assertBucketField(t, payload, "function_calls", "full_name", "process")
+}
+
 func TestParseSuppressesHaskellTreeFunctionParameterCalls(t *testing.T) {
 	t.Parallel()
 
