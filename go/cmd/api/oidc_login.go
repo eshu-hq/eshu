@@ -25,6 +25,10 @@ const (
 	envAuthOIDCProviderID           = "ESHU_AUTH_OIDC_PROVIDER_ID"
 	envAuthOIDCStateTTL             = "ESHU_AUTH_OIDC_STATE_TTL"
 	envAuthOIDCSessionRefreshWindow = "ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW"
+	envAuthOIDCLoginRatePerSec      = "ESHU_AUTH_OIDC_LOGIN_RATE_PER_SEC"
+	envAuthOIDCLoginRateBurst       = "ESHU_AUTH_OIDC_LOGIN_RATE_BURST"
+	envAuthOIDCLoginProviderRatePerMin  = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_RATE_PER_MIN"
+	envAuthOIDCLoginProviderBurst       = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_BURST"
 )
 
 type postgresOIDCStoreAdapter struct {
@@ -233,4 +237,41 @@ func (r fallbackOIDCGrantResolver) ResolveGroupGrants(
 		return oidclogin.GrantResolution{}, false, nil
 	}
 	return r.fallback.ResolveGroupGrants(ctx, query)
+}
+
+// newOIDCRateLimiter creates an OIDC login rate limiter from env vars. Returns
+// nil when OIDC is disabled or rate limiting is configured at zero.
+func newOIDCRateLimiter(getenv func(string) string, instruments *telemetry.Instruments) *query.OIDCRateLimiter {
+	enabled := false
+	if raw := strings.TrimSpace(getenv(envAuthOIDCEnabled)); raw != "" {
+		enabled, _ = strconv.ParseBool(raw)
+	}
+	if !enabled {
+		return nil
+	}
+	ipRate := query.DefaultOIDCLoginRatePerSec
+	if v := strings.TrimSpace(getenv(envAuthOIDCLoginRatePerSec)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			ipRate = n
+		}
+	}
+	ipBurst := query.DefaultOIDCLoginBurst
+	if v := strings.TrimSpace(getenv(envAuthOIDCLoginRateBurst)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			ipBurst = n
+		}
+	}
+	providerRate := query.DefaultOIDCLoginProviderRatePerMin
+	if v := strings.TrimSpace(getenv(envAuthOIDCLoginProviderRatePerMin)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			providerRate = n
+		}
+	}
+	providerBurst := query.DefaultOIDCLoginProviderBurst
+	if v := strings.TrimSpace(getenv(envAuthOIDCLoginProviderBurst)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			providerBurst = n
+		}
+	}
+	return query.NewOIDCRateLimiter(float64(ipRate), ipBurst, float64(providerRate), providerBurst, instruments)
 }

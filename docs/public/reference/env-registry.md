@@ -12,6 +12,10 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_API_KEY` | string | — | Bearer token for API authentication. |
 | `ESHU_AUTH_OIDC_CONFIG_FILE` | string | — | Path to an operator-managed OIDC login config file. When set and not disabled, the API enables backend Authorization Code login and reads provider/client/group-role mapping handles from this file. |
 | `ESHU_AUTH_OIDC_ENABLED` | bool | `false` | Explicitly enables or disables backend OIDC login. Set true with ESHU_AUTH_OIDC_CONFIG_FILE to require OIDC startup config; set false to disable even when a config file is present. |
+| `ESHU_AUTH_OIDC_LOGIN_PROVIDER_BURST` | int | `10` | Maximum burst size for the per-provider OIDC login rate limiter. |
+| `ESHU_AUTH_OIDC_LOGIN_PROVIDER_RATE_PER_MIN` | int | `60` | Maximum OIDC login requests per minute per identity provider (by provider_config_id). Set to 0 to disable the per-provider limit. This is a coarse per-IdP defense — all login attempts to one provider share a single bucket. |
+| `ESHU_AUTH_OIDC_LOGIN_RATE_BURST` | int | `20` | Maximum burst size for the per-IP OIDC login rate limiter. |
+| `ESHU_AUTH_OIDC_LOGIN_RATE_PER_SEC` | int | `10` | Maximum OIDC login requests per second per client IP. Set to 0 to disable the per-IP limit. Requests exceeding this limit receive HTTP 429. |
 | `ESHU_AUTH_OIDC_PROVIDER_ID` | string | — | Optional default provider config id override for OIDC login. The id must reference a provider declared in ESHU_AUTH_OIDC_CONFIG_FILE. |
 | `ESHU_AUTH_OIDC_SESSION_REFRESH_BATCH_SIZE` | int | `200` | Maximum OIDC-backed browser sessions processed per bounded active-session revocation refresh pass. Keeps each pass proportional to the batch rather than the full session table. Non-positive values fail API startup closed. |
 | `ESHU_AUTH_OIDC_SESSION_REFRESH_ENABLED` | bool | `false` | Enables the background OIDC active-session revocation refresh worker that re-resolves provider/user state for already-issued sessions within the staleness window and revokes sessions whose grants, role targets, or external subject are no longer valid. |

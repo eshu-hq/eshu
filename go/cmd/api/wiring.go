@@ -233,7 +233,13 @@ func wireAPI(
 	// /metrics) is mounted separately and is intentionally not counted.
 	instrumentedAPI := query.RequestMetricsMiddleware(apiMux)
 
-	mux, err := mountRuntimeSurface(instrumentedAPI, "eshu-api", statusReader, prometheusHandler, db, driver)
+	apiHandler := http.Handler(instrumentedAPI)
+	oidcRateLimiter := newOIDCRateLimiter(getenv, instruments)
+	if oidcRateLimiter != nil {
+		apiHandler = oidcRateLimiter.Middleware(apiHandler)
+	}
+
+	mux, err := mountRuntimeSurface(apiHandler, "eshu-api", statusReader, prometheusHandler, db, driver)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
