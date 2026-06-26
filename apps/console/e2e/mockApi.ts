@@ -32,7 +32,13 @@ export async function installMockApi(page: Page): Promise<void> {
   await page.route("**/eshu-api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const path = url.pathname;
+    // Normalize: strip the /eshu-api proxy prefix when the console talks
+    // through the Vite dev server. Without normalization the path includes
+    // /eshu-api/api/v0/... but all handlers match /api/v0/...
+    let path = url.pathname;
+    if (path.startsWith("/eshu-api")) {
+      path = path.slice("/eshu-api".length);
+    }
     const method = request.method();
     const params = url.searchParams;
 

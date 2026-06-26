@@ -13,6 +13,7 @@
     "console:typecheck": "tsc -b apps/console/tsconfig.json && npm run console:e2e:typecheck",
     "console:build": "vite build --config apps/console/vite.config.ts && npm run console:bundle-budget",
     "console:bundle-budget": "node scripts/console-bundle-budget.mjs",
+    "console:a11y": "npx tsx apps/console/e2e/a11yAudit.ts --gate",
     "console:e2e": "bash scripts/run-console-live-e2e.sh",
     "console:e2e:mock": "npx tsx apps/console/e2e/runPerPageE2E.ts",
     "console:e2e:typecheck": "tsc -p apps/console/e2e/tsconfig.json",
@@ -32,6 +33,7 @@
     "react-router-dom": "^7.18.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^9.18.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",

@@ -113,6 +113,30 @@ jobs:
       - name: Run per-page e2e (mocked)
         run: npm run console:e2e:mock
 
+  console-a11y:
+    name: Console a11y audit (axe-core)
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (clean, lockfile-pinned)
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run a11y audit gate (critical + serious fail)
+        run: npm run console:a11y
+
   lint:
     name: ESLint flat config (issue #3763)
     runs-on: ubuntu-latest
