@@ -28,9 +28,12 @@
 - **Auth wraps the full mux** — `AuthMiddleware` is applied after
   `mountRuntimeSurface`, so data routes cannot be reached without auth when a
   token is configured (`wiring.go:105`).
-- **Graceful shutdown bounded at 5 s** — the shutdown goroutine calls
-  `Shutdown` on the server with a 5-second context; requests not completed within
-  that window are interrupted (`main.go:93`).
+- **Graceful shutdown timeout** — the shutdown goroutine calls `Shutdown` on the
+  server with a configurable timeout read from `ESHU_API_SHUTDOWN_TIMEOUT`
+  (default 30 s). Requests not completed within that window are interrupted.
+  Operators setting an explicit 5 s value retain the prior hard-coded behavior.
+  The deadline is read at startup; runtime changes require a restart
+  (`main.go:95`).
 - **Compile-time port conformance** — `wiring.go:23` asserts that `Neo4jReader`
   satisfies `GraphQuery` and `ContentReader` satisfies `ContentStore`; removing
   these assertions will silently break port conformance.
@@ -46,11 +49,12 @@
   follow the same struct-and-`Mount` pattern; missing a step leaves routes
   unreachable or undocumented.
 
-- **Change the listen address or timeouts** → edit `main.go:74` for
-  `ESHU_API_ADDR` and `main.go:83` for the `http.Server` timeout fields. Timeouts
-  are hard-coded constants; there are no env vars for them. Why: timeout values
-  are deployment-level knobs that should be changed deliberately, not silently
-  picked up from environment.
+- **Change the listen address or timeouts** → edit `main.go:77` for
+  `ESHU_API_ADDR` and `main.go:87` for the `http.Server` timeout fields. The
+  server read/write/idle timeouts are hard-coded constants; only the graceful
+  shutdown timeout is configurable via `ESHU_API_SHUTDOWN_TIMEOUT`. Why: server
+  timeouts are deployment-level knobs that should be changed deliberately, not
+  silently picked up from environment.
 
 - **Swap the graph backend** → set `ESHU_GRAPH_BACKEND=nornicdb` or
   `ESHU_GRAPH_BACKEND=neo4j`; the binary delegates to `ParseGraphBackend` and
@@ -84,9 +88,10 @@
   `internal/runtime`.
 
 - Symptom: requests interrupted mid-stream during redeploy → likely cause: the
-  5-second graceful `Shutdown` window was exceeded → consider a query-side timeout
-  on long graph traversals before extending the server shutdown window
-  (`main.go:93`).
+  graceful `Shutdown` window (default 30 s, configurable via
+  `ESHU_API_SHUTDOWN_TIMEOUT`) was exceeded → consider a query-side timeout on
+  long graph traversals before extending the server shutdown window
+  (`main.go:95`).
 
 ## Anti-patterns specific to this package
 
