@@ -23,6 +23,12 @@ const (
 	ProviderAzureDevOps Provider = "azure_devops"
 	// ProviderJenkins identifies webhook events emitted by Jenkins.
 	ProviderJenkins Provider = "jenkins"
+	// ProviderCircleCI identifies webhook events emitted by CircleCI.
+	ProviderCircleCI Provider = "circleci"
+	// ProviderBuildkite identifies webhook events emitted by Buildkite.
+	ProviderBuildkite Provider = "buildkite"
+	// ProviderDrone identifies webhook events emitted by Drone.
+	ProviderDrone Provider = "drone"
 )
 
 // EventKind names the normalized event category that can trigger refresh work.

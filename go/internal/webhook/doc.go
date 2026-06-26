@@ -2,8 +2,9 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package webhook verifies GitHub, GitLab, Bitbucket, Azure DevOps, Jenkins,
-// PagerDuty, and Jira webhook authentication material and normalizes provider
-// payloads into repository or incident-source refresh trigger decisions.
+// CircleCI, Buildkite, Drone, PagerDuty, and Jira webhook authentication
+// material and normalizes provider payloads into repository or incident-source
+// refresh trigger decisions.
 //
 // The package deliberately stops before persistence or queue handoff. Trigger
 // describes the provider decision; StoredTrigger adds the durable status fields
