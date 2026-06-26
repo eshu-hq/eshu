@@ -7,8 +7,7 @@
 4. `specs/collector_fact_contract.v1.yaml` — the per-collector spec.
 
 ## Invariants
-- Test-only package. No runtime imports beyond `testing`, `context`, `facts`,
-  and `awscloud`.
+- Test-only package. No database, HTTP, or queue runtime imports.
 - Every exported helper calls `t.Helper()` first.
 - `AssertFactKinds` checks subset membership — undeclared kinds fail the test.
 - `AssertRequiredPayloadKeys` checks declared keys only — extra keys are

@@ -80,6 +80,13 @@ func TestContractShape(t *testing.T) {
 			GrantOutcome:   awscloud.S3ExternalPrincipalGrantOutcomePublic,
 			Public:         true,
 		}},
+		ResourcePolicyStatements: []ResourcePolicyStatement{{
+			StatementSID: "AllowPartner",
+			Effect:       "Allow",
+			Actions:      []string{"s3:GetObject"},
+			Resources:    []string{"arn:aws:s3:::orders-artifacts/*"},
+			PrincipalTypes: []string{"AWS"},
+		}},
 	}}}
 
 	envelopes, err := (Scanner{Client: client}).Scan(t.Context(), testBoundary())

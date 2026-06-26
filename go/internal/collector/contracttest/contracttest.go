@@ -84,7 +84,7 @@ func AssertRejectsMismatchedServiceKind(t *testing.T, scan ScanFunc, correctBoun
 		return
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(wrongServiceKind)) &&
-		!strings.Contains(err.Error(), "service_kind") {
+		!strings.Contains(strings.ToLower(err.Error()), "service_kind") {
 		t.Errorf("scan error = %v, want reference to %q or service_kind", err, wrongServiceKind)
 	}
 }

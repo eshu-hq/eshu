@@ -40,4 +40,3 @@ No runtime telemetry. This package is test-only.
 
 ## Related docs
 - `specs/collector_fact_contract.v1.yaml` — the per-collector contract spec.
-- `docs/internal/design/awscloud-test-parity.md` — awscloud test depth ADR.
