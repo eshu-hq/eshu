@@ -41,26 +41,26 @@ func wireAPI(
 	getenv func(string) string,
 	logger *slog.Logger,
 	prometheusHandler http.Handler,
-) (http.Handler, func(), error) {
+) (http.Handler, func(), *telemetry.Instruments, error) {
 	queryProfile, err := loadQueryProfile(getenv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load query profile: %w", err)
+		return nil, nil, nil, fmt.Errorf("load query profile: %w", err)
 	}
 	graphBackend, err := loadGraphBackend(getenv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load graph backend: %w", err)
+		return nil, nil, nil, fmt.Errorf("load graph backend: %w", err)
 	}
 	semanticProviderProfiles, err := semanticprofile.LoadStatusesFromEnv(getenv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load semantic provider profiles: %w", err)
+		return nil, nil, nil, fmt.Errorf("load semantic provider profiles: %w", err)
 	}
 	semanticPolicy, err := semanticpolicy.LoadFromEnv(getenv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load semantic extraction policy: %w", err)
+		return nil, nil, nil, fmt.Errorf("load semantic extraction policy: %w", err)
 	}
 	semanticSearchEmbedding, err := searchembedruntime.ConfigFromEnv(getenv, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load semantic search embedder: %w", err)
+		return nil, nil, nil, fmt.Errorf("load semantic search embedder: %w", err)
 	}
 	semanticProviderProfiles = semanticpolicy.ApplyToProviderStatuses(
 		semanticProviderProfiles,
@@ -69,17 +69,17 @@ func wireAPI(
 
 	apiKey, err := internalruntime.ResolveAPIKey(getenv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve api key: %w", err)
+		return nil, nil, nil, fmt.Errorf("resolve api key: %w", err)
 	}
 	scopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve scoped token registry: %w", err)
+		return nil, nil, nil, fmt.Errorf("resolve scoped token registry: %w", err)
 	}
 	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
 
 	driver, neo4jDB, err := openQueryGraph(ctx, getenv, queryProfile, logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Open Postgres using pgx driver
@@ -89,7 +89,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
+		return nil, nil, nil, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
 	}
 
 	db, err := sql.Open("pgx", pgDSN)
@@ -97,14 +97,14 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("open postgres: %w", err)
+		return nil, nil, nil, fmt.Errorf("open postgres: %w", err)
 	}
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("ping postgres: %w", err)
+		return nil, nil, nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
@@ -127,7 +127,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
+		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
 	instruments, err := telemetry.NewInstruments(otel.Meter("eshu-api"))
 	if err != nil {
@@ -135,7 +135,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("register query instruments: %w", err)
+		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
 	governanceAudit := newGovernanceAuditStore(db, instruments)
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
@@ -164,7 +164,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("new router: %w", err)
+		return nil, nil, nil, fmt.Errorf("new router: %w", err)
 	}
 	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments)
 	if err != nil {
@@ -172,7 +172,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("configure oidc login: %w", err)
+		return nil, nil, nil, fmt.Errorf("configure oidc login: %w", err)
 	}
 	router.OIDCLogin = oidcLoginHandler
 	oidcSessionRefreshWorker, err := newOIDCSessionRefreshWorker(getenv, db, instruments, logger)
@@ -181,7 +181,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("configure oidc session refresh: %w", err)
+		return nil, nil, nil, fmt.Errorf("configure oidc session refresh: %w", err)
 	}
 	if oidcSessionRefreshWorker != nil {
 		go oidcSessionRefreshWorker.Run(ctx)
@@ -198,7 +198,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("configure saml sso: %w", err)
+		return nil, nil, nil, fmt.Errorf("configure saml sso: %w", err)
 	}
 	router.SAML = samlHandler
 	router.AuthProviders = &query.AuthProviderListHandler{
@@ -245,7 +245,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, fmt.Errorf("mount runtime surface: %w", err)
+		return nil, nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
 	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, mux, adminRecoveryAuditAppender(governanceAudit))
@@ -262,7 +262,7 @@ func wireAPI(
 		}
 	}
 
-	return authedMux, cleanup, nil
+	return authedMux, cleanup, instruments, nil
 }
 
 func openQueryGraph(
