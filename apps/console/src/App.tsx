@@ -358,7 +358,7 @@ export function App(): React.JSX.Element {
           </div>
         </div>
       </nav>
-      <div className="main">
+      <main className="main">
         <header className="topbar">
           <div className="topbar-title"><h1>{pageTitle}</h1><span>Read-only code-to-cloud graph status & evidence</span></div>
           <form className="searchbox" onSubmit={submitSearch}>
@@ -420,7 +420,7 @@ export function App(): React.JSX.Element {
         ) : (
           <ConnectionState status={source.status} onConnect={() => setOpen(true)} />
         )}
-      </div>
+      </main>
       {drawer && client ? <ServiceDrawer name={drawer} model={visibleModel} client={client} onClose={() => setDrawer(null)} /> : null}
     </div>
   );

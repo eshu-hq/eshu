@@ -321,7 +321,7 @@ function RelationshipList({
   }
   return (
     <section className="seg-edges" aria-label="Relationships">
-      <h4>Relationships</h4>
+      <h3>Relationships</h3>
       <ul>
         {edges.map((edge) => {
           const active = selected?.kind === "edge" && selected.id === edge.id;
@@ -350,7 +350,7 @@ function NextCalls({ calls }: { readonly calls: readonly AnswerNextCall[] }): Re
   }
   return (
     <section className="seg-next" aria-label="Recommended next calls">
-      <h4>Recommended next calls</h4>
+      <h3>Recommended next calls</h3>
       <ul>
         {calls.map((call, index) => (
           <li key={`${call.tool}-${call.route ?? ""}-${index}`}>
@@ -370,7 +370,7 @@ function StateList({ title, values }: { readonly title: string; readonly values:
   }
   return (
     <section className="seg-statelist">
-      <h4>{title}</h4>
+      <h3>{title}</h3>
       <ul>
         {unique.map((value) => <li key={value}>{value}</li>)}
       </ul>

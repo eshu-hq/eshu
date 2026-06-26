@@ -220,7 +220,7 @@ function renderFile(file: RepoFile, highlight: HighlightRange): React.JSX.Elemen
   if (binary) return <p className="empty" style={{ padding: 28 }}>Binary file ({file.size} bytes) — not shown.</p>;
   const lines = text.split("\n");
   return (
-    <div className="code-view">
+    <div className="code-view" tabIndex={0}>
       {file.truncated ? <div className="prov-banner warn" style={{ padding: "6px 12px" }}>Truncated to the size cap.</div> : null}
       <pre className="code-pre"><code>{lines.map((ln, i) => (
         <span

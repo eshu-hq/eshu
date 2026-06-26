@@ -275,7 +275,7 @@ function IngressView({
             <HopEvidence hop={selectedHop} truth={ingress} />
           ) : (
             <div className="exposure-evidence-empty">
-              <h4>Hop evidence</h4>
+              <h3>Hop evidence</h3>
               <p>Select a hop in the chain to inspect its evidence and truth level.</p>
             </div>
           )}
@@ -294,7 +294,7 @@ function HopEvidence({
 }): React.JSX.Element {
   return (
     <div className="exposure-evidence">
-      <h4>{hop.label}</h4>
+      <h3>{hop.label}</h3>
       <dl>
         <div>
           <dt>Node</dt>

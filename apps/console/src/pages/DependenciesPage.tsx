@@ -158,7 +158,7 @@ function PackageDependencyBrowser({
           {source === "loading" ? (
             <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading dependencies...</p></div>
           ) : (
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table className="tbl wide">
                 <thead><tr><th>Anchor</th><th>Version</th><th>{relatedHeader}</th><th>Ecosystem</th><th>Range</th><th>Type</th><th>Optional</th></tr></thead>
                 <tbody>
@@ -266,7 +266,7 @@ function RepoDependencyChains({
           {source === "loading" ? (
             <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading dependency chains...</p></div>
           ) : (
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table className="tbl wide">
                 <thead><tr><th>Package</th><th>Ecosystem</th><th>Range</th><th>Publisher repo (inferred)</th></tr></thead>
                 <tbody>

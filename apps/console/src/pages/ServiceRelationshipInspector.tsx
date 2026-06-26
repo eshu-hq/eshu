@@ -116,8 +116,8 @@ function InspectorShell({
 }): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<InspectorTab>("summary");
   return (
-    <aside className="relationship-inspector" aria-label="Relationship inspector">
-      <h4>{title}</h4>
+    <aside className="relationship-inspector" aria-label="Relationship inspector" tabIndex={0}>
+      <h3>{title}</h3>
       <span>{type}</span>
       <div className="relationship-inspector-tabs" role="tablist" aria-label="Relationship inspector views">
         {inspectorTabs.map((tab) => (

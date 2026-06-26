@@ -203,7 +203,7 @@ export function CodeGraphPage({ model, client }: {
           <h2>Code graph</h2>
           <p>Symbol and module relationships at code grain from <span className="mono">POST /api/v0/code/relationships/story</span>. Dead-code candidates from the same repository are shown as orphan analyzer nodes.</p>
         </div>
-        <select className="code-repo-select mono" value={selected?.id ?? ""} onChange={(event) => selectCandidate(event.target.value)}>
+        <select aria-label="Repository" className="code-repo-select mono" value={selected?.id ?? ""} onChange={(event) => selectCandidate(event.target.value)}>
           {candidates.map((finding) => <option key={finding.id} value={finding.id}>{symbolFromFinding(finding)} · {finding.entity}</option>)}
         </select>
       </div>

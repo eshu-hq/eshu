@@ -19,7 +19,7 @@ export function ChangedSincePacketComparison({
     <section className="changed-since-packet" aria-label="Evidence packet comparison">
       <div className="changed-since-packet-head">
         <div>
-          <h4>Evidence packet comparison</h4>
+          <h3>Evidence packet comparison</h3>
           <p>{comparison.boundedSampleNote}</p>
         </div>
         <div className="changed-since-generation-meta">

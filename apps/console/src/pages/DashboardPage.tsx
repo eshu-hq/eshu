@@ -178,7 +178,7 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
               <p className="empty">No graph entities are available from the live model yet.</p>
             </div>
           )}
-          <aside className="dashboard-atlas-inspector" aria-label="Relationship atlas inspector">
+          <aside className="dashboard-atlas-inspector" aria-label="Relationship atlas inspector" tabIndex={0}>
               {sel ? (
                 <div className="inspector">
                   <div className="insp-head"><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>

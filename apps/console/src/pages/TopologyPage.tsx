@@ -221,8 +221,8 @@ function TopologyCanvas({
     );
 
   return (
-    <div className="topology-canvas">
-      <svg aria-label={`${graph.meta.serviceName} topology`} role="img" viewBox="0 0 1360 560">
+    <div className="topology-canvas" tabIndex={0}>
+      <svg aria-label={`${graph.meta.serviceName} topology`} viewBox="0 0 1360 560">
         <defs>
           <marker id="topology-arrow" markerHeight="9" markerWidth="9" orient="auto" refX="7.5" refY="4">
             <path d="M0 0 L8 4 L0 8 Z" fill="var(--edge)" />

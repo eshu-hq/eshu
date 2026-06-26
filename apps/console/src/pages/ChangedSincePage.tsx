@@ -228,7 +228,7 @@ export function ChangedSincePage({
                 </Link>
               </div>
               {comparison ? <ChangedSincePacketComparison comparison={comparison} /> : null}
-              <div className="table-scroll">
+              <div className="table-scroll" tabIndex={0}>
                 <table className="tbl wide">
                   <thead>
                     <tr><th>Category</th><th>Counts</th><th>Evidence samples</th></tr>
@@ -246,7 +246,7 @@ export function ChangedSincePage({
 
         <Panel title="Generation lifecycle" sub="Repository freshness baselines">
           {generations ? (
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table className="tbl wide">
                 <thead>
                   <tr><th>Generation</th><th>Status</th><th>Observed</th><th>Queue</th></tr>

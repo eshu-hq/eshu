@@ -30,7 +30,7 @@ export function ServiceSpotlightPanel({
       <div className="service-atlas-header">
         <div className="service-atlas-copy">
           <span className="entity-kind">Service</span>
-          <h2>Service Atlas</h2>
+          <h3>Service Atlas</h3>
           <h1>{spotlight.name}</h1>
           <p>{humanSummary(spotlight)}</p>
           <div className="service-storyline" aria-label="Service story highlights">
@@ -325,7 +325,7 @@ function PanelHeading({
 }): React.JSX.Element {
   return (
     <div className="service-panel-heading">
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       <span>{detail}</span>
     </div>
   );

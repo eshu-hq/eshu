@@ -83,7 +83,7 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
 };
 
 export const LAYER_COLOR: Record<GraphLayer, string> = {
-  code: "#14b8a6", deploy: "#ff8a00", infra: "#8b5cf6",
+  code: "#14b8a6", deploy: "#ff8a00", infra: "#a17ef7",
   runtime: "#4f8cff", security: "#f0506e", ops: "#22c55e"
 };
 
