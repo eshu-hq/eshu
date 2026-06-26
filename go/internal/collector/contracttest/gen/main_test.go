@@ -77,6 +77,7 @@ collectors:
 		`Kind: "aws_resource"`,
 		`Kind: "aws_relationship"`,
 		"func Contracts()",
+		"AWSContract,",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("generated output missing %q", want)
