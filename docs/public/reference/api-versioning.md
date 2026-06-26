@@ -1,5 +1,11 @@
 # API Versioning and Migration
 
+!!! note "Implementation status"
+    - `/api/v1/` alias: V-1 ([#3941](https://github.com/eshu-hq/eshu/pull/3941))
+    - `Deprecation` / `Sunset` headers: V-2 (forthcoming)
+    - `ESHU_API_V0_SUNSET_DATE` env var: V-2 (forthcoming)
+    - This document is accurate once V-1 and V-2 are merged.
+
 Eshu's HTTP API uses version prefixes to give clients a predictable upgrade
 window. This page covers the version lifecycle, the deprecation headers
 clients receive, and the migration path from `v0` to `v1`.
