@@ -16,18 +16,21 @@ func TestRRFMonotonicity(t *testing.T) {
 
 	// When a document appears in more lists or at a higher rank, its fused
 	// score must never decrease — monotonicity is the core RRF property.
-	//
-	// Setup: two ranked lists. Doc 0 appears at rank 0 in list A but is
-	// absent from list B. Doc 1 appears at rank 1 in list A and rank 2 in
-	// list B. Doc 0's single-list score must be less than doc 1's two-list
-	// score at the same or worse ranks.
 	k := 60
-	singleList := rrfFuse([][]int{{0}}, k)
-	twoLists := rrfFuse([][]int{{1}, {1, 2, 3}}, k)
 
-	if twoLists[1] <= singleList[0] {
-		t.Errorf("two-list score %v <= single-list score %v — violates monotonicity",
-			twoLists[1], singleList[0])
+	// Same document in more lists → strictly higher score.
+	oneList := rrfFuse([][]int{{5}}, k)
+	twoLists := rrfFuse([][]int{{5}, {5}}, k)
+	if twoLists[5] <= oneList[5] {
+		t.Errorf("two-list score %v <= one-list score %v — same doc more lists must increase score",
+			twoLists[5], oneList[5])
+	}
+
+	// Same document at a higher (better) rank → strictly higher score.
+	ranked := rrfFuse([][]int{{3, 7}}, k)
+	if ranked[3] <= ranked[7] {
+		t.Errorf("rank-0 score %v <= rank-1 score %v — better rank must increase score",
+			ranked[3], ranked[7])
 	}
 
 	// Same-rank-in-both-lists must score higher than in-one-list-only.
@@ -70,11 +73,11 @@ func TestRRFTieBreak(t *testing.T) {
 	if len(ordered) != 2 {
 		t.Fatalf("expected 2 ranked docs, got %d", len(ordered))
 	}
-	if docs[ordered[0]].ID != "a" {
-		t.Errorf("tie-break: first = %q, want a (ascending id)", docs[ordered[0]].ID)
+	if index.documents[ordered[0]].doc.ID != "a" {
+		t.Errorf("tie-break: first = %q, want a (ascending id)", index.documents[ordered[0]].doc.ID)
 	}
-	if docs[ordered[1]].ID != "b" {
-		t.Errorf("tie-break: second = %q, want b", docs[ordered[1]].ID)
+	if index.documents[ordered[1]].doc.ID != "b" {
+		t.Errorf("tie-break: second = %q, want b", index.documents[ordered[1]].doc.ID)
 	}
 }
 
@@ -138,7 +141,7 @@ func TestRRFConstantSensitivity(t *testing.T) {
 	// makes top ranks much more valuable relative to lower ones, while a
 	// larger k compresses scores toward uniformity.
 
-	// Two ranked lists with the same top-10.
+	// One ranked list with the top-10 documents.
 	lists := [][]int{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}
 
 	// Small k — large spread between rank 1 and rank 10.
