@@ -48,6 +48,11 @@ type bootstrapCommitter interface {
 	BackfillAllRelationshipEvidence(context.Context, trace.Tracer, *telemetry.Instruments) error
 	MaterializeIaCReachability(context.Context, trace.Tracer, *telemetry.Instruments) error
 	ReopenDeploymentMappingWorkItems(context.Context, trace.Tracer, *telemetry.Instruments) error
+	// ReopenCodeImportRepoEdgeWorkItems replays succeeded code_import_repo_edge
+	// reducer work items so they re-run once the cross-scope package-registry
+	// owner facts they join against are present — the same after-the-fact
+	// dependency ReopenDeploymentMappingWorkItems handles. Idempotent.
+	ReopenCodeImportRepoEdgeWorkItems(context.Context, trace.Tracer, *telemetry.Instruments) error
 	// EnqueueConfigStateDriftIntents enqueues one config_state_drift reducer
 	// intent per state_snapshot:* scope with an active generation. Phase 3.5
 	// trigger required by the facts-first bootstrap ordering: drift consumes
@@ -399,6 +404,25 @@ func runPipelined(
 		return fmt.Errorf("reopen deployment_mapping fatal: %w", err)
 	}
 	recordPhase(telemetry.BootstrapPhaseDeploymentReopen, reopenStart)
+
+	// Reopen succeeded code_import_repo_edge work items for the same after-the-fact
+	// reason: the code-import projection resolves owners through the cross-scope
+	// package-registry owner index, which may have been empty when the projection
+	// first ran (e.g. a re-run after package-registry facts land). Replaying it
+	// lets cross-repo DEPENDS_ON edges form once that ownership evidence exists.
+	codeImportReopenStart := time.Now()
+	if err := cd.committer.ReopenCodeImportRepoEdgeWorkItems(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseCodeImportReopen, codeImportReopenStart)
+		if logger != nil {
+			logger.ErrorContext(
+				ctx, "reopen code_import_repo_edge work items failed",
+				slog.String("error", err.Error()),
+				telemetry.FailureClassAttr("reopen_code_import_repo_edge_failure"),
+			)
+		}
+		return fmt.Errorf("reopen code_import_repo_edge fatal: %w", err)
+	}
+	recordPhase("code_import_repo_edge_reopen", codeImportReopenStart)
 
 	// Phase 3.5: enqueue config_state_drift intents for every state_snapshot
 	// scope that has an active generation. The drift handler consumes both

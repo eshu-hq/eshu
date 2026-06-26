@@ -174,3 +174,17 @@ WHERE stage = 'reducer'
   AND status = 'succeeded'
 ORDER BY updated_at ASC, work_item_id ASC
 `
+
+// listSucceededCodeImportRepoEdgeWorkItemsQuery selects the code-import
+// repo-edge reducer work items that already succeeded. They are replayed after
+// deferred maintenance so the projection re-runs once the cross-scope
+// package-registry ownership facts it joins against are present — the same
+// after-the-fact dependency the deployment_mapping reopen handles.
+const listSucceededCodeImportRepoEdgeWorkItemsQuery = `
+SELECT work_item_id
+FROM fact_work_items
+WHERE stage = 'reducer'
+  AND domain = 'code_import_repo_edge'
+  AND status = 'succeeded'
+ORDER BY updated_at ASC, work_item_id ASC
+`

@@ -180,7 +180,26 @@ func codeImportEntrySource(entry map[string]any) string {
 		}
 		return resolved
 	}
-	return strings.TrimSpace(anyToString(entry["source"]))
+	// Field semantics differ by language. JS/TS/Python always set "source" to the
+	// module specifier (with "name" usually the imported symbol, or the module
+	// itself for bare `import X` / side-effect imports), so the resolvable
+	// coordinate is "source"; reading "name" first could key on a symbol and drop
+	// the edge (or fabricate a false one on a symbol/package name collision). Go
+	// emits the import PATH under "name" and never sets "source". So prefer
+	// "source" and fall back to "name" only when "source" is absent.
+	//
+	// Many parsers besides Go emit "name"-only import entries (Java, C#, Rust, …),
+	// so the fallback is NOT Go-exclusive in general. It is safe today because
+	// normalizeImportSource only resolves the js/ts/python/go ecosystems and drops
+	// every other language to ("",""); among the resolved four, only Go omits
+	// "source". A future normalizeImportSource ecosystem whose parser emits a
+	// symbol-style "name" MUST keep this source-before-name precedence (or carry
+	// its own field handling) so the fallback never feeds a symbol into owner
+	// resolution.
+	if source := strings.TrimSpace(anyToString(entry["source"])); source != "" {
+		return source
+	}
+	return strings.TrimSpace(anyToString(entry["name"]))
 }
 
 // isRepoRelativeResolvedSource reports whether a resolved_source value is a

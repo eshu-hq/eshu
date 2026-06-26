@@ -368,6 +368,11 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (Row
 	if strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'") {
 		return &queueFakeRows{}, nil
 	}
+	if strings.Contains(query, "domain = 'code_import_repo_edge'") {
+		// code_import_repo_edge reopen listing: default to no succeeded items so
+		// the reopen no-ops in tests that do not stage explicit responses for it.
+		return &queueFakeRows{}, nil
+	}
 	return nil, errors.New("unexpected query in transaction")
 }
 
