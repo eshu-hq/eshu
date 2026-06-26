@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 504 lines: full API wiring sequence (Postgres + graph driver + admin surface + auth). Splitting risks breaking the `mountRuntimeSurface` order contract documented in cmd/api/AGENTS.md.
+package main //nolint:filelength // ~539 lines: full API wiring sequence (Postgres + graph driver + admin surface + auth). Splitting risks breaking the `mountRuntimeSurface` order contract documented in cmd/api/AGENTS.md.
 
 import (
 	"context"
@@ -250,10 +250,16 @@ func wireAPI(
 
 	authedMux := wrapAPIAuth(apiKey, scopedTokenResolver, browserSessionResolver, mux, adminRecoveryAuditAppender(governanceAudit))
 
-	// Install the fully-wrapped handler into the Ask runner's deferred handler so
-	// inner tool dispatches re-run auth + the scoped-route gate under the caller's
-	// token. Done before returning, hence before any request is served.
-	askInnerHandler.Set(authedMux)
+	// Rewrite /api/v1/* to /api/v0/* before auth so scoped-token and
+	// browser-session route classification sees the v0 path.
+	// Must wrap authedMux (not be wrapped by it) because wrapAPIAuth
+	// puts auth as the outer layer.
+	final := v1PrefixAliasMiddleware(authedMux)
+
+	// Install the fully-wrapped handler into the Ask runner's deferred
+	// handler so inner tool dispatches re-run auth + the scoped-route
+	// gate under the caller's token.
+	askInnerHandler.Set(final)
 
 	cleanup := func() {
 		_ = db.Close()
@@ -262,7 +268,7 @@ func wireAPI(
 		}
 	}
 
-	return authedMux, cleanup, instruments, nil
+	return final, cleanup, instruments, nil
 }
 
 func openQueryGraph(
@@ -513,4 +519,23 @@ func newRouterWithSemanticEmbedding(
 	router.Admin.Recovery = recoveryHandler
 	router.Admin.Reindexer = reindexer
 	return router, nil
+}
+
+// v1PrefixAliasMiddleware rewrites /api/v1/* request paths to /api/v0/*
+// before passing to next. It is applied ahead of auth middleware so
+// scoped-token and browser-session route classification sees the v0 path.
+// The request is cloned; method, headers, query parameters, and body are
+// preserved.
+func v1PrefixAliasMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			r2 := r.Clone(r.Context())
+			u := *r.URL
+			u.Path = "/api/v0/" + r.URL.Path[len("/api/v1/"):]
+			r2.URL = &u
+			next.ServeHTTP(w, r2)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
