@@ -27,8 +27,8 @@ const (
 	envAuthOIDCSessionRefreshWindow = "ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW"
 	envAuthOIDCLoginRatePerSec      = "ESHU_AUTH_OIDC_LOGIN_RATE_PER_SEC"
 	envAuthOIDCLoginRateBurst       = "ESHU_AUTH_OIDC_LOGIN_RATE_BURST"
-	envAuthOIDCLoginUserRatePerMin  = "ESHU_AUTH_OIDC_LOGIN_USER_RATE_PER_MIN"
-	envAuthOIDCLoginUserBurst       = "ESHU_AUTH_OIDC_LOGIN_USER_BURST"
+	envAuthOIDCLoginProviderRatePerMin  = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_RATE_PER_MIN"
+	envAuthOIDCLoginProviderBurst       = "ESHU_AUTH_OIDC_LOGIN_PROVIDER_BURST"
 )
 
 type postgresOIDCStoreAdapter struct {
@@ -251,30 +251,27 @@ func newOIDCRateLimiter(getenv func(string) string, instruments *telemetry.Instr
 	}
 	ipRate := query.DefaultOIDCLoginRatePerSec
 	if v := strings.TrimSpace(getenv(envAuthOIDCLoginRatePerSec)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			ipRate = n
 		}
 	}
 	ipBurst := query.DefaultOIDCLoginBurst
 	if v := strings.TrimSpace(getenv(envAuthOIDCLoginRateBurst)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			ipBurst = n
 		}
 	}
-	userRate := query.DefaultOIDCLoginUserRatePerMin
-	if v := strings.TrimSpace(getenv(envAuthOIDCLoginUserRatePerMin)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			userRate = n
+	providerRate := query.DefaultOIDCLoginProviderRatePerMin
+	if v := strings.TrimSpace(getenv(envAuthOIDCLoginProviderRatePerMin)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			providerRate = n
 		}
 	}
-	userBurst := query.DefaultOIDCLoginUserBurst
-	if v := strings.TrimSpace(getenv(envAuthOIDCLoginUserBurst)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			userBurst = n
+	providerBurst := query.DefaultOIDCLoginProviderBurst
+	if v := strings.TrimSpace(getenv(envAuthOIDCLoginProviderBurst)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			providerBurst = n
 		}
 	}
-	if ipRate <= 0 && userRate <= 0 {
-		return nil
-	}
-	return query.NewOIDCRateLimiter(float64(ipRate), ipBurst, float64(userRate), userBurst, instruments)
+	return query.NewOIDCRateLimiter(float64(ipRate), ipBurst, float64(providerRate), providerBurst, instruments)
 }
