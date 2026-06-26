@@ -15,4 +15,4 @@ go run ./internal/collector/contracttest/gen \
   -repo-root "$repo_root" \
   -spec "$spec"
 
-gofmt -w internal/collector/contracttest/contract_data.go
+gofmt -w "${repo_root}/go/internal/collector/contracttest/contract_data.go"

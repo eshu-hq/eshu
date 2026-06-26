@@ -19,6 +19,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const supportedVersion = "1.0.0"
+
 type options struct {
 	repoRoot string
 	specPath string
@@ -112,10 +114,16 @@ func loadSpec(path string) (*contractSpec, error) {
 	if spec.Version == "" {
 		return nil, fmt.Errorf("contract spec missing version field")
 	}
+	if spec.Version != supportedVersion {
+		return nil, fmt.Errorf("contract spec version %q not supported (expected %q)", spec.Version, supportedVersion)
+	}
 	if len(spec.Collectors) == 0 {
 		return nil, fmt.Errorf("contract spec must declare at least one collector")
 	}
 	for name, col := range spec.Collectors {
+		if name == "" {
+			return nil, fmt.Errorf("collector entry with empty key: collector_kind=%q", col.CollectorKind)
+		}
 		if col.CollectorKind == "" {
 			return nil, fmt.Errorf("collector %q missing collector_kind", name)
 		}
@@ -167,11 +175,16 @@ func generateGo(spec *contractSpec) ([]byte, error) {
 
 func toContractVarName(collectorKey string) string {
 	// Map collector YAML key to exported Go variable name.
+	if collectorKey == "" {
+		panic("toContractVarName: collector key must not be empty (should be caught by loadSpec)")
+	}
 	switch collectorKey {
 	case "aws":
 		return "AWSContract"
 	default:
-		// PascalCase the collector key
+		// PascalCase the collector key. This produces valid Go identifiers
+		// only for collector keys that are alphanumeric. Non-alphanumeric
+		// keys are rejected by loadSpec validation.
 		return strings.ToUpper(collectorKey[:1]) + collectorKey[1:] + "Contract"
 	}
 }

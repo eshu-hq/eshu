@@ -96,6 +96,23 @@ collectors:
 		t.Fatalf("check: %v", err)
 	}
 
+	// Verify idempotency: generating twice produces identical bytes.
+	var genOut2 bytes.Buffer
+	if err := run([]string{
+		"-repo-root", tmp,
+		"-spec", specPath,
+		"-out", outPath,
+	}, &genOut2, &genOut2); err != nil {
+		t.Fatalf("second generate: %v", err)
+	}
+	data2, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read second generated file: %v", err)
+	}
+	if !bytes.Equal(data, data2) {
+		t.Error("generator is not idempotent — second run produced different bytes")
+	}
+
 	// Corrupt output and verify -check fails
 	if err := os.WriteFile(outPath, []byte("corrupted"), 0o644); err != nil {
 		t.Fatal(err)
@@ -158,6 +175,9 @@ func TestRun_InvalidSpec_EmptyCollectors(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty collectors")
 	}
+	if !strings.Contains(err.Error(), "at least one collector") {
+		t.Errorf("expected collectors error, got: %v", err)
+	}
 }
 
 func TestRun_InvalidSpec_MissingCollectorKind(t *testing.T) {
@@ -175,6 +195,9 @@ func TestRun_InvalidSpec_MissingCollectorKind(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing collector_kind")
 	}
+	if !strings.Contains(err.Error(), "missing collector_kind") {
+		t.Errorf("expected collector_kind error, got: %v", err)
+	}
 }
 
 func TestRun_InvalidSpec_EmptyFactKinds(t *testing.T) {
@@ -191,6 +214,49 @@ func TestRun_InvalidSpec_EmptyFactKinds(t *testing.T) {
 	}, &buf, &buf)
 	if err == nil {
 		t.Fatal("expected error for empty fact_kinds")
+	}
+	if !strings.Contains(err.Error(), "at least one fact kind") {
+		t.Errorf("expected fact_kinds error, got: %v", err)
+	}
+}
+
+func TestRun_InvalidSpec_WrongVersion(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "spec.yaml")
+	if err := os.WriteFile(specPath, []byte("version: \"9.0.0\"\ncollectors:\n  aws:\n    collector_kind: aws\n    fact_kinds:\n      f: {required_payload_keys: [a]}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	err := run([]string{
+		"-repo-root", tmp,
+		"-spec", specPath,
+		"-out", filepath.Join(tmp, "out.go"),
+	}, &buf, &buf)
+	if err == nil {
+		t.Fatal("expected error for unsupported version")
+	}
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Errorf("expected version-not-supported error, got: %v", err)
+	}
+}
+
+func TestRun_InvalidSpec_EmptyCollectorKey(t *testing.T) {
+	tmp := t.TempDir()
+	specPath := filepath.Join(tmp, "spec.yaml")
+	if err := os.WriteFile(specPath, []byte("version: \"1.0.0\"\ncollectors:\n  \"\":\n    collector_kind: aws\n    fact_kinds:\n      f: {required_payload_keys: [a]}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	err := run([]string{
+		"-repo-root", tmp,
+		"-spec", specPath,
+		"-out", filepath.Join(tmp, "out.go"),
+	}, &buf, &buf)
+	if err == nil {
+		t.Fatal("expected error for empty collector key")
+	}
+	if !strings.Contains(err.Error(), "empty key") {
+		t.Errorf("expected empty-key error, got: %v", err)
 	}
 }
 
