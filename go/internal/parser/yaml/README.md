@@ -3,7 +3,8 @@
 ## Purpose
 
 internal/parser/yaml owns YAML-family source extraction for Kubernetes,
-Argo CD, Crossplane, Kustomize, Helm, and CloudFormation/SAM payload rows. It
+Argo CD, Crossplane, Kustomize, Helm, CloudFormation/SAM, and Atlantis
+(`atlantis.yaml` repo-level project) payload rows. It
 exists so YAML parsing behavior can evolve behind a language-owned package
 without depending on the parent parser dispatcher. It also emits metadata-only
 declared observability rows from Helm values, GrafanaFolder and

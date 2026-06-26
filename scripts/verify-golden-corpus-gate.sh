@@ -383,6 +383,10 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # digest-pinned image resolves (exact decision) to the OCI manifest node, and the
 # kubernetes_correlation_materialization domain (reopened in maintenance once the
 # OCI generation is active) promotes that decision into the RUNS_IMAGE edge.
+# rc-5 (MANAGES) and rc-6 (DEPENDS_ON between AtlantisProjects) are now required
+# too — the terraform_comprehensive fixture carries a depth-1 atlantis.yaml with
+# network + staging projects; the structural-edge phase emits both edges after the
+# AtlantisProject and Directory nodes are written for that repo.
 # Promote each by adding its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
@@ -390,8 +394,8 @@ gate_status=0
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
-	-required-node-labels="Repository,Directory,File,Function" \
-	-required-correlations="rc-3,rc-1,rc-2,rc-4" \
+	-required-node-labels="Repository,Directory,File,Function,AtlantisProject" \
+	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?

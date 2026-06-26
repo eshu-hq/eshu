@@ -57,6 +57,22 @@ func Parse(
 		}
 		return payload, nil
 	}
+	if isAtlantisConfig(filename) {
+		// Atlantis configs are decoded directly from source (not the node-walked
+		// document) so YAML anchors and merge keys in projects[] resolve.
+		rows, err := parseAtlantisProjectsFromSource(source, path)
+		if err != nil {
+			return nil, fmt.Errorf("parse atlantis config %q: %w", path, err)
+		}
+		for _, row := range rows {
+			shared.AppendBucket(payload, "atlantis_projects", row)
+		}
+		shared.SortNamedBucket(payload, "atlantis_projects")
+		if options.IndexSource {
+			payload["source"] = string(source)
+		}
+		return payload, nil
+	}
 
 	documents, err := DecodeDocuments(SanitizeTemplating(string(source)))
 	if err != nil {
@@ -86,6 +102,7 @@ func Parse(
 		"cloudformation_conditions",
 		"cloudformation_cross_stack_imports",
 		"cloudformation_cross_stack_exports",
+		"atlantis_projects",
 	} {
 		shared.SortNamedBucket(payload, bucket)
 	}
@@ -113,6 +130,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["cloudformation_conditions"] = []map[string]any{}
 	payload["cloudformation_cross_stack_imports"] = []map[string]any{}
 	payload["cloudformation_cross_stack_exports"] = []map[string]any{}
+	payload["atlantis_projects"] = []map[string]any{}
 	payload["variables"] = []map[string]any{}
 	initObservabilityBuckets(payload)
 	return payload

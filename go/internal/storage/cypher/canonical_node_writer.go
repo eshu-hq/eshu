@@ -411,6 +411,7 @@ var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
 	"K8sResource":           {},
 	"ArgoCDApplication":     {},
 	"ArgoCDApplicationSet":  {},
+	"AtlantisProject":       {},
 	"CrossplaneXRD":         {},
 	"CrossplaneComposition": {},
 	"CrossplaneClaim":       {},

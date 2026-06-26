@@ -328,6 +328,7 @@ nav:
       - TypeScript: languages/typescript.md
       - TypeScript JSX: languages/typescriptjsx.md
       - ArgoCD: languages/argocd.md
+      - Atlantis: languages/atlantis.md
       - CloudFormation: languages/cloudformation.md
       - Crossplane: languages/crossplane.md
       - Helm: languages/helm.md

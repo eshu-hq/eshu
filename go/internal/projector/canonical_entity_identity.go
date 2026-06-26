@@ -13,6 +13,7 @@ var canonicalNamePathLineEntityLabels = map[string]struct{}{
 	"Annotation":              {},
 	"ArgoCDApplication":       {},
 	"ArgoCDApplicationSet":    {},
+	"AtlantisProject":         {},
 	"Class":                   {},
 	"CloudFormationOutput":    {},
 	"CloudFormationParameter": {},

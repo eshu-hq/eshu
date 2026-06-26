@@ -1,0 +1,26 @@
+version: 3
+automerge: false
+parallel_plan: true
+projects:
+  - name: network
+    dir: network
+    terraform_version: v1.7.5
+    autoplan:
+      enabled: true
+      when_modified:
+        - "*.tf"
+    apply_requirements:
+      - approved
+  - name: staging
+    dir: staging
+    workspace: staging
+    execution_order_group: 1
+    depends_on:
+      - network
+    autoplan:
+      enabled: true
+      when_modified:
+        - "staging/*.tf"
+    apply_requirements:
+      - approved
+      - mergeable
