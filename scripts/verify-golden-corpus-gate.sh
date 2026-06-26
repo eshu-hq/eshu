@@ -387,6 +387,9 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # too — the terraform_comprehensive fixture carries a depth-1 atlantis.yaml with
 # network + staging projects; the structural-edge phase emits both edges after the
 # AtlantisProject and Directory nodes are written for that repo.
+# rc-8 (HANDLES_ROUTE) is now required too — the same api-svc fixture that drives
+# rc-2 (RUNS_IN) binds its Flask @app.route handler Functions to their Endpoint
+# nodes via Function-[:HANDLES_ROUTE]->Endpoint. Code-path edge, no new cassette.
 # Promote each by adding its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
@@ -395,7 +398,7 @@ gate_status=0
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
 	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow" \
-	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7" \
+	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?

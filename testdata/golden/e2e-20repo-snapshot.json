@@ -163,9 +163,9 @@
         "note": "KubernetesWorkload→OciImageManifest supply-chain image correlation"
       },
       "HANDLES_ROUTE": {
-        "min": 0,
+        "min": 1,
         "max": 500,
-        "note": "Function or WorkloadInstance handling an HTTP/gRPC route; 0 if endpoint-presence gate did not activate"
+        "note": "Function -[:HANDLES_ROUTE]-> Endpoint from the api-svc Flask route handlers; required as rc-8 (>=1, one per bound handler)"
       },
       "INVOKES_CLOUD_ACTION": {
         "min": 0,
@@ -293,6 +293,14 @@
         "relationship": "USES_WORKFLOW",
         "from_label": "AtlantisProject",
         "to_label": "AtlantisWorkflow",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-8",
+        "description": "At least one Function HANDLES_ROUTE an Endpoint; confirms the api-svc Flask route handlers bound to their Endpoint nodes (same fixture as rc-2 RUNS_IN; code-path edge, no new cassette)",
+        "relationship": "HANDLES_ROUTE",
+        "from_label": "Function",
+        "to_label": "Endpoint",
         "minimum_count": 1
       }
     ]
