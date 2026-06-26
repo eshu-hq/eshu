@@ -232,7 +232,3 @@ func incidentFreshnessBootstrapDefinition() Definition {
 		SQL:  incidentFreshnessSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, incidentFreshnessBootstrapDefinition())
-}

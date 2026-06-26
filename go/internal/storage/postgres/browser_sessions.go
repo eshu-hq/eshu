@@ -73,10 +73,6 @@ func browserSessionBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, browserSessionBootstrapDefinition())
-}
-
 // EnsureSchema applies the browser session registry schema.
 func (s *BrowserSessionStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

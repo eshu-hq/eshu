@@ -53,10 +53,6 @@ func scopedAPITokenBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, scopedAPITokenBootstrapDefinition())
-}
-
 // ScopedAPITokenHash returns the durable hash used to look up a bearer token.
 func ScopedAPITokenHash(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))

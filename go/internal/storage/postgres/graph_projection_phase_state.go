@@ -259,7 +259,3 @@ func graphProjectionPhaseStateBootstrapDefinition() Definition {
 		SQL:  graphProjectionPhaseStateSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, graphProjectionPhaseStateBootstrapDefinition())
-}

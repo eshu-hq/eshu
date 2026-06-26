@@ -121,10 +121,6 @@ func deferredMaintenanceBarrierBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, deferredMaintenanceBarrierBootstrapDefinition())
-}
-
 // RunDeferredRelationshipMaintenanceAfterShardDrain records this shard's drain
 // arrival and runs global deferred maintenance only after every shard in the
 // current epoch has arrived. Single-shard runtimes run maintenance directly.

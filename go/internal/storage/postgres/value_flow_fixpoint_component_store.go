@@ -65,10 +65,6 @@ func valueFlowFixpointComponentBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, valueFlowFixpointComponentBootstrapDefinition())
-}
-
 // ValueFlowFixpointComponentStore persists solved value-flow weak-component
 // results keyed by the reducer's content-derived component key.
 type ValueFlowFixpointComponentStore struct {

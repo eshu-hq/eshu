@@ -135,10 +135,6 @@ func awsPaginationCheckpointBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, awsPaginationCheckpointBootstrapDefinition())
-}
-
 // EnsureSchema applies the AWS pagination checkpoint DDL.
 func (s AWSPaginationCheckpointStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

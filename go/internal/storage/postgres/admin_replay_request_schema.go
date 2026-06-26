@@ -31,7 +31,3 @@ func adminReplayRequestBootstrapDefinition() Definition {
 		SQL:  adminReplayRequestSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, adminReplayRequestBootstrapDefinition())
-}

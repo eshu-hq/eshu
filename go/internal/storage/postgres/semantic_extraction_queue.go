@@ -94,10 +94,6 @@ func semanticExtractionJobBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, semanticExtractionJobBootstrapDefinition())
-}
-
 // SemanticExtractionQueueStore persists semantic extraction queue records.
 type SemanticExtractionQueueStore struct {
 	db ExecQueryer

@@ -381,10 +381,6 @@ func identitySubjectBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, identitySubjectBootstrapDefinition())
-}
-
 // EnsureSchema applies the identity subject schema.
 func (s *IdentitySubjectStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {

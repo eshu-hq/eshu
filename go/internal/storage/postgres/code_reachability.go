@@ -373,7 +373,3 @@ func codeReachabilityBootstrapDefinition() Definition {
 		SQL:  codeReachabilitySchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, codeReachabilityBootstrapDefinition())
-}

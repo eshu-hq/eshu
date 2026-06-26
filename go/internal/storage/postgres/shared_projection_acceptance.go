@@ -245,7 +245,3 @@ func sharedProjectionAcceptanceBootstrapDefinition() Definition {
 		SQL:  sharedProjectionAcceptanceSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, sharedProjectionAcceptanceBootstrapDefinition())
-}

@@ -27,7 +27,3 @@ func graphSchemaApplicationsBootstrapDefinition() Definition {
 		SQL:  graphSchemaApplicationsSchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, graphSchemaApplicationsBootstrapDefinition())
-}

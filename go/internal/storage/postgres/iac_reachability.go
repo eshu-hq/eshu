@@ -473,7 +473,3 @@ func iacReachabilityBootstrapDefinition() Definition {
 		SQL:  iacReachabilitySchemaSQL,
 	}
 }
-
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, iacReachabilityBootstrapDefinition())
-}

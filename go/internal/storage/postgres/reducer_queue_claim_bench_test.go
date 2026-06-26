@@ -290,9 +290,9 @@ func createReducerClaimBenchmarkSchema(ctx context.Context, db Executor, schemaN
 		return fmt.Errorf("set search_path: %w", err)
 	}
 	for _, stmt := range []string{
-		scopeSchemaSQL,
-		scopeGenerationSchemaSQL,
-		workItemSchemaSQL,
+		MigrationSQL("ingestion_scopes"),
+		MigrationSQL("scope_generations"),
+		MigrationSQL("fact_work_items"),
 		graphProjectionPhaseStateSchemaSQL,
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {

@@ -239,10 +239,6 @@ func awsScanStatusBootstrapDefinition() Definition {
 	}
 }
 
-func init() {
-	bootstrapDefinitions = append(bootstrapDefinitions, awsScanStatusBootstrapDefinition())
-}
-
 // EnsureSchema applies the AWS scan-status DDL.
 func (s AWSScanStatusStore) EnsureSchema(ctx context.Context) error {
 	if s.db == nil {
