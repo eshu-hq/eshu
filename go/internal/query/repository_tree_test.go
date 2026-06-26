@@ -286,7 +286,7 @@ func TestGetRepositoryTreeEmptyRepositoryReturnsEmptyEntries(t *testing.T) {
 	}
 }
 
-func TestGetRepositoryTree_LocalLightweightReturnsTreeWithDegradedTruth(t *testing.T) {
+func TestGetRepositoryTree_LocalLightweightReturnsTree(t *testing.T) {
 	t.Parallel()
 
 	handler := &RepositoryHandler{
@@ -320,6 +320,9 @@ func TestGetRepositoryTree_LocalLightweightReturnsTreeWithDegradedTruth(t *testi
 	}
 	if got, want := string(env.Truth.Profile), string(ProfileLocalLightweight); got != want {
 		t.Fatalf("truth profile = %s, want %s", got, want)
+	}
+	if got, want := string(env.Truth.Level), string(TruthLevelDerived); got != want {
+		t.Fatalf("truth level = %s, want %s", got, want)
 	}
 	raw, err := json.Marshal(env.Data)
 	if err != nil {

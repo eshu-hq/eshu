@@ -206,7 +206,7 @@ func TestGetRepositoryContentTruncatesLargeFile(t *testing.T) {
 	}
 }
 
-func TestGetRepositoryContent_LocalLightweightReturnsContentWithDegradedTruth(t *testing.T) {
+func TestGetRepositoryContent_LocalLightweightReturnsContent(t *testing.T) {
 	t.Parallel()
 
 	content := "# Title\nhello\n"
@@ -240,6 +240,9 @@ func TestGetRepositoryContent_LocalLightweightReturnsContentWithDegradedTruth(t 
 	}
 	if got, want := string(env.Truth.Profile), string(ProfileLocalLightweight); got != want {
 		t.Fatalf("truth profile = %s, want %s", got, want)
+	}
+	if got, want := string(env.Truth.Level), string(TruthLevelDerived); got != want {
+		t.Fatalf("truth level = %s, want %s", got, want)
 	}
 
 	raw, err := json.Marshal(env.Data)

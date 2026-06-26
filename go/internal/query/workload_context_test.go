@@ -717,6 +717,29 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 	}
 }
 
+func TestGetWorkloadContext_LocalLightweightReturns501ViaMux(t *testing.T) {
+	t.Parallel()
+
+	handler := &EntityHandler{Profile: ProfileLocalLightweight}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/w-1/context", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.SetPathValue("workload_id", "w-1")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotImplemented; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"unsupported_capability"`) {
+		t.Fatalf("body = %s, want unsupported_capability envelope", body)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `"platform_impact.context_overview"`) {
+		t.Fatalf("body = %s, want context_overview capability", body)
+	}
+}
+
 func TestBuildWorkloadStorySurfacesObservedServiceSignalsWithoutMaterializedInstances(t *testing.T) {
 	t.Parallel()
 
