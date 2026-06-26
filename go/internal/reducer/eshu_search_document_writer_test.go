@@ -260,7 +260,7 @@ func TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry(t *testing.T) {
 	span := requireSpan(t, spanRecorder.Ended(), telemetry.SpanReducerEshuSearchIndexWrite)
 	assertSpanStringAttribute(t, span, telemetry.MetricDimensionDomain, string(DomainEshuSearchDocument))
 	assertSpanStringAttribute(t, span, telemetry.LogKeyScopeID, "scope-1")
-	assertSpanStringAttribute(t, span, telemetry.MetricDimensionGenerationID, "gen-1")
+	assertSpanStringAttribute(t, span, telemetry.LogKeyGenerationID, "gen-1")
 }
 
 func TestWriteEshuSearchDocumentsRecordsSearchIndexErrors(t *testing.T) {

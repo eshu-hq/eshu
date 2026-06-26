@@ -257,7 +257,7 @@ func TestAttrHelpers(t *testing.T) {
 		{
 			name:     "AttrGenerationID",
 			attrFunc: func(v string) string { return string(AttrGenerationID(v).Key) },
-			wantKey:  MetricDimensionGenerationID,
+			wantKey:  LogKeyGenerationID,
 		},
 		{
 			name:     "AttrCollectorKind",

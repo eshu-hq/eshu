@@ -28,7 +28,7 @@ func (w PostgresEshuSearchDocumentWriter) startSearchIndexWriteSpan(
 		trace.WithAttributes(
 			attribute.String(telemetry.MetricDimensionDomain, string(DomainEshuSearchDocument)),
 			attribute.String(telemetry.LogKeyScopeID, scopeID),
-			attribute.String(telemetry.MetricDimensionGenerationID, generationID),
+			telemetry.AttrGenerationID(generationID),
 			attribute.Int("document_count", documentCount),
 		),
 	)

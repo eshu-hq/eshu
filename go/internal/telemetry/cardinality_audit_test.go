@@ -19,6 +19,7 @@ import (
 // possible bounding strategy.  Adding a key here blocks CI for any metric that
 // introduces it.
 var hardBannedDimensions = []string{
+	"generation_id", // one per scope generation — unbounded; migrated per #3943
 	"repo_id",       // one per repository — unbounded
 	"commit_sha",    // one per commit — unbounded
 	"envelope_id",   // one per fact envelope — unbounded
@@ -46,11 +47,9 @@ var hardBannedDimensions = []string{
 //
 // Follow-up issues:
 //
-//	generation_id → file an issue to migrate generation_id-dimensioned metrics
-//	                 to use a bounded epoch/generation bucket.
-var riskTrackedDimensions = []string{
-	"generation_id",
-}
+//	(none currently tracked — all known unbounded dimensions have been migrated
+//	 to hard-banned; see individual issue numbers on hardBannedDimensions entries)
+var riskTrackedDimensions = []string{}
 
 // TestCardinalityAudit_RegistryIsClean asserts that no hard-banned dimension key
 // appears in the frozen metricDimensionKeys registry.  This is the primary
@@ -253,7 +252,6 @@ func TestCardinalityAudit_DimensionKeyCardinalityBound(t *testing.T) {
 	// itself doesn't silently accumulate unbounded keys.
 
 	highCardinalityRiskKeys := map[string]string{
-		"generation_id":          "unbounded across generations; re-evaluate if added to allow-list",
 		"provider_kind":          "bounded per collector family; confirm ≤20 values",
 		"provider_profile_class": "bounded; confirm source_class is from a closed enum",
 	}

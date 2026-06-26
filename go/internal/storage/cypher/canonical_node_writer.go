@@ -283,7 +283,7 @@ func (w *CanonicalNodeWriter) startWriteSpan(
 	}
 	return w.tracer.Start(ctx, telemetry.SpanCanonicalWrite, trace.WithAttributes(
 		telemetry.AttrScopeID(mat.ScopeID),
-		attribute.String(telemetry.MetricDimensionGenerationID, mat.GenerationID),
+		telemetry.AttrGenerationID(mat.GenerationID),
 		attribute.String("repo_id", mat.RepoID),
 		attribute.Int("statement_count", statementCount),
 		attribute.Int("file_count", len(mat.Files)),
@@ -301,7 +301,7 @@ func (w *CanonicalNodeWriter) startPhaseSpan(
 	}
 	return w.tracer.Start(ctx, telemetry.SpanCanonicalRetract, trace.WithAttributes(
 		telemetry.AttrScopeID(mat.ScopeID),
-		attribute.String(telemetry.MetricDimensionGenerationID, mat.GenerationID),
+		telemetry.AttrGenerationID(mat.GenerationID),
 		attribute.String("repo_id", mat.RepoID),
 		attribute.Int("statement_count", len(phase.statements)),
 	))
