@@ -151,6 +151,121 @@ sub shared_name {}
 	}
 }
 
+func TestParsePerlVariableExtraction(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "vars.pl", `package App::Vars;
+
+my $name = "test";
+our $VERSION = "1.0";
+my ($x, $y) = (1, 2);
+our @list = qw(a b c);
+my %hash = (key => "value");
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	for _, name := range []string{"name", "VERSION", "x", "y", "list", "hash"} {
+		assertBucketName(t, payload, "variables", name)
+	}
+}
+
+func TestParsePerlSubroutineWithDeadCodeRoots(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "roots.pl", `package App::Roots;
+use Exporter qw(import);
+our @EXPORT_OK = qw(public_sub);
+
+sub public_sub {
+  helper();
+}
+
+sub helper {}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	publicSub := assertBucketName(t, payload, "functions", "public_sub")
+	assertParserStringSliceContains(t, publicSub, "dead_code_root_kinds", "perl.exported_subroutine")
+
+	helper := assertBucketName(t, payload, "functions", "helper")
+	if helper["dead_code_root_kinds"] != nil {
+		t.Fatalf("helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
+	}
+}
+
+func TestParsePerlCallExpressionVariants(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "calls.pl", `package App::Calls;
+use App::Util;
+
+sub run {
+  my $obj = App::Util->new();
+  $obj->configure(name => "test");
+  do_something("arg");
+}
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	assertBucketName(t, payload, "function_calls", "new")
+	assertBucketName(t, payload, "function_calls", "configure")
+	assertBucketName(t, payload, "function_calls", "do_something")
+}
+
+func TestParsePerlUseImportExtraction(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "imports.pl", `package App::Imports;
+use strict;
+use warnings;
+use App::Util;
+use Exporter qw(import);
+use DBI qw(:sql_types);
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	for _, name := range []string{"strict", "warnings", "App::Util", "Exporter", "DBI"} {
+		assertBucketName(t, payload, "imports", name)
+	}
+}
+
+func TestParsePerlEmptyFile(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "empty.pl", "")
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	for _, bucket := range []string{"classes", "imports", "functions", "variables", "function_calls"} {
+		items, ok := payload[bucket].([]map[string]any)
+		if !ok {
+			t.Fatalf("payload[%q] = %T, want []map[string]any", bucket, payload[bucket])
+		}
+		if len(items) != 0 {
+			t.Fatalf("payload[%q] has %d items, want 0", bucket, len(items))
+		}
+	}
+}
+
 func TestPreScanIncludesFullPerlPackageNames(t *testing.T) {
 	t.Parallel()
 
