@@ -144,9 +144,9 @@ jobs:
         id: labels
         run: |
           CREATED="$(date -u -d "@${{ steps.epoch.outputs.epoch }}" '+%Y-%m-%dT%H:%M:%SZ')"
-          echo "labels<<EOF" >> "${GITHUB_OUTPUT}"
-          echo "${{ steps.meta.outputs.labels }}" | sed "s|org\.opencontainers\.image\.created=.*|org.opencontainers.image.created=${CREATED}|" >> "${GITHUB_OUTPUT}"
-          echo "EOF" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' '${{ steps.meta.outputs.labels }}' > /tmp/labels.txt
+          sed -i "s|org\.opencontainers\.image\.created=.*|org.opencontainers.image.created=${CREATED}|" /tmp/labels.txt
+          { echo 'labels<<EOF'; cat /tmp/labels.txt; echo 'EOF'; } >> "${GITHUB_OUTPUT}"
 
       - name: Build and push Docker image
         id: build
@@ -257,6 +257,7 @@ jobs:
             --build-arg SOURCE_DATE_EPOCH="${{ steps.epoch.outputs.epoch }}" \
             --build-arg ESHU_VERSION=reproducibility-test \
             --provenance=false \
+            --no-cache \
             --output type=local,dest=/tmp/out1 \
             .
 
