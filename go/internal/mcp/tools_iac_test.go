@@ -5,7 +5,7 @@ package mcp
 
 import "testing"
 
-func TestIACToolsAreRegistered(t *testing.T) {
+func TestIaCToolsAreRegistered(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range []string{
@@ -18,12 +18,44 @@ func TestIACToolsAreRegistered(t *testing.T) {
 	}
 }
 
+func TestIaCAwsDriftAndRollupsSchema(t *testing.T) {
+	t.Parallel()
+
+	tools := map[string][]string{
+		"list_aws_runtime_drift_findings": {"scope_id", "account_id", "finding_kinds", "limit", "offset"},
+		"get_replatforming_rollups":       {"scope_id", "account_id"},
+		"find_unmanaged_resource_owners":  {"scope_id", "account_id"},
+	}
+	for name, fields := range tools {
+		tool := requireToolDefinition(t, name)
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s InputSchema type = %T, want map[string]any", name, tool.InputSchema)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s properties type = %T, want map[string]any", name, schema["properties"])
+		}
+		for _, field := range fields {
+			if _, ok := properties[field]; !ok {
+				t.Fatalf("tool %s schema missing %q", name, field)
+			}
+		}
+	}
+}
+
 func TestIacGetIacManagementStatusSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "get_iac_management_status")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("get_iac_management_status InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("get_iac_management_status properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"scope_id", "account_id", "region"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("get_iac_management_status schema missing %q", field)
@@ -35,8 +67,14 @@ func TestIacProposeTerraformImportPlanSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "propose_terraform_import_plan")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("propose_terraform_import_plan InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("propose_terraform_import_plan properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"scope_id", "account_id", "region"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("propose_terraform_import_plan schema missing %q", field)
@@ -48,8 +86,14 @@ func TestIacComposeReplatformingPlanSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "compose_replatforming_plan")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("compose_replatforming_plan InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("compose_replatforming_plan properties type = %T, want map[string]any", schema["properties"])
+	}
 	if _, ok := properties["repo_id"]; !ok {
 		t.Fatalf("compose_replatforming_plan schema missing repo_id")
 	}

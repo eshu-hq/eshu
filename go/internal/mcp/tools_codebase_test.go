@@ -34,8 +34,14 @@ func TestCodebaseFindCodeSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "find_code")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("find_code InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("find_code properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"query", "exact", "edit_distance", "repo_id", "limit", "scope"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("find_code schema missing %q", field)
@@ -47,8 +53,14 @@ func TestCodebaseFindSymbolSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "find_symbol")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("find_symbol InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("find_symbol properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"symbol", "match_mode", "repo_id", "language", "entity_type", "entity_types", "limit", "offset"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("find_symbol schema missing %q", field)
@@ -60,8 +72,14 @@ func TestCodebaseExecuteCypherQuerySchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "execute_cypher_query")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("execute_cypher_query InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("execute_cypher_query properties type = %T, want map[string]any", schema["properties"])
+	}
 	if _, ok := properties["cypher_query"]; !ok {
 		t.Fatalf("execute_cypher_query schema missing cypher_query")
 	}
@@ -74,8 +92,14 @@ func TestCodebaseExecuteLanguageQuerySchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "execute_language_query")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("execute_language_query InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("execute_language_query properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"language", "entity_type", "query", "repo_id", "limit"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("execute_language_query schema missing %q", field)
@@ -87,8 +111,14 @@ func TestCodebaseFindDeadIacSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "find_dead_iac")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("find_dead_iac InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("find_dead_iac properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"repo_id", "repo_ids", "families", "include_ambiguous", "limit", "offset"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("find_dead_iac schema missing %q", field)
@@ -100,8 +130,14 @@ func TestCodebaseListIndexedRepositoriesSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "list_indexed_repositories")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("list_indexed_repositories InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("list_indexed_repositories properties type = %T, want map[string]any", schema["properties"])
+	}
 	if _, ok := properties["limit"]; !ok {
 		t.Fatalf("list_indexed_repositories schema missing limit")
 	}
@@ -127,7 +163,10 @@ func TestCodebaseResolveRouteFindCode(t *testing.T) {
 	if got, want := route.path, "/api/v0/code/search"; got != want {
 		t.Fatalf("route.path = %q, want %q", got, want)
 	}
-	body, _ := route.body.(map[string]any)
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
 	if got, want := body["query"], "auth"; got != want {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
 	}
@@ -204,15 +243,21 @@ func TestCodebaseIacToolsSchemaCheck(t *testing.T) {
 	t.Parallel()
 
 	iacTools := map[string][]string{
-		"find_unmanaged_resources":      {"scope_id", "account_id", "region", "finding_kinds", "limit", "offset"},
-		"get_iac_management_status":     {"scope_id", "account_id", "region"},
-		"explain_iac_management_status": {"scope_id", "region", "resource_id"},
-		"compose_replatforming_plan":    {"scope_kind", "scope_id", "account_id", "region", "repo_id"},
+		"find_unmanaged_resources":    {"scope_id", "account_id", "region", "finding_kinds", "limit", "offset"},
+		"get_iac_management_status":   {"scope_id", "account_id", "region", "arn", "resource_id", "finding_kinds"},
+		"explain_iac_management_status": {"scope_id", "account_id", "region", "arn", "resource_id", "finding_kinds"},
+		"compose_replatforming_plan":  {"scope_kind", "scope_id", "account_id", "region", "repo_id"},
 	}
 	for toolName, requiredFields := range iacTools {
 		tool := requireToolDefinition(t, toolName)
-		schema, _ := tool.InputSchema.(map[string]any)
-		properties, _ := schema["properties"].(map[string]any)
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s InputSchema type = %T, want map[string]any", toolName, tool.InputSchema)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s properties type = %T, want map[string]any", toolName, schema["properties"])
+		}
 		for _, field := range requiredFields {
 			if _, ok := properties[field]; !ok {
 				t.Fatalf("tool %s schema missing %q", toolName, field)

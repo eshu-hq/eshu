@@ -27,8 +27,11 @@ func TestEcosystemGetEcosystemOverviewSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "get_ecosystem_overview")
-	schema, _ := tool.InputSchema.(map[string]any)
-	_, ok := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("get_ecosystem_overview InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	_, ok = schema["properties"].(map[string]any)
 	if !ok {
 		t.Fatalf("get_ecosystem_overview properties type incorrect")
 	}
@@ -38,8 +41,14 @@ func TestEcosystemTraceDeploymentChainSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "trace_deployment_chain")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("trace_deployment_chain InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("trace_deployment_chain properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"service_name", "direct_only", "max_depth", "include_related_module_usage"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("trace_deployment_chain schema missing %q", field)
@@ -51,8 +60,14 @@ func TestEcosystemInvestigateDeploymentConfigSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "investigate_deployment_config")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("investigate_deployment_config InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("investigate_deployment_config properties type = %T, want map[string]any", schema["properties"])
+	}
 	if _, ok := properties["service_name"]; !ok {
 		t.Fatalf("investigate_deployment_config schema missing service_name")
 	}
@@ -62,8 +77,14 @@ func TestEcosystemGetRelationshipEvidenceSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "get_relationship_evidence")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("get_relationship_evidence InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("get_relationship_evidence properties type = %T, want map[string]any", schema["properties"])
+	}
 	if _, ok := properties["resolved_id"]; !ok {
 		t.Fatalf("get_relationship_evidence schema missing resolved_id")
 	}
@@ -105,7 +126,10 @@ func TestEcosystemResolveRouteCompareEnvironments(t *testing.T) {
 	t.Parallel()
 
 	route, err := resolveRoute("compare_environments", map[string]any{
-		"repo_id": "repo-1",
+		"workload_id": "wl-1",
+		"left":        "prod",
+		"right":       "staging",
+		"limit":       float64(50),
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
@@ -115,6 +139,22 @@ func TestEcosystemResolveRouteCompareEnvironments(t *testing.T) {
 	}
 	if got, want := route.path, "/api/v0/compare/environments"; got != want {
 		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	if got, want := body["workload_id"], "wl-1"; got != want {
+		t.Fatalf("body[workload_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["left"], "prod"; got != want {
+		t.Fatalf("body[left] = %#v, want %#v", got, want)
+	}
+	if got, want := body["right"], "staging"; got != want {
+		t.Fatalf("body[right] = %#v, want %#v", got, want)
+	}
+	if got, want := body["limit"], 50; got != want {
+		t.Fatalf("body[limit] = %#v, want %#v", got, want)
 	}
 }
 

@@ -41,7 +41,10 @@ func TestResolveRouteMapsInvestigateHardcodedSecretsSecurityTool(t *testing.T) {
 	if got, want := route.path, "/api/v0/code/security/secrets/investigate"; got != want {
 		t.Fatalf("route.path = %q, want %q", got, want)
 	}
-	body, _ := route.body.(map[string]any)
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
 	if got, want := body["repo_id"], "repo-1"; got != want {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
 	}

@@ -18,7 +18,7 @@ func TestPreChangeImpactToolsAreRegistered(t *testing.T) {
 		if !ok {
 			t.Fatalf("tool %s properties type = %T, want map[string]any", name, schema["properties"])
 		}
-		for _, field := range []string{"repo_id", "base_ref", "head_ref", "changed_paths", "changes", "target", "target_type", "service_name", "workload_id", "resource_id", "max_depth", "limit"} {
+		for _, field := range []string{"repo_id", "base_ref", "head_ref", "changed_paths", "changes", "target", "target_type", "service_name", "workload_id", "resource_id", "module_id", "topic", "environment", "max_depth", "limit", "offset"} {
 			if _, ok := properties[field]; !ok {
 				t.Fatalf("tool %s properties missing %q", name, field)
 			}

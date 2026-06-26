@@ -41,7 +41,10 @@ func TestResolveRouteMapsFindInfraResources(t *testing.T) {
 	if got, want := route.path, "/api/v0/infra/resources/search"; got != want {
 		t.Fatalf("route.path = %q, want %q", got, want)
 	}
-	body, _ := route.body.(map[string]any)
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
 	if got, want := body["query"], "my-bucket"; got != want {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
 	}

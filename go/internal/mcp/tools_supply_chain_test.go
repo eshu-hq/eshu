@@ -25,8 +25,14 @@ func TestSupplyChainGetVulnerabilityScannerReadContractSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "get_vulnerability_scanner_read_contract")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("get_vulnerability_scanner_read_contract InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("get_vulnerability_scanner_read_contract properties type = %T, want map[string]any", schema["properties"])
+	}
 	if _, ok := properties["route"]; !ok {
 		t.Fatalf("get_vulnerability_scanner_read_contract schema missing route")
 	}
@@ -36,8 +42,14 @@ func TestSupplyChainListContainerImageIdentitiesSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "list_container_image_identities")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("list_container_image_identities InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("list_container_image_identities properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"digest", "image_ref", "repository_id", "source_repository_id", "outcome", "limit"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("list_container_image_identities schema missing %q", field)
@@ -49,8 +61,14 @@ func TestSupplyChainListSupplyChainImpactFindingsSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "list_supply_chain_impact_findings")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("list_supply_chain_impact_findings InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("list_supply_chain_impact_findings properties type = %T, want map[string]any", schema["properties"])
+	}
 	for _, field := range []string{"cve_id", "advisory_id", "package_id", "repository_id", "impact_status", "limit"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("list_supply_chain_impact_findings schema missing %q", field)
@@ -62,8 +80,14 @@ func TestSupplyChainExplainSupplyChainImpactSchema(t *testing.T) {
 	t.Parallel()
 
 	tool := requireToolDefinition(t, "explain_supply_chain_impact")
-	schema, _ := tool.InputSchema.(map[string]any)
-	properties, _ := schema["properties"].(map[string]any)
+	schema, ok := tool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("explain_supply_chain_impact InputSchema type = %T, want map[string]any", tool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("explain_supply_chain_impact properties type = %T, want map[string]any", schema["properties"])
+	}
 	if _, ok := properties["finding_id"]; !ok {
 		t.Fatalf("explain_supply_chain_impact schema missing finding_id")
 	}
