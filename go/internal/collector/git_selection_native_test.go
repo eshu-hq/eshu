@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -87,7 +88,7 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemSyncsChangedReposit
 
 	selectedRepo := batch.Repositories[0]
 	wantRepoPath := filepath.Join(reposDir, "eshu-hq", "service-a")
-	if got, want := selectedRepo.RepoPath, wantRepoPath; got != want {
+	if got, want := selectedRepo.RepoPath, resolveRepoPathForAssertion(t, wantRepoPath); got != want {
 		t.Fatalf("RepoPath = %q, want %q", got, want)
 	}
 	if selectedRepo.RemoteURL != "" {
@@ -175,7 +176,7 @@ func TestNativeRepositorySelectorSelectRepositoriesMarksDependencyTargets(t *tes
 	}
 
 	selected := batch.Repositories[0]
-	if got, want := selected.RepoPath, sourceRepo; got != want {
+	if got, want := selected.RepoPath, resolveRepoPathForAssertion(t, sourceRepo); got != want {
 		t.Fatalf("RepoPath = %q, want %q", got, want)
 	}
 	if got, want := selected.IsDependency, true; got != want {
@@ -261,10 +262,10 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemSingleFileTarget(t 
 	}
 
 	selected := batch.Repositories[0]
-	if got, want := selected.RepoPath, sourceDir; got != want {
+	if got, want := selected.RepoPath, resolveRepoPathForAssertion(t, sourceDir); got != want {
 		t.Fatalf("RepoPath = %q, want %q", got, want)
 	}
-	if got, want := selected.FileTargets, []string{targetFile}; !reflect.DeepEqual(got, want) {
+	if got, want := selected.FileTargets, []string{resolveRepoPathForAssertion(t, targetFile)}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("FileTargets = %#v, want %#v", got, want)
 	}
 }
@@ -335,5 +336,76 @@ func writeSelectionTestFile(t *testing.T, path string, body string) {
 	}
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v, want nil", path, err)
+	}
+}
+
+// resolveRepoPathForAssertion mirrors the symlink canonicalization
+// buildSelectedRepositories applies to RepoPath (filepath.EvalSymlinks). On
+// platforms where the temp root is itself a symlink (macOS /var -> /private/var),
+// the selected RepoPath is the resolved form, so assertions must resolve the
+// expected path too.
+func resolveRepoPathForAssertion(t *testing.T, path string) string {
+	t.Helper()
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return path
+}
+
+// TestNativeRepositorySelectorResolvesSymlinkedRepoPath guards the
+// canonicalization fix on every platform (not just macOS): with the repository
+// reached through an explicit symlink, the selected RepoPath must be the
+// resolved real path so it shares a prefix with the symlink-resolved file paths
+// content discovery produces. Without canonicalization, filepath.Rel(repoRoot,
+// file) yields a broken ../.. path and no Directory/File/entity nodes
+// materialize downstream.
+func TestNativeRepositorySelectorResolvesSymlinkedRepoPath(t *testing.T) {
+	t.Parallel()
+
+	// Reach the repository through an explicit symlink so the test guards the
+	// fix on every platform (not only macOS, whose /var temp root is itself a
+	// symlink). FilesystemDirect keeps the repo in place, so RepoPath is derived
+	// straight from the symlinked root.
+	realRoot := t.TempDir()
+	writeSelectionTestFile(t, filepath.Join(realRoot, "main.go"), "package main\n")
+	linkRoot := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(realRoot, linkRoot); err != nil {
+		t.Skipf("symlink unsupported on this platform: %v", err)
+	}
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:         t.TempDir(),
+			SourceMode:       "filesystem",
+			FilesystemRoot:   linkRoot,
+			FilesystemDirect: true,
+			Component:        "collector-git",
+			RepoLimit:        4000,
+			GitAuthMethod:    "none",
+		},
+		Now: func() time.Time { return time.Date(2026, time.June, 26, 0, 0, 0, 0, time.UTC) },
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if len(batch.Repositories) != 1 {
+		t.Fatalf("len(Repositories) = %d, want 1", len(batch.Repositories))
+	}
+	got := batch.Repositories[0].RepoPath
+	// The selected RepoPath must be symlink-canonical: it must not carry the
+	// unresolved "link" component, and resolving it again must be a no-op. A
+	// non-canonical RepoPath fails to share a prefix with the symlink-resolved
+	// file paths content discovery emits, collapsing the directory chain.
+	if strings.Contains(got, string(filepath.Separator)+"link"+string(filepath.Separator)) || got == linkRoot {
+		t.Fatalf("RepoPath = %q still carries the unresolved symlink %q", got, linkRoot)
+	}
+	resolved, err := filepath.EvalSymlinks(got)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(RepoPath) error = %v", err)
+	}
+	if resolved != got {
+		t.Fatalf("RepoPath = %q is not symlink-canonical (resolves to %q)", got, resolved)
 	}
 }
