@@ -4021,9 +4021,11 @@ func AttrFieldClass(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionFieldClass, v)
 }
 
-// AttrGenerationID returns a generation_id attribute for metric recording.
+// AttrGenerationID returns a generation_id attribute for span or structured log
+// recording. generation_id is NOT a metric dimension label (removed per #3943);
+// use bounded alternatives like scope_kind for metric labels.
 func AttrGenerationID(v string) attribute.KeyValue {
-	return attribute.String(MetricDimensionGenerationID, v)
+	return attribute.String(LogKeyGenerationID, v)
 }
 
 // AttrCollectorKind returns a collector_kind attribute for metric recording.

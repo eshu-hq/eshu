@@ -17,7 +17,6 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"source_class",
 		"language",
 		"source_system",
-		"generation_id",
 		"collector_kind",
 		"analyzer",
 		"target_kind",

@@ -29,7 +29,6 @@ const (
 	MetricDimensionScopeKind     = "scope_kind"
 	MetricDimensionSource        = "source"
 	MetricDimensionSourceSystem  = "source_system"
-	MetricDimensionGenerationID  = "generation_id"
 	MetricDimensionCollectorKind = "collector_kind"
 	MetricDimensionDomain        = "domain"
 	MetricDimensionPartitionKey  = "partition_key"
