@@ -111,6 +111,15 @@ internal identifier (and the values are bound parameters, e.g. `$N`
 placeholders). If any user/request-derived value is concatenated into the query
 text, that is a real injection bug — parameterize it.
 
+A SQL-injection audit MUST cite the gate that actually detects injection —
+gosec `G201`/`G202` (and `G703` for Cypher), or CodeQL's injection queries.
+Do NOT claim "zero injection findings" from an unrelated check: staticcheck
+`SA1029` flags an inappropriate key in `context.WithValue` and says nothing
+about SQL, so a clean `SA1029` run is not evidence about injection. Run
+`gosec -no-fail -fmt=sarif -out gosec.sarif ./...` and report the
+`G201`/`G202`/`G703` result count (see the SARIF count gate above), pinned to
+the commit scanned.
+
 ## Concurrency block for `workflow_run`
 
 For `workflow_run` events GitHub sets `github.ref` to the default branch, so a
