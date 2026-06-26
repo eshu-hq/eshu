@@ -36,17 +36,18 @@ The gate asserts the four B-7 acceptance buckets:
 
 ## Minimal-then-grow
 
-The first landing runs a **minimal corpus** (5 repos) and blocks only on the
+The first landing ran a **minimal corpus** (5 repos) and blocked only on the
 drains, the existence of `rc-1`/`rc-3`, the two HTTP query shapes, and the timing
-budget. The 20-repo node/edge count tolerances and the cassette-dependent
-correlations (`rc-2` `RUNS_IN`, `rc-4` `RUNS_IMAGE`) are reported as **advisory**
-(`WARN`) so latent gaps surface without blocking. Promoting them to required —
-together with the full 20-repo corpus — is intentional follow-up work, gated on
-each being green.
+budget. The corpus has since grown one assertion at a time as each correlation
+was proven green end to end: `rc-2` (`RUNS_IN`, the code→runtime bridge) and
+`rc-4` (`RUNS_IMAGE`, the live workload→OCI manifest edge) are now **required**
+alongside `rc-1` (deployable-unit) and `rc-3` (cross-repo `DEPENDS_ON`). The
+20-repo node/edge count tolerances remain **advisory** (`WARN`) so latent gaps
+surface without blocking.
 
 The blocking correlation set is configurable
-(`golden-corpus-gate -required-correlations=rc-1,rc-3`) so the gate can be
-widened one assertion at a time as the underlying behaviour is proven.
+(`golden-corpus-gate -required-correlations=rc-3,rc-1,rc-2,rc-4`) so the gate can
+be widened one assertion at a time as the underlying behaviour is proven.
 
 ## Running it
 

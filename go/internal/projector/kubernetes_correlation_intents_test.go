@@ -92,6 +92,169 @@ func TestBuildProjectionQueuesNoKubernetesCorrelationIntentWithoutPodTemplate(t 
 	}
 }
 
+// TestBuildProjectionQueuesKubernetesWorkloadMaterializationIntentForPodTemplate
+// proves the projector enqueues a kubernetes_workload_materialization intent per
+// scope generation that observed a live workload, so the additive domain
+// materializes the KubernetesWorkload node the RUNS_IMAGE edge slice gates on.
+// Before this builder existed the handler was registered and wired but never
+// received an intent, so the node never committed and RUNS_IMAGE could not form.
+func TestBuildProjectionQueuesKubernetesWorkloadMaterializationIntentForPodTemplate(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "k8s://prod-us-east-1",
+		ScopeKind:    scope.KindCluster,
+		SourceSystem: "kubernetes_live",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "k8s-generation-1",
+		ObservedAt:   time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+	envelopes := []facts.Envelope{
+		kubernetesPodTemplateEnvelope("fact-pod-1", scopeValue.ScopeID, generation.GenerationID),
+		kubernetesWarningEnvelope("fact-warn-1", scopeValue.ScopeID, generation.GenerationID),
+	}
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	var found *ReducerIntent
+	for i := range projection.reducerIntents {
+		if projection.reducerIntents[i].Domain == reducer.DomainKubernetesWorkloadMaterialization {
+			found = &projection.reducerIntents[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("no kubernetes_workload_materialization intent enqueued; intents=%+v", projection.reducerIntents)
+	}
+	if got, want := found.EntityKey, "kubernetes_workload_materialization:k8s://prod-us-east-1"; got != want {
+		t.Fatalf("intent.EntityKey = %q, want %q", got, want)
+	}
+	if got, want := found.FactID, "fact-pod-1"; got != want {
+		t.Fatalf("intent.FactID = %q, want the pod-template fact", got)
+	}
+	if got, want := found.SourceSystem, "kubernetes_live"; got != want {
+		t.Fatalf("intent.SourceSystem = %q, want %q", got, want)
+	}
+}
+
+// TestBuildProjectionQueuesNoKubernetesWorkloadMaterializationIntentWithoutPodTemplate
+// proves a warning-only generation enqueues no materialization intent (no
+// workload to materialize).
+func TestBuildProjectionQueuesNoKubernetesWorkloadMaterializationIntentWithoutPodTemplate(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "k8s://prod-us-east-1",
+		ScopeKind:    scope.KindCluster,
+		SourceSystem: "kubernetes_live",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "k8s-generation-2",
+		ObservedAt:   time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+	envelopes := []facts.Envelope{
+		kubernetesWarningEnvelope("fact-warn-1", scopeValue.ScopeID, generation.GenerationID),
+	}
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainKubernetesWorkloadMaterialization {
+			t.Fatalf("unexpected kubernetes_workload_materialization intent for warning-only generation: %+v", intent)
+		}
+	}
+}
+
+// TestBuildProjectionQueuesKubernetesCorrelationMaterializationIntentForPodTemplate
+// proves the projector enqueues a kubernetes_correlation_materialization intent
+// per scope generation that observed a live workload, so the additive graph-write
+// domain promotes exact image decisions into RUNS_IMAGE edges. Without this
+// builder the edge handler was wired but never received an intent.
+func TestBuildProjectionQueuesKubernetesCorrelationMaterializationIntentForPodTemplate(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "k8s://prod-us-east-1",
+		ScopeKind:    scope.KindCluster,
+		SourceSystem: "kubernetes_live",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "k8s-generation-1",
+		ObservedAt:   time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+	envelopes := []facts.Envelope{
+		kubernetesPodTemplateEnvelope("fact-pod-1", scopeValue.ScopeID, generation.GenerationID),
+	}
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	var found *ReducerIntent
+	for i := range projection.reducerIntents {
+		if projection.reducerIntents[i].Domain == reducer.DomainKubernetesCorrelationMaterialization {
+			found = &projection.reducerIntents[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("no kubernetes_correlation_materialization intent enqueued; intents=%+v", projection.reducerIntents)
+	}
+	// The edge intent must carry the WORKLOAD domain's acceptance-unit key (not its
+	// own) so the readiness gate matches the kubernetes_workload_uid phase the
+	// workload-materialization domain publishes.
+	if got, want := found.EntityKey, "kubernetes_workload_materialization:k8s://prod-us-east-1"; got != want {
+		t.Fatalf("intent.EntityKey = %q, want %q", got, want)
+	}
+}
+
+// TestBuildProjectionQueuesNoKubernetesCorrelationMaterializationIntentWithoutPodTemplate
+// proves a warning-only generation enqueues no edge-materialization intent (no
+// live workload to promote into a RUNS_IMAGE edge), mirroring the workload-node
+// negative case so both pod-template-triggered builders have their no-op path
+// pinned.
+func TestBuildProjectionQueuesNoKubernetesCorrelationMaterializationIntentWithoutPodTemplate(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "k8s://prod-us-east-1",
+		ScopeKind:    scope.KindCluster,
+		SourceSystem: "kubernetes_live",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "k8s-generation-2",
+		ObservedAt:   time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+	envelopes := []facts.Envelope{
+		kubernetesWarningEnvelope("fact-warn-1", scopeValue.ScopeID, generation.GenerationID),
+	}
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainKubernetesCorrelationMaterialization {
+			t.Fatalf("unexpected kubernetes_correlation_materialization intent for warning-only generation: %+v", intent)
+		}
+	}
+}
+
 func kubernetesPodTemplateEnvelope(factID, scopeID, generationID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,

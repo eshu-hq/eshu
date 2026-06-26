@@ -378,8 +378,11 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # rc-2 (RUNS_IN) is now required too — the api-svc fixture (Flask @app.route
 # handlers + an in-repo k8s/deployment.yaml) produces the code->runtime bridge:
 # the handler Functions bind via HANDLES_ROUTE to their Endpoints and via runs_in
-# to the api-svc Workload the repository DEFINES. rc-4 (RUNS_IMAGE) stays advisory
-# until the oci/k8s node families it needs materialize (tracked as a follow-up).
+# to the api-svc Workload the repository DEFINES. rc-4 (RUNS_IMAGE) is now required
+# too — the kuberneteslive + ociregistry cassettes produce a live workload whose
+# digest-pinned image resolves (exact decision) to the OCI manifest node, and the
+# kubernetes_correlation_materialization domain (reopened in maintenance once the
+# OCI generation is active) promotes that decision into the RUNS_IMAGE edge.
 # Promote each by adding its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
@@ -388,7 +391,7 @@ gate_status=0
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
 	-required-node-labels="Repository,Directory,File,Function" \
-	-required-correlations="rc-3,rc-1,rc-2" \
+	-required-correlations="rc-3,rc-1,rc-2,rc-4" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?

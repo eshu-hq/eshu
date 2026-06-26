@@ -25,6 +25,9 @@
           "source_confidence": "observed",
           "payload": {
             "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+            "uid": "11111111-2222-3333-4444-555555555555",
+            "group_version_resource": "apps/v1/deployments",
             "namespace": "default",
             "name": "supply-chain-demo",
             "kind": "Deployment",
@@ -35,10 +38,17 @@
             "containers": [
               {
                 "name": "app",
-                "image": "ghcr.io/eshu-hq/supply-chain-demo:sha256-synthetic-abc123",
+                "image": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
                 "ports": [{"container_port": 3000, "protocol": "TCP"}],
                 "env_keys": ["NODE_ENV", "VAULT_ADDR", "DATABASE_URL"]
               }
+            ],
+            "image_refs": [
+              "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ],
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
             ],
             "service_account": "supply-chain-demo",
             "replicas": 2

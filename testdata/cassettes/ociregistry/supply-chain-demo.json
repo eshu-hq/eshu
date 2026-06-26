@@ -17,17 +17,35 @@
       "trigger_kind": "snapshot",
       "facts": [
         {
-          "fact_kind": "oci_image_manifest",
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/supply-chain-demo",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/supply-chain-demo",
+            "visibility": "public",
+            "auth_mode": "anonymous"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
           "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:supply-chain-demo:sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
           "schema_version": "1.0.0",
           "collector_kind": "oci_registry",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/supply-chain-demo",
             "registry": "ghcr.io",
             "repository": "eshu-hq/supply-chain-demo",
             "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
             "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "source_tag": "1.0.0",
             "tags": [
               "latest",
               "1.0.0"
