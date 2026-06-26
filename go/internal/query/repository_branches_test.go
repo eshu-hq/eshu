@@ -138,6 +138,42 @@ func TestGetRepositoryBranchesEmptyWhenNoCommitIndexed(t *testing.T) {
 	}
 }
 
+func TestGetRepositoryBranches_LocalLightweightReturnsBranches(t *testing.T) {
+	t.Parallel()
+
+	indexedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	handler := &RepositoryHandler{
+		Profile: ProfileLocalLightweight,
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles:    []FileContent{{RepoID: "repo-1", RelativePath: "main.go", CommitSHA: "abc123"}},
+			coverage:     RepositoryContentCoverage{Available: true, FileCount: 1, FileIndexedAt: indexedAt},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/branches", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var env ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("json.Unmarshal envelope: %v", err)
+	}
+	if env.Truth == nil {
+		t.Fatal("truth envelope is nil")
+	}
+	if got, want := string(env.Truth.Profile), string(ProfileLocalLightweight); got != want {
+		t.Fatalf("truth profile = %s, want %s", got, want)
+	}
+}
+
 func TestGetRepositoryBranchesUnknownRepoReturns404(t *testing.T) {
 	t.Parallel()
 
