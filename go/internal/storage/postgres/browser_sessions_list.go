@@ -52,7 +52,7 @@ SELECT
     (session_hash = $2) AS current
 FROM browser_sessions
 WHERE subject_id_hash = $1
-ORDER BY issued_at DESC
+ORDER BY issued_at DESC, session_hash DESC
 LIMIT $3 OFFSET $4
 `
 
