@@ -244,7 +244,7 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemRootRepository(t *t
 
 	selectedRepo := batch.Repositories[0]
 	wantRepoPath := filepath.Join(reposDir, filepath.Base(sourceRepo))
-	if got, want := selectedRepo.RepoPath, wantRepoPath; got != want {
+	if got, want := selectedRepo.RepoPath, resolveRepoPathForAssertion(t, wantRepoPath); got != want {
 		t.Fatalf("RepoPath = %q, want %q", got, want)
 	}
 	if _, err := os.Stat(filepath.Join(wantRepoPath, "main.go")); err != nil {
@@ -280,7 +280,7 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemDirectRootRepositor
 	if got, want := len(batch.Repositories), 1; got != want {
 		t.Fatalf("len(Repositories) = %d, want %d", got, want)
 	}
-	if got, want := batch.Repositories[0].RepoPath, sourceRepo; got != want {
+	if got, want := batch.Repositories[0].RepoPath, resolveRepoPathForAssertion(t, sourceRepo); got != want {
 		t.Fatalf("RepoPath = %q, want %q", got, want)
 	}
 }
@@ -314,7 +314,7 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemDirectWorkspaceRepo
 	if got, want := len(batch.Repositories), 1; got != want {
 		t.Fatalf("len(Repositories) = %d, want %d", got, want)
 	}
-	if got, want := batch.Repositories[0].RepoPath, sourceRepo; got != want {
+	if got, want := batch.Repositories[0].RepoPath, resolveRepoPathForAssertion(t, sourceRepo); got != want {
 		t.Fatalf("RepoPath = %q, want %q", got, want)
 	}
 }

@@ -163,6 +163,22 @@ func buildSelectedRepositories(
 		if err != nil {
 			continue
 		}
+		// In filesystem mode, canonicalize the repository root through symlinks so
+		// it shares a prefix with the symlink-resolved file paths content
+		// discovery produces (normalizeScanRoot EvalSymlinks the scan root).
+		// Without this, on platforms where the corpus lives under a symlinked temp
+		// root (macOS /var -> /private/var), filepath.Rel(repoRoot, file) yields a
+		// broken ../.. path, the canonical directory chain never roots at the
+		// Repository node, and no Directory/File/entity nodes materialize.
+		//
+		// Scoped to filesystem mode on purpose: git mode derives repo identity
+		// from the raw managed ReposDir prefix (repoIDFromManagedPath), so
+		// resolving only one side there would break the Rel-based id derivation.
+		if config.SourceMode == "filesystem" {
+			if resolved, resolveErr := filepath.EvalSymlinks(absolutePath); resolveErr == nil {
+				absolutePath = resolved
+			}
+		}
 		repository := SelectedRepository{
 			RepoPath:     absolutePath,
 			IsDependency: config.DependencyMode,
