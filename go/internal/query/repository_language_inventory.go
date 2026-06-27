@@ -115,7 +115,8 @@ func repositoryLanguagePageFromRequest(r *http.Request, allowZeroLimit bool) rep
 }
 
 func repositoryLanguageFamily(language string) []string {
-	switch strings.ToLower(strings.TrimSpace(language)) {
+	normalized := strings.ToLower(strings.TrimSpace(language))
+	switch normalized {
 	case "ts", "typescript":
 		return []string{"typescript", "tsx"}
 	case "js", "javascript":
@@ -123,10 +124,13 @@ func repositoryLanguageFamily(language string) []string {
 	case "terraform":
 		return []string{"terraform", "hcl", "tfvars"}
 	default:
-		if language == "" {
+		// A blank or whitespace-only selector means "no language filter". Test the
+		// trimmed value so "?language=%20" behaves like an absent param rather than
+		// matching files with an empty language.
+		if normalized == "" {
 			return nil
 		}
-		return []string{strings.ToLower(strings.TrimSpace(language))}
+		return []string{normalized}
 	}
 }
 

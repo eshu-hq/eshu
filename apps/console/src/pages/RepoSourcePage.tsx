@@ -57,6 +57,10 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
     }
     setTree(null);
     setTreeErr("");
+    // Reset the language filter when the directory changes: the filter options
+    // are derived from the listing, so a value from the previous directory would
+    // otherwise render a blank select and an empty table for the new one.
+    setLangFilter("");
     void loadRepoTree(client, id, path, selectedRef)
       .then((t) => {
         if (!cancelled) setTree(t);
