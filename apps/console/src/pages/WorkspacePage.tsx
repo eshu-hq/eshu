@@ -52,7 +52,7 @@ export function WorkspacePage(): React.JSX.Element {
   if (loadState === "loading") {
     return (
       <section className="page-shell">
-        <h1>Loading workspace</h1>
+        <h2>Loading workspace</h2>
         <p>Loading live data.</p>
       </section>
     );
@@ -61,7 +61,7 @@ export function WorkspacePage(): React.JSX.Element {
   if (story === null) {
     return (
       <section className="page-shell">
-        <h1>Workspace unavailable</h1>
+        <h2>Workspace unavailable</h2>
         <p>The selected entity is not available from the local Eshu API.</p>
       </section>
     );
@@ -73,7 +73,7 @@ export function WorkspacePage(): React.JSX.Element {
       {!hasServiceDossier ? (
         <div className="workspace-summary">
           <div>
-            <h1>{story.title}</h1>
+            <h2>{story.title}</h2>
             <p className="entity-kind">{story.kind}</p>
             <p>{story.story}</p>
           </div>

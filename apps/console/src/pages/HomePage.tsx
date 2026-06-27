@@ -37,7 +37,7 @@ export function HomePage(): React.JSX.Element {
   return (
     <section className="home-page">
       <div className="page-intro">
-        <h1>Story</h1>
+        <h2>Story</h2>
         <p>
         Search for a repository, service, or workload to open a read-only
         workspace with story, evidence, deployment, code, findings, and

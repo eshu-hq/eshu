@@ -274,7 +274,7 @@ export function CloudPage({
                 <th>Provider</th>
                 <th>State</th>
                 <th>Family</th>
-                <th />
+                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>

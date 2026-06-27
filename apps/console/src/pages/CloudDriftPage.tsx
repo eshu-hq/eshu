@@ -312,7 +312,7 @@ export function CloudDriftPage({
         >
           <div className="table-scroll">
             <table className="tbl wide">
-              <thead><tr><th>Resource</th><th>Status</th><th>Missing evidence</th><th>Import plan</th><th>Safety</th><th /></tr></thead>
+              <thead><tr><th>Resource</th><th>Status</th><th>Missing evidence</th><th>Import plan</th><th>Safety</th><th aria-label="Actions" /></tr></thead>
               <tbody>
                 {(state.unmanaged?.findings ?? []).map((finding) => (
                   <UnmanagedRow

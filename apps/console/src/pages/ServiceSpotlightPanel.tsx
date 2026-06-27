@@ -31,7 +31,7 @@ export function ServiceSpotlightPanel({
         <div className="service-atlas-copy">
           <span className="entity-kind">Service</span>
           <h2>Service Atlas</h2>
-          <h1>{spotlight.name}</h1>
+          <h2>{spotlight.name}</h2>
           <p>{humanSummary(spotlight)}</p>
           <div className="service-storyline" aria-label="Service story highlights">
             <StoryPill label="API" value={`${spotlight.api.endpointCount} endpoints`} />

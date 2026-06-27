@@ -27,7 +27,7 @@ export function AdminPage({
 }): React.JSX.Element {
   return (
     <section className="page-shell">
-      <h1>Admin</h1>
+      <h2>Admin</h2>
       <p className="admin-subtitle">
         Capability-aware admin UX. The server enforces authorization on every
         request; this surface renders metadata only and never exposes secrets.
