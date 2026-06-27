@@ -55,7 +55,7 @@ describe("console build script", () => {
     const scripts = readRootPackageJson().scripts;
 
     expect(scripts?.["console:build"]).toBe(
-      "vite build --config apps/console/vite.config.ts && npm run console:bundle-budget"
+      "vite build --config apps/console/vite.config.ts && npm run console:bundle-budget && npm run console:bundle-report"
     );
   });
 });
