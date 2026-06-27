@@ -100,13 +100,15 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 			wantKey:    reducerPlatformNodeWriterConflictKey("scope-1"),
 		},
 		{
-			// DeploymentMapping no longer MERGEs a :Platform node (that moved to
-			// platform_infra_materialization); it now upserts a Postgres canonical
-			// fact plus cross-repo edges, so it gets its own per-domain key.
-			name:       "deployment mapping uses per-domain platform graph key",
+			// DeploymentMapping no longer MERGEs a :Platform node, but it requeues
+			// workload materialization via reopen-succeeded-only replay, so it shares
+			// the scope-keyed platform-node-writer key with WorkloadMaterialization to
+			// avoid overlapping a same-scope in-flight workload item (silently-lost
+			// replay).
+			name:       "deployment mapping shares platform-node-writer key for replay ordering",
 			domain:     reducer.DomainDeploymentMapping,
 			wantDomain: reducerConflictDomainPlatformGraph,
-			wantKey:    reducerPlatformGraphConflictKey(reducer.DomainDeploymentMapping, "scope-1"),
+			wantKey:    reducerPlatformNodeWriterConflictKey("scope-1"),
 		},
 		{
 			name:       "unknown future domains fall back to scope serialization",

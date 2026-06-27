@@ -178,41 +178,50 @@ func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 		reducer.DomainInheritanceMaterialization:
 		return reducerConflictDomainCodeGraph, scopeKey
 	case reducer.DomainWorkloadMaterialization,
-		reducer.DomainPlatformInfraMaterialization:
-		// Both MERGE (p:Platform {id}) over the same platform_id namespace and
-		// WorkloadMaterialization holds no advisory lock, so they must serialize
-		// against each other. Share one conflict key keyed only by scope.
-		// (PlatformInfraMaterialization replaced DeploymentMapping here when the
-		// Repository-[:PROVISIONS_PLATFORM]->Platform write moved to its own
-		// dedicated domain; DeploymentMapping no longer MERGEs Platform nodes.)
+		reducer.DomainPlatformInfraMaterialization,
+		reducer.DomainDeploymentMapping:
+		// One shared, scope-keyed conflict key serializes three domains that must
+		// not overlap for the same scope:
+		//   - WorkloadMaterialization and PlatformInfraMaterialization both
+		//     MERGE (p:Platform {id}) over the same platform_id namespace, and
+		//     WorkloadMaterialization holds no advisory lock, so they must
+		//     serialize to avoid a commit-time MERGE race (#3672 review P1).
+		//   - DeploymentMapping does not MERGE Platform, but its cross-repo
+		//     resolution requeues workload materialization via
+		//     ReplayWorkloadMaterialization, which can only reopen a SUCCEEDED
+		//     workload row; if a same-scope workload item is claimed/running the
+		//     replay's ON CONFLICT DO NOTHING re-enqueue is silently lost and the
+		//     in-flight workload commits without the stronger deployment evidence.
+		//     Sharing this key keeps DeploymentMapping and WorkloadMaterialization
+		//     from running concurrently for a scope, preserving replay ordering.
 		return reducerConflictDomainPlatformGraph, reducerPlatformNodeWriterConflictKey(scopeKey)
 	case reducer.DomainWorkloadIdentity,
 		reducer.DomainDeployableUnitCorrelation,
-		reducer.DomainDeploymentMapping,
 		reducer.DomainCloudAssetResolution:
-		// None of these MERGE a :Platform node: WorkloadIdentity and
-		// CloudAssetResolution upsert Postgres fact_records keyed by intent id
-		// (idempotent), DeployableUnitCorrelation MERGEs only
-		// (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) edges, and
-		// DeploymentMapping upserts a Postgres canonical fact plus cross-repo
-		// repository-repository edges. They do not conflict with the Platform-node
-		// writers or with each other, so each gets its own per-domain key and
-		// drains concurrently.
+		// None of these MERGE a :Platform node and none requeue workload
+		// materialization: WorkloadIdentity and CloudAssetResolution upsert
+		// Postgres fact_records keyed by intent id (idempotent), and
+		// DeployableUnitCorrelation MERGEs only
+		// (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) edges. They do
+		// not conflict with the Platform-node writers or with each other, so each
+		// gets its own per-domain key and drains concurrently.
 		return reducerConflictDomainPlatformGraph, reducerPlatformGraphConflictKey(intent.Domain, scopeKey)
 	default:
 		return reducerConflictDomainScope, scopeKey
 	}
 }
 
-// reducerPlatformNodeWriterConflictKey returns the shared conflict key for the
-// two reducer domains that MERGE (p:Platform {id}) over the same platform_id
-// namespace: WorkloadMaterialization and PlatformInfraMaterialization. The key is
-// keyed only by scope (not by domain) so both domains produce the IDENTICAL key
-// for a scope and the queue fence keeps them serialized. WorkloadMaterialization
-// does not hold the PlatformGraphLocker advisory lock that
-// PlatformInfraMaterialization uses, so this queue-level fence is the only thing
-// preventing concurrent unprotected MERGE on the same Platform node (#3672
-// review P1).
+// reducerPlatformNodeWriterConflictKey returns the shared, scope-keyed conflict
+// key for the reducer domains that must serialize for a scope:
+// WorkloadMaterialization, PlatformInfraMaterialization, and DeploymentMapping.
+// All three produce the IDENTICAL key for a scope so the queue fence keeps them
+// from being claimed concurrently. WorkloadMaterialization and
+// PlatformInfraMaterialization both MERGE (p:Platform {id}); WorkloadMaterialization
+// holds no advisory lock, so this fence prevents an unprotected concurrent MERGE
+// on the same Platform node (#3672 review P1). DeploymentMapping does not MERGE
+// Platform but requeues workload materialization via ReplayWorkloadMaterialization
+// (reopen-succeeded-only), so it must not overlap a same-scope in-flight workload
+// item or the replay is silently lost.
 func reducerPlatformNodeWriterConflictKey(scopeKey string) string {
 	return reducerHashedConflictKey(
 		reducerConflictKeyPrefixPlatformGraph,

@@ -62,11 +62,11 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 		}
 	}
 
-	// The two Platform-node writers (WorkloadMaterialization,
-	// PlatformInfraMaterialization) both MERGE (p:Platform {id});
-	// WorkloadMaterialization holds no advisory lock, so they MUST share one
-	// conflict key and stay serialized (#3672 review P1). DeploymentMapping no
-	// longer MERGEs Platform, so it is a non-Platform-writing domain now.
+	// Three domains share one scope-keyed conflict key and stay serialized:
+	// WorkloadMaterialization + PlatformInfraMaterialization (both MERGE
+	// (p:Platform {id}) without a shared advisory lock, #3672 review P1) and
+	// DeploymentMapping (requeues workload materialization via reopen-succeeded-only
+	// replay, so it must not overlap a same-scope in-flight workload item).
 	if keyWM != keyPIM {
 		t.Errorf(
 			"workload_materialization key %q != platform_infra_materialization key %q; "+
@@ -74,19 +74,25 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 			keyWM, keyPIM,
 		)
 	}
+	if keyWM != keyDM {
+		t.Errorf(
+			"workload_materialization key %q != deployment_mapping key %q; "+
+				"DeploymentMapping requeues workload materialization (reopen-succeeded-only), so it must "+
+				"share the workload key to avoid a silently-lost replay of an in-flight workload item",
+			keyWM, keyDM,
+		)
+	}
 
-	// The non-Platform-writing domains MUST get distinct keys from each other and
-	// from the Platform-node-writer pair, so they drain concurrently.
+	// The non-Platform-writing, non-replaying domains MUST get distinct keys from
+	// each other and from the shared platform-node-writer key, so they drain
+	// concurrently.
 	distinctPairs := []struct {
 		nameA, nameB string
 		keyA, keyB   string
 	}{
-		{"platform_node_writers", "deployment_mapping", keyWM, keyDM},
 		{"platform_node_writers", "workload_identity", keyWM, keyWI},
 		{"platform_node_writers", "deployable_unit_correlation", keyWM, keyDUC},
 		{"platform_node_writers", "cloud_asset_resolution", keyWM, keyCAR},
-		{"deployment_mapping", "workload_identity", keyDM, keyWI},
-		{"deployment_mapping", "cloud_asset_resolution", keyDM, keyCAR},
 		{"workload_identity", "deployable_unit_correlation", keyWI, keyDUC},
 		{"workload_identity", "cloud_asset_resolution", keyWI, keyCAR},
 		{"deployable_unit_correlation", "cloud_asset_resolution", keyDUC, keyCAR},
