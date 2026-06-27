@@ -20,15 +20,15 @@ export interface DevServer {
 
 const consoleDir = resolve(fileURLToPath(import.meta.url), "..", "..");
 const repoRoot = resolve(consoleDir, "..", "..");
-const viteBin = resolve(repoRoot, "node_modules", ".bin", "vite");
 const devServerPort = 5190;
 const navTimeoutMs = 30000;
 const devServerReadyTimeoutMs = 120000;
 
 async function startDevServer(): Promise<DevServer> {
   const child = spawn(
-    viteBin,
+    "npx",
     [
+      "vite",
       "--config",
       "apps/console/vite.config.ts",
       "--host",
@@ -39,6 +39,11 @@ async function startDevServer(): Promise<DevServer> {
     ],
     { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] },
   );
+
+  // Pipe stderr so Vite errors are visible in CI logs.
+  child.stderr.on("data", (chunk: Buffer) => {
+    process.stderr.write(`[vite-err] ${chunk.toString()}`);
+  });
 
   const baseUrl = await new Promise<string>((resolvePromise, rejectPromise) => {
     const timer = setTimeout(
