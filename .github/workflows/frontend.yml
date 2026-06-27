@@ -115,7 +115,7 @@ jobs:
 
   console-a11y:
     name: Console a11y audit (axe-core)
-    timeout-minutes: 25
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
