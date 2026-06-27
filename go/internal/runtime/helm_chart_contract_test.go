@@ -16,6 +16,22 @@ import (
 
 type helmManifest map[string]any
 
+// defaultHelmNeo4jPassword is a schema-compliant Neo4j password (>=12 chars,
+// mixed case + digit, not in the chart's weak-password blocklist) injected into
+// every contract render so that tests exercising the literal-credential path
+// (neo4j.auth.secretName="") satisfy the chart's password gate. It is prepended
+// to the render args, so a test that needs a different password may still
+// override it with a later --set. The chart's validation is unchanged; the
+// empty-password failure path is asserted explicitly elsewhere.
+const defaultHelmNeo4jPassword = "Eshu-Helm-Test-1"
+
+// helmRenderArgs prepends the default compliant Neo4j password to caller args so
+// the shared render helpers never trip the chart's password gate by accident.
+func helmRenderArgs(args ...string) []string {
+	prefixed := []string{"--set-string", "neo4j.auth.password=" + defaultHelmNeo4jPassword}
+	return append(prefixed, args...)
+}
+
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
@@ -24,7 +40,7 @@ func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	if err != nil {
 		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)
 	}
-	cmdArgs := append([]string{"template", "eshu", chartPath}, args...)
+	cmdArgs := append([]string{"template", "eshu", chartPath}, helmRenderArgs(args...)...)
 	cmd := exec.Command(helmPath, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -57,7 +73,7 @@ func renderHelmChartFailure(t *testing.T, args ...string) string {
 	if err != nil {
 		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)
 	}
-	cmdArgs := append([]string{"template", "eshu", chartPath}, args...)
+	cmdArgs := append([]string{"template", "eshu", chartPath}, helmRenderArgs(args...)...)
 	cmd := exec.Command(helmPath, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err == nil {
