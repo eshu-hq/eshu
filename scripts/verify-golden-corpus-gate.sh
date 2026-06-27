@@ -304,7 +304,7 @@ start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
 if ! "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=drains \
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-	-require-populated-domains="repo_dependency,platform_infra" \
+	-require-populated-domains="repo_dependency" \
 	-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
 	tail -30 "${log_dir}/reducer.log" || true
 	tail -30 "${log_dir}/projector.log" || true
@@ -339,12 +339,19 @@ for maintenance_pass in 1 2; do
 	# pipeline. repo_dependency is the domain the corpus reliably produces (and the
 	# B-13/#3859 gate), so the drain is accepted only once it has been observed
 	# populated and then drained.
+	# Do NOT add platform_infra here: -require-populated-domains counts
+	# shared_projection_intents domains, but nothing emits into the platform_infra
+	# shared-projection domain (EmitPlatformInfraIntents has no live caller).
+	# rc-26 PROVISIONS_PLATFORM is materialized inside the deployment_mapping
+	# handler (a fact_work_items domain), which the fact_work_items residual=0
+	# drain assertion already gates on — so requiring platform_infra here can
+	# never be satisfied and the rc-26 graph assertion already proves the edge.
 	start_bg projector projector_pid "${bin_dir}/eshu-projector"
 	start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
 	if ! "${bin_dir}/eshu-golden-corpus-gate" \
 		-phase=drains \
 		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-		-require-populated-domains="repo_dependency,platform_infra" \
+		-require-populated-domains="repo_dependency" \
 		-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
 		tail -30 "${log_dir}/reducer.log" || true
 		tail -30 "${log_dir}/projector.log" || true

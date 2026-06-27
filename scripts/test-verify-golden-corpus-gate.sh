@@ -74,7 +74,7 @@ fi
 # Premature-convergence guard: the drain must require the reducer to be observed
 # populated before accepting a drained reading, or it can pass on an unreduced
 # pipeline (the 0/0-before-the-reducer-runs race).
-require "populated-then-drained guard" 'require-populated-domains="repo_dependency,platform_infra"'
+require "populated-then-drained guard" 'require-populated-domains="repo_dependency"'
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
