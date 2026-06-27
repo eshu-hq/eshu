@@ -174,6 +174,10 @@ func newDefaultConfidenceRegistry() *ConfidenceRegistry {
 				Confidence: 0.92, Tier: TierStrongReference,
 				Rationale: "an Ansible role reference names the role-owning repository",
 			},
+			EvidenceKindPuppetModuleReference: {
+				Confidence: 0.90, Tier: TierStrongReference,
+				Rationale: "a Puppetfile mod git source names the module-owning repository",
+			},
 			EvidenceKindDockerComposeBuildContext: {
 				Confidence: 0.91, Tier: TierStrongReference,
 				Rationale: "a Compose build context path points at a buildable source repository",

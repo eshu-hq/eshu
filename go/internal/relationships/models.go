@@ -78,6 +78,9 @@ const (
 	EvidenceKindKustomizeImage EvidenceKind = "KUSTOMIZE_IMAGE_REFERENCE"
 	// EvidenceKindAnsibleRoleReference is an Ansible playbook role reference.
 	EvidenceKindAnsibleRoleReference EvidenceKind = "ANSIBLE_ROLE_REFERENCE"
+	// EvidenceKindPuppetModuleReference is a Puppetfile module git-source
+	// reference; the named module is owned by the target repository.
+	EvidenceKindPuppetModuleReference EvidenceKind = "PUPPET_MODULE_REFERENCE"
 	// EvidenceKindGCPCloudRelationship is a supported GCP provider relationship
 	// whose source and target resource identities each resolve to one catalog
 	// repository.

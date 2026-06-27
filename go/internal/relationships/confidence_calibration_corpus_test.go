@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package relationships
+package relationships //nolint:filelength // 624 lines: flat golden calibration corpus — one fixed labeled goldenCase literal per evidence kind (positives, negatives, ambiguous), reviewed as a single immutable dataset. The golangci filelength cap already exempts _test.go; splitting the linear table across files would scatter the per-kind rows the calibration gate reads together.
 
 // confidence_calibration_corpus_test.go holds the labeled golden corpus and the
 // P/R sweep helpers for the DefaultConfidenceRegistry calibration gate
@@ -292,6 +292,22 @@ var goldenSet = []goldenCase{
 	{
 		ID: "ansible-role-neg-1", Kind: EvidenceKindAnsibleRoleReference, Label: goldenNegative, GoldenConfidence: 0.8096,
 		Rationale: "role name is a built-in community role (geerlingguy.docker) with no catalog match",
+	},
+	// Puppet module references. Positive golden score == the registry prior
+	// (0.90); negative == prior × 0.88 (0.792), mirroring the kustomize/ansible
+	// rows. A Puppetfile mod with an explicit git source resolves to the
+	// module-owning repository; a forge slug or commented source does not.
+	{
+		ID: "puppet-module-pos-1", Kind: EvidenceKindPuppetModuleReference, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "mod 'acme-base', :git => github.com/acme/deployable-source resolves to the in-corpus module repo",
+	},
+	{
+		ID: "puppet-module-pos-2", Kind: EvidenceKindPuppetModuleReference, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "mod 'acme-network', git: github.com/acme/network-modules resolves to the network module repo",
+	},
+	{
+		ID: "puppet-module-neg-1", Kind: EvidenceKindPuppetModuleReference, Label: goldenNegative, GoldenConfidence: 0.792,
+		Rationale: "forge-only mod 'puppetlabs-stdlib', '9.4.0' has no git source and no catalog match",
 	},
 
 	// DOCKER_COMPOSE_BUILD_CONTEXT (prior 0.91; neg 0.8008)
