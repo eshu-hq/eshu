@@ -390,6 +390,14 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # rc-8 (HANDLES_ROUTE) is now required too — the same api-svc fixture that drives
 # rc-2 (RUNS_IN) binds its Flask @app.route handler Functions to their Endpoint
 # nodes via Function-[:HANDLES_ROUTE]->Endpoint. Code-path edge, no new cassette.
+# rc-11..rc-23 promote edges that already materialize in this corpus from the
+# same proven machinery as rc-1..rc-8 (code structure: CALLS/INHERITS/REFERENCES/
+# DEFINES/INSTANTIATES/USES_METACLASS; workload materialization: INSTANCE_OF/
+# EXPOSES_ENDPOINT/RUNS_ON/DEPLOYMENT_SOURCE; deployable correlation: DEPLOYS_FROM/
+# DEFINES; evidence: HAS_DEPLOYMENT_EVIDENCE/EVIDENCES_REPOSITORY_RELATIONSHIP).
+# Confirmed materializing via a graph sweep; promoted to lock them against
+# regression. (rc-9 DEPENDS_ON_PACKAGE / rc-10 INVOKES_CLOUD_ACTION reserved —
+# those need fixture/projection work before promotion.)
 # Promote each by adding its ID to -required-correlations.
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
@@ -398,7 +406,7 @@ gate_status=0
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
 	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow" \
-	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8" \
+	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8,rc-11,rc-12,rc-13,rc-14,rc-15,rc-16,rc-17,rc-18,rc-19,rc-20,rc-21,rc-22,rc-23" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?

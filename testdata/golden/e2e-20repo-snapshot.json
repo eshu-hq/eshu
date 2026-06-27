@@ -302,7 +302,20 @@
         "from_label": "Function",
         "to_label": "Endpoint",
         "minimum_count": 1
-      }
+      },
+      { "id": "rc-11", "description": "A Function CALLS another Function; the code call graph projected from the comprehensive code fixtures.", "relationship": "CALLS", "from_label": "Function", "to_label": "Function", "minimum_count": 1 },
+      { "id": "rc-12", "description": "A Class INHERITS another Class; class hierarchy projected from the code fixtures.", "relationship": "INHERITS", "from_label": "Class", "to_label": "Class", "minimum_count": 1 },
+      { "id": "rc-13", "description": "A Function REFERENCES a Struct; symbol reference projected from the Go fixtures.", "relationship": "REFERENCES", "from_label": "Function", "to_label": "Struct", "minimum_count": 1 },
+      { "id": "rc-14", "description": "A Repository DEFINES a Workload; workload definition projected from in-repo deploy manifests.", "relationship": "DEFINES", "from_label": "Repository", "to_label": "Workload", "minimum_count": 1 },
+      { "id": "rc-15", "description": "A Function INSTANTIATES a Class; construction edge projected from the code fixtures.", "relationship": "INSTANTIATES", "from_label": "Function", "to_label": "Class", "minimum_count": 1 },
+      { "id": "rc-16", "description": "A WorkloadInstance is an INSTANCE_OF a Workload; runtime instance correlation (workload materialization, same machinery as rc-2).", "relationship": "INSTANCE_OF", "from_label": "WorkloadInstance", "to_label": "Workload", "minimum_count": 1 },
+      { "id": "rc-17", "description": "A Workload EXPOSES_ENDPOINT an Endpoint; runtime endpoint exposure (workload materialization, same machinery as rc-2/rc-8).", "relationship": "EXPOSES_ENDPOINT", "from_label": "Workload", "to_label": "Endpoint", "minimum_count": 1 },
+      { "id": "rc-18", "description": "A WorkloadInstance RUNS_ON a Platform; runtime placement correlation (workload materialization).", "relationship": "RUNS_ON", "from_label": "WorkloadInstance", "to_label": "Platform", "minimum_count": 1 },
+      { "id": "rc-19", "description": "A Repository DEPLOYS_FROM another Repository; deployment-source correlation (same deployable machinery as rc-1).", "relationship": "DEPLOYS_FROM", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1 },
+      { "id": "rc-20", "description": "A WorkloadInstance DEPLOYMENT_SOURCE a Repository; runtime-to-source correlation (workload materialization).", "relationship": "DEPLOYMENT_SOURCE", "from_label": "WorkloadInstance", "to_label": "Repository", "minimum_count": 1 },
+      { "id": "rc-21", "description": "A Repository HAS_DEPLOYMENT_EVIDENCE an EvidenceArtifact; deployment evidence correlation.", "relationship": "HAS_DEPLOYMENT_EVIDENCE", "from_label": "Repository", "to_label": "EvidenceArtifact", "minimum_count": 1 },
+      { "id": "rc-22", "description": "An EvidenceArtifact EVIDENCES_REPOSITORY_RELATIONSHIP a Repository; evidence provenance edge.", "relationship": "EVIDENCES_REPOSITORY_RELATIONSHIP", "from_label": "EvidenceArtifact", "to_label": "Repository", "minimum_count": 1 },
+      { "id": "rc-23", "description": "A Class USES_METACLASS another Class; Python metaclass edge projected from the python fixtures.", "relationship": "USES_METACLASS", "from_label": "Class", "to_label": "Class", "minimum_count": 1 }
     ]
   },
   "drain_assertions": {
