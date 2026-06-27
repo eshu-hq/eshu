@@ -34,6 +34,7 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `go-gosec` | **push** | the gosec security gate (slow on Go 1.26, so push-time only) |
 | `go-perf-evidence` | **push** | the hot-path performance-evidence gate (a change under storage/cypher, storage/postgres, collector, reducer, query, runtime, workers, or queues needs a tracked No-Regression / No-Observability marker in an `evidence-*.md` / README / AGENTS file). Diffs the branch against origin/main, so it runs at push time; needs bash ≥ 4. |
 | `go-telemetry-coverage` | **push** | the telemetry-coverage gate (a new metric or pipeline stage must be reflected in `docs/public/observability/telemetry-coverage.md`, and the doc must not drift from `instruments.go`). Diffs the branch against origin/main. |
+| `console-e2e` | **push** | the `Console (apps/console)` per-page e2e gate (`console:e2e:mock`): boots a Vite dev server + headless Chromium and renders all 84 console routes. Catches blank-rendering pages and stale e2e selectors that the unit suite (`console:test`) cannot. Runs only when a file under `apps/console/` changed; installs Chromium idempotently. Bypass with `ESHU_SKIP_CONSOLE_E2E=1` (logged, not silent). |
 
 The lint/format/gosec hooks run only on the **changed packages**, so a normal
 commit is fast. `golangci-lint` runs against a config copy with the custom

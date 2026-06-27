@@ -109,3 +109,18 @@ repos:
         pass_filenames: false
         require_serial: true
         stages: [pre-push]
+
+      # Console per-page e2e gate (frontend.yml "Console (apps/console)" job):
+      # exercises real route rendering in headless Chromium across all 84 pages.
+      # The unit suite (console:test) cannot catch a route that renders blank or
+      # a stale e2e selector that no longer matches the DOM — only this gate can.
+      # It boots a Vite dev server + Chromium, so it is slow; run it at push time
+      # when any console file changed, not on every commit.
+      - id: console-e2e
+        name: console per-page e2e (apps/console)
+        entry: scripts/dev/precommit-console.sh e2e
+        language: script
+        files: '^apps/console/'
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]

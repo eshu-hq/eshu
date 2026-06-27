@@ -26,7 +26,10 @@ async function runOneTest(page: Page, test: PageTest): Promise<PageTestResult> {
   page.on("console", onConsole);
 
   try {
-    await page.goto(`${getBaseUrl()}${test.path}`, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+    await page.goto(`${getBaseUrl()}${test.path}`, {
+      waitUntil: "domcontentloaded",
+      timeout: navTimeoutMs,
+    });
     await page.waitForTimeout(settleMs);
     await test.assert(page);
 

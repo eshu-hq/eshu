@@ -583,13 +583,15 @@ export function App(): React.JSX.Element {
             baseUrl={source.base}
           />
         ) : source.status === "connected" ? (
-          <AppRoutes
-            model={visibleModel}
-            client={client}
-            source={source}
-            repositories={repositories}
-            onOpenService={openService}
-          />
+          <div className="page-shell">
+            <AppRoutes
+              model={visibleModel}
+              client={client}
+              source={source}
+              repositories={repositories}
+              onOpenService={openService}
+            />
+          </div>
         ) : (
           <ConnectionState status={source.status} onConnect={() => setOpen(true)} />
         )}
