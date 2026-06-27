@@ -1,0 +1,25 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Binding rules live once in AGENTS.md (byte-identical to CLAUDE.md, so only
+  // AGENTS.md is loaded here — loading both would ingest the same 12KB twice).
+  // The orchestration model the eshu agents implement is in
+  // docs/internal/agent-orchestration.md.
+  "instructions": [
+    "AGENTS.md",
+    "docs/internal/agent-guide.md",
+    "docs/internal/agent-orchestration.md"
+  ],
+  // Keep rules in scope through context compaction.
+  "compaction": {
+    "tail_turns": 50,
+    "auto": true
+  },
+  "references": {
+    "agent-guide": "docs/internal/agent-guide.md",
+    "orchestration": "docs/internal/agent-orchestration.md"
+  },
+  // Shared skills (also symlinked into .claude/skills and .codex/skills).
+  "skills": {
+    "paths": [".agents/skills"]
+  }
+}
