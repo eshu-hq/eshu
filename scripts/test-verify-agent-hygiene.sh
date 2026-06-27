@@ -59,5 +59,15 @@ else
   ok "attribution fails on the robot-emoji footer"
 fi
 
+# Regression for the Codex P2 on #3988: a normal HUMAN Co-authored-by trailer
+# (no AI tool / no anthropic address) must NOT be flagged — the rule is about
+# AI attribution, and the repo already has human co-author trailers.
+printf 'feat: x\n\nCo-authored-by: Jane Doe <jane@example.com>\n' >"$tmp/msg-human"
+if "$attr" --message "$tmp/msg-human" >/dev/null 2>&1; then
+  ok "attribution passes on a human Co-authored-by trailer"
+else
+  no "attribution should NOT flag a human Co-authored-by trailer"
+fi
+
 printf '\nagent-hygiene test mirror: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

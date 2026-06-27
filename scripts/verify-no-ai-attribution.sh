@@ -24,11 +24,12 @@ if [ -z "$repo_root" ]; then
   repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-# Case-insensitive ERE of real attribution markers. Deliberately specific (a
-# full Co-authored-by trailer with an email; "generated with/by <AI tool>"; the
-# Claude Code robot-emoji footer; the Anthropic noreply address) so it matches
-# attribution, not prose that merely names the rule.
-pattern='co-authored-by:[[:space:]]*.+<.+@.+>|generated (with|by) (\[?claude|copilot|chatgpt|gpt-|cursor|gemini|codex)|🤖 generated with|noreply@anthropic\.com'
+# Case-insensitive ERE of real AI-attribution markers. Deliberately specific so
+# it matches AI attribution, not prose naming the rule and NOT a normal human
+# Co-authored-by trailer: a Co-authored-by line is flagged only when it names an
+# AI tool (or the Anthropic address). Plus "generated with/by <AI tool>", the
+# Claude Code robot-emoji footer, and the Anthropic noreply address anywhere.
+pattern='co-authored-by:.*(claude|copilot|chatgpt|gpt-|cursor|gemini|codex|anthropic).*<|generated (with|by) (\[?claude|copilot|chatgpt|gpt-|cursor|gemini|codex)|🤖 generated with|noreply@anthropic\.com'
 
 # The gate's own implementation and docs necessarily contain these patterns.
 # Exclude them from content scans so the gate never flags itself.
