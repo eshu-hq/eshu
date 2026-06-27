@@ -226,6 +226,21 @@ func DefaultDomainDefinitions() []DomainDefinition {
 			},
 		},
 		{
+			Domain:  DomainPlatformInfraMaterialization,
+			Summary: "emit platform_infra intents for Repository PROVISIONS_PLATFORM edges from Terraform/terragrunt facts",
+			Ownership: OwnershipShape{
+				CrossSource:    true,
+				CrossScope:     true,
+				CanonicalWrite: true,
+			},
+			TruthContract: truth.Contract{
+				CanonicalKind: "platform_infra_materialization",
+				SourceLayers: []truth.Layer{
+					truth.LayerSourceDeclaration,
+				},
+			},
+		},
+		{
 			Domain:  DomainWorkloadMaterialization,
 			Summary: "materialize canonical workload graph from content store facts",
 			Ownership: OwnershipShape{

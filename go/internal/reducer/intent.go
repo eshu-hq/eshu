@@ -40,6 +40,13 @@ const (
 	DomainWorkloadMaterialization Domain = "workload_materialization"
 	// DomainCodeCallMaterialization materializes canonical code call edges.
 	DomainCodeCallMaterialization Domain = "code_call_materialization"
+	// DomainPlatformInfraMaterialization extracts Terraform/terragrunt IaC
+	// platform-provisioning signals from a repository's facts and emits
+	// platform_infra shared-projection intents, which the shared worker writes as
+	// Repository-[:PROVISIONS_PLATFORM]->Platform edges. It owns the
+	// infrastructure-provisioning verb on its own dedicated trigger rather than
+	// riding the deployment_mapping handler as a side-effect.
+	DomainPlatformInfraMaterialization Domain = "platform_infra_materialization"
 	// DomainSemanticEntityMaterialization materializes Annotation, Typedef,
 	// TypeAlias, and Component semantic nodes.
 	DomainSemanticEntityMaterialization Domain = "semantic_entity_materialization"

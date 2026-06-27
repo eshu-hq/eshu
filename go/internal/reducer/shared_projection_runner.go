@@ -29,7 +29,6 @@ const (
 // sharedProjectionDomains lists the shared projection domains processed
 // by the partition worker.
 var sharedProjectionDomains = []string{
-	DomainPlatformInfra,
 	DomainWorkloadDependency,
 	DomainInheritanceEdges,
 	DomainDocumentationEdges,

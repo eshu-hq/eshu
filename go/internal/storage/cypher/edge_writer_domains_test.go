@@ -21,11 +21,6 @@ func TestBatchedWriteEdgesUsesUNWINDCypher(t *testing.T) {
 		contains string
 	}{
 		{
-			domain:   reducer.DomainPlatformInfra,
-			payload:  map[string]any{"repo_id": "r1", "platform_id": "p1"},
-			contains: "UNWIND $rows AS row",
-		},
-		{
 			domain:   reducer.DomainRepoDependency,
 			payload:  map[string]any{"repo_id": "r1", "target_repo_id": "r2"},
 			contains: "UNWIND $rows AS row",

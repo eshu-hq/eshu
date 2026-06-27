@@ -144,7 +144,7 @@ func TestSharedProjectionRunnerProcessesPendingIntents(t *testing.T) {
 		intents: []SharedProjectionIntentRow{
 			{
 				IntentID:         "intent-1",
-				ProjectionDomain: DomainPlatformInfra,
+				ProjectionDomain: DomainWorkloadDependency,
 				PartitionKey:     "platform:eks-prod",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -253,7 +253,6 @@ func TestSharedProjectionDomainsIncludesAllExpected(t *testing.T) {
 	t.Parallel()
 
 	expected := map[string]bool{
-		DomainPlatformInfra:      false,
 		DomainWorkloadDependency: false,
 		DomainInheritanceEdges:   false,
 		DomainDocumentationEdges: false,
@@ -362,7 +361,7 @@ func TestSharedProjectionRunnerWithTelemetry(t *testing.T) {
 		intents: []SharedProjectionIntentRow{
 			{
 				IntentID:         "intent-1",
-				ProjectionDomain: DomainPlatformInfra,
+				ProjectionDomain: DomainWorkloadDependency,
 				PartitionKey:     "platform:eks-prod",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",

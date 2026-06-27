@@ -115,6 +115,38 @@ func codeCallMaterializationFactEnvelope(
 	)
 }
 
+// platformInfraMaterializationFactEnvelope builds the per-repository follow-up
+// fact that triggers the platform_infra_materialization reducer domain. The
+// handler extracts Terraform/terragrunt platform-provisioning signals from the
+// repository's facts and emits platform_infra shared-projection intents (the
+// dedicated home for Repository-[:PROVISIONS_PLATFORM]->Platform). It is emitted
+// unconditionally per repository; repos without IaC platform signals reduce to a
+// no-op.
+func platformInfraMaterializationFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": "platform_infra_materialization",
+		"entity_key":     "repo:" + filepath.Base(repoPath),
+		"reason":         "repository snapshot emitted platform infra materialization follow-up",
+		"repo_id":        repoID,
+	}
+
+	return factEnvelope(
+		"shared_followup",
+		scopeID,
+		generationID,
+		observedAt,
+		"shared_followup:"+repoID+":platform_infra_materialization",
+		payload,
+		repoPath,
+	)
+}
+
 func workloadMaterializationFactEnvelope(
 	repoPath string,
 	repoID string,

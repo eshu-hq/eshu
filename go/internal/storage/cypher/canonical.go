@@ -62,22 +62,6 @@ SET rel.confidence = 1.0,
     rel.reason = 'Workload instance runs on inferred platform',
     rel.evidence_source = $evidence_source`
 
-const canonicalInfrastructurePlatformUpsertCypher = `MATCH (repo:Repository {id: $repo_id})
-MERGE (p:Platform {id: $platform_id})
-ON CREATE SET p.evidence_source = $evidence_source,
-              p.generation_id = $generation_id
-SET p.type = 'platform',
-    p.name = $platform_name,
-    p.kind = $platform_kind,
-    p.provider = $platform_provider,
-    p.environment = $platform_environment,
-    p.region = $platform_region,
-    p.locator = $platform_locator
-MERGE (repo)-[rel:PROVISIONS_PLATFORM]->(p)
-SET rel.confidence = 0.98,
-    rel.reason = 'Terraform cluster and module data declare platform provisioning',
-    rel.evidence_source = $evidence_source`
-
 const canonicalDeploymentSourceUpsertCypher = `MATCH (i:WorkloadInstance {id: $instance_id})
 MATCH (deployment_repo:Repository {id: $deployment_repo_id})
 MERGE (i)-[rel:DEPLOYMENT_SOURCE]->(deployment_repo)
@@ -142,22 +126,6 @@ SET rel.confidence = 0.95,
 
 // --- Batched UNWIND Cypher (shared projection) ---
 
-const batchCanonicalInfrastructurePlatformUpsertCypher = `UNWIND $rows AS row
-MATCH (repo:Repository {id: row.repo_id})
-MERGE (p:Platform {id: row.platform_id})
-ON CREATE SET p.evidence_source = row.evidence_source,
-              p.generation_id = row.generation_id
-SET p.type = 'platform',
-    p.name = row.platform_name,
-    p.kind = row.platform_kind,
-    p.provider = row.platform_provider,
-    p.environment = row.platform_environment,
-    p.region = row.platform_region,
-    p.locator = row.platform_locator
-MERGE (repo)-[rel:PROVISIONS_PLATFORM]->(p)
-SET rel.confidence = 0.98,
-    rel.reason = 'Terraform cluster and module data declare platform provisioning',
-    rel.evidence_source = row.evidence_source`
 
 const batchCanonicalRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
@@ -241,11 +209,6 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractInfrastructurePlatformEdgesCypher = `MATCH (repo:Repository)-[rel:PROVISIONS_PLATFORM]->(:Platform)
-WHERE repo.id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
-
 const retractRepoDependencyEdgesCypher = `MATCH (source_repo:Repository)-[rel:DEPENDS_ON]->(:Repository)
 WHERE source_repo.id IN $repo_ids
   AND rel.evidence_source = $evidence_source
@@ -324,20 +287,6 @@ type CanonicalRuntimePlatformParams struct {
 	PlatformRegion   string
 	PlatformLocator  string
 	GenerationID     string
-}
-
-// CanonicalInfrastructurePlatformParams holds the parameters for a Platform +
-// PROVISIONS_PLATFORM upsert from a Repository.
-type CanonicalInfrastructurePlatformParams struct {
-	RepoID              string
-	PlatformID          string
-	PlatformName        string
-	PlatformKind        string
-	PlatformProvider    string
-	PlatformEnvironment string
-	PlatformRegion      string
-	PlatformLocator     string
-	GenerationID        string
 }
 
 // CanonicalDeploymentSourceParams holds the parameters for a
@@ -430,27 +379,6 @@ func BuildCanonicalRuntimePlatformUpsert(p CanonicalRuntimePlatformParams, evide
 			"platform_locator":  p.PlatformLocator,
 			"evidence_source":   evidenceSource,
 			"generation_id":     p.GenerationID,
-		},
-	}
-}
-
-// BuildCanonicalInfrastructurePlatformUpsert builds a Platform node +
-// PROVISIONS_PLATFORM edge statement from a Repository.
-func BuildCanonicalInfrastructurePlatformUpsert(p CanonicalInfrastructurePlatformParams, evidenceSource string) Statement {
-	return Statement{
-		Operation: OperationCanonicalUpsert,
-		Cypher:    canonicalInfrastructurePlatformUpsertCypher,
-		Parameters: map[string]any{
-			"repo_id":              p.RepoID,
-			"platform_id":          p.PlatformID,
-			"platform_name":        p.PlatformName,
-			"platform_kind":        p.PlatformKind,
-			"platform_provider":    p.PlatformProvider,
-			"platform_environment": p.PlatformEnvironment,
-			"platform_region":      p.PlatformRegion,
-			"platform_locator":     p.PlatformLocator,
-			"evidence_source":      evidenceSource,
-			"generation_id":        p.GenerationID,
 		},
 	}
 }

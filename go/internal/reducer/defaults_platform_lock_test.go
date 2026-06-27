@@ -10,20 +10,22 @@ func TestNewDefaultRegistryWiresPlatformGraphLocker(t *testing.T) {
 
 	locker := &recordingPlatformGraphLocker{}
 	registry, err := NewDefaultRegistry(DefaultHandlers{
-		PlatformMaterializationWriter: &recordingPlatformMaterializationWriter{},
-		PlatformGraphLocker:           locker,
+		PlatformMaterializationWriter:      &recordingPlatformMaterializationWriter{},
+		FactLoader:                         &stubFactLoader{},
+		InfrastructurePlatformMaterializer: NewInfrastructurePlatformMaterializer(&recordingCypherExecutor{}),
+		PlatformGraphLocker:                locker,
 	})
 	if err != nil {
 		t.Fatalf("NewDefaultRegistry() error = %v, want nil", err)
 	}
 
-	def, ok := registry.Definition(DomainDeploymentMapping)
+	def, ok := registry.Definition(DomainPlatformInfraMaterialization)
 	if !ok {
-		t.Fatal("deployment_mapping definition missing")
+		t.Fatal("platform_infra_materialization definition missing")
 	}
-	handler, ok := def.Handler.(PlatformMaterializationHandler)
+	handler, ok := def.Handler.(PlatformInfraMaterializationHandler)
 	if !ok {
-		t.Fatalf("handler type = %T, want PlatformMaterializationHandler", def.Handler)
+		t.Fatalf("handler type = %T, want PlatformInfraMaterializationHandler", def.Handler)
 	}
 	if handler.PlatformGraphLocker != locker {
 		t.Fatal("PlatformGraphLocker was not wired")

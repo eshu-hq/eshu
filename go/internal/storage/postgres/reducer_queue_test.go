@@ -89,11 +89,23 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 			wantKey:    reducerPlatformGraphConflictKey(reducer.DomainWorkloadIdentity, "scope-1"),
 		},
 		{
-			// DeploymentMapping MERGEs (p:Platform {id}) (with the PlatformGraphLocker
-			// advisory lock); it shares one conflict key with WorkloadMaterialization
-			// (which MERGEs the same node WITHOUT the lock) so the queue fence keeps
-			// the two unprotected same-node writers serialized (#3672 review P1).
-			name:       "deployment mapping uses shared platform-node-writer key",
+			// PlatformInfraMaterialization MERGEs (p:Platform {id}) (with the
+			// PlatformGraphLocker advisory lock); it shares one conflict key with
+			// WorkloadMaterialization (which MERGEs the same node WITHOUT the lock) so
+			// the queue fence keeps the two unprotected same-node writers serialized
+			// (#3672 review P1).
+			name:       "platform infra materialization uses shared platform-node-writer key",
+			domain:     reducer.DomainPlatformInfraMaterialization,
+			wantDomain: reducerConflictDomainPlatformGraph,
+			wantKey:    reducerPlatformNodeWriterConflictKey("scope-1"),
+		},
+		{
+			// DeploymentMapping no longer MERGEs a :Platform node, but it requeues
+			// workload materialization via reopen-succeeded-only replay, so it shares
+			// the scope-keyed platform-node-writer key with WorkloadMaterialization to
+			// avoid overlapping a same-scope in-flight workload item (silently-lost
+			// replay).
+			name:       "deployment mapping shares platform-node-writer key for replay ordering",
 			domain:     reducer.DomainDeploymentMapping,
 			wantDomain: reducerConflictDomainPlatformGraph,
 			wantKey:    reducerPlatformNodeWriterConflictKey("scope-1"),

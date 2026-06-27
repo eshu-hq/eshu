@@ -189,34 +189,6 @@ func TestBuildCanonicalRunsOnUpsertStatementUsesWorkloadInstanceShape(t *testing
 	}
 }
 
-func TestBuildCanonicalInfrastructurePlatformUpsertStatement(t *testing.T) {
-	t.Parallel()
-
-	stmt := BuildCanonicalInfrastructurePlatformUpsert(CanonicalInfrastructurePlatformParams{
-		RepoID:              "repo-1",
-		PlatformID:          "platform:eks:aws:infra-cluster:staging:us-west-2",
-		PlatformName:        "infra-cluster",
-		PlatformKind:        "eks",
-		PlatformProvider:    "aws",
-		PlatformEnvironment: "staging",
-		PlatformRegion:      "us-west-2",
-		PlatformLocator:     "arn:aws:eks:us-west-2:123:cluster/infra-cluster",
-	}, "finalization/workloads")
-
-	if stmt.Operation != OperationCanonicalUpsert {
-		t.Fatalf("Operation = %q, want %q", stmt.Operation, OperationCanonicalUpsert)
-	}
-	if !strings.Contains(stmt.Cypher, "MERGE (p:Platform {id: $platform_id})") {
-		t.Fatalf("Cypher missing Platform MERGE: %s", stmt.Cypher)
-	}
-	if !strings.Contains(stmt.Cypher, "MERGE (repo)-[rel:PROVISIONS_PLATFORM]->(p)") {
-		t.Fatalf("Cypher missing PROVISIONS_PLATFORM edge: %s", stmt.Cypher)
-	}
-	if stmt.Parameters["platform_environment"] != "staging" {
-		t.Fatalf("platform_environment = %v", stmt.Parameters["platform_environment"])
-	}
-}
-
 func TestBuildCanonicalDeploymentSourceUpsertStatement(t *testing.T) {
 	t.Parallel()
 
@@ -378,29 +350,6 @@ func TestBuildCanonicalCodeCallUpsertStatementUsesMetaclassEdges(t *testing.T) {
 	}
 	if stmt.Parameters["relationship_type"] != "USES_METACLASS" {
 		t.Fatalf("relationship_type = %v, want USES_METACLASS", stmt.Parameters["relationship_type"])
-	}
-}
-
-func TestBuildRetractInfrastructurePlatformEdgesStatement(t *testing.T) {
-	t.Parallel()
-
-	stmt := BuildRetractInfrastructurePlatformEdges([]string{"repo-1", "repo-2"}, "finalization/workloads")
-
-	if stmt.Operation != OperationCanonicalRetract {
-		t.Fatalf("Operation = %q, want %q", stmt.Operation, OperationCanonicalRetract)
-	}
-	if !strings.Contains(stmt.Cypher, "PROVISIONS_PLATFORM") {
-		t.Fatalf("Cypher missing PROVISIONS_PLATFORM: %s", stmt.Cypher)
-	}
-	if !strings.Contains(stmt.Cypher, "DELETE rel") {
-		t.Fatalf("Cypher missing DELETE: %s", stmt.Cypher)
-	}
-	repoIDs, ok := stmt.Parameters["repo_ids"].([]string)
-	if !ok {
-		t.Fatalf("repo_ids type = %T, want []string", stmt.Parameters["repo_ids"])
-	}
-	if len(repoIDs) != 2 {
-		t.Fatalf("repo_ids len = %d, want 2", len(repoIDs))
 	}
 }
 

@@ -39,9 +39,6 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			}
 			def.Handler = PlatformMaterializationHandler{
 				Writer:                          handlers.PlatformMaterializationWriter,
-				FactLoader:                      handlers.FactLoader,
-				InfrastructureMaterializer:      handlers.InfrastructurePlatformMaterializer,
-				PlatformGraphLocker:             handlers.PlatformGraphLocker,
 				CrossRepoResolver:               crossRepoResolver,
 				WorkloadMaterializationReplayer: handlers.WorkloadMaterializationReplayer,
 				PhasePublisher:                  handlers.GraphProjectionPhasePublisher,
@@ -67,6 +64,12 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			def.Handler = CodeCallMaterializationHandler{
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.CodeCallIntentWriter,
+			}
+		case DomainPlatformInfraMaterialization:
+			def.Handler = PlatformInfraMaterializationHandler{
+				FactLoader:                 handlers.FactLoader,
+				InfrastructureMaterializer: handlers.InfrastructurePlatformMaterializer,
+				PlatformGraphLocker:        handlers.PlatformGraphLocker,
 			}
 		case DomainSemanticEntityMaterialization:
 			def.Handler = SemanticEntityMaterializationHandler{

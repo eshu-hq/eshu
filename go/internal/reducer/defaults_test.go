@@ -209,8 +209,8 @@ func TestDefaultDomainDefinitionsMatchImplementedRuntimeCatalog(t *testing.T) {
 	t.Parallel()
 
 	got := DefaultDomainDefinitions()
-	if len(got) != 11 {
-		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 11", len(got))
+	if len(got) != 12 {
+		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 12", len(got))
 	}
 	if got[0].Domain != DomainWorkloadIdentity {
 		t.Fatalf("DefaultDomainDefinitions()[0].Domain = %q, want %q", got[0].Domain, DomainWorkloadIdentity)
@@ -242,14 +242,20 @@ func TestDefaultDomainDefinitionsMatchImplementedRuntimeCatalog(t *testing.T) {
 	if !got[3].TruthContract.Supports(truth.LayerSourceDeclaration) {
 		t.Fatal("DefaultDomainDefinitions()[3].TruthContract.Supports(source_declaration) = false, want true")
 	}
-	if got[4].Domain != DomainWorkloadMaterialization {
-		t.Fatalf("DefaultDomainDefinitions()[4].Domain = %q, want %q", got[4].Domain, DomainWorkloadMaterialization)
+	if got[4].Domain != DomainPlatformInfraMaterialization {
+		t.Fatalf("DefaultDomainDefinitions()[4].Domain = %q, want %q", got[4].Domain, DomainPlatformInfraMaterialization)
 	}
-	if got[5].Domain != DomainSemanticEntityMaterialization {
-		t.Fatalf("DefaultDomainDefinitions()[5].Domain = %q, want %q", got[5].Domain, DomainSemanticEntityMaterialization)
+	if got[4].TruthContract.CanonicalKind != "platform_infra_materialization" {
+		t.Fatalf("DefaultDomainDefinitions()[4].TruthContract.CanonicalKind = %q, want %q", got[4].TruthContract.CanonicalKind, "platform_infra_materialization")
 	}
-	if got[5].TruthContract.CanonicalKind != "semantic_entity_materialization" {
-		t.Fatalf("DefaultDomainDefinitions()[5].TruthContract.CanonicalKind = %q, want %q", got[5].TruthContract.CanonicalKind, "semantic_entity_materialization")
+	if got[5].Domain != DomainWorkloadMaterialization {
+		t.Fatalf("DefaultDomainDefinitions()[5].Domain = %q, want %q", got[5].Domain, DomainWorkloadMaterialization)
+	}
+	if got[6].Domain != DomainSemanticEntityMaterialization {
+		t.Fatalf("DefaultDomainDefinitions()[6].Domain = %q, want %q", got[6].Domain, DomainSemanticEntityMaterialization)
+	}
+	if got[6].TruthContract.CanonicalKind != "semantic_entity_materialization" {
+		t.Fatalf("DefaultDomainDefinitions()[6].TruthContract.CanonicalKind = %q, want %q", got[6].TruthContract.CanonicalKind, "semantic_entity_materialization")
 	}
 }
 

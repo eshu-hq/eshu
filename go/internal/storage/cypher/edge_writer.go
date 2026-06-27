@@ -231,8 +231,6 @@ func (w *EdgeWriter) recordCodeCallBatch(ctx context.Context, duration float64) 
 // given shared projection domain.
 func batchCypherForDomain(domain string) (string, error) {
 	switch domain {
-	case reducer.DomainPlatformInfra:
-		return batchCanonicalInfrastructurePlatformUpsertCypher, nil
 	case reducer.DomainRepoDependency:
 		return batchCanonicalRepoDependencyUpsertCypher, nil
 	case reducer.DomainWorkloadDependency:
@@ -271,25 +269,6 @@ func buildRowMap(
 	evidenceSource string,
 ) (string, map[string]any, bool) {
 	switch domain {
-	case reducer.DomainPlatformInfra:
-		repoID := payloadString(row.Payload, "repo_id")
-		platformID := payloadString(row.Payload, "platform_id")
-		if repoID == "" || platformID == "" {
-			return "", nil, false
-		}
-		return batchCanonicalInfrastructurePlatformUpsertCypher, map[string]any{
-			"repo_id":              repoID,
-			"platform_id":          platformID,
-			"platform_name":        payloadString(row.Payload, "platform_name"),
-			"platform_kind":        payloadString(row.Payload, "platform_kind"),
-			"platform_provider":    payloadString(row.Payload, "platform_provider"),
-			"platform_environment": payloadString(row.Payload, "platform_environment"),
-			"platform_region":      payloadString(row.Payload, "platform_region"),
-			"platform_locator":     payloadString(row.Payload, "platform_locator"),
-			"generation_id":        row.GenerationID,
-			"evidence_source":      evidenceSource,
-		}, true
-
 	case reducer.DomainRepoDependency:
 		repoID := payloadString(row.Payload, "repo_id")
 		targetRepoID := payloadString(row.Payload, "target_repo_id")

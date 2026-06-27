@@ -248,6 +248,7 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 		DomainDeploymentMapping,
 		DomainDocumentationMaterialization,
 		DomainInheritanceMaterialization,
+		DomainPlatformInfraMaterialization,
 		DomainRationaleMaterialization,
 		DomainSemanticEntityMaterialization,
 		DomainShellExecMaterialization,

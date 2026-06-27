@@ -46,19 +46,6 @@ func BuildCanonicalCodeCallUpsert(p CanonicalCodeCallParams, evidenceSource stri
 
 // --- Retraction builders ---
 
-// BuildRetractInfrastructurePlatformEdges builds a PROVISIONS_PLATFORM edge
-// retraction statement.
-func BuildRetractInfrastructurePlatformEdges(repoIDs []string, evidenceSource string) Statement {
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher:    retractInfrastructurePlatformEdgesCypher,
-		Parameters: map[string]any{
-			"repo_ids":        repoIDs,
-			"evidence_source": evidenceSource,
-		},
-	}
-}
-
 // BuildRetractRepoDependencyEdges builds a Repository DEPENDS_ON edge
 // retraction statement.
 func BuildRetractRepoDependencyEdges(repoIDs []string, evidenceSource string) Statement {
