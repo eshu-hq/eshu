@@ -225,6 +225,11 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 	// properties written earlier this phase. No-op for non-Atlantis repos.
 	stmts = append(stmts, atlantisEdgeStatements(mat)...)
 
+	// GitLab CI DEFINES_JOB (pipeline -> job) and NEEDS (job -> job) edges,
+	// derived from the GitlabPipeline / GitlabJob node properties written
+	// earlier this phase. No-op for non-GitLab repos.
+	stmts = append(stmts, gitlabEdgeStatements(mat)...)
+
 	// IMPORTS edges
 	if len(mat.Imports) > 0 {
 		rows := make([]map[string]any, len(mat.Imports))

@@ -40,6 +40,11 @@ const (
 	DeclaresDependency EdgeType = "DECLARES_DEPENDENCY"
 	// Defines is the "DEFINES" graph relationship type.
 	Defines EdgeType = "DEFINES"
+	// DefinesJob is the "DEFINES_JOB" graph relationship type (a GitLab CI
+	// pipeline to a job it declares in .gitlab-ci.yml). It is deliberately
+	// distinct from the code-symbol-scoped Defines so a pipeline-to-job edge is
+	// never conflated with a code DEFINES traversal.
+	DefinesJob EdgeType = "DEFINES_JOB"
 	// DependsOn is the "DEPENDS_ON" graph relationship type.
 	DependsOn EdgeType = "DEPENDS_ON"
 	// DependsOnPackage is the "DEPENDS_ON_PACKAGE" graph relationship type.
@@ -105,6 +110,11 @@ const (
 	Manages EdgeType = "MANAGES"
 	// MapsToTable is the "MAPS_TO_TABLE" graph relationship type.
 	MapsToTable EdgeType = "MAPS_TO_TABLE"
+	// Needs is the "NEEDS" graph relationship type (a GitLab CI job to a sibling
+	// job it declares in needs/dependencies, resolved within the same
+	// .gitlab-ci.yml). It is distinct from DependsOn so CI job ordering is never
+	// conflated with repository/package dependency edges.
+	Needs EdgeType = "NEEDS"
 	// Migrates is the "MIGRATES" graph relationship type.
 	Migrates EdgeType = "MIGRATES"
 	// Overrides is the "OVERRIDES" graph relationship type.
@@ -171,7 +181,7 @@ const (
 var registered = []EdgeType{
 	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
-	CorrelatesDeployableUnit, DeclaresDependency, Defines, DependsOn,
+	CorrelatesDeployableUnit, DeclaresDependency, Defines, DefinesJob, DependsOn,
 	DependsOnPackage, DeploymentSource, DeploysFrom, DiscoversConfigIn,
 	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
 	Explains, ExposesEndpoint, GrantsAccessTo, HandlesRoute,
@@ -179,7 +189,7 @@ var registered = []EdgeType{
 	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
 	HasVersion, Implements, Imports, Indexes,
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
-	LogsTo, Manages, MapsToTable, Migrates, Overrides,
+	LogsTo, Manages, MapsToTable, Migrates, Needs, Overrides,
 	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,
 	ReadsFrom, References, ReferencesTable, RepoContains,
 	RunsImage, RunsIn, RunsOn, SatisfiedBy,

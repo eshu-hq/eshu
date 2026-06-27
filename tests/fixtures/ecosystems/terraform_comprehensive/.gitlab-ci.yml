@@ -1,0 +1,21 @@
+stages:
+  - validate
+  - plan
+
+variables:
+  TF_ROOT: ${CI_PROJECT_DIR}
+
+terraform-validate:
+  stage: validate
+  image: hashicorp/terraform:1.7
+  script:
+    - terraform fmt -check
+    - terraform validate
+
+terraform-plan:
+  stage: plan
+  image: hashicorp/terraform:1.7
+  needs:
+    - terraform-validate
+  script:
+    - terraform plan -out=plan.tfplan

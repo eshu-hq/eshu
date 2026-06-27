@@ -24,8 +24,8 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "be5aa2ca69761b9db112d7a45487ef7095b3fd58038de17cb2b3047479b93c0e"
-	graphSchemaNornicDBFingerprint = "b9e6a46df32f87a20b85cc5e8864a5b70bf0aa478edb055d17fc35d50204c3ff"
+	graphSchemaNeo4jFingerprint    = "5c03985679793d71accf72f200386ce42c44d6876ee11b9aa4911f1f3c0f67fd"
+	graphSchemaNornicDBFingerprint = "96e23958aed519860d44bdabf0e45d9f864c94a76ca6da1e002664892e4b46f1"
 )
 
 // graphSchemaCompatibleFingerprints lists additive predecessor schema

@@ -341,10 +341,25 @@ func isCollectorIgnoreControlFile(name string) bool {
 	return name == ".gitignore" || name == ".eshuignore"
 }
 
+// preservedHiddenFilesystemFileNames lists hidden (dot-prefixed) file basenames
+// that the managed-workspace copy must keep even though they would otherwise be
+// pruned as dotfiles. Unlike .github/workflows (a directory prefix), these are
+// individual hidden config FILES that can live at the repo root or, for GitLab
+// CI, in a subdirectory referenced via include:. They are matched by basename so
+// the copy preserves them wherever they appear in the tree.
+var preservedHiddenFilesystemFileNames = map[string]struct{}{
+	".gitlab-ci.yml":  {},
+	".gitlab-ci.yaml": {},
+}
+
 func preserveFilesystemHiddenPath(rel string) bool {
 	normalized := path.Clean(filepath.ToSlash(rel))
 	if normalized == "." {
 		return false
+	}
+
+	if _, ok := preservedHiddenFilesystemFileNames[path.Base(normalized)]; ok {
+		return true
 	}
 
 	return normalized == ".github" ||

@@ -387,6 +387,12 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # too — the terraform_comprehensive fixture carries a depth-1 atlantis.yaml with
 # network + staging projects; the structural-edge phase emits both edges after the
 # AtlantisProject and Directory nodes are written for that repo.
+# rc-27 (DEFINES_JOB) and rc-28 (NEEDS between GitlabJobs) are now required too —
+# the terraform_comprehensive fixture carries a depth-0 .gitlab-ci.yml with
+# terraform-validate + terraform-plan jobs; the structural-edge phase emits the
+# pipeline->job DEFINES_JOB edges and the plan->validate NEEDS edge after the
+# GitlabPipeline and GitlabJob nodes are written for that repo. Static parse, no
+# cassette, mirroring the Atlantis rc-5/rc-6 pattern.
 # rc-8 (HANDLES_ROUTE) is now required too — the same api-svc fixture that drives
 # rc-2 (RUNS_IN) binds its Flask @app.route handler Functions to their Endpoint
 # nodes via Function-[:HANDLES_ROUTE]->Endpoint. Code-path edge, no new cassette.
@@ -405,8 +411,8 @@ gate_status=0
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
-	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,CloudAction" \
-	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8,rc-11,rc-12,rc-13,rc-14,rc-15,rc-16,rc-17,rc-18,rc-19,rc-20,rc-21,rc-22,rc-23,rc-10,rc-9,rc-24,rc-25" \
+	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,GitlabPipeline,GitlabJob,CloudAction" \
+	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8,rc-11,rc-12,rc-13,rc-14,rc-15,rc-16,rc-17,rc-18,rc-19,rc-20,rc-21,rc-22,rc-23,rc-10,rc-9,rc-24,rc-25,rc-27,rc-28" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?
