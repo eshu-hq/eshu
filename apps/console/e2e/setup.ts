@@ -25,10 +25,11 @@ const navTimeoutMs = 30000;
 const devServerReadyTimeoutMs = 120000;
 
 async function startDevServer(): Promise<DevServer> {
+  const viteEntry = resolve(repoRoot, "node_modules", "vite", "bin", "vite.js");
   const child = spawn(
-    "npx",
+    process.execPath,
     [
-      "vite",
+      viteEntry,
       "--config",
       "apps/console/vite.config.ts",
       "--host",
