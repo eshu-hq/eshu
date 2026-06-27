@@ -34,6 +34,28 @@ repos:
 
   - repo: local
     hooks:
+      # Agent-hygiene gates (mirrors verify-agent-hygiene.yml). Fast, non-Go,
+      # so they run at commit time. CI re-checks them (the non-bypassable gate).
+      - id: agent-canon
+        name: AGENTS.md/CLAUDE.md lockstep
+        entry: scripts/verify-agent-canon.sh
+        language: script
+        files: '^(AGENTS\.md|CLAUDE\.md)$'
+        pass_filenames: false
+
+      - id: no-ai-attribution-content
+        name: no AI attribution (staged content)
+        entry: scripts/verify-no-ai-attribution.sh --staged
+        language: script
+        always_run: true
+        pass_filenames: false
+
+      - id: no-ai-attribution-message
+        name: no AI attribution (commit message)
+        entry: scripts/verify-no-ai-attribution.sh --message
+        language: script
+        stages: [commit-msg]
+
       - id: go-fmt
         name: gofumpt formatting (golangci-lint fmt)
         entry: scripts/dev/precommit-go.sh fmt

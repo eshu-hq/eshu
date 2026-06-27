@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+#
+# verify-no-ai-attribution.sh — fail if AI-attribution markers appear in commit
+# messages or added diff content.
+#
+# Repo rule: no AI attribution in commits, PRs, or docs — no Co-authored-by
+# trailer, no "Generated with/by <AI tool>", no tool fingerprints. Nothing
+# enforced this before; cheaper models routinely append such footers. CI runs
+# this in range mode; pre-commit runs --staged (content) and --message (the
+# commit-msg hook).
+#
+# Modes:
+#   (default)         range mode — scan commit messages and added diff lines in
+#                     <base>..HEAD. base = ESHU_AI_ATTRIBUTION_BASE, else
+#                     origin/$GITHUB_BASE_REF, else merge-base origin/main HEAD.
+#   --staged          scan staged (git diff --cached) added lines.
+#   --message <file>  scan a commit-message file.
+#
+# Exit 0 when clean; non-zero listing each offending location.
+set -euo pipefail
+
+repo_root="${ESHU_AI_ATTRIBUTION_REPO_ROOT:-}"
+if [ -z "$repo_root" ]; then
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+fi
+
+# Case-insensitive ERE of real AI-attribution markers. Deliberately specific so
+# it matches AI attribution, not prose naming the rule and NOT a normal human
+# Co-authored-by trailer: a Co-authored-by line is flagged only when it names an
+# AI tool (or the Anthropic address). Plus "generated with/by <AI tool>", the
+# Claude Code robot-emoji footer, and the Anthropic noreply address anywhere.
+pattern='co-authored-by:.*(claude|copilot|chatgpt|gpt-|cursor|gemini|codex|anthropic).*<|generated (with|by) (\[?claude|copilot|chatgpt|gpt-|cursor|gemini|codex)|🤖 generated with|noreply@anthropic\.com'
+
+# The gate's own implementation and docs necessarily contain these patterns.
+# Exclude them from content scans so the gate never flags itself.
+self_excludes=(
+  ':(exclude)scripts/verify-no-ai-attribution.sh'
+  ':(exclude)scripts/test-verify-agent-hygiene.sh'
+  ':(exclude)docs/public/reference/local-testing/pre-commit-hooks.md'
+)
+
+fail=0
+
+report() {
+  printf 'verify-no-ai-attribution: %s\n' "$1" >&2
+}
+
+scan_added_lines() { # $1..: git diff revision/args
+  git -C "$repo_root" diff "$@" -- . "${self_excludes[@]}" 2>/dev/null \
+    | rg '^\+' | rg -v '^\+\+\+ ' | rg -i -n -e "$pattern" || true
+}
+
+mode="${1:-range}"
+case "$mode" in
+  --staged)
+    hits="$(scan_added_lines --cached)"
+    if [ -n "$hits" ]; then
+      report "AI-attribution marker in staged content:"
+      printf '%s\n' "$hits" >&2
+      fail=1
+    fi
+    ;;
+  --message)
+    msg_file="${2:-}"
+    if [ -n "$msg_file" ] && [ -f "$msg_file" ]; then
+      hits="$(rg -i -n -e "$pattern" "$msg_file" || true)"
+      if [ -n "$hits" ]; then
+        report "AI-attribution marker in commit message:"
+        printf '%s\n' "$hits" >&2
+        fail=1
+      fi
+    fi
+    ;;
+  *)
+    base_ref="${ESHU_AI_ATTRIBUTION_BASE:-}"
+    if [ -z "$base_ref" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
+      # Use the base ref the CI checkout already fetched (fetch-depth: 0). Only
+      # fetch if missing, and NEVER with --depth=1: a shallow base severs
+      # ancestry, so <base>..HEAD balloons to nearly all history and re-flags
+      # pre-existing commits (e.g. legacy "Copilot Autofix" trailers already on
+      # main). That is what failed run 28294038092.
+      if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
+        git -C "$repo_root" fetch --no-tags origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+      fi
+      if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
+        base_ref="origin/$GITHUB_BASE_REF"
+      fi
+    fi
+    if [ -z "$base_ref" ]; then
+      if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
+        base_ref="origin/main"
+      else
+        printf 'verify-no-ai-attribution: no base commit available, skipping\n'
+        exit 0
+      fi
+    fi
+    # Scope to the commits THIS branch adds since it diverged from the base —
+    # the merge-base, never historical commits already on the base.
+    base="$(git -C "$repo_root" merge-base "$base_ref" HEAD 2>/dev/null || echo "$base_ref")"
+
+    msg_hits="$(git -C "$repo_root" log --format='%H %s%n%b' "$base..HEAD" 2>/dev/null | rg -i -n -e "$pattern" || true)"
+    if [ -n "$msg_hits" ]; then
+      report "AI-attribution marker in commit message(s) in $base..HEAD:"
+      printf '%s\n' "$msg_hits" >&2
+      fail=1
+    fi
+
+    diff_hits="$(scan_added_lines "$base...HEAD")"
+    if [ -n "$diff_hits" ]; then
+      report "AI-attribution marker in added content in $base...HEAD:"
+      printf '%s\n' "$diff_hits" >&2
+      fail=1
+    fi
+    ;;
+esac
+
+if [ "$fail" -ne 0 ]; then
+  printf '\nFix: remove the AI-attribution line(s). No Co-authored-by, no\n' >&2
+  printf '"Generated with/by <tool>", no tool fingerprints — in commits, PRs, or docs.\n' >&2
+  exit 1
+fi
+
+printf 'verify-no-ai-attribution: no AI-attribution markers found.\n'
