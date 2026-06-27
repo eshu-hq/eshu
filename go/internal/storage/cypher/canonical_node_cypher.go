@@ -82,23 +82,43 @@ SET r.name = $name, r.path = $path, r.local_path = $local_path,
     r.evidence_source = 'projector/canonical'`
 
 // --- Phase C: Directory Cypher ---
+//
+// Directory writes are split into a node phase and an edge phase. The node
+// phase MERGEs every Directory by path with NO MATCH, so it carries no
+// cross-row visibility dependency. The edge phase wires each Directory to its
+// parent (Repository for depth-0, the parent Directory for depth-N) and runs as
+// a LATER phase, after the node phase commits.
+//
+// The split is required by the NornicDB phase-group executor (the production
+// projector + B-7 gate path): it runs each write phase as one transaction that
+// does NOT give a later statement's `MATCH` read-your-writes against an earlier
+// statement's MERGE in the same phase. The previous combined write emitted the
+// depth-N directories as a separate statement that `MATCH (p:Directory {path:
+// parent_path})`'d the depth-(N-1) directory MERGE'd by an earlier statement in
+// the same `directories` phase; that MATCH found nothing, so the depth-N
+// directory was never created and every file (and its entities) nested beneath
+// it was silently dropped. Committing the nodes in their own phase before the
+// edge phase resolves it. (The atomic GroupExecutor path DOES give single-label
+// cross-statement read-your-writes — see the RequireAtomicGroup conformance
+// cases — so the edge phase stays inline there; only multi-label package_registry
+// edges are deferred. Neo4j is unaffected.)
 
-const canonicalNodeDirectoryDepth0Cypher = `UNWIND $rows AS row
-MATCH (r:Repository {id: row.repo_id})
+const canonicalNodeDirectoryNodeCypher = `UNWIND $rows AS row
 MERGE (d:Directory {path: row.path})
 SET d.name = row.name, d.repo_id = row.repo_id,
     d.scope_id = row.scope_id, d.generation_id = row.generation_id,
-    d.evidence_source = 'projector/canonical'
+    d.evidence_source = 'projector/canonical'`
+
+const canonicalNodeDirectoryDepth0EdgeCypher = `UNWIND $rows AS row
+MATCH (r:Repository {id: row.repo_id})
+MATCH (d:Directory {path: row.path})
 MERGE (r)-[rel:CONTAINS]->(d)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
 
-const canonicalNodeDirectoryDepthNCypher = `UNWIND $rows AS row
+const canonicalNodeDirectoryDepthNEdgeCypher = `UNWIND $rows AS row
 MATCH (p:Directory {path: row.parent_path})
-MERGE (d:Directory {path: row.path})
-SET d.name = row.name, d.repo_id = row.repo_id,
-    d.scope_id = row.scope_id, d.generation_id = row.generation_id,
-    d.evidence_source = 'projector/canonical'
+MATCH (d:Directory {path: row.path})
 MERGE (p)-[rel:CONTAINS]->(d)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`

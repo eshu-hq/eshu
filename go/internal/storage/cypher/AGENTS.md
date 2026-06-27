@@ -43,7 +43,21 @@
   `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE` edges never
   materialize. Deferring the edges to a second committed-node group fixes this.
   The phase-group and sequential paths need no special handling because they
-  already commit per phase and the edge phases run last.
+  already commit per phase and the edge phases run last. This deferral is
+  MULTI-LABEL specific: single-label edges (the inline `File` edges and the
+  `directory_edges` phase, `Directory -> Directory CONTAINS`) get cross-statement
+  read-your-writes within one atomic group and stay inline in the main group.
+- **directory writes are split into a node phase and an edge phase** — the
+  `directories` phase MERGEs every `Directory` by path with NO parent MATCH;
+  the `directory_edges` phase (which runs after it) wires each directory to its
+  parent (Repository for depth-0, parent Directory for depth-N). The split is
+  required for the phase-group executor, which runs each phase as one transaction
+  with NO read-your-writes for a later statement's `MATCH` against an earlier
+  statement's MERGE in the same phase — so a depth-N directory whose parent was
+  MERGE'd in the same combined phase found nothing and silently dropped every
+  file and entity beneath it (#4019). Splitting the parent edge into its own
+  later-committing phase resolves it; do not recombine node creation and parent
+  edges into one phase.
 - **No GraphWrite type** — this package does not export a GraphWrite port.
   The backend seam is `Executor`. Every caller in `internal/projector` and
   `internal/reducer` uses the projector CanonicalWriter or
