@@ -1,0 +1,14 @@
+---
+# Base role tasks applied across platform hosts.
+- name: Ensure base packages are present
+  ansible.builtin.package:
+    name:
+      - chrony
+      - rsyslog
+    state: present
+
+- name: Ensure chrony is enabled
+  ansible.builtin.service:
+    name: chronyd
+    state: started
+    enabled: true

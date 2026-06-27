@@ -1,0 +1,16 @@
+---
+# Platform site playbook. It applies the shared base role, which lives in the
+# in-corpus ansible-shared-roles repository, so this repo DEPENDS_ON
+# ansible-shared-roles. Exercises the ANSIBLE_ROLE_REFERENCE evidence path in
+# the B-7 gate.
+- name: Configure platform base hosts
+  hosts: platform
+  become: true
+  roles:
+    - ansible-shared-roles
+
+- name: Configure application hosts
+  hosts: app
+  roles:
+    - role: ansible-shared-roles
+      tags: [base]
