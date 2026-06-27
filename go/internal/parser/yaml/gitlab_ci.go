@@ -4,6 +4,9 @@
 package yaml
 
 import (
+	"bytes"
+	"errors"
+	"io"
 	"strings"
 
 	yamlv3 "gopkg.in/yaml.v3"
@@ -57,11 +60,10 @@ func isGitlabCIConfig(filename string) bool {
 // global keywords are excluded from the job rows. Malformed entries are
 // tolerantly skipped rather than failing the parse.
 func parseGitlabCIFromSource(source []byte, path string) (pipeline map[string]any, jobs []map[string]any, err error) {
-	var root yamlv3.Node
-	if uerr := yamlv3.Unmarshal(source, &root); uerr != nil {
-		return nil, nil, uerr
+	doc, derr := gitlabPipelineDocument(source)
+	if derr != nil {
+		return nil, nil, derr
 	}
-	doc := atlantisDocumentMapping(&root)
 	if doc == nil {
 		return nil, nil, nil
 	}
@@ -80,6 +82,51 @@ func parseGitlabCIFromSource(source []byte, path string) (pipeline map[string]an
 
 	jobs = gitlabJobRows(doc, path)
 	return pipeline, jobs, nil
+}
+
+// gitlabPipelineDocument selects the pipeline mapping from a .gitlab-ci.yml that
+// may contain multiple YAML documents. GitLab allows a leading `spec:`/`spec:inputs`
+// header document, separated by `---` from the real pipeline document, so the
+// jobs live in the second document. It decodes every document and returns the
+// first mapping that is not a bare `spec:` header. A spec-only file (no pipeline
+// document) returns nil. A decode error on a non-final document is tolerated only
+// when a later document parses; a hard decode failure with no usable document
+// surfaces the error.
+func gitlabPipelineDocument(source []byte) (*yamlv3.Node, error) {
+	decoder := yamlv3.NewDecoder(bytes.NewReader(source))
+	var firstErr error
+	for {
+		var root yamlv3.Node
+		decErr := decoder.Decode(&root)
+		if errors.Is(decErr, io.EOF) {
+			break
+		}
+		if decErr != nil {
+			if firstErr == nil {
+				firstErr = decErr
+			}
+			// A malformed document in a multi-doc stream stops decoding; return
+			// any pipeline document already found, else the error.
+			break
+		}
+		doc := atlantisDocumentMapping(&root)
+		if doc == nil || isGitlabSpecHeaderMapping(doc) {
+			continue
+		}
+		return doc, nil
+	}
+	return nil, firstErr
+}
+
+// isGitlabSpecHeaderMapping reports whether doc is a GitLab pipeline configuration
+// inputs header — a mapping whose only top-level key is `spec`. Such a document
+// declares pipeline inputs, never jobs, so it is skipped when locating the
+// pipeline document.
+func isGitlabSpecHeaderMapping(doc *yamlv3.Node) bool {
+	if doc == nil || len(doc.Content) != 2 {
+		return false
+	}
+	return doc.Content[0].Value == "spec"
 }
 
 // gitlabPipelineLine returns the line number anchoring the GitlabPipeline node.
@@ -184,9 +231,12 @@ func gitlabImageName(value any) any {
 
 // gitlabNeedsNames returns the comma-joined, ordered job names a job depends on,
 // drawn from `needs:` (preferred) or `dependencies:`. A needs entry is either a
-// bare job name or a mapping with a `job:` key; non-job needs (e.g. cross-project
-// pipeline artifacts without a local job) are skipped. The split is reversed by
-// the NEEDS edge builder, so order and exact tokens are retained.
+// bare job name or a mapping with a `job:` key. A mapping carrying a `project:`
+// key is a cross-project artifact fetch (it names a job in ANOTHER project/repo),
+// not a local job dependency, so it is skipped — emitting it would fabricate a
+// false local NEEDS edge whenever a same-file job happens to share the name. The
+// split is reversed by the NEEDS edge builder, so order and exact tokens are
+// retained.
 func gitlabNeedsNames(body map[string]any) string {
 	items := gitlabSequence(body["needs"])
 	if items == nil {
@@ -200,6 +250,9 @@ func gitlabNeedsNames(body map[string]any) string {
 				names = append(names, name)
 			}
 		case map[string]any:
+			if _, crossProject := typed["project"]; crossProject {
+				continue
+			}
 			if name := cleanYAMLString(typed["job"]); name != "" {
 				names = append(names, name)
 			}

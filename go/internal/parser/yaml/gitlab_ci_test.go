@@ -271,6 +271,89 @@ unit:
 	}
 }
 
+// TestParseGitlabCISpecInputsHeaderDocument proves a multi-document .gitlab-ci.yml
+// that leads with a `spec:`/`spec:inputs` header document followed by a `---`
+// separator and the real pipeline document still has its jobs (and the NEEDS
+// between them) extracted. GitLab pipeline configuration inputs use this exact
+// two-document shape, so inspecting only the first document would miss every job.
+func TestParseGitlabCISpecInputsHeaderDocument(t *testing.T) {
+	t.Parallel()
+
+	source := `spec:
+  inputs:
+    deploy_env:
+      default: staging
+---
+stages:
+  - build
+  - test
+build-app:
+  stage: build
+  script: ["make"]
+run-tests:
+  stage: test
+  needs:
+    - build-app
+  script: ["test"]
+`
+	payload := writeGitlabCI(t, source)
+
+	pipelines, ok := payload["gitlab_pipelines"].([]map[string]any)
+	if !ok || len(pipelines) != 1 {
+		t.Fatalf("gitlab_pipelines = %T len=%d, want 1 (pipeline doc after spec header)", payload["gitlab_pipelines"], len(pipelines))
+	}
+	if got := pipelines[0]["stages"]; got != "build,test" {
+		t.Fatalf("pipeline stages = %v, want build,test from the post-spec document", got)
+	}
+
+	jobs, ok := payload["gitlab_jobs"].([]map[string]any)
+	if !ok || len(jobs) != 2 {
+		t.Fatalf("gitlab_jobs len = %d, want 2 (build-app, run-tests); rows=%+v", len(jobs), jobs)
+	}
+	test := gitlabJobByName(jobs, "run-tests")
+	if test == nil {
+		t.Fatalf("run-tests job missing after spec header; rows=%+v", jobs)
+	}
+	if got := test["needs"]; got != "build-app" {
+		t.Fatalf("run-tests needs = %v, want build-app (resolved across spec header)", got)
+	}
+	// The spec header keys must not leak in as a job.
+	if gitlabJobByName(jobs, "spec") != nil {
+		t.Fatalf("spec header leaked into job rows; rows=%+v", jobs)
+	}
+}
+
+// TestParseGitlabCICrossProjectNeedsSkipped proves a cross-project needs entry
+// (a map carrying a `project:` key) is treated as an artifact fetch, NOT a local
+// job dependency. Even when a local job shares the cross-project entry's `job`
+// name, no local NEEDS must be fabricated for it.
+func TestParseGitlabCICrossProjectNeedsSkipped(t *testing.T) {
+	t.Parallel()
+
+	source := `stages: [build, test]
+build:
+  stage: build
+  script: ["make"]
+run-tests:
+  stage: test
+  needs:
+    - project: acme/other
+      job: build
+      ref: main
+      artifacts: true
+  script: ["test"]
+`
+	payload := writeGitlabCI(t, source)
+	jobs := payload["gitlab_jobs"].([]map[string]any)
+	test := gitlabJobByName(jobs, "run-tests")
+	if test == nil {
+		t.Fatalf("run-tests job missing; rows=%+v", jobs)
+	}
+	if got, present := test["needs"]; present {
+		t.Fatalf("run-tests needs = %v, want none (cross-project needs is an artifact fetch, not a local dependency)", got)
+	}
+}
+
 // TestParseGitlabCINonCIYAMLEmpty proves a YAML file named .gitlab-ci.yml whose
 // content is not a mapping (or carries no jobs) yields empty buckets rather than
 // fabricating nodes, and that a non-CI YAML file does not populate the buckets.
