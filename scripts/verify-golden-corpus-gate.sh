@@ -304,7 +304,7 @@ start_bg reducer reducer_pid "${bin_dir}/eshu-reducer"
 if ! "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=drains \
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-	-require-populated-domains="repo_dependency" \
+	-require-populated-domains="repo_dependency,platform_infra" \
 	-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
 	tail -30 "${log_dir}/reducer.log" || true
 	tail -30 "${log_dir}/projector.log" || true
@@ -344,7 +344,7 @@ for maintenance_pass in 1 2; do
 	if ! "${bin_dir}/eshu-golden-corpus-gate" \
 		-phase=drains \
 		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-		-require-populated-domains="repo_dependency" \
+		-require-populated-domains="repo_dependency,platform_infra" \
 		-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
 		tail -30 "${log_dir}/reducer.log" || true
 		tail -30 "${log_dir}/projector.log" || true
