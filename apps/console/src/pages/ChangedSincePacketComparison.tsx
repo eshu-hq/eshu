@@ -1,7 +1,7 @@
 import type {
   EvidencePacketComparison,
   EvidencePacketDeltaHop,
-  EvidencePacketDeltaVerdict
+  EvidencePacketDeltaVerdict,
 } from "../api/evidencePacketDelta";
 import { Badge } from "../components/atoms";
 import { fmt } from "../console/types";
@@ -11,7 +11,7 @@ import { fmt } from "../console/types";
  * read model while keeping deleted, retracted, and stale hops visible.
  */
 export function ChangedSincePacketComparison({
-  comparison
+  comparison,
 }: {
   readonly comparison: EvidencePacketComparison;
 }): React.JSX.Element {
@@ -19,14 +19,26 @@ export function ChangedSincePacketComparison({
     <section className="changed-since-packet" aria-label="Evidence packet comparison">
       <div className="changed-since-packet-head">
         <div>
-          <h4>Evidence packet comparison</h4>
+          <h3>Evidence packet comparison</h3>
           <p>{comparison.boundedSampleNote}</p>
         </div>
         <div className="changed-since-generation-meta">
-          <span><b>Baseline generation</b><em className="mono">{comparison.baselineGenerationId}</em></span>
-          <span><b>Current generation</b><em className="mono">{comparison.currentGenerationId}</em></span>
-          <span><b>Baseline observed</b><em className="mono">{comparison.sinceObservedAt ?? "-"}</em></span>
-          <span><b>Current observed</b><em className="mono">{comparison.currentObservedAt ?? "-"}</em></span>
+          <span>
+            <b>Baseline generation</b>
+            <em className="mono">{comparison.baselineGenerationId}</em>
+          </span>
+          <span>
+            <b>Current generation</b>
+            <em className="mono">{comparison.currentGenerationId}</em>
+          </span>
+          <span>
+            <b>Baseline observed</b>
+            <em className="mono">{comparison.sinceObservedAt ?? "-"}</em>
+          </span>
+          <span>
+            <b>Current observed</b>
+            <em className="mono">{comparison.currentObservedAt ?? "-"}</em>
+          </span>
         </div>
       </div>
       <div className="changed-since-packet-groups">
@@ -45,8 +57,12 @@ export function ChangedSincePacketComparison({
               ))}
             </div>
             <div className="changed-since-packet-hops">
-              {group.hops.map((hop) => <PacketHop hop={hop} key={`${hop.verdict}:${hop.stableFactKey}:${hop.factKind}`} />)}
-              {group.hops.length === 0 ? <span className="t-mut">no bounded sample hops</span> : null}
+              {group.hops.map((hop) => (
+                <PacketHop hop={hop} key={`${hop.verdict}:${hop.stableFactKey}:${hop.factKind}`} />
+              ))}
+              {group.hops.length === 0 ? (
+                <span className="t-mut">no bounded sample hops</span>
+              ) : null}
             </div>
           </article>
         ))}
@@ -66,7 +82,13 @@ function PacketHop({ hop }: { readonly hop: EvidencePacketDeltaHop }): React.JSX
   );
 }
 
-const packetVerdicts: readonly EvidencePacketDeltaVerdict[] = ["added", "changed", "removed", "stale", "unchanged"];
+const packetVerdicts: readonly EvidencePacketDeltaVerdict[] = [
+  "added",
+  "changed",
+  "removed",
+  "stale",
+  "unchanged",
+];
 
 function packetVerdictLabel(verdict: EvidencePacketDeltaVerdict): string {
   if (verdict === "removed") return "Removed";

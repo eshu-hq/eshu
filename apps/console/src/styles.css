@@ -12,7 +12,7 @@
   --bone: #f3ebdd;
   --bone-dim: #d8cfbf;
   --muted: #9aa4af;
-  --subtle: #6b7682;
+  --subtle: #87909d;
   --line: rgba(243, 235, 221, 0.10);
   --line-2: rgba(243, 235, 221, 0.16);
   --teal: #14b8a6;
@@ -384,7 +384,7 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
 .layer-toggle i { width: 9px; height: 9px; border-radius: 50%; }
 .layer-toggle .lt-n { font-family: var(--mono); font-size: 0.72rem; color: var(--subtle); }
 .layer-toggle:hover { border-color: var(--line-2); color: var(--bone); }
-.layer-toggle.off { opacity: 0.42; }
+.layer-toggle.off { color: var(--subtle); opacity: unset; }
 .layer-toggle.on { color: var(--bone); border-color: color-mix(in oklab, var(--lc) 45%, var(--line)); background: color-mix(in oklab, var(--lc) 12%, var(--bg-field)); }
 @media (max-width: 1240px) {
   .explorer-layout { grid-template-columns: 1fr; }

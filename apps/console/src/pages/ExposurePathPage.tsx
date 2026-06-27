@@ -21,7 +21,7 @@ import {
   type IngressChain,
   type IngressHop,
   type IngressPostureState,
-  type IngressTruth
+  type IngressTruth,
 } from "../api/exposureIngress";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { uiFresh, uiTruth } from "../console/types";
@@ -32,7 +32,7 @@ type BadgeTone = "neutral" | "teal" | "ember" | "crit" | "warn" | "violet";
 const TRUTH_TONE: Record<IngressTruth, BadgeTone> = {
   observed: "teal",
   derived: "violet",
-  unresolved: "neutral"
+  unresolved: "neutral",
 };
 
 const POSTURE_TONE: Record<IngressPostureState, BadgeTone> = {
@@ -40,7 +40,7 @@ const POSTURE_TONE: Record<IngressPostureState, BadgeTone> = {
   terminated: "teal",
   unprotected: "ember",
   not_terminated: "ember",
-  unproven: "neutral"
+  unproven: "neutral",
 };
 
 const POSTURE_LABEL: Record<IngressPostureState, string> = {
@@ -48,11 +48,11 @@ const POSTURE_LABEL: Record<IngressPostureState, string> = {
   terminated: "Yes",
   unprotected: "No",
   not_terminated: "No",
-  unproven: "Unproven"
+  unproven: "Unproven",
 };
 
 export function ExposurePathPage({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -84,12 +84,14 @@ export function ExposurePathPage({
         }
       } catch (ingressError) {
         setIngress(null);
-        setError(ingressError instanceof Error ? ingressError.message : "failed to trace ingress chain");
+        setError(
+          ingressError instanceof Error ? ingressError.message : "failed to trace ingress chain",
+        );
       } finally {
         setBusy(false);
       }
     },
-    [client]
+    [client],
   );
 
   // Auto-load on mount when the client is already available and a service is in
@@ -194,7 +196,10 @@ export function ExposurePathPage({
         <p className="empty mt">Enter an internet-facing service to trace its ingress chain.</p>
       ) : null}
 
-      <details className="exposure-advanced-disclosure" onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}>
+      <details
+        className="exposure-advanced-disclosure"
+        onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
+      >
         <summary>Advanced: handler trace</summary>
         {advancedOpen ? <ExposurePathAdvanced client={client} /> : null}
       </details>
@@ -208,7 +213,7 @@ function IngressView({
   onSelectChain,
   onSelectHop,
   selectedChain,
-  selectedHop
+  selectedHop,
 }: {
   readonly active: IngressChain | undefined;
   readonly ingress: ExposureIngress;
@@ -220,10 +225,26 @@ function IngressView({
   return (
     <div className="exposure-result mt">
       <div className="exposure-posture-tiles">
-        <StatTile label="Public entrypoints" value={ingress.publicEntrypoints} sub="observed public hostnames" />
-        <StatTile label="Hops to service" value={active?.hops.length ?? 0} sub="on the selected chain" />
-        <PostureTile label="WAF coverage" state={ingress.posture.wafCoverage} sub={wafSub(ingress)} />
-        <PostureTile label="TLS termination" state={ingress.posture.tlsTermination} sub={tlsSub(ingress)} />
+        <StatTile
+          label="Public entrypoints"
+          value={ingress.publicEntrypoints}
+          sub="observed public hostnames"
+        />
+        <StatTile
+          label="Hops to service"
+          value={active?.hops.length ?? 0}
+          sub="on the selected chain"
+        />
+        <PostureTile
+          label="WAF coverage"
+          state={ingress.posture.wafCoverage}
+          sub={wafSub(ingress)}
+        />
+        <PostureTile
+          label="TLS termination"
+          state={ingress.posture.tlsTermination}
+          sub={tlsSub(ingress)}
+        />
       </div>
 
       {ingress.chains.length > 1 ? (
@@ -245,7 +266,11 @@ function IngressView({
       <div className="exposure-ingress-layout">
         <Panel
           className="exposure-ingress-panel"
-          sub={active ? `${active.entrypoint} · ${active.visibility || "visibility unknown"}` : undefined}
+          sub={
+            active
+              ? `${active.entrypoint} · ${active.visibility || "visibility unknown"}`
+              : undefined
+          }
           title="Ingress chain"
         >
           {active ? (
@@ -275,7 +300,7 @@ function IngressView({
             <HopEvidence hop={selectedHop} truth={ingress} />
           ) : (
             <div className="exposure-evidence-empty">
-              <h4>Hop evidence</h4>
+              <h3>Hop evidence</h3>
               <p>Select a hop in the chain to inspect its evidence and truth level.</p>
             </div>
           )}
@@ -287,14 +312,14 @@ function IngressView({
 
 function HopEvidence({
   hop,
-  truth
+  truth,
 }: {
   readonly hop: IngressHop;
   readonly truth: ExposureIngress;
 }): React.JSX.Element {
   return (
     <div className="exposure-evidence">
-      <h4>{hop.label}</h4>
+      <h3>{hop.label}</h3>
       <dl>
         <div>
           <dt>Node</dt>
@@ -329,7 +354,7 @@ function HopEvidence({
 function PostureTile({
   label,
   state,
-  sub
+  sub,
 }: {
   readonly label: string;
   readonly state: IngressPostureState;
@@ -354,8 +379,8 @@ function NoChainNotice({ service }: { readonly service: string }): React.JSX.Ele
         internet-facing ingress path. No exposure is implied.
       </p>
       <p className="exposure-reason">
-        Eshu found no entrypoint-to-runtime network path for this service. Try a service with a public
-        hostname, or use the advanced handler trace below.
+        Eshu found no entrypoint-to-runtime network path for this service. Try a service with a
+        public hostname, or use the advanced handler trace below.
       </p>
     </Panel>
   );

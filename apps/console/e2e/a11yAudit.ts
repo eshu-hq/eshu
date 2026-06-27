@@ -4,122 +4,20 @@
 // setup, runs an axe-core scan on each, and aggregates violations by severity
 // and rule. Produces a baseline report suitable for the PR description.
 //
-// Self-contained: starts its own Vite dev server, launches its own Chromium,
-// installs mock API handlers, and walks every page. Does not depend on the
-// buggy setup.ts/getPage() F-1 scaffolding.
+// Reuses the proven setup.ts/getPage() infrastructure (shared with the mock
+// E2E runner) instead of managing its own Vite dev server, so the dev-server
+// startup path is identical to what passes in CI.
 //
 // Run via: npx tsx apps/console/e2e/a11yAudit.ts
 
-import { spawn, type ChildProcessByStdio } from "node:child_process";
-import type { Readable } from "node:stream";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
-import { chromium, type Browser, type Page } from "playwright";
-import { installMockApi } from "./mockApi.js";
+import type { Page } from "playwright";
+import { getPage, getBaseUrl, cleanup } from "./setup.js";
 import { allTests } from "./allPageTests.js";
 import type { PageTest } from "./types.js";
 
-const consoleDir = resolve(fileURLToPath(import.meta.url), "..", "..");
-const repoRoot = resolve(consoleDir, "..", "..");
-const viteBin = resolve(repoRoot, "node_modules", ".bin", "vite");
-const devServerPort = 5190;
-const devServerBaseUrl = `http://127.0.0.1:${devServerPort}`;
 const navTimeoutMs = 30000;
 const settleMs = 1500;
-const devServerReadyTimeoutMs = 60000;
-
-interface DevServer {
-  process: ChildProcessByStdio<null, Readable, Readable>;
-  baseUrl: string;
-}
-
-async function startDevServer(): Promise<DevServer> {
-  const child = spawn(
-    viteBin,
-    [
-      "--config",
-      "apps/console/vite.config.ts",
-      "--host",
-      "127.0.0.1",
-      "--strictPort",
-      "--port",
-      String(devServerPort),
-    ],
-    {
-      cwd: repoRoot,
-      env: { ...process.env },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-
-  // Collect stderr so Vite errors are visible and the pipe is drained.
-  const stderrChunks: string[] = [];
-  child.stderr.on("data", (chunk: Buffer) => {
-    stderrChunks.push(chunk.toString());
-  });
-
-  const baseUrl = await new Promise<string>((resolvePromise, rejectPromise) => {
-    const timer = setTimeout(() => {
-      const errText = stderrChunks.join("");
-      rejectPromise(
-        new Error(
-          `dev server did not become ready in ${devServerReadyTimeoutMs}ms` +
-            (errText ? `\nvite stderr: ${errText}` : ""),
-        ),
-      );
-    }, devServerReadyTimeoutMs);
-
-    const onData = (chunk: Buffer): void => {
-      const text = chunk.toString();
-      const m = text.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+)\/?/);
-      if (m) {
-        clearTimeout(timer);
-        resolvePromise(m[1]);
-      }
-    };
-
-    child.stdout.on("data", onData);
-
-    child.on("exit", (code) => {
-      const errText = stderrChunks.join("");
-      clearTimeout(timer);
-      rejectPromise(
-        new Error(
-          `dev server exited with code ${String(code)}` +
-            (errText ? `\nvite stderr: ${errText}` : ""),
-        ),
-      );
-    });
-  });
-
-  return { process: child, baseUrl };
-}
-
-async function stopDevServer(server: DevServer): Promise<void> {
-  if (server.process.exitCode !== null || server.process.signalCode !== null) return;
-  await new Promise<void>((resolvePromise) => {
-    let settled = false;
-    const done = (): void => {
-      if (settled) return;
-      settled = true;
-      resolvePromise();
-    };
-    // Register the exit listener BEFORE sending SIGTERM, so there is no
-    // TOCTOU window where the process exits between the null-check and the
-    // listener registration.
-    server.process.once("exit", done);
-    server.process.kill("SIGTERM");
-    setTimeout(() => {
-      server.process.kill("SIGKILL");
-      done();
-    }, 5000);
-  });
-}
-
-function routeUrl(path: string): string {
-  return `${devServerBaseUrl}${path}`;
-}
 
 interface PageA11yResult {
   path: string;
@@ -145,6 +43,10 @@ interface AuditResult {
   skippedPages: number;
 }
 
+function routeUrl(path: string): string {
+  return `${getBaseUrl()}${path}`;
+}
+
 // auditAllPages navigates every page, runs axe-core once per page, and collects
 // both per-page counts and structured violation data in a single pass. This
 // avoids a false-green gate when the dev server dies between two separate passes.
@@ -155,7 +57,10 @@ async function auditAllPages(page: Page, tests: readonly PageTest[]): Promise<Au
 
   for (const test of tests) {
     try {
-      await page.goto(routeUrl(test.path), { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+      await page.goto(routeUrl(test.path), {
+        waitUntil: "domcontentloaded",
+        timeout: navTimeoutMs,
+      });
       await page.waitForTimeout(settleMs);
 
       const builder = new AxeBuilder({ page });
@@ -228,9 +133,7 @@ function printBaseline(violations: StructuredViolation[]): void {
   }
 
   process.stdout.write("\n## Top Rules by Violation Count\n\n");
-  const sorted = [...byRule.entries()]
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 10);
+  const sorted = [...byRule.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 10);
 
   for (const [rule, info] of sorted) {
     process.stdout.write(`- **${rule}** (${info.count} node(s)): ${info.description}\n`);
@@ -271,40 +174,20 @@ async function main(): Promise<void> {
     `console-a11y: starting audit (${allTests.length} pages, mode=${gateMode ? "gate" : "baseline"})\n`,
   );
 
-  const server = await startDevServer();
-  let browser: Browser | undefined;
-  let exitCode = 0;
+  let gateFailed = false;
 
   try {
-    browser = await chromium.launch();
-    const context = await browser.newContext();
-
-    await context.addInitScript(() => {
-      window.localStorage.setItem(
-        "eshu.console.environment",
-        JSON.stringify({
-          mode: "private",
-          apiBaseUrl: "/eshu-api/",
-          recentApiBaseUrls: ["/eshu-api/"],
-        }),
-      );
-    });
-
-    const page = await context.newPage();
-    await installMockApi(page);
-
-    // Navigate to root to trigger boot; wait for connected pill.
-    await page.goto(devServerBaseUrl, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
-    await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
-    process.stdout.write("console-a11y: boot connected\n");
+    // Start the shared dev-server + browser (same path as the mock E2E runner,
+    // proven in CI) INSIDE the try so cleanup() still runs if getPage() rejects
+    // after spawning Vite / launching Chromium (e.g. the boot selector never
+    // appears) — otherwise a failed boot would orphan the dev server on port
+    // 5190 and poison the next local/CI retry.
+    const { page } = await getPage();
 
     // Single atomic pass: navigate each page once, collect both per-page
     // counts and structured violations. This prevents a false-green gate
     // when the dev server or browser dies between separate passes.
-    const { pageResults, structuredViolations, skippedPages } = await auditAllPages(
-      page,
-      allTests,
-    );
+    const { pageResults, structuredViolations, skippedPages } = await auditAllPages(page, allTests);
 
     printPageResults(pageResults);
     printBaseline(structuredViolations);
@@ -327,8 +210,6 @@ async function main(): Promise<void> {
         `Warning violations (moderate + minor): ${warn.reduce((sum, v) => sum + v.nodes, 0)} nodes across ${warn.length} instances\n`,
       );
 
-      let gateFailed = false;
-
       if (blocking.length > 0) {
         process.stdout.write("\nGATE FAILED: critical or serious a11y violations detected\n");
         for (const v of blocking) {
@@ -348,24 +229,19 @@ async function main(): Promise<void> {
         gateFailed = true;
       }
 
-      if (gateFailed) {
-        exitCode = 1;
-      } else {
+      if (!gateFailed) {
         process.stdout.write("\nGATE PASSED: no critical or serious a11y violations\n");
       }
     }
-
-    await browser.close();
-    browser = undefined;
   } finally {
-    if (browser) {
-      await browser.close().catch(() => undefined);
-    }
-    await stopDevServer(server);
+    await cleanup();
   }
 
-  if (exitCode !== 0) {
-    process.exit(exitCode);
+  // Exit only AFTER cleanup() has shut down Vite + Chromium. Calling
+  // process.exit(1) from inside the try would skip the finally and orphan the
+  // dev server on port 5190, breaking subsequent reruns.
+  if (gateFailed) {
+    process.exit(1);
   }
 }
 

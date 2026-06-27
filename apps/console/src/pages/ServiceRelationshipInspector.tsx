@@ -3,7 +3,7 @@ import { useState } from "react";
 import {
   technologyLabel,
   type RelationshipEdge,
-  type RelationshipNode
+  type RelationshipNode,
 } from "./serviceRelationshipGraphModel";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
 
@@ -28,7 +28,7 @@ interface InspectorFact {
 type InspectorTab = "summary" | "facts" | "paths";
 
 export function RelationshipSelectionSummary({
-  edge
+  edge,
 }: {
   readonly edge: RelationshipEdge;
 }): React.JSX.Element {
@@ -48,7 +48,7 @@ export function RelationshipSelectionSummary({
 
 export function RelationshipInspector({
   selected,
-  spotlight
+  spotlight,
 }: {
   readonly selected: SelectedGraphItem;
   readonly spotlight: ServiceSpotlight;
@@ -71,7 +71,7 @@ export function RelationshipInspector({
 
 function EdgeInspector({
   edge,
-  spotlight
+  spotlight,
 }: {
   readonly edge: RelationshipEdge;
   readonly spotlight: ServiceSpotlight;
@@ -87,7 +87,7 @@ function EdgeInspector({
     { label: "Evidence count", value: countLabel(edge.evidenceCount) },
     { label: "State", value: edge.state ?? "Not observed" },
     { label: "Rationale", value: edge.rationale ?? "Not observed" },
-    { label: "Environments", value: joinList(evidence.environments) }
+    { label: "Environments", value: joinList(evidence.environments) },
   ]);
   return (
     <InspectorShell
@@ -106,7 +106,7 @@ function InspectorShell({
   paths,
   summary,
   title,
-  type
+  type,
 }: {
   readonly facts: readonly InspectorFact[];
   readonly paths: readonly string[];
@@ -116,10 +116,14 @@ function InspectorShell({
 }): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<InspectorTab>("summary");
   return (
-    <aside className="relationship-inspector" aria-label="Relationship inspector">
-      <h4>{title}</h4>
+    <aside className="relationship-inspector" aria-label="Relationship inspector" tabIndex={0}>
+      <h3>{title}</h3>
       <span>{type}</span>
-      <div className="relationship-inspector-tabs" role="tablist" aria-label="Relationship inspector views">
+      <div
+        className="relationship-inspector-tabs"
+        role="tablist"
+        aria-label="Relationship inspector views"
+      >
         {inspectorTabs.map((tab) => (
           <button
             aria-controls={`relationship-inspector-${tab.id}`}
@@ -149,7 +153,7 @@ function InspectorShell({
 }
 
 function InspectorFacts({
-  facts
+  facts,
 }: {
   readonly facts: readonly InspectorFact[];
 }): React.JSX.Element {
@@ -168,13 +172,13 @@ function InspectorFacts({
   );
 }
 
-function InspectorPaths({
-  paths
-}: {
-  readonly paths: readonly string[];
-}): React.JSX.Element {
+function InspectorPaths({ paths }: { readonly paths: readonly string[] }): React.JSX.Element {
   if (paths.length === 0) {
-    return <p className="relationship-inspector-empty">No source paths are published for this selection.</p>;
+    return (
+      <p className="relationship-inspector-empty">
+        No source paths are published for this selection.
+      </p>
+    );
   }
   return (
     <div className="relationship-inspector-paths">
@@ -194,7 +198,7 @@ const inspectorTabs: readonly {
 }[] = [
   { id: "summary", label: "Summary" },
   { id: "facts", label: "Facts" },
-  { id: "paths", label: "Evidence paths" }
+  { id: "paths", label: "Evidence paths" },
 ];
 
 function edgeSummary(edge: RelationshipEdge): string {
@@ -221,7 +225,7 @@ function edgeSummary(edge: RelationshipEdge): string {
 
 function edgeEvidence(
   edge: RelationshipEdge,
-  spotlight: ServiceSpotlight
+  spotlight: ServiceSpotlight,
 ): {
   readonly environments: readonly string[];
   readonly evidenceKinds: readonly string[];
@@ -234,26 +238,26 @@ function edgeEvidence(
     return {
       environments: lane?.environments ?? [],
       evidenceKinds: [],
-      paths: []
+      paths: [],
     };
   }
   const repository = edge.source.startsWith("repo:") ? source : target;
   const evidence = repositoryEvidence(repository, spotlight).filter((item) =>
-    item.relationshipTypes.includes(edge.label)
+    item.relationshipTypes.includes(edge.label),
   );
-  const lanes = spotlight.lanes.filter((lane) =>
-    lane.sourceRepos.includes(repository) && lane.relationshipTypes.includes(edge.label)
+  const lanes = spotlight.lanes.filter(
+    (lane) => lane.sourceRepos.includes(repository) && lane.relationshipTypes.includes(edge.label),
   );
   return {
     environments: unique(lanes.flatMap((lane) => lane.environments)),
     evidenceKinds: unique(evidence.flatMap((item) => item.evidenceKinds)),
-    paths: unique(evidence.flatMap((item) => item.paths)).slice(0, 6)
+    paths: unique(evidence.flatMap((item) => item.paths)).slice(0, 6),
   };
 }
 
 function nodeDossier(
   node: RelationshipNode | undefined,
-  spotlight: ServiceSpotlight
+  spotlight: ServiceSpotlight,
 ): InspectorDossier {
   if (node === undefined) {
     return {
@@ -261,7 +265,7 @@ function nodeDossier(
       paths: [],
       summary: "Select a node or relationship to inspect the supporting evidence.",
       title: "Select a node",
-      type: "Relationship evidence"
+      type: "Relationship evidence",
     };
   }
   if (node.kind === "service") {
@@ -276,14 +280,20 @@ function nodeDossier(
 function serviceDossier(node: RelationshipNode, spotlight: ServiceSpotlight): InspectorDossier {
   return {
     facts: [
-      { label: "API", value: `${spotlight.api.endpointCount} endpoints, ${spotlight.api.methodCount} methods` },
+      {
+        label: "API",
+        value: `${spotlight.api.endpointCount} endpoints, ${spotlight.api.methodCount} methods`,
+      },
       { label: "Deployment lanes", value: joinList(spotlight.lanes.map((lane) => lane.label)) },
-      { label: "Downstream", value: `${spotlight.relationshipCounts.downstream} observed dependents` }
+      {
+        label: "Downstream",
+        value: `${spotlight.relationshipCounts.downstream} observed dependents`,
+      },
     ],
     paths: spotlight.api.sourcePaths.slice(0, 4),
     summary: `${spotlight.name} is the selected service. Eshu has API, deployment, dependency, and consumer evidence for this workload.`,
     title: node.label,
-    type: "Service workload"
+    type: "Service workload",
   };
 }
 
@@ -293,12 +303,12 @@ function runtimeDossier(node: RelationshipNode, spotlight: ServiceSpotlight): In
     facts: [
       { label: "Relationship verbs", value: joinList(lane?.relationshipTypes ?? []) },
       { label: "Source repos", value: joinList(lane?.sourceRepos ?? []) },
-      { label: "Environments", value: joinList(lane?.environments ?? []) }
+      { label: "Environments", value: joinList(lane?.environments ?? []) },
     ],
     paths: [],
     summary: `${spotlight.name} has ${lane?.evidenceCount ?? 0} evidence item(s) for ${node.label}.`,
     title: node.label,
-    type: "Runtime target"
+    type: "Runtime target",
   };
 }
 
@@ -315,12 +325,12 @@ function repositoryDossier(node: RelationshipNode, spotlight: ServiceSpotlight):
       { label: "Relationship verbs", value: joinList(verbs) },
       { label: "Evidence kinds", value: joinList(evidenceKinds) },
       { label: "Runtime lanes", value: joinList(lanes.map((lane) => lane.label)) },
-      { label: "Environments", value: joinList(environments) }
+      { label: "Environments", value: joinList(environments) },
     ]),
     paths,
     summary: repositorySummary(repository, spotlight.name, node, verbs, environments),
     title: node.label,
-    type: technologyLabel(node.technology)
+    type: technologyLabel(node.technology),
   };
 }
 
@@ -332,8 +342,8 @@ function repositoryEvidence(repository: string, spotlight: ServiceSpotlight) {
         evidenceKinds: candidate.evidenceKinds,
         paths: candidate.paths,
         relationshipTypes: candidate.relationshipTypes,
-        technology: candidate.technology
-      }))
+        technology: candidate.technology,
+      })),
   );
 }
 
@@ -342,7 +352,7 @@ function repositorySummary(
   serviceName: string,
   node: RelationshipNode,
   verbs: readonly string[],
-  environments: readonly string[]
+  environments: readonly string[],
 ): string {
   const envText = environments.length > 0 ? ` in ${joinList(environments)}` : "";
   if (verbs.includes("PROVISIONS_DEPENDENCY_FOR")) {

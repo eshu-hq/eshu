@@ -4,15 +4,41 @@
 
 import type { CollectorReadinessRow } from "../api/collectorReadiness";
 import type {
-  ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
-  AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle, ArgoCDAppRow
+  ConsoleSnapshot,
+  RuntimeSummary,
+  ServiceRow,
+  LanguageRow,
+  IngesterRow,
+  FindingRow,
+  VulnRow,
+  SbomEvidenceRow,
+  DependencyRow,
+  ImageRow,
+  IacResourceRow,
+  AdvisoryRow,
+  CloudResourceRow,
+  SectionProvenance,
+  SeriesBundle,
+  ArgoCDAppRow,
 } from "../api/eshuConsoleLive";
 
 export type {
-  ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
-  AdvisoryRow, CloudResourceRow, SectionProvenance, SeriesBundle, ArgoCDAppRow
+  ConsoleSnapshot,
+  RuntimeSummary,
+  ServiceRow,
+  LanguageRow,
+  IngesterRow,
+  FindingRow,
+  VulnRow,
+  SbomEvidenceRow,
+  DependencyRow,
+  ImageRow,
+  IacResourceRow,
+  AdvisoryRow,
+  CloudResourceRow,
+  SectionProvenance,
+  SeriesBundle,
+  ArgoCDAppRow,
 };
 export type { CollectorReadinessRow };
 
@@ -79,18 +105,36 @@ export interface ConsoleModel extends ConsoleSnapshot {
 }
 
 export const SEVERITY_COLOR: Record<Severity, string> = {
-  critical: "#f0506e", high: "#ff8a00", medium: "#f5b73d", low: "#14b8a6", info: "#6b7280"
+  critical: "#f0506e",
+  high: "#ff8a00",
+  medium: "#f5b73d",
+  low: "#14b8a6",
+  info: "#6b7280",
 };
 
 export const LAYER_COLOR: Record<GraphLayer, string> = {
-  code: "#14b8a6", deploy: "#ff8a00", infra: "#8b5cf6",
-  runtime: "#4f8cff", security: "#f0506e", ops: "#22c55e"
+  code: "#14b8a6",
+  deploy: "#ff8a00",
+  infra: "#a17ef7",
+  runtime: "#4f8cff",
+  security: "#f0506e",
+  ops: "#22c55e",
 };
 
 export const KIND_COLOR: Record<string, string> = {
-  service: "#14b8a6", repo: "#f3ebdd", client: "#2dd4bf", library: "#c4b59a",
-  image: "#22d3ee", workload: "#4f8cff", env: "#9ca3af", tf: "#8b5cf6",
-  aws: "#ff9d2e", datastore: "#f59e0b", incident: "#22c55e", vuln: "#f0506e", workitem: "#60a5fa"
+  service: "#14b8a6",
+  repo: "#f3ebdd",
+  client: "#2dd4bf",
+  library: "#c4b59a",
+  image: "#22d3ee",
+  workload: "#4f8cff",
+  env: "#9ca3af",
+  tf: "#8b5cf6",
+  aws: "#ff9d2e",
+  datastore: "#f59e0b",
+  incident: "#22c55e",
+  vuln: "#f0506e",
+  workitem: "#60a5fa",
 };
 
 // API truth.level (exact|derived|fallback) -> UI chip; freshness state -> UI dot.
@@ -104,8 +148,16 @@ export function uiFresh(state: string | undefined): UiFresh {
   if (state === "stale" || state === "unavailable") return "stale";
   return "fresh";
 }
-export const TRUTH_COLOR: Record<UiTruth, string> = { exact: "#14b8a6", derived: "#f5b73d", inferred: "#ff8a00" };
-export const FRESH_COLOR: Record<UiFresh, string> = { fresh: "#14b8a6", lagging: "#f5b73d", stale: "#f0506e" };
+export const TRUTH_COLOR: Record<UiTruth, string> = {
+  exact: "#14b8a6",
+  derived: "#f5b73d",
+  inferred: "#ff8a00",
+};
+export const FRESH_COLOR: Record<UiFresh, string> = {
+  fresh: "#14b8a6",
+  lagging: "#f5b73d",
+  stale: "#f0506e",
+};
 
 export function fmt(n: number | undefined): string {
   if (n === undefined || n === null) return "—";
