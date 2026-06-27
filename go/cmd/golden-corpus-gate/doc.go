@@ -14,9 +14,13 @@
 //     fact_work_items queue alone misses held projection intents, so this gate
 //     also waits for the projection-intent ledger to reach a terminal state.
 //   - graph: required correlations (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...)
-//     must exist. Per-label node and per-relationship edge counts are reported
-//     against the snapshot tolerances as advisory findings, because those
-//     ranges are calibrated for the full 20-repo corpus, not the minimal gate.
+//     must exist, and required edge/node properties must be present — e.g. the
+//     source_tool provenance token on Tier-2 shared-verb edges and a non-empty
+//     language on File nodes (#3997) — so a provenance regression fails the gate
+//     instead of passing silently. Per-label node and per-relationship edge
+//     counts are reported against the snapshot tolerances as advisory findings,
+//     because those ranges are calibrated for the full 20-repo corpus, not the
+//     minimal gate.
 //   - query: canonical HTTP responses carry their required shape.
 //   - timing: pipeline wall time stays within a budget multiplier.
 //

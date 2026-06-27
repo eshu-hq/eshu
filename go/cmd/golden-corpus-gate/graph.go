@@ -36,6 +36,17 @@ type graphCounter interface {
 	// isolates a single verb on a shared, tool-agnostic edge type (see
 	// RequiredCorrelation.EvidenceKinds).
 	CountCorrelationWithEvidence(ctx context.Context, from, rel, to string, evidenceKinds []string) (int64, error)
+	// ListCorrelationEdgeProperty returns the value of relationship property prop
+	// for every (from)-[rel]->(to) edge, narrowed to those whose evidence_kinds
+	// contains every kind in evidenceKinds (empty = no narrowing). A null/absent or
+	// non-string property yields "". The narrowing and value collection run in Go
+	// because NornicDB does not evaluate a WHERE clause on this relationship shape
+	// (see CountCorrelationWithEvidence); the gate corpus has at most a handful of
+	// edges per relationship type, so returning the values is cheap and bounded.
+	ListCorrelationEdgeProperty(ctx context.Context, from, rel, to string, evidenceKinds []string, prop string) ([]string, error)
+	// ListNodeProperty returns the value of property prop for every node carrying
+	// label. A null/absent or non-string property yields "".
+	ListNodeProperty(ctx context.Context, label, prop string) ([]string, error)
 }
 
 // boltGraphCounter runs counts over the shared Bolt driver used by every Eshu
@@ -141,6 +152,78 @@ func (b *boltGraphCounter) CountCorrelationWithEvidence(ctx context.Context, fro
 	return count, nil
 }
 
+// ListCorrelationEdgeProperty implements graphCounter: it returns prop for every
+// (from)-[rel]->(to) edge, narrowed by evidenceKinds in Go (see the interface
+// doc). prop is interpolated, so it is validated against identRE alongside the
+// labels and relationship type.
+func (b *boltGraphCounter) ListCorrelationEdgeProperty(ctx context.Context, from, rel, to string, evidenceKinds []string, prop string) ([]string, error) {
+	for _, id := range []string{from, rel, to, prop} {
+		if !identRE.MatchString(id) {
+			return nil, fmt.Errorf("unsafe edge-property identifier %q", id)
+		}
+	}
+	// Reject an empty narrowing kind for parity with CountCorrelationWithEvidence:
+	// an empty kind would silently narrow to nothing and make the edge-property
+	// finding pass vacuously, masking a real misconfiguration.
+	for _, kind := range evidenceKinds {
+		if kind == "" {
+			return nil, fmt.Errorf("empty evidence kind for edge property (:%s)-[:%s]->(:%s)", from, rel, to)
+		}
+	}
+	rows, err := neo4j.ExecuteQuery(ctx, b.driver,
+		fmt.Sprintf("MATCH (:%s)-[r:%s]->(:%s) RETURN r.evidence_kinds AS ek, r.%s AS pv", from, rel, to, prop),
+		nil, neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
+	if err != nil {
+		return nil, fmt.Errorf("list correlation edge property: %w", err)
+	}
+	out := make([]string, 0, len(rows.Records))
+	for _, rec := range rows.Records {
+		if len(evidenceKinds) > 0 {
+			raw, _ := rec.Get("ek")
+			if !edgeEvidenceContainsAll(raw, evidenceKinds) {
+				continue
+			}
+		}
+		pv, _ := rec.Get("pv")
+		out = append(out, boltPropertyString(pv))
+	}
+	return out, nil
+}
+
+// ListNodeProperty implements graphCounter: it returns prop for every node
+// carrying label. prop and label are interpolated, so both are validated.
+func (b *boltGraphCounter) ListNodeProperty(ctx context.Context, label, prop string) ([]string, error) {
+	for _, id := range []string{label, prop} {
+		if !identRE.MatchString(id) {
+			return nil, fmt.Errorf("unsafe node-property identifier %q", id)
+		}
+	}
+	rows, err := neo4j.ExecuteQuery(ctx, b.driver,
+		fmt.Sprintf("MATCH (n:%s) RETURN n.%s AS pv", label, prop),
+		nil, neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
+	if err != nil {
+		return nil, fmt.Errorf("list node property: %w", err)
+	}
+	out := make([]string, 0, len(rows.Records))
+	for _, rec := range rows.Records {
+		pv, _ := rec.Get("pv")
+		out = append(out, boltPropertyString(pv))
+	}
+	return out, nil
+}
+
+// boltPropertyString coerces a Bolt-decoded property value to a string for the
+// gate's presence/value checks. A null, absent, or non-string value yields ""
+// (treated as absent), which is conservative: a property the gate expects to be a
+// canonical string token but finds stored as another type counts as a violation
+// rather than silently passing.
+func boltPropertyString(raw any) string {
+	if s, ok := raw.(string); ok {
+		return s
+	}
+	return ""
+}
+
 // edgeEvidenceContainsAll reports whether the edge's evidence_kinds property
 // (a Bolt list value, decoded as []any of strings) contains every required
 // kind. A nil or non-list property contains nothing. An empty required set
@@ -188,6 +271,29 @@ func checkRequiredNodes(ctx context.Context, c graphCounter, requiredLabels []st
 	return nil
 }
 
+// checkRequiredNodeAssertions evaluates the snapshot's RequiredNodes: each asserts
+// label presence (count floor) and, when it names properties, that at least
+// MinimumCount nodes carry each property with a non-empty (and, when pinned,
+// allowed) value. It is snapshot-driven and distinct from checkRequiredNodes,
+// which serves the flag-driven smoke check.
+func checkRequiredNodeAssertions(ctx context.Context, c graphCounter, nodes []RequiredNode, r *Report) error {
+	for _, rn := range nodes {
+		count, err := c.CountNodes(ctx, rn.Label)
+		if err != nil {
+			return fmt.Errorf("count nodes %s: %w", rn.Label, err)
+		}
+		r.Add(evaluateRequiredNode(rn, count))
+		for _, prop := range rn.RequiredNodeProperties {
+			values, err := c.ListNodeProperty(ctx, rn.Label, prop)
+			if err != nil {
+				return fmt.Errorf("list node %s property %s: %w", rn.Label, prop, err)
+			}
+			r.Add(evaluateNodeProperty(rn, prop, values, rn.AllowedNodePropertyValues[prop]))
+		}
+	}
+	return nil
+}
+
 // checkGraph runs every B-7(b) graph assertion: required correlations and
 // node/edge count tolerances. blockingCorrelations names the correlation IDs
 // that fail the gate (the rest are advisory). requiredOnly limits the run to the
@@ -208,6 +314,19 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 			return fmt.Errorf("count correlation %s: %w", rc.ID, err)
 		}
 		r.Add(evaluateRequiredCorrelation(rc, count, blockingCorrelations[rc.ID]))
+		for _, prop := range rc.RequiredEdgeProperties {
+			values, err := c.ListCorrelationEdgeProperty(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel, rc.EvidenceKinds, prop)
+			if err != nil {
+				return fmt.Errorf("list correlation %s edge property %s: %w", rc.ID, prop, err)
+			}
+			r.Add(evaluateEdgeProperty(rc, prop, values, rc.AllowedEdgePropertyValues[prop], blockingCorrelations[rc.ID]))
+		}
+	}
+	// Required-node assertions (existence + optional property) are corpus-size
+	// independent like correlations, so they run in both the minimal and full
+	// gate, before the requiredOnly early return.
+	if err := checkRequiredNodeAssertions(ctx, c, snap.Graph.RequiredNodes, r); err != nil {
+		return err
 	}
 	if requiredOnly {
 		return nil

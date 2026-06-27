@@ -11,7 +11,7 @@ buckets.
 | Phase  | Bucket    | Required findings | Advisory findings |
 |--------|-----------|-------------------|-------------------|
 | drains | B-7(a)    | `fact_work_items` residual ≤ bound; `shared_projection_intents` nonterminal ≤ bound (B-13 / #3859 gate, incl. `repo_dependency` subset detail) | — |
-| graph  | B-7(b)    | required correlations exist (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...) | per-label node / per-relationship edge counts vs snapshot tolerances |
+| graph  | B-7(b)    | required correlations exist (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...); required edge/node **properties** present (e.g. `source_tool` on Tier-2 edges, `language` on `File` nodes) | per-label node / per-relationship edge counts vs snapshot tolerances |
 | query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields / minimum results | — |
 | timing | B-7(d)    | pipeline wall time ≤ `budget-multiplier` × baseline | — |
 
@@ -54,12 +54,38 @@ Exit status is non-zero when any **required** finding fails. Advisory findings
 print as `WARN` and never fail the gate. An empty report (no phase ran) fails:
 a gate that asserted nothing proved nothing.
 
+## Property assertions (source-tool / language provenance)
+
+Edge types and node labels alone do not prove **provenance** (#3997): a
+shared-verb edge like `DEPENDS_ON` is emitted by several tools, and a `File`
+carries a `language`. The snapshot can therefore assert *properties*, not just
+counts:
+
+- **Edge properties** on a `required_correlations` entry. `required_edge_properties`
+  lists relationship properties every matching edge must carry (non-empty);
+  `allowed_edge_property_values` optionally pins each to a canonical vocabulary.
+  The matching set is the entry's `evidence_kinds`-narrowed edges, so the check is
+  *absence-zero* (every isolated edge must be stamped) while the companion
+  `minimum_count` guards that the set is non-empty.
+- **Node properties** via a `required_nodes` entry (`required_node_properties`,
+  `allowed_node_property_values`). The check is *presence-positive*: at least
+  `minimum_count` nodes of the label must carry a non-empty (and, when pinned,
+  allowed) value. A label like `File` legitimately holds property-less nodes
+  (`LICENSE` has no `language`), so a floor of correctly-tagged nodes is asserted
+  rather than the absence of any untagged node.
+
+Both are additive and default to off, so an entry without property fields behaves
+exactly as before. A missing or un-normalized property fails the gate with a
+message naming the verb/label, the property, and the offending/short count — so a
+provenance regression can no longer pass silently.
+
 ## Files
 
 - `snapshot.go` — typed view + loader for the B-12 snapshot.
 - `evaluate.go` — pure assertion logic for every phase (unit-tested).
 - `drains.go` — Postgres drain queries + the drain poll loop.
-- `graph.go` — Bolt graph counts (nodes, edges, required correlations).
+- `graph.go` — Bolt graph counts (nodes, edges, required correlations) and
+  edge/node property listing for the provenance property assertions.
 - `query.go` — authenticated HTTP query-shape checks.
 - `report.go` — finding aggregation, severity, and rendering.
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
