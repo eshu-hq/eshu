@@ -174,11 +174,16 @@ async function main(): Promise<void> {
     `console-a11y: starting audit (${allTests.length} pages, mode=${gateMode ? "gate" : "baseline"})\n`,
   );
 
-  // Use the shared setup.ts infrastructure (same dev-server + browser path as
-  // the mock E2E runner, which is proven to work in CI).
-  const { page } = await getPage();
+  let gateFailed = false;
 
   try {
+    // Start the shared dev-server + browser (same path as the mock E2E runner,
+    // proven in CI) INSIDE the try so cleanup() still runs if getPage() rejects
+    // after spawning Vite / launching Chromium (e.g. the boot selector never
+    // appears) — otherwise a failed boot would orphan the dev server on port
+    // 5190 and poison the next local/CI retry.
+    const { page } = await getPage();
+
     // Single atomic pass: navigate each page once, collect both per-page
     // counts and structured violations. This prevents a false-green gate
     // when the dev server or browser dies between separate passes.
@@ -205,8 +210,6 @@ async function main(): Promise<void> {
         `Warning violations (moderate + minor): ${warn.reduce((sum, v) => sum + v.nodes, 0)} nodes across ${warn.length} instances\n`,
       );
 
-      let gateFailed = false;
-
       if (blocking.length > 0) {
         process.stdout.write("\nGATE FAILED: critical or serious a11y violations detected\n");
         for (const v of blocking) {
@@ -226,14 +229,19 @@ async function main(): Promise<void> {
         gateFailed = true;
       }
 
-      if (gateFailed) {
-        process.exit(1);
-      } else {
+      if (!gateFailed) {
         process.stdout.write("\nGATE PASSED: no critical or serious a11y violations\n");
       }
     }
   } finally {
     await cleanup();
+  }
+
+  // Exit only AFTER cleanup() has shut down Vite + Chromium. Calling
+  // process.exit(1) from inside the try would skip the finally and orphan the
+  // dev server on port 5190, breaking subsequent reruns.
+  if (gateFailed) {
+    process.exit(1);
   }
 }
 
