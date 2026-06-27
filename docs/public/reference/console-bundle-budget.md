@@ -12,6 +12,9 @@ documented per-chunk **bundle budget** that is checked after every build.
    JavaScript chunks under `apps/console/dist/assets`, classifies each chunk to
    a stable budget key, and fails (exit code `1`) if any chunk exceeds its
    documented threshold.
+3. After the budget gate passes, `console:build` runs
+   `npm run console:bundle-report`, which reads the same emitted assets and
+   prints a markdown composition table in local and CI logs.
 
 The gate also guards against a broken or restructured build that ships no usable
 JavaScript: if no main entry chunk is present (empty `assets` dir, CSS-only
@@ -28,6 +31,27 @@ npm run console:build
 
 Sizes are **raw, un-gzipped minified bytes** — the same number Vite prints in
 its build summary — so the budget output and the Vite log line up.
+
+## Composition report
+
+Run the report after a successful console build:
+
+```bash
+npm run console:bundle-report
+```
+
+The report prints a stable markdown table with these columns:
+
+| Column | Meaning |
+| ------ | ------- |
+| `chunk` | Emitted Vite asset filename, including the content hash. |
+| `dependency` | Stable owner label for the chunk, such as `app/main`, `react/react-dom/react-router-dom`, `d3`, `lucide-react`, or `app/async` when no package owner is known. |
+| `KB` | Raw minified size in kibibytes, matching the budget gate's size basis. |
+| `first-load?` | `yes` for the main entry and eager vendor chunks; `no` for route, diagram, and other async chunks. |
+
+The command exits non-zero if `apps/console/dist/assets` is missing or if no
+main `index-*.js` entry chunk is present, so CI does not publish a report for a
+broken or CSS-only build.
 
 ## Chunk strategy
 
