@@ -127,6 +127,10 @@ func discoverFromEnvelopeWithIndex(
 		evidence = append(evidence, discoverPuppetEvidence(
 			sourceRepoID, filePath, content, matcher, seen,
 		)...)
+	case isChefArtifact(filePath):
+		evidence = append(evidence, discoverChefEvidence(
+			sourceRepoID, filePath, content, matcher, seen,
+		)...)
 	case isDockerfileArtifact(artifactType, filePath):
 		evidence = append(evidence, discoverDockerfileEvidence(
 			sourceRepoID, filePath, commitSHA, parsedFileData, matcher, seen,

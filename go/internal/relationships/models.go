@@ -81,6 +81,9 @@ const (
 	// EvidenceKindPuppetModuleReference is a Puppetfile module git-source
 	// reference; the named module is owned by the target repository.
 	EvidenceKindPuppetModuleReference EvidenceKind = "PUPPET_MODULE_REFERENCE"
+	// EvidenceKindChefCookbookDependency is a Berksfile cookbook git-source
+	// dependency; the named cookbook is owned by the target repository.
+	EvidenceKindChefCookbookDependency EvidenceKind = "CHEF_COOKBOOK_DEPENDENCY"
 	// EvidenceKindGCPCloudRelationship is a supported GCP provider relationship
 	// whose source and target resource identities each resolve to one catalog
 	// repository.

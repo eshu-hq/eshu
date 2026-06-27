@@ -309,6 +309,23 @@ var goldenSet = []goldenCase{
 		ID: "puppet-module-neg-1", Kind: EvidenceKindPuppetModuleReference, Label: goldenNegative, GoldenConfidence: 0.792,
 		Rationale: "forge-only mod 'puppetlabs-stdlib', '9.4.0' has no git source and no catalog match",
 	},
+	// Chef cookbook dependencies. Positive golden score == the registry prior
+	// (0.90); negative == prior x 0.88 (0.792), mirroring the puppet/ansible
+	// rows. A Berksfile cookbook with an explicit git source resolves to the
+	// cookbook-owning repository; a Supermarket version constraint or commented
+	// source does not.
+	{
+		ID: "chef-cookbook-pos-1", Kind: EvidenceKindChefCookbookDependency, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "cookbook 'acme-base', git: github.com/acme/deployable-source resolves to the in-corpus cookbook repo",
+	},
+	{
+		ID: "chef-cookbook-pos-2", Kind: EvidenceKindChefCookbookDependency, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "cookbook 'acme-network', :git => github.com/acme/network-cookbooks resolves to the network cookbook repo",
+	},
+	{
+		ID: "chef-cookbook-neg-1", Kind: EvidenceKindChefCookbookDependency, Label: goldenNegative, GoldenConfidence: 0.792,
+		Rationale: "supermarket-only cookbook 'nginx', '~> 12.0' has no git source and no catalog match",
+	},
 
 	// DOCKER_COMPOSE_BUILD_CONTEXT (prior 0.91; neg 0.8008)
 	{
