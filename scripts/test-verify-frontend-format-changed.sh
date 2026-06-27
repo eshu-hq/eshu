@@ -63,6 +63,19 @@ run_verifier() {
   ) >"${output_file}" 2>&1
 }
 
+run_verifier_for_main_push() {
+  local repo_dir="$1"
+  local output_file="$2"
+  local prettier_dir="${tmp_root}/fake-bin"
+  fake_prettier "${prettier_dir}"
+  (
+    cd "${repo_dir}"
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
+      GITHUB_EVENT_NAME=push GITHUB_REF_NAME=main \
+      ESHU_PRETTIER_BIN="${prettier_dir}/prettier" "${verifier}"
+  ) >"${output_file}" 2>&1
+}
+
 assert_contains() {
   local needle="$1"
   local file="$2"
@@ -139,6 +152,24 @@ test_no_merge_base_uses_two_dot_fallback() {
   fi
 }
 
+test_main_push_checks_previous_commit_when_origin_main_is_head() {
+  local repo_dir="${tmp_root}/main-push"
+  local out="${tmp_root}/main-push.out"
+  git_init "${repo_dir}"
+  git_in "${repo_dir}" switch -q main
+  mkdir -p "${repo_dir}/src"
+  printf 'const value = "UNFORMATTED";\n' >"${repo_dir}/src/bad.ts"
+  git_in "${repo_dir}" add src/bad.ts
+  git_in "${repo_dir}" commit -q -m "bad format on main"
+  git_in "${repo_dir}" update-ref refs/remotes/origin/main HEAD
+  if run_verifier_for_main_push "${repo_dir}" "${out}"; then
+    echo "test-frontend-format: expected main push unformatted file to fail" >&2
+    cat "${out}" >&2
+    exit 1
+  fi
+  assert_contains "fake-prettier:" "${out}"
+}
+
 test_staged_no_frontend_js_ts_files_skips() {
   local repo_dir="${tmp_root}/staged-skip"
   local out="${tmp_root}/staged-skip.out"
@@ -179,6 +210,7 @@ test_no_changed_js_ts_files_skips
 test_changed_unformatted_js_ts_fails
 test_changed_formatted_js_ts_passes
 test_no_merge_base_uses_two_dot_fallback
+test_main_push_checks_previous_commit_when_origin_main_is_head
 test_staged_no_frontend_js_ts_files_skips
 test_staged_unformatted_js_ts_fails
 test_staged_formatted_js_ts_passes

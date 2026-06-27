@@ -44,6 +44,17 @@ base_ref_from_env() {
     return 0
   fi
 
+  if [[ "${GITHUB_EVENT_NAME:-}" == "push" ]] && [[ -z "${GITHUB_BASE_REF:-}" ]]; then
+    local push_ref_name="${GITHUB_REF_NAME:-${GITHUB_REF:-}}"
+    push_ref_name="${push_ref_name#refs/heads/}"
+    case "${push_ref_name}" in
+      main)
+        printf '%s\n' "HEAD~1"
+        return 0
+        ;;
+    esac
+  fi
+
   if [[ -n "${GITHUB_BASE_SHA:-}" ]] && commit_exists "${GITHUB_BASE_SHA}"; then
     printf '%s\n' "${GITHUB_BASE_SHA}"
     return 0
